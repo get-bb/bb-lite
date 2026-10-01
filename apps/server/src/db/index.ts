@@ -92,9 +92,9 @@ function prepareStatement(
 
 function toRow<Row>(keys: string[], values: unknown): Row {
   const cells = values as unknown[];
-  return Object.fromEntries(
-    keys.map((key, index) => [key, cells[index]]),
-  ) as Row;
+  const row: Record<string, unknown> = {};
+  keys.forEach((key, index) => (row[key] = cells[index]));
+  return row as Row;
 }
 
 export function openDatabase(options: OpenDatabaseOptions): Db {

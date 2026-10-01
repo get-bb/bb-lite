@@ -59,7 +59,8 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.config, async (c) => {
     const generalSettings = getAppSettings(ctx.db);
     const keybindingOverrides = readSetting(ctx.db, keybindingOverridesSetting);
-    const publicUrl = generalSettings.machineServerUrl;
+    const { machineServerUrl } = generalSettings;
+    const publicUrl = machineServerUrl?.replace(/\/+$/u, "") ?? null;
     return c.json({
       ...CUT_FEATURE_SYSTEM_CONFIG,
       serverAccess: {

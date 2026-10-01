@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
-import { lookup } from "mime-types";
+import { extname, join, resolve, sep } from "node:path";
+import { contentType } from "mime-types";
 import type { ApiApp } from "./api.js";
 
 const INDEX_PATH = "/index.html";
@@ -46,7 +46,7 @@ function fileResponse(
 ): Response {
   const headers = new Headers({
     "cache-control": cacheControl(urlPath),
-    "content-type": lookup(urlPath) || "application/octet-stream",
+    "content-type": contentType(extname(urlPath)) || "application/octet-stream",
   });
   if (urlPath.endsWith(".html")) {
     const digest = createHash("sha256").update(content).digest("hex");
