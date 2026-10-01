@@ -8,7 +8,9 @@ import {
   type ServerRunner,
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
+import { ensurePersonalProject } from "./db/projects.js";
 import { createHttpApp } from "./http/app.js";
+import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
@@ -19,7 +21,10 @@ export type StartupStep = (
   ctx: ServerContext,
 ) => void | Disposer | Promise<void | Disposer>;
 
-export const startupSteps: StartupStep[] = [];
+export const startupSteps: StartupStep[] = [
+  ensureLocalHost,
+  (ctx) => ensurePersonalProject(ctx.db),
+];
 
 export interface CreateServerOptions {
   config: ServerConfig;
