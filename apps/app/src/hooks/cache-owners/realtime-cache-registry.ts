@@ -529,7 +529,7 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
       dirtyProjectCommandCatalogQueries,
       dirtyPluginManagementQueries,
       dirtyEnvironmentProviderQueries,
-      reconcilePluginFrontendBundles,
+      reloadPlugins,
     ],
   },
   "provider-registrations-changed": {
@@ -1158,8 +1158,4 @@ function dirtyPluginManagementQueries(): QueryKey[] {
 
 function dirtyEnvironmentProviderQueries(): QueryKey[] {
   return [systemEnvironmentProvidersQueryKey()];
-}
-
-function reconcilePluginFrontendBundles(): void {
-  reloadPlugins();
 }

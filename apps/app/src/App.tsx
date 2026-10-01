@@ -11,7 +11,6 @@ import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
 import { useDesktopThemeSync } from "./hooks/useDesktopThemeSync";
 import { bootPlugins } from "@/plugins/external";
-import { markRouteContentPainted } from "./lib/route-content-paint";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "./hooks/useWebSocket";
 import {
@@ -138,17 +137,9 @@ export function AppRoutes() {
             }
           />
         </Routes>
-        <RouteContentPaintSignal />
       </Suspense>
     </AppLayout>
   );
-}
-
-function RouteContentPaintSignal() {
-  useEffect(() => {
-    markRouteContentPainted();
-  }, []);
-  return null;
 }
 
 export function App() {
