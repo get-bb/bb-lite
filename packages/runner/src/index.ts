@@ -7,6 +7,12 @@ export type {
 } from "./providers/provider.js";
 export { createEchoAdapter } from "./providers/echo.js";
 export { createCodexAdapter } from "./providers/codex.js";
+export { createClaudeAdapter } from "./providers/claude.js";
+export type {
+  ClaudeAdapterOptions,
+  ClaudeQuery,
+  ClaudeQueryInput,
+} from "./providers/claude.js";
 export type { AppServerChild } from "./providers/codex-rpc.js";
 export { buildAgentEnv, parseShellPath } from "./sessions/agent-env.js";
 export { Outbox } from "./sessions/outbox.js";

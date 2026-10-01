@@ -1,3 +1,4 @@
+import { createClaudeAdapter } from "./providers/claude.js";
 import { createCodexAdapter } from "./providers/codex.js";
 import { createEchoAdapter } from "./providers/echo.js";
 import type { ProviderAdapter } from "./providers/provider.js";
@@ -21,7 +22,7 @@ export interface LocalRunnerOptions {
 export type LocalSessionRunner = ManagedSessionApi & { outbox: Outbox };
 
 export function defaultAdapters(): ProviderAdapter[] {
-  return [createCodexAdapter(), createEchoAdapter()];
+  return [createCodexAdapter(), createClaudeAdapter(), createEchoAdapter()];
 }
 
 export function createLocalRunner(

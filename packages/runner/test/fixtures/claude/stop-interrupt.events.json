@@ -1,0 +1,630 @@
+[
+ {
+  "type": "thread/identity",
+  "providerThreadId": "3d9fa8c9-1ed1-4c66-a33f-3df051ba1f15",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "3d9fa8c9-1ed1-4c66-a33f-3df051ba1f15",
+  "scope": {
+   "kind": "thread"
+  },
+  "contextWindowUsage": {
+   "usedTokens": null,
+   "modelContextWindow": null,
+   "estimated": true
+  }
+ },
+ {
+  "type": "turn/started",
+  "providerThreadId": "3d9fa8c9-1ed1-4c66-a33f-3df051ba1f15",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  }
+ },
+ {
+  "type": "turn/input/accepted",
+  "providerThreadId": "3d9fa8c9-1ed1-4c66-a33f-3df051ba1f15",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "clientRequestId": "creq_srzqjiu4jx"
+ },
+ {
+  "type": "thread/identity",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "item/started",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i1",
+   "text": ""
+  }
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "#"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " The History of the UNIX Shell\n\n## Origins in the Machine Room\n\nThe UNIX shell began as a solution to a m"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "undane problem: how should a person tell a computer what to do? In the era of batch processing, the answer was punched cards and job control languages — rigid, formal, subm"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "itted to an operator and answered hours later. The shell's contribution was to make that conversation interactive, and then to make the con"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "versation itself programmable.\n\nThe lineage starts before UNIX itself. Louis Pouzin, working on"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " CTSS (the Compatible Time-Sharing System) at MIT in the mid-1960s, coined the term \"shell\" and built RUNCOM, a fac"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ility for executing stored sequences of commands. The name survives today in the `rc` suffix of files like `.bashrc` and `/etc/rc.d"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "` — a fossil of a program almost nobody alive has used. Pouzin also articulated the crucial idea that the command inter"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "preter should be an ordinary user program rather than a privileged part of the operating system. Multics adopted this design, and when Ken Thompson and Dennis Ritchie ret"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "reated from the Multics project to build something smaller on a cast-off PDP-7 at Bell Labs, they carried the"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " principle with them.\n\n## The Thompson Shell\n\nThompson's shell, shipped with the first editions of UNIX around 1971, was startlingly min"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "imal — a few hundred lines. It read a line, split it on whitespace, and executed the result. Its lasting contributions were sy"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ntactic marks that have never left us: `<` and `>` for redirecting input and output, `&` for running a command in the background, and a rudimentary form"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " of wildcard expansion handled by a separate program called `glob` (whose name became the verb we still use).\n\nThe Thompson shell was not, however, a programming language. It"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " had no variables, no meaningful control flow, and no way to define functions. Conditionals were implemented as external commands — `if` and `go"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "to` were separate binaries, and `goto` worked by physically seeking backward in the script file, which was possible only because the shell read scripts from a file descriptor it could rewind."
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " It was a clever hack that revealed the limits of the design.\n\n## The Pipe\n\nIn 1973, Doug McI"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "lroy's long-standing agitation for a way to connect programs \"like garden hose\" finally bore fruit. Thompson implemented p"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ipes in a single evening, and the `|` operator entered the shell. The effect on UNIX culture was immediate and permanent.\n\nThe pipe did not merely add a feature; it retroactively justified an"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " entire design philosophy. If programs could be composed, then programs should be small, should do one thing, should read text from standard input and write text to standard output, and should avoid chatty output"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " that would pollute a downstream consumer. McIlroy's summary — \"Write programs that do one thing and do it well. Write programs to"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " work together. Write programs to handle text streams, because that is a universal interface\" — became the closest thing UNIX has to a creed. The shell was the medium in which that creed was practiced."
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " Every pipeline is a small argument for modularity.\n\n## The Bourne Shell\n\nBy the mid-1970s the limitations of the Thompson shell were p"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ressing. Stephen Bourne, at Bell Labs, wrote a replacement that shipped with Version 7 UNIX in 1979. The Bourne shell (`sh`) turned the"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " command interpreter into a genuine programming language: variables, `if`/`then`/`else`/`fi`, `for` loops, `while` loops, `case` statements, functions, here-documents, and a coherent qu"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "oting model. Command substitution with backticks let the output of one program become the arguments of another. The environment — a set of inherited string"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " variables — was formalized, and with it the notion that a process carries a context.\n\nBourne's implementation was fam"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ously idiosyncratic. He had a fondness for ALGOL 68 and used C preprocessor macros to make C look like it:"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " `IF`, `THEN`, `FI`, `ELIF`. The source was, by most accounts, difficult reading. But the language it"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " implemented was solid enough that its syntax remains the basis of essentially every serious shell script written in the following four decades. The terminating keywords —"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " `fi`, `esac`, `done` — are Bourne's, and they are still typed millions of times a day.\n\n## The C Shell and the Berkeley Branch\n\nMeanwhile at"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " Berkeley, Bill Joy was building the other half of the story. His C shell (`csh`), released with BSD around 1978, deliberately ad"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "opted a syntax resembling C rather than ALGOL, on the theory that UNIX programmers already knew C. More importantly, Joy focused on the *interactive* exper"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ience, which Bourne had largely neglected.\n\n`csh` introduced job control — the ability to suspend a running program with Ctrl-Z, push it to the background with"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": " `bg`, retrieve it with `fg`, and list what was running with `jobs`. This was a genuine advance in usability, and it depended on k"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ernel work Joy also did to support process groups and terminal signals. `csh` also brought history substitution (`!!`, `!$`), aliases, and direct"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ory stacks — conveniences that made the terminal feel less like a teletype and more like a workspace.\n\nIts scripting language"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": ", however, was a mess. Tom Christiansen's 1995 essay \"Csh Programming Considered Harmful\" catalogued the parsing b"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i1",
+  "delta": "ugs, the broken quoting, and the inability to redirect standard error separately from standard output. The community converged on a durable compromise that persists to this day: use a cs"
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i1",
+   "text": "# The History of the UNIX Shell\n\n## Origins in the Machine Room\n\nThe UNIX shell began as a solution to a mundane problem: how should a person tell a computer what to do? In the era of batch processing, the answer was punched cards and job control languages — rigid, formal, submitted to an operator and answered hours later. The shell's contribution was to make that conversation interactive, and then to make the conversation itself programmable.\n\nThe lineage starts before UNIX itself. Louis Pouzin, working on CTSS (the Compatible Time-Sharing System) at MIT in the mid-1960s, coined the term \"shell\" and built RUNCOM, a facility for executing stored sequences of commands. The name survives today in the `rc` suffix of files like `.bashrc` and `/etc/rc.d` — a fossil of a program almost nobody alive has used. Pouzin also articulated the crucial idea that the command interpreter should be an ordinary user program rather than a privileged part of the operating system. Multics adopted this design, and when Ken Thompson and Dennis Ritchie retreated from the Multics project to build something smaller on a cast-off PDP-7 at Bell Labs, they carried the principle with them.\n\n## The Thompson Shell\n\nThompson's shell, shipped with the first editions of UNIX around 1971, was startlingly minimal — a few hundred lines. It read a line, split it on whitespace, and executed the result. Its lasting contributions were syntactic marks that have never left us: `<` and `>` for redirecting input and output, `&` for running a command in the background, and a rudimentary form of wildcard expansion handled by a separate program called `glob` (whose name became the verb we still use).\n\nThe Thompson shell was not, however, a programming language. It had no variables, no meaningful control flow, and no way to define functions. Conditionals were implemented as external commands — `if` and `goto` were separate binaries, and `goto` worked by physically seeking backward in the script file, which was possible only because the shell read scripts from a file descriptor it could rewind. It was a clever hack that revealed the limits of the design.\n\n## The Pipe\n\nIn 1973, Doug McIlroy's long-standing agitation for a way to connect programs \"like garden hose\" finally bore fruit. Thompson implemented pipes in a single evening, and the `|` operator entered the shell. The effect on UNIX culture was immediate and permanent.\n\nThe pipe did not merely add a feature; it retroactively justified an entire design philosophy. If programs could be composed, then programs should be small, should do one thing, should read text from standard input and write text to standard output, and should avoid chatty output that would pollute a downstream consumer. McIlroy's summary — \"Write programs that do one thing and do it well. Write programs to work together. Write programs to handle text streams, because that is a universal interface\" — became the closest thing UNIX has to a creed. The shell was the medium in which that creed was practiced. Every pipeline is a small argument for modularity.\n\n## The Bourne Shell\n\nBy the mid-1970s the limitations of the Thompson shell were pressing. Stephen Bourne, at Bell Labs, wrote a replacement that shipped with Version 7 UNIX in 1979. The Bourne shell (`sh`) turned the command interpreter into a genuine programming language: variables, `if`/`then`/`else`/`fi`, `for` loops, `while` loops, `case` statements, functions, here-documents, and a coherent quoting model. Command substitution with backticks let the output of one program become the arguments of another. The environment — a set of inherited string variables — was formalized, and with it the notion that a process carries a context.\n\nBourne's implementation was famously idiosyncratic. He had a fondness for ALGOL 68 and used C preprocessor macros to make C look like it: `IF`, `THEN`, `FI`, `ELIF`. The source was, by most accounts, difficult reading. But the language it implemented was solid enough that its syntax remains the basis of essentially every serious shell script written in the following four decades. The terminating keywords — `fi`, `esac`, `done` — are Bourne's, and they are still typed millions of times a day.\n\n## The C Shell and the Berkeley Branch\n\nMeanwhile at Berkeley, Bill Joy was building the other half of the story. His C shell (`csh`), released with BSD around 1978, deliberately adopted a syntax resembling C rather than ALGOL, on the theory that UNIX programmers already knew C. More importantly, Joy focused on the *interactive* experience, which Bourne had largely neglected.\n\n`csh` introduced job control — the ability to suspend a running program with Ctrl-Z, push it to the background with `bg`, retrieve it with `fg`, and list what was running with `jobs`. This was a genuine advance in usability, and it depended on kernel work Joy also did to support process groups and terminal signals. `csh` also brought history substitution (`!!`, `!$`), aliases, and directory stacks — conveniences that made the terminal feel less like a teletype and more like a workspace.\n\nIts scripting language, however, was a mess. Tom Christiansen's 1995 essay \"Csh Programming Considered Harmful\" catalogued the parsing bugs, the broken quoting, and the inability to redirect standard error separately from standard output. The community converged on a durable compromise that persists to this day: use a cs"
+  }
+ },
+ {
+  "type": "turn/completed",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "status": "interrupted"
+ },
+ {
+  "type": "thread/identity",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "thread"
+  },
+  "contextWindowUsage": {
+   "usedTokens": null,
+   "modelContextWindow": null,
+   "estimated": true
+  }
+ },
+ {
+  "type": "turn/started",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  }
+ },
+ {
+  "type": "turn/input/accepted",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "clientRequestId": "creq_xj9ctsyuaz"
+ },
+ {
+  "type": "item/started",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i2",
+   "text": ""
+  }
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "itemId": "da00000000-i2",
+  "delta": "4"
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 29910,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i2",
+   "text": "4"
+  }
+ },
+ {
+  "type": "provider/rateLimits/updated",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "thread"
+  },
+  "rateLimits": {
+   "providerId": "claude-code",
+   "status": "allowed",
+   "kind": "subscription-window",
+   "windows": [
+    {
+     "providerKey": "five_hour",
+     "label": "Five-hour limit",
+     "status": "allowed",
+     "resetsAtMs": 1787288400000
+    }
+   ],
+   "reachedReason": null,
+   "overageStatus": "allowed",
+   "overageReason": null
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 29910,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "thread/tokenUsage/updated",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "tokenUsage": {
+   "total": {
+    "totalTokens": 29913,
+    "inputTokens": 2,
+    "cachedInputTokens": 29908,
+    "cacheReadInputTokens": 20642,
+    "cacheWriteInputTokens": 9266,
+    "outputTokens": 3,
+    "reasoningOutputTokens": 0
+   },
+   "last": {
+    "totalTokens": 29913,
+    "inputTokens": 2,
+    "cachedInputTokens": 29908,
+    "cacheReadInputTokens": 20642,
+    "cacheWriteInputTokens": 9266,
+    "outputTokens": 3,
+    "reasoningOutputTokens": 0
+   },
+   "modelContextWindow": 1000000
+  }
+ },
+ {
+  "type": "turn/completed",
+  "providerThreadId": "e88a21f9-e5b3-4a30-94e2-8cf6f8a98e0c",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t2"
+  },
+  "status": "completed",
+  "providerCheckpointId": "1c96d733-aa75-40df-ab9d-06bbf9499d3e"
+ }
+]

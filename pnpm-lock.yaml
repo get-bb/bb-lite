@@ -889,6 +889,9 @@ importers:
       '@bb/fuzzy-match':
         specifier: workspace:*
         version: link:../fuzzy-match
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.30.0(zod@4.6.5)
       '@parcel/watcher':
         specifier: 2.5.6
         version: 2.5.6

@@ -1,0 +1,316 @@
+[
+ {
+  "type": "thread/identity",
+  "providerThreadId": "e2c9fa91-f249-4ca3-9e93-d7f25e96298e",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "e2c9fa91-f249-4ca3-9e93-d7f25e96298e",
+  "scope": {
+   "kind": "thread"
+  },
+  "contextWindowUsage": {
+   "usedTokens": null,
+   "modelContextWindow": null,
+   "estimated": true
+  }
+ },
+ {
+  "type": "turn/started",
+  "providerThreadId": "e2c9fa91-f249-4ca3-9e93-d7f25e96298e",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  }
+ },
+ {
+  "type": "turn/input/accepted",
+  "providerThreadId": "e2c9fa91-f249-4ca3-9e93-d7f25e96298e",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "clientRequestId": "creq_xmucp6mn46"
+ },
+ {
+  "type": "thread/identity",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 28771,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "item/started",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "toolCall",
+   "id": "da00000000-i1",
+   "tool": "ToolSearch",
+   "arguments": {
+    "query": "select:WebSearch,WebFetch",
+    "max_results": 2
+   },
+   "status": "pending",
+   "presentation": {
+    "label": {
+     "pending": "Searching tools",
+     "completed": "Searched tools"
+    },
+    "icon": {
+     "glyph": "Toolbox"
+    },
+    "suppress": true,
+    "title": "select:WebSearch,WebFetch"
+   }
+  }
+ },
+ {
+  "type": "provider/rateLimits/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "thread"
+  },
+  "rateLimits": {
+   "providerId": "claude-code",
+   "status": "allowed",
+   "kind": "subscription-window",
+   "windows": [
+    {
+     "providerKey": "five_hour",
+     "label": "Five-hour limit",
+     "status": "allowed",
+     "resetsAtMs": 1787288400000
+    }
+   ],
+   "reachedReason": null,
+   "overageStatus": "allowed",
+   "overageReason": null
+  }
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "toolCall",
+   "id": "da00000000-i1",
+   "tool": "ToolSearch",
+   "arguments": {
+    "query": "select:WebSearch,WebFetch",
+    "max_results": 2
+   },
+   "status": "completed",
+   "result": "Matched tools: WebSearch, WebFetch",
+   "presentation": {
+    "label": {
+     "pending": "Searching tools",
+     "completed": "Searched tools"
+    },
+    "icon": {
+     "glyph": "Toolbox"
+    },
+    "suppress": true,
+    "title": "select:WebSearch,WebFetch"
+   }
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 30614,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "item/started",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "webFetch",
+   "id": "da00000000-i2",
+   "url": "https://nodejs.org/dist/index.json",
+   "prompt": "What is the version of the first entry that has a non-false \"lts\" field? Report the version string and lts codename.",
+   "pattern": null,
+   "resultText": null,
+   "presentation": {
+    "label": {
+     "pending": "Fetching page",
+     "completed": "Fetched page"
+    },
+    "icon": {
+     "glyph": "Browser"
+    },
+    "title": "https://nodejs.org/dist/index.json"
+   }
+  }
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "webFetch",
+   "id": "da00000000-i2",
+   "url": "https://nodejs.org/dist/index.json",
+   "prompt": "What is the version of the first entry that has a non-false \"lts\" field? Report the version string and lts codename.",
+   "pattern": null,
+   "resultText": "Looking at the JSON data provided, I need to find the first entry (from the top) where the \"lts\" field is not `false`.\n\nScanning through the entries:\n\n- v26.7.0: \"lts\":false\n- v26.6.0: \"lts\":false\n- v26.5.1: \"lts\":false\n- v26.5.0: \"lts\":false\n- v26.4.0: \"lts\":false\n- v26.3.1: \"lts\":false\n- v26.3.0: \"lts\":false\n- v26.2.0: \"lts\":false\n- v26.1.0: \"lts\":false\n- v26.0.0: \"lts\":false\n- v25.9.0: \"lts\":false\n- ...continuing down...\n- v24.19.0: \"lts\":\"Krypton\" ✓\n\n**Answer:**\n\nThe first entry with a non-false \"lts\" field is **v24.19.0** with the LTS codename **\"Krypton\"**.",
+   "presentation": {
+    "label": {
+     "pending": "Fetching page",
+     "completed": "Fetched page"
+    },
+    "icon": {
+     "glyph": "Browser"
+    },
+    "title": "https://nodejs.org/dist/index.json"
+   }
+  }
+ },
+ {
+  "type": "item/started",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i3",
+   "text": ""
+  }
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i3",
+  "delta": "24"
+ },
+ {
+  "type": "item/agentMessage/delta",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "itemId": "da00000000-i3",
+  "delta": "\n\nSources: [nodejs.org/dist/index.json](https://nodejs.org/dist/index.json) — first LTS entry is v24.19.0 (\"Krypton\")."
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 31040,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i3",
+   "text": "24\n\nSources: [nodejs.org/dist/index.json](https://nodejs.org/dist/index.json) — first LTS entry is v24.19.0 (\"Krypton\")."
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 31040,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "thread/tokenUsage/updated",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "tokenUsage": {
+   "total": {
+    "totalTokens": 90688,
+    "inputTokens": 6,
+    "cachedInputTokens": 90419,
+    "cacheReadInputTokens": 76754,
+    "cacheWriteInputTokens": 13665,
+    "outputTokens": 263,
+    "reasoningOutputTokens": 0
+   },
+   "last": {
+    "totalTokens": 90688,
+    "inputTokens": 6,
+    "cachedInputTokens": 90419,
+    "cacheReadInputTokens": 76754,
+    "cacheWriteInputTokens": 13665,
+    "outputTokens": 263,
+    "reasoningOutputTokens": 0
+   },
+   "modelContextWindow": 1000000
+  }
+ },
+ {
+  "type": "turn/completed",
+  "providerThreadId": "27e9e658-01fe-4846-8725-c70abc1c34f8",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "status": "completed",
+  "providerCheckpointId": "1f2b5f47-eb04-428d-85c2-4c048ad5c904"
+ }
+]

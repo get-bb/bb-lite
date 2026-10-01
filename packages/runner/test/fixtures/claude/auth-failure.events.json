@@ -1,0 +1,133 @@
+[
+ {
+  "type": "thread/identity",
+  "providerThreadId": "e5331b50-3334-4b07-b079-d45dd8f054ce",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "e5331b50-3334-4b07-b079-d45dd8f054ce",
+  "scope": {
+   "kind": "thread"
+  },
+  "contextWindowUsage": {
+   "usedTokens": null,
+   "modelContextWindow": null,
+   "estimated": true
+  }
+ },
+ {
+  "type": "turn/started",
+  "providerThreadId": "e5331b50-3334-4b07-b079-d45dd8f054ce",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  }
+ },
+ {
+  "type": "turn/input/accepted",
+  "providerThreadId": "e5331b50-3334-4b07-b079-d45dd8f054ce",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "clientRequestId": "creq_ajprn9c3n3"
+ },
+ {
+  "type": "thread/identity",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "thread"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 0,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "item/completed",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "item": {
+   "type": "agentMessage",
+   "id": "da00000000-i1",
+   "text": "Not logged in · Please run /login"
+  }
+ },
+ {
+  "type": "thread/contextWindowUsage/updated",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "contextWindowUsage": {
+   "usedTokens": 0,
+   "modelContextWindow": 1000000,
+   "estimated": true
+  }
+ },
+ {
+  "type": "thread/tokenUsage/updated",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "tokenUsage": {
+   "total": {
+    "totalTokens": 0,
+    "inputTokens": 0,
+    "cachedInputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 0,
+    "reasoningOutputTokens": 0
+   },
+   "last": {
+    "totalTokens": 0,
+    "inputTokens": 0,
+    "cachedInputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 0,
+    "reasoningOutputTokens": 0
+   },
+   "modelContextWindow": null
+  }
+ },
+ {
+  "type": "provider/error",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "message": "Provider error",
+  "detail": "Not logged in · Please run /login"
+ },
+ {
+  "type": "turn/completed",
+  "providerThreadId": "54386450-a88e-4d9e-b4e1-8893a0c47239",
+  "scope": {
+   "kind": "turn",
+   "turnId": "da00000000-t1"
+  },
+  "status": "failed",
+  "providerCheckpointId": "4a270486-b600-43dd-a6bd-07b72524f931"
+ }
+]
