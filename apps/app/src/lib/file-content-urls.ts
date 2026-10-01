@@ -94,14 +94,3 @@ export function buildThreadHostFileContentUrl(
     }),
   );
 }
-
-export function buildHostFileContentUrl(
-  hostId: string,
-  absolutePath: string,
-): string {
-  return toRelativeUrl(
-    apiClient.hosts[":id"].files[":filePath{.+}"].$url({
-      param: { id: hostId, filePath: encodeHostFilePath(absolutePath) },
-    }),
-  );
-}

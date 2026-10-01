@@ -13,7 +13,7 @@ import type { GitDiffFileChangeKind } from "@bb/server-contract";
 import { useIntersectionObserver } from "usehooks-ts";
 import { Button } from "@bb/shared-ui/button";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { DiffHost } from "@/components/code/DiffHost";
+import BbDiff from "@/components/code/BbDiff";
 import type {
   DiffPresentation,
   ExperimentalDiffFullFileContents,
@@ -691,7 +691,7 @@ function GitDiffCardSvgBody({
       fitToFrame
     />
   ) : (
-    <DiffHost
+    <BbDiff
       file={fileDiff}
       patchText={patchText}
       fullFileContents={fullFileContents}
@@ -775,7 +775,7 @@ export function GitDiffCardBody({
         />
       ) : (
         <>
-          <DiffHost
+          <BbDiff
             file={fileDiff}
             patchText={patchText}
             fullFileContents={fullFileContents}

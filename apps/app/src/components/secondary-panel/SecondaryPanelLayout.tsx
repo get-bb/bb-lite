@@ -18,7 +18,6 @@ import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useResponsiveDrawerRealization } from "@bb/shared-ui/responsive-overlay";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CompactSecondaryPanelShelf } from "./CompactSecondaryPanelShelf";
-import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import {
   useOptionalPaneContext,
   usePaneSecondaryPanelRegistration,
@@ -68,7 +67,6 @@ interface SecondaryPanelLayoutProps {
   };
   renderPanel: (args: SecondaryPanelRenderArgs) => ReactNode;
   renderHostedPanel?: (panel: ReactNode) => ReactNode;
-  composerHost: PluginComposerHost | null;
 }
 
 export function SecondaryPanelLayout({
@@ -86,7 +84,6 @@ export function SecondaryPanelLayout({
   collapse,
   renderPanel,
   renderHostedPanel,
-  composerHost,
 }: SecondaryPanelLayoutProps) {
   const { ref: sizingRef, minimum: minimumSize } = useSecondaryPanelSizing();
   const paneContext = useOptionalPaneContext();
@@ -255,7 +252,6 @@ export function SecondaryPanelLayout({
   );
   const hostedPanelModel = useMemo<PaneSecondaryPanelViewModel>(
     () => ({
-      composerHost,
       contentKey,
       isMainCollapsed,
       isOpen: open,
@@ -264,7 +260,6 @@ export function SecondaryPanelLayout({
       transitionsReady,
     }),
     [
-      composerHost,
       contentKey,
       inlinePanel,
       isMainCollapsed,

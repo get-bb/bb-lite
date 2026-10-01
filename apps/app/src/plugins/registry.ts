@@ -198,10 +198,6 @@ export function unregisterPluginApp(pluginId: string): void {
   if (slotsByPluginId.delete(pluginId)) publish();
 }
 
-export function registeredPluginIds(): string[] {
-  return [...slotsByPluginId.keys()];
-}
-
 export function markPluginsSettled(): void {
   if (settled) return;
   settled = true;

@@ -18,7 +18,7 @@ import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
-import { PluginIcon, PluginItemIcon } from "@/components/plugin/PluginIcon";
+import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/plugins/mount";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
@@ -27,11 +27,6 @@ import {
   LazyThreadTerminalPanel,
 } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
-import {
-  HostScopedFilePreviewTabContent,
-  ThreadStorageFilePreviewTabContent,
-  WorkspaceFilePreviewTabContent,
-} from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import type {
   SecondaryPanelFixedTab,
   SecondaryPanelRenderableTab,
@@ -46,11 +41,15 @@ import type { TerminalCreateTarget } from "@bb/server-contract";
 import {
   createPluginPageFixedPanelTab,
   createTerminalFixedPanelTab,
+  type NewTabFixedPanelTab,
   type PluginPageFixedPanelTab,
-  type SecondaryFileFixedPanelTab,
   type TerminalFixedPanelTab,
 } from "@/lib/fixed-panel-tabs-state";
-import { activateSecondaryPanelTabInState } from "@bb/client-core";
+import {
+  activateSecondaryPanelTabInState,
+  getActiveTabIdAfterPrune,
+  setSecondaryPanelTabsInState,
+} from "@bb/client-core";
 import {
   useCloseTerminal,
   useCreateTerminal,
@@ -59,19 +58,12 @@ import {
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { usePluginSlots } from "@/plugins/registry";
-import { AppNavigationHostProvider } from "@/lib/app-navigation-host";
-import {
-  getPluginFixedTabOwnerId,
-  openAppFixedTabFromDestinations,
-  type AppFixedTabDestination,
-} from "@/lib/app-fixed-tab-navigation";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import {
   resolveTerminalHost,
   TerminalHostSelector,
 } from "@/components/secondary-panel/TerminalHostSelector";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
-import { PluginPanelTabContent } from "./PluginPanelActions";
 
 const TERMINAL_COLS = 100;
 const TERMINAL_ROWS = 30;
@@ -224,7 +216,6 @@ export function PluginPanelRightPanelHost({
     closeTab,
     openTab,
     orderedSecondaryFileTabs,
-    reopenClosedTab,
     reorderTab,
   } = useThreadFileTabs({
     panelStateId,
@@ -232,7 +223,6 @@ export function PluginPanelRightPanelHost({
     environmentId: null,
     fileOwnerThreadId: null,
     onCloseLastTab: closeCompactDrawer,
-    preserveWorkspaceTabsAcrossContexts: true,
     storageFiles: undefined,
     terminalSessions: undefined,
   });
@@ -274,6 +264,27 @@ export function PluginPanelRightPanelHost({
     terminalsById,
   ]);
 
+  useLayoutEffect(() => {
+    updatePanelState((state) => {
+      const tabs = state.secondary.tabs.filter(
+        (tab) =>
+          tab.kind === "plugin-page-fixed" ||
+          tab.kind === "terminal" ||
+          tab.kind === "new-tab",
+      );
+      if (tabs.length === state.secondary.tabs.length) return state;
+      return setSecondaryPanelTabsInState({
+        activeTabId: getActiveTabIdAfterPrune(
+          tabs,
+          state.secondary.activeTabId,
+        ),
+        isOpen: state.secondary.isOpen,
+        state,
+        tabs,
+      });
+    });
+  }, [updatePanelState]);
+
   useEffect(() => {
     closeCompactDrawer();
   }, [closeCompactDrawer, subPath]);
@@ -288,51 +299,6 @@ export function PluginPanelRightPanelHost({
       secondary: { ...state.secondary, isOpen: true },
     }));
   }, [isCompactViewport, setCompactDrawerOpen, updatePanelState]);
-  const fixedTabOwnerId = getPluginFixedTabOwnerId(
-    pluginId,
-    panel?.id ?? panelPath,
-  );
-  const fixedTabDestinations = useMemo<readonly AppFixedTabDestination[]>(
-    () =>
-      (panel?.fixedTabs ?? []).flatMap((registration) => {
-        const tab = fixedViewTabs.find(
-          (candidate) => candidate.fixedTabId === registration.id,
-        );
-        if (tab === undefined) return [];
-        return [
-          {
-            tab: {
-              ownerId: fixedTabOwnerId,
-              tabId: registration.id,
-            },
-            open: (target) => {
-              if (target !== undefined) return false;
-              updatePanelState((state) =>
-                activateSecondaryPanelTabInState(state, tab.id),
-              );
-              revealPanel();
-              return true;
-            },
-          },
-        ];
-      }),
-    [
-      fixedViewTabs,
-      fixedTabOwnerId,
-      panel?.fixedTabs,
-      revealPanel,
-      updatePanelState,
-    ],
-  );
-  const openFixedTab = useCallback(
-    (intent: Parameters<typeof openAppFixedTabFromDestinations>[1]) =>
-      openAppFixedTabFromDestinations(fixedTabDestinations, intent),
-    [fixedTabDestinations],
-  );
-  const navigationCapabilities = useMemo(
-    () => ({ openFixedTab }),
-    [openFixedTab],
-  );
   const hidePanel = useCallback(() => {
     if (isCompactViewport) {
       closeCompactDrawer();
@@ -361,11 +327,6 @@ export function PluginPanelRightPanelHost({
   useAppCommandHandler("panel.newTab", () => {
     if (!isFocused || panel === null) return false;
     openNewTab();
-    return true;
-  });
-  useAppCommandHandler("panel.reopenClosedTab", () => {
-    if (!isFocused || panel === null || !reopenClosedTab()) return false;
-    revealPanel();
     return true;
   });
 
@@ -469,13 +430,10 @@ export function PluginPanelRightPanelHost({
               />
             ),
             onSelect: () => {
-              openFixedTab({
-                surface: { kind: "current" },
-                tab: {
-                  ownerId: fixedTabOwnerId,
-                  tabId: registration.id,
-                },
-              });
+              updatePanelState((state) =>
+                activateSecondaryPanelTabInState(state, tab.id),
+              );
+              revealPanel();
             },
             renderContent: () =>
               panel === null ? null : (
@@ -495,17 +453,19 @@ export function PluginPanelRightPanelHost({
       }),
     [
       fixedViewTabs,
-      fixedTabOwnerId,
       isOpen,
-      openFixedTab,
       panel,
       pluginId,
+      revealPanel,
       subPath,
+      updatePanelState,
     ],
   );
 
   const renderPanelTabContent = useCallback(
-    function renderTabContent(tab: SecondaryFileFixedPanelTab): ReactNode {
+    function renderTabContent(
+      tab: TerminalFixedPanelTab | NewTabFixedPanelTab,
+    ): ReactNode {
       switch (tab.kind) {
         case "terminal":
           if (tab.target === undefined) return null;
@@ -550,39 +510,6 @@ export function PluginPanelRightPanelHost({
               }
             />
           );
-        case "workspace-file-preview":
-          return tab.environmentId === null ? null : (
-            <WorkspaceFilePreviewTabContent
-              activePath={tab.path}
-              environmentId={tab.environmentId}
-              isPanelOpen={isOpen}
-              lineRange={tab.lineRange}
-              source={tab.source}
-              statusLabel={tab.statusLabel}
-            />
-          );
-        case "host-file-preview":
-          return tab.hostId === null ? null : (
-            <HostScopedFilePreviewTabContent
-              activePath={tab.path}
-              hostId={tab.hostId}
-              isPanelOpen={isOpen}
-              lineRange={tab.lineRange}
-            />
-          );
-        case "thread-storage-file-preview":
-          return tab.threadId === null ? null : (
-            <ThreadStorageFilePreviewTabContent
-              activePath={tab.path}
-              isPanelOpen={isOpen}
-              lineRange={tab.lineRange}
-              threadId={tab.threadId}
-            />
-          );
-        case "plugin-panel":
-          return (
-            <PluginPanelTabContent tab={tab} context={{ kind: "new-thread" }} />
-          );
       }
     },
     [
@@ -600,6 +527,7 @@ export function PluginPanelRightPanelHost({
   const panelTabs = useMemo<readonly SecondaryPanelRenderableTab[]>(
     () =>
       orderedSecondaryFileTabs.flatMap((tab): SecondaryPanelRenderableTab[] => {
+        if (tab.kind !== "terminal" && tab.kind !== "new-tab") return [];
         const shared = {
           onSelect: () => {
             activateTab(tab.id);
@@ -632,40 +560,6 @@ export function PluginPanelRightPanelHost({
                 ...shared,
                 label: "New tab",
                 leadingVisual: <Icon name="NewTab" className="size-3.5" />,
-                statusLabel: null,
-                onClose: () => closeTab(tab.id),
-              },
-            ];
-          case "workspace-file-preview":
-          case "host-file-preview":
-          case "thread-storage-file-preview":
-            return [
-              {
-                ...shared,
-                isPinned:
-                  tab.kind === "thread-storage-file-preview" && tab.isPinned,
-                label: tab.path.split(/[\\/]/u).at(-1) ?? tab.path,
-                leadingVisual: <Icon name="File" className="size-3.5" />,
-                statusLabel:
-                  tab.kind === "workspace-file-preview"
-                    ? tab.statusLabel
-                    : null,
-                onClose: () => closeTab(tab.id),
-              },
-            ];
-          case "plugin-panel":
-            return [
-              {
-                ...shared,
-                contentFillsRegion: true,
-                label: tab.title,
-                leadingVisual: (
-                  <PluginIcon
-                    pluginId={tab.pluginId}
-                    icon={null}
-                    className="size-3.5"
-                  />
-                ),
                 statusLabel: null,
                 onClose: () => closeTab(tab.id),
               },
@@ -750,13 +644,12 @@ export function PluginPanelRightPanelHost({
         drawerFallback={null}
         mainPanelId={`plugin-panel-main-${panelHostId}`}
         main={children}
-        composerHost={null}
         renderPanel={renderPanel}
       />
     </div>
   );
 
-  const routedPage = (
+  return (
     <>
       {panel !== null &&
       togglePortalTarget !== null &&
@@ -784,11 +677,5 @@ export function PluginPanelRightPanelHost({
         : null}
       {page}
     </>
-  );
-
-  return (
-    <AppNavigationHostProvider capabilities={navigationCapabilities}>
-      {routedPage}
-    </AppNavigationHostProvider>
   );
 }

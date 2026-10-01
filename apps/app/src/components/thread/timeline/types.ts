@@ -45,31 +45,6 @@ export type ThreadTimelineAddToChatHandler = (
   attachments?: readonly PromptDraftAttachment[],
 ) => void;
 
-export interface ThreadTimelinePluginMessageAction {
-  key: string;
-  pluginId: string | null;
-  icon: string | null;
-  label: string;
-  onSelect: () => void;
-}
-
-export interface ThreadChatMessageReference {
-  id: string;
-  threadId: string;
-  role: "user" | "assistant";
-  text: string;
-  sourceSeqEnd: number;
-}
-
-export interface ThreadTimelineConsumerMessageAction {
-  id: string;
-  pluginId: string | null;
-  icon: string | null;
-  label: string;
-  roles?: readonly ("user" | "assistant")[];
-  run(message: ThreadChatMessageReference): void | Promise<void>;
-}
-
 export type ThreadTimelineUnreadDividerPlacement =
   | {
       kind: "after-cutoff";

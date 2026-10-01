@@ -1,19 +1,19 @@
 import type { JsonValue } from "@bb/plugin/app";
-import type {
-  AppFixedTabOpenIntent,
-  AppFixedTabReference,
-} from "@/lib/app-navigation-host";
+
+export interface AppFixedTabReference {
+  ownerId: string;
+  tabId: string;
+}
+
+export interface AppFixedTabOpenIntent {
+  surface: { kind: "current" };
+  tab: AppFixedTabReference;
+  target?: JsonValue;
+}
 
 export interface AppFixedTabDestination {
   open(target: JsonValue | undefined): boolean;
   tab: AppFixedTabReference;
-}
-
-export function getPluginFixedTabOwnerId(
-  pluginId: string,
-  panelId: string,
-): string {
-  return `plugin:${pluginId}:${panelId}`;
 }
 
 export function openAppFixedTabFromDestinations(

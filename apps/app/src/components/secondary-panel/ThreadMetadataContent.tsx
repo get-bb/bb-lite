@@ -525,8 +525,6 @@ export function MergeBaseRow({
           value={mergeBaseBranch}
           options={mergeBaseCandidates}
           remoteOptions={remoteMergeBaseCandidates}
-          variant="minimal"
-          emphasizeTriggerValue={false}
           loading={
             isLoadingMergeBaseBranchOptions || canRequestMergeBaseOptions
           }

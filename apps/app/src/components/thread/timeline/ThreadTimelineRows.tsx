@@ -56,9 +56,6 @@ import type {
   ThreadTimelineLocalFileLinkHandler,
   ThreadTimelineOpenPluginPanelHandler,
   ThreadTimelineImageViewSrcResolver,
-  ThreadChatMessageReference,
-  ThreadTimelineConsumerMessageAction,
-  ThreadTimelinePluginMessageAction,
   ThreadTimelineUnreadDividerPlacement,
   UserAttachmentImageSrcResolver,
 } from "./types.js";
@@ -139,7 +136,6 @@ export interface ThreadTimelineRowsProps {
   inlineMessageEditor?: ThreadTimelineInlineMessageEditor;
   onMessageAddToChat?: ThreadTimelineAddToChatHandler;
   onSelectionAddToChat?: ThreadTimelineAddToChatHandler;
-  consumerMessageActions?: readonly ThreadTimelineConsumerMessageAction[];
   onOpenLink?: ThreadTimelineLinkHandler;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   onOpenPluginPanel?: ThreadTimelineOpenPluginPanelHandler;
@@ -168,13 +164,8 @@ interface TimelineRendererStaticContextValue {
   inlineMessageEditor: ThreadTimelineInlineMessageEditor | undefined;
   onMessageAddToChat: ThreadTimelineAddToChatHandler | undefined;
   onSelectionAddToChat: ThreadTimelineAddToChatHandler | undefined;
-  consumerMessageActions: readonly ThreadTimelineConsumerMessageAction[];
   reportProseSelection:
-    | ((
-        rowId: string,
-        selection: MessageProseSelection | null,
-        message: ThreadChatMessageReference,
-      ) => void)
+    | ((rowId: string, selection: MessageProseSelection | null) => void)
     | undefined;
   threadOriginKind: ThreadOriginKind | null;
   onOpenLink: ThreadTimelineLinkHandler | undefined;
@@ -712,44 +703,6 @@ function findLastActionableUserMessageId(
   return lastMessageId;
 }
 
-const EMPTY_CONSUMER_MESSAGE_ACTIONS: readonly ThreadTimelineConsumerMessageAction[] =
-  [];
-
-function buildRowConsumerMessageActions(args: {
-  actions: readonly ThreadTimelineConsumerMessageAction[];
-  message: ThreadChatMessageReference;
-}): readonly ThreadTimelinePluginMessageAction[] {
-  const { actions, message } = args;
-  return actions
-    .filter(
-      (action) =>
-        action.roles === undefined || action.roles.includes(message.role),
-    )
-    .map((action) => ({
-      key: `consumer/${action.id}`,
-      pluginId: action.pluginId,
-      icon: action.icon,
-      label: action.label,
-      onSelect: () => {
-        const warn = (error: unknown) => {
-          console.warn(
-            `ThreadChat messageAction "${action.id}" failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        };
-        try {
-          const result = action.run(message);
-          if (result instanceof Promise) {
-            result.catch(warn);
-          }
-        } catch (error) {
-          warn(error);
-        }
-      },
-    }));
-}
-
 function ConversationRow({
   row,
   showAssistantMessageActions,
@@ -809,7 +762,6 @@ const ConversationRowContent = memo(function ConversationRowContent({
     onForkMessage,
     onMessageAddToChat,
     onSelectionAddToChat,
-    consumerMessageActions,
     reportProseSelection,
     threadOriginKind,
     onOpenLink,
@@ -830,22 +782,6 @@ const ConversationRowContent = memo(function ConversationRowContent({
   ) {
     return <InlineMessageEditorHost editor={inlineMessageEditor} />;
   }
-  const messageReference: ThreadChatMessageReference = {
-    id: row.id,
-    threadId: row.threadId,
-    role: row.role,
-    text: row.text,
-    sourceSeqEnd: row.sourceSeqEnd,
-  };
-  const rowConsumerActions =
-    consumerMessageActions.length === 0
-      ? []
-      : buildRowConsumerMessageActions({
-          actions: consumerMessageActions,
-          message: messageReference,
-        });
-  const rowPluginActions =
-    rowConsumerActions.length === 0 ? undefined : rowConsumerActions;
   if (row.role === "user") {
     const senderThreadMetadata =
       row.senderThreadId === null
@@ -904,7 +840,6 @@ const ConversationRowContent = memo(function ConversationRowContent({
         senderThreadTitle={senderThreadMetadata?.title ?? null}
         systemMessageKind={row.systemMessageKind}
         systemMessageSubject={row.systemMessageSubject}
-        pluginActions={rowPluginActions}
         text={row.text}
         threadId={row.threadId}
         turnRequest={row.turnRequest}
@@ -925,7 +860,6 @@ const ConversationRowContent = memo(function ConversationRowContent({
             selection === null
               ? null
               : { ...selection, sourceSeqEnd: row.sourceSeqEnd },
-            messageReference,
           );
   return (
     <ConversationMessageContent
@@ -938,7 +872,6 @@ const ConversationRowContent = memo(function ConversationRowContent({
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}
       onOpenPluginPanel={onOpenPluginPanel}
-      pluginActions={rowPluginActions}
       projectId={projectId}
       resolveUserAttachmentImageSrc={resolveUserAttachmentImageSrc}
       role="assistant"
@@ -1889,22 +1822,17 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
   const [activeSelection, setActiveSelection] = useState<{
     rowId: string;
     selection: MessageProseSelection;
-    message: ThreadChatMessageReference;
   } | null>(null);
   const reportProseSelection = useMemo<
-    | ((
-        rowId: string,
-        selection: MessageProseSelection | null,
-        message: ThreadChatMessageReference,
-      ) => void)
+    | ((rowId: string, selection: MessageProseSelection | null) => void)
     | undefined
   >(
     () =>
       hasSelectionActions
-        ? (rowId, selection, message) => {
+        ? (rowId, selection) => {
             setActiveSelection((current) => {
               if (selection !== null) {
-                return { rowId, selection, message };
+                return { rowId, selection };
               }
               return current?.rowId === rowId ? null : current;
             });
@@ -1940,8 +1868,6 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
       inlineMessageEditor: props.inlineMessageEditor,
       onMessageAddToChat: props.onMessageAddToChat,
       onSelectionAddToChat: selectionAddToChatHandler,
-      consumerMessageActions:
-        props.consumerMessageActions ?? EMPTY_CONSUMER_MESSAGE_ACTIONS,
       reportProseSelection,
       threadOriginKind: props.threadOriginKind ?? null,
       onOpenLink: props.onOpenLink,
@@ -1964,7 +1890,6 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
       props.inlineMessageEditor,
       props.onMessageAddToChat,
       selectionAddToChatHandler,
-      props.consumerMessageActions,
       reportProseSelection,
       props.threadOriginKind,
       props.onOpenLink,

@@ -30,7 +30,6 @@ interface UseLocalOpenTargetsArgs {
 }
 
 interface OpenLocalPathRequest {
-  columnNumber?: number | null;
   lineNumber: number | null;
   path: string;
 }
@@ -83,15 +82,9 @@ interface DispatchOpenFailureToastArgs {
 }
 
 interface SupportedLineNumberArgs {
-  columnNumber: number | null;
   contextKind: WorkspaceOpenTargetContextKind;
   lineNumber: number | null;
   target: WorkspaceOpenTarget;
-}
-
-interface SupportedLocation {
-  columnNumber: number | null;
-  lineNumber: number | null;
 }
 
 interface UseOpenTargetResolutionArgs {
@@ -128,26 +121,14 @@ function dispatchOpenFailureToast(args: DispatchOpenFailureToastArgs): void {
   });
 }
 
-function getSupportedLocation(
-  args: SupportedLineNumberArgs,
-): SupportedLocation {
-  const lineNumber = supportsWorkspaceOpenTargetCapability({
+function getSupportedLineNumber(args: SupportedLineNumberArgs): number | null {
+  return supportsWorkspaceOpenTargetCapability({
     capability: "openFileAtLine",
     contextKind: args.contextKind,
     target: args.target,
   })
     ? args.lineNumber
     : null;
-  const columnNumber =
-    lineNumber !== null &&
-    supportsWorkspaceOpenTargetCapability({
-      capability: "openFileAtColumn",
-      contextKind: args.contextKind,
-      target: args.target,
-    })
-      ? args.columnNumber
-      : null;
-  return { columnNumber, lineNumber };
 }
 
 function useOpenTargetResolution(
@@ -291,16 +272,14 @@ export function useLocalOpenTargets(
       }
 
       try {
-        const location = getSupportedLocation({
-          columnNumber: request.columnNumber ?? null,
-          contextKind,
-          lineNumber: request.lineNumber,
-          target: request.target,
-        });
         await openWorkspace({
-          columnNumber: location.columnNumber,
+          columnNumber: null,
           context: openContext,
-          lineNumber: location.lineNumber,
+          lineNumber: getSupportedLineNumber({
+            contextKind,
+            lineNumber: request.lineNumber,
+            target: request.target,
+          }),
           path: request.path,
           targetId: request.target.id,
         });
@@ -336,7 +315,6 @@ export function useLocalOpenTargets(
       }
 
       return openPathInAvailableTarget({
-        columnNumber: request.columnNumber ?? null,
         lineNumber: request.lineNumber,
         path: request.path,
         rememberTarget: request.rememberTarget,
@@ -362,7 +340,6 @@ export function useLocalOpenTargets(
       }
 
       return openPathInAvailableTarget({
-        columnNumber: request.columnNumber ?? null,
         lineNumber: request.lineNumber,
         path: request.path,
         rememberTarget: request.rememberTarget,
@@ -386,7 +363,6 @@ export function useLocalOpenTargets(
       }
 
       return openPathInAvailableTarget({
-        columnNumber: request.columnNumber ?? null,
         lineNumber: request.lineNumber,
         path: request.path,
         rememberTarget: false,
@@ -423,7 +399,6 @@ export function useLocalOpenTargets(
       }
 
       return openPathInAvailableTarget({
-        columnNumber: request.columnNumber ?? null,
         lineNumber: request.lineNumber,
         path: request.path,
         rememberTarget: false,

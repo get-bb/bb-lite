@@ -36,10 +36,7 @@ import type {
 } from "@bb/server-contract";
 import type { ChildThreadPendingAttention } from "@/hooks/queries/child-thread-pending-interactions";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
-import {
-  type PluginComposerHost,
-  usePublishPluginComposerHost,
-} from "@/components/plugin/plugin-composer-host";
+import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import {
   ThreadPromptContextBanner,
   type ContextBannerMergeBaseConfig,
@@ -1522,11 +1519,6 @@ export function ThreadDetailPromptArea({
     thread.id,
     inlineTypeaheadConfig,
   ]);
-  usePublishPluginComposerHost(
-    queuedMessageEditor
-      ? queuedMessagePluginComposerHost
-      : normalPluginComposerHost,
-  );
   const sentMessageEditOperationId = sentMessageEdit?.operationId ?? null;
   const sentMessagePluginComposerHost =
     useMemo<PluginComposerHost | null>(() => {

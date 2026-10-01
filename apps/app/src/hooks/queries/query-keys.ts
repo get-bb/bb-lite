@@ -40,7 +40,6 @@ const THREAD_STORAGE_LOCATION_QUERY_KEY = "threadStorageLocation";
 const THREAD_STORAGE_PATHS_QUERY_KEY = "threadStoragePaths";
 const THREAD_STORAGE_FILE_PREVIEW_QUERY_KEY = "threadStorageFilePreview";
 const THREAD_HOST_FILE_PREVIEW_QUERY_KEY = "threadHostFilePreview";
-const HOST_FILE_PREVIEW_QUERY_KEY = "hostFilePreview";
 const ENVIRONMENT_QUERY_KEY = "environment";
 export const ENVIRONMENT_WORK_STATUS_QUERY_KEY = "environmentWorkStatus";
 export const ENVIRONMENT_MERGE_BASE_BRANCHES_QUERY_KEY =
@@ -286,11 +285,6 @@ type ThreadHostFilePreviewQueryKey = readonly [
 ];
 type AllThreadHostFilePreviewQueryKeyPrefix = readonly [
   typeof THREAD_HOST_FILE_PREVIEW_QUERY_KEY,
-];
-type HostFilePreviewQueryKey = readonly [
-  typeof HOST_FILE_PREVIEW_QUERY_KEY,
-  string | null,
-  string | null,
 ];
 type EnvironmentQueryKeyPrefix = readonly [typeof ENVIRONMENT_QUERY_KEY];
 type EnvironmentQueryKey = readonly [
@@ -813,13 +807,6 @@ export function threadHostFilePreviewQueryKey(
   path: string | null,
 ): ThreadHostFilePreviewQueryKey {
   return [THREAD_HOST_FILE_PREVIEW_QUERY_KEY, threadId, environmentId, path];
-}
-
-export function hostFilePreviewQueryKey(
-  hostId: string | null,
-  path: string | null,
-): HostFilePreviewQueryKey {
-  return [HOST_FILE_PREVIEW_QUERY_KEY, hostId, path];
 }
 
 export function allThreadHostFilePreviewQueryKeyPrefix(): AllThreadHostFilePreviewQueryKeyPrefix {

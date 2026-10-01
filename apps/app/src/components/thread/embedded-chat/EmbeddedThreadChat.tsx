@@ -38,7 +38,6 @@ import {
   ThreadTimelinePanelContent,
   ThreadTimelineSurface,
   type ThreadTimelineAddToChatHandler,
-  type ThreadTimelineConsumerMessageAction,
   type ThreadTimelineLinkHandler,
   type ThreadTimelineLocalFileLinkHandler,
   type ThreadTimelineSurfaceProps,
@@ -110,7 +109,6 @@ interface EmbeddedThreadChatSharedProps {
   promptContextEnvironmentId: string | null;
   resolveMentionLink: PromptMentionLinkResolver;
   leadingContent?: ReactNode;
-  consumerMessageActions?: readonly ThreadTimelineConsumerMessageAction[];
   onOpenLink?: ThreadTimelineLinkHandler;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   workspaceRootPath?: string;
@@ -177,7 +175,6 @@ function EmbeddedThreadChatWithComposer({
   promptContextEnvironmentId,
   resolveMentionLink,
   leadingContent,
-  consumerMessageActions,
   onOpenLink,
   onOpenLocalFileLink,
   workspaceRootPath,
@@ -1054,7 +1051,6 @@ function EmbeddedThreadChatWithComposer({
     <ThreadTimelinePanelContent
       isTurnSubmitting={isTurnSubmitting}
       leadingContent={leadingContent}
-      consumerMessageActions={consumerMessageActions}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}
       onMessageAddToChat={handleAddToChat}

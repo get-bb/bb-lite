@@ -30,28 +30,6 @@ import {
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { PromptDraftAttachment } from "@bb/client-core";
 import { usePortalScopeProps } from "@/lib/portal-scope";
-import { PluginItemIcon, pluginIconName } from "@/components/plugin/PluginIcon";
-import type { ThreadTimelinePluginMessageAction } from "./types.js";
-
-function PluginActionIcon({
-  pluginId,
-  icon,
-  className,
-}: {
-  pluginId: string | null;
-  icon: string | null;
-  className?: string;
-}) {
-  return pluginId === null ? (
-    <Icon
-      name={pluginIconName(icon)}
-      className={cn("size-4 shrink-0", className)}
-      aria-hidden="true"
-    />
-  ) : (
-    <PluginItemIcon pluginId={pluginId} icon={icon} className={className} />
-  );
-}
 
 interface MessageActionBarProps {
   messageText: string;
@@ -66,13 +44,10 @@ interface MessageActionBarProps {
   onEdit?: () => void;
   onFork?: () => void;
   disabled?: boolean;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
 }
 
 interface MessageOverflowAction {
   icon: "Copy" | "Edit" | "MessageSquarePlus" | "Fork" | "ArrowTurnBackward";
-  plugin?: { pluginId: string | null; icon: string | null };
-  key?: string;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
@@ -90,13 +65,7 @@ function MessageActionIcon({
   className?: string;
   ariaHidden?: "true";
 }) {
-  return action.plugin ? (
-    <PluginActionIcon
-      pluginId={action.plugin.pluginId}
-      icon={action.plugin.icon}
-      className={className}
-    />
-  ) : (
+  return (
     <Icon name={action.icon} className={className} aria-hidden={ariaHidden} />
   );
 }
@@ -258,7 +227,7 @@ function MobileMessageOverflowPopover({
         >
           {actions.map((action) => (
             <button
-              key={action.key ?? action.label}
+              key={action.label}
               type="button"
               className={MOBILE_OVERFLOW_ITEM_CLASS}
               disabled={action.disabled}
@@ -371,7 +340,7 @@ function MessageActionMenuItems({
 }) {
   return actions.map((action) => (
     <DropdownMenuItem
-      key={action.key ?? action.label}
+      key={action.label}
       disabled={action.disabled}
       onSelect={action.onSelect}
       textValue={action.label}
@@ -392,7 +361,6 @@ export function MessageActionBar({
   onEdit,
   onFork,
   disabled,
-  pluginActions = [],
 }: MessageActionBarProps) {
   const isCompactViewport = useIsCompactViewport();
   const isPointerCoarse = usePointerCoarse();
@@ -513,13 +481,6 @@ export function MessageActionBar({
           },
         ]
       : []),
-    ...pluginActions.map((action) => ({
-      icon: "Copy" as const,
-      plugin: { pluginId: action.pluginId, icon: action.icon },
-      key: action.key,
-      label: action.label,
-      onSelect: action.onSelect,
-    })),
   ];
 
   if (actions.length === 0) {
@@ -632,7 +593,7 @@ export function MessageActionBar({
         <div className={rowClass} data-menu-open={isMenuOpen ? "" : undefined}>
           {actions.slice(0, layout.inlineCount).map((action) => (
             <DesktopMessageAction
-              key={action.key ?? action.label}
+              key={action.label}
               action={action}
               className={cn(HOVER_REVEAL_CLASS, mobileDirectActionClass)}
               collisionBoundary={collisionBoundary}
@@ -704,7 +665,7 @@ function MobileInlineActions({
     action.kind === "copy" ? (
       onCopied ? (
         <button
-          key={action.key ?? action.label}
+          key={action.label}
           type="button"
           className={cn(
             ACTION_BUTTON_CLASS,
@@ -726,7 +687,7 @@ function MobileInlineActions({
         </button>
       ) : (
         <CopyButton
-          key={action.key ?? action.label}
+          key={action.label}
           text={action.copyText ?? ""}
           imageUrl={action.copyImageUrl}
           label={action.label}
@@ -735,7 +696,7 @@ function MobileInlineActions({
       )
     ) : (
       <button
-        key={action.key ?? action.label}
+        key={action.label}
         type="button"
         className={cn(
           ACTION_BUTTON_CLASS,

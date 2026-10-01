@@ -18,9 +18,6 @@ export interface ExperimentalDiffFullFileContents {
   new: ExperimentalDiffFileContent;
 }
 
-export const DEFAULT_CODE_OVERFLOW: CodeOverflowMode = "scroll";
-export const DEFAULT_DIFF_VIEW: DiffViewMode = "unified";
-
 interface SourceCodePresentation {
   overflow: CodeOverflowMode;
   highlightedLines: SourceCodeLineRange | null;
@@ -36,8 +33,6 @@ export interface BbSourceCodeProps extends SourceCodePresentation {
   content: string;
   path: string;
   cacheKey?: string;
-  className?: string;
-  scrollToHighlightedLines?: boolean;
   onSelectionAddToChat?: (text: string) => void;
 }
 
@@ -45,6 +40,5 @@ export interface BbDiffProps extends DiffPresentation {
   file: ParsedGitDiffFile;
   patchText?: string;
   fullFileContents: ExperimentalDiffFullFileContents | null;
-  className?: string;
   onSelectionAddToChat?: (text: string) => void;
 }

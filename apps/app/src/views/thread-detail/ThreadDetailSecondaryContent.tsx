@@ -1,10 +1,6 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  PluginComposerHostScopeProvider,
-  usePluginComposerHost,
-} from "@/components/plugin/plugin-composer-host";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import {
@@ -44,17 +40,7 @@ interface ThreadDetailSecondaryContentProps {
   timeline: ThreadTimelinePaneProps;
 }
 
-export function ThreadDetailSecondaryContent(
-  props: ThreadDetailSecondaryContentProps,
-) {
-  return (
-    <PluginComposerHostScopeProvider>
-      <ThreadDetailSecondaryContentBody {...props} />
-    </PluginComposerHostScopeProvider>
-  );
-}
-
-function ThreadDetailSecondaryContentBody({
+export function ThreadDetailSecondaryContent({
   footer,
   header,
   isMetadataLoading,
@@ -68,8 +54,6 @@ function ThreadDetailSecondaryContentBody({
   secondaryPanel,
   timeline,
 }: ThreadDetailSecondaryContentProps) {
-  const composerHost = usePluginComposerHost();
-
   const forksQuery = useThreads(
     {
       projectId: metadata.thread.projectId,
@@ -119,7 +103,6 @@ function ThreadDetailSecondaryContentBody({
           active: isConversationCollapsed,
           onToggle: onToggleConversationCollapse,
         }}
-        composerHost={composerHost}
         renderHostedPanel={renderHostedPanel}
         renderPanel={({
           presentation,

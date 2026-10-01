@@ -2,7 +2,6 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { usePluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style.js";
@@ -60,7 +59,6 @@ export function RootComposeSecondaryContent({
 }: RootComposeSecondaryContentProps) {
   const paneContext = useOptionalPaneContext();
   const secondaryPanelHost = paneContext?.secondaryPanelHost ?? null;
-  const composerHost = usePluginComposerHost();
   const [desktopInfo] = useState(getBbDesktopInfo);
   const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
   const rendersWindowDragStrip =
@@ -130,7 +128,6 @@ export function RootComposeSecondaryContent({
         drawerFallback={<DrawerPanelLoadingSkeleton />}
         mainPanelId="root-compose-main-panel"
         main={mainContent}
-        composerHost={composerHost}
         renderPanel={({
           presentation,
           onToggleMainCollapse,

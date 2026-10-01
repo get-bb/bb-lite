@@ -69,7 +69,6 @@ import {
   SelectableMessageProse,
   type MessageProseSelection,
 } from "./SelectableMessageProse.js";
-import type { ThreadTimelinePluginMessageAction } from "./types.js";
 import type { PromptDraftAttachment } from "@bb/client-core";
 import { buildMarkdownMessageLinkRouting } from "@/components/ui/markdown-message-link-routing";
 
@@ -77,7 +76,6 @@ interface ConversationMessageContentBaseProps {
   attachments: TimelineConversationAttachments | null;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   onOpenPluginPanel?: MarkdownMessageDirectives["openThreadPanel"];
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   projectId?: string;
   resolveUserAttachmentImageSrc?: UserAttachmentImageSrcResolver;
   text: string;
@@ -148,7 +146,6 @@ interface UserConversationMessageProps {
   addToChatAttachments: readonly PromptDraftAttachment[];
   attachmentItems: ConversationAttachmentItems;
   originKind: ThreadOriginKind | null;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   initiator: TimelineUserConversationRow["initiator"];
   mentions: readonly PromptTextMention[];
   mobileActionDisplay: "inline" | "overflow";
@@ -174,7 +171,6 @@ interface UserConversationMessageProps {
 interface AssistantConversationMessageProps extends AssistantMessageRowIdentity {
   addToChatAttachments: readonly PromptDraftAttachment[];
   attachmentItems: ConversationAttachmentItems;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onFork?: () => void;
   forkDisabled?: boolean;
@@ -334,7 +330,6 @@ function UserConversationMessage({
   onEdit,
   onOpenLink,
   onOpenLocalFileLink,
-  pluginActions = [],
   projectId,
   resolveMentionLink,
   resolveSegmentLinkHref,
@@ -450,7 +445,6 @@ function UserConversationMessage({
             copyImageUrl={attachmentItems.imageItems[0]?.src}
             onAddToChat={onAddToChat}
             onEdit={onEdit}
-            pluginActions={pluginActions}
           />
         </div>
       </div>
@@ -469,7 +463,6 @@ function AssistantConversationMessage({
   onOpenLink,
   onOpenLocalFileLink,
   onOpenPluginPanel,
-  pluginActions,
   projectId,
   showActions,
   mobileActionDisplay,
@@ -605,7 +598,6 @@ function AssistantConversationMessage({
           onAddToChat={onAddToChat}
           onFork={onFork}
           disabled={forkDisabled}
-          pluginActions={pluginActions}
         />
       ) : null}
     </div>
@@ -643,7 +635,6 @@ export function ConversationMessageContent(
         addToChatAttachments={addToChatAttachments}
         attachmentItems={attachmentItems}
         originKind={props.originKind}
-        pluginActions={props.pluginActions}
         initiator={props.initiator}
         mentions={props.mentions}
         mobileActionDisplay={props.mobileActionDisplay ?? "overflow"}
@@ -673,7 +664,6 @@ export function ConversationMessageContent(
       addToChatAttachments={addToChatAttachments}
       attachmentItems={attachmentItems}
       id={props.id}
-      pluginActions={props.pluginActions}
       onAddToChat={props.onAddToChat}
       onFork={props.onFork}
       forkDisabled={props.forkDisabled}

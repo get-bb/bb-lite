@@ -21,7 +21,7 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useElementWidth } from "@/hooks/useElementWidth";
-import { SourceCodeHost } from "@/components/code/SourceCodeHost";
+import BbSourceCode from "@/components/code/BbSourceCode";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CopyButton } from "@/components/ui/copy-button.js";
@@ -1352,13 +1352,12 @@ function FilePreviewCode({
     [lineRange],
   );
   return (
-    <SourceCodeHost
+    <BbSourceCode
       content={file.contents}
       path={path}
       cacheKey={file.cacheKey ?? file.name}
       overflow={lineOverflowMode}
       highlightedLines={highlightedLines}
-      scrollToHighlightedLines
       onSelectionAddToChat={onSelectionAddToChat}
     />
   );
