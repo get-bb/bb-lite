@@ -1134,60 +1134,6 @@ export interface PluginSidebarThread {
   latestAttentionAt: number;
 }
 
-/**
- * The pull request for a thread's branch, narrowed to what a sidebar row
- * needs. `attention` is bb's rolled-up "does this need you" signal, so a row
- * can colour a badge without reading checks, review, and mergeability itself.
- */
-export interface PluginSidebarPullRequest {
-  /** Whether GitHub auto-merge is enabled. */
-  experimental_autoMerge: boolean;
-  /** Null when the GitHub merge queue lookup is unavailable. */
-  experimental_inMergeQueue: boolean | null;
-  experimental_checks: {
-    state: "passing" | "failing" | "pending" | "no_checks" | "unknown";
-  };
-  experimental_review: {
-    state:
-      | "approved"
-      | "changes_requested"
-      | "review_required"
-      | "review_requested"
-      | "none";
-  };
-  experimental_mergeability: {
-    state: "mergeable" | "conflicts" | "blocked" | "draft" | "unknown";
-  };
-  number: number;
-  title: string;
-  url: string;
-  state: "draft" | "open" | "merged" | "closed";
-  attention:
-    | "checks_failed"
-    | "checks_pending"
-    | "changes_requested"
-    | "review_requested"
-    | "conflicts"
-    | "blocked"
-    | "draft"
-    | "queued"
-    | "ready_to_merge"
-    | "merged"
-    | "closed"
-    | "none";
-}
-
-export interface PluginSidebarThreadPullRequestState {
-  /** True while the first lookup for this thread's environment is in flight. */
-  isLoading: boolean;
-  /**
-   * The pull request, or null when the branch has none, the thread has no
-   * environment, or the lookup could not run (a git-host hiccup). A row should
-   * treat null as "nothing to show", never as an error.
-   */
-  pullRequest: PluginSidebarPullRequest | null;
-}
-
 /** One project in the sidebar's live view. */
 export interface PluginSidebarProject {
   id: string;
@@ -1679,56 +1625,6 @@ export interface PluginTargetedPanelActionOpenOptions extends PluginPanelActionO
   actionId: string;
 }
 
-/** Context handed to a `messageAction`'s `run`. */
-export interface PluginMessageActionContext {
-  /** The thread whose timeline surfaced the action. */
-  threadId: string;
-  message: ThreadChatMessageReference;
-  /**
-   * Present only when the action was invoked from the text-selection menu;
-   * the exact text the user highlighted inside `message`.
-   */
-  selectedText?: string;
-  /**
-   * Open one of this plugin's `threadPanelAction` components in the current
-   * thread's side panel — the registration-callback equivalent of
-   * `useBbNavigate().openThreadPanel`.
-   *
-   * Returns true when the host accepted the open; false when it declined —
-   * `params` was not a JSON value, the action id names no `threadPanelAction`
-   * of this plugin, or the surface has no side panel (only the main thread
-   * view does; a `ThreadChat` embedded in a plugin panel does not). A decline
-   * is never thrown: the host logs it and reports it here.
-   */
-  openPanel(options: PluginTargetedPanelActionOpenOptions): boolean;
-  /**
-   * The composer of the thread the message is in, or null when that thread's
-   * composer is not available on this surface. The same handle
-   * `useComposer()` returns there.
-   */
-  composer: PluginComposerApi | null;
-}
-
-/**
- * An action on chat messages: an icon button in the per-message action bar
- * (user and assistant messages) and an entry in the assistant-message
- * text-selection menu. Host-rendered chrome — the plugin supplies title,
- * icon, and `run` behavior only. Resolved icon names take precedence over
- * plugin branding; omitted or unknown names fall back to branding.
- */
-export interface PluginMessageActionRegistration {
-  /** Unique within the plugin; letters, digits, `-`, `_`. */
-  id: string;
-  /** Tooltip / menu label for the action. */
-  title: string;
-  icon?: BbIconName;
-  /**
-   * Runs when the user activates the action. Errors (sync or async) are
-   * contained and logged; they never break the timeline.
-   */
-  run(context: PluginMessageActionContext): void | Promise<void>;
-}
-
 /** Current context for palette and keyboard command invocations. */
 export interface PluginCommandContext {
   /** The thread in view, or null on a surface without one. */
@@ -1945,33 +1841,6 @@ export interface PluginEnvironmentProviderInputsRegistration {
   component: ComponentType<PluginEnvironmentProviderInputsProps>;
 }
 
-/**
- * Props passed to an `experimental_machineProviderInputs` component. Machine
- * inputs are persisted and readable by every plugin, so they must contain only
- * non-secret configuration and references to credentials held in plugin
- * settings.
- */
-export interface PluginMachineProviderInputsProps {
-  /** The value persisted with the machine selection. */
-  value: JsonValue | null;
-  /** Replace the submitted value or block submission with a visible reason. */
-  onChange(next: PluginMachineProviderInputsChange): void;
-}
-
-export type PluginMachineProviderInputsChange =
-  | { status: "ready"; value: JsonValue }
-  | { status: "blocked"; reason: string };
-
-/**
- * Supply the inputs control for one machine provider registered server-side
- * through `bb.experimental_machines.register`.
- */
-export interface PluginMachineProviderInputsRegistration {
-  /** The machine provider id this control supplies inputs for. */
-  machineProviderId: string;
-  component: ComponentType<PluginMachineProviderInputsProps>;
-}
-
 // ---------------------------------------------------------------------------
 // definePluginApp
 // ---------------------------------------------------------------------------
@@ -2047,7 +1916,6 @@ export interface PluginAppSlots {
    */
   experimental_diffRenderer(registration: PluginDiffRendererRegistration): void;
   messageDirective(registration: PluginMessageDirectiveRegistration): void;
-  messageAction(registration: PluginMessageActionRegistration): void;
   /**
    * @deprecated Use `app.commands.register` with the same registration.
    * Both entry points share the same command registry and ID namespace.
@@ -2077,14 +1945,6 @@ export interface PluginAppSlots {
    */
   experimental_environmentProviderInputs(
     registration: PluginEnvironmentProviderInputsRegistration,
-  ): void;
-  /**
-   * Supply the non-secret machine inputs control rendered by machine creation
-   * surfaces (see {@link PluginMachineProviderInputsRegistration}).
-   * Experimental: see docs/api_to_audit.md.
-   */
-  experimental_machineProviderInputs(
-    registration: PluginMachineProviderInputsRegistration,
   ): void;
 }
 
@@ -3335,20 +3195,6 @@ export interface PluginSdkApp {
    * docs/api_to_audit.md.
    */
   experimental_useSidebarThreadActions(): PluginSidebarThreadActions;
-  /**
-   * The pull request for one thread's branch (see
-   * {@link PluginSidebarThreadPullRequestState}).
-   *
-   * Per row and opt-in, because it costs a git-host lookup: it is NOT on the
-   * thread payload every sidebar loads. Threads sharing an environment share
-   * one query, and the host owns the polling and staleness rules — an open PR
-   * with pending checks refreshes, a merged one does not.
-   *
-   * Experimental: see docs/api_to_audit.md.
-   */
-  experimental_useSidebarThreadPullRequest(
-    threadId: string,
-  ): PluginSidebarThreadPullRequestState;
   /**
    * Per-row drag-to-split support (see {@link PluginSidebarThreadSplit}).
    * Call it once per rendered row, like the built-in sidebar does.

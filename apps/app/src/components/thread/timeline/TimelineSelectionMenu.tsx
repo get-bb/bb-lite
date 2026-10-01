@@ -10,9 +10,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { preventOverlayTriggerSelection } from "@bb/shared-ui/overlay-trigger";
 import { usePortalScopeProps } from "@/lib/portal-scope";
-import { PluginItemIcon, pluginIconName } from "@/components/plugin/PluginIcon";
 import type { MessageProseSelection } from "./SelectableMessageProse.js";
-import type { ThreadTimelinePluginMessageAction } from "./types.js";
 
 const SELECTION_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-surface-recessed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring select-none max-md:pointer-coarse:min-h-7 max-md:pointer-coarse:px-2 max-md:pointer-coarse:py-1";
@@ -21,8 +19,6 @@ const SELECTION_MENU_CONTENT_CLASS =
 
 interface SelectionAction {
   icon: IconName;
-  plugin?: { pluginId: string | null; icon: string | null };
-  key?: string;
   label: string;
   onSelect: (selection: MessageProseSelection) => void;
 }
@@ -30,7 +26,6 @@ interface SelectionAction {
 export interface TimelineSelectionMenuProps {
   selection: MessageProseSelection | null;
   onAddToChat?: (text: string) => void;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   onDismiss: () => void;
 }
 
@@ -78,27 +73,11 @@ function ActionButton({
         activate();
       }}
     >
-      {action.plugin ? (
-        action.plugin.pluginId === null ? (
-          <Icon
-            name={pluginIconName(action.plugin.icon)}
-            className="size-3.5 text-muted-foreground"
-            aria-hidden="true"
-          />
-        ) : (
-          <PluginItemIcon
-            pluginId={action.plugin.pluginId}
-            icon={action.plugin.icon}
-            className="size-3.5 text-muted-foreground"
-          />
-        )
-      ) : (
-        <Icon
-          name={action.icon}
-          className="size-3.5 text-muted-foreground"
-          aria-hidden="true"
-        />
-      )}
+      <Icon
+        name={action.icon}
+        className="size-3.5 text-muted-foreground"
+        aria-hidden="true"
+      />
       {action.label}
     </button>
   );
@@ -107,7 +86,6 @@ function ActionButton({
 export function TimelineSelectionMenu({
   selection,
   onAddToChat,
-  pluginActions = [],
   onDismiss,
 }: TimelineSelectionMenuProps) {
   const open = selection !== null;
@@ -157,13 +135,6 @@ export function TimelineSelectionMenu({
           },
         ]
       : []),
-    ...pluginActions.map((action) => ({
-      icon: "MessageSquarePlus" as const,
-      plugin: { pluginId: action.pluginId, icon: action.icon },
-      key: action.key,
-      label: action.label,
-      onSelect: () => action.onSelect(),
-    })),
   ];
   if (actions.length === 0) return null;
 
@@ -188,7 +159,7 @@ export function TimelineSelectionMenu({
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
           {actions.map((action, index) => (
-            <div key={action.key ?? action.label} className="flex items-center">
+            <div key={action.label} className="flex items-center">
               {index > 0 ? (
                 <span
                   aria-hidden="true"

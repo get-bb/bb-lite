@@ -37,16 +37,6 @@ import {
   type NewThreadComposerState,
   type NewThreadComposerSubmission,
 } from "@/components/promptbox/NewThreadComposer";
-import {
-  ProviderCliBanner,
-  providerCliBlockedReason,
-} from "@/components/promptbox/banner/ProviderCliBanner";
-import {
-  buildProviderCliIssue,
-  hasProviderCliAction,
-  useProviderCliInstallRunner,
-} from "@/components/provider-cli/provider-cli-install";
-import { providerCliJobKey } from "@/components/provider-cli/provider-cli-install-store";
 import { PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID } from "@bb/client-core";
 import {
   encodeProviderValue,
@@ -87,7 +77,6 @@ import {
   useTerminals,
 } from "@/hooks/queries/thread-terminal-queries";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
-import { useHostProviderCliStatus } from "@/hooks/queries/system-queries";
 import {
   requestComposerFocus,
   subscribeComposerFocusRequests,
@@ -684,7 +673,6 @@ function RootComposeSurface({
     parsedEnvironment,
     projectHostId: rootProjectHostId,
     panelThreadId: rootPanelThreadId,
-    selectedProviderId,
     promptDraft,
     focusPromptBox,
     pluginComposerHost: sharedPluginComposerHost,
@@ -891,39 +879,6 @@ function RootComposeSurface({
     }
     return namesById;
   }, [sidebarNavigation]);
-
-  const providerCliStatus = useHostProviderCliStatus({
-    hostId: rootProjectHostId,
-    enabled: rootProjectHostId !== null,
-  });
-  const { queuedJobKeys, runningJobKey, startInstall } =
-    useProviderCliInstallRunner();
-  const selectedProviderCliStatus =
-    providerCliStatus.data?.[selectedProviderId] ?? null;
-  const blockingProviderCliStatus =
-    selectedProviderCliStatus !== null &&
-    (!selectedProviderCliStatus.installed ||
-      selectedProviderCliStatus.versionUnsupported)
-      ? selectedProviderCliStatus
-      : null;
-  const isProviderCliBlocked = blockingProviderCliStatus !== null;
-  const selectedProviderCliIssue = useMemo(() => {
-    if (blockingProviderCliStatus === null) {
-      return null;
-    }
-    const issue = buildProviderCliIssue({
-      provider: selectedProviderId,
-      status: blockingProviderCliStatus,
-    });
-    return issue && hasProviderCliAction(issue) ? issue : null;
-  }, [blockingProviderCliStatus, selectedProviderId]);
-  const handleRunProviderCliAction = useCallback(() => {
-    if (selectedProviderCliIssue === null || rootProjectHostId === null) return;
-    startInstall({
-      hostId: rootProjectHostId,
-      issue: selectedProviderCliIssue,
-    });
-  }, [selectedProviderCliIssue, rootProjectHostId, startInstall]);
 
   useFixedPanelTabsStorageMaintenance();
   const fixedPanelTabsState = useFixedPanelTabsState(
@@ -1682,11 +1637,10 @@ function RootComposeSurface({
   );
   useEffect(() => {
     if (!startedComposing) return;
-    if (isProviderCliBlocked) return;
     if (isPointerCoarse) return;
     const handle = window.requestAnimationFrame(focusPromptBox);
     return () => window.cancelAnimationFrame(handle);
-  }, [isProviderCliBlocked, isPointerCoarse, focusPromptBox, startedComposing]);
+  }, [isPointerCoarse, focusPromptBox, startedComposing]);
   const [machineSetupTarget, setMachineSetupTarget] =
     useState<ProjectMachineSetupDialogTarget | null>(null);
   const currentProjectName = currentProject?.name ?? null;
@@ -1757,40 +1711,6 @@ function RootComposeSurface({
     );
   }, [forkSeed, forkSourceDisplayTitle, handleCancelForkDraft]);
 
-  const promptBanner = useMemo(() => {
-    if (blockingProviderCliStatus === null) {
-      return null;
-    }
-    return (
-      <ProviderCliBanner
-        displayName={blockingProviderCliStatus.displayName}
-        installed={blockingProviderCliStatus.installed}
-        currentVersion={blockingProviderCliStatus.currentVersion}
-        minimumSupportedVersion={
-          blockingProviderCliStatus.minimumSupportedVersion
-        }
-        canRunAction={selectedProviderCliIssue !== null}
-        actionRunning={
-          rootProjectHostId !== null &&
-          (runningJobKey ===
-            providerCliJobKey(rootProjectHostId, selectedProviderId) ||
-            queuedJobKeys.has(
-              providerCliJobKey(rootProjectHostId, selectedProviderId),
-            ))
-        }
-        onAction={handleRunProviderCliAction}
-      />
-    );
-  }, [
-    blockingProviderCliStatus,
-    rootProjectHostId,
-    handleRunProviderCliAction,
-    queuedJobKeys,
-    runningJobKey,
-    selectedProviderCliIssue,
-    selectedProviderId,
-  ]);
-
   if (!projects && sidebarNavigationError) {
     return (
       <PageShell contentClassName="min-h-full items-center justify-center">
@@ -1815,14 +1735,9 @@ function RootComposeSurface({
 
   const promptBox = renderPromptBox({
     id: "root-compose-prompt",
-    autoFocus: !isProviderCliBlocked,
+    autoFocus: true,
     mentionMenuPlacement: isCompactHomeLayout ? "top" : "bottom",
-    banner: promptBanner,
     header: promptHeader,
-    blockedReason:
-      blockingProviderCliStatus === null
-        ? undefined
-        : providerCliBlockedReason(blockingProviderCliStatus),
     resolveMentionLink,
     pluginComposerHost,
     textEffects: promptTextEffects,

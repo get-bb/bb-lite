@@ -1525,14 +1525,6 @@ export function registerTasksCli(
                   }),
                 ),
               ).taskThreads;
-              const { pullRequests, unavailableThreadIds } =
-                tasksRpcContract.listTaskPullRequests.output.parse(
-                  await domain.listTaskPullRequests(
-                    tasksRpcContract.listTaskPullRequests.input.parse({
-                      taskId: task.id,
-                    }),
-                  ),
-                );
               if (input.options.json) {
                 return JSON.stringify({
                   task,
@@ -1541,8 +1533,6 @@ export function registerTasksCli(
                   subtasks,
                   attachments,
                   taskThreads,
-                  pullRequests,
-                  pullRequestUnavailableThreadIds: unavailableThreadIds,
                   comments,
                 });
               }
@@ -1592,20 +1582,6 @@ export function registerTasksCli(
                   ]),
                   "(none)",
                 )}`,
-                `Pull requests\n${table(
-                  ["PR", "STATE", "TITLE", "URL"],
-                  pullRequests.map((pullRequest) => [
-                    `#${pullRequest.number}`,
-                    pullRequest.state,
-                    pullRequest.title,
-                    pullRequest.url,
-                  ]),
-                  "(none)",
-                )}${
-                  unavailableThreadIds.length > 0
-                    ? `\nPR lookup unavailable for: ${unavailableThreadIds.join(", ")}`
-                    : ""
-                }`,
                 `Comments\n${table(
                   ["TIME", "KIND", "AUTHOR", "PROVIDER", "BODY"],
                   comments.map((comment) => [

@@ -3,7 +3,6 @@ import {
   type AppKeybindingOverrides,
   type AppSettings,
   type AppThemeSelection,
-  type Experiments,
 } from "@bb/domain";
 import type { SystemInstallCliSkillsRequest } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -19,21 +18,6 @@ import {
   readCachedStreamerMode,
   rollbackKeyboardSettingsCacheTransaction,
 } from "../cache-owners/system-config-cache-owner";
-
-export function useUpdateExperiments() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to update experiments.",
-    },
-    mutationFn: (experiments: Experiments) =>
-      sdk.system.updateExperiments(experiments),
-    onSuccess: () => {
-      invalidateSystemConfig({ queryClient });
-    },
-  });
-}
 
 export function useUpdateGeneralSettings() {
   const queryClient = useQueryClient();

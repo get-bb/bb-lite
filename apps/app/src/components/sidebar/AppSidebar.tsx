@@ -20,7 +20,6 @@ import {
   usePluginSidebarFooterDisclosure,
 } from "@/components/plugin/PluginSidebarFooterItems";
 import { SidebarPluginAttentionGlyph } from "./SidebarPluginAttentionGlyph";
-import { SidebarUpdatesBadge } from "./SidebarUpdatesBadge";
 import { SidebarResizeHandle, SidebarTopReserveRow } from "./SidebarChrome";
 import { SIDEBAR_FOOTER_ACTION_CLASS } from "./sidebarRowClasses";
 import { getRootComposeRoutePath, getThreadRoutePath } from "@/lib/route-paths";
@@ -270,14 +269,6 @@ export function AppSidebar({
                 },
               },
               {
-                id: "mobile",
-                href: "/settings/mobile",
-                onActivate: () => {
-                  closeOnMobile();
-                  void navigate("/settings/mobile");
-                },
-              },
-              {
                 id: "report-bug",
                 onActivate: () => {
                   closeOnMobile();
@@ -290,7 +281,6 @@ export function AppSidebar({
             className={SIDEBAR_FOOTER_ACTION_CLASS}
             onNavigate={closeOnMobile}
           />
-          <SidebarUpdatesBadge onNavigate={closeOnMobile} />
         </SidebarMenu>
       </SidebarFooter>
       <SidebarResizeHandle

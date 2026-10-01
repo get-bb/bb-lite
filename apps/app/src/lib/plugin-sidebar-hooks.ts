@@ -13,7 +13,6 @@ import type {
   PluginSidebarThread,
   PluginSidebarThreadActions,
   PluginSidebarThreadDraftState,
-  PluginSidebarThreadPullRequestState,
   PluginSidebarThreadRowStatus,
   PluginSidebarThreadShortcut,
   PluginSidebarThreadsState,
@@ -33,10 +32,6 @@ import {
 } from "./plugin-thread-row-status";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
-import {
-  getEnvironmentPullRequestFromResponse,
-  useEnvironmentPullRequest,
-} from "@/hooks/queries/environment-queries";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useArchivedThreads } from "@/hooks/queries/thread-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
@@ -418,37 +413,4 @@ export function useSidebarThreadShortcut(
   threadId: string,
 ): PluginSidebarThreadShortcut | null {
   return useHostSidebarThreadShortcut(threadId) ?? null;
-}
-
-export function useSidebarThreadPullRequest(
-  threadId: string,
-): PluginSidebarThreadPullRequestState {
-  const entry = useSidebarThreadEntry(threadId);
-  const environmentId = entry?.environmentId ?? null;
-  const query = useEnvironmentPullRequest(environmentId);
-  const pullRequest = getEnvironmentPullRequestFromResponse(query.data);
-
-  return useMemo<PluginSidebarThreadPullRequestState>(
-    () => ({
-      isLoading: environmentId !== null && query.isPending,
-      pullRequest:
-        pullRequest === null
-          ? null
-          : {
-              number: pullRequest.number,
-              title: pullRequest.title,
-              url: pullRequest.url,
-              state: pullRequest.state,
-              attention: pullRequest.attention,
-              experimental_autoMerge: pullRequest.autoMerge,
-              experimental_inMergeQueue: pullRequest.inMergeQueue,
-              experimental_checks: { state: pullRequest.checks.state },
-              experimental_review: { state: pullRequest.review.state },
-              experimental_mergeability: {
-                state: pullRequest.mergeability.state,
-              },
-            },
-    }),
-    [environmentId, pullRequest, query.isPending],
-  );
 }

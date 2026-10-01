@@ -90,16 +90,6 @@ interface BuildFollowUpSubmitModeArgs {
   runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
 }
 
-interface BuildSideChatSubmitModeArgs {
-  childThreadId: string | null;
-  hasPendingInteraction: boolean;
-  isDefaultExecutionOptionsLoading: boolean;
-  isPendingInteractionsInitialLoading: boolean;
-  isStopRequested: boolean;
-  onStop: () => void;
-  runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
-}
-
 interface ResolveDefaultExecutionOptionsStateArgs {
   hasConcreteDefaultExecutionOptions: boolean;
   hasResolvedDefaultExecutionOptions: boolean;
@@ -155,30 +145,6 @@ export function buildFollowUpSubmitMode({
     return { kind: "blocked", reason: "loading-execution-options" };
   }
   return { kind: "ready" };
-}
-
-export function buildSideChatSubmitMode({
-  childThreadId,
-  hasPendingInteraction,
-  isDefaultExecutionOptionsLoading,
-  isPendingInteractionsInitialLoading,
-  isStopRequested,
-  onStop,
-  runtimeDisplayStatus,
-}: BuildSideChatSubmitModeArgs): FollowUpSubmitMode {
-  if (childThreadId === null) {
-    return isDefaultExecutionOptionsLoading
-      ? { kind: "blocked", reason: "loading-execution-options" }
-      : { kind: "ready" };
-  }
-  return buildFollowUpSubmitMode({
-    hasPendingInteraction,
-    isDefaultExecutionOptionsLoading,
-    isPendingInteractionsInitialLoading,
-    isStopRequested,
-    onStop,
-    runtimeDisplayStatus,
-  });
 }
 
 export function canSubmitFollowUpShortcut({

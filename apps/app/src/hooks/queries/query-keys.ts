@@ -43,7 +43,6 @@ const THREAD_HOST_FILE_PREVIEW_QUERY_KEY = "threadHostFilePreview";
 const HOST_FILE_PREVIEW_QUERY_KEY = "hostFilePreview";
 const ENVIRONMENT_QUERY_KEY = "environment";
 export const ENVIRONMENT_WORK_STATUS_QUERY_KEY = "environmentWorkStatus";
-const ENVIRONMENT_PULL_REQUEST_QUERY_KEY = "environmentPullRequest";
 export const ENVIRONMENT_MERGE_BASE_BRANCHES_QUERY_KEY =
   "environmentMergeBaseBranches";
 export const ENVIRONMENT_DIFF_FILES_QUERY_KEY = "environmentDiffFiles";
@@ -56,18 +55,12 @@ const THREAD_CONVERSATION_OUTLINE_QUERY_KEY = "threadConversationOutline";
 const THREAD_TIMELINE_TURN_SUMMARY_DETAILS_QUERY_KEY =
   "threadTimelineTurnSummaryDetails";
 const SYSTEM_PROVIDERS_QUERY_KEY = "systemProviders";
-const SYSTEM_MACHINE_PROVIDERS_QUERY_KEY = "systemMachineProviders";
 const MACHINE_ENVIRONMENT_QUERY_KEY = "machine-environment";
 const SYSTEM_CONFIG_QUERY_KEY = "systemConfig";
-const SYSTEM_AI_SERVICES_QUERY_KEY = "systemAiServices";
 const UI_PREFERENCES_QUERY_KEY = "uiPreferences";
 const SYSTEM_THEME_QUERY_KEY = "systemTheme";
 export const SYSTEM_EXECUTION_OPTIONS_QUERY_KEY = "systemExecutionOptions";
 const SYSTEM_CLI_SKILLS_QUERY_KEY = "systemCliSkills";
-const SYSTEM_VERSION_QUERY_KEY = "systemVersion";
-const SYSTEM_APP_UPDATE_QUERY_KEY = "systemAppUpdate";
-const SERVER_MOVE_STATUS_QUERY_KEY = "serverMoveStatus";
-const HOST_PROVIDER_CLI_STATUS_QUERY_KEY = "hostProviderCliStatus";
 const SYSTEM_PROVIDER_STATES_QUERY_KEY = "systemProviderStates";
 const HOST_PATH_EXISTENCE_QUERY_KEY = "hostPathExistence";
 const PROJECT_SKILLS_QUERY_KEY = "projectSkills";
@@ -325,10 +318,6 @@ type EnvironmentWorkStatusQueryKeyPrefix = readonly [
   typeof ENVIRONMENT_WORK_STATUS_QUERY_KEY,
   string,
 ];
-type EnvironmentPullRequestQueryKey = readonly [
-  typeof ENVIRONMENT_PULL_REQUEST_QUERY_KEY,
-  string | null | undefined,
-];
 type EnvironmentMergeBaseBranchesQueryKeyRootPrefix = readonly [
   typeof ENVIRONMENT_MERGE_BASE_BRANCHES_QUERY_KEY,
 ];
@@ -454,12 +443,6 @@ type SystemProvidersQueryKey = readonly [
 type AllSystemProvidersQueryKeyPrefix = readonly [
   typeof SYSTEM_PROVIDERS_QUERY_KEY,
 ];
-type SystemMachineProvidersQueryKey = readonly [
-  typeof SYSTEM_MACHINE_PROVIDERS_QUERY_KEY,
-];
-type AllSystemMachineProvidersQueryKeyPrefix = readonly [
-  typeof SYSTEM_MACHINE_PROVIDERS_QUERY_KEY,
-];
 type MachineEnvironmentQueryKey = readonly [
   typeof MACHINE_ENVIRONMENT_QUERY_KEY,
   string | null,
@@ -468,18 +451,10 @@ type AllMachineEnvironmentQueryKeyPrefix = readonly [
   typeof MACHINE_ENVIRONMENT_QUERY_KEY,
 ];
 type SystemConfigQueryKey = readonly [typeof SYSTEM_CONFIG_QUERY_KEY];
-type SystemAiServicesQueryKey = readonly [typeof SYSTEM_AI_SERVICES_QUERY_KEY];
 type UiPreferencesQueryKey = readonly [typeof UI_PREFERENCES_QUERY_KEY];
 type SystemThemeQueryKey = readonly [typeof SYSTEM_THEME_QUERY_KEY, string];
 type AllSystemThemesQueryKeyPrefix = readonly [typeof SYSTEM_THEME_QUERY_KEY];
 type SystemCliSkillsQueryKey = readonly [typeof SYSTEM_CLI_SKILLS_QUERY_KEY];
-type SystemVersionQueryKey = readonly [typeof SYSTEM_VERSION_QUERY_KEY];
-type SystemAppUpdateQueryKey = readonly [typeof SYSTEM_APP_UPDATE_QUERY_KEY];
-type ServerMoveStatusQueryKey = readonly [typeof SERVER_MOVE_STATUS_QUERY_KEY];
-type HostProviderCliStatusQueryKey = readonly [
-  typeof HOST_PROVIDER_CLI_STATUS_QUERY_KEY,
-  string | null,
-];
 type SystemProviderStatesQueryKey = readonly [
   typeof SYSTEM_PROVIDER_STATES_QUERY_KEY,
   string | null,
@@ -888,12 +863,6 @@ export function environmentWorkStatusQueryKeyPrefix(
   return [ENVIRONMENT_WORK_STATUS_QUERY_KEY, environmentId];
 }
 
-export function environmentPullRequestQueryKey(
-  environmentId: string | null | undefined,
-): EnvironmentPullRequestQueryKey {
-  return [ENVIRONMENT_PULL_REQUEST_QUERY_KEY, environmentId];
-}
-
 export function environmentMergeBaseBranchesQueryKey(
   environmentId: string,
   query = "",
@@ -1094,14 +1063,6 @@ export function allSystemProvidersQueryKeyPrefix(): AllSystemProvidersQueryKeyPr
   return [SYSTEM_PROVIDERS_QUERY_KEY];
 }
 
-export function systemMachineProvidersQueryKey(): SystemMachineProvidersQueryKey {
-  return [SYSTEM_MACHINE_PROVIDERS_QUERY_KEY];
-}
-
-export function allSystemMachineProvidersQueryKeyPrefix(): AllSystemMachineProvidersQueryKeyPrefix {
-  return [SYSTEM_MACHINE_PROVIDERS_QUERY_KEY];
-}
-
 export function machineEnvironmentQueryKey(
   projectId: string | null,
 ): MachineEnvironmentQueryKey {
@@ -1120,10 +1081,6 @@ export function systemConfigQueryKey(): SystemConfigQueryKey {
   return [SYSTEM_CONFIG_QUERY_KEY];
 }
 
-export function systemAiServicesQueryKey(): SystemAiServicesQueryKey {
-  return [SYSTEM_AI_SERVICES_QUERY_KEY];
-}
-
 export function uiPreferencesQueryKey(): UiPreferencesQueryKey {
   return [UI_PREFERENCES_QUERY_KEY];
 }
@@ -1134,24 +1091,6 @@ export function systemThemeQueryKey(themeId: string): SystemThemeQueryKey {
 
 export function allSystemThemesQueryKeyPrefix(): AllSystemThemesQueryKeyPrefix {
   return [SYSTEM_THEME_QUERY_KEY];
-}
-
-export function systemVersionQueryKey(): SystemVersionQueryKey {
-  return [SYSTEM_VERSION_QUERY_KEY];
-}
-
-export function systemAppUpdateQueryKey(): SystemAppUpdateQueryKey {
-  return [SYSTEM_APP_UPDATE_QUERY_KEY];
-}
-
-export function serverMoveStatusQueryKey(): ServerMoveStatusQueryKey {
-  return [SERVER_MOVE_STATUS_QUERY_KEY];
-}
-
-export function hostProviderCliStatusQueryKey(
-  hostId: string | null,
-): HostProviderCliStatusQueryKey {
-  return [HOST_PROVIDER_CLI_STATUS_QUERY_KEY, hostId];
 }
 
 export function systemProviderStatesQueryKey(

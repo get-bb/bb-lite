@@ -4,10 +4,7 @@ import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
 import type { PluginListItem } from "@/hooks/queries/plugin-settings-queries";
 import { useSetPluginEnabled } from "./useSetPluginEnabled";
 
-export function usePluginEnabledMutation(
-  plugin: PluginListItem,
-  onSettled?: () => Promise<unknown>,
-) {
+export function usePluginEnabledMutation(plugin: PluginListItem) {
   const queryClient = useQueryClient();
   const setEnabled = useSetPluginEnabled();
   const toggle = useMutation({
@@ -23,7 +20,6 @@ export function usePluginEnabledMutation(
     },
     onSettled: async () => {
       await invalidatePluginList({ queryClient });
-      await onSettled?.();
     },
   });
   return {

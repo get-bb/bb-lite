@@ -102,15 +102,10 @@ export type TimelineTitleDecoration =
       tone: "neutral" | "destructive";
     };
 
-export type TimelineTitleAction =
-  | {
-      kind: "open-file-diff";
-      path: string;
-    }
-  | {
-      kind: "open-plugin-side-chat";
-      threadId: string;
-    };
+export type TimelineTitleAction = {
+  kind: "open-file-diff";
+  path: string;
+};
 
 export interface TimelineTitle {
   segments: TimelineTitleSegment[];

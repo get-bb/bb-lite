@@ -77,14 +77,12 @@ export function resolveHostEnvironmentProvider({
   providers,
 }: ResolveHostEnvironmentProviderArgs): SystemEnvironmentProvider | null {
   const candidates = providers.filter(
-    (provider) =>
-      provider.machineProviderId === null &&
-      provider.availability?.status !== "unavailable",
+    (provider) => provider.availability?.status !== "unavailable",
   );
   return (
     candidates.find((provider) => provider.id === currentProvider?.id) ??
     candidates[0] ??
-    (currentProvider?.machineProviderId === null ? currentProvider : null)
+    currentProvider
   );
 }
 
@@ -96,9 +94,7 @@ export function resolveNewThreadHostEnvironmentProvider({
   providers: readonly SystemEnvironmentProvider[];
 }): SystemEnvironmentProvider | null {
   const usable = providers.filter(
-    (provider) =>
-      provider.machineProviderId === null &&
-      provider.availability?.status !== "unavailable",
+    (provider) => provider.availability?.status !== "unavailable",
   );
   return (
     usable.find((provider) => provider.id === currentProviderId) ??
@@ -288,10 +284,7 @@ export function resolveRootComposeEffectiveEnvironmentValue({
       : fallbackValue;
   }
 
-  if (
-    selectedProvider !== undefined &&
-    (selectedProvider.machineProviderId !== null || primaryHostId !== null)
-  ) {
+  if (selectedProvider !== undefined && primaryHostId !== null) {
     return environmentSelectionValue;
   }
 

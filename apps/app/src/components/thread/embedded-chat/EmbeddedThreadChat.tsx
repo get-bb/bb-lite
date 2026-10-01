@@ -79,7 +79,7 @@ import { type PromptDraftState, promptDraftToInput } from "@bb/client-core";
 import type { PromptDraftScope } from "@/hooks/usePromptDraftStorage";
 import { appToast } from "@/components/ui/app-toast";
 import {
-  buildSideChatSubmitMode,
+  buildFollowUpSubmitMode,
   canSubmitFollowUpShortcut,
   shouldQueueFollowUpMessage,
 } from "@bb/client-core";
@@ -129,7 +129,6 @@ interface EmbeddedThreadChatSharedProps {
   resolveMentionLink: PromptMentionLinkResolver;
   leadingContent?: ReactNode;
   consumerMessageActions?: readonly ThreadTimelineConsumerMessageAction[];
-  includePluginMessageActions?: boolean;
   onOpenLink?: ThreadTimelineLinkHandler;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   workspaceRootPath?: string;
@@ -197,7 +196,6 @@ function EmbeddedThreadChatWithComposer({
   resolveMentionLink,
   leadingContent,
   consumerMessageActions,
-  includePluginMessageActions,
   onOpenLink,
   onOpenLocalFileLink,
   workspaceRootPath,
@@ -411,8 +409,7 @@ function EmbeddedThreadChatWithComposer({
 
   const submitMode = useMemo<FollowUpComposerProps["submitMode"]>(
     () =>
-      buildSideChatSubmitMode({
-        childThreadId: threadId,
+      buildFollowUpSubmitMode({
         hasPendingInteraction: hasComposerBlockingPendingInteraction,
         isDefaultExecutionOptionsLoading,
         isPendingInteractionsInitialLoading: pendingInteractionsInitialLoading,
@@ -427,7 +424,6 @@ function EmbeddedThreadChatWithComposer({
       isDefaultExecutionOptionsLoading,
       isStopRequested,
       pendingInteractionsInitialLoading,
-      threadId,
     ],
   );
 
@@ -739,8 +735,10 @@ function EmbeddedThreadChatWithComposer({
       selectedProviderId,
     ],
   );
-  const { getSelection, subscribeSelection } =
-    useComposerHostSelection(bottomComposerHostIdentity, bottomSelection);
+  const { getSelection, subscribeSelection } = useComposerHostSelection(
+    bottomComposerHostIdentity,
+    bottomSelection,
+  );
   const queuedSelection = useMemo(
     () =>
       inlineEditingQueuedMessage
@@ -1226,7 +1224,6 @@ function EmbeddedThreadChatWithComposer({
           pendingInteraction={pendingInteractionBanner}
           composer={bottomComposerConfig}
           pluginComposerHost={bottomPluginComposerHost}
-          voiceDraft={promptDraft}
           pluginComposerScope={bottomPluginComposerHost?.scope ?? null}
           textEffects={bottomComposerTextEffects}
           environmentSummary={composer.environmentSummary}
@@ -1254,7 +1251,6 @@ function EmbeddedThreadChatWithComposer({
       isTurnSubmitting={isTurnSubmitting}
       leadingContent={leadingContent}
       consumerMessageActions={consumerMessageActions}
-      includePluginMessageActions={includePluginMessageActions}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}
       onMessageAddToChat={handleAddToChat}

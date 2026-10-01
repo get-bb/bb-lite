@@ -38,7 +38,6 @@ import {
   type PluginComposerThreadRowStatus,
   type PluginFileOpenerRegistration,
   type PluginHomepageSectionRegistration,
-  type PluginMessageActionRegistration,
   type PluginMessageDirectiveRegistration,
   type PluginDiffRendererRegistration,
   type PluginNavPanelRegistration,
@@ -59,13 +58,11 @@ import {
   type ExperimentalSidebarNavigationItem,
   type ExperimentalSidebarNavigationSplit,
   type ExperimentalSidebarNavigationState,
-  type PluginSidebarPullRequest,
   type PluginSidebarThreadActions,
   type PluginBrowserBbSdk,
   type PluginEnvironmentProvidersState,
   type PluginSidebarSplitLayout,
   type PluginSidebarThreadDraftState,
-  type PluginSidebarThreadPullRequestState,
   type PluginSidebarThreadRowStatus,
   type PluginSidebarThreadShortcut,
   type PluginSidebarThreadSplit,
@@ -92,7 +89,6 @@ import {
   type ExperimentalPermissionModePickerProps,
   type ExperimentalProviderModelPickerProps,
   type PluginEnvironmentProviderInputsRegistration,
-  type PluginMachineProviderInputsRegistration,
   type ThreadChatProps,
   type DiffProps,
   type SourceCodeProps,
@@ -269,7 +265,6 @@ interface SlotEnv {
   sidebarThreads: PluginSidebarThreadsState;
   sidebarActions: PluginSidebarThreadActions;
   sidebarActionCalls: SidebarActionCall[];
-  sidebarPullRequests: ReadonlyMap<string, PluginSidebarPullRequest>;
   sidebarDraftThreadIds: ReadonlySet<string>;
   sidebarRowStatuses: ReadonlyMap<string, PluginSidebarThreadRowStatus>;
   sidebarShortcuts: ReadonlyMap<string, PluginSidebarThreadShortcut>;
@@ -1164,18 +1159,6 @@ const testPluginSdkApp = {
   useSdk(): PluginBrowserBbSdk {
     return useSlotEnv("useSdk").sdk;
   },
-  experimental_useSidebarThreadPullRequest(
-    threadId,
-  ): PluginSidebarThreadPullRequestState {
-    const env = useSlotEnv("experimental_useSidebarThreadPullRequest");
-    return useMemo(
-      () => ({
-        isLoading: false,
-        pullRequest: env.sidebarPullRequests.get(threadId) ?? null,
-      }),
-      [env, threadId],
-    );
-  },
   useComposerView(): ComposerView {
     const composer = useSlotEnv("useComposerView").composer;
     const version = useSyncExternalStore(
@@ -1243,12 +1226,10 @@ export interface CapturedPluginApp {
   sourceCodeRenderers: PluginSourceCodeRendererRegistration[];
   diffRenderers: PluginDiffRendererRegistration[];
   messageDirectives: PluginMessageDirectiveRegistration[];
-  messageActions: PluginMessageActionRegistration[];
   providerIcons: CollectedPluginProviderIconRegistration[];
   icons: ExperimentalIconRegistration[];
   timelineRenderers: PluginTimelineRendererRegistration[];
   environmentProviderInputs: PluginEnvironmentProviderInputsRegistration[];
-  machineProviderInputs: PluginMachineProviderInputsRegistration[];
   contentScripts: PluginContentScriptRegistration[];
 }
 
@@ -1484,11 +1465,6 @@ export interface RenderSlotOptions<
   branchesState?: Partial<BranchesState>;
   /** Checkout facts `experimental_useCheckoutState()` reports. */
   checkoutState?: Partial<CheckoutState>;
-  /**
-   * Pull requests `experimental_useSidebarThreadPullRequest()` reports, keyed
-   * by thread id. Omitted → every thread reports none.
-   */
-  sidebarPullRequests?: Record<string, PluginSidebarPullRequest>;
   /**
    * Thread ids `useSidebarThreadDraft()` and `useSidebarThreadDraftIds()`
    * report as holding an unsent draft. Omitted → none.
@@ -1808,9 +1784,6 @@ export function renderSlot<
       },
     },
   };
-  const sidebarPullRequests = new Map(
-    Object.entries(options.sidebarPullRequests ?? {}),
-  );
   const sidebarDraftThreadIds: ReadonlySet<string> = new Set(
     options.sidebarDraftThreadIds ?? [],
   );
@@ -2198,7 +2171,6 @@ export function renderSlot<
     sidebarThreads,
     sidebarActions,
     sidebarActionCalls,
-    sidebarPullRequests,
     sidebarDraftThreadIds,
     sidebarRowStatuses,
     sidebarShortcuts,

@@ -287,12 +287,6 @@ function pluginAppSurfaceItems(
       ),
     ...namedSlotItems(
       pluginId,
-      slots.messageActions,
-      "message-action",
-      "Adds an action to messages in threads.",
-    ),
-    ...namedSlotItems(
-      pluginId,
       slots.threadHeaderActions,
       "thread-header",
       "Adds an action to thread headers.",

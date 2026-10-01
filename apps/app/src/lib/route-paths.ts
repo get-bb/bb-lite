@@ -8,13 +8,11 @@ import {
   ROUTE_PATTERNS,
   SKILL_DETAIL_ROUTE_PATH,
   SKILLS_ROUTE_PATH,
-  TOOLS_ROUTE_PATH,
   stripRoutePathSuffix,
 } from "@bb/client-core";
 
 export {
   APP_ROOT_ROUTE_PATH,
-  AUTH_CALLBACK_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,
   SETTINGS_PLUGINS_ROUTE_PATH,
@@ -27,23 +25,6 @@ export {
   SKILL_DETAIL_ROUTE_PATH,
   REGISTRY_SKILLS_ROUTE_PATH,
   REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_ROUTE_PATH,
-  TOOLS_SKILLS_ROUTE_PATH,
-  TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILLS_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_PLUGINS_ROUTE_PATH,
-  TOOLS_PLUGIN_BROWSE_ROUTE_PATH,
-  TOOLS_PLUGIN_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_PREFIX_ROUTE_PATH,
-  LEGACY_TOOLS_SPLAT_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATIONS_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_BROWSE_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_EDIT_ROUTE_PATH,
-  LEGACY_AUTOMATIONS_ROUTE_PATH,
-  LEGACY_AUTOMATION_DETAIL_ROUTE_PATH,
   AUTOMATIONS_PLUGIN_ID,
   AUTOMATIONS_ROUTE_PATH,
   AUTOMATIONS_BROWSE_ROUTE_PATH,
@@ -51,8 +32,6 @@ export {
   AUTOMATION_EDIT_ROUTE_PATH,
   LEGACY_PROJECT_COMPOSE_ROUTE_PATH,
   PROJECTLESS_ARCHIVED_ROUTE_PATH,
-  LEGACY_PROJECT_SETTINGS_ROUTE_PATH,
-  PROJECT_ARCHIVED_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,
   isProjectlessProjectId,
   getRootComposeRoutePath,
@@ -68,9 +47,6 @@ export {
   getPluginsRoutePath,
   getPluginDetailRoutePath,
   getPluginConfigurationRoutePath,
-  getAutomationsRoutePath,
-  getAutomationDetailRoutePath,
-  getAutomationEditRoutePath,
   getPluginPanelRoutePath,
   getThreadRoutePath,
 } from "@bb/client-core";
@@ -94,12 +70,7 @@ interface RouteHrefResolution {
 }
 
 export function isToolsRoutePath(pathname: string): boolean {
-  return (
-    isPluginsRoutePath(pathname) ||
-    isSkillsRoutePath(pathname) ||
-    pathname === TOOLS_ROUTE_PATH ||
-    matchPath(`${TOOLS_ROUTE_PATH}/*`, pathname) !== null
-  );
+  return isPluginsRoutePath(pathname) || isSkillsRoutePath(pathname);
 }
 
 export function isPluginsRoutePath(pathname: string): boolean {

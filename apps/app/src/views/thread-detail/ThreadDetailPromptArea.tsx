@@ -1,6 +1,5 @@
 import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 import type { MachineRemovalStatus } from "@/lib/machine-removal-display";
-import { ThreadMachineStatus } from "@/components/promptbox/banner/ThreadMachineStatus";
 import {
   useCallback,
   useEffect,
@@ -26,7 +25,6 @@ import type {
   PendingInteraction,
   PromptInput,
   ThreadQueuedMessage,
-  ThreadPullRequest,
   ThreadTimelineActivePromptMode,
   ThreadTimelineGoal,
   ThreadTimelineModelFallback,
@@ -34,7 +32,6 @@ import type {
   ThreadWithRuntime,
 } from "@bb/domain";
 import type {
-  PullRequestMergeMethod,
   SendMessageRequest,
   ThreadTimelineResponse,
   TimelineWorkflowWorkRow,
@@ -65,7 +62,6 @@ import {
   type ThreadPromptContextBannerExpandedSection,
   type ThreadPromptParentThreadSection,
   type ThreadPromptChildThreadsSection,
-  type ThreadPromptPullRequestSection,
 } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import { ThreadGoalCard } from "@/components/promptbox/banner/ThreadGoalCard";
 import { ThreadTodoCard } from "@/components/promptbox/banner/ThreadTodoCard";
@@ -86,7 +82,6 @@ import {
 } from "@/components/promptbox/banner/LazyQueuedMessagesList";
 import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
 import type { MachineLabelHost } from "@/components/machines/MachineLabel";
-import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
 import type { WorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import { useComposerTextEffects } from "@/lib/composer-text-effects";
 import { useLatestRef } from "@/hooks/useLatestRef";
@@ -188,16 +183,10 @@ interface ThreadDetailPromptAreaProps {
   environmentGoneStatus: "destroyed" | MachineRemovalStatus | null;
   environmentHostId?: string;
   environmentHost?: MachineLabelHost;
-  environmentMachineProvider?: MachineProviderPresentation | null;
   environmentIcon?: IconName;
   environmentLabel?: string;
   environmentProviderName?: string;
   onCreateNewThreadInEnvironment?: () => void;
-  onPullRequestDraft?: () => void;
-  onPullRequestMerge?: (method: PullRequestMergeMethod) => void;
-  onPullRequestReady?: () => void;
-  pullRequestMergeMethod: PullRequestMergeMethod;
-  isEnvironmentActionPending: boolean;
   pendingInteractions: readonly PendingInteraction[];
   pendingInteractionsInitialLoading: boolean;
   queuedMessageCount: number;
@@ -216,7 +205,6 @@ interface ThreadDetailPromptAreaProps {
   parentThreadSection: ThreadPromptParentThreadSection | null;
   childPendingInteractions: readonly ChildThreadPendingAttention[];
   childThreadsSection: ThreadPromptChildThreadsSection | null;
-  pullRequest: ThreadPullRequest | null;
   sendMessage: SendMessageMutationLike;
   sentMessageEdit?: ThreadDetailSentMessageEdit;
   steerActiveThreadOnEnter: boolean;
@@ -402,16 +390,10 @@ export function ThreadDetailPromptArea({
   environmentGoneStatus,
   environmentHostId,
   environmentHost,
-  environmentMachineProvider,
   environmentIcon,
   environmentLabel,
   environmentProviderName,
   onCreateNewThreadInEnvironment,
-  onPullRequestDraft,
-  onPullRequestMerge,
-  onPullRequestReady,
-  pullRequestMergeMethod,
-  isEnvironmentActionPending,
   pendingInteractions,
   pendingInteractionsInitialLoading,
   queuedMessageCount,
@@ -430,7 +412,6 @@ export function ThreadDetailPromptArea({
   parentThreadSection,
   childPendingInteractions,
   childThreadsSection,
-  pullRequest,
   sendMessage,
   sentMessageEdit,
   steerActiveThreadOnEnter,
@@ -600,39 +581,6 @@ export function ThreadDetailPromptArea({
   );
   const [expandedBannerSection, setExpandedBannerSection] =
     useState<ThreadPromptContextBannerExpandedSection | null>(null);
-  const pullRequestSection =
-    useMemo<ThreadPromptPullRequestSection | null>(() => {
-      if (!pullRequest) {
-        return null;
-      }
-      const actions =
-        onPullRequestReady ||
-        onPullRequestMerge ||
-        onPullRequestDraft ||
-        isEnvironmentActionPending
-          ? {
-              isPending: isEnvironmentActionPending,
-              ...(onPullRequestReady
-                ? { onMarkReady: onPullRequestReady }
-                : {}),
-              ...(onPullRequestMerge ? { onMerge: onPullRequestMerge } : {}),
-              ...(onPullRequestDraft
-                ? { onConvertToDraft: onPullRequestDraft }
-                : {}),
-              ...(onPullRequestMerge
-                ? { selectedMergeMethod: pullRequestMergeMethod }
-                : {}),
-            }
-          : undefined;
-      return actions ? { pullRequest, actions } : { pullRequest };
-    }, [
-      isEnvironmentActionPending,
-      onPullRequestDraft,
-      onPullRequestMerge,
-      onPullRequestReady,
-      pullRequest,
-      pullRequestMergeMethod,
-    ]);
   const [isGoalExpanded, setIsGoalExpanded] = useState(false);
   const [isTodoExpanded, setIsTodoExpanded] = useState(false);
   const [isPromptModeExpanded, setIsPromptModeExpanded] = useState(false);
@@ -1015,8 +963,10 @@ export function ThreadDetailPromptArea({
       supportsServiceTier,
     ],
   );
-  const { getSelection, subscribeSelection } =
-    useComposerHostSelection(promptDraft.storageKey, composerSelection);
+  const { getSelection, subscribeSelection } = useComposerHostSelection(
+    promptDraft.storageKey,
+    composerSelection,
+  );
   const pendingSelectionRef = useRef<Promise<unknown>>(Promise.resolve());
   const applySelection = useCallback(
     async (
@@ -1720,7 +1670,6 @@ export function ThreadDetailPromptArea({
           environmentHost={environmentHost}
           environmentIcon={environmentIcon}
           environmentProviderName={environmentProviderName}
-          environmentMachineProvider={environmentMachineProvider}
           environmentCheckout={environmentCheckout}
           onCreateNewThreadInEnvironment={onCreateNewThreadInEnvironment}
         />
@@ -1731,7 +1680,6 @@ export function ThreadDetailPromptArea({
       environmentHost,
       environmentIcon,
       environmentLabel,
-      environmentMachineProvider,
       environmentProviderName,
       onCreateNewThreadInEnvironment,
       projectName,
@@ -2101,11 +2049,6 @@ export function ThreadDetailPromptArea({
           isExpanded={isTodoExpanded}
           onToggle={() => setIsTodoExpanded((value) => !value)}
         />
-        {environmentHostId &&
-        thread.archivedAt === null &&
-        environmentGoneStatus === null ? (
-          <ThreadMachineStatus hostId={environmentHostId} />
-        ) : null}
         <ThreadPromptContextBanner
           archivedSection={
             thread.archivedAt !== null
@@ -2131,7 +2074,6 @@ export function ThreadDetailPromptArea({
           }
           parentThreadSection={parentThreadSection}
           childThreadsSection={childThreadsSection}
-          pullRequestSection={pullRequestSection}
           gitSection={
             workspaceChangedFilesSection
               ? {
@@ -2214,7 +2156,6 @@ export function ThreadDetailPromptArea({
       modelFallback,
       parentThreadSection,
       childThreadsSection,
-      pullRequestSection,
       pendingTodos,
       displayedProcessingQueuedMessage,
       queuedMessageCount,
@@ -2269,7 +2210,6 @@ export function ThreadDetailPromptArea({
       activePromptMode={isHandoffSelection ? null : activePromptMode}
       composer={shouldHideComposer ? null : bottomComposerConfig}
       pluginComposerHost={normalPluginComposerHost}
-      voiceDraft={promptDraft}
       pluginComposerScope={normalPluginComposerHost.scope}
       textEffects={promptTextEffects}
       collapseResetKey={thread.id}

@@ -5,11 +5,9 @@ import type {
   ExperimentalAppOverlayRegistration,
   PluginDiffRendererRegistration,
   PluginEnvironmentProviderInputsRegistration,
-  PluginMachineProviderInputsRegistration,
   PluginPendingInteractionRegistration,
   PluginFileOpenerRegistration,
   PluginHomepageSectionRegistration,
-  PluginMessageActionRegistration,
   PluginMessageDirectiveRegistration,
   PluginNavPanelRegistration,
   PluginNewThreadPanelActionRegistration,
@@ -53,13 +51,11 @@ export interface PluginRegistrationSet {
   sourceCodeRenderers?: readonly PluginSourceCodeRendererRegistration[];
   diffRenderers?: readonly PluginDiffRendererRegistration[];
   messageDirectives: readonly PluginMessageDirectiveRegistration[];
-  messageActions?: readonly PluginMessageActionRegistration[];
   commandPaletteActions?: readonly CollectedPluginCommandRegistration[];
   providerIcons?: readonly CollectedPluginProviderIconRegistration[];
   icons?: readonly ExperimentalIconRegistration[];
   timelineRenderers?: readonly PluginTimelineRendererRegistration[];
   environmentProviderInputs?: readonly PluginEnvironmentProviderInputsRegistration[];
-  machineProviderInputs?: readonly PluginMachineProviderInputsRegistration[];
 }
 
 interface PluginSlotBase {
@@ -101,8 +97,6 @@ export interface PluginDiffRendererSlot
   extends PluginDiffRendererRegistration, PluginSlotBase {}
 export interface PluginMessageDirectiveSlot
   extends PluginMessageDirectiveRegistration, PluginSlotBase {}
-export interface PluginMessageActionSlot
-  extends PluginMessageActionRegistration, PluginSlotBase {}
 export interface PluginCommandPaletteActionSlot
   extends CollectedPluginCommandRegistration, PluginSlotBase {}
 interface PluginIconSlot extends ExperimentalIconRegistration, PluginSlotBase {}
@@ -112,8 +106,6 @@ export interface PluginTimelineRendererSlot
   extends PluginTimelineRendererRegistration, PluginSlotBase {}
 export interface PluginEnvironmentProviderInputsSlot
   extends PluginEnvironmentProviderInputsRegistration, PluginSlotBase {}
-export interface PluginMachineProviderInputsSlot
-  extends PluginMachineProviderInputsRegistration, PluginSlotBase {}
 
 export interface PluginSlotSnapshot {
   homepageSections: readonly PluginHomepageSectionSlot[];
@@ -133,13 +125,11 @@ export interface PluginSlotSnapshot {
   sourceCodeRenderers: readonly PluginSourceCodeRendererSlot[];
   diffRenderers: readonly PluginDiffRendererSlot[];
   messageDirectives: readonly PluginMessageDirectiveSlot[];
-  messageActions: readonly PluginMessageActionSlot[];
   commandPaletteActions: readonly PluginCommandPaletteActionSlot[];
   providerIcons: readonly PluginProviderIconSlot[];
   icons: readonly PluginIconSlot[];
   timelineRenderers: readonly PluginTimelineRendererSlot[];
   environmentProviderInputs: readonly PluginEnvironmentProviderInputsSlot[];
-  machineProviderInputs: readonly PluginMachineProviderInputsSlot[];
 }
 
 export const EMPTY_PLUGIN_SLOT_SNAPSHOT: PluginSlotSnapshot = {
@@ -160,13 +150,11 @@ export const EMPTY_PLUGIN_SLOT_SNAPSHOT: PluginSlotSnapshot = {
   sourceCodeRenderers: [],
   diffRenderers: [],
   messageDirectives: [],
-  messageActions: [],
   commandPaletteActions: [],
   providerIcons: [],
   icons: [],
   timelineRenderers: [],
   environmentProviderInputs: [],
-  machineProviderInputs: [],
 };
 
 const registrationsByPluginId = new Map<string, PluginRegistrationSet>();
@@ -194,13 +182,11 @@ const SLOT_KINDS: readonly SlotKind[] = [
   "sourceCodeRenderers",
   "diffRenderers",
   "messageDirectives",
-  "messageActions",
   "commandPaletteActions",
   "providerIcons",
   "icons",
   "timelineRenderers",
   "environmentProviderInputs",
-  "machineProviderInputs",
 ];
 
 type FlattenedPluginSlots = {
@@ -252,13 +238,11 @@ function flattenRegistrations(
     sourceCodeRenderers: stamp(set.sourceCodeRenderers),
     diffRenderers: stamp(set.diffRenderers),
     messageDirectives: stamp(set.messageDirectives),
-    messageActions: stamp(set.messageActions),
     commandPaletteActions: stamp(set.commandPaletteActions),
     providerIcons: stamp(set.providerIcons),
     icons: stamp(set.icons),
     timelineRenderers: stamp(set.timelineRenderers),
     environmentProviderInputs: stamp(set.environmentProviderInputs),
-    machineProviderInputs: stamp(set.machineProviderInputs),
   };
 }
 

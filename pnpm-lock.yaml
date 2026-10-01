@@ -404,9 +404,6 @@ importers:
       '@bb/core-ui':
         specifier: workspace:*
         version: link:../core-ui
-      '@bb/desktop-contract':
-        specifier: workspace:*
-        version: link:../desktop-contract
       '@bb/domain':
         specifier: workspace:*
         version: link:../domain
@@ -498,9 +495,6 @@ importers:
       '@bb/domain':
         specifier: workspace:*
         version: link:../domain
-      '@bb/host-daemon-contract':
-        specifier: workspace:*
-        version: link:../host-daemon-contract
       zod:
         specifier: 4.6.5
         version: 4.6.5

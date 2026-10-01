@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 
-export const PROMPT_BANNER_ACTION_FILL_CLASS = "bg-background shadow-xs";
+const PROMPT_BANNER_ACTION_FILL_CLASS = "bg-background shadow-xs";
 export const PROMPT_BANNER_ACTION_INTERACTIVE_CLASS =
   "cursor-pointer text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
 export const PROMPT_BANNER_ACTION_BUTTON_CLASS = cn(
@@ -9,12 +9,6 @@ export const PROMPT_BANNER_ACTION_BUTTON_CLASS = cn(
   PROMPT_BANNER_ACTION_FILL_CLASS,
   PROMPT_BANNER_ACTION_INTERACTIVE_CLASS,
 );
-export const PROMPT_BANNER_ACTION_SEGMENT_CLASS = cn(
-  "text-xs",
-  PROMPT_BANNER_ACTION_INTERACTIVE_CLASS,
-  "focus-visible:z-10",
-);
-
 export const PromptBannerActionButton = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement>

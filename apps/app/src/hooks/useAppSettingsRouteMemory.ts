@@ -4,7 +4,6 @@ import {
   getRootComposeRoutePath,
   isToolsRoutePath,
   SETTINGS_ROUTE_PATH,
-  LEGACY_PROJECT_SETTINGS_ROUTE_PATH,
 } from "@/lib/route-paths";
 
 interface AppSettingsRouteMemory {
@@ -22,10 +21,7 @@ function getLocationRoutePath(location: {
 }
 
 function isSettingsRoutePath(pathname: string): boolean {
-  return (
-    matchPath(`${SETTINGS_ROUTE_PATH}/*`, pathname) !== null ||
-    matchPath(LEGACY_PROJECT_SETTINGS_ROUTE_PATH, pathname) !== null
-  );
+  return matchPath(`${SETTINGS_ROUTE_PATH}/*`, pathname) !== null;
 }
 
 export function useAppSettingsRouteMemory(): AppSettingsRouteMemory {

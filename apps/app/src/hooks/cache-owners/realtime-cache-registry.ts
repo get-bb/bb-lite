@@ -14,7 +14,6 @@ import {
   getCachedGlobalThreadListInvalidationQueryKeys,
   getCachedProjectThreadListInvalidationQueryKeys,
   getCachedSidebarNavigationThreads,
-  getCachedThreadListPlaceholder,
   getCachedThreadListQueryKeys,
   getEnvironmentBranchListInvalidationQueryKeys,
   getEnvironmentRecordInvalidationQueryKeys,
@@ -51,13 +50,9 @@ import {
   allTerminalsQueryKeyPrefix,
   environmentDiffFilesQueryKeyPrefix,
   environmentFilePreviewQueryKeyPrefix,
-  environmentPullRequestQueryKey,
   environmentWorkStatusQueryKeyPrefix,
   hostsQueryKey,
-  serverMoveStatusQueryKey,
-  systemAppUpdateQueryKey,
   sidebarNavigationQueryKey,
-  systemAiServicesQueryKey,
   systemConfigQueryKey,
   uiPreferencesQueryKey,
   allSystemProvidersQueryKeyPrefix,
@@ -351,7 +346,6 @@ export const REALTIME_THREAD_CHANGE_REGISTRY = {
       dirtyThreadDetailQueriesForBackgroundActivity,
       dirtyThreadSearchQueriesForCompletedTurn,
       dirtyThreadTimelineQueries,
-      dirtyThreadPullRequestQueryForCompletedTurn,
       dirtyThreadTurnRequestQueries,
     ],
   },
@@ -549,12 +543,6 @@ export const REALTIME_SYSTEM_CHANGE_REGISTRY = {
   },
   "ui-preferences-changed": {
     dirty: [dirtyUiPreferencesQueries],
-  },
-  "server-move-changed": {
-    dirty: [dirtyServerMoveStatusQueries],
-  },
-  "app-update-changed": {
-    dirty: [dirtyAppUpdateStatusQueries],
   },
 } satisfies SystemChangeRegistry;
 
@@ -894,24 +882,6 @@ function dirtyThreadTurnRequestQueries({
   ];
 }
 
-function dirtyThreadPullRequestQueryForCompletedTurn({
-  eventTypes,
-  queryClient,
-  threadId,
-}: ThreadRealtimeDirtyContext): QueryKey[] {
-  if (!threadId || !eventTypes?.includes("turn/completed")) {
-    return [];
-  }
-  const cachedThread =
-    queryClient.getQueryData<ThreadWithRuntime>(threadQueryKey(threadId)) ??
-    getCachedThreadListPlaceholder(queryClient, threadId) ??
-    getCachedSidebarNavigationThreads(queryClient).find(
-      (thread) => thread.id === threadId,
-    );
-  const environmentId = cachedThread?.environmentId;
-  return environmentId ? [environmentPullRequestQueryKey(environmentId)] : [];
-}
-
 function dirtyThreadTerminalQueries({
   threadId,
 }: ThreadRealtimeDirtyContext): QueryKey[] {
@@ -1131,11 +1101,7 @@ function dirtyHostAvailabilityQueries(): QueryKey[] {
 function dirtySystemConfigQueries({ queryClient }: RealtimeDirtyContext): void {
   invalidateQueryKeysWithoutCancelingActiveFetches({
     queryClient,
-    queryKeys: [
-      systemConfigQueryKey(),
-      systemAiServicesQueryKey(),
-      allSystemThemesQueryKeyPrefix(),
-    ],
+    queryKeys: [systemConfigQueryKey(), allSystemThemesQueryKeyPrefix()],
   });
 }
 
@@ -1155,14 +1121,6 @@ function dirtyUiPreferencesQueries({
     queryClient,
     queryKeys: [uiPreferencesQueryKey()],
   });
-}
-
-function dirtyServerMoveStatusQueries(): QueryKey[] {
-  return [serverMoveStatusQueryKey()];
-}
-
-function dirtyAppUpdateStatusQueries(): QueryKey[] {
-  return [systemAppUpdateQueryKey()];
 }
 
 function dirtyAllThreadTimelineQueries(): QueryKey[] {

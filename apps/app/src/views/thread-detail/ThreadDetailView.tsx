@@ -12,7 +12,6 @@ import { nanoid } from "nanoid";
 import { useSystemProviderInfo } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import { useAtom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
 import {
   isRunningThreadRuntimeDisplayStatus,
   type ThreadTimelineEditMessageHandler,
@@ -34,11 +33,7 @@ import {
   type ThreadListEntry,
   type ThreadWithRuntime,
 } from "@bb/domain";
-import type {
-  PullRequestMergeMethod,
-  TerminalSession,
-  TimelineRow,
-} from "@bb/server-contract";
+import type { TerminalSession, TimelineRow } from "@bb/server-contract";
 import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
@@ -62,8 +57,6 @@ import {
 import { useUpdateEnvironment } from "../../hooks/mutations/environment-mutations";
 import {
   useEnvironment,
-  getEnvironmentPullRequestFromResponse,
-  useEnvironmentPullRequest,
   useEnvironmentWorkStatus,
 } from "../../hooks/queries/environment-queries";
 import {
@@ -99,7 +92,6 @@ import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,
 } from "@bb/core-ui";
-import { assertNever } from "@bb/thread-view";
 import { useCreateThreadInEnvironment } from "@/hooks/useCreateThreadInEnvironment";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
 import { useLocalOpenTargets } from "@/hooks/useLocalOpenTargets";
@@ -117,7 +109,6 @@ import {
   isHostAmbiguous,
 } from "@/lib/environment-workspace-display";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import {
   getAbsoluteDirname,
@@ -131,16 +122,12 @@ import {
 } from "@/components/workspace/workspace-change-summary";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { hasThreadProvisioningFailure } from "@/lib/thread-provisioning-failure";
-import {
-  getMutationErrorMessage,
-  showMutationErrorToast,
-} from "@/lib/mutation-errors";
+import { showMutationErrorToast } from "@/lib/mutation-errors";
 import {
   promptInputToDraft,
   type PromptDraftAttachment,
   type PromptDraftState,
 } from "@bb/client-core";
-import { createLocalStorageEnumStorage } from "@/lib/browser-storage";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
@@ -188,10 +175,6 @@ import {
   LazyThreadTerminalPanel,
   LazyWorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/lazySecondaryPanelComponents";
-import {
-  SIDE_CHAT_PLUGIN_ID,
-  SIDE_CHAT_PLUGIN_PANEL_ACTION_ID,
-} from "@/lib/side-chat-plugin";
 import { RightPanelFileTabIcon } from "@/components/secondary-panel/RightPanelFileTabIcon";
 import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
@@ -239,7 +222,6 @@ import type {
 } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { useEnvironmentMergeBase } from "@/components/secondary-panel/git-diff/useEnvironmentMergeBase";
 import { useThreadGitActions } from "./useThreadGitActions";
-import { useSendSideChatMessageToMain } from "./useSendSideChatMessageToMain";
 import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import {
@@ -300,24 +282,6 @@ const EMPTY_CHILD_THREAD_ITEMS: readonly ChildThreadPendingAttentionSource[] =
 const EMPTY_PROJECT_THREAD_SUBSET_FILTERS =
   {} satisfies ProjectThreadSubsetFilters;
 const EMPTY_TERMINAL_SESSIONS: readonly TerminalSession[] = [];
-const DEFAULT_PULL_REQUEST_MERGE_METHOD: PullRequestMergeMethod = "merge";
-const PULL_REQUEST_MERGE_METHOD_STORAGE_KEY = "bb.pullRequest.mergeMethod";
-
-function isPullRequestMergeMethod(
-  value: string,
-): value is PullRequestMergeMethod {
-  return value === "merge" || value === "squash" || value === "rebase";
-}
-
-const pullRequestMergeMethodAtom = atomWithStorage<PullRequestMergeMethod>(
-  PULL_REQUEST_MERGE_METHOD_STORAGE_KEY,
-  DEFAULT_PULL_REQUEST_MERGE_METHOD,
-  createLocalStorageEnumStorage<PullRequestMergeMethod>(
-    isPullRequestMergeMethod,
-  ),
-  { getOnInit: true },
-);
-
 type MergeBasePickerOpenChangeHandler = NonNullable<
   ContextBannerMergeBaseConfig["onPickerOpenChange"]
 >;
@@ -345,19 +309,6 @@ function hasTimelineRowId(
         row.children !== null &&
         hasTimelineRowId(row.children, rowId)),
   );
-}
-
-function getPullRequestMergeLoadingTitle(
-  method: PullRequestMergeMethod,
-): string {
-  switch (method) {
-    case "merge":
-      return "Merging pull request";
-    case "squash":
-      return "Squash merging pull request";
-    case "rebase":
-      return "Rebase merging pull request";
-  }
 }
 
 interface ThreadDetailViewPageProps {
@@ -610,9 +561,6 @@ function ThreadDetailViewInternal(
     isRecoverableLoadingError: isTransientReadError(error),
   });
   const threadOriginKind = thread?.originKind ?? null;
-  const isSideChatThread =
-    threadOriginKind === "fork" &&
-    thread?.originPluginId === SIDE_CHAT_PLUGIN_ID;
   const threadSourceThreadId =
     thread?.sourceThreadId ??
     (thread && threadOriginKind ? thread.parentThreadId : null);
@@ -777,9 +725,6 @@ function ThreadDetailViewInternal(
   const editMessage = useEditThreadMessage();
   const createQueuedMessage = useCreateThreadQueuedMessage();
   const requestEnvironmentAction = useRequestEnvironmentAction();
-  const [pullRequestMergeMethod, setPullRequestMergeMethod] = useAtom(
-    pullRequestMergeMethodAtom,
-  );
   const markThreadRead = useMarkThreadRead();
   const updateEnvironment = useUpdateEnvironment();
   const updateThread = useUpdateThread({
@@ -1091,16 +1036,6 @@ function ThreadDetailViewInternal(
     },
     [composerActions, dismissCompactKeyboard],
   );
-  const sendSideChatMessageToMain = useSendSideChatMessageToMain({
-    createQueuedMessage,
-    isSideChatThread,
-    threadId: thread?.id,
-    threadSourceThreadId,
-  });
-  const handleSendToMainMessage =
-    isSideChatThread && threadSourceThreadId !== null
-      ? sendSideChatMessageToMain
-      : undefined;
   const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
   const canCreateTerminal =
     !executionUnavailable &&
@@ -1116,7 +1051,6 @@ function ThreadDetailViewInternal(
   });
   const { providers: registeredEnvironmentProviders } =
     useSystemEnvironmentProviders();
-  const { providers: registeredMachineProviders } = useSystemMachineProviders();
   const environmentMergeBaseBranch =
     resolveEnvironmentMergeBaseBranch(environment);
   const {
@@ -1627,96 +1561,6 @@ function ThreadDetailViewInternal(
     workStatusResponse?.outcome === "unavailable"
       ? workStatusResponse.failure
       : undefined;
-  const pullRequestQuery = useEnvironmentPullRequest(thread?.environmentId, {
-    enabled: canUseGitUi && environment !== undefined,
-  });
-  const pullRequest = getEnvironmentPullRequestFromResponse(
-    pullRequestQuery.data,
-  );
-  const handlePullRequestReady = useCallback(async () => {
-    const environmentId = thread?.environmentId;
-    if (!environmentId) {
-      return;
-    }
-    const toastId = appToast.loading("Marking pull request ready");
-    try {
-      const response = await requestEnvironmentAction.mutateAsync({
-        id: environmentId,
-        action: "pull_request_ready",
-      });
-      if (response.action !== "pull_request_ready") {
-        throw new Error("Expected pull request ready action response.");
-      }
-      appToast.success(response.message, { id: toastId });
-    } catch (error) {
-      appToast.error("Failed to update pull request", {
-        id: toastId,
-        description: getMutationErrorMessage({
-          error,
-          fallbackMessage: "Pull request was not updated",
-        }),
-      });
-    }
-  }, [requestEnvironmentAction, thread?.environmentId]);
-  const handlePullRequestDraft = useCallback(async () => {
-    const environmentId = thread?.environmentId;
-    if (!environmentId) {
-      return;
-    }
-    const toastId = appToast.loading("Converting pull request to draft");
-    try {
-      const response = await requestEnvironmentAction.mutateAsync({
-        id: environmentId,
-        action: "pull_request_draft",
-      });
-      if (response.action !== "pull_request_draft") {
-        throw new Error("Expected pull request draft action response.");
-      }
-      appToast.success(response.message, { id: toastId });
-    } catch (error) {
-      appToast.error("Failed to update pull request", {
-        id: toastId,
-        description: getMutationErrorMessage({
-          error,
-          fallbackMessage: "Pull request was not updated",
-        }),
-      });
-    }
-  }, [requestEnvironmentAction, thread?.environmentId]);
-  const handlePullRequestMerge = useCallback(
-    async (method: PullRequestMergeMethod) => {
-      const environmentId = thread?.environmentId;
-      if (!environmentId) {
-        return;
-      }
-      setPullRequestMergeMethod(method);
-      const toastId = appToast.loading(getPullRequestMergeLoadingTitle(method));
-      try {
-        const response = await requestEnvironmentAction.mutateAsync({
-          id: environmentId,
-          action: "pull_request_merge",
-          options: { method },
-        });
-        if (response.action !== "pull_request_merge") {
-          throw new Error("Expected pull request merge action response.");
-        }
-        appToast.success(response.message, { id: toastId });
-      } catch (error) {
-        appToast.error("Failed to merge pull request", {
-          id: toastId,
-          description: getMutationErrorMessage({
-            error,
-            fallbackMessage: "Pull request was not merged",
-          }),
-        });
-      }
-    },
-    [
-      requestEnvironmentAction,
-      setPullRequestMergeMethod,
-      thread?.environmentId,
-    ],
-  );
   const workspaceBranch = workspaceStatus?.branch;
   const workspaceChangedFilesSection = useMemo(
     () => selectWorkspaceChangedFilesSection(workspaceStatus),
@@ -1789,11 +1633,7 @@ function ThreadDetailViewInternal(
           ? threadSourceThreadId
           : thread?.parentThreadId;
       if (!thread || !relatedThreadId) return null;
-      const relationship = isSideChatThread
-        ? "side-chat"
-        : threadOriginKind === "fork"
-          ? "fork"
-          : "parent";
+      const relationship = threadOriginKind === "fork" ? "fork" : "parent";
       const relatedThread =
         relationship === "parent" ? parentThread : sourceThread;
       const href = getThreadRoutePath({
@@ -1821,7 +1661,6 @@ function ThreadDetailViewInternal(
         relationship,
       };
     }, [
-      isSideChatThread,
       parentThread,
       sourceThread,
       thread,
@@ -1981,25 +1820,10 @@ function ThreadDetailViewInternal(
     [],
   );
   const handleTimelineTitleAction = useCallback<TimelineTitleActionResolver>(
-    (action) => {
-      switch (action.kind) {
-        case "open-file-diff":
-          return () => {
-            openSecondaryPanelDiffFile(action.path);
-          };
-        case "open-plugin-side-chat":
-          return () => {
-            handleOpenTimelinePluginPanel({
-              pluginId: SIDE_CHAT_PLUGIN_ID,
-              actionId: SIDE_CHAT_PLUGIN_PANEL_ACTION_ID,
-              params: { threadId: action.threadId, sourceThreadId: threadId },
-            });
-          };
-        default:
-          return assertNever(action);
-      }
+    (action) => () => {
+      openSecondaryPanelDiffFile(action.path);
     },
-    [openSecondaryPanelDiffFile, handleOpenTimelinePluginPanel, threadId],
+    [openSecondaryPanelDiffFile],
   );
   const metadataStorage = useMemo(
     () =>
@@ -2238,7 +2062,6 @@ function ThreadDetailViewInternal(
         providerLookup: threadEnvironmentProviderLookup,
         hasMultipleMachines,
         host: resolvedThreadEnvironmentHost,
-        machineProviders: registeredMachineProviders,
       })
     : undefined;
   const isThreadOnReusableEnvironment =
@@ -2339,9 +2162,7 @@ function ThreadDetailViewInternal(
           }
         />
       )}
-      childPillLabel={
-        isSideChatThread ? "side chat" : parentThreadId ? "child" : null
-      }
+      childPillLabel={parentThreadId ? "child" : null}
       isSecondaryPanelOpen={isSecondaryPanelOpen}
       onClosePane={onRequestClose ?? undefined}
       onOpenThreadGitAction={gitActions.threadGitActionDialog.onOpen}
@@ -2372,21 +2193,13 @@ function ThreadDetailViewInternal(
       environmentHost={composerEnvironmentChrome?.environmentHost}
       environmentIcon={composerEnvironmentChrome?.environmentIcon}
       environmentLabel={composerEnvironmentChrome?.environmentLabel}
-      environmentMachineProvider={
-        composerEnvironmentChrome?.environmentMachineProvider
-      }
       environmentProviderName={
         composerEnvironmentChrome?.environmentProviderName
       }
       canRestoreEnvironment={thread.canRestoreEnvironment}
       environmentGoneStatus={threadEnvironmentGoneStatus}
       environmentHostId={environment?.hostId}
-      isEnvironmentActionPending={requestEnvironmentAction.isPending}
       onCreateNewThreadInEnvironment={onCreateNewThreadInEnvironment}
-      onPullRequestMerge={handlePullRequestMerge}
-      onPullRequestDraft={handlePullRequestDraft}
-      onPullRequestReady={handlePullRequestReady}
-      pullRequestMergeMethod={pullRequestMergeMethod}
       onChangedFileClick={handleChangedFileClick}
       projectId={projectId}
       resolveMentionLink={resolveMentionLink}
@@ -2429,7 +2242,6 @@ function ThreadDetailViewInternal(
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={childThreadsSection}
-      pullRequest={pullRequest}
       thread={thread}
     />
   );
@@ -2711,7 +2523,6 @@ function ThreadDetailViewInternal(
             workspaceStatus,
             workspaceStatusError: workspaceStatusError ?? null,
             workspaceUnavailable,
-            pullRequest,
             selectedMergeBaseBranch,
             mergeBaseBranchRef: selectedMergeBaseBranchRef,
             mergeBaseBranchOptions,
@@ -2776,7 +2587,6 @@ function ThreadDetailViewInternal(
               : undefined,
             inlineMessageEditor,
             onMessageAddToChat: handleSelectionAddToChat,
-            onSendToMainMessage: handleSendToMainMessage,
             onSelectionAddToChat: handleSelectionAddToChat,
             onLoadOlderRows: loadOlderTimelineRows,
             onOpenLink: handleOpenTimelineLink,

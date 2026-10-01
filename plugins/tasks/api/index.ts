@@ -20,7 +20,6 @@ import {
   type ProjectsChangedEvent,
   type SidebarProjectSummary,
   type Task,
-  type TaskPullRequest,
   type TasksChangedEvent,
   type TasksDomainError,
   type CommentsChangedEvent,
@@ -443,129 +442,6 @@ export async function createComment(
   return comment;
 }
 
-interface TaskPullRequestsResult {
-  pullRequests: TaskPullRequest[];
-  unavailableThreadIds: string[];
-}
-
-const PULL_REQUEST_LOOKUP_CONCURRENCY = 4;
-
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  work: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(limit, items.length) },
-    async () => {
-      while (nextIndex < items.length) {
-        const index = nextIndex;
-        nextIndex += 1;
-        results[index] = await work(items[index]!);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return results;
-}
-
-async function listTaskPullRequests(
-  bb: BbPluginApi,
-  store: TasksApiStore,
-  taskId: string,
-): Promise<TaskPullRequestsResult> {
-  const taskThreads = store.tasks.listTaskThreads(taskId);
-
-  const unavailable = new Set<string>();
-  const threadIdsByEnvironment = new Map<string, string[]>();
-  await Promise.all(
-    taskThreads.map(async (taskThread) => {
-      try {
-        const thread = await bb.sdk.threads.get({
-          threadId: taskThread.threadId,
-        });
-        if (!thread.environmentId) return;
-        const group = threadIdsByEnvironment.get(thread.environmentId) ?? [];
-        group.push(taskThread.threadId);
-        threadIdsByEnvironment.set(thread.environmentId, group);
-      } catch {
-        unavailable.add(taskThread.threadId);
-      }
-    }),
-  );
-
-  const byUrl = new Map<string, TaskPullRequest>();
-  await mapWithConcurrency(
-    [...threadIdsByEnvironment.entries()],
-    PULL_REQUEST_LOOKUP_CONCURRENCY,
-    async ([environmentId, threadIds]) => {
-      let result: Awaited<
-        ReturnType<BbPluginApi["sdk"]["environments"]["pullRequest"]>
-      >;
-      try {
-        result = await bb.sdk.environments.pullRequest({ environmentId });
-      } catch {
-        for (const threadId of threadIds) unavailable.add(threadId);
-        return;
-      }
-      if (result.outcome === "unavailable") {
-        for (const threadId of threadIds) unavailable.add(threadId);
-        return;
-      }
-      if (result.outcome === "absent") return;
-      const { pullRequest } = result;
-      const existing = byUrl.get(pullRequest.url);
-      if (!existing) {
-        byUrl.set(pullRequest.url, {
-          url: pullRequest.url,
-          number: pullRequest.number,
-          title: pullRequest.title,
-          state: pullRequest.state,
-          updatedAt: pullRequest.updatedAt,
-          threadIds: [...threadIds],
-        });
-        return;
-      }
-      const threadIdUnion = [...existing.threadIds, ...threadIds];
-      if (pullRequest.updatedAt.localeCompare(existing.updatedAt) > 0) {
-        byUrl.set(pullRequest.url, {
-          url: pullRequest.url,
-          number: pullRequest.number,
-          title: pullRequest.title,
-          state: pullRequest.state,
-          updatedAt: pullRequest.updatedAt,
-          threadIds: threadIdUnion,
-        });
-      } else {
-        existing.threadIds = threadIdUnion;
-      }
-    },
-  );
-
-  const threadOrder = new Map(
-    taskThreads.map((taskThread, index) => [taskThread.threadId, index]),
-  );
-  const orderByThread = (threadId: string) =>
-    threadOrder.get(threadId) ?? Number.MAX_SAFE_INTEGER;
-  const pullRequests = [...byUrl.values()].map((pullRequest) => ({
-    ...pullRequest,
-    threadIds: [...pullRequest.threadIds].sort(
-      (left, right) => orderByThread(left) - orderByThread(right),
-    ),
-  }));
-
-  return {
-    pullRequests: pullRequests.sort((left, right) =>
-      right.updatedAt.localeCompare(left.updatedAt),
-    ),
-    unavailableThreadIds: [...unavailable].sort(
-      (left, right) => orderByThread(left) - orderByThread(right),
-    ),
-  };
-}
-
 export function registerHandlers(
   bb: BbPluginApi,
   store: TasksApiStore,
@@ -936,9 +812,6 @@ export function registerHandlers(
     },
     listTaskThreads(input) {
       return { taskThreads: store.tasks.listTaskThreads(input.taskId) };
-    },
-    async listTaskPullRequests(input) {
-      return listTaskPullRequests(bb, store, input.taskId);
     },
     createPreset(input) {
       const preset = store.tasks.createPreset({ ...input, builtin: false });

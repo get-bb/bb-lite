@@ -1,4 +1,3 @@
-import { MobileAppSection } from "@/components/settings/MobileAppSection";
 import { MachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import { MachineAccessSettings } from "@/components/settings/MachineAccessSettings";
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -13,12 +12,8 @@ import {
   builtInThemes,
   defaultAppSettings,
   defaultAppTheme,
-  defaultExperiments,
-  experimentKeys,
   managedBranchPrefixSchema,
   type AppTheme,
-  type ExperimentKey,
-  type Experiments,
   type FaviconColorPreference,
   type PluginThemeMeta,
 } from "@bb/domain";
@@ -64,9 +59,6 @@ import { PluginDetailPaneView } from "@/views/ToolsView";
 import { SETTINGS_PLUGIN_ROUTE_PATH } from "@/lib/route-paths";
 import { PluginSettingsPage } from "@/components/plugin/PluginSettings";
 import { FileOpenersSettingsSection } from "@/components/settings/FileOpenersSettingsSection";
-import { VoiceInputSettingsSection } from "@/components/settings/VoiceInputSettingsSection";
-import { AiServicesSettingsSection } from "@/components/settings/AiServicesSettingsSection";
-import { CommunitySettingsSection } from "@/components/settings/CommunitySettingsSection";
 import { KeyboardSettingsSection } from "@/components/settings/KeyboardSettingsSection";
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
 import { ProjectsSettingsSection } from "@/components/settings/ProjectsSettingsSection";
@@ -76,7 +68,6 @@ import { MarketplacesSettingsSection } from "@/components/settings/MarketplacesS
 import {
   useUpdateGeneralSettings,
   useUpdateAppearance,
-  useUpdateExperiments,
 } from "@/hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useWorkspaceOpenTargets } from "@/hooks/useWorkspaceOpenTargets";
@@ -182,8 +173,6 @@ interface GeneralSettingsSectionProps {
 interface PrivacySettingsSectionProps {
   onStreamerModeChange: (enabled: boolean) => void;
   streamerMode: boolean;
-  telemetryEnabled: boolean;
-  onTelemetryEnabledChange: (enabled: boolean) => void;
   disabled: boolean;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
@@ -199,12 +188,6 @@ function appPaletteLabel(
     pluginThemes.find((entry) => entry.id === appearance.themeId)?.name ??
     appearance.themeId
   );
-}
-
-interface ExperimentsSettingsSectionProps {
-  disabled: boolean;
-  experiments: Experiments;
-  onExperimentChange: (key: ExperimentKey, enabled: boolean) => void;
 }
 
 const THEME_PREFERENCE_OPTIONS: ReadonlyArray<ThemePreferenceOption> = [
@@ -987,8 +970,6 @@ export function PrivacySettingsSection({
   onEnabledChange,
   streamerMode,
   onStreamerModeChange,
-  telemetryEnabled,
-  onTelemetryEnabledChange,
 }: PrivacySettingsSectionProps) {
   return (
     <SettingsSection title="Privacy & diagnostics">
@@ -1006,18 +987,6 @@ export function PrivacySettingsSection({
         </SettingsWithControl>
 
         <SettingsWithControl
-          label="Share anonymous usage data"
-          description="Send anonymous app starts, thread and message counts, and plugin installs to help improve BB. Turning this off takes effect immediately for this server."
-        >
-          <Switch
-            checked={telemetryEnabled}
-            disabled={disabled}
-            onCheckedChange={onTelemetryEnabledChange}
-            aria-label="Share anonymous usage data"
-          />
-        </SettingsWithControl>
-
-        <SettingsWithControl
           label={DIAGNOSTIC_EVENTS_SETTING_LABEL}
           description="Show provider environment resolution and unhandled provider events for troubleshooting."
         >
@@ -1030,63 +999,6 @@ export function PrivacySettingsSection({
         </SettingsWithControl>
       </div>
     </SettingsSection>
-  );
-}
-
-const EXPERIMENT_DEFINITIONS: Record<
-  ExperimentKey,
-  { label: string; description: string }
-> = {
-  changelogPreview: {
-    label: "Changelog preview",
-    description:
-      "Show the latest release notes as a compact preview on the Updates page.",
-  },
-  legacyJitiPluginLoader: {
-    label: "Legacy plugin loader (JITI)",
-    description:
-      "Load plugin server code with the legacy JITI runtime. Takes effect the next time a plugin loads.",
-  },
-  serverMove: {
-    label: "Server move",
-    description:
-      "Move the bb server to another machine from Settings → Machines, and export or import server data with bb server.",
-  },
-};
-export function ExperimentsSettingsSection({
-  disabled,
-  experiments,
-  onExperimentChange,
-}: ExperimentsSettingsSectionProps) {
-  return (
-    <>
-      <SettingsSection
-        title="Experiments"
-        description="Early features that are off by default. Opt in to try them."
-      >
-        <div className="space-y-5">
-          {experimentKeys.map((experimentKey) => {
-            const definition = EXPERIMENT_DEFINITIONS[experimentKey];
-            return (
-              <SettingsWithControl
-                key={experimentKey}
-                label={definition.label}
-                description={definition.description}
-              >
-                <Switch
-                  checked={experiments[experimentKey]}
-                  disabled={disabled}
-                  onCheckedChange={(enabled) =>
-                    onExperimentChange(experimentKey, enabled)
-                  }
-                  aria-label={definition.label}
-                />
-              </SettingsWithControl>
-            );
-          })}
-        </div>
-      </SettingsSection>
-    </>
   );
 }
 
@@ -1108,8 +1020,6 @@ export function SettingsView() {
   const [navigateToThreadAfterCreate, setNavigateToThreadAfterCreate] =
     useNavigateToThreadAfterCreatePreference();
   const [richTextEditing, setRichTextEditing] = useRichTextEditingPreference();
-  const experiments = systemConfigQuery.data?.experiments ?? defaultExperiments;
-  const updateExperimentsMutation = useUpdateExperiments();
   const generalSettings =
     systemConfigQuery.data?.generalSettings ?? defaultAppSettings;
   const updateGeneralSettingsMutation = useUpdateGeneralSettings();
@@ -1155,8 +1065,6 @@ export function SettingsView() {
         }
       />
     );
-  } else if (activeSection === "ai-services") {
-    content = <AiServicesSettingsSection />;
   } else if (activeSection === "appearance") {
     content = (
       <AppearanceSettingsSection
@@ -1226,25 +1134,8 @@ export function SettingsView() {
     );
   } else if (activeSection === "environment-variables") {
     content = <MachineEnvironmentSettings />;
-  } else if (activeSection === "mobile") {
-    content = <MobileAppSection />;
-  } else if (activeSection === "experiments") {
-    content = (
-      <ExperimentsSettingsSection
-        disabled={
-          systemConfigQuery.data === undefined ||
-          updateExperimentsMutation.isPending
-        }
-        experiments={experiments}
-        onExperimentChange={(key, enabled) =>
-          updateExperimentsMutation.mutate({ ...experiments, [key]: enabled })
-        }
-      />
-    );
   } else if (activeSection === "marketplaces") {
     content = <MarketplacesSettingsSection />;
-  } else if (activeSection === "community") {
-    content = <CommunitySettingsSection />;
   } else if (activeSection === "archived") {
     content = <ArchivedThreadsSettingsSection />;
   } else {
@@ -1284,15 +1175,7 @@ export function SettingsView() {
           }
         />
         <CliSkillsSettingsSection />
-        <VoiceInputSettingsSection />
         <PrivacySettingsSection
-          telemetryEnabled={generalSettings.telemetryEnabled}
-          onTelemetryEnabledChange={(enabled) =>
-            updateGeneralSettingsMutation.mutate({
-              ...generalSettings,
-              telemetryEnabled: enabled,
-            })
-          }
           streamerMode={generalSettings.streamerMode}
           onStreamerModeChange={(enabled) =>
             updateGeneralSettingsMutation.mutate({

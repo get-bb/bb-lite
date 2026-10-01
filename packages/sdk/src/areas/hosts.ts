@@ -1,4 +1,3 @@
-import { hostProviderCliInstallEventSchema } from "@bb/server-contract";
 import type { Host, HostType } from "@bb/domain";
 import type {
   CreateHostJoinCodeResponse,
@@ -9,18 +8,11 @@ import type {
   HostCloneDefaultPathResponse,
   HostDirectoryListing,
   HostDirectoryQuery,
-  HostActionResponse,
   HostPathsExistRequest,
   HostPathsExistResponse,
   HostPickFolderRequest,
   HostPickFolderResponse,
-  HostProviderCliInstallEvent,
-  HostProviderCliInstallRequest,
-  HostProviderCliStatusResponse,
-  HostRetryUpdateResponse,
-  DeleteOldServerCopyResponse,
   UpdateHostRequest,
-  SystemMachineProvider,
 } from "@bb/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
@@ -34,10 +26,6 @@ export interface HostDeleteArgs {
 }
 
 export interface HostUpdateArgs extends UpdateHostRequest {
-  hostId: string;
-}
-
-export interface HostRetryUpdateArgs {
   hostId: string;
 }
 
@@ -69,10 +57,6 @@ export interface HostPickFolderArgs extends HostPickFolderRequest {
   signal?: AbortSignal;
 }
 
-export interface HostProviderCliInstallArgs extends HostProviderCliInstallRequest {
-  hostId: string;
-}
-
 export interface HostListArgs {
   includeCreating?: boolean;
   type?: HostType;
@@ -81,10 +65,6 @@ export interface HostListArgs {
 
 export interface MachineCreateArgs extends CreateMachineRequest {
   wait?: boolean;
-  signal?: AbortSignal;
-}
-
-export interface MachineProviderListArgs {
   signal?: AbortSignal;
 }
 
@@ -98,15 +78,10 @@ export type HostGetResult = Host & {
 export type HostEnrollmentCommandResult = HostEnrollmentCommandResponse;
 export type HostReconnectResult = HostReconnectResponse;
 export type HostCloneDefaultPathResult = HostCloneDefaultPathResponse;
-export type HostProviderCliInstallResult = HostProviderCliInstallEvent[];
 export type HostListResult = Host[];
 export type HostPathsExistResult = HostPathsExistResponse;
 export type HostPickFolderResult = HostPickFolderResponse;
-export type HostProviderCliStatusResult = HostProviderCliStatusResponse;
-export type HostRetryUpdateResult = HostRetryUpdateResponse;
-export type HostActionResult = HostActionResponse;
 export type HostUpdateResult = Host;
-export type MachineProviderListResult = SystemMachineProvider[];
 
 export interface HostsArea {
   experimental_create(args: MachineCreateArgs): Promise<Host>;
@@ -117,29 +92,14 @@ export interface HostsArea {
   /** @deprecated Use experimental_create() and experimental_getEnrollmentCommand() for bootstrap enrollment. */
   createJoinCode(): Promise<HostCreateJoinCodeResult>;
   delete(args: HostDeleteArgs): Promise<HostDeleteResult>;
-  experimental_deleteOldServerCopy(
-    args: HostActionArgs,
-  ): Promise<DeleteOldServerCopyResponse>;
   directory(args: HostDirectoryArgs): Promise<HostDirectoryResult>;
   get(args: HostGetArgs): Promise<HostGetResult>;
   cloneDefaultPath(
     args: HostCloneDefaultPathArgs,
   ): Promise<HostCloneDefaultPathResult>;
-  installProviderCli(
-    args: HostProviderCliInstallArgs,
-  ): Promise<HostProviderCliInstallResult>;
   list(args?: HostListArgs): Promise<HostListResult>;
-  experimental_listProviders(
-    args?: MachineProviderListArgs,
-  ): Promise<MachineProviderListResult>;
   pathsExist(args: HostPathsExistArgs): Promise<HostPathsExistResult>;
   pickFolder(args: HostPickFolderArgs): Promise<HostPickFolderResult>;
-  providerCliStatus(args: HostGetArgs): Promise<HostProviderCliStatusResult>;
-  experimental_resume(args: HostActionArgs): Promise<Host>;
-  experimental_retryCleanup(args: HostActionArgs): Promise<HostActionResult>;
-  retryUpdate(args: HostRetryUpdateArgs): Promise<HostRetryUpdateResult>;
-  experimental_suspend(args: HostActionArgs): Promise<Host>;
-  experimental_reconcile(args: HostActionArgs): Promise<Host>;
   update(args: HostUpdateArgs): Promise<HostUpdateResult>;
 }
 
@@ -207,13 +167,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
       );
       return { ok: true };
     },
-    async experimental_deleteOldServerCopy(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["old-server-copy"].$delete({
-          param: { id: input.hostId },
-        }),
-      );
-    },
     async directory(input) {
       return transport.readJson(
         transport.api.v1.hosts[":id"].directory.$get(
@@ -246,24 +199,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
         ),
       );
     },
-    async installProviderCli(input) {
-      const response = await transport.resolve(
-        transport.api.v1.hosts[":id"]["provider-clis"].install.$post({
-          param: { id: input.hostId },
-          json: {
-            provider: input.provider,
-            actionKind: input.actionKind,
-          },
-        }),
-      );
-      const text: string = await response.text();
-      return text
-        .split(/\r?\n/u)
-        .filter((line) => line.trim().length > 0)
-        .map((line) =>
-          hostProviderCliInstallEventSchema.parse(JSON.parse(line)),
-        );
-    },
     async list(input) {
       return transport.readJson(
         transport.api.v1.hosts.$get(
@@ -280,15 +215,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
           ...signalRequestArgs(input?.signal),
         ),
       );
-    },
-    async experimental_listProviders(input) {
-      const response = await transport.readJson(
-        transport.api.v1.system["machine-providers"].$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-      return response.providers;
     },
     async pathsExist(input) {
       return transport.readJson(
@@ -310,51 +236,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
           },
           ...signalRequestArgs(input.signal),
         ),
-      );
-    },
-    async providerCliStatus(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["provider-clis"].status.$get(
-          {
-            param: { id: input.hostId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async experimental_resume(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].resume.$post({
-          param: { id: input.hostId },
-        }),
-      );
-    },
-    async experimental_retryCleanup(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["retry-cleanup"].$post({
-          param: { id: input.hostId },
-        }),
-      );
-    },
-    async retryUpdate(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["retry-update"].$post({
-          param: { id: input.hostId },
-        }),
-      );
-    },
-    async experimental_reconcile(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].reconcile.$post({
-          param: { id: input.hostId },
-        }),
-      );
-    },
-    async experimental_suspend(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].suspend.$post({
-          param: { id: input.hostId },
-        }),
       );
     },
     async update(input) {

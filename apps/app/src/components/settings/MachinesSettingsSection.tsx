@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Host, PermissionMode } from "@bb/domain";
-import type { SystemMachineProvider } from "@bb/server-contract";
 import type { HostPlatform } from "@bb/host-daemon-contract";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
@@ -12,17 +11,14 @@ import {
   targetsResourceAction,
 } from "@bb/shared-ui/resource-list";
 import { AddMachineDialog } from "@/components/dialogs/AddMachineDialog";
-import { appToast } from "@/components/ui/app-toast";
 import { machineActions } from "@/components/machines/machine-actions";
 import { MachineReconnectDialog } from "@/components/machines/MachineReconnectDialog";
 import { MachineRemoveDialog } from "@/components/machines/MachineRemoveDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
-import { MoveServerDialog } from "@/components/machines/MoveServerDialog";
 import {
   machineStatusLabel,
   machineStatusTone,
 } from "@/components/machines/machine-status";
-import { canMoveServerHere } from "@/components/machines/server-move";
 import { MachineRenameDialog } from "@/components/settings/MachineRenameDialog";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import {
@@ -31,16 +27,8 @@ import {
   SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import {
-  useRenameHost,
-  useResumeHost,
-  useRetryHostCleanup,
-  useRetryHostUpdate,
-  useSuspendHost,
-} from "@/hooks/mutations/host-mutations";
+import { useRenameHost } from "@/hooks/mutations/host-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
-import { useServerMoveStatus } from "@/hooks/queries/server-move-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
@@ -74,16 +62,6 @@ interface MachineRowProps {
   onRename: () => void;
   onRemove: () => void;
   onReconnect: () => void;
-  onRetryUpdate: () => void;
-  onSuspend: () => void;
-  onResume: () => void;
-  onRetryCleanup: () => void;
-  canMoveServerHere: boolean;
-  onMoveServerHere: () => void;
-  serverMoveEnabled: boolean;
-  lifecycleActionPending: boolean;
-  retryUpdatePending: boolean;
-  machineProvider: SystemMachineProvider | null;
 }
 
 export function MachineRowContent({
@@ -97,16 +75,6 @@ export function MachineRowContent({
   onRename,
   onRemove,
   onReconnect,
-  onRetryUpdate,
-  onSuspend,
-  onResume,
-  onRetryCleanup,
-  canMoveServerHere,
-  onMoveServerHere,
-  serverMoveEnabled,
-  lifecycleActionPending,
-  retryUpdatePending,
-  machineProvider,
 }: MachineRowProps) {
   const navigate = useNavigate();
   const detailPath = getSettingsMachineRoutePath(host.id);
@@ -135,7 +103,6 @@ export function MachineRowContent({
               <div className="flex min-w-0 items-center gap-1.5">
                 <MachineLabel
                   host={host}
-                  machineProvider={machineProvider}
                   nameClassName="text-sm font-medium text-foreground"
                 />
                 {isThisMachine ? (
@@ -173,19 +140,9 @@ export function MachineRowContent({
               label={`${host.name} actions`}
               items={machineActions({
                 host,
-                machineProvider,
                 isPrimary,
-                canMoveServerHere,
-                serverMoveEnabled,
-                lifecycleActionPending,
-                retryUpdatePending,
                 onRename,
                 onReconnect,
-                onRetryUpdate,
-                onSuspend,
-                onResume,
-                onRetryCleanup,
-                onMoveServerHere,
                 onRemove,
               })}
             />
@@ -200,28 +157,18 @@ export function MachineRowContent({
 export function MachinesSettingsSection() {
   const systemConfig = useSystemConfig();
   const hostsQuery = useHosts({ includeCreating: true });
-  const { providers: machineProviders } = useSystemMachineProviders();
   const { localDaemonHostId, platform: localDaemonPlatform } = useHostDaemon();
   const sidebarNavigationQuery = useSidebarNavigation();
   const renameHost = useRenameHost();
-  const retryHostUpdate = useRetryHostUpdate();
-  const suspendHost = useSuspendHost();
-  const resumeHost = useResumeHost();
-  const retryHostCleanup = useRetryHostCleanup();
-  const serverMoveStatus = useServerMoveStatus();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [showAllMachines, setShowAllMachines] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Host | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Host | null>(null);
   const [reconnectTargetId, setReconnectTargetId] = useState<string | null>(
     null,
   );
-  const [moveServerTarget, setMoveServerTarget] = useState<Host | null>(null);
 
   const hosts = hostsQuery.data;
   const serverPrimaryHostId = systemConfig.data?.primaryHostId ?? null;
-  const serverMoveEnabled = systemConfig.data?.experiments.serverMove ?? false;
-  const serverMove = serverMoveStatus.data?.move ?? null;
   const projects = sidebarNavigationQuery.data?.projects;
   const projectCountByHostId = useMemo(() => {
     const counts = new Map<string, number>();
@@ -237,21 +184,10 @@ export function MachinesSettingsSection() {
   const now = Date.now();
   const primaryHostPlatform = systemConfig.data?.primaryHostPlatform ?? null;
   const persistentHosts = hosts?.filter((host) => host.type === "persistent");
-  const sandboxHosts = hosts?.filter((host) => host.type === "ephemeral");
-  const visibleHosts =
-    showAllMachines && sandboxHosts !== undefined
-      ? [...(persistentHosts ?? []), ...sandboxHosts]
-      : (persistentHosts ?? []);
+  const visibleHosts = persistentHosts ?? [];
   const showThisMachineBadge = (persistentHosts?.length ?? 0) > 1;
   const hasMachineRows =
     persistentHosts !== undefined && persistentHosts.length > 0;
-  const machineProviderById = useMemo(
-    () =>
-      new Map(
-        (machineProviders ?? []).map((provider) => [provider.id, provider]),
-      ),
-    [machineProviders],
-  );
   const renderMachineRows = (rows: readonly Host[]) => (
     <SettingsRowList>
       {rows.map((host) => (
@@ -280,54 +216,6 @@ export function MachinesSettingsSection() {
           onReconnect={() => {
             setReconnectTargetId(host.id);
           }}
-          onRetryUpdate={() =>
-            retryHostUpdate.mutate(host.id, {
-              onSuccess: () => {
-                appToast.success(`Update retry requested for ${host.name}`);
-              },
-            })
-          }
-          retryUpdatePending={
-            retryHostUpdate.isPending && retryHostUpdate.variables === host.id
-          }
-          onSuspend={() =>
-            suspendHost.mutate(host.id, {
-              onSuccess: () => appToast.success(`${host.name} suspended`),
-            })
-          }
-          onResume={() =>
-            resumeHost.mutate(host.id, {
-              onSuccess: () => appToast.success(`${host.name} resumed`),
-            })
-          }
-          onRetryCleanup={() =>
-            retryHostCleanup.mutate(host.id, {
-              onSuccess: () =>
-                appToast.success(`Cleanup retried for ${host.name}`),
-            })
-          }
-          canMoveServerHere={
-            systemConfig.data !== undefined &&
-            canMoveServerHere({
-              host,
-              primaryHostId: serverPrimaryHostId,
-              move: serverMove,
-              serverMoveEnabled,
-            })
-          }
-          onMoveServerHere={() => setMoveServerTarget(host)}
-          serverMoveEnabled={serverMoveEnabled}
-          lifecycleActionPending={
-            (suspendHost.isPending && suspendHost.variables === host.id) ||
-            (resumeHost.isPending && resumeHost.variables === host.id) ||
-            (retryHostCleanup.isPending &&
-              retryHostCleanup.variables === host.id)
-          }
-          machineProvider={
-            host.machineProviderId === null
-              ? null
-              : (machineProviderById.get(host.machineProviderId) ?? null)
-          }
         />
       ))}
     </SettingsRowList>
@@ -366,16 +254,6 @@ export function MachinesSettingsSection() {
               threads and settings are stored. Choose a machine that can stay
               awake and online to run the server.
             </p>
-            {serverMoveEnabled ? (
-              <p>
-                To change which machine runs the server, open the ⋯ menu on
-                another machine below and choose{" "}
-                <span className="font-medium text-foreground">
-                  Move server here
-                </span>
-                .
-              </p>
-            ) : null}
           </div>
         </div>
         <div
@@ -391,26 +269,6 @@ export function MachinesSettingsSection() {
           ) : (
             renderMachineRows(visibleHosts)
           )}
-          {sandboxHosts !== undefined && sandboxHosts.length > 0 ? (
-            <button
-              type="button"
-              aria-expanded={showAllMachines}
-              onClick={() => setShowAllMachines((previous) => !previous)}
-              className="-ml-1 inline-flex items-center gap-1.5 self-start rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground"
-            >
-              <Icon
-                name="ChevronDown"
-                className={cn(
-                  "size-3.5 transition-transform",
-                  showAllMachines && "rotate-180",
-                )}
-                aria-hidden
-              />
-              <span>
-                {showAllMachines ? "Show fewer machines" : "Show all machines"}
-              </span>
-            </button>
-          ) : null}
         </div>
       </SettingsSection>
 
@@ -449,13 +307,6 @@ export function MachinesSettingsSection() {
         target={removeTarget}
         onOpenChange={(open) => {
           if (!open) setRemoveTarget(null);
-        }}
-      />
-
-      <MoveServerDialog
-        target={moveServerTarget}
-        onOpenChange={(open) => {
-          if (!open) setMoveServerTarget(null);
         }}
       />
     </>

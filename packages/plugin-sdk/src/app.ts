@@ -174,9 +174,6 @@ export const experimental_useSidebarThreads = runtimeFunction(
 export const experimental_useSidebarThreadActions = runtimeFunction(
   "experimental_useSidebarThreadActions",
 );
-export const experimental_useSidebarThreadPullRequest = runtimeFunction(
-  "experimental_useSidebarThreadPullRequest",
-);
 export const experimental_useSidebarThreadSplit = runtimeFunction(
   "experimental_useSidebarThreadSplit",
 );

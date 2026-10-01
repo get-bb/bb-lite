@@ -34,8 +34,6 @@ import {
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { PluginMachineServerAccessNotice } from "@/components/machines/MachineServerAccessNotice";
-import { invalidateMachineProviders } from "@/hooks/cache-owners/system-cache-effects";
 import {
   SETTINGS_DROPDOWN_CONTENT_CLASS,
   SETTINGS_DROPDOWN_TRIGGER_CLASS,
@@ -329,7 +327,6 @@ function AutosavingPluginSetting({
     },
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
-      void invalidateMachineProviders({ queryClient });
     },
   });
 
@@ -587,11 +584,8 @@ function PluginSettingsContent({
   plugin: PluginListItem;
   onBackToDetails?: () => void;
 }) {
-  const queryClient = useQueryClient();
   const { settingsSections } = usePluginSlots();
-  const { toggle, enabled } = usePluginEnabledMutation(plugin, () =>
-    invalidateMachineProviders({ queryClient }),
-  );
+  const { toggle, enabled } = usePluginEnabledMutation(plugin);
   const hasAvailableSettings =
     plugin.hasSettings ||
     settingsSections.some((section) => section.pluginId === plugin.id);
@@ -630,9 +624,6 @@ function PluginSettingsContent({
         />
       </header>
       <ResourceDetailStack className="mt-6">
-        {enabled && plugin.enabled ? (
-          <PluginMachineServerAccessNotice pluginId={plugin.id} />
-        ) : null}
         {enabled && plugin.enabled && hasAvailableSettings ? (
           <ResourceDetailConfigurationSection label="Configuration">
             <PluginSettingsDetail plugin={plugin} />
