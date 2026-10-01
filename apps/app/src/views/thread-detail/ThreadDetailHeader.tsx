@@ -19,11 +19,6 @@ import {
   HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
 } from "@/components/layout/AppPageHeader";
 import type { ThreadGitActionDialogTarget } from "@/components/dialogs/ThreadGitActionDialog";
-import {
-  getBbDesktopInfo,
-  MACOS_WINDOW_NO_DRAG_CLASS,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
@@ -90,15 +85,12 @@ export function ThreadDetailHeader({
     label: "Thread name",
     onSave: handleRename,
   });
-  const [desktopInfo] = useState(getBbDesktopInfo);
   const dimsInactiveSplits = useAtomValue(dimInactiveSplitsAtom);
   const panelShortcut = useAppCommandShortcut("panel.toggle");
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
   const headerRef = useRef<HTMLElement>(null!);
   const {
     beginPaneDrag,
     isFocused,
-    isTopRow,
     ownsWindowTopLeft,
     reservesWindowPanelToggle,
     secondaryPanelHost,
@@ -171,7 +163,6 @@ export function ThreadDetailHeader({
               !isFocused &&
               dimsInactiveSplits &&
               CONTEXT_INACTIVE_TEXT_CLASS,
-            usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
             beginPaneDrag && !isEditing && "cursor-grab touch-none select-none",
           )}
           onDoubleClick={handleTitleDoubleClick}
@@ -186,12 +177,7 @@ export function ThreadDetailHeader({
         </Pill>
       ) : null}
       {actionsMenu == null ? null : (
-        <span
-          className={cn(
-            "flex items-center",
-            usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
-          )}
-        >
+        <span className="flex items-center">
           {actionsMenu(usesResponsiveActionOverflow)}
         </span>
       )}
@@ -294,7 +280,6 @@ export function ThreadDetailHeader({
       headerRef={headerRef}
       center={center}
       actions={actions}
-      isWindowDragRegion={isTopRow}
       ownsWindowTopLeft={ownsWindowTopLeft}
       className={beginPaneDrag ? "z-[21]" : undefined}
     />

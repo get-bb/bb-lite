@@ -9,7 +9,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { useAtomValue } from "jotai";
 import type { DiffFileEntry } from "@bb/server-contract";
@@ -68,18 +67,7 @@ import { useSecondaryPanelResize } from "./useSecondaryPanelResize";
 import { threadSecondaryPanelResizingAtom } from "./threadSecondaryPanelAtoms";
 import { GitDiffToolbar } from "./GitDiffToolbar";
 import { GitDiffTabContent } from "./ThreadSecondaryPanelTabContent";
-import {
-  CHROME_ROW_CLASS,
-  getBbDesktopInfo,
-  MACOS_CHROME_CONTROL_AXIS_CLASS,
-  MACOS_COLLAPSED_TOP_LEFT_RESERVE_CLASS,
-  MACOS_WINDOW_DRAG_CLASS,
-  MACOS_WINDOW_NO_DRAG_CLASS,
-  shouldReserveMacosTrafficLights,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
-import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
-import { useOptionalIsSidebarShowing } from "@/components/ui/sidebar.js";
+import { CHROME_ROW_CLASS } from "@/lib/chrome-row";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
 import type {
   FixedPanelViewTab,
@@ -119,25 +107,6 @@ export function getSecondaryPanelChromeStackClassName(
     hasGitDiffToolbar && "flex flex-col",
     SECONDARY_PANEL_TOP_CHROME_BACKGROUND_CLASS,
   );
-}
-
-interface CollapsedPanelTrafficLightReserveArgs {
-  isConversationCollapsed: boolean;
-  renderAsDrawer: boolean;
-  isSidebarShowing: boolean | null;
-  reserveMacosTrafficLights: boolean;
-}
-
-export function resolveCollapsedPanelTrafficLightReserveClassName({
-  isConversationCollapsed,
-  renderAsDrawer,
-  isSidebarShowing,
-  reserveMacosTrafficLights,
-}: CollapsedPanelTrafficLightReserveArgs): string | false {
-  const reserves =
-    reserveMacosTrafficLights &&
-    (renderAsDrawer || (isConversationCollapsed && isSidebarShowing === false));
-  return reserves && MACOS_COLLAPSED_TOP_LEFT_RESERVE_CLASS;
 }
 
 const HIDE_PANEL_LABEL = "Hide right panel";
@@ -357,22 +326,8 @@ export function ThreadSecondaryPanel({
   const isSecondaryPanelResizing = useAtomValue(
     threadSecondaryPanelResizingAtom,
   );
-  const [desktopInfo] = useState(getBbDesktopInfo);
   const [gitDiffLineOverflowMode, setGitDiffLineOverflowMode] =
     useGitDiffLineOverflowModePreference();
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
-  const desktopWindowState = useDesktopWindowState();
-  const isSidebarShowing = useOptionalIsSidebarShowing();
-  const collapsedPanelTrafficLightReserveClassName =
-    resolveCollapsedPanelTrafficLightReserveClassName({
-      isConversationCollapsed,
-      renderAsDrawer,
-      isSidebarShowing,
-      reserveMacosTrafficLights: shouldReserveMacosTrafficLights({
-        desktopInfo,
-        windowState: desktopWindowState,
-      }),
-    });
   const gitDiffPresentation = useMemo<DiffPresentation>(
     () => ({
       view: gitDiffDisplayMode,
@@ -410,12 +365,10 @@ export function ThreadSecondaryPanel({
     onFocusPane: () => void;
     onSurfaceTabReorder: SecondaryPanelTabReorderHandler;
     paneId: string | null;
-    reserveLeadingChrome: boolean;
     reserveNewTabControl: boolean;
     showNewTabControl: boolean;
     showOuterControls: boolean;
     usesPaneArrangementControl: boolean;
-    usesWindowChrome: boolean;
   }
 
   interface PanelTabGroupArgs {
@@ -444,7 +397,6 @@ export function ThreadSecondaryPanel({
           : SECONDARY_PANEL_HIDE_ICON_BUTTON_CLASS,
         CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
         "relative",
-        usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
       )}
       onClick={onClose}
       aria-label={
@@ -474,7 +426,6 @@ export function ThreadSecondaryPanel({
             : HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
           CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
           "shrink-0",
-          usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
         )}
         aria-label="Remove split"
         onClick={onRemoveSplit}
@@ -498,10 +449,7 @@ export function ThreadSecondaryPanel({
       if (onToggleFullScreen === undefined) return null;
       return (
         <PaneArrangementButton
-          className={cn(
-            renderAsDrawer ? PANEL_TAB_CONTROL_CLASS : "shrink-0",
-            usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
-          )}
+          className={cn(renderAsDrawer ? PANEL_TAB_CONTROL_CLASS : "shrink-0")}
           isFullScreen={isFullScreen ?? false}
           onMoveToSide={onMoveActiveTabToSide}
           onToggleFullScreen={onToggleFullScreen}
@@ -522,7 +470,6 @@ export function ThreadSecondaryPanel({
                 : HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
               CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
               "shrink-0",
-              usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
             )}
             onClick={conversationCollapseControl.onClick}
             aria-label={conversationCollapseControl.label}
@@ -559,7 +506,6 @@ export function ThreadSecondaryPanel({
         ariaLabel={newTabAriaLabel}
         onOpenNewTab={onOpenNewTab}
         shortcut={newTabShortcut}
-        usesDesktopChrome={usesDesktopChrome}
         compact={renderAsDrawer}
       />
     ) : reserveNewTabButton ? (
@@ -570,7 +516,6 @@ export function ThreadSecondaryPanel({
           renderAsDrawer
             ? PANEL_TAB_CONTROL_CLASS
             : SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
-          usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
         )}
       />
     ) : null;
@@ -628,7 +573,6 @@ export function ThreadSecondaryPanel({
                   : undefined
               }
               title={fixedTab.title}
-              usesDesktopChrome={usesDesktopChrome}
             />
           );
         })}
@@ -638,7 +582,6 @@ export function ThreadSecondaryPanel({
             tabs={visibleSurfaceTabs}
             onBeginTabDrag={onBeginTabDrag}
             onReorderTab={onSurfaceTabReorder}
-            usesDesktopChrome={usesDesktopChrome}
             isPanelOpen={isOpen}
           />
         ) : null}
@@ -662,12 +605,10 @@ export function ThreadSecondaryPanel({
     onToggleFullScreen,
     onSurfaceTabReorder,
     paneId,
-    reserveLeadingChrome,
     reserveNewTabControl,
     showNewTabControl,
     showOuterControls,
     usesPaneArrangementControl,
-    usesWindowChrome,
   }: PanelSurfaceArgs) => {
     const activeSurfaceTab =
       surfaceTabs.find((tab) => tab.tab.id === activeSurfaceTabId) ?? null;
@@ -707,10 +648,6 @@ export function ThreadSecondaryPanel({
               CHROME_ROW_CLASS,
               "min-w-0 justify-between gap-2",
               renderAsDrawer ? "px-2" : "px-4",
-              usesDesktopChrome && usesWindowChrome && MACOS_WINDOW_DRAG_CLASS,
-              usesDesktopChrome &&
-                usesWindowChrome &&
-                MACOS_CHROME_CONTROL_AXIS_CLASS,
             )}
           >
             <div
@@ -718,8 +655,6 @@ export function ThreadSecondaryPanel({
                 "flex min-w-0 flex-1 items-center gap-1",
                 renderAsDrawer && "gap-0",
                 `transition-[padding] ${PANEL_COLLAPSE_TRANSITION_CLASS}`,
-                reserveLeadingChrome &&
-                  collapsedPanelTrafficLightReserveClassName,
               )}
               data-sidebar-split-tab-group={paneId ?? undefined}
               role="toolbar"
@@ -959,12 +894,10 @@ export function ThreadSecondaryPanel({
           onToggleFullScreen: pane.onToggleMaximize,
           onSurfaceTabReorder: pane.onReorderTab,
           paneId: pane.paneId,
-          reserveLeadingChrome: pane.isTopRow && pane.isLeftEdge,
           reserveNewTabControl: isSplitPane && !pane.isFocused,
           showNewTabControl: !isSplitPane || pane.isFocused,
           showOuterControls: pane.showOuterControls,
           usesPaneArrangementControl: true,
-          usesWindowChrome: pane.isTopRow,
         });
       }}
     />
@@ -981,12 +914,10 @@ export function ThreadSecondaryPanel({
       onFocusPane: onPanelFocus,
       onSurfaceTabReorder: onTabReorder,
       paneId: null,
-      reserveLeadingChrome: true,
       reserveNewTabControl: false,
       showNewTabControl: true,
       showOuterControls: true,
       usesPaneArrangementControl: false,
-      usesWindowChrome: true,
     })
   );
 
@@ -1072,7 +1003,6 @@ interface NewTabButtonProps {
   ariaLabel: string;
   onOpenNewTab: () => void;
   shortcut: AppShortcutPresentation | null;
-  usesDesktopChrome: boolean;
 }
 
 interface PinnedIconTabProps {
@@ -1084,7 +1014,6 @@ interface PinnedIconTabProps {
   onClick: () => void;
   onPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
   title: string;
-  usesDesktopChrome: boolean;
 }
 
 function PinnedIconTab({
@@ -1096,17 +1025,13 @@ function PinnedIconTab({
   onClick,
   onPointerDown,
   title,
-  usesDesktopChrome,
 }: PinnedIconTabProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
           data-testid={label === "Info" ? "thread-info-tab" : undefined}
-          className={cn(
-            "shrink-0",
-            usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
-          )}
+          className="shrink-0"
           onPointerDown={onPointerDown}
         >
           <TabPill
@@ -1132,7 +1057,6 @@ function NewTabButton({
   ariaLabel,
   onOpenNewTab,
   shortcut,
-  usesDesktopChrome,
 }: NewTabButtonProps) {
   return (
     <Button
@@ -1144,7 +1068,6 @@ function NewTabButton({
           ? PANEL_TAB_CONTROL_CLASS
           : SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
         "text-muted-foreground/70 hover:text-foreground focus:ring-1 focus:ring-ring",
-        usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
       )}
       onClick={onOpenNewTab}
       data-panel-new-tab=""

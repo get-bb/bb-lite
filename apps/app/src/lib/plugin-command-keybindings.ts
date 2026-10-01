@@ -33,13 +33,12 @@ export function shortcutsConflict(
 export function resolvePluginCommandDefaults(
   defaults: AppDefaultKeybindings,
   overrides: AppKeybindingOverrides,
-  isDesktop: boolean,
   platform: string,
 ): {
   defaults: AppDefaultKeybindings;
   conflicts: ReadonlyMap<KeyboardCommandId, readonly KeyboardCommandId[]>;
 } {
-  const client = { isDesktop, platform };
+  const client = { platform };
   const effective = applyAppKeybindingOverrides(defaults, overrides).filter(
     (binding) => isAppKeybindingAvailableForClient(binding, client),
   );

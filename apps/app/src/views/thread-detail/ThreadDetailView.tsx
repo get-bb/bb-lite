@@ -187,7 +187,6 @@ import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/T
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { getFileExtension } from "@/lib/plugin-slot-resolvers";
 import { Icon } from "@bb/shared-ui/icon";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
 import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
 import {
   AppNavigationHostProvider,
@@ -1371,20 +1370,6 @@ function ThreadDetailViewInternal(
     handleOpenNewTab();
     return true;
   });
-  useEffect(() => {
-    if (!isFocused) {
-      return;
-    }
-    const desktopInfo = getBbDesktopInfo();
-    if (
-      desktopInfo === null ||
-      desktopInfo.onAppCommand !== undefined ||
-      desktopInfo.onOpenNewTab === undefined
-    ) {
-      return;
-    }
-    return desktopInfo.onOpenNewTab(handleOpenNewTab);
-  }, [handleOpenNewTab, isFocused]);
   const handleStartTerminal = useCallback(() => {
     if (!canCreateTerminal || createTerminal.isPending || !threadId) {
       return;
@@ -1492,19 +1477,6 @@ function ThreadDetailViewInternal(
     }
     return true;
   });
-  useEffect(() => {
-    if (!isFocused) {
-      return;
-    }
-    const desktopInfo = getBbDesktopInfo();
-    if (
-      desktopInfo === null ||
-      desktopInfo.onCloseWindowRequest === undefined
-    ) {
-      return;
-    }
-    return desktopInfo.onCloseWindowRequest(handleCloseWindowRequest);
-  }, [handleCloseWindowRequest, isFocused]);
   const handleChangedFileClick = useCallback(
     (selection: WorkspaceChangedFileSelection) => {
       const openTarget = resolveWorkspaceChangedFileOpenTarget(selection);

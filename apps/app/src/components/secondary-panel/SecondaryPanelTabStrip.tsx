@@ -45,10 +45,6 @@ import {
 import { TabPill } from "@/components/ui/tab-pill";
 import { useDragClickSuppression } from "@/components/ui/use-drag-click-suppression";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  MACOS_APP_REGION_NO_DRAG_CLASS,
-  MACOS_WINDOW_NO_DRAG_CLASS,
-} from "@/lib/bb-desktop";
 import type {
   SecondaryPanelRenderableTab,
   SecondaryPanelTabReorderHandler,
@@ -89,7 +85,6 @@ export interface SecondaryPanelTabStripProps {
     event: ReactPointerEvent<HTMLElement>,
   ) => void;
   onReorderTab: SecondaryPanelTabReorderHandler;
-  usesDesktopChrome: boolean;
   isPanelOpen: boolean;
 }
 
@@ -118,7 +113,6 @@ interface SortablePanelTabProps {
   activeTabRef: RefObject<HTMLDivElement | null>;
   contextMenuDisabled: boolean;
   dragDisabled: boolean;
-  noDragClass: string | null;
   onCloseTabs: (tabId: string, scope: SecondaryPanelTabCloseScope) => void;
   tabs: readonly SecondaryPanelRenderableTab[];
   onBeginTabDrag?: (
@@ -133,7 +127,6 @@ export function SecondaryPanelTabStrip({
   tabs,
   onBeginTabDrag,
   onReorderTab,
-  usesDesktopChrome,
   isPanelOpen,
 }: SecondaryPanelTabStripProps) {
   const stripRef = useRef<HTMLDivElement>(null);
@@ -378,10 +371,6 @@ export function SecondaryPanelTabStrip({
     [activeTabId, tabs],
   );
 
-  const noDragClass = usesDesktopChrome ? MACOS_WINDOW_NO_DRAG_CLASS : null;
-  const chevronNoDragClass = usesDesktopChrome
-    ? MACOS_APP_REGION_NO_DRAG_CLASS
-    : null;
   const dndTabs = useMemo(
     () => (
       <DndContext
@@ -402,7 +391,6 @@ export function SecondaryPanelTabStrip({
               contextMenuDisabled={isCompactViewport}
               dragDisabled={dragDisabled}
               isActive={tab.tab.id === activeTabId}
-              noDragClass={noDragClass}
               onBeginTabDrag={onBeginTabDrag}
               onCloseTabs={handleCloseTabs}
               tab={tab}
@@ -432,7 +420,6 @@ export function SecondaryPanelTabStrip({
       tabs,
       dragDisabled,
       isCompactViewport,
-      noDragClass,
       onBeginTabDrag,
       handleCloseTabs,
       draggingTab,
@@ -450,7 +437,6 @@ export function SecondaryPanelTabStrip({
         buttonRef={leftScrollButtonRef}
         direction="left"
         canScroll={overflow.canScrollLeft}
-        className={chevronNoDragClass}
         onClick={() => scrollByStep(-1)}
       />
       <div data-secondary-panel-tab-scroll-region className="relative min-w-0">
@@ -473,10 +459,7 @@ export function SecondaryPanelTabStrip({
         <div
           ref={viewportRef}
           onClickCapture={handleClickCapture}
-          className={cn(
-            "no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden",
-            usesDesktopChrome && MACOS_APP_REGION_NO_DRAG_CLASS,
-          )}
+          className="no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
         >
           <div
             ref={contentRef}
@@ -491,7 +474,6 @@ export function SecondaryPanelTabStrip({
         buttonRef={rightScrollButtonRef}
         direction="right"
         canScroll={overflow.canScrollRight}
-        className={chevronNoDragClass}
         onClick={() => scrollByStep(1)}
       />
     </div>
@@ -503,7 +485,6 @@ function SortablePanelTab({
   contextMenuDisabled,
   dragDisabled,
   isActive,
-  noDragClass,
   onBeginTabDrag,
   onCloseTabs,
   tab,
@@ -551,7 +532,6 @@ function SortablePanelTab({
             "shrink-0",
             !dragDisabled && "cursor-grab active:cursor-grabbing",
             isDragging && "opacity-40",
-            noDragClass,
           )}
           onPointerDown={(event) => {
             onBeginTabDrag?.(tabId, event);
@@ -591,7 +571,6 @@ interface TabStripScrollButtonProps {
   buttonRef: RefObject<HTMLButtonElement | null>;
   direction: "left" | "right";
   canScroll: boolean;
-  className: string | null;
   onClick: () => void;
 }
 
@@ -599,7 +578,6 @@ function TabStripScrollButton({
   buttonRef,
   direction,
   canScroll,
-  className,
   onClick,
 }: TabStripScrollButtonProps) {
   const label = direction === "left" ? "Scroll tabs left" : "Scroll tabs right";
@@ -622,7 +600,6 @@ function TabStripScrollButton({
         canScroll
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-0",
-        className,
       )}
     >
       <Icon name={direction === "left" ? "ChevronLeft" : "ChevronRight"} />

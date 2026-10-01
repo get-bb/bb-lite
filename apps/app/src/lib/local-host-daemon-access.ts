@@ -18,7 +18,6 @@ export interface LocalNetworkPermissionQuery {
 interface ResolveLocalHostDaemonAccessArgs {
   configuredPorts: readonly number[];
   hostname: string | null;
-  isDesktop: boolean;
   permissions: LocalNetworkPermissionQuery | null;
   sessionAccessGranted: boolean;
 }
@@ -60,7 +59,6 @@ async function queryLoopbackPermissionState(
 export async function resolveLocalHostDaemonAccess({
   configuredPorts,
   hostname,
-  isDesktop,
   permissions,
   sessionAccessGranted,
 }: ResolveLocalHostDaemonAccessArgs): Promise<LocalHostDaemonAccessState> {
@@ -70,7 +68,6 @@ export async function resolveLocalHostDaemonAccess({
 
   if (
     sessionAccessGranted ||
-    isDesktop ||
     (hostname !== null && isLoopbackHostname(hostname))
   ) {
     return "available";

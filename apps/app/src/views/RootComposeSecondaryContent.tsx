@@ -1,21 +1,12 @@
-import { useState, type ComponentProps, type ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Skeleton } from "@bb/shared-ui/skeleton";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PluginHomepageSections } from "@/components/plugin/PluginHomepageSections";
 import { usePluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style.js";
-import {
-  CHROME_ROW_HEIGHT_CLASS,
-  getBbDesktopInfo,
-  MACOS_APP_REGION_NO_DRAG_CLASS,
-  MACOS_WINDOW_DRAG_CLASS,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
 import { RootComposeCompactHome } from "./RootComposeCompactHome";
-import { useOptionalPaneContext } from "./thread-detail/PaneContext";
 
 const ROOT_COMPOSE_MAX_WIDTH_CLASS = "max-w-[760px]";
 
@@ -59,39 +50,10 @@ export function RootComposeSecondaryContent({
   onToggleSecondaryPanel,
   secondaryPanel,
 }: RootComposeSecondaryContentProps) {
-  const paneContext = useOptionalPaneContext();
-  const secondaryPanelHost = paneContext?.secondaryPanelHost ?? null;
   const composerHost = usePluginComposerHost();
-  const [desktopInfo] = useState(getBbDesktopInfo);
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
-  const rendersWindowDragStrip =
-    usesDesktopChrome && paneContext?.isTopRow !== false;
 
   const mainContent = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {rendersWindowDragStrip ? (
-        <div
-          data-testid="root-compose-main-window-drag-strip"
-          aria-hidden="true"
-          className={cn(
-            "absolute inset-x-0 top-0 z-10 shrink-0",
-            CHROME_ROW_HEIGHT_CLASS,
-            MACOS_WINDOW_DRAG_CLASS,
-          )}
-        >
-          {!isSecondaryPanelOpen && secondaryPanelHost === null ? (
-            <div
-              data-testid="root-compose-drag-strip-toggle-cutout"
-              className={cn(
-                "absolute",
-                ROOT_COMPOSE_PINNED_PANEL_TOGGLE_POSITION_CLASS,
-                COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
-                MACOS_APP_REGION_NO_DRAG_CLASS,
-              )}
-            />
-          ) : null}
-        </div>
-      ) : null}
       {isCompactHomeLayout ? (
         <div
           className="@container/page flex min-h-0 flex-1 flex-col"

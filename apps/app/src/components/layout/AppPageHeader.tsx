@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { useIsSidebarShowing } from "@/components/ui/sidebar.js";
 import {
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
@@ -9,15 +9,7 @@ import {
   BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
   CHROME_ROW_CLASS,
   CHROME_ROW_HEIGHT_CLASS,
-  getBbDesktopInfo,
-  MACOS_CHROME_CONTROL_AXIS_CLASS,
-  MACOS_COLLAPSED_TOP_LEFT_RESERVE_CLASS,
-  MACOS_WINDOW_DRAG_CLASS,
-  MACOS_WINDOW_NO_DRAG_CLASS,
-  shouldReserveMacosTrafficLights,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
-import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
+} from "@/lib/chrome-row";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 export const HEADER_ICON_BUTTON_CLASS = COARSE_POINTER_HEADER_ICON_BUTTON_CLASS;
@@ -34,7 +26,6 @@ interface AppPageHeaderProps {
   actions?: ReactNode;
   className?: string;
   headerRef?: Ref<HTMLElement>;
-  isWindowDragRegion?: boolean;
   ownsWindowTopLeft?: boolean;
 }
 
@@ -43,18 +34,10 @@ export function AppPageHeader({
   actions,
   className,
   headerRef,
-  isWindowDragRegion = true,
   ownsWindowTopLeft = true,
 }: AppPageHeaderProps) {
   const isSidebarShowing = useIsSidebarShowing();
   const isCompactViewport = useIsCompactViewport();
-  const [desktopInfo] = useState(getBbDesktopInfo);
-  const desktopWindowState = useDesktopWindowState();
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
-  const reserveMacosTrafficLights = shouldReserveMacosTrafficLights({
-    desktopInfo,
-    windowState: desktopWindowState,
-  });
   const shouldReserveSidebarTrigger =
     ownsWindowTopLeft && (isCompactViewport || !isSidebarShowing);
   return (
@@ -65,7 +48,6 @@ export function AppPageHeader({
         HEADER_SEAM_CLASS,
         APP_PAGE_HEADER_SURFACE_CLASS,
         "relative shrink-0 select-none px-4",
-        usesDesktopChrome && isWindowDragRegion && MACOS_WINDOW_DRAG_CLASS,
         className,
       )}
     >
@@ -74,12 +56,8 @@ export function AppPageHeader({
         className={cn(
           CHROME_ROW_CLASS,
           "relative z-10 gap-1 md:gap-2",
-          usesDesktopChrome && MACOS_CHROME_CONTROL_AXIS_CLASS,
           "transition-[padding] duration-200 ease-linear",
-          shouldReserveSidebarTrigger &&
-            (reserveMacosTrafficLights
-              ? MACOS_COLLAPSED_TOP_LEFT_RESERVE_CLASS
-              : BROWSER_COLLAPSED_HEADER_RESERVE_CLASS),
+          shouldReserveSidebarTrigger && BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
         )}
       >
         {center ? (
@@ -92,14 +70,7 @@ export function AppPageHeader({
           <div className="min-w-0 flex-1" />
         )}
         {actions ? (
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-1",
-              usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
-            )}
-          >
-            {actions}
-          </div>
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
         ) : null}
       </div>
     </header>

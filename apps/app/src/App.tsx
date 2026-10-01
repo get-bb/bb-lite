@@ -5,12 +5,10 @@ import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
 import { RouteNavigationIndicator } from "./components/ui/route-navigation-indicator";
 import { AppNavigationUrlHost } from "./lib/url-open-routing";
-import { NativeShellReporter } from "./lib/native-shell";
 import { UiPreferencesSync } from "@/lib/ui-preferences/UiPreferencesSync";
 import { AppFileExternalNavigationHost } from "./components/plugin/AppFileExternalNavigationHost";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
-import { useDesktopThemeSync } from "./hooks/useDesktopThemeSync";
 import { usePluginFrontendBoot } from "./hooks/usePluginFrontendBoot";
 import { markRouteContentPainted } from "./lib/route-content-paint";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
@@ -26,8 +24,6 @@ import {
   getSettingsRoutePath,
 } from "./lib/route-paths";
 import { AppCommandProvider } from "./components/commands/AppCommandProvider";
-import { WindowFindHost } from "./components/layout/WindowFindHost";
-import { DesktopZoomIndicator } from "./components/layout/DesktopZoomIndicator";
 import { RouteLoadingSkeleton } from "./components/ui/route-loading-skeleton";
 
 const SettingsView = lazy(() =>
@@ -154,7 +150,6 @@ function RouteContentPaintSignal() {
 
 export function App() {
   useWebSocket();
-  useDesktopThemeSync();
   useAppTheme();
   useFaviconColorSync();
   usePluginFrontendBoot();
@@ -168,11 +163,8 @@ export function App() {
           <AppNavigationUrlHost>
             <AppFileExternalNavigationHost>
               <HashNavigationScroll />
-              <NativeShellReporter />
               <UiPreferencesSync />
               <AppRoutes />
-              <WindowFindHost />
-              <DesktopZoomIndicator />
             </AppFileExternalNavigationHost>
           </AppNavigationUrlHost>
         </RouteNavigationProvider>

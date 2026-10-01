@@ -3,8 +3,6 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
-import { shellOpenExternal } from "@/lib/native-shell";
 import { AppNavigationHostProvider } from "@/lib/app-navigation-host";
 
 type UrlAnchorClickHandler = (
@@ -14,12 +12,6 @@ type UrlAnchorClickHandler = (
 const HTTP_URL_SCHEME_PATTERN = /^https?:\/\//iu;
 
 export function openUrlInExternalBrowser(url: string): void {
-  const desktopInfo = getBbDesktopInfo();
-  if (desktopInfo !== null) {
-    desktopInfo.openExternalUrl(url);
-    return;
-  }
-  if (shellOpenExternal(url)) return;
   if (typeof window !== "undefined") {
     window.open(url, "_blank", "noopener,noreferrer");
   }

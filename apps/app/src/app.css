@@ -41,21 +41,6 @@
     }
   }
 
-  [data-sidebar-header-slot]
-    :where(
-      button,
-      a,
-      input,
-      select,
-      textarea,
-      [role="button"],
-      [role="link"],
-      [tabindex]
-    ) {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
-  }
-
   html.bb-app-shell-root {
     height: var(--bb-shell-height);
   }

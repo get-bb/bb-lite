@@ -71,17 +71,7 @@ import {
 import {
   BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
   CHROME_ROW_CLASS,
-  getBbDesktopInfo,
-  MACOS_CHROME_CONTROL_AXIS_CLASS,
-  MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
-  MACOS_TRAFFIC_LIGHT_RESERVE_OFFSET_CLASS,
-  MACOS_WINDOW_DRAG_CLASS,
-  shouldReserveMacosTrafficLights,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
-import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
-import { useDataDirectoryCommand } from "@/hooks/useDataDirectoryCommand";
-import { useServerDaemonLogsCommand } from "@/hooks/useServerDaemonLogsCommand";
+} from "@/lib/chrome-row";
 import {
   getLegacyProjectComposeRoutePath,
   getSettingsProjectRoutePath,
@@ -188,15 +178,7 @@ function resetSidebarResizeDocumentState(): void {
   document.body.classList.remove("sidebar-resizing");
 }
 
-interface SidebarTriggerOverlayProps {
-  reserveMacosTrafficLights: boolean;
-  usesDesktopChrome: boolean;
-}
-
-function SidebarTriggerOverlay({
-  reserveMacosTrafficLights,
-  usesDesktopChrome,
-}: SidebarTriggerOverlayProps) {
+function SidebarTriggerOverlay() {
   const isCompactViewport = useIsCompactViewport();
   const { openMobile } = useSidebar();
   const panelShelfState = usePanelShelfState({
@@ -210,37 +192,6 @@ function SidebarTriggerOverlay({
       : "Toggle sidebar",
     "aria-keyshortcuts": shortcut?.ariaKeyshortcuts,
   };
-  if (usesDesktopChrome) {
-    return (
-      <div
-        data-testid="app-desktop-sidebar-trigger"
-        data-panel-shelf={panelShelfState}
-        style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
-        className={cn(
-          "fixed top-0",
-          COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
-          CHROME_ROW_CLASS,
-          reserveMacosTrafficLights
-            ? MACOS_TRAFFIC_LIGHT_RESERVE_OFFSET_CLASS
-            : "left-0",
-          !reserveMacosTrafficLights && BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
-          MACOS_WINDOW_DRAG_CLASS,
-        )}
-      >
-        <SidebarTrigger
-          className={MACOS_CHROME_CONTROL_NO_DRAG_CLASS}
-          {...triggerProps}
-        />
-        <AppCommandShortcutHint
-          shortcut={shortcut}
-          className={cn(
-            "absolute left-full ml-1",
-            MACOS_CHROME_CONTROL_AXIS_CLASS,
-          )}
-        />
-      </div>
-    );
-  }
   return (
     <div
       data-testid="app-sidebar-trigger-overlay"
@@ -280,7 +231,6 @@ function resolveRouteTitle(pathname: string): { title: string } | undefined {
 
 interface AppHeaderProps {
   usesProjectChromeStyle: boolean;
-  usesDesktopChrome: boolean;
   projectId?: string;
   project?: ProjectResponse;
   pluginPanel?: PluginNavPanelSlot;
@@ -294,7 +244,6 @@ interface AppHeaderProps {
 
 function AppHeader({
   usesProjectChromeStyle,
-  usesDesktopChrome,
   projectId,
   project,
   pluginPanel,
@@ -310,10 +259,7 @@ function AppHeader({
 
   const center = headerBreadcrumbs ? (
     <div className="min-w-0 flex-1">
-      <AppBreadcrumbs
-        breadcrumbs={headerBreadcrumbs}
-        usesDesktopChrome={usesDesktopChrome}
-      />
+      <AppBreadcrumbs breadcrumbs={headerBreadcrumbs} />
     </div>
   ) : pluginPanelChrome ? (
     <PluginPanelHeaderCenter chrome={pluginPanelChrome} />
@@ -451,8 +397,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     void navigate(`${SETTINGS_ROUTE_PATH}/servers`);
     return true;
   });
-  useServerDaemonLogsCommand();
-  useDataDirectoryCommand();
   const archivedSectionId = isArchivedView
     ? new URLSearchParams(location.search).get("sectionId")
     : null;
@@ -516,13 +460,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const liveWidthRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   const showHeader = !isThreadView && !isRootView && pluginPanelMatch === null;
-  const [desktopInfo] = useState(getBbDesktopInfo);
-  const desktopWindowState = useDesktopWindowState();
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
-  const reserveMacosTrafficLights = shouldReserveMacosTrafficLights({
-    desktopInfo,
-    windowState: desktopWindowState,
-  });
   const project = projectId
     ? projects?.find((candidate) => candidate.id === projectId)
     : undefined;
@@ -744,7 +681,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                   >
                     {showHeader ? (
                       <AppHeader
-                        usesDesktopChrome={usesDesktopChrome}
                         usesProjectChromeStyle={isRootView || isArchivedView}
                         projectId={projectId}
                         project={project}
@@ -759,10 +695,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </main>
                   </div>
                 </SidebarInset>
-                <SidebarTriggerOverlay
-                  reserveMacosTrafficLights={reserveMacosTrafficLights}
-                  usesDesktopChrome={usesDesktopChrome}
-                />
+                <SidebarTriggerOverlay />
               </SidebarStateBridge>
               <PluginAppOverlays />
               <IframeDragGuardOverlay

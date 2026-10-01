@@ -56,35 +56,6 @@ export function SectionSidebarRow({
   );
 }
 
-export function SectionSidebarActionRow({
-  children,
-  label,
-  onClick,
-  testId,
-}: {
-  children: ReactNode;
-  label: string;
-  onClick: () => void;
-  testId?: string;
-}) {
-  const closeOnMobile = useCloseMobileSidebar();
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      data-testid={testId}
-      className={cn(PROJECT_LIST_ACTION_BUTTON_CLASS, "w-full")}
-      onClick={() => {
-        closeOnMobile();
-        onClick();
-      }}
-    >
-      {children}
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-    </Button>
-  );
-}
-
 export function SectionSidebarLabel({ children }: { children: ReactNode }) {
   return (
     <div
