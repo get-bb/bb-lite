@@ -68,6 +68,11 @@ Principals: `owner`, `runner(hostId)`, `anonymous`.
   stores only the SHA-256. `bb runner join <blob>` exchanges a 15-minute single-use join token for it at
   `POST /internal/runner/join`. Runner endpoints must stay under `/internal/` (the hosted gate only passes
   machine credentials there).
+- A request without the tunnel marker that carries `Authorization: Bearer bbr_…` is judged by that token
+  alone, whatever its peer address: a token that matches a host is the same runner-class principal as a
+  gate-authenticated machine (so `/api/v1/*` minus the machine and settings writes), any other is
+  anonymous. This is how the runner's loopback CLI proxy reaches the API on a direct connection; through
+  the tunnel the gate's verdict stands and the bearer token only authenticates the runner socket.
 
 ## The Runner interface
 
@@ -76,9 +81,34 @@ Principals: `owner`, `runner(hostId)`, `anonymous`.
 
 - `createLocalRunner({ dataDir, serverUrl, sink })`: direct calls, events through a callback.
 - `connectRemoteRunner(socket, sink)` on the server and `serveRunner(runner, socket)` in `bb runner`:
-  the same interface as JSON frames over one WebSocket:
+  the same interface as JSON frames over one WebSocket (`packages/runner/src/remote/protocol.ts`):
   `{t:"req",id,method,params}` → `{t:"res",id,ok,result|error}`, `{t:"evt",event}`, `{t:"ack",seq}`,
-  `{t:"ping"}`/`{t:"pong"}` every 5 s with a 30 s lease. Keep every frame well under 1 MiB (tunnel limit).
+  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `Runner` can be called.
+
+Remote transport rules:
+
+- The runner speaks first: `{t:"hello",instanceId,version,lastAckedSeq?}`. The server answers requests
+  from then on, registers the machine, and replies `{t:"welcome",lastSeq}`: the highest reliable `seq` of
+  that instance it has already handed to its handlers. The runner sends no event before `welcome`, then
+  re-sends every unacked reliable event after `lastSeq`. The server also drops any reliable event at or
+  below that mark, and stores the acked `seq` in `hosts.last_event_seq`, so a server restart resumes from
+  the last event whose handlers finished (at-least-once across a server crash, exactly-once otherwise).
+- The server pings every 5 s. Either side terminates the socket after 30 s without an inbound frame. The
+  runner redials forever, 1 s doubling to 10 s; sessions and terminals keep running meanwhile.
+- No frame exceeds 768 KiB on the wire (tunnel limit 1 MiB): a larger one is sent as consecutive
+  `{t:"part",data,last}` frames of at most 256 Ki characters and reassembled by the receiver.
+- Requests time out by method class: 15 s (describe, snapshot, resolves, terminal input), 60 s (files,
+  repository reads, provider lists, interrupt), 10 min (`submitTurn`, worktree and branch operations,
+  commit), and its own `timeoutMs` + 30 s for `runLifecycleScript`. A timeout or a lost socket rejects
+  with a retryable `unavailable`; the request is not replayed.
+- Live events queue behind a 1 MiB socket buffer; while it is full only the newest 32 `terminal.output`
+  frames are kept (the viewer sees a `seq` gap and re-attaches by `sinceSeq`). Other live events and all
+  reliable events are never shed.
+- Close code 4001 means the machine was removed or another runner took its place: that runner process
+  stops instead of redialing.
+- `<dataDir>/runner.json` (0600) holds `{serverUrl, hostId, runnerToken, headers}`; `headers` go on the
+  join request, the socket upgrade and everything the CLI proxy forwards. Default directory
+  `~/.bb-150k-runner/<server host>`.
 
 Rules:
 

@@ -14,3 +14,8 @@ export { buildAgentEnv, parseShellPath } from "./sessions/agent-env.js";
 export { Outbox } from "./sessions/outbox.js";
 export * from "./sessions/session-manager.js";
 export * from "./local.js";
+export * from "./remote/protocol.js";
+export * from "./remote/client.js";
+export * from "./remote/serve.js";
+export * from "./remote/daemon.js";
+export * from "./remote/cli-proxy.js";

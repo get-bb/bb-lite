@@ -94,19 +94,19 @@ export function redeemJoinToken(
   });
 }
 
+export function findRunnerHost(db: Db, token: string): HostRow | undefined {
+  const presented = hashToken(token);
+  const host = findHost(db, "token_hash", presented);
+  return sameHash(host?.tokenHash ?? null, presented) ? host : undefined;
+}
+
 export function authenticateRunner(
   db: Db,
   request: { authorization: string | undefined; principal: Principal },
 ): HostRow {
   const token = bearerToken(request.authorization);
-  const presented = token === null ? null : hashToken(token);
-  const host =
-    presented === null ? undefined : findHost(db, "token_hash", presented);
-  if (
-    presented === null ||
-    host === undefined ||
-    !sameHash(host.tokenHash, presented)
-  ) {
+  const host = token === null ? undefined : findRunnerHost(db, token);
+  if (host === undefined) {
     throw rejectCredential(
       "invalid_runner_token",
       "This runner token is not valid for any machine on this server.",

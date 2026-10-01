@@ -29,6 +29,7 @@ function flushesImmediately(event: RunnerThreadEvent) {
 
 export class Outbox {
   private seq = 0;
+  private acked = 0;
   private unacked: Reliable[] = [];
   private batch: { threadId: string; events: RunnerThreadEvent[] }[] = [];
   private timer: NodeJS.Timeout | null = null;
@@ -40,6 +41,10 @@ export class Outbox {
 
   get lastSeq() {
     return this.seq;
+  }
+
+  get lastAckedSeq() {
+    return this.acked;
   }
 
   threadEvent(threadId: string, event: RunnerThreadEvent) {
@@ -64,6 +69,7 @@ export class Outbox {
   }
 
   ack(seq: number) {
+    this.acked = Math.max(this.acked, seq);
     this.unacked = this.unacked.filter((event) => event.seq > seq);
   }
 
