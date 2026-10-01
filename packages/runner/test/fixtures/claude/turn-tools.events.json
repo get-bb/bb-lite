@@ -1,303 +1,303 @@
 [
- {
-  "type": "thread/identity",
-  "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
-  "scope": {
-   "kind": "thread"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
-  "scope": {
-   "kind": "thread"
-  },
-  "contextWindowUsage": {
-   "usedTokens": null,
-   "modelContextWindow": null,
-   "estimated": true
-  }
- },
- {
-  "type": "turn/started",
-  "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  }
- },
- {
-  "type": "turn/input/accepted",
-  "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "clientRequestId": "creq_heqd62cpd8"
- },
- {
-  "type": "thread/identity",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "thread"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 28777,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "item/started",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "commandExecution",
-   "id": "da00000000-i1",
-   "command": "cat /tmp/bb-recording-ws/math.js",
-   "cwd": "",
-   "status": "pending",
-   "approvalStatus": null,
-   "presentation": {
-    "label": {
-     "pending": "Running command",
-     "completed": "Ran command"
-    },
-    "icon": {
-     "glyph": "Terminal"
-    },
-    "title": "cat /tmp/bb-recording-ws/math.js"
-   }
-  }
- },
- {
-  "type": "provider/rateLimits/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "thread"
-  },
-  "rateLimits": {
-   "providerId": "claude-code",
-   "status": "allowed",
-   "kind": "subscription-window",
-   "windows": [
-    {
-     "providerKey": "five_hour",
-     "label": "Five-hour limit",
-     "status": "allowed",
-     "resetsAtMs": 1787288400000
+  {
+    "type": "thread/identity",
+    "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
+    "scope": {
+      "kind": "thread"
     }
-   ],
-   "reachedReason": null,
-   "overageStatus": "allowed",
-   "overageReason": null
-  }
- },
- {
-  "type": "item/completed",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
   },
-  "item": {
-   "type": "commandExecution",
-   "id": "da00000000-i1",
-   "command": "cat /tmp/bb-recording-ws/math.js",
-   "cwd": "",
-   "aggregatedOutput": "export function add(a, b) {\n  return a + b;\n}",
-   "exitCode": 0,
-   "status": "completed",
-   "approvalStatus": null,
-   "presentation": {
-    "label": {
-     "pending": "Running command",
-     "completed": "Ran command"
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
+    "scope": {
+      "kind": "thread"
     },
-    "icon": {
-     "glyph": "Terminal"
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "915e478a-895c-4f18-b606-3fda63bf2649",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
     },
-    "title": "cat /tmp/bb-recording-ws/math.js"
-   }
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
+    "clientRequestId": "creq_heqd62cpd8"
   },
-  "contextWindowUsage": {
-   "usedTokens": 30015,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "item/started",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
+  {
+    "type": "thread/identity",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "thread"
+    }
   },
-  "item": {
-   "type": "commandExecution",
-   "id": "da00000000-i2",
-   "command": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
-   "cwd": "",
-   "status": "pending",
-   "approvalStatus": null,
-   "presentation": {
-    "label": {
-     "pending": "Running command",
-     "completed": "Ran command"
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
     },
-    "icon": {
-     "glyph": "Terminal"
+    "contextWindowUsage": {
+      "usedTokens": 28777,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
     },
-    "title": "cat >> math.js << 'EOF'"
-   }
-  }
- },
- {
-  "type": "item/completed",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i1",
+      "command": "cat /tmp/bb-recording-ws/math.js",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "cat /tmp/bb-recording-ws/math.js"
+      }
+    }
   },
-  "item": {
-   "type": "commandExecution",
-   "id": "da00000000-i2",
-   "command": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
-   "cwd": "",
-   "aggregatedOutput": "2",
-   "exitCode": 0,
-   "status": "completed",
-   "approvalStatus": null,
-   "presentation": {
-    "label": {
-     "pending": "Running command",
-     "completed": "Ran command"
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "thread"
     },
-    "icon": {
-     "glyph": "Terminal"
+    "rateLimits": {
+      "providerId": "claude-code",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "five_hour",
+          "label": "Five-hour limit",
+          "status": "allowed",
+          "resetsAtMs": 1787288400000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": "allowed",
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
     },
-    "title": "cat >> math.js << 'EOF'"
-   }
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i1",
+      "command": "cat /tmp/bb-recording-ws/math.js",
+      "cwd": "",
+      "aggregatedOutput": "export function add(a, b) {\n  return a + b;\n}",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "cat /tmp/bb-recording-ws/math.js"
+      }
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30015,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "cat >> math.js << 'EOF'"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
+      "cwd": "",
+      "aggregatedOutput": "2",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "cat >> math.js << 'EOF'"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "2"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30359,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "2"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30359,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 89409,
+        "inputTokens": 6,
+        "cachedInputTokens": 89145,
+        "cacheReadInputTokens": 87563,
+        "cacheWriteInputTokens": 1582,
+        "outputTokens": 258,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 89409,
+        "inputTokens": 6,
+        "cachedInputTokens": 89145,
+        "cacheReadInputTokens": 87563,
+        "cacheWriteInputTokens": 1582,
+        "outputTokens": 258,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "80d31fb4-e261-4847-9a6b-7478af374b7a"
   }
- },
- {
-  "type": "item/started",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "agentMessage",
-   "id": "da00000000-i3",
-   "text": ""
-  }
- },
- {
-  "type": "item/agentMessage/delta",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "itemId": "da00000000-i3",
-  "delta": "2"
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 30359,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "item/completed",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "agentMessage",
-   "id": "da00000000-i3",
-   "text": "2"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 30359,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "thread/tokenUsage/updated",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "tokenUsage": {
-   "total": {
-    "totalTokens": 89409,
-    "inputTokens": 6,
-    "cachedInputTokens": 89145,
-    "cacheReadInputTokens": 87563,
-    "cacheWriteInputTokens": 1582,
-    "outputTokens": 258,
-    "reasoningOutputTokens": 0
-   },
-   "last": {
-    "totalTokens": 89409,
-    "inputTokens": 6,
-    "cachedInputTokens": 89145,
-    "cacheReadInputTokens": 87563,
-    "cacheWriteInputTokens": 1582,
-    "outputTokens": 258,
-    "reasoningOutputTokens": 0
-   },
-   "modelContextWindow": 1000000
-  }
- },
- {
-  "type": "turn/completed",
-  "providerThreadId": "d8785ba1-3fa6-4606-b465-f13165cc441f",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "status": "completed",
-  "providerCheckpointId": "80d31fb4-e261-4847-9a6b-7478af374b7a"
- }
 ]

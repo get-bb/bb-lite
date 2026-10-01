@@ -1,279 +1,279 @@
 [
- {
-  "type": "thread/identity",
-  "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
-  "scope": {
-   "kind": "thread"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
-  "scope": {
-   "kind": "thread"
-  },
-  "contextWindowUsage": {
-   "usedTokens": null,
-   "modelContextWindow": null,
-   "estimated": true
-  }
- },
- {
-  "type": "turn/started",
-  "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  }
- },
- {
-  "type": "turn/input/accepted",
-  "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "clientRequestId": "creq_ahe6syhu23"
- },
- {
-  "type": "thread/identity",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "thread"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 28754,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "item/started",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "toolCall",
-   "id": "da00000000-i1",
-   "tool": "AskUserQuestion",
-   "arguments": {
-    "questions": [
-     {
-      "question": "Tabs or spaces?",
-      "header": "Indent",
-      "multiSelect": false,
-      "options": [
-       {
-        "label": "tabs",
-        "description": "Indent with tab characters"
-       },
-       {
-        "label": "spaces",
-        "description": "Indent with space characters"
-       }
-      ]
-     }
-    ]
-   },
-   "status": "pending",
-   "presentation": {
-    "label": {
-     "pending": "Asking a question",
-     "completed": "Asked a question"
-    },
-    "icon": {
-     "glyph": "MessageQuestion"
-    },
-    "suppress": true
-   }
-  }
- },
- {
-  "type": "provider/rateLimits/updated",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "thread"
-  },
-  "rateLimits": {
-   "providerId": "claude-code",
-   "status": "allowed",
-   "kind": "subscription-window",
-   "windows": [
-    {
-     "providerKey": "five_hour",
-     "label": "Five-hour limit",
-     "status": "allowed",
-     "resetsAtMs": 1787288400000
+  {
+    "type": "thread/identity",
+    "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
+    "scope": {
+      "kind": "thread"
     }
-   ],
-   "reachedReason": null,
-   "overageStatus": "allowed",
-   "overageReason": null
-  }
- },
- {
-  "type": "item/completed",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
   },
-  "item": {
-   "type": "toolCall",
-   "id": "da00000000-i1",
-   "tool": "AskUserQuestion",
-   "arguments": {
-    "questions": [
-     {
-      "question": "Tabs or spaces?",
-      "header": "Indent",
-      "multiSelect": false,
-      "options": [
-       {
-        "label": "tabs",
-        "description": "Indent with tab characters"
-       },
-       {
-        "label": "spaces",
-        "description": "Indent with space characters"
-       }
-      ]
-     }
-    ]
-   },
-   "status": "completed",
-   "result": "Your questions have been answered: \"Tabs or spaces?\"=\"spaces\". You can now continue with these answers in mind.",
-   "presentation": {
-    "label": {
-     "pending": "Asking a question",
-     "completed": "Asked a question"
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
+    "scope": {
+      "kind": "thread"
     },
-    "icon": {
-     "glyph": "MessageQuestion"
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "6b19a60e-c235-40da-9d2a-50aa549cbcc8",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
     },
-    "suppress": true
-   }
+    "clientRequestId": "creq_ahe6syhu23"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 28754,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i1",
+      "tool": "AskUserQuestion",
+      "arguments": {
+        "questions": [
+          {
+            "question": "Tabs or spaces?",
+            "header": "Indent",
+            "multiSelect": false,
+            "options": [
+              {
+                "label": "tabs",
+                "description": "Indent with tab characters"
+              },
+              {
+                "label": "spaces",
+                "description": "Indent with space characters"
+              }
+            ]
+          }
+        ]
+      },
+      "status": "pending",
+      "presentation": {
+        "label": {
+          "pending": "Asking a question",
+          "completed": "Asked a question"
+        },
+        "icon": {
+          "glyph": "MessageQuestion"
+        },
+        "suppress": true
+      }
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "claude-code",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "five_hour",
+          "label": "Five-hour limit",
+          "status": "allowed",
+          "resetsAtMs": 1787288400000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": "allowed",
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i1",
+      "tool": "AskUserQuestion",
+      "arguments": {
+        "questions": [
+          {
+            "question": "Tabs or spaces?",
+            "header": "Indent",
+            "multiSelect": false,
+            "options": [
+              {
+                "label": "tabs",
+                "description": "Indent with tab characters"
+              },
+              {
+                "label": "spaces",
+                "description": "Indent with space characters"
+              }
+            ]
+          }
+        ]
+      },
+      "status": "completed",
+      "result": "Your questions have been answered: \"Tabs or spaces?\"=\"spaces\". You can now continue with these answers in mind.",
+      "presentation": {
+        "label": {
+          "pending": "Asking a question",
+          "completed": "Asked a question"
+        },
+        "icon": {
+          "glyph": "MessageQuestion"
+        },
+        "suppress": true
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i2",
+    "delta": "sp"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i2",
+    "delta": "aces"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30060,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": "spaces"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30060,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 58957,
+        "inputTokens": 4,
+        "cachedInputTokens": 58810,
+        "cacheReadInputTokens": 46125,
+        "cacheWriteInputTokens": 12685,
+        "outputTokens": 143,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 58957,
+        "inputTokens": 4,
+        "cachedInputTokens": 58810,
+        "cacheReadInputTokens": 46125,
+        "cacheWriteInputTokens": 12685,
+        "outputTokens": 143,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "f1cd0e9a-edf6-4187-831a-6869ab63bc5e"
   }
- },
- {
-  "type": "item/started",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "agentMessage",
-   "id": "da00000000-i2",
-   "text": ""
-  }
- },
- {
-  "type": "item/agentMessage/delta",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "itemId": "da00000000-i2",
-  "delta": "sp"
- },
- {
-  "type": "item/agentMessage/delta",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "itemId": "da00000000-i2",
-  "delta": "aces"
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 30060,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "item/completed",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "item": {
-   "type": "agentMessage",
-   "id": "da00000000-i2",
-   "text": "spaces"
-  }
- },
- {
-  "type": "thread/contextWindowUsage/updated",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "contextWindowUsage": {
-   "usedTokens": 30060,
-   "modelContextWindow": 1000000,
-   "estimated": true
-  }
- },
- {
-  "type": "thread/tokenUsage/updated",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "tokenUsage": {
-   "total": {
-    "totalTokens": 58957,
-    "inputTokens": 4,
-    "cachedInputTokens": 58810,
-    "cacheReadInputTokens": 46125,
-    "cacheWriteInputTokens": 12685,
-    "outputTokens": 143,
-    "reasoningOutputTokens": 0
-   },
-   "last": {
-    "totalTokens": 58957,
-    "inputTokens": 4,
-    "cachedInputTokens": 58810,
-    "cacheReadInputTokens": 46125,
-    "cacheWriteInputTokens": 12685,
-    "outputTokens": 143,
-    "reasoningOutputTokens": 0
-   },
-   "modelContextWindow": 1000000
-  }
- },
- {
-  "type": "turn/completed",
-  "providerThreadId": "a3ac874b-4ea5-4ff7-b79d-81b215e87c7a",
-  "scope": {
-   "kind": "turn",
-   "turnId": "da00000000-t1"
-  },
-  "status": "completed",
-  "providerCheckpointId": "f1cd0e9a-edf6-4187-831a-6869ab63bc5e"
- }
 ]
