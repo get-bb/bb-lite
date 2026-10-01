@@ -118,7 +118,6 @@ const OPTIONS: ExecutionOptions = {
 export class FakeQuery {
   readonly sent: unknown[] = [];
   readonly calls: [method: string, ...args: unknown[]][] = [];
-  contextUsage: unknown;
   private readonly queue: unknown[] = [];
   private wake = () => {};
   private closed = false;
@@ -149,10 +148,6 @@ export class FakeQuery {
   setModel = async (model?: string) => this.note("model", model);
   applyFlagSettings = async (flags: unknown) => this.note("flags", flags);
   initializationResult = () => Promise.reject(new Error("not scripted"));
-  getContextUsage = () =>
-    this.contextUsage === undefined
-      ? Promise.reject(new Error("not scripted"))
-      : (Promise.resolve(this.contextUsage) as Promise<never>);
 
   private note(...call: [string, ...unknown[]]) {
     this.calls.push(call);

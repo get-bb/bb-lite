@@ -7,13 +7,12 @@ import type {
   McpSdkServerConfigWithInstance,
   ModelInfo,
   Options,
+  PermissionMode,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
-  contextSnapshotSchema,
   reasoningEffortsForLevels,
   removeCommandMentionsFromPromptInput,
   type AvailableModel,
-  type ContextSnapshot,
   type DynamicTool,
   type PromptInput,
   type ReasoningLevel,
@@ -34,10 +33,6 @@ import {
 import { BB_MCP_SERVER } from "./claude-tools.js";
 import type { SessionHost } from "./provider.js";
 
-type TextInput = Extract<PromptInput, { type: "text" }>;
-type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
 type ToolCaller = (
   tool: string,
   input: unknown,
@@ -47,13 +42,11 @@ type ToolCaller = (
 const EXECUTABLE_ENV = "BB_CLAUDE_CODE_EXECUTABLE";
 const SKILL_PLUGIN = "bb-global-skills";
 const MODEL_ID = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/;
-const IMAGE_DATA_URL = /^data:(.+);base64,(.+)$/s;
 const PERMISSION_MODES = {
   "accept-edits": "acceptEdits",
   auto: "auto",
   full: "bypassPermissions",
 } as const;
-const RESERVED_CATEGORIES = ["autocompact buffer", "manual compact buffer"];
 
 const providerOptionsSchema = z.object({
   memoryEnabled: z.boolean().optional(),
@@ -63,38 +56,6 @@ const providerOptionsSchema = z.object({
   chromeEnabled: z.boolean().optional(),
   additionalWorkspaceWriteRoots: z.array(z.string()).optional(),
 });
-const tokens = z.number().int().nonnegative();
-const named = z.object({ name: z.string().min(1), tokens });
-const flag = z.boolean().default(true);
-const contextReportSchema = z.object({
-  categories: z.array(named.extend({ isDeferred: z.boolean().default(false) })),
-  totalTokens: tokens,
-  rawMaxTokens: z.number().int().positive(),
-  model: z.string().min(1),
-  autoCompactThreshold: z.number().int().positive().optional(),
-  isAutoCompactEnabled: z.boolean(),
-  memoryFiles: z.array(z.object({ path: z.string(), tokens })).default([]),
-  mcpTools: z
-    .array(named.extend({ serverName: z.string(), isLoaded: flag }))
-    .default([]),
-  deferredBuiltinTools: z.array(named.extend({ isLoaded: flag })).default([]),
-  systemTools: z.array(named).default([]),
-  systemPromptSections: z.array(named).default([]),
-  agents: z
-    .array(z.object({ agentType: z.string(), source: z.string(), tokens }))
-    .default([]),
-  skills: z.object({ skillFrontmatter: z.array(named) }).optional(),
-  messageBreakdown: z.record(z.string(), tokens).optional(),
-});
-const MESSAGE_PARTS = {
-  "Tool results": "toolResultTokens",
-  "Assistant messages": "assistantMessageTokens",
-  "User messages": "userMessageTokens",
-  "Tool calls": "toolCallTokens",
-  Attachments: "attachmentTokens",
-  "Redirected context": "redirectedContextTokens",
-  Unattributed: "unattributedTokens",
-};
 
 function sdkEffort(level: ReasoningLevel) {
   if (level === "ultracode") return "xhigh";
@@ -102,23 +63,32 @@ function sdkEffort(level: ReasoningLevel) {
   return level === "ultra" ? "max" : level;
 }
 
+export function startMode(mode: PermissionMode): PermissionMode {
+  const refused = mode === "bypassPermissions" && process.getuid?.() === 0;
+  return refused ? "default" : mode;
+}
+
 export function claudeSettings(options: ExecutionOptions) {
   const parsed = providerOptionsSchema.safeParse(options.providerOptions);
   const custom = parsed.data ?? {};
-  const level = options.reasoningLevel;
+  const disable1MContext = custom.disable1MContext === true;
+  const chrome = custom.chromeEnabled === true;
+  const writableRoots = custom.additionalWorkspaceWriteRoots ?? [];
+  const baseMode = PERMISSION_MODES[options.permissionMode];
   return {
     model: options.model,
     subagents: custom.subagentsDisabled !== true,
     workflows: custom.workflowsDisabled !== true,
-    disable1MContext: custom.disable1MContext === true,
-    chrome: custom.chromeEnabled === true,
-    writableRoots: custom.additionalWorkspaceWriteRoots ?? [],
-    baseMode: PERMISSION_MODES[options.permissionMode],
+    disable1MContext,
+    chrome,
+    writableRoots,
+    baseMode,
+    fixed: [baseMode, disable1MContext, chrome, writableRoots],
     flags: {
       autoMemoryEnabled: custom.memoryEnabled !== false,
       enableWorkflows: custom.workflowsDisabled !== true,
-      effortLevel: sdkEffort(level),
-      ultracode: level === "ultracode",
+      effortLevel: sdkEffort(options.reasoningLevel),
+      ultracode: options.reasoningLevel === "ultracode",
       fastMode: options.serviceTier === "fast",
     },
   };
@@ -137,16 +107,7 @@ export async function resolveExecutable(env: Record<string, string>) {
     const message = `${EXECUTABLE_ENV} must point to an executable Claude CLI path: ${explicit}`;
     throw new RunnerError("missing_executable", message);
   }
-  const home = env.HOME?.trim();
-  const personal = home ? [".local/bin", ".claude/local"] : [];
-  const installed = [
-    ...personal.map((dir) => join(home ?? "", dir)),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-  ];
-  const wellKnown = process.getuid?.() === 0 ? [] : installed;
-  const onPath = (env.PATH ?? "").split(delimiter).filter(Boolean);
-  for (const dir of [...onPath, ...wellKnown]) {
+  for (const dir of (env.PATH ?? "").split(delimiter).filter(Boolean)) {
     const candidate = join(dir, "claude");
     if (await isExecutable(candidate)) return candidate;
   }
@@ -160,19 +121,20 @@ async function skillPlugins(skillDirs: string[]) {
     const id = createHash("sha256").update(dir).digest("hex").slice(0, 16);
     const path = join(root, id);
     const link = join(path, "skills");
+    const suffix = plugins.length === 0 ? "" : `-${id.slice(0, 8)}`;
     const manifest = {
       $schema: "https://anthropic.com/claude-code/plugin.schema.json",
-      name:
-        plugins.length === 0
-          ? SKILL_PLUGIN
-          : `${SKILL_PLUGIN}-${id.slice(0, 8)}`,
+      name: `${SKILL_PLUGIN}${suffix}`,
       version: "0.1.0",
       description: `Skills injected by bb (${dir}).`,
       author: { name: "bb" },
       skills: "./skills",
     };
-    const linked = async () =>
-      (await fs.readlink(link).catch(() => null)) === dir;
+    const linked = () =>
+      fs.readlink(link).then(
+        (target) => target === dir,
+        () => false,
+      );
     const assemble = async () => {
       await fs.mkdir(join(path, ".claude-plugin"), { recursive: true });
       const file = join(path, ".claude-plugin", "plugin.json");
@@ -205,32 +167,29 @@ export async function buildQueryOptions(
   const roots = [
     ...new Set([...host.writableRoots, ...settings.writableRoots]),
   ];
-  const filesystem = roots.length > 0 ? { allowWrite: roots } : undefined;
   const sandbox = {
     enabled: true,
     failIfUnavailable: false,
     autoAllowBashIfSandboxed: true,
     allowUnsandboxedCommands: true,
     network: { allowLocalBinding: true },
-    ...(filesystem ? { filesystem } : {}),
+    ...(roots.length > 0 ? { filesystem: { allowWrite: roots } } : {}),
   };
-  const sandboxed = { sandbox, additionalDirectories: roots };
   const executable = await resolveExecutable(env);
   const plugins = await skillPlugins(spec.skillDirs);
-  const append = spec.instructions.length > 0 ? spec.instructions : undefined;
+  const append = spec.instructions || undefined;
   const extraArgs: Record<string, null> = { "replay-user-messages": null };
   if (settings.chrome) extraArgs.chrome = null;
+  const unsafe = startMode(settings.baseMode) === "bypassPermissions";
   return {
     cwd: spec.cwd,
     systemPrompt: { type: "preset", preset: "claude_code", append },
-    ...(bypass && process.getuid?.() !== 0
-      ? { allowDangerouslySkipPermissions: true }
-      : {}),
+    ...(unsafe ? { allowDangerouslySkipPermissions: true } : {}),
     includePartialMessages: true,
     settingSources: ["user", "project", "local"],
     persistSession: true,
     env,
-    ...(bypass ? {} : sandboxed),
+    ...(bypass ? {} : { sandbox, additionalDirectories: roots }),
     ...(settings.model ? { model: settings.model } : {}),
     effort,
     thinking: { type: "adaptive", display: "summarized" },
@@ -241,19 +200,6 @@ export async function buildQueryOptions(
   };
 }
 
-function slashSkillMentions(entry: TextInput) {
-  let { text } = entry;
-  for (const { start, end, resource } of entry.mentions) {
-    const skill =
-      resource.kind === "command" &&
-      resource.source === "skill" &&
-      resource.trigger === "$" &&
-      entry.text.slice(start, end) === `$${resource.name}`;
-    if (skill) text = `${text.slice(0, start)}/${text.slice(start + 1)}`;
-  }
-  return text;
-}
-
 export function promptText(input: readonly PromptInput[], planMode: boolean) {
   const plan = { trigger: "/" as const, name: "plan" };
   const items = planMode
@@ -262,39 +208,40 @@ export function promptText(input: readonly PromptInput[], planMode: boolean) {
   const onDisk = (path: string) =>
     `It is on disk at ${path} — use the Read tool to view it.]`;
   const chunks = items.flatMap((item) => {
-    if (item.type === "text") {
-      return item.text.length > 0 ? [slashSkillMentions(item)] : [];
-    }
     if (item.type === "image") return [`[Attached image: ${item.url}]`];
     if (item.type === "localImage") {
       return [`[Attached image. ${onDisk(item.path)}`];
     }
-    const size =
-      item.sizeBytes === undefined ? [] : [`${item.sizeBytes} bytes`];
-    const details = [...(item.mimeType ? [item.mimeType] : []), ...size];
-    const suffix = details.length > 0 ? ` (${details.join(", ")})` : "";
-    const name = item.name ? ` "${item.name}"` : "";
-    return [`[Attached file${name}${suffix}. ${onDisk(item.path)}`];
+    if (item.type === "localFile") {
+      const size =
+        item.sizeBytes === undefined ? "" : `${item.sizeBytes} bytes`;
+      const details = [item.mimeType, size].filter(Boolean).join(", ");
+      const name = item.name ? ` "${item.name}"` : "";
+      const suffix = details ? ` (${details})` : "";
+      return [`[Attached file${name}${suffix}. ${onDisk(item.path)}`];
+    }
+    let { text } = item;
+    for (const { start, end, resource } of item.mentions) {
+      const skill =
+        resource.kind === "command" &&
+        resource.source === "skill" &&
+        resource.trigger === "$" &&
+        item.text.slice(start, end) === `$${resource.name}`;
+      if (skill) text = `${text.slice(0, start)}/${text.slice(start + 1)}`;
+    }
+    return text.length > 0 ? [text] : [];
   });
   return chunks.length > 0 ? chunks.join("\n") : undefined;
 }
 
 function toolContent(response: ToolCallResponse) {
-  const blocks = response.contentItems.flatMap((item): ContentBlock[] => {
-    if (item.type === "inputText") {
-      return item.text === ""
-        ? []
-        : [{ type: "text" as const, text: item.text }];
-    }
-    const [, mimeType, data] = IMAGE_DATA_URL.exec(item.imageUrl) ?? [];
-    return mimeType && data
-      ? [{ type: "image" as const, data, mimeType }]
-      : [{ type: "text" as const, text: item.imageUrl }];
-  });
+  const texts = response.contentItems.map((item) =>
+    item.type === "inputText" ? item.text : item.imageUrl,
+  );
   const fallback = response.success ? "OK" : "Tool call failed";
-  return blocks.length > 0
-    ? blocks
-    : [{ type: "text" as const, text: fallback }];
+  const shown = texts.filter(Boolean);
+  const blocks = shown.length > 0 ? shown : [fallback];
+  return blocks.map((text) => ({ type: "text" as const, text }));
 }
 
 export function bbToolServer(
@@ -318,10 +265,10 @@ export function bbToolServer(
       contentItems: [{ type: "inputText", text }],
       success: false,
     });
+    const describe = (error: unknown) =>
+      failed(error instanceof Error ? error.message : String(error));
     const response = tools.some((tool) => tool.name === name)
-      ? await callTool(name, input, useId).catch((error: unknown) =>
-          failed(error instanceof Error ? error.message : String(error)),
-        )
+      ? await callTool(name, input, useId).catch(describe)
       : failed(`Unknown tool: ${name}`);
     const content = toolContent(response);
     return response.success ? { content } : { content, isError: true };
@@ -364,7 +311,8 @@ export function buildModels(discovered: readonly ModelInfo[]): ProviderModels {
     if (known(models, model)) continue;
     const [, family = "", major, minor, large] = MODEL_ID.exec(model) ?? [];
     const version = minor === undefined ? major : `${major}.${minor}`;
-    const derived = `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version}${large ? " (1M)" : ""}`;
+    const brand = `${family.charAt(0).toUpperCase()}${family.slice(1)}`;
+    const derived = `${brand} ${version}${large ? " (1M)" : ""}`;
     models.push(toModel(info, model, family ? derived : info.displayName));
   }
   for (const info of discovered) {
@@ -375,88 +323,9 @@ export function buildModels(discovered: readonly ModelInfo[]): ProviderModels {
   }
   const resolved = discovered.find(isDefault)?.resolvedModel ?? "";
   const chosen = known(models, resolved) ? resolved : models[0]?.model;
-  return {
-    models: models.map((m) =>
-      m.model === chosen ? { ...m, isDefault: true } : m,
-    ),
-    selectedOnlyModels: aliases,
-  };
-}
-
-export function contextSnapshot(
-  value: unknown,
-  providerSessionId: string,
-): ContextSnapshot | undefined {
-  const report = contextReportSchema.safeParse(value).data;
-  if (report === undefined) return undefined;
-  const messages = report.messageBreakdown ?? {};
-  const entriesOf = (name: string, deferred: boolean) => {
-    const loaded = <T extends { isLoaded: boolean }>(tool: T) =>
-      tool.isLoaded !== deferred;
-    const lists: Record<string, { name: string; tokens: number }[]> = {
-      "system prompt": report.systemPromptSections,
-      "system tools": report.systemTools,
-      "system tools (deferred)": report.deferredBuiltinTools.filter(loaded),
-      "mcp tools": report.mcpTools.filter(loaded).map((tool) => ({
-        name: `${tool.serverName}: ${tool.name}`,
-        tokens: tool.tokens,
-      })),
-      "memory files": report.memoryFiles.map((file) => ({
-        name: file.path,
-        tokens: file.tokens,
-      })),
-      agents: report.agents.map((agent) => ({
-        name: `${agent.agentType} (${agent.source})`,
-        tokens: agent.tokens,
-      })),
-      skills: report.skills?.skillFrontmatter ?? [],
-      messages: Object.entries(MESSAGE_PARTS).map(([label, key]) => ({
-        name: label,
-        tokens: messages[key] ?? 0,
-      })),
-    };
-    const alias = name.replace("custom agents", "agents");
-    return lists[alias.replace("mcp tools (deferred)", "mcp tools")] ?? [];
-  };
-  const occurrence = (seen: Map<string, number>, name: string) => {
-    const index = seen.get(name) ?? 0;
-    seen.set(name, index + 1);
-    return index;
-  };
-  const categoriesSeen = new Map<string, number>();
-  const snapshot = {
-    capturedAt: new Date().toISOString(),
-    providerSessionId,
-    providerTurnId: null,
-    model: report.model,
-    usedTokens: report.totalTokens,
-    contextWindowTokens: report.rawMaxTokens,
-    autoCompactAtTokens: report.isAutoCompactEnabled
-      ? (report.autoCompactThreshold ?? null)
-      : null,
-    estimated: true,
-    categories: report.categories.map((category) => {
-      const name = category.name.toLowerCase();
-      const entries = entriesOf(name, category.isDeferred);
-      const total = entries.reduce((sum, entry) => sum + entry.tokens, 0);
-      const seen = new Map<string, number>();
-      const reserved = RESERVED_CATEGORIES.includes(name) ? "reserved" : "used";
-      const kind = name === "free space" ? "free" : reserved;
-      const index = occurrence(categoriesSeen, category.name);
-      return {
-        id: JSON.stringify(["claude", category.name, index]),
-        label: category.name,
-        kind: category.isDeferred ? "deferred" : kind,
-        tokens: category.tokens,
-        entries: (total > category.tokens ? [] : entries)
-          .filter((entry) => entry.tokens > 0)
-          .map((entry) => ({
-            id: JSON.stringify([entry.name, occurrence(seen, entry.name)]),
-            label: entry.name,
-            tokens: entry.tokens,
-          })),
-      };
-    }),
-  };
-  return contextSnapshotSchema.safeParse(snapshot).data;
+  const marked = models.map((model) => ({
+    ...model,
+    isDefault: model.model === chosen,
+  }));
+  return { models: marked, selectedOnlyModels: aliases };
 }

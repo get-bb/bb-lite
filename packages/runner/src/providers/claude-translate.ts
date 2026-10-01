@@ -1,38 +1,20 @@
 import {
-  backgroundTaskItemStatus,
+  backgroundTaskItemStatus as itemStatus,
   isBackgroundAgentTaskType,
   jsonValueSchema,
-  type BackgroundTaskStatus,
-  type ProviderErrorCategory,
+  type ProviderErrorCategory as Category,
   type ProviderErrorInfo,
   type ProviderRateLimitState,
-  type ThreadEventItemPresentation as Presentation,
   type ThreadEventPlanStep as PlanStep,
-  type WorkflowAgentSnapshot,
-  type WorkflowPhaseSnapshot,
 } from "@bb/domain";
 import { z } from "zod";
 import type {
   BackgroundTaskShape,
   EventBuilder,
 } from "../events/event-builder.js";
-import {
-  classifyTool,
-  classifyUnseenTool,
-  completedShape,
-  foldTaskResult,
-  toolOutput,
-  type ClassifiedTool,
-  type TaskPlan,
-} from "./claude-tools.js";
+import * as tools from "./claude-tools.js";
+import { fields, text as str } from "./claude-tools.js";
 import * as ui from "./provider.js";
-
-export interface TranslatorOptions {
-  threadId: string;
-  cwd: string;
-  sandboxed: boolean;
-  injected: ReadonlyMap<string, Presentation | undefined>;
-}
 
 interface Turn {
   id: string;
@@ -40,46 +22,21 @@ interface Turn {
   compacting: boolean;
   requestTokens?: number;
   checkpoint?: string;
-  rateLimitRejection?: string;
   fallback?: string;
 }
 
 interface Task {
-  id: string;
   key: { providerItemId: string; parentRef: string | undefined };
   generation: number;
-  taskType: string;
-  description: string;
-  taskStatus: BackgroundTaskStatus;
-  skipTranscript: boolean;
-  workflowName: string | undefined;
-  phases: Map<number, WorkflowPhaseSnapshot>;
-  agents: Map<number, WorkflowAgentSnapshot>;
-  usage?: { totalTokens: number; toolUses: number; durationMs: number };
-  summary?: string;
-  error?: string;
-  outputFile?: string;
   done: boolean;
+  item: BackgroundTaskShape;
 }
 
 type Json = Record<string, unknown>;
-type Category = ProviderErrorCategory | undefined;
 
 const LARGE_CONTEXT_MODELS =
   "best claude-fable-5 claude-fable-5-1 claude-mythos-5 claude-mythos-5-1 fable";
-const NO_RESPONSE = "No response requested.";
-const NO_FALLBACK =
-  "The selected model refused the request and no fallback model was available.";
-const RESULT_ERRORS: Record<string, [Category, string] | undefined> = {
-  error_during_execution: ["unknown", "failed during execution"],
-  error_max_turns: ["max-turns", "reached the maximum number of turns"],
-  error_max_budget_usd: ["budget-exceeded", "exceeded the configured budget"],
-  error_max_structured_output_retries: [
-    "structured-output-retries",
-    "exhausted structured output retries",
-  ],
-};
-const API_ERRORS: Record<string, Category> = {
+const ERRORS: Record<string, Category | undefined> = {
   authentication_failed: "unauthorized",
   oauth_org_not_allowed: "unauthorized",
   billing_error: "billing",
@@ -89,6 +46,10 @@ const API_ERRORS: Record<string, Category> = {
   server_error: "internal",
   max_output_tokens: "max-output-tokens",
   unknown: "unknown",
+  error_during_execution: "unknown",
+  error_max_turns: "max-turns",
+  error_max_budget_usd: "budget-exceeded",
+  error_max_structured_output_retries: "structured-output-retries",
 };
 const RATE_LIMIT_LABELS: Record<string, string | undefined> = {
   five_hour: "Five-hour limit",
@@ -98,32 +59,19 @@ const RATE_LIMIT_LABELS: Record<string, string | undefined> = {
   seven_day_overage_included: "Weekly included overage",
   overage: "Overage",
 };
-const RATE_LIMIT_STATUS: Record<string, "allowed" | "warning" | undefined> = {
+const SOFT_LIMITS: Record<string, "allowed" | "warning" | undefined> = {
   allowed: "allowed",
   allowed_warning: "warning",
 };
-const QUIET_TYPES = `result rate_limit_event tool_progress tool_use_summary
-  command_lifecycle conversation_reset auth_status prompt_suggestion`;
-const KNOWN_BLOCKS = "fallback text thinking tool_result tool_use";
-const STREAM_EVENTS =
-  "message_start content_block_stop message_delta message_stop ping";
-const STREAM_PARTS: Record<string, string | undefined> = {
-  content_block_start: "text thinking tool_use",
-  content_block_delta:
-    "input_json_delta signature_delta text_delta thinking_delta",
-};
-const KNOWN_SUBTYPES = `background_tasks_changed commands_changed
-  compact_boundary control_request_progress elicitation_complete
-  files_persisted hook_progress hook_response hook_started informational init
-  local_command_output memory_recall mirror_error model_fallback
-  model_refusal_fallback model_refusal_no_fallback notification
-  permission_denied plugin_install session_state_changed status
-  task_notification task_progress task_started task_updated thinking_tokens
-  worker_shutting_down`;
+const TASK_TYPES = "local_workflow local_bash local_agent local_subagent";
+const QUIET = `assistant stream_event result rate_limit_event tool_progress
+  tool_use_summary command_lifecycle conversation_reset auth_status
+  prompt_suggestion init status notification informational compact_boundary
+  mirror_error commands_changed files_persisted memory_recall plugin_install
+  permission_denied elicitation_complete thinking_tokens local_command_output
+  session_state_changed worker_shutting_down control_request_progress
+  background_tasks_changed`.split(/\s+/);
 
-const fields = z.record(z.string(), z.unknown());
-const text = z.string();
-const nonEmpty = text.min(1);
 const count = z.number().optional();
 const usageSchema = z.looseObject({
   input_tokens: count,
@@ -131,35 +79,9 @@ const usageSchema = z.looseObject({
   cache_read_input_tokens: z.number().nonnegative().optional(),
   cache_creation_input_tokens: z.number().nonnegative().optional(),
 });
-const bodySchema = z.looseObject({
-  content: z.array(z.looseObject({ type: text })).optional(),
-});
-const assistantSchema = z.object({ uuid: nonEmpty.optional() });
-const userSchema = assistantSchema.extend({
-  isSynthetic: z.boolean().optional(),
-  parent_tool_use_id: text.nullish(),
-});
-const anything = z.unknown().optional();
-const toolUseSchema = z.object({ id: text, name: text, input: anything });
-const toolResultSchema = z.object({
-  tool_use_id: text,
-  tool_name: text.optional(),
-  content: anything,
-  is_error: z.boolean().optional(),
-  tool_use_result: anything,
-});
-const resultSchema = z.object({
-  subtype: text,
-  is_error: z.boolean().optional(),
-  api_error_status: z.number().nullish(),
-  errors: z.array(text).optional(),
-  result: anything,
-  usage: anything,
-  modelUsage: anything,
-  origin: z.looseObject({ kind: nonEmpty }).optional(),
-});
+const blocksSchema = z.array(z.looseObject({ type: z.string() }));
 const modelUsageSchema = z.record(
-  text,
+  z.string(),
   z.looseObject({ contextWindow: z.number() }),
 );
 const retrySchema = z.object({
@@ -167,108 +89,41 @@ const retrySchema = z.object({
   max_retries: z.number(),
   retry_delay_ms: z.number(),
   error_status: z.number().nullable(),
-  error: z.enum(Object.keys(API_ERRORS)),
-});
-const fallbackSchema = z.object({
-  original_model: nonEmpty,
-  fallback_model: nonEmpty,
-  content: text.optional(),
-});
-const deniedSchema = z.object({
-  tool_name: text,
-  tool_use_id: text,
-  decision_reason_type: text.optional(),
-  decision_reason: text.optional(),
-  message: text,
+  error: z.string(),
 });
 const rateLimitSchema = z.object({
-  rate_limit_info: z.object({
-    status: nonEmpty,
-    resetsAt: count,
-    rateLimitType: nonEmpty.optional(),
-    overageStatus: nonEmpty.optional(),
-    overageDisabledReason: nonEmpty.optional(),
-  }),
+  status: z.string(),
+  resetsAt: count,
+  rateLimitType: z.string().optional(),
+  overageStatus: z.string().optional(),
+  overageDisabledReason: z.string().optional(),
 });
-const taskSchema = z.object({
-  task_id: text,
-  tool_use_id: text.optional(),
-  description: text.optional(),
-  task_type: text.optional(),
-  workflow_name: text.optional(),
-  skip_transcript: z.boolean().optional(),
-  usage: z
-    .object({ total_tokens: z.number(), tool_uses: z.number() })
-    .extend({ duration_ms: z.number() })
-    .optional(),
-  workflow_progress: z.array(z.unknown()).optional(),
-  status: z.enum(["completed", "failed", "stopped"]).optional(),
-  output_file: text.optional(),
-  summary: text.optional(),
-  patch: z
-    .object({
-      status: z
-        .enum(["pending", "running", "completed", "failed", "killed", "paused"])
-        .optional(),
-      description: text.optional(),
-      error: text.optional(),
-    })
-    .optional(),
-});
-const index = z.number().int().min(1);
-const workflowPhaseSchema = z.object({
-  type: z.literal("workflow_phase"),
-  index,
-  title: text,
-  kind: text.optional(),
-});
-const workflowAgentSchema = z.object({
-  type: z.literal("workflow_agent"),
-  index,
-  label: text,
-  state: text,
-  model: text.optional(),
-  phaseIndex: count,
-  phaseTitle: text.optional(),
-  agentType: text.optional(),
-  isolation: text.optional(),
-  queuedAt: count,
-  startedAt: count,
-  lastProgressAt: count,
-  attempt: count,
-  lastToolName: text.optional(),
-  lastToolSummary: text.optional(),
-  promptPreview: text.optional(),
-  resultPreview: text.optional(),
-  error: text.optional(),
-  skipped: z.boolean().optional(),
-  cached: z.boolean().optional(),
-  tokens: count,
-  toolCalls: count,
-  durationMs: count,
-});
-
-function str(value: unknown) {
-  return typeof value === "string" ? value : undefined;
-}
-
-function listed(list: string, value: string | undefined) {
-  return value !== undefined && list.split(/\s+/).includes(value);
-}
+const taskUsageSchema = z
+  .object({ total_tokens: z.number(), tool_uses: z.number() })
+  .extend({ duration_ms: z.number() })
+  .transform((usage) => ({
+    totalTokens: usage.total_tokens,
+    toolUses: usage.tool_uses,
+    durationMs: usage.duration_ms,
+  }));
+const taskStatusSchema = z
+  .enum(["pending", "running", "completed", "failed", "killed", "paused"])
+  .optional();
+const taskEndSchema = z.enum(["completed", "failed", "stopped"]);
 
 function blocksOf(message: unknown) {
-  return bodySchema.safeParse(message).data?.content ?? [];
+  const content = fields.safeParse(message).data?.content;
+  return blocksSchema.safeParse(content).data ?? [];
 }
 
 function tokens(value: number | undefined) {
-  return value !== undefined && Number.isFinite(value) && value >= 0
-    ? value
-    : 0;
+  const valid = value !== undefined && Number.isFinite(value) && value >= 0;
+  return valid ? value : 0;
 }
 
 export function contextWindowHint(model: string): number | null {
-  const large = model.endsWith("[1m]") || listed(LARGE_CONTEXT_MODELS, model);
-  if (large) return 1_000_000;
+  const large = LARGE_CONTEXT_MODELS.split(" ").includes(model);
+  if (large || model.endsWith("[1m]")) return 1_000_000;
   return model === "default" ? null : 200_000;
 }
 
@@ -282,7 +137,7 @@ function reportedContextWindow(modelUsage: unknown) {
   return windows.length === 0 ? null : Math.max(...windows);
 }
 
-function httpCategory(status: number): ProviderErrorCategory {
+function httpCategory(status: number): Category {
   if (status === 402) return "billing";
   if (status === 401 || status === 403) return "unauthorized";
   if (status === 429) return "rate-limit";
@@ -291,38 +146,33 @@ function httpCategory(status: number): ProviderErrorCategory {
   return status >= 500 && status < 600 ? "internal" : "unknown";
 }
 
-function errorInfo(args: {
-  code?: string;
-  status?: number | null;
-  subtype?: string;
-}): ProviderErrorInfo | undefined {
-  const httpStatusCode = args.status ?? null;
-  const fromCode = args.code === undefined ? undefined : API_ERRORS[args.code];
+function errorInfo(
+  status: number | null | undefined,
+  code: string | undefined,
+  subtype?: string,
+): ProviderErrorInfo | undefined {
+  const httpStatusCode = status ?? null;
+  const fromCode = ERRORS[code ?? ""];
   const fromStatus =
     httpStatusCode === null ? undefined : httpCategory(httpStatusCode);
-  const fromSubtype = RESULT_ERRORS[args.subtype ?? ""]?.[0];
+  const fromSubtype = ERRORS[subtype ?? ""];
   const overloaded = fromCode !== undefined && httpStatusCode === 529;
-  const category = overloaded
-    ? "overloaded"
-    : fromCode === "unknown"
-      ? (fromStatus ?? "unknown")
-      : (fromCode ?? fromStatus ?? fromSubtype ?? "unknown");
-  const resultCode = fromSubtype === undefined ? null : (args.subtype ?? null);
-  const providerCode = args.code ?? resultCode;
-  const empty =
-    category === "unknown" && providerCode === null && httpStatusCode === null;
-  return empty ? undefined : { category, providerCode, httpStatusCode };
+  const mapped = fromCode === "unknown" ? fromStatus : (fromCode ?? fromStatus);
+  const category = overloaded ? "overloaded" : (mapped ?? fromSubtype);
+  const providerCode = code ?? (fromSubtype && subtype) ?? null;
+  const empty = !category && providerCode === null && httpStatusCode === null;
+  if (empty) return undefined;
+  return { category: category ?? "unknown", providerCode, httpStatusCode };
 }
 
 function rateLimitState(
-  info: z.infer<typeof rateLimitSchema>["rate_limit_info"],
+  info: z.infer<typeof rateLimitSchema>,
 ): ProviderRateLimitState {
   const rejected = info.status === "rejected";
-  const open = RATE_LIMIT_STATUS[info.status] ?? "unknown";
-  const status = rejected ? "blocked" : open;
-  const softened = RATE_LIMIT_STATUS[info.overageStatus ?? ""];
+  const status = rejected ? "blocked" : (SOFT_LIMITS[info.status] ?? "unknown");
+  const softened = SOFT_LIMITS[info.overageStatus ?? ""];
   const overage = info.overageStatus === "rejected" ? "rejected" : softened;
-  const providerKey = info.rateLimitType ?? null;
+  const providerKey = info.rateLimitType || null;
   const resetsAtMs = info.resetsAt === undefined ? null : info.resetsAt * 1_000;
   const label = RATE_LIMIT_LABELS[providerKey ?? ""] ?? null;
   const subscription = providerKey === null ? "unknown" : "subscription-window";
@@ -332,52 +182,9 @@ function rateLimitState(
     kind: providerKey === "overage" ? "credits" : subscription,
     windows: [{ providerKey, label, status, resetsAtMs }],
     reachedReason: rejected ? (providerKey ?? "rate_limit_rejected") : null,
-    overageStatus:
-      info.overageStatus === undefined ? null : (overage ?? "unavailable"),
-    overageReason: info.overageDisabledReason ?? null,
+    overageStatus: info.overageStatus ? (overage ?? "unavailable") : null,
+    overageReason: info.overageDisabledReason || null,
   };
-}
-
-function describeRaw(message: Json): { kind: string; unknown: boolean } {
-  const type = str(message.type);
-  if (type === "assistant" || type === "user") {
-    const distinct = new Set(blocksOf(message.message).map((b) => b.type));
-    const names = [...distinct].map((name) =>
-      listed(KNOWN_BLOCKS, name) ? name : "unknown",
-    );
-    const types = names.sort();
-    const suffix = types.length === 0 ? "" : `:${types.join("+")}`;
-    const kind = `sdk/${type}${suffix}`;
-    const spoken = types.length > 0 && !types.includes("unknown");
-    const known =
-      type === "assistant"
-        ? spoken && !types.includes("tool_result")
-        : kind === "sdk/user:text" || kind === "sdk/user:tool_result";
-    return { kind, unknown: !known };
-  }
-  if (type === "system") {
-    const subtype = str(message.subtype);
-    const known = listed(KNOWN_SUBTYPES, subtype);
-    const kind = known ? `sdk/system:${subtype}` : "sdk/system";
-    return { kind, unknown: !known };
-  }
-  if (type === "stream_event") {
-    const event = fields.safeParse(message.event).data ?? {};
-    const name = str(event.type) ?? "";
-    const parts = STREAM_PARTS[name];
-    const block = fields.safeParse(event.content_block ?? event.delta).data;
-    const part = str(block?.type);
-    const nested = parts !== undefined;
-    const known = nested ? listed(parts, part) : listed(STREAM_EVENTS, name);
-    const path = [
-      ...(nested || known ? [name] : []),
-      ...(nested ? [part] : []),
-    ];
-    const kind = ["sdk/stream_event", ...path.slice(0, known ? 2 : 1)];
-    return { kind: kind.join(":"), unknown: !known };
-  }
-  const kind = type ? `sdk/${type}` : "sdk/unknown";
-  return { kind, unknown: !listed(QUIET_TYPES, type) };
 }
 
 export class ClaudeTranslator {
@@ -385,13 +192,15 @@ export class ClaudeTranslator {
   private total = ui.ZERO_TOKEN_USAGE;
   private contextWindow: number | null = null;
   private suppressed = false;
-  private readonly tools = new Map<string, ClassifiedTool>();
+  private parentRef: string | undefined;
+  private readonly tools = new Map<string, tools.ClassifiedTool>();
   private readonly tasks = new Map<string, Task>();
-  private readonly plan: TaskPlan = new Map();
+  private readonly plan: tools.TaskPlan = new Map();
 
   constructor(
     private readonly events: EventBuilder,
-    private readonly options: TranslatorOptions,
+    private readonly threadId: string,
+    private readonly context: tools.ToolContext,
   ) {}
 
   setModel(model: string) {
@@ -404,49 +213,33 @@ export class ClaudeTranslator {
 
   stopTasks() {
     for (const task of this.tasks.values()) {
-      if (task.done) continue;
-      const settled = backgroundTaskItemStatus(task.taskStatus) !== "pending";
-      if (!settled) task.taskStatus = "stopped";
-      this.closeTask(task);
+      const { taskStatus } = task.item;
+      const live = itemStatus(taskStatus) === "pending";
+      if (!task.done) this.closeTask(task, live ? "stopped" : taskStatus);
     }
   }
 
   handle(raw: unknown) {
     const message = fields.safeParse(raw).data;
     if (message === undefined) return;
-    const parentRef = str(message.parent_tool_use_id) || undefined;
-    try {
-      if (this.dispatch(message, parentRef)) return;
-      const { kind, unknown } = describeRaw(message);
-      if (unknown) this.unhandled(kind, message, parentRef);
-    } catch (error) {
-      const details = error instanceof Error ? error.message : String(error);
-      this.events.warning({ summary: "Claude Code event ignored", details });
-    }
+    this.parentRef = str(message.parent_tool_use_id) || undefined;
+    if (!this.dispatch(message, str(message.type))) this.unhandled(message);
   }
 
-  private dispatch(message: Json, parentRef: string | undefined): boolean {
-    switch (message.type) {
-      case "assistant":
-        return this.assistant(message, parentRef);
-      case "user":
-        return this.user(message, parentRef);
-      case "stream_event":
-        return this.stream(message, parentRef);
-      case "result":
-        return this.result(message, parentRef);
-      case "system":
-        return this.system(message);
-      case "rate_limit_event":
-        return this.rateLimit(message, parentRef);
-      case "conversation_reset":
-        if (this.blocked()) return false;
-        this.ensureTurn();
-        this.events.cleared();
-        return true;
-      default:
-        return false;
-    }
+  private dispatch(message: Json, type = "unknown"): boolean {
+    if (type === "assistant") return this.assistant(message);
+    if (type === "user") return this.user(message);
+    if (type === "stream_event") return this.stream(message);
+    if (type === "result") return this.result(message);
+    const reset = type === "conversation_reset" && !this.blocked();
+    if (reset) this.ensureTurn();
+    if (reset) this.events.cleared();
+    const limits = rateLimitSchema.safeParse(message.rate_limit_info).data;
+    if (limits !== undefined) this.events.rateLimits(rateLimitState(limits));
+    const subtype = str(message.subtype) ?? "";
+    if (type !== "system") return QUIET.includes(type);
+    const expected = /^(hook|task|model)_/.test(subtype);
+    return this.system(message, subtype) || expected || QUIET.includes(subtype);
   }
 
   private blocked() {
@@ -454,10 +247,10 @@ export class ClaudeTranslator {
   }
 
   private activeTurn(): Turn | null {
-    const turnId = this.events.activeTurnId;
-    if (turnId === null) return null;
-    if (this.turn.id !== turnId) {
-      this.turn = { id: turnId, responded: false, compacting: false };
+    const id = this.events.activeTurnId;
+    if (id === null) return null;
+    if (this.turn.id !== id) {
+      this.turn = { id, responded: false, compacting: false };
       this.tools.clear();
     }
     return this.turn;
@@ -471,52 +264,36 @@ export class ClaudeTranslator {
   }
 
   private hasBlockingTasks() {
-    const blocking = (task: Task) =>
-      !task.done &&
-      !task.skipTranscript &&
-      isBackgroundAgentTaskType(task.taskType);
+    const blocking = ({ done, item }: Task) =>
+      !done && !item.skipTranscript && isBackgroundAgentTaskType(item.taskType);
     return [...this.tasks.values()].some(blocking);
   }
 
-  private unhandled(kind: string, message: Json, parentRef?: string) {
-    const { threadId } = this.options;
-    const serializationError =
-      "Provider raw event params were not JSON-serializable.";
+  private unhandled(message: Json) {
+    const { threadId, parentRef } = this;
     const params = jsonValueSchema.safeParse({ threadId, message }).data;
-    const rawEvent = {
-      jsonrpc: "2.0" as const,
-      method: "sdk/message",
-      params: params ?? { serializationError },
-    };
-    this.events.unhandled(kind, rawEvent, { inTurn: true, parentRef });
+    const frame = { jsonrpc: "2.0" as const, method: "sdk/message" };
+    const rawEvent = { ...frame, params: params ?? { threadId } };
+    const system = message.type === "system" && str(message.subtype);
+    const kind = `sdk/${str(message.type) ?? "unknown"}`;
+    const rawType = system ? `${kind}:${system}` : kind;
+    this.events.unhandled(rawType, rawEvent, { inTurn: true, parentRef });
     return true;
   }
 
-  private unexpected(message: Json, parentRef?: string) {
-    return this.unhandled(describeRaw(message).kind, message, parentRef);
+  private say(channel: "thinking" | "assistant", value: string, final = true) {
+    const key = { channel, parentRef: this.parentRef };
+    const kind = channel === "thinking" ? "reasoningText" : "agentMessage";
+    if (final) this.events.textClose(key, kind, value);
+    else this.events.delta(key, kind, value);
   }
 
-  private planSteps(steps: PlanStep[], parentRef: string | undefined) {
+  private planSteps(steps: PlanStep[]) {
     const active = steps.find((step) => step.status === "active")?.step;
     const presentation = { ...ui.labels.planSteps(active), suppress: true };
     const options = { status: "completed" as const, presentation };
-    const key = { channel: "planSteps", parentRef };
+    const key = { channel: "planSteps", parentRef: this.parentRef };
     this.events.closeItem(key, { type: "planSteps", steps }, options);
-  }
-
-  private modelFallback(
-    originalModel: string,
-    fallbackModel: string,
-    reason: "refusal" | "provider",
-    content?: string,
-  ) {
-    const key = `${originalModel}\u0000${fallbackModel}`;
-    if (this.turn.fallback === key) return;
-    this.turn.fallback = key;
-    const message =
-      content ?? `Switched from ${originalModel} to ${fallbackModel}.`;
-    const transition = { originalModel, fallbackModel, reason, message };
-    this.events.modelFallback(transition);
   }
 
   private reportContext(
@@ -529,48 +306,28 @@ export class ClaudeTranslator {
     this.events.contextWindow(report, undefined, openTurnOnly);
   }
 
-  private assistant(message: Json, parentRef: string | undefined): boolean {
-    const parsed = assistantSchema.safeParse(message);
-    if (!parsed.success) return this.unexpected(message, parentRef);
-    if (this.blocked()) return false;
+  private assistant(message: Json): boolean {
+    if (this.blocked()) return true;
+    const { parentRef, events } = this;
     const body = fields.safeParse(message.message).data ?? {};
     const content = blocksOf(body);
-    const reply = content
-      .flatMap((block) => (block.type === "text" ? [str(block.text)] : []))
-      .filter((part) => part !== undefined)
-      .join("\n")
-      .trim();
+    const texts = content.filter((block) => block.type === "text");
+    const said = texts.flatMap((block) => str(block.text) ?? []).join("\n");
+    const reply = said.trim();
     const usage = usageSchema.safeParse(body.usage).data;
-    const synthetic =
-      body.model === "<synthetic>" &&
-      body.role === "assistant" &&
-      body.stop_reason === "stop_sequence" &&
-      body.stop_sequence === "" &&
-      message.error === undefined &&
-      message.isApiErrorMessage !== true &&
-      message.apiErrorStatus === undefined &&
-      Object.keys(usageSchema.shape).every((key) => usage?.[key] === 0) &&
-      reply === NO_RESPONSE;
-    if (synthetic && this.events.activeTurnId === null) return false;
+    const top = parentRef === undefined;
+    const silent =
+      body.model === "<synthetic>" && reply === "No response requested.";
+    if (silent && events.activeTurnId === null) return true;
     const turn = this.ensureTurn();
-    if (parentRef === undefined) {
-      turn.checkpoint = parsed.data.uuid ?? turn.checkpoint;
-    }
-    const fallbacks = content.filter((block) => block.type === "fallback");
-    if (fallbacks.length > 0 && fallbacks.length === content.length) {
-      const [from, to] = [fallbacks[0]?.from, fallbacks[0]?.to].map(
-        (side) => str(fields.safeParse(side).data?.model) ?? "",
-      );
-      if (from && to) this.modelFallback(from, to, "provider");
-      return true;
-    }
-    if (synthetic) {
+    if (top) turn.checkpoint = str(message.uuid) || turn.checkpoint;
+    if (silent) {
       const checkpointId = turn.checkpoint;
       const settled = !this.hasBlockingTasks();
-      if (settled) this.events.closeTurn({ status: "completed", checkpointId });
+      if (settled) events.closeTurn({ status: "completed", checkpointId });
       return true;
     }
-    if (parentRef === undefined && usage !== undefined) {
+    if (top && usage !== undefined) {
       turn.requestTokens =
         tokens(usage.input_tokens) +
         tokens(usage.cache_read_input_tokens) +
@@ -578,115 +335,98 @@ export class ClaudeTranslator {
       this.reportContext(turn.requestTokens, this.contextWindow, true);
     }
     for (const block of content) {
-      const thinking = block.type === "thinking" ? str(block.thinking) : "";
-      const key = { channel: "thinking", parentRef };
-      if (thinking) this.events.textClose(key, "reasoningText", thinking);
+      const thinking = block.type === "thinking" && str(block.thinking);
+      if (thinking) this.say("thinking", thinking);
     }
-    if (reply) {
-      const key = { channel: "assistant", parentRef };
-      this.events.textClose(key, "agentMessage", reply);
-    }
+    if (reply) this.say("assistant", reply);
     for (const block of content) {
-      const use = toolUseSchema.safeParse(block).data;
-      if (block.type !== "tool_use" || use === undefined) continue;
-      const tool = classifyTool(use.name, use.id, use.input, this.options);
-      this.tools.set(use.id, tool);
-      const key = { providerItemId: use.id, parentRef };
+      const [id, name] = [str(block.id), str(block.name)];
+      const use = block.type === "tool_use" && id !== undefined;
+      if (!use || name === undefined) continue;
+      const tool = tools.classifyTool(name, id, block.input, this.context);
+      this.tools.set(id, tool);
       const { presentation, planSteps } = tool;
-      this.events.openItem(key, tool.shape, { presentation });
-      if (planSteps !== undefined) this.planSteps(planSteps, parentRef);
+      const key = { providerItemId: id, parentRef };
+      events.openItem(key, tool.shape, { presentation });
+      if (planSteps !== undefined) this.planSteps(planSteps);
     }
     return true;
   }
 
-  private stream(message: Json, parentRef: string | undefined): boolean {
-    if (this.blocked()) return false;
+  private stream(message: Json): boolean {
     const event = fields.safeParse(message.event).data ?? {};
-    const source =
-      event.type === "content_block_delta"
-        ? { part: event.delta, text: "text_delta", thinking: "thinking_delta" }
-        : event.type === "content_block_start"
-          ? { part: event.content_block, text: "text", thinking: "thinking" }
-          : undefined;
-    const part = fields.safeParse(source?.part).data;
-    if (source === undefined || part === undefined) return false;
-    const thinking = part.type === source.thinking && str(part.thinking);
-    const reply = part.type === source.text && str(part.text);
-    if (!thinking && !reply) return false;
+    const delta = event.type === "content_block_delta";
+    const start = event.type === "content_block_start";
+    const part = fields.safeParse(delta ? event.delta : event.content_block);
+    if ((!delta && !start) || part.data === undefined) return true;
+    const suffix = delta ? "_delta" : "";
+    const { type, thinking, text } = part.data;
+    const thought = type === `thinking${suffix}` && str(thinking);
+    const said = type === `text${suffix}` && str(text);
+    if ((!thought && !said) || this.blocked()) return true;
     this.ensureTurn();
-    if (thinking) {
-      const key = { channel: "thinking", parentRef };
-      this.events.delta(key, "reasoningText", thinking);
-    }
-    if (reply) {
-      const key = { channel: "assistant", parentRef };
-      this.events.delta(key, "agentMessage", reply);
-    }
+    if (thought) this.say("thinking", thought, false);
+    if (said) this.say("assistant", said, false);
     return true;
   }
 
-  private user(message: Json, parentRef: string | undefined): boolean {
-    const parsed = userSchema.safeParse(message);
-    if (!parsed.success) return this.unexpected(message, parentRef);
-    const results = blocksOf(message.message).flatMap((block) => {
-      const result = toolResultSchema.safeParse(block).data;
-      return block.type === "tool_result" && result ? [result] : [];
-    });
+  private user(message: Json): boolean {
+    const { parentRef } = this;
+    const blocks = blocksOf(message.message);
+    const results = blocks.filter(
+      (block) => block.type === "tool_result" && str(block.tool_use_id),
+    );
     const turn = this.activeTurn();
     if (results.length === 0) {
-      const { uuid, isSynthetic, parent_tool_use_id: parent } = parsed.data;
-      const prompt = !isSynthetic && parent == null && parentRef === undefined;
-      if (turn !== null && prompt) turn.checkpoint ??= uuid;
-      return false;
+      const nested = message.parent_tool_use_id != null;
+      const prompt = message.isSynthetic !== true && !nested;
+      if (turn !== null && prompt) turn.checkpoint ??= str(message.uuid);
+      const narrated = blocks.every((block) => block.type === "text");
+      return blocks.length > 0 && narrated;
     }
-    if (turn === null) return this.unexpected(message, parentRef);
+    if (turn === null) return false;
     const envelope = results.length === 1 ? message.tool_use_result : undefined;
     for (const block of results) {
-      const started = this.tools.get(block.tool_use_id);
-      this.tools.delete(block.tool_use_id);
+      const [id, toolName] = [
+        str(block.tool_use_id) ?? "",
+        str(block.tool_name),
+      ];
+      const started = this.tools.get(id);
+      this.tools.delete(id);
       const base =
-        started ?? classifyUnseenTool(block.tool_name, this.options.cwd);
-      const failed = block.is_error ?? false;
-      const output = toolOutput(base.shape, {
-        toolName: block.tool_name,
-        content: block.content,
-        processResult: block.tool_use_result,
-      });
-      const key = { providerItemId: block.tool_use_id, parentRef };
-      const shape = completedShape(base.shape, output, failed);
+        started ?? tools.genericTool(toolName ?? "unknown", undefined);
+      const failed = block.is_error === true;
+      const output = tools.toolOutput(base.shape, toolName, block.content);
+      const shape = tools.completedShape(base.shape, output, failed);
       const status = failed ? "failed" : "completed";
       const { presentation } = base;
+      const key = { providerItemId: id, parentRef };
       this.events.closeItem(key, shape, { status, presentation });
       const call = started?.shape.type === "toolCall" ? started.shape : null;
-      const tool = call?.tool ?? block.tool_name;
+      const tool = call?.tool ?? toolName;
       if (failed || tool === undefined) continue;
-      const taskOutput = envelope ?? block.tool_use_result ?? output;
-      const steps = foldTaskResult(
-        this.plan,
-        tool,
-        call?.arguments,
-        taskOutput,
-      );
-      if (steps !== null) this.planSteps(steps, parentRef);
+      const reported = envelope ?? output;
+      const input = call?.arguments;
+      const steps = tools.foldTaskResult(this.plan, tool, input, reported);
+      if (steps !== null) this.planSteps(steps);
     }
     return true;
   }
 
-  private result(message: Json, parentRef: string | undefined): boolean {
-    const parsed = resultSchema.safeParse(message);
-    if (!parsed.success) return this.unexpected(message, parentRef);
-    const result = parsed.data;
+  private result(message: Json): boolean {
+    const subtype = str(message.subtype);
     const turn = this.activeTurn();
-    const human = result.origin === undefined || result.origin.kind === "human";
-    if (turn === null || (!turn.responded && !human)) return false;
+    const origin = str(fields.safeParse(message.origin).data?.kind) ?? "human";
+    const settles = turn?.responded === true || origin === "human";
+    if (subtype === undefined || turn === null || !settles) return true;
     turn.responded = true;
-    const reported = reportedContextWindow(result.modelUsage);
+    const reported = reportedContextWindow(message.modelUsage);
     const window = reported ?? this.contextWindow;
     const used = turn.requestTokens ?? null;
     this.contextWindow = window;
-    if (used !== null || window !== null)
-      this.reportContext(used, window, true);
-    const usage = usageSchema.safeParse(result.usage).data;
+    const measured = used !== null || window !== null;
+    if (measured) this.reportContext(used, window, true);
+    const usage = usageSchema.safeParse(message.usage).data;
     if (usage !== undefined || reported !== null) {
       const input = tokens(usage?.input_tokens);
       const output = tokens(usage?.output_tokens);
@@ -708,286 +448,157 @@ export class ClaudeTranslator {
         tokenUsage: { ...tokenUsage, modelContextWindow: reported },
       });
     }
-    const rejection = turn.rateLimitRejection;
-    turn.rateLimitRejection = undefined;
-    const { subtype, api_error_status: status } = result;
-    const errored = result.is_error === true || subtype.startsWith("error");
-    const failed = errored || rejection !== undefined;
+    const failed = message.is_error === true || subtype.startsWith("error");
     if (failed) {
-      const info = errorInfo({ status, subtype });
-      const limited = {
-        category: "rate-limit" as const,
-        providerCode: info?.providerCode ?? "rate_limit_event",
-        httpStatusCode: info?.httpStatusCode ?? null,
-      };
-      const errors = (result.errors ?? []).map((e) => e.trim()).filter(Boolean);
-      const known = RESULT_ERRORS[subtype]?.[1];
-      const generic = known
-        ? `Claude Code ${known}.`
-        : `Claude Code result failed: ${subtype}`;
-      const reason =
-        result.is_error && typeof result.result === "string"
-          ? result.result
-          : errors.join("\n") || generic;
-      this.events.error({
-        detail: errored ? reason : rejection,
-        errorInfo: rejection === undefined ? info : limited,
-      });
+      const status = z.number().safeParse(message.api_error_status).data;
+      const listed = z.array(z.string()).safeParse(message.errors).data ?? [];
+      const errors = listed.map((entry) => entry.trim()).filter(Boolean);
+      const generic = `Claude Code result failed: ${subtype}`;
+      const stated = message.is_error === true ? str(message.result) : null;
+      const detail = stated ?? (errors.join("\n") || generic);
+      const info = errorInfo(status, undefined, subtype);
+      this.events.error({ detail, errorInfo: info });
     } else if (this.hasBlockingTasks()) {
       return true;
     }
     this.suppressed = failed;
     const checkpointId = turn.checkpoint;
-    const outcome = failed ? "failed" : "completed";
-    this.events.closeTurn({ status: outcome, checkpointId });
+    const status = failed ? "failed" : "completed";
+    this.events.closeTurn({ status, checkpointId });
     return true;
   }
 
-  private rateLimit(message: Json, parentRef: string | undefined): boolean {
-    const parsed = rateLimitSchema.safeParse(message);
-    if (!parsed.success) return this.unexpected(message, parentRef);
-    const info = parsed.data.rate_limit_info;
-    const state = rateLimitState(info);
-    const softened = RATE_LIMIT_STATUS[info.overageStatus ?? ""] !== undefined;
-    const hard = info.status === "rejected" && !softened;
-    if (hard && !this.blocked()) {
-      const detail = [
-        "Claude Code rate limit rejected",
-        info.rateLimitType && `type ${info.rateLimitType}`,
-        info.resetsAt !== undefined && `resetsAt ${info.resetsAt}`,
-        info.overageStatus && `overage ${info.overageStatus}`,
-        info.overageDisabledReason &&
-          `overage disabled: ${info.overageDisabledReason}`,
-      ];
-      this.ensureTurn().rateLimitRejection = detail.filter(Boolean).join("; ");
-    } else if (!hard && state.status === "allowed") {
-      const turn = this.activeTurn();
-      if (turn !== null) turn.rateLimitRejection = undefined;
+  private system(message: Json, subtype: string): boolean {
+    const { events, turn } = this;
+    const [from, to] = [message.original_model, message.fallback_model].map(
+      str,
+    );
+    const compaction = { type: "contextCompaction" as const };
+    const key = { channel: "compaction" };
+    const presentation = ui.labels.compaction;
+    const retry = retrySchema.safeParse(message).data;
+    if (subtype === "api_retry" && retry !== undefined) {
+      const status = retry.error_status;
+      const http = status === null ? "" : ` HTTP ${status}`;
+      const attempt = `${retry.attempt}/${retry.max_retries}`;
+      const detail = `Claude Code API retry ${attempt} after ${retry.retry_delay_ms}ms:${http} ${retry.error}`;
+      const threadScoped = this.blocked();
+      if (!threadScoped) this.ensureTurn();
+      const info = errorInfo(status, retry.error);
+      const report = { detail, willRetry: true, errorInfo: info };
+      events.error(report, { threadScoped });
+      return true;
     }
-    this.events.rateLimits(state);
+    if (subtype === "status" && message.status === "compacting") {
+      if (this.blocked()) return true;
+      this.ensureTurn().compacting = true;
+      events.openItem(key, compaction, { presentation });
+    } else if (subtype === "status") {
+      const wasCompacting = turn.compacting;
+      turn.compacting = false;
+      if (!wasCompacting || this.activeTurn() !== turn) return true;
+      events.closeItem(key, compaction, { status: "completed", presentation });
+    } else if (subtype === "compact_boundary") {
+      events.compacted();
+      this.reportContext(null, null, false);
+    } else if (/^model_(refusal_)?fallback$/.test(subtype) && from && to) {
+      const fallback = `${from}\u0000${to}`;
+      if (turn.fallback === fallback) return true;
+      turn.fallback = fallback;
+      const transition = { originalModel: from, fallbackModel: to };
+      const refused = subtype === "model_refusal_fallback";
+      const reason = refused ? ("refusal" as const) : ("provider" as const);
+      const stated = str(message.content);
+      const message_ = stated ?? `Switched from ${from} to ${to}.`;
+      events.modelFallback({ ...transition, reason, message: message_ });
+    } else {
+      return this.task(message, subtype);
+    }
     return true;
   }
 
-  private system(message: Json): boolean {
-    switch (message.subtype) {
-      case "api_retry": {
-        const retry = retrySchema.safeParse(message).data;
-        if (retry === undefined) return false;
-        const status = retry.error_status;
-        const http = status === null ? "" : ` HTTP ${status}`;
-        const attempt = `${retry.attempt}/${retry.max_retries}`;
-        const detail = `Claude Code API retry ${attempt} after ${retry.retry_delay_ms}ms:${http} ${retry.error}`;
-        const threadScoped = this.blocked();
-        if (!threadScoped) this.ensureTurn();
-        const info = errorInfo({ code: retry.error, status });
-        const report = { detail, willRetry: true, errorInfo: info };
-        this.events.error(report, { threadScoped });
-        return true;
-      }
-      case "status": {
-        const compaction = { type: "contextCompaction" as const };
-        const key = { channel: "compaction" };
-        const presentation = ui.labels.compaction;
-        if (message.status === "compacting") {
-          if (this.blocked()) return false;
-          this.ensureTurn().compacting = true;
-          this.events.openItem(key, compaction, { presentation });
-          return true;
-        }
-        const turn = this.turn;
-        const wasCompacting = turn.compacting;
-        turn.compacting = false;
-        if (!wasCompacting || this.activeTurn() !== turn) return false;
-        const options = { status: "completed" as const, presentation };
-        this.events.closeItem(key, compaction, options);
-        return true;
-      }
-      case "compact_boundary":
-        this.events.compacted();
-        this.reportContext(null, null, false);
-        return true;
-      case "model_fallback":
-      case "model_refusal_fallback": {
-        const fallback = fallbackSchema.safeParse(message).data;
-        if (fallback === undefined) return false;
-        const refused = message.subtype === "model_refusal_fallback";
-        const { original_model: from, fallback_model: to } = fallback;
-        const reason = refused ? "refusal" : "provider";
-        this.modelFallback(from, to, reason, fallback.content);
-        return true;
-      }
-      case "model_refusal_no_fallback": {
-        const details = str(message.content) ?? NO_FALLBACK;
-        const summary = "Model refused the request";
-        this.events.warning({ summary, details }, true);
-        return true;
-      }
-      case "permission_denied": {
-        const denied = deniedSchema.safeParse(message).data;
-        if (denied === undefined) return false;
-        const reason = denied.decision_reason ?? denied.message;
-        const kind = denied.decision_reason_type;
-        const summary = `${denied.tool_name} was denied automatically`;
-        const details = kind ? `${reason} (${kind})` : reason;
-        this.events.warning({ summary, details }, true);
-        return true;
-      }
-      default:
-        return this.task(message);
-    }
-  }
-
-  private taskShape(task: Task): BackgroundTaskShape {
-    const byIndex = (a: { index: number }, b: { index: number }) =>
-      a.index - b.index;
-    const phases = [...task.phases.values()].sort(byIndex);
-    const agents = [...task.agents.values()].sort(byIndex);
-    const tracked = phases.length > 0 || agents.length > 0;
-    return {
-      type: "backgroundTask",
-      familyId: task.id,
-      taskType: task.taskType,
-      description: task.description,
-      taskStatus: task.taskStatus,
-      skipTranscript: task.skipTranscript,
-      workflowName: task.workflowName,
-      workflow: tracked ? { phases, agents } : undefined,
-      usage: task.usage,
-      summary: task.summary,
-      error: task.error,
-      outputFile: task.outputFile,
-    };
-  }
-
-  private taskPresentation(task: Task) {
-    if (task.taskType === "local_workflow") {
-      const title = task.workflowName ?? task.description;
+  private taskPresentation(item: BackgroundTaskShape) {
+    const { taskType, description, workflowName } = item;
+    if (taskType === "local_workflow") {
+      const title = workflowName ?? description;
       const completed = "Workflow finished";
       return ui.presentation("Running workflow", completed, "Workflow", title);
     }
-    const command = task.taskType === "local_bash";
+    const command = taskType === "local_bash";
     const noun = command ? "command" : "agent";
-    return ui.presentation(
-      `Running background ${noun}`,
-      `Background ${noun} finished`,
-      command ? "Terminal" : "UserRound",
-      task.description,
-    );
+    const glyph = command ? "Terminal" : "UserRound";
+    const pending = `Running background ${noun}`;
+    const completed = `Background ${noun} finished`;
+    return ui.presentation(pending, completed, glyph, description);
   }
 
-  private closeTask(task: Task) {
+  private closeTask(task: Task, taskStatus: BackgroundTaskShape["taskStatus"]) {
     task.done = true;
-    const status = backgroundTaskItemStatus(task.taskStatus);
-    const presentation = this.taskPresentation(task);
-    const options = { status, presentation };
-    this.events.closeItem(task.key, this.taskShape(task), options);
+    task.item = { ...task.item, taskStatus };
+    const presentation = this.taskPresentation(task.item);
+    const options = { status: itemStatus(taskStatus), presentation };
+    this.events.closeItem(task.key, task.item, options);
   }
 
-  private foldWorkflow(task: Task, records: unknown[]) {
-    const whole = (n?: number) =>
-      n !== undefined && Number.isInteger(n) && n > 0;
-    for (const raw of records) {
-      const phase = workflowPhaseSchema.safeParse(raw).data;
-      if (phase !== undefined) {
-        const { index: phaseIndex, title, kind } = phase;
-        task.phases.set(phaseIndex, { index: phaseIndex, title, kind });
-      }
-      const agent = workflowAgentSchema.safeParse(raw).data;
-      if (agent === undefined) continue;
-      const { skipped, phaseIndex, attempt, lastProgressAt, ...rest } = agent;
-      const queued =
-        agent.startedAt === undefined && agent.queuedAt !== undefined;
-      const failed = skipped === true ? "skipped" : "failed";
-      const live = queued ? "queued" : "running";
-      const errored = agent.state === "error" ? failed : live;
-      task.agents.set(agent.index, {
-        ...{ ...rest, type: undefined },
-        state: agent.state === "done" ? "done" : errored,
-        model: agent.model ?? "unknown",
-        attempt: whole(attempt) ? (attempt ?? 1) : 1,
-        cached: agent.cached ?? false,
-        lastProgressAt:
-          lastProgressAt ?? agent.startedAt ?? agent.queuedAt ?? 0,
-        ...(whole(phaseIndex) ? { phaseIndex } : {}),
-      });
-    }
-  }
-
-  private task(message: Json): boolean {
-    const parsed = taskSchema.safeParse(message).data;
-    if (parsed === undefined) return false;
-    const known = this.tasks.get(parsed.task_id);
-    const usage = parsed.usage && {
-      totalTokens: parsed.usage.total_tokens,
-      toolUses: parsed.usage.tool_uses,
-      durationMs: parsed.usage.duration_ms,
-    };
-    if (message.subtype === "task_started") {
-      const taskType = parsed.task_type ?? "unknown";
-      const shown =
-        listed("local_workflow local_bash", taskType) ||
-        isBackgroundAgentTaskType(taskType);
-      const { tool_use_id: parentRef, description } = parsed;
+  private task(message: Json, subtype: string): boolean {
+    const id = str(message.task_id);
+    if (id === undefined) return false;
+    const known = this.tasks.get(id);
+    const usage = taskUsageSchema.safeParse(message.usage).data;
+    const description = str(message.description);
+    if (subtype === "task_started") {
+      const taskType = str(message.task_type) ?? "unknown";
+      const parentRef = str(message.tool_use_id);
       const orphan = parentRef !== undefined && !this.tools.has(parentRef);
       const fresh = known === undefined ? !orphan : known.done;
+      const shown = TASK_TYPES.split(" ").includes(taskType);
       const start = shown && fresh && !this.blocked();
       if (!start || description === undefined) return false;
       const generation = (known?.generation ?? 0) + 1;
       const suffix = generation > 1 ? `#${generation}` : "";
-      const providerItemId = `task:${parsed.task_id}${suffix}`;
-      const task: Task = {
-        id: parsed.task_id,
-        key: { providerItemId, parentRef },
-        generation,
+      const key = { providerItemId: `task:${id}${suffix}`, parentRef };
+      const item: BackgroundTaskShape = {
+        type: "backgroundTask",
+        familyId: id,
         taskType,
         description,
         taskStatus: "running",
-        skipTranscript: parsed.skip_transcript ?? false,
-        workflowName: parsed.workflow_name,
-        phases: new Map(),
-        agents: new Map(),
-        done: false,
+        skipTranscript: message.skip_transcript === true,
+        workflowName: str(message.workflow_name),
       };
-      this.tasks.set(task.id, task);
+      this.tasks.set(id, { key, generation, done: false, item });
       this.ensureTurn();
-      const presentation = this.taskPresentation(task);
-      this.events.openItem(task.key, this.taskShape(task), { presentation });
+      const presentation = this.taskPresentation(item);
+      this.events.openItem(key, item, { presentation });
       return true;
     }
     if (known === undefined || known.done) return false;
-    const progress = (flush: boolean) => {
-      const status = backgroundTaskItemStatus(known.taskStatus);
-      const snapshot = { shape: this.taskShape(known), status };
+    const before = known.item;
+    const progress = (shape: BackgroundTaskShape) => {
+      known.item = shape;
+      const snapshot = { shape, status: itemStatus(shape.taskStatus) };
+      const flush = shape.taskStatus !== before.taskStatus;
       this.events.progress(known.key, { snapshot, flush });
       return true;
     };
-    const { patch, status, summary, output_file: file } = parsed;
-    switch (message.subtype) {
-      case "task_progress":
-        if (usage === undefined || parsed.description === undefined)
-          return false;
-        this.foldWorkflow(known, parsed.workflow_progress ?? []);
-        known.usage = usage;
-        return progress(false);
-      case "task_updated": {
-        if (patch === undefined) return false;
-        const changed = (patch.status ?? known.taskStatus) !== known.taskStatus;
-        known.taskStatus = patch.status ?? known.taskStatus;
-        known.description = patch.description ?? known.description;
-        known.error = patch.error ?? known.error;
-        return progress(changed);
-      }
-      case "task_notification":
-        if (!status || summary === undefined || file === undefined)
-          return false;
-        known.taskStatus = status;
-        known.summary = summary;
-        known.outputFile = file || known.outputFile;
-        known.usage = usage ?? known.usage;
-        this.closeTask(known);
-        return true;
-      default:
-        return false;
+    const patch = fields.safeParse(message.patch).data;
+    const patched = taskStatusSchema.safeParse(patch?.status);
+    const ended = taskEndSchema.safeParse(message.status).data;
+    const [summary, file] = [message.summary, message.output_file].map(str);
+    if (subtype === "task_progress" && usage && description !== undefined) {
+      return progress({ ...before, usage });
     }
+    if (subtype === "task_updated" && patch && patched.success) {
+      const taskStatus = patched.data ?? before.taskStatus;
+      const renamed = str(patch.description) ?? before.description;
+      const error = str(patch.error) ?? before.error;
+      return progress({ ...before, taskStatus, description: renamed, error });
+    }
+    const finished = summary !== undefined && file !== undefined;
+    if (subtype !== "task_notification" || !ended || !finished) return false;
+    known.item = { ...before, summary, usage: usage ?? before.usage };
+    if (file !== "") known.item.outputFile = file;
+    this.closeTask(known, ended);
+    return true;
   }
 }

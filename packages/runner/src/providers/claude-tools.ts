@@ -18,20 +18,21 @@ export interface ToolContext {
   sandboxed: boolean;
 }
 
-export interface ToolResult {
-  toolName: string | undefined;
-  content: unknown;
-  processResult: unknown;
-}
-
 interface PlanTask {
   subject: string;
   activeForm: string | null;
-  status: "pending" | "in_progress" | "completed";
+  status: z.infer<typeof taskStatus>;
 }
 export type TaskPlan = Map<string, PlanTask>;
+type Args = Record<string, unknown>;
 
 export const BB_MCP_SERVER = "bb-bridge";
+const [ADD, UPDATE, CONTENT, PATH] = [
+  "add",
+  "update",
+  "content",
+  "path",
+] as const;
 const NO_OUTPUT = "(Bash completed with no output)";
 const MCP_TOOL = /^mcp__(.+?)__(.+)$/;
 const SANDBOX_BADGE = {
@@ -42,7 +43,6 @@ const SANDBOX_BADGE = {
 };
 const BUILTIN_TOOLS = `
 TodoWrite|Updating todos|Updated todos|ListTodo|hide
-TodoRead|Reading todos|Read todos|ListTodo|hide
 TaskCreate|Creating task|Created task|ListTodo|hide|subject
 TaskUpdate|Updating task|Updated task|ListTodo|hide|subject
 TaskList|Listing tasks|Listed tasks|ListTodo|hide
@@ -53,7 +53,6 @@ Monitor|Monitoring|Monitored|Eye|hide|command
 ScheduleWakeup|Scheduling wake-up|Scheduled wake-up|Clock|hide|reason
 SendMessage|Messaging agent|Messaged agent|Sent|hide|to
 AskUserQuestion|Asking a question|Asked a question|MessageQuestion|hide
-BashOutput|Reading shell output|Read shell output|Terminal|hide
 EnterPlanMode|Entering plan mode|Entered plan mode|ListTodo
 ExitPlanMode|Presenting plan|Presented plan|FileText
 Workflow|Starting workflow|Started workflow|Workflow
@@ -63,206 +62,107 @@ Skill|Loading skill|Loaded skill|Zap||skill
 StructuredOutput|Returning structured output|Returned structured output|Code
 EnterWorktree|Entering worktree|Entered worktree|GitBranch
 ExitWorktree|Leaving worktree|Left worktree|GitBranch
-LS|Listing directory|Listed directory|FolderOpen||path
-KillShell|Stopping shell|Stopped shell|Terminal`;
+LS|Listing directory|Listed directory|FolderOpen||path`;
 const builtinTools = new Map(
   BUILTIN_TOOLS.trim()
     .split("\n")
-    .map((row) => {
-      const [tool = "", ...spec] = row.split("|");
-      return [tool, spec] as const;
-    }),
+    .map((row) => row.split("|"))
+    .map(([tool = "", ...spec]) => [tool, spec]),
 );
-const FILE_VERBS = {
-  edit: ["Editing file", "Edited file"],
-  write: ["Writing file", "Wrote file"],
-  notebook: ["Editing notebook", "Edited notebook"],
-} as const;
+const FILE_VERBS: Record<string, [string, string] | undefined> = {
+  Edit: ["Editing file", "Edited file"],
+  MultiEdit: ["Editing file", "Edited file"],
+  Write: ["Writing file", "Wrote file"],
+  NotebookEdit: ["Editing notebook", "Edited notebook"],
+};
 const PLAN_STATUS: Record<string, PlanStep["status"]> = {
   pending: "pending",
   in_progress: "active",
   completed: "completed",
 };
-const EDIT_TOOLS: Record<string, keyof typeof FILE_VERBS | undefined> = {
-  Edit: "edit",
-  MultiEdit: "edit",
-  Write: "write",
-  NotebookEdit: "notebook",
-};
 
-const record = z.record(z.string(), z.unknown());
-const optionalText = z.string().optional();
-const fileEditSchema = z.object({
-  file_path: optionalText,
-  path: optionalText,
-  old_string: optionalText,
-  new_string: optionalText,
-  content: optionalText,
-});
-const multiEditSchema = z.object({
-  file_path: z.string(),
-  edits: z.array(z.object({ old_string: z.string(), new_string: z.string() })),
-});
-const notebookSchema = z.object({
-  notebook_path: z.string(),
-  new_source: optionalText,
-});
-const agentSchema = z.object({
-  description: optionalText,
-  prompt: optionalText,
-  subagent_type: optionalText,
-  model: optionalText,
-  run_in_background: z.boolean().optional(),
-});
-const todoSchema = z.object({
-  todos: z.array(
-    z.object({
-      content: z.string(),
-      status: z.string(),
-      activeForm: optionalText,
-    }),
-  ),
-});
-const processResultSchema = z.union([
-  z.string(),
-  z.looseObject({ stdout: optionalText, stderr: optionalText }),
-]);
+export const fields = z.record(z.string(), z.unknown());
+const editsSchema = z.array(
+  z.object({ old_string: z.string(), new_string: z.string() }),
+);
+const todosSchema = z.array(
+  z.looseObject({ content: z.string(), status: z.string() }),
+);
 const taskStatus = z.enum(["pending", "in_progress", "completed"]);
-const taskEntry = z.object({ id: z.string(), subject: z.string() });
-const taskCreate = z.object({
-  input: z.object({ subject: z.string(), activeForm: optionalText }),
-  output: z.object({ task: taskEntry }),
-});
-const taskUpdate = z.object({
-  input: z.object({
-    taskId: z.string(),
-    status: z.enum([...taskStatus.options, "deleted"]).optional(),
-    subject: optionalText,
-    activeForm: optionalText,
-  }),
-  output: z.object({ success: z.literal(true), taskId: z.string() }),
-});
-const taskList = z.object({
-  output: z.object({ tasks: z.array(z.unknown()) }),
-});
-const listedTask = taskEntry.extend({ status: taskStatus });
-const taskGet = z.object({
-  input: z.object({ taskId: z.string() }),
-  output: z.object({ task: listedTask.nullable() }),
+const taskSchema = z.object({
+  id: z.string(),
+  subject: z.string(),
+  status: taskStatus.optional().catch(undefined),
 });
 
-function text(value: unknown) {
+export function text(value: unknown) {
   return typeof value === "string" ? value : undefined;
 }
 
 function toRecord(value: unknown) {
-  return record.safeParse(value).data;
+  return fields.safeParse(value).data;
 }
 
-function builtinPresentation(tool: string, input: unknown): Presentation {
-  const spec = builtinTools.get(tool);
-  if (spec === undefined) return ui.labels.tool(tool);
-  const [pending = tool, completed = tool, glyph = "Toolbox", hide, field] =
-    spec;
+function made(shape: ItemShape, presentation: Presentation): ClassifiedTool {
+  return { shape, presentation };
+}
+
+export function genericTool(tool: string, input: unknown): ClassifiedTool {
+  const [pending, completed, glyph = "", hide, field] =
+    builtinTools.get(tool) ?? [];
   const title = field ? text(toRecord(input)?.[field]) : undefined;
-  const base = ui.presentation(pending, completed, glyph, title);
-  return hide ? { ...base, suppress: true } : base;
-}
-
-function genericTool(tool: string, input: unknown): ClassifiedTool {
+  const known = ui.presentation(pending ?? "", completed ?? "", glyph, title);
+  const listed = hide ? { ...known, suppress: true } : known;
+  const presentation = pending === undefined ? ui.labels.tool(tool) : listed;
   const shape = { type: "toolCall" as const, tool };
-  return {
-    shape: { ...shape, arguments: toRecord(input) },
-    presentation: builtinPresentation(tool, input),
-  };
+  return made({ ...shape, arguments: toRecord(input) }, presentation);
 }
 
-function fileChangePresentation(
-  verb: keyof typeof FILE_VERBS,
-  path: string | null,
-) {
-  const [pending, completed] = FILE_VERBS[verb];
-  const title = path === null ? undefined : ui.fileName(path);
-  return ui.presentation(pending, completed, "EditFile", title);
+function fileChange(tool: string, args: Args, input: unknown): ClassifiedTool {
+  const notebook = tool === "NotebookEdit";
+  const path = notebook
+    ? text(args.notebook_path)
+    : (text(args.file_path) ?? text(args.path));
+  const [pending = "", completed = ""] = FILE_VERBS[tool] ?? [];
+  const name = path ? ui.fileName(path) : undefined;
+  const presentation = ui.presentation(pending, completed, "EditFile", name);
+  if (notebook && path === undefined) return genericTool(tool, input);
+  if (!notebook && !path) return { ...genericTool(tool, input), presentation };
+  const file = path ?? "";
+  const change = (before: string | undefined, after: string | undefined) => ({
+    path: file,
+    kind: before === undefined && !notebook ? ADD : UPDATE,
+    diff:
+      after === undefined ? undefined : ui.buildEditDiff(file, before, after),
+  });
+  const edits = editsSchema.safeParse(args.edits).data;
+  const written = text(args.new_string) ?? text(args.content);
+  const single = notebook
+    ? change(undefined, text(args.new_source))
+    : change(text(args.old_string), written);
+  const changes =
+    tool === "MultiEdit" && edits !== undefined
+      ? edits.map((edit) => change(edit.old_string, edit.new_string))
+      : [single];
+  return made({ type: "fileChange", changes }, presentation);
 }
 
-function fileChange(
-  tool: string,
-  verb: keyof typeof FILE_VERBS,
-  input: unknown,
-): ClassifiedTool {
-  const parsed = fileEditSchema.safeParse(input);
-  if (!parsed.success) return genericTool(tool, input);
-  const edit = parsed.data;
-  const path = edit.file_path ?? edit.path;
-  if (!path) {
-    const presentation = fileChangePresentation(verb, null);
-    return { ...genericTool(tool, input), presentation };
-  }
-  const newText = edit.new_string ?? edit.content;
-  const kind = edit.old_string === undefined ? "add" : "update";
-  const diff =
-    newText === undefined
-      ? undefined
-      : ui.buildEditDiff(path, edit.old_string, newText);
-  return {
-    shape: { type: "fileChange", changes: [{ path, kind, diff }] },
-    presentation: fileChangePresentation(verb, path),
-  };
-}
-
-function multiEdit(tool: string, input: unknown): ClassifiedTool {
-  const parsed = multiEditSchema.safeParse(input);
-  if (!parsed.success) return fileChange(tool, "edit", input);
-  const path = parsed.data.file_path;
-  const changes = parsed.data.edits.map((edit) => ({
-    path,
-    kind: "update" as const,
-    diff: ui.buildEditDiff(path, edit.old_string, edit.new_string),
-  }));
-  return {
-    shape: { type: "fileChange", changes },
-    presentation: fileChangePresentation("edit", path),
-  };
-}
-
-function notebookEdit(tool: string, input: unknown): ClassifiedTool {
-  const parsed = notebookSchema.safeParse(input);
-  if (!parsed.success) return genericTool(tool, input);
-  const { notebook_path: path, new_source: source } = parsed.data;
-  const diff =
-    source === undefined
-      ? undefined
-      : ui.buildEditDiff(path, undefined, source);
-  return {
-    shape: { type: "fileChange", changes: [{ path, kind: "update", diff }] },
-    presentation: fileChangePresentation("notebook", path),
-  };
-}
-
-function delegation(tool: string, id: string, input: unknown): ClassifiedTool {
-  const parsed = agentSchema.safeParse(input);
-  if (!parsed.success) return genericTool(tool, input);
-  const agent = parsed.data;
-  const firstLine = agent.prompt?.split("\n", 1)[0]?.trim();
-  const label = agent.description ?? firstLine ?? agent.subagent_type ?? tool;
-  const background = agent.run_in_background === true;
+function delegation(tool: string, id: string, args: Args): ClassifiedTool {
+  const [type, model] = [text(args.subagent_type), text(args.model)];
+  const firstLine = text(args.prompt)?.split("\n", 1)[0]?.trim();
+  const label = text(args.description) ?? firstLine ?? type ?? tool;
+  const background = args.run_in_background === true;
   const [pending, completed] = background
     ? ["Launching subagent", "Launched subagent"]
     : ["Running subagent", "Subagent finished"];
   const base = ui.presentation(pending, completed, "UserRound", label);
-  const detail = [
-    agent.subagent_type === undefined ? [] : [`${agent.subagent_type} agent`],
-    agent.model === undefined ? [] : [`model ${agent.model}`],
-  ]
-    .flat()
-    .join(" · ");
-  return {
-    shape: { type: "delegation", childRef: id, label, background },
-    presentation: detail
-      ? { ...base, detail: ui.ellipsize(detail, DETAIL_MAX_LENGTH) }
-      : base,
-  };
+  const parts = [type && `${type} agent`, model && `model ${model}`];
+  const detail = ui.ellipsize(
+    parts.filter(Boolean).join(" · "),
+    DETAIL_MAX_LENGTH,
+  );
+  const shape = { type: "delegation" as const, childRef: id, label };
+  return made({ ...shape, background }, detail ? { ...base, detail } : base);
 }
 
 export function parseBashCommand(input: unknown) {
@@ -271,10 +171,7 @@ export function parseBashCommand(input: unknown) {
   return command ? { command, cwd: text(args?.cwd) ?? null } : undefined;
 }
 
-function bashCommand(
-  args: Record<string, unknown>,
-  sandboxed: boolean,
-): ClassifiedTool | undefined {
+function bashCommand(args: Args, sandboxed: boolean) {
   const bash = parseBashCommand(args);
   if (bash === undefined) return undefined;
   const [pending, completed] =
@@ -284,19 +181,15 @@ function bashCommand(
   const base = ui.presentation(pending, completed, "Terminal", bash.command);
   const escaped = sandboxed && args.dangerouslyDisableSandbox === true;
   const shape = { type: "commandExecution" as const, command: bash.command };
-  return {
-    shape: { ...shape, cwd: bash.cwd ?? "" },
-    presentation: escaped ? { ...base, badge: SANDBOX_BADGE } : base,
-  };
+  const presentation = escaped ? { ...base, badge: SANDBOX_BADGE } : base;
+  return made({ ...shape, cwd: bash.cwd ?? "" }, presentation);
 }
 
-function todoPlanSteps(input: unknown): PlanStep[] | undefined {
-  const parsed = todoSchema.safeParse(input);
-  if (!parsed.success) return undefined;
-  return parsed.data.todos.flatMap((todo) => {
+function todoPlanSteps(todos: unknown): PlanStep[] | undefined {
+  return todosSchema.safeParse(todos).data?.flatMap((todo) => {
     const status = PLAN_STATUS[todo.status];
-    const active = status === "active" && todo.activeForm !== undefined;
-    const step = (active ? (todo.activeForm ?? "") : todo.content).trim();
+    const doing = status === "active" ? text(todo.activeForm) : undefined;
+    const step = (doing ?? todo.content).trim();
     return status === undefined || step === "" ? [] : [{ step, status }];
   });
 }
@@ -307,109 +200,48 @@ export function classifyTool(
   input: unknown,
   context: ToolContext,
 ): ClassifiedTool {
-  const fields = toRecord(input);
-  const args = fields ?? {};
+  const args = toRecord(input) ?? {};
   const path = text(args.file_path) ?? text(args.path);
-  const pattern = text(args.pattern);
-  const query = text(args.query);
-  const url = text(args.url);
-  switch (tool) {
-    case "Bash": {
-      const bash = bashCommand(args, context.sandboxed);
-      if (bash === undefined) break;
-      return bash;
-    }
-    case "Read":
-      if (!path) break;
-      return {
-        shape: { type: "fileRead", path },
-        presentation: ui.labels.fileRead(path),
-      };
-    case "Grep":
-    case "Glob": {
-      if (!pattern) break;
-      const mode = tool === "Grep" ? "content" : "path";
-      const scope = text(args.path) || undefined;
-      return {
-        shape: { type: "search", mode, query: pattern, path: scope },
-        presentation: ui.labels.search(mode, pattern),
-      };
-    }
-    case "Edit":
-      return fileChange(tool, "edit", input);
-    case "Write":
-      return fileChange(tool, "write", input);
-    case "MultiEdit":
-      return multiEdit(tool, input);
-    case "NotebookEdit":
-      return notebookEdit(tool, input);
-    case "WebSearch":
-      if (!query) break;
-      return {
-        shape: { type: "webSearch", queries: [query], resultText: null },
-        presentation: ui.labels.webSearch(query),
-      };
-    case "WebFetch": {
-      if (!url) break;
-      const prompt = text(args.prompt) ?? null;
-      const fetch = { url, prompt, pattern: null, resultText: null };
-      return {
-        shape: { type: "webFetch", ...fetch },
-        presentation: ui.labels.webFetch(url),
-      };
-    }
-    case "Agent":
-    case "Task":
-      return delegation(tool, id, input);
-    case "TodoWrite":
-      return { ...genericTool(tool, input), planSteps: todoPlanSteps(input) };
-  }
+  const [pattern, query, url] = [args.pattern, args.query, args.url].map(text);
+  const mode = tool === "Grep" ? CONTENT : PATH;
+  const search = { type: "search" as const, mode, path: path || undefined };
+  const fetch = { url: url ?? "", prompt: text(args.prompt) ?? null };
+  const bash = tool === "Bash" && bashCommand(args, context.sandboxed);
   const [, server, mcpTool] = MCP_TOOL.exec(tool) ?? [];
-  if (!server || !mcpTool) return genericTool(tool, input);
-  const fromBb = server === BB_MCP_SERVER;
-  const shape = { type: "toolCall" as const, tool: mcpTool };
-  return {
-    shape: { ...shape, server: fromBb ? "bb" : server, arguments: fields },
-    presentation: fromBb
-      ? (context.injected.get(mcpTool) ?? ui.labels.tool(mcpTool))
-      : { ...ui.labels.tool(mcpTool), title: server },
-  };
-}
-
-export function classifyUnseenTool(
-  tool: string | undefined,
-  cwd: string,
-): ClassifiedTool {
-  if (tool === "Bash" && cwd !== "") {
+  const searches = tool === "Grep" || tool === "Glob";
+  if (bash) return bash;
+  if (tool === "Read" && path) {
+    return made({ type: "fileRead", path }, ui.labels.fileRead(path));
+  }
+  if (searches && pattern) {
+    const presentation = ui.labels.search(mode, pattern);
+    return made({ ...search, query: pattern }, presentation);
+  }
+  if (FILE_VERBS[tool] !== undefined) return fileChange(tool, args, input);
+  if (tool === "WebSearch" && query) {
+    const shape = { type: "webSearch" as const, queries: [query] };
+    return made({ ...shape, resultText: null }, ui.labels.webSearch(query));
+  }
+  if (tool === "WebFetch" && url) {
+    const shape = { type: "webFetch" as const, ...fetch, pattern: null };
+    return made({ ...shape, resultText: null }, ui.labels.webFetch(url));
+  }
+  if (tool === "Agent" || tool === "Task") return delegation(tool, id, args);
+  if (tool === "TodoWrite") {
     return {
-      shape: { type: "commandExecution", command: "", cwd },
-      presentation: ui.presentation(
-        "Running command",
-        "Ran command",
-        "Terminal",
-      ),
+      ...genericTool(tool, input),
+      planSteps: todoPlanSteps(args.todos),
     };
   }
-  if (tool === "Bash") return genericTool(tool, {});
-  const verb = EDIT_TOOLS[tool ?? ""];
-  if (verb === undefined) return genericTool(tool ?? "unknown", undefined);
-  return {
-    shape: { type: "fileChange", changes: [] },
-    presentation: fileChangePresentation(verb, null),
-  };
-}
-
-function describeBlock(block: unknown) {
-  const fields = toRecord(block);
-  const type = text(fields?.type);
-  if (fields === undefined || !type) return [];
-  if (type === "text" && typeof fields.text === "string") return [fields.text];
-  const target =
-    text(fields.path) ||
-    text(fields.tool_name) ||
-    text(fields.url) ||
-    text(fields.imageUrl);
-  return [target ? `[${type}: ${target}]` : `[${type}]`];
+  if (!server || !mcpTool) return genericTool(tool, input);
+  const fromBb = server === BB_MCP_SERVER;
+  const generic = ui.labels.tool(mcpTool);
+  const injected = context.injected.get(mcpTool) ?? generic;
+  const shape = { type: "toolCall" as const, tool: mcpTool };
+  return made(
+    { ...shape, server: fromBb ? "bb" : server, arguments: toRecord(input) },
+    fromBb ? injected : { ...generic, title: server },
+  );
 }
 
 export function resultText(content: unknown): string {
@@ -419,45 +251,29 @@ export function resultText(content: unknown): string {
     const nested = toRecord(content)?.content;
     return Array.isArray(nested) ? resultText(nested) : JSON.stringify(content);
   }
-  const blocks = content.map((block) => toRecord(block));
-  const references = blocks.map((block) =>
-    block?.type === "tool_reference" ? text(block.tool_name) : undefined,
+  const parsed: (Args | undefined)[] = content.map(toRecord);
+  const blocks = parsed.filter((block) => block !== undefined);
+  const references = blocks.map(
+    (block) => block.type === "tool_reference" && text(block.tool_name),
   );
   if (references.length > 0 && references.every(Boolean)) {
     return `Matched tools: ${references.join(", ")}`;
   }
-  return content.flatMap(describeBlock).join("\n");
+  const described = blocks.flatMap((block) => {
+    const { type, path, tool_name: tool, url, imageUrl } = block;
+    const target = text(path) || text(tool) || text(url) || text(imageUrl);
+    if (type === "text" && typeof block.text === "string") return [block.text];
+    if (typeof type !== "string" || type === "") return [];
+    return [target ? `[${type}: ${target}]` : `[${type}]`];
+  });
+  return described.join("\n");
 }
 
-function meaningful(output: string) {
-  return output.trim() === NO_OUTPUT || output === "" ? undefined : output;
-}
-
-function commandOutput(result: ToolResult) {
-  const fromContent = meaningful(resultText(result.content));
-  const streams = processResultSchema.safeParse(result.processResult).data;
-  if (streams === undefined) return fromContent;
-  if (typeof streams === "string") return meaningful(streams) ?? fromContent;
-  const { stdout = "", stderr = "" } = streams;
-  const separator = stdout === "" || stdout.endsWith("\n") ? "" : "\n";
-  const joined = stderr === "" ? stdout : `${stdout}${separator}${stderr}`;
-  return joined === "" ? fromContent : joined;
-}
-
-export function toolOutput(shape: ItemShape, result: ToolResult) {
-  const isCommand =
-    result.toolName === "Bash" || shape.type === "commandExecution";
-  return isCommand ? commandOutput(result) : resultText(result.content);
-}
-
-function agentSummary(output: string) {
-  const hidden = (line: string) =>
-    line.startsWith("agentId:") || line.startsWith("<usage>");
-  const lines = output.split("\n").map((line) => line.trimEnd());
-  return lines
-    .filter((line) => !hidden(line))
-    .join("\n")
-    .trim();
+export function toolOutput(shape: ItemShape, tool?: string, content?: unknown) {
+  const output = resultText(content);
+  const command = tool === "Bash" || shape.type === "commandExecution";
+  const silent = output.trim() === NO_OUTPUT || output === "";
+  return command && silent ? undefined : output;
 }
 
 export function completedShape(
@@ -465,11 +281,15 @@ export function completedShape(
   output: string | undefined,
   failed: boolean,
 ): ItemShape {
+  const hidden = (line: string) =>
+    line.startsWith("agentId:") || line.startsWith("<usage>");
+  const lines = (output ?? "").split("\n").map((line) => line.trimEnd());
+  const visible = lines.filter((line) => !hidden(line));
   switch (shape.type) {
     case "commandExecution":
       return { ...shape, exitCode: failed ? 1 : 0, aggregatedOutput: output };
     case "delegation":
-      return { ...shape, summary: agentSummary(output ?? "") || undefined };
+      return { ...shape, summary: visible.join("\n").trim() || undefined };
     case "toolCall":
       return { ...shape, result: shape.result ?? output };
     case "webSearch":
@@ -488,11 +308,9 @@ function planSnapshot(plan: TaskPlan): PlanStep[] {
   });
 }
 
-function parseJson(value: unknown) {
-  if (typeof value !== "string") return value;
+export function decodeJson(value: unknown): unknown {
   try {
-    const parsed: unknown = JSON.parse(value);
-    return parsed;
+    return typeof value === "string" ? JSON.parse(value) : value;
   } catch {
     return value;
   }
@@ -504,63 +322,42 @@ export function foldTaskResult(
   input: unknown,
   rawOutput: unknown,
 ): PlanStep[] | null {
-  const call = { input, output: parseJson(rawOutput) };
-  const trimmed = (value: string | undefined) => value?.trim() || null;
-  const replace = (id: string, next: PlanTask) => {
-    const known = plan.get(id);
-    const same =
-      known !== undefined &&
-      known.subject === next.subject &&
-      known.activeForm === next.activeForm &&
-      known.status === next.status;
-    if (same) return null;
-    plan.set(id, next);
-    return planSnapshot(plan);
-  };
-  const remove = (id: string) => (plan.delete(id) ? planSnapshot(plan) : null);
-  if (tool === "TaskCreate") {
-    const { data } = taskCreate.safeParse(call);
-    if (data === undefined) return null;
-    const { task } = data.output;
-    const subject = trimmed(data.input.subject) ?? trimmed(task.subject) ?? "";
-    const activeForm = trimmed(data.input.activeForm);
+  const output = toRecord(decodeJson(rawOutput)) ?? {};
+  const args = toRecord(input) ?? {};
+  const before = JSON.stringify([...plan]);
+  const id = text(args.taskId);
+  const status = taskStatus.safeParse(args.status).data;
+  const task = taskSchema.safeParse(output.task).data;
+  const clean = (value: unknown) => text(value)?.trim() || null;
+  const known = plan.get(id ?? "");
+  const listed = z.array(z.unknown()).safeParse(output.tasks).data;
+  if (tool === "TaskCreate" && task && typeof args.subject === "string") {
+    const subject = clean(args.subject) ?? clean(task.subject) ?? "";
+    const activeForm = clean(args.activeForm);
     plan.set(task.id, { subject, activeForm, status: "pending" });
     return planSnapshot(plan);
   }
-  if (tool === "TaskUpdate") {
-    const { data } = taskUpdate.safeParse(call);
-    if (data === undefined) return null;
-    const { taskId, status, subject, activeForm } = data.input;
-    if (status === "deleted") return remove(taskId);
-    const known = plan.get(taskId);
-    if (known === undefined) return null;
-    return replace(taskId, {
-      subject: trimmed(subject) ?? known.subject,
-      activeForm:
-        activeForm === undefined ? known.activeForm : trimmed(activeForm),
-      status: status ?? known.status,
-    });
-  }
-  if (tool === "TaskList") {
-    const { data } = taskList.safeParse(call);
-    if (data === undefined) return null;
+  if (tool === "TaskList" && listed !== undefined) {
     plan.clear();
-    for (const raw of data.output.tasks) {
-      const task = listedTask.safeParse(raw).data;
-      if (task === undefined) continue;
-      const subject = task.subject.trim();
-      plan.set(task.id, { subject, activeForm: null, status: task.status });
+    for (const entry of listed) {
+      const item = taskSchema.safeParse(entry).data;
+      if (item?.status === undefined) continue;
+      const subject = item.subject.trim();
+      plan.set(item.id, { subject, activeForm: null, status: item.status });
     }
     return planSnapshot(plan);
   }
-  if (tool !== "TaskGet") return null;
-  const { data } = taskGet.safeParse(call);
-  if (data === undefined) return null;
-  const { task } = data.output;
-  if (task === null) return remove(data.input.taskId);
-  return replace(task.id, {
-    subject: task.subject.trim(),
-    activeForm: plan.get(task.id)?.activeForm ?? null,
-    status: task.status,
-  });
+  const updated = output.success === true && typeof output.taskId === "string";
+  const valid = args.status === undefined || status !== undefined;
+  if (tool === "TaskUpdate" && id !== undefined && updated) {
+    if (args.status === "deleted") plan.delete(id);
+    else if (known !== undefined && valid) {
+      const renamed = clean(args.activeForm);
+      const activeForm =
+        args.activeForm === undefined ? known.activeForm : renamed;
+      const subject = clean(args.subject) ?? known.subject;
+      plan.set(id, { subject, activeForm, status: status ?? known.status });
+    }
+  }
+  return JSON.stringify([...plan]) === before ? null : planSnapshot(plan);
 }

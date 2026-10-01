@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
+import { TransformStream } from "node:stream/web";
 import { promisify } from "node:util";
 import {
   forkSession,
@@ -16,22 +17,12 @@ import { loginShellPath, scrubEnv } from "../sessions/agent-env.js";
 import {
   RunnerError,
   type ExecutionOptions,
-  type ProviderModels,
   type ProviderStatus,
   type SessionSpec,
 } from "../types.js";
 import { ClaudePermissions } from "./claude-interactions.js";
-import {
-  bbToolServer,
-  buildModels,
-  buildQueryOptions,
-  claudeSettings,
-  contextSnapshot,
-  promptText,
-  resolveExecutable,
-  type ClaudeSettings,
-} from "./claude-options.js";
-import { BB_MCP_SERVER } from "./claude-tools.js";
+import * as claude from "./claude-options.js";
+import { BB_MCP_SERVER, decodeJson } from "./claude-tools.js";
 import { ClaudeTranslator } from "./claude-translate.js";
 import type {
   ProviderAdapter,
@@ -41,51 +32,40 @@ import type {
   TurnInput,
 } from "./provider.js";
 
-type QueryControls =
+type Controls =
   | "interrupt"
   | "setPermissionMode"
   | "setModel"
   | "applyFlagSettings"
-  | "getContextUsage"
   | "initializationResult"
   | "close";
-export type ClaudeQuery = AsyncIterable<unknown> & Pick<Query, QueryControls>;
+export type ClaudeQuery = AsyncIterable<unknown> & Pick<Query, Controls>;
 export type ClaudeQueryInput = AsyncIterable<SDKUserMessage>;
+type QueryArgs = { prompt: string | ClaudeQueryInput; options: Options };
+type Forked = Promise<{ sessionId: string }>;
 export interface ClaudeAdapterOptions {
-  query?: (args: {
-    prompt: string | ClaudeQueryInput;
-    options: Options;
-  }) => ClaudeQuery;
-  forkSession?: (
-    sessionId: string,
-    options: { upToMessageId?: string },
-  ) => Promise<{ sessionId: string }>;
+  query?: (args: QueryArgs) => ClaudeQuery;
+  forkSession?: (id: string, options: { upToMessageId?: string }) => Forked;
 }
 
 const MISSING_CLI =
   "bb could not find the Claude Code CLI on this machine. Install Claude Code (https://claude.com/claude-code), or set BB_CLAUDE_CODE_EXECUTABLE to the full path of the claude binary, then restart bb.";
 const MISSING_BINARY = /Native CLI binary for .+ not found/;
 const STOPPED = "Thread stopped while awaiting permission approval";
-const CLOSE_TIMEOUT_MS = 4_000;
-const CONTEXT_TIMEOUT_MS = 5_000;
-const MODELS_TTL_MS = 120_000;
-const STDERR_TAIL = 4_000;
+const ENDED = "Claude Code ended its session";
+const CLOSED = "Claude SDK input stream is closed";
 const SUBAGENTS_OFF =
   "bb has disabled Claude Code native subagents; use bb delegation instead.";
 const WORKFLOWS_OFF = "bb has disabled the Claude Code Workflow tool.";
-const DISABLED_TOOLS: Record<string, "subagents" | "workflows" | undefined> = {
-  Agent: "subagents",
-  Task: "subagents",
-  Workflow: "workflows",
-};
+const UNAUTHORIZED = ["authentication_failed", "oauth_org_not_allowed"];
+const CLOSE_TIMEOUT_MS = 4_000;
 const headerSchema = z.object({
   type: z.string(),
-  subtype: z.string().optional(),
   session_id: z.string().optional(),
   error: z.string().optional(),
 });
+const reportSchema = z.object({ stdout: z.string() });
 const authSchema = z.object({ loggedIn: z.boolean() });
-const outputSchema = z.object({ stdout: z.string() });
 
 function describe(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -99,51 +79,10 @@ function launchError(error: unknown) {
   return new RunnerError(code, message);
 }
 
-function signedIn(report: string) {
-  try {
-    return authSchema.safeParse(JSON.parse(report)).data?.loggedIn;
-  } catch {
-    return undefined;
-  }
-}
-
-function timeout(ms: number) {
-  let timer: NodeJS.Timeout | undefined;
-  const elapsed = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), ms);
-    timer.unref();
-  });
-  return { elapsed, cancel: () => clearTimeout(timer) };
-}
-
-class InputQueue implements ClaudeQueryInput {
-  private readonly messages: SDKUserMessage[] = [];
-  private wake: (() => void) | null = null;
-  private ended = false;
-
-  push(message: SDKUserMessage) {
-    this.messages.push(message);
-    this.wake?.();
-  }
-
-  end() {
-    this.ended = true;
-    this.wake?.();
-  }
-
-  async *[Symbol.asyncIterator]() {
-    for (;;) {
-      const next = this.messages.shift();
-      if (next !== undefined) yield next;
-      else if (this.ended) return;
-      else await new Promise<void>((resolve) => (this.wake = resolve));
-    }
-  }
-}
-
 class ClaudeSession implements ProviderSession {
   providerThreadId = "";
-  private readonly input = new InputQueue();
+  private readonly input = new TransformStream<SDKUserMessage>();
+  private readonly prompts = this.input.writable.getWriter();
   private readonly abort = new AbortController();
   private readonly translator: ClaudeTranslator;
   private readonly permissions: ClaudePermissions;
@@ -151,13 +90,12 @@ class ClaudeSession implements ProviderSession {
   private query: ClaudeQuery | null = null;
   private done: Promise<void> = Promise.resolve();
   private interrupting: Promise<unknown> | null = null;
-  private settings: ClaudeSettings;
+  private settings: claude.ClaudeSettings;
   private mode: PermissionMode;
   private ended = false;
   private closing = false;
   private rebuild = false;
   private stderr = "";
-  private contextRevision = 0;
   private toolCalls = 0;
 
   constructor(
@@ -167,15 +105,15 @@ class ClaudeSession implements ProviderSession {
     private readonly adapter: Required<ClaudeAdapterOptions>,
   ) {
     const { events } = host;
-    this.settings = claudeSettings(options);
+    this.settings = claude.claudeSettings(options);
     this.signature = this.signatureOf(spec, options);
     this.mode = options.planMode ? "plan" : this.settings.baseMode;
-    this.translator = new ClaudeTranslator(events, {
-      threadId: spec.threadId,
-      cwd: spec.cwd,
-      sandboxed: this.settings.baseMode !== "bypassPermissions",
-      injected: new Map(spec.dynamicTools.map((t) => [t.name, t.presentation])),
-    });
+    const sandboxed = this.settings.baseMode !== "bypassPermissions";
+    const labelled = spec.dynamicTools.map(
+      (tool) => [tool.name, tool.presentation] as const,
+    );
+    const context = { sandboxed, injected: new Map(labelled) };
+    this.translator = new ClaudeTranslator(events, spec.threadId, context);
     if (options.model) this.translator.setModel(options.model);
     this.permissions = new ClaudePermissions({
       requestInteraction: (request) => host.requestInteraction(request),
@@ -189,10 +127,10 @@ class ClaudeSession implements ProviderSession {
 
   async start() {
     const { spec, host, adapter } = this;
+    const { events } = host;
     try {
-      const { fork } = spec;
-      const upToMessageId = fork?.checkpointId ?? undefined;
-      const source = fork?.sourceProviderThreadId;
+      const upToMessageId = spec.fork?.checkpointId ?? undefined;
+      const source = spec.fork?.sourceProviderThreadId;
       const forked =
         spec.providerThreadId === null && source !== undefined
           ? await adapter.forkSession(source, { upToMessageId })
@@ -201,35 +139,35 @@ class ClaudeSession implements ProviderSession {
       const sessionId = resume ?? randomUUID();
       const tools = spec.dynamicTools;
       const names = tools.map((tool) => `mcp__${BB_MCP_SERVER}__${tool.name}`);
-      const server = bbToolServer(tools, (tool, input, toolUseId) => {
+      const server = claude.bbToolServer(tools, (tool, input, toolUseId) => {
         this.toolCalls += 1;
-        const known = toolUseId && host.events.bbItemId(toolUseId);
+        const known = toolUseId && events.bbItemId(toolUseId);
         const callId = known || toolUseId || `call-${this.toolCalls}`;
-        const turnId = host.events.activeTurnId;
+        const turnId = events.activeTurnId;
         return host.callTool({ callId, tool, arguments: input, turnId });
       });
       const servers = { mcpServers: { [BB_MCP_SERVER]: server } };
-      const root = process.getuid?.() === 0;
-      const bypass = this.mode === "bypassPermissions";
       const options: Options = {
-        ...(await buildQueryOptions(spec, this.settings, host)),
+        ...(await claude.buildQueryOptions(spec, this.settings, host)),
         abortController: this.abort,
-        permissionMode: root && bypass ? "default" : this.mode,
+        permissionMode: claude.startMode(this.mode),
         canUseTool: this.permissions.canUseTool,
         hooks: { PreToolUse: [{ hooks: [this.denyDisabledTools] }] },
         stderr: (chunk) => {
-          this.stderr = `${this.stderr}${chunk}`.slice(-STDERR_TAIL);
+          this.stderr = `${this.stderr}${chunk}`.slice(-4_000);
         },
         ...(tools.length > 0 ? { ...servers, allowedTools: names } : {}),
         ...(resume === undefined ? { sessionId } : { resume }),
       };
-      const stream = adapter.query({ prompt: this.input, options });
+      const prompt = this.input.readable;
+      const stream = adapter.query({ prompt, options });
       this.query = stream;
       this.providerThreadId = sessionId;
-      host.events.identity(sessionId);
+      events.identity(sessionId);
       const usage = { usedTokens: null, modelContextWindow: null };
-      const unknown = { contextWindowUsage: { ...usage, estimated: true } };
-      host.events.contextWindow(unknown);
+      events.contextWindow({
+        contextWindowUsage: { ...usage, estimated: true },
+      });
       this.done = this.consume(stream);
       return this;
     } catch (error) {
@@ -268,12 +206,15 @@ class ClaudeSession implements ProviderSession {
     const interrupted =
       this.interrupting ?? stream.interrupt().catch(() => undefined);
     const drained = interrupted.then(() => {
-      this.input.end();
+      void this.prompts.close().catch(() => undefined);
       return this.done;
     });
-    const limit = timeout(CLOSE_TIMEOUT_MS);
-    await Promise.race([drained, limit.elapsed]);
-    limit.cancel();
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, CLOSE_TIMEOUT_MS);
+    });
+    await Promise.race([drained, expired]);
+    clearTimeout(timer);
     if (this.ended) return;
     this.abort.abort();
     stream.close();
@@ -286,29 +227,21 @@ class ClaudeSession implements ProviderSession {
   }
 
   private signatureOf(spec: SessionSpec, options: ExecutionOptions) {
-    const settings = claudeSettings(options);
-    const tools = spec.dynamicTools.map((tool) => [
-      tool.name,
-      tool.description,
-      tool.inputSchema,
-    ]);
-    const construction = [spec.cwd, spec.instructions, tools, spec.skillDirs];
-    const { baseMode, disable1MContext, chrome, writableRoots } = settings;
-    const fixed = [baseMode, disable1MContext, chrome, writableRoots];
-    return JSON.stringify([...construction, ...fixed]);
+    const { cwd, instructions, dynamicTools, skillDirs } = spec;
+    const { fixed } = claude.claudeSettings(options);
+    return JSON.stringify([cwd, instructions, dynamicTools, skillDirs, fixed]);
   }
 
   private readonly denyDisabledTools: HookCallback = async (input) => {
     const tool = input.hook_event_name === "PreToolUse" ? input.tool_name : "";
-    const setting = DISABLED_TOOLS[tool];
-    if (setting === undefined || this.settings[setting]) {
-      return { continue: true };
-    }
+    const { subagents, workflows } = this.settings;
+    const agent = tool === "Agent" || tool === "Task";
+    const blocked = agent ? !subagents : tool === "Workflow" && !workflows;
+    if (!blocked) return { continue: true };
     const hookSpecificOutput = {
       hookEventName: "PreToolUse" as const,
       permissionDecision: "deny" as const,
-      permissionDecisionReason:
-        setting === "subagents" ? SUBAGENTS_OFF : WORKFLOWS_OFF,
+      permissionDecisionReason: agent ? SUBAGENTS_OFF : WORKFLOWS_OFF,
     };
     return { continue: true, hookSpecificOutput };
   };
@@ -321,7 +254,7 @@ class ClaudeSession implements ProviderSession {
   }
 
   private async applySettings(options: ExecutionOptions) {
-    const next = claudeSettings(options);
+    const next = claude.claudeSettings(options);
     const { model, flags } = this.settings;
     if (next.model !== model) {
       await this.query?.setModel(next.model || undefined);
@@ -337,23 +270,17 @@ class ClaudeSession implements ProviderSession {
   }
 
   private async submit({ clientRequestId, input, options }: TurnInput) {
-    const content = promptText(input, options.planMode);
+    const content = claude.promptText(input, options.planMode);
     if (content === undefined) throw new RunnerError("failed", "Missing input");
-    if (this.ended || this.closing) {
-      throw new RunnerError("failed", "Claude SDK input stream is closed");
-    }
+    if (this.ended || this.closing) throw new RunnerError("failed", CLOSED);
     await this.applySettings(options).catch((error: unknown) => {
       throw new RunnerError("failed", describe(error));
     });
     this.options = options;
-    this.contextRevision += 1;
-    this.input.push({
-      type: "user",
-      message: { role: "user", content },
-      parent_tool_use_id: null,
-      session_id: this.providerThreadId,
-      uuid: randomUUID(),
-    });
+    const prompt = { role: "user" as const, content };
+    const session = { session_id: this.providerThreadId, uuid: randomUUID() };
+    const message = { type: "user" as const, message: prompt, ...session };
+    await this.prompts.write({ ...message, parent_tool_use_id: null });
     const { events } = this.host;
     this.translator.acceptInput();
     events.acceptInput(clientRequestId);
@@ -368,52 +295,23 @@ class ClaudeSession implements ProviderSession {
       failure = error;
     }
     this.ended = true;
-    this.input.end();
     if (this.closing) return;
-    this.permissions.cancelPending("Claude Code ended its session");
-    const ended = "Claude Code ended its session";
-    const message = failure === undefined ? ended : describe(failure);
+    this.permissions.cancelPending(ENDED);
+    const message = failure === undefined ? ENDED : describe(failure);
     this.host.onExit({ message, stderrTail: this.stderr.trim() });
   }
 
   private receive(message: unknown) {
     const header = headerSchema.safeParse(message).data;
     if (this.closing || header === undefined) return;
-    const { type, subtype, error } = header;
-    const spoken = ["assistant", "user", "stream_event"].includes(type);
-    if (spoken) this.contextRevision += 1;
     const sessionId = header.session_id?.trim();
     if (sessionId && sessionId !== this.providerThreadId) {
       this.providerThreadId = sessionId;
       this.host.events.identity(sessionId);
     }
-    const unauthorized =
-      error === "authentication_failed" || error === "oauth_org_not_allowed";
-    if (type === "assistant" && unauthorized) this.rebuild = true;
+    const denied = UNAUTHORIZED.includes(header.error ?? "");
+    if (header.type === "assistant" && denied) this.rebuild = true;
     this.translator.handle(message);
-    const compacted = type === "system" && subtype === "compact_boundary";
-    if (type === "result" || compacted) void this.captureContext();
-  }
-
-  private async captureContext() {
-    const stream = this.query;
-    if (stream === null) return;
-    this.contextRevision += 1;
-    const revision = this.contextRevision;
-    const limit = timeout(CONTEXT_TIMEOUT_MS);
-    const read = stream.getContextUsage().catch(() => null);
-    const report = await Promise.race([read, limit.elapsed]);
-    limit.cancel();
-    const stale = revision !== this.contextRevision || this.closing;
-    const snapshot = contextSnapshot(report, this.providerThreadId);
-    if (stale || this.ended || snapshot === undefined) return;
-    const usage = {
-      usedTokens: snapshot.usedTokens,
-      modelContextWindow: snapshot.contextWindowTokens,
-      estimated: snapshot.estimated,
-    };
-    const update = { contextWindowUsage: { ...usage, snapshot } };
-    this.host.events.contextWindow(update);
   }
 }
 
@@ -425,35 +323,12 @@ export function createClaudeAdapter(
     const env = scrubEnv(process.env);
     return { ...env, PATH: (await loginShellPath()) ?? env.PATH ?? "" };
   };
-  let models: {
-    cwd: string;
-    at: number;
-    list: Promise<ProviderModels>;
-  } | null = null;
-  const probeModels = async (cwd: string) => {
-    const env = await baseEnv();
-    const pathToClaudeCodeExecutable = await resolveExecutable(env);
-    const probe = { cwd, env, maxTurns: 0, persistSession: false };
-    const sources = ["user" as const, "project" as const, "local" as const];
-    const settings = { settingSources: sources, pathToClaudeCodeExecutable };
-    const session = adapter.query({
-      prompt: ".",
-      options: { ...probe, ...settings },
-    });
-    try {
-      const { models: discovered } = await session.initializationResult();
-      if (discovered.length > 0) return buildModels(discovered);
-      throw new Error("Claude Code reported no models.");
-    } finally {
-      session.close();
-    }
-  };
   return {
     id: "claude-code",
     approvalEnforcedBy: "provider",
     status: async (): Promise<ProviderStatus> => {
       const env = await baseEnv();
-      const found = await resolveExecutable(env).catch(() => undefined);
+      const found = await claude.resolveExecutable(env).catch(() => undefined);
       const executablePath = found ?? null;
       const status = { providerId: "claude-code" as const, executablePath };
       if (executablePath === null) {
@@ -462,26 +337,39 @@ export function createClaudeAdapter(
       }
       const run = (args: string[]) =>
         promisify(execFile)(executablePath, args, { env, timeout: 10_000 })
-          .catch((error: unknown) => outputSchema.safeParse(error).data)
+          .catch((error: unknown) => reportSchema.safeParse(error).data)
           .then((output) => output?.stdout.trim() ?? "");
       const version = (await run(["--version"])).split(/\s+/)[0] || null;
-      const login = signedIn(await run(["auth", "status", "--json"]));
+      const report = decodeJson(await run(["auth", "status", "--json"]));
+      const login = authSchema.safeParse(report).data?.loggedIn;
       const state = login ? "ready" : "unauthenticated";
       const auth = login === undefined ? "unknown" : state;
       const message = login === false ? "Run `claude` to sign in." : null;
       return { ...status, installed: true, version, auth, message };
     },
-    listModels: (cwd) => {
-      const dir = cwd ?? homedir();
-      const fresh =
-        models?.cwd === dir && Date.now() - models.at < MODELS_TTL_MS;
-      if (models !== null && fresh) return models.list;
-      const list = probeModels(dir).catch((error: unknown) => {
-        models = null;
+    listModels: async (cwd) => {
+      const sources = ["user" as const, "project" as const, "local" as const];
+      try {
+        const env = await baseEnv();
+        const executable = await claude.resolveExecutable(env);
+        const session = adapter.query({
+          prompt: ".",
+          options: {
+            cwd: cwd ?? homedir(),
+            env,
+            maxTurns: 0,
+            persistSession: false,
+            settingSources: sources,
+            pathToClaudeCodeExecutable: executable,
+          },
+        });
+        const ready = session.initializationResult();
+        const { models } = await ready.finally(() => session.close());
+        if (models.length > 0) return claude.buildModels(models);
+        throw new Error("Claude Code reported no models.");
+      } catch (error) {
         throw launchError(error);
-      });
-      models = { cwd: dir, at: Date.now(), list };
-      return list;
+      }
     },
     open: (spec, execution, host) =>
       new ClaudeSession(spec, execution, host, adapter).start(),
