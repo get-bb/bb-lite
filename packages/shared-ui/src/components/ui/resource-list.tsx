@@ -1,7 +1,6 @@
 export {
   ResourceCardStat,
   ResourceIconFrame,
-  ResourceMeta,
   ResourceStatus,
   type ResourceStatusTone,
 } from "./resource/atoms";
@@ -34,28 +33,21 @@ export {
   ResourceDetailCollection,
   ResourceDetailPanel,
   ResourceDetailStack,
-  ResourcePromptPreview,
 } from "./resource/detail-shell";
 export {
   ResourceActivitySection,
   ResourceDefinitionSection,
   ResourceDetailConfigurationSection,
   ResourceDetailIncludesSection,
-  ResourceDetailOverviewSection,
   ResourceDetailPage,
   ResourceDetailReleaseSection,
 } from "./resource/detail-sections";
-export {
-  ResourceInstallControl,
-  ResourceInstalledControl,
-} from "./resource/detail-controls";
+export { ResourceInstallControl } from "./resource/detail-controls";
 export {
   ResourceBrowseCard,
   ResourceBrowseGrid,
   ResourceCollectionPage,
   ResourceCollectionViewport,
-  ResourceShelfSeeAllAction,
   ResourceShelfAction,
   ResourceSourceShelf,
-  ResourceTemplateBrowseCard,
 } from "./resource/collection";

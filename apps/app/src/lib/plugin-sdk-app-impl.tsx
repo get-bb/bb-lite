@@ -12,7 +12,7 @@ import { PluginNewThreadComposer } from "@/components/plugin/PluginNewThreadComp
 import { PluginProviderModelPicker } from "@/components/plugin/PluginProviderModelPicker";
 import { PluginPermissionModePicker } from "@/components/plugin/PluginPermissionModePicker";
 import { PluginSourceCode } from "@/components/plugin/PluginSourceCode";
-import { LazyPluginThreadChat } from "@/components/plugin/LazyPluginThreadChat";
+import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
 import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
 import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
 import { ExperimentalFileLink } from "@/components/plugin/ExperimentalFileLink";
@@ -80,7 +80,7 @@ export const pluginSdkAppImplementation = {
   useRealtimeConnectionState,
   useRpc,
   useSettings,
-  ThreadChat: LazyPluginThreadChat,
+  ThreadChat: PluginThreadChat,
   Markdown: PluginMarkdown,
   experimental_FileLink: ExperimentalFileLink,
   UrlLink: PluginUrlLink,

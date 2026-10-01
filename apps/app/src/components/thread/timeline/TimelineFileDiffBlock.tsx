@@ -11,7 +11,7 @@ import { EventCodeBlock } from "../../ui/event-code-block.js";
 import type { DiffPresentation } from "@/components/code/code-rendering";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 
-export interface TimelineFileDiffBlockProps {
+interface TimelineFileDiffBlockProps {
   change: TimelineFileChange;
   workspaceRootPath: string | undefined;
 }

@@ -30,14 +30,10 @@ import {
   queuedMessageHasWaitLine,
   queuedMessageWaitIcon,
 } from "@/lib/queued-message-wait";
-import type {
-  QueuedMessageEditRequest,
-  QueuedMessageGroupBoundaryRequest,
-  QueuedMessageInlineEditor,
-  QueuedMessageSendAction,
-  QueuedMessagesListProps,
-} from "@/components/promptbox/banner/LazyQueuedMessagesList";
-import { getQueuedMessagesDrawerHeight } from "@/components/promptbox/banner/queued-messages-layout";
+import {
+  getPendingQueuedMessagesDrawerHeight,
+  getQueuedMessagesDrawerHeight,
+} from "@/components/promptbox/banner/queued-messages-layout";
 import {
   DndContext,
   KeyboardSensor,
@@ -68,6 +64,7 @@ import type {
 } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
+import { Skeleton } from "@bb/shared-ui/skeleton";
 import {
   PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS,
   PromptStackCard,
@@ -108,6 +105,86 @@ import {
   QueuedEditorTypeaheadLayoutContext,
   type QueuedEditorTypeaheadLayout,
 } from "@/components/promptbox/queued-editor-typeahead-layout";
+
+export type QueuedMessageProcessingAction = "send" | "edit" | "delete";
+type QueuedMessageSendAction = "send-now" | "steer-when-ready";
+
+export interface QueuedMessageGroupBoundaryRequest {
+  expectedGroupedPrefixQueuedMessageIds: string[];
+  groupBoundaryQueuedMessageId: string;
+}
+
+export interface QueuedMessageEditRequest {
+  queuedMessageId: string;
+  queuedMessageIndex: number;
+}
+
+export interface QueuedMessageInlineEditor {
+  content: ReactNode;
+  queuedMessageId: string;
+  queuedMessageIndex: number;
+  onDismiss: () => void;
+}
+
+interface QueuedMessagesListProps {
+  attachedToComposer: boolean;
+  queuedMessages: readonly ThreadQueuedMessage[];
+  resolveMentionLink?: PromptMentionLinkResolver;
+  sendAction: QueuedMessageSendAction;
+  sendDisabled: boolean;
+  actionDisabled: boolean;
+  processingMessageId: string | null;
+  processingAction: QueuedMessageProcessingAction | null;
+  inlineEditor?: QueuedMessageInlineEditor;
+  onSend: (id: string) => void;
+  onReorder: (request: QueuedMessageReorderRequest) => void;
+  onSetGroupBoundary: (request: QueuedMessageGroupBoundaryRequest) => void;
+  onEdit: (request: QueuedMessageEditRequest) => void;
+  onDelete: (id: string) => void;
+}
+
+const LOADING_ROW_WIDTHS = ["w-3/4", "w-1/2", "w-2/3"];
+
+export function QueuedMessagesPendingCard({
+  queuedMessageCount,
+}: {
+  queuedMessageCount: number;
+}) {
+  return (
+    <PromptStackCard
+      ariaLabel="Queued messages"
+      style={{
+        height: getPendingQueuedMessagesDrawerHeight(queuedMessageCount),
+      }}
+      className={cn(
+        "relative z-10 flex min-h-0 flex-col overflow-hidden rounded-xl bg-surface-raised-solid shadow-lift",
+        "-mb-5 rounded-b-none border-b-0 pb-3",
+      )}
+    >
+      <header className="flex h-8 shrink-0 items-center gap-2 border-b border-border/35 px-2">
+        <div className="flex min-w-16 items-baseline gap-1.5 pl-1">
+          <span className="text-xs font-medium text-foreground">Queue</span>
+          <span className="text-2xs tabular-nums text-subtle-foreground">
+            {queuedMessageCount}
+          </span>
+        </div>
+      </header>
+      <div
+        role="status"
+        aria-label="Loading queued messages"
+        className="min-h-0 flex-1 py-1"
+      >
+        {LOADING_ROW_WIDTHS.slice(0, Math.max(1, queuedMessageCount)).map(
+          (width) => (
+            <div key={width} className="flex h-[33px] items-center px-3.5">
+              <Skeleton className={cn("h-3 rounded-sm", width)} />
+            </div>
+          ),
+        )}
+      </div>
+    </PromptStackCard>
+  );
+}
 
 interface QueuedMessagePreviewText {
   mentions: PromptTextMention[];
@@ -1118,7 +1195,7 @@ function QueuedMessageInlineEditorSlot({
   );
 }
 
-export function QueuedMessagesList({
+function QueuedMessagesListSurface({
   attachedToComposer,
   queuedMessages,
   resolveMentionLink,
@@ -1785,4 +1862,11 @@ export function QueuedMessagesList({
       </div>
     </PromptStackCard>
   );
+}
+
+export function QueuedMessagesList(props: QueuedMessagesListProps) {
+  if (props.queuedMessages.length === 0 && props.inlineEditor === undefined) {
+    return null;
+  }
+  return <QueuedMessagesListSurface {...props} />;
 }

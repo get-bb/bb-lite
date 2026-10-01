@@ -8,15 +8,15 @@ import type {
   SecondaryFileFixedPanelTab,
 } from "@/lib/fixed-panel-tabs-state";
 import type { SecondaryPanelPaneRenderContext } from "@/components/secondary-panel/ThreadSecondaryPanel";
+import { FilePreview } from "@/components/secondary-panel/FilePreview";
+import { LazyThreadTerminalPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
 import {
-  LazyFilePreview,
-  LazyHostFilePreviewTabContent,
-  LazyNewTabPage,
-  LazyProjectFilePreviewTabContent,
-  LazyThreadStorageFilePreviewTabContent,
-  LazyThreadTerminalPanel,
-  LazyWorkspaceFilePreviewTabContent,
-} from "@/components/secondary-panel/lazySecondaryPanelComponents";
+  HostFilePreviewTabContent,
+  ProjectFilePreviewTabContent,
+  ThreadStorageFilePreviewTabContent,
+  WorkspaceFilePreviewTabContent,
+} from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import type { FileSearchSelection } from "@/components/secondary-panel/useThreadFileTabs";
 import {
   PluginPanelTabContent,
@@ -182,7 +182,7 @@ export function RootComposePanelTabContent({
       );
     case "new-tab":
       return (
-        <LazyNewTabPage
+        <NewTabPage
           autoFocus={
             pane.isFocused && tab.id === activeTabId && shouldAutoFocusNewTab
           }
@@ -429,7 +429,7 @@ function RootComposeFilePreviewTabContent({
       });
       original =
         tab.environmentId !== null ? (
-          <LazyWorkspaceFilePreviewTabContent
+          <WorkspaceFilePreviewTabContent
             activePath={tab.path}
             copyPath={copyPath}
             environmentId={tab.environmentId}
@@ -442,7 +442,7 @@ function RootComposeFilePreviewTabContent({
             threadId={imageThreadId}
           />
         ) : projectPreviewId !== null ? (
-          <LazyProjectFilePreviewTabContent
+          <ProjectFilePreviewTabContent
             activePath={tab.path}
             copyPath={copyPath}
             environmentId={projectFilePreviewRouting.environmentId}
@@ -456,7 +456,7 @@ function RootComposeFilePreviewTabContent({
             threadId={imageThreadId}
           />
         ) : (
-          <LazyFilePreview
+          <FilePreview
             path={tab.path}
             copyPath={copyPath}
             onOpenInEditor={onOpenInEditor}
@@ -472,7 +472,7 @@ function RootComposeFilePreviewTabContent({
           : fileOpenerSource.threadId;
       original =
         threadId && environmentId ? (
-          <LazyHostFilePreviewTabContent
+          <HostFilePreviewTabContent
             activePath={tab.path}
             copyPath={tab.path}
             environmentId={environmentId}
@@ -483,7 +483,7 @@ function RootComposeFilePreviewTabContent({
             threadId={threadId}
           />
         ) : (
-          <LazyFilePreview
+          <FilePreview
             path={tab.path}
             copyPath={tab.path}
             onOpenInEditor={onOpenInEditor}
@@ -498,7 +498,7 @@ function RootComposeFilePreviewTabContent({
         rootPath: threadStorageRootPath,
       });
       original = storageThreadId ? (
-        <LazyThreadStorageFilePreviewTabContent
+        <ThreadStorageFilePreviewTabContent
           activePath={tab.path}
           copyPath={copyPath}
           isPanelOpen={isPanelOpen}
@@ -508,7 +508,7 @@ function RootComposeFilePreviewTabContent({
           threadId={storageThreadId}
         />
       ) : (
-        <LazyFilePreview
+        <FilePreview
           path={tab.path}
           copyPath={copyPath}
           onOpenInEditor={onOpenInEditor}

@@ -25,14 +25,15 @@ import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panel
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import {
   LazyBrowserTabDeck,
-  LazyHostScopedFilePreviewTabContent,
-  LazyNewTabPage,
   LazyThreadSecondaryPanel,
-  preloadThreadSecondaryPanel,
-  LazyThreadStorageFilePreviewTabContent,
   LazyThreadTerminalPanel,
-  LazyWorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
+import {
+  HostScopedFilePreviewTabContent,
+  ThreadStorageFilePreviewTabContent,
+  WorkspaceFilePreviewTabContent,
+} from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import type {
   SecondaryPanelFixedTab,
   SecondaryPanelRenderableTab,
@@ -864,7 +865,7 @@ export function PluginPanelRightPanelHost({
           );
         case "new-tab":
           return (
-            <LazyNewTabPage
+            <NewTabPage
               autoFocus={false}
               projectId={undefined}
               environmentId={null}
@@ -901,7 +902,7 @@ export function PluginPanelRightPanelHost({
           );
         case "workspace-file-preview":
           return tab.environmentId === null ? null : (
-            <LazyWorkspaceFilePreviewTabContent
+            <WorkspaceFilePreviewTabContent
               activePath={tab.path}
               environmentId={tab.environmentId}
               isPanelOpen={isOpen}
@@ -912,7 +913,7 @@ export function PluginPanelRightPanelHost({
           );
         case "host-file-preview":
           return tab.hostId === null ? null : (
-            <LazyHostScopedFilePreviewTabContent
+            <HostScopedFilePreviewTabContent
               activePath={tab.path}
               hostId={tab.hostId}
               isPanelOpen={isOpen}
@@ -921,7 +922,7 @@ export function PluginPanelRightPanelHost({
           );
         case "thread-storage-file-preview":
           return tab.threadId === null ? null : (
-            <LazyThreadStorageFilePreviewTabContent
+            <ThreadStorageFilePreviewTabContent
               activePath={tab.path}
               isPanelOpen={isOpen}
               lineRange={tab.lineRange}
@@ -1093,13 +1094,8 @@ export function PluginPanelRightPanelHost({
             onUpdate={updateBrowserTab}
           />
         );
-      const drawerFallback = renderDeck(
-        activeBrowserTab?.id ?? null,
-        canShowNativeBrowserView,
-      );
       return (
         <LazyThreadSecondaryPanel
-          drawerFallback={drawerFallback}
           activeTab={activeTab}
           canUseGitUi={false}
           metadataContent={null}
@@ -1131,7 +1127,6 @@ export function PluginPanelRightPanelHost({
       );
     },
     [
-      activeBrowserTab,
       activePluginDetailId,
       activeTab,
       browserTabs,
@@ -1198,9 +1193,6 @@ export function PluginPanelRightPanelHost({
                   className={RIGHT_PANEL_TOGGLE_CLASS}
                   aria-label={toggleLabel}
                   aria-pressed={isOpen}
-                  onPointerEnter={preloadThreadSecondaryPanel}
-                  onFocus={preloadThreadSecondaryPanel}
-                  onPointerDown={preloadThreadSecondaryPanel}
                   onClick={togglePanel}
                 >
                   <Icon name={toggleIconName} />

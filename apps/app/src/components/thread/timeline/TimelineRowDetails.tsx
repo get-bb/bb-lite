@@ -9,9 +9,9 @@ import { Icon } from "@bb/shared-ui/icon";
 import { EventCodeBlock } from "../../ui/event-code-block.js";
 import { ImageLightbox } from "../../ui/image-lightbox.js";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { LazyTerminalOutputBlock } from "./LazyTerminalOutputBlock.js";
+import { TerminalOutputBlock } from "./TerminalOutputBlock.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
-import { LazyTimelineFileDiffBlock } from "./LazyTimelineFileDiffBlock.js";
+import { TimelineFileDiffBlock } from "./TimelineFileDiffBlock.js";
 import { ToolCallDetailBlock } from "./ToolCallDetailBlock.js";
 import { QuestionWorkRowBody } from "./QuestionWorkRowBody.js";
 import { WorkflowWorkRowBody } from "./WorkflowWorkRowBody.js";
@@ -192,7 +192,7 @@ function CommandWorkRowBody({ row }: CommandWorkRowBodyProps) {
   const fullOutput = useTimelineWorkRowFullOutput(row);
   return (
     <div className="space-y-1">
-      <LazyTerminalOutputBlock
+      <TerminalOutputBlock
         commandLine={`$ ${row.command}`}
         metadataLines={row.source ? [`source: ${row.source}`] : []}
         output={fullOutput.output}
@@ -233,7 +233,7 @@ export function WorkRowBody({
     case "file-change":
       return (
         <div className="space-y-2">
-          <LazyTimelineFileDiffBlock
+          <TimelineFileDiffBlock
             change={row.change}
             workspaceRootPath={workspaceRootPath}
           />

@@ -64,10 +64,7 @@ import type {
   SecondaryPanelPaneRenderContext,
   SecondaryPanelRenderableTab,
 } from "@/components/secondary-panel/ThreadSecondaryPanel";
-import {
-  LazyBrowserTabDeck,
-  preloadThreadSecondaryPanel,
-} from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { LazyBrowserTabDeck } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import type { BrowserAddressFocusRequest } from "@/components/secondary-panel/BrowserTabContent";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
@@ -304,9 +301,6 @@ export function RootComposeRightPanelToggle({
       }
       aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
       aria-expanded={isOpen}
-      onPointerEnter={preloadThreadSecondaryPanel}
-      onFocus={preloadThreadSecondaryPanel}
-      onPointerDown={preloadThreadSecondaryPanel}
       onClick={onToggle}
     >
       <Icon name={rightPanelIconName} />

@@ -4,7 +4,7 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { getDetailScrollMaxHeightClass } from "../../ui/detail-scroll-size.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 
-export interface TerminalOutputBlockProps {
+interface TerminalOutputBlockProps {
   output: string;
   commandLine: string;
   exitCode: number | null;

@@ -1,4 +1,3 @@
-import { useSplitPreload } from "@/lib/define-split";
 import {
   useCallback,
   useEffect,
@@ -49,7 +48,7 @@ import {
   MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
   splitModelLabelTag,
 } from "./model-picker-menu";
-import { ModelReasoningMenu } from "./ModelReasoningMenuSplit";
+import { ModelReasoningMenu } from "./ModelReasoningMenu";
 import { searchPickerOptions } from "./picker-search";
 import { useResetPickerScroll } from "./useResetPickerScroll";
 import { formatModelLoadErrorText } from "./model-load-error-message";
@@ -220,7 +219,6 @@ export function ModelReasoningPicker({
   disabled,
   handoff,
 }: ModelReasoningPickerProps) {
-  useSplitPreload(ModelReasoningMenu);
   const isCompactViewport = useIsCompactViewport();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -900,7 +898,6 @@ export function ModelReasoningPicker({
       }
       aria-keyshortcuts={toggleShortcut?.ariaKeyshortcuts}
       disabled={disabled}
-      {...ModelReasoningMenu.intentProps}
       onKeyDown={handleReasoningArrowKeyDown}
       className={cn(
         OPTION_BASE_CLASS_NAME,

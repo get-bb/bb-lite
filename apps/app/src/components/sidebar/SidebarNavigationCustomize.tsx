@@ -1,10 +1,8 @@
 import { useMemo } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import {
-  SidebarVisibilityCustomize,
-  type SidebarVisibilityItem,
-} from "./SidebarVisibilityControls";
+import type { SidebarVisibilityItem } from "./SidebarVisibilityControls";
+import { SidebarVisibilityCustomize } from "./SidebarVisibilityCustomize";
 import {
   SidebarNavigationIcon,
   useSidebarNavigationModel,

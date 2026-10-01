@@ -3,7 +3,6 @@ import { Button, type ButtonProps } from "../button";
 import { ScrollArea } from "../scroll-area";
 import { cn } from "../../../lib/utils";
 import { ResourceSectionTitle } from "./detail-shell";
-import { ResourceActionButton } from "./row";
 import { ResourceTabDescription } from "./toolbar";
 
 export interface ResourceCollectionMode<Mode extends string> {
@@ -282,17 +281,6 @@ export function ResourceShelfAction({
   );
 }
 
-export function ResourceShelfSeeAllAction({
-  className,
-  ...props
-}: Omit<ButtonProps, "children" | "size" | "variant">) {
-  return (
-    <ResourceShelfAction className={className} {...props}>
-      See all
-    </ResourceShelfAction>
-  );
-}
-
 type ResourceBrowseCardProps = {
   className?: string;
   leading?: ReactNode;
@@ -407,34 +395,4 @@ export function ResourceBrowseCard({
       </span>
     );
   }
-}
-
-export function ResourceTemplateBrowseCard({
-  title,
-  description,
-  onUse,
-}: {
-  title: string;
-  description: ReactNode;
-  onUse: () => void;
-}) {
-  return (
-    <ResourceBrowseCard
-      title={title}
-      description={description}
-      descriptionLines={3}
-      openLabel={`Use template: ${title}`}
-      pointerOnlyOpen
-      headerAction={
-        <ResourceActionButton
-          label={`Use template: ${title}`}
-          tooltipLabel="Use template"
-          icon="MessageCirclePlus"
-          className="size-7 hover:bg-state-hover focus-visible:bg-state-hover"
-          onClick={onUse}
-        />
-      }
-      onOpen={onUse}
-    />
-  );
 }

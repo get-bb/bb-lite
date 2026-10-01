@@ -186,12 +186,14 @@ import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel
 import { BrowserTabLifecycleObserver } from "@/components/secondary-panel/BrowserTabLifecycleObserver";
 import {
   LazyBrowserTabDeck,
-  LazyHostFilePreviewTabContent,
-  LazyNewTabPage,
-  LazyThreadStorageFilePreviewTabContent,
   LazyThreadTerminalPanel,
-  LazyWorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
+import {
+  HostFilePreviewTabContent,
+  ThreadStorageFilePreviewTabContent,
+  WorkspaceFilePreviewTabContent,
+} from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import type { BrowserAddressFocusRequest } from "@/components/secondary-panel/BrowserTabContent";
 import {
   SIDE_CHAT_PLUGIN_ID,
@@ -2598,7 +2600,7 @@ function ThreadDetailViewInternal(
         );
       case "new-tab":
         return (
-          <LazyNewTabPage
+          <NewTabPage
             autoFocus={
               tab.id === activeFixedSecondaryTabId && shouldAutoFocusNewTab
             }
@@ -2628,7 +2630,7 @@ function ThreadDetailViewInternal(
           rootPath: workspacePreviewRootPath,
         });
         return (
-          <LazyWorkspaceFilePreviewTabContent
+          <WorkspaceFilePreviewTabContent
             activePath={tab.path}
             copyPath={copyPath}
             environmentId={tab.environmentId}
@@ -2653,7 +2655,7 @@ function ThreadDetailViewInternal(
       case "host-file-preview": {
         const baseDir = getAbsoluteDirname({ path: tab.path });
         return (
-          <LazyHostFilePreviewTabContent
+          <HostFilePreviewTabContent
             activePath={tab.path}
             copyPath={tab.path}
             environmentId={tab.environmentId}
@@ -2681,7 +2683,7 @@ function ThreadDetailViewInternal(
           rootPath: threadStorageRootPath,
         });
         return (
-          <LazyThreadStorageFilePreviewTabContent
+          <ThreadStorageFilePreviewTabContent
             activePath={tab.path}
             copyPath={copyPath}
             isPanelOpen={isSecondaryPanelOpen}

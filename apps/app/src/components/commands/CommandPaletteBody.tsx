@@ -36,7 +36,7 @@ import { COMMAND_PALETTE_INPUT } from "./PaletteInputBand";
 
 const THREAD_SEARCH_ACTION_ID = paletteActionIdForCommand("thread.search");
 
-export interface CommandPaletteBodyProps {
+interface CommandPaletteBodyProps {
   actions: readonly PaletteAction[];
   installedPlugins: readonly PluginSettingsCandidate[];
   recents: readonly string[];
