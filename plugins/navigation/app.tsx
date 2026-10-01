@@ -5,8 +5,7 @@ export default definePluginApp((app) => {
   app.slots.experimental_sidebarNavigation({
     id: "navigation",
     title: "Navigation",
-    description:
-      "New thread, Search, Plugins, Skills, and plugin panels as sidebar rows.",
+    description: "New thread, Search, and plugin panels as sidebar rows.",
     component: Navigation,
   });
 });

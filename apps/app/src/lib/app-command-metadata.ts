@@ -86,11 +86,7 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "Find in window",
         "Search the text shown in the current bb desktop window.",
       ),
-      command(
-        "app.back",
-        "Back to app",
-        "Return from Settings, Plugins, or Skills to the app.",
-      ),
+      command("app.back", "Back to app", "Return from Settings to the app."),
       command("settings.open", "Open settings", "Open bb settings."),
       command(
         "settings.openServers",
@@ -203,16 +199,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "notifications.open",
         "Show all notifications",
         "Open the notification center to read and clear past notifications.",
-      ),
-      command(
-        "plugins.enterSafeMode",
-        "Turn on plugin safe mode",
-        "Stop every plugin you installed, keeping each plugin's enabled setting. Plugins included with bb keep running.",
-      ),
-      command(
-        "plugins.exitSafeMode",
-        "Turn off plugin safe mode",
-        "Restart the plugins that were enabled before safe mode.",
       ),
     ],
   },

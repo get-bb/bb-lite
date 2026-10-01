@@ -10,7 +10,7 @@ import { ThreadSecondaryPanel } from "./ThreadSecondaryPanel";
 type ThreadTerminalPanelModule =
   typeof import("@/components/thread/terminal/ThreadTerminalPanel");
 
-export function SecondaryPanelContentSkeleton() {
+function SecondaryPanelContentSkeleton() {
   return (
     <div
       className="space-y-2 px-4 py-4"

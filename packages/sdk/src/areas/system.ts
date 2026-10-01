@@ -26,9 +26,6 @@ import type {
   SystemMobileAppReleasesResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
-  SystemCliSkillsStatusResponse,
-  SystemInstallCliSkillsRequest,
-  SystemInstallCliSkillsResponse,
   SystemProviderStatesResponse,
   SystemProvidersQuery,
   SystemUsageLimitsQuery,
@@ -95,13 +92,6 @@ export interface SystemAiServicesArgs {
 }
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
 export type SystemReloadConfigResult = SystemConfigReloadResponse;
-export type SystemInstallCliSkillsArgs = SystemInstallCliSkillsRequest;
-export interface SystemCliSkillsStatusArgs {
-  hostIds?: readonly string[];
-  signal?: AbortSignal;
-}
-export type SystemCliSkillsStatusResult = SystemCliSkillsStatusResponse;
-export type SystemInstallCliSkillsResult = SystemInstallCliSkillsResponse;
 export type SystemVoiceTranscriptionResult = SystemVoiceTranscriptionResponse;
 export type SystemUpdateExperimentsResult = Experiments;
 export type SystemUpdateGeneralSettingsResult = AppSettings & {
@@ -157,12 +147,6 @@ export interface SystemArea {
   executionOptions(
     args?: SystemExecutionOptionsArgs,
   ): Promise<SystemExecutionOptionsResult>;
-  cliSkillsStatus(
-    args?: SystemCliSkillsStatusArgs,
-  ): Promise<SystemCliSkillsStatusResult>;
-  installCliSkills(
-    args: SystemInstallCliSkillsArgs,
-  ): Promise<SystemInstallCliSkillsResult>;
   reloadConfig(): Promise<SystemReloadConfigResult>;
   setAiServiceSelection(
     args: SystemSetAiServiceSelectionArgs,
@@ -303,24 +287,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     },
     async executionOptions(input = {}) {
       return readExecutionOptions(transport, input);
-    },
-    async cliSkillsStatus(input = {}) {
-      return transport.readJson(
-        transport.api.v1.system["cli-skills"].$get(
-          {
-            query:
-              input.hostIds === undefined
-                ? {}
-                : { hostIds: input.hostIds.join(",") },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async installCliSkills(input) {
-      return transport.readJson(
-        transport.api.v1.system["cli-skills"].install.$post({ json: input }),
-      );
     },
     async reloadConfig() {
       return transport.readJson(transport.api.v1.system.config.reload.$post());

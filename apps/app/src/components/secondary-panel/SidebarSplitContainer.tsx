@@ -104,7 +104,6 @@ interface SidebarSplitContainerProps {
   activeTabId: string;
   canNavigateTabs?: boolean;
   fixedTabIds?: readonly string[];
-  hasNewTabButton?: boolean;
   onTabNavigated?: (paneId: string, isNewTabButton: boolean) => void;
   isFullScreen: boolean;
   onActivateTab: (tabId: string) => void;
@@ -119,7 +118,6 @@ export function SidebarSplitContainer({
   activeTabId,
   canNavigateTabs = true,
   fixedTabIds = [],
-  hasNewTabButton = false,
   onTabNavigated,
   isFullScreen,
   onActivateTab,
@@ -324,13 +322,11 @@ export function SidebarSplitContainer({
       stateRef.current,
       direction,
       fixedTabIds,
-      hasNewTabButton
-        ? {
-            focused:
-              origin instanceof HTMLElement &&
-              origin.closest("[data-panel-new-tab]") !== null,
-          }
-        : undefined,
+      {
+        focused:
+          origin instanceof HTMLElement &&
+          origin.closest("[data-panel-new-tab]") !== null,
+      },
     );
     if (target === null) return false;
     if (target.tabId === null) {
@@ -373,7 +369,9 @@ export function SidebarSplitContainer({
     next?.scrollIntoView({ block: "nearest" });
     return true;
   };
-  useAppCommandHandler("panel.previousNewTabItem", () => navigateNewTabItem(-1));
+  useAppCommandHandler("panel.previousNewTabItem", () =>
+    navigateNewTabItem(-1),
+  );
   useAppCommandHandler("panel.nextNewTabItem", () => navigateNewTabItem(1));
 
   const focusPane = useCallback(

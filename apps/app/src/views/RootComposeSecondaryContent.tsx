@@ -28,7 +28,6 @@ type RootSecondaryPanelProps = Omit<
   | "isConversationCollapsed"
   | "onToggleConversationCollapse"
   | "renderAsDrawer"
-  | "showNewTabButton"
 > & {
   renderBrowserDeck?: (args: {
     activeBrowserTabId: string | null;
@@ -166,7 +165,6 @@ export function RootComposeSecondaryContent({
             renderAsDrawer={presentation === "drawer"}
             isConversationCollapsed={false}
             onToggleConversationCollapse={onToggleMainCollapse}
-            showNewTabButton
             resizablePanelId={resizablePanelId}
           />
         )}

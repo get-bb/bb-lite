@@ -11,7 +11,6 @@ import {
   getPluginPanelRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
-  getPluginDetailRoutePath,
 } from "@/lib/route-paths";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
@@ -39,9 +38,6 @@ const MAIN_CONTENT_SELECTOR = "main";
 function routeForContent(content: PaneContent): string {
   if (content.kind === "thread") return getThreadRoutePath(content);
   if (content.kind === "new-thread") return getRootComposeRoutePath();
-  if (content.kind === "plugin-detail") {
-    return getPluginDetailRoutePath({ pluginId: content.pluginId });
-  }
   return getPluginPanelRoutePath({
     pluginId: content.pluginId,
     path: content.panelPath,

@@ -23,7 +23,6 @@ import {
 } from "@/components/commands/AppCommandProvider";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
-import { openPluginDetailsInWorkspace } from "@/components/plugin/plugin-detail-opener";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { getPluginNavPanelKey } from "@/components/plugin/pluginNavSidebarOrder";
 import { appToast } from "@/components/ui/app-toast";
@@ -31,14 +30,10 @@ import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
-import {
-  getPluginDetailRoutePath,
-  getPluginPanelRoutePath,
-} from "@/lib/route-paths";
+import { getPluginPanelRoutePath } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
 import {
   createSidebarNavigationRows,
-  getResourceNavigationRoutePath,
   getSidebarNavigationRowContent,
   isSameSidebarNavigationItem,
   resolveActiveSidebarNavigationItemId,
@@ -80,8 +75,6 @@ const HOST_ICON_NAMES: Record<
 > = {
   "new-thread": "MessageSquarePlus",
   search: "Search",
-  extensions: "Plug02",
-  skills: "Zap",
 };
 
 export function SidebarNavigationIcon({
@@ -291,14 +284,6 @@ export function SidebarNavigationModelProvider({
             current.host.onSearchThreads?.();
             current.commandRunner.dispatch("thread.search", null);
             return;
-          case "open-extensions":
-          case "open-skills": {
-            const routePath = getResourceNavigationRoutePath(row.action);
-            if (routePath === null) return;
-            current.host.onNavigate?.();
-            void current.navigate(routePath);
-            return;
-          }
           case "open-plugin-panel": {
             const chrome = row.panelEntry?.chrome;
             if (!chrome) return;
@@ -324,18 +309,6 @@ export function SidebarNavigationModelProvider({
       },
       openCustomize() {
         latest.current.host.onOpenCustomize();
-      },
-      openDetails(itemId) {
-        const found = lookup(itemId);
-        const pluginId = found?.row.ownerPluginId;
-        if (!found || !pluginId) return;
-        found.current.host.onNavigate?.();
-        if (
-          openPluginDetailsInWorkspace({ pluginId, title: found.item.label })
-        ) {
-          return;
-        }
-        void found.current.navigate(getPluginDetailRoutePath({ pluginId }));
       },
       async disablePlugin(itemId) {
         const found = lookup(itemId);

@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 import type { SecondaryFileFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 
-export interface MarketplacePluginDetailPanelTab {
-  id: string;
-  kind: "marketplace-plugin-detail";
-}
-
 export interface SecondaryPanelTabReorderRequest {
   activeTabId: string;
   overTabId: string;
@@ -30,5 +25,5 @@ export interface SecondaryPanelRenderableTab {
   onSelect: () => void;
   renderContent: (pane: SecondaryPanelPaneRenderContext) => ReactNode;
   statusLabel: string | null;
-  tab: SecondaryFileFixedPanelTab | MarketplacePluginDetailPanelTab;
+  tab: SecondaryFileFixedPanelTab;
 }

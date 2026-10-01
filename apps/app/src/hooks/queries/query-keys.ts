@@ -63,25 +63,16 @@ const SYSTEM_AI_SERVICES_QUERY_KEY = "systemAiServices";
 const UI_PREFERENCES_QUERY_KEY = "uiPreferences";
 const SYSTEM_THEME_QUERY_KEY = "systemTheme";
 export const SYSTEM_EXECUTION_OPTIONS_QUERY_KEY = "systemExecutionOptions";
-const SYSTEM_CLI_SKILLS_QUERY_KEY = "systemCliSkills";
 const SYSTEM_VERSION_QUERY_KEY = "systemVersion";
 const SYSTEM_APP_UPDATE_QUERY_KEY = "systemAppUpdate";
 const SERVER_MOVE_STATUS_QUERY_KEY = "serverMoveStatus";
 const HOST_PROVIDER_CLI_STATUS_QUERY_KEY = "hostProviderCliStatus";
 const SYSTEM_PROVIDER_STATES_QUERY_KEY = "systemProviderStates";
 const HOST_PATH_EXISTENCE_QUERY_KEY = "hostPathExistence";
-const PROJECT_SKILLS_QUERY_KEY = "projectSkills";
-export const SKILL_CONTENT_QUERY_KEY = "skillContent";
-export const SKILL_FILES_QUERY_KEY = "skillFiles";
 const PLUGIN_LIST_QUERY_KEY = "plugin-list";
-const PLUGIN_SAFE_MODE_QUERY_KEY = "plugin-safe-mode";
 const PLUGIN_SETTINGS_VIEW_QUERY_KEY = "plugin-settings-view";
 const PLUGIN_CONTRIBUTIONS_QUERY_KEY = "plugin-contributions";
 const PLUGIN_SDK_SETTINGS_QUERY_KEY = "plugin-settings";
-const PLUGIN_SOURCE_QUERY_KEY = "plugin-source";
-const PLUGIN_CATALOG_SEARCH_QUERY_KEY = "plugin-catalog-search";
-const PLUGIN_CATALOG_INSTALL_PLAN_QUERY_KEY = "plugin-catalog-install-plan";
-const PLUGIN_MARKETPLACES_QUERY_KEY = "plugin-marketplaces";
 export interface ThreadListQueryFilters {
   projectId?: string;
   hostId?: string;
@@ -472,7 +463,6 @@ type SystemAiServicesQueryKey = readonly [typeof SYSTEM_AI_SERVICES_QUERY_KEY];
 type UiPreferencesQueryKey = readonly [typeof UI_PREFERENCES_QUERY_KEY];
 type SystemThemeQueryKey = readonly [typeof SYSTEM_THEME_QUERY_KEY, string];
 type AllSystemThemesQueryKeyPrefix = readonly [typeof SYSTEM_THEME_QUERY_KEY];
-type SystemCliSkillsQueryKey = readonly [typeof SYSTEM_CLI_SKILLS_QUERY_KEY];
 type SystemVersionQueryKey = readonly [typeof SYSTEM_VERSION_QUERY_KEY];
 type SystemAppUpdateQueryKey = readonly [typeof SYSTEM_APP_UPDATE_QUERY_KEY];
 type ServerMoveStatusQueryKey = readonly [typeof SERVER_MOVE_STATUS_QUERY_KEY];
@@ -1112,10 +1102,6 @@ export function allMachineEnvironmentQueryKeyPrefix(): AllMachineEnvironmentQuer
   return [MACHINE_ENVIRONMENT_QUERY_KEY];
 }
 
-export function systemCliSkillsQueryKey(): SystemCliSkillsQueryKey {
-  return [SYSTEM_CLI_SKILLS_QUERY_KEY];
-}
-
 export function systemConfigQueryKey(): SystemConfigQueryKey {
   return [SYSTEM_CONFIG_QUERY_KEY];
 }
@@ -1200,32 +1186,12 @@ export function hostPathExistenceQueryKeyPrefix(): HostPathExistenceQueryKeyPref
   return [HOST_PATH_EXISTENCE_QUERY_KEY];
 }
 
-export function projectSkillsQueryKey(projectId: string) {
-  return [PROJECT_SKILLS_QUERY_KEY, projectId] as const;
-}
-
-export function skillContentQueryKey(
-  projectId: string,
-  skillId: string,
-  path: string,
-) {
-  return [SKILL_CONTENT_QUERY_KEY, projectId, skillId, path] as const;
-}
-
-export function skillFilesQueryKey(projectId: string, skillId: string) {
-  return [SKILL_FILES_QUERY_KEY, projectId, skillId] as const;
-}
-
 export function pluginListQueryKey(enabled: boolean) {
   return [PLUGIN_LIST_QUERY_KEY, enabled] as const;
 }
 
 export function allPluginListQueryKeyPrefix() {
   return [PLUGIN_LIST_QUERY_KEY] as const;
-}
-
-export function pluginSafeModeQueryKey() {
-  return [PLUGIN_SAFE_MODE_QUERY_KEY] as const;
 }
 
 export function pluginSettingsViewQueryKey(pluginId: string) {
@@ -1250,41 +1216,6 @@ export function pluginSdkSettingsQueryKey(pluginId: string) {
 
 export function allPluginSettingsQueryKeyPrefix() {
   return [PLUGIN_SDK_SETTINGS_QUERY_KEY] as const;
-}
-
-export function pluginUpdateCheckQueryKey(pluginId: string | null) {
-  return ["plugins", "update-check", pluginId] as const;
-}
-
-export function pluginSourceQueryKey(pluginId: string) {
-  return [PLUGIN_SOURCE_QUERY_KEY, pluginId] as const;
-}
-
-export function allPluginSourceQueryKeyPrefix() {
-  return [PLUGIN_SOURCE_QUERY_KEY] as const;
-}
-
-export function pluginCatalogSearchQueryKey(query: string) {
-  return [PLUGIN_CATALOG_SEARCH_QUERY_KEY, query] as const;
-}
-
-export function allPluginCatalogSearchQueryKeyPrefix() {
-  return [PLUGIN_CATALOG_SEARCH_QUERY_KEY] as const;
-}
-
-export function pluginCatalogInstallPlanQueryKey(args: {
-  entryId: string;
-  marketplace?: string;
-}) {
-  return [
-    PLUGIN_CATALOG_INSTALL_PLAN_QUERY_KEY,
-    args.marketplace ?? "",
-    args.entryId,
-  ] as const;
-}
-
-export function pluginMarketplacesQueryKey() {
-  return [PLUGIN_MARKETPLACES_QUERY_KEY] as const;
 }
 
 export function systemProviderCatalogQueryKey() {

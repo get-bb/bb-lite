@@ -5,50 +5,14 @@ import {
   pluginRpcDiscoveryResponseSchema,
   type PluginRpcDiscoveryQuery,
   type PublishedPluginRpcMethod,
-  pluginCatalogInstallPlanResponseSchema,
-  pluginCatalogInstallRequestSchema,
-  pluginCatalogSearchResponseSchema,
-  pluginCatalogStatusResponseSchema,
-  pluginMarketplaceAddRequestSchema,
-  pluginMarketplaceListResponseSchema,
-  pluginMarketplaceMutationResponseSchema,
-  pluginMarketplaceNameSchema,
-  pluginMarketplaceRefreshRequestSchema,
-  pluginMarketplaceRefreshResponseSchema,
-  pluginMarketplaceRemoveResponseSchema,
-  pluginApplyUpdateRequestSchema,
-  pluginApplyUpdateResultSchema,
-  pluginInstallRequestSchema,
-  pluginRemoveResponseSchema,
-  pluginSafeModeRequestSchema,
-  pluginSafeModeResponseSchema,
-  pluginSafeModeUpdateResponseSchema,
   pluginSettingsResponseSchema,
   pluginSettingsUpdateRequestSchema,
-  pluginSourceDetailSchema,
   pluginTokenRequestSchema,
   pluginTokenResponseSchema,
-  pluginUpdateCheckRequestSchema,
-  pluginUpdateCheckResponseSchema,
   type InstalledPlugin,
-  type PluginCatalogInstallPlan as PluginCatalogInstallPlanContract,
-  type PluginCatalogResolvedSource,
-  type PluginCatalogSearchResponse as PluginCatalogSearchResponseContract,
-  type PluginCatalogSearchResult as PluginCatalogSearchContract,
-  type PluginMarketplace as PluginMarketplaceContract,
-  type PluginMarketplaceRefreshResult as PluginMarketplaceRefreshContract,
-  type PluginCatalogStatus as PluginCatalogStatusContract,
-  type PluginApplyUpdateResult as PluginApplyUpdateContract,
   type PluginListResponse,
-  type PluginReloadResponse,
-  type PluginRemoveResponse,
-  type PluginSafeModeResponse,
-  type PluginSafeModeUpdateResponse,
   type PluginSettingsResponse,
-  type PluginSourceDetail,
-  type PluginSourceSelection,
   type PluginTokenResponse,
-  type PluginUpdateCheckEntry,
 } from "@bb/server-contract";
 import { z } from "zod";
 import type { CreateSdkAreaArgs } from "./common.js";
@@ -73,16 +37,6 @@ const pluginInstallResponseSchema = z.object({
   ok: z.literal(true),
   plugin: installedPluginResponseSchema,
 });
-const pluginReloadResponseSchema = z.object({
-  ok: z.literal(true),
-  plugins: z.array(installedPluginResponseSchema),
-});
-const pluginCatalogSearchResponseCompatibilitySchema =
-  pluginCatalogSearchResponseSchema.extend({
-    collections: pluginCatalogSearchResponseSchema.shape.collections.default(
-      [],
-    ),
-  });
 
 export const pluginMutationResponseSchema = z.object({
   ok: z.boolean(),
@@ -98,56 +52,12 @@ export interface PluginIdArgs {
   pluginId: string;
 }
 
-export interface PluginInstallArgs {
-  source: string;
-  subdirectory?: string;
-  plugin?: string;
-}
-
-export interface PluginCatalogInstallArgs {
-  entryId: string;
-  marketplace?: string;
-  confirmedSource?: PluginCatalogResolvedSource;
-}
-
-export interface PluginCatalogInstallPlanArgs {
-  entryId: string;
-  marketplace?: string;
-  signal?: AbortSignal;
-}
-
-export interface PluginMarketplaceAddArgs {
-  source: string;
-}
-
-export interface PluginMarketplaceListArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginMarketplaceRefreshArgs {
-  name?: string;
-  signal?: AbortSignal;
-}
-
-export interface PluginMarketplaceRemoveArgs {
-  name: string;
-}
-
-export interface PluginReloadArgs {
-  pluginId?: string;
-}
-
 export interface PluginSettingsUpdateArgs extends PluginIdArgs {
   values: Record<string, JsonValue>;
 }
 
 export interface PluginTokenArgs extends PluginIdArgs {
   rotate?: boolean;
-}
-
-export interface PluginCheckUpdatesArgs {
-  pluginId?: string;
-  signal?: AbortSignal;
 }
 
 export interface PluginRpcArgs<TOutput> extends PluginIdArgs {
@@ -157,20 +67,7 @@ export interface PluginRpcArgs<TOutput> extends PluginIdArgs {
   outputSchema: z.ZodType<TOutput>;
 }
 
-export interface PluginCatalogSearchArgs {
-  query: string;
-  signal?: AbortSignal;
-}
-
-export interface PluginCatalogStatusArgs {
-  signal?: AbortSignal;
-}
-
 export interface PluginGetSettingsArgs extends PluginIdArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginGetSourceArgs extends PluginIdArgs {
   signal?: AbortSignal;
 }
 
@@ -178,107 +75,26 @@ export interface PluginListArgs {
   signal?: AbortSignal;
 }
 
-export interface PluginListUpdateResultsArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginGetSafeModeArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginSetSafeModeArgs {
-  enabled: boolean;
-}
-
 export type PluginDisableResult = InstalledPlugin;
 export type PluginEnableResult = InstalledPlugin;
 export type PluginGetSettingsResult = PluginSettingsResponse;
-export type PluginInstallResult = InstalledPlugin;
 export type PluginListResult = PluginListResponse;
-export type PluginReloadResult = PluginReloadResponse;
-export type PluginRemoveResult = PluginRemoveResponse;
-export type PluginSafeModeResult = PluginSafeModeResponse;
-export type PluginSetSafeModeResult = PluginSafeModeUpdateResponse;
 export type PluginTokenResult = PluginTokenResponse;
 export type PluginUpdateSettingsResult = PluginSettingsResponse;
-export type PluginGetSourceResult = PluginSourceDetail;
-export type PluginCheckUpdatesResult = PluginUpdateCheckEntry[];
-export type PluginApplyUpdateResult = PluginApplyUpdateContract;
-
-export type PluginCatalogStatusResult = PluginCatalogStatusContract;
-export type PluginCatalogSearchEntry = PluginCatalogSearchContract;
-export type PluginCatalogSearchResult = PluginCatalogSearchResponseContract;
-export type PluginCatalogInstallPlanResult = PluginCatalogInstallPlanContract;
-export type PluginMarketplaceListResult = PluginMarketplaceContract[];
-export type PluginMarketplaceAddResult = PluginMarketplaceContract;
-export type PluginMarketplaceRefreshResult = PluginMarketplaceRefreshContract[];
-
-export interface PluginMarketplaceRemoveResult {
-  convertedPluginIds: string[];
-}
-
-export interface PluginCatalogArea {
-  install(args: PluginCatalogInstallArgs): Promise<PluginInstallResult>;
-  installPlan(
-    args: PluginCatalogInstallPlanArgs,
-  ): Promise<PluginCatalogInstallPlanResult>;
-  search(args: PluginCatalogSearchArgs): Promise<PluginCatalogSearchResult>;
-  status(args?: PluginCatalogStatusArgs): Promise<PluginCatalogStatusResult>;
-}
-
-export interface PluginMarketplacesArea {
-  add(args: PluginMarketplaceAddArgs): Promise<PluginMarketplaceAddResult>;
-  list(args?: PluginMarketplaceListArgs): Promise<PluginMarketplaceListResult>;
-  refresh(
-    args?: PluginMarketplaceRefreshArgs,
-  ): Promise<PluginMarketplaceRefreshResult>;
-  remove(
-    args: PluginMarketplaceRemoveArgs,
-  ): Promise<PluginMarketplaceRemoveResult>;
-}
 
 export interface PluginsArea {
   experimental_discoverRpc(
     args?: PluginRpcDiscoveryQuery,
   ): Promise<PublishedPluginRpcMethod[]>;
-  experimental_getSafeMode(
-    args?: PluginGetSafeModeArgs,
-  ): Promise<PluginSafeModeResult>;
-  experimental_setSafeMode(
-    args: PluginSetSafeModeArgs,
-  ): Promise<PluginSetSafeModeResult>;
-  applyUpdate(args: PluginIdArgs): Promise<PluginApplyUpdateResult>;
   callRpc<TOutput>(args: PluginRpcArgs<TOutput>): Promise<TOutput>;
-  checkUpdates(
-    args?: PluginCheckUpdatesArgs,
-  ): Promise<PluginCheckUpdatesResult>;
-  catalog: PluginCatalogArea;
-  marketplaces: PluginMarketplacesArea;
   disable(args: PluginIdArgs): Promise<PluginDisableResult>;
   enable(args: PluginIdArgs): Promise<PluginEnableResult>;
   getSettings(args: PluginGetSettingsArgs): Promise<PluginGetSettingsResult>;
-  getSource(args: PluginGetSourceArgs): Promise<PluginGetSourceResult>;
-  install(args: PluginInstallArgs): Promise<PluginInstallResult>;
   list(args?: PluginListArgs): Promise<PluginListResult>;
-  listUpdateResults(
-    args?: PluginListUpdateResultsArgs,
-  ): Promise<PluginCheckUpdatesResult>;
-  reload(args?: PluginReloadArgs): Promise<PluginReloadResult>;
-  remove(args: PluginIdArgs): Promise<PluginRemoveResult>;
   token(args: PluginTokenArgs): Promise<PluginTokenResult>;
   updateSettings(
     args: PluginSettingsUpdateArgs,
   ): Promise<PluginUpdateSettingsResult>;
-}
-
-function pluginSourceSelection(
-  args: PluginInstallArgs,
-): PluginSourceSelection | undefined {
-  if (args.subdirectory !== undefined) {
-    return { kind: "subdirectory", path: args.subdirectory };
-  }
-  if (args.plugin !== undefined) return { kind: "entry", name: args.plugin };
-  return undefined;
 }
 
 function pluginPath(pluginId: string, suffix = ""): string {
@@ -310,101 +126,7 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
     };
   }
 
-  const catalog: PluginCatalogArea = {
-    async install(input) {
-      const body = pluginCatalogInstallRequestSchema.parse(input);
-      const response = await requestParsed(
-        "/api/v1/plugin-catalog/install",
-        pluginInstallResponseSchema,
-        jsonInit("POST", body),
-      );
-      return response.plugin;
-    },
-    async installPlan(input) {
-      const body = pluginCatalogInstallRequestSchema.parse(
-        input.marketplace === undefined
-          ? { entryId: input.entryId }
-          : { entryId: input.entryId, marketplace: input.marketplace },
-      );
-      const query = new URLSearchParams({ entryId: body.entryId });
-      if (body.marketplace !== undefined) {
-        query.set("marketplace", body.marketplace);
-      }
-      const response = await requestParsed(
-        `/api/v1/plugin-catalog/install-plan?${query.toString()}`,
-        pluginCatalogInstallPlanResponseSchema,
-        { signal: input.signal },
-      );
-      return response.plan;
-    },
-    async search(input) {
-      const query = z.string().parse(input.query);
-      const response = await requestParsed(
-        `/api/v1/plugin-catalog/search?q=${encodeURIComponent(query)}`,
-        pluginCatalogSearchResponseCompatibilitySchema,
-        { signal: input.signal },
-      );
-      return response;
-    },
-    async status(input = {}) {
-      const response = await requestParsed(
-        "/api/v1/plugin-catalog",
-        pluginCatalogStatusResponseSchema,
-        { signal: input.signal },
-      );
-      return response.catalog;
-    },
-  };
-
-  const marketplaces: PluginMarketplacesArea = {
-    async add(input) {
-      const body = pluginMarketplaceAddRequestSchema.parse(input);
-      const response = await requestParsed(
-        "/api/v1/marketplaces",
-        pluginMarketplaceMutationResponseSchema,
-        jsonInit("POST", body),
-      );
-      return response.marketplace;
-    },
-    async list(input = {}) {
-      const response = await requestParsed(
-        "/api/v1/marketplaces",
-        pluginMarketplaceListResponseSchema,
-        { signal: input.signal },
-      );
-      return response.marketplaces;
-    },
-    async refresh(input = {}) {
-      const body = pluginMarketplaceRefreshRequestSchema.parse(
-        input.name === undefined ? {} : { name: input.name },
-      );
-      const response = await requestParsed(
-        "/api/v1/marketplaces/refresh",
-        pluginMarketplaceRefreshResponseSchema,
-        { ...jsonInit("POST", body), signal: input.signal },
-      );
-      return response.results;
-    },
-    async remove(input) {
-      const name = pluginMarketplaceNameSchema.parse(input.name);
-      const response = await requestParsed(
-        `/api/v1/marketplaces/${encodeURIComponent(name)}`,
-        pluginMarketplaceRemoveResponseSchema,
-        { method: "DELETE" },
-      );
-      return { convertedPluginIds: response.convertedPluginIds };
-    },
-  };
-
   return {
-    async applyUpdate(input) {
-      const body = pluginApplyUpdateRequestSchema.parse({});
-      return requestParsed(
-        pluginPath(input.pluginId, "/update"),
-        pluginApplyUpdateResultSchema,
-        jsonInit("POST", body),
-      );
-    },
     async experimental_discoverRpc(input = {}) {
       const query = pluginRpcDiscoveryQuerySchema.parse(input);
       const params = new URLSearchParams();
@@ -423,36 +145,6 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
       );
       return input.outputSchema.parse(envelope.result);
     },
-    async checkUpdates(input = {}) {
-      const body = pluginUpdateCheckRequestSchema.parse(
-        input.pluginId === undefined ? {} : { id: input.pluginId },
-      );
-      const response = await requestParsed(
-        "/api/v1/plugins/updates/check",
-        pluginUpdateCheckResponseSchema,
-        { ...jsonInit("POST", body), signal: input.signal },
-      );
-      return response.results;
-    },
-    async experimental_getSafeMode(input = {}) {
-      return requestParsed(
-        "/api/v1/plugins/safe-mode",
-        pluginSafeModeResponseSchema,
-        { signal: input.signal },
-      );
-    },
-    async experimental_setSafeMode(input) {
-      const body = pluginSafeModeRequestSchema.parse({
-        enabled: input.enabled,
-      });
-      return requestParsed(
-        "/api/v1/plugins/safe-mode",
-        pluginSafeModeUpdateResponseSchema,
-        jsonInit("PUT", body),
-      );
-    },
-    catalog,
-    marketplaces,
     async disable(input) {
       const response = await requestParsed(
         pluginPath(input.pluginId, "/disable"),
@@ -476,61 +168,10 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
         { signal: input.signal },
       );
     },
-    async getSource(input) {
-      return requestParsed(
-        pluginPath(input.pluginId, "/source"),
-        pluginSourceDetailSchema,
-        { signal: input.signal },
-      );
-    },
-    async install(input) {
-      if (input.subdirectory !== undefined && input.plugin !== undefined) {
-        throw new Error(
-          "plugin install accepts subdirectory or plugin, not both",
-        );
-      }
-      const selection = pluginSourceSelection(input);
-      const body =
-        selection === undefined
-          ? { source: input.source }
-          : { source: input.source, selection };
-      pluginInstallRequestSchema.parse(body);
-      const response = await requestParsed(
-        "/api/v1/plugins/install",
-        pluginInstallResponseSchema,
-        jsonInit("POST", body),
-      );
-      return response.plugin;
-    },
     async list(input = {}) {
       return requestParsed("/api/v1/plugins", pluginListResponseSchema, {
         signal: input.signal,
       });
-    },
-    async listUpdateResults(input = {}) {
-      const response = await requestParsed(
-        "/api/v1/plugins/updates",
-        pluginUpdateCheckResponseSchema,
-        { signal: input.signal },
-      );
-      return response.results;
-    },
-    async reload(input = {}) {
-      const query = input.pluginId
-        ? `?id=${encodeURIComponent(z.string().min(1).parse(input.pluginId))}`
-        : "";
-      return requestParsed(
-        `/api/v1/plugins/reload${query}`,
-        pluginReloadResponseSchema,
-        jsonInit("POST", {}),
-      );
-    },
-    async remove(input) {
-      return requestParsed(
-        pluginPath(input.pluginId),
-        pluginRemoveResponseSchema,
-        { method: "DELETE" },
-      );
     },
     async token(input) {
       const body = pluginTokenRequestSchema.parse({

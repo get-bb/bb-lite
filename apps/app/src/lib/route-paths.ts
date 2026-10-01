@@ -1,14 +1,7 @@
 import { matchPath } from "react-router-dom";
 import {
-  PLUGIN_DETAIL_ROUTE_PATH,
-  PLUGINS_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,
-  REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  REGISTRY_SKILLS_ROUTE_PATH,
   ROUTE_PATTERNS,
-  SKILL_DETAIL_ROUTE_PATH,
-  SKILLS_ROUTE_PATH,
-  TOOLS_ROUTE_PATH,
   stripRoutePathSuffix,
 } from "@bb/client-core";
 
@@ -21,23 +14,6 @@ export {
   SETTINGS_PLUGIN_ROUTE_PATH,
   SETTINGS_MACHINE_ROUTE_PATH,
   SETTINGS_PROJECT_ROUTE_PATH,
-  PLUGINS_ROUTE_PATH,
-  PLUGIN_DETAIL_ROUTE_PATH,
-  SKILLS_ROUTE_PATH,
-  SKILL_DETAIL_ROUTE_PATH,
-  REGISTRY_SKILLS_ROUTE_PATH,
-  REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_ROUTE_PATH,
-  TOOLS_SKILLS_ROUTE_PATH,
-  TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILLS_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_PLUGINS_ROUTE_PATH,
-  TOOLS_PLUGIN_BROWSE_ROUTE_PATH,
-  TOOLS_PLUGIN_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_PREFIX_ROUTE_PATH,
-  LEGACY_TOOLS_SPLAT_ROUTE_PATH,
   LEGACY_TOOLS_AUTOMATIONS_ROUTE_PATH,
   LEGACY_TOOLS_AUTOMATION_BROWSE_ROUTE_PATH,
   LEGACY_TOOLS_AUTOMATION_DETAIL_ROUTE_PATH,
@@ -61,12 +37,6 @@ export {
   getSettingsRoutePath,
   getSettingsMachineRoutePath,
   getSettingsProjectRoutePath,
-  getSkillsRoutePath,
-  getRegistrySkillsRoutePath,
-  getSkillDetailRoutePath,
-  getRegistrySkillDetailRoutePath,
-  getPluginsRoutePath,
-  getPluginDetailRoutePath,
   getPluginConfigurationRoutePath,
   getAutomationsRoutePath,
   getAutomationDetailRoutePath,
@@ -91,31 +61,6 @@ interface ResolveRouteHrefArgs {
 
 interface RouteHrefResolution {
   path: string;
-}
-
-export function isToolsRoutePath(pathname: string): boolean {
-  return (
-    isPluginsRoutePath(pathname) ||
-    isSkillsRoutePath(pathname) ||
-    pathname === TOOLS_ROUTE_PATH ||
-    matchPath(`${TOOLS_ROUTE_PATH}/*`, pathname) !== null
-  );
-}
-
-export function isPluginsRoutePath(pathname: string): boolean {
-  return (
-    matchPath(PLUGINS_ROUTE_PATH, pathname) !== null ||
-    matchPath(PLUGIN_DETAIL_ROUTE_PATH, pathname) !== null
-  );
-}
-
-export function isSkillsRoutePath(pathname: string): boolean {
-  return (
-    matchPath(SKILLS_ROUTE_PATH, pathname) !== null ||
-    matchPath(REGISTRY_SKILLS_ROUTE_PATH, pathname) !== null ||
-    matchPath(SKILL_DETAIL_ROUTE_PATH, pathname) !== null ||
-    matchPath(REGISTRY_SKILL_DETAIL_ROUTE_PATH, pathname) !== null
-  );
 }
 
 const ABSOLUTE_HTTP_URL_PATTERN = /^https?:\/\//iu;

@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -37,7 +36,6 @@ import {
   isCompactSidebarDrawerShowing,
   subscribeCompactSidebarDrawerShowing,
 } from "@/components/ui/sidebar-mobile-drawer-visibility";
-import { PluginDetailPanelContext } from "@/components/plugin/plugin-detail-navigation";
 import {
   SecondaryPanelMinimumContext,
   useSecondaryPanelSizing,
@@ -47,7 +45,7 @@ const FULL_PANEL_SIZE_PERCENT = 100;
 
 function noopToggleMainCollapse(): void {}
 
-export interface SecondaryPanelRenderArgs {
+interface SecondaryPanelRenderArgs {
   presentation: "inline" | "drawer";
   canShowNativeBrowserView: boolean;
   isMainCollapsed: boolean;
@@ -89,21 +87,12 @@ export function SecondaryPanelLayout({
   mainHeader,
   main,
   collapse,
-  renderPanel: renderWorkspacePanel,
+  renderPanel,
   renderHostedPanel,
   composerHost,
 }: SecondaryPanelLayoutProps) {
   const { ref: sizingRef, minimum: minimumSize } = useSecondaryPanelSizing();
   const paneContext = useOptionalPaneContext();
-  const pluginDetails = useContext(PluginDetailPanelContext);
-  const renderPanel = useCallback(
-    (args: SecondaryPanelRenderArgs) => (
-      <PluginDetailPanelContext.Provider value={pluginDetails}>
-        {renderWorkspacePanel(args)}
-      </PluginDetailPanelContext.Provider>
-    ),
-    [pluginDetails, renderWorkspacePanel],
-  );
   const secondaryPanelHost = paneContext?.secondaryPanelHost ?? null;
   const renderAsDrawer = useIsCompactViewport();
   const sidebarDrawerShowing = useSyncExternalStore(

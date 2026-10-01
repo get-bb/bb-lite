@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
 import {
-  matchPath,
   Navigate,
   Route,
   Routes,
@@ -31,32 +30,15 @@ import {
   LEGACY_TOOLS_AUTOMATION_DETAIL_ROUTE_PATH,
   LEGACY_TOOLS_AUTOMATION_EDIT_ROUTE_PATH,
   LEGACY_TOOLS_AUTOMATIONS_ROUTE_PATH,
-  LEGACY_TOOLS_PREFIX_ROUTE_PATH,
-  LEGACY_TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_SPLAT_ROUTE_PATH,
   PROJECT_ARCHIVED_ROUTE_PATH,
   PROJECTLESS_ARCHIVED_ROUTE_PATH,
   LEGACY_PROJECT_SETTINGS_ROUTE_PATH,
-  PLUGIN_DETAIL_ROUTE_PATH,
-  PLUGINS_ROUTE_PATH,
-  REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  REGISTRY_SKILLS_ROUTE_PATH,
   SETTINGS_PLUGIN_ROUTE_PATH,
   SETTINGS_PLUGINS_ROUTE_PATH,
   SETTINGS_MACHINE_ROUTE_PATH,
   SETTINGS_PROJECT_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,
-  SKILL_DETAIL_ROUTE_PATH,
-  SKILLS_ROUTE_PATH,
-  TOOLS_PLUGIN_BROWSE_ROUTE_PATH,
-  TOOLS_PLUGIN_DETAIL_ROUTE_PATH,
-  TOOLS_PLUGINS_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_REGISTRY_SKILLS_ROUTE_PATH,
-  TOOLS_ROUTE_PATH,
-  TOOLS_SKILL_DETAIL_ROUTE_PATH,
-  TOOLS_SKILLS_ROUTE_PATH,
   getAutomationDetailRoutePath,
   getAutomationEditRoutePath,
   getAutomationsRoutePath,
@@ -75,16 +57,6 @@ import { RouteLoadingSkeleton } from "./components/ui/route-loading-skeleton";
 const SettingsView = lazy(() =>
   import("./views/SettingsView").then((m) => ({
     default: m.SettingsView,
-  })),
-);
-const PluginsView = lazy(() =>
-  import("./views/ToolsView").then((m) => ({
-    default: m.PluginsView,
-  })),
-);
-const SkillsView = lazy(() =>
-  import("./views/ToolsView").then((m) => ({
-    default: m.SkillsView,
   })),
 );
 const ProjectDetailSettingsView = lazy(() =>
@@ -161,55 +133,6 @@ function LegacyAutomationCollectionRedirect() {
       replace
     />
   );
-}
-
-function normalizeLegacyPluginSuffix(suffix: string): string {
-  return matchPath("/browse", suffix) !== null ? "" : suffix;
-}
-
-export function LegacyPluginsPathRedirect() {
-  const location = useLocation();
-  const suffix = normalizeLegacyPluginSuffix(
-    location.pathname.slice(TOOLS_PLUGINS_ROUTE_PATH.length),
-  );
-  return (
-    <NavigatePreservingLocation pathname={`${PLUGINS_ROUTE_PATH}${suffix}`} />
-  );
-}
-
-function normalizeLegacySkillSuffix(suffix: string): string {
-  if (suffix === "/installed") return "/library";
-  if (suffix.startsWith("/installed/")) {
-    return `/library/${suffix.slice("/installed/".length)}`;
-  }
-  return suffix;
-}
-
-export function LegacySkillsPathRedirect() {
-  const location = useLocation();
-  const suffix = normalizeLegacySkillSuffix(
-    location.pathname.slice(TOOLS_SKILLS_ROUTE_PATH.length),
-  );
-  return (
-    <NavigatePreservingLocation pathname={`${SKILLS_ROUTE_PATH}${suffix}`} />
-  );
-}
-
-export function LegacyToolsPathRedirect() {
-  const location = useLocation();
-  const suffix = location.pathname.slice(LEGACY_TOOLS_PREFIX_ROUTE_PATH.length);
-  const pathname = suffix.startsWith("/plugins")
-    ? `${PLUGINS_ROUTE_PATH}${normalizeLegacyPluginSuffix(
-        suffix.slice("/plugins".length),
-      )}`
-    : suffix.startsWith("/skills")
-      ? `${SKILLS_ROUTE_PATH}${normalizeLegacySkillSuffix(
-          suffix.slice("/skills".length),
-        )}`
-      : suffix === "" || suffix === "/"
-        ? PLUGINS_ROUTE_PATH
-        : `${TOOLS_ROUTE_PATH}${suffix}`;
-  return <NavigatePreservingLocation pathname={pathname} />;
 }
 
 function hashTargetId(hash: string): string | null {
@@ -335,61 +258,6 @@ export function AppRoutes() {
             element={<LegacyAutomationDetailRedirect />}
           />
           <Route
-            path={TOOLS_ROUTE_PATH}
-            element={
-              <NavigatePreservingLocation pathname={PLUGINS_ROUTE_PATH} />
-            }
-          />
-          <Route
-            path={TOOLS_PLUGINS_ROUTE_PATH}
-            element={<LegacyPluginsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_PLUGIN_BROWSE_ROUTE_PATH}
-            element={<LegacyPluginsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_PLUGIN_DETAIL_ROUTE_PATH}
-            element={<LegacyPluginsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_SKILLS_ROUTE_PATH}
-            element={<LegacySkillsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_SKILL_DETAIL_ROUTE_PATH}
-            element={<LegacySkillsPathRedirect />}
-          />
-          <Route
-            path={LEGACY_TOOLS_SKILL_DETAIL_ROUTE_PATH}
-            element={<LegacySkillsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_REGISTRY_SKILLS_ROUTE_PATH}
-            element={<LegacySkillsPathRedirect />}
-          />
-          <Route
-            path={TOOLS_REGISTRY_SKILL_DETAIL_ROUTE_PATH}
-            element={<LegacySkillsPathRedirect />}
-          />
-          <Route
-            path={LEGACY_TOOLS_PREFIX_ROUTE_PATH}
-            element={<LegacyToolsPathRedirect />}
-          />
-          <Route
-            path={LEGACY_TOOLS_SPLAT_ROUTE_PATH}
-            element={<LegacyToolsPathRedirect />}
-          />
-          <Route path={SKILLS_ROUTE_PATH} element={<SkillsView />} />
-          <Route path={SKILL_DETAIL_ROUTE_PATH} element={<SkillsView />} />
-          <Route path={REGISTRY_SKILLS_ROUTE_PATH} element={<SkillsView />} />
-          <Route
-            path={REGISTRY_SKILL_DETAIL_ROUTE_PATH}
-            element={<SkillsView />}
-          />
-          <Route path={PLUGINS_ROUTE_PATH} element={<PluginsRoute />} />
-          <Route path={PLUGIN_DETAIL_ROUTE_PATH} element={<PluginsRoute />} />
-          <Route
             path="*"
             element={
               <Suspense
@@ -411,11 +279,6 @@ function RouteContentPaintSignal() {
     markRouteContentPainted();
   }, []);
   return null;
-}
-
-function PluginsRoute() {
-  const { pluginId } = useParams<{ pluginId?: string }>();
-  return <PluginsView pluginId={pluginId} />;
 }
 
 export function App() {

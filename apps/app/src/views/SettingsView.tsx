@@ -2,12 +2,7 @@ import { MobileAppSection } from "@/components/settings/MobileAppSection";
 import { MachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import { MachineAccessSettings } from "@/components/settings/MachineAccessSettings";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  Navigate,
-  useNavigate,
-  useLocation,
-  matchPath,
-} from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import "@bb/shared-ui/icon-extended";
 import {
   builtInThemes,
@@ -59,9 +54,7 @@ import { SidebarNavigationSetting } from "@/components/settings/SidebarNavigatio
 import { SidebarHeaderSetting } from "@/components/settings/SidebarHeaderSetting";
 import { SplitDimmingSetting } from "@/components/settings/SplitDimmingSetting";
 import { useSettingsNavState } from "@/components/settings/settings-nav";
-import { PluginsOverview } from "@/components/plugin/PluginsOverview";
-import { PluginDetailPaneView } from "@/views/ToolsView";
-import { SETTINGS_PLUGIN_ROUTE_PATH } from "@/lib/route-paths";
+import { InstalledPluginsSettingsSection } from "@/components/settings/InstalledPluginsSettingsSection";
 import { PluginSettingsPage } from "@/components/plugin/PluginSettings";
 import { FileOpenersSettingsSection } from "@/components/settings/FileOpenersSettingsSection";
 import { VoiceInputSettingsSection } from "@/components/settings/VoiceInputSettingsSection";
@@ -72,8 +65,6 @@ import { BrowserSettingsSection } from "@/components/settings/BrowserSettingsSec
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
 import { ProjectsSettingsSection } from "@/components/settings/ProjectsSettingsSection";
 import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
-import { CliSkillsSettingsSection } from "@/components/settings/CliSkillsSettingsSection";
-import { MarketplacesSettingsSection } from "@/components/settings/MarketplacesSettingsSection";
 import {
   useUpdateGeneralSettings,
   useUpdateAppearance,
@@ -1144,32 +1135,17 @@ export function SettingsView() {
   const appearance = systemConfigQuery.data?.appearance ?? defaultAppTheme;
   const updateAppearanceMutation = useUpdateAppearance();
   const appThemePreview = useAppThemePreview();
-  const location = useLocation();
   const { activePluginId, activeSection, hasUnknownSection } =
     useSettingsNavState();
   if (hasUnknownSection) {
     return <Navigate to={SETTINGS_ROUTE_PATH} replace />;
   }
 
-  if (activeSection === "plugins") {
-    const pluginId = matchPath(SETTINGS_PLUGIN_ROUTE_PATH, location.pathname)
-      ?.params.pluginId;
-    return (
-      <div className="-mx-4 -mt-4 flex min-h-0 flex-1 flex-col overflow-hidden md:-mx-5 md:-mt-5">
-        {pluginId ? (
-          <PluginDetailPaneView pluginId={pluginId} />
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col pt-4 md:pt-5">
-            <PluginsOverview mode="installed" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
   let content: ReactNode = null;
   if (activePluginId !== null) {
     content = <PluginSettingsPage pluginId={activePluginId} />;
+  } else if (activeSection === "plugins") {
+    content = <InstalledPluginsSettingsSection />;
   } else if (activeSection === "providers") {
     content = (
       <ProvidersSettingsSection
@@ -1271,8 +1247,6 @@ export function SettingsView() {
         }
       />
     );
-  } else if (activeSection === "marketplaces") {
-    content = <MarketplacesSettingsSection />;
   } else if (activeSection === "community") {
     content = <CommunitySettingsSection />;
   } else if (activeSection === "archived") {
@@ -1316,7 +1290,6 @@ export function SettingsView() {
             })
           }
         />
-        <CliSkillsSettingsSection />
         <VoiceInputSettingsSection />
         <PrivacySettingsSection
           telemetryEnabled={generalSettings.telemetryEnabled}
