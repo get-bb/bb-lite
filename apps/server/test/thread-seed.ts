@@ -117,23 +117,29 @@ export function agentTurn(
   reply: string,
   status: "completed" | "open" = "completed",
 ): SeedEvent[] {
-  const providerThreadId = "provider-thread";
-  const item = { type: "agentMessage", id: `${turnId}-i1`, text: reply };
   const turn = (type: string, data: SeedEvent["data"] = {}): SeedEvent => ({
     type,
     turnId,
-    data: { providerThreadId, ...data },
+    data: { providerThreadId: "provider-thread", ...data },
   });
-  return [
+  const message = { type: "agentMessage", id: `${turnId}-i1`, text: reply };
+  const command = {
+    type: "commandExecution",
+    id: `${turnId}-i0`,
+    command: "ls",
+    cwd: "/work/demo",
+    approvalStatus: null,
+  };
+  const output = { status: "completed", aggregatedOutput: "a.txt\n" };
+  const open = [
     turn("turn/started"),
     turn("turn/input/accepted", { clientRequestId: requestId }),
-    turn("item/started", { item: { ...item, text: "" } }),
-    turn("item/agentMessage/delta", { itemId: item.id, delta: reply }),
-    ...(status === "open"
-      ? []
-      : [
-          turn("item/completed", { item }),
-          turn("turn/completed", { status: "completed" }),
-        ]),
+    turn("item/started", { item: { ...command, status: "pending" } }),
+    turn("item/completed", { item: { ...command, ...output, exitCode: 0 } }),
+    turn("item/started", { item: { ...message, text: "" } }),
+    turn("item/agentMessage/delta", { itemId: message.id, delta: reply }),
   ];
+  if (status === "open") return open;
+  const completed = turn("turn/completed", { status: "completed" });
+  return [...open, turn("item/completed", { item: message }), completed];
 }

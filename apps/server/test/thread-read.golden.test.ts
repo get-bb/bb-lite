@@ -63,16 +63,6 @@ function differences(mine: Json, theirs: Json, path = "$"): string[] {
     .slice(0, DIFFERENCE_LIMIT);
 }
 
-function countRows(rows: Json): number {
-  if (!Array.isArray(rows)) return 0;
-  return rows.reduce<number>((count, row) => {
-    const inner = isObject(row)
-      ? (row.children ?? row.childRows ?? null)
-      : null;
-    return count + 1 + countRows(inner);
-  }, 0);
-}
-
 function asIngested(events: ThreadFixture["events"]): ThreadFixture["events"] {
   const completed = new Set(
     events.flatMap((event) =>
@@ -197,32 +187,26 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
       return requested.length === 0 ? body : requested;
     };
     const mismatches: string[] = [];
-    const compare = async (file: string, path: string): Promise<Json> => {
+    const perThread = threadIds.flatMap((threadId) =>
+      PER_THREAD_GOLDENS.map(([suffix, path]) => ({
+        file: `${threadId}.${suffix}.json`,
+        path: `/threads/${threadId}${path}`,
+      })),
+    );
+    const extraManifest = join(goldenDir, "extra.json");
+    const extras = existsSync(extraManifest)
+      ? readJson<typeof SHARED_GOLDENS>(extraManifest)
+      : [];
+    const recorded = [...perThread, ...SHARED_GOLDENS, ...extras];
+    for (const { file, path } of recorded) {
       const response = await fetch(`${server.url}/api/v1${path}`);
       const served = response.status === 204 ? null : await response.json();
       const mine = requestedRowOnly(path, served as Json);
       const original = withoutRetainedOutputPreviews(golden(file));
       const found = differences(mine, requestedRowOnly(path, original));
       mismatches.push(...found.map((difference) => `${path} ${difference}`));
-      return served as Json;
-    };
-    for (const threadId of threadIds) {
-      const counts: number[] = [];
-      for (const [suffix, path] of PER_THREAD_GOLDENS) {
-        const file = `${threadId}.${suffix}.json`;
-        const body = await compare(file, `/threads/${threadId}${path}`);
-        if (isObject(body) && "rows" in body) counts.push(countRows(body.rows));
-      }
-      console.log(`${threadId}: ${counts.join(" rows, ")} rows with nesting`);
     }
-    const extraManifest = join(goldenDir, "extra.json");
-    const extras = existsSync(extraManifest)
-      ? readJson<typeof SHARED_GOLDENS>(extraManifest)
-      : [];
-    for (const { file, path } of [...SHARED_GOLDENS, ...extras]) {
-      await compare(file, path);
-    }
-    console.log(`${extras.length} further recorded responses compared`);
+    console.log(`${recorded.length} recorded responses compared`);
     expect(mismatches).toEqual([]);
   }, 300_000);
 });
