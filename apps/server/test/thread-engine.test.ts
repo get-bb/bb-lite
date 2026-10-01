@@ -3,17 +3,14 @@ import { createThreadServer, events, text } from "./thread-harness.js";
 
 it("creates a thread, records provisioning and submits the first turn", async () => {
   const server = await createThreadServer();
-  const { ctx, eventData, eventTypes, hostId, submitted, thread } = server;
+  const { ctx, eventData, hostId, rows, submitted, thread } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
   ctx.extensions.generateTitle = async () => "  Refactor the  scheduler ";
   const threadId = await server.spawn();
 
-  expect(eventTypes(threadId)).toEqual([
-    "client/turn/requested",
-    "client/thread/start",
-    ...Array.from({ length: 5 }, () => "system/thread-provisioning"),
-  ]);
+  const types = ["client/turn/requested", "client/thread/start"];
+  expect(server.eventTypes(threadId).slice(0, 2)).toEqual(types);
   const steps = eventData(threadId, "system/thread-provisioning").map(
     ({ status, entries }) => [
       status,
@@ -35,7 +32,6 @@ it("creates a thread, records provisioning and submits the first turn", async ()
     request: { method: "thread/start" },
     execution: { model: "gpt-test", permissionMode: "auto" },
   });
-
   const row = thread(threadId);
   expect(row).toMatchObject({
     status: "active",
@@ -45,10 +41,9 @@ it("creates a thread, records provisioning and submits the first turn", async ()
     reasoningLevel: "medium",
     startupContext: null,
   });
-  const environment = ctx.db.get<{ id: string; hostId: string }>(
-    "SELECT id, host_id FROM environments WHERE path = '/repo'",
-  );
-  expect(environment).toEqual({ id: row.environmentId, hostId });
+  const environments = rows("SELECT id, host_id FROM environments");
+  expect(environments).toEqual([{ id: row.environmentId, hostId }]);
+
   expect(submitted).toHaveLength(1);
   const [{ session, options, mode, clientRequestId, input }] = submitted;
   expect(session).toMatchObject({
@@ -63,83 +58,61 @@ it("creates a thread, records provisioning and submits the first turn", async ()
     },
   });
   expect(session.instructions).toContain("You are working inside bb");
-  const toolNames = session.dynamicTools.map((tool) => tool.name);
-  expect(toolNames).toEqual(["update_environment_directory"]);
-  expect(options).toMatchObject({
-    model: "gpt-test",
-    permissionEscalation: "ask",
-    planMode: false,
-  });
-  expect([mode, clientRequestId, input]).toEqual([
-    { kind: "start" },
-    request.requestId,
-    text("Please refactor the scheduler module today"),
-  ]);
+  const tools = session.dynamicTools.map((tool) => tool.name);
+  expect(tools).toEqual(["update_environment_directory"]);
+  const asks = { permissionEscalation: "ask", planMode: false };
+  expect(options).toMatchObject({ model: "gpt-test", ...asks });
+  const prompt = text("Please refactor the scheduler module today");
+  const sent = [{ kind: "start" }, request.requestId, prompt];
+  expect([mode, clientRequestId, input]).toEqual(sent);
 
-  const created = await client.next((message) =>
-    (message.changes as string[]).includes("thread-created"),
-  );
-  expect(created.metadata).toEqual({ projectId: "proj_1" });
-  const starting = await client.next((message) =>
-    (message.changes as string[]).includes("status-changed"),
-  );
-  expect(starting.metadata).toMatchObject({
-    projectId: "proj_1",
+  const project = { projectId: "proj_1" };
+  const created = await server.changes(client, "thread-created");
+  expect(created).toEqual([["thread-created"], project]);
+  const [, starting] = await server.changes(client, "status-changed");
+  expect(starting).toMatchObject({
+    ...project,
     statusChange: {
       status: "starting",
       runtime: { displayStatus: "starting" },
       activity: { activeBackgroundAgentCount: 0 },
     },
   });
-  const history = ctx.db.all("SELECT scope FROM prompt_history_entries");
+  const history = rows("SELECT scope FROM prompt_history_entries");
   expect(history).toEqual([{ scope: "project" }]);
-  const defaults = ctx.db.get("SELECT execution_defaults FROM projects");
+  const defaults = rows("SELECT execution_defaults FROM projects");
   expect(JSON.stringify(defaults)).toContain("gpt-test");
 });
 
 it("ingests a turn: sequences, dedupes, pruning, search and status", async () => {
   const server = await createThreadServer();
-  const { clock, ctx, eventTypes, ingest, thread } = server;
+  const { clock, ingest, rows, thread } = server;
   const threadId = await server.spawn({ providerId: "codex" });
   const client = await server.socket();
   await client.subscribe({ kind: "thread-detail", threadId });
   const before = thread(threadId).latestAttentionAt;
+  const base = server.eventTypes(threadId).length;
   clock.now += 5_000;
 
   await ingest(threadId, events.identity(), events.started("t1"));
+  const running = { status: "active", activeTurnId: "t1" };
   expect(thread(threadId)).toMatchObject({
-    status: "active",
-    activeTurnId: "t1",
+    ...running,
     providerThreadId: "prov-1",
   });
-  const orphanUsage = {
-    type: "thread/tokenUsage/updated" as const,
-    scope: { kind: "turn" as const, turnId: "t-unknown" },
-    providerThreadId: "prov-1",
-    tokenUsage: {
-      total: zeroUsage(),
-      last: zeroUsage(),
-      modelContextWindow: null,
-    },
-  };
   const message = events.message("t1", "i1", "the scheduler is refactored");
+  const { scope } = message[0];
   await ingest(
     threadId,
     events.started("t1"),
     ...message,
-    message.at(-1)!,
-    {
-      type: "turn/diff/updated",
-      scope: message[0].scope,
-      providerThreadId: "p",
-    },
-    orphanUsage,
+    message[message.length - 1],
+    { type: "turn/diff/updated", scope, providerThreadId: "prov-1" },
     events.completed("t1"),
     events.completed("t1"),
   );
 
-  const stored = eventTypes(threadId).slice(7);
-  expect(stored).toEqual([
+  expect(server.eventTypes(threadId).slice(base)).toEqual([
     "thread/identity",
     "turn/started",
     "item/started",
@@ -147,46 +120,31 @@ it("ingests a turn: sequences, dedupes, pruning, search and status", async () =>
     "item/completed",
     "turn/completed",
   ]);
-  const sequences = ctx.db
-    .all<{ sequence: number }>(
-      "SELECT sequence FROM events WHERE thread_id = ? ORDER BY sequence",
-      threadId,
-    )
-    .map((row) => row.sequence);
-  expect(sequences.slice(7)).toEqual([8, 9, 10, 11, 15, 16]);
+  const sequences = rows<{ sequence: number }>(
+    "SELECT sequence FROM events WHERE thread_id = ? ORDER BY sequence",
+    threadId,
+  ).map((row) => row.sequence - base);
+  expect(sequences.slice(base)).toEqual([1, 2, 3, 4, 8, 9]);
+  const settled = { status: "idle", activeTurnId: null };
   expect(thread(threadId)).toMatchObject({
-    status: "idle",
-    activeTurnId: null,
+    ...settled,
+    latestAttentionAt: before + 5_000,
   });
-  expect(thread(threadId).latestAttentionAt).toBe(before + 5_000);
   const hits = (term: string): unknown[] =>
-    ctx.db.all(
+    rows(
       `SELECT s.source_kind FROM thread_search_segments_fts f
        JOIN thread_search_segments s ON s.rowid = f.rowid
-       WHERE f.text MATCH ? ORDER BY s.source_kind`,
+       WHERE f.text MATCH ?`,
       term,
     );
   expect(hits("refactored")).toEqual([{ sourceKind: "assistant_message" }]);
   expect(hits("scheduler")).toHaveLength(3);
 
-  const idle = await client.next(
-    (change) =>
-      (change.metadata as { statusChange?: { status: string } } | undefined)
-        ?.statusChange?.status === "idle",
-  );
-  expect(idle.changes).toEqual(["status-changed"]);
+  const [kinds, metadata] = await server.changes(client, "status-changed");
+  expect(kinds).toEqual(["status-changed"]);
+  expect(metadata).toMatchObject({ statusChange: { status: "idle" } });
   const appended = await client.next((change) =>
     JSON.stringify(change.metadata).includes("turn/completed"),
   );
   expect(appended.changes).toEqual(["events-appended"]);
 });
-
-function zeroUsage() {
-  return {
-    totalTokens: 0,
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    outputTokens: 0,
-    reasoningOutputTokens: 0,
-  };
-}

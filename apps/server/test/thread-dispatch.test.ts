@@ -1,48 +1,6 @@
 import type { PendingInteractionPayload } from "@bb/domain";
 import { expect, it } from "vitest";
-import type { ThreadEnvironment } from "../src/environments/types.js";
-import {
-  createThreadServer,
-  events,
-  FIRST_MESSAGE,
-  text,
-} from "./thread-harness.js";
-
-type Server = Awaited<ReturnType<typeof createThreadServer>>;
-type SendMode =
-  | "start"
-  | "steer"
-  | "steer-if-active"
-  | "queue-if-active"
-  | "auto";
-
-function sender(server: Server, id: string) {
-  return async (mode: SendMode, message: string, sendAt?: number) => {
-    const json = { input: text(message), mode, sendAt };
-    const response = await server.api.threads[":id"].send.$post({
-      param: { id },
-      json,
-    });
-    await server.settle();
-    const body = (await response.json()) as {
-      delivery?: string;
-      code?: string;
-      details?: { reason: string };
-      queuedMessage?: { waitingOn: { kind: string; hostName?: string } };
-    };
-    return [
-      response.status,
-      body.delivery ?? body.details?.reason ?? body.code,
-      body.queuedMessage?.waitingOn,
-    ].filter((part) => part !== undefined);
-  };
-}
-
-function lastInput(server: Server): unknown[] {
-  const { input, mode } = server.submitted.at(-1)!;
-  const [part] = input;
-  return [part.type === "text" ? part.text : part.type, mode.kind];
-}
+import { createThreadServer, events, text } from "./thread-harness.js";
 
 const question: PendingInteractionPayload = {
   kind: "user_question",
@@ -51,190 +9,130 @@ const question: PendingInteractionPayload = {
   ],
 };
 
-function deferredEnvironment(server: Server) {
-  let ready = (_environment: ThreadEnvironment): void => {};
-  const { ensureForThread } = server.ctx.environments;
-  server.ctx.environments.ensureForThread = (args) =>
-    new Promise((resolve, reject) => {
-      ready = () => void ensureForThread(args).then(resolve, reject);
-    });
-  return () => ready({ environmentId: "", path: "" });
-}
-
 it("steers, queues and drains around a running turn", async () => {
   const server = await createThreadServer();
-  const { api, eventData, ingest, queued, submitted } = server;
+  const { eventData, http, ingest, lastSubmit, queued, submitted } = server;
   const id = await server.spawn();
-  const send = sender(server, id);
+  const send = (mode: string, message: string) =>
+    server.send(id, mode, message);
 
-  const starting = [200, "queued", { kind: "turn-starting" }];
+  const starting = [200, "queued", "turn-starting"];
   expect(await send("steer-if-active", "one")).toEqual(starting);
   await ingest(id, events.identity(), events.started("t1"));
-  expect([queued(id), lastInput(server)]).toEqual([[], ["one", "auto"]]);
+  expect([queued(id), lastSubmit()]).toEqual([[], ["one", "auto"]]);
 
   expect(await send("steer", "two")).toEqual([200, "sent"]);
   const steer = { kind: "steer", expectedTurnId: "t1" };
-  expect(submitted.at(-1)?.mode).toEqual(steer);
-  const busy = [200, "queued", { kind: "thread-busy" }];
+  expect(submitted[submitted.length - 1].mode).toEqual(steer);
+  const busy = [200, "queued", "thread-busy"];
   expect(await send("queue-if-active", "three")).toEqual(busy);
   expect(await send("start", "nope")).toEqual([409, "already_active"]);
-  const queuedMessages = api.threads[":id"]["queued-messages"];
-  const explicit = await queuedMessages.$post({
-    param: { id },
-    json: { input: text("four") },
-  });
-  expect(explicit.status).toBe(201);
-  expect(submitted).toHaveLength(3);
+  const explicit = { input: text("four") };
+  const added = await http("POST", `/threads/${id}/queued-messages`, explicit);
+  expect([added.status, submitted.length]).toEqual([201, 3]);
 
   await ingest(id, events.completed("t1"));
-  expect(lastInput(server)).toEqual(["three", "start"]);
+  expect(lastSubmit()).toEqual(["three", "start"]);
   expect(queued(id)).toEqual(["thread-busy"]);
   const targets = eventData(id, "client/turn/requested").map(
     (request) => (request.target as { kind: string }).kind,
   );
   expect(targets).toEqual(["thread-start", "auto", "steer", "new-turn"]);
   await ingest(id, events.started("t2"), events.completed("t2", "failed"));
-  expect([server.thread(id).status, queued(id)]).toEqual([
-    "error",
-    ["thread-busy"],
-  ]);
+  const failed = ["error", ["thread-busy"]];
+  expect([server.thread(id).status, queued(id)]).toEqual(failed);
 });
 
 it("holds messages on time, interactions, hosts and provisioning", async () => {
   const server = await createThreadServer();
-  const { clock, ctx, emit, hostId, ingest, queued, runner } = server;
+  const { clock, ctx, emit, ingest, lastSubmit, queued } = server;
   const id = await server.spawn();
-  const send = sender(server, id);
+  const send = (mode: string, message: string, at?: number) =>
+    server.send(id, mode, message, at);
   await server.runTurn(id, "t1");
 
   const at = clock.now + 60_000;
-  expect(await send("auto", "later", at)).toEqual([
-    200,
-    "queued",
-    { kind: "time" },
-  ]);
-  ctx.threads.sweep();
-  await server.settle();
+  expect(await send("auto", "later", at)).toEqual([200, "queued", "time"]);
+  await server.advance(1_000);
   expect(queued(id)).toEqual(["time"]);
-  clock.now = at;
-  ctx.threads.sweep();
-  await server.settle();
-  expect(lastInput(server)).toEqual(["later", "start"]);
+  await server.advance(59_000);
+  expect(lastSubmit()).toEqual(["later", "start"]);
 
   await ingest(id, events.started("t2"));
-  const request = { threadId: id, turnId: "t2", requestId: "req-1" };
-  const provider = { providerId: "codex" as const, providerThreadId: "prov-1" };
-  const kind = "interaction.requested";
-  await emit({ kind, ...request, ...provider, payload: question });
-  const waiting = [200, "queued", { kind: "interaction" }];
+  await server.interact(id, "req-1", question, "t2");
+  const waiting = [200, "queued", "interaction"];
   expect(await send("steer-if-active", "answer first")).toEqual(waiting);
-  const reason = "provider gave up";
-  await emit({ kind: "interaction.cancelled", ...request, reason });
-  expect(lastInput(server)).toEqual(["answer first", "auto"]);
+  const cancelled = { threadId: id, requestId: "req-1", reason: "gave up" };
+  await emit({ kind: "interaction.cancelled", ...cancelled });
+  expect(lastSubmit()).toEqual(["answer first", "auto"]);
   await ingest(id, events.completed("t2"));
 
-  ctx.runners.disconnect(hostId);
-  const offline = { kind: "host-offline", hostName: "local" };
-  expect(await send("auto", "when back")).toEqual([200, "queued", offline]);
-  ctx.runners.connect(hostId, (sink) => {
-    runner.emit = sink;
-    return runner.api;
-  });
-  await server.settle();
-  expect(lastInput(server)).toEqual(["when back", "start"]);
+  ctx.runners.disconnect(server.hostId);
+  const offline = [200, "queued", "host-offline"];
+  expect(await send("auto", "when back")).toEqual(offline);
+  await server.reconnect();
+  expect(lastSubmit()).toEqual(["when back", "start"]);
 
-  const release = deferredEnvironment(server);
-  const created = await server.api.threads.$post({
-    json: {
-      ...FIRST_MESSAGE,
-      projectId: "proj_1",
-      origin: "cli",
-      input: text("second thread"),
-      model: "gpt-test",
-      environment: { type: "project-default" },
-    },
-  });
-  const other = (await created.json()).id;
+  const release = server.deferEnvironment();
+  const other = await server.spawn({ origin: "cli" }, false);
   const followUp = { input: text("also this"), mode: "auto" as const };
   const held = await ctx.threads.send(other, followUp);
-  expect(held).toMatchObject({
-    queuedMessage: { waitingOn: { kind: "provisioning" } },
-  });
+  const provisioning = { waitingOn: { kind: "provisioning" } };
+  expect(held).toMatchObject({ queuedMessage: provisioning });
   release();
   await server.settle();
   expect(queued(other)).toEqual(["turn-starting"]);
   await ingest(other, events.started("o1"));
-  expect(lastInput(server)).toEqual(["also this", "auto"]);
+  expect(lastSubmit()).toEqual(["also this", "auto"]);
 });
 
 it("stops a running turn and pauses the turn-bound queue", async () => {
   const server = await createThreadServer();
-  const { api, eventData, ingest, queued, runner, thread } = server;
+  const { eventData, ingest, lastSubmit, queued, thread } = server;
   const id = await server.spawn();
-  const send = sender(server, id);
+  const send = (mode: string, message: string) =>
+    server.send(id, mode, message);
   await ingest(id, events.identity(), events.started("t1"));
   expect(await send("queue-if-active", "held")).toHaveLength(3);
-  const emitQuestion = { threadId: id, turnId: "t1", requestId: "req-1" };
-  const provider = { providerId: "codex" as const, providerThreadId: "prov-1" };
-  const kind = "interaction.requested";
-  await server.emit({ kind, ...emitQuestion, ...provider, payload: question });
+  await server.interact(id, "req-1", question);
 
-  await api.threads[":id"].stop.$post({ param: { id } });
+  await server.http("POST", `/threads/${id}/stop`);
   expect(thread(id).status).toBe("stopping");
-  expect(runner.calls.map((call) => call.method)).toContain("interruptTurn");
-  const stopping = [200, "queued", { kind: "stopping" }];
+  expect(server.callsTo("interruptTurn")).toEqual([{ threadId: id }]);
+  const stopping = [200, "queued", "stopping"];
   expect(await send("auto", "after stop")).toEqual(stopping);
   await ingest(id, events.completed("t1", "interrupted"));
-  expect(eventData(id, "system/thread/interrupted")).toEqual([
-    { reason: "manual-stop" },
-  ]);
-  const interactions = server.ctx.db.all(
-    "SELECT status, status_reason FROM pending_interactions",
-  );
-  const stopped = "Thread stopped by user request";
-  expect(interactions).toEqual([
-    { status: "interrupted", statusReason: stopped },
-  ]);
-  expect(lastInput(server)).toEqual(["after stop", "start"]);
+  const interrupted = eventData(id, "system/thread/interrupted");
+  expect(interrupted).toEqual([{ reason: "manual-stop" }]);
+  const reasons = "SELECT status_reason FROM pending_interactions";
+  const statusReason = "Thread stopped by user request";
+  expect(server.rows(reasons)).toEqual([{ statusReason }]);
+  expect(lastSubmit()).toEqual(["after stop", "start"]);
   expect(queued(id)).toEqual(["thread-busy"]);
   await ingest(id, events.started("t2"), events.completed("t2"));
-  expect(lastInput(server)).toEqual(["held", "start"]);
+  expect(lastSubmit()).toEqual(["held", "start"]);
 });
 
 it("stops a thread that is still provisioning or about to start", async () => {
   const server = await createThreadServer();
-  const { api, ctx, eventData, ingest, runner, submitted, thread } = server;
-  const release = deferredEnvironment(server);
-  const created = await api.threads.$post({
-    json: {
-      ...FIRST_MESSAGE,
-      projectId: "proj_1",
-      origin: "app",
-      input: text("stop me early"),
-      model: "gpt-test",
-      environment: { type: "project-default" },
-    },
-  });
-  const id = (await created.json()).id;
+  const { ctx, eventData, ingest, runner, submitted, thread } = server;
+  const release = server.deferEnvironment();
+  const id = await server.spawn({}, false);
   await ctx.threads.stop(id);
   expect(thread(id).status).toBe("idle");
-  const [cancelled] = eventData(id, "system/thread-provisioning").slice(-1);
-  expect(cancelled.status).toBe("cancelled");
+  const provisioning = eventData(id, "system/thread-provisioning");
+  expect(provisioning[provisioning.length - 1].status).toBe("cancelled");
   release();
   await server.settle();
-  expect([submitted.length, thread(id).environmentId]).toEqual([
-    0,
-    expect.stringMatching(/^env_/u),
-  ]);
+  const attached = expect.stringMatching(/^env_/u);
+  expect([submitted.length, thread(id).environmentId]).toEqual([0, attached]);
 
-  const send = sender(server, id);
-  expect(await send("auto", "now go")).toEqual([200, "sent"]);
+  expect(await server.send(id, "auto", "now go")).toEqual([200, "sent"]);
   expect(thread(id)).toMatchObject({ status: "active", activeTurnId: null });
   runner.script.interruptTurn = async () => ({ interrupted: false });
   await ctx.threads.stop(id);
   expect(thread(id).status).toBe("idle");
-  const interrupts = (): number =>
-    runner.calls.filter((call) => call.method === "interruptTurn").length;
+  const interrupts = (): number => server.callsTo("interruptTurn").length;
   const before = interrupts();
   await ingest(id, events.started("t1"));
   expect([thread(id).status, interrupts()]).toEqual(["idle", before + 1]);

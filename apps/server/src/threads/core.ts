@@ -42,8 +42,14 @@ export class Outbox {
     this.actions.push(action);
   }
 
-  flush(): void {
-    for (const action of this.actions) action();
+  flush(report: (error: unknown) => void): void {
+    for (const action of this.actions) {
+      try {
+        action();
+      } catch (error) {
+        report(error);
+      }
+    }
   }
 }
 

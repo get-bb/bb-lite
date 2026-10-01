@@ -1,31 +1,31 @@
-import type { PromptInput } from "@bb/domain";
+import type { PendingInteractionPayload, PromptInput } from "@bb/domain";
 import type {
   RunnerEvent,
   RunnerThreadEvent,
   SubmitTurnArgs,
 } from "@bb/runner";
 import type { CreateThreadRequest } from "@bb/server-contract";
+import type { SqlValue } from "../src/db/index.js";
 import type { ThreadRow } from "../src/db/threads.js";
-import { createTestServer } from "./helpers.js";
+import type { ThreadEnvironment } from "../src/environments/types.js";
+import { createTestServer, type TestSocket } from "./helpers.js";
 
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
-  ? Omit<T, K>
-  : never;
-type Emitted = DistributiveOmit<RunnerEvent, "lane" | "seq">;
 type TurnStatus = "completed" | "failed" | "interrupted";
-type SpawnRequest = Omit<CreateThreadRequest, keyof typeof FIRST_MESSAGE>;
+type Json = Record<string, unknown>;
+type Spawn = Partial<
+  Omit<CreateThreadRequest, "startedOnBehalfOf" | "originKind">
+>;
+export type ThreadServer = Awaited<ReturnType<typeof createThreadServer>>;
 
-export const FIRST_MESSAGE = { startedOnBehalfOf: null, originKind: null };
-
-export const PROVIDER_THREAD_ID = "prov-1";
-const providerThreadId = PROVIDER_THREAD_ID;
+const providerThreadId = "prov-1";
+const provider = { providerId: "codex" as const, providerThreadId };
 
 export function text(value: string): PromptInput[] {
   return [{ type: "text", text: value, mentions: [] }];
 }
 
 function turn(turnId: string) {
-  return { kind: "turn" as const, turnId };
+  return { scope: { kind: "turn" as const, turnId }, providerThreadId };
 }
 
 export const events = {
@@ -36,61 +36,37 @@ export const events = {
   }),
   started: (turnId: string): RunnerThreadEvent => ({
     type: "turn/started",
-    scope: turn(turnId),
-    providerThreadId,
+    ...turn(turnId),
   }),
   completed: (turnId: string, status: TurnStatus = "completed") =>
-    ({
-      type: "turn/completed",
-      scope: turn(turnId),
-      providerThreadId,
-      status,
-    }) satisfies RunnerThreadEvent,
+    ({ type: "turn/completed", ...turn(turnId), status }) as const,
   message(turnId: string, id: string, reply: string): RunnerThreadEvent[] {
-    const scope = turn(turnId);
     const item = { type: "agentMessage" as const, id };
     const delta = (part: string): RunnerThreadEvent => ({
       type: "item/agentMessage/delta",
-      scope,
-      providerThreadId,
+      ...turn(turnId),
       itemId: id,
       delta: part,
     });
+    const scoped = turn(turnId);
     return [
-      {
-        type: "item/started",
-        scope,
-        providerThreadId,
-        item: { ...item, text: "" },
-      },
+      { type: "item/started", ...scoped, item: { ...item, text: "" } },
       ...reply.split(" ").map(delta),
-      {
-        type: "item/completed",
-        scope,
-        providerThreadId,
-        item: { ...item, text: reply },
-      },
+      { type: "item/completed", ...scoped, item: { ...item, text: reply } },
     ];
   },
 };
 
 export async function createThreadServer() {
   const server = await createTestServer();
-  const { ctx, runner, api } = server;
+  const { ctx, runner, api, url } = server;
   const { db } = ctx;
   const hostId = ctx.config.hostId;
+  const at = "created_at, updated_at";
+  db.run(`INSERT INTO hosts (id, name, ${at}) VALUES (?, 'h', 1, 1)`, hostId);
+  db.run(`INSERT INTO projects (id, name, ${at}) VALUES ('proj_1', 'P', 1, 1)`);
   db.run(
-    "INSERT INTO hosts (id, name, created_at, updated_at) VALUES (?, ?, 1, 1)",
-    hostId,
-    "local",
-  );
-  db.run(
-    `INSERT INTO projects (id, name, created_at, updated_at)
-     VALUES ('proj_1', 'Project', 1, 1)`,
-  );
-  db.run(
-    `INSERT INTO project_sources
-       (id, project_id, host_id, path, created_at, updated_at)
+    `INSERT INTO project_sources (id, project_id, host_id, path, ${at})
      VALUES ('src_1', 'proj_1', ?, '/repo', 1, 1)`,
     hostId,
   );
@@ -108,11 +84,13 @@ export async function createThreadServer() {
     resolveToolCall: async () => ({ delivered: true }),
     deleteThreadStorage: async () => {},
     describe: async () => ({ instanceId: "inst-1", homeDir: "/home/me" }),
-    listProviders: async () => [{ providerId: "codex", installed: true }],
     snapshot: async () => ({ sessions: [] }),
+    listProviders: async () => [{ providerId: "codex", installed: true }],
   });
   const settle = (): Promise<void> => ctx.threads.settled();
-  const emit = async (event: Emitted): Promise<void> => {
+  const rows = <Row = Json>(sql: string, ...params: SqlValue[]): Row[] =>
+    db.all<Row>(sql, ...params);
+  const emit = async (event: Json): Promise<void> => {
     seq += 1;
     runner.emit({ lane: "reliable", seq, ...event } as RunnerEvent);
     await new Promise((resolve) => setImmediate(resolve));
@@ -120,61 +98,113 @@ export async function createThreadServer() {
   };
   const ingest = (threadId: string, ...batch: RunnerThreadEvent[]) =>
     emit({ kind: "thread.events", threadId, events: batch });
-  const thread = (threadId: string): ThreadRow => {
-    const row = db.get<ThreadRow>(
-      "SELECT * FROM threads WHERE id = ?",
+  const thread = (threadId: string): ThreadRow =>
+    rows<ThreadRow>("SELECT * FROM threads WHERE id = ?", threadId)[0];
+  const eventData = (threadId: string, type: string): Json[] =>
+    rows<{ data: string }>(
+      `SELECT data FROM events WHERE thread_id = ? AND type LIKE ?
+       ORDER BY sequence`,
       threadId,
-    );
-    if (row === undefined) throw new Error(`Thread ${threadId} is gone`);
-    return row;
-  };
+      type,
+    ).map((row) => JSON.parse(row.data) as Json);
   const eventTypes = (threadId: string): string[] =>
-    db
-      .all<{ type: string }>(
-        "SELECT type FROM events WHERE thread_id = ? ORDER BY sequence",
-        threadId,
-      )
-      .map((row) => row.type);
-  const eventData = (threadId: string, type: string) =>
-    db
-      .all<{ data: string }>(
-        `SELECT data FROM events WHERE thread_id = ? AND type = ?
-         ORDER BY sequence`,
-        threadId,
-        type,
-      )
-      .map((row) => JSON.parse(row.data) as Record<string, unknown>);
-  const queued = (threadId: string) =>
-    db
-      .all<{ id: string; waitingOn: string | null }>(
-        `SELECT id, waiting_on FROM queued_thread_messages
-         WHERE thread_id = ? ORDER BY sort_key`,
-        threadId,
-      )
-      .map((row) => {
-        const wait = JSON.parse(row.waitingOn ?? "null") as { kind: string };
-        return wait?.kind ?? null;
-      });
-  const spawn = async (overrides: Partial<SpawnRequest> = {}) => {
-    const response = await api.threads.$post({
+    rows<{ type: string }>(
+      "SELECT type FROM events WHERE thread_id = ? ORDER BY sequence",
+      threadId,
+    ).map((row) => row.type);
+  const queued = (threadId: string): (string | null)[] =>
+    rows<{ kind: string | null }>(
+      `SELECT json_extract(waiting_on, '$.kind') AS kind
+       FROM queued_thread_messages WHERE thread_id = ? ORDER BY sort_key`,
+      threadId,
+    ).map((row) => row.kind);
+  const http = async <Body = Json>(
+    method: string,
+    path: string,
+    json?: unknown,
+  ) => {
+    const headers = { "content-type": "application/json" };
+    const body = json === undefined ? undefined : JSON.stringify(json);
+    const init = { method, headers, body };
+    const response = await fetch(`${url}/api/v1${path}`, init);
+    await settle();
+    return { status: response.status, body: (await response.json()) as Body };
+  };
+  const spawn = async (overrides: Spawn = {}, settles = true) => {
+    const created = await api.threads.$post({
       json: {
-        ...FIRST_MESSAGE,
         projectId: "proj_1",
         origin: "app",
         input: text("Please refactor the scheduler module today"),
         model: "gpt-test",
-        environment: {
-          type: "provider",
-          environmentProviderId: "project-checkout",
-          inputs: null,
-        },
+        environment: { type: "project-default" },
+        startedOnBehalfOf: null,
+        originKind: null,
         ...overrides,
       },
     });
-    const created = await response.json();
-    if (response.status !== 201) throw new Error(JSON.stringify(created));
+    const { id } = await created.json();
+    if (created.status !== 201) throw new Error("Thread was not created");
+    if (settles) await settle();
+    return id;
+  };
+  const send = async (
+    id: string,
+    mode: string,
+    message: string,
+    at?: number,
+  ) => {
+    const json = { input: text(message), mode, sendAt: at };
+    const { status, body } = await http("POST", `/threads/${id}/send`, json);
+    const details = body.details as { reason: string } | undefined;
+    const row = body.queuedMessage as { waitingOn: Json } | undefined;
+    const outcome = body.delivery ?? details?.reason ?? body.code;
+    return [status, outcome, row?.waitingOn.kind].filter(Boolean);
+  };
+  const lastSubmit = (): unknown[] => {
+    const { input, mode } = submitted[submitted.length - 1];
+    const [part] = input;
+    return [part.type === "text" ? part.text : part.type, mode.kind];
+  };
+  const interact = (
+    threadId: string,
+    requestId: string,
+    payload: PendingInteractionPayload,
+    turnId = "t1",
+  ) => {
+    const request = { threadId, turnId, requestId, ...provider, payload };
+    return emit({ kind: "interaction.requested", ...request });
+  };
+  const callsTo = (method: string): unknown[] =>
+    runner.calls
+      .filter((call) => call.method === method)
+      .map((call) => call.args[0]);
+  const advance = async (ms: number): Promise<void> => {
+    server.clock.now += ms;
+    ctx.threads.sweep();
     await settle();
-    return created.id;
+  };
+  const reconnect = async (): Promise<void> => {
+    ctx.runners.connect(hostId, (sink) => {
+      runner.emit = sink;
+      return runner.api;
+    });
+    await settle();
+  };
+  const deferEnvironment = (): (() => void) => {
+    let release = (): void => {};
+    const { ensureForThread } = ctx.environments;
+    ctx.environments.ensureForThread = (args) =>
+      new Promise<ThreadEnvironment>((resolve, reject) => {
+        release = () => void ensureForThread(args).then(resolve, reject);
+      });
+    return () => release();
+  };
+  const changes = async (client: TestSocket, kind?: string) => {
+    const message = await client.next(
+      (change) => kind === undefined || String(change.changes).includes(kind),
+    );
+    return [message.changes, message.metadata];
   };
   const runTurn = async (threadId: string, turnId: string, reply = "done") => {
     await ingest(threadId, events.identity(), events.started(turnId));
@@ -186,13 +216,23 @@ export async function createThreadServer() {
     hostId,
     submitted,
     settle,
+    rows,
     emit,
     ingest,
     thread,
-    eventTypes,
     eventData,
+    eventTypes,
     queued,
+    http,
     spawn,
+    send,
+    lastSubmit,
+    interact,
+    callsTo,
+    advance,
+    reconnect,
+    deferEnvironment,
+    changes,
     runTurn,
   };
 }

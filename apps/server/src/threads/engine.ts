@@ -76,7 +76,7 @@ export class Engine {
   commit<T>(work: (out: Outbox) => T): T {
     const out = new core.Outbox(this.ctx.hub);
     const result = this.ctx.db.transaction(() => work(out));
-    out.flush();
+    out.flush((err) => this.ctx.log.error("Thread follow-up failed", { err }));
     return result;
   }
 
