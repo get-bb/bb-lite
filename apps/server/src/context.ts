@@ -1,6 +1,7 @@
 import type { SessionApi } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
+import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
 import type { Hub } from "./ws/hub.js";
 
@@ -11,6 +12,7 @@ export interface ServerContext {
   db: Db;
   hub: Hub;
   runners: RunnerRegistry<ServerRunner>;
+  plugins: PluginHost;
   log: Logger;
   now: () => number;
 }

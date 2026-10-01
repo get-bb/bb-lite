@@ -1703,6 +1703,9 @@ importers:
 
   plugins/thread-list:
     dependencies:
+      '@bb/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
       '@bb/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui

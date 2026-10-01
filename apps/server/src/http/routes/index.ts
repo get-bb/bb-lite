@@ -2,12 +2,14 @@ import { Hono } from "hono";
 import type { ServerContext } from "../../context.js";
 import type { ApiApp, AppEnv, RouteGroup } from "../api.js";
 import { notFound } from "../errors.js";
+import { registerPluginRoutes } from "./plugins.js";
 import { registerSettingsRoutes } from "./settings.js";
 import { registerUiPreferenceRoutes } from "./ui-preferences.js";
 
 const publicApiRouteGroups: RouteGroup[] = [
   registerSettingsRoutes,
   registerUiPreferenceRoutes,
+  registerPluginRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [];

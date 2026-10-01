@@ -195,10 +195,12 @@ In-repo plugins are listed in two static tables (`apps/server/src/plugins/builti
 `config.json`; the server bundles them with esbuild on load and the app imports the bundle. There is no
 marketplace, installer, artifact store, version gating or CSS scoping.
 
-Server API: `settings`, `storage.kv`, `storage.database()`, `rpc`, `http`, `realtime.publish`,
-`background.service`, `cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`,
-`ui.requestInput`, `ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
-`inference.register`, `threads` (spawn, send, get, list — direct calls, not HTTP), `onDispose`.
+Server API (`PluginServerApi` in `packages/plugin/src/server-api.ts`): `settings`, `storage.kv`,
+`storage.database()` / `migrate`, `rpc`, `http`, `realtime.publish`, `background.service`,
+`cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`, `ui.requestInput`,
+`ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
+`inference.register`, `threads` (spawn, send, get, list, stop, update, output, events — direct calls,
+not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`.
 
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
@@ -206,7 +208,43 @@ App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pend
 `ThreadChat`, `NewThreadComposer`, `ProviderModelPicker`, `PermissionModePicker`.
 
 Plugin commands (`bb tasks …`) are parsed and run in the server: the CLI posts
-`{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result.
+`{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result. The
+response body is newline keep-alives followed by one JSON object `{exitCode, stdout, stderr}`, so a
+command that waits on the user (a secret request) survives idle timeouts; `--<name>-stdin` is
+materialised by the CLI before the request.
+
+### Plugin host (server)
+
+- **Loading.** `apps/server/src/plugins/builtin.ts` lists `{directory, server}` rows; the manifest is
+  always the directory's `package.json` `bb` field. External directories come from
+  `<dataDir>/config.json` `plugins: [{path, enabled}]`. An external server entry is bundled by esbuild to
+  `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` (ESM, `@bb/plugin` compiled in, `better-sqlite3`
+  resolved to the server's copy, the server's `node_modules` as a fallback resolution root) and
+  imported; the app entry is bundled in memory and served at `/api/v1/plugins/<id>/app.js|app.css?h=`.
+  An external plugin with a builtin's id replaces it.
+- **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` (`@bb/plugin`)
+  resolves to a CommonJS shim over `globalThis.__bbPluginRuntime["<specifier>"]`, which the app fills
+  with its own module namespaces before importing any bundle. No export lists are generated.
+- **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled` (a hard
+  off switch that works with the server down). Status is `disabled`, `error` (the factory, the bundle
+  or the manifest failed; the message is kept), `needs-configuration` or `running`. Enable, disable and
+  reload dispose the old instance (services aborted, `onDispose` hooks in reverse order, the plugin
+  database closed) and run the factory again, one change at a time. A settings write reloads a
+  plugin that asked for configuration. A failing plugin never stops the server.
+- **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
+  0600 files in `<dataDir>/plugins/<id>/secrets/` (reads return only `{set: boolean}`), the plugin's
+  SQLite file at `<dataDir>/plugins/<id>/data.db`.
+- **Trust.** Every plugin route sits behind the server's trust guard, so the caller is the owner or a
+  machine credential. Machine credentials may call rpc, cli, mention search and read the list and
+  settings (agents on other machines run `bb tasks …`); only the owner may enable, disable, reload,
+  write settings or mint the plugin token. For `http.route`: `local` (default) admits only the owner,
+  `token` admits any admitted caller presenting the plugin token (`x-bb-plugin-token` or `?token=`),
+  `none` adds no check beyond the guard. Nothing is reachable anonymously.
+- **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
+  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
+  `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
+  `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
+  `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 
 ## Conventions
 

@@ -9,6 +9,7 @@ import {
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
 import { createHttpApp } from "./http/app.js";
+import { PluginHost, startPlugins } from "./plugins/host.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
@@ -19,7 +20,7 @@ export type StartupStep = (
   ctx: ServerContext,
 ) => void | Disposer | Promise<void | Disposer>;
 
-export const startupSteps: StartupStep[] = [];
+export const startupSteps: StartupStep[] = [startPlugins];
 
 export interface CreateServerOptions {
   config: ServerConfig;
@@ -47,7 +48,8 @@ export function createServer(options: CreateServerOptions): BbServer {
   const runners = new RunnerRegistry({ localHostId, localRunner, log });
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
-  const ctx: ServerContext = { config, db, hub, runners, log, now };
+  const plugins = new PluginHost({ config, db, hub, log });
+  const ctx: ServerContext = { config, db, hub, runners, plugins, log, now };
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);
   registerSockets(sockets, ctx);
