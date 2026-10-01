@@ -107,8 +107,6 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   bind("settings.open", "mod+,", main),
   bind("sidebar.toggle", "mod+\\", main),
   bind("notifications.open", null, main),
-  bind("plugins.enterSafeMode", null, main),
-  bind("plugins.exitSafeMode", null, main),
   bind("thread.previous", "control+shift+[", webMain),
   bind("thread.next", "control+shift+]", webMain),
   ...numbered(THREAD_JUMP_APP_COMMAND_IDS, main),
