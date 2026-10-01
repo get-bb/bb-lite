@@ -86,7 +86,6 @@ interface ConversationMessageContentBaseProps {
 
 interface ConversationMessageContentUserProps extends ConversationMessageContentBaseProps {
   role: "user";
-  mobileActionDisplay?: "inline" | "overflow";
   originKind: ThreadOriginKind | null;
   initiator: TimelineUserConversationRow["initiator"];
   mentions: readonly PromptTextMention[];
@@ -135,7 +134,6 @@ interface ConversationMessageContentAssistantProps
   forkDisabled?: boolean;
   onSelectProse?: (selection: MessageProseSelection | null) => void;
   showActions: boolean;
-  mobileActionDisplay: "inline" | "overflow";
   streaming: boolean;
   workspaceRootPath?: string;
 }
@@ -151,7 +149,6 @@ interface UserConversationMessageProps {
   pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   initiator: TimelineUserConversationRow["initiator"];
   mentions: readonly PromptTextMention[];
-  mobileActionDisplay: "inline" | "overflow";
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onEdit?: () => void;
   onOpenLink?: ThreadTimelineLinkHandler;
@@ -184,7 +181,6 @@ interface AssistantConversationMessageProps extends AssistantMessageRowIdentity 
   onOpenPluginPanel?: MarkdownMessageDirectives["openThreadPanel"];
   projectId?: string;
   showActions: boolean;
-  mobileActionDisplay: "inline" | "overflow";
   streaming: boolean;
   text: string;
   workspaceRootPath?: string;
@@ -329,7 +325,6 @@ function UserConversationMessage({
   originKind,
   initiator,
   mentions,
-  mobileActionDisplay,
   onAddToChat,
   onEdit,
   onOpenLink,
@@ -410,7 +405,7 @@ function UserConversationMessage({
   const requestLabel = turnRequestLabel(turnRequest);
 
   return (
-    <div className="w-full" data-message-column="">
+    <div className="w-full">
       <div className="group/message ml-auto flex w-fit max-w-[70%] flex-col items-end">
         {requestLabel ? (
           <div className="mb-1 flex items-center justify-end gap-2">
@@ -445,7 +440,6 @@ function UserConversationMessage({
           <MessageActionBar
             messageText={messageText}
             alignment="end"
-            mobileActionDisplay={mobileActionDisplay}
             addToChatAttachments={addToChatAttachments}
             copyImageUrl={attachmentItems.imageItems[0]?.src}
             onAddToChat={onAddToChat}
@@ -472,7 +466,6 @@ function AssistantConversationMessage({
   pluginActions,
   projectId,
   showActions,
-  mobileActionDisplay,
   streaming,
   text,
   threadId,
@@ -558,7 +551,6 @@ function AssistantConversationMessage({
         "group/message w-full text-sm font-normal leading-relaxed",
         PROSE_COLUMN_INSET_CLASS,
       )}
-      data-message-column=""
     >
       <SelectableMessageProse onSelect={onSelectProse}>
         <MarkdownPreview
@@ -599,7 +591,6 @@ function AssistantConversationMessage({
         <MessageActionBar
           messageText={text}
           alignment="start"
-          mobileActionDisplay={mobileActionDisplay}
           addToChatAttachments={addToChatAttachments}
           copyImageUrl={attachmentItems.imageItems[0]?.src}
           onAddToChat={onAddToChat}
@@ -646,7 +637,6 @@ export function ConversationMessageContent(
         pluginActions={props.pluginActions}
         initiator={props.initiator}
         mentions={props.mentions}
-        mobileActionDisplay={props.mobileActionDisplay ?? "overflow"}
         onAddToChat={props.onAddToChat}
         onEdit={props.onEdit}
         onOpenLink={props.onOpenLink}
@@ -683,7 +673,6 @@ export function ConversationMessageContent(
       onOpenPluginPanel={onOpenPluginPanel}
       projectId={projectId}
       showActions={props.showActions}
-      mobileActionDisplay={props.mobileActionDisplay}
       streaming={props.streaming}
       text={text}
       threadId={props.threadId}

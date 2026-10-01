@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { TerminalSession } from "@bb/server-contract";
 import {
@@ -34,7 +34,6 @@ export type ThreadTerminalTarget =
 export interface ThreadTerminalControllerArgs {
   canCreateTerminal: boolean;
   isPanelOpen: boolean;
-  isPanelPersistedOpen: boolean;
   panelStateId?: string;
   preferredTerminalId?: string;
   syncThreadId: string | null;
@@ -64,18 +63,6 @@ type ThreadTerminalIdHandler = (terminalId: string) => void;
 type ThreadTerminalTitleChangeHandler = (title: string) => void;
 type TerminalTitleRenameTimeout = number;
 
-function shouldMountTerminalViewForPanel({
-  hasPanelOpened,
-  isPanelOpen,
-  isPanelPersistedOpen,
-}: {
-  hasPanelOpened: boolean;
-  isPanelOpen: boolean;
-  isPanelPersistedOpen: boolean;
-}): boolean {
-  return isPanelOpen || (isPanelPersistedOpen && hasPanelOpened);
-}
-
 export function pickActiveTerminalId(
   sessions: readonly TerminalSession[],
   preferredTerminalId: string | null,
@@ -98,7 +85,6 @@ export function pickActiveTerminalId(
 export function useThreadTerminalController({
   canCreateTerminal,
   isPanelOpen,
-  isPanelPersistedOpen,
   panelStateId,
   preferredTerminalId,
   syncThreadId,
@@ -131,17 +117,6 @@ export function useThreadTerminalController({
     useRef<TerminalTitleRenameRequest | null>(null);
   const pendingTitleRenameTimeoutRef =
     useRef<TerminalTitleRenameTimeout | null>(null);
-  const [hasPanelOpened, setHasPanelOpened] = useState(isPanelOpen);
-  if (isPanelOpen && !hasPanelOpened) {
-    setHasPanelOpened(true);
-  } else if (!isPanelOpen && !isPanelPersistedOpen && hasPanelOpened) {
-    setHasPanelOpened(false);
-  }
-  const shouldMountTerminalView = shouldMountTerminalViewForPanel({
-    hasPanelOpened,
-    isPanelOpen,
-    isPanelPersistedOpen,
-  });
   const threadTerminalsQuery = useThreadTerminals(threadQueryId, {
     enabled: isPanelOpen && terminalTargetKind === "thread",
   });
@@ -349,7 +324,7 @@ export function useThreadTerminalController({
     handleSelectTerminal,
     hasTerminalQueryError: terminalsQuery.error !== null,
     isPanelOpen,
-    shouldMountTerminalView,
+    shouldMountTerminalView: isPanelOpen,
     terminalBodyMessage,
   };
 }

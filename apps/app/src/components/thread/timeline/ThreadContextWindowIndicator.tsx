@@ -16,7 +16,6 @@ import {
 
 interface ThreadContextWindowCardProps {
   usage: ThreadContextWindowUsage;
-  className?: string;
 }
 
 interface ThreadContextWindowIndicatorProps {
@@ -27,7 +26,6 @@ interface ThreadContextWindowIndicatorProps {
 const CONTEXT_WINDOW_POPOVER_CLOSE_DELAY_MS = 60;
 export function ThreadContextWindowCard({
   usage,
-  className,
 }: ThreadContextWindowCardProps) {
   const details = usage.snapshot?.categories.length
     ? usage.snapshot
@@ -56,7 +54,6 @@ export function ThreadContextWindowCard({
         details &&
           "transition-[width] duration-200 ease-out motion-reduce:transition-none",
         details && detailsExpanded && "w-90",
-        className,
       )}
     >
       <div className="flex flex-col gap-2">
@@ -185,8 +182,6 @@ export function ThreadContextWindowIndicator({
         ? "text-warning-text"
         : "text-muted-foreground";
 
-  const titleLabel = usage.estimated ? "Estimated context" : "Context window";
-
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -229,10 +224,9 @@ export function ThreadContextWindowIndicator({
         align="end"
         sideOffset={8}
         {...contentHoverProps}
-        mobileTitle={titleLabel}
         className="w-auto border-0 bg-transparent p-0 shadow-none"
       >
-        <ThreadContextWindowCard usage={usage} className="" />
+        <ThreadContextWindowCard usage={usage} />
       </PopoverContent>
     </Popover>
   );
