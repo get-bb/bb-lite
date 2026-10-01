@@ -5,17 +5,33 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
       "@/components/ui/icon": [
-        "../../packages/plugin-registry/flavors/components/ui/icon.tsx"
+        "../../packages/shared-ui/src/components/ui/icon.tsx"
       ],
-      "@/*": ["../../packages/shared-ui/src/*"]
-    }
+      "@/*": [
+        "../../packages/shared-ui/src/*"
+      ]
+    },
+    "customConditions": [
+      "source"
+    ]
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
