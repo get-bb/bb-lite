@@ -4,9 +4,7 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import { ActionMenuItem, ActionMenuSeparator } from "../ui/action-menu-items.js";
-import { CompactLongPressMenu } from "../ui/compact-long-press-menu.js";
 import type { SidebarProject } from "../model/use-sidebar-data.js";
 
 export type ProjectActionsMenuSurface = "context" | "dropdown";
@@ -42,7 +40,11 @@ export function ProjectActionsMenuItems({
 }: ProjectActionsMenuItemsProps) {
   return (
     <>
-      <ActionMenuItem surface={surface} icon="Settings" href={project.settingsHref}>
+      <ActionMenuItem
+        surface={surface}
+        icon="Settings"
+        href={project.settingsHref}
+      >
         Project settings
       </ActionMenuItem>
       <ActionMenuItem surface={surface} icon="Edit" onSelect={onRename}>
@@ -62,46 +64,7 @@ export function ProjectActionsMenuItems({
   );
 }
 
-export function ProjectActionsContextMenu(
-  props: ProjectActionsContextMenuProps,
-) {
-  const isCompactViewport = useIsCompactViewport();
-  if (isCompactViewport) {
-    return <ProjectActionsCompactLongPressMenu {...props} />;
-  }
-  return <ProjectActionsDesktopContextMenu {...props} />;
-}
-
-function ProjectActionsCompactLongPressMenu({
-  children,
-  disabled,
-  project,
-  onOpenChange,
-  onRename,
-  onRemove,
-  extraActions,
-}: ProjectActionsContextMenuProps) {
-  return (
-    <CompactLongPressMenu
-      label={`${project.name} actions`}
-      onOpenChange={onOpenChange}
-      disabled={disabled}
-      items={
-        <ProjectActionsMenuItems
-          project={project}
-          surface="dropdown"
-          onRename={onRename}
-          onRemove={onRemove}
-          extraActions={extraActions}
-        />
-      }
-    >
-      {children}
-    </CompactLongPressMenu>
-  );
-}
-
-function ProjectActionsDesktopContextMenu({
+export function ProjectActionsContextMenu({
   children,
   disabled,
   project,

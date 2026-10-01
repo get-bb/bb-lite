@@ -62,13 +62,7 @@ export function assignRowActionSlot(
   return slots.filter((slot): slot is ThreadRowActionId => slot !== null);
 }
 
-export function ThreadRowActionsCustomize({
-  onDone,
-  variant,
-}: {
-  onDone: () => void;
-  variant: "compact" | "card";
-}) {
+export function ThreadRowActionsCustomize({ onDone }: { onDone: () => void }) {
   const [enabled, setEnabled] = useAtom(threadRowActionsAtom);
   const slots = getRowActionSlots(enabled);
   const groupRef = useRef<HTMLDivElement>(null);
@@ -112,7 +106,6 @@ export function ThreadRowActionsCustomize({
       onDone={onDone}
       testIdPrefix="sidebar-thread-list-row-actions"
       title="Customize row actions"
-      variant={variant}
     >
       <div
         className="space-y-0.5 px-1 pb-1"

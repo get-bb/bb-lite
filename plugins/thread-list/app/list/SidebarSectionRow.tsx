@@ -21,7 +21,6 @@ import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
-  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "../ui/sidebar-hover-actions.js";
 import { cn } from "@/lib/utils";
@@ -200,22 +199,13 @@ function SidebarSectionRowComponent({
           labelEditor && "hidden",
         )}
       >
-        {hasActions && showRollupIndicator ? (
-          <span className="hidden shrink-0 items-center justify-center text-subtle-foreground">
-            {renderRollupIndicator()}
-          </span>
-        ) : null}
         {hasActions ? (
           <span
             data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-            data-sidebar-hover-actions-mobile={
-              SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
-            }
             className={cn(
               SIDEBAR_HOVER_ACTIONS_CLASS,
               "relative z-10 inline-flex shrink-0 items-center",
               SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
-              isCollapsed && "",
             )}
             onClick={stopActionsClick}
           >
@@ -231,10 +221,6 @@ function SidebarSectionRowComponent({
                 onRemove={onRemove}
               />
             </SidebarHeaderControls>
-          </span>
-        ) : showRollupIndicator ? (
-          <span className="hidden size-full items-center justify-center text-subtle-foreground">
-            {renderRollupIndicator()}
           </span>
         ) : null}
       </span>

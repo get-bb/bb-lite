@@ -16,7 +16,6 @@ import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
-  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "../ui/sidebar-hover-actions.js";
 import type { ConsumeDragClickSuppression } from "../ui/use-drag-click-suppression.js";
@@ -65,7 +64,6 @@ export interface TopLevelSidebarSectionProps {
   status?: ReactNode;
   actions?: ReactNode;
   actionsAlwaysVisible?: boolean;
-  actionsMobileAlways?: boolean;
   actionsOpen?: boolean;
   collapseControl?: TopLevelSidebarSectionCollapseControl;
   collapsedActivity?: CollapsedChildActivity;
@@ -88,7 +86,6 @@ export function TopLevelSidebarSection({
   status,
   actions,
   actionsAlwaysVisible = false,
-  actionsMobileAlways = false,
   actionsOpen = false,
   collapseControl,
   collapsedActivity,
@@ -226,9 +223,6 @@ export function TopLevelSidebarSection({
               disabled={Boolean(labelEditor)}
               data-sidebar-rename-anchor=""
               aria-expanded={!collapseControl.isCollapsed}
-              data-sidebar-hover-actions-mobile={
-                SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
-              }
               aria-label={
                 collapseControl.isCollapsed
                   ? `Expand ${label} section`
@@ -273,16 +267,10 @@ export function TopLevelSidebarSection({
                 data-sidebar-hover-actions-open={
                   actionsOpen ? "true" : undefined
                 }
-                data-sidebar-hover-actions-mobile={
-                  actionsMobileAlways
-                    ? SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
-                    : undefined
-                }
                 className={cn(
                   "inline-flex shrink-0 items-center",
                   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
                   !actionsAlwaysVisible && SIDEBAR_HOVER_ACTIONS_CLASS,
-                  collapseControl?.isCollapsed && "",
                 )}
               >
                 {actions}

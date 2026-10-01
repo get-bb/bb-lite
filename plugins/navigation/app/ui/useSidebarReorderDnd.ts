@@ -1,9 +1,5 @@
 import { useCallback, useEffect } from "react";
-import {
-  TouchSensor,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
+import { type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import {
   useReorderDnd,
   type UseReorderDndArgs,
@@ -18,24 +14,6 @@ function setSidebarDraggingCursor(active: boolean): void {
   delete document.body.dataset.sidebarDragging;
 }
 
-type UseSidebarReorderDndArgs = Omit<UseReorderDndArgs, "touchSensor">;
-
-export class SidebarTouchSensor extends TouchSensor {
-  static override setup(): () => void {
-    if (typeof window === "undefined") {
-      return () => {};
-    }
-    const noop = () => {};
-    window.addEventListener("touchmove", noop, {
-      capture: false,
-      passive: false,
-    });
-    return () => {
-      window.removeEventListener("touchmove", noop);
-    };
-  }
-}
-
 export function useSidebarReorderDnd({
   onDragEnd,
   onDragStart,
@@ -45,7 +23,7 @@ export function useSidebarReorderDnd({
   collisionDetection,
   axis,
   measuring,
-}: UseSidebarReorderDndArgs): UseReorderDndResult {
+}: UseReorderDndArgs): UseReorderDndResult {
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       setSidebarDraggingCursor(true);
@@ -78,7 +56,6 @@ export function useSidebarReorderDnd({
     onDragOver,
     onDragCancel: handleDragCancel,
     collisionDetection,
-    touchSensor: SidebarTouchSensor,
     axis,
     measuring,
   });

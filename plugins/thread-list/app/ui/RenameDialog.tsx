@@ -6,7 +6,6 @@ import {
   type RefObject,
 } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { usePointerCoarse } from "@/components/ui/hooks/use-pointer-coarse";
 
 interface NameMaxLengthRule {
   limit: number;
@@ -60,20 +59,15 @@ interface RenameDialogAutoFocus {
 
 export function useRenameDialogAutoFocus(): RenameDialogAutoFocus {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const isPointerCoarse = usePointerCoarse();
-  const handleOpenAutoFocus = useCallback(
-    (event: Event) => {
-      event.preventDefault();
-      if (isPointerCoarse) return;
+  const handleOpenAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
 
-      const input = inputRef.current;
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    },
-    [isPointerCoarse],
-  );
+    const input = inputRef.current;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, []);
   return { inputRef, handleOpenAutoFocus };
 }
 

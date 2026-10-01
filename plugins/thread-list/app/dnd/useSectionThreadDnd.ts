@@ -834,10 +834,6 @@ function getRowDropTargetKey(rowDrop: RowDropState): string {
   return `row:${rowDrop.threadId}:${rowDrop.state}`;
 }
 
-function isCoarseActivator(activatorEvent: Event | null): boolean {
-  return activatorEvent !== null && "touches" in activatorEvent;
-}
-
 const SECTION_AUTO_EXPAND_MS = 200;
 
 function hasDropDecisionLanded(
@@ -910,7 +906,6 @@ export function useSectionThreadDnd({
   const armedNestThreadIdRef = useRef<string | null>(null);
   const latestRowCollisionRef = useRef<RetainedNestTarget | null>(null);
   const retainedNestTargetRef = useRef<RetainedNestTarget | null>(null);
-  const coarsePointerRef = useRef(false);
   const pinnedInsertRef = useRef<SectionThreadReorderTarget | null>(null);
   const nestCandidateRef = useRef<NestHoverCandidate | null>(null);
   const nestCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -959,7 +954,6 @@ export function useSectionThreadDnd({
       if (activeId === null || threadId === activeId) return null;
       if (lookup.itemKindById.get(threadId) !== "thread") return null;
       const armed = armedNestThreadIdRef.current === threadId;
-      if (coarsePointerRef.current) return 1;
       return armed ? NEST_BAND_ARMED_FRACTION : NEST_BAND_FRACTION;
     },
     [lookup],
@@ -1125,9 +1119,6 @@ export function useSectionThreadDnd({
       latestRowCollisionRef.current = null;
       retainedNestTargetRef.current = null;
       pinnedInsertRef.current = null;
-      coarsePointerRef.current = isCoarseActivator(
-        event.activatorEvent ?? null,
-      );
       clearDropDwell();
       clearNestCandidate();
       const groupThreads = activeId

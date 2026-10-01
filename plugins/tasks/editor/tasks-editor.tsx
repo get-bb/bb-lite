@@ -14,7 +14,6 @@ import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
 import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import type { SuggestionProps } from "@tiptap/suggestion";
 import { Button } from "@/components/ui/button";
-import { usePointerCoarse } from "@/components/ui/hooks/use-pointer-coarse";
 import { cn } from "@/lib/utils";
 import {
   createEditorExtensions,
@@ -244,15 +243,7 @@ export function TasksEditor({
   const readyRef = useRef(onEditorReady);
   readyRef.current = onEditorReady;
   const initialValueRef = useRef(value);
-  const isPointerCoarse = usePointerCoarse();
-  const canSubmitWithEnterKey = Boolean(onSubmit) && !isPointerCoarse;
-  const canSubmitWithEnterRef = useRef(canSubmitWithEnterKey);
-  canSubmitWithEnterRef.current = canSubmitWithEnterKey;
-  const editorEnterKeyHint = onSubmit
-    ? isPointerCoarse
-      ? "enter"
-      : "send"
-    : undefined;
+  const editorEnterKeyHint = onSubmit ? "send" : undefined;
 
   const [, setRevision] = useState(0);
   const [mention, setMentionState] = useState<MentionPopoverState | null>(null);
@@ -355,7 +346,6 @@ export function TasksEditor({
 
           if (event.shiftKey && !withPrimaryMod) return false;
           if (!withPrimaryMod && !plainEnter) return false;
-          if (plainEnter && !canSubmitWithEnterRef.current) return false;
 
           event.preventDefault();
           onSubmitRef.current();

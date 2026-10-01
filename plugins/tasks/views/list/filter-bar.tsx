@@ -87,11 +87,7 @@ function SortChip({
           ) : null}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="min-w-44"
-        mobileTitle="Sort tasks"
-      >
+      <DropdownMenuContent align="end" className="min-w-44">
         {TASK_SORTS.map((option) => (
           <DropdownMenuCheckboxItem
             key={option}

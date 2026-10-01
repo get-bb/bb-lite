@@ -32,7 +32,6 @@ import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@/components/ui/chrome-style-to
 import { cn } from "@/lib/utils";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
-  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "./sidebar-hover-actions.js";
 import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "./sidebarRowClasses.js";
@@ -142,7 +141,6 @@ export function SidebarMore({
           side="right"
           align="start"
           sideOffset={8}
-          mobileTitle="More"
           aria-label={ariaLabel}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
@@ -286,9 +284,6 @@ export function SidebarOverflowItem({
         </Button>
         <div
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-          data-sidebar-hover-actions-mobile={
-            SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
-          }
           className={cn(
             SIDEBAR_HOVER_ACTIONS_CLASS,
             "absolute inset-y-0 right-0 flex items-center",
