@@ -4,12 +4,19 @@ export type ProjectPathInspection =
   | "unknown"
   | { exists: boolean; isGitRepo: boolean; gitRemoteUrl: string | null };
 
-export function inspectProjectPath(
-  _ctx: ServerContext,
-  _hostId: string,
-  _path: string,
+export async function inspectProjectPath(
+  ctx: ServerContext,
+  hostId: string,
+  path: string,
 ): Promise<ProjectPathInspection> {
-  return Promise.resolve("unknown");
+  if (!ctx.runners.isConnected(hostId)) return "unknown";
+  try {
+    const found = await ctx.runners.get(hostId).inspectPath({ path });
+    const { exists, isGitRepo, remoteUrl: gitRemoteUrl } = found;
+    return { exists, isGitRepo, gitRemoteUrl };
+  } catch {
+    return "unknown";
+  }
 }
 
 export async function inspectGitRemoteUrl(
