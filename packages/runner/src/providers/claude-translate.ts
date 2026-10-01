@@ -99,8 +99,11 @@ const rateLimitSchema = z.object({
   overageDisabledReason: z.string().optional(),
 });
 const taskUsageSchema = z
-  .object({ total_tokens: z.number(), tool_uses: z.number() })
-  .extend({ duration_ms: z.number() })
+  .object({
+    total_tokens: z.number(),
+    tool_uses: z.number(),
+    duration_ms: z.number(),
+  })
   .transform((usage) => ({
     totalTokens: usage.total_tokens,
     toolUses: usage.tool_uses,
@@ -508,9 +511,8 @@ export class ClaudeTranslator {
       const transition = { originalModel: from, fallbackModel: to };
       const refused = subtype === "model_refusal_fallback";
       const reason = refused ? ("refusal" as const) : ("provider" as const);
-      const stated = str(message.content);
-      const message_ = stated ?? `Switched from ${from} to ${to}.`;
-      events.modelFallback({ ...transition, reason, message: message_ });
+      const note = str(message.content) ?? `Switched from ${from} to ${to}.`;
+      events.modelFallback({ ...transition, reason, message: note });
     } else {
       return this.task(message, subtype);
     }
