@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
 import {
@@ -144,13 +143,10 @@ function GitDiffFileFilterInput({
   onChange,
 }: GitDiffFileFilterInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isPointerCoarse = usePointerCoarse();
 
   useEffect(() => {
-    if (!isPointerCoarse) {
-      inputRef.current?.focus();
-    }
-  }, [isPointerCoarse]);
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <div className="relative mt-2">
@@ -163,9 +159,7 @@ function GitDiffFileFilterInput({
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        className={cn(
-          "h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0",
-        )}
+        className="h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0"
         placeholder="Filter files, e.g. *.md, docs/**, !*.test.ts"
         value={value}
         onChange={(event) => onChange(event.target.value)}

@@ -7,7 +7,6 @@ import {
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyState } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -44,13 +43,12 @@ export function ThreadStorageBrowser({
     setSearchQuery,
   } = controller;
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const isPointerCoarse = usePointerCoarse();
 
   useEffect(() => {
-    if (isSearchOpen && !isPointerCoarse) {
+    if (isSearchOpen) {
       searchInputRef.current?.focus();
     }
-  }, [isPointerCoarse, isSearchOpen]);
+  }, [isSearchOpen]);
 
   const loadingState = (
     <EmptyState

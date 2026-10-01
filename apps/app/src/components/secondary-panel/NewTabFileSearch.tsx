@@ -18,7 +18,6 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { TruncateStart } from "@/components/ui/truncate-start.js";
 import {
@@ -408,7 +407,6 @@ export function NewTabFileSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const focusFrameRef = useRef<number | null>(null);
   const listboxId = useId();
-  const isPointerCoarse = usePointerCoarse();
   const [query, setQuery] = useState(initialQuery);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isRecentExpanded, setIsRecentExpanded] = useState(false);
@@ -492,18 +490,13 @@ export function NewTabFileSearch({
       focusFrameRef.current = null;
     }
 
-    if (isPointerCoarse) {
-      onAutoFocusHandled();
-      return;
-    }
-
     inputRef.current?.focus({ preventScroll: true });
     focusFrameRef.current = requestAnimationFrame(() => {
       focusFrameRef.current = null;
       inputRef.current?.focus({ preventScroll: true });
     });
     onAutoFocusHandled();
-  }, [autoFocus, isPointerCoarse, onAutoFocusHandled]);
+  }, [autoFocus, onAutoFocusHandled]);
 
   useEffect(() => {
     setActiveIndex(navigableEntries.length > 0 ? 0 : -1);

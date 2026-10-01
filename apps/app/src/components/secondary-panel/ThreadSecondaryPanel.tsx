@@ -30,7 +30,6 @@ import {
 } from "./panelTransitionTokens";
 import {
   PANEL_SCROLL_SLOT_CLASS,
-  PANEL_TAB_CONTROL_CLASS,
   SECONDARY_PANEL_TOP_CHROME_BACKGROUND_CLASS,
 } from "./panelChromeClasses";
 import {
@@ -42,7 +41,6 @@ import {
   resolveConversationCollapseControl,
 } from "./panelToggleControlState";
 import { SecondaryPanelHostLayoutContext } from "./SecondaryPanelHostLayoutContext";
-import { MobilePanelTabPager } from "./MobilePanelTabPager";
 import { SecondaryPanelTabStrip } from "./SecondaryPanelTabStrip";
 import { ImageTabLightboxProvider } from "./ImageTabLightboxContext";
 import type {
@@ -152,7 +150,6 @@ export interface ThreadSecondaryPanelProps {
   onSelectionAddToChat?: (text: string) => void;
   isConversationCollapsed: boolean;
   onToggleConversationCollapse: () => void;
-  renderAsDrawer: boolean;
 }
 
 export function ThreadSecondaryPanel({
@@ -185,7 +182,6 @@ export function ThreadSecondaryPanel({
   onSelectionAddToChat,
   isConversationCollapsed,
   onToggleConversationCollapse,
-  renderAsDrawer,
 }: ThreadSecondaryPanelProps) {
   const resolvedGitDiffTabStatus =
     gitDiffTabStatus ?? (canUseGitUi ? "eligible" : "ineligible");
@@ -200,13 +196,12 @@ export function ThreadSecondaryPanel({
     tabs.find((tab) => tab.tab.id === activeTab?.id) ??
     (activeTab === null && fixedTabs.length === 0 ? visibleTabs[0] : undefined);
   const hasActiveRenderableTab = activeRenderableTab !== undefined;
-  const conversationCollapseControl =
-    renderAsDrawer || !showConversationCollapseControl
-      ? null
-      : resolveConversationCollapseControl({
-          isConversationCollapsed,
-          onToggleConversationCollapse,
-        });
+  const conversationCollapseControl = !showConversationCollapseControl
+    ? null
+    : resolveConversationCollapseControl({
+        isConversationCollapsed,
+        onToggleConversationCollapse,
+      });
   const {
     gitDiffDisplayMode,
     handleGitDiffDisplayModeChange,
@@ -222,7 +217,6 @@ export function ThreadSecondaryPanel({
     isSecondaryPanelOpen: isOpen,
     onPanelWidthChange: handleSecondaryPanelWidthChange,
     panelId: resizablePanelId,
-    renderAsDrawer,
   });
   const hasPanelExpandedRef = useRef(false);
   useLayoutEffect(() => {
@@ -392,9 +386,7 @@ export function ThreadSecondaryPanel({
       variant="ghost"
       size="icon"
       className={cn(
-        renderAsDrawer
-          ? PANEL_TAB_CONTROL_CLASS
-          : SECONDARY_PANEL_HIDE_ICON_BUTTON_CLASS,
+        SECONDARY_PANEL_HIDE_ICON_BUTTON_CLASS,
         CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
         "relative",
       )}
@@ -421,9 +413,7 @@ export function ThreadSecondaryPanel({
         variant="ghost"
         size="icon"
         className={cn(
-          renderAsDrawer
-            ? PANEL_TAB_CONTROL_CLASS
-            : HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
+          HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
           CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
           "shrink-0",
         )}
@@ -449,7 +439,7 @@ export function ThreadSecondaryPanel({
       if (onToggleFullScreen === undefined) return null;
       return (
         <PaneArrangementButton
-          className={cn(renderAsDrawer ? PANEL_TAB_CONTROL_CLASS : "shrink-0")}
+          className="shrink-0"
           isFullScreen={isFullScreen ?? false}
           onMoveToSide={onMoveActiveTabToSide}
           onToggleFullScreen={onToggleFullScreen}
@@ -465,9 +455,7 @@ export function ThreadSecondaryPanel({
             variant="ghost"
             size="icon"
             className={cn(
-              renderAsDrawer
-                ? PANEL_TAB_CONTROL_CLASS
-                : HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
+              HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
               CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
               "shrink-0",
             )}
@@ -506,45 +494,14 @@ export function ThreadSecondaryPanel({
         ariaLabel={newTabAriaLabel}
         onOpenNewTab={onOpenNewTab}
         shortcut={newTabShortcut}
-        compact={renderAsDrawer}
       />
     ) : reserveNewTabButton ? (
       <div
         aria-hidden
         data-new-tab-control-reserved=""
-        className={cn(
-          renderAsDrawer
-            ? PANEL_TAB_CONTROL_CLASS
-            : SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
-        )}
+        className={SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS}
       />
     ) : null;
-
-    if (renderAsDrawer) {
-      return (
-        <MobilePanelTabPager
-          activeTabId={
-            activeSurfaceTabId ?? activeSurfaceFixedTab?.tab.id ?? null
-          }
-          fixedTabs={fixedSurfaceTabs.map((tab) => ({
-            id: tab.tab.id,
-            label: tab.label,
-            ariaLabel: tab.ariaLabel,
-            leadingVisual: tab.leadingVisual,
-            onSelect: tab.onSelect,
-          }))}
-          tabs={visibleSurfaceTabs.map((tab) => ({
-            id: tab.tab.id,
-            label: tab.label,
-            ariaLabel: tab.label,
-            leadingVisual: tab.leadingVisual,
-            onSelect: tab.onSelect,
-            onClose: tab.isPinned ? null : tab.onClose,
-          }))}
-          newTabControl={newTabControl}
-        />
-      );
-    }
 
     return (
       <>
@@ -582,7 +539,6 @@ export function ThreadSecondaryPanel({
             tabs={visibleSurfaceTabs}
             onBeginTabDrag={onBeginTabDrag}
             onReorderTab={onSurfaceTabReorder}
-            isPanelOpen={isOpen}
           />
         ) : null}
         {newTabControl}
@@ -647,13 +603,12 @@ export function ThreadSecondaryPanel({
             className={cn(
               CHROME_ROW_CLASS,
               "min-w-0 justify-between gap-2",
-              renderAsDrawer ? "px-2" : "px-4",
+              "px-4",
             )}
           >
             <div
               className={cn(
                 "flex min-w-0 flex-1 items-center gap-1",
-                renderAsDrawer && "gap-0",
                 `transition-[padding] ${PANEL_COLLAPSE_TRANSITION_CLASS}`,
               )}
               data-sidebar-split-tab-group={paneId ?? undefined}
@@ -679,10 +634,7 @@ export function ThreadSecondaryPanel({
             onRemoveSplit ||
             usesPaneArrangementControl ? (
               <div
-                className={cn(
-                  "flex min-w-0 shrink-0 items-center gap-1",
-                  renderAsDrawer && "gap-0",
-                )}
+                className="flex min-w-0 shrink-0 items-center gap-1"
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 {usesPaneArrangementControl || showOuterControls
@@ -694,8 +646,7 @@ export function ThreadSecondaryPanel({
                     })
                   : null}
                 {renderRemoveSplitButton(onRemoveSplit)}
-                {showOuterControls &&
-                (renderAsDrawer || inlinePanelToggle === "button")
+                {showOuterControls && inlinePanelToggle === "button"
                   ? renderHidePanelButton()
                   : null}
               </div>
@@ -805,8 +756,7 @@ export function ThreadSecondaryPanel({
     );
   };
 
-  const shouldEnableSidebarSplits =
-    !renderAsDrawer && splitPanelStateId !== undefined;
+  const shouldEnableSidebarSplits = splitPanelStateId !== undefined;
   const splitTabs = shouldEnableSidebarSplits
     ? ([
         ...fixedTabs.map((fixedTab) => ({
@@ -928,7 +878,7 @@ export function ThreadSecondaryPanel({
       inert={!isOpen}
       onFocusCapture={handlePanelFocusCapture}
       style={
-        !renderAsDrawer && !isSecondaryPanelResizing
+        !isSecondaryPanelResizing
           ? {
               width: isConversationCollapsed
                 ? "100%"
@@ -938,15 +888,12 @@ export function ThreadSecondaryPanel({
       }
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden bg-sidebar",
-        renderAsDrawer && "min-w-0 flex-1",
-        !renderAsDrawer && [
-          "absolute inset-y-0 left-0",
-          hostLayout === null &&
-            !isConversationCollapsed &&
-            "border-l border-border-seam",
-          isSecondaryPanelResizing && "right-0",
-          !isOpen && "pointer-events-none",
-        ],
+        "absolute inset-y-0 left-0",
+        hostLayout === null &&
+          !isConversationCollapsed &&
+          "border-l border-border-seam",
+        isSecondaryPanelResizing && "right-0",
+        !isOpen && "pointer-events-none",
       )}
     >
       {panelSurface}
@@ -956,10 +903,6 @@ export function ThreadSecondaryPanel({
       />
     </aside>
   );
-
-  if (renderAsDrawer) {
-    return asideMarkup;
-  }
 
   return (
     <>
@@ -999,7 +942,6 @@ export function ThreadSecondaryPanel({
 }
 
 interface NewTabButtonProps {
-  compact: boolean;
   ariaLabel: string;
   onOpenNewTab: () => void;
   shortcut: AppShortcutPresentation | null;
@@ -1053,7 +995,6 @@ function PinnedIconTab({
 }
 
 function NewTabButton({
-  compact,
   ariaLabel,
   onOpenNewTab,
   shortcut,
@@ -1064,9 +1005,7 @@ function NewTabButton({
       variant="ghost"
       size="sm"
       className={cn(
-        compact
-          ? PANEL_TAB_CONTROL_CLASS
-          : SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
+        SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
         "text-muted-foreground/70 hover:text-foreground focus:ring-1 focus:ring-ring",
       )}
       onClick={onOpenNewTab}

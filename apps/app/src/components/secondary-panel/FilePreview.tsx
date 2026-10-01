@@ -19,7 +19,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@bb/shared-ui/dropdown-menu";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import { SourceCodeHost } from "@/components/code/SourceCodeHost";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
@@ -672,8 +671,7 @@ function FilePreviewHeader({
 }: FilePreviewHeaderProps) {
   const openShortcut = useAppCommandShortcut("workspace.openPreferred");
   const { ref: headerRef, width } = useElementWidth();
-  const isCompactViewport = useIsCompactViewport();
-  const isNarrow = width > 0 ? width < 560 : isCompactViewport;
+  const isNarrow = width > 0 && width < 560;
   const showHeaderControls = showLineOverflowToggle || toggleKind !== null;
   const copyFileContentsLabel = getFileContentsCopyLabel(toggleKind);
 
@@ -850,7 +848,6 @@ function FilePreviewHeader({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  mobileTitle="File actions"
                   className="[&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-sm [&_[role=menuitemcheckbox]]:min-h-11 [&_[role=menuitemcheckbox]]:text-sm"
                 >
                   <DropdownMenuLabel className="max-w-80 break-all font-mono">

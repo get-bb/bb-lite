@@ -16,7 +16,6 @@ import {
   DndContext,
   DragOverlay,
   MouseSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -37,7 +36,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@bb/shared-ui/context-menu";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   OverflowFade,
   type OverflowFadeTone,
@@ -59,12 +57,6 @@ const EDGE_EPSILON_PX = 1;
 
 const SECONDARY_PANEL_TAB_STRIP_FADE_TONE: OverflowFadeTone = "sidebar";
 
-class InertTouchSensor extends TouchSensor {
-  static override setup(): () => void {
-    return () => {};
-  }
-}
-
 interface TabStripOverflowState {
   hasOverflow: boolean;
   canScrollLeft: boolean;
@@ -85,7 +77,6 @@ export interface SecondaryPanelTabStripProps {
     event: ReactPointerEvent<HTMLElement>,
   ) => void;
   onReorderTab: SecondaryPanelTabReorderHandler;
-  isPanelOpen: boolean;
 }
 
 export type SecondaryPanelTabCloseScope = "self" | "others" | "right";
@@ -111,7 +102,6 @@ export function secondaryPanelTabsToClose(
 interface SortablePanelTabProps {
   isActive: boolean;
   activeTabRef: RefObject<HTMLDivElement | null>;
-  contextMenuDisabled: boolean;
   dragDisabled: boolean;
   onCloseTabs: (tabId: string, scope: SecondaryPanelTabCloseScope) => void;
   tabs: readonly SecondaryPanelRenderableTab[];
@@ -127,7 +117,6 @@ export function SecondaryPanelTabStrip({
   tabs,
   onBeginTabDrag,
   onReorderTab,
-  isPanelOpen,
 }: SecondaryPanelTabStripProps) {
   const stripRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -151,11 +140,7 @@ export function SecondaryPanelTabStrip({
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 4 },
   });
-  const touchSensor = useSensor(
-    isPanelOpen && !dragDisabled ? TouchSensor : InertTouchSensor,
-    { activationConstraint: { delay: 200, tolerance: 6 } },
-  );
-  const sensors = useSensors(mouseSensor, touchSensor);
+  const sensors = useSensors(mouseSensor);
   const tabIds = useMemo(() => tabs.map((tab) => tab.tab.id), [tabs]);
   const draggingTab =
     draggingTabId === null
@@ -354,7 +339,6 @@ export function SecondaryPanelTabStrip({
     [consumeDragClickSuppression],
   );
 
-  const isCompactViewport = useIsCompactViewport();
   const handleCloseTabs = useCallback(
     (tabId: string, scope: SecondaryPanelTabCloseScope) => {
       const tabsToClose = secondaryPanelTabsToClose(tabs, tabId, scope);
@@ -388,7 +372,6 @@ export function SecondaryPanelTabStrip({
             <SortablePanelTab
               key={tab.tab.id}
               activeTabRef={activeTabRef}
-              contextMenuDisabled={isCompactViewport}
               dragDisabled={dragDisabled}
               isActive={tab.tab.id === activeTabId}
               onBeginTabDrag={onBeginTabDrag}
@@ -419,7 +402,6 @@ export function SecondaryPanelTabStrip({
       tabIds,
       tabs,
       dragDisabled,
-      isCompactViewport,
       onBeginTabDrag,
       handleCloseTabs,
       draggingTab,
@@ -482,7 +464,6 @@ export function SecondaryPanelTabStrip({
 
 function SortablePanelTab({
   activeTabRef,
-  contextMenuDisabled,
   dragDisabled,
   isActive,
   onBeginTabDrag,
@@ -524,7 +505,7 @@ function SortablePanelTab({
 
   return (
     <ContextMenu modal={false}>
-      <ContextMenuTrigger asChild disabled={contextMenuDisabled}>
+      <ContextMenuTrigger asChild>
         <div
           ref={setTabRef}
           style={style}
@@ -625,11 +606,6 @@ function PanelTab({
       isActive={isActive}
       onSelect={tab.onSelect}
       labelMaxWidthClass="max-w-[160px]"
-      enlargeCloseTargetOnCoarsePointer={
-        tab.tab.kind === "workspace-file-preview" ||
-        tab.tab.kind === "host-file-preview" ||
-        tab.tab.kind === "thread-storage-file-preview"
-      }
       closeAction={
         tab.isPinned
           ? null

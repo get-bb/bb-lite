@@ -15,14 +15,10 @@ export function getPanelCollapseTransitionStyle(
   };
 }
 
-export function usePanelCollapseTransitionsReady(
-  resetKey: Key,
-  enabled: boolean,
-): boolean {
+export function usePanelCollapseTransitionsReady(resetKey: Key): boolean {
   const [readyKey, setReadyKey] = useState<Key | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
     let secondFrame: number | null = null;
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
@@ -33,9 +29,9 @@ export function usePanelCollapseTransitionsReady(
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
     };
-  }, [enabled, resetKey]);
+  }, [resetKey]);
 
-  return !enabled || readyKey === resetKey;
+  return readyKey === resetKey;
 }
 
 export const PANEL_RESIZE_HANDLE_LAYER_CLASS = "z-[25]";
