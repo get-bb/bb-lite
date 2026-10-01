@@ -9,9 +9,11 @@ import {
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
 import { ensurePersonalProject } from "./db/projects.js";
+import { startWorkspaceWatch } from "./environments/watch.js";
 import { createHttpApp } from "./http/app.js";
 import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
+import { startTerminalSessions } from "./terminals/sessions.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
 import { SocketRegistry } from "./ws/sockets.js";
@@ -24,6 +26,8 @@ export type StartupStep = (
 export const startupSteps: StartupStep[] = [
   ensureLocalHost,
   (ctx) => ensurePersonalProject(ctx.db),
+  startTerminalSessions,
+  startWorkspaceWatch,
 ];
 
 export interface CreateServerOptions {
