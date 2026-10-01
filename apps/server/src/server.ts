@@ -10,6 +10,7 @@ import {
 import { openDatabase, type Db } from "./db/index.js";
 import { ensurePersonalProject } from "./db/projects.js";
 import { createHttpApp } from "./http/app.js";
+import { PluginHost, startPlugins } from "./plugins/host.js";
 import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { registerSockets } from "./ws/endpoints.js";
@@ -24,6 +25,7 @@ export type StartupStep = (
 export const startupSteps: StartupStep[] = [
   ensureLocalHost,
   (ctx) => ensurePersonalProject(ctx.db),
+  startPlugins,
 ];
 
 export interface CreateServerOptions {
@@ -52,7 +54,8 @@ export function createServer(options: CreateServerOptions): BbServer {
   const runners = new RunnerRegistry({ localHostId, localRunner, log });
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
-  const ctx: ServerContext = { config, db, hub, runners, log, now };
+  const plugins = new PluginHost({ config, db, hub, log });
+  const ctx: ServerContext = { config, db, hub, runners, plugins, log, now };
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);
   registerSockets(sockets, ctx);

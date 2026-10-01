@@ -6,6 +6,7 @@ import { registerHostRoutes, registerRunnerRoutes } from "./hosts.js";
 import { registerMachineEnvironmentRoutes } from "./machine-environment.js";
 import { registerProjectRoutes } from "./projects.js";
 import { registerProviderRoutes } from "./providers.js";
+import { registerPluginRoutes } from "./plugins.js";
 import { registerSettingsRoutes } from "./settings.js";
 import { registerThreadSectionRoutes } from "./thread-sections.js";
 import { registerThreadTabRoutes } from "./thread-tabs.js";
@@ -20,6 +21,7 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerThreadTabRoutes,
   registerHostRoutes,
   registerProviderRoutes,
+  registerPluginRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [registerRunnerRoutes];

@@ -1,0 +1,12 @@
+{
+  "name": "bb-plugin-echo",
+  "private": true,
+  "type": "module",
+  "bb": {
+    "name": "Echo",
+    "description": "Fixture plugin loaded from a directory in tests.",
+    "icon": "./icon.svg",
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  }
+}

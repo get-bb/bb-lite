@@ -3,8 +3,8 @@ import {
   defineCli,
   defineRpcContract,
   PluginCliError,
-  type BbPluginApi,
-} from "@get-bb/plugin-sdk";
+  type PluginServerApi,
+} from "@bb/plugin";
 import { z } from "zod";
 import {
   defaultPreferences,
@@ -22,7 +22,6 @@ import {
 } from "./shared/preferences.js";
 
 const PREFERENCE_KV_PREFIX = "preference:";
-const MIGRATION_KV_KEY = "migration:ui-preferences:v1";
 
 const preferenceKeySchema = z.enum(
   PREFERENCE_KEYS as [PreferenceKey, ...PreferenceKey[]],
@@ -31,7 +30,9 @@ const preferenceKeySchema = z.enum(
 const preferenceValuesSchema = z.object(
   Object.fromEntries(
     PREFERENCE_KEYS.map((key) => [key, preferenceDefinitions[key].schema]),
-  ) as { [Key in PreferenceKey]: (typeof preferenceDefinitions)[Key]["schema"] },
+  ) as {
+    [Key in PreferenceKey]: (typeof preferenceDefinitions)[Key]["schema"];
+  },
 );
 
 export const threadListRpcContract = defineRpcContract({
@@ -41,15 +42,11 @@ export const threadListRpcContract = defineRpcContract({
   },
   setPreference: {
     input: z.object({ key: preferenceKeySchema, value: z.unknown() }).strict(),
-    output: z
-      .object({ key: preferenceKeySchema, value: z.unknown() })
-      .strict(),
+    output: z.object({ key: preferenceKeySchema, value: z.unknown() }).strict(),
   },
   resetPreference: {
     input: z.object({ key: preferenceKeySchema }).strict(),
-    output: z
-      .object({ key: preferenceKeySchema, value: z.unknown() })
-      .strict(),
+    output: z.object({ key: preferenceKeySchema, value: z.unknown() }).strict(),
   },
 });
 
@@ -57,7 +54,7 @@ function kvKey(key: PreferenceKey): string {
   return `${PREFERENCE_KV_PREFIX}${key}`;
 }
 
-export function createPreferenceStore(bb: BbPluginApi) {
+export function createPreferenceStore(bb: PluginServerApi) {
   async function read<Key extends PreferenceKey>(
     key: Key,
   ): Promise<PreferenceValue<Key>> {
@@ -119,46 +116,6 @@ export class PreferenceValidationError extends Error {
   }
 }
 
-export async function migrateFromUiPreferences(
-  bb: BbPluginApi,
-): Promise<{ migrated: PreferenceKey[] }> {
-  const done = await bb.storage.kv.get<boolean>(MIGRATION_KV_KEY);
-  if (done === true) return { migrated: [] };
-  const migrated: PreferenceKey[] = [];
-  let entries: Record<string, { value: unknown } | undefined>;
-  try {
-    const response = await bb.sdk.system.uiPreferences.list();
-    entries = response.preferences as Record<
-      string,
-      { value: unknown } | undefined
-    >;
-  } catch (error) {
-    bb.log.warn(
-      `could not read bb's sidebar preferences to migrate them: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return { migrated };
-  }
-  for (const key of PREFERENCE_KEYS) {
-    const existing = await bb.storage.kv.get<unknown>(kvKey(key));
-    if (existing !== undefined) continue;
-    const legacyKey = preferenceDefinitions[key].legacyKey;
-    if (legacyKey === null) continue;
-    const legacy = entries[legacyKey];
-    if (legacy === undefined) continue;
-    const parsed = parsePreferenceValue(key, legacy.value);
-    if (!parsed.success) continue;
-    if (JSON.stringify(parsed.value) === JSON.stringify(getPreferenceDefault(key))) {
-      continue;
-    }
-    await bb.storage.kv.set(kvKey(key), parsed.value);
-    migrated.push(key);
-  }
-  await bb.storage.kv.set(MIGRATION_KV_KEY, true);
-  return { migrated };
-}
-
 function parseCliValue(raw: string): unknown {
   try {
     return JSON.parse(raw) as unknown;
@@ -180,7 +137,7 @@ const JSON_OPTION = {
   description: "Emit machine-readable JSON",
 } as const;
 
-export default async function threadListPlugin(bb: BbPluginApi) {
+export default function threadListPlugin(bb: PluginServerApi) {
   const store = createPreferenceStore(bb);
 
   bb.rpc.register(threadListRpcContract, {
@@ -198,9 +155,8 @@ export default async function threadListPlugin(bb: BbPluginApi) {
   bb.cli.register(
     defineCli({
       name: bb.pluginId,
-      summary: "Inspect and change the sidebar thread list's layout preferences",
-      description:
-        "Organization mode, sort, section order, hidden groups, and collapsed groups for bb's sidebar thread list. Values are JSON; a bare word is read as a string.",
+      summary:
+        "Inspect and change the sidebar thread list's layout preferences",
       commands: {
         "prefs list": cliCommand({
           summary: "List every preference and its current value",
@@ -242,7 +198,8 @@ export default async function threadListPlugin(bb: BbPluginApi) {
             { name: "key", description: "Preference name", required: true },
             {
               name: "value",
-              description: 'JSON value, e.g. \'"machine"\' or \'["pinned","threads"]\'',
+              description:
+                'JSON value, e.g. \'"machine"\' or \'["pinned","threads"]\'',
               required: true,
             },
           ],
@@ -291,11 +248,4 @@ export default async function threadListPlugin(bb: BbPluginApi) {
       },
     }),
   );
-
-  const { migrated } = await migrateFromUiPreferences(bb);
-  if (migrated.length > 0) {
-    bb.log.info(
-      `migrated sidebar preferences from bb settings: ${migrated.join(", ")}`,
-    );
-  }
 }
