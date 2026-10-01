@@ -3,11 +3,13 @@ import type { ServerContext } from "../../context.js";
 import type { ApiApp, AppEnv, RouteGroup } from "../api.js";
 import { notFound } from "../errors.js";
 import { registerSettingsRoutes } from "./settings.js";
+import { registerThreadReadRoutes } from "./thread-read.js";
 import { registerUiPreferenceRoutes } from "./ui-preferences.js";
 
 const publicApiRouteGroups: RouteGroup[] = [
   registerSettingsRoutes,
   registerUiPreferenceRoutes,
+  registerThreadReadRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [];

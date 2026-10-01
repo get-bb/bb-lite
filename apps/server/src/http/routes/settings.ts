@@ -85,8 +85,6 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     });
   });
 
-  get(routes.attention, (c) => c.json({ hasAttention: false }));
-
   put(routes.generalSettings, (c, payload) => {
     const { showUnhandledProviderEvents, ...settings } = payload;
     const current = getAppSettings(ctx.db);

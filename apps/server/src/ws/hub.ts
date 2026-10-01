@@ -24,6 +24,11 @@ export type SubscriptionListener = (
   subscribed: boolean,
 ) => void;
 
+export type ThreadChangeListener = (
+  threadId: string,
+  changes: readonly ThreadChangeKind[],
+) => void;
+
 type ThreadChangedMessage = Extract<ChangedMessage, { entity: "thread" }>;
 
 interface Subscription {
@@ -78,12 +83,14 @@ export class Hub {
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly pendingListEvents = new Map<string, PendingListEvents>();
   private readonly subscriptionListeners = new Set<SubscriptionListener>();
+  private readonly threadChangeListeners = new Set<ThreadChangeListener>();
 
   thread(
     id: string,
     changes: ThreadChangeKind[],
     metadata?: ThreadChangeMetadata,
   ): void {
+    for (const listener of this.threadChangeListeners) listener(id, changes);
     const message: ThreadChangedMessage = {
       type: "changed",
       entity: "thread",
@@ -143,6 +150,11 @@ export class Hub {
 
   hasSubscribers(target: RealtimeSubscriptionTarget): boolean {
     return this.subscriptions.has(targetKey(target));
+  }
+
+  onThreadChange(listener: ThreadChangeListener): () => void {
+    this.threadChangeListeners.add(listener);
+    return () => this.threadChangeListeners.delete(listener);
   }
 
   onSubscriptionChange(listener: SubscriptionListener): () => void {
