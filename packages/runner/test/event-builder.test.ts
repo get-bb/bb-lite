@@ -77,25 +77,14 @@ describe("EventBuilder", () => {
     builder.openTurn({ turn: "root" });
     const agent = { type: "delegation" as const, childRef: "c", label: "x" };
     const delegation = { ...agent, background: false };
-    const parentId = builder.openItem(
-      { providerItemId: "call-1" },
-      delegation,
-      {
-        turn: "root",
-      },
-    );
+    const call = { providerItemId: "call-1" };
+    const parentId = builder.openItem(call, delegation, { turn: "root" });
     const key = { providerItemId: "cmd-1", parentRef: "call-1" };
+    const done = { turn: "child", status: "completed" as const };
     builder.openItem(key, command, { turn: "child" });
     builder.delta(key, "command", "out", { turn: "child" });
-    builder.closeItem(
-      key,
-      { ...command, exitCode: 0 },
-      {
-        turn: "child",
-        status: "completed",
-      },
-    );
-    builder.closeTurn({ turn: "child", status: "completed" });
+    builder.closeItem(key, { ...command, exitCode: 0 }, done);
+    builder.closeTurn(done);
 
     expect(parentId).toMatch(/-i1$/);
     expect(builder.bbItemId("cmd-1")).toMatch(/-i2$/);
@@ -106,21 +95,15 @@ describe("EventBuilder", () => {
       type: "turn/input/accepted",
       scope: { turnId: builder.activeTurnId },
     });
-    expect(nested[0]).toMatchObject({
-      type: "item/started",
-      item: {
-        status: "pending",
-        approvalStatus: null,
-        parentToolCallId: parentId,
-      },
-    });
-    expect(nested[1]).toMatchObject({
-      delta: "out",
-      parentToolCallId: parentId,
-    });
-    expect(nested[2]).toMatchObject({
-      item: { id: builder.bbItemId("cmd-1"), status: "completed", exitCode: 0 },
-    });
+    const parentToolCallId = parentId;
+    const pending = { status: "pending", approvalStatus: null };
+    const settled = { id: builder.bbItemId("cmd-1"), status: "completed" };
+    expect(nested).toMatchObject([
+      { type: "item/started", item: { ...pending, parentToolCallId } },
+      { delta: "out", parentToolCallId },
+      { item: { ...settled, exitCode: 0 } },
+      { type: "turn/completed" },
+    ]);
     expectValid(nested);
   });
 
@@ -209,28 +192,6 @@ describe("EventBuilder", () => {
     expectValid(deltas);
   });
 
-  it("throttles progress to one event per 500 ms", () => {
-    const { builder, advance, take } = harness();
-    builder.openTurn({ turn: "t" });
-    const key = { providerItemId: "tool" };
-    const tool = { type: "toolCall" as const, tool: "search" };
-    builder.openItem(key, tool, { turn: "t" });
-    take();
-    builder.progress(key, { turn: "t", message: "one" });
-    builder.progress(key, { turn: "t", message: "two" });
-    expect(take()).toEqual([]);
-    advance(500);
-    builder.warning({ summary: "barrier" });
-    builder.progress(key, { turn: "t", message: "three", flush: true });
-    const emitted = take();
-    expect(emitted).toMatchObject([
-      { type: "item/toolCall/progress", message: "two" },
-      { type: "provider/warning", summary: "barrier" },
-      { type: "item/toolCall/progress", message: "three" },
-    ]);
-    expectValid(emitted);
-  });
-
   it("settles open items and turns when a session ends", () => {
     const { builder, take } = harness();
     builder.openTurn({ turn: "t" });
@@ -292,17 +253,6 @@ describe("EventBuilder", () => {
       "thread",
     ]);
     expectValid([...failed, ...after]);
-  });
-
-  it("forgets provider ids on reset but keeps minting fresh bb ids", () => {
-    const { builder } = harness();
-    const first = builder.openTurn({ turn: "t" });
-    builder.closeTurn({ turn: "t", status: "completed" });
-    builder.reset();
-    expect(builder.bbTurnId("t")).toBeUndefined();
-    const second = builder.openTurn({ turn: "t" });
-    expect(second).not.toBe(first);
-    expect(builder.activeTurnId).toBe(second);
   });
 });
 

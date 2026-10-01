@@ -201,10 +201,6 @@ export class EventBuilder {
     return this.rootTurn;
   }
 
-  get providerThreadId() {
-    return this.identityId;
-  }
-
   hasOpenBackgroundWork() {
     const background = new Set(["backgroundTask", "delegation"]);
     return [...this.open.values()].some((i) => background.has(i.shape.type));
@@ -464,7 +460,7 @@ export class EventBuilder {
   settle(status: "interrupted" | "failed", error?: string) {
     this.flush();
     if (this.liveTurns.size === 0 && this.accepted.length > 0) this.openTurn();
-    for (const [k, open] of [...this.open]) {
+    for (const [k, open] of this.open) {
       const { turnId, shape, presentation, parent } = open;
       if (isThreadAttached(shape) || !this.liveTurns.has(turnId)) continue;
       this.open.delete(k);
@@ -550,7 +546,7 @@ export class EventBuilder {
   }
 
   private detachAssistant(key: ItemKey) {
-    for (const [k, item] of [...this.open]) {
+    for (const [k, item] of this.open) {
       const anonymous = item.key.providerItemId === undefined;
       const sameParent = item.key.parentRef === key.parentRef;
       const assistant = item.shape.type === "agentMessage";
@@ -574,7 +570,7 @@ export class EventBuilder {
     const error = message ? { message } : undefined;
     const type = "turn/completed";
     this.send(turnId, { type, status, error, providerCheckpointId });
-    for (const [k, item] of [...this.open]) {
+    for (const [k, item] of this.open) {
       const ended = item.turnId === turnId && !isThreadAttached(item.shape);
       if (ended) this.forget(k);
     }

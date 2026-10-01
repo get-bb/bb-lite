@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import {
   isStandaloneBuiltinCompactCommand,
   toProviderExternalThreadName,
+  type DynamicTool,
   type PendingInteractionResolution,
 } from "@bb/domain";
 import { z } from "zod";
@@ -42,9 +43,6 @@ const MISSING_CLI =
   "bb could not find the Codex CLI on this machine. Install Codex (https://developers.openai.com/codex/cli) or put `codex` on PATH, then retry.";
 const ARCHIVED = /\b(?:session|thread)\s+\S+\s+is archived\b/i;
 const ACCOUNT_ERROR = /\b(?:40[13]|429|unauthori[sz]ed|quota|usage limit)\b/i;
-const COMPACTION_FAILED =
-  "codex reported a system error before the compaction turn started";
-const ZERO_WORK_GRACE_MS = 250;
 const INITIALIZE = {
   clientInfo: { name: "bb", version: "1.0.0", title: null },
   capabilities: { experimentalApi: true },
@@ -58,7 +56,6 @@ const toolCallSchema = z.object({
   tool: z.string().min(1),
   arguments: z.unknown().optional(),
 });
-let zeroWorkTurns = 0;
 
 function describe(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -76,8 +73,6 @@ class CodexSession implements ProviderSession {
   private readonly rpc: CodexRpc;
   private readonly translator: CodexTranslator;
   private readonly signature: string;
-  private rootTurnsOpened = 0;
-  private awaitingCompaction = false;
   private rebuild = false;
 
   constructor(
@@ -87,38 +82,19 @@ class CodexSession implements ProviderSession {
     adapter: Required<CodexAdapterOptions>,
   ) {
     this.signature = this.signatureOf(spec, options);
-    const tools = spec.dynamicTools.map(
-      (t) => [t.name, t.presentation] as const,
-    );
+    const toEntry = (t: DynamicTool) => [t.name, t.presentation] as const;
+    const tools = spec.dynamicTools.map(toEntry);
     const resumed = spec.providerThreadId !== null || spec.fork !== null;
-    const hooks = {
-      rootThreadId: () => this.providerThreadId || null,
-      onRootTurnOpened: () => {
-        this.rootTurnsOpened += 1;
-        this.awaitingCompaction = false;
-      },
-      onThreadStatus: (status: string) => {
-        const failed = status === "systemError";
-        const settles =
-          this.awaitingCompaction && (status === "idle" || failed);
-        if (!settles) return;
-        this.awaitingCompaction = false;
-        const error = failed ? COMPACTION_FAILED : undefined;
-        this.settleZeroWork(this.rootTurnsOpened, error);
-      },
-      onTerminalError: (category: string, detail: string) => {
-        const account =
-          category === "unauthorized" || category === "rate-limit";
-        const guessed = category === "unknown" && ACCOUNT_ERROR.test(detail);
-        if (account || guessed) this.rebuild = true;
-      },
+    const rootThreadId = () => this.providerThreadId || null;
+    const onTerminalError = (category: string, detail: string) => {
+      const account = category === "unauthorized" || category === "rate-limit";
+      const guessed = category === "unknown" && ACCOUNT_ERROR.test(detail);
+      if (account || guessed) this.rebuild = true;
     };
-    const translator = new CodexTranslator(
-      host.events,
-      new Map(tools),
-      hooks,
-      resumed,
-    );
+    const hooks = { rootThreadId, onTerminalError };
+    const injected = new Map(tools);
+    const { events } = host;
+    const translator = new CodexTranslator(events, injected, hooks, resumed);
     this.translator = translator;
     const env = { ...host.processEnv };
     for (const name of [codex.POOL_URL, codex.POOL_TOKEN]) {
@@ -178,17 +154,15 @@ class CodexSession implements ProviderSession {
   async startTurn({ clientRequestId, input, options }: TurnInput) {
     const { events } = this.host;
     const threadId = this.providerThreadId;
-    const opened = this.rootTurnsOpened;
     events.acceptInput(clientRequestId);
     try {
       if (isStandaloneBuiltinCompactCommand(input)) {
-        this.awaitingCompaction = true;
         await this.rpc.request("thread/compact/start", { threadId });
         return;
       }
       const { sandbox, ...approval } = codex.permissionSettings(options);
-      const roots =
-        sandbox === "workspace-write" ? await this.roots(options) : [];
+      const sandboxed = sandbox === "workspace-write";
+      const roots = sandboxed ? await this.roots(options) : [];
       const result = await this.rpc.request("turn/start", {
         threadId,
         input: codex.toCodexInput(input),
@@ -198,18 +172,11 @@ class CodexSession implements ProviderSession {
         serviceTier: codex.serviceTier(options),
         effort: codex.reasoningEffort(options),
       });
-      const parsed = z.object({ turn: turnSchema }).safeParse(result);
-      if (!parsed.success) {
-        const settle = () => this.settleZeroWork(opened);
-        setTimeout(settle, ZERO_WORK_GRACE_MS).unref();
-        return;
-      }
-      const { turn } = parsed.data;
+      const { turn } = z.object({ turn: turnSchema }).parse(result);
       this.translator.openTurn(threadId, turn.id);
       const settled = turn.status !== "inProgress";
       if (settled) this.translator.closeTurn(threadId, turn);
     } catch (error) {
-      this.awaitingCompaction = false;
       events.retractInput(clientRequestId);
       throw new RunnerError("failed", describe(error));
     }
@@ -310,16 +277,6 @@ class CodexSession implements ProviderSession {
       config,
       ...(tools.length > 0 ? { dynamicTools: tools } : {}),
     };
-  }
-
-  private settleZeroWork(openedBefore: number, error?: string) {
-    const { events } = this.host;
-    const stale = this.rootTurnsOpened !== openedBefore || events.activeTurnId;
-    if (stale || this.rpc.exited) return;
-    zeroWorkTurns += 1;
-    const turn = `zero-work-${zeroWorkTurns}`;
-    events.openTurn({ turn });
-    events.closeTurn({ turn, status: error ? "failed" : "completed", error });
   }
 
   private serve(id: string | number, method: string, params: unknown) {

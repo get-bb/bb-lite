@@ -124,10 +124,6 @@ const rawItem = z.looseObject({ type: text, id: text });
 const itemEvent = z.object({ ...scoped, item: rawItem });
 const deltaEvent = z.object({ ...scoped, itemId: text, delta: text });
 const turnEvent = z.object({ threadId: text, turn: turnSchema });
-const statusEvent = z.object({
-  threadId: text,
-  status: z.object({ type: text }),
-});
 const threadEvent = z.object({ id: text.min(1), preview: text.optional() });
 const nameEvent = z.object({ threadId: text, threadName: text.optional() });
 const progressEvent = z.object({
@@ -176,6 +172,7 @@ const NOISE = new Set([
   "thread/archived",
   "thread/unarchived",
   "thread/settings/updated",
+  "thread/status/changed",
   "turn/diff/updated",
   "turn/moderationMetadata",
 ]);
@@ -446,8 +443,6 @@ interface TrackedAgent {
 
 export interface CodexTranslatorHooks {
   rootThreadId(): string | null;
-  onThreadStatus(status: string): void;
-  onRootTurnOpened(): void;
   onTerminalError(category: ProviderErrorCategory, detail: string): void;
 }
 
@@ -477,7 +472,6 @@ export class CodexTranslator {
     const parentRef = this.parentRef(threadId, turn);
     if (parentRef !== undefined) this.parentByTurn.set(turn, parentRef);
     this.events.openTurn({ turn, parentRef });
-    if (parentRef === undefined) this.hooks.onRootTurnOpened();
   }
 
   closeTurn(threadId: string, { id: turn, status: reported, error }: Turn) {
@@ -674,11 +668,6 @@ export class CodexTranslator {
         return read(turnEvent, (p) => this.openTurn(p.threadId, p.turn.id));
       case "turn/completed":
         return read(turnEvent, (p) => this.closeTurn(p.threadId, p.turn));
-      case "thread/status/changed":
-        read(statusEvent, ({ threadId, status }) => {
-          if (isRoot(threadId)) hooks.onThreadStatus(status.type);
-        });
-        return true;
       case "thread/started":
         return read(z.object({ thread: threadEvent }), ({ thread }) => {
           if (!isRoot(thread.id)) return;

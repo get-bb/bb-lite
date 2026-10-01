@@ -128,7 +128,7 @@ export function createSessionApi(
 
   function cancelRequests(live: LiveSession, reason: string, turnId?: string) {
     const { threadId } = live;
-    for (const [requestId, pending] of [...live.requests]) {
+    for (const [requestId, pending] of live.requests) {
       if (turnId !== undefined && pending.turnId !== turnId) continue;
       live.requests.delete(requestId);
       if (pending.kind === "toolCall") {
@@ -372,7 +372,7 @@ export function createSessionApi(
 
   function watch() {
     const now = Date.now();
-    for (const live of [...sessions.values()]) {
+    for (const live of sessions.values()) {
       const start = live.pendingStart;
       const limitMs = timing.turnStartTimeoutMs;
       if (start && !start.warned && now - start.since >= limitMs) {
