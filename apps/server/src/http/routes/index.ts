@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import type { ServerContext } from "../../context.js";
 import type { ApiApp, AppEnv, RouteGroup } from "../api.js";
 import { notFound } from "../errors.js";
-import { registerCutFeatureStubs } from "./cut-stubs.js";
 import { registerHostRoutes, registerRunnerRoutes } from "./hosts.js";
 import { registerMachineEnvironmentRoutes } from "./machine-environment.js";
 import { registerProjectRoutes } from "./projects.js";
@@ -21,7 +20,6 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerThreadTabRoutes,
   registerHostRoutes,
   registerProviderRoutes,
-  registerCutFeatureStubs,
 ];
 
 const internalRouteGroups: RouteGroup[] = [registerRunnerRoutes];

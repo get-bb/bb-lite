@@ -1,4 +1,6 @@
 export * from "./types.js";
+export * from "./workspace-types.js";
+export { createWorkspaceApi } from "./workspace/index.js";
 export { EventBuilder } from "./events/event-builder.js";
 export type {
   ProviderAdapter,
