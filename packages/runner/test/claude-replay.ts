@@ -3,18 +3,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import {
-  dynamicToolSchema,
-  pendingInteractionResolutionSchema,
-  permissionEscalationValues,
-  permissionModeSchema,
-  promptInputSchema,
-  reasoningLevelSchema,
-  serviceTierSchema,
+  threadEventSchema,
   type PendingInteractionPayload,
   type PendingInteractionResolution,
-  type ToolCallResponse,
+  type PromptInput,
 } from "@bb/domain";
-import { z } from "zod";
 import {
   EventBuilder,
   createClaudeAdapter,
@@ -27,97 +20,43 @@ import {
 } from "@bb/runner";
 
 type QueryArgs = Parameters<NonNullable<ClaudeAdapterOptions["query"]>>[0];
+type CanUseTool = NonNullable<QueryArgs["options"]["canUseTool"]>;
+type ToolOptions = Omit<Parameters<CanUseTool>[2], "signal" | "requestId">;
 type Session = Awaited<ReturnType<ClaudeHarness["open"]>>;
+type Turn = { clientRequestId: string; input: PromptInput[] };
+type Asked = Parameters<SessionHost["requestInteraction"]>[0];
+type Pending = Asked & { resolve(answer: PendingInteractionResolution): void };
 export type ClaudeHarness = ReturnType<typeof createClaudeHarness>;
 
-interface PendingInteraction {
-  payload: PendingInteractionPayload;
-  turnId: string | null;
-  resolve(resolution: PendingInteractionResolution): void;
-  reject(error: Error): void;
+interface Step {
+  open?: [SessionSpec, ExecutionOptions, { env: SessionSpec["env"] }];
+  turn?: Turn & { options: ExecutionOptions };
+  steer?: boolean;
+  stop?: "interrupt" | "release";
+  resolve?: PendingInteractionResolution;
+  prompt?: string;
+  decided?: { requestId: string; result: unknown };
+  mode?: string;
+  message?: unknown;
+  permission?: [string, Record<string, unknown>, ToolOptions, string];
+  interaction?: PendingInteractionPayload;
 }
 
-const record = z.record(z.string(), z.unknown());
-const optionsSchema = z.object({
-  model: z.string(),
-  reasoningLevel: reasoningLevelSchema,
-  serviceTier: serviceTierSchema,
-  permissionMode: permissionModeSchema,
-  permissionEscalation: z.enum(permissionEscalationValues).nullish(),
-  instructions: z.string().default(""),
-  envVars: z.record(z.string(), z.string()).default({}),
-  providerOptions: z
-    .object({
-      additionalWorkspaceWriteRoots: z.array(z.string()).optional(),
-      claudeCodePermissionMode: z.string().optional(),
-      memoryEnabled: z.boolean().optional(),
-      providerSubagentsEnabled: z.boolean().optional(),
-      workflowsEnabled: z.boolean().optional(),
-    })
-    .default({}),
-});
-const commandSchema = z.object({
-  threadId: z.string(),
-  cwd: z.string().default(""),
-  providerThreadId: z.string().nullish(),
-  sourceProviderThreadId: z.string().optional(),
-  sourceProviderCheckpointId: z.string().optional(),
-  options: optionsSchema.optional(),
-  dynamicTools: z.array(dynamicToolSchema).default([]),
-  clientRequestId: z.string().default(""),
-  input: z.array(promptInputSchema).default([]),
-  intent: z.string().optional(),
-});
-const permissionRequestSchema = z.object({
-  tool_name: z.string(),
-  input: record,
-  tool_use_id: z.string(),
-  permission_suggestions: z.array(z.unknown()).optional(),
-  blocked_path: z.string().optional(),
-  decision_reason: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-});
-const entrySchema = z.object({
-  from: z.enum(["runtime", "sdk", "cli", "bridge"]),
-  message: z.looseObject({
-    type: z.string().optional(),
-    method: z.string().optional(),
-    params: z.looseObject({ payload: z.unknown().optional() }).optional(),
-    result: z.unknown().optional(),
-    request_id: z.string().optional(),
-    request: z.looseObject({ subtype: z.string() }).optional(),
-    response: record.optional(),
-    message: z.looseObject({ content: z.unknown().optional() }).optional(),
-  }),
-});
-type Entry = z.infer<typeof entrySchema>["message"];
-
 const FIXTURES = fileURLToPath(new URL("./fixtures/claude/", import.meta.url));
-const SPEC: SessionSpec = {
-  threadId: "thr_claude",
-  providerId: "claude-code",
-  cwd: "/workspace",
-  providerThreadId: null,
-  fork: null,
-  instructions: "",
-  dynamicTools: [],
-  env: {},
-  skillDirs: [],
-};
-const OPTIONS: ExecutionOptions = {
-  model: "claude-opus-5[1m]",
-  reasoningLevel: "medium",
-  serviceTier: "default",
-  permissionMode: "accept-edits",
-  permissionEscalation: "ask",
-  planMode: false,
-  providerOptions: {},
-};
+function readSteps(scenario: string) {
+  const wire = readFileSync(`${FIXTURES}${scenario}.wire.ndjson`, "utf8");
+  const lines = wire.split("\n").filter(Boolean);
+  return lines.map((line) => JSON.parse(line) as Step);
+}
 
-export class FakeQuery {
-  readonly sent: unknown[] = [];
-  readonly calls: [method: string, ...args: unknown[]][] = [];
+const [recorded] = readSteps("approval-allow");
+if (recorded?.open === undefined)
+  throw new Error("fixture must open a session");
+export const [SPEC, OPTIONS] = recorded.open;
+
+class FakeQuery {
+  readonly sent: { message: { content: unknown } }[] = [];
+  readonly calls: unknown[][] = [];
   private readonly queue: unknown[] = [];
   private wake = () => {};
   private closed = false;
@@ -132,9 +71,8 @@ export class FakeQuery {
   }
 
   async *[Symbol.asyncIterator]() {
-    for (;;) {
+    while (!this.closed || this.queue.length > 0) {
       if (this.queue.length > 0) yield this.queue.shift();
-      else if (this.closed) return;
       else await new Promise<void>((resolve) => (this.wake = resolve));
     }
   }
@@ -149,7 +87,7 @@ export class FakeQuery {
   applyFlagSettings = async (flags: unknown) => this.note("flags", flags);
   initializationResult = () => Promise.reject(new Error("not scripted"));
 
-  private note(...call: [string, ...unknown[]]) {
+  private note(...call: unknown[]) {
     this.calls.push(call);
     return undefined;
   }
@@ -168,93 +106,76 @@ export async function settle(rounds = 4) {
 
 export function createClaudeHarness() {
   const events: RunnerThreadEvent[] = [];
-  const interactions: PendingInteraction[] = [];
+  const interactions: Pending[] = [];
   const toolCalls: Parameters<SessionHost["callTool"]>[0][] = [];
-  const exits: string[] = [];
   const queries: FakeQuery[] = [];
   const adapter = createClaudeAdapter({
     query: (args) => {
-      queries.push(new FakeQuery(args));
-      return queries[queries.length - 1] ?? new FakeQuery(args);
+      const query = new FakeQuery(args);
+      queries.push(query);
+      return query;
     },
     forkSession: async () => ({ sessionId: randomUUID() }),
   });
-  const called: ToolCallResponse = {
-    contentItems: [{ type: "inputText", text: "moved" }],
-    success: true,
-  };
   async function open(
     spec: Partial<SessionSpec> = {},
     options: Partial<ExecutionOptions> = {},
     env: Partial<Pick<SessionHost, "env" | "processEnv">> = {},
   ) {
-    const emit = (event: RunnerThreadEvent) => events.push(event);
+    const emit = (event: RunnerThreadEvent) => {
+      threadEventSchema.parse({ ...event, threadId: SPEC.threadId });
+      events.push(event);
+    };
     const providerId = "claude-code";
     const builder = new EventBuilder({ providerId, emit, textFlushMs: 0 });
+    const moved = { type: "inputText" as const, text: "moved" };
     const host: SessionHost = {
       events: builder,
       env: env.env ?? {},
       processEnv: env.processEnv ?? {},
       threadStorageDir: "/unused",
-      writableRoots: [],
-      callTool: async (call) => (toolCalls.push(call), called),
-      requestInteraction: ({ payload, turnId }) =>
-        new Promise((resolve, reject) =>
-          interactions.push({ payload, turnId, resolve, reject }),
-        ),
-      onExit: (info) => exits.push(info.message),
+      writableRoots: ["/storage"],
+      callTool: async (call) => {
+        toolCalls.push(call);
+        return { contentItems: [moved], success: true };
+      },
+      requestInteraction: (asked) =>
+        new Promise((resolve) => interactions.push({ ...asked, resolve })),
+      onExit: () => undefined,
     };
     const execution = { ...OPTIONS, ...options };
     const session = await adapter.open({ ...SPEC, ...spec }, execution, host);
     const query = queries[queries.length - 1];
     if (query === undefined) throw new Error("the adapter started no query");
-    const turn = (text: string, clientRequestId = "creq_aaaaaaaaaa") => {
+    const turn = (text: string, changes: Partial<ExecutionOptions> = {}) => {
       const input = [{ type: "text" as const, text, mentions: [] }];
-      return session.startTurn({ clientRequestId, input, options: execution });
+      const request = { clientRequestId: "creq_aaaaaaaaaa", input };
+      const next = { ...execution, ...changes };
+      return session.startTurn({ ...request, options: next });
     };
-    return { session, query, builder, turn, execution };
+    const decide = (tool: string, input: object, extra = {}, id = "r") => {
+      const canUseTool = query.args.options.canUseTool;
+      if (canUseTool === undefined) throw new Error("no permission callback");
+      const signal = new AbortController().signal;
+      const ids = { toolUseID: "toolu_ask", requestId: id };
+      return canUseTool(tool, { ...input }, { signal, ...ids, ...extra });
+    };
+    return { session, query, builder, turn, decide };
   }
-  return { adapter, events, interactions, toolCalls, exits, open };
+  return { events, interactions, toolCalls, open };
 }
 
-export function readOriginalEvents(scenario: string) {
-  const raw = readFileSync(`${FIXTURES}${scenario}.events.json`, "utf8");
-  const events: unknown = JSON.parse(raw);
-  return events as RunnerThreadEvent[];
-}
-
-export function normalizeIds<T>(events: T[]): T[] {
+function normalizeIds(events: unknown): unknown {
   const ids = new Map<string, string>();
   const intern = (id: string) => {
     if (!ids.has(id)) ids.set(id, `#${ids.size + 1}`);
     return ids.get(id) ?? id;
   };
+  const session = /("providerThreadId":")([^"]+)/g;
   const json = JSON.stringify(events)
     .replace(/da[0-9a-f]{8}-[ti]\d+/g, intern)
-    .replace(
-      /("providerThreadId":")([^"]+)/g,
-      (_, key: string, id: string) => `${key}${intern(id)}`,
-    );
-  return JSON.parse(json) as T[];
-}
-
-function toOptions(options: z.infer<typeof optionsSchema> | undefined) {
-  const { instructions, envVars, permissionEscalation, ...rest } =
-    optionsSchema.parse(options ?? {});
-  const original = rest.providerOptions;
-  const providerOptions = {
-    additionalWorkspaceWriteRoots: original.additionalWorkspaceWriteRoots,
-    memoryEnabled: original.memoryEnabled,
-    subagentsDisabled: original.providerSubagentsEnabled === false,
-    workflowsDisabled: original.workflowsEnabled === false,
-  };
-  const execution: ExecutionOptions = {
-    ...rest,
-    permissionEscalation: permissionEscalation ?? "ask",
-    planMode: original.claudeCodePermissionMode === "plan",
-    providerOptions,
-  };
-  return { execution, instructions, envVars };
+    .replace(session, (_, key: string, id: string) => `${key}${intern(id)}`);
+  return JSON.parse(json);
 }
 
 export async function replayClaudeRecording(scenario: string) {
@@ -272,113 +193,73 @@ export async function replayClaudeRecording(scenario: string) {
     if (!isDeepStrictEqual(plain, recorded)) mismatches.push(label);
   };
   async function awaited<T>(label: string, read: () => T | undefined) {
-    for (
-      let attempt = 0;
-      attempt < 200 && failures.length === 0;
-      attempt += 1
-    ) {
-      const value = read();
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const value = failures.length > 0 ? undefined : read();
       if (value !== undefined) return value;
       await settle(1);
     }
     throw failures[0] ?? new Error(`${scenario}: the adapter never ${label}`);
   }
 
-  async function runtime({ method, params, result }: Entry) {
-    if (method === undefined) {
-      const resolution = pendingInteractionResolutionSchema.parse(result);
-      harness.interactions.shift()?.resolve(resolution);
-      return;
-    }
-    const command = commandSchema.parse(params);
-    if (method === "thread/stop") {
-      const { session, builder } = state.live ?? {};
-      state.live = null;
-      if (command.intent === "interrupt") await session?.interrupt();
-      builder?.settle("interrupted");
-      await session?.close();
-      return;
-    }
-    const { execution, instructions, envVars } = toOptions(command.options);
-    if (/^thread\/(start|resume|fork)$/.test(method)) {
+  async function play(step: Step) {
+    if (step.open !== undefined) {
       await state.live?.session.close();
-      const source = command.sourceProviderThreadId;
-      const checkpointId = command.sourceProviderCheckpointId ?? null;
-      const { threadId, cwd, dynamicTools } = command;
-      const providerThreadId = command.providerThreadId ?? null;
-      const fork = source
-        ? { sourceProviderThreadId: source, checkpointId }
-        : null;
-      const identity = { threadId, cwd, providerThreadId, fork };
-      const spec = { ...identity, instructions, dynamicTools };
-      state.live = await harness.open(spec, execution, { env: envVars });
+      const [spec] = step.open;
+      state.live = await harness.open(...step.open);
+      const { resume } = state.live.query.args.options;
+      if (spec.fork === null) compare("resume", resume, spec.providerThreadId);
       return;
     }
-    if (state.live === null) return;
-    const { session, builder } = state.live;
-    const { clientRequestId, input } = command;
-    const turn = { clientRequestId, input, options: execution };
-    const expectedTurnId = builder.activeTurnId ?? "";
-    if (method === "turn/start") track(session.startTurn(turn));
-    if (method === "turn/steer")
-      track(session.steer({ ...turn, expectedTurnId }));
-  }
-
-  async function cli(message: Entry) {
+    const answer = step.resolve;
+    if (answer !== undefined) harness.interactions.shift()?.resolve(answer);
     const { live } = state;
     if (live === null) return;
-    if (message.type !== "control_request") return live.query.emit(message);
-    const request = permissionRequestSchema.parse(message.request);
-    const canUseTool = live.query.args.options.canUseTool;
-    const requestId = message.request_id ?? "";
-    const decision = canUseTool?.(request.tool_name, request.input, {
-      signal: new AbortController().signal,
-      suggestions: request.permission_suggestions as never,
-      blockedPath: request.blocked_path,
-      decisionReason: request.decision_reason,
-      title: request.title,
-      description: request.description,
-      toolUseID: request.tool_use_id,
-      requestId,
-    });
-    decisions.set(requestId, Promise.resolve(decision));
-  }
-
-  async function sdk(message: Entry) {
-    const { query } = state.live ?? {};
-    if (query === undefined) return;
-    if (message.type === "user") {
+    const { session, builder, query } = live;
+    if (step.stop !== undefined) {
+      state.live = null;
+      if (step.stop === "interrupt") await session.interrupt();
+      builder.settle("interrupted");
+      await session.close();
+    }
+    if (step.turn !== undefined) {
+      const expectedTurnId = builder.activeTurnId ?? "";
+      if (step.steer) track(session.steer({ ...step.turn, expectedTurnId }));
+      else track(session.startTurn(step.turn));
+    }
+    if (step.message !== undefined) query.emit(step.message);
+    if (step.permission !== undefined) {
+      decisions.set(step.permission[3], live.decide(...step.permission));
+    }
+    if (step.prompt !== undefined) {
       const sent = await awaited("sent the prompt", () => query.sent.shift());
-      const content = entrySchema.shape.message.parse(sent).message?.content;
-      compare("prompt text", content, message.message?.content);
-    } else if (message.type === "control_response") {
-      const decision = await decisions.get(
-        String(message.response?.request_id),
-      );
-      compare("permission result", decision, message.response?.response);
-    } else if (message.request?.subtype === "set_permission_mode") {
+      compare("prompt", sent.message.content, step.prompt);
+    }
+    if (step.decided !== undefined) {
+      const decision = await decisions.get(step.decided.requestId);
+      compare("decision", decision, step.decided.result);
+    }
+    if (step.mode !== undefined) {
       const call = await awaited("set the mode", () => query.calls.shift());
-      compare("permission mode", call, ["mode", message.request.mode]);
+      compare("mode", call, ["mode", step.mode]);
+    }
+    if (step.interaction !== undefined) {
+      const pending = await awaited("asked", () => harness.interactions[0]);
+      const mapped = JSON.stringify(step.interaction).replace(
+        /"itemId":"([^"]+)"/,
+        (_, id: string) => `"itemId":"${builder.bbItemId(id) ?? id}"`,
+      );
+      compare("interaction", pending.payload, JSON.parse(mapped));
     }
   }
 
-  async function bridge(message: Entry) {
-    const pending = await awaited("asked", () => harness.interactions[0]);
-    const text = JSON.stringify(message.params?.payload);
-    const mapped = text.replace(
-      /"itemId":"([^"]+)"/,
-      (_, id: string) => `"itemId":"${state.live?.builder.bbItemId(id) ?? id}"`,
-    );
-    compare("interaction payload", pending.payload, JSON.parse(mapped));
-  }
-
-  const wire = readFileSync(`${FIXTURES}${scenario}.wire.ndjson`, "utf8");
-  for (const line of wire.split("\n").filter(Boolean)) {
-    const { from, message } = entrySchema.parse(JSON.parse(line));
-    await { runtime, cli, sdk, bridge }[from](message);
+  for (const step of readSteps(scenario)) {
+    await play(step);
     await settle();
   }
   await state.live?.session.close();
   if (failures.length > 0) throw failures[0];
-  return { events: harness.events, mismatches, checked };
+  const expected = readFileSync(`${FIXTURES}${scenario}.events.json`, "utf8");
+  const original = normalizeIds(JSON.parse(expected));
+  const events = normalizeIds(harness.events);
+  return { events, original, mismatches, checked };
 }
