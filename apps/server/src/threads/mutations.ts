@@ -82,12 +82,6 @@ export function update(
   if (parentThreadId !== undefined && parentThreadId !== previousParentId) {
     fields.parentThreadId = parentThreadId;
     changes.push("parent-changed");
-    const released = parentThreadId === null && sectionId === undefined;
-    const previous =
-      previousParentId === null
-        ? undefined
-        : store.getThread(db, previousParentId);
-    if (released) fields.sectionId = previous?.sectionId ?? null;
   }
   const updated = engine.commit((out) => {
     const { projectId } = thread;
@@ -196,9 +190,6 @@ export function updateQueuedMessage(
   const row = requireQueuedMessage(engine, threadId, queuedMessageId);
   if (row.updatedAt !== request.expectedUpdatedAt) {
     throw conflict("Queued message changed since editing began");
-  }
-  if (row.systemNotice !== null) {
-    throw conflict("System notices cannot be edited");
   }
   queue.updateQueuedMessageContent(engine.ctx.db, row, request.input);
   queueChanged(engine, threadId);

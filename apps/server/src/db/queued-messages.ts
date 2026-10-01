@@ -321,6 +321,11 @@ export function listThreadIdsWaitingOn(
   return rows.map((row) => row.threadId);
 }
 
+export function queuedInitiator(row: QueuedMessageRow) {
+  if (row.systemNotice !== null) return "system";
+  return row.senderThreadId === null ? "user" : "agent";
+}
+
 export function toThreadQueuedMessage(
   row: QueuedMessageRow,
 ): ThreadQueuedMessage {
@@ -329,11 +334,7 @@ export function toThreadQueuedMessage(
     id: row.id,
     origin: row.origin,
     originPluginId: row.originPluginId,
-    initiator: notice
-      ? "system"
-      : row.senderThreadId === null
-        ? "user"
-        : "agent",
+    initiator: queuedInitiator(row),
     senderThreadId: row.senderThreadId,
     threadId: row.threadId,
     content: parseQueuedContent(row),

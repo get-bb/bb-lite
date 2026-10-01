@@ -18,7 +18,6 @@ export interface PluginInputRequest {
   title: string;
   payload: domain.JsonValue;
   presentation?: domain.ThreadEventItemPresentation;
-  timeoutMs?: number;
   signal?: AbortSignal;
 }
 
@@ -73,12 +72,15 @@ function settle(
   id: string,
   from: readonly PendingInteractionRow["status"][],
   next: InteractionSettlement,
+  answer?: PluginInputResult,
 ): PendingInteraction | null {
   const row = pending.settleInteraction(engine.ctx.db, id, from, next);
   if (row === undefined) return null;
   const reason = next.statusReason ?? "thread-stopped";
-  if (next.status === "interrupted") {
-    out.after(() => settleWaiter(engine, id, { outcome: "cancelled", reason }));
+  const cancelled = { outcome: "cancelled" as const, reason };
+  const result = answer ?? cancelled;
+  if (next.status !== "resolving") {
+    out.after(() => settleWaiter(engine, id, result));
   }
   return announce(engine, out, thread, row);
 }
@@ -88,11 +90,9 @@ export function interruptAll(
   out: Outbox,
   thread: ThreadRow,
   statusReason: string,
-  scope: "all" | "provider" = "all",
 ): void {
+  const next = { status: "interrupted" as const, statusReason };
   for (const row of pending.listActiveInteractions(engine.ctx.db, thread.id)) {
-    if (scope === "provider" && row.originKind !== "provider") continue;
-    const next = { status: "interrupted" as const, statusReason };
     settle(engine, out, thread, row.id, ACTIVE, next);
   }
 }
@@ -132,9 +132,6 @@ export function registerProviderInteraction(
       providerId: event.providerId,
       providerThreadId: event.providerThreadId,
       providerRequestId: requestId,
-      pluginId: null,
-      rendererId: null,
-      expiresAt: null,
       payload,
     });
     const interaction = announce(engine, out, thread, row);
@@ -271,9 +268,8 @@ function settlePluginInteraction(
   const thread = getThread(engine.ctx.db, row.threadId);
   if (thread === undefined) throw threadNotFound();
   return engine.commit((out) => {
-    const settled = settle(engine, out, thread, row.id, ACTIVE, next);
+    const settled = settle(engine, out, thread, row.id, ACTIVE, next, result);
     if (settled === null) throw alreadySettled(row);
-    out.after(() => settleWaiter(engine, row.id, result));
     return settled;
   });
 }
@@ -290,13 +286,6 @@ export function respondToInteraction(
     return resolveProviderInteraction(engine, threadId, row.id, resolution);
   }
   if (row.status !== "pending") throw alreadySettled(row);
-  if (!engine.inputWaiters.has(row.id)) {
-    const statusReason = "request-aborted";
-    const next = { status: "interrupted" as const, statusReason };
-    const result = { outcome: "cancelled" as const, reason: statusReason };
-    settlePluginInteraction(engine, row, next, result);
-    throw conflict("The plugin is no longer waiting for this interaction");
-  }
   const next = {
     status: "resolved" as const,
     resolution: { kind: "plugin_submitted" },
@@ -325,8 +314,8 @@ function openPluginInteraction(
   engine: Engine,
   request: PluginInputRequest,
 ): { result: Promise<PluginInputResult> } {
-  const { db, extensions, now } = engine.ctx;
-  const { threadId, signal, timeoutMs } = request;
+  const { db, extensions } = engine.ctx;
+  const { threadId, signal } = request;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) throw threadNotFound();
   if (pending.listActiveInteractions(db, threadId).length > 0) {
@@ -337,13 +326,8 @@ function openPluginInteraction(
     const created = pending.insertPendingInteraction(db, {
       threadId,
       originKind: "plugin",
-      turnId: null,
-      providerId: null,
-      providerThreadId: null,
-      providerRequestId: null,
       pluginId: request.pluginId,
       rendererId: request.rendererId,
-      expiresAt: timeoutMs === undefined ? null : now() + timeoutMs,
       payload: { kind: "plugin", title, data, presentation },
     });
     const interaction = announce(engine, out, thread, created);
@@ -361,16 +345,8 @@ function openPluginInteraction(
     });
   const result = new Promise<PluginInputResult>((resolve) => {
     const abort = (): void => cancel("request-aborted");
-    const timer =
-      timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => cancel("timeout"), timeoutMs);
-    timer?.unref();
     signal?.addEventListener("abort", abort, { once: true });
-    const dispose = (): void => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", abort);
-    };
+    const dispose = (): void => signal?.removeEventListener("abort", abort);
     engine.inputWaiters.set(row.id, { resolve, dispose });
     if (signal?.aborted) abort();
   });

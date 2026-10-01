@@ -213,14 +213,21 @@ export class Engine {
     out.thread(thread.id, ["title-changed"], { projectId });
   }
 
-  renameSession(thread: ThreadRow, title: string): void {
+  tell(
+    thread: ThreadRow,
+    label: string,
+    call: (runner: ServerRunner, threadId: string) => Promise<unknown>,
+  ): void {
     const hostId = this.connectedHostOf(thread);
     if (hostId === null) return;
-    const threadId = thread.id;
-    const renamed = this.onHost(hostId, (runner) =>
+    const told = this.onHost(hostId, (runner) => call(runner, thread.id));
+    this.background(label, told);
+  }
+
+  renameSession(thread: ThreadRow, title: string): void {
+    this.tell(thread, "rename session", (runner, threadId) =>
       runner.renameSession({ threadId, title }),
     );
-    this.background("rename session", renamed);
   }
 
   adoptTitle(threadId: string, title: string): void {
@@ -228,16 +235,6 @@ export class Engine {
     if (thread === undefined || thread.title !== null) return;
     this.commit((out) => this.setTitle(out, thread, title));
     if (thread.providerThreadId !== null) this.renameSession(thread, title);
-  }
-
-  interruptRunnerTurn(thread: ThreadRow): void {
-    const hostId = this.hostOf(thread);
-    if (hostId === null) return;
-    const threadId = thread.id;
-    const interrupted = this.onHost(hostId, (runner) =>
-      runner.interruptTurn({ threadId }),
-    );
-    this.background("interrupt turn", interrupted);
   }
 
   scheduleDrain(threadId: string): void {
@@ -283,9 +280,9 @@ export class Engine {
   start(): void {
     const { runners } = this.ctx;
     this.disposers.push(
-      runners.onEvent("thread.events", (event, hostId) =>
+      runners.onEvent("thread.events", (event) =>
         this.inThread(event.threadId, () =>
-          ingestThreadEvents(this, hostId, event.threadId, event.events),
+          ingestThreadEvents(this, event.threadId, event.events),
         ),
       ),
       runners.onEvent("interaction.requested", (event, hostId) =>

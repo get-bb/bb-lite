@@ -48,7 +48,11 @@ function onRootTurnStarted(
   runtime.cancelledStart = null;
   patchThread(engine.ctx.db, thread.id, { activeTurnId: turnId }, false);
   if (abandoned) {
-    out.after(() => engine.interruptRunnerTurn(thread));
+    out.after(() =>
+      engine.tell(thread, "interrupt turn", (runner, threadId) =>
+        runner.interruptTurn({ threadId }),
+      ),
+    );
     return;
   }
   engine.transition(out, thread.id, "run.started");
@@ -65,12 +69,8 @@ function onTurnCompleted(
   if (scope.kind !== "turn" || scope.turnId !== thread.activeTurnId) return;
   patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
   const stopped = status === "interrupted" && thread.status === "stopping";
-  interruptAll(
-    engine,
-    out,
-    thread,
-    stopped ? STOPPED_REASON : TURN_ENDED_REASON,
-  );
+  const reason = stopped ? STOPPED_REASON : TURN_ENDED_REASON;
+  if (status !== "completed") interruptAll(engine, out, thread, reason);
   const outcome = engine.transition(
     out,
     thread.id,
@@ -138,22 +138,12 @@ function applyEffect(
 
 export function ingestThreadEvents(
   engine: Engine,
-  hostId: string,
   threadId: string,
   events: readonly RunnerThreadEvent[],
 ): void {
-  const { db, log } = engine.ctx;
+  const { db } = engine.ctx;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
-  const owner = engine.hostOf(thread);
-  if (owner !== null && owner !== hostId) {
-    log.warn("Dropped events for a thread on another machine", {
-      threadId,
-      hostId,
-      owner,
-    });
-    return;
-  }
   engine.commit((out) => {
     const accepted = events.filter(isRunnerAuthored);
     const stored = appendEvents(db, thread, accepted, "runner");

@@ -46,19 +46,17 @@ export interface ExtensionEvents {
   "interaction.pending": ThreadEvent & { interaction: PendingInteraction };
 }
 
+type Scoped<Result> = (thread: ThreadExtensionContext) => Promise<Result>;
+
 export interface Extensions {
-  instructions(
-    thread: ThreadExtensionContext,
-  ): Promise<InstructionContribution[]>;
-  agentTools(thread: ThreadExtensionContext): Promise<AgentToolContribution[]>;
+  instructions: Scoped<InstructionContribution[]>;
+  agentTools: Scoped<AgentToolContribution[]>;
+  contributedEnv: Scoped<Record<string, string>>;
   callAgentTool(
     name: string,
     args: unknown,
     call: ToolCallContext,
   ): Promise<ToolCallResponse | null>;
-  contributedEnv(
-    thread: ThreadExtensionContext,
-  ): Promise<Record<string, string>>;
   emit<Name extends keyof ExtensionEvents>(
     name: Name,
     payload: ExtensionEvents[Name],

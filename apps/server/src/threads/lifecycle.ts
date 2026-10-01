@@ -62,21 +62,19 @@ function requestStop(engine: Engine, threadId: string): string | null {
     runtime.cancelledStart = runtime.pendingStart;
     return hostId;
   }
-  const online = engine.connectedHostOf(thread);
-  if (thread.status === "starting") {
-    engine.commit((out) => {
-      cancelProvisioning(engine, out, thread);
-      appendInterrupted(engine, out, thread, MANUAL_STOP);
-      interactions.interruptAll(engine, out, thread, STOPPED_REASON);
-      engine.transition(out, threadId, "stop.requested");
-      engine.transition(out, threadId, "stop.settled");
-    });
-  } else if (online !== null) {
-    const released = engine.onHost(online, (runner) =>
+  if (thread.status !== "starting") {
+    engine.tell(thread, "release session", (runner) =>
       runner.releaseSession({ threadId }),
     );
-    engine.background("release session", released);
+    return null;
   }
+  engine.commit((out) => {
+    cancelProvisioning(engine, out, thread);
+    appendInterrupted(engine, out, thread, MANUAL_STOP);
+    interactions.interruptAll(engine, out, thread, STOPPED_REASON);
+    engine.transition(out, threadId, "stop.requested");
+    engine.transition(out, threadId, "stop.settled");
+  });
   return null;
 }
 
@@ -127,7 +125,7 @@ function interruptThread(
   engine.commit((out) => {
     closeActiveTurn(engine, out, thread);
     appendInterrupted(engine, out, thread, interruption);
-    interactions.interruptAll(engine, out, thread, reason, "provider");
+    interactions.interruptAll(engine, out, thread, reason);
     const settlement = stopping ? "stop.settled" : "run.failed";
     const outcome = engine.transition(out, threadId, settlement);
     if (!outcome.applied || stopping) return;
@@ -182,12 +180,6 @@ export async function archiveThreadTree(
 export function unarchiveThread(engine: Engine, threadId: string): void {
   const thread = engine.requireThread(threadId);
   if (thread.archivedAt === null) return;
-  const ownerId = thread.lifecycleOwnerThreadId;
-  const owner =
-    ownerId === null ? undefined : store.getThread(engine.ctx.db, ownerId);
-  if (owner !== undefined && owner.archivedAt !== null) {
-    throw conflict("Lifecycle owner must be unarchived first");
-  }
   const restored = { archivedAt: null };
   const change = "archived-changed";
   changeMembership(engine, thread, restored, change, "thread.unarchived");
@@ -258,9 +250,7 @@ export async function deleteThreadTree(
         "threads are kept.",
     );
   }
-  for (const { id } of store.listLifecycleTree(db, root)) {
-    await engine.inThread(id, () => tombstone(engine, id));
-  }
+  await engine.inThread(root.id, () => tombstone(engine, root.id));
 }
 
 export function clearContext(engine: Engine, threadId: string) {

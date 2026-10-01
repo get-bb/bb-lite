@@ -228,7 +228,8 @@ it("tells a parent about its children in batches", async () => {
     "SELECT system_notice FROM queued_thread_messages",
   );
   expect(JSON.stringify(notice)).toContain("child-completed");
-  await ingest(parent, events.completed("p2"));
+  const settled = { threadId: parent, requestId: "parent-req", reason: "gone" };
+  await server.emit({ kind: "interaction.cancelled", ...settled });
   expect(noticeTexts(server, parent).at(-1)).toBe(
     `[bb system]\n\n@thread:${one} completed:\n\nall green`,
   );

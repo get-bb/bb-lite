@@ -215,30 +215,18 @@ export function listChildThreads(db: Db, parentThreadId: string) {
   return select(db, `parent_thread_id = ? AND ${LIVE}`, parentThreadId);
 }
 
-function collectTree(
-  db: Db,
-  root: ThreadRow,
-  includeChildren: boolean,
-): ThreadRow[] {
+export function listArchiveTree(db: Db, root: ThreadRow): ThreadRow[] {
   const ordered: ThreadRow[] = [];
   const seen = new Set<string>();
   const visit = (thread: ThreadRow): void => {
     if (seen.has(thread.id)) return;
     seen.add(thread.id);
     select(db, "lifecycle_owner_thread_id = ?", thread.id).forEach(visit);
-    if (includeChildren) listChildThreads(db, thread.id).forEach(visit);
+    listChildThreads(db, thread.id).forEach(visit);
     ordered.push(thread);
   };
   visit(root);
   return ordered;
-}
-
-export function listArchiveTree(db: Db, root: ThreadRow): ThreadRow[] {
-  return collectTree(db, root, true);
-}
-
-export function listLifecycleTree(db: Db, root: ThreadRow): ThreadRow[] {
-  return collectTree(db, root, false);
 }
 
 export function ancestry(db: Db, thread: ThreadRow): string[] {
@@ -346,31 +334,24 @@ export function threadActivity(db: Db, threadId: string): ThreadActivityState {
   };
 }
 
-function toThreadWithRuntime(thread: ThreadRow, runtime: ThreadRuntimeState) {
-  return {
-    id: thread.id,
-    projectId: thread.projectId,
-    environmentId: thread.environmentId,
-    providerId: thread.providerId,
-    title: thread.title,
-    titleFallback: thread.titleFallback,
-    sectionId: thread.sectionId,
-    status: thread.status,
-    parentThreadId: thread.parentThreadId,
-    lifecycleOwnerThreadId: thread.lifecycleOwnerThreadId,
-    sourceThreadId: thread.sourceThreadId,
-    originKind: thread.originKind,
-    originPluginId: thread.originPluginId,
-    visibility: thread.visibility,
-    archivedAt: thread.archivedAt,
-    pinnedAt: thread.pinnedAt,
-    deletedAt: thread.deletedAt,
-    lastReadAt: thread.lastReadAt,
-    latestAttentionAt: thread.latestAttentionAt,
-    createdAt: thread.createdAt,
-    updatedAt: thread.updatedAt,
-    runtime,
-  };
+function toThreadWithRuntime<Row extends ThreadRow>(
+  thread: Row,
+  runtime: ThreadRuntimeState,
+) {
+  const {
+    providerThreadId,
+    activeTurnId,
+    model,
+    reasoningLevel,
+    permissionMode,
+    serviceTier,
+    modelOverride,
+    reasoningLevelOverride,
+    startupContext,
+    storageDeletedAt,
+    ...shared
+  } = thread;
+  return { ...shared, runtime };
 }
 
 const QUEUED_COUNT = `(SELECT COUNT(*) FROM queued_thread_messages q
@@ -411,10 +392,11 @@ export function toThreadResponse(
   runtime: ThreadRuntimeState,
 ): ThreadResponse {
   const [listed] = listThreadRows(db, "t.id = ?", thread.id);
-  const activity = threadActivity(db, thread.id);
+  const { pinSortKey, ...shared } = toThreadWithRuntime(thread, runtime);
   return {
-    ...toThreadWithRuntime(thread, runtime),
-    activeBackgroundAgentCount: activity.activeBackgroundAgentCount,
+    ...shared,
+    activeBackgroundAgentCount: threadActivity(db, thread.id)
+      .activeBackgroundAgentCount,
     canRestoreEnvironment: false,
     canSpawnChild: ancestry(db, thread).length < MAX_THREAD_HIERARCHY_DEPTH,
     queuedMessageCount: listed?.queued ?? 0,
@@ -431,22 +413,15 @@ export function listPinnedThreadEntries(
      AND t.visibility = 'visible' AND t.parent_thread_id IS NULL
      ORDER BY t.pin_sort_key`,
   );
-  return rows.map((row) => {
+  return rows.map(({ queued, failed, pending, ...row }) => {
     const worktree = row.environmentIsWorktree === 1;
     const managed = row.environmentProviderId === "git-worktree";
     const displayKind = worktree ? "unmanaged-worktree" : "other";
     return {
       ...toThreadWithRuntime(row, runtimeOf(row, row.environmentHostId)),
       activity: threadActivity(db, row.id),
-      queuedWork:
-        row.failed > 0 ? "failed" : row.queued > 0 ? "waiting" : "none",
-      pinSortKey: row.pinSortKey,
-      hasPendingInteraction: row.pending > 0,
-      environmentHostId: row.environmentHostId,
-      environmentName: row.environmentName,
-      environmentBranchName: row.environmentBranchName,
-      environmentPath: row.environmentPath,
-      environmentProviderId: row.environmentProviderId,
+      queuedWork: failed > 0 ? "failed" : queued > 0 ? "waiting" : "none",
+      hasPendingInteraction: pending > 0,
       environmentIsWorktree: row.environmentHostId === null ? null : worktree,
       environmentWorkspaceDisplayKind: managed
         ? "managed-worktree"

@@ -5,6 +5,7 @@ import {
   type ProvisioningTranscriptEntry,
   type SystemThreadProvisioningStatus,
 } from "@bb/domain";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { getEnvironmentRow } from "../db/engine-lookups.js";
 import { decodeJson, newId } from "../db/index.js";
@@ -45,6 +46,20 @@ const GENERATED_TITLE_MAX_LENGTH = 48;
 const TITLE_MIN_WORDS = 5;
 const TITLE_TIMEOUT_MS = 5_000;
 
+type StepStatus = NonNullable<ProvisioningTranscriptEntry["status"]>;
+type Recorder = (entries: ProvisioningTranscriptEntry[]) => void;
+
+function step(
+  key: string,
+  text: string,
+  status: StepStatus,
+  startedAt: number,
+  metadata?: Record<string, unknown>,
+): ProvisioningTranscriptEntry {
+  const entry = { type: "step" as const, key, text, status, startedAt };
+  return metadata === undefined ? entry : { ...entry, metadata };
+}
+
 function promptText(input: readonly PromptInput[]): string {
   return input
     .flatMap((part) => (part.type === "text" ? [part.text.trim()] : []))
@@ -62,21 +77,13 @@ export function deriveTitleFallback(input: readonly PromptInput[]) {
 
 function titlePrompt(input: readonly PromptInput[]): string | null {
   const text = deriveTitleFallback(input);
-  const invokesCommand = input.some(
-    (part) =>
-      part.type === "text" &&
-      part.mentions.some((mention) => mention.resource.kind === "command"),
-  );
   const words = text?.split(" ").length ?? 0;
-  return invokesCommand || words >= TITLE_MIN_WORDS ? text : null;
+  return words >= TITLE_MIN_WORDS ? text : null;
 }
 
 function sanitizeTitle(generated: string | null): string | null {
   const title = generated?.trim().replace(/\s+/gu, " ") ?? "";
-  if (title.length <= GENERATED_TITLE_MAX_LENGTH) return title || null;
-  const clipped = title.slice(0, GENERATED_TITLE_MAX_LENGTH + 1);
-  const boundary = clipped.lastIndexOf(" ");
-  return clipped.slice(0, boundary > 0 ? boundary : GENERATED_TITLE_MAX_LENGTH);
+  return title.slice(0, GENERATED_TITLE_MAX_LENGTH).trim() || null;
 }
 
 function isCurrent(engine: Engine, thread: ThreadRow, job: ProvisioningJob) {
@@ -98,84 +105,33 @@ function appendProvisioning(
   engine.append(out, thread, [{ type, scope: threadScope(), ...progress }]);
 }
 
-function recordProgress(
-  engine: Engine,
-  threadId: string,
-  job: ProvisioningJob,
-  entries: ProvisioningTranscriptEntry[],
-): void {
-  const thread = getThread(engine.ctx.db, threadId);
-  if (thread === undefined || !isCurrent(engine, thread, job)) return;
-  engine.commit((out) =>
-    appendProvisioning(engine, out, thread, job.id, "active", entries),
-  );
-}
-
 async function generateTitle(
   engine: Engine,
   threadId: string,
   job: ProvisioningJob,
-  writesTranscript: boolean,
+  record: Recorder,
 ): Promise<void> {
   const { extensions, log, now } = engine.ctx;
   const startedAt = now();
-  const step = { type: "step" as const, startedAt };
-  const record = (entry: ProvisioningTranscriptEntry) =>
-    writesTranscript
-      ? engine.inThread(threadId, () =>
-          recordProgress(engine, threadId, job, [entry]),
-        )
-      : Promise.resolve();
-  const started = { key: "metadata-started", text: "Generating title" };
-  await record({ ...step, ...started, status: "started" });
+  record([step("metadata-started", "Generating title", "started", startedAt)]);
   const prompt = titlePrompt(job.message.input);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), TITLE_TIMEOUT_MS);
-  });
+  const timeout = delay(TITLE_TIMEOUT_MS, null, { ref: false });
   const generated =
     prompt === null
       ? null
       : await Promise.race([extensions.generateTitle(prompt), timeout]).catch(
-          (error: unknown) => {
-            log.warn("Thread title generation failed", {
-              err: error,
-              threadId,
-            });
+          (err: unknown) => {
+            log.warn("Thread title generation failed", { err, threadId });
             return null;
           },
         );
-  clearTimeout(timer);
   const title = sanitizeTitle(generated);
   const titleGenerated = title !== null;
-  await record({
-    ...step,
-    key: "metadata-completed",
-    text: titleGenerated ? "Generated title" : "No title generated",
-    status: "completed",
-    metadata: { durationMs: now() - startedAt, titleGenerated },
-  });
-  if (title !== null) {
-    await engine.inThread(threadId, () => engine.adoptTitle(threadId, title));
-  }
-}
-
-function workspaceEntries(
-  path: string,
-  branchName: string | null,
-  startedAt: number,
-): ProvisioningTranscriptEntry[] {
-  const step = { type: "step" as const, status: "completed" as const };
-  const keys = WORKSPACE_PROVISIONING_STEP_KEYS;
-  const workspace = {
-    key: keys.workspacePath,
-    text: `Using workspace: ${path}`,
-  };
-  const entries = [{ ...step, ...workspace, startedAt }];
-  if (branchName === null) return entries;
-  const text = `Using branch: ${branchName}`;
-  const branch = { key: keys.workspaceBranch, text, startedAt };
-  return [...entries, { ...step, ...branch, metadata: { branchName } }];
+  const text = titleGenerated ? "Generated title" : "No title generated";
+  const metadata = { durationMs: now() - startedAt, titleGenerated };
+  record([step("metadata-completed", text, "completed", startedAt, metadata)]);
+  if (title === null) return;
+  await engine.inThread(threadId, () => engine.adoptTitle(threadId, title));
 }
 
 async function completeProvisioning(
@@ -197,7 +153,16 @@ async function completeProvisioning(
     const { projectId } = thread;
     out.thread(threadId, ["environment-changed"], { projectId });
     if (!current) return next;
-    const entries = workspaceEntries(path, row.branchName, ctx.now());
+    const keys = WORKSPACE_PROVISIONING_STEP_KEYS;
+    const { branchName } = row;
+    const at = ctx.now();
+    const workspace = `Using workspace: ${path}`;
+    const entries = [step(keys.workspacePath, workspace, "completed", at)];
+    if (branchName !== null) {
+      const text = `Using branch: ${branchName}`;
+      const key = keys.workspaceBranch;
+      entries.push(step(key, text, "completed", at, { branchName }));
+    }
     appendProvisioning(engine, out, next, job.id, "active", entries);
     return next;
   });
@@ -207,9 +172,8 @@ async function completeProvisioning(
   const session = await buildSessionSpec(ctx, attached, host, execution.model);
   engine.commit((out) => {
     appendProvisioning(engine, out, attached, job.id, "completed", []);
-    engine.relabelWaits(out, threadId, ["provisioning"], {
-      kind: "turn-starting",
-    });
+    const starting = { kind: "turn-starting" as const };
+    engine.relabelWaits(out, threadId, ["provisioning"], starting);
     engine.transition(out, threadId, "run.started");
     const options = toRunnerOptions(execution, initiator, input);
     const clientRequestId = job.requestId;
@@ -232,23 +196,16 @@ function failProvisioning(
   log.warn("Thread provisioning failed", { err: error, threadId });
   engine.commit((out) => {
     if (thread.environmentId === null) {
-      const step = { type: "step" as const, key: "workspace-failed" };
       const text = "Workspace setup failed";
-      const failed = { ...step, text, status: "failed" as const };
-      const entries = [{ ...failed, startedAt: now() }];
+      const entries = [step("workspace-failed", text, "failed", now())];
       appendProvisioning(engine, out, thread, job.id, "failed", entries);
     }
     engine.relabelWaits(out, threadId, ["provisioning"], null);
-    engine.failThread(
-      out,
-      thread,
-      {
-        code: "thread_provisioning_failed",
-        message: "Provisioning thread failed",
-        detail: errorMessage(error),
-      },
-      "failed during workspace setup before a turn began",
-    );
+    const code = "thread_provisioning_failed";
+    const message = "Provisioning thread failed";
+    const failure = { code, message, detail: errorMessage(error) };
+    const context = "failed during workspace setup before a turn began";
+    engine.failThread(out, thread, failure, context);
   });
 }
 
@@ -257,33 +214,34 @@ async function runProvisioning(
   threadId: string,
   job: ProvisioningJob,
 ): Promise<void> {
-  const { db, environments } = engine.ctx;
+  const { db, environments, now } = engine.ctx;
   const runtime = engine.runtimeOf(threadId);
   const abort = new AbortController();
   runtime.provisioning = { id: job.id, abort };
-  const record = (entries: ProvisioningTranscriptEntry[]): void =>
-    engine.later(threadId, "provisioning progress", () =>
-      recordProgress(engine, threadId, job, entries),
-    );
+  const record: Recorder = (entries) =>
+    engine.later(threadId, "provisioning progress", () => {
+      const thread = getThread(db, threadId);
+      if (thread === undefined || !isCurrent(engine, thread, job)) return;
+      engine.commit((out) =>
+        appendProvisioning(engine, out, thread, job.id, "active", entries),
+      );
+    });
   const { intent, titleProvided } = job.startup;
   try {
-    const step = { type: "step" as const, key: "workspace-started" };
-    record([{ ...step, text: "Preparing workspace", status: "started" }]);
-    const buildsWorkspace = intent.type !== "reuse";
+    const preparing = "Preparing workspace";
+    record([step("workspace-started", preparing, "started", now())]);
+    const builds = intent.type !== "reuse";
     const titled = titleProvided
       ? Promise.resolve()
-      : generateTitle(engine, threadId, job, buildsWorkspace);
-    if (buildsWorkspace) await titled;
+      : generateTitle(engine, threadId, job, builds ? record : () => {});
+    if (builds) await titled;
     else engine.background("generate title", titled);
     const thread = getThread(db, threadId);
     if (thread === undefined) return;
     const { signal } = abort;
-    const environment = await environments.ensureForThread({
-      thread,
-      intent,
-      signal,
-      onProgress: record,
-    });
+    const onProgress = record;
+    const request = { thread, intent, signal, onProgress };
+    const environment = await environments.ensureForThread(request);
     await engine.inThread(threadId, () =>
       completeProvisioning(engine, threadId, job, environment),
     );
@@ -314,25 +272,18 @@ export function beginProvisioning(
     consumeRows(engine, out, thread, args.rows);
     const target = { kind: "thread-start" as const };
     const { initiator } = message;
+    const request = { method: "thread/start" as const, params: {} };
+    const start = { direction: "outbound", source: "spawn" } as const;
+    const type = "client/thread/start";
     engine.append(out, thread, [
       turnRequestEvent(message, requestId, target),
-      {
-        type: "client/thread/start",
-        scope: threadScope(),
-        direction: "outbound",
-        source: "spawn",
-        initiator,
-        request: { method: "thread/start", params: {} },
-      },
+      { type, scope: threadScope(), ...start, initiator, request },
     ]);
     patchThread(db, thread.id, message.execution, false);
     engine.transition(out, thread.id, "run.preparing");
-    out.after(() =>
-      engine.background(
-        "provisioning",
-        runProvisioning(engine, thread.id, job),
-      ),
-    );
+    const provisioned = (): Promise<void> =>
+      runProvisioning(engine, thread.id, job);
+    out.after(() => engine.background("provisioning", provisioned()));
   });
 }
 
@@ -346,10 +297,9 @@ export function cancelProvisioning(
   if (running === null) return;
   runtime.provisioning = null;
   running.abort.abort();
-  const step = { type: "step" as const, key: "provisioning-stopped" };
   const text = "Provisioning stopped by user request";
-  const startedAt = engine.ctx.now();
-  const stopped = { ...step, text, status: "completed" as const, startedAt };
-  appendProvisioning(engine, out, thread, running.id, "cancelled", [stopped]);
+  const at = engine.ctx.now();
+  const stopped = [step("provisioning-stopped", text, "completed", at)];
+  appendProvisioning(engine, out, thread, running.id, "cancelled", stopped);
   engine.relabelWaits(out, thread.id, ["provisioning"], null);
 }

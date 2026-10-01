@@ -32,17 +32,11 @@ export interface ProjectRow {
   deletedAt: number | null;
 }
 
-const ENVIRONMENT_COLUMNS = `id, name, project_id, host_id, path, branch_name,
-  is_worktree, environment_provider_id, status`;
-
 export function getEnvironmentRow(
   db: Db,
   id: string,
 ): EnvironmentRow | undefined {
-  return db.get<EnvironmentRow>(
-    `SELECT ${ENVIRONMENT_COLUMNS} FROM environments WHERE id = ?`,
-    id,
-  );
+  return db.get<EnvironmentRow>("SELECT * FROM environments WHERE id = ?", id);
 }
 
 export function findEnvironmentByPath(
@@ -52,7 +46,7 @@ export function findEnvironmentByPath(
   path: string,
 ): EnvironmentRow | undefined {
   return db.get<EnvironmentRow>(
-    `SELECT ${ENVIRONMENT_COLUMNS} FROM environments
+    `SELECT * FROM environments
      WHERE project_id = ? AND host_id = ? AND path = ? AND status != 'destroyed'`,
     projectId,
     hostId,
@@ -93,8 +87,7 @@ export function insertReadyEnvironment(
 
 export function getHostRow(db: Db, id: string): HostRow | undefined {
   return db.get<HostRow>(
-    `SELECT id, name, max_permission_mode, last_instance_id
-     FROM hosts WHERE id = ? AND destroyed_at IS NULL`,
+    "SELECT * FROM hosts WHERE id = ? AND destroyed_at IS NULL",
     id,
   );
 }
@@ -113,10 +106,7 @@ export function recordHostInstance(
 }
 
 export function getProjectRow(db: Db, id: string): ProjectRow | undefined {
-  return db.get<ProjectRow>(
-    "SELECT id, kind, execution_defaults, deleted_at FROM projects WHERE id = ?",
-    id,
-  );
+  return db.get<ProjectRow>("SELECT * FROM projects WHERE id = ?", id);
 }
 
 export function projectSourcePath(

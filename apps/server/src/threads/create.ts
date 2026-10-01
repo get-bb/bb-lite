@@ -161,9 +161,6 @@ export async function createThread(
     throw new ApiError(404, "thread_section_not_found", message);
   }
   const ownerId = request.lifecycleOwnerThreadId ?? null;
-  if (ownerId !== null && getThread(db, ownerId) === undefined) {
-    throw invalidRequest("lifecycleOwnerThreadId does not name a thread.");
-  }
   const parent =
     request.parentThreadId === undefined
       ? null

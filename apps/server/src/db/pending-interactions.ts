@@ -24,18 +24,18 @@ export interface PendingInteractionRow {
   resolvedAt: number | null;
 }
 
-export type NewPendingInteraction = Pick<
-  PendingInteractionRow,
-  | "threadId"
-  | "originKind"
+type Origin =
   | "turnId"
   | "providerId"
   | "providerThreadId"
-  | "providerRequestId"
-  | "pluginId"
-  | "rendererId"
-  | "expiresAt"
-> & { payload: unknown };
+  | "providerRequestId";
+export type NewPendingInteraction = Pick<
+  PendingInteractionRow,
+  "threadId" | "originKind"
+> &
+  Partial<Pick<PendingInteractionRow, Origin | "pluginId" | "rendererId">> & {
+    payload: unknown;
+  };
 
 export interface InteractionSettlement {
   status: PendingInteractionStatus;
@@ -96,20 +96,19 @@ export function insertPendingInteraction(
     `INSERT INTO pending_interactions
        (id, thread_id, origin_kind, turn_id, provider_id, provider_thread_id,
         provider_request_id, plugin_id, renderer_id, status, payload,
-        created_at, expires_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+        created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
     id,
     input.threadId,
     input.originKind,
-    input.turnId,
-    input.providerId,
-    input.providerThreadId,
-    input.providerRequestId,
-    input.pluginId,
-    input.rendererId,
+    input.turnId ?? null,
+    input.providerId ?? null,
+    input.providerThreadId ?? null,
+    input.providerRequestId ?? null,
+    input.pluginId ?? null,
+    input.rendererId ?? null,
     encodeJson(input.payload),
     now,
-    input.expiresAt,
     now,
   );
   const row = getPendingInteraction(db, id);

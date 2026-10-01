@@ -13,7 +13,6 @@ import { encodeJson, newId } from "../db/index.js";
 import { hasTurnBoundInteraction } from "../db/pending-interactions.js";
 import * as queue from "../db/queued-messages.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
 import * as core from "./core.js";
 import type { Engine } from "./engine.js";
 import * as execution from "./execution.js";
@@ -193,16 +192,14 @@ function recordWait(
   const { db } = engine.ctx;
   const { message, rows, sendAt } = args;
   const [lead] = rows;
-  if (lead !== undefined) {
-    if (lead.waitingOn === encodeJson(waitingOn)) return lead;
-    return engine.commit((out) => {
-      queue.setQueuedMessageWait(db, rows, waitingOn);
-      out.thread(thread.id, ["queue-changed"]);
-      return { ...lead, waitingOn: encodeJson(waitingOn) };
-    });
-  }
+  const encoded = encodeJson(waitingOn);
+  if (lead?.waitingOn === encoded) return lead;
   return engine.commit((out) => {
     out.thread(thread.id, ["queue-changed"]);
+    if (lead !== undefined) {
+      queue.setQueuedMessageWait(db, rows, waitingOn);
+      return { ...lead, waitingOn: encoded };
+    }
     return queue.insertQueuedMessage(db, {
       threadId: thread.id,
       content: message.input,
@@ -401,12 +398,7 @@ function dispatchRows(
     ...(groups.length > 1 ? { inputGroups: groups } : {}),
     execution: { model, reasoningLevel, permissionMode, serviceTier },
     senderThreadId: lead.senderThreadId,
-    initiator:
-      systemNotice !== null
-        ? "system"
-        : lead.senderThreadId === null
-          ? "user"
-          : "agent",
+    initiator: queue.queuedInitiator(lead),
     systemNotice,
   };
   const { sendAt } = lead;
@@ -463,14 +455,6 @@ export async function sendQueuedMessageNow(
   mode: "auto" | "steer",
 ): Promise<Delivery> {
   const { db } = engine.ctx;
-  if (hasTurnBoundInteraction(db, threadId)) {
-    throw new ApiError(
-      409,
-      "awaiting_user_interaction",
-      "Thread is awaiting user interaction. Resolve the pending " +
-        "interaction before sending another prompt.",
-    );
-  }
   const rows = queue.listQueuedMessages(db, threadId);
   const index = rows.findIndex((row) => row.id === queuedMessageId);
   if (index < 0) throw queue.queuedMessageNotFound();

@@ -20,16 +20,6 @@ function reply(success: boolean, text: string): ToolCallResponse {
   return { success, contentItems: [{ type: "inputText", text }] };
 }
 
-function directoryRefusal(path: string): string | null {
-  if (!path.startsWith("/")) {
-    return "Path must be an absolute path on the current host.";
-  }
-  if (path === "/") {
-    return "Path must name a project directory, not the filesystem root.";
-  }
-  return path.includes("\0") ? "Path must not contain NUL bytes." : null;
-}
-
 async function updateEnvironmentDirectory(
   engine: Engine,
   thread: ThreadRow,
@@ -40,8 +30,9 @@ async function updateEnvironmentDirectory(
   const parsed = directoryInputSchema.safeParse(input);
   if (!parsed.success) return reply(false, "Provide the directory as `path`.");
   const path = parsed.data.path.replace(/(?<=.)\/+$/u, "");
-  const refusal = directoryRefusal(path);
-  if (refusal !== null) return reply(false, refusal);
+  if (!path.startsWith("/") || path === "/") {
+    return reply(false, "Path must be an absolute directory on this host.");
+  }
   const { hostId } = sessionEnvironmentOf(engine, thread);
   const target = await environments.ensureForThread({
     thread,
