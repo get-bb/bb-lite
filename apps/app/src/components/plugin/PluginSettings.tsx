@@ -30,7 +30,7 @@ import {
   type PluginSettingFieldDescriptor,
 } from "@/hooks/queries/plugin-settings-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import {
   SETTINGS_DROPDOWN_CONTENT_CLASS,

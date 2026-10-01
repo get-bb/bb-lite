@@ -19,7 +19,7 @@ import {
   rankPaletteActions,
   type RankedPaletteAction,
 } from "@/lib/command-palette/palette-ranking";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { buildSettingsPaletteActions } from "@/lib/command-palette/palette-settings-actions";
 import { buildPluginPagePaletteActions } from "@/lib/command-palette/palette-plugin-page-actions";
 import {

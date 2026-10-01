@@ -1,8 +1,6 @@
 import { useSyncExternalStore } from "react";
 import {
-  getAppIcon,
   getPluginAssetIcon,
-  subscribeAppIcons,
   subscribePluginAssetIcons,
 } from "@bb/shared-ui/icon-registry";
 import { PluginCompactIconMask } from "@bb/shared-ui/plugin-icon";
@@ -58,17 +56,12 @@ export function PluginItemIcon({
   className?: string;
 }) {
   const name = icon ?? "";
-  const custom = useSyncExternalStore(
-    subscribeAppIcons,
-    () => getAppIcon(name),
-    () => getAppIcon(name),
-  );
   const asset = useSyncExternalStore(
     subscribePluginAssetIcons,
     () => getPluginAssetIcon(name),
     () => getPluginAssetIcon(name),
   );
-  if (isBuiltinIconName(name) || custom !== undefined || asset !== undefined) {
+  if (isBuiltinIconName(name) || asset !== undefined) {
     return (
       <Icon
         name={name}

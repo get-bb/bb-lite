@@ -24,7 +24,6 @@ import {
   ThreadStatusGlyph,
   resolveThreadStatus,
 } from "@/components/thread/ThreadStatusGlyph";
-import { usePluginThreadRowStatus } from "@/lib/plugin-thread-row-status";
 import {
   ThreadLifecycleFilter,
   THREAD_LIFECYCLE_OPTIONS,
@@ -94,7 +93,9 @@ export function ThreadSearchPaletteMode({
   const [query, setQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<ThreadArchiveFilter[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<ThreadArchiveFilter[]>(
+    [],
+  );
   const filterKey = lifecycles.join(",");
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
   if (previousFilterKey !== filterKey) {
@@ -554,8 +555,7 @@ function ThreadSearchPaletteStatus({ row }: { row: PaletteThreadSearchRow }) {
     row.thread,
     hasUnsubmittedDraft,
   );
-  const pluginStatus = usePluginThreadRowStatus(row.threadId);
-  const { accessibleLabel: label } = resolveThreadStatus(state, pluginStatus);
+  const { accessibleLabel: label } = resolveThreadStatus(state);
   if (label === null) return null;
   return (
     <>
@@ -574,11 +574,7 @@ function ThreadSearchPaletteStatus({ row }: { row: PaletteThreadSearchRow }) {
             className="inline-flex size-3.5 shrink-0 cursor-default items-center justify-center text-subtle-foreground"
             data-palette-thread-status
           >
-            <ThreadStatusGlyph
-              {...state}
-              pluginStatus={pluginStatus}
-              size="compact"
-            />
+            <ThreadStatusGlyph {...state} size="compact" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="left">{label}</TooltipContent>

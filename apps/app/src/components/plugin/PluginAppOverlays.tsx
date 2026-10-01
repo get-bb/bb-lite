@@ -1,14 +1,11 @@
 import { memo } from "react";
-import {
-  usePluginSlots,
-  type ExperimentalAppOverlaySlot,
-} from "@/lib/plugin-slots";
-import { PluginSlotMount } from "./PluginSlotMount";
+import { usePluginSlots, type PluginSlot } from "@/plugins/registry";
+import { PluginSlotMount } from "@/plugins/mount";
 
 const PluginAppOverlay = memo(function PluginAppOverlay({
   slot,
 }: {
-  slot: ExperimentalAppOverlaySlot;
+  slot: PluginSlot<"appOverlays">;
 }) {
   const Component = slot.component;
   return (

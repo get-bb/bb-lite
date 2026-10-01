@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { PluginReplacementSlot } from "@/components/plugin/PluginReplacementSlot";
+import { PluginSlotMount } from "@/plugins/mount";
 import { appToast } from "@/components/ui/app-toast";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useSidebarHeaderReplacement } from "./sidebarHeaderProvider";
@@ -53,8 +53,8 @@ export function SidebarHeaderSlot({
     return () => observer.disconnect();
   }, [isActive, isCompactViewport]);
 
-  if (replacement.kind === "owner") return null;
-  const title = replacement.registration.title;
+  if (replacement.kind !== "plugin") return null;
+  const slot = replacement.slot;
   return (
     <div
       ref={slotRef}
@@ -66,24 +66,20 @@ export function SidebarHeaderSlot({
         startInsetClassName,
       )}
     >
-      <PluginReplacementSlot
-        replacement={replacement}
-        original={null}
+      <PluginSlotMount
+        key={`${slot.pluginId}/${slot.id}/${slot.generation}`}
+        pluginId={slot.pluginId}
         slotKind={SIDEBAR_HEADER_SLOT_KIND}
+        slotId={slot.id}
+        crashFallback={null}
         onCrash={(pluginId) => {
           appToast.error("Sidebar header plugin crashed", {
-            description: `${title} (${pluginId}) stopped working, so bb removed it from the sidebar header.`,
+            description: `${slot.title} (${pluginId}) stopped working, so bb removed it from the sidebar header.`,
           });
         }}
       >
-        {(slot) => (
-          <slot.component
-            width={size.width}
-            controlSize={size.controlSize}
-            isCompactViewport={isCompactViewport}
-          />
-        )}
-      </PluginReplacementSlot>
+        <slot.component width={size.width} controlSize={size.controlSize} />
+      </PluginSlotMount>
     </div>
   );
 }

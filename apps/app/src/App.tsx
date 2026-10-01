@@ -10,7 +10,7 @@ import { UiPreferencesSync } from "@/lib/ui-preferences/UiPreferencesSync";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
 import { useDesktopThemeSync } from "./hooks/useDesktopThemeSync";
-import { usePluginFrontendBoot } from "./hooks/usePluginFrontendBoot";
+import { bootPlugins } from "@/plugins/external";
 import { markRouteContentPainted } from "./lib/route-content-paint";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "./hooks/useWebSocket";
@@ -156,7 +156,9 @@ export function App() {
   useDesktopThemeSync();
   useAppTheme();
   useFaviconColorSync();
-  usePluginFrontendBoot();
+  useEffect(() => {
+    void bootPlugins();
+  }, []);
   useRememberPluginNavPanelChrome();
 
   return (

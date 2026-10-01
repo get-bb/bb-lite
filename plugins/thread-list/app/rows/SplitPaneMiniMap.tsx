@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import type { PluginSidebarSplitPane } from "@get-bb/plugin-sdk/app";
+import { cn } from "@bb/shared-ui/lib/utils";
+import type { PluginSidebarSplitPane } from "@bb/plugin/app";
 
 const GLYPH_SIZE = 14;
 const GLYPH_PADDING = 1;

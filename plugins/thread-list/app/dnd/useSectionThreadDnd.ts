@@ -20,10 +20,7 @@ import {
   type UniqueIdentifier,
 } from "@dnd-kit/core";
 import type { SidebarThread } from "../model/sidebar-thread.js";
-import {
-  experimental_useSidebarThreadActions,
-  useSdk,
-} from "@get-bb/plugin-sdk/app";
+import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
 import type { NeighborReorderRequest } from "../model/neighbor-reorder.js";
 import {
   getSidebarDndItemId,
@@ -1057,7 +1054,7 @@ export function useSectionThreadDnd({
     ],
   );
   const sdk = useSdk();
-  const sidebarActions = experimental_useSidebarThreadActions();
+  const sidebarActions = useSidebarThreadActions();
   const { handleDragEnd: handlePinnedDragEnd } = useNeighborReorderSortable({
     disabled: pinnedReorderPending || pinnedThreads.length < 2,
     getId: (thread: SidebarThread) => thread.id,

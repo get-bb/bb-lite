@@ -1,4 +1,4 @@
-import type { ExperimentalProviderIconProps } from "@get-bb/plugin-sdk/app";
+import type { ProviderIconProps } from "@bb/plugin/app";
 import { isPresentationTintColor } from "@bb/domain";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -9,7 +9,7 @@ export function ProviderIcon({
   className,
   "aria-hidden": ariaHidden,
   "aria-label": ariaLabel,
-}: Omit<ExperimentalProviderIconProps, "providerKind">) {
+}: Omit<ProviderIconProps, "providerKind">) {
   "use no memo";
   const { logoUrl, icon } = provider;
   const glyph = typeof icon === "string" ? icon : icon?.glyph;

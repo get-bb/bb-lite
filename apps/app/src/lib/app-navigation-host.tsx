@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { JsonValue } from "@get-bb/plugin-sdk";
+import type { JsonValue } from "@bb/plugin/app";
 
 interface AppUrlOpenIntent {
   url: string;

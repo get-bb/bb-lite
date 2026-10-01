@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { ExperimentalPermissionModePickerProps } from "@get-bb/plugin-sdk";
+import type { PermissionModePickerProps } from "@bb/plugin/app";
 import { PermissionModePicker } from "@/components/pickers/PermissionModePicker";
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { resolvePluginExecutionRouting } from "./plugin-execution-routing";
@@ -12,7 +12,7 @@ export function PluginPermissionModePicker({
   align = "end",
   disabled,
   className,
-}: ExperimentalPermissionModePickerProps) {
+}: PermissionModePickerProps) {
   const resolvedRouting = useMemo(
     () => resolvePluginExecutionRouting(routing),
     [routing],

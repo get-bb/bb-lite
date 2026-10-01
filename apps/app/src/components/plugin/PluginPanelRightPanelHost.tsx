@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import { atom, useAtom } from "jotai";
 import { atomFamily } from "jotai-family";
 import type { Host } from "@bb/domain";
-import type { PluginFixedTabDeclaration } from "@get-bb/plugin-sdk";
+import type { PluginFixedTabRegistration } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
@@ -19,7 +19,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { PluginIcon, PluginItemIcon } from "@/components/plugin/PluginIcon";
-import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
+import { PluginSlotMount } from "@/plugins/mount";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import {
@@ -58,7 +58,7 @@ import {
 } from "@/hooks/queries/thread-terminal-queries";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { AppNavigationHostProvider } from "@/lib/app-navigation-host";
 import {
   getPluginFixedTabOwnerId,
@@ -94,7 +94,7 @@ function PluginFixedTabContent({
   panelGeneration: number;
   panelId: string;
   pluginId: string;
-  registration: PluginFixedTabDeclaration;
+  registration: PluginFixedTabRegistration;
   subPath: string;
 }) {
   if (!isOpen) return null;

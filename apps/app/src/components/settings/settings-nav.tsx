@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
 import { useHostDaemon, useLocalHostDaemonAccess } from "@/hooks/useHostDaemon";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
 import {
   SETTINGS_MACHINE_ROUTE_PATH,

@@ -43,12 +43,12 @@ import { createPortal } from "react-dom";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { toast } from "sonner";
 import {
-  experimental_useSidebarThreadActions,
+  useSidebarThreadActions,
   useBbNavigate,
   useEnvironmentProviders,
   useSdk,
   useSidebarThreadDraftIds,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin/app";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentLabelIconName,
@@ -69,14 +69,14 @@ import {
   useSidebarRename,
   useSidebarRenameState,
 } from "../rows/SidebarInlineRename.js";
-import { Button } from "@/components/ui/button";
+import { Button } from "@bb/shared-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Icon } from "@/components/ui/icon";
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon } from "@bb/shared-ui/icon";
 import { ThreadListEmptyState } from "../ui/ThreadListEmptyState.js";
 import {
   SidebarMenuSkeleton,
@@ -92,7 +92,7 @@ import {
   COARSE_POINTER_GLYPH_BOX_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
@@ -108,7 +108,7 @@ import {
   NO_COLLAPSED_CHILD_ACTIVITY,
   type CollapsedChildActivity,
 } from "../model/thread-activity.js";
-import { cn } from "@/lib/utils";
+import { cn } from "@bb/shared-ui/lib/utils";
 import {
   CollapsedThreadStatusGlyph,
   REORDER_PLACEMENT_CLASS,
@@ -1014,7 +1014,7 @@ const EnvironmentThreadGroupRow = memo(function EnvironmentThreadGroupRow({
           nodeDepth: nodeDepth - 1,
         })
       : undefined;
-  const sidebarActions = experimental_useSidebarThreadActions();
+  const sidebarActions = useSidebarThreadActions();
   const sectionWhenUnpinned = nodes.every(
     (node) => node.thread.sectionId === representativeThread.sectionId,
   )
@@ -1034,7 +1034,7 @@ const EnvironmentThreadGroupRow = memo(function EnvironmentThreadGroupRow({
     sidebarActions.openNewThread({
       projectId,
       environmentId,
-      experimental_placement: { sectionId, pinned },
+      placement: { sectionId, pinned },
       focusPrompt: true,
     });
   }, [

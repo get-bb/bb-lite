@@ -1,9 +1,6 @@
-import { useCallback, useContext, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type {
-  ThreadChatMessageAction,
-  ThreadChatProps,
-} from "@get-bb/plugin-sdk";
+import type { ThreadChatProps } from "@bb/plugin/app";
 import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,
@@ -14,12 +11,8 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
 import { EmbeddedThreadChat } from "@/components/thread/embedded-chat";
-import {
-  ThreadTimelinePanelContent,
-  type ThreadTimelineConsumerMessageAction,
-} from "@/components/thread/timeline";
+import { ThreadTimelinePanelContent } from "@/components/thread/timeline";
 import { useThreadTimelineNavigation } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
-import { PluginContext } from "@/components/plugin/plugin-context";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
 import { useThread } from "@/hooks/queries/thread-queries";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
@@ -44,7 +37,6 @@ export function PluginThreadChat({
   permissionPolicy = "inherit",
   className,
   leadingContent,
-  messageActions,
 }: ThreadChatProps) {
   const containerClassName = cn(
     layout === "contained" ? "flex h-full min-h-0 flex-col" : "flex flex-col",
@@ -59,7 +51,6 @@ export function PluginThreadChat({
         focusRequest={focusRequest}
         permissionPolicy={permissionPolicy}
         leadingContent={leadingContent}
-        messageActions={messageActions}
       />
     </div>
   );
@@ -72,7 +63,6 @@ interface PluginThreadChatBodyProps {
   focusRequest: number | undefined;
   permissionPolicy: "inherit" | "editable";
   leadingContent: ReactNode;
-  messageActions: readonly ThreadChatMessageAction[] | undefined;
 }
 
 function PluginThreadChatBody({
@@ -82,7 +72,6 @@ function PluginThreadChatBody({
   focusRequest,
   permissionPolicy,
   leadingContent,
-  messageActions,
 }: PluginThreadChatBodyProps) {
   const threadQuery = useThread(threadId, { enabled: threadId.length > 0 });
   const thread = threadQuery.data;
@@ -112,24 +101,6 @@ function PluginThreadChatBody({
     (canUseHostFileNavigation
       ? timelineNavigation.workspaceRootPath
       : undefined);
-  const pluginId = useContext(PluginContext);
-  const consumerMessageActions = useMemo<
-    readonly ThreadTimelineConsumerMessageAction[] | undefined
-  >(
-    () =>
-      messageActions === undefined || messageActions.length === 0
-        ? undefined
-        : messageActions.map((action) => ({
-            id: action.id,
-            pluginId: action.icon !== undefined ? null : pluginId,
-            icon: action.icon ?? null,
-            label: action.title,
-            ...(action.roles !== undefined ? { roles: action.roles } : {}),
-            run: action.run,
-          })),
-    [messageActions, pluginId],
-  );
-
   const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
     (resource) => {
       if (resource.kind === "thread") {
@@ -233,7 +204,6 @@ function PluginThreadChatBody({
     const transcript = (
       <ThreadTimelinePanelContent
         leadingContent={leadingContent}
-        consumerMessageActions={consumerMessageActions}
         onOpenLink={onOpenLink}
         onOpenLocalFileLink={onOpenLocalFileLink}
         projectId={thread.projectId}
@@ -264,7 +234,6 @@ function PluginThreadChatBody({
       promptContextEnvironmentId={thread.environmentId}
       resolveMentionLink={resolveMentionLink}
       leadingContent={leadingContent}
-      consumerMessageActions={consumerMessageActions}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}
       workspaceRootPath={workspaceRootPath}

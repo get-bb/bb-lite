@@ -1,4 +1,4 @@
-import type { JsonValue } from "@get-bb/plugin-sdk";
+import type { JsonValue } from "@bb/plugin/app";
 import type {
   AppFixedTabOpenIntent,
   AppFixedTabReference,

@@ -1,16 +1,13 @@
 import { useMemo, type ReactNode } from "react";
-import type { PluginPanelActionOpenOptions } from "@get-bb/plugin-sdk";
+import type { PluginPanelOpenOptions } from "@bb/plugin/app";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import {
-  usePluginSlots,
-  type PluginThreadPanelActionSlot,
-} from "@/lib/plugin-slots";
+import { usePluginSlots, type PluginSlot } from "@/plugins/registry";
 import type { PluginPanelFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import {
   parsePersistedPluginPanelParams,
   serializePluginPanelParams,
 } from "@/lib/plugin-json-value";
-import { PluginSlotMount } from "./PluginSlotMount";
+import { PluginSlotMount } from "@/plugins/mount";
 
 export interface OpenPluginPanelArgs {
   pluginId: string;
@@ -43,9 +40,7 @@ function createPanelActionOpenPanel({
   action,
   slot,
   openPluginPanel,
-}: PanelActionOpenPanelArgs): (
-  options?: PluginPanelActionOpenOptions,
-) => boolean {
+}: PanelActionOpenPanelArgs): (options?: PluginPanelOpenOptions) => boolean {
   return (options) => {
     let paramsJson: string | null;
     try {
@@ -67,7 +62,7 @@ function createPanelActionOpenPanel({
 }
 
 interface RunPluginPanelActionArgs {
-  action: PluginThreadPanelActionSlot;
+  action: PluginSlot<"threadPanels">;
   openPluginPanel: OpenPluginPanelHandler;
   threadId: string;
 }
@@ -106,12 +101,12 @@ export function usePluginPanelActions({
   openPluginPanel: OpenPluginPanelHandler;
   threadId: string | null | undefined;
 }): readonly PluginPanelActionEntry[] {
-  const { threadPanelActions } = usePluginSlots();
+  const { threadPanels } = usePluginSlots();
   return useMemo(() => {
     if (threadId === null || threadId === undefined || threadId.length === 0) {
       return [];
     }
-    return threadPanelActions.map((action) => ({
+    return threadPanels.map((action) => ({
       id: `plugin-action:${action.pluginId}:${action.id}`,
       pluginId: action.pluginId,
       icon: action.icon ?? null,
@@ -119,7 +114,7 @@ export function usePluginPanelActions({
       onSelect: () =>
         runPluginPanelAction({ action, openPluginPanel, threadId }),
     }));
-  }, [openPluginPanel, threadId, threadPanelActions]);
+  }, [openPluginPanel, threadId, threadPanels]);
 }
 
 type PluginPanelSurfaceContext =
@@ -188,9 +183,9 @@ function ThreadActionTabContent({
   tab: PluginPanelFixedPanelTab;
   threadId: string;
 }) {
-  const { threadPanelActions } = usePluginSlots();
+  const { threadPanels } = usePluginSlots();
   const action =
-    threadPanelActions.find(
+    threadPanels.find(
       (candidate) =>
         candidate.pluginId === tab.pluginId && candidate.id === tab.actionId,
     ) ?? null;

@@ -2,7 +2,7 @@ import {
   BUNDLED_THREAD_LIST_PROVIDER,
   threadListProviderAtom,
 } from "@/components/sidebar/threadListProvider";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { ReplacementProviderSetting } from "./ReplacementProviderSetting";
 
 export function SidebarThreadListSetting() {

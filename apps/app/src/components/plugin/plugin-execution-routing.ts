@@ -1,5 +1,5 @@
 import type { SystemProvidersQuery } from "@bb/server-contract";
-import type { ExperimentalProviderModelPickerRouting } from "@get-bb/plugin-sdk";
+import type { ProviderModelPickerRouting } from "@bb/plugin/app";
 
 export interface ResolvedPluginExecutionRouting {
   key: string;
@@ -7,7 +7,7 @@ export interface ResolvedPluginExecutionRouting {
 }
 
 export function resolvePluginExecutionRouting(
-  routing: ExperimentalProviderModelPickerRouting | undefined,
+  routing: ProviderModelPickerRouting | undefined,
 ): ResolvedPluginExecutionRouting {
   if (routing?.kind === "host") {
     return {

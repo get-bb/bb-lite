@@ -1,5 +1,5 @@
 import { jsonValueSchema } from "@bb/domain";
-import type { JsonValue } from "@get-bb/plugin-sdk";
+import type { JsonValue } from "@bb/plugin/app";
 
 export function serializePluginPanelParams(
   params: JsonValue | undefined,

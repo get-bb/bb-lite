@@ -2,13 +2,13 @@ import { useContext, useState } from "react";
 import type {
   NewThreadComposerProps as PluginComposerProps,
   NewThreadRequest,
-} from "@get-bb/plugin-sdk";
+} from "@bb/plugin/app";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   NewThreadComposer,
   type NewThreadComposerSeed,
 } from "@/components/promptbox/NewThreadComposer";
-import { PluginContext } from "@/components/plugin/plugin-context";
+import { PluginContext } from "@/plugins/context";
 
 export function PluginNewThreadComposer({
   defaultProjectId,

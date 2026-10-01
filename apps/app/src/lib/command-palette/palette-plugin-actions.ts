@@ -1,11 +1,11 @@
-import type { PluginCommandContext } from "@get-bb/plugin-sdk";
+import type { PluginCommandContext } from "@bb/plugin/app";
 import type { PluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
-import type { PluginCommandPaletteActionSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import { getPluginDisplayName } from "@/lib/plugin-logos";
 import type { PaletteAction } from "./palette-action";
 
 export interface BuildPluginPaletteActionsArgs {
-  slots: readonly PluginCommandPaletteActionSlot[];
+  slots: readonly PluginSlot<"commands">[];
   threadId: string | null;
   projectId: string | null;
   openThreadPanel: PluginThreadPanelOpenHandler | null;
@@ -16,7 +16,7 @@ function describeError(error: unknown): string {
 }
 
 function actionContext(
-  slot: PluginCommandPaletteActionSlot,
+  slot: PluginSlot<"commands">,
   args: BuildPluginPaletteActionsArgs,
 ): PluginCommandContext {
   return {

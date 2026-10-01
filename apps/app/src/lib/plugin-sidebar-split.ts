@@ -5,7 +5,7 @@ import type {
   PluginSidebarSplitLayout,
   PluginSidebarSplitPane,
   PluginSidebarThreadSplit,
-} from "@get-bb/plugin-sdk";
+} from "@bb/plugin/app";
 import { usePaneContentSplitIndicator } from "@/components/sidebar/paneContentSplitIndicator";
 import { useThreadRowSplitDrag } from "@/components/sidebar/useThreadRowSplitDrag";
 import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions";

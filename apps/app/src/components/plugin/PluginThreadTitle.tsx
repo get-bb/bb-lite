@@ -1,4 +1,4 @@
-import type { PluginThreadTitleProps } from "@get-bb/plugin-sdk";
+import type { PluginThreadTitleProps } from "@bb/plugin/app";
 import { ThreadTitleMentions } from "@/components/thread/ThreadTitleMentions";
 import { useSidebarThreadEntry } from "@/lib/plugin-sidebar-hooks";
 import { getThreadDisplayTitle } from "@/lib/thread-title";

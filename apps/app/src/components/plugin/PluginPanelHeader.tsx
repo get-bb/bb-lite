@@ -1,9 +1,8 @@
 import { Component, type ReactNode } from "react";
 import type { PluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
-import { usePluginCss } from "@/lib/plugin-css";
+import type { PluginSlot } from "@/plugins/registry";
 import { PluginItemIcon } from "./PluginIcon";
-import { PluginContext } from "./plugin-context";
+import { PluginContext } from "@/plugins/context";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
 
@@ -51,14 +50,13 @@ export function PluginPanelHeaderActions({
   subPath,
   paneActions,
 }: {
-  panel: PluginNavPanelSlot;
+  panel: PluginSlot<"navPanels">;
   paneId?: string;
   subPath: string;
   paneActions?: ReactNode;
 }) {
   const paneContext = useOptionalPaneContext();
   const HeaderContent = panel.headerContent;
-  usePluginCss(HeaderContent === undefined ? null : panel.pluginId);
   const panelStateId = getPluginPagePanelStateId({
     panelPath: panel.path,
     paneId: paneId ?? paneContext?.paneId,
@@ -73,7 +71,6 @@ export function PluginPanelHeaderActions({
         >
           <PluginContext.Provider value={panel.pluginId}>
             <div
-              data-bb-plugin-root=""
               data-bb-plugin={panel.pluginId}
               className="flex shrink-0 items-center gap-2"
             >

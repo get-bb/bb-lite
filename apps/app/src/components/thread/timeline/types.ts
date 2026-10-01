@@ -1,4 +1,3 @@
-import type { ThreadChatMessageReference } from "@get-bb/plugin-sdk";
 import type { PromptInput } from "@bb/domain";
 import type {
   MarkdownPreviewLocalFileLink,
@@ -52,6 +51,14 @@ export interface ThreadTimelinePluginMessageAction {
   icon: string | null;
   label: string;
   onSelect: () => void;
+}
+
+export interface ThreadChatMessageReference {
+  id: string;
+  threadId: string;
+  role: "user" | "assistant";
+  text: string;
+  sourceSeqEnd: number;
 }
 
 export interface ThreadTimelineConsumerMessageAction {

@@ -6,7 +6,7 @@ import {
   buildSidebarEntitySectionId,
   normalizeSidebarSectionOrder,
 } from "../model/sidebar-section-order.js";
-import { useSdk } from "@get-bb/plugin-sdk/app";
+import { useSdk } from "@bb/plugin/app";
 import {
   sidebarManualSectionOrderAtom,
   sidebarOrganizationModeAtom,

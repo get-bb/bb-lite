@@ -1,18 +1,22 @@
 import { useAtomValue } from "jotai";
-import { resolvePreferredReplacement } from "@/lib/plugin-replacement-preference";
 import { createSyncedPreferenceAtom } from "@/lib/ui-preferences/synced-preference-atom";
-import type { ResolvedReplacement } from "@/lib/plugin-slot-resolvers";
 import {
+  resolveProvider,
   usePluginSlots,
-  type ExperimentalSidebarHeaderSlot,
-} from "@/lib/plugin-slots";
+  usePluginsSettled,
+  type PluginSlot,
+  type ResolvedProvider,
+} from "@/plugins/registry";
 
 export const sidebarHeaderProviderAtom = createSyncedPreferenceAtom(
   "sidebar.headerProvider",
 );
 
-export function useSidebarHeaderReplacement(): ResolvedReplacement<ExperimentalSidebarHeaderSlot> {
-  const { experimentalSidebarHeaders } = usePluginSlots();
+export function useSidebarHeaderReplacement(): ResolvedProvider<
+  PluginSlot<"sidebarHeaders">
+> {
+  const { sidebarHeaders } = usePluginSlots();
   const preference = useAtomValue(sidebarHeaderProviderAtom);
-  return resolvePreferredReplacement(experimentalSidebarHeaders, preference);
+  const settled = usePluginsSettled();
+  return resolveProvider(sidebarHeaders, preference, { settled });
 }

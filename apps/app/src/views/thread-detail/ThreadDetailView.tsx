@@ -180,7 +180,7 @@ import {
   usePublishThreadPanelOpener,
 } from "@/components/plugin/plugin-thread-panel-navigation";
 import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { Icon } from "@bb/shared-ui/icon";
 import { getBbDesktopInfo } from "@/lib/bb-desktop";
 import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
@@ -625,7 +625,7 @@ function ThreadDetailViewInternal(
     openPluginPanel,
     threadId,
   });
-  const { threadPanelActions: pluginThreadPanelActions } = usePluginSlots();
+  const { threadPanels: pluginThreadPanelActions } = usePluginSlots();
   useThreadOpenFileSignal({
     threadId,
     environmentId: thread?.environmentId,

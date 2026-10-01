@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
@@ -22,7 +21,6 @@ import type {
   TimelineRow,
   TimelineSystemOperationKind,
 } from "@bb/server-contract";
-import type { ThreadChatMessageReference } from "@get-bb/plugin-sdk";
 import {
   activityIntentTitleGlyph,
   assertNever,
@@ -58,6 +56,7 @@ import type {
   ThreadTimelineLocalFileLinkHandler,
   ThreadTimelineOpenPluginPanelHandler,
   ThreadTimelineImageViewSrcResolver,
+  ThreadChatMessageReference,
   ThreadTimelineConsumerMessageAction,
   ThreadTimelinePluginMessageAction,
   ThreadTimelineUnreadDividerPlacement,
@@ -119,11 +118,7 @@ import {
   useSenderThreadMetadataById,
   type SenderThreadMetadata,
 } from "@/hooks/useSenderThreadMetadataById";
-import {
-  EMPTY_PLUGIN_SLOT_SNAPSHOT,
-  getPluginSlotSnapshot,
-  subscribePluginSlots,
-} from "@/lib/plugin-slots.js";
+import { usePluginSlots } from "@/plugins/registry";
 import {
   buildMessageDirectiveRegistry,
   MessageDirectiveRegistryProvider,
@@ -1877,11 +1872,7 @@ function ThreadTimelineRowsForTimelineView(props: ThreadTimelineRowsProps) {
   );
   const projectId = props.projectId;
   const senderThreadMetadataById = useSenderThreadMetadataById();
-  const messageDirectiveSlots = useSyncExternalStore(
-    subscribePluginSlots,
-    () => getPluginSlotSnapshot().messageDirectives,
-    () => EMPTY_PLUGIN_SLOT_SNAPSHOT.messageDirectives,
-  );
+  const messageDirectiveSlots = usePluginSlots().messageDirectives;
   const messageDirectiveRegistry = useMemo(
     () => buildMessageDirectiveRegistry(messageDirectiveSlots),
     [messageDirectiveSlots],

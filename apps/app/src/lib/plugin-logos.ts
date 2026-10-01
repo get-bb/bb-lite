@@ -1,22 +1,38 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { parseNamespacedGlyph } from "@bb/domain";
+import { setPluginAssetIcons } from "@bb/shared-ui/icon-registry";
+import type { PluginListEntry } from "@/hooks/queries/plugin-settings-queries";
 
-export interface PluginLogoUrls {
+interface PluginLogoUrls {
   displayName: string | null;
   icon: string | null;
   compactIconUrl: string | null;
-  logoUrl: string | null;
-  logoDarkUrl: string | null;
   icons: ReadonlyMap<string, string>;
 }
 
 let logoUrls: ReadonlyMap<string, PluginLogoUrls> = new Map();
 const listeners = new Set<() => void>();
 
-export function setPluginLogoUrls(
-  next: ReadonlyMap<string, PluginLogoUrls>,
-): void {
-  logoUrls = next;
+export function setPluginBranding(plugins: readonly PluginListEntry[]): void {
+  const assetIcons = new Map<string, string>();
+  logoUrls = new Map(
+    plugins.map((plugin) => {
+      const icons = new Map(Object.entries(plugin.icons ?? {}));
+      for (const [name, url] of icons) {
+        assetIcons.set(`${plugin.id}/${name}`, url);
+      }
+      return [
+        plugin.id,
+        {
+          displayName: plugin.name,
+          icon: plugin.icon,
+          compactIconUrl: plugin.iconUrl ?? null,
+          icons,
+        },
+      ];
+    }),
+  );
+  setPluginAssetIcons(assetIcons);
   for (const listener of listeners) listener();
 }
 
@@ -68,7 +84,7 @@ export function usePluginIconUrl(
   return useSyncExternalStore(subscribePluginLogos, getSnapshot, getSnapshot);
 }
 
-export function resolvePluginIconUrl(
+function resolvePluginIconUrl(
   entries: ReadonlyMap<string, Pick<PluginLogoUrls, "icons">>,
   glyph: string | undefined,
 ): string | undefined {
@@ -77,8 +93,4 @@ export function resolvePluginIconUrl(
     return undefined;
   }
   return entries.get(parsed.pluginId)?.icons.get(parsed.name);
-}
-
-export function resetPluginLogoStoreForTest(): void {
-  setPluginLogoUrls(new Map());
 }
