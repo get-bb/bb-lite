@@ -1,0 +1,367 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_s4dimh5hw7"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i2",
+      "server": "bb",
+      "tool": "AskUserQuestion",
+      "arguments": {
+        "questions": [
+          {
+            "header": "Indentation",
+            "multiSelect": false,
+            "question": "Tabs or spaces?",
+            "options": [
+              {
+                "label": "tabs",
+                "description": "Use tabs for indentation."
+              },
+              {
+                "label": "spaces",
+                "description": "Use spaces for indentation."
+              }
+            ]
+          }
+        ]
+      },
+      "status": "pending",
+      "presentation": {
+        "label": {
+          "pending": "Running AskUserQuestion",
+          "completed": "Ran AskUserQuestion"
+        },
+        "icon": {
+          "glyph": "Toolbox"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i2",
+      "server": "bb",
+      "tool": "AskUserQuestion",
+      "arguments": {
+        "questions": [
+          {
+            "header": "Indentation",
+            "multiSelect": false,
+            "question": "Tabs or spaces?",
+            "options": [
+              {
+                "label": "tabs",
+                "description": "Use tabs for indentation."
+              },
+              {
+                "label": "spaces",
+                "description": "Use spaces for indentation."
+              }
+            ]
+          }
+        ]
+      },
+      "status": "completed",
+      "result": "{\"questions\":[{\"question\":\"Tabs or spaces?\",\"header\":\"Indentation\",\"options\":[{\"label\":\"tabs\",\"description\":\"Use tabs for indentation.\"},{\"label\":\"spaces\",\"description\":\"Use spaces for indentation.\"}],\"multiSelect\":false}],\"answers\":{\"Tabs or spaces?\":\"spaces\"}}",
+      "durationMs": 2059,
+      "presentation": {
+        "label": {
+          "pending": "Running AskUserQuestion",
+          "completed": "Ran AskUserQuestion"
+        },
+        "icon": {
+          "glyph": "Toolbox"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 20481,
+        "inputTokens": 20365,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 116,
+        "reasoningOutputTokens": 33
+      },
+      "last": {
+        "totalTokens": 20481,
+        "inputTokens": 20365,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 116,
+        "reasoningOutputTokens": 33
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20481,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "spaces"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "spaces",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 41054,
+        "inputTokens": 40933,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 121,
+        "reasoningOutputTokens": 33
+      },
+      "last": {
+        "totalTokens": 20573,
+        "inputTokens": 20568,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20573,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a02207-48d6-7433-9150-e5c1165baba1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02207-4d67-7043-b29f-4e979afe8abc"
+  }
+]

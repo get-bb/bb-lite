@@ -1,0 +1,418 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_8v9uzrg38t"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "Starting"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " the"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " foreground"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " wait"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " now"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "."
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "Starting the foreground wait now.",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "/bin/bash -lc 'sleep 120'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 120"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 19717,
+        "inputTokens": 19649,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 68,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 19717,
+        "inputTokens": 19649,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 68,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19717,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "interrupted",
+    "providerCheckpointId": "01a021e6-62f0-7131-a2dc-ebc5974c8483"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19717,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "thread/extensionState/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    },
+    "kind": "provider-codex/goal",
+    "payload": null
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "clientRequestId": "creq_w5wvy66wn7"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "4"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "4",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 39526,
+        "inputTokens": 39453,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 73,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 19809,
+        "inputTokens": 19804,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19809,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021e6-6228-7752-a06b-d1699db885e5",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a021e7-1347-7270-b947-537050c6e73e"
+  }
+]
