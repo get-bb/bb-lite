@@ -1,0 +1,805 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_3z35vqdegk"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "delegation",
+      "id": "da00000000-i2",
+      "childRef": "01a02207-f139-7391-91f2-4360d97ba1d1",
+      "label": "/root/read_readme",
+      "status": "pending",
+      "background": false,
+      "presentation": {
+        "label": {
+          "pending": "Running agent",
+          "completed": "Agent finished"
+        },
+        "icon": {
+          "glyph": "UserRound"
+        },
+        "title": "/root/read_readme"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 20409,
+        "inputTokens": 20349,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 60,
+        "reasoningOutputTokens": 8
+      },
+      "last": {
+        "totalTokens": 20409,
+        "inputTokens": 20349,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 60,
+        "reasoningOutputTokens": 8
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20409,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "parentToolCallId": "da00000000-i2"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i3",
+      "tool": "wait",
+      "arguments": {
+        "senderThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+        "receiverThreadIds": []
+      },
+      "status": "pending",
+      "result": {},
+      "presentation": {
+        "label": {
+          "pending": "Waiting for agents",
+          "completed": "Waited for agents"
+        },
+        "icon": {
+          "glyph": "UserRound"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i4",
+      "summary": [],
+      "content": [],
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i4",
+      "summary": [],
+      "content": [],
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i5",
+      "command": "/bin/bash -lc \"sed -n '1p' README.md\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sed -n '1p' README.md"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i5",
+      "command": "/bin/bash -lc \"sed -n '1p' README.md\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "aggregatedOutput": "# Recording workspace\n",
+      "exitCode": 0,
+      "durationMs": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sed -n '1p' README.md"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 20468,
+        "inputTokens": 20394,
+        "cachedInputTokens": 17152,
+        "cacheReadInputTokens": 17152,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 74,
+        "reasoningOutputTokens": 12
+      },
+      "last": {
+        "totalTokens": 20468,
+        "inputTokens": 20394,
+        "cachedInputTokens": 17152,
+        "cacheReadInputTokens": 17152,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 74,
+        "reasoningOutputTokens": 12
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20468,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i6",
+      "text": "",
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i6",
+    "delta": "#",
+    "parentToolCallId": "da00000000-i2"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i6",
+    "delta": " Recording",
+    "parentToolCallId": "da00000000-i2"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i6",
+    "delta": " workspace",
+    "parentToolCallId": "da00000000-i2"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i6",
+      "text": "# Recording workspace",
+      "parentToolCallId": "da00000000-i2",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 40970,
+        "inputTokens": 40889,
+        "cachedInputTokens": 37376,
+        "cacheReadInputTokens": 37376,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 81,
+        "reasoningOutputTokens": 12
+      },
+      "last": {
+        "totalTokens": 20502,
+        "inputTokens": 20495,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 7,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20502,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02207-f196-7c23-abd0-0365f0d8d7c7"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "delegation",
+      "id": "da00000000-i2",
+      "childRef": "01a02207-f139-7391-91f2-4360d97ba1d1",
+      "label": "/root/read_readme",
+      "status": "completed",
+      "background": false,
+      "presentation": {
+        "label": {
+          "pending": "Running agent",
+          "completed": "Agent finished"
+        },
+        "icon": {
+          "glyph": "UserRound"
+        },
+        "title": "/root/read_readme"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "toolCall",
+      "id": "da00000000-i3",
+      "tool": "wait",
+      "arguments": {
+        "senderThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+        "receiverThreadIds": []
+      },
+      "status": "completed",
+      "result": {},
+      "presentation": {
+        "label": {
+          "pending": "Waiting for agents",
+          "completed": "Waited for agents"
+        },
+        "icon": {
+          "glyph": "UserRound"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 40862,
+        "inputTokens": 40780,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 82,
+        "reasoningOutputTokens": 8
+      },
+      "last": {
+        "totalTokens": 20453,
+        "inputTokens": 20431,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 22,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20453,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i7",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i7",
+    "delta": "#"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i7",
+    "delta": " Recording"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i7",
+    "delta": " workspace"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i7",
+      "text": "# Recording workspace",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 61386,
+        "inputTokens": 61297,
+        "cachedInputTokens": 40448,
+        "cacheReadInputTokens": 40448,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 89,
+        "reasoningOutputTokens": 8
+      },
+      "last": {
+        "totalTokens": 20524,
+        "inputTokens": 20517,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 7,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20524,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a02207-da48-7e01-b373-29adf59773ca",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02207-dbb5-7da3-8b29-b9d7e7e9f59f"
+  }
+]

@@ -1,0 +1,775 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_vg48v3q629"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "I"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "’ll"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " inspect"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " and"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " edit"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " `"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "math"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": ".js"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "`,"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " then"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " run"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " the"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " exact"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " verification"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " command"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "."
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "I’ll inspect and edit `math.js`, then run the exact verification command.",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "/bin/bash -lc \"sed -n '1,200p' math.js\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sed -n '1,200p' math.js"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "/bin/bash -lc \"sed -n '1,200p' math.js\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "aggregatedOutput": "export function add(a, b) {\n  return a + b;\n}\n",
+      "exitCode": 0,
+      "durationMs": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sed -n '1,200p' math.js"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 19767,
+        "inputTokens": 19682,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 85,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 19767,
+        "inputTokens": 19682,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 85,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19767,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "fileChange",
+      "id": "da00000000-i3",
+      "changes": [
+        {
+          "path": "/tmp/bb-recording-ws/math.js",
+          "kind": "update",
+          "diff": "@@ -4,2 +4,6 @@\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n"
+        }
+      ],
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Editing file",
+          "completed": "Edited file"
+        },
+        "icon": {
+          "glyph": "EditFile"
+        },
+        "title": "math.js"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "fileChange",
+      "id": "da00000000-i3",
+      "changes": [
+        {
+          "path": "/tmp/bb-recording-ws/math.js",
+          "kind": "update",
+          "diff": "@@ -4,2 +4,6 @@\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n"
+        }
+      ],
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Editing file",
+          "completed": "Edited file"
+        },
+        "icon": {
+          "glyph": "EditFile"
+        },
+        "title": "math.js"
+      }
+    }
+  },
+  {
+    "type": "turn/diff/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "diff": "diff --git a/math.js b/math.js\nindex 8440c1ca01d1d48d4e1c118dfff922e9995cd39d..6de567f09a07235b90a27c0a73e8aae5f8799b11\n--- a/math.js\n+++ b/math.js\n@@ -2,6 +2,10 @@\n   return a + b;\n }\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n export function subtract(a, b) {\n   return a - b;\n"
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 39660,
+        "inputTokens": 39487,
+        "cachedInputTokens": 38400,
+        "cacheReadInputTokens": 38400,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 173,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 19893,
+        "inputTokens": 19805,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 88,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19893,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/diff/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "diff": "diff --git a/math.js b/math.js\nindex 8440c1ca01d1d48d4e1c118dfff922e9995cd39d..6de567f09a07235b90a27c0a73e8aae5f8799b11\n--- a/math.js\n+++ b/math.js\n@@ -2,6 +2,10 @@\n   return a + b;\n }\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n export function subtract(a, b) {\n   return a - b;\n"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i4",
+      "command": "/bin/bash -lc \"node -e 'import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))'\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "node -e 'import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))'"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i4",
+      "command": "/bin/bash -lc \"node -e 'import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))'\"",
+      "cwd": "/tmp/bb-recording-ws",
+      "aggregatedOutput": "2\n",
+      "exitCode": 0,
+      "durationMs": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "node -e 'import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))'"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 59653,
+        "inputTokens": 59404,
+        "cachedInputTokens": 57600,
+        "cacheReadInputTokens": 57600,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 249,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 19993,
+        "inputTokens": 19917,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 76,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19993,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/diff/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "diff": "diff --git a/math.js b/math.js\nindex 8440c1ca01d1d48d4e1c118dfff922e9995cd39d..6de567f09a07235b90a27c0a73e8aae5f8799b11\n--- a/math.js\n+++ b/math.js\n@@ -2,6 +2,10 @@\n   return a + b;\n }\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n export function subtract(a, b) {\n   return a - b;\n"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i5",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i5",
+    "delta": "2"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i5",
+      "text": "2",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 79676,
+        "inputTokens": 79422,
+        "cachedInputTokens": 76800,
+        "cacheReadInputTokens": 76800,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 254,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 20023,
+        "inputTokens": 20018,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20023,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/diff/updated",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "diff": "diff --git a/math.js b/math.js\nindex 8440c1ca01d1d48d4e1c118dfff922e9995cd39d..6de567f09a07235b90a27c0a73e8aae5f8799b11\n--- a/math.js\n+++ b/math.js\n@@ -2,6 +2,10 @@\n   return a + b;\n }\n \n+export function subtract(a, b) {\n+  return a - b;\n+}\n+\n \n export function subtract(a, b) {\n   return a - b;\n"
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021e4-fe50-7c91-abf4-c384358c1d6f",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a021e4-ff0a-7bf3-8023-962ba8347adf"
+  }
+]
