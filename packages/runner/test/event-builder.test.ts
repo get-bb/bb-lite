@@ -86,7 +86,7 @@ describe("EventBuilder", () => {
     );
     const key = { providerItemId: "cmd-1", parentRef: "call-1" };
     builder.openItem(key, command, { turn: "child" });
-    builder.outputDelta(key, "command", "out", { turn: "child" });
+    builder.delta(key, "command", "out", { turn: "child" });
     builder.closeItem(
       key,
       { ...command, exitCode: 0 },
@@ -129,26 +129,26 @@ describe("EventBuilder", () => {
     builder.openTurn({ turn: "t" });
     const key = { providerItemId: "msg" };
     take();
-    builder.textDelta(key, "agentMessage", "a", { turn: "t" });
+    builder.delta(key, "agentMessage", "a", { turn: "t" });
     expect(events.map((event) => event.type)).toEqual([
       "item/started",
       "item/agentMessage/delta",
     ]);
     advance(10);
-    builder.textDelta(key, "agentMessage", "b", { turn: "t" });
-    builder.textDelta(key, "agentMessage", "c", { turn: "t" });
+    builder.delta(key, "agentMessage", "b", { turn: "t" });
+    builder.delta(key, "agentMessage", "c", { turn: "t" });
     expect(events).toHaveLength(2);
     builder.openItem({ providerItemId: "cmd" }, command, { turn: "t" });
     expect(take().slice(2)).toMatchObject([
       { type: "item/agentMessage/delta", delta: "bc" },
       { type: "item/started", item: { type: "commandExecution" } },
     ]);
-    builder.textDelta(key, "agentMessage", "d", { turn: "t" });
+    builder.delta(key, "agentMessage", "d", { turn: "t" });
     expect(events).toHaveLength(0);
     advance(100);
-    builder.textDelta(key, "agentMessage", "e", { turn: "t" });
+    builder.delta(key, "agentMessage", "e", { turn: "t" });
     expect(take()).toMatchObject([{ delta: "d" }]);
-    builder.textDelta(key, "agentMessage", "f", { turn: "t" });
+    builder.delta(key, "agentMessage", "f", { turn: "t" });
     builder.textClose(key, "agentMessage", undefined, { turn: "t" });
     const closed = take();
     expect(closed).toMatchObject([
@@ -166,7 +166,7 @@ describe("EventBuilder", () => {
     builder.openTurn({ turn: "t" });
     builder.openTurn({ turn: "t" });
     builder.closeTurn({ turn: "never-opened", status: "completed" });
-    builder.outputDelta({ providerItemId: "ghost" }, "command", "x", {
+    builder.delta({ providerItemId: "ghost" }, "command", "x", {
       turn: "t",
     });
     builder.progress({ providerItemId: "ghost" }, { turn: "t" });
@@ -174,7 +174,7 @@ describe("EventBuilder", () => {
     builder.openItem(key, command, { turn: "t" });
     builder.closeItem(key, command, { turn: "t", status: "completed" });
     builder.closeItem(key, command, { turn: "t", status: "failed" });
-    builder.outputDelta(key, "command", "late", { turn: "t" });
+    builder.delta(key, "command", "late", { turn: "t" });
     builder.closeTurn({ turn: "t", status: "completed" });
     builder.closeTurn({ turn: "t", status: "failed" });
     builder.openTurn({ turn: "t" });
@@ -235,7 +235,7 @@ describe("EventBuilder", () => {
     const { builder, take } = harness();
     builder.openTurn({ turn: "t" });
     builder.openItem({ providerItemId: "cmd" }, command, { turn: "t" });
-    builder.textDelta({ providerItemId: "msg" }, "agentMessage", "partial", {
+    builder.delta({ providerItemId: "msg" }, "agentMessage", "partial", {
       turn: "t",
     });
     const task = {
@@ -271,7 +271,7 @@ describe("EventBuilder", () => {
   it("opens a turn for queued input when an error settles it", () => {
     const { builder, take } = harness();
     builder.acceptInput(REQUEST);
-    builder.error({ detail: "boom", willRetry: false, settlesTurn: true });
+    builder.error({ detail: "boom", willRetry: false }, { settlesTurn: true });
     const failed = take().slice(1);
     expect(failed.map((event) => event.type)).toEqual([
       "turn/started",
@@ -280,18 +280,11 @@ describe("EventBuilder", () => {
       "turn/completed",
     ]);
     expect(failed[3]).toMatchObject({ status: "failed" });
-    builder.error({ detail: "outside", threadScoped: true });
-    builder.usage({
-      total: { ...usage },
-      last: { ...usage },
-      modelContextWindow: 10,
-    });
-    builder.contextWindow({
-      used: 5,
-      size: 10,
-      estimated: false,
-      attach: "open",
-    });
+    builder.error({ detail: "outside" }, { threadScoped: true });
+    const tokenUsage = { total: usage, last: usage, modelContextWindow: 10 };
+    builder.usage({ tokenUsage });
+    const window = { usedTokens: 5, modelContextWindow: 10, estimated: false };
+    builder.contextWindow({ contextWindowUsage: window }, undefined, true);
     const after = take();
     expect(after.map((event) => event.scope.kind)).toEqual([
       "thread",

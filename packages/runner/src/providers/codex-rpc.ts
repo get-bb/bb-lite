@@ -1,23 +1,16 @@
-import { spawn } from "node:child_process";
-import type { Readable, Writable } from "node:stream";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { Readable } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
 import { z } from "zod";
 
 type ExitListener = (code: number | null, signal: string | null) => void;
-
-export interface AppServerChild {
-  stdin: Writable;
-  stdout: Readable;
-  stderr: Readable;
-  kill(signal?: NodeJS.Signals): boolean;
-  on(event: "exit" | "close", listener: ExitListener): unknown;
-  on(event: "error", listener: (error: Error) => void): unknown;
-}
+export type AppServerChild = ChildProcessWithoutNullStreams;
+type Launch = { cwd: string; env: Record<string, string> };
 
 export type SpawnAppServer = (
   command: string,
   args: string[],
-  options: { cwd: string; env: Record<string, string> },
+  options: Launch,
 ) => AppServerChild;
 
 export interface RpcHandlers {
@@ -89,9 +82,9 @@ export class CodexRpc {
         resolve();
       };
       child.on("close", finish);
-      child.on("exit", (...status) =>
-        setTimeout(finish, 1_000, ...status).unref(),
-      );
+      const linger = (...status: Parameters<ExitListener>) =>
+        setTimeout(finish, 1_000, ...status).unref();
+      child.on("exit", linger);
       child.on("error", (error) => {
         this.spawnFailed = true;
         this.stderrTail.push(error.message);
@@ -108,21 +101,12 @@ export class CodexRpc {
     const id = this.nextId;
     this.nextId += 1;
     return new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        const message = `codex app-server did not answer ${method} within ${timeoutMs}ms`;
-        reject(new RpcError(message));
-      }, timeoutMs).unref();
-      const settle =
-        <T>(finish: (value: T) => void) =>
-        (value: T) => {
-          clearTimeout(timer);
-          finish(value);
-        };
-      this.pending.set(id, {
-        resolve: settle(resolve),
-        reject: settle(reject),
-      });
+      const expire = () => {
+        const message = `codex app-server did not answer ${method} in time`;
+        if (this.pending.delete(id)) reject(new RpcError(message));
+      };
+      setTimeout(expire, timeoutMs).unref();
+      this.pending.set(id, { resolve, reject });
       this.write({ jsonrpc: "2.0", id, method, params });
     });
   }
@@ -167,9 +151,8 @@ export class CodexRpc {
     } else if (id !== undefined) {
       const request = this.pending.get(Number(id));
       this.pending.delete(Number(id));
-      const fallback = `codex app-server returned error code ${error?.code}`;
-      if (error)
-        request?.reject(new RpcError(error.message ?? fallback, error.code));
+      const message = error?.message ?? "codex app-server returned an error";
+      if (error) request?.reject(new RpcError(message, error.code));
       else request?.resolve(result);
     }
   }

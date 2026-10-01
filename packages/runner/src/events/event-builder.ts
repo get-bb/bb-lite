@@ -2,18 +2,14 @@ import { randomUUID } from "node:crypto";
 import {
   threadScope,
   turnScope,
-  type ContextSnapshot,
   type ExtensionKind,
   type JsonValue,
-  type ProviderErrorInfo,
   type ProviderRateLimitState,
   type ProviderRawEvent,
   type ThreadEventItem as Item,
   type ThreadEventItemPresentation as Presentation,
   type ThreadEventItemStatus as ItemStatus,
-  type ThreadEventTokenUsageBreakdown as TokenUsage,
   type ThreadEventTurnStatus as TurnStatus,
-  type ThreadEventWarningCategory,
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "../types.js";
 
@@ -23,8 +19,14 @@ type Draft = Strip<
   Extract<RunnerThreadEvent, { providerThreadId: unknown }>,
   "providerThreadId" | "scope"
 >;
+type Fields<T extends Draft["type"]> = Omit<
+  Extract<Draft, { type: T }>,
+  "type"
+>;
+type ContextWindowFields = Fields<"thread/contextWindowUsage/updated">;
 type TextDeltaEvent = Extract<RunnerThreadEvent, { delta: string }>;
 type TextItemType = "agentMessage" | "plan" | "reasoning";
+type DeltaChannel = TextChannel | OutputChannel;
 
 export type ItemShape =
   | Strip<
@@ -32,11 +34,8 @@ export type ItemShape =
       Managed | "presentation"
     >
   | Strip<Extract<Item, { type: "extension" }>, Managed>;
-export type TextChannel =
-  | "agentMessage"
-  | "reasoningText"
-  | "reasoningSummary"
-  | "plan";
+export type TextChannel = keyof typeof CHANNEL_ITEM;
+export type OutputChannel = "command" | "fileChange";
 export interface ItemKey {
   providerItemId?: string;
   channel?: string;
@@ -56,8 +55,15 @@ export interface CloseOptions extends TurnTarget {
 }
 export interface ProgressOptions extends TurnTarget {
   message?: string;
-  snapshot?: Extract<ItemShape, { type: "backgroundTask" | "delegation" }>;
   flush?: boolean;
+}
+export interface ErrorOptions extends TurnTarget {
+  settlesTurn?: boolean;
+  threadScoped?: boolean;
+}
+export interface RawOptions extends TurnTarget {
+  inTurn?: boolean;
+  parentRef?: string;
 }
 export interface EventBuilderOptions {
   providerId: string;
@@ -86,6 +92,10 @@ const CHANNEL_ITEM = {
   plan: "plan",
   reasoningText: "reasoning",
   reasoningSummary: "reasoning",
+} as const;
+const OUTPUT_EVENT = {
+  command: "item/commandExecution/outputDelta",
+  fileChange: "item/fileChange/outputDelta",
 } as const;
 const CHANNEL_EVENT = {
   agentMessage: "item/agentMessage/delta",
@@ -240,8 +250,8 @@ export class EventBuilder {
     this.send(undefined, { type, kind, payload });
   }
 
-  acceptInput(clientRequestId: string, target: TurnTarget = {}) {
-    const turnId = this.target(target);
+  acceptInput(clientRequestId: string, t?: TurnTarget) {
+    const turnId = this.target(t);
     if (turnId === undefined) this.accepted.push(clientRequestId);
     else this.send(turnId, { type: "turn/input/accepted", clientRequestId });
   }
@@ -299,12 +309,8 @@ export class EventBuilder {
     const open = this.open.get(k);
     const stale =
       !threadScoped && open && open.shape.type !== shape.type ? open : null;
-    const inherited =
-      shape.type === "delegation" && open?.shape.type === "delegation"
-        ? { ...shape, summary: shape.summary ?? open.shape.summary }
-        : shape;
     const id = this.resolveItemId(key, open);
-    const item = buildItem(stale?.shape ?? inherited, id, options.status, {
+    const item = buildItem(stale?.shape ?? shape, id, options.status, {
       presentation: stale
         ? stale.presentation
         : (options.presentation ?? open?.presentation),
@@ -324,54 +330,40 @@ export class EventBuilder {
   progress(key: ItemKey, options: ProgressOptions = {}) {
     const k = keyOf(key);
     this.pendingProgress.delete(k);
-    const open = this.open.get(k);
-    const itemId = open?.id ?? this.knownItemId(key);
-    if (itemId === undefined) return;
+    const itemId = this.open.get(k)?.id ?? this.knownItemId(key);
+    const turnId = this.target(options);
+    if (itemId === undefined || turnId === undefined) return;
     const parentToolCallId = this.parentOf(key.parentRef);
-    const { snapshot, message } = options;
-    let event: RunnerThreadEvent;
-    if (snapshot !== undefined) {
-      const parent = parentToolCallId ?? open?.parent;
-      const extra = { presentation: open?.presentation, parent };
-      const item = buildItem(snapshot, itemId, "pending", extra);
-      if (item.type === "delegation") {
-        const type = "item/delegation/progress";
-        event = this.draft(undefined, { type, item });
-      } else if (item.type === "backgroundTask") {
-        const type = "item/backgroundTask/progress";
-        event = this.draft(undefined, { type, item });
-      } else return;
-    } else {
-      const turnId = this.target(options);
-      if (turnId === undefined) return;
-      const type = "item/toolCall/progress";
-      event = this.draft(turnId, { type, itemId, message, parentToolCallId });
-    }
+    const { message } = options;
+    const type = "item/toolCall/progress";
+    const draft = { type, itemId, message, parentToolCallId } as const;
     const elapsed = this.now() - (this.progressAt.get(k) ?? -Infinity);
     if (elapsed < this.progressMs && options.flush !== true) {
-      this.pendingProgress.set(k, event);
+      this.pendingProgress.set(k, this.draft(turnId, draft));
       return;
     }
     this.progressAt.set(k, this.now());
-    this.push(event);
+    this.send(turnId, draft);
   }
 
-  textDelta(
-    key: ItemKey,
-    channel: TextChannel,
-    delta: string,
-    target: TurnTarget = {},
-  ) {
-    const turnId = this.target(target);
+  delta(key: ItemKey, channel: DeltaChannel, delta: string, t?: TurnTarget) {
+    const turnId = this.target(t);
     if (turnId === undefined) return;
     const k = keyOf(key);
-    const parent = this.parentOf(key.parentRef);
+    const parentToolCallId = this.parentOf(key.parentRef);
     let open = this.open.get(k);
     let itemId = open?.id ?? this.knownItemId(key);
+    if (channel === "command" || channel === "fileChange") {
+      if (itemId === undefined) return;
+      const type = OUTPUT_EVENT[channel];
+      this.send(turnId, { type, itemId, delta, parentToolCallId });
+      return;
+    }
     if (itemId === undefined) {
       itemId = this.resolveItemId(key, undefined);
       const shape = textShape(CHANNEL_ITEM[channel], "", "");
       const state = { id: itemId, key, shape, presentation: undefined };
+      const parent = parentToolCallId;
       open = { ...state, parent, turnId, text: "", summary: "" };
       this.open.set(k, open);
       const item = buildItem(shape, itemId, "pending", { parent });
@@ -382,16 +374,11 @@ export class EventBuilder {
       else open.text += delta;
     }
     const type = CHANNEL_EVENT[channel];
-    this.send(turnId, { type, itemId, delta, parentToolCallId: parent });
+    this.send(turnId, { type, itemId, delta, parentToolCallId });
   }
 
-  textClose(
-    key: ItemKey,
-    channel: TextChannel,
-    text?: string,
-    target: TurnTarget = {},
-  ) {
-    const turnId = this.target(target);
+  textClose(key: ItemKey, channel: TextChannel, text?: string, t?: TurnTarget) {
+    const turnId = this.target(t);
     if (turnId === undefined) return;
     const k = keyOf(key);
     const open = this.open.get(k);
@@ -411,25 +398,8 @@ export class EventBuilder {
     this.send(turnId, { type: "item/completed", item });
   }
 
-  outputDelta(
-    key: ItemKey,
-    channel: "command" | "fileChange",
-    delta: string,
-    target: TurnTarget = {},
-  ) {
-    const turnId = this.target(target);
-    const itemId = this.open.get(keyOf(key))?.id ?? this.knownItemId(key);
-    if (turnId === undefined || itemId === undefined) return;
-    const type =
-      channel === "command"
-        ? "item/commandExecution/outputDelta"
-        : "item/fileChange/outputDelta";
-    const parentToolCallId = this.parentOf(key.parentRef);
-    this.send(turnId, { type, itemId, delta, parentToolCallId });
-  }
-
-  outputSnapshot(key: ItemKey, text: string, target: TurnTarget = {}) {
-    const turnId = this.target(target);
+  outputSnapshot(key: ItemKey, text: string, t?: TurnTarget) {
+    const turnId = this.target(t);
     const k = keyOf(key);
     const itemId = this.open.get(k)?.id;
     const previous = this.snapshots.get(k) ?? "";
@@ -444,106 +414,51 @@ export class EventBuilder {
     this.send(turnId, { type, itemId, delta, reset, parentToolCallId });
   }
 
-  usage(
-    args: TurnTarget & {
-      total: TokenUsage;
-      last: TokenUsage;
-      modelContextWindow: number | null;
-    },
-  ) {
-    const turnId = this.target(args, true);
-    if (turnId === undefined) return;
-    const { total, last, modelContextWindow } = args;
-    const tokenUsage = { total, last, modelContextWindow };
-    this.send(turnId, { type: "thread/tokenUsage/updated", tokenUsage });
+  usage(tokenUsage: Fields<"thread/tokenUsage/updated">, t?: TurnTarget) {
+    const turnId = this.target(t, true);
+    const type = "thread/tokenUsage/updated";
+    if (turnId !== undefined) this.send(turnId, { type, ...tokenUsage });
   }
 
-  contextWindow(
-    args: TurnTarget & {
-      used: number | null;
-      size?: number | null;
-      estimated: boolean;
-      snapshot?: ContextSnapshot;
-      attach?: "open";
-    },
-  ) {
-    const { snapshot } = args;
-    const contextWindowUsage = withoutUndefined({
-      usedTokens: snapshot?.usedTokens ?? args.used,
-      modelContextWindow: snapshot?.contextWindowTokens ?? args.size ?? null,
-      estimated: snapshot?.estimated ?? args.estimated,
-      snapshot,
-    });
-    const turnId = this.target(args, args.attach !== "open");
+  contextWindow(usage: ContextWindowFields, t?: TurnTarget, openOnly = false) {
     const type = "thread/contextWindowUsage/updated";
-    this.send(turnId, { type, contextWindowUsage });
+    this.send(this.target(t, !openOnly), { type, ...usage });
   }
 
-  compacted(target: TurnTarget = {}) {
-    const turnId = this.target(target, true);
+  compacted(t?: TurnTarget) {
+    const turnId = this.target(t, true);
     if (turnId !== undefined) this.send(turnId, { type: "thread/compacted" });
   }
 
   cleared() {
-    const turnId = this.target({}, true);
-    if (turnId === undefined) return;
-    this.send(turnId, { type: "thread/context/cleared" });
+    const turnId = this.target(undefined, true);
+    if (turnId) this.send(turnId, { type: "thread/context/cleared" });
   }
 
-  error(
-    args: TurnTarget & {
-      message?: string;
-      detail?: string;
-      willRetry?: boolean;
-      info?: ProviderErrorInfo;
-      settlesTurn?: boolean;
-      threadScoped?: boolean;
-    },
-  ) {
-    const inThread = args.threadScoped && args.turn === undefined;
+  error(report: Partial<Fields<"provider/error">>, options: ErrorOptions = {}) {
+    const inThread = options.threadScoped && options.turn === undefined;
     const claim = !inThread && this.accepted.length > 0;
     const turnId = inThread
       ? undefined
-      : (this.target(args) ?? (claim ? this.openTurn() : undefined));
-    const { message = "Provider error", detail, willRetry } = args;
-    const type = "provider/error";
-    const errorInfo = args.info;
-    this.send(turnId, { type, message, detail, willRetry, errorInfo });
-    if (args.settlesTurn && turnId) this.sendTurnCompleted(turnId, "failed");
+      : (this.target(options) ?? (claim ? this.openTurn() : undefined));
+    const message = report.message ?? "Provider error";
+    this.send(turnId, { type: "provider/error", ...report, message });
+    if (options.settlesTurn && turnId) this.sendTurnCompleted(turnId, "failed");
   }
 
-  warning(args: {
-    category?: ThreadEventWarningCategory;
-    summary?: string;
-    details?: string;
-    inTurn?: boolean;
-  }) {
-    const { summary, details, category = "general" } = args;
-    const turnId = args.inTurn ? this.target({}) : undefined;
-    this.send(turnId, { type: "provider/warning", category, summary, details });
+  warning(warning: Partial<Fields<"provider/warning">>, inTurn = false) {
+    const turnId = inTurn ? this.target() : undefined;
+    const category = warning.category ?? "general";
+    this.send(turnId, { type: "provider/warning", ...warning, category });
   }
 
-  unhandled(
-    args: TurnTarget & {
-      rawType: string;
-      raw: ProviderRawEvent;
-      inTurn?: boolean;
-      parentRef?: string;
-    },
-  ) {
-    const scoped = args.turn !== undefined || args.inTurn;
-    const turnId = scoped ? this.target(args) : undefined;
-    const { rawType, raw: rawEvent } = args;
+  unhandled(rawType: string, rawEvent: ProviderRawEvent, to: RawOptions = {}) {
+    const scoped = to.turn !== undefined || to.inTurn;
+    const turnId = scoped ? this.target(to) : undefined;
+    const parentToolCallId = this.parentOf(to.parentRef);
     const { providerId } = this.options;
-    const parentToolCallId = this.parentOf(args.parentRef);
-    const type = "provider/unhandled";
-    this.send(turnId, {
-      type,
-      providerId,
-      rawType,
-      rawEvent,
-      parentToolCallId,
-    });
+    const origin = { providerId, rawType, rawEvent, parentToolCallId };
+    this.send(turnId, { type: "provider/unhandled", ...origin });
   }
 
   settle(status: "interrupted" | "failed", error?: string) {
@@ -593,8 +508,8 @@ export class EventBuilder {
     return `${this.prefix}-${kind[0]}${this.counters[kind]}`;
   }
 
-  private target(target: TurnTarget, orLast = false) {
-    if (target.turn !== undefined) return this.turnId(target.turn);
+  private target(target?: TurnTarget, orLast = false) {
+    if (target?.turn !== undefined) return this.turnId(target.turn);
     return this.rootTurn ?? (orLast ? this.lastRootTurn : undefined);
   }
 

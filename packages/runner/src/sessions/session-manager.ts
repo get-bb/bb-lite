@@ -3,10 +3,10 @@ import { mkdir, rm } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import {
+  pendingInteractionResolutionSchema,
   threadScope,
+  toolCallResponseSchema,
   turnScope,
-  type PendingInteractionResolution,
-  type ToolCallResponse,
 } from "@bb/domain";
 import { EventBuilder } from "../events/event-builder.js";
 import type {
@@ -47,9 +47,10 @@ export interface SessionApiOptions {
 
 export type ManagedSessionApi = SessionApi & { shutdown(): Promise<void> };
 
-interface Pending<T> {
+interface PendingRequest {
+  kind: "interaction" | "toolCall";
   turnId: string | null;
-  resolve(value: T): void;
+  resolve(value: unknown): void;
   reject(error: Error): void;
 }
 
@@ -62,9 +63,9 @@ interface LiveSession {
   envKey: string;
   pendingStart: { since: number; warned: boolean } | null;
   lastActiveAt: number;
-  closed: boolean;
-  interactions: Map<string, Pending<PendingInteractionResolution>>;
-  toolCalls: Map<string, Pending<ToolCallResponse>>;
+  closing: boolean;
+  detached: boolean;
+  requests: Map<string, PendingRequest>;
 }
 
 const DEFAULT_TIMING: SessionTiming = {
@@ -77,12 +78,10 @@ const THREAD_ID = /^[A-Za-z0-9_-]+$/;
 const MAX_REMEMBERED_REQUESTS = 32;
 const POLL_MS = 20;
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 async function waitFor(condition: () => boolean, deadline: number) {
-  while (!condition() && Date.now() < deadline) await sleep(POLL_MS);
+  while (!condition() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
   return condition();
 }
 
@@ -117,9 +116,9 @@ export function createSessionApi(
     const run = (chains.get(threadId) ?? Promise.resolve()).then(task, task);
     const tail = run.catch(() => undefined);
     chains.set(threadId, tail);
-    void tail.then(() => {
-      if (chains.get(threadId) === tail) chains.delete(threadId);
-    });
+    const forget = () =>
+      chains.get(threadId) === tail && chains.delete(threadId);
+    void tail.then(forget);
     return run;
   }
 
@@ -129,20 +128,16 @@ export function createSessionApi(
 
   function cancelRequests(live: LiveSession, reason: string, turnId?: string) {
     const { threadId } = live;
-    const matches = (pending: Pending<unknown>) =>
-      turnId === undefined || pending.turnId === turnId;
-    for (const [requestId, pending] of [...live.interactions]) {
-      if (!matches(pending)) continue;
-      live.interactions.delete(requestId);
-      const kind = "interaction.cancelled";
-      outbox.emit({ kind, threadId, requestId, reason });
-      pending.reject(new Error(`Interaction cancelled: ${reason}`));
-    }
-    for (const [requestId, pending] of [...live.toolCalls]) {
-      if (!matches(pending)) continue;
-      live.toolCalls.delete(requestId);
-      outbox.emit({ kind: "toolCall.cancelled", threadId, requestId });
-      pending.reject(new Error(`Tool call cancelled: ${reason}`));
+    for (const [requestId, pending] of [...live.requests]) {
+      if (turnId !== undefined && pending.turnId !== turnId) continue;
+      live.requests.delete(requestId);
+      if (pending.kind === "toolCall") {
+        outbox.emit({ kind: "toolCall.cancelled", threadId, requestId });
+      } else {
+        const kind = "interaction.cancelled";
+        outbox.emit({ kind, threadId, requestId, reason });
+      }
+      pending.reject(new Error(`Request cancelled: ${reason}`));
     }
   }
 
@@ -160,14 +155,11 @@ export function createSessionApi(
   function systemError(
     live: LiveSession,
     turnId: string | null,
-    code: string,
-    message: string,
-    detail?: string,
+    report: { code: string; message: string; detail?: string },
   ) {
     live.events.flush();
     const scope = turnId === null ? threadScope() : turnScope(turnId);
-    const error = { type: "system/error" as const, scope, code, message };
-    const event = detail === undefined ? error : { ...error, detail };
+    const event = { type: "system/error" as const, scope, ...report };
     outbox.threadEvent(live.threadId, event);
   }
 
@@ -175,57 +167,53 @@ export function createSessionApi(
     live: LiveSession,
     info: { message: string; stderrTail: string },
   ) {
-    if (live.closed) return;
+    if (live.closing) return;
     const turnId = live.events.activeTurnId;
     const wasBusy = isBusy(live);
-    const message = `Provider "${live.adapter.id}" exited unexpectedly: ${info.message}`;
+    const name = live.adapter.id;
+    const message = `Provider "${name}" exited unexpectedly: ${info.message}`;
     live.events.settle("failed", message);
     const stderr = info.stderrTail.slice(-4000);
-    const detail = stderr ? `stderr:\n${stderr}` : undefined;
-    const code = "provider_process_exited";
-    if (wasBusy) systemError(live, turnId, code, message, detail);
+    const detail = stderr ? { detail: `stderr:\n${stderr}` } : {};
+    const report = { code: "provider_process_exited", message, ...detail };
+    if (wasBusy) systemError(live, turnId, report);
     void closeSession(live, "provider_exited");
   }
 
   async function closeSession(live: LiveSession, reason: string) {
-    if (live.closed) return;
-    live.closed = true;
-    live.events.flush();
+    if (live.closing) return;
+    live.closing = true;
     if (sessions.get(live.threadId) === live) sessions.delete(live.threadId);
-    cancelRequests(live, reason);
     await live.provider.close().catch(() => undefined);
+    live.events.flush();
+    live.detached = true;
+    cancelRequests(live, reason);
   }
 
-  function request<T>(
+  function request(
     live: LiveSession | null,
-    registry: (live: LiveSession) => Map<string, Pending<T>>,
+    kind: PendingRequest["kind"],
     turnId: string | null,
     announce: (live: LiveSession, requestId: string) => void,
   ) {
-    if (live === null || live.closed) {
+    if (live === null || live.closing) {
       return Promise.reject(new Error("Provider session is not open"));
     }
     requestCounter += 1;
     const requestId = `${instanceId}:${requestCounter}`;
     live.events.flush();
-    return new Promise<T>((resolve, reject) => {
-      registry(live).set(requestId, { turnId, resolve, reject });
+    return new Promise<unknown>((resolve, reject) => {
+      live.requests.set(requestId, { kind, turnId, resolve, reject });
       announce(live, requestId);
     });
   }
 
-  function deliver<T>(
-    registry: Map<string, Pending<T>> | undefined,
-    requestId: string,
-    value: T,
-  ) {
-    const pending = registry?.get(requestId);
-    if (registry === undefined || pending === undefined) {
-      return { delivered: false };
-    }
-    registry.delete(requestId);
-    pending.resolve(value);
-    return { delivered: true };
+  function deliver(threadId: string, requestId: string, value: unknown) {
+    const requests = sessions.get(threadId)?.requests;
+    const pending = requests?.get(requestId);
+    requests?.delete(requestId);
+    pending?.resolve(value);
+    return { delivered: pending !== undefined };
   }
 
   async function openSession(args: SubmitTurnArgs, previous?: LiveSession) {
@@ -234,30 +222,24 @@ export function createSessionApi(
     const adapter = adapterFor(spec.providerId);
     const threadStorageDir = join(storageRoot, threadId);
     await mkdir(threadStorageDir, { recursive: true });
-    const env = buildAgentEnv({
-      loginPath: await resolveLoginPath(),
-      bbCliPath: options.bbCliPath,
-      serverUrl: options.serverUrl,
-      threadStorageDir,
-      specEnv: spec.env,
-    });
+    const loginPath = await resolveLoginPath();
+    const { bbCliPath, serverUrl } = options;
+    const paths = { loginPath, bbCliPath, serverUrl, threadStorageDir };
+    const env = buildAgentEnv({ ...paths, specEnv: spec.env });
     const envKey = JSON.stringify(env.agent);
     if (previous !== undefined) {
-      const reusable =
-        previous.adapter === adapter &&
-        previous.envKey === envKey &&
-        previous.provider.canApply(spec, execution);
+      const sameSetup =
+        previous.adapter === adapter && previous.envKey === envKey;
+      const reusable = sameSetup && previous.provider.canApply(spec, execution);
       if (reusable) return Object.assign(previous, { options: execution });
       await closeSession(previous, "session_rebuilt");
     }
     let live: LiveSession | null = null;
-    const events = new EventBuilder({
-      providerId: adapter.id,
-      emit: (event) => {
-        if (live === null) outbox.threadEvent(threadId, event);
-        else if (!live.closed) onEvent(live, event);
-      },
-    });
+    const emit = (event: RunnerThreadEvent) => {
+      if (live === null) outbox.threadEvent(threadId, event);
+      else if (!live.detached) onEvent(live, event);
+    };
+    const events = new EventBuilder({ providerId: adapter.id, emit });
     const host: SessionHost = {
       events,
       env: env.agent,
@@ -265,54 +247,55 @@ export function createSessionApi(
       threadStorageDir,
       writableRoots: [storageRoot],
       onExit: (info) => live && onProviderExit(live, info),
-      requestInteraction: ({ payload, turnId }) => {
-        const denies =
-          adapter.approvalEnforcedBy === "runner" &&
-          payload.kind === "approval" &&
-          live?.options.permissionEscalation === "deny";
-        if (denies) return Promise.resolve({ decision: "deny" });
-        const registry = (l: LiveSession) => l.interactions;
-        return request(live, registry, turnId, (l, requestId) => {
+      requestInteraction: async ({ payload, turnId }) => {
+        const unattended = live?.options.permissionEscalation === "deny";
+        const enforced = adapter.approvalEnforcedBy === "runner";
+        const denied = unattended && enforced && payload.kind === "approval";
+        if (denied) return { decision: "deny" };
+        const answer = await request(live, "interaction", turnId, (l, id) => {
+          const ids = {
+            threadId,
+            turnId,
+            requestId: id,
+            providerId: adapter.id,
+          };
           const providerThreadId = l.provider.providerThreadId;
           const kind = "interaction.requested";
-          const ids = { threadId, turnId, requestId, providerThreadId };
-          outbox.emit({ kind, ...ids, providerId: adapter.id, payload });
+          outbox.emit({ kind, ...ids, providerThreadId, payload });
         });
+        return pendingInteractionResolutionSchema.parse(answer);
       },
-      callTool: ({ callId, tool, arguments: input, turnId }) => {
-        const registry = (l: LiveSession) => l.toolCalls;
-        return request(live, registry, turnId, (_, requestId) => {
-          const ids = { threadId, turnId, requestId, callId };
-          const kind = "toolCall.requested";
-          outbox.emit({ kind, ...ids, tool, arguments: input });
-        });
+      callTool: async ({ callId, tool, arguments: input, turnId }) => {
+        const answer = await request(
+          live,
+          "toolCall",
+          turnId,
+          (_, requestId) => {
+            const ids = { threadId, turnId, requestId, callId };
+            const kind = "toolCall.requested";
+            outbox.emit({ kind, ...ids, tool, arguments: input });
+          },
+        );
+        return toolCallResponseSchema.parse(answer);
       },
     };
-    const providerThreadId =
-      spec.providerThreadId ?? previous?.provider.providerThreadId ?? null;
-    const resumable = { ...spec, providerThreadId };
+    const known = previous?.provider.providerThreadId ?? null;
+    const resumable = {
+      ...spec,
+      providerThreadId: spec.providerThreadId ?? known,
+    };
     const provider = await adapter.open(resumable, execution, host);
-    live = {
-      threadId,
-      adapter,
-      provider,
-      events,
-      options: execution,
-      envKey,
-      pendingStart: null,
-      lastActiveAt: Date.now(),
-      closed: false,
-      interactions: new Map(),
-      toolCalls: new Map(),
-    };
+    const identity = { threadId, adapter, provider, events, envKey };
+    const state = { pendingStart: null, closing: false, detached: false };
+    const requests = new Map<string, PendingRequest>();
+    const activity = { lastActiveAt: Date.now(), requests };
+    live = { ...identity, ...state, ...activity, options: execution };
     sessions.set(threadId, live);
     events.flush();
-    outbox.threadEvent(threadId, {
-      type: "provider.env-resolved",
-      providerThreadId: provider.providerThreadId,
-      entries: env.entries,
-      scope: threadScope(),
-    });
+    const { providerThreadId } = provider;
+    const resolved = { providerThreadId, entries: env.entries };
+    const type = "provider.env-resolved";
+    outbox.threadEvent(threadId, { type, ...resolved, scope: threadScope() });
     return live;
   }
 
@@ -339,25 +322,21 @@ export function createSessionApi(
     }
     if (live !== undefined && mode.kind === "auto" && live.pendingStart) {
       const deadline = Date.now() + timing.interruptTimeoutMs;
-      await waitFor(() => !live.pendingStart || live.closed, deadline);
+      await waitFor(() => !live.pendingStart || live.closing, deadline);
     }
-    const activeTurnId = live?.closed ? null : live?.events.activeTurnId;
-    const expectedTurnId =
-      mode.kind === "steer" ? mode.expectedTurnId : activeTurnId;
-    if (live && expectedTurnId && activeTurnId === expectedTurnId) {
-      const outcome = await live.provider.steer({ ...args, expectedTurnId });
+    const activeTurnId = live?.closing ? null : live?.events.activeTurnId;
+    const turnId = mode.kind === "steer" ? mode.expectedTurnId : activeTurnId;
+    if (live && turnId && activeTurnId === turnId) {
+      const steering = { ...args, expectedTurnId: turnId };
+      const outcome = await live.provider.steer(steering);
       const { providerThreadId } = live.provider;
-      const steered = { outcome, providerThreadId, turnId: expectedTurnId };
-      if (steered.outcome === "steered")
-        return { ...steered, outcome: "steered" };
+      if (outcome === "steered") return { outcome, providerThreadId, turnId };
     }
     if (mode.kind === "steer") {
-      throw new RunnerError(
-        "stale_turn",
-        "The expected turn is no longer active",
-      );
+      const message = "The expected turn is no longer active";
+      throw new RunnerError("stale_turn", message);
     }
-    if (live !== undefined && !live.closed && isBusy(live)) {
+    if (live !== undefined && !live.closing && isBusy(live)) {
       throw new RunnerError("competing_turn", "A turn is already starting");
     }
     return startTurn(args);
@@ -365,9 +344,8 @@ export function createSessionApi(
 
   function remember(args: SubmitTurnArgs) {
     const { threadId } = args.session;
-    const byRequest: Map<string, Promise<SubmitTurnResult>> = remembered.get(
-      threadId,
-    ) ?? new Map();
+    const fresh = new Map<string, Promise<SubmitTurnResult>>();
+    const byRequest = remembered.get(threadId) ?? fresh;
     remembered.set(threadId, byRequest);
     const known = byRequest.get(args.clientRequestId);
     if (known !== undefined) return known;
@@ -376,10 +354,8 @@ export function createSessionApi(
       throw toRunnerError(error);
     });
     byRequest.set(args.clientRequestId, result);
-    const oldest = byRequest.keys().next().value;
-    if (byRequest.size > MAX_REMEMBERED_REQUESTS && oldest !== undefined) {
-      byRequest.delete(oldest);
-    }
+    const [oldest] = byRequest.keys();
+    if (byRequest.size > MAX_REMEMBERED_REQUESTS) byRequest.delete(oldest);
     return result;
   }
 
@@ -387,9 +363,9 @@ export function createSessionApi(
     const live = sessions.get(threadId);
     if (live === undefined || !isBusy(live)) return { interrupted: false };
     const deadline = Date.now() + timing.interruptTimeoutMs;
-    const settled = () => live.closed || !isBusy(live);
     void live.provider.interrupt().catch(() => undefined);
-    if (!(await waitFor(settled, deadline))) live.events.settle("interrupted");
+    await waitFor(() => live.closing || !isBusy(live), deadline);
+    live.events.settle("interrupted");
     await closeSession(live, "interrupted");
     return { interrupted: true };
   }
@@ -399,21 +375,19 @@ export function createSessionApi(
     for (const live of [...sessions.values()]) {
       const start = live.pendingStart;
       const limitMs = timing.turnStartTimeoutMs;
-      const seconds = Math.round(limitMs / 1000);
       if (start && !start.warned && now - start.since >= limitMs) {
         start.warned = true;
-        const message = `The provider accepted a turn but did not start it within ${seconds}s. The request may be stalled; stopping the thread interrupts it.`;
-        systemError(live, null, "provider_turn_start_timeout", message);
+        const code = "provider_turn_start_timeout";
+        const message = `The provider accepted a turn but did not start it within ${Math.round(limitMs / 1000)}s. The request may be stalled; stopping the thread interrupts it.`;
+        systemError(live, null, { code, message });
       }
-      const idle =
-        !isBusy(live) &&
-        !live.events.hasOpenBackgroundWork() &&
-        live.interactions.size + live.toolCalls.size === 0 &&
-        now - live.lastActiveAt >= timing.idleReapMs;
+      const quiet = now - live.lastActiveAt >= timing.idleReapMs;
+      const waiting = live.requests.size > 0 || isBusy(live);
+      if (!quiet || waiting || live.events.hasOpenBackgroundWork()) continue;
       const reap = async () => {
         if (!isBusy(live)) await closeSession(live, "idle");
       };
-      if (idle) void serialize(live.threadId, reap);
+      void serialize(live.threadId, reap);
     }
   }
 
@@ -439,19 +413,15 @@ export function createSessionApi(
           providerThreadId: session.provider.providerThreadId,
           activeTurnId: session.events.activeTurnId,
         })),
-        pendingRequestIds: live.flatMap((session) => [
-          ...session.interactions.keys(),
-          ...session.toolCalls.keys(),
-        ]),
+        pendingRequestIds: live.flatMap((s) => [...s.requests.keys()]),
         terminalIds: options.terminalIds?.() ?? [],
         lastEventSeq: outbox.lastSeq,
       };
     },
     ackEvents: async ({ seq }) => outbox.ack(seq),
-    listProviders: () =>
-      Promise.all(options.adapters.map((adapter) => adapter.status())),
-    listModels: async ({ providerId, cwd }) =>
-      adapterFor(providerId).listModels(cwd),
+    listProviders: () => Promise.all(options.adapters.map((a) => a.status())),
+    listModels: async (args) =>
+      adapterFor(args.providerId).listModels(args.cwd),
     submitTurn: (args) => remember(args),
     interruptTurn: ({ threadId }) =>
       serialize(threadId, () => interrupt(threadId)),
@@ -461,17 +431,16 @@ export function createSessionApi(
         if (live && !isBusy(live)) await closeSession(live, "released");
       }),
     resolveInteraction: async ({ threadId, requestId, resolution }) =>
-      deliver(sessions.get(threadId)?.interactions, requestId, resolution),
+      deliver(threadId, requestId, resolution),
     resolveToolCall: async ({ threadId, requestId, result }) =>
-      deliver(sessions.get(threadId)?.toolCalls, requestId, result),
+      deliver(threadId, requestId, result),
     renameSession: async ({ threadId, title }) => {
       await sessions.get(threadId)?.provider.rename?.(title);
     },
     deleteThreadStorage: ({ threadId }) =>
       serialize(threadId, async () => {
-        if (!THREAD_ID.test(threadId)) {
-          throw new RunnerError("invalid_path", "Invalid thread id");
-        }
+        const valid = THREAD_ID.test(threadId);
+        if (!valid) throw new RunnerError("invalid_path", "Invalid thread id");
         await interrupt(threadId);
         const live = sessions.get(threadId);
         if (live !== undefined) await closeSession(live, "deleted");
@@ -480,10 +449,8 @@ export function createSessionApi(
       }),
     shutdown: async () => {
       clearInterval(watchdog);
-      const closing = [...sessions.values()].map((live) =>
-        closeSession(live, "shutdown"),
-      );
-      await Promise.all(closing);
+      const live = [...sessions.values()];
+      await Promise.all(live.map((s) => closeSession(s, "shutdown")));
       outbox.flush();
     },
   };

@@ -173,7 +173,7 @@ class EchoSession implements ProviderSession {
 
   private say(turn: string, id: string, text: string, parentRef?: string) {
     const key = { providerItemId: id, parentRef };
-    const options = { turn, presentation: ui.AGENT_MESSAGE_PRESENTATION };
+    const options = { turn, presentation: ui.labels.message };
     const shape = { type: "agentMessage" as const, text };
     this.host.events.openItem(key, { ...shape, text: "" }, options);
     this.host.events.closeItem(key, shape, { ...options, status: "completed" });
@@ -192,12 +192,8 @@ class EchoSession implements ProviderSession {
   private fail(turn: string, detail: string) {
     if (this.active?.key !== turn) return;
     this.active = null;
-    this.host.events.error({
-      turn,
-      detail,
-      willRetry: false,
-      settlesTurn: true,
-    });
+    const report = { detail, willRetry: false };
+    this.host.events.error(report, { turn, settlesTurn: true });
   }
 
   private wait(turn: Turn, ms: number) {
@@ -241,7 +237,7 @@ class EchoSession implements ProviderSession {
       turn,
       "call",
       call,
-      ui.toolPresentation(tool),
+      ui.labels.tool(tool),
     );
     const request = { callId, tool, arguments: {}, turnId };
     const { contentItems } = await host.callTool(request);
@@ -259,23 +255,18 @@ class EchoSession implements ProviderSession {
     const thought = directive(text, "think");
     if (thought !== undefined) {
       const empty = { type: "reasoning" as const, summary: [], content: [] };
-      const item = this.item(turn, "think", empty, ui.REASONING_PRESENTATION);
-      events.textDelta(item.key, "reasoningText", thought, { turn });
+      const item = this.item(turn, "think", empty, ui.labels.reasoning);
+      events.delta(item.key, "reasoningText", thought, { turn });
       item.close({ ...empty, content: [thought] });
     }
     const command = directive(text, "cmd");
     if (command !== undefined) {
       const cwd = this.spec.cwd;
       const shape = { type: "commandExecution" as const, command, cwd };
-      const item = this.item(
-        turn,
-        "cmd",
-        shape,
-        ui.commandPresentation(command),
-      );
+      const item = this.item(turn, "cmd", shape, ui.labels.command(command));
       const output = [`$ ${command}\n`, "ok\n"];
       for (const chunk of output) {
-        events.outputDelta(item.key, "command", chunk, { turn });
+        events.delta(item.key, "command", chunk, { turn });
         if (!(await this.wait(live, pace))) return;
       }
       const result = { aggregatedOutput: output.join(""), exitCode: 0 };
@@ -286,20 +277,13 @@ class EchoSession implements ProviderSession {
       const diff = ui.buildEditDiff(path, "before\n", "after\n");
       const changes = [{ path, kind: "update" as const, diff }];
       const shape = { type: "fileChange" as const, changes };
-      this.item(turn, "edit", shape, ui.fileChangePresentation([path])).close(
-        shape,
-      );
+      this.item(turn, "edit", shape, ui.labels.fileChange([path])).close(shape);
     }
     const tool = directive(text, "tool");
     if (tool !== undefined) {
       const call = { type: "toolCall" as const, server: "echo", tool };
       const shape = { ...call, arguments: {} };
-      const item = this.item(
-        turn,
-        "tool",
-        shape,
-        ui.toolPresentation(tool, "echo"),
-      );
+      const item = this.item(turn, "tool", shape, ui.labels.tool(tool, "echo"));
       events.progress(item.key, { turn, message: "working", flush: true });
       item.close({ ...shape, result: "ok", durationMs: 1 });
     }
@@ -308,7 +292,7 @@ class EchoSession implements ProviderSession {
       const childTurn = `${turn}-child`;
       const agent = { type: "delegation" as const, label, childRef: childTurn };
       const shape = { ...agent, background: false };
-      const item = this.item(turn, "agent", shape, ui.agentPresentation(label));
+      const item = this.item(turn, "agent", shape, ui.labels.agent(label));
       const parentRef = item.key.providerItemId;
       events.openTurn({ turn: childTurn, parentRef });
       const summary = `Subagent ${label} finished`;
@@ -336,10 +320,10 @@ class EchoSession implements ProviderSession {
       reply.length / Number(directive(text, "stream") ?? 1),
     );
     const empty = { type: "agentMessage" as const, text: "" };
-    const item = this.item(turn, "reply", empty, ui.AGENT_MESSAGE_PRESENTATION);
+    const item = this.item(turn, "reply", empty, ui.labels.message);
     for (let offset = 0; offset < reply.length; offset += Math.max(1, size)) {
       const delta = reply.slice(offset, offset + Math.max(1, size));
-      events.textDelta(item.key, "agentMessage", delta, { turn });
+      events.delta(item.key, "agentMessage", delta, { turn });
       if (!(await this.wait(live, pace))) return;
     }
     item.close({ ...empty, text: reply });
@@ -350,9 +334,11 @@ class EchoSession implements ProviderSession {
       inputTokens: tokens,
     };
     const total = { ...last, totalTokens: tokens * this.turns };
-    events.usage({ turn, total, last, modelContextWindow: CONTEXT_WINDOW });
-    const window = { used: tokens, size: CONTEXT_WINDOW, estimated: false };
-    events.contextWindow({ turn, ...window });
+    const modelContextWindow = CONTEXT_WINDOW;
+    const tokenUsage = { total, last, modelContextWindow };
+    events.usage({ tokenUsage }, { turn });
+    const window = { usedTokens: tokens, modelContextWindow, estimated: false };
+    events.contextWindow({ contextWindowUsage: window }, { turn });
     this.finish(live);
   }
 }

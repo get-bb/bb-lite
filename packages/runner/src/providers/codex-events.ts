@@ -1,36 +1,28 @@
 import {
-  fromProviderExternalThreadName,
+  fromProviderExternalThreadName as threadName,
   providerRawEventSchema,
   type ProviderErrorCategory,
   type ProviderRateLimitState,
-  type ProviderRateLimitStatus,
   type ProviderRateLimitWindow,
-  type ProviderRawEvent,
   type ThreadEventItemPresentation as Presentation,
 } from "@bb/domain";
 import { z } from "zod";
-import type { EventBuilder, ItemShape } from "../events/event-builder.js";
-import {
-  AGENT_MESSAGE_PRESENTATION,
-  COMPACTION_PRESENTATION,
-  PLAN_PRESENTATION,
-  REASONING_PRESENTATION,
-  agentPresentation,
-  commandPresentation,
-  fileChangePresentation,
-  imageViewPresentation,
-  planStepsPresentation,
-  presentation,
-  presentationFileName,
-  toolPresentation,
-  webFetchPresentation,
-  webSearchPresentation,
-} from "./provider.js";
+import type {
+  EventBuilder,
+  ItemShape,
+  OutputChannel,
+  TextChannel,
+} from "../events/event-builder.js";
+import * as ui from "./provider.js";
 
 const text = z.string();
-const nullableNumber = z.number().nullable();
+const texts = z.array(text);
+const count = z.number();
+const maybeCount = count.nullable();
 const itemStatus = z.enum(["inProgress", "completed", "failed", "declined"]);
 const scoped = { threadId: text, turnId: text };
+const item = <T extends string, S extends z.ZodRawShape>(type: T, shape: S) =>
+  z.object({ type: z.literal(type), ...shape });
 const errorSchema = z.object({
   message: text,
   codexErrorInfo: z.unknown().optional(),
@@ -42,142 +34,134 @@ export const turnSchema = z.object({
   error: errorSchema.nullish(),
 });
 const usageSchema = z.object({
-  totalTokens: z.number(),
-  inputTokens: z.number(),
-  cachedInputTokens: z.number().nonnegative(),
-  cacheWriteInputTokens: z.number().nonnegative().optional(),
-  outputTokens: z.number(),
-  reasoningOutputTokens: z.number(),
+  totalTokens: count,
+  inputTokens: count,
+  cachedInputTokens: count.nonnegative(),
+  cacheWriteInputTokens: count.nonnegative().optional(),
+  outputTokens: count,
+  reasoningOutputTokens: count,
 });
 const windowSchema = z.object({
-  usedPercent: z.number(),
-  windowDurationMins: z.number().nullish(),
-  resetsAt: z.number().nullish(),
+  usedPercent: count,
+  windowDurationMins: count.nullish(),
+  resetsAt: count.nullish(),
 });
+const spendSchema = z.object({ remainingPercent: count, resetsAt: count });
 const rateLimitSchema = z.object({
-  limitId: text.nullish(),
   primary: windowSchema.nullish(),
   secondary: windowSchema.nullish(),
-  credits: z
-    .object({ hasCredits: z.boolean(), unlimited: z.boolean() })
-    .nullish(),
-  individualLimit: z
-    .object({ remainingPercent: z.number(), resetsAt: z.number() })
-    .nullish(),
+  credits: z.object({ hasCredits: z.boolean() }).nullish(),
+  individualLimit: spendSchema.nullish(),
   spendControlReached: z.boolean().nullish(),
   rateLimitReachedType: text.nullish(),
 });
-type RateLimits = z.infer<typeof rateLimitSchema>;
-const contentItem = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("inputText"), text }),
-  z.object({ type: z.literal("inputImage"), imageUrl: text }),
-]);
+const contentItem = z.object({
+  text: text.optional(),
+  imageUrl: text.optional(),
+});
+const changeKind = z.enum(["add", "delete", "update"]);
 const fileChange = z.object({
   path: text,
   diff: text,
-  kind: z.object({
-    type: z.enum(["add", "delete", "update"]),
-    move_path: text.nullish(),
-  }),
+  kind: z.object({ type: changeKind, move_path: text.nullish() }),
 });
 const webAction = z.object({
   type: text,
   query: text.nullish(),
-  queries: z.array(text).nullish(),
+  queries: texts.nullish(),
   url: text.nullish(),
   pattern: text.nullish(),
 });
+const command = { command: text, cwd: text, aggregatedOutput: text.nullable() };
+const timed = { status: itemStatus, durationMs: maybeCount };
+const call = { ...timed, tool: text, arguments: z.unknown().optional() };
+const toolError = z.object({ message: text.optional() }).nullish();
+const dynamicResult = { contentItems: z.array(contentItem).nullable() };
+const collabRouting = { senderThreadId: text, receiverThreadIds: texts };
+const collabDetail = { prompt: text.nullable(), model: text.nullable() };
+const collabState = { agentsStates: z.record(text, z.unknown()) };
+const activityKind = z.enum([
+  "started",
+  "interacted",
+  "interrupted",
+  "completed",
+]);
 const itemSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("agentMessage"), text }),
-  z.object({ type: z.literal("userMessage") }),
-  z.object({ type: z.literal("plan"), text }),
-  z.object({ type: z.literal("contextCompaction") }),
-  z.object({ type: z.literal("imageView"), path: text }),
-  z.object({
-    type: z.literal("reasoning"),
-    summary: z.array(text),
-    content: z.array(text),
-  }),
-  z.object({
-    type: z.literal("commandExecution"),
-    command: text,
-    cwd: text,
-    status: itemStatus,
-    aggregatedOutput: text.nullable(),
-    exitCode: nullableNumber,
-    durationMs: nullableNumber,
-  }),
-  z.object({
-    type: z.literal("fileChange"),
-    status: itemStatus,
-    changes: z.array(fileChange),
-  }),
-  z.object({
-    type: z.literal("mcpToolCall"),
-    server: text,
-    tool: text,
-    status: itemStatus,
-    arguments: z.unknown().optional(),
-    error: z.object({ message: text.optional() }).nullish(),
-    durationMs: nullableNumber,
-  }),
-  z.object({
-    type: z.literal("dynamicToolCall"),
-    tool: text,
-    arguments: z.unknown().optional(),
-    status: itemStatus,
-    contentItems: z.array(contentItem).nullable(),
+  item("agentMessage", { text }),
+  item("userMessage", {}),
+  item("plan", { text }),
+  item("contextCompaction", {}),
+  item("imageView", { path: text }),
+  item("reasoning", { summary: texts, content: texts }),
+  item("commandExecution", { ...command, ...timed, exitCode: maybeCount }),
+  item("fileChange", { status: itemStatus, changes: z.array(fileChange) }),
+  item("mcpToolCall", { ...call, server: text, error: toolError }),
+  item("dynamicToolCall", {
+    ...call,
+    ...dynamicResult,
     success: z.boolean().nullable(),
-    durationMs: nullableNumber,
   }),
-  z.object({
-    type: z.literal("collabAgentToolCall"),
+  item("collabAgentToolCall", {
+    ...collabRouting,
+    ...collabDetail,
+    ...collabState,
     tool: text,
     status: itemStatus,
-    senderThreadId: text,
-    receiverThreadIds: z.array(text),
-    prompt: text.nullable(),
-    model: text.nullable(),
     reasoningEffort: text.nullable(),
-    agentsStates: z.record(text, z.unknown()),
   }),
-  z.object({
-    type: z.literal("subAgentActivity"),
-    kind: z.enum(["started", "interacted", "interrupted", "completed"]),
+  item("subAgentActivity", {
+    kind: activityKind,
     agentThreadId: text,
     agentPath: text,
   }),
-  z.object({
-    type: z.literal("webSearch"),
-    query: text,
-    action: webAction.nullable(),
-  }),
-  z.object({
-    type: z.literal("imageGeneration"),
-    status: z.union([itemStatus, z.literal("in_progress")]),
-    revisedPrompt: text.nullable(),
-    result: text,
-    transparentBackground: z.boolean().nullish(),
-    failure: z.object({}).nullable(),
-    savedPath: text.optional(),
-  }),
+  item("webSearch", { query: text, action: webAction.nullable() }),
 ]);
 type CodexItem = z.infer<typeof itemSchema>;
-type ItemStatus = z.infer<typeof itemStatus>;
+type Agent = Extract<CodexItem, { type: "subAgentActivity" }>;
+type Turn = z.infer<typeof turnSchema>;
 
-const itemEvent = z.object({
-  ...scoped,
-  item: z.looseObject({ type: text, id: text }),
-});
+const rawItem = z.looseObject({ type: text, id: text });
+const itemEvent = z.object({ ...scoped, item: rawItem });
 const deltaEvent = z.object({ ...scoped, itemId: text, delta: text });
 const turnEvent = z.object({ threadId: text, turn: turnSchema });
+const statusEvent = z.object({
+  threadId: text,
+  status: z.object({ type: text }),
+});
+const threadEvent = z.object({ id: text.min(1), preview: text.optional() });
+const nameEvent = z.object({ threadId: text, threadName: text.optional() });
+const progressEvent = z.object({
+  ...scoped,
+  itemId: text,
+  message: text.optional(),
+});
 const warningEvent = z.object({ summary: text, details: text.nullish() });
+const usageEvent = z.object({
+  turnId: text,
+  tokenUsage: z.object({
+    total: usageSchema,
+    last: usageSchema,
+    modelContextWindow: maybeCount,
+  }),
+});
+const stepStatus = z.enum(["pending", "inProgress", "completed", "failed"]);
+const planEvent = z.object({
+  turnId: text,
+  plan: z.array(z.object({ step: text, status: stepStatus })),
+  explanation: text.nullish(),
+});
+const failureEvent = z.object({
+  threadId: text,
+  turnId: text.optional(),
+  error: errorSchema,
+  willRetry: z.boolean().optional(),
+});
 const goalSchema = z.object({
   objective: text,
   status: z.enum(["active", "paused", "budgetLimited", "complete"]),
-  tokenBudget: nullableNumber,
-  tokensUsed: z.number(),
-  timeUsedSeconds: z.number(),
+  tokenBudget: maybeCount,
+  tokensUsed: count,
+  timeUsedSeconds: count,
 });
 
 const NOISE = new Set([
@@ -195,6 +179,14 @@ const NOISE = new Set([
   "turn/diff/updated",
   "turn/moderationMetadata",
 ]);
+const DELTA_CHANNELS: Record<string, TextChannel | OutputChannel> = {
+  "item/agentMessage/delta": "agentMessage",
+  "item/reasoning/summaryTextDelta": "reasoningSummary",
+  "item/reasoning/textDelta": "reasoningText",
+  "item/plan/delta": "plan",
+  "item/commandExecution/outputDelta": "command",
+  "item/fileChange/outputDelta": "fileChange",
+};
 const STATUS = {
   inProgress: "pending",
   completed: "completed",
@@ -227,7 +219,6 @@ const COLLAB_LABELS: Record<string, [string, string, string]> = {
   closeAgent: ["Closing agent", "Closed agent", "Close agent"],
 };
 const GOAL_KIND = "provider-codex/goal";
-const RANK = { unknown: 0, allowed: 1, warning: 2, blocked: 3 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -238,109 +229,64 @@ function errorInfo(info: unknown) {
   const providerCode = isRecord(info) ? Object.keys(info)[0] : String(info);
   const detail = isRecord(info) && providerCode ? info[providerCode] : null;
   const status = isRecord(detail) ? detail.httpStatusCode : null;
-  return {
-    category: ERROR_CATEGORY[providerCode ?? ""] ?? ("unknown" as const),
-    providerCode: providerCode ?? null,
-    httpStatusCode: typeof status === "number" ? status : null,
-  };
+  const category = ERROR_CATEGORY[providerCode ?? ""] ?? ("unknown" as const);
+  const httpStatusCode = typeof status === "number" ? status : null;
+  return { category, providerCode: providerCode ?? null, httpStatusCode };
 }
 
-function rawEvent(method: string, params: unknown): ProviderRawEvent {
+function rawEvent(method: string, params: unknown) {
   const base = { jsonrpc: "2.0" as const, method };
-  const parsed = providerRawEventSchema.safeParse(
-    params ? { ...base, params } : base,
-  );
+  const event = params ? { ...base, params } : base;
+  const parsed = providerRawEventSchema.safeParse(event);
   return parsed.success ? parsed.data : base;
 }
 
-function windowStatus(usedPercent: number): ProviderRateLimitStatus {
-  return usedPercent >= 100
-    ? "blocked"
-    : usedPercent >= 90
-      ? "warning"
-      : "allowed";
-}
-
-function reachedReasonActive(limits: RateLimits, reason: string) {
-  if (reason === "rate_limit_reached") {
-    return [limits.primary, limits.secondary].some(
-      (w) => w && w.usedPercent >= 100,
-    );
-  }
-  const { credits, individualLimit } = limits;
-  if (reason.includes("credits_depleted")) {
-    return Boolean(credits && !credits.unlimited && !credits.hasCredits);
-  }
-  const spent = individualLimit && individualLimit.remainingPercent <= 0;
-  return reason.includes("usage_limit_reached") && Boolean(spent);
-}
-
-function mergeRateLimits(previous: RateLimits | undefined, update: RateLimits) {
-  const merged: RateLimits = {
-    primary: update.primary ?? previous?.primary,
-    secondary: update.secondary ?? previous?.secondary,
-    credits: update.credits ?? previous?.credits,
-    individualLimit: update.individualLimit ?? previous?.individualLimit,
-    spendControlReached: update.spendControlReached,
-    rateLimitReachedType: update.rateLimitReachedType,
-  };
-  const earlier = previous?.rateLimitReachedType;
-  const carried = !merged.rateLimitReachedType && earlier;
-  if (carried && reachedReasonActive(merged, earlier)) {
-    merged.rateLimitReachedType = earlier;
-  }
-  return merged;
-}
-
-function normalizeRateLimits(limits: RateLimits): ProviderRateLimitState {
+function rateLimitState(
+  limits: z.infer<typeof rateLimitSchema>,
+): ProviderRateLimitState {
   const windows: ProviderRateLimitWindow[] = [];
-  for (const providerKey of ["primary", "secondary"] as const) {
-    const window = limits[providerKey];
-    if (!window) continue;
-    const minutes = window.windowDurationMins;
-    const weekly =
-      minutes === 300
-        ? false
-        : minutes === 10_080 || providerKey === "secondary";
-    const label = weekly ? "Weekly limit" : "Current session";
-    const resetsAtMs = window.resetsAt == null ? null : window.resetsAt * 1_000;
-    const status = windowStatus(window.usedPercent);
+  const add = (
+    providerKey: string,
+    label: string,
+    used: number,
+    at: number,
+  ) => {
+    const status = used >= 100 ? "blocked" : used >= 90 ? "warning" : "allowed";
+    const resetsAtMs = Number.isNaN(at) ? null : at * 1_000;
     windows.push({ providerKey, label, status, resetsAtMs });
+  };
+  for (const key of ["primary", "secondary"] as const) {
+    const window = limits[key];
+    const minutes = window?.windowDurationMins;
+    const weekly =
+      minutes === 10_080 || (minutes !== 300 && key === "secondary");
+    const label = weekly ? "Weekly limit" : "Current session";
+    if (window) add(key, label, window.usedPercent, window.resetsAt ?? NaN);
   }
-  const individual = limits.individualLimit;
-  if (individual) {
-    const status = windowStatus(100 - individual.remainingPercent);
-    const resetsAtMs = individual.resetsAt * 1_000;
-    const providerKey = "individual-limit";
-    windows.push({ providerKey, label: "Spend control", status, resetsAtMs });
-  }
+  const spend = limits.individualLimit;
+  const spent = spend ? 100 - spend.remainingPercent : 0;
+  if (spend) add("individual-limit", "Spend control", spent, spend.resetsAt);
   const reachedReason = limits.rateLimitReachedType ?? null;
-  const spent = Boolean(individual && individual.remainingPercent <= 0);
   const windowed = Boolean(limits.primary || limits.secondary);
-  const kind =
-    reachedReason === "rate_limit_reached"
-      ? "subscription-window"
-      : reachedReason?.includes("credits_depleted")
-        ? "credits"
-        : reachedReason?.includes("usage_limit_reached")
-          ? "spend-control"
-          : reachedReason !== null
-            ? "unknown"
-            : spent || (!windowed && individual)
-              ? "spend-control"
-              : windowed
-                ? "subscription-window"
-                : "unknown";
-  const worst = windows.reduce(
-    (rank, window) => Math.max(rank, RANK[window.status]),
-    windows.length > 0 || limits.credits?.hasCredits ? 1 : 0,
-  );
-  const status = reachedReason !== null ? "blocked" : STATUS_BY_RANK[worst];
+  const spendControl = spent >= 100 || (spend && !windowed);
+  const reasonKind = reachedReason?.includes("credits_depleted")
+    ? "credits"
+    : reachedReason?.includes("usage_limit_reached")
+      ? "spend-control"
+      : reachedReason === "rate_limit_reached"
+        ? "subscription-window"
+        : "unknown";
+  const inferred = spendControl ? "spend-control" : "subscription-window";
+  const measured = windowed || spend ? inferred : "unknown";
+  const has = (status: string) => windows.some((w) => w.status === status);
+  const usable = windows.length > 0 || limits.credits?.hasCredits === true;
+  const level = has("warning") ? "warning" : usable ? "allowed" : "unknown";
+  const blocked = reachedReason !== null || has("blocked");
   const capped = limits.spendControlReached === true;
   return {
     providerId: "codex",
-    status: capped ? "blocked" : status,
-    kind: capped ? "spend-control" : kind,
+    status: blocked || capped ? "blocked" : level,
+    kind: capped ? "spend-control" : reachedReason ? reasonKind : measured,
     windows,
     reachedReason,
     overageStatus: null,
@@ -348,202 +294,143 @@ function normalizeRateLimits(limits: RateLimits): ProviderRateLimitState {
   };
 }
 
-const STATUS_BY_RANK: ProviderRateLimitStatus[] = [
-  "unknown",
-  "allowed",
-  "warning",
-  "blocked",
-];
-
 interface Translated {
   shape: ItemShape;
-  presentation: Presentation;
-  status: (typeof STATUS)[ItemStatus];
+  label: Presentation;
+  status: (typeof STATUS)[keyof typeof STATUS];
   denied: boolean;
 }
 
-function mcpPresentation(server: string, tool: string, args: unknown) {
-  if (server === "node_repl" && tool === "js_reset") {
-    const pending = "Resetting JavaScript session";
-    return presentation(pending, "Reset JavaScript session", "Code");
-  }
-  if (server === "node_repl" && tool === "js") {
-    const title =
-      isRecord(args) && typeof args.title === "string" ? args.title : undefined;
-    return presentation("Running JavaScript", "Ran JavaScript", "Code", title);
-  }
-  return toolPresentation(tool, server);
-}
-
 function translateItem(
-  item: CodexItem,
+  raw: CodexItem,
   injected: Map<string, Presentation | undefined>,
 ): Translated | "ignored" | "unhandled" {
   const done = (
     shape: ItemShape,
     label: Presentation,
-    status: ItemStatus = "completed",
-  ): Translated => ({
+    status: keyof typeof STATUS = "completed",
+  ) => ({
     shape,
-    presentation: label,
+    label,
     status: STATUS[status],
     denied: status === "declined",
   });
-  const args =
-    "arguments" in item && isRecord(item.arguments)
-      ? item.arguments
-      : undefined;
-  switch (item.type) {
+  const input = "arguments" in raw ? raw.arguments : undefined;
+  const args = isRecord(input) ? input : undefined;
+  const timing = "durationMs" in raw ? raw.durationMs : null;
+  const durationMs = timing ?? undefined;
+  switch (raw.type) {
     case "userMessage":
     case "subAgentActivity":
       return "ignored";
     case "agentMessage":
-      return done(item, AGENT_MESSAGE_PRESENTATION);
+      return done(raw, ui.labels.message);
     case "reasoning":
-      return done(item, REASONING_PRESENTATION);
+      return done(raw, ui.labels.reasoning);
     case "plan":
-      return done(item, PLAN_PRESENTATION);
+      return done(raw, ui.labels.plan);
     case "contextCompaction":
-      return done(item, COMPACTION_PRESENTATION);
+      return done(raw, ui.labels.compaction);
     case "imageView":
-      return done(item, imageViewPresentation(item.path));
+      return done(raw, ui.labels.imageView(raw.path));
     case "commandExecution": {
-      const { type, command, cwd, status } = item;
-      const aggregatedOutput = item.aggregatedOutput ?? undefined;
-      const exitCode = item.exitCode ?? undefined;
-      const durationMs = item.durationMs ?? undefined;
-      const shape = {
-        type,
-        command,
-        cwd,
-        aggregatedOutput,
-        exitCode,
-        durationMs,
-      };
-      return done(shape, commandPresentation(command), status);
+      const { type, command: line, cwd, status } = raw;
+      const aggregatedOutput = raw.aggregatedOutput ?? undefined;
+      const result = { aggregatedOutput, exitCode: raw.exitCode ?? undefined };
+      const shape = { type, command: line, cwd, ...result };
+      const duration = raw.durationMs ?? undefined;
+      const label = ui.labels.command(line);
+      return done({ ...shape, durationMs: duration }, label, status);
     }
     case "fileChange": {
-      const changes = item.changes.map(({ path, kind, diff }) => ({
+      const changes = raw.changes.map(({ path, kind, diff }) => ({
         path,
         kind: kind.type,
         movePath: (kind.type === "update" && kind.move_path) || undefined,
         diff: diff || undefined,
       }));
       const paths = changes.map((change) => change.path);
-      const shape = { type: item.type, changes };
-      return done(shape, fileChangePresentation(paths), item.status);
+      const label = ui.labels.fileChange(paths);
+      return done({ type: raw.type, changes }, label, raw.status);
     }
     case "mcpToolCall": {
-      const { server, tool } = item;
-      const error = item.error?.message;
-      const durationMs = item.durationMs ?? undefined;
-      const call = { type: "toolCall" as const, server, tool, arguments: args };
-      const label = mcpPresentation(server, tool, item.arguments);
-      return done({ ...call, error, durationMs }, label, item.status);
+      const { server, tool, status } = raw;
+      const shape = {
+        type: "toolCall" as const,
+        server,
+        tool,
+        arguments: args,
+      };
+      const error = raw.error?.message;
+      const label = ui.labels.tool(tool, server);
+      return done({ ...shape, error, durationMs }, label, status);
     }
     case "dynamicToolCall": {
-      const parts = (item.contentItems ?? [])
-        .map((c) =>
-          c.type === "inputText" ? c.text : `[image: ${c.imageUrl}]`,
-        )
+      const parts = (raw.contentItems ?? [])
+        .map((c) => c.text ?? (c.imageUrl ? `[image: ${c.imageUrl}]` : ""))
         .filter((part) => part.trim().length > 0);
       const result = parts.length > 0 ? parts.join("\n") : undefined;
-      const failed = item.success === false;
+      const failed = raw.success === false;
       const error = failed ? (result ?? "Dynamic tool call failed") : undefined;
-      const { tool } = item;
+      const { tool, status } = raw;
       const server = injected.has(tool) ? "bb" : undefined;
-      const durationMs = item.durationMs ?? undefined;
-      const call = { type: "toolCall" as const, server, tool, arguments: args };
-      const label = injected.get(tool) ?? toolPresentation(tool);
-      return done({ ...call, result, error, durationMs }, label, item.status);
+      const shape = {
+        type: "toolCall" as const,
+        server,
+        tool,
+        arguments: args,
+      };
+      const label = injected.get(tool) ?? ui.labels.tool(tool);
+      return done({ ...shape, result, error, durationMs }, label, status);
     }
     case "collabAgentToolCall": {
-      const { tool, prompt, agentsStates, status } = item;
-      const [pending, completed, verb] = COLLAB_LABELS[tool] ?? [
-        `Running ${tool}`,
-        `Ran ${tool}`,
-        tool,
-      ];
+      const { tool, prompt, agentsStates, status, receiverThreadIds } = raw;
+      const fallback = [`Running ${tool}`, `Ran ${tool}`, tool];
+      const [pending, completed, verb] = COLLAB_LABELS[tool] ?? fallback;
       const title = prompt ?? undefined;
-      const label = presentation(pending, completed, "UserRound", title);
-      const childRef = item.receiverThreadIds[0];
+      const label = ui.presentation(pending, completed, "UserRound", title);
+      const [childRef] = receiverThreadIds;
       if (childRef) {
-        const states = Object.entries(agentsStates).map(
-          ([id, state]) =>
-            `${id}: ${typeof state === "string" ? state : JSON.stringify(state)}`,
-        );
+        const states = Object.entries(agentsStates).map(([id, state]) => {
+          const value =
+            typeof state === "string" ? state : JSON.stringify(state);
+          return `${id}: ${value}`;
+        });
         const settled = status !== "inProgress" && states.length > 0;
         const summary = settled ? states.join("\n") : undefined;
         const name = prompt?.trim() || verb;
         const agent = { type: "delegation" as const, childRef, label: name };
         return done({ ...agent, background: false, summary }, label, status);
       }
-      const { senderThreadId, receiverThreadIds } = item;
-      const model = item.model || undefined;
-      const reasoningEffort = item.reasoningEffort || undefined;
-      const routing = {
-        senderThreadId,
+      const input = {
+        senderThreadId: raw.senderThreadId,
         receiverThreadIds,
-        prompt: prompt || undefined,
+        ...(prompt ? { prompt } : {}),
+        ...(raw.model ? { model: raw.model } : {}),
+        ...(raw.reasoningEffort
+          ? { reasoningEffort: raw.reasoningEffort }
+          : {}),
       };
-      const input = JSON.parse(
-        JSON.stringify({ ...routing, model, reasoningEffort }),
-      );
-      const call = { type: "toolCall" as const, tool, arguments: input };
-      return done({ ...call, result: agentsStates }, label, status);
+      const shape = { type: "toolCall" as const, tool, arguments: input };
+      return done({ ...shape, result: agentsStates }, label, status);
     }
     case "webSearch": {
-      const action = item.action;
+      const { action } = raw;
       if (action === null || action.type === "other") return "ignored";
+      const resultText = null;
       if (action.type === "search") {
-        const candidates = [
-          ...(action.queries ?? []),
-          action.query,
-          item.query,
-        ];
-        const queries = [...new Set(candidates.filter((q) => q))] as string[];
+        const candidates = [...(action.queries ?? []), action.query, raw.query];
+        const queries = [...new Set(candidates.flatMap((q) => (q ? [q] : [])))];
         if (queries.length === 0) return "unhandled";
-        const shape = { type: item.type, queries, resultText: null };
-        return done(shape, webSearchPresentation(queries[0]));
+        const label = ui.labels.webSearch(queries[0]);
+        return done({ type: raw.type, queries, resultText }, label);
       }
-      if (!action.url) return "unhandled";
-      const pattern =
-        action.type === "findInPage" ? (action.pattern ?? null) : null;
-      const fetch = {
-        type: "webFetch" as const,
-        url: action.url,
-        prompt: null,
-      };
-      const shape = { ...fetch, pattern, resultText: null };
-      return done(shape, webFetchPresentation(action.url));
-    }
-    case "imageGeneration": {
-      const path = item.savedPath ?? null;
-      const prompt = item.revisedPrompt;
-      const title = path ? presentationFileName(path) : (prompt ?? undefined);
-      const label = presentation(
-        "Generating image",
-        "Generated image",
-        "Palette",
-        title,
-      );
-      const error = item.failure
-        ? "Image generation usage limit exceeded"
-        : null;
-      const transparentBackground = item.transparentBackground ?? false;
-      const image = {
-        type: item.type,
-        prompt,
-        path,
-        error,
-        transparentBackground,
-      };
-      const status = item.status === "in_progress" ? "inProgress" : item.status;
-      return done(
-        { ...image, result: item.result || undefined },
-        label,
-        status,
-      );
+      const { url } = action;
+      if (!url) return "unhandled";
+      const found = action.type === "findInPage" ? action.pattern : null;
+      const page = { type: "webFetch" as const, url, prompt: null, resultText };
+      const label = ui.labels.webFetch(url);
+      return done({ ...page, pattern: found ?? null }, label);
     }
   }
 }
@@ -560,13 +447,11 @@ interface TrackedAgent {
 export interface CodexTranslatorHooks {
   rootThreadId(): string | null;
   onThreadStatus(status: string): void;
-  onRootTurnOpened(turnId: string): void;
+  onRootTurnOpened(): void;
   onTerminalError(category: ProviderErrorCategory, detail: string): void;
 }
 
 export class CodexTranslator {
-  awaitingReplayedUsage: boolean;
-  private rateLimits = new Map<string, RateLimits>();
   private retryErrors = new Map<string, { info: unknown; text: string }>();
   private agents = new Map<string, TrackedAgent>();
   private parentByThread = new Map<string, string>();
@@ -576,115 +461,90 @@ export class CodexTranslator {
     private readonly events: EventBuilder,
     private readonly injected: Map<string, Presentation | undefined>,
     private readonly hooks: CodexTranslatorHooks,
-    resumed: boolean,
-  ) {
-    this.awaitingReplayedUsage = resumed;
-  }
+    private awaitingReplayedUsage: boolean,
+  ) {}
 
   handle(method: string, params: unknown) {
     if (NOISE.has(method) || this.isConditionalNoise(method, params)) return;
-    const handled = this.dispatch(method, params);
-    if (!handled)
-      this.events.unhandled({ rawType: method, raw: rawEvent(method, params) });
+    if (this.dispatch(method, params)) return;
+    this.events.unhandled(method, rawEvent(method, params));
   }
 
-  openTurn(threadId: string, turnId: string) {
-    this.rateLimits.clear();
+  openTurn(threadId: string, turn: string) {
     this.awaitingReplayedUsage = false;
-    const agent = [...this.agents.values()].find(
-      (a) => a.agentThreadId === threadId,
+    const agent = this.agentOf(threadId);
+    if (agent && !agent.open) this.setAgent(agent, "pending");
+    const parentRef = this.parentRef(threadId, turn);
+    if (parentRef !== undefined) this.parentByTurn.set(turn, parentRef);
+    this.events.openTurn({ turn, parentRef });
+    if (parentRef === undefined) this.hooks.onRootTurnOpened();
+  }
+
+  closeTurn(threadId: string, { id: turn, status: reported, error }: Turn) {
+    this.retryErrors.delete(`${threadId}\0${turn}`);
+    const status = reported === "inProgress" ? "completed" : reported;
+    const message = error?.message || undefined;
+    const outcome = { status, error: message, checkpointId: turn };
+    this.events.closeTurn({ turn, ...outcome });
+    const agent = this.agents.get(this.parentByTurn.get(turn) ?? "");
+    if (agent?.open) this.setAgent(agent, status);
+  }
+
+  closeAgents(threadId?: string) {
+    const open = [...this.agents.values()].filter(
+      (a) => a.open && (threadId === undefined || a.agentThreadId === threadId),
     );
-    if (agent && !agent.open) this.openAgent(agent);
-    const parentRef = this.parentRef(threadId, turnId);
-    if (parentRef !== undefined) this.parentByTurn.set(turnId, parentRef);
-    this.events.openTurn({ turn: turnId, parentRef });
-    if (parentRef === undefined) this.hooks.onRootTurnOpened(turnId);
-  }
-
-  closeTurn(threadId: string, turn: z.infer<typeof turnSchema>) {
-    this.retryErrors.delete(`${threadId}\0${turn.id}`);
-    const status = turn.status === "inProgress" ? "completed" : turn.status;
-    const error = turn.error?.message || undefined;
-    this.events.closeTurn({
-      turn: turn.id,
-      status,
-      error,
-      checkpointId: turn.id,
-    });
-    const agent = this.agents.get(this.parentByTurn.get(turn.id) ?? "");
-    if (agent?.open) this.closeAgent(agent, status);
-  }
-
-  closeAgents(status: "failed" | "interrupted", threadId?: string) {
-    let closed = false;
-    for (const agent of this.agents.values()) {
-      const related =
-        threadId === undefined || agent.agentThreadId === threadId;
-      if (!agent.open || !related) continue;
-      this.closeAgent(agent, status);
-      closed = true;
-    }
-    return closed;
+    for (const agent of open) this.setAgent(agent, "failed");
+    return open.length > 0;
   }
 
   private isConditionalNoise(method: string, params: unknown) {
     if (!isRecord(params)) return false;
-    if (method === "hook/started" || method === "hook/completed") {
-      const status = isRecord(params.run) ? params.run.status : undefined;
-      return status === "running" || status === "completed";
-    }
     if (method === "item/commandExecution/terminalInteraction") {
       return params.stdin === "";
     }
-    return false;
+    const hook = method === "hook/started" || method === "hook/completed";
+    const status = isRecord(params.run) ? params.run.status : undefined;
+    return hook && (status === "running" || status === "completed");
   }
 
-  private parentRef(threadId: string, turnId?: string) {
-    const byTurn =
-      turnId === undefined ? undefined : this.parentByTurn.get(turnId);
-    return byTurn ?? this.parentByThread.get(threadId);
+  private parentRef(threadId: string, turn: string) {
+    return this.parentByTurn.get(turn) ?? this.parentByThread.get(threadId);
   }
 
-  private agentShape(agent: TrackedAgent) {
-    const { agentThreadId: childRef, agentPath: label } = agent;
-    return { type: "delegation" as const, childRef, label, background: false };
+  private agentOf(threadId: string) {
+    const agents = [...this.agents.values()];
+    return agents.find((agent) => agent.agentThreadId === threadId);
   }
 
-  private openAgent(agent: TrackedAgent) {
-    agent.open = true;
-    const { callId: providerItemId, parentRef, turn, agentPath } = agent;
-    const options = { turn, presentation: agentPresentation(agentPath) };
-    const key = { providerItemId, parentRef };
-    this.events.openItem(key, this.agentShape(agent), options);
-  }
-
-  private closeAgent(
+  private setAgent(
     agent: TrackedAgent,
-    status: "completed" | "failed" | "interrupted",
+    status: "pending" | "completed" | "failed" | "interrupted",
   ) {
-    agent.open = false;
-    const { callId: providerItemId, parentRef, turn, agentPath } = agent;
-    const options = {
-      turn,
-      status,
-      presentation: agentPresentation(agentPath),
+    agent.open = status === "pending";
+    const { callId, parentRef, turn, agentPath: label } = agent;
+    const key = { providerItemId: callId, parentRef };
+    const delegation = {
+      type: "delegation" as const,
+      label,
+      background: false,
     };
-    const key = { providerItemId, parentRef };
-    this.events.closeItem(key, this.agentShape(agent), options);
+    const shape = { ...delegation, childRef: agent.agentThreadId };
+    const options = { turn, presentation: ui.labels.agent(label) };
+    if (status === "pending") this.events.openItem(key, shape, options);
+    else this.events.closeItem(key, shape, { ...options, status });
   }
 
-  private subAgentActivity(
+  private activity(
     threadId: string,
     turn: string,
     callId: string,
-    item: Extract<CodexItem, { type: "subAgentActivity" }>,
+    item: Agent,
   ) {
     const { agentThreadId, agentPath, kind } = item;
-    const tracked = [...this.agents.values()].find(
-      (agent) => agent.agentThreadId === agentThreadId,
-    );
+    const tracked = this.agentOf(agentThreadId);
     if (kind === "interrupted" && tracked?.open) {
-      this.closeAgent(tracked, "interrupted");
+      this.setAgent(tracked, "interrupted");
     }
     if (kind !== "started" || this.agents.has(callId)) return;
     const parentRef = this.parentRef(threadId, turn);
@@ -692,7 +552,7 @@ export class CodexTranslator {
     const agent = { ...state, open: false };
     this.agents.set(callId, agent);
     this.parentByThread.set(agentThreadId, callId);
-    this.openAgent(agent);
+    this.setAgent(agent, "pending");
   }
 
   private item(method: string, params: unknown) {
@@ -703,7 +563,7 @@ export class CodexTranslator {
     const closing = method === "item/completed";
     const parentRef = this.parentRef(threadId, turn);
     if (parsed.success && parsed.data.type === "subAgentActivity") {
-      if (closing) this.subAgentActivity(threadId, turn, raw.id, parsed.data);
+      if (closing) this.activity(threadId, turn, raw.id, parsed.data);
       return true;
     }
     const translated = parsed.success
@@ -712,112 +572,127 @@ export class CodexTranslator {
     if (translated === "ignored") return true;
     if (translated === "unhandled") {
       const event = rawEvent(method, params);
-      this.events.unhandled({ rawType: method, raw: event, turn, parentRef });
+      this.events.unhandled(method, event, { turn, parentRef });
       return true;
     }
     const key = { providerItemId: raw.id, parentRef };
-    const { shape, presentation: label, status, denied } = translated;
+    const { shape, label: presentation, status, denied } = translated;
     if (shape.type === "delegation" && shape.childRef !== threadId) {
       this.parentByThread.set(shape.childRef, raw.id);
     }
-    const options = { turn, presentation: label };
-    if (closing)
-      this.events.closeItem(key, shape, { ...options, status, denied });
+    const options = { turn, presentation, status, denied };
+    if (closing) this.events.closeItem(key, shape, options);
     else this.events.openItem(key, shape, options);
     return true;
   }
 
   private delta(method: string, params: unknown) {
+    const channel = DELTA_CHANNELS[method];
     const parsed = deltaEvent.safeParse(params);
-    if (!parsed.success) return false;
+    if (!parsed.success || channel === undefined) return false;
     const { threadId, turnId: turn, itemId, delta } = parsed.data;
-    const key = {
-      providerItemId: itemId,
-      parentRef: this.parentRef(threadId, turn),
-    };
-    const { events } = this;
-    switch (method) {
-      case "item/agentMessage/delta":
-        events.textDelta(key, "agentMessage", delta, { turn });
-        break;
-      case "item/reasoning/summaryTextDelta":
-        events.textDelta(key, "reasoningSummary", delta, { turn });
-        break;
-      case "item/reasoning/textDelta":
-        events.textDelta(key, "reasoningText", delta, { turn });
-        break;
-      case "item/plan/delta":
-        events.textDelta(key, "plan", delta, { turn });
-        break;
-      case "item/commandExecution/outputDelta":
-        events.outputDelta(key, "command", delta, { turn });
-        break;
-      default:
-        events.outputDelta(key, "fileChange", delta, { turn });
-    }
+    const parentRef = this.parentRef(threadId, turn);
+    this.events.delta({ providerItemId: itemId, parentRef }, channel, delta, {
+      turn,
+    });
     return true;
   }
 
+  private failure(data: z.infer<typeof failureEvent>) {
+    const { threadId, turnId: turn, error, willRetry } = data;
+    const failure = error.additionalDetails ?? error.message;
+    const key = `${threadId}\0${turn ?? ""}`;
+    const retried = this.retryErrors.get(key);
+    let info = error.codexErrorInfo;
+    if (willRetry === true && info && info !== "other") {
+      this.retryErrors.set(key, { info, text: failure });
+    } else if (willRetry === false) {
+      this.retryErrors.delete(key);
+      const inherits = info === "other" && retried?.text === failure;
+      if (inherits) info = retried.info;
+    }
+    const detail = [error.message, error.additionalDetails]
+      .filter(Boolean)
+      .join("\n");
+    const classified = errorInfo(info);
+    const threadScoped = turn === undefined;
+    const report = { detail, willRetry, errorInfo: classified };
+    this.events.error(report, { turn, threadScoped });
+    const category = classified?.category ?? "unknown";
+    if (willRetry !== true) this.hooks.onTerminalError(category, detail);
+  }
+
+  private usage({ turnId, tokenUsage }: z.infer<typeof usageEvent>) {
+    const { modelContextWindow } = tokenUsage;
+    const withCacheRead = (usage: z.infer<typeof usageSchema>) => ({
+      ...usage,
+      cacheReadInputTokens: usage.cachedInputTokens,
+    });
+    const total = withCacheRead(tokenUsage.total);
+    const last = withCacheRead(tokenUsage.last);
+    const turn = this.awaitingReplayedUsage ? undefined : turnId;
+    const usage = { tokenUsage: { total, last, modelContextWindow } };
+    if (turn) this.events.usage(usage, { turn });
+    const window = { usedTokens: last.totalTokens, modelContextWindow };
+    const contextWindowUsage = { ...window, estimated: false };
+    this.events.contextWindow({ contextWindowUsage }, { turn });
+  }
+
+  private plan({ turnId: turn, plan, explanation }: z.infer<typeof planEvent>) {
+    const steps = plan.map(({ step, status }) => ({
+      step,
+      status: status === "inProgress" ? ("active" as const) : status,
+    }));
+    const active = steps.find((step) => step.status === "active")?.step;
+    const headline = active ?? explanation ?? undefined;
+    const presentation = ui.labels.planSteps(headline);
+    const shape = { type: "planSteps" as const, steps };
+    const options = { turn, status: "completed" as const, presentation };
+    const item = { ...shape, explanation: explanation || undefined };
+    this.events.closeItem({ channel: "planSteps" }, item, options);
+  }
+
   private dispatch(method: string, params: unknown): boolean {
-    const { events } = this;
+    const { events, hooks } = this;
     const read = <S extends z.ZodType>(
       schema: S,
-      run: (data: z.infer<S>) => void,
+      run: (data: z.infer<S>) => unknown,
     ) => {
       const parsed = schema.safeParse(params);
       if (parsed.success) run(parsed.data);
       return parsed.success;
     };
+    const isRoot = (threadId: string) => {
+      const root = hooks.rootThreadId();
+      return root === null || root === threadId;
+    };
     switch (method) {
       case "item/started":
       case "item/completed":
         return this.item(method, params);
-      case "item/agentMessage/delta":
-      case "item/reasoning/summaryTextDelta":
-      case "item/reasoning/textDelta":
-      case "item/plan/delta":
-      case "item/commandExecution/outputDelta":
-      case "item/fileChange/outputDelta":
-        return this.delta(method, params);
       case "turn/started":
         return read(turnEvent, (p) => this.openTurn(p.threadId, p.turn.id));
       case "turn/completed":
         return read(turnEvent, (p) => this.closeTurn(p.threadId, p.turn));
-      case "thread/status/changed": {
-        const schema = z.object({
-          threadId: text,
-          status: z.object({ type: text }),
-        });
-        read(schema, (p) => {
-          const root = p.threadId === this.hooks.rootThreadId();
-          if (root) this.hooks.onThreadStatus(p.status.type);
+      case "thread/status/changed":
+        read(statusEvent, ({ threadId, status }) => {
+          if (isRoot(threadId)) hooks.onThreadStatus(status.type);
         });
         return true;
-      }
-      case "thread/started": {
-        const thread = z.object({ id: text.min(1), preview: text.optional() });
-        return read(z.object({ thread }), ({ thread: { id, preview } }) => {
-          const root = this.hooks.rootThreadId();
-          if (root !== null && root !== id) return;
+      case "thread/started":
+        return read(z.object({ thread: threadEvent }), ({ thread }) => {
+          if (!isRoot(thread.id)) return;
           events.started();
-          events.identity(id);
-          if (preview) events.name(fromProviderExternalThreadName(preview));
+          events.identity(thread.id);
+          if (thread.preview) events.name(threadName(thread.preview));
         });
-      }
-      case "thread/name/updated": {
-        const schema = z.object({
-          threadId: text,
-          threadName: text.optional(),
+      case "thread/name/updated":
+        return read(nameEvent, ({ threadId, threadName: name }) => {
+          if (isRoot(threadId) && name) events.name(threadName(name));
         });
-        return read(schema, ({ threadId, threadName }) => {
-          const root = threadId === this.hooks.rootThreadId();
-          if (root && threadName)
-            events.name(fromProviderExternalThreadName(threadName));
-        });
-      }
       case "thread/compacted":
-        return read(z.object(scoped), (p) =>
-          events.compacted({ turn: p.turnId }),
+        return read(z.object(scoped), ({ turnId: turn }) =>
+          events.compacted({ turn }),
         );
       case "thread/goal/updated":
         return read(z.object({ goal: goalSchema }), ({ goal }) =>
@@ -827,138 +702,25 @@ export class CodexTranslator {
         events.extensionState(GOAL_KIND, null);
         return true;
       case "thread/closed": {
-        const closed = (p: { threadId: string }) =>
-          this.closeAgents("failed", p.threadId);
-        const parsed = z.object({ threadId: text }).safeParse(params);
-        return parsed.success && closed(parsed.data);
+        const closed = z.object({ threadId: text }).safeParse(params);
+        return closed.success && this.closeAgents(closed.data.threadId);
       }
-      case "item/mcpToolCall/progress": {
-        const schema = z.object({
-          ...scoped,
-          itemId: text,
-          message: text.optional(),
-        });
-        return read(schema, ({ threadId, turnId: turn, itemId, message }) => {
+      case "item/mcpToolCall/progress":
+        return read(progressEvent, ({ threadId, turnId: turn, ...rest }) => {
           const parentRef = this.parentRef(threadId, turn);
-          const key = { providerItemId: itemId, parentRef };
-          events.progress(key, { turn, message: message || undefined });
+          const key = { providerItemId: rest.itemId, parentRef };
+          events.progress(key, { turn, message: rest.message || undefined });
         });
-      }
-      case "thread/tokenUsage/updated": {
-        const tokenUsage = z.object({
-          total: usageSchema,
-          last: usageSchema,
-          modelContextWindow: nullableNumber,
-        });
-        return read(
-          z.object({ ...scoped, tokenUsage }),
-          ({ turnId, tokenUsage: u }) => {
-            const cached = (usage: z.infer<typeof usageSchema>) => ({
-              ...usage,
-              cacheReadInputTokens: usage.cachedInputTokens,
-            });
-            const replayed = this.awaitingReplayedUsage;
-            const turn = replayed ? undefined : turnId;
-            const size = u.modelContextWindow;
-            const total = cached(u.total);
-            const last = cached(u.last);
-            if (!replayed)
-              events.usage({ turn, total, last, modelContextWindow: size });
-            const used = u.last.totalTokens;
-            events.contextWindow({ turn, used, size, estimated: false });
-          },
-        );
-      }
-      case "turn/plan/updated": {
-        const step = z.object({
-          step: text,
-          status: z.enum(["pending", "inProgress", "completed", "failed"]),
-        });
-        const plan = z.array(step);
-        const schema = z.object({
-          ...scoped,
-          plan,
-          explanation: text.nullish(),
-        });
-        return read(schema, ({ turnId: turn, plan: raw, explanation }) => {
-          const steps = raw.map(({ step: label, status }) => ({
-            step: label,
-            status: status === "inProgress" ? ("active" as const) : status,
-          }));
-          const active = steps.find((s) => s.status === "active")?.step;
-          const label = planStepsPresentation(
-            active ?? explanation ?? undefined,
-          );
-          const shape = { type: "planSteps" as const, steps };
-          const item = explanation ? { ...shape, explanation } : shape;
-          const options = {
-            turn,
-            status: "completed" as const,
-            presentation: label,
-          };
-          events.closeItem({ channel: "planSteps" }, item, options);
-        });
-      }
+      case "thread/tokenUsage/updated":
+        return read(usageEvent, (data) => this.usage(data));
+      case "turn/plan/updated":
+        return read(planEvent, (data) => this.plan(data));
       case "account/rateLimits/updated":
-        return read(
-          z.object({ rateLimits: rateLimitSchema }),
-          ({ rateLimits }) => {
-            const limitId = rateLimits.limitId ?? "codex";
-            const merged = mergeRateLimits(
-              this.rateLimits.get(limitId),
-              rateLimits,
-            );
-            this.rateLimits.set(limitId, merged);
-            const latest = normalizeRateLimits(merged);
-            const base = this.rateLimits.get("codex");
-            const main =
-              base && limitId !== "codex" ? normalizeRateLimits(base) : latest;
-            const [chosen, other] =
-              RANK[main.status] > RANK[latest.status]
-                ? [main, latest]
-                : [latest, main];
-            const blocked =
-              other === chosen || other.status !== "blocked"
-                ? []
-                : other.windows;
-            const extra = blocked.filter(
-              (window) => window.status === "blocked",
-            );
-            events.rateLimits({
-              ...chosen,
-              windows: [...chosen.windows, ...extra],
-            });
-          },
+        return read(z.object({ rateLimits: rateLimitSchema }), (data) =>
+          events.rateLimits(rateLimitState(data.rateLimits)),
         );
-      case "error": {
-        const schema = z.object({
-          threadId: text,
-          turnId: text.optional(),
-          error: errorSchema,
-          willRetry: z.boolean().optional(),
-        });
-        return read(schema, ({ threadId, turnId: turn, error, willRetry }) => {
-          const failure = error.additionalDetails ?? error.message;
-          const key = `${threadId}\0${turn ?? ""}`;
-          let info = error.codexErrorInfo;
-          if (willRetry === true && info && info !== "other") {
-            this.retryErrors.set(key, { info, text: failure });
-          } else if (willRetry === false) {
-            const retried = this.retryErrors.get(key);
-            this.retryErrors.delete(key);
-            if (info === "other" && retried?.text === failure)
-              info = retried.info;
-          }
-          const detail = error.additionalDetails
-            ? `${error.message}\n${error.additionalDetails}`
-            : error.message;
-          const threadScoped = turn === undefined;
-          const details = { detail, willRetry, info: errorInfo(info) };
-          events.error({ ...details, turn, threadScoped });
-          const category = details.info?.category ?? "unknown";
-          if (willRetry !== true) this.hooks.onTerminalError(category, detail);
-        });
-      }
+      case "error":
+        return read(failureEvent, (data) => this.failure(data));
       case "deprecationNotice":
       case "configWarning": {
         const category = method === "configWarning" ? "config" : "deprecation";
@@ -967,11 +729,11 @@ export class CodexTranslator {
         );
       }
       case "warning":
-        return read(z.object({ message: text }), ({ message }) =>
-          events.warning({ summary: message }),
+        return read(z.object({ message: text }), ({ message: summary }) =>
+          events.warning({ summary }),
         );
       default:
-        return false;
+        return this.delta(method, params);
     }
   }
 }
