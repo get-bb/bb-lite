@@ -128,10 +128,10 @@ const remote = "100.64.0.7";
 
 it.each<[string | number, Headers, string?, string?]>([
   ["owner", loopback],
-  ["owner", { ...loopback, origin: "http://localhost:48886" }],
+  ["owner", { ...loopback, origin: "http://127.0.0.1:48886" }],
   ["owner", { ...loopback, origin: "https://bee.example.test" }],
   [403, { ...loopback, ...evil }],
-  [403, { ...loopback, origin: "http://localhost:3000" }],
+  [403, { ...loopback, origin: "http://127.0.0.1:3000" }],
   [403, { host: "evil.example:48886" }],
   ["owner", session],
   [403, { ...session, ...evil }],
@@ -143,7 +143,7 @@ it.each<[string | number, Headers, string?, string?]>([
   ["anonymous", {}, "POST /internal/runner/join", remote],
 ])("trust guard answers %s for %j %s %s", (expected, headers, route, peer) => {
   const [method = "GET", path = "/api/v1/threads"] = route?.split(" ") ?? [];
-  const socket = { remoteAddress: peer ?? "127.0.0.1", localPort: 48886 };
+  const socket = { remoteAddress: peer ?? "127.0.0.1" };
   const request = { method, path, headers, socket };
   const verdict = (): string =>
     authorize(request, () => "https://bee.example.test").kind;

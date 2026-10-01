@@ -10,7 +10,7 @@ export interface TrustRequest {
   method: string;
   path: string;
   headers: IncomingHttpHeaders;
-  socket: { remoteAddress?: string; localPort?: number };
+  socket: { remoteAddress?: string };
 }
 
 const LOOPBACK_HOSTNAMES = ["127.0.0.1", "localhost", "[::1]"];
@@ -74,9 +74,7 @@ function assertOwnBrowserRequest(
   }
   const origin = request.headers.origin;
   if (origin === undefined) return;
-  const own = LOOPBACK_HOSTNAMES.map(
-    (hostname) => `http://${hostname}:${request.socket.localPort}`,
-  );
+  const own = [`http://${host}`, `https://${host}`];
   const stored = publicUrl();
   if (stored !== null) own.push(new URL(stored).origin);
   if (!own.includes(origin)) {
