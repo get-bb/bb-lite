@@ -1,7 +1,5 @@
 import { createContext, type CSSProperties, type ReactNode } from "react";
 
-import { TimelineWindowedItems } from "./TimelineWindowedItems.js";
-
 export const DEFAULT_WINDOWING_MIN_ITEM_COUNT = 20;
 const MAX_MEASUREMENTS = 2_000;
 
@@ -50,8 +48,4 @@ export interface TimelineWindowedItemsProps {
     index: number,
     state: TimelineWindowedItemRenderState,
   ) => ReactNode;
-}
-
-export function TimelineWindowedItemsLoader(props: TimelineWindowedItemsProps) {
-  return <TimelineWindowedItems {...props} />;
 }

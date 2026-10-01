@@ -91,31 +91,3 @@ export function ResourceInstallControl({
   );
   return withTooltip(control, presentation === "label" ? undefined : tooltip);
 }
-
-export function ResourceInstalledControl({
-  accessibleLabel,
-  count,
-}: {
-  accessibleLabel: string;
-  count?: { display: string; accessibleLabel: string };
-}) {
-  return (
-    <span
-      aria-label={accessibleLabel}
-      className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md border border-success/30 bg-success/10 px-2 text-xs font-medium text-[color:color-mix(in_oklab,var(--success)_72%,var(--ink))]"
-    >
-      <span className="inline-flex items-center gap-1">
-        <Icon name="Check" className="size-3.5" aria-hidden />
-        Installed
-        {count === undefined ? null : (
-          <span
-            aria-label={count.accessibleLabel}
-            className="shrink-0 whitespace-nowrap text-2xs text-subtle-foreground"
-          >
-            {count.display}
-          </span>
-        )}
-      </span>
-    </span>
-  );
-}

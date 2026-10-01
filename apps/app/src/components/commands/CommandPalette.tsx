@@ -1,4 +1,3 @@
-import { useSplitPreload } from "@/lib/define-split";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import {
   pluginCommandId,
@@ -28,7 +27,7 @@ import { getActiveThreadPanelOpener } from "@/components/plugin/plugin-thread-pa
 import { pluginListQueryOptions } from "@/hooks/queries/plugin-settings-queries";
 import type { PluginSettingsCandidate } from "@/components/settings/plugin-settings-entries";
 import { appQueryClient } from "@/lib/app-query-client";
-import { LazyCommandPaletteBody } from "./LazyCommandPaletteBody";
+import { CommandPaletteBody } from "./CommandPaletteBody";
 
 const ThreadSearchPaletteMode = lazy(() =>
   import("./ThreadSearchPaletteMode").then((module) => ({
@@ -53,7 +52,6 @@ export interface CommandPaletteProps {
 }
 
 export function CommandPalette({ threadId, projectId }: CommandPaletteProps) {
-  useSplitPreload(LazyCommandPaletteBody);
   const runner = useAppCommandRunner();
   const shortcuts = useAppCommandShortcuts(PALETTE_COMMAND_IDS);
 
@@ -247,7 +245,7 @@ export function CommandPalette({ threadId, projectId }: CommandPaletteProps) {
       >
         <DialogTitle className="sr-only">Quick palette</DialogTitle>
         {!searchingThreads ? (
-          <LazyCommandPaletteBody
+          <CommandPaletteBody
             key={openCount}
             actions={actions}
             installedPlugins={installedPlugins}

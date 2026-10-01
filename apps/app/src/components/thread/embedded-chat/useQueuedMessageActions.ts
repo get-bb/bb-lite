@@ -4,7 +4,7 @@ import type { SendQueuedMessageMode } from "@bb/server-contract";
 import type {
   QueuedMessageGroupBoundaryRequest,
   QueuedMessageProcessingAction,
-} from "@/components/promptbox/banner/LazyQueuedMessagesList";
+} from "@/components/promptbox/banner/QueuedMessagesList";
 import {
   useDeleteThreadQueuedMessage,
   useReorderThreadQueuedMessage,

@@ -6,7 +6,6 @@ import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 export function SidebarVisibilityCustomizeFrame({
-  autoFocusDone = false,
   children,
   containerRef,
   doneButtonRef,
@@ -15,7 +14,6 @@ export function SidebarVisibilityCustomizeFrame({
   title,
   variant,
 }: {
-  autoFocusDone?: boolean;
   children: ReactNode;
   containerRef?: RefObject<HTMLDivElement | null>;
   doneButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -38,7 +36,6 @@ export function SidebarVisibilityCustomizeFrame({
             variant="ghost"
             size="icon"
             aria-label="Back to sidebar"
-            autoFocus={autoFocusDone}
             className={cn(
               COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
               "shrink-0 text-muted-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2",
@@ -80,7 +77,6 @@ export function SidebarVisibilityCustomizeFrame({
           type="button"
           variant="ghost"
           size="sm"
-          autoFocus={autoFocusDone}
           className="h-6 shrink-0 px-2 text-xs text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent focus-visible:ring-2"
           onClick={onDone}
         >

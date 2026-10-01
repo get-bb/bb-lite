@@ -25,7 +25,6 @@ export const ROOT_COMPOSE_PINNED_PANEL_TOGGLE_POSITION_CLASS =
 type RootSecondaryPanelProps = Omit<
   ComponentProps<typeof LazyThreadSecondaryPanel>,
   | "renderBrowserDeck"
-  | "drawerFallback"
   | "isConversationCollapsed"
   | "onToggleConversationCollapse"
   | "renderAsDrawer"
@@ -155,7 +154,6 @@ export function RootComposeSecondaryContent({
         }) => (
           <LazyThreadSecondaryPanel
             {...threadSecondaryPanelProps}
-            drawerFallback={<DrawerPanelLoadingSkeleton />}
             renderBrowserDeck={(activeBrowserTabId, pane) =>
               renderBrowserDeck?.({
                 activeBrowserTabId,

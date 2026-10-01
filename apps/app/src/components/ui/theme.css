@@ -950,8 +950,8 @@ body.sidebar-resizing [data-sidebar="panel"] {
   /*
    * The working sweep is an animated image used as a mask: `shine-sweep.png`
    * is a 128x2 APNG whose alpha band travels left to right once a second,
-   * stretched over the label or glyph (`apps/app/scripts/generate-shine-sweep.mjs`
-   * writes it). Chromium advances animated images on the compositor, with no
+   * stretched over the label or glyph. Chromium advances animated images on the
+   * compositor, with no
    * style, paint, or commit on the main thread, so an agent working costs the
    * main thread nothing; an engine that animates images on the main thread
    * repaints this one small layer at the file's 30 fps.

@@ -50,28 +50,6 @@ export function ResourceIconFrame({
   );
 }
 
-export function ResourceMeta({
-  items,
-}: {
-  items: readonly (ReactNode | null | undefined | false)[];
-}) {
-  const visibleItems = items.filter(Boolean);
-  return (
-    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-      {visibleItems.map((item, index) => (
-        <span key={index} className="inline-flex min-w-0 items-center gap-1.5">
-          {index > 0 ? (
-            <span aria-hidden className="text-subtle-foreground">
-              ·
-            </span>
-          ) : null}
-          <span className="min-w-0 truncate">{item}</span>
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export function ResourceCardStat({
   icon,
   iconClassName,

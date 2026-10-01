@@ -50,8 +50,6 @@ function section(kind: ResourceDetailSectionKind) {
   return ResourceKindSection;
 }
 
-export const ResourceDetailOverviewSection = section("overview");
-
 export const ResourceDefinitionSection = section("definition");
 
 export const ResourceDetailConfigurationSection = section("configuration");

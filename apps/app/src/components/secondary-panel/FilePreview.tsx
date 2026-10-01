@@ -1359,7 +1359,6 @@ function FilePreviewCode({
       overflow={lineOverflowMode}
       highlightedLines={highlightedLines}
       scrollToHighlightedLines
-      fallback={<SourceLoadingSkeleton />}
       onSelectionAddToChat={onSelectionAddToChat}
     />
   );

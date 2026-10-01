@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
   COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
@@ -15,8 +15,13 @@ import {
   formatLifecycleErrorDescription,
 } from "@/lib/lifecycle-errors";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { LazyThreadStorageFileTree } from "./lazySecondaryPanelComponents";
 import type { ThreadStorageBrowserController } from "./useThreadStorageBrowser";
+
+const ThreadStorageFileTree = lazy(() =>
+  import("./ThreadStorageFileTree").then((module) => ({
+    default: module.ThreadStorageFileTree,
+  })),
+);
 
 interface ThreadStorageBrowserProps {
   controller: ThreadStorageBrowserController;
@@ -84,7 +89,11 @@ export function ThreadStorageBrowser({
   } else if (model === null) {
     body = loadingState;
   } else {
-    body = <LazyThreadStorageFileTree fallback={loadingState} model={model} />;
+    body = (
+      <Suspense fallback={loadingState}>
+        <ThreadStorageFileTree model={model} />
+      </Suspense>
+    );
   }
 
   return (

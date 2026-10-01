@@ -1,11 +1,11 @@
-import {
-  APP_SURFACE_DESKTOP,
-  APP_SURFACE_HEADER_NAME,
-  APP_SURFACE_WEB,
-  type RequestAppSurface,
-} from "@bb/config/app-surface";
 import { isInsideNativeShell } from "@/lib/native-shell";
 
+const APP_SURFACE_HEADER_NAME = "x-bb-app-surface";
+
+type RequestAppSurface = "desktop" | "web" | "api" | "mobile";
+
+const APP_SURFACE_DESKTOP: RequestAppSurface = "desktop";
+const APP_SURFACE_WEB: RequestAppSurface = "web";
 const APP_SURFACE_MOBILE: RequestAppSurface = "mobile";
 
 export function getAppSurface(): RequestAppSurface {

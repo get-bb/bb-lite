@@ -78,7 +78,7 @@ import {
   type PaneSecondaryPanelRegistration,
   type PaneSecondaryPanelRegistry,
 } from "./PaneContext";
-import { LazyThreadDetailView as ThreadDetailView } from "./LazyThreadDetailView";
+import { ThreadDetailView } from "./ThreadDetailView";
 import { RootComposeView } from "@/views/RootComposeView";
 import { PluginPanelView } from "@/views/PluginPanelView";
 import {

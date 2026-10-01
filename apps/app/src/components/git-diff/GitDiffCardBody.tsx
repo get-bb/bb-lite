@@ -778,7 +778,6 @@ export function GitDiffCardBody({
             patchText={patchText}
             fullFileContents={fullFileContents}
             {...presentation}
-            fallback={<DiffLoadingSkeleton />}
             onSelectionAddToChat={onSelectionAddToChat}
           />
           <GitDiffCardContextExpansionFooter

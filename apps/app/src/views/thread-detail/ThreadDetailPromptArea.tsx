@@ -80,10 +80,10 @@ import type {
   WorkspaceChangedFilesSection,
 } from "@/components/workspace/workspace-change-summary";
 import {
-  LazyQueuedMessagesList,
+  QueuedMessagesList,
   QueuedMessagesPendingCard,
   type QueuedMessageInlineEditor,
-} from "@/components/promptbox/banner/LazyQueuedMessagesList";
+} from "@/components/promptbox/banner/QueuedMessagesList";
 import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
 import type { MachineLabelHost } from "@/components/machines/MachineLabel";
 import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
@@ -1015,8 +1015,10 @@ export function ThreadDetailPromptArea({
       supportsServiceTier,
     ],
   );
-  const { getSelection, subscribeSelection } =
-    useComposerHostSelection(promptDraft.storageKey, composerSelection);
+  const { getSelection, subscribeSelection } = useComposerHostSelection(
+    promptDraft.storageKey,
+    composerSelection,
+  );
   const pendingSelectionRef = useRef<Promise<unknown>>(Promise.resolve());
   const applySelection = useCallback(
     async (
@@ -2157,7 +2159,7 @@ export function ThreadDetailPromptArea({
         {shouldHideComposer ? null : queuedMessagesPending ? (
           <QueuedMessagesPendingCard queuedMessageCount={queuedMessageCount} />
         ) : (
-          <LazyQueuedMessagesList
+          <QueuedMessagesList
             attachedToComposer={true}
             queuedMessages={queuedMessages}
             resolveMentionLink={resolveMentionLink}

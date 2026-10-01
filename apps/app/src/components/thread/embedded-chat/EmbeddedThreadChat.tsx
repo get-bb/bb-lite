@@ -36,9 +36,9 @@ import {
 } from "@/components/plugin/plugin-composer-host";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
 import {
-  LazyQueuedMessagesList,
+  QueuedMessagesList,
   type QueuedMessageInlineEditor,
-} from "@/components/promptbox/banner/LazyQueuedMessagesList";
+} from "@/components/promptbox/banner/QueuedMessagesList";
 import type {
   ExecutionControlsProps,
   ExecutionPermissionConfig,
@@ -739,8 +739,10 @@ function EmbeddedThreadChatWithComposer({
       selectedProviderId,
     ],
   );
-  const { getSelection, subscribeSelection } =
-    useComposerHostSelection(bottomComposerHostIdentity, bottomSelection);
+  const { getSelection, subscribeSelection } = useComposerHostSelection(
+    bottomComposerHostIdentity,
+    bottomSelection,
+  );
   const queuedSelection = useMemo(
     () =>
       inlineEditingQueuedMessage
@@ -1171,7 +1173,7 @@ function EmbeddedThreadChatWithComposer({
   const queuedMessagesStack = useMemo(
     () =>
       queuedMessages.length > 0 && !hasComposerBlockingPendingInteraction ? (
-        <LazyQueuedMessagesList
+        <QueuedMessagesList
           attachedToComposer
           queuedMessages={queuedMessages}
           resolveMentionLink={resolveMentionLink}
