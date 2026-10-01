@@ -11,9 +11,7 @@
   "bb": {
     "name": "Thread list",
     "description": "bb's sidebar thread list: pinned threads, custom sections, projects, machines, and nested threads.",
-    "branding": {
-      "icon": "ListView"
-    },
+    "icon": "ListView",
     "server": "./server.ts",
     "app": "./app.tsx",
     "skills": [

@@ -95,6 +95,37 @@ export function updateHost(db: Db, id: string, patch: RowPatch): void {
   updateRow(db, "hosts", id, patch);
 }
 
+export interface HostEventCursor {
+  lastInstanceId: string | null;
+  lastEventSeq: number;
+}
+
+export function findHostEventCursor(
+  db: Db,
+  id: string,
+): HostEventCursor | undefined {
+  return db.get<HostEventCursor>(
+    `SELECT last_instance_id, last_event_seq FROM hosts
+     WHERE id = ? AND destroyed_at IS NULL`,
+    id,
+  );
+}
+
+export function advanceHostEventCursor(
+  db: Db,
+  id: string,
+  instanceId: string,
+  seq: number,
+): void {
+  db.run(
+    `UPDATE hosts SET last_event_seq = MAX(last_event_seq, ?)
+     WHERE id = ? AND last_instance_id = ?`,
+    seq,
+    id,
+    instanceId,
+  );
+}
+
 export function destroyHost(db: Db, id: string): void {
   updateRow(db, "hosts", id, {
     phase: "destroyed",

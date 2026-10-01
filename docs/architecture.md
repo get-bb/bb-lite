@@ -68,6 +68,11 @@ Principals: `owner`, `runner(hostId)`, `anonymous`.
   stores only the SHA-256. `bb runner join <blob>` exchanges a 15-minute single-use join token for it at
   `POST /internal/runner/join`. Runner endpoints must stay under `/internal/` (the hosted gate only passes
   machine credentials there).
+- A request without the tunnel marker that carries `Authorization: Bearer bbr_…` is judged by that token
+  alone, whatever its peer address: a token that matches a host is the same runner-class principal as a
+  gate-authenticated machine (so `/api/v1/*` minus the machine and settings writes), any other is
+  anonymous. This is how the runner's loopback CLI proxy reaches the API on a direct connection; through
+  the tunnel the gate's verdict stands and the bearer token only authenticates the runner socket.
 
 ## The Runner interface
 
@@ -76,9 +81,34 @@ Principals: `owner`, `runner(hostId)`, `anonymous`.
 
 - `createLocalRunner({ dataDir, serverUrl, sink })`: direct calls, events through a callback.
 - `connectRemoteRunner(socket, sink)` on the server and `serveRunner(runner, socket)` in `bb runner`:
-  the same interface as JSON frames over one WebSocket:
+  the same interface as JSON frames over one WebSocket (`packages/runner/src/remote/protocol.ts`):
   `{t:"req",id,method,params}` → `{t:"res",id,ok,result|error}`, `{t:"evt",event}`, `{t:"ack",seq}`,
-  `{t:"ping"}`/`{t:"pong"}` every 5 s with a 30 s lease. Keep every frame well under 1 MiB (tunnel limit).
+  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `Runner` can be called.
+
+Remote transport rules:
+
+- The runner speaks first: `{t:"hello",instanceId,version,lastAckedSeq?}`. The server answers requests
+  from then on, registers the machine, and replies `{t:"welcome",lastSeq}`: the highest reliable `seq` of
+  that instance it has already handed to its handlers. The runner sends no event before `welcome`, then
+  re-sends every unacked reliable event after `lastSeq`. The server also drops any reliable event at or
+  below that mark, and stores the acked `seq` in `hosts.last_event_seq`, so a server restart resumes from
+  the last event whose handlers finished (at-least-once across a server crash, exactly-once otherwise).
+- The server pings every 5 s. Either side terminates the socket after 30 s without an inbound frame. The
+  runner redials forever, 1 s doubling to 10 s; sessions and terminals keep running meanwhile.
+- No frame exceeds 768 KiB on the wire (tunnel limit 1 MiB): a larger one is sent as consecutive
+  `{t:"part",data,last}` frames of at most 256 Ki characters and reassembled by the receiver.
+- Requests time out by method class: 15 s (describe, snapshot, resolves, terminal input), 60 s (files,
+  repository reads, provider lists, interrupt), 10 min (`submitTurn`, worktree and branch operations,
+  commit), and its own `timeoutMs` + 30 s for `runLifecycleScript`. A timeout or a lost socket rejects
+  with a retryable `unavailable`; the request is not replayed.
+- Live events queue behind a 1 MiB socket buffer; while it is full only the newest 32 `terminal.output`
+  frames are kept (the viewer sees a `seq` gap and re-attaches by `sinceSeq`). Other live events and all
+  reliable events are never shed.
+- Close code 4001 means the machine was removed or another runner took its place: that runner process
+  stops instead of redialing.
+- `<dataDir>/runner.json` (0600) holds `{serverUrl, hostId, runnerToken, headers}`; `headers` go on the
+  join request, the socket upgrade and everything the CLI proxy forwards. Default directory
+  `~/.bb-150k-runner/<server host>`.
 
 Rules:
 
@@ -195,10 +225,12 @@ In-repo plugins are listed in two static tables (`apps/server/src/plugins/builti
 `config.json`; the server bundles them with esbuild on load and the app imports the bundle. There is no
 marketplace, installer, artifact store, version gating or CSS scoping.
 
-Server API: `settings`, `storage.kv`, `storage.database()`, `rpc`, `http`, `realtime.publish`,
-`background.service`, `cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`,
-`ui.requestInput`, `ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
-`inference.register`, `threads` (spawn, send, get, list — direct calls, not HTTP), `onDispose`.
+Server API (`PluginServerApi` in `packages/plugin/src/server-api.ts`): `settings`, `storage.kv`,
+`storage.database()` / `migrate`, `rpc`, `http`, `realtime.publish`, `background.service`,
+`cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`, `ui.requestInput`,
+`ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
+`inference.register`, `threads` (spawn, send, get, list, stop, update, output, events — direct calls,
+not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`.
 
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
@@ -206,7 +238,43 @@ App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pend
 `ThreadChat`, `NewThreadComposer`, `ProviderModelPicker`, `PermissionModePicker`.
 
 Plugin commands (`bb tasks …`) are parsed and run in the server: the CLI posts
-`{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result.
+`{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result. The
+response body is newline keep-alives followed by one JSON object `{exitCode, stdout, stderr}`, so a
+command that waits on the user (a secret request) survives idle timeouts; `--<name>-stdin` is
+materialised by the CLI before the request.
+
+### Plugin host (server)
+
+- **Loading.** `apps/server/src/plugins/builtin.ts` lists `{directory, server}` rows; the manifest is
+  always the directory's `package.json` `bb` field. External directories come from
+  `<dataDir>/config.json` `plugins: [{path, enabled}]`. An external server entry is bundled by esbuild to
+  `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` (ESM, `@bb/plugin` compiled in, `better-sqlite3`
+  resolved to the server's copy, the server's `node_modules` as a fallback resolution root) and
+  imported; the app entry is bundled in memory and served at `/api/v1/plugins/<id>/app.js|app.css?h=`.
+  An external plugin with a builtin's id replaces it.
+- **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` (`@bb/plugin`)
+  resolves to a CommonJS shim over `globalThis.__bbPluginRuntime["<specifier>"]`, which the app fills
+  with its own module namespaces before importing any bundle. No export lists are generated.
+- **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled` (a hard
+  off switch that works with the server down). Status is `disabled`, `error` (the factory, the bundle
+  or the manifest failed; the message is kept), `needs-configuration` or `running`. Enable, disable and
+  reload dispose the old instance (services aborted, `onDispose` hooks in reverse order, the plugin
+  database closed) and run the factory again, one change at a time. A settings write reloads a
+  plugin that asked for configuration. A failing plugin never stops the server.
+- **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
+  0600 files in `<dataDir>/plugins/<id>/secrets/` (reads return only `{set: boolean}`), the plugin's
+  SQLite file at `<dataDir>/plugins/<id>/data.db`.
+- **Trust.** Every plugin route sits behind the server's trust guard, so the caller is the owner or a
+  machine credential. Machine credentials may call rpc, cli, mention search and read the list and
+  settings (agents on other machines run `bb tasks …`); only the owner may enable, disable, reload,
+  write settings or mint the plugin token. For `http.route`: `local` (default) admits only the owner,
+  `token` admits any admitted caller presenting the plugin token (`x-bb-plugin-token` or `?token=`),
+  `none` adds no check beyond the guard. Nothing is reachable anonymously.
+- **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
+  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
+  `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
+  `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
+  `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 
 ## Conventions
 

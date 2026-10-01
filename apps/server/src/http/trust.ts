@@ -6,6 +6,11 @@ export type Principal =
   | { kind: "runner"; connectMachineId: string | null }
   | { kind: "anonymous" };
 
+export interface TrustLookups {
+  publicUrl(): string | null;
+  runnerMachine(token: string): { connectMachineId: string | null } | undefined;
+}
+
 export interface TrustRequest {
   method: string;
   path: string;
@@ -16,6 +21,7 @@ export interface TrustRequest {
 const LOOPBACK_HOSTNAMES = ["127.0.0.1", "localhost", "[::1]"];
 const RUNNER_PREFIX = "/internal/runner/";
 const API_PREFIX = "/api/v1/";
+const RUNNER_BEARER = /^Bearer (bbr_\S+)$/u;
 const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
 const RUNNER_FORBIDDEN_WRITES =
   /^\/api\/v1\/(?:hosts|settings|system)(?:\/|$)|\/machine-environment$/u;
@@ -41,13 +47,19 @@ function isLoopbackAuthority(authority: string): boolean {
   }
 }
 
-function identify(request: TrustRequest): Principal {
+function identify(request: TrustRequest, lookups: TrustLookups): Principal {
+  const direct = requestHeader(request, "x-bb-via-tunnel") !== "1";
+  const authorization = requestHeader(request, "authorization") ?? "";
+  const runnerToken = RUNNER_BEARER.exec(authorization)?.[1];
+  if (direct && runnerToken !== undefined) {
+    const machine = lookups.runnerMachine(runnerToken);
+    if (machine === undefined) return { kind: "anonymous" };
+    return { kind: "runner", connectMachineId: machine.connectMachineId };
+  }
   if (!isLoopbackAddress(request.socket.remoteAddress)) {
     return { kind: "anonymous" };
   }
-  if (requestHeader(request, "x-bb-via-tunnel") !== "1") {
-    return { kind: "owner" };
-  }
+  if (direct) return { kind: "owner" };
   switch (requestHeader(request, "x-bb-gate-auth")) {
     case "session":
       return { kind: "owner" };
@@ -88,12 +100,12 @@ function assertOwnBrowserRequest(
 
 export function authorize(
   request: TrustRequest,
-  publicUrl: () => string | null,
+  lookups: TrustLookups,
 ): Principal {
-  const principal = identify(request);
+  const principal = identify(request, lookups);
   const { path } = request;
   if (principal.kind === "owner") {
-    assertOwnBrowserRequest(request, publicUrl);
+    assertOwnBrowserRequest(request, lookups.publicUrl);
   } else if (principal.kind === "anonymous") {
     const direct = requestHeader(request, "x-bb-via-tunnel") !== "1";
     if (!direct || !path.startsWith(RUNNER_PREFIX)) throw notFound();

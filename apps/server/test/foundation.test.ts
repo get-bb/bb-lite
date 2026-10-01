@@ -125,6 +125,13 @@ const session = { ...tunnel, "x-bb-gate-auth": "session" };
 const machine = { ...tunnel, "x-bb-gate-auth": "machine" };
 const evil = { origin: "https://evil.example" };
 const remote = "100.64.0.7";
+const enrolled = { authorization: "Bearer bbr_enrolled" };
+const revoked = { authorization: "Bearer bbr_revoked" };
+const lookups = {
+  publicUrl: () => "https://bee.example.test",
+  runnerMachine: (token: string) =>
+    token === "bbr_enrolled" ? { connectMachineId: null } : undefined,
+};
 
 it.each<[string | number, Headers, string?, string?]>([
   ["owner", loopback],
@@ -141,12 +148,16 @@ it.each<[string | number, Headers, string?, string?]>([
   [403, machine, "POST /api/v1/hosts"],
   [403, machine, "PUT /api/v1/settings/general"],
   ["anonymous", {}, "POST /internal/runner/join", remote],
+  ["runner", enrolled, "POST /api/v1/threads/thr_1/send", remote],
+  [403, enrolled, "DELETE /api/v1/hosts/host_1"],
+  [404, revoked, "GET /api/v1/threads"],
+  ["anonymous", revoked, "GET /internal/runner/ws"],
+  ["runner", { ...machine, ...revoked }, "GET /api/v1/threads"],
 ])("trust guard answers %s for %j %s %s", (expected, headers, route, peer) => {
   const [method = "GET", path = "/api/v1/threads"] = route?.split(" ") ?? [];
   const socket = { remoteAddress: peer ?? "127.0.0.1" };
   const request = { method, path, headers, socket };
-  const verdict = (): string =>
-    authorize(request, () => "https://bee.example.test").kind;
+  const verdict = (): string => authorize(request, lookups).kind;
   if (typeof expected === "string") expect(verdict()).toBe(expected);
   else expect(verdict).toThrow(expect.objectContaining({ status: expected }));
 });

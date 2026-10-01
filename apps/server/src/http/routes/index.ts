@@ -2,11 +2,16 @@ import { Hono } from "hono";
 import type { ServerContext } from "../../context.js";
 import type { ApiApp, AppEnv, RouteGroup } from "../api.js";
 import { notFound } from "../errors.js";
+import { registerEnvironmentRoutes } from "./environments.js";
+import { registerFileRoutes } from "./files.js";
 import { registerHostRoutes, registerRunnerRoutes } from "./hosts.js";
 import { registerMachineEnvironmentRoutes } from "./machine-environment.js";
+import { registerProjectWorkspaceRoutes } from "./project-workspace.js";
 import { registerProjectRoutes } from "./projects.js";
 import { registerProviderRoutes } from "./providers.js";
+import { registerPluginRoutes } from "./plugins.js";
 import { registerSettingsRoutes } from "./settings.js";
+import { registerTerminalRoutes } from "./terminals.js";
 import { registerThreadSectionRoutes } from "./thread-sections.js";
 import { registerThreadTabRoutes } from "./thread-tabs.js";
 import { registerUiPreferenceRoutes } from "./ui-preferences.js";
@@ -20,6 +25,11 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerThreadTabRoutes,
   registerHostRoutes,
   registerProviderRoutes,
+  registerPluginRoutes,
+  registerEnvironmentRoutes,
+  registerFileRoutes,
+  registerProjectWorkspaceRoutes,
+  registerTerminalRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [registerRunnerRoutes];

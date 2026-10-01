@@ -37,6 +37,7 @@ function dial({ url }: TestServer, token: string, gate: Headers = {}) {
   const socket = new WebSocket(target, { headers });
   return new Promise<string>((resolve) => {
     socket.on("error", () => {});
+    socket.on("open", () => socket.close(1000, "accepted"));
     socket.on("unexpected-response", (_request, response) =>
       resolve(`refused ${response.statusCode}`),
     );
@@ -101,8 +102,8 @@ it("enrolls a machine with a single-use join token", async () => {
   const m2 = throughGate("m2");
   const strangers = [dial(server, "bbr_no"), dial(server, token, m2)];
   expect(await Promise.all(strangers)).toEqual(["refused 401", "refused 403"]);
-  const seam = "closed 1013 remote runner transport not installed";
-  expect(await dial(server, token, m1)).toBe(seam);
+  expect(await dial(server, token, m1)).toBe("closed 1000 accepted");
+  expect(ctx.runners.isConnected(created.id)).toBe(false);
   ctx.runners.connect(created.id, () => runner.api);
   await changed("host", "host-connected");
   const enrolled = await (await api.hosts[":id"].$get({ param })).json();
