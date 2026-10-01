@@ -2,57 +2,25 @@ import {
   flattenPromptInputGroups,
   isStandaloneBuiltinClearCommand,
   threadScope,
-  type PromptInput,
-  type QueuedMessageSystemNotice,
-  type QueuedMessageWaitingOn,
-  type ThreadCreateOrigin,
-  type ThreadTurnInitiator,
-  type TurnRequestTarget,
 } from "@bb/domain";
-import {
-  RunnerError,
-  type RunnerThreadEvent,
-  type SubmitTurnArgs,
-  type SubmitTurnMode,
-} from "@bb/runner";
+import type * as domain from "@bb/domain";
+import { RunnerError } from "@bb/runner";
+import type * as runner from "@bb/runner";
 import type { SendMessageRequest } from "@bb/server-contract";
 import { getEnvironmentRow, getHostRow } from "../db/engine-lookups.js";
 import { isQueueAutoSendPaused } from "../db/events.js";
 import { encodeJson, newId } from "../db/index.js";
 import { hasTurnBoundInteraction } from "../db/pending-interactions.js";
-import {
-  deleteQueuedMessages,
-  groupStartingAt,
-  insertQueuedMessage,
-  listQueuedMessages,
-  parseQueuedContent,
-  parseQueuedNotice,
-  parseQueuedWait,
-  setQueuedMessageWait,
-  type QueuedMessageRow,
-} from "../db/queued-messages.js";
-import {
-  getThread,
-  patchThread,
-  type ThreadPatch,
-  type ThreadRow,
-} from "../db/threads.js";
+import * as queue from "../db/queued-messages.js";
+import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
-import {
-  conflict,
-  environmentUnavailable,
-  errorMessage,
-  notWritable,
-  threadNotFound,
-  type Outbox,
-} from "./core.js";
+import * as core from "./core.js";
 import type { Engine } from "./engine.js";
-import {
-  recordedExecution,
-  toRunnerOptions,
-  type ExecutionTuple,
-} from "./execution.js";
+import * as execution from "./execution.js";
 import { buildSessionSpec, type SessionEnvironment } from "./session-spec.js";
+
+type QueuedMessageRow = queue.QueuedMessageRow;
+type PromptInput = domain.PromptInput;
 
 export type SendMode = SendMessageRequest["mode"];
 type TurnKind = "start" | "steer" | "auto";
@@ -60,13 +28,10 @@ type TurnKind = "start" | "steer" | "auto";
 export interface OutboundMessage {
   input: PromptInput[];
   inputGroups?: PromptInput[][];
-  execution: ExecutionTuple;
+  execution: execution.ExecutionTuple;
   senderThreadId: string | null;
-  initiator: ThreadTurnInitiator;
-  systemNotice: QueuedMessageSystemNotice | null;
-  origin: ThreadCreateOrigin | null;
-  originPluginId: string | null;
-  overrides: ThreadPatch;
+  initiator: domain.ThreadTurnInitiator;
+  systemNotice: domain.QueuedMessageSystemNotice | null;
 }
 
 export interface DispatchArgs {
@@ -120,8 +85,8 @@ export function attributedMessage(message: OutboundMessage): OutboundMessage {
 export function turnRequestEvent(
   message: OutboundMessage,
   requestId: string,
-  target: TurnRequestTarget,
-): RunnerThreadEvent {
+  target: domain.TurnRequestTarget,
+): runner.RunnerThreadEvent {
   const starts = target.kind === "thread-start";
   const { systemNotice, inputGroups } = message;
   return {
@@ -142,19 +107,19 @@ export function turnRequestEvent(
     ...(inputGroups === undefined ? {} : { inputGroups }),
     target,
     request: { method: starts ? "thread/start" : "turn/start", params: {} },
-    execution: recordedExecution(message.execution),
+    execution: execution.recordedExecution(message.execution),
   };
 }
 
 export function consumeRows(
   engine: Engine,
-  out: Outbox,
+  out: core.Outbox,
   thread: ThreadRow,
   rows: readonly QueuedMessageRow[],
 ): void {
   if (rows.length === 0) return;
   const ids = rows.map((row) => row.id);
-  deleteQueuedMessages(engine.ctx.db, ids);
+  queue.deleteQueuedMessages(engine.ctx.db, ids);
   out.thread(thread.id, ["queue-changed"]);
 }
 
@@ -169,17 +134,13 @@ export function sessionEnvironmentOf(
       : getEnvironmentRow(db, thread.environmentId);
   if (row === undefined) {
     const reason = "never_attached";
-    throw environmentUnavailable({ reason, environmentStatus: null });
+    throw core.environmentUnavailable({ reason, environmentStatus: null });
   }
   const path = row.status === "ready" ? environments.pathFor(row.id) : null;
   if (path === null) {
-    const reason =
-      row.status === "destroyed"
-        ? "destroyed"
-        : row.status === "error"
-          ? "errored"
-          : "provisioning";
-    throw environmentUnavailable({ reason, environmentStatus: row.status });
+    const reason = row.status === "destroyed" ? "destroyed" : "provisioning";
+    const details = { reason, environmentStatus: row.status } as const;
+    throw core.environmentUnavailable(details);
   }
   return { id: row.id, hostId: row.hostId, path };
 }
@@ -188,14 +149,18 @@ function currentWait(
   engine: Engine,
   thread: ThreadRow,
   args: DispatchArgs,
-): QueuedMessageWaitingOn | null {
+): domain.QueuedMessageWaitingOn | null {
   const { db, now, runners } = engine.ctx;
   const { mode, sendAt, sendNow } = args;
   if (!sendNow && sendAt !== null && sendAt > now()) return { kind: "time" };
   if (thread.status === "stopping") return { kind: "stopping" };
   const active = thread.status === "active";
   if (active && mode === "start") {
-    throw notWritable(thread, "already_active", "Thread is already active");
+    throw core.notWritable(
+      thread,
+      "already_active",
+      "Thread is already active",
+    );
   }
   const environment =
     thread.environmentId === null
@@ -223,7 +188,7 @@ function recordWait(
   engine: Engine,
   thread: ThreadRow,
   args: DispatchArgs,
-  waitingOn: QueuedMessageWaitingOn,
+  waitingOn: domain.QueuedMessageWaitingOn,
 ): QueuedMessageRow {
   const { db } = engine.ctx;
   const { message, rows, sendAt } = args;
@@ -231,19 +196,19 @@ function recordWait(
   if (lead !== undefined) {
     if (lead.waitingOn === encodeJson(waitingOn)) return lead;
     return engine.commit((out) => {
-      setQueuedMessageWait(db, rows, waitingOn);
+      queue.setQueuedMessageWait(db, rows, waitingOn);
       out.thread(thread.id, ["queue-changed"]);
       return { ...lead, waitingOn: encodeJson(waitingOn) };
     });
   }
   return engine.commit((out) => {
     out.thread(thread.id, ["queue-changed"]);
-    return insertQueuedMessage(db, {
+    return queue.insertQueuedMessage(db, {
       threadId: thread.id,
       content: message.input,
       senderThreadId: message.senderThreadId,
-      origin: message.origin,
-      originPluginId: message.originPluginId,
+      origin: null,
+      originPluginId: null,
       systemNotice: message.systemNotice,
       ...message.execution,
       waitingOn,
@@ -265,7 +230,7 @@ function settleRejectedTurn(
   const thread = getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const reason = error instanceof RunnerError ? error.code : "failed";
-  const message = errorMessage(error);
+  const message = core.errorMessage(error);
   engine.commit((out) => {
     const rejection = { scope: threadScope(), requestId, reason, message };
     engine.append(out, thread, [
@@ -283,15 +248,15 @@ function settleRejectedTurn(
 export function submitToRunner(
   engine: Engine,
   hostId: string,
-  args: SubmitTurnArgs,
+  args: runner.SubmitTurnArgs,
 ): void {
   const { threadId } = args.session;
   const requestId = args.clientRequestId;
   const { kind } = args.mode;
-  const { db, runners } = engine.ctx;
+  const { db } = engine.ctx;
   if (kind === "start") engine.runtimeOf(threadId).pendingStart = requestId;
-  const accepted = Promise.resolve()
-    .then(() => runners.get(hostId).submitTurn(args))
+  const accepted = engine
+    .onHost(hostId, (runner) => runner.submitTurn(args))
     .then(
       ({ providerThreadId }) =>
         engine.inThread(threadId, () => {
@@ -317,39 +282,30 @@ async function submitTurn(
   const { mode } = args;
   const joins = thread.status === "active";
   if (thread.status === "error" && mode === "steer") {
-    throw notWritable(thread, "errored", "Thread is not active");
+    throw core.notWritable(thread, "errored", "Thread is not active");
   }
   const environment = sessionEnvironmentOf(engine, thread);
   const message = attributedMessage(args.message);
-  const { execution, initiator, input } = message;
-  const session = await buildSessionSpec(
-    ctx,
-    thread,
-    environment,
-    execution.model,
-  );
+  const { execution: tuple, initiator, input } = message;
+  const { model } = tuple;
+  const session = await buildSessionSpec(ctx, thread, environment, model);
   const requestId = newId("creq");
   const expectedTurnId = thread.activeTurnId;
   const steers = joins && mode !== "auto" && expectedTurnId !== null;
-  const runnerMode: SubmitTurnMode = !joins
+  const runnerMode: runner.SubmitTurnMode = !joins
     ? { kind: "start" }
     : steers
       ? { kind: "steer", expectedTurnId }
       : { kind: "auto" };
-  const target: TurnRequestTarget = joins
+  const target: domain.TurnRequestTarget = joins
     ? { kind: steers ? "steer" : "auto", expectedTurnId }
     : { kind: "new-turn" };
   engine.commit((out) => {
     consumeRows(engine, out, thread, args.rows);
     engine.append(out, thread, [turnRequestEvent(message, requestId, target)]);
-    patchThread(
-      ctx.db,
-      thread.id,
-      { ...execution, ...message.overrides },
-      false,
-    );
+    patchThread(ctx.db, thread.id, tuple, false);
     if (!joins) engine.transition(out, thread.id, "run.started");
-    const options = toRunnerOptions(execution, initiator, input);
+    const options = execution.toRunnerOptions(tuple, initiator, input);
     const turn = { session, clientRequestId: requestId, input, options };
     out.after(() =>
       submitToRunner(engine, environment.hostId, { ...turn, mode: runnerMode }),
@@ -363,12 +319,12 @@ export async function dispatchMessage(
   args: DispatchArgs,
 ): Promise<Delivery> {
   const thread = getThread(engine.ctx.db, threadId);
-  if (thread === undefined) throw threadNotFound();
+  if (thread === undefined) throw core.threadNotFound();
   if (thread.deletedAt !== null) {
-    throw notWritable(thread, "deleted", "Thread is deleted");
+    throw core.notWritable(thread, "deleted", "Thread is deleted");
   }
   if (thread.archivedAt !== null) {
-    throw notWritable(thread, "archived", "Thread is archived");
+    throw core.notWritable(thread, "archived", "Thread is archived");
   }
   const waitingOn = currentWait(engine, thread, args);
   if (waitingOn !== null) {
@@ -394,7 +350,7 @@ function nextEligibleGroup(
   thread: ThreadRow,
 ): QueuedMessageRow[] | null {
   const { db, now, runners } = engine.ctx;
-  const rows = listQueuedMessages(db, thread.id);
+  const rows = queue.listQueuedMessages(db, thread.id);
   if (rows.length === 0) return null;
   const paused = isQueueAutoSendPaused(db, thread.id);
   const idle = thread.status === "idle" || thread.status === "pending";
@@ -402,7 +358,7 @@ function nextEligibleGroup(
   const hostId = engine.hostOf(thread);
   const eligible = (row: QueuedMessageRow): boolean => {
     if (row.failureReason !== null) return false;
-    const kind = parseQueuedWait(row)?.kind ?? null;
+    const kind = queue.parseQueuedWait(row)?.kind ?? null;
     const turnBound = kind === null || kind === "thread-busy";
     const ordinary = turnBound || kind === "turn-starting";
     if (ordinary && paused && row.systemNotice === null) return false;
@@ -422,7 +378,7 @@ function nextEligibleGroup(
     }
   };
   for (let index = 0; index < rows.length;) {
-    const group = groupStartingAt(rows, index);
+    const group = queue.groupStartingAt(rows, index);
     if (group.every(eligible)) return group;
     index += group.length;
   }
@@ -437,8 +393,8 @@ function dispatchRows(
   sendNow: boolean,
 ): Promise<Delivery> {
   const [lead] = rows;
-  const groups = rows.map(parseQueuedContent);
-  const systemNotice = parseQueuedNotice(lead);
+  const groups = rows.map(queue.parseQueuedContent);
+  const systemNotice = queue.parseQueuedNotice(lead);
   const { model, reasoningLevel, permissionMode, serviceTier } = lead;
   const message: OutboundMessage = {
     input: flattenPromptInputGroups(groups),
@@ -452,9 +408,6 @@ function dispatchRows(
           ? "user"
           : "agent",
     systemNotice,
-    origin: lead.origin,
-    originPluginId: lead.originPluginId,
-    overrides: {},
   };
   const { sendAt } = lead;
   return dispatchMessage(engine, threadId, {
@@ -476,7 +429,7 @@ function recordDrainFailure(
   log.warn("Queued message dispatch failed", { err: error, threadId });
   db.run(
     "UPDATE queued_thread_messages SET failure_reason = ? WHERE id = ?",
-    errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
+    core.errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
     row.id,
   );
   engine.ctx.hub.thread(threadId, ["queue-changed"]);
@@ -503,23 +456,6 @@ export async function drainQueue(
   }
 }
 
-function describeWait(waitingOn: QueuedMessageWaitingOn | null): string {
-  switch (waitingOn?.kind) {
-    case "provisioning":
-      return "the thread's workspace is still being prepared";
-    case "host-offline":
-      return `the "${waitingOn.hostName}" host is not ready`;
-    case "interaction":
-      return "the thread is waiting for you to answer a pending interaction";
-    case "turn-starting":
-      return "the current turn is still starting";
-    case "stopping":
-      return "the thread is still stopping";
-    default:
-      return "the thread is already running a turn";
-  }
-}
-
 export async function sendQueuedMessageNow(
   engine: Engine,
   threadId: string,
@@ -535,27 +471,17 @@ export async function sendQueuedMessageNow(
         "interaction before sending another prompt.",
     );
   }
-  const rows = listQueuedMessages(db, threadId);
+  const rows = queue.listQueuedMessages(db, threadId);
   const index = rows.findIndex((row) => row.id === queuedMessageId);
-  if (index < 0) {
-    throw new ApiError(404, "invalid_request", "Queued message not found");
-  }
+  if (index < 0) throw queue.queuedMessageNotFound();
   db.run(
     "UPDATE queued_thread_messages SET failure_reason = NULL WHERE id = ?",
     queuedMessageId,
   );
-  if (index > 0 && rows[index - 1].groupWithNext === 1) {
-    db.run(
-      "UPDATE queued_thread_messages SET group_with_next = 0 WHERE id IN (?, ?)",
-      queuedMessageId,
-      rows[index - 1].id,
-    );
-  }
-  const group = groupStartingAt(listQueuedMessages(db, threadId), index);
+  const group = queue.groupStartingAt(rows, index);
   const outcome = await dispatchRows(engine, threadId, group, mode, true);
   if (outcome.delivery === "sent" || mode === "steer") return outcome;
-  const waitingOn = parseQueuedWait(outcome.row);
-  if (waitingOn?.kind === "stopping") return outcome;
-  const reason = describeWait(waitingOn);
-  throw conflict(`This message cannot be sent yet: ${reason}.`);
+  const kind = queue.parseQueuedWait(outcome.row)?.kind ?? "thread-busy";
+  if (kind === "stopping") return outcome;
+  throw core.conflict(`This message cannot be sent yet: it waits on ${kind}.`);
 }

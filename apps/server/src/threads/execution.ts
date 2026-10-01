@@ -3,7 +3,6 @@ import {
   promptInputHasCommandMention,
   type CallerExecutionInputSource,
   type PermissionMode,
-  type ProjectExecutionDefaults,
   type PromptInput,
   type ReasoningLevel,
   type ResolvedThreadExecutionOptions,
@@ -11,14 +10,10 @@ import {
   type ThreadTurnInitiator,
 } from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
-import {
-  getEnvironmentRow,
-  getHostRow,
-  readProjectExecutionDefaults,
-} from "../db/engine-lookups.js";
+import * as lookups from "../db/engine-lookups.js";
 import type { Db } from "../db/index.js";
 import { getAppSettings } from "../db/settings.js";
-import { getThread, type ThreadPatch, type ThreadRow } from "../db/threads.js";
+import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import type { EngineContext } from "./core.js";
 
@@ -30,6 +25,7 @@ export interface ExecutionTuple {
 }
 
 type ExecutionField = keyof ExecutionTuple;
+type Stored = { [Field in ExecutionField]?: ExecutionTuple[Field] | null };
 
 export interface ExecutionRequest extends Partial<ExecutionTuple> {
   executionInputSources?: Partial<
@@ -45,8 +41,6 @@ interface CreateExecutionArgs {
 }
 
 const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
-const DEFAULT_REASONING_LEVEL: ReasoningLevel = "medium";
-const DEFAULT_PERMISSION_MODE: PermissionMode = "auto";
 
 export function requireProviderId(value: string): ProviderId {
   const known = PROVIDER_IDS.find((providerId) => providerId === value);
@@ -68,50 +62,31 @@ function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
   };
 }
 
-function isExplicit(request: ExecutionRequest, field: ExecutionField): boolean {
-  const sources = request.executionInputSources;
-  return sources === undefined || sources[field] === "explicit";
-}
-
-export function stickyOverrides(request: ExecutionRequest): ThreadPatch {
-  const { model, reasoningLevel } = namedFields(request);
-  const patch: ThreadPatch = {};
-  if (model !== undefined && isExplicit(request, "model")) {
-    patch.modelOverride = model;
-  }
-  if (reasoningLevel !== undefined && isExplicit(request, "reasoningLevel")) {
-    patch.reasoningLevelOverride = reasoningLevel;
-  }
-  return patch;
-}
-
-function clampToHost(
+function resolve(
   db: Db,
   hostId: string | null,
-  permissionMode: PermissionMode,
-): PermissionMode {
-  const ceiling = hostId === null ? undefined : getHostRow(db, hostId);
-  if (ceiling === undefined) return permissionMode;
-  const clamped = clampPermissionModeToCeiling({
-    ceiling: ceiling.maxPermissionMode,
-    permissionMode,
-  });
-  return clamped ?? permissionMode;
+  model: string,
+  layers: Stored[],
+): ExecutionTuple {
+  const pick = <Field extends ExecutionField>(field: Field) =>
+    layers.map((layer) => layer[field]).find((value) => value != null);
+  const host = hostId === null ? undefined : lookups.getHostRow(db, hostId);
+  const permissionMode = pick("permissionMode") ?? "auto";
+  const ceiling = host?.maxPermissionMode ?? "full";
+  const fast = getAppSettings(db).allowFastServiceTier;
+  return {
+    model,
+    reasoningLevel: pick("reasoningLevel") ?? "medium",
+    permissionMode:
+      clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
+      permissionMode,
+    serviceTier: (fast ? pick("serviceTier") : null) ?? "default",
+  };
 }
 
-function serviceTierFor(
-  db: Db,
-  candidates: (ServiceTier | null | undefined)[],
-): ServiceTier {
-  if (!getAppSettings(db).allowFastServiceTier) return "default";
-  return candidates.find((tier) => tier != null) ?? "default";
-}
-
-function liveParentOf(db: Db, thread: ThreadRow): ThreadRow | null {
-  if (thread.parentThreadId === null) return null;
-  const parent = getThread(db, thread.parentThreadId);
-  const live = parent?.archivedAt === null && parent.deletedAt === null;
-  return parent !== undefined && live ? parent : null;
+function projectDefaults(db: Db, projectId: string, providerId: string) {
+  const stored = lookups.readProjectExecutionDefaults(db, projectId);
+  return stored?.providerId === providerId ? stored : {};
 }
 
 export function resolveTurnExecution(
@@ -119,42 +94,28 @@ export function resolveTurnExecution(
   thread: ThreadRow,
   request: ExecutionRequest,
 ): ExecutionTuple {
-  const stored = readProjectExecutionDefaults(db, thread.projectId);
-  const defaults = stored?.providerId === thread.providerId ? stored : null;
   const asked = namedFields(request);
-  const model =
-    asked.model ?? thread.modelOverride ?? thread.model ?? defaults?.model;
-  if (model === undefined) {
+  const defaults = projectDefaults(db, thread.projectId, thread.providerId);
+  const overrides = {
+    model: thread.modelOverride,
+    reasoningLevel: thread.reasoningLevelOverride,
+  };
+  const { parentThreadId, environmentId } = thread;
+  const parent =
+    parentThreadId === null ? undefined : getThread(db, parentThreadId);
+  const live = parent?.archivedAt === null && parent.deletedAt === null;
+  const inherited = { permissionMode: live ? parent?.permissionMode : null };
+  const layers = [asked, overrides, thread, inherited, defaults];
+  const model = layers.map((layer: Stored) => layer.model).find(Boolean);
+  if (model == null) {
     const message = `Thread ${thread.id} has no stored execution model`;
     throw new ApiError(500, "internal_error", message);
   }
   const environment =
-    thread.environmentId === null
+    environmentId === null
       ? undefined
-      : getEnvironmentRow(db, thread.environmentId);
-  return {
-    model,
-    reasoningLevel:
-      asked.reasoningLevel ??
-      thread.reasoningLevelOverride ??
-      thread.reasoningLevel ??
-      defaults?.reasoningLevel ??
-      DEFAULT_REASONING_LEVEL,
-    permissionMode: clampToHost(
-      db,
-      environment?.hostId ?? null,
-      asked.permissionMode ??
-        thread.permissionMode ??
-        liveParentOf(db, thread)?.permissionMode ??
-        defaults?.permissionMode ??
-        DEFAULT_PERMISSION_MODE,
-    ),
-    serviceTier: serviceTierFor(db, [
-      asked.serviceTier,
-      thread.serviceTier,
-      defaults?.serviceTier,
-    ]),
-  };
+      : lookups.getEnvironmentRow(db, environmentId);
+  return resolve(db, environment?.hostId ?? null, model, layers);
 }
 
 async function firstInstalledProvider(
@@ -162,15 +123,13 @@ async function firstInstalledProvider(
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(ctx.db);
-  const rank = (providerId: string): number => {
-    const index = providerOrder.indexOf(providerId);
-    return index < 0 ? providerOrder.length : index;
-  };
-  const installed = (await ctx.runners.get(hostId).listProviders())
+  const rank = (providerId: string): number =>
+    (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
+  const [first] = (await ctx.runners.get(hostId).listProviders())
     .filter((provider) => provider.installed)
     .map((provider) => provider.providerId)
     .sort((left, right) => rank(left) - rank(right));
-  if (installed.length > 0) return installed[0];
+  if (first !== undefined) return first;
   throw new ApiError(
     409,
     "no_provider_available",
@@ -201,38 +160,23 @@ export async function resolveCreateExecution(
   ctx: EngineContext,
   args: CreateExecutionArgs,
 ): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
-  const { request, hostId, parent } = args;
+  const { request, projectId, hostId, parent } = args;
   const { db } = ctx;
-  const stored = readProjectExecutionDefaults(db, args.projectId);
   const providerId = requireProviderId(
     request.providerId ??
-      stored?.providerId ??
+      lookups.readProjectExecutionDefaults(db, projectId)?.providerId ??
       getAppSettings(db).defaultProviderId ??
       (await firstInstalledProvider(ctx, hostId)),
   );
-  const defaults: ProjectExecutionDefaults | null =
-    stored?.providerId === providerId ? stored : null;
   const asked = namedFields(request);
-  const execution: ExecutionTuple = {
-    model:
-      asked.model ??
-      defaults?.model ??
-      (await catalogDefaultModel(ctx, hostId, providerId)),
-    reasoningLevel:
-      asked.reasoningLevel ??
-      defaults?.reasoningLevel ??
-      DEFAULT_REASONING_LEVEL,
-    permissionMode: clampToHost(
-      db,
-      hostId,
-      asked.permissionMode ??
-        parent?.permissionMode ??
-        defaults?.permissionMode ??
-        DEFAULT_PERMISSION_MODE,
-    ),
-    serviceTier: serviceTierFor(db, [asked.serviceTier, defaults?.serviceTier]),
-  };
-  return { providerId, execution };
+  const defaults: Stored = projectDefaults(db, projectId, providerId);
+  const inherited = { permissionMode: parent?.permissionMode };
+  const model =
+    asked.model ??
+    defaults.model ??
+    (await catalogDefaultModel(ctx, hostId, providerId));
+  const layers = [asked, inherited, defaults];
+  return { providerId, execution: resolve(db, hostId, model, layers) };
 }
 
 export function recordedExecution(
@@ -246,13 +190,11 @@ export function toRunnerOptions(
   initiator: ThreadTurnInitiator,
   input: readonly PromptInput[],
 ): ExecutionOptions {
+  const plan = { trigger: "/" as const, name: "plan" };
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
-    planMode: promptInputHasCommandMention(input, {
-      trigger: "/",
-      name: "plan",
-    }),
+    planMode: promptInputHasCommandMention(input, plan),
     providerOptions: {},
   };
 }

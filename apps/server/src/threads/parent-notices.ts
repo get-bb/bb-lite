@@ -77,16 +77,8 @@ function interruptionCause(interruption: ChildOutcome["interruption"]) {
   if (interruption?.cause === "host-connection-lost") {
     return " because its host connection was lost";
   }
-  switch (interruption?.reason) {
-    case "host-daemon-restarted":
-      return " because its host daemon restarted";
-    case "host-removed":
-      return " because its host was removed";
-    case "provider-turn-idle":
-      return " because its provider turn went idle";
-    default:
-      return "";
-  }
+  const restarted = interruption?.reason === "host-daemon-restarted";
+  return restarted ? " because its host daemon restarted" : "";
 }
 
 function outcomeLabel(item: OutcomeItem): string {
@@ -153,9 +145,6 @@ function deliverNotice(
         senderThreadId: null,
         initiator: "system",
         systemNotice: { kind, subject },
-        origin: null,
-        originPluginId: null,
-        overrides: {},
       },
       mode: "auto",
       sendAt: null,
@@ -207,49 +196,22 @@ export function queueChildOutcome(
   engine.noticeBatches.set(parentThreadId, { items, dueAt, timer });
 }
 
-function blockerLabel(interaction: PendingInteraction): string {
-  const { payload } = interaction;
-  if (payload.kind === "user_question") return "user question";
-  if (payload.kind !== "approval") return "plugin request";
-  const labels = {
-    command: "command approval",
-    file_change: "file-change approval",
-    permission_grant: "permission grant",
-    plan: "plan review",
-    tool_use: "tool-use approval",
-  };
-  return labels[payload.subject.kind];
-}
-
-function blockerDetails(interaction: PendingInteraction): string[] {
-  const { payload } = interaction;
-  if (payload.kind === "user_question") {
-    return payload.questions.map((question) => question.prompt);
-  }
-  if (payload.kind !== "approval") return [payload.title];
-  const { subject } = payload;
-  switch (subject.kind) {
-    case "command":
-      return [`Command: ${subject.command}`];
-    case "plan":
-      return subject.planFilePath ? [`Plan file: ${subject.planFilePath}`] : [];
-    case "tool_use":
-      return [`Tool: ${subject.tool}`];
-    case "permission_grant":
-      return subject.toolName ? [`Tool: ${subject.toolName}`] : [];
-    default:
-      return [];
-  }
-}
-
 function blockerSummary(interaction: PendingInteraction): string {
-  const details = blockerDetails(interaction)
-    .map((line) => line.trim())
-    .filter((line) => line !== "")
-    .slice(0, BLOCKER_MAX_LINES);
-  if (details.length === 0) return BLOCKER_FALLBACK;
-  const heading = `Blocked on ${blockerLabel(interaction)}:`;
-  return [heading, ...details].join("\n").slice(0, BLOCKER_MAX_CHARS);
+  const { payload } = interaction;
+  const details =
+    payload.kind === "user_question"
+      ? payload.questions.map((question) => question.prompt)
+      : payload.kind !== "approval"
+        ? [payload.title]
+        : payload.subject.kind === "command"
+          ? [`Command: ${payload.subject.command}`]
+          : [];
+  const lines = details.map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return BLOCKER_FALLBACK;
+  const kind = payload.kind === "approval" ? payload.subject.kind : "request";
+  const heading = `Blocked on ${kind.replaceAll("_", " ")}:`;
+  const summary = [heading, ...lines.slice(0, BLOCKER_MAX_LINES)].join("\n");
+  return summary.slice(0, BLOCKER_MAX_CHARS);
 }
 
 export function notifyParentBlocked(
@@ -265,24 +227,4 @@ export function notifyParentBlocked(
     kind: "child-needs-attention",
     subject: subjectOf(child),
   });
-}
-
-export function notifyOwnershipChange(
-  engine: Engine,
-  child: ThreadRow,
-  previousParentThreadId: string | null,
-): void {
-  const notify = (parentThreadId: string | null, assigned: boolean): void => {
-    if (parentThreadId === null) return;
-    const body = assigned
-      ? " is now a child of this thread."
-      : " is no longer a child of this thread.";
-    deliverNotice(engine, parentThreadId, {
-      input: compose([child, body]),
-      kind: assigned ? "ownership-assigned" : "ownership-removed",
-      subject: subjectOf(child),
-    });
-  };
-  notify(child.parentThreadId, true);
-  notify(previousParentThreadId, false);
 }

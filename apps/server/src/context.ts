@@ -3,7 +3,7 @@ import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
 import type { Environments } from "./environments/types.js";
 import type { RunnerRegistry } from "./runners/registry.js";
-import type { ThreadEngine } from "./threads/api.js";
+import type { ThreadEngine } from "./threads/engine.js";
 import type { Extensions } from "./threads/extensions.js";
 import type { Hub } from "./ws/hub.js";
 

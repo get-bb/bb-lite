@@ -17,6 +17,7 @@ import {
   type ThreadVisibility,
 } from "@bb/domain";
 import type { ThreadResponse } from "@bb/server-contract";
+import { ApiError } from "../http/errors.js";
 import { upsertSearchSegment } from "./events.js";
 import { newId, type Db, type SqlValue } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
@@ -75,29 +76,7 @@ export type NewThread = Pick<
 > & { pinned: boolean };
 
 export type ThreadPatch = Partial<
-  Pick<
-    ThreadRow,
-    | "environmentId"
-    | "providerThreadId"
-    | "activeTurnId"
-    | "model"
-    | "reasoningLevel"
-    | "permissionMode"
-    | "serviceTier"
-    | "modelOverride"
-    | "reasoningLevelOverride"
-    | "title"
-    | "sectionId"
-    | "startupContext"
-    | "parentThreadId"
-    | "visibility"
-    | "archivedAt"
-    | "pinnedAt"
-    | "pinSortKey"
-    | "deletedAt"
-    | "storageDeletedAt"
-    | "lastReadAt"
-  >
+  Omit<ThreadRow, "id" | "projectId" | "status" | "createdAt" | "updatedAt">
 >;
 
 export type LifecycleOutcome =
@@ -118,7 +97,7 @@ export function getThread(db: Db, id: string): ThreadRow | undefined {
   return db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
 }
 
-function nextPinSortKey(db: Db): string {
+export function nextPinSortKey(db: Db): string {
   const last = db.get<{ key: string | null }>(
     "SELECT MAX(pin_sort_key) AS key FROM threads WHERE pinned_at IS NOT NULL",
   );
@@ -227,31 +206,26 @@ export function applyLifecycleEvent(
   return { applied: true, from: thread.status, thread: next };
 }
 
-export function listChildThreads(db: Db, parentThreadId: string): ThreadRow[] {
-  return db.all<ThreadRow>(
-    `SELECT * FROM threads WHERE parent_thread_id = ? AND ${LIVE}`,
-    parentThreadId,
-  );
+function select(db: Db, where: string, ...params: SqlValue[]): ThreadRow[] {
+  return db.all<ThreadRow>(`SELECT * FROM threads WHERE ${where}`, ...params);
 }
 
-function listLifecycleDependents(db: Db, ownerThreadId: string): ThreadRow[] {
-  return db.all<ThreadRow>(
-    "SELECT * FROM threads WHERE lifecycle_owner_thread_id = ?",
-    ownerThreadId,
-  );
+export function listChildThreads(db: Db, parentThreadId: string) {
+  return select(db, `parent_thread_id = ? AND ${LIVE}`, parentThreadId);
 }
 
 function collectTree(
   db: Db,
   root: ThreadRow,
-  dependents: (thread: ThreadRow) => ThreadRow[],
+  includeChildren: boolean,
 ): ThreadRow[] {
   const ordered: ThreadRow[] = [];
   const seen = new Set<string>();
   const visit = (thread: ThreadRow): void => {
     if (seen.has(thread.id)) return;
     seen.add(thread.id);
-    for (const dependent of dependents(thread)) visit(dependent);
+    select(db, "lifecycle_owner_thread_id = ?", thread.id).forEach(visit);
+    if (includeChildren) listChildThreads(db, thread.id).forEach(visit);
     ordered.push(thread);
   };
   visit(root);
@@ -259,29 +233,22 @@ function collectTree(
 }
 
 export function listArchiveTree(db: Db, root: ThreadRow): ThreadRow[] {
-  return collectTree(db, root, (thread) => [
-    ...listLifecycleDependents(db, thread.id),
-    ...listChildThreads(db, thread.id),
-  ]);
+  return collectTree(db, root, true);
 }
 
 export function listLifecycleTree(db: Db, root: ThreadRow): ThreadRow[] {
-  return collectTree(db, root, (thread) =>
-    listLifecycleDependents(db, thread.id),
-  );
+  return collectTree(db, root, false);
 }
 
-export function ancestorDepth(db: Db, thread: ThreadRow): number {
-  const seen = new Set<string>();
+export function ancestry(db: Db, thread: ThreadRow): string[] {
+  const ids: string[] = [];
   let current: ThreadRow | undefined = thread;
-  while (current !== undefined && !seen.has(current.id)) {
-    seen.add(current.id);
-    current =
-      current.parentThreadId === null
-        ? undefined
-        : getThread(db, current.parentThreadId);
+  while (current !== undefined && !ids.includes(current.id)) {
+    ids.push(current.id);
+    const parentId: string | null = current.parentThreadId;
+    current = parentId === null ? undefined : getThread(db, parentId);
   }
-  return seen.size;
+  return ids;
 }
 
 export function subtreeDepth(db: Db, thread: ThreadRow): number {
@@ -291,128 +258,88 @@ export function subtreeDepth(db: Db, thread: ThreadRow): number {
   return 1 + Math.max(0, ...depths);
 }
 
-export function isAncestor(db: Db, ancestorId: string, thread: ThreadRow) {
-  let current: ThreadRow | undefined = thread;
-  for (let hops = 0; current !== undefined && hops < 64; hops += 1) {
-    if (current.id === ancestorId) return true;
-    current =
-      current.parentThreadId === null
-        ? undefined
-        : getThread(db, current.parentThreadId);
-  }
-  return false;
-}
-
 export function listThreadsOnHost(
   db: Db,
   hostId: string,
   statuses: readonly ThreadStatus[],
 ): ThreadRow[] {
   const marks = statuses.map(() => "?").join(", ");
-  return db.all<ThreadRow>(
-    `SELECT t.* FROM threads t
-     JOIN environments e ON e.id = t.environment_id
-     WHERE e.host_id = ? AND t.status IN (${marks}) AND t.${LIVE}`,
-    hostId,
-    ...statuses,
-  );
+  const onHost = "(SELECT id FROM environments WHERE host_id = ?)";
+  const where = `environment_id IN ${onHost} AND status IN (${marks})`;
+  return select(db, `${where} AND ${LIVE}`, hostId, ...statuses);
 }
 
 export function listStartingWithoutEnvironment(db: Db): ThreadRow[] {
-  return db.all<ThreadRow>(
-    `SELECT * FROM threads
-     WHERE status = 'starting' AND environment_id IS NULL AND ${LIVE}`,
-  );
+  const where = "status = 'starting' AND environment_id IS NULL";
+  return select(db, `${where} AND ${LIVE}`);
 }
 
 export function listTombstonedThreads(db: Db): ThreadRow[] {
-  return db.all<ThreadRow>(
-    "SELECT * FROM threads WHERE deleted_at IS NOT NULL",
-  );
+  return select(db, "deleted_at IS NOT NULL");
 }
 
-export function listArchivedRunningThreads(
-  db: Db,
-  archivedBefore: number,
-): ThreadRow[] {
-  return db.all<ThreadRow>(
-    `SELECT * FROM threads
-     WHERE archived_at <= ? AND status IN ('starting', 'active') AND ${LIVE}`,
-    archivedBefore,
-  );
+export function listArchivedRunningThreads(db: Db, archivedBefore: number) {
+  const where = "archived_at <= ? AND status IN ('starting', 'active')";
+  return select(db, `${where} AND ${LIVE}`, archivedBefore);
 }
 
 export function deleteThreadRow(db: Db, id: string): void {
   db.run("DELETE FROM threads WHERE id = ?", id);
 }
 
-export function pinThread(db: Db, id: string): ThreadRow | undefined {
-  const thread = getThread(db, id);
-  if (thread === undefined || thread.pinnedAt !== null) return thread;
-  const pinSortKey = nextPinSortKey(db);
-  return patchThread(db, id, { pinnedAt: db.now(), pinSortKey });
-}
-
-export type PinOrderOutcome = "reordered" | "not_pinned" | "stale_neighbor";
-
 export function reorderPinnedThread(
   db: Db,
   id: string,
   previousThreadId: string | null,
   nextThreadId: string | null,
-): PinOrderOutcome {
-  const key = (threadId: string | null): string | null | undefined => {
+): void {
+  const stale = new ApiError(409, "invalid_request", "Pinned order changed");
+  const keyOf = (threadId: string | null): string | null => {
     if (threadId === null) return null;
-    const neighbor = getThread(db, threadId);
-    if (threadId === id || neighbor?.pinSortKey == null) return undefined;
-    return neighbor.pinSortKey;
+    const key = getThread(db, threadId)?.pinSortKey ?? null;
+    if (threadId === id || key === null) throw stale;
+    return key;
   };
-  if (getThread(db, id)?.pinnedAt == null) return "not_pinned";
-  const previous = key(previousThreadId);
-  const next = key(nextThreadId);
-  if (previous === undefined || next === undefined) return "stale_neighbor";
-  if (previous !== null && next !== null && previous >= next) {
-    return "stale_neighbor";
+  if (getThread(db, id)?.pinnedAt == null) {
+    throw new ApiError(409, "invalid_request", "Thread is not pinned");
   }
+  const previous = keyOf(previousThreadId);
+  const next = keyOf(nextThreadId);
+  if (previous !== null && next !== null && previous >= next) throw stale;
   patchThread(db, id, { pinSortKey: orderKeyBetween(previous, next) });
-  return "reordered";
 }
 
 export function threadActivity(db: Db, threadId: string): ThreadActivityState {
-  const rows = db.all<{ taskType: string | null; count: number }>(
+  const agents = `'${LOCAL_AGENT_TASK_TYPE}', '${LOCAL_SUBAGENT_TASK_TYPE}'`;
+  const row = db.get<Record<"workflows" | "agents" | "commands", number>>(
     `WITH latest AS (
-       SELECT item_id,
-         MAX(CASE WHEN type != 'item/backgroundTask/completed'
-             THEN sequence END) AS sequence,
-         MAX(type = 'item/backgroundTask/completed') AS completed
+       SELECT MAX(CASE WHEN type != 'item/backgroundTask/completed'
+                  THEN sequence END) AS sequence,
+              MAX(type = 'item/backgroundTask/completed') AS completed
        FROM events
        WHERE thread_id = ? AND item_kind = 'backgroundTask'
          AND type IN ('item/started', 'item/backgroundTask/progress',
                       'item/backgroundTask/completed')
        GROUP BY item_id
+     ), running AS (
+       SELECT json_extract(e.data, '$.item.taskType') AS task
+       FROM latest JOIN events e
+         ON e.thread_id = ? AND e.sequence = latest.sequence
+       WHERE latest.completed = 0
+         AND json_extract(e.data, '$.item.status') = 'pending'
+         AND COALESCE(json_extract(e.data, '$.item.skipTranscript'), 0) = 0
      )
-     SELECT json_extract(e.data, '$.item.taskType') AS task_type,
-            COUNT(*) AS count
-     FROM latest JOIN events e
-       ON e.thread_id = ? AND e.sequence = latest.sequence
-     WHERE latest.completed = 0
-       AND json_extract(e.data, '$.item.status') = 'pending'
-       AND COALESCE(json_extract(e.data, '$.item.skipTranscript'), 0) = 0
-     GROUP BY task_type`,
+     SELECT COALESCE(SUM(task = '${LOCAL_WORKFLOW_TASK_TYPE}'), 0) AS workflows,
+            COALESCE(SUM(task IN (${agents})), 0) AS agents,
+            COALESCE(SUM(task = '${LOCAL_BASH_TASK_TYPE}'), 0) AS commands
+     FROM running`,
     threadId,
     threadId,
   );
-  const count = (...taskTypes: string[]): number =>
-    rows
-      .filter((row) => taskTypes.includes(row.taskType ?? ""))
-      .reduce((total, row) => total + row.count, 0);
   return {
-    activeWorkflowCount: count(LOCAL_WORKFLOW_TASK_TYPE),
-    activeBackgroundAgentCount: count(
-      LOCAL_AGENT_TASK_TYPE,
-      LOCAL_SUBAGENT_TASK_TYPE,
-    ),
-    activeBackgroundCommandCount: count(LOCAL_BASH_TASK_TYPE),
+    activeWorkflowCount: row?.workflows ?? 0,
+    activeBackgroundAgentCount: row?.agents ?? 0,
+    activeBackgroundCommandCount: row?.commands ?? 0,
     activePlanModeCount: 0,
     activeGoalCount: 0,
   };
@@ -445,30 +372,13 @@ function toThreadWithRuntime(thread: ThreadRow, runtime: ThreadRuntimeState) {
   };
 }
 
-function countRows(db: Db, sql: string, threadId: string): number {
-  return db.get<{ count: number }>(sql, threadId)?.count ?? 0;
-}
+const QUEUED_COUNT = `(SELECT COUNT(*) FROM queued_thread_messages q
+  WHERE q.thread_id = t.id)`;
 
-export function toThreadResponse(
-  db: Db,
-  thread: ThreadRow,
-  runtime: ThreadRuntimeState,
-): ThreadResponse {
-  return {
-    ...toThreadWithRuntime(thread, runtime),
-    activeBackgroundAgentCount: threadActivity(db, thread.id)
-      .activeBackgroundAgentCount,
-    canRestoreEnvironment: false,
-    canSpawnChild: ancestorDepth(db, thread) < MAX_THREAD_HIERARCHY_DEPTH,
-    queuedMessageCount: countRows(
-      db,
-      "SELECT COUNT(*) AS count FROM queued_thread_messages WHERE thread_id = ?",
-      thread.id,
-    ),
-  };
-}
-
-interface PinnedThreadRow extends ThreadRow {
+interface ListedThreadRow extends ThreadRow {
+  queued: number;
+  failed: number;
+  pending: number;
   environmentHostId: string | null;
   environmentName: string | null;
   environmentBranchName: string | null;
@@ -477,58 +387,69 @@ interface PinnedThreadRow extends ThreadRow {
   environmentIsWorktree: number | null;
 }
 
+function listThreadRows(db: Db, where: string, ...params: string[]) {
+  return db.all<ListedThreadRow>(
+    `SELECT t.*, ${QUEUED_COUNT} AS queued,
+       (SELECT COUNT(*) FROM queued_thread_messages q
+        WHERE q.thread_id = t.id AND q.failure_reason IS NOT NULL) AS failed,
+       (SELECT COUNT(*) FROM pending_interactions p WHERE p.thread_id = t.id
+        AND p.status IN ('pending', 'resolving')) AS pending,
+       e.host_id AS environment_host_id, e.name AS environment_name,
+       e.branch_name AS environment_branch_name,
+       e.path AS environment_path, e.environment_provider_id,
+       e.is_worktree AS environment_is_worktree
+     FROM threads t LEFT JOIN environments e ON e.id = t.environment_id
+     WHERE ${where}`,
+    ...params,
+  );
+}
+
+export function toThreadResponse(
+  db: Db,
+  thread: ThreadRow,
+  runtime: ThreadRuntimeState,
+): ThreadResponse {
+  const [listed] = listThreadRows(db, "t.id = ?", thread.id);
+  const activity = threadActivity(db, thread.id);
+  return {
+    ...toThreadWithRuntime(thread, runtime),
+    activeBackgroundAgentCount: activity.activeBackgroundAgentCount,
+    canRestoreEnvironment: false,
+    canSpawnChild: ancestry(db, thread).length < MAX_THREAD_HIERARCHY_DEPTH,
+    queuedMessageCount: listed?.queued ?? 0,
+  };
+}
+
 export function listPinnedThreadEntries(
   db: Db,
   runtimeOf: (thread: ThreadRow, hostId: string | null) => ThreadRuntimeState,
 ): ThreadListEntry[] {
-  const rows = db.all<PinnedThreadRow>(
-    `SELECT t.*, e.host_id AS environment_host_id,
-       e.name AS environment_name, e.branch_name AS environment_branch_name,
-       e.path AS environment_path, e.environment_provider_id,
-       e.is_worktree AS environment_is_worktree
-     FROM threads t LEFT JOIN environments e ON e.id = t.environment_id
-     WHERE t.pinned_at IS NOT NULL AND t.archived_at IS NULL AND t.${LIVE}
-       AND t.visibility = 'visible' AND t.parent_thread_id IS NULL
+  const rows = listThreadRows(
+    db,
+    `t.pinned_at IS NOT NULL AND t.archived_at IS NULL AND t.${LIVE}
+     AND t.visibility = 'visible' AND t.parent_thread_id IS NULL
      ORDER BY t.pin_sort_key`,
   );
   return rows.map((row) => {
-    const failed = countRows(
-      db,
-      `SELECT COUNT(*) AS count FROM queued_thread_messages
-       WHERE thread_id = ? AND failure_reason IS NOT NULL`,
-      row.id,
-    );
-    const queued = countRows(
-      db,
-      "SELECT COUNT(*) AS count FROM queued_thread_messages WHERE thread_id = ?",
-      row.id,
-    );
-    const pending = countRows(
-      db,
-      `SELECT COUNT(*) AS count FROM pending_interactions
-       WHERE thread_id = ? AND status IN ('pending', 'resolving')`,
-      row.id,
-    );
     const worktree = row.environmentIsWorktree === 1;
     const managed = row.environmentProviderId === "git-worktree";
+    const displayKind = worktree ? "unmanaged-worktree" : "other";
     return {
       ...toThreadWithRuntime(row, runtimeOf(row, row.environmentHostId)),
       activity: threadActivity(db, row.id),
-      queuedWork: failed > 0 ? "failed" : queued > 0 ? "waiting" : "none",
+      queuedWork:
+        row.failed > 0 ? "failed" : row.queued > 0 ? "waiting" : "none",
       pinSortKey: row.pinSortKey,
-      hasPendingInteraction: pending > 0,
+      hasPendingInteraction: row.pending > 0,
       environmentHostId: row.environmentHostId,
       environmentName: row.environmentName,
       environmentBranchName: row.environmentBranchName,
       environmentPath: row.environmentPath,
       environmentProviderId: row.environmentProviderId,
-      environmentIsWorktree:
-        row.environmentIsWorktree === null ? null : worktree,
+      environmentIsWorktree: row.environmentHostId === null ? null : worktree,
       environmentWorkspaceDisplayKind: managed
         ? "managed-worktree"
-        : worktree
-          ? "unmanaged-worktree"
-          : "other",
+        : displayKind,
     };
   });
 }

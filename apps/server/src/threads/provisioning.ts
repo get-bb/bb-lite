@@ -325,8 +325,7 @@ export function beginProvisioning(
         request: { method: "thread/start", params: {} },
       },
     ]);
-    const tuple = { ...message.execution, ...message.overrides };
-    patchThread(db, thread.id, tuple, false);
+    patchThread(db, thread.id, message.execution, false);
     engine.transition(out, thread.id, "run.preparing");
     out.after(() =>
       engine.background(

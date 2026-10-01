@@ -11,7 +11,7 @@ import { openDatabase, type Db } from "./db/index.js";
 import { createBasicEnvironments } from "./environments/basic.js";
 import { createHttpApp } from "./http/app.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
-import { Engine } from "./threads/engine.js";
+import { createThreadEngine } from "./threads/engine.js";
 import { createNoExtensions } from "./threads/extensions.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
@@ -54,7 +54,8 @@ export function createServer(options: CreateServerOptions): BbServer {
   const extensions = createNoExtensions();
   const services = { environments, extensions };
   const base = { config, db, hub, runners, log, now, ...services };
-  const ctx: ServerContext = Object.assign(base, { threads: new Engine(base) });
+  const threads = createThreadEngine(base);
+  const ctx: ServerContext = Object.assign(base, { threads });
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);
   registerSockets(sockets, ctx);

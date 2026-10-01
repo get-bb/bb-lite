@@ -13,6 +13,7 @@ import {
   type ThreadQueuedMessage,
 } from "@bb/domain";
 import { z } from "zod";
+import { ApiError } from "../http/errors.js";
 import { decodeJson, encodeJson, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
@@ -52,20 +53,12 @@ export interface NewQueuedMessage {
   sendAt: number | null;
 }
 
-type OrderRejection =
-  | "not_found"
-  | "stale_neighbor"
-  | "invalid_neighbor_order"
-  | "invalid_sender"
-  | "invalid_execution_options";
-export type QueueOrderOutcome =
-  | { kind: "ok"; rows: QueuedMessageRow[] }
-  | { kind: OrderRejection };
+function rejected(message: string): ApiError {
+  return new ApiError(409, "invalid_request", message);
+}
 
-class QueueOrderRollback extends Error {
-  constructor(readonly kind: OrderRejection) {
-    super(kind);
-  }
+export function queuedMessageNotFound(): ApiError {
+  return new ApiError(404, "invalid_request", "Queued message not found");
 }
 
 const contentSchema = z.array(promptInputSchema).min(1);
@@ -231,30 +224,22 @@ function applyGroupBoundary(
 ): QueuedMessageRow[] {
   const rows = listQueuedMessages(db, threadId);
   const boundary = rows.findIndex((row) => row.id === boundaryId);
-  if (boundary < 0) throw new QueueOrderRollback("not_found");
+  if (boundary < 0) throw queuedMessageNotFound();
   const prefix = rows.slice(0, boundary + 1);
   const prefixIds = prefix.map((row) => row.id).join();
   if (expectedPrefixIds !== null && prefixIds !== expectedPrefixIds.join()) {
-    throw new QueueOrderRollback("stale_neighbor");
+    throw rejected("Queued message order changed");
   }
   const [lead] = prefix;
   if (prefix.some((row) => row.senderThreadId !== lead.senderThreadId)) {
-    throw new QueueOrderRollback("invalid_sender");
+    throw rejected("Queued messages from different senders cannot be grouped");
   }
   if (prefix.some((row) => !sharesGroupEnvelope(lead, row))) {
-    throw new QueueOrderRollback("invalid_execution_options");
+    const cause = "different execution options";
+    throw rejected(`Queued messages with ${cause} cannot be grouped`);
   }
   setGroupFlags(db, rows, prefix.length);
   return listQueuedMessages(db, threadId);
-}
-
-function settleOrder(db: Db, work: () => QueuedMessageRow[]) {
-  try {
-    return { kind: "ok" as const, rows: db.transaction(work) };
-  } catch (error) {
-    if (error instanceof QueueOrderRollback) return { kind: error.kind };
-    throw error;
-  }
 }
 
 export function setQueuedMessageGroupBoundary(
@@ -262,8 +247,8 @@ export function setQueuedMessageGroupBoundary(
   threadId: string,
   boundaryId: string,
   expectedPrefixIds: readonly string[],
-): QueueOrderOutcome {
-  return settleOrder(db, () =>
+): QueuedMessageRow[] {
+  return db.transaction(() =>
     applyGroupBoundary(db, threadId, boundaryId, expectedPrefixIds),
   );
 }
@@ -279,19 +264,17 @@ export interface QueueReorder {
 export function reorderQueuedMessage(
   db: Db,
   move: QueueReorder,
-): QueueOrderOutcome {
+): QueuedMessageRow[] {
   const { threadId, id, previousId, nextId, boundaryId } = move;
-  return settleOrder(db, () => {
+  return db.transaction(() => {
     const rows = listQueuedMessages(db, threadId);
     const index = rows.findIndex((row) => row.id === id);
-    if (index < 0) throw new QueueOrderRollback("not_found");
+    if (index < 0) throw queuedMessageNotFound();
     const neighbor = (neighborId: string | null) => {
       if (neighborId === null) return null;
       const row = rows.find((candidate) => candidate.id === neighborId);
-      if (row === undefined || row.id === id) {
-        throw new QueueOrderRollback("stale_neighbor");
-      }
-      return row;
+      if (row !== undefined && row.id !== id) return row;
+      throw rejected("Queued message order changed");
     };
     const previous = neighbor(previousId);
     const next = neighbor(nextId);
@@ -300,35 +283,25 @@ export function reorderQueuedMessage(
       next !== null &&
       previous.sortKey >= next.sortKey
     ) {
-      throw new QueueOrderRollback("invalid_neighbor_order");
+      throw rejected("Queued message order is invalid");
     }
     const before = index === 0 ? null : rows[index - 1].id;
     const after = rows.at(index + 1)?.id ?? null;
-    const inPlace = before === previousId && after === nextId;
-    if (!inPlace) {
+    if (before !== previousId || after !== nextId) {
       const sortKey = orderKeyBetween(
         previous?.sortKey ?? null,
         next?.sortKey ?? null,
       );
       db.run(
-        `UPDATE queued_thread_messages SET sort_key = ?, updated_at = ?
-         WHERE id = ?`,
+        `UPDATE queued_thread_messages
+         SET sort_key = ?, group_with_next = 0, updated_at = ? WHERE id = ?`,
         sortKey,
         db.now(),
         id,
       );
     }
-    if (boundaryId !== undefined) {
-      return applyGroupBoundary(db, threadId, boundaryId, null);
-    }
-    if (inPlace) return rows;
-    const leadIds = groupStartingAt(rows, 0).map((row) => row.id);
-    const moved = listQueuedMessages(db, threadId);
-    const kept = moved
-      .slice(0, leadIds.length)
-      .every((row) => leadIds.includes(row.id));
-    setGroupFlags(db, moved, kept ? leadIds.length : 0);
-    return listQueuedMessages(db, threadId);
+    if (boundaryId === undefined) return listQueuedMessages(db, threadId);
+    return applyGroupBoundary(db, threadId, boundaryId, null);
   });
 }
 

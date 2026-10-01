@@ -13,11 +13,10 @@ import {
 } from "../db/engine-lookups.js";
 import { encodeJson, type Db } from "../db/index.js";
 import {
-  ancestorDepth,
+  ancestry,
   deleteThreadRow,
   getThread,
   insertThread,
-  isAncestor,
   MAX_THREAD_HIERARCHY_DEPTH,
   subtreeDepth,
   type ThreadRow,
@@ -56,12 +55,13 @@ export function requireValidParent(
   if (parent === undefined) throw invalidParent("not_found");
   if (parent.archivedAt !== null) throw invalidParent("archived");
   if (parent.deletedAt !== null) throw invalidParent("deleted");
+  const ancestors = ancestry(db, parent);
   if (child !== null && parent.id === child.id) throw invalidParent("self");
-  if (child !== null && isAncestor(db, child.id, parent)) {
+  if (child !== null && ancestors.includes(child.id)) {
     throw invalidParent("cycle");
   }
   const below = child === null ? 1 : subtreeDepth(db, child);
-  if (ancestorDepth(db, parent) + below > MAX_THREAD_HIERARCHY_DEPTH) {
+  if (ancestors.length + below > MAX_THREAD_HIERARCHY_DEPTH) {
     throw invalidParent("too_deep");
   }
   return parent;
@@ -214,9 +214,6 @@ export async function createThread(
           senderThreadId: null,
           initiator: "user",
           systemNotice: null,
-          origin: request.origin,
-          originPluginId: request.originPluginId ?? null,
-          overrides: {},
         },
         mode: "start",
         sendAt: request.sendAt ?? null,

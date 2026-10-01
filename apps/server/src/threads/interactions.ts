@@ -1,48 +1,28 @@
-import {
-  isApprovalPendingInteraction,
-  isApprovalPendingInteractionResolution,
-  isPluginExtensionInteractionResolution,
-  isPluginExtensionPendingInteraction,
-  isUserQuestionPendingInteraction,
-  isUserQuestionPendingInteractionResolution,
-  threadScope,
-  toInteractionLifecycle,
-  turnScope,
-  type JsonValue,
-  type PendingInteraction,
-  type PendingInteractionPayload,
-  type PendingInteractionResolution,
-  type ThreadEventItemPresentation,
-} from "@bb/domain";
-import {
-  findProviderInteraction,
-  getPendingInteraction,
-  insertPendingInteraction,
-  listActiveInteractions,
-  settleInteraction,
-  toPendingInteraction,
-  type InteractionSettlement,
-  type PendingInteractionRow,
-} from "../db/pending-interactions.js";
+import * as domain from "@bb/domain";
+import * as pending from "../db/pending-interactions.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
 import type { RunnerEventOf } from "../runners/registry.js";
 import { conflict, threadNotFound, type Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 
+type PendingInteraction = domain.PendingInteraction;
+type PendingInteractionRow = pending.PendingInteractionRow;
+type InteractionSettlement = pending.InteractionSettlement;
+
 export interface PluginInputRequest {
   threadId: string;
   pluginId: string;
   rendererId: string;
   title: string;
-  payload: JsonValue;
-  presentation?: ThreadEventItemPresentation;
+  payload: domain.JsonValue;
+  presentation?: domain.ThreadEventItemPresentation;
   timeoutMs?: number;
   signal?: AbortSignal;
 }
 
 export type PluginInputResult =
-  | { outcome: "submitted"; value: JsonValue }
+  | { outcome: "submitted"; value: domain.JsonValue }
   | { outcome: "cancelled"; reason: string };
 
 export interface InputWaiter {
@@ -59,12 +39,13 @@ function announce(
   thread: ThreadRow,
   row: PendingInteractionRow,
 ): PendingInteraction {
-  const interaction = toPendingInteraction(row);
-  const scope = row.turnId === null ? threadScope() : turnScope(row.turnId);
-  const lifecycle = toInteractionLifecycle(interaction);
+  const interaction = pending.toPendingInteraction(row);
+  const scope =
+    row.turnId === null ? domain.threadScope() : domain.turnScope(row.turnId);
+  const lifecycle = domain.toInteractionLifecycle(interaction);
   const type = "system/interaction/lifecycle";
   engine.append(out, thread, [{ type, scope, interaction: lifecycle }]);
-  const active = listActiveInteractions(engine.ctx.db, thread.id);
+  const active = pending.listActiveInteractions(engine.ctx.db, thread.id);
   out.thread(thread.id, ["interactions-changed"], {
     hasPendingInteraction: active.length > 0,
     projectId: thread.projectId,
@@ -92,7 +73,7 @@ function settle(
   from: readonly PendingInteractionRow["status"][],
   next: InteractionSettlement,
 ): PendingInteraction | null {
-  const row = settleInteraction(engine.ctx.db, id, from, next);
+  const row = pending.settleInteraction(engine.ctx.db, id, from, next);
   if (row === undefined) return null;
   const reason = next.statusReason ?? "thread-stopped";
   if (next.status === "interrupted") {
@@ -108,14 +89,14 @@ export function interruptInteractions(
   statusReason: string,
   scope: "all" | "provider" = "all",
 ): void {
-  for (const row of listActiveInteractions(engine.ctx.db, thread.id)) {
+  for (const row of pending.listActiveInteractions(engine.ctx.db, thread.id)) {
     if (scope === "provider" && row.originKind !== "provider") continue;
     const next = { status: "interrupted" as const, statusReason };
     settle(engine, out, thread, row.id, ACTIVE, next);
   }
 }
 
-function denial(payload: PendingInteractionPayload) {
+function denial(payload: domain.PendingInteractionPayload) {
   if (payload.kind === "approval") return { decision: "deny" as const };
   if (payload.kind === "user_question") {
     return { kind: "user_answer" as const, answers: {} };
@@ -128,23 +109,22 @@ export function registerProviderInteraction(
   hostId: string,
   event: RunnerEventOf<"interaction.requested">,
 ): void {
-  const { db, extensions, runners } = engine.ctx;
+  const { db, extensions } = engine.ctx;
   const { threadId, requestId, payload } = event;
   const thread = getThread(db, threadId);
-  if (findProviderInteraction(db, threadId, requestId) !== undefined) return;
-  const busy = listActiveInteractions(db, threadId).length > 0;
+  if (pending.findProviderInteraction(db, threadId, requestId) !== undefined)
+    return;
+  const busy = pending.listActiveInteractions(db, threadId).length > 0;
   if (thread === undefined || thread.deletedAt !== null || busy) {
     const resolution = denial(payload);
-    const refused = Promise.resolve().then(() =>
-      runners
-        .get(hostId)
-        .resolveInteraction({ threadId, requestId, resolution }),
+    const refused = engine.onHost(hostId, (runner) =>
+      runner.resolveInteraction({ threadId, requestId, resolution }),
     );
     engine.background("refuse interaction", refused);
     return;
   }
   engine.commit((out) => {
-    const row = insertPendingInteraction(db, {
+    const row = pending.insertPendingInteraction(db, {
       threadId,
       originKind: "provider",
       turnId: event.turnId ?? thread.activeTurnId,
@@ -171,7 +151,11 @@ export function cancelProviderInteraction(
 ): void {
   const { db } = engine.ctx;
   const thread = getThread(db, event.threadId);
-  const row = findProviderInteraction(db, event.threadId, event.requestId);
+  const row = pending.findProviderInteraction(
+    db,
+    event.threadId,
+    event.requestId,
+  );
   if (thread === undefined || row === undefined) return;
   engine.commit((out) => {
     const next = { status: "interrupted" as const, statusReason: event.reason };
@@ -181,7 +165,7 @@ export function cancelProviderInteraction(
 }
 
 function requireInteraction(engine: Engine, threadId: string, id: string) {
-  const row = getPendingInteraction(engine.ctx.db, id);
+  const row = pending.getPendingInteraction(engine.ctx.db, id);
   if (row === undefined || row.threadId !== threadId) {
     const message = "Pending interaction not found";
     throw new ApiError(404, "invalid_request", message);
@@ -195,12 +179,12 @@ function alreadySettled(row: PendingInteractionRow): ApiError {
 
 function assertResolutionFits(
   interaction: PendingInteraction,
-  resolution: PendingInteractionResolution,
+  resolution: domain.PendingInteractionResolution,
 ): void {
-  if (isApprovalPendingInteraction(interaction)) {
+  if (domain.isApprovalPendingInteraction(interaction)) {
     const { availableDecisions } = interaction.payload;
     if (
-      isApprovalPendingInteractionResolution(resolution) &&
+      domain.isApprovalPendingInteractionResolution(resolution) &&
       availableDecisions.includes(resolution.decision)
     ) {
       return;
@@ -208,10 +192,10 @@ function assertResolutionFits(
     const allowed = availableDecisions.join(", ");
     throw invalidRequest(`This approval accepts a decision of: ${allowed}.`);
   }
-  const fits = isUserQuestionPendingInteraction(interaction)
-    ? isUserQuestionPendingInteractionResolution(resolution)
-    : isPluginExtensionPendingInteraction(interaction) &&
-      isPluginExtensionInteractionResolution(resolution);
+  const fits = domain.isUserQuestionPendingInteraction(interaction)
+    ? domain.isUserQuestionPendingInteractionResolution(resolution)
+    : domain.isPluginExtensionPendingInteraction(interaction) &&
+      domain.isPluginExtensionInteractionResolution(resolution);
   if (!fits) throw invalidRequest("The resolution does not fit this request.");
 }
 
@@ -236,34 +220,33 @@ export function resolveProviderInteraction(
   engine: Engine,
   threadId: string,
   interactionId: string,
-  resolution: PendingInteractionResolution,
+  resolution: domain.PendingInteractionResolution,
 ): PendingInteraction {
-  const { db, runners } = engine.ctx;
+  const { db } = engine.ctx;
   const row = requireInteraction(engine, threadId, interactionId);
   const thread = getThread(db, threadId);
   if (thread === undefined) throw threadNotFound();
   if (row.status !== "pending") {
     const same = row.resolution === JSON.stringify(resolution);
-    if (same && row.status !== "interrupted") return toPendingInteraction(row);
+    if (same && row.status !== "interrupted")
+      return pending.toPendingInteraction(row);
     throw alreadySettled(row);
   }
   const requestId = row.providerRequestId;
   if (row.originKind !== "provider" || requestId === null) {
     throw invalidRequest("Answer a plugin interaction with respond.");
   }
-  assertResolutionFits(toPendingInteraction(row), resolution);
-  const hostId = engine.hostOf(thread);
-  if (hostId === null || !runners.isConnected(hostId)) throw hostUnavailable();
+  assertResolutionFits(pending.toPendingInteraction(row), resolution);
+  const hostId = engine.connectedHostOf(thread);
+  if (hostId === null) throw hostUnavailable();
   const resolving = engine.commit((out) => {
     const next = { status: "resolving" as const, resolution };
     return settle(engine, out, thread, row.id, ["pending"], next);
   });
   if (resolving === null) throw alreadySettled(row);
-  const delivered = Promise.resolve()
-    .then(() =>
-      runners
-        .get(hostId)
-        .resolveInteraction({ threadId, requestId, resolution }),
+  const delivered = engine
+    .onHost(hostId, (runner) =>
+      runner.resolveInteraction({ threadId, requestId, resolution }),
     )
     .then(
       (result) => result.delivered,
@@ -298,7 +281,7 @@ export function respondToInteraction(
   engine: Engine,
   threadId: string,
   interactionId: string,
-  value: JsonValue,
+  value: domain.JsonValue,
 ): PendingInteraction {
   const row = requireInteraction(engine, threadId, interactionId);
   if (row.originKind === "provider") {
@@ -337,7 +320,7 @@ export function cancelPluginInteraction(
   return settlePluginInteraction(engine, row, next, result);
 }
 
-export function openPluginInteraction(
+function openPluginInteraction(
   engine: Engine,
   request: PluginInputRequest,
 ): { result: Promise<PluginInputResult> } {
@@ -345,12 +328,12 @@ export function openPluginInteraction(
   const { threadId, signal, timeoutMs } = request;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) throw threadNotFound();
-  if (listActiveInteractions(db, threadId).length > 0) {
+  if (pending.listActiveInteractions(db, threadId).length > 0) {
     throw conflict(`Thread ${threadId} is already awaiting user interaction`);
   }
   const { title, payload: data, presentation } = request;
   const row = engine.commit((out) => {
-    const created = insertPendingInteraction(db, {
+    const created = pending.insertPendingInteraction(db, {
       threadId,
       originKind: "plugin",
       turnId: null,
@@ -371,7 +354,7 @@ export function openPluginInteraction(
   });
   const cancel = (reason: string): void =>
     engine.later(threadId, "cancel plugin interaction", () => {
-      const current = getPendingInteraction(db, row.id);
+      const current = pending.getPendingInteraction(db, row.id);
       if (current === undefined || current.status !== "pending") return;
       cancelPluginInteraction(engine, threadId, row.id, reason);
     });
@@ -391,4 +374,21 @@ export function openPluginInteraction(
     if (signal?.aborted) abort();
   });
   return { result };
+}
+
+export function cancelByUser(engine: Engine, threadId: string, id: string) {
+  return cancelPluginInteraction(engine, threadId, id, "user");
+}
+
+export async function requestInput(
+  engine: Engine,
+  request: PluginInputRequest,
+): Promise<PluginInputResult> {
+  if (request.signal?.aborted) {
+    return { outcome: "cancelled", reason: "request-aborted" };
+  }
+  const opened = await engine.inThread(request.threadId, () =>
+    openPluginInteraction(engine, request),
+  );
+  return opened.result;
 }
