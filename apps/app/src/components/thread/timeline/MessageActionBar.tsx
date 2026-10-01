@@ -294,11 +294,10 @@ const ACTION_BUTTON_CLASS =
   "inline-flex size-5 cursor-pointer items-center justify-center text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40";
 const HOVER_REVEAL_CLASS =
   "opacity-0 transition-opacity group-hover/message:opacity-100 group-focus-within/message:opacity-100";
-const MOBILE_INLINE_ACTION_CLASS =
-  "max-md:pointer-coarse:size-7 max-md:pointer-coarse:opacity-100 max-md:pointer-coarse:disabled:opacity-40 max-md:pointer-coarse:[&_[data-icon-root]]:size-4";
-const MOBILE_OVERFLOW_ACTION_CLASS = "max-md:pointer-coarse:hidden";
+const MOBILE_INLINE_ACTION_CLASS = "";
+const MOBILE_OVERFLOW_ACTION_CLASS = "";
 const MOBILE_OVERFLOW_TRIGGER_CLASS =
-  "hidden size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground max-md:pointer-coarse:inline-flex max-md:pointer-coarse:[&_[data-icon-root]]:size-4";
+  "hidden size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground";
 const ACTION_TOOLTIP_SIDE = "bottom";
 const MENU_CONTENT_WIDTH_CLASS = "max-w-[min(16rem,calc(100vw-1rem))]";
 const MOBILE_OVERFLOW_CONTENT_CLASS =
@@ -310,10 +309,9 @@ const ACTION_ROW_CLASS =
   "absolute top-0 flex max-w-full items-center gap-2 overflow-hidden data-[menu-open]:[&_button]:opacity-100";
 const ACTION_ROW_EXPANDED_CLASS = "absolute top-0 z-10 flex items-center gap-2";
 
-const BUBBLE_ALIGN_INSET_CLASS = "pr-[13px] max-md:pointer-coarse:pr-[11px]";
-const BUBBLE_ALIGN_OFFSET_CLASS =
-  "right-[13px] max-md:pointer-coarse:right-[11px]";
-const PROSE_ALIGN_INSET_CLASS = "-ml-1 max-md:pointer-coarse:-ml-1.5";
+const BUBBLE_ALIGN_INSET_CLASS = "pr-[13px]";
+const BUBBLE_ALIGN_OFFSET_CLASS = "right-[13px]";
+const PROSE_ALIGN_INSET_CLASS = "-ml-1";
 export const PROSE_COLUMN_INSET_CLASS = "px-2";
 const PROSE_COLUMN_INSET_PX = 16;
 
@@ -625,10 +623,7 @@ export function MessageActionBar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div
-        ref={desktopSlotRef}
-        className={cn(slotClass, "h-5 max-md:pointer-coarse:h-7")}
-      >
+      <div ref={desktopSlotRef} className={cn(slotClass, "h-5")}>
         <div className={rowClass} data-menu-open={isMenuOpen ? "" : undefined}>
           {actions.slice(0, layout.inlineCount).map((action) => (
             <DesktopMessageAction

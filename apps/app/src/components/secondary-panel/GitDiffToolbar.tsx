@@ -70,7 +70,7 @@ function GitDiffSelector({
           size="sm"
           disabled={disabled}
           className={cn(
-            "h-8 w-full min-w-0 justify-between gap-2 rounded-lg border border-border bg-transparent px-2.5 font-normal max-md:pointer-coarse:h-10",
+            "h-8 w-full min-w-0 justify-between gap-2 rounded-lg border border-border bg-transparent px-2.5 font-normal",
             COARSE_POINTER_TEXT_SM_CLASS,
             disabled && "opacity-60",
           )}
@@ -164,7 +164,7 @@ function GitDiffFileFilterInput({
         autoCorrect="off"
         spellCheck={false}
         className={cn(
-          "h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0 max-md:pointer-coarse:h-10 max-md:pointer-coarse:text-base",
+          "h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0",
         )}
         placeholder="Filter files, e.g. *.md, docs/**, !*.test.ts"
         value={value}

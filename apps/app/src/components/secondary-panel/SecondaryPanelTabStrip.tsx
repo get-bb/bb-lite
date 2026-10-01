@@ -53,7 +53,7 @@ import type {
 const CHEVRON_SCROLL_STEP_PX = 140;
 
 const TAB_STRIP_SCROLL_BUTTON_CLASS =
-  "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
+  "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5";
 
 const EDGE_EPSILON_PX = 1;
 
@@ -595,7 +595,7 @@ function TabStripScrollButton({
         "z-20 shrink-0 bg-sidebar text-muted-foreground/70 shadow-none hover:bg-surface-raised-solid hover:text-foreground focus-visible:bg-sidebar",
         canScroll
           ? TAB_STRIP_SCROLL_BUTTON_CLASS
-          : "h-7 w-0 overflow-hidden p-0 max-md:pointer-coarse:h-9",
+          : "h-7 w-0 overflow-hidden p-0",
         "transition-opacity",
         canScroll
           ? "pointer-events-auto opacity-100"

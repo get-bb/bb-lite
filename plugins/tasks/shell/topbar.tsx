@@ -73,7 +73,7 @@ function TaskPager({
       <Button
         variant="ghost"
         size="icon"
-        className="size-6 max-md:pointer-coarse:size-9"
+        className="size-6"
         aria-label="Previous task"
         disabled={position.prevKey === null}
         onClick={() => step(position.prevKey)}
@@ -83,7 +83,7 @@ function TaskPager({
       <Button
         variant="ghost"
         size="icon"
-        className="size-6 max-md:pointer-coarse:size-9"
+        className="size-6"
         aria-label="Next task"
         disabled={position.nextKey === null}
         onClick={() => step(position.nextKey)}
@@ -107,7 +107,7 @@ function ViewToggle({
       onClick={() => onChange(mode)}
       aria-pressed={view === mode}
       className={cn(
-        "rounded-sm px-2.5 py-0.5 text-xs max-md:pointer-coarse:py-1.5",
+        "rounded-sm px-2.5 py-0.5 text-xs",
         view === mode
           ? "bg-background text-foreground shadow-2xs"
           : "text-muted-foreground hover:text-foreground",
@@ -140,7 +140,7 @@ function RefreshTasksButton() {
             type="button"
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0 text-muted-foreground hover:text-foreground active:bg-state-active active:text-foreground max-md:pointer-coarse:size-9"
+            className="size-7 shrink-0 text-muted-foreground hover:text-foreground active:bg-state-active active:text-foreground"
             aria-label={REFRESH_TASKS_LABEL}
             aria-busy={isRefreshing}
             disabled={isRefreshing}
@@ -231,7 +231,7 @@ export function TasksTopbar({
             <Button
               variant="ghost"
               size="icon"
-              className="size-6 shrink-0 max-md:pointer-coarse:size-9"
+              className="size-6 shrink-0"
               aria-label="Back (Esc)"
               onClick={onBack}
             >
@@ -272,7 +272,7 @@ export function TasksTopbar({
   })();
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border-hairline bg-background px-3.5 text-sm max-md:h-12 max-md:pl-12 max-md:pointer-coarse:pl-14">
+    <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border-hairline bg-background px-3.5 text-sm">
       <div className="min-w-0 flex-1 overflow-hidden">{breadcrumb}</div>
       {route.kind === "task" &&
       (pagerScope !== null || projects !== undefined) ? (
@@ -296,7 +296,7 @@ export function TasksTopbar({
       {route.kind !== "task" && route.kind !== "manage" ? (
         <Button
           size="sm"
-          className="h-7 gap-1.5 max-md:pointer-coarse:h-9"
+          className="h-7 gap-1.5"
           aria-label="New task"
           onClick={onNewTask}
         >

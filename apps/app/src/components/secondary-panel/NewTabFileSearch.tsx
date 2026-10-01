@@ -605,7 +605,7 @@ export function NewTabFileSearch({
           aria-activedescendant={hasListbox ? activeEntryId : undefined}
           placeholder={isUnavailable ? "No searchable source" : "Search files"}
           className={cn(
-            "h-8 pl-8 pr-8 focus-visible:ring-0 max-md:pointer-coarse:h-10",
+            "h-8 pl-8 pr-8 focus-visible:ring-0",
             COARSE_POINTER_TEXT_SM_CLASS,
           )}
         />

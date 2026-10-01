@@ -53,23 +53,37 @@ function UploadPreview({ file }: { file: File }) {
     <div
       role="status"
       aria-label={`Uploading ${file.name}`}
-      className={isImage
-        ? "relative shrink-0 overflow-hidden rounded-md border border-border bg-surface-recessed"
-        : "inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-recessed px-2 py-0.5 text-xs text-muted-foreground"}
+      className={
+        isImage
+          ? "relative shrink-0 overflow-hidden rounded-md border border-border bg-surface-recessed"
+          : "inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-recessed px-2 py-0.5 text-xs text-muted-foreground"
+      }
     >
       {isImage ? (
         <>
           <span className="block h-16 w-24">
-            {previewUrl ? <img src={previewUrl} alt="" className="size-full object-cover opacity-50" /> : null}
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt=""
+                className="size-full object-cover opacity-50"
+              />
+            ) : null}
           </span>
           <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-background/90 py-1 text-xs text-foreground">
-            <Icon name="Loading" className="size-3 animate-spin motion-reduce:animate-none" />
+            <Icon
+              name="Loading"
+              className="size-3 animate-spin motion-reduce:animate-none"
+            />
             Uploading
           </span>
         </>
       ) : (
         <>
-          <Icon name="Loading" className="size-3 shrink-0 animate-spin motion-reduce:animate-none" />
+          <Icon
+            name="Loading"
+            className="size-3 shrink-0 animate-spin motion-reduce:animate-none"
+          />
           <span className="truncate">{file.name}</span>
         </>
       )}
@@ -119,15 +133,22 @@ export function AttachmentPreview({
           data-promptbox-attachments=""
           role={uploadingCount > 0 ? "status" : "img"}
           aria-label={[
-            attachmentCount > 0 ? `${attachmentCount} ${attachmentCount === 1 ? "attachment" : "attachments"}` : null,
+            attachmentCount > 0
+              ? `${attachmentCount} ${attachmentCount === 1 ? "attachment" : "attachments"}`
+              : null,
             uploadingCount > 0 ? `${uploadingCount} uploading` : null,
-          ].filter(Boolean).join(", ")}
+          ]
+            .filter(Boolean)
+            .join(", ")}
           className="ml-3 inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md bg-surface-recessed px-1.5 text-xs text-muted-foreground"
         >
           <Icon name="Paperclip" className="size-3.5" />
           <span aria-hidden="true">{attachmentCount + uploadingCount}</span>
           {uploadingCount > 0 ? (
-            <Icon name="Loading" className="size-3.5 animate-spin motion-reduce:animate-none" />
+            <Icon
+              name="Loading"
+              className="size-3.5 animate-spin motion-reduce:animate-none"
+            />
           ) : null}
         </span>
       ) : (
@@ -159,7 +180,7 @@ export function AttachmentPreview({
                         releaseLocalAttachmentPreview(attachment.path);
                         onRemoveAttachment(attachment.path);
                       }}
-                      className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:-right-1 max-md:pointer-coarse:-top-1 max-md:pointer-coarse:size-7"
+                      className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       aria-label={`Remove ${attachment.name}`}
                     >
                       <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/55 transition-colors group-hover/attachment-remove-image:bg-black/70">
@@ -169,7 +190,9 @@ export function AttachmentPreview({
                   ) : null}
                 </div>
               ))}
-              {pendingUploads.map((upload) => <UploadPreview key={upload.id} file={upload.file} />)}
+              {pendingUploads.map((upload) => (
+                <UploadPreview key={upload.id} file={upload.file} />
+              ))}
             </div>
           ) : null}
 
@@ -190,7 +213,7 @@ export function AttachmentPreview({
                           event.currentTarget.blur();
                           onRemoveAttachment(attachment.path);
                         }}
-                        className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:size-7"
+                        className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         aria-label={`Remove ${attachment.name}`}
                       >
                         <span className="inline-flex size-4 items-center justify-center rounded transition-colors group-hover/attachment-remove-file:bg-state-hover">

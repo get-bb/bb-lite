@@ -917,7 +917,7 @@ function EnvironmentThreadGroupHeader({
             className={cn(
               SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
               COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground max-md:pointer-coarse:static max-md:pointer-coarse:shrink-0",
+              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground",
             )}
           >
             <CollapsedThreadStatusGlyph activity={childActivity} />
@@ -933,7 +933,7 @@ function EnvironmentThreadGroupHeader({
             SIDEBAR_CONTROL_PAIR_SIZE_CLASS,
             "relative flex items-center justify-end",
             rename.isEditing && "hidden",
-            isCollapsed && "max-md:pointer-coarse:hidden",
+            isCollapsed && "",
           )}
         >
           <EnvironmentThreadGroupHeaderActions

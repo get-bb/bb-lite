@@ -128,7 +128,7 @@ export function SidebarMore({
                   className={cn(
                     PROJECT_LIST_ACTION_BUTTON_CLASS,
                     SIDEBAR_DISCLOSURE_ACTION_CLASS,
-                    "w-full hover:text-sidebar-foreground focus-visible:text-sidebar-foreground data-[state=open]:text-sidebar-foreground max-md:pointer-coarse:[&_[data-sidebar-more-activity]_[data-icon-root]]:size-4",
+                    "w-full hover:text-sidebar-foreground focus-visible:text-sidebar-foreground data-[state=open]:text-sidebar-foreground",
                     selected && SIDEBAR_ROW_SELECTED_STATE_CLASS,
                     isMenuOpen && "bg-sidebar-accent",
                   )}
@@ -164,7 +164,7 @@ export function SidebarMore({
           sideOffset={8}
           mobileTitle={compact && page ? page.title : "More"}
           aria-label={ariaLabel}
-          className="flex max-h-[min(var(--radix-dropdown-menu-content-available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1 max-md:min-h-0 max-md:flex-1"
+          className="flex max-h-[min(var(--radix-dropdown-menu-content-available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1"
         >
           <div
             role="group"

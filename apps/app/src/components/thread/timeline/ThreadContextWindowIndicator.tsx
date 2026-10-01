@@ -52,15 +52,15 @@ export function ThreadContextWindowCard({
   return (
     <div
       className={cn(
-        "@container/context-window w-56 rounded-md border bg-popover p-2 text-popover-foreground shadow-md max-md:px-4",
+        "@container/context-window w-56 rounded-md border bg-popover p-2 text-popover-foreground shadow-md",
         details &&
           "transition-[width] duration-200 ease-out motion-reduce:transition-none",
         details && detailsExpanded && "w-90",
         className,
       )}
     >
-      <div className="flex flex-col gap-2 max-md:gap-3">
-        <div className="flex items-baseline justify-between gap-2 text-xs max-md:text-sm">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-2 text-xs">
           <span
             className={cn(
               "text-muted-foreground",
@@ -75,8 +75,8 @@ export function ThreadContextWindowCard({
         </div>
         <div
           className={cn(
-            "relative h-1.5 w-full overflow-hidden rounded-full bg-border transition-[height] duration-200 motion-reduce:transition-none max-md:h-2",
-            details && detailsExpanded && "order-2 h-4 max-md:h-5",
+            "relative h-1.5 w-full overflow-hidden rounded-full bg-border transition-[height] duration-200 motion-reduce:transition-none",
+            details && detailsExpanded && "order-2 h-4",
           )}
         >
           <div
@@ -97,7 +97,7 @@ export function ThreadContextWindowCard({
         </div>
         <div
           className={cn(
-            "flex items-baseline justify-between gap-2 text-xs tabular-nums text-muted-foreground max-md:text-sm",
+            "flex items-baseline justify-between gap-2 text-xs tabular-nums text-muted-foreground",
             details && detailsExpanded && "order-1",
           )}
         >
@@ -116,7 +116,7 @@ export function ThreadContextWindowCard({
       </div>
       {details ? (
         <>
-          <div className="-mx-2 max-md:-mx-4">
+          <div className="-mx-2">
             <ContextWindowReveal id={detailsId} open={detailsExpanded}>
               <ThreadContextWindowDetails
                 details={details}
@@ -126,7 +126,7 @@ export function ThreadContextWindowCard({
           </div>
           <button
             type="button"
-            className="ml-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-xs text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:mt-3 max-md:py-1 max-md:text-sm"
+            className="ml-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-xs text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={detailsExpanded}
             aria-controls={detailsId}
             onClick={() => setDetailsExpanded((value) => !value)}
@@ -230,12 +230,9 @@ export function ThreadContextWindowIndicator({
         sideOffset={8}
         {...contentHoverProps}
         mobileTitle={titleLabel}
-        className="w-auto border-0 bg-transparent p-0 shadow-none max-md:p-0"
+        className="w-auto border-0 bg-transparent p-0 shadow-none"
       >
-        <ThreadContextWindowCard
-          usage={usage}
-          className="max-md:w-full max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:px-4 max-md:pt-2 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-none"
-        />
+        <ThreadContextWindowCard usage={usage} className="" />
       </PopoverContent>
     </Popover>
   );

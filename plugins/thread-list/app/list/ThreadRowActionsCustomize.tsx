@@ -118,7 +118,7 @@ export function ThreadRowActionsCustomize({
         className="space-y-0.5 px-1 pb-1"
         data-testid="sidebar-thread-list-row-actions-preview"
       >
-        <div className="flex h-7 items-center gap-2 rounded-md bg-sidebar-accent pl-2 max-md:pointer-coarse:h-9">
+        <div className="flex h-7 items-center gap-2 rounded-md bg-sidebar-accent pl-2">
           <FakeThreadRowTitle width="w-full" />
           <div
             ref={groupRef}
@@ -174,10 +174,7 @@ export function ThreadRowActionsCustomize({
 
 function FakeThreadRow({ width }: { width: string }) {
   return (
-    <div
-      aria-hidden="true"
-      className="flex h-7 items-center gap-2 pl-2 max-md:pointer-coarse:h-9"
-    >
+    <div aria-hidden="true" className="flex h-7 items-center gap-2 pl-2">
       <FakeThreadRowTitle width={width} />
     </div>
   );

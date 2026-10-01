@@ -2,9 +2,8 @@ import { useEffect, type CSSProperties, type RefObject } from "react";
 import type { ThreadTimelineViewRow } from "@bb/thread-view";
 import { supportsScrollAnchoring } from "@/lib/scroll-anchoring-support";
 
-export const TOP_LEVEL_TIMELINE_ROW_INTRINSIC_SIZE_CLASS_NAME =
-  "max-md:[contain-intrinsic-block-size:auto_1.25rem]";
-const CONTENT_VISIBILITY_CLASS_NAME = "max-md:[content-visibility:auto]";
+export const TOP_LEVEL_TIMELINE_ROW_INTRINSIC_SIZE_CLASS_NAME = "";
+const CONTENT_VISIBILITY_CLASS_NAME = "";
 
 export function useArmTopLevelTimelineRowContainment(
   wrapperRef: RefObject<HTMLElement | null>,

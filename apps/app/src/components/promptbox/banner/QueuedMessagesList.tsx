@@ -859,7 +859,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
             className={cn(
               "size-3.5 shrink-0 opacity-0 transition-opacity",
               !dragDisabled &&
-                "group-hover/dispatch-row:opacity-100 group-focus-within/dispatch-row:opacity-100 [@media(hover:none)]:opacity-100",
+                "group-hover/dispatch-row:opacity-100 group-focus-within/dispatch-row:opacity-100",
               isDragging && "opacity-100",
             )}
             aria-hidden="true"
@@ -883,7 +883,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                 className={cn(
                   "ml-auto inline-flex shrink-0 items-center gap-0.5 text-2xs text-subtle-foreground opacity-70 transition-opacity duration-[120ms] ease-out",
                   !isProcessing &&
-                    "group-hover/dispatch-row:opacity-0 group-focus-within/dispatch-row:opacity-0 [@media(hover:none)]:opacity-0",
+                    "group-hover/dispatch-row:opacity-0 group-focus-within/dispatch-row:opacity-0",
                 )}
                 role="img"
                 aria-label={
@@ -955,9 +955,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                 className={cn(
                   PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
                   "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md opacity-0 transition-opacity duration-[120ms] ease-out md:flex",
-                  mobileActionsExpanded
-                    ? "flex max-md:pointer-events-auto max-md:opacity-100"
-                    : "max-md:hidden",
+                  mobileActionsExpanded ? "flex" : "",
                   "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
                   "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
                 )}
@@ -980,9 +978,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                         <Icon name="Sent" className="size-4" aria-hidden />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="max-md:hidden">
-                      {sendLabel}
-                    </TooltipContent>
+                    <TooltipContent className="">{sendLabel}</TooltipContent>
                   </Tooltip>
                 ) : null}
                 {queuedMessage.editable ? (
@@ -1008,9 +1004,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                         <Icon name="Edit" className="size-4" aria-hidden />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="max-md:hidden">
-                      Edit
-                    </TooltipContent>
+                    <TooltipContent className="">Edit</TooltipContent>
                   </Tooltip>
                 ) : null}
                 <Tooltip>
@@ -1020,7 +1014,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                       size="icon"
                       variant="ghost"
                       className={cn(
-                        "shrink-0 text-muted-foreground hover:text-destructive max-md:text-destructive",
+                        "shrink-0 text-muted-foreground hover:text-destructive",
                         compact ? "size-7" : "size-8",
                       )}
                       disabled={actionDisabled}
@@ -1030,9 +1024,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                       <Icon name="Trash2" className="size-4" aria-hidden />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-md:hidden">
-                    Delete
-                  </TooltipContent>
+                  <TooltipContent className="">Delete</TooltipContent>
                 </Tooltip>
               </div>
             </TooltipProvider>
@@ -1045,7 +1037,7 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                 "pointer-events-none absolute right-2.5 top-1/2 shrink-0 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity duration-[120ms] ease-out md:hidden",
                 "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
                 "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
-                "[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
+                "",
                 compact ? "size-7" : "size-8",
                 mobileActionsExpanded && "hidden",
               )}
@@ -1099,7 +1091,7 @@ function SortableGroupBoundaryHandle({ disabled }: { disabled: boolean }) {
                   ref={setActivatorNodeRef}
                   type="button"
                   className={cn(
-                    "pointer-events-auto flex size-6 shrink-0 touch-none select-none items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-[background-color,border-color,box-shadow,color] focus-visible:border-border focus-visible:bg-background focus-visible:shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring queue-boundary-row-hover:border-border queue-boundary-row-hover:bg-background queue-boundary-row-hover:shadow-sm queue-boundary-row-focus-within:border-border queue-boundary-row-focus-within:bg-background queue-boundary-row-focus-within:shadow-sm hover:border-border hover:bg-background hover:shadow-sm [@media(hover:none)]:border-border [@media(hover:none)]:bg-background [@media(hover:none)]:shadow-sm",
+                    "pointer-events-auto flex size-6 shrink-0 touch-none select-none items-center justify-center rounded-full border border-transparent bg-transparent text-muted-foreground transition-[background-color,border-color,box-shadow,color] focus-visible:border-border focus-visible:bg-background focus-visible:shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring queue-boundary-row-hover:border-border queue-boundary-row-hover:bg-background queue-boundary-row-hover:shadow-sm queue-boundary-row-focus-within:border-border queue-boundary-row-focus-within:bg-background queue-boundary-row-focus-within:shadow-sm hover:border-border hover:bg-background hover:shadow-sm",
                     anotherItemIsDragging
                       ? "pointer-events-none opacity-0"
                       : "opacity-100",
@@ -1114,12 +1106,12 @@ function SortableGroupBoundaryHandle({ disabled }: { disabled: boolean }) {
                 >
                   <Icon
                     name="DragDropHorizontal"
-                    className="size-3.5 opacity-55 transition-opacity queue-boundary-row-hover:opacity-100 queue-boundary-row-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                    className="size-3.5 opacity-55 transition-opacity queue-boundary-row-hover:opacity-100 queue-boundary-row-focus-within:opacity-100"
                     aria-hidden="true"
                   />
                 </button>
               </TooltipTrigger>
-              <TooltipContent className="max-md:hidden">
+              <TooltipContent className="">
                 Messages above send together
               </TooltipContent>
             </Tooltip>
@@ -1804,14 +1796,12 @@ function QueuedMessagesListSurface({
                 >
                   <Icon
                     name={caretWillCollapse ? "ChevronDown" : "ChevronUp"}
-                    className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/queue-header:opacity-65 group-focus-within/queue-header:opacity-65 [@media(hover:none)]:opacity-45"
+                    className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/queue-header:opacity-65 group-focus-within/queue-header:opacity-65"
                     aria-hidden
                   />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="max-md:hidden">
-                {caretLabel}
-              </TooltipContent>
+              <TooltipContent className="">{caretLabel}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>

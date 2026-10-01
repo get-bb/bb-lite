@@ -797,7 +797,7 @@ function InlineMessageEditorHost({
   editor: ThreadTimelineInlineMessageEditor;
 }) {
   return (
-    <div className="ml-auto w-full max-w-[70%] max-md:max-w-full">
+    <div className="ml-auto w-full max-w-[70%]">
       <div
         ref={editor.onHostElementChange}
         data-sent-message-inline-editor-host=""

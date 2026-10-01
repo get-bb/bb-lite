@@ -22,7 +22,7 @@ import { useResetPickerScroll } from "./useResetPickerScroll";
 
 const PROJECT_SEARCH_MIN_OPTIONS = 5;
 const NO_HIGHLIGHT_VALUE = "__project-picker-idle__";
-const PROJECT_PICKER_ITEM_CLASS_NAME = "py-[0.3125rem] text-xs max-md:py-2";
+const PROJECT_PICKER_ITEM_CLASS_NAME = "py-[0.3125rem] text-xs";
 
 export interface ProjectSelectorOption {
   id: string;
@@ -190,7 +190,7 @@ export function ProjectSelector({
             commandRef.current?.focus();
           }
         }}
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:flex-1"
+        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0"
       >
         <Command
           ref={commandRef}
@@ -248,7 +248,7 @@ export function ProjectSelector({
                     </CommandItem>
                   ))}
                   {showSearch && filteredProjects.length === 0 ? (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground max-md:py-2">
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
                       No projects found
                     </div>
                   ) : null}

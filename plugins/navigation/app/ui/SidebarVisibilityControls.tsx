@@ -150,7 +150,7 @@ export function SidebarMore({
               event.currentTarget.focus();
             }
           }}
-          className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1 max-md:min-h-0 max-md:flex-1"
+          className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1"
         >
           <div
             role="list"
@@ -260,7 +260,7 @@ export function SidebarOverflowItem({
           className={cn(
             OVERFLOW_ROW_BUTTON_CLASS,
             COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-            "pr-9 max-md:pointer-coarse:pr-11",
+            "pr-9",
           )}
           disabled={item.disabled}
           data-sidebar-overflow-item={item.id}
@@ -291,7 +291,7 @@ export function SidebarOverflowItem({
           }
           className={cn(
             SIDEBAR_HOVER_ACTIONS_CLASS,
-            "absolute inset-y-0 right-0 flex items-center pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto",
+            "absolute inset-y-0 right-0 flex items-center",
           )}
         >
           {actions}

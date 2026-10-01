@@ -29,7 +29,7 @@ function toggled<T>(values: readonly T[], value: T, checked: boolean): T[] {
 
 function chipTriggerClass(active: boolean): string {
   return cn(
-    "flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs max-md:pointer-coarse:h-8",
+    "flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs",
     active
       ? "border-border bg-secondary text-foreground"
       : "border-dashed border-border text-muted-foreground hover:border-input hover:text-foreground",
@@ -273,7 +273,7 @@ export function ListFilterBar({
           <button
             type="button"
             onClick={() => onChange(EMPTY_FILTERS)}
-            className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2.5 text-xs text-muted-foreground hover:border-input hover:text-foreground max-md:pointer-coarse:h-8"
+            className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2.5 text-xs text-muted-foreground hover:border-input hover:text-foreground"
           >
             <Icon name="X" className="size-3" />
             Clear

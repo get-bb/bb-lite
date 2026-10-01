@@ -35,7 +35,7 @@ const SIDEBAR_MOBILE_SHELF_BACKDROP_SETTLE_TRANSITION = `opacity ${SIDEBAR_MOBIL
 const SIDEBAR_MOBILE_WHEEL_SWIPE_OPEN_DISTANCE_PX = 90;
 const SIDEBAR_MOBILE_WHEEL_SWIPE_RESET_MS = 250;
 const SIDEBAR_MOBILE_SHELF_INSET_TRANSITION_CLASS =
-  "max-md:[transition:translate_220ms_cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none!";
+  "motion-reduce:transition-none!";
 const SIDEBAR_MOBILE_BACKDROP_TRANSITION_CLASS =
   "[transition:opacity_220ms_cubic-bezier(0.32,0.72,0,1),translate_220ms_cubic-bezier(0.32,0.72,0,1)]";
 
@@ -611,7 +611,7 @@ const SidebarProvider = React.forwardRef<
                 } as React.CSSProperties
               }
               className={cn(
-                "group/sidebar-wrapper flex h-full min-h-0 w-full max-md:overflow-clip",
+                "group/sidebar-wrapper flex h-full min-h-0 w-full",
                 className,
               )}
               ref={ref}
@@ -1584,7 +1584,7 @@ const SidebarInset = React.forwardRef<
           : undefined
       }
       className={cn(
-        "relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background max-md:z-30",
+        "relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background",
         SIDEBAR_MOBILE_SHELF_INSET_TRANSITION_CLASS,
         "data-[sidebar-shelf=open]:translate-x-(--sidebar-width-mobile) data-[sidebar-shelf]:will-change-[translate]",
         "data-[panel-shelf=full]:-translate-x-full data-[panel-shelf]:will-change-[translate]",

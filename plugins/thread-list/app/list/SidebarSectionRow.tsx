@@ -184,7 +184,7 @@ function SidebarSectionRowComponent({
           data-sidebar-collapsed-activity-edge=""
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
           className={cn(
-            "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center text-subtle-foreground max-md:pointer-coarse:hidden",
+            "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center text-subtle-foreground",
             hasActions && SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
           )}
         >
@@ -201,7 +201,7 @@ function SidebarSectionRowComponent({
         )}
       >
         {hasActions && showRollupIndicator ? (
-          <span className="hidden shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:inline-flex">
+          <span className="hidden shrink-0 items-center justify-center text-subtle-foreground">
             {renderRollupIndicator()}
           </span>
         ) : null}
@@ -215,7 +215,7 @@ function SidebarSectionRowComponent({
               SIDEBAR_HOVER_ACTIONS_CLASS,
               "relative z-10 inline-flex shrink-0 items-center",
               SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
-              isCollapsed && "max-md:pointer-coarse:hidden",
+              isCollapsed && "",
             )}
             onClick={stopActionsClick}
           >
@@ -233,7 +233,7 @@ function SidebarSectionRowComponent({
             </SidebarHeaderControls>
           </span>
         ) : showRollupIndicator ? (
-          <span className="hidden size-full items-center justify-center text-subtle-foreground max-md:pointer-coarse:inline-flex">
+          <span className="hidden size-full items-center justify-center text-subtle-foreground">
             {renderRollupIndicator()}
           </span>
         ) : null}

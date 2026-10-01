@@ -99,7 +99,7 @@ export function ThreadStorageBrowser({
   return (
     <div className="flex h-full min-h-0 flex-col gap-1">
       {isSearchOpen ? (
-        <div className="flex h-7 shrink-0 items-center gap-2 max-md:pointer-coarse:h-10">
+        <div className="flex h-7 shrink-0 items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Icon
               name="Search"
@@ -112,7 +112,7 @@ export function ThreadStorageBrowser({
               ref={searchInputRef}
               aria-label="Search files"
               className={cn(
-                "h-7 pl-7 pr-2 focus-visible:ring-0 max-md:pointer-coarse:h-10",
+                "h-7 pl-7 pr-2 focus-visible:ring-0",
                 COARSE_POINTER_TEXT_SM_CLASS,
               )}
               placeholder="Search files"
