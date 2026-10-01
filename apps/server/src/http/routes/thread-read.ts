@@ -4,44 +4,17 @@ import {
   takeVisiblePromptHistoryEntries,
   threadEventTypeSchema,
   type PromptHistoryEntry,
-  type ThreadEventType,
 } from "@bb/domain";
 import {
   publicApiRoutes,
   THREAD_COUNT_ROOT_PARENT,
   THREAD_EVENT_LIST_PAGE_SIZE,
-  type ThreadSearchResponse,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
-import {
-  lastOutput,
-  listEvents,
-  toThreadEventRow,
-} from "../../db/event-read.js";
+import * as events from "../../db/event-read.js";
 import { getAppSettings } from "../../db/settings.js";
-import {
-  countThreads,
-  findEnvironment,
-  findHost,
-  findInteraction,
-  findPublicThread,
-  getProjectExecutionDefaults,
-  hasThreadAttention,
-  listOpenInteractions,
-  listPromptHistoryEntries,
-  listQueuedMessages,
-  listSidebarProjects,
-  listSidebarThreadRows,
-  listThreadMentionRows,
-  listThreadRows,
-  listThreadRowsByIds,
-  listThreadSections,
-  recordExists,
-  threadChildSummary,
-  type SidebarProject,
-  type ThreadListRow,
-} from "../../db/thread-read.js";
+import * as store from "../../db/thread-read.js";
 import {
   SEARCH_LIMIT_PER_GROUP_DEFAULT,
   SEARCH_LIMIT_PER_GROUP_MAX,
@@ -53,7 +26,6 @@ import {
   threadDefaultExecution,
   toThreadListEntries,
   toThreadResponse,
-  type ThreadDisplayDeps,
 } from "../../threads/thread-display.js";
 import type { TimelinePage } from "../../threads/timeline-pages.js";
 import {
@@ -71,29 +43,15 @@ function integer(value: string | undefined): number | undefined {
   return value === undefined ? undefined : Number(value);
 }
 
-function flag(value: "true" | "false" | undefined): boolean | undefined {
-  return value === undefined ? undefined : value === "true";
-}
-
 function positive(value: string | undefined, name: string, fallback: number) {
   const parsed = integer(value) ?? fallback;
   if (parsed <= 0) throw invalidRequest(`${name} must be positive`);
   return parsed;
 }
 
-function threadNotFound(): ApiError {
-  return new ApiError(404, "thread_not_found", "Thread not found");
-}
-
-function mentionLabel(thread: {
-  id: string;
-  title: string | null;
-  titleFallback: string | null;
-}): string {
-  const named = [thread.title, thread.titleFallback].find(
-    (name) => name !== null && name.trim().length > 0,
-  );
-  return named ?? `Thread ${thread.id.slice(0, 8)}`;
+function bounded(value: number, name: string, max: number): number {
+  if (value <= max) return value;
+  throw invalidRequest(`${name} must be less than or equal to ${max}`);
 }
 
 export function registerThreadReadRoutes(
@@ -103,10 +61,9 @@ export function registerThreadReadRoutes(
   const { get, post } = typedApi(app);
   const { db } = ctx;
   const { threads, projects, system } = publicApiRoutes;
-  const display: ThreadDisplayDeps = {
-    db,
-    isHostConnected: (hostId) => ctx.runners.isConnected(hostId),
-  };
+  const isHostConnected = (hostId: string): boolean =>
+    ctx.runners.isConnected(hostId);
+  const display = { db, isHostConnected };
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
@@ -125,24 +82,25 @@ export function registerThreadReadRoutes(
         if (waiters.size === 0) eventWaiters.delete(threadId);
         resolve();
       };
-      const timer = setTimeout(wake, timeoutMs);
-      timer.unref();
+      const timer = setTimeout(wake, timeoutMs).unref();
       waiters.add(wake);
     });
   }
 
-  function requireThread(threadId: string): ThreadListRow {
-    const thread = findPublicThread(db, threadId);
-    if (thread === undefined) throw threadNotFound();
-    return thread;
+  function requireThread(c: { req: { param(name: "id"): string } }) {
+    const thread = store.findPublicThread(db, c.req.param("id"));
+    if (thread !== undefined) return thread;
+    throw new ApiError(404, "thread_not_found", "Thread not found");
   }
 
-  function requireProject(projectId: string): void {
-    if (recordExists(db, "projects", projectId)) return;
-    throw new ApiError(404, "project_not_found", "Project not found");
+  function requireProject(projectId: string | undefined): void {
+    const missing =
+      projectId !== undefined && !store.recordExists(db, "projects", projectId);
+    if (missing)
+      throw new ApiError(404, "project_not_found", "Project not found");
   }
 
-  function timelineDisplay(thread: ThreadListRow): TimelineDisplay {
+  function timelineDisplay(thread: store.ThreadListRow): TimelineDisplay {
     const settings = getAppSettings(db);
     const provider = providerDisplay(thread.providerId, settings);
     return {
@@ -155,7 +113,7 @@ export function registerThreadReadRoutes(
 
   function searchGroup(group: ThreadSearchGroup) {
     const threadIds = group.hits.map((hit) => hit.threadId);
-    const rows = listThreadRowsByIds(db, threadIds);
+    const rows = store.listThreadRowsByIds(db, threadIds);
     const entries = toThreadListEntries(display, rows);
     const results = group.hits.flatMap(({ threadId, matches }) => {
       const thread = entries.find((entry) => entry.id === threadId);
@@ -172,7 +130,7 @@ export function registerThreadReadRoutes(
     const max = PROMPT_HISTORY_ENTRY_LIMIT;
     const wanted = Math.min(positive(limit, "limit", max), max);
     const rowLimit = Math.min(max * 2, wanted + max);
-    const accepted = listPromptHistoryEntries(db, scope, rowLimit);
+    const accepted = store.listPromptHistoryEntries(db, scope, rowLimit);
     const entries = [...queued, ...accepted].sort(
       (left, right) => right.createdAt - left.createdAt,
     );
@@ -180,22 +138,22 @@ export function registerThreadReadRoutes(
   }
 
   get(projects.sidebarBootstrap, (c) => {
-    const sidebar = listSidebarProjects(db);
-    const entries = toThreadListEntries(display, listSidebarThreadRows(db));
-    const withThreads = (project: SidebarProject) => ({
+    const rows = store.listSidebarThreadRows(db);
+    const entries = toThreadListEntries(display, rows);
+    const listed = store.listSidebarProjects(db).map((project) => ({
       ...project,
       threads: entries.filter((thread) => thread.projectId === project.id),
-    });
-    return c.json({
-      sections: listThreadSections(db),
-      projects: sidebar.projects.map(withThreads),
-      personalProject: withThreads(sidebar.personalProject),
-    });
+    }));
+    const personalProject = listed.pop();
+    if (personalProject === undefined) throw notFound("No personal project");
+    const sections = store.listThreadSections(db);
+    return c.json({ sections, projects: listed, personalProject });
   });
 
   get(projects.defaultExecutionOptions, (c) => {
-    const defaults = getProjectExecutionDefaults(db, c.req.param("id"));
-    if (defaults === undefined) requireProject(c.req.param("id"));
+    const projectId = c.req.param("id");
+    const defaults = store.getProjectExecutionDefaults(db, projectId);
+    if (defaults === undefined) requireProject(projectId);
     return c.json(defaults ?? null);
   });
 
@@ -206,47 +164,30 @@ export function registerThreadReadRoutes(
   });
 
   get(system.attention, (c) =>
-    c.json({ hasAttention: hasThreadAttention(db) }),
+    c.json({ hasAttention: store.hasThreadAttention(db) }),
   );
 
   get(threads.list, (c, query = {}) => {
-    const { sectionId, projectId } = query;
-    const unsectioned = flag(query.unsectioned);
-    if (sectionId !== undefined && unsectioned === true) {
+    const { sectionId } = query;
+    if (sectionId !== undefined && query.unsectioned === "true") {
       throw invalidRequest("sectionId and unsectioned cannot be used together");
     }
-    if (projectId !== undefined) requireProject(projectId);
+    requireProject(query.projectId);
     const sectionMissing =
       sectionId !== undefined &&
-      !recordExists(db, "thread_sections", sectionId);
+      !store.recordExists(db, "thread_sections", sectionId);
     if (sectionMissing) {
       throw new ApiError(404, "section_not_found", "Section not found");
     }
-    const offset = integer(query.offset);
-    const limit =
-      query.limit === undefined ? undefined : positive(query.limit, "limit", 1);
-    const rows = listThreadRows(db, {
-      ...query,
-      unsectioned,
-      includeHidden: flag(query.includeHidden),
-      archived: flag(query.archived),
-      hasParent: flag(query.hasParent),
-      limit,
-      offset,
-    });
+    if (query.limit !== undefined) positive(query.limit, "limit", 1);
+    const rows = store.listThreadRows(db, query);
     return c.json(toThreadListEntries(display, rows));
   });
 
   get(threads.count, (c, query = {}) => {
-    const { parentThreadId: parent, projectId } = query;
-    if (projectId !== undefined) requireProject(projectId);
-    const counted = countThreads(db, {
-      ...query,
-      parentThreadId: parent === THREAD_COUNT_ROOT_PARENT ? null : parent,
-      includeArchived: flag(query.includeArchived) === true,
-      includeHidden: flag(query.includeHidden) === true,
-    });
-    return c.json(counted);
+    requireProject(query.projectId);
+    const rootsOnly = query.parentThreadId === THREAD_COUNT_ROOT_PARENT;
+    return c.json(store.countThreads(db, query, rootsOnly));
   });
 
   get(threads.search, (c, query) => {
@@ -256,38 +197,38 @@ export function registerThreadReadRoutes(
         "query must contain at least two non-whitespace characters",
       );
     }
-    const limit = positive(
-      query.limitPerGroup,
+    const limit = bounded(
+      positive(
+        query.limitPerGroup,
+        "limitPerGroup",
+        SEARCH_LIMIT_PER_GROUP_DEFAULT,
+      ),
       "limitPerGroup",
-      SEARCH_LIMIT_PER_GROUP_DEFAULT,
+      SEARCH_LIMIT_PER_GROUP_MAX,
     );
-    if (limit > SEARCH_LIMIT_PER_GROUP_MAX) {
-      throw invalidRequest(
-        `limitPerGroup must be at most ${SEARCH_LIMIT_PER_GROUP_MAX}`,
-      );
-    }
     const found = searchThreads(db, text, limit);
-    const response: ThreadSearchResponse = {
-      active: searchGroup(found.active),
-      archived: searchGroup(found.archived),
-    };
-    return c.json(response);
+    const active = searchGroup(found.active);
+    return c.json({ active, archived: searchGroup(found.archived) });
   });
 
   post(threads.resolveMentions, (c, payload) => {
     const threadIds = [...new Set(payload.threadIds)];
-    const rows = listThreadMentionRows(db, threadIds);
+    const rows = store.listThreadMentionRows(db, threadIds);
     const resolved = threadIds.flatMap((threadId) => {
       const thread = rows.find((row) => row.id === threadId);
       if (thread === undefined) return [];
-      const { projectId } = thread;
-      return [{ threadId, projectId, label: mentionLabel(thread) }];
+      const { projectId, title, titleFallback } = thread;
+      const named = [title, titleFallback].find(
+        (name) => name !== null && name.trim().length > 0,
+      );
+      const label = named ?? `Thread ${threadId.slice(0, 8)}`;
+      return [{ threadId, projectId, label }];
     });
     return c.json(resolved);
   });
 
   get(threads.get, (c, query) => {
-    const thread = requireThread(c.req.param("id"));
+    const thread = requireThread(c);
     const includes = new Set(query?.include?.split(","));
     const response: ThreadWithIncludesResponse = toThreadResponse(
       display,
@@ -297,11 +238,11 @@ export function registerThreadReadRoutes(
     const environment =
       includes.size === 0 || environmentId === null
         ? null
-        : (findEnvironment(db, environmentId) ?? null);
+        : (store.findEnvironment(db, environmentId) ?? null);
     if (includes.has("environment")) response.environment = environment;
     if (includes.has("host")) {
       const hostId = environment?.hostId ?? "";
-      const found = findHost(db, hostId, ctx.runners.isConnected(hostId));
+      const found = store.findHost(db, hostId, isHostConnected(hostId));
       response.host =
         found === undefined || found.destroyed ? null : found.host;
       response.environmentHostName = found?.host.name ?? null;
@@ -310,19 +251,18 @@ export function registerThreadReadRoutes(
   });
 
   get(threads.childSummary, (c) =>
-    c.json(threadChildSummary(db, requireThread(c.req.param("id")).id)),
+    c.json(store.threadChildSummary(db, requireThread(c).id)),
   );
 
   get(threads.timeline, (c, query = {}) => {
-    const thread = requireThread(c.req.param("id"));
-    const segmentLimit = integer(query.segmentLimit) ?? DEFAULT_SEGMENT_LIMIT;
+    const thread = requireThread(c);
+    const segmentLimit = bounded(
+      integer(query.segmentLimit) ?? DEFAULT_SEGMENT_LIMIT,
+      "segmentLimit",
+      MAX_SEGMENT_LIMIT,
+    );
     if (segmentLimit <= 0) {
       throw invalidRequest("segmentLimit must be a positive integer");
-    }
-    if (segmentLimit > MAX_SEGMENT_LIMIT) {
-      throw invalidRequest(
-        `segmentLimit must be less than or equal to ${MAX_SEGMENT_LIMIT}`,
-      );
     }
     const { beforeAnchorSeq, beforeAnchorId: anchorId } = query;
     const page: TimelinePage =
@@ -345,7 +285,7 @@ export function registerThreadReadRoutes(
   });
 
   get(threads.timelineTurnSummaryDetails, (c, query) => {
-    const thread = requireThread(c.req.param("id"));
+    const thread = requireThread(c);
     const details = timelines.turnDetails(thread, {
       ...timelineDisplay(thread),
       turnId: query.turnId,
@@ -357,76 +297,68 @@ export function registerThreadReadRoutes(
   });
 
   get(threads.conversationOutline, (c) => {
-    const thread = requireThread(c.req.param("id"));
+    const thread = requireThread(c);
     return c.json(timelines.outline(thread, timelineDisplay(thread)));
   });
 
-  get(threads.output, (c) => {
-    const thread = requireThread(c.req.param("id"));
-    return c.json({ output: lastOutput(db, thread.id) });
-  });
+  get(threads.output, (c) =>
+    c.json({ output: events.lastOutput(db, requireThread(c).id) }),
+  );
 
   get(threads.events, (c, query = {}) => {
-    const thread = requireThread(c.req.param("id"));
     const pageSize = THREAD_EVENT_LIST_PAGE_SIZE;
-    const types = query.types?.split(",") as ThreadEventType[] | undefined;
-    const rows = listEvents(db, {
-      threadId: thread.id,
-      afterSequence: integer(query.afterSeq),
-      beforeSequence: integer(query.beforeSeq),
+    const rows = events.listEvents(db, {
+      threadId: requireThread(c).id,
+      after: integer(query.afterSeq),
+      before: integer(query.beforeSeq),
       limit: Math.min(positive(query.limit, "limit", pageSize), pageSize),
       order: query.order,
-      types,
+      types: query.types?.split(","),
     });
-    return c.json(rows.map(toThreadEventRow));
+    return c.json(rows.map(events.toThreadEventRow));
   });
 
   get(threads.eventWait, async (c, query) => {
-    const threadId = requireThread(c.req.param("id")).id;
+    const threadId = requireThread(c).id;
     const type = threadEventTypeSchema.safeParse(query.type);
     if (!type.success) throw invalidRequest("Invalid event type");
-    const afterSequence = integer(query.afterSeq);
+    const types = [type.data];
+    const after = integer(query.afterSeq);
     const waitMs = integer(query.waitMs) ?? MAX_EVENT_WAIT_MS;
     const deadline = Date.now() + Math.min(waitMs, MAX_EVENT_WAIT_MS);
     for (;;) {
-      const types = [type.data];
-      const [match] = listEvents(db, {
-        threadId,
-        afterSequence,
-        types,
-        limit: 1,
-      });
-      if (match !== undefined) return c.json(toThreadEventRow(match));
+      const next = { threadId, after, types, limit: 1 };
+      const [match] = events.listEvents(db, next);
+      if (match !== undefined) return c.json(events.toThreadEventRow(match));
       const remaining = deadline - Date.now();
       if (remaining <= 0) return c.body(null, 204);
       await nextThreadChange(threadId, remaining);
     }
   });
 
-  get(threads.defaultExecutionOptions, (c) => {
-    const thread = requireThread(c.req.param("id"));
-    return c.json(threadDefaultExecution(db, thread, getAppSettings(db)));
-  });
+  get(threads.defaultExecutionOptions, (c) =>
+    c.json(threadDefaultExecution(db, requireThread(c), getAppSettings(db))),
+  );
 
   get(threads.queuedMessages, (c) =>
-    c.json(listQueuedMessages(db, requireThread(c.req.param("id")).id)),
+    c.json(store.listQueuedMessages(db, requireThread(c).id)),
   );
 
   get(threads.interactions, (c) =>
-    c.json(listOpenInteractions(db, requireThread(c.req.param("id")).id)),
+    c.json(store.listInteractions(db, requireThread(c).id)),
   );
 
   get(threads.interaction, (c) => {
-    const thread = requireThread(c.req.param("id"));
     const interactionId = c.req.param("interactionId");
-    const interaction = findInteraction(db, thread.id, interactionId);
-    if (interaction === undefined) throw notFound("Interaction not found");
-    return c.json(interaction);
+    const threadId = requireThread(c).id;
+    const [found] = store.listInteractions(db, threadId, interactionId);
+    if (found === undefined) throw notFound("Interaction not found");
+    return c.json(found);
   });
 
   get(threads.promptHistory, (c, query) => {
-    const threadId = requireThread(c.req.param("id")).id;
-    const queued = listQueuedMessages(db, threadId).map((message) => ({
+    const threadId = requireThread(c).id;
+    const queued = store.listQueuedMessages(db, threadId).map((message) => ({
       id: `queued-message:${message.id}`,
       createdAt: message.createdAt,
       input: message.content,

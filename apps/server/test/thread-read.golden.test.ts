@@ -62,9 +62,10 @@ function countRows(rows: Json): number {
 }
 
 function lastExecution(events: ThreadFixture["events"]): SeedRow {
-  const request = events.findLast(
+  const requests = events.filter(
     (event) => event.type === "client/turn/requested",
   );
+  const request = requests.at(-1);
   if (request === undefined) return {};
   const { execution } = JSON.parse(request.data) as {
     execution: Record<string, string>;

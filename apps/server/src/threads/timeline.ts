@@ -1,19 +1,16 @@
 import type {
   CompletedTurnDisplay,
   ProviderComposerCommand,
-  ThreadEventItemType,
   ThreadStatus,
 } from "@bb/domain";
 import {
   computeTimelineRowDelta,
   type ThreadConversationOutlineResponse,
   type ThreadTimelineResponse,
-  type TimelineRow,
   type TimelineTurnSummaryDetailsResponse,
 } from "@bb/server-contract";
 import {
   buildThreadTimelineFromEvents,
-  buildThreadTimelineTurnDetailsFromEvents,
   compactThreadTimelineSummaryEvents,
   isExternalUserBoundaryForTurn,
   type ExternalUserBoundaryTurnSpan,
@@ -22,37 +19,20 @@ import { z } from "zod";
 import {
   contextClearSequence,
   decodeEventWithMeta,
-  eventItem,
   firstParentedBoundary,
-  hasSequence,
   latestSequence,
-  listBackgroundTaskStates,
-  listChildEvents,
   listContextWindowUsageEvents,
-  listDelegatingItemEvents,
   listEvents,
-  listGoalStateEvents,
-  listItemEvents,
-  listItemSpans,
+  listHeadStateEvents,
+  listLatestItemStates,
   listOpenBackgroundTaskStates,
   listOrderingContext,
-  listOutlineEvents,
-  listRequestIdsInRange,
-  listRequestOutcomes,
-  listRootWindowTurnIds,
-  listTodoSnapshotEvents,
-  listTurnEvents,
-  listTurnRequestsByIds,
-  listTurnStarts,
-  listWindowEvents,
-  BUFFERED_TEXT_DELTA_TYPES,
+  listTurnIds,
   MAX_INLINE_OUTPUT_CHARS,
   mergeEventRows,
-  requestSequencesDescending,
-  scopedItemKey,
-  windowBudgetFloor,
-  type EventWindow,
-  type ScopedItem,
+  OUTLINE_EVENT,
+  ROOT_TURN_EVENT,
+  UNBOUNDED,
   type StoredEventRow,
 } from "../db/event-read.js";
 import type { Db } from "../db/index.js";
@@ -92,31 +72,17 @@ export interface TurnDetailsRequest extends TimelineDisplay {
   beforeCursor?: string;
 }
 
-interface EventSelection {
-  rows: StoredEventRow[];
-  headStateRows: StoredEventRow[];
-  contextOnlyInterruptions: ReadonlySet<number>;
-  orderingBoundary: number | null;
-  ownedSequenceStart: number;
-  ownedSequenceEnd: number;
-  knownHasOlderSegments: boolean | null;
-  paginationPage: TimelinePage;
-}
-
-interface SelectionArgs {
+interface Epoch {
+  db: Db;
   threadId: string;
-  page: TimelinePage;
-  eventBudget: number;
-  epochStart: number;
-  excludeDiagnostics: boolean;
+  start: number;
   maxSeq: number;
-  contentCursor: TimelineContentCursor | undefined;
+  excludeDiagnostics: boolean;
+  outputs: "inline" | "full";
 }
 
-interface ServedRows {
-  maxSeq: number;
-  rows: readonly TimelineRow[];
-}
+type Rows = readonly StoredEventRow[];
+type LoadedWindow = ReturnType<typeof loadWindow>;
 
 const MAX_EMPTY_WINDOWS = 8;
 const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
@@ -125,142 +91,107 @@ const SERVED_KEY_LIMIT = 64;
 const SERVED_RING_SIZE = 4;
 const OUTLINE_CACHE_LIMIT = 128;
 const OUTLINE_PREVIEW_CHARS = 200;
-const REQUEST_CONTEXT_TYPES = [
-  "client/turn/requested",
-  "client/turn/rejected",
-  "turn/input/accepted",
-  "turn/started",
-  "turn/completed",
-  "system/thread/interrupted",
-] as const;
-const CROSS_TURN_TOOL_KINDS: ReadonlySet<ThreadEventItemType> = new Set([
-  "commandExecution",
-  "toolCall",
-  "webSearch",
-  "webFetch",
-  "imageView",
-  "fileRead",
-  "search",
-  "planSteps",
-  "delegation",
-  "extension",
-]);
-const BUFFERED_TEXT_KINDS = new Set(["agentMessage", "plan", "reasoning"]);
+const REQUESTED = "client/turn/requested";
+const ACCEPTED = "turn/input/accepted";
+const REJECTED = "client/turn/rejected";
+const INTERRUPTED = "system/thread/interrupted";
+const TURN_BOUNDS = ["turn/started", "turn/completed"];
+const CONTEXT_TYPES = [
+  REQUESTED,
+  REJECTED,
+  ACCEPTED,
+  INTERRUPTED,
+  ...TURN_BOUNDS,
+];
+const ITEM_LIFECYCLE = ["item/started", "item/completed"];
 const requestRefSchema = z.object({
   requestId: z.string().optional(),
   clientRequestId: z.string().optional(),
 });
 
-function requestIdOf(row: StoredEventRow): string | null {
-  const ref = requestRefSchema.parse(JSON.parse(row.data));
-  return ref.clientRequestId ?? ref.requestId ?? null;
-}
-
-function requestIds(rows: readonly StoredEventRow[], ...types: string[]) {
-  return rows.flatMap((row) =>
-    types.includes(row.type) ? (requestIdOf(row) ?? []) : [],
-  );
+function requestIds(rows: Rows, ...types: string[]): string[] {
+  return rows.flatMap((row) => {
+    if (!types.includes(row.type)) return [];
+    const ref = requestRefSchema.parse(JSON.parse(row.data));
+    return ref.clientRequestId ?? ref.requestId ?? [];
+  });
 }
 
 function threadName(thread: ThreadListRow): string {
   return thread.title ?? thread.titleFallback ?? "";
 }
 
-function isDelegatingItem(row: StoredEventRow): boolean {
-  const delegating =
-    row.itemKind === "toolCall" || row.itemKind === "delegation";
-  return delegating && row.itemId !== null;
+function historyQuery(epoch: Epoch) {
+  const { threadId, start, maxSeq, excludeDiagnostics, outputs } = epoch;
+  const timeline = { excludeDiagnostics };
+  return { threadId, after: start - 1, before: maxSeq + 1, timeline, outputs };
 }
 
-function withParentedRows(
-  db: Db,
-  window: EventWindow,
-  input: readonly StoredEventRow[],
-): StoredEventRow[] {
+function delegatingItemId(row: StoredEventRow): string[] {
+  const delegating =
+    row.itemKind === "toolCall" || row.itemKind === "delegation";
+  return delegating && row.itemId !== null ? [row.itemId] : [];
+}
+
+function withParentedRows(epoch: Epoch, input: Rows): StoredEventRow[] {
+  const { db, threadId, outputs } = epoch;
   let rows = [...input];
   const known = new Set(rows.map((row) => row.id));
-  const toolCallIds = new Set(
-    rows.flatMap((row) => (isDelegatingItem(row) ? (row.itemId ?? []) : [])),
-  );
+  const toolCallIds = new Set(rows.flatMap(delegatingItemId));
   const fetched = new Set<string>();
   for (;;) {
-    const pending = [...toolCallIds].filter((id) => !fetched.has(id));
-    if (pending.length === 0) break;
-    for (const id of pending) fetched.add(id);
-    const children = listChildEvents(db, window, pending).filter(
-      (row) => !known.has(row.id),
-    );
-    for (const row of children) {
-      known.add(row.id);
-      if (isDelegatingItem(row) && row.itemId !== null) {
-        toolCallIds.add(row.itemId);
-      }
-    }
-    if (children.length > 0) rows = mergeEventRows([...rows, ...children]);
+    const parentToolCallIds = [...toolCallIds].filter((id) => !fetched.has(id));
+    if (parentToolCallIds.length === 0) break;
+    for (const id of parentToolCallIds) fetched.add(id);
+    const query = { ...historyQuery(epoch), parentToolCallIds };
+    const children = listEvents(db, query).filter((row) => !known.has(row.id));
+    for (const row of children) known.add(row.id);
+    for (const id of children.flatMap(delegatingItemId)) toolCallIds.add(id);
+    rows = mergeEventRows([...rows, ...children]);
   }
-  const missingParents = rows.flatMap((row) => {
+  const itemIds = rows.flatMap((row) => {
     const parent = row.parentToolCallId ?? "";
     return parent.length > 0 && !toolCallIds.has(parent) ? [parent] : [];
   });
-  const { threadId, fullOutputs } = window;
-  const parents = listDelegatingItemEvents(
-    db,
-    threadId,
-    missingParents,
-    fullOutputs,
-  ).filter((row) => !known.has(row.id));
-  return parents.length > 0 ? mergeEventRows([...parents, ...rows]) : rows;
+  const where = "item_kind IN ('toolCall', 'delegation')";
+  const types = ITEM_LIFECYCLE;
+  const parents = listEvents(db, { threadId, itemIds, types, where, outputs });
+  return mergeEventRows([...parents, ...rows]);
 }
 
-function withTurnStarts(
-  db: Db,
-  threadId: string,
-  rows: readonly StoredEventRow[],
-): StoredEventRow[] {
+function withTurnStarts(epoch: Epoch, rows: Rows): StoredEventRow[] {
   const started = new Set(
     rows.flatMap((row) => (row.type === "turn/started" ? [row.turnId] : [])),
   );
-  const missing = rows.flatMap((row) =>
+  const turnIds = rows.flatMap((row) =>
     row.turnId !== null && !started.has(row.turnId) ? [row.turnId] : [],
   );
   const cutoff = rows.reduce((max, row) => Math.max(max, row.sequence), 0);
-  const starts = listTurnStarts(db, threadId, missing, cutoff);
-  return starts.length === 0 ? [...rows] : mergeEventRows([...starts, ...rows]);
+  const { db, threadId } = epoch;
+  const types = ["turn/started"];
+  const query = { threadId, turnIds, types, before: cutoff + 1 };
+  return mergeEventRows([...listEvents(db, query), ...rows]);
 }
 
-function withBackgroundTaskStates(
-  db: Db,
-  threadId: string,
-  rows: readonly StoredEventRow[],
-  beforeSequence: number,
-): StoredEventRow[] {
+function withBackgroundTaskStates(epoch: Epoch, rows: Rows): StoredEventRow[] {
   const itemIds = rows.flatMap((row) => {
     const tracked =
       row.itemKind === "backgroundTask" || row.itemKind === "delegation";
     return tracked && row.itemId !== null ? [row.itemId] : [];
   });
-  const states = listBackgroundTaskStates(
-    db,
-    threadId,
-    itemIds,
-    beforeSequence,
-  );
-  return states.length === 0 ? [...rows] : mergeEventRows([...rows, ...states]);
+  const { db, threadId, maxSeq } = epoch;
+  const states = listLatestItemStates(db, threadId, itemIds, maxSeq + 1);
+  return mergeEventRows([...rows, ...states]);
 }
 
-function groupingContext(
-  db: Db,
-  threadId: string,
-  sequenceStart: number,
-  maxSeq: number,
-) {
-  const context = listOrderingContext(db, threadId, sequenceStart, maxSeq);
+function groupingContext({ db, threadId, start, maxSeq }: Epoch) {
+  const context = listOrderingContext(db, threadId, start, maxSeq);
   const spans = new Map<string, ExternalUserBoundaryTurnSpan>();
   const accepted = new Map<string, { sequence: number; turnId: string }>();
   for (const row of context) {
     const { turnId, sequence } = row;
     if (turnId === null) continue;
-    if (row.type === "turn/input/accepted" && row.clientRequestId !== null) {
+    if (row.type === ACCEPTED && row.clientRequestId !== null) {
       accepted.set(row.clientRequestId, { sequence, turnId });
     }
     const rootStart =
@@ -279,7 +210,7 @@ function groupingContext(
     }
   }
   const requests = context.filter(
-    (row) => row.type === "client/turn/requested" && row.requestId !== null,
+    (row) => row.type === REQUESTED && row.requestId !== null,
   );
   for (const row of requests) {
     const span = spans.get(accepted.get(row.requestId ?? "")?.turnId ?? "");
@@ -287,8 +218,7 @@ function groupingContext(
       span.sequenceStart = Math.min(span.sequenceStart, row.sequence);
     }
   }
-  let boundary =
-    firstParentedBoundary(db, threadId, sequenceStart, maxSeq) ?? Infinity;
+  let boundary = firstParentedBoundary(db, threadId, start, maxSeq) ?? Infinity;
   const ordered = [...spans.values()].sort(
     (left, right) => left.sequenceStart - right.sequenceStart,
   );
@@ -336,6 +266,103 @@ function groupingContext(
   };
 }
 
+function loadWindow(
+  epoch: Epoch,
+  after: number,
+  before: number,
+  latest: boolean,
+) {
+  const { db, threadId, maxSeq } = epoch;
+  const history = historyQuery(epoch);
+  const window = { ...history, after, before };
+  const grouping = groupingContext(epoch);
+  const known = (row: StoredEventRow): boolean => row.sequence <= maxSeq;
+  let rows = listEvents(db, { ...window, where: "turn_id IS NULL" });
+  const initialTurnIds = [
+    ...listTurnIds(db, { ...window, where: ROOT_TURN_EVENT }),
+    ...requestIds(rows, REQUESTED).flatMap(
+      (requestId) => grouping.acceptedTurnIds.get(requestId) ?? [],
+    ),
+  ];
+  const fetched = new Set<string>();
+  for (;;) {
+    const turnIds = [
+      ...new Set([
+        ...initialTurnIds,
+        ...rows.flatMap((row) => row.turnId ?? []),
+      ]),
+    ].filter((turnId) => !fetched.has(turnId));
+    if (turnIds.length === 0) break;
+    for (const turnId of turnIds) fetched.add(turnId);
+    const turnRows = listEvents(db, { ...history, turnIds });
+    const merged = mergeEventRows([...rows, ...turnRows]);
+    rows = withParentedRows(epoch, merged).filter(known);
+  }
+  rows = withBackgroundTaskStates(epoch, rows).filter(known);
+  if (latest) {
+    const open = listOpenBackgroundTaskStates(db, threadId);
+    rows = mergeEventRows([...rows, ...open]).filter(known);
+  }
+  const contextStart = rows.reduce(
+    (start, row) => Math.min(start, row.sequence),
+    after + 1,
+  );
+  const contextEnd = rows.reduce(
+    (end, row) => Math.max(end, row.sequence),
+    before - 1,
+  );
+  const sinceContext = { threadId, after: contextStart - 1 };
+  const contextRows = listEvents(db, {
+    ...sinceContext,
+    before: contextEnd + 1,
+    types: CONTEXT_TYPES,
+  });
+  const visible = [...contextRows, ...rows];
+  const requested = new Set(requestIds(visible, REQUESTED));
+  const requestRows = listEvents(db, {
+    threadId,
+    types: [REQUESTED],
+    requestIds: requestIds(rows, ACCEPTED).filter((id) => !requested.has(id)),
+  }).filter(known);
+  const requestContext = [...contextRows, ...requestRows, ...rows];
+  const settled = new Set(requestIds(requestContext, ACCEPTED, REJECTED));
+  const outcomes = listEvents(db, {
+    ...sinceContext,
+    types: [ACCEPTED, REJECTED],
+    requestIds: requestIds(requestContext, REQUESTED).filter(
+      (id) => !settled.has(id),
+    ),
+  }).filter(known);
+  const { timeline: _filters, outputs: _outputs, ...wholeEpoch } = history;
+  const interruptions = listEvents(db, { ...wholeEpoch, types: [INTERRUPTED] });
+  const visibleSequences = new Set(visible.map((row) => row.sequence));
+  const unseen = (row: StoredEventRow): boolean =>
+    known(row) && !visibleSequences.has(row.sequence);
+  const headState = latest
+    ? [
+        ...listHeadStateEvents(db, [threadId], "goal"),
+        ...listHeadStateEvents(db, [threadId], "todos"),
+      ]
+    : [];
+  return {
+    headStateRows: mergeEventRows(headState).filter(unseen),
+    contextOnlyInterruptions: new Set(
+      interruptions.filter(unseen).map((row) => row.sequence),
+    ),
+    orderingBoundary: grouping.orderingBoundary,
+    rows: withTurnStarts(
+      epoch,
+      mergeEventRows([
+        ...interruptions,
+        ...outcomes,
+        ...contextRows,
+        ...requestRows,
+        ...rows,
+      ]),
+    ),
+  };
+}
+
 function windowStart(
   hints: readonly number[],
   budgetFloor: number | undefined,
@@ -352,184 +379,117 @@ function windowStart(
   return last ?? hints[0] ?? budgetFloor ?? epochStart;
 }
 
-function selectTimelineEvents(db: Db, args: SelectionArgs): EventSelection {
-  const { threadId, page, epochStart, maxSeq, contentCursor } = args;
-  const { excludeDiagnostics } = args;
+function selectPage(
+  epoch: Epoch,
+  page: TimelinePage,
+  eventBudget: number,
+  contentCursor: TimelineContentCursor | undefined,
+) {
+  const { db, threadId, start, maxSeq, excludeDiagnostics } = epoch;
   const older = page.kind === "older" ? page.beforeCursor.anchorSeq : null;
-  const beforeSequence = contentCursor?.beforeSequence ?? older ?? maxSeq + 1;
-  const epoch = { threadId, sequenceStart: epochStart, excludeDiagnostics };
-  const hints = requestSequencesDescending(
-    db,
-    { ...epoch, beforeSequence },
-    page.segmentLimit + 1,
-  );
+  const before = contentCursor?.beforeSequence ?? older ?? maxSeq + 1;
+  const since = { threadId, after: start - 1 };
+  const types = [REQUESTED];
+  const limit = page.segmentLimit + 1;
+  const hintQuery = { ...since, before, types, order: "desc" as const, limit };
+  const hints = listEvents(db, hintQuery).map((row) => row.sequence);
+  const anchor = {
+    threadId,
+    after: (older ?? 0) - 1,
+    before: (older ?? 0) + 1,
+  };
   const anchorGone =
-    older !== null && older !== epochStart && !hasSequence(db, threadId, older);
+    older !== null && older !== start && listEvents(db, anchor).length === 0;
   if (anchorGone) {
     throw invalidRequest("Timeline pagination cursor is no longer available");
   }
-  const floor = windowBudgetFloor(
-    db,
-    { ...epoch, beforeSequence },
-    args.eventBudget,
-  );
+  const budgetFloor = (end: number, offset: number): number | undefined => {
+    const timeline = { excludeDiagnostics, horizon: UNBOUNDED };
+    const tail = { order: "desc" as const, limit: 1, offset };
+    return listEvents(db, { ...since, before: end, timeline, ...tail })[0]
+      ?.sequence;
+  };
+  const floor = budgetFloor(before, eventBudget);
   const sequenceStart =
     contentCursor !== undefined && older !== null
       ? older
-      : windowStart(hints, floor, page.segmentLimit, epochStart);
+      : windowStart(hints, floor, page.segmentLimit, start);
   const hasOlder =
-    sequenceStart > epochStart &&
-    windowBudgetFloor(db, { ...epoch, beforeSequence: sequenceStart }, 0) !==
-      undefined;
-  const window = { ...epoch, sequenceStart, beforeSequence };
-  const history = { ...epoch, beforeSequence: maxSeq + 1 };
-  const grouping = groupingContext(db, threadId, epochStart, maxSeq);
-  let rows = listWindowEvents(db, window, "thread-scoped");
-  const initialTurnIds = [
-    ...listRootWindowTurnIds(db, window),
-    ...requestIds(rows, "client/turn/requested").flatMap(
-      (requestId) => grouping.acceptedTurnIds.get(requestId) ?? [],
-    ),
-  ];
-  const known = (row: StoredEventRow): boolean => row.sequence <= maxSeq;
-  const fetched = new Set<string>();
-  for (;;) {
-    const turnIds = [
-      ...new Set([
-        ...initialTurnIds,
-        ...rows.flatMap((row) => row.turnId ?? []),
-      ]),
-    ].filter((turnId) => !fetched.has(turnId));
-    if (turnIds.length === 0) break;
-    for (const turnId of turnIds) fetched.add(turnId);
-    const turnRows = listTurnEvents(db, history, turnIds);
-    rows = withParentedRows(
-      db,
-      history,
-      mergeEventRows([...rows, ...turnRows]),
-    ).filter(known);
-  }
-  rows = withBackgroundTaskStates(db, threadId, rows, maxSeq + 1);
-  if (page.kind === "latest") {
-    const open = listOpenBackgroundTaskStates(db, threadId);
-    rows = mergeEventRows([...rows.filter(known), ...open]);
-  }
-  rows = rows.filter(known);
-  const contextStart = rows.reduce(
-    (start, row) => Math.min(start, row.sequence),
-    sequenceStart,
-  );
-  const contextEnd = rows.reduce(
-    (end, row) => Math.max(end, row.sequence),
-    beforeSequence - 1,
-  );
-  const contextRows = listEvents(db, {
-    threadId,
-    afterSequence: contextStart - 1,
-    beforeSequence: contextEnd + 1,
-    types: REQUEST_CONTEXT_TYPES,
-  });
-  const visible = [...contextRows, ...rows];
-  const requested = new Set(requestIds(visible, "client/turn/requested"));
-  const requestRows = listTurnRequestsByIds(
-    db,
-    threadId,
-    requestIds(rows, "turn/input/accepted").filter((id) => !requested.has(id)),
-  ).filter(known);
-  const requestContext = [...contextRows, ...requestRows, ...rows];
-  const settled = new Set(
-    requestIds(requestContext, "turn/input/accepted", "client/turn/rejected"),
-  );
-  const outcomes = listRequestOutcomes(
-    db,
-    threadId,
-    requestIds(requestContext, "client/turn/requested").filter(
-      (id) => !settled.has(id),
-    ),
-    contextStart - 1,
-  ).filter(known);
-  const interruptions = listEvents(db, {
-    threadId,
-    afterSequence: epochStart - 1,
-    beforeSequence: maxSeq + 1,
-    types: ["system/thread/interrupted"],
-  });
-  const visibleSequences = new Set(visible.map((row) => row.sequence));
-  const unseen = (row: StoredEventRow): boolean =>
-    known(row) && !visibleSequences.has(row.sequence);
-  const headState =
-    page.kind === "latest"
-      ? [
-          ...listGoalStateEvents(db, [threadId]),
-          ...listTodoSnapshotEvents(db, threadId),
-        ]
-      : [];
+    sequenceStart > start && budgetFloor(sequenceStart, 0) !== undefined;
   return {
-    headStateRows: mergeEventRows(headState).filter(unseen),
-    contextOnlyInterruptions: new Set(
-      interruptions.filter(unseen).map((row) => row.sequence),
-    ),
-    orderingBoundary: grouping.orderingBoundary,
+    ...loadWindow(epoch, sequenceStart - 1, before, page.kind === "latest"),
     ownedSequenceStart: sequenceStart,
-    ownedSequenceEnd: beforeSequence,
+    ownedSequenceEnd: before,
     knownHasOlderSegments: hasOlder ? true : null,
-    paginationPage:
-      contentCursor === undefined ? page : { ...page, segmentLimit: 1 },
-    rows: withTurnStarts(
-      db,
-      threadId,
-      mergeEventRows([
-        ...interruptions,
-        ...outcomes,
-        ...contextRows,
-        ...requestRows,
-        ...rows,
-      ]),
-    ),
+    page: contentCursor === undefined ? page : { ...page, segmentLimit: 1 },
   };
 }
 
-function orderAfterBoundary(
-  rows: readonly TimelineRow[],
-  boundary: number | null,
-): TimelineRow[] {
-  const index =
-    boundary === null
-      ? -1
-      : rows.findIndex((row) => row.sourceSeqStart >= boundary);
-  if (index < 0) return [...rows];
+function resolveSnapshot(
+  db: Db,
+  thread: ThreadListRow,
+  surface: string,
+  cursor: { anchorSeq: number; anchorId: string } | undefined,
+): { snapshot: TimelineSnapshot; content?: TimelineContentCursor } {
+  if (cursor !== undefined)
+    return snapshotFromCursor(cursor, thread.id, surface);
+  const { id: threadId, status } = thread;
+  const maxSeq = latestSequence(db, threadId);
+  return { snapshot: { version: 3, threadId, maxSeq, status, surface } };
+}
+
+function projectWindow(
+  thread: ThreadListRow,
+  display: TimelineDisplay,
+  threadStatus: ThreadStatus,
+  loaded: { rows: Rows } & Partial<Omit<LoadedWindow, "rows">>,
+  shape: { includeNestedRows: boolean; isLatestPage: boolean; epoch?: Epoch },
+) {
+  const { epoch, ...shown } = shape;
+  const usage =
+    epoch === undefined
+      ? []
+      : listContextWindowUsageEvents(epoch.db, thread.id, epoch.start);
+  const timeline = buildThreadTimelineFromEvents({
+    acceptedClientRequestContext: {
+      acceptedClientRequestEvents: [],
+      rejectedClientRequestEvents: [],
+    },
+    contextWindowEvents: usage.map(decodeEventWithMeta),
+    headStateEvents: loaded.headStateRows?.map(decodeEventWithMeta),
+    events: compactThreadTimelineSummaryEvents(
+      loaded.rows.map(decodeEventWithMeta),
+    ),
+    options: {
+      ...display,
+      ...shown,
+      threadStatus,
+      threadName: threadName(thread),
+      workspaceRoot: thread.environmentPath,
+      providerId: thread.providerId,
+    },
+  });
+  const rows = timeline.rows.filter(
+    (row) =>
+      !(
+        row.kind === "system" &&
+        row.systemKind === "operation" &&
+        row.operationKind === "thread-interrupted" &&
+        loaded.contextOnlyInterruptions?.has(row.sourceSeqStart)
+      ),
+  );
+  const boundary = loaded.orderingBoundary ?? Infinity;
+  const index = rows.findIndex((row) => row.sourceSeqStart >= boundary);
   const tail = rows
-    .slice(index)
+    .slice(index < 0 ? rows.length : index)
     .sort(
       (left, right) =>
         left.sourceSeqStart - right.sourceSeqStart ||
         left.sourceSeqEnd - right.sourceSeqEnd,
     );
-  return [...rows.slice(0, index), ...tail];
-}
-
-function latestSnapshot(
-  db: Db,
-  thread: ThreadListRow,
-  surface: string,
-): TimelineSnapshot {
-  const { id: threadId, status } = thread;
-  const maxSeq = latestSequence(db, threadId);
-  return { version: 3, threadId, maxSeq, status, surface };
-}
-
-function projectionOptions(
-  thread: ThreadListRow,
-  display: TimelineDisplay,
-  threadStatus: ThreadStatus,
-) {
   return {
-    completedTurnDisplay: display.completedTurnDisplay,
-    includeDiagnosticOperations: display.includeDiagnosticOperations,
-    providerDisplayName: display.providerDisplayName,
-    threadStatus,
-    threadName: threadName(thread),
-    workspaceRoot: thread.environmentPath,
+    ...timeline,
+    rows: [...rows.slice(0, rows.length - tail.length), ...tail],
   };
 }
 
@@ -548,66 +508,29 @@ function buildTimelinePage(
     thread.environmentPath,
     completedTurnDisplay,
   ]);
-  const cursor =
-    page.kind === "latest"
-      ? { snapshot: latestSnapshot(db, thread, surface), content: undefined }
-      : snapshotFromCursor(page.beforeCursor, thread.id, surface);
-  const { snapshot, content: contentCursor } = cursor;
-  const { maxSeq } = snapshot;
-  const contextBoundarySeq = contextClearSequence(db, thread.id, maxSeq);
-  const epochStart = contextBoundarySeq ?? 0;
-  const selection = selectTimelineEvents(db, {
-    threadId: thread.id,
-    page,
-    eventBudget: request.eventBudget,
-    epochStart,
-    excludeDiagnostics: !request.includeDiagnosticOperations,
-    maxSeq,
-    contentCursor,
-  });
   const latest = page.kind === "latest";
-  const timeline = buildThreadTimelineFromEvents({
-    acceptedClientRequestContext: {
-      acceptedClientRequestEvents: [],
-      rejectedClientRequestEvents: [],
-    },
-    contextWindowEvents: listContextWindowUsageEvents(
-      db,
-      thread.id,
-      epochStart,
-    ).map(decodeEventWithMeta),
-    headStateEvents: selection.headStateRows.map(decodeEventWithMeta),
-    events: compactThreadTimelineSummaryEvents(
-      selection.rows.map(decodeEventWithMeta),
-    ),
-    options: {
-      ...projectionOptions(thread, request, snapshot.status),
-      includeNestedRows,
-      isLatestPage: latest,
-      planCommand: request.planCommand,
-      providerId: thread.providerId,
-    },
-  });
-  const projected = timeline.rows.filter(
-    (row) =>
-      !(
-        row.kind === "system" &&
-        row.systemKind === "operation" &&
-        row.operationKind === "thread-interrupted" &&
-        selection.contextOnlyInterruptions.has(row.sourceSeqStart)
-      ),
-  );
+  const cursor = latest ? undefined : page.beforeCursor;
+  const resolved = resolveSnapshot(db, thread, surface, cursor);
+  const { snapshot, content: contentCursor } = resolved;
+  const { maxSeq, threadId } = snapshot;
+  const contextBoundarySeq = contextClearSequence(db, threadId, maxSeq);
+  const start = contextBoundarySeq ?? 0;
+  const excludeDiagnostics = !request.includeDiagnosticOperations;
+  const outputs = "inline" as const;
+  const epoch = { db, threadId, start, maxSeq, excludeDiagnostics, outputs };
+  const selection = selectPage(epoch, page, request.eventBudget, contentCursor);
+  const shape = { includeNestedRows, isLatestPage: latest, epoch };
+  const { status } = snapshot;
+  const timeline = projectWindow(thread, request, status, selection, shape);
   const paginated = paginateTimeline({
+    ...selection,
     contentCursor,
     maxLeaves: Math.max(1, request.eventBudget),
     maxBytes: RESPONSE_BYTE_LIMIT,
-    ownedSequenceStart: selection.ownedSequenceStart,
-    ownedSequenceEnd: selection.ownedSequenceEnd,
-    knownHasOlderSegments: selection.knownHasOlderSegments,
-    page: selection.paginationPage,
-    rows: orderAfterBoundary(projected, selection.orderingBoundary),
+    rows: timeline.rows,
   });
   const { summaryOnly } = request;
+  const { olderCursor, contentCursor: nextContent } = paginated;
   return {
     maxSeq,
     rows: summaryOnly ? [] : paginated.rows,
@@ -628,11 +551,7 @@ function buildTimelinePage(
       segmentLimit: page.segmentLimit,
       returnedSegmentCount: paginated.returnedSegmentCount,
       hasOlderRows: paginated.hasOlderRows,
-      olderCursor: bindCursor(
-        paginated.olderCursor,
-        snapshot,
-        paginated.contentCursor,
-      ),
+      olderCursor: bindCursor(olderCursor, snapshot, nextContent),
       historySnapshot: JSON.stringify(snapshot),
       olderRowsSourceSeqEnd: paginated.olderRowsSourceSeqEnd,
       olderRowUpdates: summaryOnly ? undefined : paginated.olderRowUpdates,
@@ -663,95 +582,6 @@ export function buildThreadTimeline(
   return limitResponseOutputs(response, !request.includeNestedRows);
 }
 
-function bytesOf(rows: readonly StoredEventRow[]): number {
-  return rows.reduce((sum, row) => sum + Buffer.byteLength(row.data), 0);
-}
-
-function turnRowsOnly(
-  rows: readonly StoredEventRow[],
-  turnId: string,
-  requestsOfOtherTurns: ReadonlySet<string>,
-): StoredEventRow[] {
-  const openToolCalls = new Set<string>();
-  return rows.filter((row) => {
-    const { itemId, itemKind } = row;
-    if (row.turnId !== null && row.turnId !== turnId) {
-      const continues = row.type.startsWith("item/") && itemId !== null;
-      if (!continues || !openToolCalls.has(itemId)) return false;
-    } else if (
-      row.type === "item/started" &&
-      itemId !== null &&
-      itemKind !== null &&
-      CROSS_TURN_TOOL_KINDS.has(itemKind)
-    ) {
-      openToolCalls.add(itemId);
-    }
-    if (row.type === "item/completed" && itemId !== null) {
-      openToolCalls.delete(itemId);
-    }
-    const [requestId] = requestIds([row], "client/turn/requested");
-    return requestId === undefined || !requestsOfOtherTurns.has(requestId);
-  });
-}
-
-function identifiesBufferedText(row: StoredEventRow): boolean {
-  if (row.type === "item/started") {
-    return BUFFERED_TEXT_KINDS.has(row.itemKind ?? "");
-  }
-  return BUFFERED_TEXT_DELTA_TYPES.includes(row.type);
-}
-
-function withWholeItems(
-  db: Db,
-  window: EventWindow,
-  input: readonly StoredEventRow[],
-): StoredEventRow[] {
-  const { threadId, sequenceStart, beforeSequence, fullOutputs } = window;
-  const items = new Map<string, ScopedItem>();
-  for (const row of input) {
-    const inWindow = row.itemId !== null && row.sequence >= sequenceStart;
-    if (!inWindow || row.itemKind === "backgroundTask") continue;
-    items.set(scopedItemKey(eventItem(row)), eventItem(row));
-  }
-  const newer = new Set<string>();
-  const earlier = new Map<string, ScopedItem>();
-  for (const span of listItemSpans(db, threadId, [...items.values()])) {
-    const key = scopedItemKey(span);
-    if (span.maxSequence >= beforeSequence) newer.add(key);
-    else if (span.minSequence < sequenceStart) earlier.set(key, span);
-  }
-  const rows = input.filter(
-    (row) => row.itemId === null || !newer.has(scopedItemKey(eventItem(row))),
-  );
-  const backfill = listItemEvents(
-    db,
-    threadId,
-    [...earlier.values()],
-    "lifecycle",
-    sequenceStart,
-    fullOutputs,
-  );
-  const known = [...backfill, ...rows];
-  const completed = new Set(
-    known.flatMap((row) =>
-      row.type === "item/completed" ? [scopedItemKey(eventItem(row))] : [],
-    ),
-  );
-  const streaming = known.filter((row) => {
-    const key = scopedItemKey(eventItem(row));
-    const open = earlier.has(key) && !completed.has(key);
-    return row.itemId !== null && identifiesBufferedText(row) && open;
-  });
-  const deltas = listItemEvents(
-    db,
-    threadId,
-    streaming.map(eventItem),
-    "text-deltas",
-    sequenceStart,
-  );
-  return mergeEventRows([...backfill, ...deltas, ...rows]);
-}
-
 function buildTurnDetails(
   db: Db,
   thread: ThreadListRow,
@@ -763,7 +593,6 @@ function buildTurnDetails(
       "sourceSeqStart must be less than or equal to sourceSeqEnd",
     );
   }
-  const range = `${sourceSeqStart}-${sourceSeqEnd}`;
   const surface = JSON.stringify([
     "turn-details",
     turnId,
@@ -778,93 +607,38 @@ function buildTurnDetails(
   const anchorSeq = Math.max(1, sourceSeqStart);
   const cursor =
     beforeCursor === undefined
-      ? { snapshot: latestSnapshot(db, thread, surface), content: undefined }
-      : snapshotFromCursor(
-          { anchorId: beforeCursor, anchorSeq },
-          thread.id,
-          surface,
-        );
-  const { snapshot, content } = cursor;
-  const { maxSeq } = snapshot;
-  const threadId = thread.id;
-  const base = {
-    threadId,
-    sequenceStart: sourceSeqStart,
-    beforeSequence: Math.min(sourceSeqEnd, maxSeq) + 1,
-    excludeDiagnostics: !request.includeDiagnosticOperations,
+      ? undefined
+      : { anchorId: beforeCursor, anchorSeq };
+  const { snapshot, content } = resolveSnapshot(db, thread, surface, cursor);
+  const { maxSeq, threadId } = snapshot;
+  const start = contextClearSequence(db, threadId, maxSeq) ?? 0;
+  const excludeDiagnostics = !request.includeDiagnosticOperations;
+  const load = (outputs: "full" | "inline"): Rows => {
+    const epoch = { db, threadId, start, maxSeq, excludeDiagnostics, outputs };
+    const before = Math.min(sourceSeqEnd, maxSeq) + 1;
+    return loadWindow(epoch, sourceSeqStart - 1, before, false).rows;
   };
-  const full = listWindowEvents(db, { ...base, fullOutputs: true }, "all");
-  const fullOutputs = bytesOf(full) <= RESPONSE_BYTE_LIMIT;
-  const window = { ...base, fullOutputs };
-  const exact = fullOutputs ? full : listWindowEvents(db, window, "all");
-  const accepted = [
-    ...exact.filter((row) => row.type === "turn/input/accepted"),
-    ...listRequestOutcomes(
-      db,
-      threadId,
-      listRequestIdsInRange(db, threadId, sourceSeqStart, sourceSeqEnd),
-      sourceSeqEnd,
-      ["turn/input/accepted"],
-    ).filter((row) => row.sequence <= maxSeq),
-  ];
-  const ofOtherTurns = new Set(
-    requestIds(
-      accepted.filter((row) => row.turnId !== turnId),
-      "turn/input/accepted",
-    ),
+  const full = load("full");
+  const bytes = full.reduce((sum, row) => sum + Buffer.byteLength(row.data), 0);
+  const rows = bytes <= RESPONSE_BYTE_LIMIT ? full : load("inline");
+  const shape = { includeNestedRows: true, isLatestPage: false };
+  const { status } = snapshot;
+  const timeline = projectWindow(thread, request, status, { rows }, shape);
+  const turn = timeline.rows.find(
+    (row) =>
+      row.kind === "turn" &&
+      row.turnId === turnId &&
+      row.sourceSeqEnd >= sourceSeqStart,
   );
-  const turnRows = mergeEventRows([
-    ...turnRowsOnly(exact, turnId, ofOtherTurns),
-    ...accepted.filter((row) => row.turnId === turnId),
-  ]);
-  if (!turnRows.some((row) => row.turnId === turnId)) {
+  if (turn?.kind !== "turn" || turn.children === null) {
+    const range = `${sourceSeqStart}-${sourceSeqEnd}`;
     throw invalidRequest(
       `Timeline turn summary details range ${range} does not include ` +
         `turn ${turnId}`,
     );
   }
-  const hasStart = turnRows.some(
-    (row) => row.type === "turn/started" && row.turnId === turnId,
-  );
-  const cutoff = turnRows.reduce(
-    (max, row) => Math.max(max, row.sequence),
-    sourceSeqEnd,
-  );
-  const start = hasStart ? [] : listTurnStarts(db, threadId, [turnId], cutoff);
-  if (!hasStart && start.length === 0) {
-    throw invalidRequest(
-      `Timeline turn summary details range ${range} cannot resolve ` +
-        `turn/started for ${turnId}`,
-    );
-  }
-  const anchored = mergeEventRows([...start, ...turnRows]);
-  const history = { ...window, beforeSequence: maxSeq + 1 };
-  const rows = withBackgroundTaskStates(
-    db,
-    threadId,
-    withTurnStarts(
-      db,
-      threadId,
-      withParentedRows(db, history, withWholeItems(db, window, anchored)),
-    ),
-    maxSeq + 1,
-  );
-  const events = rows
-    .filter((row) => row.sequence <= maxSeq)
-    .map(decodeEventWithMeta);
-  const details = buildThreadTimelineTurnDetailsFromEvents({
-    events,
-    options: {
-      ...projectionOptions(thread, request, snapshot.status),
-      sourceSeqStart,
-      turnId,
-    },
-  });
-  if (details.kind === "missing-match") {
-    throw new Error(`Timeline turn summary details could not match ${range}`);
-  }
   const page = paginateContents(
-    details.rows,
+    turn.children,
     content?.beforeLeaf,
     DETAIL_LEAF_LIMIT,
     RESPONSE_BYTE_LIMIT,
@@ -896,45 +670,21 @@ function buildOutline(
   display: TimelineDisplay,
   maxSeq: number,
 ): ThreadConversationOutlineResponse["items"] {
-  const epochStart = contextClearSequence(db, thread.id, maxSeq) ?? 0;
-  const rows = listOutlineEvents(db, thread.id, epochStart);
-  const events = rows.map(decodeEventWithMeta);
-  const accepted = new Set(requestIds(rows, "turn/input/accepted"));
-  const openSteers = events.flatMap(({ event, meta }) => {
-    if (event.type !== "client/turn/requested") return [];
-    const { target, requestId } = event;
-    const steers =
-      (target.kind === "auto" || target.kind === "steer") &&
-      target.expectedTurnId !== null;
-    return steers && !accepted.has(requestId) ? [{ requestId, ...meta }] : [];
-  });
-  const outcomes = listRequestOutcomes(
-    db,
-    thread.id,
-    openSteers.map((steer) => steer.requestId),
-    Math.min(...openSteers.map((steer) => steer.seq)),
-  ).map(decodeEventWithMeta);
-  const outcomesOf = (type: string) =>
-    outcomes.filter(({ event }) => event.type === type);
-  const timeline = buildThreadTimelineFromEvents({
-    acceptedClientRequestContext: {
-      acceptedClientRequestEvents: outcomesOf("turn/input/accepted"),
-      rejectedClientRequestEvents: outcomesOf("client/turn/rejected"),
-    },
-    contextWindowEvents: [],
-    events: compactThreadTimelineSummaryEvents(events),
-    options: {
-      ...projectionOptions(
-        thread,
-        { ...display, includeDiagnosticOperations: false },
-        thread.status,
-      ),
-      includeNestedRows: false,
-      isLatestPage: true,
-      providerId: thread.providerId,
-    },
-  });
-  return timeline.rows.flatMap((row) => {
+  const threadId = thread.id;
+  const after = (contextClearSequence(db, threadId, maxSeq) ?? 0) - 1;
+  const timeline = { excludeDiagnostics: false };
+  const outline = { threadId, after, where: OUTLINE_EVENT, timeline };
+  const rows = listEvents(db, outline);
+  const shown = { ...display, includeDiagnosticOperations: false };
+  const shape = { includeNestedRows: false, isLatestPage: true };
+  const projected = projectWindow(
+    thread,
+    shown,
+    thread.status,
+    { rows },
+    shape,
+  );
+  return projected.rows.flatMap((row) => {
     if (row.kind !== "conversation") return [];
     const { webImages = 0, localImages = 0 } = row.attachments ?? {};
     const imageCount = webImages + localImages;
@@ -961,35 +711,25 @@ function remember<Value>(
 }
 
 export function createTimelineReader(db: Db) {
-  const served = new Map<string, ServedRows[]>();
+  type Served = Pick<ThreadTimelineResponse, "maxSeq" | "rows">;
+  const served = new Map<string, Served[]>();
   const outlines = new Map<string, ThreadConversationOutlineResponse>();
-  const forgetThread = (threadId: string): void => {
-    for (const cache of [served, outlines]) {
-      for (const key of cache.keys()) {
-        if (key.startsWith(`${threadId}|`)) cache.delete(key);
-      }
-    }
-  };
   return {
-    forgetThread,
+    forgetThread(threadId: string): void {
+      for (const cache of [served, outlines]) {
+        for (const key of cache.keys()) {
+          if (key.startsWith(`${threadId}|`)) cache.delete(key);
+        }
+      }
+    },
     timeline(
       thread: ThreadListRow,
       request: TimelineRequest,
     ): ThreadTimelineResponse {
-      const { page, afterSequence } = request;
+      const { page, afterSequence, ...shown } = request;
       const full = buildThreadTimeline(db, thread, request);
-      const key = [
-        thread.id,
-        thread.status,
-        thread.environmentId,
-        request.providerDisplayName,
-        page.segmentLimit,
-        page.kind === "older" ? page.beforeCursor.anchorId : "latest",
-        request.includeNestedRows,
-        request.summaryOnly,
-        request.includeDiagnosticOperations,
-        request.completedTurnDisplay,
-      ].join("|");
+      const { id, status, environmentId } = thread;
+      const key = `${id}|${JSON.stringify([status, environmentId, page, shown])}`;
       const ring = served.get(key) ?? [];
       const previous = ring.find((entry) => entry.maxSeq === afterSequence);
       const { maxSeq, rows } = full;
@@ -1011,13 +751,10 @@ export function createTimelineReader(db: Db) {
       display: TimelineDisplay,
     ): ThreadConversationOutlineResponse {
       const maxSeq = latestSequence(db, thread.id);
-      const { status, title, titleFallback } = thread;
-      const { completedTurnDisplay, providerDisplayName } = display;
-      const facts = [maxSeq, status, title, titleFallback];
-      const shown = [completedTurnDisplay, providerDisplayName];
-      const key = `${thread.id}|${JSON.stringify([...facts, ...shown])}`;
-      const cached = outlines.get(key);
-      const outline = cached ?? {
+      const { id, status, title, titleFallback } = thread;
+      const facts = [maxSeq, status, title, titleFallback, display];
+      const key = `${id}|${JSON.stringify(facts)}`;
+      const outline = outlines.get(key) ?? {
         items: buildOutline(db, thread, display, maxSeq),
         maxSeq,
       };
@@ -1026,5 +763,3 @@ export function createTimelineReader(db: Db) {
     },
   };
 }
-
-export type TimelineReader = ReturnType<typeof createTimelineReader>;

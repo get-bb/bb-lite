@@ -6,7 +6,7 @@ export interface SeedEvent {
   type: string;
   turnId?: string;
   data?: {
-    item?: { id: string; type: string; parentToolCallId?: string };
+    item?: { id: string; type: string; [key: string]: unknown };
     itemId?: string;
     parentToolCallId?: string;
     providerThreadId?: string;

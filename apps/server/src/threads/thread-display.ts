@@ -6,7 +6,6 @@ import {
   serviceTierSchema,
   type AppSettings,
   type CompletedTurnDisplay,
-  type EnvironmentWorkspaceDisplayKind,
   type ProviderComposerCommand,
   type ResolvedThreadExecutionOptions,
   type ThreadActivityState,
@@ -17,25 +16,23 @@ import type { ThreadResponse } from "@bb/server-contract";
 import {
   extractThreadTimelineActivePlanTurn,
   extractThreadTimelineGoal,
-  type ThreadEventWithMeta,
 } from "@bb/thread-view";
 import {
   activeBackgroundTaskCounts,
   decodeEventWithMeta,
-  listGoalStateEvents,
-  listOpenAcceptedInputs,
-  listTurnRequestsByIds,
+  listEvents,
+  listHeadStateEvents,
+  OPEN_TURN,
 } from "../db/event-read.js";
 import type { Db } from "../db/index.js";
 import {
-  canRestoreEnvironment,
   canThreadSpawnChild,
+  findEnvironment,
+  findHost,
   getProjectExecutionDefaults,
-  hostPermissionCeiling,
   listQueueCounts,
   toThread,
   type ThreadListRow,
-  type ThreadRow,
 } from "../db/thread-read.js";
 
 export interface ThreadDisplayDeps {
@@ -54,27 +51,9 @@ const PLAN_COMMAND: ProviderComposerCommand = {
   name: "plan",
   trailingText: " ",
 };
-const PROVIDER_DISPLAYS: Record<string, ProviderDisplay> = {
-  codex: {
-    displayName: "Codex",
-    completedTurnDisplay: "collapse",
-    planCommand: PLAN_COMMAND,
-  },
-  "claude-code": {
-    displayName: "Claude Code",
-    completedTurnDisplay: "flat",
-    planCommand: PLAN_COMMAND,
-  },
-  echo: {
-    displayName: "Echo",
-    completedTurnDisplay: "collapse",
-    planCommand: null,
-  },
-};
-const UNKNOWN_PROVIDER_DISPLAY: ProviderDisplay = {
-  displayName: undefined,
-  completedTurnDisplay: DEFAULT_COMPLETED_TURN_DISPLAY,
-  planCommand: null,
+const PROVIDER_DISPLAYS: Record<string, [string, CompletedTurnDisplay]> = {
+  codex: ["Codex", "collapse"],
+  "claude-code": ["Claude Code", "flat"],
 };
 const NO_ACTIVITY: ThreadActivityState = {
   activeBackgroundAgentCount: 0,
@@ -88,11 +67,15 @@ export function providerDisplay(
   providerId: string,
   settings?: AppSettings,
 ): ProviderDisplay {
-  const display = PROVIDER_DISPLAYS[providerId] ?? UNKNOWN_PROVIDER_DISPLAY;
-  const chosen = settings?.providerCompletedTurnDisplay[providerId];
-  return chosen === undefined
-    ? display
-    : { ...display, completedTurnDisplay: chosen };
+  const known = PROVIDER_DISPLAYS[providerId];
+  return {
+    displayName: known?.[0],
+    completedTurnDisplay:
+      settings?.providerCompletedTurnDisplay[providerId] ??
+      known?.[1] ??
+      DEFAULT_COMPLETED_TURN_DISPLAY,
+    planCommand: known === undefined ? null : PLAN_COMMAND,
+  };
 }
 
 export function threadDisplayStatus(
@@ -108,57 +91,39 @@ export function threadDisplayStatus(
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
-function workspaceDisplayKind(
-  row: ThreadListRow,
-): EnvironmentWorkspaceDisplayKind {
-  if (row.environmentProviderId === "git-worktree") return "managed-worktree";
-  return row.environmentIsWorktree === 1 ? "unmanaged-worktree" : "other";
-}
-
-function eventsByThread(
-  rows: ReturnType<typeof listGoalStateEvents>,
-): Map<string, ThreadEventWithMeta[]> {
-  const grouped = new Map<string, ThreadEventWithMeta[]>();
-  for (const row of rows) {
-    const events = grouped.get(row.threadId) ?? [];
-    events.push(decodeEventWithMeta(row));
-    grouped.set(row.threadId, events);
-  }
-  return grouped;
-}
-
-function hasActivePlanTurn(db: Db, thread: ThreadRow): boolean {
-  const { planCommand } = providerDisplay(thread.providerId);
-  if (thread.status !== "active" || planCommand === null) return false;
-  const accepted = listOpenAcceptedInputs(db, [thread.id]);
+function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
+  const { id: threadId, providerId, status: threadStatus } = thread;
+  const { planCommand } = providerDisplay(providerId);
+  if (threadStatus !== "active" || planCommand === null) return false;
+  const types = ["turn/input/accepted"];
+  const accepted = listEvents(db, { threadId, types, where: OPEN_TURN });
   const requestIds = accepted.flatMap((row) => {
     const { event } = decodeEventWithMeta(row);
     return event.type === "turn/input/accepted" ? [event.clientRequestId] : [];
   });
-  const requests = listTurnRequestsByIds(db, thread.id, requestIds);
-  const events = [...requests, ...accepted]
+  const requested = { threadId, requestIds, types: ["client/turn/requested"] };
+  const events = [...listEvents(db, requested), ...accepted]
     .sort((left, right) => left.sequence - right.sequence)
     .map(decodeEventWithMeta);
-  const { providerId, status: threadStatus } = thread;
   const args = { events, planCommand, providerId, threadStatus };
   return extractThreadTimelineActivePlanTurn(args) !== null;
 }
 
 export function threadActivities(
   db: Db,
-  threads: readonly ThreadRow[],
+  threads: readonly ThreadListRow[],
 ): Map<string, ThreadActivityState> {
   const threadIds = threads.map((thread) => thread.id);
-  const activities = new Map<string, ThreadActivityState>();
-  for (const { threadId, ...counts } of activeBackgroundTaskCounts(
-    db,
-    threadIds,
-  )) {
-    activities.set(threadId, { ...NO_ACTIVITY, ...counts });
-  }
-  const goals = eventsByThread(listGoalStateEvents(db, threadIds));
+  const activities = new Map(
+    activeBackgroundTaskCounts(db, threadIds).map(({ threadId, ...counts }) => [
+      threadId,
+      { ...NO_ACTIVITY, ...counts },
+    ]),
+  );
+  const goals = listHeadStateEvents(db, threadIds, "goal");
   for (const thread of threads) {
-    const goal = extractThreadTimelineGoal(goals.get(thread.id) ?? []);
+    const states = goals.filter((row) => row.threadId === thread.id);
+    const goal = extractThreadTimelineGoal(states.map(decodeEventWithMeta));
     const activeGoalCount = goal?.status === "active" ? 1 : 0;
     const activePlanModeCount = hasActivePlanTurn(db, thread) ? 1 : 0;
     if (activeGoalCount + activePlanModeCount === 0) continue;
@@ -175,30 +140,48 @@ export function toThreadListEntries(
 ): ThreadListEntry[] {
   const threadIds = rows.map((row) => row.id);
   const activities = threadActivities(deps.db, rows);
-  const queues = new Map(
-    listQueueCounts(deps.db, threadIds).map((counts) => [
-      counts.threadId,
-      counts.failed > 0 ? ("failed" as const) : ("waiting" as const),
+  const failedQueues = new Map(
+    listQueueCounts(deps.db, threadIds).map((queue) => [
+      queue.threadId,
+      queue.failed > 0,
     ]),
   );
-  return rows.map((row) => ({
-    ...toThread(row),
-    activity: activities.get(row.id) ?? NO_ACTIVITY,
-    queuedWork: queues.get(row.id) ?? "none",
-    pinSortKey: row.pinSortKey,
-    environmentBranchName: row.environmentBranchName,
-    environmentHostId: row.environmentHostId,
-    environmentName: row.environmentName,
-    environmentPath: row.environmentPath,
-    environmentProviderId: row.environmentProviderId,
-    environmentIsWorktree:
-      row.environmentIsWorktree === null
-        ? null
-        : row.environmentIsWorktree === 1,
-    environmentWorkspaceDisplayKind: workspaceDisplayKind(row),
-    hasPendingInteraction: row.hasPendingInteraction === 1,
-    runtime: { displayStatus: threadDisplayStatus(row, deps.isHostConnected) },
-  }));
+  return rows.map((row) => {
+    const worktree = row.environmentIsWorktree;
+    const managed = row.environmentProviderId === "git-worktree";
+    const unmanaged = worktree === 1 ? "unmanaged-worktree" : "other";
+    const failed = failedQueues.get(row.id);
+    const queued = failed === true ? "failed" : "waiting";
+    return {
+      ...toThread(row),
+      activity: activities.get(row.id) ?? NO_ACTIVITY,
+      queuedWork: failed === undefined ? "none" : queued,
+      pinSortKey: row.pinSortKey,
+      environmentBranchName: row.environmentBranchName,
+      environmentHostId: row.environmentHostId,
+      environmentName: row.environmentName,
+      environmentPath: row.environmentPath,
+      environmentProviderId: row.environmentProviderId,
+      environmentIsWorktree: worktree === null ? null : worktree === 1,
+      environmentWorkspaceDisplayKind: managed ? "managed-worktree" : unmanaged,
+      hasPendingInteraction: row.hasPendingInteraction === 1,
+      runtime: {
+        displayStatus: threadDisplayStatus(row, deps.isHostConnected),
+      },
+    };
+  });
+}
+
+function canRestoreEnvironment(db: Db, thread: ThreadListRow): boolean {
+  const settled = thread.status === "idle" || thread.status === "error";
+  const destroyed = thread.environmentStatus === "destroyed";
+  if (thread.archivedAt !== null || !settled || !destroyed) return false;
+  const environment = findEnvironment(db, thread.environmentId ?? "");
+  return (
+    environment?.environmentProviderId === "git-worktree" &&
+    environment.environmentProviderSelection !== null &&
+    environment.hostLifecycle === "active"
+  );
 }
 
 export function toThreadResponse(
@@ -213,19 +196,9 @@ export function toThreadResponse(
     runtime: { displayStatus: threadDisplayStatus(row, deps.isHostConnected) },
     activeBackgroundAgentCount: counts?.activeBackgroundAgentCount ?? 0,
     canRestoreEnvironment: canRestoreEnvironment(db, row),
-    canSpawnChild: canThreadSpawnChild(db, row),
+    canSpawnChild: canThreadSpawnChild(db, row.id),
     queuedMessageCount: queue?.queued ?? 0,
   };
-}
-
-function parentPermissionMode(db: Db, thread: ThreadRow): string | null {
-  if (thread.parentThreadId === null) return null;
-  const parent = db.get<{ permissionMode: string | null }>(
-    `SELECT permission_mode FROM threads
-     WHERE id = ? AND archived_at IS NULL AND deleted_at IS NULL`,
-    thread.parentThreadId,
-  );
-  return parent?.permissionMode ?? null;
 }
 
 export function threadDefaultExecution(
@@ -237,13 +210,19 @@ export function threadDefaultExecution(
   const defaults = stored?.providerId === thread.providerId ? stored : null;
   const model = thread.modelOverride ?? thread.model ?? defaults?.model;
   if (model === undefined) return null;
+  const parent = db.get<{ permissionMode: string | null }>(
+    `SELECT permission_mode FROM threads
+     WHERE id = ? AND archived_at IS NULL AND deleted_at IS NULL`,
+    thread.parentThreadId,
+  );
   const permissionMode = permissionModeSchema.parse(
     thread.permissionMode ??
-      parentPermissionMode(db, thread) ??
+      parent?.permissionMode ??
       defaults?.permissionMode ??
       "auto",
   );
-  const ceiling = hostPermissionCeiling(db, thread.environmentHostId);
+  const host = findHost(db, thread.environmentHostId ?? "", false)?.host;
+  const ceiling = host?.maxPermissionMode ?? "full";
   const tier = thread.serviceTier ?? defaults?.serviceTier ?? "default";
   return {
     model,
