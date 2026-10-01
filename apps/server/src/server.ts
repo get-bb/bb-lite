@@ -9,12 +9,14 @@ import {
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
 import { ensurePersonalProject } from "./db/projects.js";
+import { createBasicEnvironments } from "./environments/basic.js";
 import { startWorkspaceWatch } from "./environments/watch.js";
 import { createHttpApp } from "./http/app.js";
 import { PluginHost, startPlugins } from "./plugins/host.js";
 import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { startTerminalSessions } from "./terminals/sessions.js";
+import { createThreadEngine } from "./threads/engine.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
 import { SocketRegistry } from "./ws/sockets.js";
@@ -27,6 +29,10 @@ export type StartupStep = (
 export const startupSteps: StartupStep[] = [
   ensureLocalHost,
   (ctx) => ensurePersonalProject(ctx.db),
+  (ctx) => {
+    ctx.threads.start();
+    return () => ctx.threads.close();
+  },
   startPlugins,
   startTerminalSessions,
   startWorkspaceWatch,
@@ -59,7 +65,21 @@ export function createServer(options: CreateServerOptions): BbServer {
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
   const plugins = new PluginHost({ config, db, hub, log });
-  const ctx: ServerContext = { config, db, hub, runners, plugins, log, now };
+  const environments = createBasicEnvironments({ db, hub, runners });
+  const ctx: ServerContext = {
+    config,
+    db,
+    hub,
+    runners,
+    plugins,
+    environments,
+    log,
+    now,
+    get threads() {
+      return threads;
+    },
+  };
+  const threads = createThreadEngine(ctx);
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);
   registerSockets(sockets, ctx);

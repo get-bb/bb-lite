@@ -14,6 +14,7 @@ import { registerSettingsRoutes } from "./settings.js";
 import { registerTerminalRoutes } from "./terminals.js";
 import { registerThreadSectionRoutes } from "./thread-sections.js";
 import { registerThreadTabRoutes } from "./thread-tabs.js";
+import { registerThreadRoutes } from "./threads.js";
 import { registerUiPreferenceRoutes } from "./ui-preferences.js";
 
 const publicApiRouteGroups: RouteGroup[] = [
@@ -30,6 +31,7 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerFileRoutes,
   registerProjectWorkspaceRoutes,
   registerTerminalRoutes,
+  registerThreadRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [registerRunnerRoutes];

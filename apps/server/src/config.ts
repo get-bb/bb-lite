@@ -31,6 +31,11 @@ const envSchema = z.object({
   BB_LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 });
 
+export function loopbackUrl(config: ServerConfig): string {
+  const host = config.bindHost === "0.0.0.0" ? "127.0.0.1" : config.bindHost;
+  return `http://${host}:${config.port}`;
+}
+
 export function dataPaths(dataDir: string) {
   return {
     database: join(dataDir, "bb.db"),
