@@ -143,7 +143,6 @@ export function OptionPicker<T extends string>({
       <DropdownMenuContent
         align={align}
         className={cn(OPTION_MENU_CONTENT_CLASS_NAME, contentClassName)}
-        mobileTitle={label}
       >
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         {options.map((option) => {

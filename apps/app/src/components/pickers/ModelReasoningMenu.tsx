@@ -19,7 +19,6 @@ import {
   useMenuItemHover,
 } from "@bb/shared-ui/menu-item-hover";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   stripModelBrandPrefix,
   type ProviderPickerOption,
@@ -52,8 +51,6 @@ export interface ModelReasoningMenuProps {
   navRows: readonly ModelNavRow[];
   highlightedIndex: number;
   isSearching: boolean;
-  showMoreModels: boolean;
-  onToggleMoreModels: () => void;
   moreModelOptions: readonly ModelPickerOption[];
   moreModelsOpen: boolean;
   onMoreModelsOpenChange: (open: boolean) => void;
@@ -87,8 +84,6 @@ export function ModelReasoningMenu({
   navRows,
   highlightedIndex,
   isSearching,
-  showMoreModels,
-  onToggleMoreModels,
   moreModelOptions,
   moreModelsOpen,
   onMoreModelsOpenChange,
@@ -106,7 +101,6 @@ export function ModelReasoningMenu({
   onFastModeChange,
   onStartHandoff,
 }: ModelReasoningMenuProps) {
-  const isCompactViewport = useIsCompactViewport();
   const brandPrefix = provider?.brandPrefix;
   const fastModeText = `${fastModeLabel} mode`;
   const openSub = useCallback(() => {
@@ -124,7 +118,7 @@ export function ModelReasoningMenu({
           aria-label={listboxId ? "Models" : undefined}
           className={cn(
             "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
-            !isCompactViewport && "max-h-64",
+            "max-h-64",
           )}
         >
           {isShowingModelError ? null : (
@@ -140,17 +134,6 @@ export function ModelReasoningMenu({
               {navRows.map((row, index) => {
                 const active = highlightedIndex === index;
                 const domId = optionId(index);
-                if (row.kind === "more-toggle") {
-                  return (
-                    <MoreModelsToggleRow
-                      key="more-toggle"
-                      id={domId}
-                      isActive={active}
-                      expanded={showMoreModels}
-                      onToggle={onToggleMoreModels}
-                    />
-                  );
-                }
                 const option = row.option;
                 return (
                   <MenuRowButton
@@ -166,9 +149,7 @@ export function ModelReasoningMenu({
                   />
                 );
               })}
-              {!isCompactViewport &&
-              !isSearching &&
-              moreModelOptions.length > 0 ? (
+              {!isSearching && moreModelOptions.length > 0 ? (
                 <MoreModelsSubmenu
                   open={moreModelsOpen}
                   onOpenChange={onMoreModelsOpenChange}
@@ -184,7 +165,7 @@ export function ModelReasoningMenu({
                 <div
                   className={cn(
                     "px-2 text-xs text-muted-foreground",
-                    isCompactViewport ? "py-2" : "py-[0.3125rem]",
+                    "py-[0.3125rem]",
                   )}
                 >
                   No models match your search
@@ -195,7 +176,7 @@ export function ModelReasoningMenu({
             <div
               className={cn(
                 "px-2 text-xs leading-relaxed text-muted-foreground",
-                isCompactViewport ? "pb-3 pt-2" : "pb-2 pt-1.5",
+                "pb-2 pt-1.5",
               )}
               title={
                 modelLoadError
@@ -250,7 +231,6 @@ export function ModelReasoningMenu({
                     aria-label={option.label}
                     className={cn(
                       "h-6 min-w-0 flex-auto shrink-0 whitespace-nowrap rounded-sm px-1 text-xs font-normal shadow-none hover:bg-state-hover hover:text-foreground data-[state=on]:bg-state-active data-[state=on]:text-foreground data-[state=on]:hover:bg-state-active",
-                      isCompactViewport && "h-9 text-sm",
                       LIST_HOVER_TRANSITION,
                     )}
                   >
@@ -309,55 +289,16 @@ function MenuSectionLabel({
   children: ReactNode;
   className?: string;
 }) {
-  const isCompactViewport = useIsCompactViewport();
-
   return (
     <div
       className={cn(
         "sticky top-0 z-10 bg-background px-2 text-xs font-medium text-muted-foreground",
-        isCompactViewport ? "pb-1.5 pt-2" : "pb-[0.3125rem] pt-2",
+        "pb-[0.3125rem] pt-2",
         className,
       )}
     >
       {children}
     </div>
-  );
-}
-
-function MoreModelsToggleRow({
-  expanded,
-  onToggle,
-  isActive,
-  id,
-}: {
-  expanded: boolean;
-  onToggle: () => void;
-  isActive?: boolean;
-  id?: string;
-}) {
-  const { hoverProps } = useMenuItemHover();
-  const isCompactViewport = useIsCompactViewport();
-  return (
-    <button
-      type="button"
-      id={id}
-      onClick={onToggle}
-      aria-expanded={expanded}
-      className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-1 rounded-sm px-2 text-xs text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground",
-        LIST_HOVER_TRANSITION,
-        MENU_ITEM_LAST_HOVERED_CLASS,
-        isActive && "bg-state-active",
-        isCompactViewport ? "py-2" : "py-[0.3125rem]",
-      )}
-      {...hoverProps}
-    >
-      <span>{expanded ? "Fewer models" : "More models"}</span>
-      <Icon
-        name={expanded ? "ChevronUp" : "ChevronDown"}
-        className="size-3.5 shrink-0"
-      />
-    </button>
   );
 }
 
@@ -492,7 +433,6 @@ function MenuRowButton({
   role?: React.AriaRole;
 }) {
   const { hoverProps } = useMenuItemHover();
-  const isCompactViewport = useIsCompactViewport();
   const { base, tag } = splitModelLabelTag(label);
   return (
     <button
@@ -508,7 +448,7 @@ function MenuRowButton({
         MENU_ITEM_LAST_HOVERED_CLASS,
         isActive && "bg-state-active",
         disabled && "cursor-not-allowed opacity-60",
-        isCompactViewport ? "py-2" : "py-[0.3125rem]",
+        "py-[0.3125rem]",
       )}
       {...hoverProps}
     >
@@ -548,7 +488,6 @@ function MenuActionButton({
   onClick: () => void;
 }) {
   const { hoverProps } = useMenuItemHover();
-  const isCompactViewport = useIsCompactViewport();
   return (
     <button
       type="button"
@@ -557,7 +496,7 @@ function MenuActionButton({
         "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground",
         LIST_HOVER_TRANSITION,
         MENU_ITEM_LAST_HOVERED_CLASS,
-        isCompactViewport ? "py-2" : "py-[0.3125rem]",
+        "py-[0.3125rem]",
       )}
       {...hoverProps}
     >

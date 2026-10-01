@@ -430,7 +430,6 @@ export function EnvironmentPickerUI({
       <PopoverContent
         align="start"
         aria-label="Environment"
-        mobileTitle="Environment"
         autoFocusRef={
           isLoading ? undefined : showSearch ? searchInputRef : commandRef
         }

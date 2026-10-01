@@ -41,7 +41,6 @@ interface MentionMenuProps {
   state: TypeaheadMenuState;
   selectedIndex: number;
   onApply: (item: TypeaheadSuggestion) => void;
-  onDismiss?: () => void;
   onCommandLoadMore?: () => void;
 }
 
@@ -49,7 +48,6 @@ interface MentionResultsProps {
   results: OrderedMentionSuggestions;
   selectedIndex: number;
   onApply: (item: TypeaheadSuggestion) => void;
-  onDismiss?: () => void;
   itemRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
 }
 
@@ -57,7 +55,6 @@ interface CommandResultsProps {
   suggestions: readonly ProviderCommandSuggestion[];
   selectedIndex: number;
   onApply: (item: TypeaheadSuggestion) => void;
-  onDismiss?: () => void;
   itemRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
 }
 
@@ -334,63 +331,29 @@ function ThreadSuggestionRow({
   );
 }
 
-function CloseSuggestionsButton({ onDismiss }: { onDismiss: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label="Close suggestions"
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onDismiss}
-      className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground"
-    >
-      <Icon name="X" className="size-4" aria-hidden />
-    </button>
-  );
-}
-
 function MenuStatusRow({
   children,
-  onDismiss,
   className,
 }: {
   children: ReactNode;
-  onDismiss?: () => void;
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "text-xs",
-        onDismiss
-          ? "flex h-11 items-center justify-between pl-3 pr-1"
-          : "px-3 py-2",
-        className,
-      )}
-    >
+    <div className={cn("text-xs", "px-3 py-2", className)}>
       <div className="flex min-w-0 items-center gap-2">{children}</div>
-      {onDismiss ? <CloseSuggestionsButton onDismiss={onDismiss} /> : null}
     </div>
   );
 }
 
-function MenuSectionHeader({
-  label,
-  onDismiss,
-}: {
-  label: string;
-  onDismiss?: () => void;
-}) {
+function MenuSectionHeader({ label }: { label: string }) {
   return (
     <div
       className={cn(
         "sticky top-0 z-10 bg-background text-xs text-muted-foreground",
-        onDismiss
-          ? "flex h-11 items-center justify-between pl-3 pr-1"
-          : "px-3 pb-1 pt-1.5",
+        "px-3 pb-1 pt-1.5",
       )}
     >
       <span>{label}</span>
-      {onDismiss ? <CloseSuggestionsButton onDismiss={onDismiss} /> : null}
     </div>
   );
 }
@@ -399,12 +362,11 @@ function MentionResults({
   results,
   selectedIndex,
   onApply,
-  onDismiss,
   itemRefs,
 }: MentionResultsProps) {
   if (results.groups.length === 0) {
     return (
-      <MenuStatusRow onDismiss={onDismiss} className="text-muted-foreground">
+      <MenuStatusRow className="text-muted-foreground">
         No matching mentions
       </MenuStatusRow>
     );
@@ -412,12 +374,9 @@ function MentionResults({
 
   return (
     <div className="pb-1">
-      {results.groups.map((group, groupIndex) => (
+      {results.groups.map((group) => (
         <div key={group.key}>
-          <MenuSectionHeader
-            label={group.label}
-            onDismiss={groupIndex === 0 ? onDismiss : undefined}
-          />
+          <MenuSectionHeader label={group.label} />
           <div className="flex flex-col gap-px px-1">
             {group.suggestions.map((item, itemIndex) => {
               const index = group.startIndex + itemIndex;
@@ -497,7 +456,6 @@ function CommandResults({
   suggestions,
   selectedIndex,
   onApply,
-  onDismiss,
   itemRefs,
 }: CommandResultsProps) {
   const sections = useMemo(
@@ -516,12 +474,9 @@ function CommandResults({
 
   return (
     <div className="pb-1">
-      {sections.map((section, sectionIndex) => (
+      {sections.map((section) => (
         <div key={section.kind}>
-          <MenuSectionHeader
-            label={section.label}
-            onDismiss={sectionIndex === 0 ? onDismiss : undefined}
-          />
+          <MenuSectionHeader label={section.label} />
           <div className="flex flex-col gap-px px-1">
             {section.items.map(({ item, index }) => (
               <SuggestionRow
@@ -581,7 +536,6 @@ export function MentionMenu({
   state,
   selectedIndex,
   onApply,
-  onDismiss,
   onCommandLoadMore,
 }: MentionMenuProps) {
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -623,17 +577,11 @@ export function MentionMenu({
     <div className="@container/mention-menu overflow-hidden rounded-md border border-border bg-popover text-popover-foreground">
       <div className="max-h-48 overflow-y-auto" onScroll={handleScroll}>
         {innerState.kind === "hint" ? (
-          <MenuStatusRow
-            onDismiss={onDismiss}
-            className="text-muted-foreground"
-          >
+          <MenuStatusRow className="text-muted-foreground">
             Type to search mentions
           </MenuStatusRow>
         ) : innerState.kind === "loading" ? (
-          <MenuStatusRow
-            onDismiss={onDismiss}
-            className="text-muted-foreground"
-          >
+          <MenuStatusRow className="text-muted-foreground">
             <Icon name="Spinner" className="size-3.5 animate-spin" />
             <span>
               {state.trigger === "command"
@@ -642,7 +590,7 @@ export function MentionMenu({
             </span>
           </MenuStatusRow>
         ) : innerState.kind === "error" ? (
-          <MenuStatusRow onDismiss={onDismiss} className="text-destructive">
+          <MenuStatusRow className="text-destructive">
             {state.trigger === "command"
               ? "Failed to load commands"
               : "Failed to load suggestions"}
@@ -653,7 +601,6 @@ export function MentionMenu({
             selectedIndex={selectedIndex}
             onApply={onApply}
             itemRefs={itemRefs}
-            onDismiss={onDismiss}
           />
         ) : (
           <MentionResults
@@ -661,7 +608,6 @@ export function MentionMenu({
             selectedIndex={selectedIndex}
             onApply={onApply}
             itemRefs={itemRefs}
-            onDismiss={onDismiss}
           />
         )}
       </div>

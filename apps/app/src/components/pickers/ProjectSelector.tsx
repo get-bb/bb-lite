@@ -181,7 +181,6 @@ export function ProjectSelector({
       <PopoverContent
         align="start"
         aria-label="Project"
-        mobileTitle="Project"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           if (showSearch) {

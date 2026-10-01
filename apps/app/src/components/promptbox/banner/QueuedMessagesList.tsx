@@ -202,8 +202,6 @@ interface QueuedMessageRowProps {
   sendAction: QueuedMessageSendAction;
   sendDisabled: boolean;
   actionDisabled: boolean;
-  mobileActionsExpanded: boolean;
-  onExpandMobileActions: (id: string) => void;
   onSend: (id: string) => void;
   onEdit: (request: QueuedMessageEditRequest) => void;
   onDelete: (id: string) => void;
@@ -773,23 +771,12 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
   sendAction,
   sendDisabled,
   actionDisabled,
-  mobileActionsExpanded,
-  onExpandMobileActions,
   onSend,
   onEdit,
   onDelete,
   compact,
   isGroupBoundary,
 }: QueuedMessageRowProps) {
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const focusActionsOnExpandRef = useRef(false);
-  useLayoutEffect(() => {
-    if (!mobileActionsExpanded || !focusActionsOnExpandRef.current) return;
-    focusActionsOnExpandRef.current = false;
-    actionsRef.current
-      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
-      ?.focus({ preventScroll: true });
-  }, [mobileActionsExpanded]);
   const attachmentCount = useMemo(
     () => countQueuedMessageAttachments(queuedMessage.content),
     [queuedMessage.content],
@@ -947,66 +934,17 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
           ) : null}
         </div>
         {isProcessing ? null : (
-          <>
-            <TooltipProvider delayDuration={300}>
-              <div
-                ref={actionsRef}
-                data-queued-message-actions=""
-                className={cn(
-                  PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
-                  "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md opacity-0 transition-opacity duration-[120ms] ease-out md:flex",
-                  mobileActionsExpanded ? "flex" : "",
-                  "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
-                  "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
-                )}
-              >
-                {sendAllowed ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className={cn(
-                          "shrink-0 text-muted-foreground",
-                          compact ? "size-7" : "size-8",
-                        )}
-                        disabled={actionDisabled || sendDisabled}
-                        onClick={() => onSend(queuedMessage.id)}
-                        aria-label={sendAriaLabel}
-                      >
-                        <Icon name="Sent" className="size-4" aria-hidden />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="">{sendLabel}</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                {queuedMessage.editable ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className={cn(
-                          "shrink-0 text-muted-foreground",
-                          compact ? "size-7" : "size-8",
-                        )}
-                        disabled={actionDisabled}
-                        onClick={() =>
-                          onEdit({
-                            queuedMessageId: queuedMessage.id,
-                            queuedMessageIndex: index,
-                          })
-                        }
-                        aria-label={`Edit queued message ${index + 1}`}
-                      >
-                        <Icon name="Edit" className="size-4" aria-hidden />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="">Edit</TooltipContent>
-                  </Tooltip>
-                ) : null}
+          <TooltipProvider delayDuration={300}>
+            <div
+              data-queued-message-actions=""
+              className={cn(
+                PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
+                "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md opacity-0 transition-opacity duration-[120ms] ease-out md:flex",
+                "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
+                "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
+              )}
+            >
+              {sendAllowed ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -1014,44 +952,66 @@ const QueuedMessageRow = memo(function QueuedMessageRow({
                       size="icon"
                       variant="ghost"
                       className={cn(
-                        "shrink-0 text-muted-foreground hover:text-destructive",
+                        "shrink-0 text-muted-foreground",
+                        compact ? "size-7" : "size-8",
+                      )}
+                      disabled={actionDisabled || sendDisabled}
+                      onClick={() => onSend(queuedMessage.id)}
+                      aria-label={sendAriaLabel}
+                    >
+                      <Icon name="Sent" className="size-4" aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{sendLabel}</TooltipContent>
+                </Tooltip>
+              ) : null}
+              {queuedMessage.editable ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className={cn(
+                        "shrink-0 text-muted-foreground",
                         compact ? "size-7" : "size-8",
                       )}
                       disabled={actionDisabled}
-                      onClick={() => onDelete(queuedMessage.id)}
-                      aria-label={`Delete queued message ${index + 1}`}
+                      onClick={() =>
+                        onEdit({
+                          queuedMessageId: queuedMessage.id,
+                          queuedMessageIndex: index,
+                        })
+                      }
+                      aria-label={`Edit queued message ${index + 1}`}
                     >
-                      <Icon name="Trash2" className="size-4" aria-hidden />
+                      <Icon name="Edit" className="size-4" aria-hidden />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="">Delete</TooltipContent>
+                  <TooltipContent>Edit</TooltipContent>
                 </Tooltip>
-              </div>
-            </TooltipProvider>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className={cn(
-                PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
-                "pointer-events-none absolute right-2.5 top-1/2 shrink-0 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity duration-[120ms] ease-out md:hidden",
-                "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
-                "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
-                "",
-                compact ? "size-7" : "size-8",
-                mobileActionsExpanded && "hidden",
-              )}
-              disabled={actionDisabled}
-              aria-label={`Queued message ${index + 1} actions`}
-              aria-expanded={mobileActionsExpanded}
-              onClick={(event) => {
-                focusActionsOnExpandRef.current = event.detail === 0;
-                onExpandMobileActions(queuedMessage.id);
-              }}
-            >
-              <Icon name="MoreHorizontal" className="size-4" aria-hidden />
-            </Button>
-          </>
+              ) : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "shrink-0 text-muted-foreground hover:text-destructive",
+                      compact ? "size-7" : "size-8",
+                    )}
+                    disabled={actionDisabled}
+                    onClick={() => onDelete(queuedMessage.id)}
+                    aria-label={`Delete queued message ${index + 1}`}
+                  >
+                    <Icon name="Trash2" className="size-4" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         )}
       </div>
     </li>
@@ -1111,9 +1071,7 @@ function SortableGroupBoundaryHandle({ disabled }: { disabled: boolean }) {
                   />
                 </button>
               </TooltipTrigger>
-              <TooltipContent className="">
-                Messages above send together
-              </TooltipContent>
+              <TooltipContent>Messages above send together</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -1221,9 +1179,6 @@ function QueuedMessagesListSurface({
   const [mode, setMode] = useState<QueueSurfaceMode>(
     queuedMessages.length > 0 ? "drawer" : "collapsed",
   );
-  const [expandedMobileActionsId, setExpandedMobileActionsId] = useState<
-    string | null
-  >(null);
   const [surfaceDragging, setSurfaceDragging] = useState(false);
   const [surfaceDragOffset, setSurfaceDragOffset] = useState(0);
   const [inlineEditorMaxHeight, setInlineEditorMaxHeight] = useState<
@@ -1242,22 +1197,6 @@ function QueuedMessagesListSurface({
   const wasInlineEditingRef = useRef(false);
   const inlineEditorDismissModeRef = useRef<QueueSurfaceMode | null>(null);
   const previousMessageCountRef = useRef(queuedMessages.length);
-  useEffect(() => {
-    if (expandedMobileActionsId === null) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !surfaceRef.current?.contains(event.target)
-      ) {
-        setExpandedMobileActionsId(null);
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-    };
-  }, [expandedMobileActionsId]);
   const {
     aboveOverflow,
     belowOverflow,
@@ -1533,7 +1472,6 @@ function QueuedMessagesListSurface({
     surfaceDragOffsetRef.current = 0;
   }, [inlineEditor]);
   const collapseDrawer = useCallback(() => {
-    setExpandedMobileActionsId(null);
     setMode("collapsed");
     inlineEditorDismissModeRef.current = "collapsed";
     inlineEditor?.onDismiss();
@@ -1547,7 +1485,6 @@ function QueuedMessagesListSurface({
   }, []);
   const handleEdit = useCallback(
     (request: QueuedMessageEditRequest) => {
-      setExpandedMobileActionsId(null);
       openWorkspace();
       onEdit(request);
     },
@@ -1691,8 +1628,6 @@ function QueuedMessagesListSurface({
           sendAction={sendAction}
           sendDisabled={sendDisabled}
           actionDisabled={actionDisabled}
-          mobileActionsExpanded={expandedMobileActionsId === queuedMessage.id}
-          onExpandMobileActions={setExpandedMobileActionsId}
           compact={mode !== "workspace"}
           isGroupBoundary={messageIndex === groupBoundaryIndex}
           onSend={onSend}
@@ -1801,7 +1736,7 @@ function QueuedMessagesListSurface({
                   />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="">{caretLabel}</TooltipContent>
+              <TooltipContent>{caretLabel}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>

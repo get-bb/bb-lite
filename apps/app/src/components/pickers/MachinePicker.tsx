@@ -144,7 +144,6 @@ export function MachinePickerUI({
       <PopoverContent
         align="start"
         aria-label="Machine"
-        mobileTitle="Machine"
         autoFocusRef={showSearch ? searchInputRef : commandRef}
         className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-72 flex-col overflow-hidden p-0"
       >
