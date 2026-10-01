@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useAtom, useAtomValue, useStore } from "jotai";
 import { isMacKeyboardPlatform } from "@bb/domain";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -83,7 +82,6 @@ export function ThreadSearchPaletteMode({
   const navigate = useRouteNavigate();
   const store = useStore();
   const splitLayout = useAtomValue(splitLayoutAtom);
-  const isCompact = useIsCompactViewport();
   const [selectedLifecycles, setLifecycles] = useAtom(
     paletteThreadLifecyclesAtom,
   );
@@ -94,7 +92,9 @@ export function ThreadSearchPaletteMode({
   const [query, setQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<ThreadArchiveFilter[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<ThreadArchiveFilter[]>(
+    [],
+  );
   const filterKey = lifecycles.join(",");
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
   if (previousFilterKey !== filterKey) {
@@ -212,7 +212,6 @@ export function ThreadSearchPaletteMode({
   const activeRow = options[activeIndex]?.row;
   const canSplit =
     activeRow != null &&
-    !isCompact &&
     splitLayout !== null &&
     findPaneByContent(splitLayout.root, {
       kind: "thread",
@@ -256,7 +255,6 @@ export function ThreadSearchPaletteMode({
             navigate,
             projectId: row.projectId,
             threadId: row.threadId,
-            isCompact,
             state,
           });
           return;
@@ -270,7 +268,7 @@ export function ThreadSearchPaletteMode({
         );
       });
     },
-    [isCompact, navigate, runAfterClose, store],
+    [navigate, runAfterClose, store],
   );
 
   const handleInputKeyDown = useCallback(
@@ -361,7 +359,6 @@ export function ThreadSearchPaletteMode({
         label: "Threads",
         clearLabel: "Return to commands",
         onClear: onExit,
-        hideShortcut: isCompact,
       }}
       onInputChange={(value) => {
         setQuery(value);

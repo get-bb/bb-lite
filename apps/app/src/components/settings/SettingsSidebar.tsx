@@ -15,7 +15,6 @@ interface SettingsSidebarProps {
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   appRoutePath: string;
-  mobileHosted?: boolean;
 }
 
 type SettingsSidebarNavigation = Pick<
@@ -32,7 +31,6 @@ export function SettingsSidebarContent({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted,
   navigation,
   testIdPrefix = "settings",
 }: SettingsSidebarContentProps) {
@@ -44,7 +42,6 @@ export function SettingsSidebarContent({
       backLabel="Back to app"
       backTo={appRoutePath}
       isResizing={isResizing}
-      mobileHosted={mobileHosted}
       onResizeMouseDown={onResizeMouseDown}
       testIdPrefix={testIdPrefix}
     >
@@ -115,7 +112,6 @@ export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted,
 }: SettingsSidebarProps) {
   const navigation = useSettingsNavState();
 
@@ -123,7 +119,6 @@ export function SettingsSidebar({
     <SettingsSidebarContent
       appRoutePath={appRoutePath}
       isResizing={isResizing}
-      mobileHosted={mobileHosted}
       navigation={navigation}
       onResizeMouseDown={onResizeMouseDown}
     />

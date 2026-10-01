@@ -12,7 +12,6 @@ import type { HostDirectoryListing } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
 import { EmptyState } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { invalidateHostDirectoryListing } from "@/hooks/cache-owners/host-directory-cache-owner";
 import { useHostDirectory } from "@/hooks/queries/host-queries";
@@ -90,7 +89,6 @@ export function RemotePathBrowser({
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderError, setNewFolderError] = useState<string | null>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
-  const isPointerCoarse = usePointerCoarse();
   const queryClient = useQueryClient();
   const { data, isError, error, isPlaceholderData } = useHostDirectory(
     hostId,
@@ -196,13 +194,12 @@ export function RemotePathBrowser({
   }, [directory, onDirectoryChange]);
 
   useEffect(() => {
-    if (isEditing && !isPointerCoarse) editInputRef.current?.focus();
-  }, [isEditing, isPointerCoarse]);
+    if (isEditing) editInputRef.current?.focus();
+  }, [isEditing]);
 
   useEffect(() => {
-    if (isCreatingFolder && !isPointerCoarse)
-      newFolderInputRef.current?.focus();
-  }, [isCreatingFolder, isPointerCoarse]);
+    if (isCreatingFolder) newFolderInputRef.current?.focus();
+  }, [isCreatingFolder]);
 
   const openEditor = () => {
     cancelCreatingFolder();

@@ -49,10 +49,8 @@ function LoadingRow({ widthClassName }: { widthClassName: string }) {
 
 export function SidebarNavigationPlaceholder({
   state,
-  onNavigate,
 }: {
   state: SidebarNavigationPlaceholderState;
-  onNavigate?: () => void;
 }) {
   const navigate = useNavigate();
   if (state.kind === "loading") {
@@ -93,7 +91,6 @@ export function SidebarNavigationPlaceholder({
           size="sm"
           className="self-start"
           onClick={() => {
-            onNavigate?.();
             void navigate(SETTINGS_PLUGINS_ROUTE_PATH);
           }}
         >

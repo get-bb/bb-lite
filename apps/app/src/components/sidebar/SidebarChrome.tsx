@@ -1,11 +1,10 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useCloseMobileSidebar } from "@/components/ui/sidebar.js";
 import { CHROME_ROW_CLASS } from "@/lib/chrome-row";
 import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 
 const BROWSER_HEADER_SLOT_START_CLASS =
-  "pl-[calc(env(safe-area-inset-left)_+_12px_+_var(--bb-sidebar-control-size)_-_4px)]";
+  "pl-[calc(12px_+_var(--bb-sidebar-control-size)_-_4px)]";
 
 export function SidebarTopReserveRow({
   testId,
@@ -14,18 +13,13 @@ export function SidebarTopReserveRow({
   testId: string;
   renderHeaderSlot?: (startInsetClassName: string) => ReactNode;
 }) {
-  const closeOnMobile = useCloseMobileSidebar();
-
   return (
     <div
       data-testid={testId}
       className={cn(CHROME_ROW_CLASS, "shrink-0 justify-end gap-1 px-2")}
     >
       {renderHeaderSlot?.(BROWSER_HEADER_SLOT_START_CLASS)}
-      <SidebarHistoryNavigationControls
-        onNavigate={closeOnMobile}
-        className="shrink-0"
-      />
+      <SidebarHistoryNavigationControls className="shrink-0" />
     </div>
   );
 }

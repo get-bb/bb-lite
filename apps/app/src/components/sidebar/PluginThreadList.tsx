@@ -3,7 +3,6 @@ import {
   PluginSlotMount,
   resetCrashedPluginSlots,
 } from "@/components/plugin/PluginSlotMount";
-import { useSidebar } from "@/components/ui/sidebar.js";
 import { useRouteState } from "@/hooks/useRouteState";
 import type { ResolvedReplacement } from "@/lib/plugin-slot-resolvers";
 import type { PluginThreadListSlot } from "@/lib/plugin-slots";
@@ -12,18 +11,14 @@ import { usePluginFrontendsSettled } from "@/lib/plugin-frontend-boot-state";
 import { ThreadListPlaceholder } from "./ThreadListPlaceholder";
 
 const THREAD_LIST_SLOT_KIND = "threadList";
+const noop = () => undefined;
 
 interface PluginThreadListProps {
   replacement: ResolvedReplacement<PluginThreadListSlot>;
-  onNavigate: () => void;
 }
 
-export function PluginThreadList({
-  replacement,
-  onNavigate,
-}: PluginThreadListProps) {
+export function PluginThreadList({ replacement }: PluginThreadListProps) {
   const { projectId, threadId } = useRouteState();
-  const { isCompactViewport } = useSidebar();
   const bootSettled = usePluginFrontendsSettled();
   const [attempt, setAttempt] = useState(0);
   const registration =
@@ -72,8 +67,8 @@ export function PluginThreadList({
       <List
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
-        isCompactViewport={isCompactViewport}
-        onNavigate={onNavigate}
+        isCompactViewport={false}
+        onNavigate={noop}
         searchQuery=""
       />
     </PluginSlotMount>
