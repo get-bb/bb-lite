@@ -162,6 +162,23 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
 - **Attention**: `latest_attention_at` moves on `active → idle` for threads without a parent and on any
   transition to `error`. Unread is `last_read_at < latest_attention_at`.
 
+How the engine is built (`apps/server/src/threads`):
+
+- Everything that changes a thread runs inside `engine.inThread(threadId, …)`. A task holds the queue only
+  for short work (decisions, a transaction, building the `SessionSpec`). Runner calls that may take long
+  (`submitTurn`, `interruptTurn`, environment creation) are fired from a task and settle in a later task, so
+  a stop or a send never waits behind them. A task never awaits another thread's queue.
+- Writes go through `engine.commit((out) => …)`: one transaction, with hub notifications and follow-ups
+  collected in `out` and released after it commits.
+- Queue rows are never claimed. The task that dispatches a row deletes it in the transaction that appends
+  its `client/turn/requested`. A drain re-runs the checkpoint for the first group whose waits could have
+  cleared; rows whose drain failed carry `failure_reason` and wait for "Send now".
+- `status` is `starting` only while a workspace is being prepared. A send to a ready thread moves it straight
+  to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
+- Seams on `ServerContext`: `threads` (the public operations, also for plugins), `environments`
+  (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; `environments/basic.ts` is the
+  placeholder), `extensions` (plugin instructions, tools, env, events, title generation; empty by default).
+
 ## HTTP and WebSocket surface
 
 Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
