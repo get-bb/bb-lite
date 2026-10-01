@@ -1,0 +1,26 @@
+{
+  "name": "@bb/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "bb": "./bin/bb"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/sdk": "workspace:*",
+    "@bb/server": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "ws": "^8.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1"
+  }
+}
