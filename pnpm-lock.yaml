@@ -883,6 +883,9 @@ importers:
       '@bb/fuzzy-match':
         specifier: workspace:*
         version: link:../fuzzy-match
+      '@bb/server-contract':
+        specifier: workspace:*
+        version: link:../server-contract
       '@parcel/watcher':
         specifier: 2.5.6
         version: 2.5.6
