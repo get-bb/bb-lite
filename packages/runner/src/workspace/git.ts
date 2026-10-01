@@ -155,10 +155,10 @@ export async function repoKind(repo: Repo): Promise<RepoKind> {
 
 export async function requireRepo(ctx: Ctx, cwd: string): Promise<Repo> {
   const repo = openRepo(ctx, requireAbsolute(cwd));
-  if ((await repoKind(repo)) === "none") {
-    fail("not_git_repo", `Path is not a git repository: ${cwd}`);
-  }
-  return repo;
+  const topLevel = await repo.line("rev-parse", "--show-toplevel");
+  return topLevel === null
+    ? fail("not_git_repo", `Path is not a git repository: ${cwd}`)
+    : openRepo(ctx, topLevel);
 }
 
 async function probe(
@@ -176,8 +176,10 @@ export function revision(repo: Repo, ref: string): Promise<string | null> {
   return repo.line("rev-parse", "--verify", "--quiet", `${ref}^{commit}`);
 }
 
-export function currentBranch(repo: Repo): Promise<string | null> {
-  return repo.line("symbolic-ref", "--quiet", "--short", "HEAD");
+export async function currentBranch(repo: Repo): Promise<string | null> {
+  const prefix = "refs/heads/";
+  const ref = await repo.line("symbolic-ref", "--quiet", "HEAD");
+  return ref?.startsWith(prefix) ? ref.slice(prefix.length) : null;
 }
 
 export function mergeBaseRef(repo: Repo, ref: string): Promise<string | null> {
@@ -226,12 +228,12 @@ export async function gitDirs(
 }
 
 async function isLinkedWorktree(repo: Repo): Promise<boolean> {
-  const gitDir = await repo.line("rev-parse", "--git-dir");
-  return gitDir?.includes("/worktrees/") ?? false;
+  const { gitDir, commonDir } = await gitDirs(repo);
+  return gitDir !== commonDir;
 }
 
 async function branchNames(repo: Repo, namespace: string): Promise<string[]> {
-  const format = "--format=%(refname:short)%09%(symref)";
+  const format = "--format=%(refname:lstrip=2)%09%(symref)";
   const { stdout } = await repo.git("for-each-ref", format, namespace);
   return stdout
     .split("\n")
@@ -479,7 +481,10 @@ async function untrackedLineStats(
 
 function porcelainKind(code: string): WorkspaceFileStatusKind {
   const kinds = ["U", "R", "C", "A", "D"] as const;
-  return code === "??" ? "??" : (kinds.find((k) => code.includes(k)) ?? "M");
+  const kind = CONFLICT_CODES.has(code)
+    ? "U"
+    : kinds.find((k) => code.includes(k));
+  return code === "??" ? "??" : (kind ?? "M");
 }
 
 function nameStatusKind(status: string): WorkspaceFileStatusKind {

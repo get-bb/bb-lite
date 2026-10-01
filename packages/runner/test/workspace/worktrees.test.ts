@@ -66,7 +66,7 @@ describe("managed worktrees and lifecycle scripts", () => {
     expect(joined).toEqual(setup);
     const output = h.events
       .filter((event) => event.kind === "script.output")
-      .flatMap((event) => event.text.split("\n"));
+      .flatMap((event) => event.text.trimEnd().split("\n"));
     const expected = ["secret TOKEN=1", "setup project", "thread thr_1"];
     expect(output.sort()).toEqual(expected);
 

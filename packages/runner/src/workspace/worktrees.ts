@@ -239,18 +239,11 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
   const marker = `${target}.completed`;
   return ctx.lock(`worktree:${target}`, async () => {
     const completed = await fs.readFile(marker, "utf8").catch(() => "");
-    const [completedBranch, completedBase] = completed.split("\n");
-    const checkedOut =
-      (await pathExists(target)) &&
-      (await git.currentBranch(openRepo(ctx, target))) === branchName;
-    if (checkedOut && completedBranch === branchName && completedBase) {
-      const mergeBaseBranch = completedBase;
-      return {
-        path: target,
-        branchName,
-        mergeBaseBranch,
-        worktreeInclude: null,
-      };
+    const [completedBranch, mergeBaseBranch] = completed.split("\n");
+    if (completedBranch && (await pathExists(target))) {
+      return completedBranch === branchName && mergeBaseBranch
+        ? { path: target, branchName, mergeBaseBranch, worktreeInclude: null }
+        : fail("conflict", `${target} already holds ${completedBranch}`);
     }
     await removeManagedPath(ctx, target);
     if ((await git.repoKind(source)) === "none") {
@@ -272,6 +265,8 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     if (baseBranch === null) {
       fail("failed", `Cannot resolve default branch for ${source.cwd}`);
     }
+    const { commonDir } = await git.gitDirs(source);
+    await ctx.lock(commonDir, () => source.git("worktree", "prune"));
     const holder = await worktreeHoldingBranch(source, branchName);
     if (holder !== null && (await isStrictlyInside(root, holder))) {
       if (await git.isDirty(openRepo(ctx, holder))) {
@@ -287,15 +282,11 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     if (!branchExists) {
       await fetchRemoteBase(source, baseBranch);
     }
-    const { commonDir } = await git.gitDirs(source);
     const added = branchExists
       ? [target, branchName]
       : ["-B", branchName, target, baseBranch];
     try {
-      await ctx.lock(commonDir, async () => {
-        await source.git("worktree", "prune");
-        await source.git("worktree", "add", ...added);
-      });
+      await ctx.lock(commonDir, () => source.git("worktree", "add", ...added));
       const worktreeInclude = await copyIncludedFiles(source, target);
       await fs.writeFile(marker, `${branchName}\n${baseBranch}\n`, "utf8");
       const mergeBaseBranch = baseBranch;
@@ -343,7 +334,7 @@ export const switchBranch: Method<"switchBranch"> = async (ctx, args) => {
     const from =
       args.createFrom === null
         ? [branchName]
-        : ["-C", branchName, requireBranchName(args.createFrom)];
+        : ["-c", branchName, requireBranchName(args.createFrom)];
     await repo.git("switch", ...from);
     return { branchName };
   });

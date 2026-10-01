@@ -31,6 +31,7 @@ const LISTING = bounded(4 * 1024 * 1024);
 const PATCH = bounded(DIFF_PATCH_MAX_BYTES_PER_FILE);
 const WHOLE_DIFF = bounded(DIFF_RESPONSE_MAX_BYTES);
 const FILE_LIST_MAX_BYTES = 64 * 1024;
+const ESCAPE_ALLOWANCE = 1.25;
 const AUTO_LOAD_MAX_CHANGED_LINES = 500;
 const TOO_LARGE_CHANGED_LINES = 20_000;
 const INLINE_PATCH_MAX_FILES = 10;
@@ -74,7 +75,8 @@ async function resolveRange(
   }
   if (target.type === "commit") {
     const sha = requireSafeRef(target.sha);
-    return range(["show", "--format=", "--no-ext-diff", sha], false);
+    const show = ["show", "--format=", "--diff-merges=first-parent"];
+    return range([...show, "--no-ext-diff", sha], false);
   }
   const branch = requireBranchName(target.mergeBaseBranch);
   const base = await git.mergeBaseRef(repo, branch);
@@ -100,10 +102,12 @@ function completeRecords(result: GitResult): string {
 
 function truncateUtf8(value: string, maxBytes: number) {
   const buffer = Buffer.from(value, "utf8");
-  if (buffer.byteLength <= maxBytes) {
+  const encoded = Buffer.byteLength(JSON.stringify(value));
+  const inflation = encoded / Math.max(buffer.byteLength, 1) / ESCAPE_ALLOWANCE;
+  let cut = Math.floor(Math.max(0, maxBytes) / Math.max(1, inflation));
+  if (buffer.byteLength <= cut) {
     return { text: value, truncated: false };
   }
-  let cut = Math.max(0, maxBytes);
   while (cut > 0 && ((buffer[cut] ?? 0) & 0xc0) === 0x80) {
     cut -= 1;
   }
@@ -310,18 +314,16 @@ export const gitDiff: Method<"gitDiff"> = async (ctx, args) => {
   const { repo, range, files, untracked } = changed;
   const whole = repo.with(WHOLE_DIFF);
   const patches =
-    range === null
-      ? []
-      : [(await whole.git(...rangeArgs(range, ["--binary"]))).stdout];
+    range === null ? [] : [await whole.git(...rangeArgs(range, ["--binary"]))];
   if (untracked.length > 0) {
-    patches.push(
-      await git.withUntrackedIndex(repo, untracked, async (index) => {
-        const added = await index.with(WHOLE_DIFF).git(...DIFF, "--binary");
-        return added.stdout;
-      }),
+    const added = git.withUntrackedIndex(repo, untracked, (index) =>
+      index.with(WHOLE_DIFF).git(...DIFF, "--binary"),
     );
+    patches.push(await added);
   }
+  const cut = patches.some((patch) => patch.truncated);
   const joined = patches
+    .map((patch) => patch.stdout)
     .map((patch) => patch.trimEnd())
     .filter((patch) => patch.length > 0)
     .join("\n");
@@ -335,7 +337,7 @@ export const gitDiff: Method<"gitDiff"> = async (ctx, args) => {
   );
   return {
     diff: diff.text,
-    truncated: changed.truncated || diff.truncated || fileList.truncated,
+    truncated: changed.truncated || cut || diff.truncated || fileList.truncated,
     shortstat: shortstat(files),
     files: fileList.text,
     mergeBaseRef: range?.mergeBaseRef ?? null,
@@ -361,9 +363,8 @@ export const gitDiffFile: Method<"gitDiffFile"> = async (ctx, args) => {
   if (relativePath.length === 0 || relativePath.split("/").includes("..")) {
     fail("invalid_path", "Invalid diff file path");
   }
-  return readFileContent(ctx, {
-    path: path.join(args.path, relativePath),
-    rootPath: args.path,
-    gitRef: diffFileRef(args.file),
-  });
+  const rootPath = (await git.requireRepo(ctx, args.path)).cwd;
+  const gitRef = diffFileRef(args.file);
+  const file = path.join(rootPath, relativePath);
+  return readFileContent(ctx, { path: file, rootPath, gitRef });
 };

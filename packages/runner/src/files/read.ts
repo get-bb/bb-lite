@@ -19,6 +19,7 @@ import {
 } from "../workspace-types.js";
 
 const BLOB_CHUNK_SOURCE_MAX_BYTES = 25 * 1024 * 1024;
+const FRAME_SAFE = 700 * 1024;
 
 type ReadTarget = FileLocation & { gitRef?: string };
 
@@ -116,7 +117,8 @@ export async function readFileContent(
   const describe = (contents: Buffer, modifiedAtMs?: number): FileContent => {
     const image =
       mimeType?.startsWith("image/") && mimeType !== "image/svg+xml";
-    const utf8 = !image && isUtf8(contents) && !contents.includes(0);
+    const text = !image && isUtf8(contents) && contents.toString();
+    const utf8 = text !== false && JSON.stringify(text).length < FRAME_SAFE;
     return {
       path: target.path,
       content: contents.toString(utf8 ? "utf8" : "base64"),

@@ -18,6 +18,7 @@ describe("files", () => {
       "secret.txt": "outside\n",
     });
     fs.symlinkSync(path.join(h.root, "secret.txt"), path.join(root, "link"));
+    fs.symlinkSync(path.join(h.root, "created"), path.join(root, "dangling"));
   });
 
   afterAll(() => h.dispose());
@@ -53,7 +54,7 @@ describe("files", () => {
       h.api.readFile({ ...atHead, gitRef: "--output=x" }),
       h.api.readFileChunk({ path: "link", rootPath: root, ...range }),
       h.api.writeFile({ path: "../escape.txt", rootPath: root, content: "x" }),
-      h.api.writeFile({ path: "link/../../x", rootPath: root, content: "x" }),
+      h.api.writeFile({ path: "dangling", rootPath: root, content: "x" }),
       h.api.mutatePath({ op: "mkdir", path: "../made", rootPath: root }),
       h.api.mutatePath({ op: "remove", path: ".", rootPath: root }),
     ];
@@ -62,13 +63,13 @@ describe("files", () => {
   });
 
   it("writes with compare-and-set", async () => {
-    const target = { path: "state/config.json", rootPath: root, mode: 0o600 };
+    const target = { path: "state/config.json", rootPath: root };
     const file = path.join(root, target.path);
-    const write = (content: string, expectedSha256?: string | null) =>
-      h.api.writeFile({ ...target, content, expectedSha256 });
+    const write = (content: string, sha?: string | null, more = {}) =>
+      h.api.writeFile({ ...target, content, expectedSha256: sha, ...more });
     expect(await failureCode(write("{}"))).toBe("path_not_found");
-    const fresh = { content: "{}", createParents: true, expectedSha256: null };
-    const created = await h.api.writeFile({ ...target, ...fresh });
+    const fresh = { createParents: true, mode: 0o664, expectedSha256: null };
+    const created = await write("{}", undefined, fresh);
     const sha256 = sha256Hex("{}");
     expect(created).toEqual({ outcome: "written", sha256, sizeBytes: 2 });
     const conflict = { outcome: "conflict", currentSha256: sha256 };
@@ -77,7 +78,7 @@ describe("files", () => {
     expect(fs.readFileSync(file, "utf8")).toBe("{}");
     expect((await write('{"a":1}', sha256)).outcome).toBe("written");
     expect(fs.readFileSync(file, "utf8")).toBe('{"a":1}');
-    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(file).mode & 0o777).toBe(0o664);
     expect(fs.readdirSync(path.dirname(file))).toEqual(["config.json"]);
     const oversized = write("x".repeat(513 * KIB));
     expect(await failureCode(oversized)).toBe("file_too_large");

@@ -299,7 +299,7 @@ export function createTerminals(ctx: Ctx): Terminals {
     dispose() {
       for (const terminal of terminals.values()) {
         if (terminal.exited === null) {
-          kill(terminal, "SIGHUP");
+          kill(terminal, "SIGKILL");
           finish(terminal, null);
         }
         forget(terminal);

@@ -40,6 +40,10 @@ async function confinedWritePath(
     resolveRoot(location.rootPath),
   ]);
   requireInsideRoot(realRoot, target.writePath, location.path);
+  const existing = await fs.lstat(target.writePath).catch(() => null);
+  if (existing?.isSymbolicLink()) {
+    fail("invalid_path", `Path "${location.path}" is a dangling symlink`);
+  }
   return target;
 }
 
@@ -85,6 +89,7 @@ async function replaceIfUnchanged(
     const handle = await fs.open(temporaryPath, "wx", mode);
     try {
       await handle.writeFile(contents);
+      await (mode === undefined ? undefined : handle.chmod(mode));
       await handle.sync();
     } finally {
       await handle.close();

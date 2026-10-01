@@ -92,10 +92,8 @@ export function toRunnerError(error: unknown): RunnerError {
 
 export function isInside(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return (
-    relative === "" ||
-    (!relative.startsWith("..") && !path.isAbsolute(relative))
-  );
+  const outside = relative === ".." || relative.startsWith(`..${path.sep}`);
+  return !outside && !path.isAbsolute(relative);
 }
 
 export function requireAbsolute(value: string, label = "Path"): string {

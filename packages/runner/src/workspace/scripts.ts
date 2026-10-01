@@ -13,6 +13,8 @@ import type {
 import { fail, pathExists, requireAbsolute, type Ctx } from "./exec.js";
 
 const REMEMBERED_OPERATIONS = 256;
+const MAX_TIMER_MS = 2 ** 31 - 1;
+const OUTPUT_DRAIN_MS = 250;
 const OUTPUT_EVENT_MAX_LENGTH = 64 * 1024;
 const GROUP_EXIT_POLL_MS = 25;
 const GROUP_EXIT_POLLS = 200;
@@ -72,10 +74,13 @@ async function runScript(
   });
   let timedOut = false;
   const killGroup = (): boolean => signalGroup(child.pid, "SIGKILL");
-  const timer = setTimeout(() => {
-    timedOut = true;
-    killGroup();
-  }, args.timeoutMs);
+  const timer = setTimeout(
+    () => {
+      timedOut = true;
+      killGroup();
+    },
+    Math.min(args.timeoutMs, MAX_TIMER_MS),
+  );
   signal.addEventListener("abort", killGroup, { once: true });
   if (signal.aborted) {
     killGroup();
@@ -83,7 +88,7 @@ async function runScript(
   const flushes = [child.stdout, child.stderr].map((stream) => {
     const reader = createTerminalOutputLineReader();
     const emit = (lines: string[]): void => {
-      const output = lines.join("\n");
+      const output = lines.map((line) => `${line}\n`).join("");
       const { operationId } = args;
       for (let at = 0; at < output.length; at += OUTPUT_EVENT_MAX_LENGTH) {
         const text = output.slice(at, at + OUTPUT_EVENT_MAX_LENGTH);
@@ -105,8 +110,10 @@ async function runScript(
       signal: NodeJS.Signals | null;
     }>((resolve, reject) => {
       child.once("error", reject);
-      child.once("close", (code, by) => resolve({ code, signal: by }));
+      child.once("exit", (code, by) => resolve({ code, signal: by }));
     });
+    const closed = new Promise((resolve) => child.once("close", resolve));
+    await Promise.race([closed, delay(OUTPUT_DRAIN_MS)]);
     const killed = timedOut || signal.aborted;
     for (let poll = 0; killed && poll < GROUP_EXIT_POLLS; poll += 1) {
       if (!signalGroup(child.pid, 0)) {
