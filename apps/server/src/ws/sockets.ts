@@ -2,7 +2,7 @@ import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { ServerContext } from "../context.js";
-import { publicServerUrl } from "../http/app.js";
+import { trustLookups } from "../http/app.js";
 import { errorResponse, notFound } from "../http/errors.js";
 import { authorize, requestHeader, type Principal } from "../http/trust.js";
 
@@ -95,7 +95,7 @@ export class SocketRegistry {
     const path = url.pathname;
     const principal = authorize(
       { method: "GET", path, headers, socket },
-      publicServerUrl(this.ctx),
+      trustLookups(this.ctx),
     );
     const header = (name: string) => requestHeader(request, name);
     for (const [pattern, endpoint] of this.endpoints) {

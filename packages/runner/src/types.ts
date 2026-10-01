@@ -95,23 +95,26 @@ export interface ProviderModels {
   selectedOnlyModels: AvailableModel[];
 }
 
-export type RunnerErrorCode =
-  | "competing_turn"
-  | "stale_turn"
-  | "session_not_found"
-  | "missing_executable"
-  | "auth_required"
-  | "rate_limited"
-  | "path_not_found"
-  | "not_git_repo"
-  | "permission_denied"
-  | "invalid_path"
-  | "file_too_large"
-  | "conflict"
-  | "no_changes"
-  | "terminal_not_found"
-  | "unavailable"
-  | "failed";
+export const RUNNER_ERROR_CODES = [
+  "competing_turn",
+  "stale_turn",
+  "session_not_found",
+  "missing_executable",
+  "auth_required",
+  "rate_limited",
+  "path_not_found",
+  "not_git_repo",
+  "permission_denied",
+  "invalid_path",
+  "file_too_large",
+  "conflict",
+  "no_changes",
+  "terminal_not_found",
+  "unavailable",
+  "failed",
+] as const;
+
+export type RunnerErrorCode = (typeof RUNNER_ERROR_CODES)[number];
 
 export class RunnerError extends Error {
   readonly code: RunnerErrorCode;
