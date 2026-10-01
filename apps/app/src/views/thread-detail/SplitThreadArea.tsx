@@ -29,7 +29,6 @@ import {
 import { useIsMutating } from "@tanstack/react-query";
 import { BbHttpError } from "@/lib/sdk";
 import { useThread } from "@/hooks/queries/thread-queries";
-import { useSplitWorkspaceActive } from "@/hooks/useSplitWorkspaceActive";
 import {
   dimInactiveSplitsAtom,
   maximizedPaneIdAtom,
@@ -70,7 +69,6 @@ import {
   useIndexedAppCommandHandlers,
 } from "@/components/commands/AppCommandProvider";
 import {
-  DefaultPaneContextProvider,
   PaneContext,
   createPaneSecondaryPanelRegistry,
   useOptionalPaneContext,
@@ -130,7 +128,6 @@ function PluginPagePanelHost({
 }: {
   children: ReactNode;
   flushPageInsets?: boolean;
-  paneId?: string;
   panelPath: string;
   pluginId: string;
   subPath: string;
@@ -254,7 +251,6 @@ export function SplitThreadArea(props: SplitThreadAreaProps = {}) {
 
 function SplitThreadAreaContent({ routeContent }: SplitThreadAreaProps) {
   const { projectId, threadId } = useRouteState();
-  const splitWorkspaceActive = useSplitWorkspaceActive();
   const navigate = useImmediateRouteNavigate();
   const store = useStore();
   const [storedLayout, setLayout] = useAtom(splitLayoutAtom);
@@ -292,7 +288,7 @@ function SplitThreadAreaContent({ routeContent }: SplitThreadAreaProps) {
         ? reconcileLayoutForContent(null, currentContent)
         : null);
   const panes = layout === null ? [] : listPanes(layout.root);
-  const isSplitActive = splitWorkspaceActive && panes.length > 1;
+  const isSplitActive = panes.length > 1;
   const maximizedPane =
     layout !== null && maximizedPaneId !== null
       ? findPane(layout.root, maximizedPaneId)
@@ -670,20 +666,6 @@ function SplitThreadAreaContent({ routeContent }: SplitThreadAreaProps) {
   );
 
   if (layout === null || currentContent === null) return null;
-  if (!splitWorkspaceActive) {
-    return (
-      <StandalonePaneContent
-        content={currentContent}
-        paneId={layout.focusedPaneId}
-        onRequestClose={
-          currentContent.kind === "new-thread"
-            ? null
-            : () => closePane(layout.focusedPaneId)
-        }
-        onNavigateInPane={navigateInPane}
-      />
-    );
-  }
 
   const commandHandlers = (
     <SplitPaneCommandHandlers
@@ -1092,7 +1074,6 @@ const WorkspacePaneContent = memo(function WorkspacePaneContent({
   return (
     <PaneContext.Provider value={value}>
       <ThreadDetailView
-        surface="pane"
         projectId={content.projectId}
         threadId={content.threadId}
         timelineEnabled={timelineEnabled}
@@ -1100,99 +1081,6 @@ const WorkspacePaneContent = memo(function WorkspacePaneContent({
     </PaneContext.Provider>
   );
 });
-
-function StandalonePaneContent({
-  content,
-  paneId,
-  onRequestClose,
-  onNavigateInPane,
-}: {
-  content: PaneContent;
-  paneId: string;
-  onRequestClose: (() => void) | null;
-  onNavigateInPane: NavigateInPane;
-}) {
-  const navPanelChrome = usePluginNavPanelChrome();
-  const navigateInPane = useCallback(
-    (thread: ThreadRoutePathArgs) => onNavigateInPane(paneId, content, thread),
-    [content, onNavigateInPane, paneId],
-  );
-  if (content.kind === "thread" || content.kind === "new-thread") {
-    return (
-      <DefaultPaneContextProvider
-        onRequestClose={onRequestClose}
-        navigateInPane={navigateInPane}
-      >
-        {content.kind === "thread" ? (
-          <ThreadDetailView surface="page" />
-        ) : (
-          <RootComposeView />
-        )}
-      </DefaultPaneContextProvider>
-    );
-  }
-  const panelEntry = navPanelChrome.find(
-    (candidate) =>
-      candidate.chrome.pluginId === content.pluginId &&
-      candidate.chrome.path === content.panelPath,
-  );
-  const panel = panelEntry?.panel ?? undefined;
-  const panelChrome = panelEntry?.chrome;
-  const body = (
-    <PluginPanelView
-      pluginId={content.pluginId}
-      panelPath={content.panelPath}
-      subPath={content.subPath}
-    />
-  );
-  const paneActions = onRequestClose ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn(
-        HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
-        CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
-      )}
-      aria-label="Close pane"
-      onClick={onRequestClose}
-    >
-      <Icon name="ClosePluginPane" />
-    </Button>
-  ) : null;
-  return (
-    <PluginPagePanelHost
-      flushPageInsets
-      pluginId={content.pluginId}
-      panelPath={content.panelPath}
-      paneId={paneId}
-      subPath={content.subPath}
-    >
-      {panelChrome ? (
-        <div className="flex h-full min-h-0 flex-col">
-          <AppPageHeader
-            center={<PluginPanelHeaderCenter chrome={panelChrome} />}
-            actions={
-              panel ? (
-                <PluginPanelHeaderActions
-                  panel={panel}
-                  paneId={paneId}
-                  subPath={content.subPath}
-                  paneActions={paneActions}
-                />
-              ) : (
-                paneActions
-              )
-            }
-          />
-          <div className="flex min-h-0 flex-1 flex-col p-4 md:p-5">{body}</div>
-        </div>
-      ) : (
-        body
-      )}
-    </PluginPagePanelHost>
-  );
-}
 
 function NonThreadPaneContent({
   content,

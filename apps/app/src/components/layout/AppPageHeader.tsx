@@ -4,7 +4,6 @@ import {
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
   COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
   CHROME_ROW_CLASS,
@@ -37,9 +36,7 @@ export function AppPageHeader({
   ownsWindowTopLeft = true,
 }: AppPageHeaderProps) {
   const isSidebarShowing = useIsSidebarShowing();
-  const isCompactViewport = useIsCompactViewport();
-  const shouldReserveSidebarTrigger =
-    ownsWindowTopLeft && (isCompactViewport || !isSidebarShowing);
+  const shouldReserveSidebarTrigger = ownsWindowTopLeft && !isSidebarShowing;
   return (
     <header
       ref={headerRef}

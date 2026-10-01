@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useLayoutEffect,
-  useMemo,
   useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -127,36 +126,4 @@ export function usePaneContext(): PaneContextValue {
 
 export function useOptionalPaneContext(): PaneContextValue | null {
   return useContext(PaneContext);
-}
-
-interface DefaultPaneContextProviderProps {
-  children: ReactNode;
-  onRequestClose: (() => void) | null;
-  navigateInPane: (thread: ThreadRoutePathArgs) => void;
-}
-
-export function DefaultPaneContextProvider({
-  children,
-  onRequestClose,
-  navigateInPane,
-}: DefaultPaneContextProviderProps) {
-  const value = useMemo<PaneContextValue>(
-    () => ({
-      paneId: "main",
-      isFocused: true,
-      isSplitPane: false,
-      secondaryPanelHost: null,
-      reservesWindowPanelToggle: false,
-      onRequestClose,
-      isMaximized: false,
-      onToggleMaximize: null,
-      isBoundedPane: false,
-      isTopRow: true,
-      ownsWindowTopLeft: true,
-      navigateInPane,
-    }),
-    [navigateInPane, onRequestClose],
-  );
-
-  return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }

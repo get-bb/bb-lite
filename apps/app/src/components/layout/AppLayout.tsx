@@ -18,7 +18,6 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar.js";
 import {
   resolveThreadTitleDisplayText,
@@ -45,10 +44,6 @@ import { useRouteState } from "@/hooks/useRouteState";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
-import {
-  COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
-  usePanelShelfState,
-} from "@/components/ui/secondary-panel-shelf-visibility";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { ProjectActionsMenu } from "@/components/project/ProjectActionsMenu";
 import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
@@ -90,11 +85,6 @@ import {
   useAppCommandHandler,
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import {
-  shouldRestoreIOSViewportOnKeyboardDismissal,
-  useMobileVisualViewportHeight,
-} from "./useMobileVisualViewportHeight";
 import { wsManager } from "@/lib/ws";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import { findPaneByThread } from "@/lib/split-layout";
@@ -179,12 +169,6 @@ function resetSidebarResizeDocumentState(): void {
 }
 
 function SidebarTriggerOverlay() {
-  const isCompactViewport = useIsCompactViewport();
-  const { openMobile } = useSidebar();
-  const panelShelfState = usePanelShelfState({
-    isCompactViewport,
-    isSidebarDrawerOpen: openMobile,
-  });
   const shortcut = useAppCommandShortcut("sidebar.toggle");
   const triggerProps = {
     "aria-label": shortcut
@@ -195,15 +179,9 @@ function SidebarTriggerOverlay() {
   return (
     <div
       data-testid="app-sidebar-trigger-overlay"
-      data-panel-shelf={panelShelfState}
-      style={{
-        zIndex: isCompactViewport
-          ? APP_OVERLAY_LAYER.compactSidebarTrigger
-          : APP_OVERLAY_LAYER.sidebarTrigger,
-      }}
+      style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
       className={cn(
-        "fixed top-[env(safe-area-inset-top)] left-[env(safe-area-inset-left)]",
-        COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
+        "fixed top-0 left-0",
         CHROME_ROW_CLASS,
         BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
       )}
@@ -309,18 +287,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const quickCreateProject = useQuickCreateProjectController();
-  const isCompactViewport = useIsCompactViewport();
   const store = useStore();
-  const [contentShell, setContentShell] = useState<HTMLDivElement | null>(null);
-  const restoreIOSViewportOnKeyboardDismissal = useMemo(
-    () => shouldRestoreIOSViewportOnKeyboardDismissal(navigator),
-    [],
-  );
-  useMobileVisualViewportHeight(
-    contentShell,
-    isCompactViewport,
-    restoreIOSViewportOnKeyboardDismissal,
-  );
   const location = useLocation();
   const { projectId, threadId, isThreadView, isArchivedView, isRootView } =
     useRouteState();
@@ -371,14 +338,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         const next = applyThreadOpenToLayout(
           current,
           { projectId: signal.projectId, threadId: signal.threadId },
-          isCompactViewport ? "replace" : signal.split,
+          signal.split,
         );
         if (next !== current) {
           store.set(splitLayoutAtom, next);
         }
         void navigate(route, alreadyOpen ? { replace: true } : undefined);
       }),
-    [isCompactViewport, navigate, store],
+    [navigate, store],
   );
   useAppCommandHandler("thread.new", () => {
     if (projectId !== undefined) {
@@ -675,9 +642,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 />
                 <SidebarInset>
                   <div
-                    ref={setContentShell}
                     data-testid="app-layout-content-shell"
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[var(--bb-safe-area-bottom,env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)]"
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
                   >
                     {showHeader ? (
                       <AppHeader

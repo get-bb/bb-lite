@@ -28,7 +28,6 @@ import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";
 import {
   CONTEXT_INACTIVE_TEXT_CLASS,
@@ -71,7 +70,6 @@ export function ThreadDetailHeader({
   threadTitle,
   workspaceOpenButton,
 }: ThreadDetailHeaderProps) {
-  const isCompactViewport = useIsCompactViewport();
   const [primaryAction, ...secondaryActions] = threadHeaderGitActions;
   const { renameThreadAsync } = useThreadActions();
   const handleRename = useCallback(
@@ -136,12 +134,10 @@ export function ThreadDetailHeader({
     }
     startEditing();
   };
-  const rightPanelLabel = isSecondaryPanelOpen
-    ? "Hide right panel"
-    : "Show right panel";
+  const rightPanelLabel = "Show right panel";
   const rightPanelIconName = RIGHT_PANEL_TOGGLE_ICON_NAME;
   const showRightPanelToggle =
-    secondaryPanelHost === null && (!isSecondaryPanelOpen || isCompactViewport);
+    secondaryPanelHost === null && !isSecondaryPanelOpen;
 
   const center = (
     <>
@@ -261,7 +257,7 @@ export function ThreadDetailHeader({
                   : rightPanelLabel
               }
               aria-keyshortcuts={panelShortcut?.ariaKeyshortcuts}
-              aria-expanded={isSecondaryPanelOpen}
+              aria-expanded={false}
               onClick={onToggleSecondaryPanel}
             >
               <Icon name={rightPanelIconName} />
