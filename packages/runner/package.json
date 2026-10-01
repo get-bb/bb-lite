@@ -24,6 +24,7 @@
     "@bb/domain": "workspace:*",
     "@bb/fuzzy-match": "workspace:*",
     "@bb/server-contract": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@parcel/watcher": "2.5.6",
     "mime-types": "^3.0.2",
     "node-pty": "1.2.0-beta.15",

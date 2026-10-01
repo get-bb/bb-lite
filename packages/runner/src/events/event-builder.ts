@@ -34,6 +34,10 @@ export type ItemShape =
       Managed | "presentation"
     >
   | Strip<Extract<Item, { type: "extension" }>, Managed>;
+export type BackgroundTaskShape = Extract<
+  ItemShape,
+  { type: "backgroundTask" }
+>;
 export type TextChannel = keyof typeof CHANNEL_ITEM;
 export type OutputChannel = "command" | "fileChange";
 export interface ItemKey {
@@ -56,6 +60,7 @@ export interface CloseOptions extends TurnTarget {
 export interface ProgressOptions extends TurnTarget {
   message?: string;
   flush?: boolean;
+  snapshot?: { shape: BackgroundTaskShape; status: ItemStatus };
 }
 export interface ErrorOptions extends TurnTarget {
   settlesTurn?: boolean;
@@ -221,7 +226,7 @@ export class EventBuilder {
   identity(providerThreadId: string) {
     this.flush();
     const first = this.identityId === null;
-    this.identityId ??= providerThreadId;
+    this.identityId = providerThreadId;
     const scope = threadScope();
     this.options.emit({ type: "thread/identity", providerThreadId, scope });
     if (!first) return;
@@ -327,19 +332,34 @@ export class EventBuilder {
     const k = keyOf(key);
     this.pendingProgress.delete(k);
     const itemId = this.open.get(k)?.id ?? this.knownItemId(key);
-    const turnId = this.target(options);
-    if (itemId === undefined || turnId === undefined) return;
+    const { message, snapshot } = options;
+    const turnId = snapshot ? undefined : this.target(options);
+    if (itemId === undefined || (!snapshot && turnId === undefined)) return;
     const parentToolCallId = this.parentOf(key.parentRef);
-    const { message } = options;
-    const type = "item/toolCall/progress";
-    const draft = { type, itemId, message, parentToolCallId } as const;
+    const item = snapshot && {
+      ...snapshot.shape,
+      id: itemId,
+      status: snapshot.status,
+      parentToolCallId,
+    };
+    const event = this.draft(
+      turnId,
+      item
+        ? { type: "item/backgroundTask/progress", item: withoutUndefined(item) }
+        : { type: "item/toolCall/progress", itemId, message, parentToolCallId },
+    );
     const elapsed = this.now() - (this.progressAt.get(k) ?? -Infinity);
     if (elapsed < this.progressMs && options.flush !== true) {
-      this.pendingProgress.set(k, this.draft(turnId, draft));
+      this.pendingProgress.set(k, event);
       return;
     }
     this.progressAt.set(k, this.now());
-    this.send(turnId, draft);
+    this.push(event);
+  }
+
+  modelFallback(fallback: Fields<"provider/modelFallback">) {
+    const turnId = this.target(undefined, true);
+    this.send(turnId, { type: "provider/modelFallback", ...fallback });
   }
 
   delta(key: ItemKey, channel: DeltaChannel, delta: string, t?: TurnTarget) {

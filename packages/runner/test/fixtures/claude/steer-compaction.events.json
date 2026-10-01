@@ -1,0 +1,1261 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "39b43706-f591-4661-aba2-1a9d4219ec71",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "39b43706-f591-4661-aba2-1a9d4219ec71",
+    "scope": {
+      "kind": "thread"
+    },
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "39b43706-f591-4661-aba2-1a9d4219ec71",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "39b43706-f591-4661-aba2-1a9d4219ec71",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_yfwctcdwqv"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "I"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "'ll count 1 to 40 with a sleep between each.\n\n1"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 28740,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "I'll count 1 to 40 with a sleep between each.\n\n1"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 28740,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "claude-code",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "five_hour",
+          "label": "Five-hour limit",
+          "status": "allowed",
+          "resetsAtMs": 1787288400000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": "allowed",
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "2"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 29983,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "2"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 29983,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i4",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i4",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i5",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i5",
+    "delta": "3"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30105,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i5",
+      "text": "3"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30105,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i6",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i6",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i7",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i7",
+    "delta": "4"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30227,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i7",
+      "text": "4"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30227,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i8",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i8",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i9",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i9",
+    "delta": "5"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30349,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i9",
+      "text": "5"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30349,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i10",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i10",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i11",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i11",
+    "delta": "6"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30471,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i11",
+      "text": "6"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30471,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i12",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i12",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i13",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": "7"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30593,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i13",
+      "text": "7"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30593,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i14",
+      "command": "sleep 2",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_krxckwc9h6"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i14",
+      "command": "sleep 2",
+      "cwd": "",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30820,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i15",
+      "command": "git branch --show-current",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "git branch --show-current"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i15",
+      "command": "git branch --show-current",
+      "cwd": "",
+      "aggregatedOutput": "main",
+      "exitCode": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "git branch --show-current"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i16",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i16",
+    "delta": "Stopped counting at"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i16",
+    "delta": " 7. Current git branch: `main`."
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30929,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i16",
+      "text": "Stopped counting at 7. Current git branch: `main`."
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30929,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 272919,
+        "inputTokens": 18,
+        "cachedInputTokens": 272199,
+        "cacheReadInputTokens": 270010,
+        "cacheWriteInputTokens": 2189,
+        "outputTokens": 702,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 272919,
+        "inputTokens": 18,
+        "cachedInputTokens": 272199,
+        "cacheReadInputTokens": 270010,
+        "cacheWriteInputTokens": 2189,
+        "outputTokens": 702,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "b6127845-4d0c-460c-9b77-4076bb79362a"
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "clientRequestId": "creq_y58mf3v3y6"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "contextCompaction",
+      "id": "da00000000-i17",
+      "presentation": {
+        "label": {
+          "pending": "Compacting context",
+          "completed": "Compacted context"
+        },
+        "icon": {
+          "glyph": "Archive"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "contextCompaction",
+      "id": "da00000000-i17",
+      "presentation": {
+        "label": {
+          "pending": "Compacting context",
+          "completed": "Compacted context"
+        },
+        "icon": {
+          "glyph": "Archive"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/compacted",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "provider/unhandled",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "providerId": "claude-code",
+    "rawType": "sdk/user",
+    "rawEvent": {
+      "jsonrpc": "2.0",
+      "method": "sdk/message",
+      "params": {
+        "message": {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - Initial request: Count from 1 to 40 \"out loud,\" one number per message line, running `sleep 2` in the shell between every number, with the explicit instruction \"Do not stop early.\"\n   - Revised intent (delivered mid-turn, superseding the above): \"Stop counting now. Instead, tell me the current git branch name and finish.\" This explicitly cancelled the remainder of the counting task and replaced it with a single git branch lookup.\n   - Final request: Produce a structured summary of the conversation, text only, with no tool calls.\n\n2. Key Technical Concepts:\n   - Claude Code mid-turn user messages (user input surfaced alongside a tool result within a running turn, requiring in-turn course correction).\n   - Bash tool usage for shell commands (`sleep`, `git branch --show-current`).\n   - bb agentic IDE environment (project/thread/environment model; `bb` CLI available).\n   - Bypass permissions mode with guidance to prefer Bash over dedicated file tools.\n   - Deferred tool loading via ToolSearch; MCP server auth state.\n\n3. Files and Code Sections:\n   - No files were read, created, edited, or deleted during this conversation.\n   - Commands run:\n     - `sleep 2` — executed 7 times, once after\n⟦redacted: 2674 chars trimmed⟧\n-4b09d7f35051.jsonl\nContinue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened."
+          },
+          "session_id": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+          "parent_tool_use_id": null,
+          "uuid": "28bc4718-731f-414d-ada7-5dd6545f584e",
+          "timestamp": "2026-08-21T02:32:08.042Z",
+          "isReplay": false,
+          "isSynthetic": true
+        },
+        "threadId": "thr_7avz7jm9zv"
+      }
+    },
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "provider/unhandled",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "providerId": "claude-code",
+    "rawType": "sdk/user",
+    "rawEvent": {
+      "jsonrpc": "2.0",
+      "method": "sdk/message",
+      "params": {
+        "message": {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": "<local-command-stdout>Compacted </local-command-stdout>"
+          },
+          "session_id": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+          "parent_tool_use_id": null,
+          "uuid": "436042e1-4222-487c-b32b-010944974bfb",
+          "timestamp": "2026-08-21T02:32:08.176Z",
+          "isReplay": true
+        },
+        "threadId": "thr_7avz7jm9zv"
+      }
+    },
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 272919,
+        "inputTokens": 18,
+        "cachedInputTokens": 272199,
+        "cacheReadInputTokens": 270010,
+        "cacheWriteInputTokens": 2189,
+        "outputTokens": 702,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 0,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "d620fd0b-b7b3-486c-a7e9-4b09d7f35051",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "status": "completed",
+    "providerCheckpointId": "436042e1-4222-487c-b32b-010944974bfb"
+  }
+]

@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { createClaudeAdapter } from "./providers/claude.js";
 import { createCodexAdapter } from "./providers/codex.js";
 import { createEchoAdapter } from "./providers/echo.js";
 import type { ProviderAdapter } from "./providers/provider.js";
@@ -25,7 +26,7 @@ export interface LocalRunner extends Runner {
 }
 
 export function defaultAdapters(): ProviderAdapter[] {
-  return [createCodexAdapter(), createEchoAdapter()];
+  return [createCodexAdapter(), createClaudeAdapter(), createEchoAdapter()];
 }
 
 export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {

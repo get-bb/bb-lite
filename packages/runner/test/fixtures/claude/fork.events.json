@@ -1,0 +1,169 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "ecd5d95e-7eec-4a3e-ba0b-9a06901ef684",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "ecd5d95e-7eec-4a3e-ba0b-9a06901ef684",
+    "scope": {
+      "kind": "thread"
+    },
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "ecd5d95e-7eec-4a3e-ba0b-9a06901ef684",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "ecd5d95e-7eec-4a3e-ba0b-9a06901ef684",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_a96qap3nh8"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "ready"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30258,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "ready"
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "claude-code",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "five_hour",
+          "label": "Five-hour limit",
+          "status": "allowed",
+          "resetsAtMs": 1787288400000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": "allowed",
+      "overageReason": null
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30258,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 30262,
+        "inputTokens": 2,
+        "cachedInputTokens": 30256,
+        "cacheReadInputTokens": 29440,
+        "cacheWriteInputTokens": 816,
+        "outputTokens": 4,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 30262,
+        "inputTokens": 2,
+        "cachedInputTokens": 30256,
+        "cacheReadInputTokens": 29440,
+        "cacheWriteInputTokens": 816,
+        "outputTokens": 4,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "a969feb6-0e45-4219-9896-36f7182574c1",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "5f482fad-ee50-469a-80fc-9aec8450c202"
+  }
+]
