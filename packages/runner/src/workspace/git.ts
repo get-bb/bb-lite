@@ -16,12 +16,14 @@ import {
   openRepo,
   pathExists,
   requireAbsolute,
+  requireBranchName,
   type Ctx,
   type Method,
   type Repo,
 } from "./exec.js";
 
 const STATUS_TIMEOUT_MS = 15_000;
+const STATUS_MAX_COMMITS = "--max-count=200";
 const UNTRACKED_STAT_MAX_FILES = 50;
 const UNTRACKED_STAT_MAX_BYTES = 8 * 1024 * 1024;
 const CONFLICT_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
@@ -260,33 +262,22 @@ export async function defaultBranch(repo: Repo): Promise<string | null> {
   return head ?? preferredLocal(await localBranches(repo), null);
 }
 
-async function branchRefs(repo: Repo): Promise<BranchRefs> {
-  const [head, local, remote] = await Promise.all([
-    originHead(repo),
-    localBranches(repo),
-    branchNames(repo, "refs/remotes"),
-  ]);
-  const defaultLocal = preferredLocal(local, head);
-  const originDefault = [head, defaultLocal]
+async function branchRefs(repo: Repo, kind: RepoKind): Promise<BranchRefs> {
+  const [head, local, remote] =
+    kind === "none"
+      ? [null, [], []]
+      : await Promise.all([
+          originHead(repo),
+          localBranches(repo),
+          branchNames(repo, "refs/remotes"),
+        ]);
+  const defaultBranch = preferredLocal(local, head);
+  const originDefaultBranch = [head, defaultBranch]
     .filter((name) => name !== null)
     .map((name) => `origin/${name}`)
     .find((name) => remote.includes(name));
-  return {
-    local,
-    remote,
-    defaultBranch: defaultLocal,
-    originDefaultBranch: originDefault ?? null,
-  };
-}
-
-async function isAncestor(
-  repo: Repo,
-  ancestor: string,
-  descendant: string,
-): Promise<boolean | null> {
-  const flags = ["--is-ancestor", ancestor, descendant];
-  const { exitCode } = await repo.attempt("merge-base", ...flags);
-  return exitCode === 0 ? true : exitCode === 1 ? false : null;
+  const origin = originDefaultBranch ?? null;
+  return { local, remote, defaultBranch, originDefaultBranch: origin };
 }
 
 async function defaultBranchRelation(
@@ -297,27 +288,19 @@ async function defaultBranchRelation(
     return null;
   }
   const local = `refs/heads/${refs.defaultBranch}`;
-  const origin = `refs/remotes/${refs.originDefaultBranch}`;
-  const [localSha, originSha] = await Promise.all([
-    revision(repo, local),
-    revision(repo, origin),
-  ]);
-  if (localSha === null || originSha === null) {
+  const range = `${local}...refs/remotes/${refs.originDefaultBranch}`;
+  const counts = await repo.line("rev-list", "--left-right", "--count", range);
+  const [ahead, behind] = (counts ?? "").split(/\s+/u).map(Number);
+  if (ahead === undefined || behind === undefined) {
     return "unknown";
   }
-  if (localSha === originSha) {
-    return "equal";
-  }
-  const behind = await isAncestor(repo, local, origin);
-  if (behind !== false) {
-    return behind === null ? "unknown" : "local-behind";
-  }
-  const ahead = await isAncestor(repo, origin, local);
-  return ahead === null ? "unknown" : ahead ? "local-ahead" : "diverged";
+  const whenLevel = behind === 0 ? "equal" : "local-behind";
+  const whenAhead = behind === 0 ? "local-ahead" : "diverged";
+  return ahead === 0 ? whenLevel : whenAhead;
 }
 
 export async function defaultWorktreeBase(repo: Repo): Promise<string | null> {
-  const refs = await branchRefs(repo);
+  const refs = await branchRefs(repo, "work-tree");
   const relation = await defaultBranchRelation(repo, refs);
   const preferOrigin =
     refs.defaultBranch === null ||
@@ -367,13 +350,9 @@ export const inspectPath: Method<"inspectPath"> = async (ctx, args) => {
       repo.line("remote", "get-url", "origin"),
       isDirty(repo),
     ]);
-  const inspected = { isWorktree, branchName, remoteUrl, dirty };
-  return {
-    ...inspected,
-    exists: true,
-    isGitRepo: true,
-    defaultBranch: fallback ?? branchName,
-  };
+  const defaultBranchName = fallback ?? branchName;
+  const found = { ...NOT_A_REPO, isGitRepo: true, isWorktree, branchName };
+  return { ...found, defaultBranch: defaultBranchName, remoteUrl, dirty };
 };
 
 export const inspectGitSource: Method<"inspectGitSource"> = async (
@@ -385,7 +364,7 @@ export const inspectGitSource: Method<"inspectGitSource"> = async (
     return NOT_A_SOURCE;
   }
   const workTree = kind === "work-tree";
-  const refs = await branchRefs(repo);
+  const refs = await branchRefs(repo, kind);
   const [checkout, relation, dirty, operation, isWorktree] = await Promise.all([
     checkoutRef(repo),
     defaultBranchRelation(repo, refs),
@@ -406,55 +385,34 @@ export const inspectGitSource: Method<"inspectGitSource"> = async (
 
 export const listBranches: Method<"listBranches"> = async (ctx, args) => {
   const { repo, kind } = await probe(ctx, args.path);
-  const refs: BranchRefs =
-    kind === "none"
-      ? {
-          local: [],
-          remote: [],
-          defaultBranch: null,
-          originDefaultBranch: null,
-        }
-      : await branchRefs(repo);
+  const refs = await branchRefs(repo, kind);
   const query = args.query?.trim().toLowerCase() ?? "";
   const page = (branches: string[], pinned: string | null) => {
+    const first = (name: string): number => Number(name !== pinned);
     const matching = branches
       .filter((branch) => branch.toLowerCase().includes(query))
-      .sort(
-        (left, right) => Number(right === pinned) - Number(left === pinned),
-      );
-    return {
-      names: matching.slice(0, args.limit),
-      truncated: matching.length > args.limit,
-    };
+      .sort((left, right) => first(left) - first(right));
+    return [
+      matching.slice(0, args.limit),
+      matching.length > args.limit,
+    ] as const;
   };
-  const local = page(refs.local, refs.defaultBranch);
-  const remote = page(refs.remote, refs.originDefaultBranch);
-  const selected = args.selectedBranch;
-  const selectedKind = !selected
-    ? null
-    : refs.local.includes(selected)
-      ? "local"
-      : refs.remote.includes(selected)
-        ? "remote"
-        : "missing";
+  const [branches, branchesTruncated] = page(refs.local, refs.defaultBranch);
+  const [remoteBranches, remoteBranchesTruncated] = page(
+    refs.remote,
+    refs.originDefaultBranch,
+  );
+  const name = args.selectedBranch;
+  const found = refs.remote.includes(name ?? "") ? "remote" : "missing";
+  const selectedKind = refs.local.includes(name ?? "") ? "local" : found;
   return {
-    branches: local.names,
-    branchesTruncated: local.truncated,
-    remoteBranches: remote.names,
-    remoteBranchesTruncated: remote.truncated,
-    selectedBranch:
-      selected && selectedKind ? { name: selected, kind: selectedKind } : null,
+    branches,
+    branchesTruncated,
+    remoteBranches,
+    remoteBranchesTruncated,
+    selectedBranch: name ? { name, kind: selectedKind } : null,
   };
 };
-
-async function existingFiles(cwd: string, paths: string[]): Promise<string[]> {
-  const stats = await Promise.all(
-    paths.map((file) => fs.lstat(path.join(cwd, file)).catch(() => null)),
-  );
-  return paths.filter(
-    (_file, index) => stats[index]?.isFile() || stats[index]?.isSymbolicLink(),
-  );
-}
 
 export async function withUntrackedIndex<T>(
   repo: Repo,
@@ -463,30 +421,26 @@ export async function withUntrackedIndex<T>(
 ): Promise<T> {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "bb-index-"));
   const pathspecFile = path.join(directory, "pathspec");
-  const indexed = repo.with({
-    env: { GIT_INDEX_FILE: path.join(directory, "index") },
-  });
+  const indexFile = path.join(directory, "index");
+  const indexed = repo.with({ env: { GIT_INDEX_FILE: indexFile } });
   try {
-    let candidates = await existingFiles(repo.cwd, paths);
-    for (let attempt = 0; ; attempt += 1) {
-      await indexed.git("read-tree", "--empty");
-      if (candidates.length === 0) {
-        return await work(indexed, []);
-      }
-      const pathspecs = candidates.map((file) => `:(literal)${file}\0`);
-      await fs.writeFile(pathspecFile, pathspecs.join(""));
+    const stats = await Promise.all(
+      paths.map((file) =>
+        fs.lstat(path.join(repo.cwd, file)).catch(() => null),
+      ),
+    );
+    const present = paths.filter(
+      (_file, at) => stats[at]?.isFile() || stats[at]?.isSymbolicLink(),
+    );
+    const pathspecs = present.map((file) => `:(literal)${file}\0`);
+    await fs.writeFile(pathspecFile, pathspecs.join(""));
+    await indexed.git("read-tree", "--empty");
+    if (present.length > 0) {
       const source = `--pathspec-from-file=${pathspecFile}`;
       const flags = ["--sparse", "--intent-to-add", "--pathspec-file-nul"];
-      const added = await indexed.attempt("add", ...flags, source);
-      if (added.exitCode === 0) {
-        return await work(indexed, candidates);
-      }
-      const remaining = await existingFiles(repo.cwd, candidates);
-      if (attempt > 0 || remaining.length === candidates.length) {
-        fail("failed", `git add failed: ${added.stderr.trim()}`, true);
-      }
-      candidates = remaining;
+      await indexed.git("add", ...flags, source);
     }
+    return await work(indexed, present);
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
@@ -549,13 +503,13 @@ async function mergeBaseStatus(
   repo: Repo,
   mergeBaseBranch: string,
 ): Promise<NonNullable<WorkspaceStatus["mergeBase"]>> {
-  const range = `${mergeBaseBranch}...HEAD`;
+  const range = `${requireBranchName(mergeBaseBranch)}...HEAD`;
   const cherry = ["--cherry-pick", "--right-only", "--reverse"];
   const format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%at";
   const [baseRef, counts, log, nameStatus, numstat] = await Promise.all([
     mergeBaseRef(repo, mergeBaseBranch),
     repo.line("rev-list", "--cherry-pick", "--left-right", "--count", range),
-    repo.attempt("log", ...cherry, `-${STATUS_MAX_FILES}`, format, range),
+    repo.attempt("log", ...cherry, STATUS_MAX_COMMITS, format, range),
     repo.attempt("diff", "--no-ext-diff", "--name-status", "-z", range),
     repo.attempt("diff", "--no-ext-diff", "--numstat", "-z", range),
   ]);

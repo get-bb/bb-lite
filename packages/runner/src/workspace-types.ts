@@ -22,9 +22,9 @@ export const PATHS_EXIST_MAX_PATHS = 200;
 export const PATH_LIST_MAX_ENTRIES = 2_000;
 export const DIFF_MAX_FILES = 500;
 export const DIFF_PATCH_MAX_PATHS = 50;
-export const DIFF_PATCH_MAX_BYTES_PER_FILE = 512 * 1024;
-export const DIFF_RESPONSE_MAX_BYTES = 640 * 1024;
-export const STATUS_MAX_FILES = 2_000;
+export const DIFF_PATCH_MAX_BYTES_PER_FILE = 256 * 1024;
+export const DIFF_RESPONSE_MAX_BYTES = 600 * 1024;
+export const STATUS_MAX_FILES = 1_000;
 export const TERMINAL_REPLAY_MAX_BYTES = 512 * 1024;
 
 export type WorkspaceEvent =

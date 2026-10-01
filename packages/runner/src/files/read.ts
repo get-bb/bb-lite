@@ -19,12 +19,10 @@ import {
 } from "../workspace-types.js";
 
 const BLOB_CHUNK_SOURCE_MAX_BYTES = 25 * 1024 * 1024;
-const BLOB_REUSE_MS = 30_000;
 
 type ReadTarget = FileLocation & { gitRef?: string };
 
 interface Blob {
-  key: string;
   oid: string;
   contents: Buffer;
 }
@@ -81,9 +79,6 @@ function mimeTypeOf(target: string): string | undefined {
   return mimeTypes.lookup(target) || undefined;
 }
 
-let reusableBlob: Blob | null = null;
-let reusableBlobTimer: NodeJS.Timeout | undefined;
-
 async function readBlob(
   ctx: Ctx,
   target: ReadTarget,
@@ -102,23 +97,15 @@ async function readBlob(
   const repo = openRepo(ctx, rootPath);
   const spec = `${requireSafeRef(gitRef)}:./${relativePath}`;
   const oid = await repo.line("rev-parse", "--verify", "--quiet", spec);
-  const key = `${rootPath}\0${oid}`;
-  if (oid === null || reusableBlob?.key === key) {
-    return oid === null ? null : reusableBlob;
+  if (oid === null) {
+    return null;
   }
   const size = Number((await repo.git("cat-file", "-s", oid)).stdout);
   if (size > maxBytes) {
     fail("file_too_large", `${target.path} at ${gitRef} is ${size} bytes`);
   }
-  const contents = await repo
-    .with({ maxBytes: Math.max(size, 1) })
-    .buffer("cat-file", "blob", oid);
-  reusableBlob = { key, oid, contents };
-  clearTimeout(reusableBlobTimer);
-  reusableBlobTimer = setTimeout(() => {
-    reusableBlob = null;
-  }, BLOB_REUSE_MS).unref();
-  return reusableBlob;
+  const sized = repo.with({ maxBytes: Math.max(size, 1) });
+  return { oid, contents: await sized.buffer("cat-file", "blob", oid) };
 }
 
 export async function readFileContent(
@@ -129,7 +116,7 @@ export async function readFileContent(
   const describe = (contents: Buffer, modifiedAtMs?: number): FileContent => {
     const image =
       mimeType?.startsWith("image/") && mimeType !== "image/svg+xml";
-    const utf8 = !image && isUtf8(contents);
+    const utf8 = !image && isUtf8(contents) && !contents.includes(0);
     return {
       path: target.path,
       content: contents.toString(utf8 ? "utf8" : "base64"),

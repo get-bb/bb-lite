@@ -118,8 +118,8 @@ export function requireBranchName(name: string): string {
     : fail("invalid_path", `Invalid git branch name: ${name}`);
 }
 
-export function pathExists(target: string): Promise<boolean> {
-  return fs.access(target).then(
+export function pathExists(target: string, mode?: number): Promise<boolean> {
+  return fs.access(target, mode).then(
     () => true,
     () => false,
   );
@@ -147,9 +147,10 @@ async function gitFailure(
 ): Promise<RunnerError> {
   const command = `git ${args.join(" ")}`;
   if (error.code === "ENOENT" || error.code === "ENOTDIR") {
-    return (await pathExists(cwd))
+    const directory = await fs.stat(cwd).catch(() => null);
+    return directory?.isDirectory()
       ? new RunnerError("missing_executable", "git is not installed")
-      : new RunnerError("path_not_found", `Path does not exist: ${cwd}`);
+      : new RunnerError("path_not_found", `Not a directory: ${cwd}`);
   }
   if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
     return new RunnerError("file_too_large", `${command} output is too large`);

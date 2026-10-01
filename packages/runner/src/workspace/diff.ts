@@ -21,27 +21,15 @@ import {
   type Method,
   type Repo,
 } from "./exec.js";
-import {
-  headOrEmptyTree,
-  mergeBaseRef,
-  parseNameStatusZ,
-  parseNumstatZ,
-  requireRepo,
-  splitNul,
-  withUntrackedIndex,
-  type NameStatusEntry,
-  type NumstatEntry,
-} from "./git.js";
+import * as git from "./git.js";
 
-const LISTING = { maxBytes: 4 * 1024 * 1024, allowTruncated: true };
-const PATCH = {
-  maxBytes: DIFF_PATCH_MAX_BYTES_PER_FILE + 1,
+const bounded = (maxBytes: number) => ({
+  maxBytes: maxBytes + 1,
   allowTruncated: true,
-};
-const WHOLE_DIFF = {
-  maxBytes: DIFF_RESPONSE_MAX_BYTES + 1,
-  allowTruncated: true,
-};
+});
+const LISTING = bounded(4 * 1024 * 1024);
+const PATCH = bounded(DIFF_PATCH_MAX_BYTES_PER_FILE);
+const WHOLE_DIFF = bounded(DIFF_RESPONSE_MAX_BYTES);
 const FILE_LIST_MAX_BYTES = 64 * 1024;
 const AUTO_LOAD_MAX_CHANGED_LINES = 500;
 const TOO_LARGE_CHANGED_LINES = 20_000;
@@ -58,8 +46,7 @@ const CHANGE_KINDS: Record<string, DiffFileEntry["changeKind"]> = {
 };
 
 interface DiffRange {
-  command: string[];
-  revisions: string[];
+  args: string[];
   includesUntracked: boolean;
   mergeBaseRef: string | null;
 }
@@ -68,7 +55,7 @@ interface ChangedFiles {
   repo: Repo;
   range: DiffRange | null;
   files: DiffFileEntry[];
-  nameStatus: string;
+  nameStatus: string[];
   untracked: string[];
   truncated: boolean;
 }
@@ -77,36 +64,24 @@ async function resolveRange(
   repo: Repo,
   target: WorkspaceDiffTarget,
 ): Promise<DiffRange | null> {
+  const range = (
+    args: string[],
+    includesUntracked: boolean,
+    mergeBaseRef: string | null = null,
+  ): DiffRange => ({ args, includesUntracked, mergeBaseRef });
   if (target.type === "uncommitted") {
-    const revisions = [await headOrEmptyTree(repo)];
-    return {
-      command: DIFF,
-      revisions,
-      includesUntracked: true,
-      mergeBaseRef: null,
-    };
+    return range([...DIFF, await git.headOrEmptyTree(repo)], true);
   }
   if (target.type === "commit") {
-    return {
-      command: ["show", "--format=", "--no-ext-diff"],
-      revisions: [requireSafeRef(target.sha)],
-      includesUntracked: false,
-      mergeBaseRef: null,
-    };
+    const sha = requireSafeRef(target.sha);
+    return range(["show", "--format=", "--no-ext-diff", sha], false);
   }
-  const base = await mergeBaseRef(
-    repo,
-    requireBranchName(target.mergeBaseBranch),
-  );
+  const branch = requireBranchName(target.mergeBaseBranch);
+  const base = await git.mergeBaseRef(repo, branch);
   const all = target.type === "all";
   return base === null
     ? null
-    : {
-        command: DIFF,
-        revisions: [all ? base : `${base}..HEAD`],
-        includesUntracked: all,
-        mergeBaseRef: base,
-      };
+    : range([...DIFF, all ? base : `${base}..HEAD`], all, base);
 }
 
 function literal(paths: string[]): string[] {
@@ -114,13 +89,7 @@ function literal(paths: string[]): string[] {
 }
 
 function rangeArgs(range: DiffRange, flags: string[], paths: string[] = []) {
-  return [
-    ...range.command,
-    ...flags,
-    ...range.revisions,
-    "--",
-    ...literal(paths),
-  ];
+  return [...range.args, ...flags, "--", ...literal(paths)];
 }
 
 function completeRecords(result: GitResult): string {
@@ -155,8 +124,8 @@ function shortstat(files: DiffFileEntry[]): string {
 }
 
 function toFileEntry(
-  entry: NameStatusEntry,
-  stat: NumstatEntry | undefined,
+  entry: git.NameStatusEntry,
+  stat: git.NumstatEntry | undefined,
   origin: DiffFileEntry["origin"],
 ): DiffFileEntry {
   const binary = stat?.insertions === null && stat.deletions === null;
@@ -185,7 +154,7 @@ async function listUntracked(repo: Repo, paths: string[] = []) {
   const listed = repo.with(LISTING);
   const result = await listed.git("ls-files", ...flags, ...literal(paths));
   return {
-    paths: splitNul(completeRecords(result)),
+    paths: git.splitNul(completeRecords(result)),
     truncated: result.truncated,
   };
 }
@@ -194,63 +163,56 @@ async function listChangedFiles(
   ctx: Ctx,
   args: { path: string; target: WorkspaceDiffTarget },
 ): Promise<ChangedFiles> {
-  const repo = await requireRepo(ctx, args.path);
+  const repo = await git.requireRepo(ctx, args.path);
   const range = await resolveRange(repo, args.target);
-  const none = { files: [], nameStatus: "", untracked: [], truncated: false };
+  const changed: ChangedFiles = {
+    repo,
+    range,
+    files: [],
+    nameStatus: [],
+    untracked: [],
+    truncated: false,
+  };
   if (range === null) {
-    return { repo, range, ...none };
+    return changed;
   }
   const listed = repo.with(LISTING);
   const [names, numstat] = await Promise.all([
     listed.git(...rangeArgs(range, ["--name-status", "-M", "-z"])),
     listed.git(...rangeArgs(range, ["--numstat", "-M", "-z"])),
   ]);
-  const stats = new Map(
-    parseNumstatZ(completeRecords(numstat)).map((entry) => [entry.path, entry]),
-  );
-  const tracked = parseNameStatusZ(completeRecords(names));
-  const shown = tracked.slice(0, DIFF_MAX_FILES);
-  const files = shown.map((entry) =>
-    toFileEntry(entry, stats.get(entry.path), "tracked"),
-  );
-  const nameStatus = shown.map((entry) =>
-    [entry.status, entry.previousPath, entry.path]
-      .filter((part) => part !== null)
-      .join("\t"),
-  );
-  const truncated = names.truncated || tracked.length > DIFF_MAX_FILES;
-  if (!range.includesUntracked || truncated) {
-    return {
-      ...none,
-      repo,
-      range,
-      files,
-      nameStatus: nameStatus.join("\n"),
-      truncated,
-    };
+  const stats = git.parseNumstatZ(completeRecords(numstat));
+  const tracked = git.parseNameStatusZ(completeRecords(names));
+  const statFor = (file: string, among: git.NumstatEntry[]) =>
+    among.find((entry) => entry.path === file);
+  for (const entry of tracked.slice(0, DIFF_MAX_FILES)) {
+    const stat = statFor(entry.path, stats);
+    const fields = [entry.status, entry.previousPath, entry.path];
+    changed.files.push(toFileEntry(entry, stat, "tracked"));
+    changed.nameStatus.push(fields.filter((part) => part !== null).join("\t"));
+  }
+  changed.truncated = names.truncated || tracked.length > DIFF_MAX_FILES;
+  if (!range.includesUntracked || changed.truncated) {
+    return changed;
   }
   const others = await listUntracked(repo);
-  const untracked = others.paths.slice(0, DIFF_MAX_FILES - files.length);
+  const room = DIFF_MAX_FILES - changed.files.length;
+  changed.untracked = others.paths.slice(0, room);
+  changed.truncated = others.truncated || others.paths.length > room;
   const untrackedStats =
-    untracked.length === 0
+    changed.untracked.length === 0
       ? []
-      : await withUntrackedIndex(repo, untracked, async (index) =>
-          parseNumstatZ((await index.git(...DIFF, "--numstat", "-z")).stdout),
-        );
-  for (const file of untracked) {
-    const stat = untrackedStats.find((entry) => entry.path === file);
+      : await git.withUntrackedIndex(repo, changed.untracked, async (index) => {
+          const added = await index.git(...DIFF, "--numstat", "-z");
+          return git.parseNumstatZ(added.stdout);
+        });
+  for (const file of changed.untracked) {
     const entry = { path: file, previousPath: null, status: "A" };
-    files.push(toFileEntry(entry, stat, "untracked"));
-    nameStatus.push(`A\t${file}`);
+    const stat = statFor(file, untrackedStats);
+    changed.files.push(toFileEntry(entry, stat, "untracked"));
+    changed.nameStatus.push(`A\t${file}`);
   }
-  return {
-    repo,
-    range,
-    files,
-    nameStatus: nameStatus.join("\n"),
-    untracked,
-    truncated: others.truncated || untracked.length < others.paths.length,
-  };
+  return changed;
 }
 
 async function mapLimited<T>(
@@ -279,10 +241,9 @@ async function readPatches(
     .with(LISTING)
     .git(...rangeArgs(range, ["--name-status", "-M", "-z"]));
   const renamedFrom = new Map(
-    parseNameStatusZ(completeRecords(names)).map((entry) => [
-      entry.path,
-      entry.previousPath,
-    ]),
+    git
+      .parseNameStatusZ(completeRecords(names))
+      .map((entry) => [entry.path, entry.previousPath]),
   );
   const patches = new Map<string, string>();
   const bounded = repo.with(PATCH);
@@ -297,7 +258,7 @@ async function readPatches(
     },
   );
   if (untracked.length > 0) {
-    await withUntrackedIndex(repo, untracked, (index, indexed) =>
+    await git.withUntrackedIndex(repo, untracked, (index, indexed) =>
       mapLimited(indexed, async (file) => {
         const args = [...DIFF, "--binary", "--", ...literal([file])];
         patches.set(file, (await index.with(PATCH).git(...args)).stdout);
@@ -315,23 +276,17 @@ async function readPatches(
 
 export const gitDiffFiles: Method<"gitDiffFiles"> = async (ctx, args) => {
   const { repo, range, files, truncated } = await listChangedFiles(ctx, args);
-  const inline =
-    files.length > INLINE_PATCH_MAX_FILES
-      ? []
-      : files.filter((file) => file.loadMode === "auto");
+  const inline = files
+    .filter((file) => file.loadMode === "auto")
+    .map((file) => file.path);
+  const tooMany = files.length > INLINE_PATCH_MAX_FILES || inline.length === 0;
   return {
     files,
     truncated,
     shortstat: shortstat(files),
     mergeBaseRef: range?.mergeBaseRef ?? null,
     initialPatches:
-      range === null || inline.length === 0
-        ? []
-        : await readPatches(
-            repo,
-            range,
-            inline.map((file) => file.path),
-          ),
+      range === null || tooMany ? [] : await readPatches(repo, range, inline),
   };
 };
 
@@ -339,7 +294,7 @@ export const gitDiffPatch: Method<"gitDiffPatch"> = async (ctx, args) => {
   if (args.paths.length > DIFF_PATCH_MAX_PATHS) {
     fail("failed", `At most ${DIFF_PATCH_MAX_PATHS} paths per request`);
   }
-  const repo = await requireRepo(ctx, args.path);
+  const repo = await git.requireRepo(ctx, args.path);
   const range = await resolveRange(repo, args.target);
   const empty = (file: string) => ({ path: file, patch: "", truncated: false });
   return {
@@ -360,7 +315,7 @@ export const gitDiff: Method<"gitDiff"> = async (ctx, args) => {
       : [(await whole.git(...rangeArgs(range, ["--binary"]))).stdout];
   if (untracked.length > 0) {
     patches.push(
-      await withUntrackedIndex(repo, untracked, async (index) => {
+      await git.withUntrackedIndex(repo, untracked, async (index) => {
         const added = await index.with(WHOLE_DIFF).git(...DIFF, "--binary");
         return added.stdout;
       }),
@@ -375,7 +330,7 @@ export const gitDiff: Method<"gitDiff"> = async (ctx, args) => {
     DIFF_RESPONSE_MAX_BYTES,
   );
   const fileList = truncateUtf8(
-    files.length > 0 ? `${changed.nameStatus}\n` : "",
+    changed.nameStatus.map((line) => `${line}\n`).join(""),
     FILE_LIST_MAX_BYTES,
   );
   return {
@@ -406,14 +361,9 @@ export const gitDiffFile: Method<"gitDiffFile"> = async (ctx, args) => {
   if (relativePath.length === 0 || relativePath.split("/").includes("..")) {
     fail("invalid_path", "Invalid diff file path");
   }
-  const {
-    sha256: _sha256,
-    modifiedAtMs: _modifiedAtMs,
-    ...file
-  } = await readFileContent(ctx, {
+  return readFileContent(ctx, {
     path: path.join(args.path, relativePath),
     rootPath: args.path,
     gitRef: diffFileRef(args.file),
   });
-  return file;
 };

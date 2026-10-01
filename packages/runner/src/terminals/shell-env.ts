@@ -4,7 +4,6 @@ import path from "node:path";
 export type ChildEnv = () => Promise<NodeJS.ProcessEnv>;
 
 const PROBE_TIMEOUT_MS = 3_000;
-const REFRESH_AFTER_MS = 60_000;
 const START_MARKER = "__BB_SHELL_ENV_START__";
 const END_MARKER = "__BB_SHELL_ENV_END__";
 const PROBE_SCRIPT = `printf '%s\\n' ${START_MARKER}; env; printf '%s\\n' ${END_MARKER}`;
@@ -23,19 +22,12 @@ export function scrubbedProcessEnv(
 }
 
 function parseProbedPath(stdout: string): string | null {
-  const lines = stdout.split(/\r?\n/u);
-  const start = lines.findIndex((line) => line.trim() === START_MARKER);
-  const end = lines.findIndex(
-    (line, index) => index > start && line.trim() === END_MARKER,
-  );
-  if (start === -1 || end === -1) {
-    return null;
-  }
-  const entry = lines
-    .slice(start + 1, end)
+  const start = stdout.indexOf(START_MARKER);
+  const end = stdout.indexOf(END_MARKER, start);
+  const entry = (start < 0 || end < 0 ? "" : stdout.slice(start, end))
+    .split(/\r?\n/u)
     .find((line) => line.startsWith("PATH="));
-  const value = entry?.slice("PATH=".length).trim();
-  return value ? value : null;
+  return entry?.slice("PATH=".length).trim() || null;
 }
 
 function probeShellPath(shell: string, flags: string): Promise<string | null> {
@@ -70,30 +62,10 @@ export async function resolveLoginShellPath(): Promise<string | null> {
 }
 
 export function createLoginShellChildEnv(): ChildEnv {
-  let loginPath: string | null = null;
-  let resolvedAt = 0;
-  let pending: Promise<void> | null = null;
-  const refresh = (): Promise<void> => {
-    pending ??= resolveLoginShellPath()
-      .then((value) => {
-        loginPath = value ?? loginPath;
-        resolvedAt = Date.now();
-      })
-      .finally(() => {
-        pending = null;
-      });
-    return pending;
-  };
+  let loginPath: Promise<string | null> | undefined;
   return async () => {
-    if (resolvedAt === 0) {
-      await refresh();
-    } else if (Date.now() - resolvedAt > REFRESH_AFTER_MS) {
-      void refresh();
-    }
+    loginPath ??= resolveLoginShellPath();
     const env = scrubbedProcessEnv();
-    if (loginPath !== null) {
-      env.PATH = loginPath;
-    }
-    return env;
+    return { ...env, PATH: (await loginPath) ?? env.PATH };
   };
 }

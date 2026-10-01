@@ -16,20 +16,7 @@ import {
   type Method,
   type Repo,
 } from "./exec.js";
-import {
-  checkoutRef,
-  currentBranch,
-  defaultWorktreeBase,
-  gitDirs,
-  gitOperation,
-  hasRef,
-  isDirty,
-  localBranches,
-  repoKind,
-  requireRepo,
-  revision,
-  splitNul,
-} from "./git.js";
+import * as git from "./git.js";
 
 const WORKTREES_DIR = "worktrees";
 const WORKSPACES_DIR = "workspaces";
@@ -178,7 +165,7 @@ async function copyIncludedFiles(
   const exclude = `--exclude-from=${INCLUDE_FILE_NAME}`;
   const matches = await source
     .git("ls-files", "--others", "--ignored", exclude, "-z")
-    .then((result) => splitNul(result.stdout))
+    .then((result) => git.splitNul(result.stdout))
     .catch(() => []);
   const realTarget = await fs.realpath(targetPath);
   const report = { copied: 0, skipped: 0 };
@@ -206,7 +193,7 @@ async function worktreeHoldingBranch(
   branchName: string,
 ): Promise<string | null> {
   const list = await source.git("worktree", "list", "--porcelain", "-z");
-  const fields = splitNul(list.stdout);
+  const fields = git.splitNul(list.stdout);
   const branchIndex = fields.indexOf(`branch refs/heads/${branchName}`);
   const holder = fields
     .slice(0, Math.max(branchIndex, 0))
@@ -238,7 +225,7 @@ async function fetchRemoteBase(
       () => null,
       (error: unknown) => error,
     );
-  if (fetched !== null && !(await hasRef(source, remoteRef))) {
+  if (fetched !== null && !(await git.hasRef(source, remoteRef))) {
     throw fetched;
   }
 }
@@ -255,7 +242,7 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     const [completedBranch, completedBase] = completed.split("\n");
     const checkedOut =
       (await pathExists(target)) &&
-      (await currentBranch(openRepo(ctx, target))) === branchName;
+      (await git.currentBranch(openRepo(ctx, target))) === branchName;
     if (checkedOut && completedBranch === branchName && completedBase) {
       const mergeBaseBranch = completedBase;
       return {
@@ -266,13 +253,13 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
       };
     }
     await removeManagedPath(ctx, target);
-    if ((await repoKind(source)) === "none") {
+    if ((await git.repoKind(source)) === "none") {
       fail(
         "not_git_repo",
         `Cannot create a worktree because the source is not a Git repository: ${source.cwd}. Initialize it and create at least one commit, then try again.`,
       );
     }
-    if ((await revision(source, "HEAD")) === null) {
+    if ((await git.revision(source, "HEAD")) === null) {
       fail(
         "failed",
         `Cannot create a worktree because the repository has no commits: ${source.cwd}. Create an initial commit, then try again.`,
@@ -280,14 +267,14 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     }
     const baseBranch =
       args.baseBranch === null
-        ? await defaultWorktreeBase(source)
+        ? await git.defaultWorktreeBase(source)
         : requireBranchName(args.baseBranch);
     if (baseBranch === null) {
       fail("failed", `Cannot resolve default branch for ${source.cwd}`);
     }
     const holder = await worktreeHoldingBranch(source, branchName);
     if (holder !== null && (await isStrictlyInside(root, holder))) {
-      if (await isDirty(openRepo(ctx, holder))) {
+      if (await git.isDirty(openRepo(ctx, holder))) {
         fail(
           "conflict",
           `Branch ${branchName} is still checked out at ${holder} by an earlier attempt, and that worktree has uncommitted changes, so it was left alone. Remove it to retry.`,
@@ -296,11 +283,11 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
       await removeManagedPath(ctx, holder);
     }
     await fs.mkdir(path.dirname(target), { recursive: true });
-    const branchExists = await hasRef(source, `refs/heads/${branchName}`);
+    const branchExists = await git.hasRef(source, `refs/heads/${branchName}`);
     if (!branchExists) {
       await fetchRemoteBase(source, baseBranch);
     }
-    const { commonDir } = await gitDirs(source);
+    const { commonDir } = await git.gitDirs(source);
     const added = branchExists
       ? [target, branchName]
       : ["-B", branchName, target, baseBranch];
@@ -321,12 +308,12 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
 };
 
 export const switchBranch: Method<"switchBranch"> = async (ctx, args) => {
-  const repo = await requireRepo(ctx, args.path);
+  const repo = await git.requireRepo(ctx, args.path);
   const branchName = requireBranchName(args.branchName);
   const refuse = (reason: string): never =>
     fail("conflict", `Cannot checkout branch ${reason}`);
-  return ctx.lock((await gitDirs(repo)).gitDir, async () => {
-    const ref = await checkoutRef(repo);
+  return ctx.lock((await git.gitDirs(repo)).gitDir, async () => {
+    const ref = await git.checkoutRef(repo);
     if (ref.kind === "detached") {
       return refuse("while the workspace is on a detached HEAD");
     }
@@ -340,17 +327,17 @@ export const switchBranch: Method<"switchBranch"> = async (ctx, args) => {
       return refuse("before the current branch has an initial commit");
     }
     const creating = args.createFrom !== null;
-    if (!creating && !(await localBranches(repo)).includes(branchName)) {
+    if (!creating && !(await git.localBranches(repo)).includes(branchName)) {
       return refuse(`${branchName} because it does not exist`);
     }
-    const operation = await gitOperation(repo);
+    const operation = await git.gitOperation(repo);
     if (operation.kind !== "none") {
       const state = operation.hasConflicts
         ? "has unresolved conflicts"
         : "is in progress";
       return refuse(`while ${operation.kind} ${state}`);
     }
-    if (await isDirty(repo)) {
+    if (await git.isDirty(repo)) {
       return refuse("while the workspace has uncommitted changes");
     }
     const from =

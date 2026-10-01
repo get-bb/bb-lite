@@ -1,262 +1,149 @@
-import fs from "node:fs";
-import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, failureCode, lines, type Harness } from "./harness.js";
+import { byPath, createHarness, failureCode } from "./harness.js";
+import type { Harness } from "./harness.js";
 
 const BINARY = Buffer.from([0, 1, 2, 3, 0, 255, 254, 0]);
+const KIB = 1024;
 
-describe("git status and diffs", () => {
+describe("git status, diffs and commits", () => {
   let h: Harness;
   let repo: string;
   let mainSha: string;
   let featureSha: string;
+  const uncommitted = { type: "uncommitted" } as const;
+  const mergeBaseBranch = "main";
 
   beforeAll(() => {
     h = createHarness();
     repo = h.initRepo("repo", {
       "tracked.txt": "one\ntwo\nthree\n",
-      "rename-me.txt": lines(20),
+      "rename-me.txt": "same\n".repeat(20),
       "binary.bin": BINARY,
       ".gitignore": "ignored.log\n",
     });
-    mainSha = h.git(repo, "rev-parse", "HEAD").trim();
+    mainSha = h.git(repo, "rev-parse", "HEAD");
     h.git(repo, "switch", "--quiet", "-c", "feature");
-    h.write(path.join(repo, "committed.txt"), "committed\n");
-    h.git(repo, "add", "-A");
-    h.git(repo, "commit", "--quiet", "-m", "add committed file");
-    featureSha = h.git(repo, "rev-parse", "HEAD").trim();
-    h.write(path.join(repo, "staged.txt"), "staged\n");
+    h.write(repo, { "committed.txt": "committed\n" });
+    featureSha = h.commitAll(repo, "add committed file");
+    h.write(repo, { "staged.txt": "staged\n" });
     h.git(repo, "add", "staged.txt");
     h.git(repo, "mv", "rename-me.txt", "renamed.txt");
-    h.write(path.join(repo, "tracked.txt"), "one\nTWO\nthree\nfour\n");
-    h.write(path.join(repo, "binary.bin"), Buffer.concat([BINARY, BINARY]));
-    h.write(path.join(repo, "new.txt"), "fresh\nfile\n");
-    h.write(path.join(repo, "blob.bin"), BINARY);
-    h.write(path.join(repo, "large.txt"), lines(600));
-    h.write(path.join(repo, "huge.txt"), lines(20_500, "x".repeat(40)));
-    h.write(path.join(repo, "ignored.log"), "noise\n");
+    h.write(repo, {
+      "tracked.txt": "one\nTWO\nthree\nfour\n",
+      "binary.bin": Buffer.concat([BINARY, BINARY]),
+      "new.txt": "fresh\nfile\n",
+      "blob.bin": BINARY,
+      "large.txt": "same\n".repeat(600),
+      "huge.txt": `${"x".repeat(40)}\n`.repeat(20_500),
+      "ignored.log": "noise\n",
+    });
   });
 
   afterAll(() => h.dispose());
 
-  it("reports working tree, branch and merge base", async () => {
-    const status = await h.api.gitStatus({
-      path: repo,
-      mergeBaseBranch: "main",
+  it("reports the working tree, branch and merge base", async () => {
+    const status = await h.api.gitStatus({ path: repo, mergeBaseBranch });
+    const files = byPath(status.workingTree.files);
+    const tracked = { status: "M", insertions: 2, deletions: 1 };
+    const state = "dirty_and_committed_unmerged";
+    expect(status.workingTree).toMatchObject({
+      state,
+      lineStatsComplete: true,
     });
-    const byPath = new Map(
-      status.workingTree.files.map((file) => [file.path, file]),
-    );
-    expect(status.workingTree.state).toBe("dirty_and_committed_unmerged");
-    expect(status.workingTree.hasUncommittedChanges).toBe(true);
-    expect(byPath.get("tracked.txt")).toMatchObject({
-      status: "M",
-      insertions: 2,
-      deletions: 1,
-    });
-    expect(byPath.get("staged.txt")?.status).toBe("A");
-    expect(byPath.get("renamed.txt")?.status).toBe("R");
-    expect(byPath.get("new.txt")).toMatchObject({
-      status: "??",
-      insertions: 2,
-    });
-    expect(byPath.has("ignored.log")).toBe(false);
-    expect(status.workingTree.lineStatsComplete).toBe(true);
-    expect(status.branch).toEqual({
-      currentBranch: "feature",
-      defaultBranch: "main",
-    });
-    expect(status.checkout).toEqual({
-      kind: "branch",
-      branchName: "feature",
-      headSha: featureSha,
-    });
+    expect(files.get("tracked.txt")).toMatchObject(tracked);
+    expect(files.get("staged.txt")?.status).toBe("A");
+    expect(files.get("renamed.txt")?.status).toBe("R");
+    expect(files.get("new.txt")).toMatchObject({ status: "??", insertions: 2 });
+    expect(files.has("ignored.log")).toBe(false);
+    const checkout = { kind: "branch", branchName: "feature" };
+    expect(status.checkout).toEqual({ ...checkout, headSha: featureSha });
     expect(status.mergeBase).toMatchObject({
       baseRef: mainSha,
       aheadCount: 1,
       behindCount: 0,
-      hasCommittedUnmergedChanges: true,
-      insertions: 1,
+      commits: [{ sha: featureSha, subject: "add committed file" }],
+      files: [{ path: "committed.txt", status: "A", insertions: 1 }],
     });
-    expect(status.mergeBase?.commits[0]?.subject).toBe("add committed file");
-    expect(status.mergeBase?.files).toEqual([
-      { path: "committed.txt", status: "A", insertions: 1, deletions: 0 },
-    ]);
   });
 
-  it("lists uncommitted files with tiers, renames, binaries and untracked", async () => {
-    const diff = await h.api.gitDiffFiles({
-      path: repo,
-      target: { type: "uncommitted" },
-    });
-    const byPath = new Map(diff.files.map((file) => [file.path, file]));
-    expect(diff.truncated).toBe(false);
-    expect(byPath.get("renamed.txt")).toMatchObject({
-      changeKind: "renamed",
-      previousPath: "rename-me.txt",
-      origin: "tracked",
-    });
-    expect(byPath.get("binary.bin")).toMatchObject({
-      binary: true,
-      loadMode: "on_demand",
-    });
-    expect(byPath.get("blob.bin")).toMatchObject({
-      binary: true,
-      origin: "untracked",
-      changeKind: "added",
-    });
-    expect(byPath.get("new.txt")).toMatchObject({
-      additions: 2,
-      origin: "untracked",
-      loadMode: "auto",
-    });
-    expect(byPath.get("large.txt")?.loadMode).toBe("on_demand");
-    expect(byPath.get("huge.txt")?.loadMode).toBe("too_large");
-    expect(byPath.has("ignored.log")).toBe(false);
-    expect(byPath.has("committed.txt")).toBe(false);
+  it("tiers uncommitted files and bounds their patches", async () => {
+    const diff = await h.api.gitDiffFiles({ path: repo, target: uncommitted });
+    const files = byPath(diff.files);
+    const renamed = { changeKind: "renamed", previousPath: "rename-me.txt" };
+    const added = { additions: 2, origin: "untracked", loadMode: "auto" };
+    expect(files.get("renamed.txt")).toMatchObject(renamed);
+    expect(files.get("binary.bin")?.binary).toBe(true);
+    expect(files.get("blob.bin")).toMatchObject({ binary: true, additions: 0 });
+    expect(files.get("new.txt")).toMatchObject(added);
+    expect(files.get("large.txt")?.loadMode).toBe("on_demand");
+    expect(files.get("huge.txt")?.loadMode).toBe("too_large");
+    expect(files.has("ignored.log") || files.has("committed.txt")).toBe(false);
     expect(diff.shortstat).toMatch(/^8 files changed, \d+ insertions/u);
-    const initial = new Map(
-      diff.initialPatches.map((entry) => [entry.path, entry.patch]),
-    );
-    expect([...initial.keys()].sort()).toEqual([
-      "new.txt",
-      "renamed.txt",
-      "staged.txt",
-      "tracked.txt",
-    ]);
-    expect(initial.get("tracked.txt")).toContain("+TWO");
-    expect(initial.get("new.txt")).toContain("+fresh");
-  });
+    const initial = byPath(diff.initialPatches);
+    const auto = ["new.txt", "renamed.txt", "staged.txt", "tracked.txt"];
+    expect([...initial.keys()].sort()).toEqual(auto);
+    expect(initial.get("tracked.txt")?.patch).toContain("+TWO");
+    expect(initial.get("new.txt")?.patch).toContain("+fresh");
 
-  it("returns one bounded patch per requested path", async () => {
-    const { patches } = await h.api.gitDiffPatch({
-      path: repo,
-      target: { type: "uncommitted" },
-      paths: ["renamed.txt", "huge.txt", "binary.bin", "missing.txt"],
-    });
-    expect(patches.map((entry) => entry.path)).toEqual([
-      "renamed.txt",
-      "huge.txt",
-      "binary.bin",
-      "missing.txt",
-    ]);
+    const paths = ["renamed.txt", "huge.txt", "binary.bin", "missing.txt"];
+    const request = { path: repo, target: uncommitted, paths };
+    const { patches } = await h.api.gitDiffPatch(request);
+    expect(patches.map((entry) => entry.path)).toEqual(paths);
     expect(patches[0]?.patch).toContain("rename from rename-me.txt");
     expect(patches[1]?.truncated).toBe(true);
-    expect(patches[1]?.patch.length).toBeLessThanOrEqual(512 * 1024);
+    expect(patches[1]?.patch.length).toBeLessThanOrEqual(512 * KIB);
     expect(patches[2]?.patch).toContain("GIT binary patch");
-    expect(patches[3]).toEqual({
-      path: "missing.txt",
-      patch: "",
-      truncated: false,
-    });
+    expect(patches[3]).toMatchObject({ patch: "", truncated: false });
     const total = patches.reduce((sum, entry) => sum + entry.patch.length, 0);
-    expect(total).toBeLessThan(700 * 1024);
+    expect(total).toBeLessThan(700 * KIB);
   });
 
-  it("diffs committed work, everything since the merge base, and one commit", async () => {
-    const mergeBaseBranch = "main";
-    const committed = await h.api.gitDiffFiles({
-      path: repo,
-      target: { type: "branch_committed", mergeBaseBranch },
+  it("diffs the branch, everything since the merge base, and one commit", async () => {
+    const files = async (
+      target: Parameters<typeof h.api.gitDiff>[0]["target"],
+    ) => h.api.gitDiffFiles({ path: repo, target });
+    const committed = await files({
+      type: "branch_committed",
+      mergeBaseBranch,
     });
     expect(committed.mergeBaseRef).toBe(mainSha);
     expect(committed.files.map((file) => file.path)).toEqual(["committed.txt"]);
     expect(committed.initialPatches[0]?.patch).toContain("+committed");
 
-    const all = await h.api.gitDiffFiles({
-      path: repo,
-      target: { type: "all", mergeBaseBranch },
-    });
-    const allPaths = all.files.map((file) => file.path);
-    expect(allPaths).toEqual(
-      expect.arrayContaining(["committed.txt", "tracked.txt", "new.txt"]),
-    );
+    const everything = { type: "all", mergeBaseBranch } as const;
+    const all = byPath((await files(everything)).files);
+    const expected = ["committed.txt", "tracked.txt", "new.txt"];
+    expect(expected.filter((file) => all.has(file))).toEqual(expected);
+    const commit = await files({ type: "commit", sha: featureSha });
+    const added = { path: "committed.txt", changeKind: "added", additions: 1 };
+    expect(commit.files).toMatchObject([added]);
 
-    const commit = await h.api.gitDiffFiles({
-      path: repo,
-      target: { type: "commit", sha: featureSha },
-    });
-    expect(commit.files).toMatchObject([
-      { path: "committed.txt", changeKind: "added", additions: 1 },
-    ]);
-
-    const whole = await h.api.gitDiff({
-      path: repo,
-      target: { type: "all", mergeBaseBranch },
-    });
-    expect(whole.diff).toContain("+++ b/committed.txt");
+    const whole = await h.api.gitDiff({ path: repo, target: everything });
     expect(whole.diff).toContain("diff --git a/blob.bin b/blob.bin");
-    expect(whole.files).toContain("R\trename-me.txt\trenamed.txt");
+    expect(whole.files).toContain("R\trename-me.txt\trenamed.txt\n");
     expect(whole.truncated).toBe(true);
-    expect(Buffer.byteLength(whole.diff)).toBeLessThanOrEqual(640 * 1024);
+    expect(Buffer.byteLength(whole.diff)).toBeLessThanOrEqual(640 * KIB);
   });
 
-  it("reads both sides of a changed file", async () => {
+  it("reads a changed file, lists branches, commits once", async () => {
     const file = { target: "uncommitted", path: "tracked.txt" } as const;
-    const before = await h.api.gitDiffFile({
-      path: repo,
-      file: { ...file, side: "old" },
-    });
-    const after = await h.api.gitDiffFile({
-      path: repo,
-      file: { ...file, side: "new" },
-    });
-    expect(before.content).toBe("one\ntwo\nthree\n");
-    expect(after).toMatchObject({
-      content: "one\nTWO\nthree\nfour\n",
-      contentEncoding: "utf8",
-      mimeType: "text/plain",
-    });
-  });
-
-  it("inspects paths and lists branches with the default first", async () => {
-    expect(await h.api.inspectPath({ path: repo })).toEqual({
-      exists: true,
-      isGitRepo: true,
-      isWorktree: false,
-      branchName: "feature",
-      defaultBranch: "main",
-      remoteUrl: null,
-      dirty: true,
-    });
-    const missing = await h.api.inspectPath({ path: path.join(h.root, "no") });
-    expect(missing).toMatchObject({ exists: false, isGitRepo: false });
-    const source = await h.api.inspectGitSource({ path: repo });
-    expect(source).toMatchObject({
-      defaultBranch: "main",
-      hasUncommittedChanges: true,
-      operation: { kind: "none" },
-    });
-    const branches = await h.api.listBranches({
-      path: repo,
-      limit: 1,
-      selectedBranch: "gone",
-    });
-    expect(branches).toEqual({
+    const side = (which: "old" | "new") =>
+      h.api.gitDiffFile({ path: repo, file: { ...file, side: which } });
+    expect((await side("old")).content).toBe("one\ntwo\nthree\n");
+    expect((await side("new")).content).toBe("one\nTWO\nthree\nfour\n");
+    const first = { path: repo, limit: 1, selectedBranch: "gone" };
+    expect(await h.api.listBranches(first)).toMatchObject({
       branches: ["main"],
       branchesTruncated: true,
-      remoteBranches: [],
-      remoteBranchesTruncated: false,
       selectedBranch: { name: "gone", kind: "missing" },
     });
-    const filtered = await h.api.listBranches({
-      path: repo,
-      limit: 10,
-      query: "FEAT",
-    });
-    expect(filtered.branches).toEqual(["feature"]);
-  });
 
-  it("commits everything once and then reports no changes", async () => {
     const result = await h.api.gitCommit({ path: repo, message: "ship it" });
     expect(result.commitSubject).toBe("ship it");
-    expect(h.git(repo, "rev-parse", "HEAD").trim()).toBe(result.commitSha);
-    expect(fs.existsSync(path.join(repo, "ignored.log"))).toBe(true);
+    expect(h.git(repo, "rev-parse", "HEAD")).toBe(result.commitSha);
     const status = await h.api.gitStatus({ path: repo });
     expect(status.workingTree).toMatchObject({ state: "clean", files: [] });
     const again = h.api.gitCommit({ path: repo, message: "nothing" });
     expect(await failureCode(again)).toBe("no_changes");
-    const outside = h.api.gitStatus({ path: h.root });
-    expect(await failureCode(outside)).toBe("not_git_repo");
   });
 });

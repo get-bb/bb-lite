@@ -67,7 +67,6 @@ async function watchWorkspace(
   ctx: Ctx,
   workspacePath: string,
   emit: (change: Change) => void,
-  onRepositoryCreated: () => void,
 ): Promise<Stop> {
   const root = await fs.realpath(workspacePath);
   const layout = await gitLayout(root);
@@ -109,12 +108,7 @@ async function watchWorkspace(
   };
   try {
     if (layout === null) {
-      await watchTree(root, WORKSPACE_IGNORED_GLOBS, (relativePath) => {
-        note("status");
-        if (relativePath === ".git" || relativePath.startsWith(".git/")) {
-          onRepositoryCreated();
-        }
-      });
+      await watchTree(root, WORKSPACE_IGNORED_GLOBS, () => note("status"));
       return stop;
     }
     const sharedGitDir = layout.gitDir === layout.commonDir;
@@ -180,9 +174,8 @@ export function createWatcher(ctx: Ctx): Watcher {
   const stop = async (key: string): Promise<void> => {
     const watch = active.get(key);
     active.delete(key);
-    await (
-      await watch
-    )?.();
+    const stopWatching = await watch;
+    await stopWatching?.();
   };
 
   const start = (key: string, kind: WatchKind, target: string): void => {
@@ -192,17 +185,9 @@ export function createWatcher(ctx: Ctx): Watcher {
         ctx.sink({ ...event, path: target, change });
       }
     };
-    const restart = (): void => {
-      void locked(async () => {
-        if (active.has(key)) {
-          await stop(key);
-          start(key, kind, target);
-        }
-      });
-    };
     const watch = (
       kind === "workspace"
-        ? watchWorkspace(ctx, target, emit, restart)
+        ? watchWorkspace(ctx, target, emit)
         : watchDirectory(ctx, target, emit)
     ).catch(() => null);
     active.set(key, watch);

@@ -1,32 +1,21 @@
 import path from "node:path";
-import { listCommands, resolveSkillDirs } from "../files/commands.js";
-import { browseDirectory, listPaths, pathsExist } from "../files/list.js";
-import { readFile, readFileChunk } from "../files/read.js";
-import { mutatePath, writeFile, writeFileChunk } from "../files/write.js";
+import * as commands from "../files/commands.js";
+import * as list from "../files/list.js";
+import * as read from "../files/read.js";
+import * as write from "../files/write.js";
 import {
   createLoginShellChildEnv,
   type ChildEnv,
 } from "../terminals/shell-env.js";
 import { createTerminals } from "../terminals/terminals.js";
 import type { WorkspaceApi, WorkspaceEventSink } from "../workspace-types.js";
-import { gitDiff, gitDiffFile, gitDiffFiles, gitDiffPatch } from "./diff.js";
+import * as diff from "./diff.js";
 import { createKeyedLock, toRunnerError, type Ctx } from "./exec.js";
-import {
-  gitCommit,
-  gitStatus,
-  inspectGitSource,
-  inspectPath,
-  listBranches,
-} from "./git.js";
-import { listOpenTargets, openInTarget } from "./open-targets.js";
+import * as git from "./git.js";
+import * as targets from "./open-targets.js";
 import { createLifecycleScripts } from "./scripts.js";
 import { createWatcher } from "./watch.js";
-import {
-  createWorktree,
-  ensurePersonalWorkspace,
-  removeWorktree,
-  switchBranch,
-} from "./worktrees.js";
+import * as worktrees from "./worktrees.js";
 
 export interface WorkspaceDeps {
   dataDir: string;
@@ -68,39 +57,39 @@ export function createWorkspaceApi(deps: WorkspaceDeps): WorkspaceHandle {
 
   return {
     api: {
-      inspectPath: bind(inspectPath),
-      inspectGitSource: bind(inspectGitSource),
-      listBranches: bind(listBranches),
-      gitStatus: bind(gitStatus),
-      gitDiff: bind(gitDiff),
-      gitDiffFiles: bind(gitDiffFiles),
-      gitDiffPatch: bind(gitDiffPatch),
-      gitDiffFile: bind(gitDiffFile),
-      gitCommit: bind(gitCommit),
-      createWorktree: bind(createWorktree),
-      removeWorktree: bind(removeWorktree),
-      ensurePersonalWorkspace: bind(ensurePersonalWorkspace),
-      switchBranch: bind(switchBranch),
+      inspectPath: bind(git.inspectPath),
+      inspectGitSource: bind(git.inspectGitSource),
+      listBranches: bind(git.listBranches),
+      gitStatus: bind(git.gitStatus),
+      gitDiff: bind(diff.gitDiff),
+      gitDiffFiles: bind(diff.gitDiffFiles),
+      gitDiffPatch: bind(diff.gitDiffPatch),
+      gitDiffFile: bind(diff.gitDiffFile),
+      gitCommit: bind(git.gitCommit),
+      createWorktree: bind(worktrees.createWorktree),
+      removeWorktree: bind(worktrees.removeWorktree),
+      ensurePersonalWorkspace: bind(worktrees.ensurePersonalWorkspace),
+      switchBranch: bind(worktrees.switchBranch),
       runLifecycleScript: guard(scripts.run),
       cancelOperation: guard(scripts.cancel),
-      readFile: bind(readFile),
-      readFileChunk: bind(readFileChunk),
-      writeFile: bind(writeFile),
-      writeFileChunk: bind(writeFileChunk),
-      listPaths: bind(listPaths),
-      browseDirectory: bind(browseDirectory),
-      pathsExist: bind(pathsExist),
-      mutatePath: bind(mutatePath),
-      listCommands: bind(listCommands),
-      resolveSkillDirs: bind(resolveSkillDirs),
+      readFile: bind(read.readFile),
+      readFileChunk: bind(read.readFileChunk),
+      writeFile: bind(write.writeFile),
+      writeFileChunk: bind(write.writeFileChunk),
+      listPaths: bind(list.listPaths),
+      browseDirectory: bind(list.browseDirectory),
+      pathsExist: bind(list.pathsExist),
+      mutatePath: bind(write.mutatePath),
+      listCommands: bind(commands.listCommands),
+      resolveSkillDirs: bind(commands.resolveSkillDirs),
       openTerminal: guard(terminals.open),
       attachTerminal: guard(terminals.attach),
       writeTerminal: guard(terminals.write),
       resizeTerminal: guard(terminals.resize),
       closeTerminal: guard(terminals.close),
       setWatchedPaths: guard(watcher.setWatchedPaths),
-      listOpenTargets: bind(listOpenTargets),
-      openInTarget: bind(openInTarget),
+      listOpenTargets: bind(targets.listOpenTargets),
+      openInTarget: bind(targets.openInTarget),
     },
     terminalIds: terminals.liveIds,
     async dispose() {

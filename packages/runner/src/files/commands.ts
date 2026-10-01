@@ -8,7 +8,7 @@ import type { WorkspaceApi } from "../workspace-types.js";
 const SKILL_FILE_NAME = "SKILL.md";
 const MAX_SCAN_DEPTH = 8;
 const MAX_SCAN_ENTRIES = 1_000;
-const MAX_DESCRIPTION_LENGTH = 512;
+const MAX_DESCRIPTION_LENGTH = 300;
 const FRONTMATTER_READ_BYTES = 8 * 1024;
 const BUILTIN_COMMANDS = [
   ["clear", "Start fresh context in this thread"],

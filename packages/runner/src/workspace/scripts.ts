@@ -13,6 +13,7 @@ import type {
 import { fail, pathExists, requireAbsolute, type Ctx } from "./exec.js";
 
 const REMEMBERED_OPERATIONS = 256;
+const OUTPUT_EVENT_MAX_LENGTH = 64 * 1024;
 const GROUP_EXIT_POLL_MS = 25;
 const GROUP_EXIT_POLLS = 200;
 
@@ -22,7 +23,6 @@ type FailureReason = NonNullable<LifecycleScriptResult["failure"]>["reason"];
 interface Operation {
   controller: AbortController;
   done: Promise<LifecycleScriptResult>;
-  script: string;
   settled: boolean;
 }
 
@@ -83,9 +83,10 @@ async function runScript(
   const flushes = [child.stdout, child.stderr].map((stream) => {
     const reader = createTerminalOutputLineReader();
     const emit = (lines: string[]): void => {
-      if (lines.length > 0) {
-        const { operationId } = args;
-        const text = lines.join("\n");
+      const output = lines.join("\n");
+      const { operationId } = args;
+      for (let at = 0; at < output.length; at += OUTPUT_EVENT_MAX_LENGTH) {
+        const text = output.slice(at, at + OUTPUT_EVENT_MAX_LENGTH);
         ctx.sink({
           lane: "reliable",
           kind: "script.output",
@@ -143,25 +144,19 @@ export function createLifecycleScripts(ctx: Ctx): LifecycleScripts {
   return {
     async run(args) {
       const existing = operations.get(args.operationId);
-      const script = `${args.kind}:${args.path}`;
       if (existing === "cancelled") {
         const reason = "Operation was cancelled before it started";
         return { ...failed("cancelled", reason), ran: false };
       }
       if (existing !== undefined) {
-        return existing.script === script
-          ? existing.done
-          : fail(
-              "conflict",
-              `Operation ${args.operationId} runs another script`,
-            );
+        return existing.done;
       }
       const controller = new AbortController();
       const settle = (): void => {
         operation.settled = true;
       };
       const done = runScript(ctx, args, controller.signal).finally(settle);
-      const operation = { controller, done, script, settled: false };
+      const operation = { controller, done, settled: false };
       operations.set(args.operationId, operation);
       if (operations.size > REMEMBERED_OPERATIONS) {
         operations.delete(operations.keys().next().value ?? "");

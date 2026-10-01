@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { OpenTarget, WorkspaceApi } from "../workspace-types.js";
-import { fail, requireAbsolute, type Method } from "./exec.js";
+import { fail, pathExists, requireAbsolute, type Method } from "./exec.js";
 
 type OpenRequest = Parameters<WorkspaceApi["openInTarget"]>[0];
 
@@ -62,11 +62,7 @@ async function findExecutable(
   for (const name of names) {
     for (const directory of directories) {
       const candidate = path.join(directory, name);
-      const found = await fs.access(candidate, constants.X_OK).then(
-        () => true,
-        () => false,
-      );
-      if (found) {
+      if (await pathExists(candidate, constants.X_OK)) {
         return candidate;
       }
     }

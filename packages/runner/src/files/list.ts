@@ -164,7 +164,12 @@ export const browseDirectory: Method<"browseDirectory"> = async (
       left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
   );
   const parent = path.dirname(directory);
-  return { directory, parent: parent === directory ? null : parent, entries };
+  const shown = entries.slice(0, PATH_LIST_MAX_ENTRIES);
+  return {
+    directory,
+    parent: parent === directory ? null : parent,
+    entries: shown,
+  };
 };
 
 export const pathsExist: Method<"pathsExist"> = async (_ctx, args) => {

@@ -5,7 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import type { TerminalOutputChunk } from "@bb/server-contract";
 import { spawn as spawnPty, type IPty } from "node-pty";
-import { fail, requireAbsolute, type Ctx } from "../workspace/exec.js";
+import {
+  fail,
+  pathExists,
+  requireAbsolute,
+  type Ctx,
+} from "../workspace/exec.js";
 import {
   TERMINAL_REPLAY_MAX_BYTES,
   type TerminalStart,
@@ -21,9 +26,10 @@ const EXITED_RETENTION_MS = 30 * 60 * 1000;
 const EXITED_MAX_TERMINALS = 32;
 const EXITED_SCROLLBACK_MAX_BYTES = 512 * 1024;
 const TITLE_MAX_LENGTH = 80;
-const DEVICE_ATTRIBUTES_QUERY = /\u001b\[0?c/gu;
-const DEVICE_ATTRIBUTES_PARTIALS = ["\u001b[0", "\u001b[", "\u001b"];
-const DEVICE_ATTRIBUTES_REPLY = "\u001b[?1;2c";
+const ESC = "\u001b";
+const DEVICE_ATTRIBUTES_QUERY = new RegExp(`${ESC}\\[0?c`, "gu");
+const DEVICE_ATTRIBUTES_PARTIALS = [`${ESC}[0`, `${ESC}[`, ESC];
+const DEVICE_ATTRIBUTES_REPLY = `${ESC}[?1;2c`;
 const DEVICE_ATTRIBUTES_MAX_REPLIES = 8;
 const TERMINAL_ENV = {
   COLORTERM: "truecolor",
@@ -33,19 +39,21 @@ const TERMINAL_ENV = {
   TERM: "xterm-256color",
 };
 
-interface Terminal {
-  id: string;
-  pty: IPty;
-  cols: number;
-  rows: number;
-  nextSeq: number;
-  scrollback: { chunk: TerminalOutputChunk; byteLength: number }[];
-  scrollbackBytes: number;
-  pending: Buffer[];
-  flushTimer: NodeJS.Timeout | null;
-  partialQuery: string;
-  closeTimer: NodeJS.Timeout | null;
-  exited: { exitCode: number | null } | null;
+class Terminal {
+  nextSeq = 0;
+  scrollback: { chunk: TerminalOutputChunk; byteLength: number }[] = [];
+  scrollbackBytes = 0;
+  pending: Buffer[] = [];
+  flushTimer: NodeJS.Timeout | null = null;
+  partialQuery = "";
+  closeTimer: NodeJS.Timeout | null = null;
+  exited: { exitCode: number | null } | null = null;
+  constructor(
+    readonly id: string,
+    readonly pty: IPty,
+    public cols: number,
+    public rows: number,
+  ) {}
 }
 
 export interface Terminals {
@@ -58,16 +66,9 @@ export interface Terminals {
   dispose(): void;
 }
 
-function isExecutable(file: string): Promise<boolean> {
-  return fs.access(file, constants.X_OK).then(
-    () => true,
-    () => false,
-  );
-}
-
 async function resolveShell(): Promise<string> {
   for (const shell of [process.env.SHELL, "/bin/zsh", "/bin/bash"]) {
-    if (shell && (await isExecutable(shell))) {
+    if (shell && (await pathExists(shell, constants.X_OK))) {
       return shell;
     }
   }
@@ -86,7 +87,7 @@ async function ensureSpawnHelperExecutable(): Promise<void> {
   const prebuilt = `prebuilds/${process.platform}-${process.arch}`;
   for (const nativeDir of ["build/Release", prebuilt]) {
     const helper = path.join(packageDir, nativeDir, "spawn-helper");
-    if (!(await isExecutable(helper))) {
+    if (!(await pathExists(helper, constants.X_OK))) {
       await fs.chmod(helper, 0o755).catch(() => undefined);
     }
   }
@@ -230,20 +231,7 @@ export function createTerminals(ctx: Ctx): Terminals {
     };
     const name = TERMINAL_ENV.TERM;
     const pty = spawnPty(shell, shellArgs, { name, cols, rows, cwd, env });
-    const terminal: Terminal = {
-      id: args.terminalId,
-      pty,
-      cols,
-      rows,
-      nextSeq: 0,
-      scrollback: [],
-      scrollbackBytes: 0,
-      pending: [],
-      flushTimer: null,
-      partialQuery: "",
-      closeTimer: null,
-      exited: null,
-    };
+    const terminal = new Terminal(args.terminalId, pty, cols, rows);
     terminals.set(terminal.id, terminal);
     pty.onData((data) => receive(terminal, data));
     pty.onExit(({ exitCode }) => finish(terminal, exitCode));
@@ -309,7 +297,7 @@ export function createTerminals(ctx: Ctx): Terminals {
         .filter((terminal) => terminal.exited === null)
         .map((terminal) => terminal.id),
     dispose() {
-      for (const terminal of [...terminals.values()]) {
+      for (const terminal of terminals.values()) {
         if (terminal.exited === null) {
           kill(terminal, "SIGHUP");
           finish(terminal, null);

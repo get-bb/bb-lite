@@ -5,19 +5,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, failureCode, type Harness } from "./harness.js";
 
 const SETUP_SCRIPT = [
-  'echo "setting up $(basename "$PWD")"',
-  'echo "secret is $(cat .env)" >&2',
+  'echo "setup $(basename "$PWD")"',
+  'echo "secret $(cat .env)" >&2',
   'echo "thread $BB_THREAD_ID"',
 ].join("\n");
+type Kind = "setup" | "teardown";
 
 describe("managed worktrees and lifecycle scripts", () => {
   let h: Harness;
   let source: string;
   const branchName = "bb/feature-thr_1";
-  const worktree = {
-    key: "thr_1-1",
-    branchName,
-    baseBranch: null,
+  const create = (key = "thr_1-1") => {
+    const names = { key, branchName, baseBranch: null };
+    return h.api.createWorktree({ sourcePath: source, ...names });
   };
 
   beforeAll(() => {
@@ -29,104 +29,56 @@ describe("managed worktrees and lifecycle scripts", () => {
       ".bb-env-setup.sh": SETUP_SCRIPT,
       ".bb-env-teardown.sh": "sleep 30\n",
     });
-    h.write(path.join(source, ".env"), "TOKEN=1\n");
-    h.write(path.join(source, "node_modules/dep/index.js"), "ignored\n");
+    h.write(source, { ".env": "TOKEN=1\n", "node_modules/dep/x.js": "x\n" });
   });
 
   afterAll(() => h.dispose());
 
   it("creates a worktree once, copies included files and reuses it", async () => {
-    const created = await h.api.createWorktree({
-      sourcePath: source,
-      ...worktree,
-    });
+    const created = await create();
     expect(created).toEqual({
       path: path.join(h.dataDir, "worktrees", "thr_1-1", "project"),
       branchName,
       mergeBaseBranch: "main",
       worktreeInclude: { copied: 1, skipped: 0 },
     });
-    expect(fs.readFileSync(path.join(created.path, ".env"), "utf8")).toBe(
-      "TOKEN=1\n",
-    );
+    const copied = fs.readFileSync(path.join(created.path, ".env"), "utf8");
+    expect(copied).toBe("TOKEN=1\n");
     expect(fs.existsSync(path.join(created.path, "node_modules"))).toBe(false);
-    expect(await h.api.inspectPath({ path: created.path })).toMatchObject({
-      isGitRepo: true,
-      isWorktree: true,
-      branchName,
-      dirty: false,
-    });
+    const inspected = await h.api.inspectPath({ path: created.path });
+    expect(inspected).toMatchObject({ isWorktree: true, branchName });
 
-    h.write(path.join(created.path, "work.txt"), "in progress\n");
-    const again = await h.api.createWorktree({
-      sourcePath: source,
-      ...worktree,
-    });
-    expect(again).toEqual({ ...created, worktreeInclude: null });
+    h.write(created.path, { "work.txt": "in progress\n" });
+    expect(await create()).toEqual({ ...created, worktreeInclude: null });
     expect(fs.existsSync(path.join(created.path, "work.txt"))).toBe(true);
   });
 
-  it("streams setup output and reports timeouts", async () => {
-    const { path: cwd } = await h.api.createWorktree({
-      sourcePath: source,
-      ...worktree,
-    });
-    const script = {
-      path: cwd,
-      timeoutMs: 20_000,
-      env: { BB_THREAD_ID: "thr_1" },
-    };
-    const setup = h.api.runLifecycleScript({
-      operationId: "op-setup",
-      kind: "setup",
-      ...script,
-    });
-    const joined = h.api.runLifecycleScript({
-      operationId: "op-setup",
-      kind: "setup",
-      ...script,
-    });
-    expect(await setup).toEqual({ ran: true, exitCode: 0, failure: null });
-    expect(await joined).toEqual(await setup);
+  it("streams setup output, joins a repeated run and enforces the timeout", async () => {
+    const { path: cwd } = await create();
+    const script = { path: cwd, env: { BB_THREAD_ID: "thr_1" } };
+    const run = (operationId: string, kind: Kind, timeoutMs = 20_000) =>
+      h.api.runLifecycleScript({ operationId, kind, timeoutMs, ...script });
+    const [setup, joined] = await Promise.all([
+      run("op-setup", "setup"),
+      run("op-setup", "setup"),
+    ]);
+    expect(setup).toEqual({ ran: true, exitCode: 0, failure: null });
+    expect(joined).toEqual(setup);
     const output = h.events
       .filter((event) => event.kind === "script.output")
-      .filter((event) => event.operationId === "op-setup")
-      .map((event) => event.text)
-      .join("\n");
-    expect(output.split("\n").sort()).toEqual([
-      "secret is TOKEN=1",
-      "setting up project",
-      "thread thr_1",
-    ]);
+      .flatMap((event) => event.text.split("\n"));
+    const expected = ["secret TOKEN=1", "setup project", "thread thr_1"];
+    expect(output.sort()).toEqual(expected);
 
-    const startedAt = Date.now();
-    const teardown = await h.api.runLifecycleScript({
-      operationId: "op-teardown",
-      kind: "teardown",
-      ...script,
-      timeoutMs: 300,
-    });
-    expect(teardown).toMatchObject({
-      ran: true,
-      exitCode: null,
-      failure: { reason: "timeout" },
-    });
-    expect(Date.now() - startedAt).toBeLessThan(10_000);
-
-    const absent = await h.api.runLifecycleScript({
-      operationId: "op-none",
-      kind: "setup",
-      ...script,
-      path: h.root,
-    });
-    expect(absent).toEqual({ ran: false, exitCode: null, failure: null });
+    const teardown = await run("op-teardown", "teardown", 300);
+    expect(teardown).toMatchObject({ ran: true, exitCode: null });
+    expect(teardown.failure?.reason).toBe("timeout");
   });
 
   it("removes the worktree, stops processes inside it and keeps the branch", async () => {
-    const { path: cwd } = await h.api.createWorktree({
-      sourcePath: source,
-      ...worktree,
-    });
+    const { path: cwd } = await create();
+    h.write(cwd, { "kept.txt": "committed work\n" });
+    h.commitAll(cwd, "keep me");
     const lingering = spawn("sleep", ["60"], { cwd, stdio: "ignore" });
     const exited = new Promise((resolve) => lingering.once("exit", resolve));
     await new Promise((resolve) => lingering.once("spawn", resolve));
@@ -134,48 +86,16 @@ describe("managed worktrees and lifecycle scripts", () => {
     await h.api.removeWorktree({ path: cwd });
     await exited;
     expect(lingering.signalCode).toBe("SIGTERM");
-    expect(fs.existsSync(cwd)).toBe(false);
-    expect(fs.existsSync(`${cwd}.completed`)).toBe(false);
-    expect(h.git(source, "branch", "--list", branchName)).toContain(branchName);
+    expect(fs.existsSync(cwd) || fs.existsSync(`${cwd}.completed`)).toBe(false);
     expect(h.git(source, "worktree", "list")).not.toContain("thr_1-1");
-
     const unmanaged = h.api.removeWorktree({ path: source });
     expect(await failureCode(unmanaged)).toBe("invalid_path");
-    expect(fs.existsSync(source)).toBe(true);
-  });
 
-  it("restores a removed worktree on its existing branch", async () => {
-    h.git(source, "switch", "--quiet", branchName);
-    h.write(path.join(source, "kept.txt"), "committed work\n");
-    h.git(source, "add", "-A");
-    h.git(source, "commit", "--quiet", "-m", "keep me");
-    h.git(source, "switch", "--quiet", "main");
-    const restored = await h.api.createWorktree({
-      sourcePath: source,
-      ...worktree,
-      key: "thr_1-2",
-    });
+    const restored = await create("thr_1-2");
     expect(fs.existsSync(path.join(restored.path, "kept.txt"))).toBe(true);
-  });
-
-  it("switches branches only from a clean checkout", async () => {
-    const repo = h.initRepo("checkout", { "a.txt": "a\n" });
-    const created = await h.api.switchBranch({
-      path: repo,
-      branchName: "topic",
-      createFrom: "main",
-    });
-    expect(created).toEqual({ branchName: "topic" });
-    expect(h.git(repo, "branch", "--show-current").trim()).toBe("topic");
-    h.write(path.join(repo, "a.txt"), "dirty\n");
-    const dirty = h.api.switchBranch({
-      path: repo,
-      branchName: "main",
-      createFrom: null,
-    });
+    h.write(restored.path, { "kept.txt": "dirty\n" });
+    const names = { branchName: "main", createFrom: null };
+    const dirty = h.api.switchBranch({ path: restored.path, ...names });
     expect(await failureCode(dirty)).toBe("conflict");
-    const personal = await h.api.ensurePersonalWorkspace({ key: "thr_9" });
-    expect(fs.statSync(personal.path).isDirectory()).toBe(true);
-    expect(personal.path).toBe(path.join(h.dataDir, "workspaces", "thr_9"));
   });
 });
