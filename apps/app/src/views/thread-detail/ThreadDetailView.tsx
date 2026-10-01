@@ -12,8 +12,6 @@ import { nanoid } from "nanoid";
 import { useSystemProviderInfo } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import { useAtom } from "jotai";
-import { useDesktopBrowserReveal } from "@/lib/use-desktop-browser-reveal";
-import { atomWithStorage } from "jotai/utils";
 import {
   isRunningThreadRuntimeDisplayStatus,
   type ThreadTimelineEditMessageHandler,
@@ -35,11 +33,7 @@ import {
   type ThreadListEntry,
   type ThreadWithRuntime,
 } from "@bb/domain";
-import type {
-  PullRequestMergeMethod,
-  TerminalSession,
-  TimelineRow,
-} from "@bb/server-contract";
+import type { TerminalSession, TimelineRow } from "@bb/server-contract";
 import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
@@ -59,8 +53,6 @@ import {
 import { useUpdateEnvironment } from "../../hooks/mutations/environment-mutations";
 import {
   useEnvironment,
-  getEnvironmentPullRequestFromResponse,
-  useEnvironmentPullRequest,
   useEnvironmentWorkStatus,
 } from "../../hooks/queries/environment-queries";
 import {
@@ -96,7 +88,6 @@ import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,
 } from "@bb/core-ui";
-import { assertNever } from "@bb/thread-view";
 import { useCreateThreadInEnvironment } from "@/hooks/useCreateThreadInEnvironment";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
 import { useLocalOpenTargets } from "@/hooks/useLocalOpenTargets";
@@ -114,7 +105,6 @@ import {
   isHostAmbiguous,
 } from "@/lib/environment-workspace-display";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import {
   getAbsoluteDirname,
@@ -128,20 +118,15 @@ import {
 } from "@/components/workspace/workspace-change-summary";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { hasThreadProvisioningFailure } from "@/lib/thread-provisioning-failure";
-import {
-  getMutationErrorMessage,
-  showMutationErrorToast,
-} from "@/lib/mutation-errors";
+import { showMutationErrorToast } from "@/lib/mutation-errors";
 import {
   promptInputToDraft,
   type PromptDraftAttachment,
   type PromptDraftState,
 } from "@bb/client-core";
-import { createLocalStorageEnumStorage } from "@/lib/browser-storage";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
-  isRoutePath,
   type ThreadRoutePathArgs,
 } from "@/lib/route-paths";
 import { useGitDiffPanel } from "@/components/secondary-panel/git-diff/useGitDiffPanel";
@@ -179,22 +164,13 @@ import {
   useThreadStorageViewer,
 } from "@/components/secondary-panel/useThreadStorageViewer";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
-import { BrowserTabLifecycleObserver } from "@/components/secondary-panel/BrowserTabLifecycleObserver";
-import {
-  LazyBrowserTabDeck,
-  LazyThreadTerminalPanel,
-} from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { LazyThreadTerminalPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
 import {
   HostFilePreviewTabContent,
   ThreadStorageFilePreviewTabContent,
   WorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
-import type { BrowserAddressFocusRequest } from "@/components/secondary-panel/BrowserTabContent";
-import {
-  SIDE_CHAT_PLUGIN_ID,
-  SIDE_CHAT_PLUGIN_PANEL_ACTION_ID,
-} from "@/lib/side-chat-plugin";
 import { RightPanelFileTabIcon } from "@/components/secondary-panel/RightPanelFileTabIcon";
 import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
@@ -211,19 +187,8 @@ import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/T
 import { usePluginSlots } from "@/lib/plugin-slots";
 import { getFileExtension } from "@/lib/plugin-slot-resolvers";
 import { Icon } from "@bb/shared-ui/icon";
-import {
-  getBbDesktopInfo,
-  getDesktopBrowserApi,
-  isDesktopBrowserAvailable,
-} from "@/lib/bb-desktop";
-import {
-  openUrlByPreference,
-  useOpenLinksInAppBrowserPreference,
-} from "@/lib/in-app-browser-link-preference";
-import {
-  openUrlInExternalBrowser,
-  UrlOpenRoutingProvider,
-} from "@/lib/url-open-routing";
+import { getBbDesktopInfo } from "@/lib/bb-desktop";
+import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
 import {
   AppNavigationHostProvider,
   type AppFilePreviewIntent,
@@ -236,7 +201,6 @@ import {
   toFilePreviewLineRange,
 } from "@/lib/live-file-navigation";
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
-import { getBrowserUrlHost } from "@/lib/browser-url";
 import {
   useThreadStorageBrowser,
   type ThreadStoragePathSelectHandler,
@@ -254,7 +218,6 @@ import type {
 } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { useEnvironmentMergeBase } from "@/components/secondary-panel/git-diff/useEnvironmentMergeBase";
 import { useThreadGitActions } from "./useThreadGitActions";
-import { useSendSideChatMessageToMain } from "./useSendSideChatMessageToMain";
 import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import {
@@ -315,24 +278,6 @@ const EMPTY_CHILD_THREAD_ITEMS: readonly ChildThreadPendingAttentionSource[] =
 const EMPTY_PROJECT_THREAD_SUBSET_FILTERS =
   {} satisfies ProjectThreadSubsetFilters;
 const EMPTY_TERMINAL_SESSIONS: readonly TerminalSession[] = [];
-const DEFAULT_PULL_REQUEST_MERGE_METHOD: PullRequestMergeMethod = "merge";
-const PULL_REQUEST_MERGE_METHOD_STORAGE_KEY = "bb.pullRequest.mergeMethod";
-
-function isPullRequestMergeMethod(
-  value: string,
-): value is PullRequestMergeMethod {
-  return value === "merge" || value === "squash" || value === "rebase";
-}
-
-const pullRequestMergeMethodAtom = atomWithStorage<PullRequestMergeMethod>(
-  PULL_REQUEST_MERGE_METHOD_STORAGE_KEY,
-  DEFAULT_PULL_REQUEST_MERGE_METHOD,
-  createLocalStorageEnumStorage<PullRequestMergeMethod>(
-    isPullRequestMergeMethod,
-  ),
-  { getOnInit: true },
-);
-
 type MergeBasePickerOpenChangeHandler = NonNullable<
   ContextBannerMergeBaseConfig["onPickerOpenChange"]
 >;
@@ -360,19 +305,6 @@ function hasTimelineRowId(
         row.children !== null &&
         hasTimelineRowId(row.children, rowId)),
   );
-}
-
-function getPullRequestMergeLoadingTitle(
-  method: PullRequestMergeMethod,
-): string {
-  switch (method) {
-    case "merge":
-      return "Merging pull request";
-    case "squash":
-      return "Squash merging pull request";
-    case "rebase":
-      return "Rebase merging pull request";
-  }
 }
 
 interface ThreadDetailViewPageProps {
@@ -622,9 +554,6 @@ function ThreadDetailViewInternal(
     isRecoverableLoadingError: isTransientReadError(error),
   });
   const threadOriginKind = thread?.originKind ?? null;
-  const isSideChatThread =
-    threadOriginKind === "fork" &&
-    thread?.originPluginId === SIDE_CHAT_PLUGIN_ID;
   const threadSourceThreadId =
     thread?.sourceThreadId ??
     (thread && threadOriginKind ? thread.parentThreadId : null);
@@ -654,8 +583,6 @@ function ThreadDetailViewInternal(
     () => setShouldAutoFocusNewTab(false),
     [],
   );
-  const [browserAddressFocusRequest, setBrowserAddressFocusRequest] =
-    useState<BrowserAddressFocusRequest | null>(null);
   const shouldLoadThreadStorageFiles = shouldLoadThreadStorageFileList({
     hasThread: thread !== undefined,
     isSecondaryPanelOpen,
@@ -678,12 +605,10 @@ function ThreadDetailViewInternal(
     enabled: isSecondaryPanelOpen,
   });
   const {
-    activeBrowserTab,
     activeHostFileLineRange,
     activeHostFilePath,
     activeStorageFilePath,
     activeWorkspaceFilePath,
-    browserTabs,
     clearActiveFileTabs,
     activateTab,
     closeTab,
@@ -693,7 +618,6 @@ function ThreadDetailViewInternal(
     reopenClosedTab,
     reorderTab,
     selectFileSearchResult,
-    updateBrowserTab,
   } = useThreadFileTabs({
     panelStateId: threadId,
     syncThreadId: threadId,
@@ -715,61 +639,6 @@ function ThreadDetailViewInternal(
     environmentId: thread?.environmentId,
     openTab,
   });
-  const browserDeckThreadId = thread?.id ?? null;
-  const browserDeckEnvironmentId = thread?.environmentId ?? null;
-  const handleBrowserAddressFocusRequestConsumed = useCallback(
-    (request: BrowserAddressFocusRequest) => {
-      setBrowserAddressFocusRequest((current) =>
-        current?.requestId === request.requestId &&
-        current.tabId === request.tabId
-          ? null
-          : current,
-      );
-    },
-    [],
-  );
-  const renderBrowserDeck = useCallback(
-    ({
-      canHandleBrowserCommands,
-      canShowNativeBrowserView,
-      onNativeFocus,
-      activeBrowserTabId = activeBrowserTab?.id ?? null,
-    }: {
-      canHandleBrowserCommands?: boolean;
-      canShowNativeBrowserView: boolean;
-      onNativeFocus?: () => void;
-      activeBrowserTabId?: string | null;
-    }) => {
-      if (browserDeckThreadId === null) {
-        return null;
-      }
-      return (
-        <LazyBrowserTabDeck
-          browserTabs={browserTabs}
-          activeBrowserTabId={activeBrowserTabId}
-          addressFocusRequest={browserAddressFocusRequest}
-          onAddressFocusRequestConsumed={
-            handleBrowserAddressFocusRequestConsumed
-          }
-          environmentId={browserDeckEnvironmentId}
-          canShowNativeBrowserView={canShowNativeBrowserView}
-          canHandleBrowserCommands={canHandleBrowserCommands}
-          onNativeFocus={onNativeFocus}
-          threadId={browserDeckThreadId}
-          onUpdate={updateBrowserTab}
-        />
-      );
-    },
-    [
-      activeBrowserTab?.id,
-      browserAddressFocusRequest,
-      browserTabs,
-      browserDeckEnvironmentId,
-      browserDeckThreadId,
-      handleBrowserAddressFocusRequestConsumed,
-      updateBrowserTab,
-    ],
-  );
   const openPersistedWorkspaceFile =
     useCallback<ThreadSecondaryPanelWorkspaceFileOpenHandler>(
       (file, options) =>
@@ -788,29 +657,9 @@ function ThreadDetailViewInternal(
         openTab({ kind: "host-file-preview", tab: file }, options),
       [openTab],
     );
-  const openBrowserTab = useCallback(
-    (url?: string) => {
-      const browserUrl = url ?? "";
-      const tab = openTab({ kind: "browser", url: browserUrl });
-      if (browserUrl.length === 0 && tab?.kind === "browser") {
-        setBrowserAddressFocusRequest((current) => ({
-          requestId: (current?.requestId ?? 0) + 1,
-          tabId: tab.id,
-        }));
-      }
-    },
-    [openTab],
-  );
   const openNewTab = useCallback(() => {
     openTab({ kind: "new-tab" });
   }, [openTab]);
-  const [openLinksInAppBrowser] = useOpenLinksInAppBrowserPreference();
-  const desktopBrowserAvailable = isDesktopBrowserAvailable();
-  const canOpenUrlsInAppBrowser = desktopBrowserAvailable;
-  const browserTabIds = useMemo(
-    () => new Set(browserTabs.map((tab) => tab.id)),
-    [browserTabs],
-  );
   const isThreadRoot = isRootThread(thread);
   const [
     parentThreadsRequestedForThreadId,
@@ -869,9 +718,6 @@ function ThreadDetailViewInternal(
   const editMessage = useEditThreadMessage();
   const createQueuedMessage = useCreateThreadQueuedMessage();
   const requestEnvironmentAction = useRequestEnvironmentAction();
-  const [pullRequestMergeMethod, setPullRequestMergeMethod] = useAtom(
-    pullRequestMergeMethodAtom,
-  );
   const markThreadRead = useMarkThreadRead();
   const updateEnvironment = useUpdateEnvironment();
   const updateThread = useUpdateThread({
@@ -1183,16 +1029,6 @@ function ThreadDetailViewInternal(
     },
     [composerActions, dismissCompactKeyboard],
   );
-  const sendSideChatMessageToMain = useSendSideChatMessageToMain({
-    createQueuedMessage,
-    isSideChatThread,
-    threadId: thread?.id,
-    threadSourceThreadId,
-  });
-  const handleSendToMainMessage =
-    isSideChatThread && threadSourceThreadId !== null
-      ? sendSideChatMessageToMain
-      : undefined;
   const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
   const canCreateTerminal =
     !executionUnavailable &&
@@ -1208,7 +1044,6 @@ function ThreadDetailViewInternal(
   });
   const { providers: registeredEnvironmentProviders } =
     useSystemEnvironmentProviders();
-  const { providers: registeredMachineProviders } = useSystemMachineProviders();
   const environmentMergeBaseBranch =
     resolveEnvironmentMergeBaseBranch(environment);
   const {
@@ -1399,24 +1234,6 @@ function ThreadDetailViewInternal(
       },
       [openCompactDrawer, openPluginPanel, pluginThreadPanelActions],
     );
-  const openBrowserTabAndReveal = useCallback(
-    (url?: string) => {
-      openBrowserTab(url);
-      openCompactDrawer();
-    },
-    [openBrowserTab, openCompactDrawer],
-  );
-  const handleOpenUrlByPreference = useCallback(
-    (url: string) =>
-      openUrlByPreference({
-        desktopBrowserAvailable: canOpenUrlsInAppBrowser,
-        openExternalBrowser: openUrlInExternalBrowser,
-        openInAppBrowser: openBrowserTabAndReveal,
-        openLinksInAppBrowser,
-        url,
-      }),
-    [canOpenUrlsInAppBrowser, openBrowserTabAndReveal, openLinksInAppBrowser],
-  );
   const handleSelectFileSearchResult = useCallback(
     (selection: FileSearchSelection) => {
       selectFileSearchResult(selection);
@@ -1431,31 +1248,6 @@ function ThreadDetailViewInternal(
     },
     [activateTab, openCompactDrawer],
   );
-  useDesktopBrowserReveal({
-    threadId,
-    isFocused,
-    browserTabs,
-    activateTab: handleActivateFileTab,
-  });
-  useEffect(() => {
-    const browserApi = getDesktopBrowserApi();
-    if (browserApi === null) {
-      return;
-    }
-    if (browserApi.onScopedOpenTab) {
-      return browserApi.onScopedOpenTab(({ tabId, url }) => {
-        if (browserTabIds.has(tabId)) {
-          handleOpenUrlByPreference(url);
-        }
-      });
-    }
-    return browserApi.onOpenTab(({ url }) => {
-      if (isRoutePath({ path: url })) {
-        return;
-      }
-      handleOpenUrlByPreference(url);
-    });
-  }, [browserTabIds, handleOpenUrlByPreference]);
   const handleSelectStorageBrowserPath =
     useCallback<ThreadStoragePathSelectHandler>(
       (path) => {
@@ -1748,96 +1540,6 @@ function ThreadDetailViewInternal(
     workStatusResponse?.outcome === "unavailable"
       ? workStatusResponse.failure
       : undefined;
-  const pullRequestQuery = useEnvironmentPullRequest(thread?.environmentId, {
-    enabled: canUseGitUi && environment !== undefined,
-  });
-  const pullRequest = getEnvironmentPullRequestFromResponse(
-    pullRequestQuery.data,
-  );
-  const handlePullRequestReady = useCallback(async () => {
-    const environmentId = thread?.environmentId;
-    if (!environmentId) {
-      return;
-    }
-    const toastId = appToast.loading("Marking pull request ready");
-    try {
-      const response = await requestEnvironmentAction.mutateAsync({
-        id: environmentId,
-        action: "pull_request_ready",
-      });
-      if (response.action !== "pull_request_ready") {
-        throw new Error("Expected pull request ready action response.");
-      }
-      appToast.success(response.message, { id: toastId });
-    } catch (error) {
-      appToast.error("Failed to update pull request", {
-        id: toastId,
-        description: getMutationErrorMessage({
-          error,
-          fallbackMessage: "Pull request was not updated",
-        }),
-      });
-    }
-  }, [requestEnvironmentAction, thread?.environmentId]);
-  const handlePullRequestDraft = useCallback(async () => {
-    const environmentId = thread?.environmentId;
-    if (!environmentId) {
-      return;
-    }
-    const toastId = appToast.loading("Converting pull request to draft");
-    try {
-      const response = await requestEnvironmentAction.mutateAsync({
-        id: environmentId,
-        action: "pull_request_draft",
-      });
-      if (response.action !== "pull_request_draft") {
-        throw new Error("Expected pull request draft action response.");
-      }
-      appToast.success(response.message, { id: toastId });
-    } catch (error) {
-      appToast.error("Failed to update pull request", {
-        id: toastId,
-        description: getMutationErrorMessage({
-          error,
-          fallbackMessage: "Pull request was not updated",
-        }),
-      });
-    }
-  }, [requestEnvironmentAction, thread?.environmentId]);
-  const handlePullRequestMerge = useCallback(
-    async (method: PullRequestMergeMethod) => {
-      const environmentId = thread?.environmentId;
-      if (!environmentId) {
-        return;
-      }
-      setPullRequestMergeMethod(method);
-      const toastId = appToast.loading(getPullRequestMergeLoadingTitle(method));
-      try {
-        const response = await requestEnvironmentAction.mutateAsync({
-          id: environmentId,
-          action: "pull_request_merge",
-          options: { method },
-        });
-        if (response.action !== "pull_request_merge") {
-          throw new Error("Expected pull request merge action response.");
-        }
-        appToast.success(response.message, { id: toastId });
-      } catch (error) {
-        appToast.error("Failed to merge pull request", {
-          id: toastId,
-          description: getMutationErrorMessage({
-            error,
-            fallbackMessage: "Pull request was not merged",
-          }),
-        });
-      }
-    },
-    [
-      requestEnvironmentAction,
-      setPullRequestMergeMethod,
-      thread?.environmentId,
-    ],
-  );
   const workspaceBranch = workspaceStatus?.branch;
   const workspaceChangedFilesSection = useMemo(
     () => selectWorkspaceChangedFilesSection(workspaceStatus),
@@ -1910,11 +1612,7 @@ function ThreadDetailViewInternal(
           ? threadSourceThreadId
           : thread?.parentThreadId;
       if (!thread || !relatedThreadId) return null;
-      const relationship = isSideChatThread
-        ? "side-chat"
-        : threadOriginKind === "fork"
-          ? "fork"
-          : "parent";
+      const relationship = threadOriginKind === "fork" ? "fork" : "parent";
       const relatedThread =
         relationship === "parent" ? parentThread : sourceThread;
       const href = getThreadRoutePath({
@@ -1942,7 +1640,6 @@ function ThreadDetailViewInternal(
         relationship,
       };
     }, [
-      isSideChatThread,
       parentThread,
       sourceThread,
       thread,
@@ -2098,29 +1795,14 @@ function ThreadDetailViewInternal(
     ],
   );
   const handleOpenTimelineLink = useCallback<ThreadTimelineLinkHandler>(
-    ({ href }) => handleOpenUrlByPreference(href),
-    [handleOpenUrlByPreference],
+    ({ href }) => openHttpUrlInExternalBrowser(href),
+    [],
   );
   const handleTimelineTitleAction = useCallback<TimelineTitleActionResolver>(
-    (action) => {
-      switch (action.kind) {
-        case "open-file-diff":
-          return () => {
-            openSecondaryPanelDiffFile(action.path);
-          };
-        case "open-plugin-side-chat":
-          return () => {
-            handleOpenTimelinePluginPanel({
-              pluginId: SIDE_CHAT_PLUGIN_ID,
-              actionId: SIDE_CHAT_PLUGIN_PANEL_ACTION_ID,
-              params: { threadId: action.threadId, sourceThreadId: threadId },
-            });
-          };
-        default:
-          return assertNever(action);
-      }
+    (action) => () => {
+      openSecondaryPanelDiffFile(action.path);
     },
-    [openSecondaryPanelDiffFile, handleOpenTimelinePluginPanel, threadId],
+    [openSecondaryPanelDiffFile],
   );
   const metadataStorage = useMemo(
     () =>
@@ -2359,7 +2041,6 @@ function ThreadDetailViewInternal(
         providerLookup: threadEnvironmentProviderLookup,
         hasMultipleMachines,
         host: resolvedThreadEnvironmentHost,
-        machineProviders: registeredMachineProviders,
       })
     : undefined;
   const isThreadOnReusableEnvironment =
@@ -2460,9 +2141,7 @@ function ThreadDetailViewInternal(
           }
         />
       )}
-      childPillLabel={
-        isSideChatThread ? "side chat" : parentThreadId ? "child" : null
-      }
+      childPillLabel={parentThreadId ? "child" : null}
       isSecondaryPanelOpen={isSecondaryPanelOpen}
       onClosePane={onRequestClose ?? undefined}
       onOpenThreadGitAction={gitActions.threadGitActionDialog.onOpen}
@@ -2493,21 +2172,13 @@ function ThreadDetailViewInternal(
       environmentHost={composerEnvironmentChrome?.environmentHost}
       environmentIcon={composerEnvironmentChrome?.environmentIcon}
       environmentLabel={composerEnvironmentChrome?.environmentLabel}
-      environmentMachineProvider={
-        composerEnvironmentChrome?.environmentMachineProvider
-      }
       environmentProviderName={
         composerEnvironmentChrome?.environmentProviderName
       }
       canRestoreEnvironment={thread.canRestoreEnvironment}
       environmentGoneStatus={threadEnvironmentGoneStatus}
       environmentHostId={environment?.hostId}
-      isEnvironmentActionPending={requestEnvironmentAction.isPending}
       onCreateNewThreadInEnvironment={onCreateNewThreadInEnvironment}
-      onPullRequestMerge={handlePullRequestMerge}
-      onPullRequestDraft={handlePullRequestDraft}
-      onPullRequestReady={handlePullRequestReady}
-      pullRequestMergeMethod={pullRequestMergeMethod}
       onChangedFileClick={handleChangedFileClick}
       projectId={projectId}
       resolveMentionLink={resolveMentionLink}
@@ -2550,7 +2221,6 @@ function ThreadDetailViewInternal(
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={childThreadsSection}
-      pullRequest={pullRequest}
       thread={thread}
     />
   );
@@ -2558,8 +2228,6 @@ function ThreadDetailViewInternal(
     tab: SecondaryFileFixedPanelTab,
   ): ReactNode => {
     switch (tab.kind) {
-      case "browser":
-        return null;
       case "terminal":
         return (
           <LazyThreadTerminalPanel
@@ -2588,10 +2256,6 @@ function ThreadDetailViewInternal(
             currentThreadId={thread.id}
             onAutoFocusHandled={handleNewTabAutoFocusHandled}
             onSelect={handleSelectFileSearchResult}
-            onOpenBrowser={() => {
-              activateTab(tab.id);
-              openBrowserTabAndReveal();
-            }}
             onStartTerminal={
               canCreateTerminal
                 ? () => {
@@ -2726,23 +2390,6 @@ function ThreadDetailViewInternal(
         tab,
       };
       switch (tab.kind) {
-        case "browser": {
-          const browserLabel =
-            tab.title ?? (tab.url.length > 0 ? getBrowserUrlHost(tab.url) : "");
-          return {
-            ...shared,
-            label: browserLabel.length > 0 ? browserLabel : "Browser",
-            leadingVisual: (
-              <Icon
-                name="Globe"
-                className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-                aria-hidden
-              />
-            ),
-            statusLabel: null,
-            onSelect: () => handleActivateFileTab(tab.id),
-          };
-        }
         case "terminal": {
           const session = terminalsById.get(tab.terminalId);
           return {
@@ -2822,162 +2469,143 @@ function ThreadDetailViewInternal(
     <MarkdownLocalFileContextMenuContext.Provider
       value={getLocalFileContextMenuItems}
     >
-      <BrowserTabLifecycleObserver
-        browserTabs={browserTabs}
-        threadId={thread.id}
-      />
-      <UrlOpenRoutingProvider
-        openInAppBrowser={
-          canOpenUrlsInAppBrowser ? openBrowserTabAndReveal : null
-        }
-      >
-        <AppNavigationHostProvider capabilities={appNavigationCapabilities}>
-          <ThreadDetailSecondaryContent
-            footer={composerFooter}
-            header={timelineHeader}
-            isMetadataLoading={environmentQuery.isLoading}
-            isSecondaryPanelOpen={isSecondaryPanelOpen}
-            isConversationCollapsed={isConversationCollapsed}
-            isBoundedPane={isBoundedPane}
-            onToggleSecondaryPanel={toggleSecondaryPanel}
-            onToggleConversationCollapse={toggleConversationCollapse}
-            renderHostedPanel={(panel) => (
-              <MarkdownLocalFileContextMenuContext.Provider
-                value={getLocalFileContextMenuItems}
-              >
-                <UrlOpenRoutingProvider
-                  openInAppBrowser={
-                    canOpenUrlsInAppBrowser ? openBrowserTabAndReveal : null
-                  }
-                >
-                  {panel}
-                </UrlOpenRoutingProvider>
-              </MarkdownLocalFileContextMenuContext.Provider>
-            )}
-            metadata={{
-              thread,
-              projectId,
-              parentThreadProjectId: parentThread?.projectId ?? null,
-              parentThreadDisplayName: parentThreadDisplayName ?? null,
-              parentThreads,
-              canAssignToParent,
-              canTakeOverThread,
-              isLoadingParentThreads: parentThreadSubsetQuery.isLoading,
-              isParentThreadsError: parentThreadSubsetQuery.isError,
-              environment: environment ?? null,
-              environmentProvisioningFailure,
-              environmentDisplayHost: environmentDisplayHostContext,
-              workspaceStatus,
-              workspaceStatusError: workspaceStatusError ?? null,
-              workspaceUnavailable,
-              pullRequest,
-              selectedMergeBaseBranch,
-              mergeBaseBranchRef: selectedMergeBaseBranchRef,
-              mergeBaseBranchOptions,
-              mergeBaseRemoteBranchOptions,
-              isLoadingMergeBaseBranchOptions,
-              updateThreadPending:
-                updateThread.isPending || updateEnvironment.isPending,
-              storage: metadataStorage,
-              onAssignParent: handleAssignParent,
-              onParentSelectorOpenChange: handleParentSelectorOpenChange,
-              onRetryParentThreads: handleRetryParentThreads,
-              onMergeBaseBranchChange: handleMergeBaseBranchChange,
-              onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
-              onMergeBaseBranchSearchQueryChange: setMergeBaseBranchSearchQuery,
-              onChangedFileClick: canUseGitUi
-                ? handleChangedFileClick
-                : undefined,
-              onCommitClick: canUseGitUi
-                ? openSecondaryPanelCommitDiff
-                : undefined,
+      <AppNavigationHostProvider capabilities={appNavigationCapabilities}>
+        <ThreadDetailSecondaryContent
+          footer={composerFooter}
+          header={timelineHeader}
+          isMetadataLoading={environmentQuery.isLoading}
+          isSecondaryPanelOpen={isSecondaryPanelOpen}
+          isConversationCollapsed={isConversationCollapsed}
+          isBoundedPane={isBoundedPane}
+          onToggleSecondaryPanel={toggleSecondaryPanel}
+          onToggleConversationCollapse={toggleConversationCollapse}
+          renderHostedPanel={(panel) => (
+            <MarkdownLocalFileContextMenuContext.Provider
+              value={getLocalFileContextMenuItems}
+            >
+              {panel}
+            </MarkdownLocalFileContextMenuContext.Provider>
+          )}
+          metadata={{
+            thread,
+            projectId,
+            parentThreadProjectId: parentThread?.projectId ?? null,
+            parentThreadDisplayName: parentThreadDisplayName ?? null,
+            parentThreads,
+            canAssignToParent,
+            canTakeOverThread,
+            isLoadingParentThreads: parentThreadSubsetQuery.isLoading,
+            isParentThreadsError: parentThreadSubsetQuery.isError,
+            environment: environment ?? null,
+            environmentProvisioningFailure,
+            environmentDisplayHost: environmentDisplayHostContext,
+            workspaceStatus,
+            workspaceStatusError: workspaceStatusError ?? null,
+            workspaceUnavailable,
+            selectedMergeBaseBranch,
+            mergeBaseBranchRef: selectedMergeBaseBranchRef,
+            mergeBaseBranchOptions,
+            mergeBaseRemoteBranchOptions,
+            isLoadingMergeBaseBranchOptions,
+            updateThreadPending:
+              updateThread.isPending || updateEnvironment.isPending,
+            storage: metadataStorage,
+            onAssignParent: handleAssignParent,
+            onParentSelectorOpenChange: handleParentSelectorOpenChange,
+            onRetryParentThreads: handleRetryParentThreads,
+            onMergeBaseBranchChange: handleMergeBaseBranchChange,
+            onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
+            onMergeBaseBranchSearchQueryChange: setMergeBaseBranchSearchQuery,
+            onChangedFileClick: canUseGitUi
+              ? handleChangedFileClick
+              : undefined,
+            onCommitClick: canUseGitUi
+              ? openSecondaryPanelCommitDiff
+              : undefined,
+          }}
+          secondaryPanel={{
+            canNavigateTabs: isFocused,
+            activeTab: activeFixedSecondaryTab,
+            canUseGitUi,
+            gitDiffTabStatus,
+            environmentId: thread.environmentId ?? undefined,
+            workspaceRootPath: environment?.path,
+            tabs: panelTabs,
+            fixedTabs: secondaryPanelFixedTabs,
+            splitPanelStateId: thread.id,
+            isOpen: isSecondaryPanelOpen,
+            onClose: closeSecondaryPanel,
+            onCollapse: closeSecondaryPanel,
+            onClearPendingGitDiffIntent: clearPendingGitDiffIntent,
+            onOpenFileInEditor: handleOpenFileInEditor,
+            onTabReorder: reorderTab,
+            onOpenNewTab: handleOpenNewTab,
+            onRetryGitDiffEligibility: () => {
+              void environmentQuery.refetch();
+            },
+            onOpenFilePreview: handleOpenFilePreview,
+            onSelectionAddToChat: handleSelectionAddToChat,
+            pendingGitDiffCommitSha,
+            pendingGitDiffScrollPath,
+            requestedMergeBaseBranch,
+            onPanelFocus: touchFixedPanelTabsState,
+          }}
+          timeline={{
+            activeThinking,
+            canSpawnChild: thread.canSpawnChild,
+            contextBoundarySeq,
+            threadOriginKind,
+            hasOlderTimelineRows,
+            hostConnectionNotice,
+            isLoadingOlderTimelineRows,
+            isThreadTimelinePending,
+            timelineError: Boolean(timelineError),
+            onForkMessage: isForkAvailable ? handleForkMessage : undefined,
+            onEditMessage: canEditSentMessages
+              ? handleEditSentMessage
+              : undefined,
+            inlineMessageEditor,
+            onMessageAddToChat: handleSelectionAddToChat,
+            onSelectionAddToChat: handleSelectionAddToChat,
+            onLoadOlderRows: loadOlderTimelineRows,
+            onOpenLink: handleOpenTimelineLink,
+            onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
+            onOpenPluginPanel: handleOpenTimelinePluginPanel,
+            onTitleAction: handleTimelineTitleAction,
+            projectId,
+            resolveMentionLink,
+            showOngoingIndicator:
+              thread.status !== "stopping" &&
+              !hasPendingInteraction &&
+              isRunningThreadRuntimeDisplayStatus(
+                thread.runtime.displayStatus,
+              ) &&
+              !isThreadTimelinePending,
+            timelineRows,
+            isStopping: thread.status === "stopping",
+            stoppingAnchorAt: thread.updatedAt,
+            threadId: thread.id,
+            threadRuntimeDisplayStatus: thread.runtime.displayStatus,
+            unreadDividerAutoScroll: unreadDividerState.autoScroll,
+            unreadDividerPlacement: unreadDividerState.placement,
+            workspaceRootPath: environment?.path ?? undefined,
+          }}
+        />
+        {canUseGitUi ? (
+          <ThreadGitActionDialog
+            target={gitActions.threadGitActionDialog.target}
+            branchName={threadBranchName}
+            gitStatusDisplay={threadGitStatusDisplay}
+            changedFilesSection={workingTreeChangedFilesSection}
+            onOpenChange={(open) => {
+              if (!open) {
+                gitActions.threadGitActionDialog.onClose();
+              }
             }}
-            secondaryPanel={{
-              canNavigateTabs: isFocused,
-              activeTab: activeFixedSecondaryTab,
-              canUseGitUi,
-              gitDiffTabStatus,
-              environmentId: thread.environmentId ?? undefined,
-              workspaceRootPath: environment?.path,
-              tabs: panelTabs,
-              fixedTabs: secondaryPanelFixedTabs,
-              splitPanelStateId: thread.id,
-              renderBrowserDeck,
-              isOpen: isSecondaryPanelOpen,
-              onClose: closeSecondaryPanel,
-              onCollapse: closeSecondaryPanel,
-              onClearPendingGitDiffIntent: clearPendingGitDiffIntent,
-              onOpenFileInEditor: handleOpenFileInEditor,
-              onTabReorder: reorderTab,
-              onOpenNewTab: handleOpenNewTab,
-              onRetryGitDiffEligibility: () => {
-                void environmentQuery.refetch();
-              },
-              onOpenFilePreview: handleOpenFilePreview,
-              onSelectionAddToChat: handleSelectionAddToChat,
-              pendingGitDiffCommitSha,
-              pendingGitDiffScrollPath,
-              requestedMergeBaseBranch,
-              onPanelFocus: touchFixedPanelTabsState,
-            }}
-            timeline={{
-              activeThinking,
-              canSpawnChild: thread.canSpawnChild,
-              contextBoundarySeq,
-              threadOriginKind,
-              hasOlderTimelineRows,
-              hostConnectionNotice,
-              isLoadingOlderTimelineRows,
-              isThreadTimelinePending,
-              timelineError: Boolean(timelineError),
-              onForkMessage: isForkAvailable ? handleForkMessage : undefined,
-              onEditMessage: canEditSentMessages
-                ? handleEditSentMessage
-                : undefined,
-              inlineMessageEditor,
-              onMessageAddToChat: handleSelectionAddToChat,
-              onSendToMainMessage: handleSendToMainMessage,
-              onSelectionAddToChat: handleSelectionAddToChat,
-              onLoadOlderRows: loadOlderTimelineRows,
-              onOpenLink: handleOpenTimelineLink,
-              onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
-              onOpenPluginPanel: handleOpenTimelinePluginPanel,
-              onTitleAction: handleTimelineTitleAction,
-              projectId,
-              resolveMentionLink,
-              showOngoingIndicator:
-                thread.status !== "stopping" &&
-                !hasPendingInteraction &&
-                isRunningThreadRuntimeDisplayStatus(
-                  thread.runtime.displayStatus,
-                ) &&
-                !isThreadTimelinePending,
-              timelineRows,
-              isStopping: thread.status === "stopping",
-              stoppingAnchorAt: thread.updatedAt,
-              threadId: thread.id,
-              threadRuntimeDisplayStatus: thread.runtime.displayStatus,
-              unreadDividerAutoScroll: unreadDividerState.autoScroll,
-              unreadDividerPlacement: unreadDividerState.placement,
-              workspaceRootPath: environment?.path ?? undefined,
-            }}
+            onCommit={gitActions.handleCommitThread}
           />
-          {canUseGitUi ? (
-            <ThreadGitActionDialog
-              target={gitActions.threadGitActionDialog.target}
-              branchName={threadBranchName}
-              gitStatusDisplay={threadGitStatusDisplay}
-              changedFilesSection={workingTreeChangedFilesSection}
-              onOpenChange={(open) => {
-                if (!open) {
-                  gitActions.threadGitActionDialog.onClose();
-                }
-              }}
-              onCommit={gitActions.handleCommitThread}
-            />
-          ) : null}
-        </AppNavigationHostProvider>
-      </UrlOpenRoutingProvider>
+        ) : null}
+      </AppNavigationHostProvider>
     </MarkdownLocalFileContextMenuContext.Provider>
   );
   return (

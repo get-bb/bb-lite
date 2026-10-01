@@ -38,7 +38,6 @@ import {
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
 import { resolveAbsoluteFilePath } from "@/lib/absolute-file-path";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
-import type { MarkdownPreviewLinkHandler } from "@/components/ui/markdown-link";
 
 export const ROOT_COMPOSE_FIXED_PANEL_STATE_ID = "root-compose";
 
@@ -56,8 +55,6 @@ interface RootComposePanelTabContentProps {
   onActivateTab: (tabId: string) => void;
   onAutoFocusNewTabHandled: () => void;
   onAutoFocusTerminalHandled: () => void;
-  onOpenBrowser: () => void;
-  onOpenPanelLink: MarkdownPreviewLinkHandler;
   onSelectFileSearchResult: (selection: FileSearchSelection) => void;
   onSelectionAddToChat: (text: string) => void;
   onStartTerminal: () => void;
@@ -141,8 +138,6 @@ export function RootComposePanelTabContent({
   onActivateTab,
   onAutoFocusNewTabHandled,
   onAutoFocusTerminalHandled,
-  onOpenBrowser,
-  onOpenPanelLink,
   onSelectFileSearchResult,
   onSelectionAddToChat,
   onStartTerminal,
@@ -160,8 +155,6 @@ export function RootComposePanelTabContent({
   terminalTarget,
 }: RootComposePanelTabContentProps) {
   switch (tab.kind) {
-    case "browser":
-      return null;
     case "terminal":
       return terminalTarget === null ? null : (
         <LazyThreadTerminalPanel
@@ -172,7 +165,6 @@ export function RootComposePanelTabContent({
           isPanelOpen={isPanelOpen}
           isPanelPersistedOpen={isPanelPersistedOpen}
           onAutoFocusHandled={onAutoFocusTerminalHandled}
-          onOpenLink={onOpenPanelLink}
           onSelectionAddToChat={onSelectionAddToChat}
           panelStateId={ROOT_COMPOSE_FIXED_PANEL_STATE_ID}
           syncThreadId={null}
@@ -196,14 +188,6 @@ export function RootComposePanelTabContent({
             onSelectFileSearchResult(selection);
           }}
           recentItemsThreadId={ROOT_COMPOSE_FIXED_PANEL_STATE_ID}
-          onOpenBrowser={
-            rootPanelThreadId
-              ? () => {
-                  onActivateTab(tab.id);
-                  onOpenBrowser();
-                }
-              : undefined
-          }
           onStartTerminal={
             canCreateTerminal
               ? () => {

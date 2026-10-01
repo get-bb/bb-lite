@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@bb/core-ui": "workspace:*",
-    "@bb/desktop-contract": "workspace:*",
     "@bb/domain": "workspace:*",
     "@bb/fuzzy-match": "workspace:*",
     "@bb/server-contract": "workspace:*",

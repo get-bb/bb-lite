@@ -1,13 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import type {
-  Environment,
-  ThreadPullRequest,
-  WorkspaceDiffTarget,
-} from "@bb/domain";
+import type { Environment, WorkspaceDiffTarget } from "@bb/domain";
 import type {
   EnvironmentDiffBranchesResponse,
   EnvironmentDiffFilesResponse,
-  EnvironmentPullRequestResponse,
   EnvironmentStatusResponse,
   WorkspacePathListResponse,
 } from "@bb/server-contract";
@@ -25,7 +20,6 @@ import {
   environmentDiffTargetKey,
   environmentFilePreviewQueryKey,
   environmentMergeBaseBranchesQueryKey,
-  environmentPullRequestQueryKey,
   environmentPathsQueryKey,
   environmentQueryKey,
   environmentWorkStatusQueryKey,
@@ -59,9 +53,6 @@ interface UseEnvironmentDiffFilesOptions extends QueryOptions {
   target?: WorkspaceDiffTarget;
 }
 
-const ENVIRONMENT_PULL_REQUEST_STALE_MS = 30_000;
-const ENVIRONMENT_SETTLED_PULL_REQUEST_STALE_MS = 60 * 60_000;
-const ENVIRONMENT_ACTIVE_PULL_REQUEST_REFETCH_MS = 30_000;
 const MERGE_BASE_BRANCHES_STALE_MS = 30_000;
 const MERGE_BASE_BRANCHES_LIMIT = 50;
 const ENVIRONMENT_DIFF_STALE_MS = 5_000;
@@ -130,68 +121,6 @@ export function useEnvironmentWorkStatus(
             environmentId,
           )
         : undefined,
-  });
-}
-
-export function getEnvironmentPullRequestFromResponse(
-  response: EnvironmentPullRequestResponse | undefined,
-): ThreadPullRequest | null {
-  return response?.outcome === "available" ? response.pullRequest : null;
-}
-
-export function getEnvironmentPullRequestStaleTime(
-  pullRequest: ThreadPullRequest | null | undefined,
-): number {
-  return pullRequest?.state === "closed" || pullRequest?.state === "merged"
-    ? ENVIRONMENT_SETTLED_PULL_REQUEST_STALE_MS
-    : ENVIRONMENT_PULL_REQUEST_STALE_MS;
-}
-
-export function getEnvironmentPullRequestRefetchInterval(
-  pullRequest: ThreadPullRequest | null | undefined,
-): number | false {
-  if (!pullRequest || pullRequest.state !== "open") {
-    return false;
-  }
-  if (
-    pullRequest.autoMerge ||
-    pullRequest.inMergeQueue === true ||
-    pullRequest.checks.state === "pending" ||
-    pullRequest.mergeability.state === "unknown"
-  ) {
-    return ENVIRONMENT_ACTIVE_PULL_REQUEST_REFETCH_MS;
-  }
-  return false;
-}
-
-export function useEnvironmentPullRequest(
-  environmentId: string | null | undefined,
-  options?: QueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(environmentId);
-  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
-  return useQuery<EnvironmentPullRequestResponse>({
-    queryKey: environmentPullRequestQueryKey(environmentId),
-    queryFn: ({ signal }) =>
-      sdk.environments.pullRequest({
-        environmentId: requireEnvironmentId(
-          environmentId,
-          "useEnvironmentPullRequest",
-        ),
-        signal,
-      }),
-    enabled,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchInterval: (query) =>
-      getEnvironmentPullRequestRefetchInterval(
-        getEnvironmentPullRequestFromResponse(query.state.data),
-      ),
-    staleTime: (query) =>
-      getEnvironmentPullRequestStaleTime(
-        getEnvironmentPullRequestFromResponse(query.state.data),
-      ),
   });
 }
 

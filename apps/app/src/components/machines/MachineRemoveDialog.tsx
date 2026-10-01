@@ -14,18 +14,10 @@ import { getThreadDisplayTitle } from "@/lib/thread-title";
 
 const MACHINE_THREAD_PREVIEW_LIMIT = 5;
 
-export function serverMachineRemoveDisabledReason(
-  serverMoveEnabled: boolean,
-): string {
-  return serverMoveEnabled
-    ? "The server machine can't be removed. Move the server to another machine first."
-    : "The server machine can't be removed.";
-}
+export const SERVER_MACHINE_REMOVE_DISABLED_REASON =
+  "The server machine can't be removed.";
 
 export function machineRemovalConsequences(host: Host): string {
-  if (host.type === "ephemeral") {
-    return "The compute and its saved snapshots are deleted. Its environments remain as read-only history.";
-  }
   if (host.machineProviderId !== null) {
     return "The provider cleans up resources it owns. Its environments remain as read-only history.";
   }

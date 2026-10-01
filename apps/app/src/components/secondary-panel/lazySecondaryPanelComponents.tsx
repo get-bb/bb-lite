@@ -2,7 +2,6 @@ import { lazy, Suspense, useState, type ComponentProps } from "react";
 import { Panel } from "react-resizable-panels";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { BrowserTabDeck } from "./BrowserTabDeck";
 import { PANEL_COLLAPSE_TRANSITION_CLASS } from "./panelTransitionTokens";
 import { useSecondaryPanelMinimum } from "./secondaryPanelSizing";
 import { ThreadSecondaryPanel } from "./ThreadSecondaryPanel";
@@ -91,11 +90,4 @@ export function LazyThreadTerminalPanel(
       <ThreadTerminalPanel {...props} />
     </Suspense>
   );
-}
-
-export function LazyBrowserTabDeck(
-  props: ComponentProps<typeof BrowserTabDeck>,
-) {
-  const realized = useRetainedRealization(props.activeBrowserTabId !== null);
-  return realized ? <BrowserTabDeck {...props} /> : null;
 }

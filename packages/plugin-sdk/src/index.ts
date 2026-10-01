@@ -13,12 +13,4 @@ export * from "./cli-spec.js";
 export * from "./host-contract.js";
 export type * from "./json-value.js";
 export * from "./rpc-contract.js";
-export type {
-  ExperimentalDesktopBrowsersArea,
-  ExperimentalDesktopBrowserScope,
-  ExperimentalDesktopBrowserLease,
-  ExperimentalDesktopBrowserCreateInput,
-  ExperimentalDesktopBrowserAcquireInput,
-} from "@bb/sdk";
-
 export type * from "./machine-bootstrap.js";

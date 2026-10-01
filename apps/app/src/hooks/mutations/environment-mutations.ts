@@ -32,15 +32,6 @@ export function useRequestEnvironmentAction() {
       switch (request.action) {
         case "commit":
           return sdk.environments.commit({ environmentId: id });
-        case "pull_request_ready":
-          return sdk.environments.markPullRequestReady({ environmentId: id });
-        case "pull_request_merge":
-          return sdk.environments.mergePullRequest({
-            environmentId: id,
-            method: request.options.method,
-          });
-        case "pull_request_draft":
-          return sdk.environments.markPullRequestDraft({ environmentId: id });
       }
     },
     onSuccess: (_response, variables) => {

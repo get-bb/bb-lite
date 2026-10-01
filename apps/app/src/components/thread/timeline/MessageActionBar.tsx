@@ -65,7 +65,6 @@ interface MessageActionBarProps {
   ) => void;
   onEdit?: () => void;
   onFork?: () => void;
-  onSendToMain?: () => void;
   disabled?: boolean;
   pluginActions?: readonly ThreadTimelinePluginMessageAction[];
 }
@@ -392,7 +391,6 @@ export function MessageActionBar({
   onAddToChat,
   onEdit,
   onFork,
-  onSendToMain,
   disabled,
   pluginActions = [],
 }: MessageActionBarProps) {
@@ -502,15 +500,6 @@ export function MessageActionBar({
             icon: "MessageSquarePlus" as const,
             label: "Add to chat",
             onSelect: handleAddToChat,
-          },
-        ]
-      : []),
-    ...(onSendToMain
-      ? [
-          {
-            icon: "ArrowTurnBackward" as const,
-            label: "Send to main thread",
-            onSelect: onSendToMain,
           },
         ]
       : []),

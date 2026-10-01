@@ -27,11 +27,6 @@ const unavailableSystemConfig: SystemConfigResponse = {
   keybindings: [],
   defaultKeybindings: [],
   keybindingOverrides: [],
-  experiments: {
-    changelogPreview: false,
-    legacyJitiPluginLoader: false,
-    serverMove: false,
-  },
   appearance: defaultAppTheme,
   customThemes: [],
   pluginThemes: [],
@@ -41,7 +36,6 @@ const unavailableSystemConfig: SystemConfigResponse = {
   serverUrl: "",
   primaryHostId: null,
   primaryHostPlatform: null,
-  voiceTranscriptionEnabled: false,
   dataDir: "",
 };
 

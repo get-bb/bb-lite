@@ -15,7 +15,6 @@ import type {
   GitBranchRefClassification,
   Thread,
   ThreadListEntry,
-  ThreadPullRequest,
   WorkspaceCommitSummary,
   WorkspaceStatus,
 } from "@bb/domain";
@@ -31,7 +30,6 @@ import {
   getEnvironmentWorkspaceInfoDisplay,
 } from "@/lib/environment-workspace-display";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
@@ -69,14 +67,6 @@ import { buildParentSelectorOptions } from "@/views/thread-detail/threadParentSe
 import { getThreadRoutePath } from "@/lib/route-paths";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
-import {
-  getPullRequestStateDisplay,
-  getPullRequestAttentionDisplay,
-  getPullRequestGithubCheckStatus,
-} from "@/lib/pull-request-display";
-import { PullRequestStateIcon } from "@/components/pull-request/PullRequestStatusPill";
-import { GithubFaviconIcon } from "@/components/pull-request/GithubFaviconIcon";
-import { useUrlAnchorClickHandler } from "@/lib/url-open-routing";
 import { ParentThreadPicker } from "@/components/pickers/ParentThreadPicker";
 
 interface ParentSelectorRowProps {
@@ -245,14 +235,10 @@ export function EnvironmentRow({
     pinned: thread.pinnedAt !== null,
   });
   const { providers } = useSystemEnvironmentProviders();
-  const { providers: machineProviders } = useSystemMachineProviders();
   const hosts = useHosts();
   if (!environment) return null;
   const environmentHost = hosts.data?.find(
     (host) => host.id === environment.hostId,
-  );
-  const machineProvider = machineProviders?.find(
-    (provider) => provider.id === environmentHost?.machineProviderId,
   );
   const providerLookup = findEnvironmentDisplayProvider(
     providers,
@@ -272,8 +258,6 @@ export function EnvironmentRow({
   const displayHost = environmentHost ?? {
     name:
       environmentDisplayHost.identity?.name ?? infoDisplay.machineName ?? "",
-    type: "persistent" as const,
-    machineProviderId: null,
   };
   const showCreateThreadButton =
     environment.hostLifecycle === "active" &&
@@ -314,10 +298,7 @@ export function EnvironmentRow({
             })`}
           >
             <span>·</span>
-            <MachineLabel
-              host={displayHost}
-              machineProvider={machineProvider}
-            />
+            <MachineLabel host={displayHost} />
             {environmentDisplayHost.identity.connected ||
             environment.hostLifecycle !== "active" ? null : (
               <span>(offline)</span>
@@ -431,56 +412,6 @@ export function BranchRow({ workspaceStatus }: BranchRowProps) {
           {checkoutDisplay.label}
         </span>
       )}
-    </DetailRow>
-  );
-}
-
-interface PullRequestRowProps {
-  pullRequest: ThreadPullRequest | null;
-}
-
-export function PullRequestRow({ pullRequest }: PullRequestRowProps) {
-  const handlePullRequestClick = useUrlAnchorClickHandler(pullRequest?.url);
-  if (!pullRequest) return null;
-  const stateDisplay = getPullRequestStateDisplay(pullRequest);
-  const attentionDisplay = getPullRequestAttentionDisplay(pullRequest);
-  const checkStatus = getPullRequestGithubCheckStatus(pullRequest);
-  const statusDisplay =
-    attentionDisplay.label !== stateDisplay.label ? attentionDisplay : null;
-  return (
-    <DetailRow
-      label={
-        <DetailRowIconLabel icon="GitPullRequestArrow">
-          Pull request
-        </DetailRowIconLabel>
-      }
-      valueClassName="min-w-0"
-    >
-      <a
-        href={pullRequest.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={handlePullRequestClick}
-        aria-label={`Pull request ${pullRequest.number}: ${attentionDisplay.label}`}
-        className="flex h-5 max-w-full min-w-0 items-center gap-2 text-xs text-foreground no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <GithubFaviconIcon status={checkStatus} />
-        <span className="shrink-0 text-muted-foreground">
-          #{pullRequest.number}
-        </span>
-        <span className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-1.5 text-muted-foreground">
-          <PullRequestStateIcon
-            pullRequest={pullRequest}
-            className="size-3.5"
-          />
-          <span>{stateDisplay.label}</span>
-        </span>
-        {statusDisplay ? (
-          <span className={cn("min-w-0 truncate", statusDisplay.className)}>
-            {statusDisplay.label}
-          </span>
-        ) : null}
-      </a>
     </DetailRow>
   );
 }
@@ -872,7 +803,6 @@ export interface ThreadMetadataContentProps {
   workspaceStatus: WorkspaceStatus | undefined;
   workspaceStatusError: Error | null;
   workspaceUnavailable?: WorkspaceResolutionFailure;
-  pullRequest: ThreadPullRequest | null;
   selectedMergeBaseBranch: string | undefined;
   mergeBaseBranchRef?: GitBranchRefClassification | null;
   mergeBaseBranchOptions: readonly string[] | undefined;
@@ -898,7 +828,6 @@ export function hasAnyThreadMetadata(
     workspaceStatus,
     workspaceStatusError,
     workspaceUnavailable,
-    pullRequest,
   }: Pick<
     ThreadMetadataContentProps,
     | "thread"
@@ -907,7 +836,6 @@ export function hasAnyThreadMetadata(
     | "workspaceStatus"
     | "workspaceStatusError"
     | "workspaceUnavailable"
-    | "pullRequest"
   >,
   hasForks: boolean,
 ): boolean {
@@ -929,7 +857,6 @@ export function hasAnyThreadMetadata(
     environment ||
     environmentProvisioningFailure ||
     branchName ||
-    pullRequest ||
     showWorkspaceStatus ||
     showThreadChangedFiles ||
     thread.archivedAt != null ||
@@ -997,7 +924,6 @@ export function ThreadMetadataContent(props: ThreadMetadataContentProps) {
     workspaceStatus,
     workspaceStatusError,
     workspaceUnavailable,
-    pullRequest,
     selectedMergeBaseBranch,
     mergeBaseBranchRef,
     mergeBaseBranchOptions,
@@ -1068,7 +994,6 @@ export function ThreadMetadataContent(props: ThreadMetadataContentProps) {
           />
         </>
       )}
-      <PullRequestRow pullRequest={pullRequest} />
       <ArchivedRow thread={thread} />
       {environment !== null && environment.hostLifecycle !== "active" ? null : (
         <>

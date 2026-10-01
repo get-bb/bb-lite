@@ -255,7 +255,7 @@ export function composerHandleController(
   };
 }
 
-export function detachedComposerController(
+function detachedComposerController(
   pluginId: string,
   host: PluginComposerHost,
   caller: string,

@@ -21,11 +21,7 @@ import { selectHosts, selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { formatHostUpdateStatus } from "@/lib/host-update-status";
-import {
-  MachineLabel,
-  type MachineLabelHost,
-} from "@/components/machines/MachineLabel";
-import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
+import { MachineLabel } from "@/components/machines/MachineLabel";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -62,7 +58,6 @@ interface MachinePickerUIProps {
   disabled?: boolean;
   className?: string;
   modal?: boolean;
-  machineProviders?: readonly MachineProviderPresentation[];
 }
 
 export function MachinePickerUI({
@@ -75,7 +70,6 @@ export function MachinePickerUI({
   disabled = false,
   className,
   modal = true,
-  machineProviders = [],
 }: MachinePickerUIProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -132,10 +126,6 @@ export function MachinePickerUI({
             ) : (
               <MachineLabel
                 host={selectedHost}
-                machineProvider={findMachineProvider(
-                  selectedHost,
-                  machineProviders,
-                )}
                 iconClassName={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
               />
             )}
@@ -203,10 +193,6 @@ export function MachinePickerUI({
                       <MachineStatusDot connected={connected} />
                       <MachineLabel
                         host={host}
-                        machineProvider={findMachineProvider(
-                          host,
-                          machineProviders,
-                        )}
                         iconClassName="size-3"
                         nameClassName="text-xs"
                       />
@@ -252,17 +238,5 @@ export function MachinePickerUI({
         </Command>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function findMachineProvider(
-  host: MachineLabelHost,
-  machineProviders: readonly MachineProviderPresentation[],
-): MachineProviderPresentation | null {
-  if (host.machineProviderId === null) return null;
-  return (
-    machineProviders.find(
-      (provider) => provider.id === host.machineProviderId,
-    ) ?? null
   );
 }

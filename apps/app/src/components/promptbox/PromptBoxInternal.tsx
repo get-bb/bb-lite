@@ -45,10 +45,6 @@ import {
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
 import { canLoadMoreCommandResults } from "@/components/promptbox/mentions/mention-menu-scroll";
-import {
-  voiceUnsupportedMessage,
-  type VoiceUnsupportedReason,
-} from "@/hooks/voice-input-support";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import {
@@ -77,7 +73,6 @@ import {
   getMediaQuerySnapshot,
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
-import { blurActiveKeyboardInputWithin } from "@bb/shared-ui/overlay-trigger";
 import {
   DEFAULT_PLUGIN_MENTION_TRIGGER,
   type PluginMentionTrigger,
@@ -99,7 +94,6 @@ import {
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS } from "./banner/PromptStackCard";
 import { AttachmentPreview } from "./AttachmentPreview";
-import { VoiceRecordingBar } from "./VoiceRecordingBar";
 import {
   ComposerPlusMenuSlot,
   type PromptBoxAction,
@@ -221,20 +215,11 @@ function mentionPillTrailingText(
 
 const COLLAPSING_GRID_CLASS =
   "grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
-const VOICE_ACTION_TRANSITION_MS = 180;
-type VoiceActionTransition = "entering" | "active" | "exiting";
 
 export const DEFAULT_COMPOSER_SCOPE = {
   kind: "new-thread",
   projectId: null,
 } as const;
-
-function shouldFinishVoiceCompletionTransitionImmediately(): boolean {
-  return (
-    getMediaQuerySnapshot(REDUCED_MOTION_QUERY) ||
-    (typeof document !== "undefined" && document.visibilityState === "hidden")
-  );
-}
 
 export interface PromptBoxSubmissionConfig {
   isSubmitting?: boolean;
@@ -444,26 +429,9 @@ export interface HistoryConfig {
   resetKey?: string | number;
 }
 
-type PromptVoiceState = "idle" | "recording" | "transcribing" | "error";
-
-export interface PromptVoiceConfig {
-  state: PromptVoiceState;
-  isSupported: boolean;
-  unsupportedReason?: VoiceUnsupportedReason | null;
-  stream: MediaStream | null;
-  start: () => void | Promise<void>;
-  stop: () => void;
-  send: () => void;
-  cancel: () => void;
-}
-
 export interface PromptBoxHandle {
   focusEnd: () => void;
   captureHeightForLayoutChange: () => void;
-  insertTextAtCursor: (text: string) => void;
-  sendVoiceTranscript: (text: string) => void;
-  getTextBeforeCursor: () => string | undefined;
-  playVoiceCompletionTransition: () => Promise<void>;
 }
 
 export type { PromptBoxAction } from "./PromptBoxActionsMenu";
@@ -498,7 +466,6 @@ interface PromptBoxInternalProps {
   containerCompactPlaceholder?: string;
   heightAnimationKey?: string | number;
   history?: HistoryConfig;
-  voice?: PromptVoiceConfig;
   promptBoxRef?: Ref<PromptBoxHandle>;
   focusEndKey?: string | number;
 }
@@ -1116,7 +1083,6 @@ export function PromptBoxInternal({
   containerCompactPlaceholder,
   heightAnimationKey,
   history,
-  voice,
   promptBoxRef,
   focusEndKey,
 }: PromptBoxInternalProps) {
@@ -1241,134 +1207,7 @@ export function PromptBoxInternal({
   const [recalledHistoryDraft, setRecalledHistoryDraft] =
     useState<PromptDraftState | null>(null);
   const hasActiveHistorySessionRef = useRef(false);
-  const isVoiceRecording = voice?.state === "recording";
-  const isVoiceProcessing = voice?.state === "transcribing";
-  const showVoiceActionGroup = isVoiceRecording || isVoiceProcessing;
-  const voiceActionState = isVoiceRecording
-    ? "recording"
-    : isVoiceProcessing
-      ? "transcribing"
-      : null;
-  const lastVoiceActionStateRef = useRef<"recording" | "transcribing">(
-    voiceActionState ?? "recording",
-  );
-  const renderedVoiceActionState =
-    voiceActionState ?? lastVoiceActionStateRef.current;
-  useLayoutEffect(() => {
-    if (voiceActionState !== null) {
-      lastVoiceActionStateRef.current = voiceActionState;
-    }
-  }, [voiceActionState]);
-  const [isVoiceActionPresent, setIsVoiceActionPresent] =
-    useState(showVoiceActionGroup);
-  const [voiceActionTransition, setVoiceActionTransition] =
-    useState<VoiceActionTransition>(
-      showVoiceActionGroup ? "active" : "exiting",
-    );
-  const isVoiceActionVisible = voiceActionTransition === "active";
-  const wasVoiceActionShownRef = useRef(showVoiceActionGroup);
-  const voiceActionRevealFrameRef = useRef<number | null>(null);
-  const voiceActionRemovalTimeoutRef = useRef<number | null>(null);
-  const voiceCompletionTimeoutRef = useRef<number | null>(null);
-  const voiceCompletionPromiseRef = useRef<Promise<void> | null>(null);
-  const voiceCompletionResolveRef = useRef<(() => void) | null>(null);
-
-  useLayoutEffect(() => {
-    const wasVoiceActionShown = wasVoiceActionShownRef.current;
-    wasVoiceActionShownRef.current = showVoiceActionGroup;
-    if (voiceActionRevealFrameRef.current !== null) {
-      window.cancelAnimationFrame(voiceActionRevealFrameRef.current);
-      voiceActionRevealFrameRef.current = null;
-    }
-    if (voiceActionRemovalTimeoutRef.current !== null) {
-      window.clearTimeout(voiceActionRemovalTimeoutRef.current);
-      voiceActionRemovalTimeoutRef.current = null;
-    }
-
-    if (showVoiceActionGroup) {
-      setIsVoiceActionPresent(true);
-      if (wasVoiceActionShown || getMediaQuerySnapshot(REDUCED_MOTION_QUERY)) {
-        setVoiceActionTransition("active");
-        return;
-      }
-      setVoiceActionTransition("entering");
-      voiceActionRevealFrameRef.current = window.requestAnimationFrame(() => {
-        voiceActionRevealFrameRef.current = null;
-        setVoiceActionTransition("active");
-      });
-      return;
-    }
-
-    setVoiceActionTransition("exiting");
-    if (!wasVoiceActionShown) {
-      setIsVoiceActionPresent(false);
-      return;
-    }
-    if (getMediaQuerySnapshot(REDUCED_MOTION_QUERY)) {
-      setIsVoiceActionPresent(false);
-      return;
-    }
-    voiceActionRemovalTimeoutRef.current = window.setTimeout(() => {
-      voiceActionRemovalTimeoutRef.current = null;
-      setIsVoiceActionPresent(false);
-    }, VOICE_ACTION_TRANSITION_MS);
-  }, [showVoiceActionGroup]);
-
-  useEffect(
-    () => () => {
-      if (voiceActionRevealFrameRef.current !== null) {
-        window.cancelAnimationFrame(voiceActionRevealFrameRef.current);
-      }
-      if (voiceActionRemovalTimeoutRef.current !== null) {
-        window.clearTimeout(voiceActionRemovalTimeoutRef.current);
-      }
-      if (voiceCompletionTimeoutRef.current !== null) {
-        window.clearTimeout(voiceCompletionTimeoutRef.current);
-      }
-      voiceCompletionResolveRef.current?.();
-    },
-    [],
-  );
-
-  const playVoiceCompletionTransition = useCallback((): Promise<void> => {
-    if (voiceActionRevealFrameRef.current !== null) {
-      window.cancelAnimationFrame(voiceActionRevealFrameRef.current);
-      voiceActionRevealFrameRef.current = null;
-    }
-    setVoiceActionTransition("exiting");
-    if (shouldFinishVoiceCompletionTransitionImmediately()) {
-      if (voiceCompletionTimeoutRef.current !== null) {
-        window.clearTimeout(voiceCompletionTimeoutRef.current);
-        voiceCompletionTimeoutRef.current = null;
-      }
-      const resolvePendingTransition = voiceCompletionResolveRef.current;
-      voiceCompletionPromiseRef.current = null;
-      voiceCompletionResolveRef.current = null;
-      resolvePendingTransition?.();
-      return Promise.resolve();
-    }
-    if (voiceCompletionPromiseRef.current) {
-      return voiceCompletionPromiseRef.current;
-    }
-
-    const transition = new Promise<void>((resolve) => {
-      voiceCompletionResolveRef.current = resolve;
-      voiceCompletionTimeoutRef.current = window.setTimeout(() => {
-        voiceCompletionTimeoutRef.current = null;
-        voiceCompletionPromiseRef.current = null;
-        voiceCompletionResolveRef.current = null;
-        resolve();
-      }, VOICE_ACTION_TRANSITION_MS);
-    });
-    voiceCompletionPromiseRef.current = transition;
-    return transition;
-  }, []);
-  const showCompactLayout =
-    compact?.isCompact === true &&
-    (!showVoiceActionGroup ||
-      (value.trim().length === 0 &&
-        attachments.length === 0 &&
-        !pendingUploads?.length));
+  const showCompactLayout = compact?.isCompact === true;
   const effectivePlaceholder = showCompactLayout
     ? (compact.placeholder ?? placeholder)
     : placeholder;
@@ -1813,7 +1652,7 @@ export function PromptBoxInternal({
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
-    const editable = !composerInputLocked && !showVoiceActionGroup;
+    const editable = !composerInputLocked;
     if (editor.isEditable !== editable) editor.setEditable(editable);
     editor.view.dom.tabIndex = editable ? 0 : -1;
     if (editable) {
@@ -1821,7 +1660,7 @@ export function PromptBoxInternal({
     } else {
       editor.view.dom.setAttribute("aria-readonly", "true");
     }
-  }, [composerInputLocked, editor, showVoiceActionGroup]);
+  }, [composerInputLocked, editor]);
 
   useEffect(() => {
     editorRef.current = editor;
@@ -2118,7 +1957,6 @@ export function PromptBoxInternal({
     activeTrigger.char !== DEFAULT_PLUGIN_MENTION_TRIGGER &&
     activeMentionQuery.length === 0;
   const showTypeaheadMenu =
-    !showVoiceActionGroup &&
     activeTrigger !== null &&
     !isCommandTriggerLiteral &&
     !isBareNonDefaultMentionTrigger;
@@ -2378,47 +2216,6 @@ export function PromptBoxInternal({
     scheduleRevealEditorSelection();
   }, [isPointerCoarse, scheduleRevealEditorSelection]);
 
-  const insertTextAtCursor = useCallback(
-    (rawText: string) => {
-      const normalizedText = rawText.replace(/\s+/g, " ").trim();
-      if (normalizedText.length === 0) return;
-
-      const currentEditor = editorRef.current;
-      const currentValue = valueRef.current;
-      if (!currentEditor) {
-        const nextValue =
-          currentValue.length === 0 || /\s$/.test(currentValue)
-            ? `${currentValue}${normalizedText}`
-            : `${currentValue} ${normalizedText}`;
-        onChangeRef.current(nextValue, [...mentionRangesRef.current]);
-        return;
-      }
-
-      const selection = currentEditor.state.selection;
-      const before = currentEditor.state.doc.textBetween(
-        0,
-        selection.from,
-        "\n",
-        "\n",
-      );
-      const after = currentEditor.state.doc.textBetween(
-        selection.to,
-        currentEditor.state.doc.content.size,
-        "\n",
-        "\n",
-      );
-      const needsLeadingWhitespace = before.length > 0 && !/\s$/.test(before);
-      const needsTrailingWhitespace = after.length > 0 && !/^\s/.test(after);
-      const insertedText = `${needsLeadingWhitespace ? " " : ""}${normalizedText}${needsTrailingWhitespace ? " " : ""}`;
-
-      const insertion = currentEditor.chain();
-      if (!isPointerCoarse) insertion.focus();
-      insertion.insertContent(insertedText).run();
-      if (!isPointerCoarse) scheduleRevealEditorSelection();
-    },
-    [isPointerCoarse, scheduleRevealEditorSelection],
-  );
-
   const focusAfterPromptAction = useCallback(
     (currentEditor: Editor, position?: "end") => {
       const focusEditor = () => {
@@ -2493,48 +2290,13 @@ export function PromptBoxInternal({
     [finishApply, focusAfterPromptAction, triggers],
   );
 
-  const getTextBeforeCursor = useCallback((): string | undefined => {
-    const currentValue = valueRef.current;
-    const currentEditor = editorRef.current;
-    if (!currentEditor) {
-      const trimmed = currentValue.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
-    }
-    const beforeCursor = currentEditor.state.doc
-      .textBetween(0, currentEditor.state.selection.from, "\n", "\n")
-      .trim();
-    return beforeCursor.length > 0 ? beforeCursor : undefined;
-  }, []);
-
-  const [voiceSubmitBaseline, setVoiceSubmitBaseline] = useState<string | null>(
-    null,
-  );
-  const sendVoiceTranscript = useCallback(
-    (text: string) => {
-      setVoiceSubmitBaseline(valueRef.current);
-      insertTextAtCursor(text);
-    },
-    [insertTextAtCursor],
-  );
-
   useImperativeHandle(
     promptBoxRef,
     () => ({
       captureHeightForLayoutChange: capturePromptBoxHeight,
       focusEnd,
-      insertTextAtCursor,
-      sendVoiceTranscript,
-      getTextBeforeCursor,
-      playVoiceCompletionTransition,
     }),
-    [
-      capturePromptBoxHeight,
-      focusEnd,
-      getTextBeforeCursor,
-      insertTextAtCursor,
-      sendVoiceTranscript,
-      playVoiceCompletionTransition,
-    ],
+    [capturePromptBoxHeight, focusEnd],
   );
 
   const canSubmitAction = (action: typeof immediateSubmitAction) =>
@@ -2542,8 +2304,7 @@ export function PromptBoxInternal({
     (!action.requiresInput || hasSubmittableInput) &&
     !isAttaching &&
     !isSubmitting &&
-    !submitDisabled &&
-    !showVoiceActionGroup;
+    !submitDisabled;
   const canPrimarySubmit = canSubmitAction(primarySubmitAction);
   const canSubmit = hasSubmittableInput && canPrimarySubmit;
   const canModifierSubmit = canSubmitAction(modifierSubmitAction);
@@ -2553,13 +2314,11 @@ export function PromptBoxInternal({
     : isAttaching
       ? "Uploading attachments..."
       : (submitDisabledReason ??
-        (showVoiceActionGroup
-          ? "Finish voice input first."
-          : isSubmitting
-            ? "Submitting..."
-            : hasSubmittableInput
-              ? "This composer can't submit right now."
-              : "Type a message first."));
+        (isSubmitting
+          ? "Submitting..."
+          : hasSubmittableInput
+            ? "This composer can't submit right now."
+            : "Type a message first."));
   const composerEditorState = useMemo<ComposerEditorState>(
     () => ({
       layout: composerLayout,
@@ -2645,20 +2404,7 @@ export function PromptBoxInternal({
     },
     [],
   );
-  const showStop = Boolean(
-    isRunning && onStop && !canSubmit && !isAttaching && !showVoiceActionGroup,
-  );
-  const canStartVoiceInput =
-    voice !== undefined && voice.isSupported && !isSubmitting;
-  const showVoiceAsPrimaryAction =
-    isPointerCoarse &&
-    !isAttaching &&
-    !hasSubmittableInput &&
-    canStartVoiceInput;
-  const showCompactVoiceAction =
-    showCompactLayout &&
-    canStartVoiceInput &&
-    (!showVoiceAsPrimaryAction || showStop);
+  const showStop = Boolean(isRunning && onStop && !canSubmit && !isAttaching);
   const stopGestureButtonRef = useRef<HTMLButtonElement | null>(null);
   const handleStopPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -2676,43 +2422,6 @@ export function PromptBoxInternal({
     },
     [onStop],
   );
-  const voiceGestureButtonRef = useRef<HTMLButtonElement | null>(null);
-  const handleVoicePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) return;
-      voiceGestureButtonRef.current = event.currentTarget;
-      if (!isPointerCoarse) return;
-
-      event.preventDefault();
-    },
-    [isPointerCoarse],
-  );
-  const startVoiceInput = useCallback(() => {
-    if (isPointerCoarse) {
-      const currentEditor = editorRef.current;
-      if (currentEditor && !currentEditor.isDestroyed) {
-        blurActiveKeyboardInputWithin(currentEditor.view.dom);
-      }
-    }
-    void voice?.start();
-  }, [isPointerCoarse, voice]);
-  const handleVoiceClick = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      const gestureButton = voiceGestureButtonRef.current;
-      voiceGestureButtonRef.current = null;
-      if (event.detail > 0 && gestureButton !== event.currentTarget) return;
-      startVoiceInput();
-    },
-    [startVoiceInput],
-  );
-  const cancelVoiceInput = useCallback(() => {
-    if (voiceActionRevealFrameRef.current !== null) {
-      window.cancelAnimationFrame(voiceActionRevealFrameRef.current);
-      voiceActionRevealFrameRef.current = null;
-    }
-    setVoiceActionTransition("exiting");
-    voice?.cancel();
-  }, [voice]);
   const attachmentUploadTitle = "Uploading attachments...";
   const effectiveSubmitTitle = isAttaching
     ? attachmentUploadTitle
@@ -2737,23 +2446,6 @@ export function PromptBoxInternal({
       blurPromptEditor(editorRef.current);
     }
   }, [canPrimarySubmit, onSubmit]);
-
-  useEffect(() => {
-    if (
-      voiceSubmitBaseline === null ||
-      showVoiceActionGroup ||
-      value === voiceSubmitBaseline
-    )
-      return;
-    setVoiceSubmitBaseline(null);
-    if (canSubmit) submitPrompt();
-  }, [
-    voiceSubmitBaseline,
-    showVoiceActionGroup,
-    value,
-    canSubmit,
-    submitPrompt,
-  ]);
 
   const handleSubmitClick = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -3114,24 +2806,11 @@ export function PromptBoxInternal({
     handleEditorKeyDownRef.current = handleEditorKeyDown;
   }, [handleEditorKeyDown]);
 
-  useEffect(() => {
-    if (!showVoiceActionGroup || !voice) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopPropagation();
-      cancelVoiceInput();
-    };
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [cancelVoiceInput, showVoiceActionGroup, voice]);
-
   return (
     <form
       ref={formRef}
       data-promptbox=""
       data-promptbox-compact={showCompactLayout ? "" : undefined}
-      data-promptbox-voice-active={showVoiceActionGroup ? "" : undefined}
       onSubmit={handleSubmit}
       onMouseDown={handlePromptBoxMouseDown}
       onDragOver={(event) => {
@@ -3157,14 +2836,7 @@ export function PromptBoxInternal({
         className="hidden"
         onChange={handleAttachmentInputChange}
       />
-      {modeHeader ? (
-        <div
-          inert={showVoiceActionGroup ? true : undefined}
-          className="px-3 pt-1.5"
-        >
-          {modeHeader}
-        </div>
-      ) : null}
+      {modeHeader ? <div className="px-3 pt-1.5">{modeHeader}</div> : null}
       <div
         data-promptbox-layout=""
         className={cn(COLLAPSING_GRID_CLASS, showCompactLayout && "relative")}
@@ -3175,15 +2847,10 @@ export function PromptBoxInternal({
           className={cn(
             "min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none",
             showCompactLayout && "relative flex h-12 items-center",
-            showVoiceActionGroup && "pointer-events-none",
           )}
         >
           {header && !showCompactLayout ? (
-            <div
-              data-promptbox-expanded-only=""
-              inert={showVoiceActionGroup ? true : undefined}
-              className="pl-4 pr-14 pt-3"
-            >
+            <div data-promptbox-expanded-only="" className="pl-4 pr-14 pt-3">
               {header}
             </div>
           ) : null}
@@ -3200,15 +2867,7 @@ export function PromptBoxInternal({
           ) : null}
           <div
             data-promptbox-input-region=""
-            aria-hidden={
-              showCompactLayout && showVoiceActionGroup ? true : undefined
-            }
-            className={cn(
-              "relative",
-              showCompactLayout && "min-w-0 flex-1",
-              showCompactLayout && showVoiceActionGroup && "invisible",
-              showCompactVoiceAction && "pr-9",
-            )}
+            className={cn("relative", showCompactLayout && "min-w-0 flex-1")}
           >
             {!showCompactLayout ? (
               <>
@@ -3225,7 +2884,6 @@ export function PromptBoxInternal({
                   <div
                     data-promptbox-expanded-only=""
                     data-promptbox-standard-actions=""
-                    inert={showVoiceActionGroup ? true : undefined}
                     className="absolute right-[13px] top-2 z-20 flex items-center"
                   >
                     <Button
@@ -3285,10 +2943,7 @@ export function PromptBoxInternal({
 
           {!showCompactLayout ? (
             <>
-              <div
-                data-promptbox-expanded-only=""
-                inert={showVoiceActionGroup ? true : undefined}
-              >
+              <div data-promptbox-expanded-only="">
                 <AttachmentPreview
                   attachments={attachments}
                   pendingUploads={pendingUploads}
@@ -3313,44 +2968,16 @@ export function PromptBoxInternal({
               className={cn(
                 "relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5",
                 showCompactLayout && "absolute inset-y-0 right-2 gap-0 p-0",
-                showCompactLayout && showVoiceActionGroup && "inset-0",
               )}
             >
-              {voice && isVoiceActionPresent ? (
-                <div
-                  data-promptbox-voice-controls=""
-                  data-voice-transition={voiceActionTransition}
-                  inert={isVoiceActionVisible ? undefined : true}
-                  aria-hidden={isVoiceActionVisible ? undefined : true}
-                  className={cn(
-                    "absolute inset-0 z-10 min-w-0 origin-center transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] motion-reduce:transition-none",
-                    isVoiceActionVisible
-                      ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
-                      : "pointer-events-none translate-y-1 scale-[0.985] opacity-0",
-                  )}
-                >
-                  <VoiceRecordingBar
-                    isCompact={showCompactLayout}
-                    state={renderedVoiceActionState}
-                    stream={voice.stream}
-                    submitIcon={submitIcon ?? "CornerDownLeft"}
-                    onConfirm={voice.stop}
-                    onSend={voice.send}
-                    onCancel={cancelVoiceInput}
-                  />
-                </div>
-              ) : null}
               {!showCompactLayout ? (
                 <div
                   data-promptbox-expanded-only=""
                   data-promptbox-standard-actions=""
                   className={cn(
                     "flex min-w-0 flex-1 flex-row items-center gap-1 transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
-                    showVoiceActionGroup
-                      ? "pointer-events-none translate-y-1 opacity-0"
-                      : "translate-y-0 opacity-100",
+                    "translate-y-0 opacity-100",
                   )}
-                  inert={showVoiceActionGroup ? true : undefined}
                   aria-live="polite"
                 >
                   <ComposerPlusMenuSlot
@@ -3369,50 +2996,14 @@ export function PromptBoxInternal({
                 data-promptbox-standard-actions=""
                 className={cn(
                   "flex shrink-0 flex-row items-center gap-1 transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
-                  showVoiceActionGroup
-                    ? "pointer-events-none translate-y-1 opacity-0"
-                    : "translate-y-0 opacity-100",
+                  "translate-y-0 opacity-100",
                 )}
-                inert={showVoiceActionGroup ? true : undefined}
               >
                 <ComposerActionsSlot
                   includePluginContributions={
                     !showCompactLayout && !suppressPluginComposerCustomizations
                   }
                 >
-                  {!showCompactLayout || showCompactVoiceAction ? (
-                    <>
-                      {voice &&
-                      !showVoiceActionGroup &&
-                      (!showVoiceAsPrimaryAction || showStop) ? (
-                        <Button
-                          data-promptbox-expanded-only={
-                            showCompactLayout ? undefined : ""
-                          }
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label={
-                            !voice.isSupported
-                              ? voiceUnsupportedMessage(
-                                  voice.unsupportedReason ?? null,
-                                )
-                              : "Start voice input"
-                          }
-                          disabled={!canStartVoiceInput}
-                          onPointerDown={handleVoicePointerDown}
-                          onClick={handleVoiceClick}
-                          className={
-                            showCompactLayout
-                              ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
-                              : COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS
-                          }
-                        >
-                          <Icon name="Mic" className="size-4" />
-                        </Button>
-                      ) : null}
-                    </>
-                  ) : null}
                   <div
                     data-promptbox-submit-group=""
                     className="flex shrink-0 flex-row items-center"
@@ -3436,27 +3027,6 @@ export function PromptBoxInternal({
                           name="Square"
                           className="size-3.5 fill-current [&_*]:stroke-0"
                         />
-                      </Button>
-                    ) : showVoiceAsPrimaryAction ? (
-                      <Button
-                        data-promptbox-submit-action=""
-                        type="button"
-                        size={showCompactLayout ? "icon" : "sm"}
-                        variant="default"
-                        aria-label="Start voice input"
-                        onPointerDown={handleVoicePointerDown}
-                        onClick={handleVoiceClick}
-                        className={cn(
-                          showCompactLayout
-                            ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
-                            : [
-                                "ml-1",
-                                COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
-                              ],
-                          "transition-colors",
-                        )}
-                      >
-                        <Icon name="Mic" className="size-4" />
                       </Button>
                     ) : (
                       <ComposerSendMenu

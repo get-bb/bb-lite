@@ -1,6 +1,4 @@
 import { extractErrorMessage, toRecord } from "@bb/core-ui";
-import type { SystemVoiceTranscriptionResponse } from "@bb/server-contract";
-import { apiClient, toRelativeUrl } from "./api-server";
 import { appSurfaceRequestInit } from "./app-surface";
 import {
   FILE_PREVIEW_SAMPLE_BYTES,
@@ -190,45 +188,6 @@ export async function loadFilePreview(
     contentBytes: new Uint8Array(await response.arrayBuffer()),
     mimeType: responseMimeType(response),
   });
-}
-
-async function postMultipart<T>(
-  url: URL,
-  file: File,
-  signal?: AbortSignal,
-  fields?: Record<string, string>,
-): Promise<T> {
-  const formData = new FormData();
-  if (fields) {
-    for (const [key, value] of Object.entries(fields)) {
-      formData.set(key, value);
-    }
-  }
-  formData.set("file", file, file.name);
-  return request<T>(
-    fetch(
-      toRelativeUrl(url),
-      appSurfaceRequestInit({
-        method: "POST",
-        body: formData,
-        signal,
-      }),
-    ),
-  );
-}
-
-export async function transcribeVoiceInput(
-  file: File,
-  prompt?: string,
-  signal?: AbortSignal,
-): Promise<SystemVoiceTranscriptionResponse> {
-  const trimmedPrompt = prompt?.trim();
-  return postMultipart<SystemVoiceTranscriptionResponse>(
-    apiClient.system["voice-transcription"].$url(),
-    file,
-    signal,
-    trimmedPrompt ? { prompt: trimmedPrompt } : undefined,
-  );
 }
 
 export async function getThreadStorageFilePreview(

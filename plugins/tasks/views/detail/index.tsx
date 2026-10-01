@@ -38,7 +38,6 @@ interface DetailViewProps {
 }
 
 const DESCRIPTION_SAVE_DELAY_MS = 800;
-const ACTIVE_PULL_REQUEST_REFRESH_MS = 60_000;
 
 function SubTaskDonut({
   subtasks,
@@ -265,28 +264,6 @@ function TaskDetail({ task }: { task: Task }) {
     async (query) => (await query.call("listPresets")).presets,
     ["projects:changed"],
   );
-  const pullRequests = useTasksQuery(
-    async (query) => query.call("listTaskPullRequests", { taskId: task.id }),
-    ["threads:changed"],
-    [task.id],
-    { relevantTaskIds: [task.id] },
-  );
-  const refreshPullRequests = pullRequests.refresh;
-  const hasActivePullRequest = (pullRequests.data?.pullRequests ?? []).some(
-    (pullRequest) =>
-      pullRequest.state === "open" || pullRequest.state === "draft",
-  );
-  useEffect(() => {
-    window.addEventListener("focus", refreshPullRequests);
-    return () => window.removeEventListener("focus", refreshPullRequests);
-  }, [refreshPullRequests]);
-  useEffect(() => {
-    if (!hasActivePullRequest) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "hidden") refreshPullRequests();
-    }, ACTIVE_PULL_REQUEST_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [hasActivePullRequest, refreshPullRequests]);
 
   const updateTask = async (
     input: TaskPropertyUpdate & { title?: string; description?: string },
@@ -492,17 +469,12 @@ function TaskDetail({ task }: { task: Task }) {
             <div className="mt-6">
               <ThreadsSection
                 threads={threads.data ?? []}
-                pullRequests={pullRequests.data?.pullRequests}
-                unavailableThreadIds={
-                  pullRequests.data?.unavailableThreadIds ?? []
-                }
                 onDetach={async (thread) => {
                   await delegationRpc.call("taskThreadsDetach", {
                     taskId: task.id,
                     threadId: thread.threadId,
                   });
                   threads.refresh();
-                  pullRequests.refresh();
                 }}
                 onError={(message) => push(message)}
               />

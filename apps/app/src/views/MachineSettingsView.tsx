@@ -2,32 +2,23 @@ import { MachineLifecycleNoticeContent } from "@/components/machines/MachineLife
 import { useMemo, useState, type ComponentProps } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { Host, PermissionMode } from "@bb/domain";
-import type { SystemMachineProvider } from "@bb/server-contract";
 import type { HostPlatform } from "@bb/host-daemon-contract";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { Pill } from "@bb/shared-ui/pill";
 import { ResourceOverflowMenu } from "@bb/shared-ui/resource-list";
 import { machineActions } from "@/components/machines/machine-actions";
-import { MachineLifecycleActions } from "@/components/machines/MachineLifecycleActions";
 import {
   MachineRemoveDialog,
-  serverMachineRemoveDisabledReason,
+  SERVER_MACHINE_REMOVE_DISABLED_REASON,
   machineRemovalConsequences,
 } from "@/components/machines/MachineRemoveDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { MachineReconnectDialog } from "@/components/machines/MachineReconnectDialog";
-import { MoveServerDialog } from "@/components/machines/MoveServerDialog";
-import {
-  OldServerCopySection,
-  hasOldServerCopy,
-} from "@/components/machines/OldServerCopySection";
 import {
   machineStatusLabel,
   machineStatusTone,
 } from "@/components/machines/machine-status";
-import { canMoveServerHere } from "@/components/machines/server-move";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import { PageShell } from "@/components/ui/page-shell.js";
 import {
@@ -37,39 +28,22 @@ import {
   SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import { appToast } from "@/components/ui/app-toast";
 import { MachineRenameDialog } from "@/components/settings/MachineRenameDialog";
 import {
   useRenameHost,
-  useResumeHost,
-  useRetryHostCleanup,
-  useRetryHostUpdate,
-  useSuspendHost,
   useUpdateHostPermissionCeiling,
 } from "@/hooks/mutations/host-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
-import { useServerMoveStatus } from "@/hooks/queries/server-move-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import {
-  useSystemConfig,
-  useSystemProviders,
-} from "@/hooks/queries/system-queries";
-import { isProviderCliUpdateIssue } from "@/components/provider-cli/provider-cli-install";
-import { useUpdateInventory } from "@/hooks/useUpdateInventory";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
-import {
-  formatHostUpdateStatus,
-  hostCanRetryUpdate,
-} from "@/lib/host-update-status";
+import { formatHostUpdateStatus } from "@/lib/host-update-status";
 import {
   getMutationErrorMessage,
   showMutationErrorToast,
 } from "@/lib/mutation-errors";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { ProviderIconMark } from "@/components/settings/ProviderIconMark";
-import { getProviderIconInfo } from "@/lib/provider-icon";
 import {
   getSettingsProjectRoutePath,
   getSettingsRoutePath,
@@ -169,24 +143,16 @@ function PermissionLimitCards({
 
 export function MachineSettingsHeader({
   host,
-  machineProvider,
   platformLabel,
   now,
   isPrimary,
   isThisMachine,
   showServerBadge,
   lifecycleNotice,
-  lifecycleActionPending,
-  onSuspend,
-  onResume,
-  onRetryCleanup,
   onRename,
   onReconnect,
-  canMoveServerHere,
-  onMoveServerHere,
 }: {
   host: Host;
-  machineProvider: SystemMachineProvider | null;
   platformLabel: string | null;
   now: number;
   isPrimary: boolean;
@@ -195,14 +161,8 @@ export function MachineSettingsHeader({
   lifecycleNotice: ComponentProps<
     typeof MachineLifecycleNoticeContent
   >["notice"];
-  lifecycleActionPending: boolean;
-  onSuspend: () => void;
-  onResume: () => void;
-  onRetryCleanup: () => void;
   onRename: () => void;
   onReconnect: () => void;
-  canMoveServerHere: boolean;
-  onMoveServerHere: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -217,7 +177,7 @@ export function MachineSettingsHeader({
         <div className="min-w-0 space-y-1">
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="min-w-0 text-sm font-semibold text-foreground">
-              <MachineLabel host={host} machineProvider={machineProvider} />
+              <MachineLabel host={host} />
             </h1>
             {isThisMachine ? <SettingsBadge>This machine</SettingsBadge> : null}
             {showServerBadge ? <SettingsBadge>Server</SettingsBadge> : null}
@@ -231,25 +191,13 @@ export function MachineSettingsHeader({
           <MachineLifecycleNoticeContent notice={lifecycleNotice} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <MachineLifecycleActions
-            host={host}
-            machineProvider={machineProvider}
-            pending={lifecycleActionPending}
-            onSuspend={onSuspend}
-            onResume={onResume}
-            onRetryCleanup={onRetryCleanup}
-          />
           <ResourceOverflowMenu
             label={`${host.name} actions`}
             items={machineActions({
               host,
-              machineProvider,
               isPrimary,
-              canMoveServerHere,
-              lifecycleActionPending,
               onRename,
               onReconnect,
-              onMoveServerHere,
             })}
           />
         </div>
@@ -262,44 +210,26 @@ export function MachineSettingsView() {
   const { hostId } = useParams<{ hostId: string }>();
   const navigate = useNavigate();
   const hostsQuery = useHosts();
-  const { providers: machineProviders } = useSystemMachineProviders();
   const systemConfig = useSystemConfig();
   const { localDaemonHostId, platform: localDaemonPlatform } = useHostDaemon();
   const sidebarNavigationQuery = useSidebarNavigation();
-  const updateInventory = useUpdateInventory();
   const renameHost = useRenameHost();
-  const retryHostUpdate = useRetryHostUpdate();
-  const suspendHost = useSuspendHost();
-  const resumeHost = useResumeHost();
-  const retryHostCleanup = useRetryHostCleanup();
   const updatePermissionCeiling = useUpdateHostPermissionCeiling();
-  const serverMoveStatus = useServerMoveStatus();
   const [renameOpen, setRenameOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
-  const [moveServerOpen, setMoveServerOpen] = useState(false);
   const [reconnectOpen, setReconnectOpen] = useState(false);
 
   const hosts = hostsQuery.data;
   const host = hosts?.find((candidate) => candidate.id === hostId) ?? null;
   const lifecycleMessage = host?.lifecycle.message ?? null;
-  const lifecycleNotice =
-    host === null
-      ? null
-      : { phase: host.lifecycle.phase, message: lifecycleMessage };
+  const lifecycleNotice = host === null ? null : { message: lifecycleMessage };
   const primaryHostId = systemConfig.data?.primaryHostId ?? null;
-  const serverMoveEnabled = systemConfig.data?.experiments.serverMove ?? false;
   const isPrimary = host !== null && host.id === primaryHostId;
   const showThisMachineBadge =
     (hosts?.filter((candidate) => candidate.type === "persistent").length ??
       0) > 1;
   const isThisMachine =
     showThisMachineBadge && host !== null && host.id === localDaemonHostId;
-  const machineProvider =
-    host?.machineProviderId === null || host?.machineProviderId === undefined
-      ? null
-      : (machineProviders?.find(
-          (provider) => provider.id === host.machineProviderId,
-        ) ?? null);
 
   const projects: MachineProject[] = useMemo(() => {
     const navigation = sidebarNavigationQuery.data?.projects ?? [];
@@ -309,36 +239,6 @@ export function MachineSettingsView() {
       )
       .map((project) => ({ id: project.id, name: project.name }));
   }, [hostId, sidebarNavigationQuery.data]);
-
-  const machine = updateInventory.machines.find(
-    (candidate) => candidate.host.id === hostId,
-  );
-  const updateIssueCount = (machine?.issues ?? []).filter(
-    isProviderCliUpdateIssue,
-  ).length;
-  const providerRoster = useSystemProviders().data;
-  const installedProviders = useMemo(() => {
-    const status = machine?.providerStatus;
-    if (!status) return [];
-    return Object.entries(status).flatMap(([providerId, entry]) => {
-      if (!entry.installed) return [];
-      const provider = providerRoster?.find(
-        (candidate) => candidate.id === providerId,
-      );
-      return [
-        {
-          ...entry,
-          providerId,
-          provider,
-          ProviderIcon: getProviderIconInfo(
-            "agent",
-            providerId,
-            provider ?? null,
-          )?.icon,
-        },
-      ];
-    });
-  }, [machine?.providerStatus, providerRoster]);
 
   const now = Date.now();
   const platformLabel =
@@ -380,43 +280,23 @@ export function MachineSettingsView() {
   }
 
   const updateStatus = formatHostUpdateStatus(host);
-  const lastServerMove = serverMoveStatus.data?.lastMove ?? null;
 
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-10">
         <MachineSettingsHeader
           host={host}
-          machineProvider={machineProvider}
           platformLabel={platformLabel}
           now={now}
           isPrimary={isPrimary}
           isThisMachine={isThisMachine}
           showServerBadge={isPrimary}
           lifecycleNotice={lifecycleNotice}
-          lifecycleActionPending={
-            suspendHost.isPending ||
-            resumeHost.isPending ||
-            retryHostCleanup.isPending
-          }
-          onSuspend={() => suspendHost.mutate(host.id)}
-          onResume={() => resumeHost.mutate(host.id)}
-          onRetryCleanup={() => retryHostCleanup.mutate(host.id)}
           onRename={() => {
             renameHost.reset();
             setRenameOpen(true);
           }}
-          canMoveServerHere={
-            systemConfig.data !== undefined &&
-            canMoveServerHere({
-              host,
-              primaryHostId,
-              move: serverMoveStatus.data?.move ?? null,
-              serverMoveEnabled,
-            })
-          }
           onReconnect={() => setReconnectOpen(true)}
-          onMoveServerHere={() => setMoveServerOpen(true)}
         />
 
         <SettingsSection
@@ -442,71 +322,6 @@ export function MachineSettingsView() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Provider CLIs">
-          <SettingsRowList>
-            <SettingsDetailRow label="Installed">
-              {host.status !== "connected" ? (
-                <span>Unavailable while offline</span>
-              ) : machine?.statusPending ? (
-                <span>Checking…</span>
-              ) : machine?.statusError ? (
-                <span>Status unavailable</span>
-              ) : (
-                <>
-                  {installedProviders.length > 0 ? (
-                    <span className="flex min-w-0 flex-wrap items-center justify-start gap-x-3 gap-y-1 sm:justify-end">
-                      {installedProviders.map((entry) => (
-                        <span
-                          key={entry.providerId}
-                          className="inline-flex min-w-0 items-center gap-1.5"
-                        >
-                          {entry.ProviderIcon ? (
-                            <span
-                              data-provider-icon={entry.providerId}
-                              aria-hidden
-                              className="flex size-3.5 shrink-0 items-center justify-center"
-                            >
-                              {entry.provider === undefined ? (
-                                <entry.ProviderIcon className="size-3.5" />
-                              ) : (
-                                <ProviderIconMark
-                                  provider={entry.provider}
-                                  icon={entry.ProviderIcon}
-                                  className="size-3.5"
-                                />
-                              )}
-                            </span>
-                          ) : null}
-                          <span>{entry.displayName}</span>
-                          {entry.currentVersion ? (
-                            <span>{entry.currentVersion}</span>
-                          ) : null}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span>None installed</span>
-                  )}
-                  {updateIssueCount > 0 ? (
-                    <Link
-                      to={getSettingsRoutePath("updates")}
-                      className="shrink-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <Pill
-                        variant="outline"
-                        size="sm"
-                        className="border-attention/50 bg-surface-attention text-warning-text transition-colors hover:border-attention hover:text-foreground"
-                      >
-                        {updateIssueCount} to fix
-                      </Pill>
-                    </Link>
-                  ) : null}
-                </>
-              )}
-            </SettingsDetailRow>
-          </SettingsRowList>
-        </SettingsSection>
-
         <SettingsSection title="Machine information">
           <SettingsRowList>
             <SettingsDetailRow label="Projects">
@@ -530,39 +345,15 @@ export function MachineSettingsView() {
             </SettingsDetailRow>
             <SettingsDetailRow label="Updates">
               <span>{updateStatus ?? "Up to date"}</span>
-              {hostCanRetryUpdate(host) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  disabled={retryHostUpdate.isPending}
-                  onClick={() =>
-                    retryHostUpdate.mutate(host.id, {
-                      onSuccess: () => {
-                        appToast.success(
-                          `Update retry requested for ${host.name}`,
-                        );
-                      },
-                    })
-                  }
-                >
-                  {retryHostUpdate.isPending ? "Retrying…" : "Retry update"}
-                </Button>
-              ) : null}
             </SettingsDetailRow>
           </SettingsRowList>
         </SettingsSection>
-
-        {serverMoveEnabled && hasOldServerCopy(host, lastServerMove) ? (
-          <OldServerCopySection host={host} lastMove={lastServerMove} />
-        ) : null}
 
         <SettingsSection
           title="Danger zone"
           description={
             isPrimary
-              ? serverMachineRemoveDisabledReason(serverMoveEnabled)
+              ? SERVER_MACHINE_REMOVE_DISABLED_REASON
               : `Revokes ${host.name}'s access to this server. ${machineRemovalConsequences(host)}`
           }
         >
@@ -613,11 +404,6 @@ export function MachineSettingsView() {
       <MachineReconnectDialog
         target={reconnectOpen ? host : null}
         onOpenChange={setReconnectOpen}
-      />
-
-      <MoveServerDialog
-        target={moveServerOpen ? host : null}
-        onOpenChange={setMoveServerOpen}
       />
     </PageShell>
   );

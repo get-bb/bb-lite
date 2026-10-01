@@ -15,7 +15,6 @@ import {
   allMachineEnvironmentQueryKeyPrefix,
   allProjectPathsQueryKeyPrefix,
   allSystemExecutionOptionsQueryKeyPrefix,
-  allSystemMachineProvidersQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
   allSystemThemesQueryKeyPrefix,
   allTerminalsQueryKeyPrefix,
@@ -35,7 +34,6 @@ import {
   hostPathExistenceQueryKeyPrefix,
   hostsQueryKey,
   projectsQueryKey,
-  serverMoveStatusQueryKey,
   sidebarNavigationQueryKey,
   systemConfigQueryKey,
   systemProviderCatalogQueryKey,
@@ -47,9 +45,7 @@ import { allThreadDefaultExecutionOptionsQueryKeyPrefix } from "../queries/threa
 import type { QueryClientArg } from "../cache-effect-types";
 import { clearCachedModelCatalogs } from "@/lib/model-catalog-cache";
 import { bumpAllDiffPatchEvictionGenerations } from "./environment-diff-patch-cache-owner";
-import { invalidateAppUpdateStatus } from "./app-update-cache-owner";
 import { invalidatePluginList } from "./plugin-cache-owner";
-import { invalidateSystemVersion } from "./system-version-cache-owner";
 import {
   invalidateQueryKeys,
   refetchFailedActiveQueryKeys,
@@ -76,8 +72,6 @@ export function invalidateRealtimeQueriesAfterServerReconnect({
       { cancelRefetch: false },
     );
   }
-  invalidateSystemVersion({ queryClient });
-  invalidateAppUpdateStatus({ queryClient });
   bumpAllDiffPatchEvictionGenerations();
   queryClient.removeQueries({
     queryKey: allEnvironmentDiffPatchQueryKeyPrefix(),
@@ -147,14 +141,6 @@ export function invalidateSystemProviders({
 }: QueryClientArg): Promise<void> {
   return queryClient.invalidateQueries({
     queryKey: allSystemProvidersQueryKeyPrefix(),
-  });
-}
-
-export function invalidateMachineProviders({
-  queryClient,
-}: QueryClientArg): Promise<void> {
-  return queryClient.invalidateQueries({
-    queryKey: allSystemMachineProvidersQueryKeyPrefix(),
   });
 }
 
@@ -235,7 +221,6 @@ function getServerReconnectInvalidationQueryKeys(): QueryKey[] {
     hostPathExistenceQueryKeyPrefix(),
     allSystemProvidersQueryKeyPrefix(),
     allSystemExecutionOptionsQueryKeyPrefix(),
-    serverMoveStatusQueryKey(),
   ];
 }
 
