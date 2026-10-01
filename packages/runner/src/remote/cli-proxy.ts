@@ -42,13 +42,16 @@ export async function startCliProxy(
     if (fromBrowser || !ownAuthorities.includes(headers.host ?? "")) {
       return refuse(response, 403);
     }
-    if (!url.startsWith(API_PREFIX)) return refuse(response, 404);
+    const target = new URL(url, upstream);
+    const ownApi = target.origin === upstream.origin;
+    if (!ownApi || !target.pathname.startsWith(API_PREFIX)) {
+      return refuse(response, 404);
+    }
     const forwarded: http.OutgoingHttpHeaders = { ...options.headers };
     for (const [name, value] of Object.entries(headers)) {
       if (!HOP_BY_HOP_HEADER.test(name)) forwarded[name] ??= value;
     }
     forwarded.authorization = `Bearer ${options.runnerToken}`;
-    const target = new URL(url, upstream);
     const outgoing = request(target, { method, headers: forwarded });
     outgoing.on("response", (reply) => {
       response.writeHead(reply.statusCode ?? 502, reply.headers);
