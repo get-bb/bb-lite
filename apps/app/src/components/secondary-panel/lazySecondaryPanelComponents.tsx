@@ -170,25 +170,6 @@ export const LazyThreadTerminalPanel = defineSplit({
   preload: "render",
 });
 
-const BrowserTabDeckSplit = defineSplit({
-  id: "browser-tab-deck",
-  load: () =>
-    import("./BrowserTabDeck").then((module) => module.BrowserTabDeck),
-  loading: () => null,
-  error: (props) =>
-    props.activeBrowserTabId === null ? null : (
-      <SplitLoadFailure retry={props.retry} />
-    ),
-  preload: "render",
-});
-
-export const LazyBrowserTabDeck = Object.assign(function BrowserTabDeckGate(
-  props: ComponentProps<typeof BrowserTabDeckSplit>,
-) {
-  const realized = useRetainedRealization(props.activeBrowserTabId !== null);
-  return realized ? <BrowserTabDeckSplit {...props} /> : null;
-}, BrowserTabDeckSplit);
-
 export const LazyNewTabPage = defineSplit({
   id: "new-tab-page",
   load: () => import("./NewTabPage").then((module) => module.NewTabPage),
@@ -272,7 +253,6 @@ export const LazyThreadStorageFilePreviewTabContent = defineSplit({
 });
 
 const panelContentSplits = [
-  LazyBrowserTabDeck,
   LazyThreadTerminalPanel,
   LazyNewTabPage,
   LazyFilePreview,

@@ -14,7 +14,6 @@ import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import type { PluginPanelActionEntry } from "@/components/plugin/PluginPanelActions";
 import { useSidebarSortable } from "@/components/sidebar/sortableMotion";
 import { useReorderDnd } from "@/components/ui/useReorderDnd";
-import { isDesktopBrowserAvailable } from "@/lib/bb-desktop";
 import { arrangeByStoredOrder, reorderStoredOrder } from "@/lib/stored-order";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import {
@@ -24,11 +23,9 @@ import {
 } from "./launcherRow";
 import { newTabActionOrderAtom } from "./newTabActionsAtoms";
 
-export type OpenBrowserHandler = () => void;
 export type StartTerminalHandler = () => void;
 
 export interface NewTabActionsProps {
-  onOpenBrowser?: OpenBrowserHandler;
   onStartTerminal?: StartTerminalHandler;
   startTerminalDisabled?: boolean;
   startTerminalTrailing?: ReactNode;
@@ -67,7 +64,6 @@ interface NewTabActionRowProps {
 const ACTIONS_SECTION_LABEL = "Actions";
 const NEW_TAB_ACTION_DRAG_HANDLE_CLASS =
   "cursor-grab touch-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing group-hover:opacity-100 [@media(hover:none)]:opacity-100";
-const OPEN_BROWSER_ACTION_ID = "file-search-result-open-browser";
 const START_TERMINAL_ACTION_ID = "file-search-result-start-terminal";
 
 function actionIcon(iconName: IconName): ReactNode {
@@ -81,28 +77,14 @@ function actionIcon(iconName: IconName): ReactNode {
 }
 
 export function NewTabActions({
-  onOpenBrowser,
   onStartTerminal,
   pluginActions,
   startTerminalDisabled = false,
   startTerminalTrailing,
 }: NewTabActionsProps) {
   const terminalShortcut = useAppCommandShortcut("terminal.open");
-  const showOpenBrowser =
-    onOpenBrowser !== undefined && isDesktopBrowserAvailable();
 
   const actions: NewTabAction[] = [];
-  if (showOpenBrowser) {
-    actions.push({
-      id: OPEN_BROWSER_ACTION_ID,
-      icon: actionIcon("Globe"),
-      label: "Open browser",
-      disabled: false,
-      shortcut: null,
-      trailing: null,
-      onSelect: () => onOpenBrowser?.(),
-    });
-  }
   if (onStartTerminal !== undefined) {
     actions.push({
       id: START_TERMINAL_ACTION_ID,

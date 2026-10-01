@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -14,8 +13,7 @@ import {
 import { useNavigate, type NavigateOptions } from "react-router-dom";
 import { useStore } from "jotai";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { isRoutePath, resolveRouteHref } from "@/lib/route-paths";
-import { getDesktopBrowserApi } from "@/lib/bb-desktop";
+import { resolveRouteHref } from "@/lib/route-paths";
 import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
 import { paneContentForPathname } from "@/views/thread-detail/splitThreadNavigation";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
@@ -139,19 +137,6 @@ export function RouteNavigationProvider({
     },
     [isCompact, navigateRoute, store],
   );
-  useEffect(() => {
-    const browserApi = getDesktopBrowserApi();
-    if (browserApi === null) {
-      return;
-    }
-    return browserApi.onOpenTab(({ url }) => {
-      if (!isRoutePath({ path: url })) {
-        return;
-      }
-      navigateRoute(url);
-    });
-  }, [navigateRoute]);
-
   const value = useMemo<RouteNavigation>(
     () => ({ navigate: navigateRoute, navigateImmediately, openInSplit }),
     [navigateImmediately, navigateRoute, openInSplit],

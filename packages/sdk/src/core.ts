@@ -1,7 +1,3 @@
-import {
-  createDesktopBrowsersArea,
-  type ExperimentalDesktopBrowsersArea,
-} from "./areas/desktop-browsers.js";
 import type { BbSdkContext, BbSdkTransport } from "./transport.js";
 import {
   createEnvironmentsArea,
@@ -38,7 +34,6 @@ export interface CreateBbSdkArgs {
 }
 
 export interface BbSdkAreas extends BbRealtime {
-  experimental_desktopBrowsers: ExperimentalDesktopBrowsersArea;
   experimental_server: ExperimentalServerArea;
   environments: EnvironmentsArea;
   files: FilesArea;
@@ -57,15 +52,12 @@ export interface BbSdkAreas extends BbRealtime {
 
 export type BbSdk = BbSdkAreas;
 
-export function createBbSdk(
-  args: CreateBbSdkArgs,
-): BbSdkAreas | BbSdk {
+export function createBbSdk(args: CreateBbSdkArgs): BbSdkAreas | BbSdk {
   const sdkContext = { transport: args.transport };
   const realtime = createBbRealtimeClient({
     transport: args.transport,
   });
   const areas: BbSdkAreas = {
-    experimental_desktopBrowsers: createDesktopBrowsersArea(sdkContext),
     experimental_server: createServerArea(sdkContext),
     environments: createEnvironmentsArea(sdkContext),
     files: createFilesArea(sdkContext),

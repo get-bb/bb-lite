@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
   type Key,
   type ReactNode,
@@ -21,7 +20,6 @@ import { useResponsiveDrawerRealization } from "@bb/shared-ui/responsive-overlay
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CompactSecondaryPanelShelf } from "./CompactSecondaryPanelShelf";
 import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
-import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import {
   useOptionalPaneContext,
   usePaneSecondaryPanelRegistration,
@@ -49,7 +47,6 @@ function noopToggleMainCollapse(): void {}
 
 export interface SecondaryPanelRenderArgs {
   presentation: "inline" | "drawer";
-  canShowNativeBrowserView: boolean;
   isMainCollapsed: boolean;
   onToggleMainCollapse: () => void;
   resizablePanelId?: string;
@@ -158,8 +155,6 @@ export function SecondaryPanelLayout({
     group.setLayout([FULL_PANEL_SIZE_PERCENT - secondaryWidth, secondaryWidth]);
   }, [isMainCollapsed, open, renderAsDrawer]);
 
-  const [isCompactDrawerContentSettled, setIsCompactDrawerContentSettled] =
-    useState(false);
   const { isContentRealized: isPanelRealized, realizeContent: realizePanel } =
     useResponsiveDrawerRealization({
       open,
@@ -192,8 +187,6 @@ export function SecondaryPanelLayout({
 
   useLayoutEffect(() => {
     cancelCompactDrawerContentSettleFrame();
-    // oxlint-disable-next-line react/set-state-in-effect
-    setIsCompactDrawerContentSettled(false);
   }, [cancelCompactDrawerContentSettleFrame, open, renderAsDrawer, resetKey]);
 
   useLayoutEffect(
@@ -230,28 +223,13 @@ export function SecondaryPanelLayout({
             return;
           }
 
-          dispatchBrowserViewBoundsSync();
-
-          const stateAfterSync = compactDrawerContentSettleStateRef.current;
-          if (
-            compactDrawerContentSettleGenerationRef.current ===
-              requestGeneration &&
-            stateAfterSync.resetKey === requestResetKey &&
-            stateAfterSync.open &&
-            stateAfterSync.renderAsDrawer
-          ) {
-            setIsCompactDrawerContentSettled(true);
-            realizePanel();
-          }
+          realizePanel();
         },
       );
     },
     [cancelCompactDrawerContentSettleFrame, realizePanel],
   );
 
-  const canShowNativeBrowserView = renderAsDrawer
-    ? open && isCompactDrawerContentSettled
-    : open && (secondaryPanelHost === null || paneContext?.isFocused === true);
   const resizablePanelId =
     secondaryPanelHost === null || paneContext === null
       ? undefined
@@ -263,13 +241,11 @@ export function SecondaryPanelLayout({
         ? null
         : renderPanel({
             presentation: "inline",
-            canShowNativeBrowserView,
             isMainCollapsed,
             onToggleMainCollapse: collapse?.onToggle ?? noopToggleMainCollapse,
             resizablePanelId,
           }),
     [
-      canShowNativeBrowserView,
       collapse?.onToggle,
       isMainCollapsed,
       renderAsDrawer,
@@ -282,12 +258,11 @@ export function SecondaryPanelLayout({
       renderAsDrawer
         ? renderPanel({
             presentation: "drawer",
-            canShowNativeBrowserView,
             isMainCollapsed: false,
             onToggleMainCollapse: collapse?.onToggle ?? noopToggleMainCollapse,
           })
         : null,
-    [canShowNativeBrowserView, collapse?.onToggle, renderAsDrawer, renderPanel],
+    [collapse?.onToggle, renderAsDrawer, renderPanel],
   );
   const hostedPanelModel = useMemo<PaneSecondaryPanelViewModel>(
     () => ({

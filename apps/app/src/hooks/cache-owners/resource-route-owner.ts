@@ -3,17 +3,11 @@ import { useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import type {
   ChangedMessage,
-  EnvironmentChangedMessage,
   ProjectChangedMessage,
   ThreadChangedMessage,
 } from "@bb/domain";
-import {
-  destroyPersistedBrowserViewsForEnvironment,
-  destroyPersistedBrowserViewsForThread,
-} from "@/components/secondary-panel/browserViewVisibilityCoordinator";
 import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
-import { getDesktopBrowserApi } from "@/lib/bb-desktop";
 import { useRouteState } from "../useRouteState";
 
 type DeletedResourceRouteChangeHandler = (message: ChangedMessage) => void;
@@ -38,16 +32,6 @@ function isDeletedThreadMessage(
   );
 }
 
-function isDeletedEnvironmentMessage(
-  message: ChangedMessage,
-): message is EnvironmentChangedMessage & { id: string } {
-  return (
-    message.entity === "environment" &&
-    message.id !== undefined &&
-    message.changes.includes("environment-deleted")
-  );
-}
-
 export function useDeletedResourceRouteOwner(): DeletedResourceRouteChangeHandler {
   const navigate = useNavigate();
   const setCollapsedProjectIdList = useSetAtom(collapsedProjectIdsAtom);
@@ -68,19 +52,9 @@ export function useDeletedResourceRouteOwner(): DeletedResourceRouteChangeHandle
       }
 
       if (!isDeletedThreadMessage(message)) {
-        if (isDeletedEnvironmentMessage(message)) {
-          destroyPersistedBrowserViewsForEnvironment({
-            desktopBrowser: getDesktopBrowserApi(),
-            environmentId: message.id,
-          });
-        }
         return;
       }
       const deletedThreadId = message.id;
-      destroyPersistedBrowserViewsForThread({
-        desktopBrowser: getDesktopBrowserApi(),
-        threadId: deletedThreadId,
-      });
       if (routeThreadId !== deletedThreadId) {
         return;
       }

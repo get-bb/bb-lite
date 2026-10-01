@@ -101,7 +101,6 @@ import {
 } from "@/lib/route-paths";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
-import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import { useFaviconBadge } from "@/lib/favicon-color-preference";
 import { shouldShowFaviconAttentionDot } from "./faviconAttentionDot";
 import { AppLayoutSidebar } from "./AppLayoutSidebar";
@@ -174,7 +173,6 @@ function SidebarStateBridge({ children }: SidebarStateBridgeProps) {
   const handleOpenChange = useCallback<SidebarOpenChangeHandler>(
     (nextOpen) => {
       setOpen(nextOpen);
-      window.requestAnimationFrame(dispatchBrowserViewBoundsSync);
     },
     [setOpen],
   );
@@ -688,7 +686,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       store.set(sidebarWidthAtom, liveWidthRef.current);
       store.set(sidebarLiveWidthAtom, null);
     });
-    dispatchBrowserViewBoundsSync();
     setIsSidebarResizing(false);
     resetSidebarResizeDocumentState();
   }, [store]);
@@ -701,7 +698,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       flushSync(() => {
         store.set(sidebarLiveWidthAtom, liveWidthRef.current);
       });
-      dispatchBrowserViewBoundsSync();
     };
 
     const handleMouseMove = (event: MouseEvent) => {

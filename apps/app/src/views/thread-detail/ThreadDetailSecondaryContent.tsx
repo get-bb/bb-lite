@@ -27,16 +27,8 @@ type ThreadSecondaryPanelProps = Omit<
   | "renderAsDrawer"
   | "isConversationCollapsed"
   | "onToggleConversationCollapse"
-  | "renderBrowserDeck"
   | "drawerFallback"
-> & {
-  renderBrowserDeck?: (args: {
-    activeBrowserTabId?: string | null;
-    canHandleBrowserCommands?: boolean;
-    canShowNativeBrowserView: boolean;
-    onNativeFocus?: () => void;
-  }) => ReactNode;
-};
+>;
 
 interface ThreadDetailSecondaryContentProps {
   footer: ReactNode;
@@ -78,7 +70,6 @@ function ThreadDetailSecondaryContentBody({
   timeline,
 }: ThreadDetailSecondaryContentProps) {
   const composerHost = usePluginComposerHost();
-  const { renderBrowserDeck, ...threadSecondaryPanelProps } = secondaryPanel;
 
   const forksQuery = useThreads(
     {
@@ -116,7 +107,7 @@ function ThreadDetailSecondaryContentBody({
       <SecondaryPanelLayout
         open={isSecondaryPanelOpen}
         onToggle={onToggleSecondaryPanel}
-        onClose={threadSecondaryPanelProps.onClose}
+        onClose={secondaryPanel.onClose}
         panelGroupKey="thread-detail"
         resetKey={timeline.threadId}
         contentKey={timeline.threadId}
@@ -133,23 +124,13 @@ function ThreadDetailSecondaryContentBody({
         renderHostedPanel={renderHostedPanel}
         renderPanel={({
           presentation,
-          canShowNativeBrowserView,
           isMainCollapsed,
           onToggleMainCollapse,
           resizablePanelId,
         }) => (
           <LazyThreadSecondaryPanel
-            {...threadSecondaryPanelProps}
+            {...secondaryPanel}
             drawerFallback={<ThreadMetadataLoadingSkeleton />}
-            renderBrowserDeck={(activeBrowserTabId, pane) =>
-              renderBrowserDeck?.({
-                activeBrowserTabId,
-                canHandleBrowserCommands:
-                  canShowNativeBrowserView && pane.isFocused,
-                canShowNativeBrowserView,
-                onNativeFocus: pane.onFocusPane,
-              })
-            }
             renderAsDrawer={presentation === "drawer"}
             isConversationCollapsed={
               presentation === "inline" && isMainCollapsed
