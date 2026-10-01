@@ -8,8 +8,11 @@ import {
   type ServerRunner,
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
+import { createBasicEnvironments } from "./environments/basic.js";
 import { createHttpApp } from "./http/app.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
+import { Engine } from "./threads/engine.js";
+import { createNoExtensions } from "./threads/extensions.js";
 import { registerSockets } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
 import { SocketRegistry } from "./ws/sockets.js";
@@ -47,7 +50,11 @@ export function createServer(options: CreateServerOptions): BbServer {
   const runners = new RunnerRegistry({ localHostId, localRunner, log });
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
-  const ctx: ServerContext = { config, db, hub, runners, log, now };
+  const environments = createBasicEnvironments({ db, hub, runners });
+  const extensions = createNoExtensions();
+  const services = { environments, extensions };
+  const base = { config, db, hub, runners, log, now, ...services };
+  const ctx: ServerContext = Object.assign(base, { threads: new Engine(base) });
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);
   registerSockets(sockets, ctx);
@@ -57,6 +64,8 @@ export function createServer(options: CreateServerOptions): BbServer {
   return {
     ctx,
     async listen() {
+      ctx.threads.start();
+      disposers.push(() => ctx.threads.close());
       for (const step of startupSteps) {
         const dispose = await step(ctx);
         if (dispose !== undefined) disposers.push(dispose);

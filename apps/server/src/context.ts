@@ -1,7 +1,10 @@
 import type { SessionApi } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
+import type { Environments } from "./environments/types.js";
 import type { RunnerRegistry } from "./runners/registry.js";
+import type { ThreadEngine } from "./threads/api.js";
+import type { Extensions } from "./threads/extensions.js";
 import type { Hub } from "./ws/hub.js";
 
 export type ServerRunner = SessionApi;
@@ -13,6 +16,9 @@ export interface ServerContext {
   runners: RunnerRegistry<ServerRunner>;
   log: Logger;
   now: () => number;
+  environments: Environments;
+  extensions: Extensions;
+  threads: ThreadEngine;
 }
 
 export const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
