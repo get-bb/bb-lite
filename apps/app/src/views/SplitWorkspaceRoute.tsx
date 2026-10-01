@@ -2,17 +2,13 @@ import { idleSplitDownload } from "@/lib/split-prefetch";
 import { ModelReasoningMenu } from "@/components/pickers/ModelReasoningMenuSplit";
 import { useSplitPreload } from "@/lib/define-split";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
-import { lazy, useMemo } from "react";
+import { useMemo } from "react";
 import { disableGlobalCursorStyles } from "react-resizable-panels";
 import { matchPath, Navigate, useLocation } from "react-router-dom";
-import { useAtomValue } from "jotai";
-import { splitLayoutAtom } from "@/lib/split-layout/atoms";
-import { holdsPluginDetailPane } from "@/lib/split-layout/openPaneContentInSplit";
 import "@bb/shared-ui/icon-extended";
 import {
   APP_ROOT_ROUTE_PATH,
   LEGACY_PROJECT_COMPOSE_ROUTE_PATH,
-  PLUGIN_DETAIL_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,
 } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
@@ -24,10 +20,6 @@ disableGlobalCursorStyles();
 
 const ROOT_COMPOSE_CONTENT = { kind: "new-thread" } as const;
 
-const PluginsView = lazy(() =>
-  import("./ToolsView").then((m) => ({ default: m.PluginsView })),
-);
-
 const markdownHtmlDownload = idleSplitDownload("markdown-html");
 
 export default function SplitWorkspaceRoute() {
@@ -37,10 +29,6 @@ export default function SplitWorkspaceRoute() {
   const location = useLocation();
   const { projectId, threadId, isThreadView } = useRouteState();
   const pluginMatch = matchPath(PLUGIN_PANEL_ROUTE_PATH, location.pathname);
-  const pluginDetailMatch = matchPath(
-    PLUGIN_DETAIL_ROUTE_PATH,
-    location.pathname,
-  );
   const legacyProjectMatch = matchPath(
     LEGACY_PROJECT_COMPOSE_ROUTE_PATH,
     location.pathname,
@@ -48,7 +36,6 @@ export default function SplitWorkspaceRoute() {
   const pluginId = pluginMatch?.params.pluginId;
   const panelPath = pluginMatch?.params.panelPath;
   const pluginSubPath = pluginMatch?.params["*"] ?? "";
-  const detailPluginId = pluginDetailMatch?.params.pluginId;
 
   const routeContent = useMemo<PaneContent | null>(() => {
     if (location.pathname === APP_ROOT_ROUTE_PATH) {
@@ -56,9 +43,6 @@ export default function SplitWorkspaceRoute() {
     }
     if (isThreadView && projectId && threadId) {
       return { kind: "thread", projectId, threadId };
-    }
-    if (detailPluginId) {
-      return { kind: "plugin-detail", pluginId: detailPluginId };
     }
     if (pluginId && panelPath) {
       return {
@@ -70,7 +54,6 @@ export default function SplitWorkspaceRoute() {
     }
     return null;
   }, [
-    detailPluginId,
     isThreadView,
     location.pathname,
     panelPath,
@@ -80,20 +63,12 @@ export default function SplitWorkspaceRoute() {
     threadId,
   ]);
 
-  const layout = useAtomValue(splitLayoutAtom);
-
   const legacyProjectId = legacyProjectMatch?.params.projectId;
   if (legacyProjectId) {
     return <LegacyProjectComposeRedirect projectId={legacyProjectId} />;
   }
   if (routeContent === null) {
     return <Navigate to={APP_ROOT_ROUTE_PATH} replace />;
-  }
-  if (
-    routeContent.kind === "plugin-detail" &&
-    !holdsPluginDetailPane(layout, routeContent.pluginId)
-  ) {
-    return <PluginsView pluginId={routeContent.pluginId} />;
   }
   return <SplitThreadArea routeContent={routeContent} />;
 }

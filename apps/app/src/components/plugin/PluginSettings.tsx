@@ -12,9 +12,7 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { Textarea } from "@bb/shared-ui/textarea";
-import { Link } from "react-router-dom";
 import { SettingsWithControl } from "@/components/ui/settings-section.js";
-import { getPluginDetailRoutePath } from "@/lib/route-paths";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { Switch } from "@bb/shared-ui/switch";
 import {
@@ -509,13 +507,7 @@ function PluginSettingsPageSkeleton() {
   );
 }
 
-export function PluginSettingsPage({
-  pluginId,
-  onBackToDetails,
-}: {
-  pluginId: string;
-  onBackToDetails?: () => void;
-}) {
+export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
   const listQuery = usePluginList({ enabled: true });
   const plugin =
     listQuery.data?.plugins.find(
@@ -538,55 +530,10 @@ export function PluginSettingsPage({
       </p>
     );
   }
-  return (
-    <PluginSettingsContent
-      key={plugin.id}
-      plugin={plugin}
-      onBackToDetails={onBackToDetails}
-    />
-  );
+  return <PluginSettingsContent key={plugin.id} plugin={plugin} />;
 }
 
-function PluginSettingsDetailsLink({
-  pluginId,
-  onBackToDetails,
-}: {
-  pluginId: string;
-  onBackToDetails?: () => void;
-}) {
-  const content = (
-    <>
-      <Icon name="ChevronLeft" className="size-3.5" aria-hidden />
-      Plugin details
-    </>
-  );
-  const className =
-    "-ml-2 mb-3 h-7 gap-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground";
-  return onBackToDetails ? (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={className}
-      onClick={onBackToDetails}
-    >
-      {content}
-    </Button>
-  ) : (
-    <Button variant="ghost" size="sm" className={className} asChild>
-      <Link to={getPluginDetailRoutePath({ pluginId, view: "installed" })}>
-        {content}
-      </Link>
-    </Button>
-  );
-}
-
-function PluginSettingsContent({
-  plugin,
-  onBackToDetails,
-}: {
-  plugin: PluginListItem;
-  onBackToDetails?: () => void;
-}) {
+function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
   const queryClient = useQueryClient();
   const { settingsSections } = usePluginSlots();
   const { toggle, enabled } = usePluginEnabledMutation(plugin, () =>
@@ -597,10 +544,6 @@ function PluginSettingsContent({
     settingsSections.some((section) => section.pluginId === plugin.id);
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <PluginSettingsDetailsLink
-        pluginId={plugin.id}
-        onBackToDetails={onBackToDetails}
-      />
       <header className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-9 shrink-0">
@@ -643,7 +586,7 @@ function PluginSettingsContent({
   );
 }
 
-export function PluginSettingsDetail({ plugin }: { plugin: PluginListItem }) {
+function PluginSettingsDetail({ plugin }: { plugin: PluginListItem }) {
   const { settingsSections } = usePluginSlots();
   const hasSettingsSections = settingsSections.some(
     (section) => section.pluginId === plugin.id,

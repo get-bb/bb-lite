@@ -8,7 +8,6 @@ import {
   arrangePluginNavPanelPreferences,
   DEFAULT_HIDDEN_SIDEBAR_NAVIGATION_KEYS,
   getPluginNavPanelKey,
-  seedSkillsNavigationPreference,
   togglePluginNavPanelVisibility,
 } from "@/components/plugin/pluginNavSidebarOrder";
 import { haveSameOrder, reorderStoredOrder } from "@/lib/stored-order";
@@ -38,14 +37,9 @@ export function useSidebarNavigationArrangement<Row extends ArrangeableRow>(
   const [storedVisibleKeys, setStoredVisibleKeys] = useAtom(
     pluginNavVisiblePanelKeysAtom,
   );
-  const seededPreferences = useMemo(
-    () => seedSkillsNavigationPreference(storedOrder, storedVisibleKeys),
-    [storedOrder, storedVisibleKeys],
-  );
   const newLeadingKeys = useMemo(
-    () =>
-      leadingOrderKeys.filter((key) => !seededPreferences.order.includes(key)),
-    [leadingOrderKeys, seededPreferences.order],
+    () => leadingOrderKeys.filter((key) => !storedOrder.includes(key)),
+    [leadingOrderKeys, storedOrder],
   );
   const newVisibleKeys = useMemo(
     () =>
@@ -53,12 +47,12 @@ export function useSidebarNavigationArrangement<Row extends ArrangeableRow>(
         .map(getPluginNavPanelKey)
         .filter(
           (key) =>
-            !seededPreferences.order.includes(key) &&
+            !storedOrder.includes(key) &&
             !DEFAULT_HIDDEN_SIDEBAR_NAVIGATION_KEYS.some(
               (hiddenKey) => hiddenKey === key,
             ),
         ),
-    [rows, seededPreferences.order],
+    [rows, storedOrder],
   );
   const {
     ordered,
@@ -72,15 +66,15 @@ export function useSidebarNavigationArrangement<Row extends ArrangeableRow>(
         panels: rows,
         storedOrder:
           newLeadingKeys.length === 0
-            ? seededPreferences.order
-            : [...newLeadingKeys, ...seededPreferences.order],
+            ? storedOrder
+            : [...newLeadingKeys, ...storedOrder],
         storedVisibleKeys:
-          seededPreferences.visibleKeys === null || newVisibleKeys.length === 0
-            ? seededPreferences.visibleKeys
-            : [...newVisibleKeys, ...seededPreferences.visibleKeys],
+          storedVisibleKeys === null || newVisibleKeys.length === 0
+            ? storedVisibleKeys
+            : [...newVisibleKeys, ...storedVisibleKeys],
         defaultHiddenKeys: DEFAULT_HIDDEN_SIDEBAR_NAVIGATION_KEYS,
       }),
-    [newLeadingKeys, newVisibleKeys, rows, seededPreferences],
+    [newLeadingKeys, newVisibleKeys, rows, storedOrder, storedVisibleKeys],
   );
   const hidden = useMemo(() => {
     const visibleSet = new Set(visibleKeys);

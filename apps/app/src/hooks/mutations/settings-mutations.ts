@@ -5,7 +5,6 @@ import {
   type AppThemeSelection,
   type Experiments,
 } from "@bb/domain";
-import type { SystemInstallCliSkillsRequest } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import {
   invalidateGeneralSettingsDependencies,
@@ -84,16 +83,6 @@ export function useUpdateKeyboardSettings() {
     onSuccess: () => {
       invalidateSystemConfig({ queryClient });
     },
-  });
-}
-
-export function useInstallCliSkills() {
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to install the bb CLI skills.",
-    },
-    mutationFn: (args: SystemInstallCliSkillsRequest) =>
-      sdk.system.installCliSkills(args),
   });
 }
 

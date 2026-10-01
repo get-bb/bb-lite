@@ -20,9 +20,3 @@ export const RESERVED_BB_CLI_COMMANDS: readonly string[] = [
   "updates",
   "voice",
 ];
-
-export function pluginCliCall(pluginId: string, name: string): string {
-  if (RESERVED_BB_CLI_COMMANDS.includes(name))
-    return `bb plugin run ${pluginId}`;
-  return `bb ${name}`;
-}

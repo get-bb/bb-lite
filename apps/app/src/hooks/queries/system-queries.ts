@@ -8,7 +8,6 @@ import type {
 import { SYSTEM_EXECUTION_OPTIONS_QUERY_KEY } from "@/hooks/queries/query-keys";
 import { permissionModeValues } from "@bb/domain";
 import type {
-  SystemCliSkillsStatusResponse,
   SystemExecutionOptionsResponse,
   SystemProvidersQuery,
   SystemProviderStatesResponse,
@@ -35,7 +34,6 @@ import {
   allSystemExecutionOptionsQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
   hostProviderCliStatusQueryKey,
-  systemCliSkillsQueryKey,
   systemAiServicesQueryKey,
   systemConfigQueryKey,
   systemExecutionOptionsQueryKey,
@@ -427,15 +425,6 @@ export function useSystemConfig(options?: QueryOptions) {
   return useQuery({
     ...systemConfigQueryOptions(),
     enabled,
-  });
-}
-
-export function useCliSkillsStatus(options?: QueryOptions) {
-  return useQuery<SystemCliSkillsStatusResponse>({
-    queryKey: systemCliSkillsQueryKey(),
-    queryFn: ({ signal }) => sdk.system.cliSkillsStatus({ signal }),
-    enabled: options?.enabled ?? true,
-    staleTime: 30_000,
   });
 }
 

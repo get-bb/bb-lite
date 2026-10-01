@@ -44,10 +44,6 @@ import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import type { ThreadSecondaryPanel as ThreadSecondaryPanelTab } from "@/lib/thread-secondary-panel";
-import {
-  PluginDetailPanelContext,
-  usePluginDetailPanelState,
-} from "@/components/plugin/plugin-detail-navigation";
 import { useForkThreadFromMessage } from "@/hooks/useForkThreadFromMessage";
 import { isThreadForkable } from "@bb/client-core";
 import { useRequestEnvironmentAction } from "../../hooks/mutations/environment-mutations";
@@ -586,12 +582,9 @@ function ThreadDetailViewInternal(
       isCompactViewport: renderSecondaryPanelAsDrawer,
       threadId,
     });
-  const pluginDetails = usePluginDetailPanelState(threadId, isFocused);
-  const isWorkspacePanelOpen = renderSecondaryPanelAsDrawer
+  const isSecondaryPanelOpen = renderSecondaryPanelAsDrawer
     ? secondaryPanelDrawerVisibility.isDrawerVisible
     : isPersistedSecondaryPanelOpen;
-  const isSecondaryPanelOpen =
-    isWorkspacePanelOpen || pluginDetails.activePluginId !== null;
   const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
     threadId,
     threadId,
@@ -1244,7 +1237,7 @@ function ThreadDetailViewInternal(
     threadId,
   });
   const {
-    closePanel: closeWorkspacePanel,
+    closePanel: closeSecondaryPanel,
     openCommitDiff: openGitDiffCommitDestination,
     openCompactDrawer,
     openDiffFile: openGitDiffFileDestination,
@@ -1253,7 +1246,7 @@ function ThreadDetailViewInternal(
     openPanel: openFixedViewDestination,
     openStorageFile,
     openWorkspaceFile,
-    togglePanel: toggleWorkspacePanel,
+    togglePanel: toggleSecondaryPanel,
   } = useThreadSecondaryPanelVisibility({
     closePersistedPanel: closeThreadSecondaryPanel,
     drawerVisibility: secondaryPanelDrawerVisibility,
@@ -1268,15 +1261,6 @@ function ThreadDetailViewInternal(
     openPersistedWorkspaceFile,
     togglePersistedPanel: toggleDefaultPersistedSecondaryPanel,
   });
-  const dismissPluginDetails = pluginDetails.dismiss;
-  const closeSecondaryPanel = useCallback(() => {
-    dismissPluginDetails();
-    closeWorkspacePanel();
-  }, [dismissPluginDetails, closeWorkspacePanel]);
-  const toggleSecondaryPanel = useCallback(() => {
-    if (pluginDetails.activePluginId !== null) closeSecondaryPanel();
-    else toggleWorkspacePanel();
-  }, [pluginDetails.activePluginId, closeSecondaryPanel, toggleWorkspacePanel]);
   const fixedTabDestinations = useMemo(
     () => [
       createThreadInfoFixedTabDestination(() =>
@@ -1671,10 +1655,6 @@ function ThreadDetailViewInternal(
     [closeTerminal, removeFixedTerminalTab, threadId],
   );
   const handleCloseWindowRequest = useCallback(() => {
-    if (pluginDetails.activePluginId !== null) {
-      pluginDetails.close(pluginDetails.activePluginId);
-      return true;
-    }
     if (!isSecondaryPanelOpen) {
       return false;
     }
@@ -1697,7 +1677,6 @@ function ThreadDetailViewInternal(
     closeTab,
     handleCloseTerminalTab,
     isSecondaryPanelOpen,
-    pluginDetails,
   ]);
   useAppCommandHandler("panel.toggle", () => {
     if (!isFocused) return false;
@@ -3007,9 +2986,7 @@ function ThreadDetailViewInternal(
         <PluginThreadPanelNavigationProvider
           openThreadPanel={handleOpenTimelinePluginPanel}
         >
-          <PluginDetailPanelContext.Provider value={pluginDetails}>
-            {threadDetailContent}
-          </PluginDetailPanelContext.Provider>
+          {threadDetailContent}
         </PluginThreadPanelNavigationProvider>
       </ThreadProviderContext.Provider>
     </>

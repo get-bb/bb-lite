@@ -620,13 +620,6 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  /* Resource shelves share one spacing contract so their header, cards,
-   * horizontal rhythm, and overflow affordance cannot drift independently. */
-  --resource-source-shelf-inset: calc(var(--spacing) * 3);
-  --resource-source-shelf-section-gap: calc(var(--spacing) * 2);
-  --resource-source-shelf-label-gap: calc(var(--spacing) * 1.5);
-  --resource-source-shelf-action-inline: calc(var(--spacing) * 1.5);
-  --resource-source-shelf-action-block: var(--spacing);
   --icon-stroke-width: 1.75;
   /* ANSI 16-color palette (light mode) tuned for readable terminal output. */
   --ansi-0: #000000;

@@ -382,67 +382,6 @@ export const systemConfigReloadResponseSchema = z.object({
   ok: z.literal(true),
 });
 
-export const cliSkillMachineStatusSchema = z.enum([
-  "installed",
-  "outdated",
-  "missing",
-  "unknown",
-]);
-export type CliSkillMachineStatus = z.infer<typeof cliSkillMachineStatusSchema>;
-
-export const systemCliSkillsStatusQuerySchema = z.object({
-  hostIds: z.string().optional(),
-});
-export type SystemCliSkillsStatusQuery = z.infer<
-  typeof systemCliSkillsStatusQuerySchema
->;
-
-export const systemCliSkillsStatusResponseSchema = z.object({
-  machines: z.array(
-    z.object({
-      hostId: z.string(),
-      hostName: z.string(),
-      status: cliSkillMachineStatusSchema,
-    }),
-  ),
-});
-export type SystemCliSkillsStatusResponse = z.infer<
-  typeof systemCliSkillsStatusResponseSchema
->;
-
-export const systemInstallCliSkillsRequestSchema = z.object({
-  hostIds: z.array(z.string().min(1)).min(1).max(64),
-});
-export type SystemInstallCliSkillsRequest = z.infer<
-  typeof systemInstallCliSkillsRequestSchema
->;
-
-export const systemInstallCliSkillsResponseSchema = z.object({
-  results: z.array(
-    z.discriminatedUnion("ok", [
-      z.object({
-        ok: z.literal(true),
-        hostId: z.string(),
-        hostName: z.string(),
-        installations: z.array(
-          z.object({
-            name: z.string(),
-            path: z.string(),
-          }),
-        ),
-      }),
-      z.object({
-        ok: z.literal(false),
-        hostId: z.string(),
-        hostName: z.string(),
-        errorMessage: z.string(),
-      }),
-    ]),
-  ),
-});
-export type SystemInstallCliSkillsResponse = z.infer<
-  typeof systemInstallCliSkillsResponseSchema
->;
 export type SystemConfigReloadResponse = z.infer<
   typeof systemConfigReloadResponseSchema
 >;

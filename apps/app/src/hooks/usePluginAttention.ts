@@ -1,6 +1,6 @@
 import type { PluginListItem } from "@/hooks/queries/plugin-settings-queries";
 
-export function pluginNeedsAttention(
+function pluginNeedsAttention(
   plugin: Pick<PluginListItem, "enabled" | "status">,
 ): boolean {
   return (

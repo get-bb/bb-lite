@@ -1,4 +1,3 @@
-import { usePluginDetailPanelProps } from "@/components/plugin/plugin-detail-navigation";
 import {
   type CSSProperties,
   type FocusEvent,
@@ -49,7 +48,6 @@ import { MobilePanelTabPager } from "./MobilePanelTabPager";
 import { SecondaryPanelTabStrip } from "./SecondaryPanelTabStrip";
 import { ImageTabLightboxProvider } from "./ImageTabLightboxContext";
 import type {
-  MarketplacePluginDetailPanelTab,
   SecondaryPanelPaneRenderContext,
   SecondaryPanelRenderableTab,
   SecondaryPanelTabReorderHandler,
@@ -163,7 +161,7 @@ export interface SecondaryPanelFixedTab {
 }
 
 export interface ThreadSecondaryPanelProps {
-  activeTab: SecondaryFixedPanelTab | MarketplacePluginDetailPanelTab | null;
+  activeTab: SecondaryFixedPanelTab | null;
   canUseGitUi: boolean;
   canNavigateTabs?: boolean;
   gitDiffTabStatus?: GitDiffTabStatus;
@@ -181,7 +179,6 @@ export interface ThreadSecondaryPanelProps {
   splitPanelStateId?: string;
   isOpen: boolean;
   showConversationCollapseControl?: boolean;
-  showNewTabButton?: boolean;
   inlinePanelToggle?: "button" | "hidden";
   resizablePanelId?: string;
   onPanelFocus: () => void;
@@ -200,12 +197,7 @@ export interface ThreadSecondaryPanelProps {
   renderAsDrawer: boolean;
 }
 
-export function ThreadSecondaryPanel(props: ThreadSecondaryPanelProps) {
-  const panelProps = usePluginDetailPanelProps(props);
-  return <ThreadSecondaryPanelContent {...panelProps} />;
-}
-
-function ThreadSecondaryPanelContent({
+export function ThreadSecondaryPanel({
   activeTab,
   canUseGitUi,
   canNavigateTabs = true,
@@ -220,7 +212,6 @@ function ThreadSecondaryPanelContent({
   splitPanelStateId,
   isOpen,
   showConversationCollapseControl = true,
-  showNewTabButton = true,
   inlinePanelToggle = "button",
   resizablePanelId = "thread-detail-secondary-panel",
   onPanelFocus,
@@ -949,7 +940,6 @@ function ThreadSecondaryPanelContent({
       activeTabId={globalActiveTabId}
       canNavigateTabs={canNavigateTabs && isLayoutOpen}
       fixedTabIds={fixedTabs.map((tab) => tab.tab.id)}
-      hasNewTabButton={showNewTabButton}
       onTabNavigated={(paneId, isNewTabButton) => {
         window.requestAnimationFrame(() => {
           const control = isNewTabButton
@@ -1005,10 +995,8 @@ function ThreadSecondaryPanelContent({
           onSurfaceTabReorder: pane.onReorderTab,
           paneId: pane.paneId,
           reserveLeadingChrome: pane.isTopRow && pane.isLeftEdge,
-          reserveNewTabControl:
-            isSplitPane && !pane.isFocused && showNewTabButton,
-          showNewTabControl:
-            (!isSplitPane || pane.isFocused) && showNewTabButton,
+          reserveNewTabControl: isSplitPane && !pane.isFocused,
+          showNewTabControl: !isSplitPane || pane.isFocused,
           showOuterControls: pane.showOuterControls,
           usesPaneArrangementControl: true,
           usesWindowChrome: pane.isTopRow,
@@ -1030,7 +1018,7 @@ function ThreadSecondaryPanelContent({
       paneId: null,
       reserveLeadingChrome: true,
       reserveNewTabControl: false,
-      showNewTabControl: showNewTabButton,
+      showNewTabControl: true,
       showOuterControls: true,
       usesPaneArrangementControl: false,
       usesWindowChrome: true,

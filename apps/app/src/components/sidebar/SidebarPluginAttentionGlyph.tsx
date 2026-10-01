@@ -4,7 +4,6 @@ import { atomWithStorage } from "jotai/utils";
 import { Link } from "react-router-dom";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { getToolsOwnedCollectionRoutePath } from "@/components/tools/tools-navigation";
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar.js";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
 import {
@@ -12,6 +11,7 @@ import {
   pluginsNeedingAttention,
 } from "@/hooks/usePluginAttention";
 import { createJsonLocalStorage } from "@/lib/browser-storage";
+import { SETTINGS_PLUGINS_ROUTE_PATH } from "@/lib/route-paths";
 
 const acknowledgedAttentionKeyAtom = atomWithStorage<string | null>(
   "bb.sidebar.pluginAttentionAcknowledged",
@@ -57,7 +57,7 @@ export function SidebarPluginAttentionGlyph({
         className={cn(className, "text-warning-text hover:text-warning-text")}
       >
         <Link
-          to={getToolsOwnedCollectionRoutePath("plugins")}
+          to={SETTINGS_PLUGINS_ROUTE_PATH}
           onClick={() => {
             setAcknowledgedKey(key);
             onNavigate?.();

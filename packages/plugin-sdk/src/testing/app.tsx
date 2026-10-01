@@ -1802,9 +1802,6 @@ export function renderSlot<
       openCustomize() {
         sidebarNavigationCalls.push({ method: "openCustomize" });
       },
-      openDetails(itemId) {
-        sidebarNavigationCalls.push({ method: "openDetails", itemId });
-      },
       async disablePlugin(itemId) {
         sidebarNavigationCalls.push({ method: "disablePlugin", itemId });
       },

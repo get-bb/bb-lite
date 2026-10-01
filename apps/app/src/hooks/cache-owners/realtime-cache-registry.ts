@@ -33,13 +33,10 @@ import {
 import {
   allHostQueryKeyPrefix,
   allMachineEnvironmentQueryKeyPrefix,
-  allPluginCatalogSearchQueryKeyPrefix,
   allPluginContributionsQueryKeyPrefix,
   allPluginListQueryKeyPrefix,
   allPluginSettingsQueryKeyPrefix,
   allPluginSettingsViewQueryKeyPrefix,
-  allPluginSourceQueryKeyPrefix,
-  pluginSafeModeQueryKey,
   allProjectCommandsQueryKeyPrefix,
   allThreadStorageFilePreviewQueryKeyPrefix,
   allThreadStorageFilesQueryKeyPrefix,
@@ -1198,9 +1195,6 @@ function dirtyPluginManagementQueries(): QueryKey[] {
     allPluginListQueryKeyPrefix(),
     allPluginSettingsViewQueryKeyPrefix(),
     allPluginSettingsQueryKeyPrefix(),
-    allPluginSourceQueryKeyPrefix(),
-    allPluginCatalogSearchQueryKeyPrefix(),
-    pluginSafeModeQueryKey(),
   ];
 }
 

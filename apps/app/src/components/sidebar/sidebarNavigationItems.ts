@@ -9,9 +9,6 @@ import type { PluginNavPanelChromeEntry } from "@/lib/plugin-nav-panel-chrome";
 import {
   AUTOMATIONS_PLUGIN_ID,
   getPluginPanelRoutePath,
-  getPluginsRoutePath,
-  getSkillsRoutePath,
-  isToolsRoutePath,
 } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
 import {
@@ -24,10 +21,6 @@ export const NEW_THREAD_NAVIGATION_ITEM_ID =
   BUILT_IN_SIDEBAR_NAVIGATION_KEYS.newThread;
 export const SEARCH_THREADS_NAVIGATION_ITEM_ID =
   BUILT_IN_SIDEBAR_NAVIGATION_KEYS.searchThreads;
-export const PLUGINS_NAVIGATION_ITEM_ID =
-  BUILT_IN_SIDEBAR_NAVIGATION_KEYS.extensions;
-export const SKILLS_NAVIGATION_ITEM_ID =
-  BUILT_IN_SIDEBAR_NAVIGATION_KEYS.skills;
 
 export const SIDEBAR_NAVIGATION_LEADING_KEYS =
   DEFAULT_BUILT_IN_SIDEBAR_NAVIGATION_ORDER;
@@ -68,12 +61,6 @@ const HOST_ROWS: readonly SidebarNavigationRow[] = [
   }),
   hostRow(SEARCH_THREADS_NAVIGATION_ITEM_ID, "Search threads", "search", {
     kind: "search-threads",
-  }),
-  hostRow(PLUGINS_NAVIGATION_ITEM_ID, "Plugins", "extensions", {
-    kind: "open-extensions",
-  }),
-  hostRow(SKILLS_NAVIGATION_ITEM_ID, "Skills", "skills", {
-    kind: "open-skills",
   }),
 ];
 
@@ -196,12 +183,6 @@ export function resolveActiveSidebarNavigationItemId({
   pathname: string;
 }): string | null {
   if (pathname === "/") return NEW_THREAD_NAVIGATION_ITEM_ID;
-  if (isToolsRoutePath(pathname)) {
-    return pathname === getSkillsRoutePath() ||
-      pathname.startsWith(`${getSkillsRoutePath()}/`)
-      ? SKILLS_NAVIGATION_ITEM_ID
-      : PLUGINS_NAVIGATION_ITEM_ID;
-  }
   for (const row of rows) {
     const chrome = row.panelEntry?.chrome;
     if (!chrome) continue;
@@ -213,13 +194,5 @@ export function resolveActiveSidebarNavigationItemId({
       return getPluginNavPanelKey(row);
     }
   }
-  return null;
-}
-
-export function getResourceNavigationRoutePath(
-  action: ExperimentalSidebarNavigationAction,
-): string | null {
-  if (action.kind === "open-extensions") return getPluginsRoutePath();
-  if (action.kind === "open-skills") return getSkillsRoutePath();
   return null;
 }

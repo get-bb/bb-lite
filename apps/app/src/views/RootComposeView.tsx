@@ -196,10 +196,6 @@ import {
   useOptionalPaneContext,
   usePaneContext,
 } from "./thread-detail/PaneContext";
-import {
-  PluginDetailPanelContext,
-  usePluginDetailPanelState,
-} from "@/components/plugin/plugin-detail-navigation";
 import { RootComposePanelCommandHandlers } from "./RootComposePanelCommandHandlers";
 import {
   ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
@@ -678,10 +674,6 @@ function RootComposeSurface({
 }: RootComposeSurfaceProps) {
   const paneContext = useOptionalPaneContext();
   const isFocusedPane = paneContext?.isFocused ?? true;
-  const pluginDetails = usePluginDetailPanelState(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    isFocusedPane,
-  );
   const location = useLocation();
   const navigate = useNavigate();
   const [, setPlacement] = useRootComposePlacement();
@@ -957,11 +949,9 @@ function RootComposeSurface({
       isCompactViewport,
       threadId: ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
     });
-  const isWorkspacePanelOpen = isCompactViewport
+  const isSecondaryPanelOpen = isCompactViewport
     ? secondaryPanelDrawerVisibility.isDrawerVisible
     : isPersistedSecondaryPanelOpen;
-  const isSecondaryPanelOpen =
-    isWorkspacePanelOpen || pluginDetails.activePluginId !== null;
   const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
     ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
     null,
@@ -1177,7 +1167,7 @@ function RootComposeSurface({
     openTab({ kind: "new-tab" });
   }, [closeRootSecondaryPanel, isPersistedSecondaryPanelOpen, openTab]);
   const {
-    closePanel: closeWorkspacePanel,
+    closePanel: closeSecondaryPanel,
     openCompactDrawer,
     openHostFile,
     openStorageFile,
@@ -1196,11 +1186,6 @@ function RootComposeSurface({
     openPersistedWorkspaceFile,
     togglePersistedPanel: toggleRootPersistedSecondaryPanel,
   });
-  const dismissPluginDetails = pluginDetails.dismiss;
-  const closeSecondaryPanel = useCallback(() => {
-    dismissPluginDetails();
-    closeWorkspacePanel();
-  }, [dismissPluginDetails, closeWorkspacePanel]);
   const handleOpenLiveFilePreview = useCallback(
     (intent: AppFilePreviewIntent): boolean => {
       const normalized = normalizeExperimentalFileOpenOptions(intent);
@@ -1549,10 +1534,6 @@ function RootComposeSurface({
     ],
   );
   const handleCloseWindowRequest = useCallback(() => {
-    if (pluginDetails.activePluginId !== null) {
-      pluginDetails.close(pluginDetails.activePluginId);
-      return true;
-    }
     if (!isSecondaryPanelOpen) {
       return false;
     }
@@ -1575,7 +1556,6 @@ function RootComposeSurface({
     closeTab,
     handleCloseTerminalTab,
     isSecondaryPanelOpen,
-    pluginDetails,
   ]);
   const [openLinksInAppBrowser] = useOpenLinksInAppBrowserPreference();
   const desktopBrowserAvailable = isDesktopBrowserAvailable();
@@ -2006,7 +1986,7 @@ function RootComposeSurface({
   });
 
   return (
-    <PluginDetailPanelContext.Provider value={pluginDetails}>
+    <>
       <RootComposePanelCommandHandlers
         isFocused={isFocusedPane}
         onClose={handleCloseWindowRequest}
@@ -2084,6 +2064,6 @@ function RootComposeSurface({
           </AppNavigationHostProvider>
         </UrlOpenRoutingProvider>
       </PluginComposerHostProvider>
-    </PluginDetailPanelContext.Provider>
+    </>
   );
 }

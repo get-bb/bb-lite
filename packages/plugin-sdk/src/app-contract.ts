@@ -172,8 +172,6 @@ export interface ExperimentalSidebarNavigationShortcut {
 export type ExperimentalSidebarNavigationAction =
   | { kind: "new-thread" }
   | { kind: "search-threads" }
-  | { kind: "open-extensions" }
-  | { kind: "open-skills" }
   | {
       kind: "open-plugin-panel";
       pluginId: string;
@@ -186,15 +184,15 @@ export type ExperimentalSidebarNavigationAction =
  * artwork, including panel icons with plugin branding as their fallback.
  */
 export type ExperimentalSidebarNavigationIcon =
-  | { kind: "host"; name: "new-thread" | "search" | "extensions" | "skills" }
+  | { kind: "host"; name: "new-thread" | "search" }
   | { kind: "plugin"; pluginId: string; icon: string | null };
 
 /** One host-owned destination or action a plugin may arrange. */
 export interface ExperimentalSidebarNavigationItem {
   /**
    * Arrangement key, stable across reloads: `__bb__/new-thread`,
-   * `__bb__/search-threads`, `__bb__/extensions`, `__bb__/skills`,
-   * `__bb__/automations`, or `<pluginId>/<panelId>`. The same keys appear in
+   * `__bb__/search-threads`, `__bb__/automations`, or
+   * `<pluginId>/<panelId>`. The same keys appear in
    * the `sidebar.pluginPanelOrder` and `sidebar.visiblePluginPanels`
    * settings.
    */
@@ -215,7 +213,7 @@ export interface ExperimentalSidebarNavigationItem {
   isLoading: boolean;
   /**
    * The plugin that contributed this panel; null for bb's own items. Gates
-   * `openDetails` and `disablePlugin`.
+   * `disablePlugin`.
    */
   pluginId: string | null;
   shortcut: ExperimentalSidebarNavigationShortcut | null;
@@ -257,8 +255,6 @@ export interface ExperimentalSidebarNavigationActions {
   setOrder(itemIds: readonly string[]): void;
   /** Open bb's customize editor, which reorders and hides items. */
   openCustomize(): void;
-  /** Open the owning plugin's details. Does nothing when `pluginId` is null. */
-  openDetails(itemId: string): void;
   /**
    * Disable the owning plugin, leave its panel if it is open, and show a
    * toast. Rejects after the host's error toast when disabling fails. Does

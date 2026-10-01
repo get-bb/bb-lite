@@ -19,7 +19,7 @@ import { secondaryPanelWidthPercentAtom } from "./threadSecondaryPanelAtoms";
 type ThreadSecondaryPanelModule = typeof import("./ThreadSecondaryPanel");
 type ThreadStorageFileTreeModule = typeof import("./ThreadStorageFileTree");
 
-export function SecondaryPanelContentSkeleton() {
+function SecondaryPanelContentSkeleton() {
   return (
     <div
       className="space-y-2 px-4 py-4"

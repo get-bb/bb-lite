@@ -2,10 +2,9 @@ import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useSidebarThreadReveal } from "@/components/sidebar/useSidebarThreadReveal";
 import { AppSidebar } from "@/components/sidebar/AppSidebar";
 import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
-import { ResourceSidebar } from "@/components/tools/ResourceSidebar";
 import { Sidebar, useSidebar } from "@/components/ui/sidebar.js";
 
-export type AppLayoutSidebarMode = "app" | "settings" | "plugins" | "skills";
+export type AppLayoutSidebarMode = "app" | "settings";
 
 interface AppLayoutSidebarProps {
   mode: AppLayoutSidebarMode;
@@ -13,7 +12,6 @@ interface AppLayoutSidebarProps {
   isResizing: boolean;
   appRoutePath: string;
   settingsRoutePath: string;
-  toolsBackRoutePath: string;
 }
 
 export function AppLayoutSidebar({
@@ -22,7 +20,6 @@ export function AppLayoutSidebar({
   isResizing,
   appRoutePath,
   settingsRoutePath,
-  toolsBackRoutePath,
 }: AppLayoutSidebarProps) {
   useSidebarThreadReveal();
   const { isCompactViewport, isMobileSidebarClosing } = useSidebar();
@@ -50,16 +47,6 @@ export function AppLayoutSidebar({
             mobileHosted
           />
         ) : null}
-        {renderedMode === "plugins" || renderedMode === "skills" ? (
-          <ResourceSidebar
-            key={renderedMode}
-            workspace={renderedMode}
-            onResizeMouseDown={onResizeMouseDown}
-            isResizing={isResizing}
-            appRoutePath={toolsBackRoutePath}
-            mobileHosted
-          />
-        ) : null}
       </Sidebar>
     );
   }
@@ -70,18 +57,6 @@ export function AppLayoutSidebar({
         onResizeMouseDown={onResizeMouseDown}
         isResizing={isResizing}
         appRoutePath={appRoutePath}
-      />
-    );
-  }
-
-  if (renderedMode === "plugins" || renderedMode === "skills") {
-    return (
-      <ResourceSidebar
-        key={renderedMode}
-        workspace={renderedMode}
-        onResizeMouseDown={onResizeMouseDown}
-        isResizing={isResizing}
-        appRoutePath={toolsBackRoutePath}
       />
     );
   }

@@ -95,16 +95,16 @@ function RowMenuItems({
   return (
     <>
       {canOpenInSplit ? (
-        <Item onSelect={() => actions.activate(item.id, { openInSplit: true })}>
-          <Icon name="Columns2" aria-hidden="true" />
-          Open in split
-        </Item>
+        <>
+          <Item
+            onSelect={() => actions.activate(item.id, { openInSplit: true })}
+          >
+            <Icon name="Columns2" aria-hidden="true" />
+            Open in split
+          </Item>
+          <Separator />
+        </>
       ) : null}
-      <Item onSelect={() => actions.openDetails(item.id)}>
-        <Icon name="Info" aria-hidden="true" />
-        View details
-      </Item>
-      <Separator />
       <Item onSelect={() => actions.setVisible(item.id, false)}>
         <SidebarVisibilityActionContent visible />
       </Item>

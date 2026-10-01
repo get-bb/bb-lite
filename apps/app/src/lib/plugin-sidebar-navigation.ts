@@ -18,7 +18,6 @@ const NOOP_ACTIONS: ExperimentalSidebarNavigationActions = {
   setVisible() {},
   setOrder() {},
   openCustomize() {},
-  openDetails() {},
   disablePlugin: () => Promise.resolve(),
 };
 
@@ -45,9 +44,6 @@ function guardActions(
     },
     openCustomize: () => {
       if (isMounted()) actions.openCustomize();
-    },
-    openDetails: (itemId) => {
-      if (isMounted()) actions.openDetails(itemId);
     },
     disablePlugin: (itemId) =>
       isMounted() ? actions.disablePlugin(itemId) : Promise.resolve(),

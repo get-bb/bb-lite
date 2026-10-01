@@ -16,11 +16,9 @@ import type { PaneContent, SplitLayout } from "@/lib/split-layout";
 import { matchPath } from "react-router-dom";
 import {
   APP_ROOT_ROUTE_PATH,
-  getPluginDetailRoutePath,
   getPluginPanelRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
-  PLUGIN_DETAIL_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,
 } from "@/lib/route-paths";
 
@@ -62,9 +60,6 @@ export function paneContentRoute(content: PaneContent): string {
   if (content.kind === "new-thread") {
     return getRootComposeRoutePath();
   }
-  if (content.kind === "plugin-detail") {
-    return getPluginDetailRoutePath({ pluginId: content.pluginId });
-  }
   return getPluginPanelRoutePath({
     pluginId: content.pluginId,
     path: content.panelPath,
@@ -86,10 +81,6 @@ export function paneContentForPathname(pathname: string): PaneContent | null {
       projectId: thread.params.projectId,
       threadId: thread.params.threadId,
     };
-  }
-  const detail = matchPath(PLUGIN_DETAIL_ROUTE_PATH, pathname);
-  if (detail?.params.pluginId) {
-    return { kind: "plugin-detail", pluginId: detail.params.pluginId };
   }
   const panel = matchPath(PLUGIN_PANEL_ROUTE_PATH, pathname);
   if (panel?.params.pluginId && panel.params.panelPath) {

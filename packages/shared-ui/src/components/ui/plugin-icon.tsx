@@ -1,5 +1,4 @@
-import { useState, type CSSProperties } from "react";
-import { Icon } from "./icon";
+import type { CSSProperties } from "react";
 import { cn } from "../../lib/utils";
 
 export function PluginCompactIconMask({
@@ -30,34 +29,6 @@ export function PluginCompactIconMask({
         WebkitMaskRepeat: "no-repeat",
         WebkitMaskSize: "contain",
       }}
-    />
-  );
-}
-
-export function PluginBrandIcon({
-  icon,
-  iconUrl,
-  iconTinted,
-  className,
-}: {
-  icon: string | null;
-  iconUrl: string | null;
-  iconTinted: boolean;
-  className?: string;
-}) {
-  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
-  if (iconUrl !== null && iconTinted) {
-    return <PluginCompactIconMask url={iconUrl} className={className} />;
-  }
-  if (iconUrl === null || iconUrl === failedIconUrl) {
-    return <Icon name={icon ?? "Zap"} className={className} aria-hidden />;
-  }
-  return (
-    <img
-      src={iconUrl}
-      alt=""
-      className={cn("rounded-sm object-contain", className)}
-      onError={() => setFailedIconUrl(iconUrl)}
     />
   );
 }

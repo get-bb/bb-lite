@@ -4,7 +4,7 @@ import { Button } from "@bb/shared-ui/button";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { createLastKnownCache } from "@/lib/last-known-cache";
-import { getPluginsRoutePath } from "@/lib/route-paths";
+import { SETTINGS_PLUGINS_ROUTE_PATH } from "@/lib/route-paths";
 
 export type SidebarNavigationPlaceholderState =
   | { kind: "loading"; height: number | null }
@@ -94,7 +94,7 @@ export function SidebarNavigationPlaceholder({
           className="self-start"
           onClick={() => {
             onNavigate?.();
-            void navigate(getPluginsRoutePath());
+            void navigate(SETTINGS_PLUGINS_ROUTE_PATH);
           }}
         >
           Open Plugins
