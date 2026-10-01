@@ -5,7 +5,6 @@ import {
   type Host,
   type ThreadListEntry,
 } from "@bb/domain";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import type {
   PluginSdkApp,
   PluginSidebarProject,
@@ -263,7 +262,6 @@ export function useSidebarThreadEntry(
 export function useSidebarThreadActions(): PluginSidebarThreadActions {
   const navigate = useRouteNavigate();
   const store = useStore();
-  const isCompact = useIsCompactViewport();
   const setRootComposeProjectId = useSetRootComposeProjectId();
   const hostActions = useThreadActions();
   const entriesById = useThreadEntryMap();
@@ -295,7 +293,6 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
             navigate,
             projectId,
             threadId,
-            isCompact,
           });
           return;
         }
@@ -357,7 +354,6 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
     [
       entriesById,
       hostActions,
-      isCompact,
       navigate,
       pinThreadAsync,
       requireEntry,

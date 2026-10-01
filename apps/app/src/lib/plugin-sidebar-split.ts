@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useAtomValue } from "jotai";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import type {
   PluginSidebarSplitLayout,
   PluginSidebarSplitPane,
@@ -44,12 +43,8 @@ export function toPluginSidebarSplitLayout(
 }
 
 export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
-  const isCompact = useIsCompactViewport();
   const layout = useAtomValue(splitLayoutAtom);
-  return useMemo(
-    () => (isCompact ? null : toPluginSidebarSplitLayout(layout)),
-    [isCompact, layout],
-  );
+  return useMemo(() => toPluginSidebarSplitLayout(layout), [layout]);
 }
 
 const NO_SPLIT: PluginSidebarThreadSplit = {
@@ -94,8 +89,8 @@ export function useSidebarThreadSplit(
             isFocused: slot.isFocused,
           }));
     return {
-      splitProps: onPointerDown ? { onPointerDown } : {},
-      isAvailable: onPointerDown !== undefined,
+      splitProps: { onPointerDown },
+      isAvailable: true,
       layout: panes === null ? null : { panes },
     };
   }, [entry, indicator.miniMap, onPointerDown]);

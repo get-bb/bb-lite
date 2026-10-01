@@ -145,7 +145,6 @@ function PluginComposerActionList({
             align="end"
             side="top"
             sideOffset={6}
-            mobileTitle="More plugin actions"
             className="max-h-[min(24rem,calc(100dvh-4rem))] w-max max-w-[min(28rem,calc(100vw-2rem))] overflow-y-auto p-1.5"
           >
             <div className="flex flex-col gap-1">

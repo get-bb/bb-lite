@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { atom, useAtom, useAtomValue, useStore } from "jotai";
+import { atom, useAtomValue, useStore } from "jotai";
 import { atomFamily } from "jotai-family";
 import type { Host, JsonValue } from "@bb/domain";
 import { jsonValueSchema } from "@bb/domain";
@@ -15,7 +15,6 @@ import type { PluginFixedTabDeclaration } from "@get-bb/plugin-sdk";
 import { Button } from "@bb/shared-ui/button";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
@@ -89,9 +88,6 @@ const TERMINAL_ROWS = 30;
 const EMPTY_TERMINAL_HOSTS: readonly Host[] = [];
 const RIGHT_PANEL_TOGGLE_CLASS = `${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`;
 
-const compactDrawerOpenAtomFamily = atomFamily((_panelStateId: string) =>
-  atom(false),
-);
 interface FixedTabSessionTarget {
   sequence: number;
   target: JsonValue;
@@ -192,14 +188,12 @@ export function PluginPanelRightPanelHost({
   pluginId,
   subPath,
   flushPageInsets = false,
-  paneId,
 }: {
   children: ReactNode;
   panelPath: string;
   pluginId: string;
   subPath: string;
   flushPageInsets?: boolean;
-  paneId?: string;
 }) {
   const { navPanels } = usePluginSlots();
   const panel =
@@ -210,7 +204,7 @@ export function PluginPanelRightPanelHost({
   const paneContext = useOptionalPaneContext();
   const isFocused = paneContext?.isFocused ?? true;
   const isHostedBySplitWorkspace = paneContext?.secondaryPanelHost != null;
-  const resolvedPaneId = paneId ?? paneContext?.paneId;
+  const resolvedPaneId = paneContext?.paneId;
   const panelHostId = resolvedPaneId ?? "standalone";
   const panelStateId = getPluginPagePanelStateId({
     panelPath,
@@ -237,16 +231,7 @@ export function PluginPanelRightPanelHost({
   });
   const updatePanelState = useUpdateFixedPanelTabsState(panelStateId, null);
   const closePersistedPanel = useCloseFixedSecondaryPanel(panelStateId, null);
-  const [isCompactDrawerOpen, setCompactDrawerOpen] = useAtom(
-    compactDrawerOpenAtomFamily(panelStateId),
-  );
-  const closeCompactDrawer = useCallback(() => {
-    setCompactDrawerOpen(false);
-  }, [setCompactDrawerOpen]);
-  const isCompactViewport = useIsCompactViewport();
-  const isOpen = isCompactViewport
-    ? isCompactDrawerOpen
-    : panelState.secondary.isOpen;
+  const isOpen = panelState.secondary.isOpen;
   const activeTab =
     panelState.secondary.tabs.find(
       (tab) => tab.id === panelState.secondary.activeTabId,
@@ -280,7 +265,6 @@ export function PluginPanelRightPanelHost({
     syncThreadId: null,
     environmentId: null,
     fileOwnerThreadId: null,
-    onCloseLastTab: closeCompactDrawer,
     preserveWorkspaceTabsAcrossContexts: true,
     storageFiles: undefined,
     terminalSessions: undefined,
@@ -323,20 +307,12 @@ export function PluginPanelRightPanelHost({
     terminalsById,
   ]);
 
-  useEffect(() => {
-    closeCompactDrawer();
-  }, [closeCompactDrawer, subPath]);
-
   const revealPanel = useCallback(() => {
-    if (isCompactViewport) {
-      setCompactDrawerOpen(true);
-      return;
-    }
     updatePanelState((state) => ({
       ...state,
       secondary: { ...state.secondary, isOpen: true },
     }));
-  }, [isCompactViewport, setCompactDrawerOpen, updatePanelState]);
+  }, [updatePanelState]);
   const targetStore = useStore();
   const fixedTabOwnerId = getPluginFixedTabOwnerId(
     pluginId,
@@ -453,25 +429,18 @@ export function PluginPanelRightPanelHost({
     () => ({ openFilePreview, openFixedTab }),
     [openFilePreview, openFixedTab],
   );
-  const hidePanel = useCallback(() => {
-    if (isCompactViewport) {
-      closeCompactDrawer();
-      return;
-    }
-    closePersistedPanel();
-  }, [closeCompactDrawer, closePersistedPanel, isCompactViewport]);
   const openNewTab = useCallback(() => {
     openTab({ kind: "new-tab" });
     revealPanel();
   }, [openTab, revealPanel]);
   const togglePanel = useCallback(() => {
     if (isOpen) {
-      hidePanel();
+      closePersistedPanel();
       return;
     }
     if (activeTab === null) openTab({ kind: "new-tab" });
     revealPanel();
-  }, [activeTab, hidePanel, isOpen, openTab, revealPanel]);
+  }, [activeTab, closePersistedPanel, isOpen, openTab, revealPanel]);
 
   useAppCommandHandler("panel.toggle", () => {
     if (!isFocused || panel === null) return false;
@@ -522,7 +491,7 @@ export function PluginPanelRightPanelHost({
                 ...state.secondary,
                 tabs: [...tabs, tab],
                 activeTabId: tab.id,
-                isOpen: isCompactViewport ? state.secondary.isOpen : true,
+                isOpen: true,
               },
             };
           });
@@ -530,7 +499,7 @@ export function PluginPanelRightPanelHost({
         })
         .catch(() => undefined);
     },
-    [createTerminal, isCompactViewport, revealPanel, updatePanelState],
+    [createTerminal, revealPanel, updatePanelState],
   );
   const startSelectedTerminal = useCallback(
     (replaceNewTabId?: string) => {
@@ -638,7 +607,6 @@ export function PluginPanelRightPanelHost({
               fixedPanelTarget={tab.target}
               fixedTerminalId={tab.terminalId}
               isPanelOpen={isOpen}
-              isPanelPersistedOpen={panelState.secondary.isOpen}
               panelStateId={panelStateId}
               syncThreadId={null}
               target={tab.target}
@@ -816,12 +784,10 @@ export function PluginPanelRightPanelHost({
 
   const renderPanel = useCallback(
     ({
-      presentation,
       isMainCollapsed,
       onToggleMainCollapse,
       resizablePanelId,
     }: {
-      presentation: "inline" | "drawer";
       isMainCollapsed: boolean;
       onToggleMainCollapse: () => void;
       resizablePanelId?: string;
@@ -838,20 +804,19 @@ export function PluginPanelRightPanelHost({
           fixedTabs={fixedTabs}
           showConversationCollapseControl={false}
           onPanelFocus={() => undefined}
-          onCollapse={hidePanel}
-          onClose={hidePanel}
+          onCollapse={closePersistedPanel}
+          onClose={closePersistedPanel}
           onOpenNewTab={openNewTab}
           isConversationCollapsed={isMainCollapsed}
           onToggleConversationCollapse={onToggleMainCollapse}
-          renderAsDrawer={presentation === "drawer"}
           resizablePanelId={resizablePanelId}
         />
       );
     },
     [
       activeTab,
+      closePersistedPanel,
       fixedTabs,
-      hidePanel,
       isOpen,
       openNewTab,
       panelStateId,
@@ -873,12 +838,9 @@ export function PluginPanelRightPanelHost({
       <SecondaryPanelLayout
         open={isOpen}
         onToggle={togglePanel}
-        onClose={hidePanel}
         panelGroupKey={`plugin-panel-host:${panelHostId}`}
         resetKey={panelStateId}
         contentKey={panelStateId}
-        drawerLabel="Right panel"
-        drawerFallback={null}
         mainPanelId={`plugin-panel-main-${panelHostId}`}
         main={children}
         composerHost={null}

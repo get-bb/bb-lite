@@ -103,20 +103,9 @@ interface MermaidDiagramDragState {
   startOffset: MermaidDiagramOffset;
 }
 
-interface MermaidDiagramPinchState {
-  startCenter: MermaidDiagramPoint;
-  startDistance: number;
-  startView: MermaidDiagramView;
-}
-
 interface MermaidDiagramGestureState {
   startScale: number;
   startView: MermaidDiagramView;
-}
-
-interface MermaidDiagramTouchPair {
-  center: MermaidDiagramPoint;
-  distance: number;
 }
 
 interface CreateMermaidDialogDiagramStyleArgs {
@@ -144,11 +133,6 @@ interface IsMermaidClientPointWithinContainerArgs {
   clientX: number;
   clientY: number;
   container: HTMLElement;
-}
-
-interface GetMermaidTouchPairArgs {
-  container: HTMLElement;
-  touches: TouchList;
 }
 
 interface GetMermaidWheelZoomFactorArgs {
@@ -192,16 +176,6 @@ interface ZoomMermaidDiagramViewArgs {
   focalPoint: MermaidDiagramPoint;
   nextScale: number;
   view: MermaidDiagramView;
-}
-
-interface PinchMermaidDiagramViewArgs {
-  pinchState: MermaidDiagramPinchState;
-  touchPair: MermaidDiagramTouchPair;
-}
-
-interface MermaidPointPairArgs {
-  firstPoint: MermaidDiagramPoint;
-  secondPoint: MermaidDiagramPoint;
 }
 
 type MermaidRenderState =
@@ -386,51 +360,6 @@ function getMermaidDiagramFocalPoint({
   });
 }
 
-function getMermaidPointDistance({
-  firstPoint,
-  secondPoint,
-}: MermaidPointPairArgs): number {
-  return Math.hypot(firstPoint.x - secondPoint.x, firstPoint.y - secondPoint.y);
-}
-
-function getMermaidPointMidpoint({
-  firstPoint,
-  secondPoint,
-}: MermaidPointPairArgs): MermaidDiagramPoint {
-  return {
-    x: (firstPoint.x + secondPoint.x) / 2,
-    y: (firstPoint.y + secondPoint.y) / 2,
-  };
-}
-
-function getMermaidTouchPair({
-  container,
-  touches,
-}: GetMermaidTouchPairArgs): MermaidDiagramTouchPair | null {
-  const firstTouch = touches.item(0);
-  const secondTouch = touches.item(1);
-
-  if (firstTouch === null || secondTouch === null) {
-    return null;
-  }
-
-  const firstPoint = getMermaidDiagramPointFromClientPosition({
-    clientX: firstTouch.clientX,
-    clientY: firstTouch.clientY,
-    container,
-  });
-  const secondPoint = getMermaidDiagramPointFromClientPosition({
-    clientX: secondTouch.clientX,
-    clientY: secondTouch.clientY,
-    container,
-  });
-
-  return {
-    center: getMermaidPointMidpoint({ firstPoint, secondPoint }),
-    distance: getMermaidPointDistance({ firstPoint, secondPoint }),
-  };
-}
-
 export function getMermaidWheelZoomFactor({
   deltaMode,
   deltaY,
@@ -512,31 +441,6 @@ export function zoomMermaidDiagramView({
   };
 }
 
-export function pinchMermaidDiagramView({
-  pinchState,
-  touchPair,
-}: PinchMermaidDiagramViewArgs): MermaidDiagramView {
-  if (pinchState.startDistance <= 0) {
-    return pinchState.startView;
-  }
-
-  const zoomedView = zoomMermaidDiagramView({
-    focalPoint: pinchState.startCenter,
-    nextScale:
-      pinchState.startView.scale *
-      (touchPair.distance / pinchState.startDistance),
-    view: pinchState.startView,
-  });
-
-  return {
-    offset: {
-      x: zoomedView.offset.x + touchPair.center.x - pinchState.startCenter.x,
-      y: zoomedView.offset.y + touchPair.center.y - pinchState.startCenter.y,
-    },
-    scale: zoomedView.scale,
-  };
-}
-
 function createMermaidDialogDiagramStyle({
   view,
 }: CreateMermaidDialogDiagramStyleArgs): MermaidDialogDiagramStyle {
@@ -578,7 +482,6 @@ function MermaidDiagramDialog({
     createInitialMermaidDiagramView,
   );
   const viewRef = useRef<MermaidDiagramView>(view);
-  const pinchStateRef = useRef<MermaidDiagramPinchState | null>(null);
   const gestureStateRef = useRef<MermaidDiagramGestureState | null>(null);
   const [dragState, setDragState] = useState<MermaidDiagramDragState | null>(
     null,
@@ -635,7 +538,6 @@ function MermaidDiagramDialog({
       viewRef.current = initialView;
       setView(initialView);
       setDragState(null);
-      pinchStateRef.current = null;
       gestureStateRef.current = null;
     }
   }, [open]);
@@ -722,59 +624,6 @@ function MermaidDiagramDialog({
       gestureStateRef.current = null;
     };
 
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length < 2) {
-        pinchStateRef.current = null;
-        return;
-      }
-
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-
-      const touchPair = getMermaidTouchPair({
-        container: viewportElement,
-        touches: event.touches,
-      });
-      if (touchPair === null) {
-        return;
-      }
-
-      pinchStateRef.current = {
-        startCenter: touchPair.center,
-        startDistance: touchPair.distance,
-        startView: viewRef.current,
-      };
-      setDragState(null);
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      const pinchState = pinchStateRef.current;
-      if (pinchState === null || event.touches.length < 2) {
-        return;
-      }
-
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-
-      const touchPair = getMermaidTouchPair({
-        container: viewportElement,
-        touches: event.touches,
-      });
-      if (touchPair === null) {
-        return;
-      }
-
-      setView(pinchMermaidDiagramView({ pinchState, touchPair }));
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length < 2) {
-        pinchStateRef.current = null;
-      }
-    };
-
     window.addEventListener("wheel", handleWheel, {
       capture: true,
       passive: false,
@@ -790,14 +639,6 @@ function MermaidDiagramDialog({
     window.addEventListener("gestureend", handleGestureEnd, {
       capture: true,
     });
-    viewportElement.addEventListener("touchstart", handleTouchStart, {
-      passive: false,
-    });
-    viewportElement.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-    });
-    viewportElement.addEventListener("touchend", handleTouchEnd);
-    viewportElement.addEventListener("touchcancel", handleTouchEnd);
 
     return () => {
       window.removeEventListener("wheel", handleWheel, { capture: true });
@@ -810,10 +651,6 @@ function MermaidDiagramDialog({
       window.removeEventListener("gestureend", handleGestureEnd, {
         capture: true,
       });
-      viewportElement.removeEventListener("touchstart", handleTouchStart);
-      viewportElement.removeEventListener("touchmove", handleTouchMove);
-      viewportElement.removeEventListener("touchend", handleTouchEnd);
-      viewportElement.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [open, zoomFromWheelEvent]);
 
@@ -842,14 +679,12 @@ function MermaidDiagramDialog({
     viewRef.current = initialView;
     setView(initialView);
     setDragState(null);
-    pinchStateRef.current = null;
     gestureStateRef.current = null;
   };
 
   const handlePointerDown: MermaidDiagramPointerHandler = (event) => {
     if (
       !event.isPrimary ||
-      pinchStateRef.current !== null ||
       (event.pointerType === "mouse" && event.button !== 0)
     ) {
       return;

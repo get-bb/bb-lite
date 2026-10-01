@@ -11,7 +11,6 @@ import {
 import type { ReactNode } from "react";
 import { useStore } from "jotai";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { PAGE_SHELL_CONTENT_STYLE } from "./page-shell-content-style.js";
 import { supportsScrollAnchoring } from "@/lib/scroll-anchoring-support";
 import {
@@ -59,7 +58,6 @@ const USER_SCROLL_INTENT_MS = 1_000;
 const SCROLLBAR_IDLE_DELAY_MS = 600;
 const BOTTOM_RESTORE_SETTLE_FRAME_COUNT = 3;
 const SCROLL_ANCHOR_CAPTURE_THROTTLE_MS = 100;
-const COARSE_SCROLL_ANCHOR_CAPTURE_THROTTLE_MS = 250;
 const SCROLL_ANCHOR_RESTORE_MAX_ATTEMPTS = 8;
 const TIMELINE_ROW_ID_SELECTOR = "[data-timeline-row-id]";
 const TOP_LEVEL_TIMELINE_ROW_LIST_SELECTOR =
@@ -231,7 +229,6 @@ export function BottomAnchoredScrollBody({
   scrollAnchorThreadId,
 }: BottomAnchoredScrollBodyProps) {
   const store = useStore();
-  const isPointerCoarse = usePointerCoarse();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
@@ -523,16 +520,12 @@ export function BottomAnchoredScrollBody({
     ],
   );
 
-  const scrollAnchorCaptureThrottleMs = isPointerCoarse
-    ? COARSE_SCROLL_ANCHOR_CAPTURE_THROTTLE_MS
-    : SCROLL_ANCHOR_CAPTURE_THROTTLE_MS;
-
   const captureScrollAnchorThrottled = useCallback(() => {
     if (scrollAnchorThreadId === undefined) return;
     const throttle = scrollAnchorCaptureThrottleRef.current;
     const now = window.performance.now();
     const elapsed = now - throttle.lastWriteAt;
-    if (elapsed >= scrollAnchorCaptureThrottleMs) {
+    if (elapsed >= SCROLL_ANCHOR_CAPTURE_THROTTLE_MS) {
       throttle.lastWriteAt = now;
       writeScrollAnchor();
       return;
@@ -542,8 +535,8 @@ export function BottomAnchoredScrollBody({
       throttle.trailingTimeout = null;
       throttle.lastWriteAt = window.performance.now();
       writeScrollAnchor();
-    }, scrollAnchorCaptureThrottleMs - elapsed);
-  }, [scrollAnchorCaptureThrottleMs, scrollAnchorThreadId, writeScrollAnchor]);
+    }, SCROLL_ANCHOR_CAPTURE_THROTTLE_MS - elapsed);
+  }, [scrollAnchorThreadId, writeScrollAnchor]);
 
   const applyScrollRestore = useCallback(
     (anchor: ScrollAnchor): number | null => {
@@ -597,14 +590,6 @@ export function BottomAnchoredScrollBody({
     },
     [markUserScrollIntent, readMaxScrollOffset, refreshMaxScrollOffset],
   );
-
-  const markTouchStartScrollIntent = useCallback(() => {
-    markUserScrollIntent();
-  }, [markUserScrollIntent]);
-
-  const markTouchMoveScrollIntent = useCallback(() => {
-    markUserScrollIntent();
-  }, [markUserScrollIntent]);
 
   const startPointerScrollIntent = useCallback(() => {
     pointerScrollIntentRef.current = true;
@@ -864,12 +849,6 @@ export function BottomAnchoredScrollBody({
     scrollArea.addEventListener("wheel", markWheelScrollIntent, {
       passive: true,
     });
-    scrollArea.addEventListener("touchstart", markTouchStartScrollIntent, {
-      passive: true,
-    });
-    scrollArea.addEventListener("touchmove", markTouchMoveScrollIntent, {
-      passive: true,
-    });
     scrollArea.addEventListener("pointerdown", startPointerScrollIntent, {
       passive: true,
     });
@@ -883,8 +862,6 @@ export function BottomAnchoredScrollBody({
       resizeObserver?.disconnect();
       scrollArea.removeEventListener("scroll", handleScrollEvent);
       scrollArea.removeEventListener("wheel", markWheelScrollIntent);
-      scrollArea.removeEventListener("touchstart", markTouchStartScrollIntent);
-      scrollArea.removeEventListener("touchmove", markTouchMoveScrollIntent);
       scrollArea.removeEventListener("pointerdown", startPointerScrollIntent);
       window.removeEventListener("pointerup", endPointerScrollIntent);
       window.removeEventListener("pointercancel", endPointerScrollIntent);
@@ -901,8 +878,6 @@ export function BottomAnchoredScrollBody({
     handleScroll,
     handleScrollAreaResize,
     markKeyboardScrollIntent,
-    markTouchMoveScrollIntent,
-    markTouchStartScrollIntent,
     markWheelScrollIntent,
     queueBottomRestore,
     startPointerScrollIntent,
