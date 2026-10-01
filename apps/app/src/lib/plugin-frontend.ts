@@ -183,7 +183,7 @@ interface BbPluginRuntime {
   reactDomClient: unknown;
   jsxRuntime: unknown;
   jsxDevRuntime: unknown;
-  pluginSdkApp: PluginSdkApp;
+  pluginSdkApp: Partial<PluginSdkApp>;
   radixAlertDialog: unknown;
   radixContextMenu: unknown;
   radixDialog: unknown;

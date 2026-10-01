@@ -108,7 +108,7 @@ export const pluginSdkAppImplementation = {
   useSdk,
   experimental_useProviders: useProviders,
   experimental_useCodeTheme: useCodeTheme,
-} satisfies PluginSdkApp;
+} satisfies Partial<PluginSdkApp>;
 
 function PluginMarkdown({
   content,
