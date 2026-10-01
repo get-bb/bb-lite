@@ -50,7 +50,7 @@ function multilineRows(value: string): number {
 function isMultilineSetting(descriptor: PluginSettingFieldDescriptor): boolean {
   return (
     descriptor.type === "string" &&
-    descriptor.experimental_multiline === true &&
+    descriptor.multiline === true &&
     descriptor.secret !== true
   );
 }
@@ -444,11 +444,7 @@ export function PluginSettingsForm({ pluginId }: { pluginId: string }) {
   );
 }
 
-const PLUGIN_STATUSES_WITH_SETTINGS = [
-  "running",
-  "needs-configuration",
-  "degraded",
-];
+const PLUGIN_STATUSES_WITH_SETTINGS = ["running", "needs-configuration"];
 
 function PluginSettingsFieldSkeleton() {
   return (
@@ -549,7 +545,7 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-foreground">
-              {plugin.name ?? plugin.id}
+              {plugin.name}
             </h1>
             {plugin.description ? (
               <p className="truncate text-xs text-subtle-foreground">

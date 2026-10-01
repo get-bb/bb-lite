@@ -8,7 +8,7 @@ import {
   type ResolvedProvider,
 } from "@/plugins/registry";
 
-export const BUNDLED_NAVIGATION_PROVIDER = "compact-nav/icons";
+export const BUNDLED_NAVIGATION_PROVIDER = "navigation/navigation";
 
 export const sidebarNavigationProviderAtom = createSyncedPreferenceAtom(
   "sidebar.navigationProvider",

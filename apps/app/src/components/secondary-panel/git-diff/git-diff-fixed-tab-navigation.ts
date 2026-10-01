@@ -1,4 +1,4 @@
-import type { JsonValue } from "@bb/plugin/app";
+import type { JsonValue } from "@bb/domain";
 import type {
   AppFixedTabDestination,
   AppFixedTabReference,

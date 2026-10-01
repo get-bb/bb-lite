@@ -30,7 +30,6 @@ import {
   createTimelineViewRowsCache,
   findActiveLatestBundleId,
   workRowGlyph,
-  workRowPluginGlyph,
   workRowPresentation,
   type BuildTimelineRowTitleOptions,
   type BuildTimelineViewRowsOptions,
@@ -85,7 +84,6 @@ import { Button } from "@bb/shared-ui/button";
 import { AutoHeightContainer } from "../../ui/height-transition.js";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { presentationTintStyle } from "./presentation-display.js";
-import { usePluginIconUrl } from "@/lib/plugin-logos";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import {
   TimelineScrollRestoreRowIdContext,
@@ -1252,14 +1250,6 @@ function leadingIconStyleForRow(
   return presentationTintStyle(workRowPresentation(row));
 }
 
-function useLeadingIconUrlForRow(
-  row: ThreadTimelineViewRow,
-): string | undefined {
-  return usePluginIconUrl(
-    row.kind === "work" ? workRowPluginGlyph(row) : undefined,
-  );
-}
-
 function TimelineRowView({
   activeLatestBundleId,
   compactActivityIntents,
@@ -1277,7 +1267,6 @@ function TimelineRowView({
     row,
     scopeActive,
   });
-  const staticLeadingIconUrl = useLeadingIconUrlForRow(row);
 
   if (row.kind === "conversation") {
     return (
@@ -1336,7 +1325,6 @@ function TimelineRowView({
         <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
           <TimelineLeadingIcon
             icon={staticLeadingIcon}
-            iconUrl={staticLeadingIconUrl}
             style={staticLeadingIconStyle}
           />
           <TitleView
@@ -1402,7 +1390,6 @@ function TimelineExpandableRowView({
   );
 
   const leadingIcon = leadingIconForRow(row);
-  const leadingIconUrl = useLeadingIconUrlForRow(row);
   const leadingIconStyle = leadingIconStyleForRow(row);
 
   return (
@@ -1427,7 +1414,6 @@ function TimelineExpandableRowView({
           ? workRowGlyph(row, (glyph): glyph is never => false)
           : undefined
       }
-      leadingIconUrl={leadingIconUrl}
       leadingIconStyle={leadingIconStyle}
       autoExpanded={
         liveAutoExpandedRowIds.has(row.id) ||

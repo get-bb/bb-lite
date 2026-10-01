@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type {
   SidebarNavigationActions,
-  SidebarNavigationSplit,
+  PluginSidebarThreadSplit,
   SidebarNavigationSplitOptions,
   SidebarNavigationState,
   PluginSidebarSplitPane,
@@ -18,6 +18,7 @@ const NOOP_ACTIONS: SidebarNavigationActions = {
   setVisible() {},
   setOrder() {},
   openCustomize() {},
+  disablePlugin: () => Promise.resolve(),
 };
 
 const EMPTY_STATE: SidebarNavigationState = {
@@ -44,6 +45,8 @@ function guardActions(
     openCustomize: () => {
       if (isMounted()) actions.openCustomize();
     },
+    disablePlugin: (itemId) =>
+      isMounted() ? actions.disablePlugin(itemId) : Promise.resolve(),
   };
 }
 
@@ -76,7 +79,7 @@ const PLACEHOLDER_CONTENT = { kind: "new-thread" } as const;
 export function useSidebarNavigationSplit(
   itemId: string,
   splitOptions?: SidebarNavigationSplitOptions,
-): SidebarNavigationSplit {
+): PluginSidebarThreadSplit {
   const model = useSidebarNavigationModel();
   const target = useSidebarNavigationRowContent(itemId);
   const enabled = target !== null && (model?.splitEnabled ?? false);
@@ -99,7 +102,7 @@ export function useSidebarNavigationSplit(
   );
   const { onPointerDown } = usePaneContentSplitDrag(options);
   const indicator = usePaneContentSplitIndicator(options.content, enabled);
-  return useMemo<SidebarNavigationSplit>(() => {
+  return useMemo<PluginSidebarThreadSplit>(() => {
     const panes: PluginSidebarSplitPane[] | null =
       indicator.miniMap === null
         ? null

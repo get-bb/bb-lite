@@ -23,7 +23,11 @@ import {
 } from "@/components/commands/AppCommandProvider";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/plugins/mount";
+import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { getPluginNavPanelKey } from "@/components/plugin/pluginNavSidebarOrder";
+import { appToast } from "@/components/ui/app-toast";
+import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
+import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import type { PluginSlot } from "@/plugins/registry";
 import { getPluginPanelRoutePath } from "@/lib/route-paths";
@@ -166,6 +170,7 @@ export function SidebarNavigationModelProvider({
   const navigate = useNavigate();
   const commandRunner = useAppCommandRunner();
   const splitActions = usePaneContentSplitActions();
+  const setPluginEnabled = useSetPluginEnabled();
   const newThreadShortcut = useAppCommandShortcut("thread.new");
   const threadSearchShortcut = useAppCommandShortcut("thread.search");
   const searchThreadsDisabled = !commandRunner.isCommandAvailable(
@@ -226,6 +231,7 @@ export function SidebarNavigationModelProvider({
     items,
     navigate,
     rowsById,
+    setPluginEnabled,
     splitActions,
   });
   useLayoutEffect(() => {
@@ -236,6 +242,7 @@ export function SidebarNavigationModelProvider({
       items,
       navigate,
       rowsById,
+      setPluginEnabled,
       splitActions,
     };
   });
@@ -301,6 +308,27 @@ export function SidebarNavigationModelProvider({
       },
       openCustomize() {
         latest.current.host.onOpenCustomize();
+      },
+      async disablePlugin(itemId) {
+        const found = lookup(itemId);
+        const pluginId = found?.row.ownerPluginId;
+        if (!found || !pluginId) return;
+        const { current, item } = found;
+        try {
+          await current.setPluginEnabled(
+            pluginId,
+            false,
+            current.host.onNavigate,
+          );
+          appToast.success(`${item.label} disabled`);
+        } catch (error) {
+          appToast.error(`Failed to disable ${item.label}`, {
+            description: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        } finally {
+          await invalidatePluginList({ queryClient: appQueryClient });
+        }
       },
     };
   }, []);

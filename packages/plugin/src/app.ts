@@ -3,6 +3,7 @@ import type { BbSdkAreas } from "@bb/sdk";
 import type * as T from "./app-types.js";
 
 export type * from "./app-types.js";
+export * from "./shared-modules.js";
 
 export interface PluginAppApi {
   slots: {
@@ -19,7 +20,9 @@ export interface PluginAppApi {
     threadList(
       registration: T.PluginProviderRegistration<T.PluginThreadListProps>,
     ): void;
-    sidebarNavigation(registration: T.PluginProviderRegistration): void;
+    sidebarNavigation(
+      registration: T.PluginProviderRegistration<T.SidebarNavigationProps>,
+    ): void;
     sidebarHeader(
       registration: T.PluginProviderRegistration<T.SidebarHeaderProps>,
     ): void;
@@ -78,7 +81,7 @@ export interface PluginAppHost {
   useSidebarNavigationSplit(
     itemId: string,
     options?: T.SidebarNavigationSplitOptions,
-  ): T.SidebarNavigationSplit;
+  ): T.PluginSidebarThreadSplit;
   useQuestionFormHost(): T.QuestionFormHost;
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
   ThreadChat: ComponentType<T.ThreadChatProps>;
@@ -88,7 +91,7 @@ export interface PluginAppHost {
   Icon: ComponentType<T.IconProps>;
   ProviderIcon: ComponentType<T.ProviderIconProps>;
   UrlLink: ComponentType<T.UrlLinkProps>;
-  ThreadTitle: ComponentType<T.PluginThreadTitleProps>;
+  ThreadTitle: ComponentType<{ threadId: string }>;
 }
 
 let installedHost: PluginAppHost | null = null;

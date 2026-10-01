@@ -174,16 +174,16 @@ export const uiPreferenceDefinitions = {
   ),
   "sidebar.navigationProvider": defineUiPreference(
     uiPreferenceStringSchema.transform((value) =>
-      value === "__builtin__" ? "compact-nav/icons" : value,
+      value === "__builtin__" ? "navigation/navigation" : value,
     ),
-    "compact-nav/icons",
-    "Plugin that renders the sidebar navigation, or __automatic__ for the first installed navigation plugin other than the bundled compact-nav/icons, falling back to it. Legacy __builtin__ resolves to compact-nav/icons.",
+    "__automatic__",
+    "Plugin that renders the sidebar navigation, or __automatic__ for the first installed navigation plugin other than the bundled navigation/navigation, falling back to it. Legacy __builtin__ resolves to navigation/navigation.",
   ),
   "sidebar.headerProvider": defineUiPreference(
     uiPreferenceStringSchema.transform((value) =>
       value === "__automatic__" ? "__builtin__" : value,
     ),
-    "compact-nav/icons",
+    "__builtin__",
     "Plugin that renders controls beside the sidebar toggle, or __builtin__ for bb's own header only.",
   ),
   "sidebar.threadListProvider": defineUiPreference(

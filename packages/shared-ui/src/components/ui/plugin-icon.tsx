@@ -1,14 +1,11 @@
-import type { CSSProperties } from "react";
 import { cn } from "../../lib/utils";
 
 export function PluginCompactIconMask({
   url,
   className,
-  style,
 }: {
   url: string;
   className?: string;
-  style?: CSSProperties;
 }) {
   const maskImage = `url(${JSON.stringify(url)})`;
   return (
@@ -18,7 +15,6 @@ export function PluginCompactIconMask({
       data-icon-root=""
       className={cn("inline-block size-4 shrink-0", className)}
       style={{
-        ...style,
         backgroundColor: "currentColor",
         maskImage,
         maskPosition: "center",

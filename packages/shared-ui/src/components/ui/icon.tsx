@@ -52,8 +52,6 @@ import { useSyncExternalStore } from "react";
 import { cn } from "../../lib/utils";
 import {
   EXTENDED_ICON_NAMES,
-  getPluginAssetIcon,
-  subscribePluginAssetIcons,
   type ExtendedIconName,
   getExtendedIcons,
   subscribeExtendedIcons,
@@ -250,65 +248,11 @@ export function isBuiltinIconName(name: string): name is BuiltinIconName {
 }
 
 export function Icon({ name, fallback = "Zap", ...props }: IconProps) {
-  const asset = useSyncExternalStore(
-    subscribePluginAssetIcons,
-    () => getPluginAssetIcon(name),
-    () => getPluginAssetIcon(name),
-  );
-  const fallbackAsset = useSyncExternalStore(
-    subscribePluginAssetIcons,
-    () => getPluginAssetIcon(fallback),
-    () => getPluginAssetIcon(fallback),
-  );
-  const requestedExists = isBuiltinIconName(name) || asset !== undefined;
-  const resolved = requestedExists ? name : fallback;
-  const resolvedAsset = requestedExists ? asset : fallbackAsset;
-  if (resolvedAsset !== undefined) {
-    return (
-      <PluginAssetIcon url={resolvedAsset} resolved={resolved} {...props} />
-    );
-  }
+  const resolved = isBuiltinIconName(name) ? name : fallback;
   return (
     <BuiltinIcon
       name={isBuiltinIconName(resolved) ? resolved : "Zap"}
       {...props}
-    />
-  );
-}
-
-function PluginAssetIcon({
-  url,
-  resolved,
-  className,
-  style,
-  "aria-hidden": ariaHidden,
-  "aria-label": ariaLabel,
-}: Omit<IconProps, "name" | "fallback"> & {
-  url: string;
-  resolved: string;
-}) {
-  const image = `url("${url.replace(/["\\]/gu, "\\$&")}")`;
-  return (
-    <span
-      className={cn("inline-block size-6 shrink-0", className)}
-      style={{
-        ...style,
-        backgroundColor: "currentColor",
-        maskImage: image,
-        maskPosition: "center",
-        maskRepeat: "no-repeat",
-        maskSize: "contain",
-        WebkitMaskImage: image,
-        WebkitMaskPosition: "center",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskSize: "contain",
-      }}
-      aria-hidden={ariaHidden}
-      aria-label={ariaLabel}
-      role={ariaLabel ? "img" : undefined}
-      data-icon={resolved}
-      data-icon-root=""
-      data-plugin-icon-asset={url}
     />
   );
 }

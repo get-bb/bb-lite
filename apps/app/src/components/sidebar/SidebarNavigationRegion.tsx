@@ -70,10 +70,12 @@ export function resolveCustomizeFocusReturnTarget(
 
 function NavigationProvider({
   slot,
+  isCompactViewport,
   attempt,
   onReload,
 }: {
   slot: PluginSlot<"sidebarNavigations">;
+  isCompactViewport: boolean;
   attempt: number;
   onReload: () => void;
 }) {
@@ -99,7 +101,7 @@ function NavigationProvider({
         });
       }}
     >
-      <Component />
+      <Component isCompactViewport={isCompactViewport} />
     </PluginSlotMount>
   );
 }
@@ -214,6 +216,7 @@ export function SidebarNavigationRegion({
         ) : (
           <NavigationProvider
             slot={slot}
+            isCompactViewport={isCompactViewport}
             attempt={attempt}
             onReload={handleReload}
           />

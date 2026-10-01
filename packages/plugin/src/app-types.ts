@@ -22,8 +22,6 @@ import type {
   CreateThreadEnvironmentArgs,
 } from "@bb/server-contract";
 
-export type { JsonValue };
-
 export interface PluginNavPanelProps {
   subPath: string;
 }
@@ -99,6 +97,7 @@ export interface SidebarNavigationActions {
   setVisible(itemId: string, isVisible: boolean): void;
   setOrder(itemIds: readonly string[]): void;
   openCustomize(): void;
+  disablePlugin(itemId: string): Promise<void>;
 }
 
 export interface SidebarNavigationState {
@@ -121,8 +120,6 @@ export interface PluginSidebarThreadSplit {
   layout: { panes: readonly PluginSidebarSplitPane[] } | null;
 }
 
-export type SidebarNavigationSplit = PluginSidebarThreadSplit;
-
 export interface SidebarNavigationSplitOptions {
   activation?: "sidebar" | "distance";
   onDragStart?: () => void;
@@ -131,6 +128,10 @@ export interface SidebarNavigationSplitOptions {
 export interface SidebarNavigationIconProps {
   icon: SidebarNavigationItemIcon;
   className?: string;
+}
+
+export interface SidebarNavigationProps {
+  isCompactViewport: boolean;
 }
 
 export interface SidebarHeaderProps {
@@ -469,10 +470,6 @@ export interface UrlLinkProps extends Omit<
   "href"
 > {
   href: string;
-}
-
-export interface PluginThreadTitleProps {
-  threadId: string;
 }
 
 export interface ThreadChatProps {

@@ -1,38 +1,30 @@
-import { useCallback, useSyncExternalStore } from "react";
-import { parseNamespacedGlyph } from "@bb/domain";
-import { setPluginAssetIcons } from "@bb/shared-ui/icon-registry";
-import type { PluginListEntry } from "@/hooks/queries/plugin-settings-queries";
+import { useSyncExternalStore } from "react";
+import type { InstalledPlugin } from "@bb/server-contract";
+import { pluginIconUrl } from "@/hooks/queries/plugin-settings-queries";
 
 interface PluginLogoUrls {
-  displayName: string | null;
+  displayName: string;
   icon: string | null;
   compactIconUrl: string | null;
-  icons: ReadonlyMap<string, string>;
 }
 
 let logoUrls: ReadonlyMap<string, PluginLogoUrls> = new Map();
 const listeners = new Set<() => void>();
 
-export function setPluginBranding(plugins: readonly PluginListEntry[]): void {
-  const assetIcons = new Map<string, string>();
+export function setPluginBranding(plugins: readonly InstalledPlugin[]): void {
   logoUrls = new Map(
     plugins.map((plugin) => {
-      const icons = new Map(Object.entries(plugin.icons ?? {}));
-      for (const [name, url] of icons) {
-        assetIcons.set(`${plugin.id}/${name}`, url);
-      }
+      const compactIconUrl = pluginIconUrl(plugin.icon);
       return [
         plugin.id,
         {
           displayName: plugin.name,
-          icon: plugin.icon,
-          compactIconUrl: plugin.iconUrl ?? null,
-          icons,
+          icon: compactIconUrl === null ? plugin.icon : null,
+          compactIconUrl,
         },
       ];
     }),
   );
-  setPluginAssetIcons(assetIcons);
   for (const listener of listeners) listener();
 }
 
@@ -72,25 +64,4 @@ export function usePluginDisplayName(pluginId: string): string {
     getPluginLogoUrls,
   );
   return entries.get(pluginId)?.displayName ?? pluginId;
-}
-
-export function usePluginIconUrl(
-  glyph: string | undefined,
-): string | undefined {
-  const getSnapshot = useCallback(
-    () => resolvePluginIconUrl(getPluginLogoUrls(), glyph),
-    [glyph],
-  );
-  return useSyncExternalStore(subscribePluginLogos, getSnapshot, getSnapshot);
-}
-
-function resolvePluginIconUrl(
-  entries: ReadonlyMap<string, Pick<PluginLogoUrls, "icons">>,
-  glyph: string | undefined,
-): string | undefined {
-  const parsed = glyph === undefined ? null : parseNamespacedGlyph(glyph);
-  if (parsed === null) {
-    return undefined;
-  }
-  return entries.get(parsed.pluginId)?.icons.get(parsed.name);
 }

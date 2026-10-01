@@ -4,7 +4,7 @@ function pluginNeedsAttention(
   plugin: Pick<PluginListItem, "enabled" | "status">,
 ): boolean {
   return (
-    plugin.enabled && (plugin.status === "error" || plugin.status === "missing")
+    plugin.enabled && plugin.status === "error"
   );
 }
 
@@ -19,9 +19,8 @@ export function pluginAttentionLabel(
 ): string {
   if (plugins.length !== 1) return `${plugins.length} plugins are not running`;
   const [plugin] = plugins;
-  const name = plugin.name ?? plugin.id;
   const detail = plugin.statusDetail ?? "";
   return detail.length > 0 && detail.length <= 80
-    ? `${name} is not running: ${detail}`
-    : `${name} is not running`;
+    ? `${plugin.name} is not running: ${detail}`
+    : `${plugin.name} is not running`;
 }

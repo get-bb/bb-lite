@@ -25,7 +25,10 @@ import {
   unregisterPluginApp,
 } from "./registry";
 
-const RUNTIME_MODULES: Readonly<Record<string, unknown>> = {
+const RUNTIME_MODULES: Record<
+  (typeof pluginApp.PLUGIN_SHARED_MODULES)[number],
+  unknown
+> = {
   react,
   "react-dom": reactDom,
   "react-dom/client": reactDomClient,
@@ -133,7 +136,9 @@ async function syncPlugins(refetch: boolean): Promise<void> {
 export function bootPlugins(): Promise<void> {
   boot ??= (async () => {
     pluginApp.installPluginAppHost(pluginAppHost);
-    Object.assign(globalThis, { __bbPluginRuntime: RUNTIME_MODULES });
+    Object.assign(globalThis, {
+      [pluginApp.PLUGIN_RUNTIME_GLOBAL]: RUNTIME_MODULES,
+    });
     syncQueue = syncPlugins(false);
     await Promise.all([...BUILTIN_PLUGINS.map(loadBuiltin), syncQueue]);
     markPluginsSettled();

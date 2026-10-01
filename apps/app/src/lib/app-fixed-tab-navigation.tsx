@@ -1,4 +1,4 @@
-import type { JsonValue } from "@bb/plugin/app";
+import type { JsonValue } from "@bb/domain";
 
 export interface AppFixedTabReference {
   ownerId: string;
