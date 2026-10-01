@@ -1,21 +1,12 @@
 import {
   cliCommand,
   defineCli,
-  defineRpcContract,
   PluginCliError,
   type PluginServerApi,
 } from "@bb/plugin";
-import { z } from "zod";
+import { contract } from "./contract.js";
 
 const MIGRATIONS = ["CREATE TABLE calls (text TEXT NOT NULL)"];
-
-const contract = defineRpcContract({
-  echo: {
-    input: z.object({ text: z.string() }),
-    output: z.object({ text: z.string(), calls: z.number() }),
-  },
-  fail: { input: z.null(), output: z.null() },
-});
 
 const say = cliCommand({
   summary: "Repeat a phrase",

@@ -24,7 +24,13 @@ const SHARED_NAMESPACE = "bb-shared";
 const REQUIRE_BANNER =
   'import { createRequire as bbCreateRequire } from "node:module";\n' +
   "const require = bbCreateRequire(import.meta.url);";
-const COMMON: BuildOptions = { bundle: true, write: false, logLevel: "silent" };
+const COMMON: BuildOptions = {
+  bundle: true,
+  write: false,
+  logLevel: "silent",
+  alias: { "@bb/plugin": hostRequire.resolve("@bb/plugin") },
+  nodePaths: [HOST_NODE_MODULES],
+};
 let importCount = 0;
 
 const hostNativeModules: Plugin = {
@@ -74,8 +80,6 @@ export async function importServerEntry(
     platform: "node",
     format: "esm",
     target: "node22",
-    alias: { "@bb/plugin": hostRequire.resolve("@bb/plugin") },
-    nodePaths: [HOST_NODE_MODULES],
     banner: { js: REQUIRE_BANNER },
     plugins: [hostNativeModules],
   });

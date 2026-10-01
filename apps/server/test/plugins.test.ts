@@ -118,6 +118,8 @@ it("guards plugin http routes by their declared auth mode", async () => {
   expect((await request("/echo/http/local")).body).toEqual({ auth: "local" });
   expect(await status("local", MACHINE)).toBe(403);
   expect(await status("none", MACHINE)).toBe(200);
+  const fromMachine = await send("/echo/rpc/echo", { text: "m" }, MACHINE);
+  expect(fromMachine.status).toBe(200);
   expect(await status("token")).toBe(401);
   expect((await send("/echo/token", {}, MACHINE)).status).toBe(403);
   const { token } = (await send("/echo/token", {})).body as { token: string };
@@ -243,7 +245,7 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   const panels: { component(): unknown }[] = [];
   const slots = { navPanel: (panel: (typeof panels)[0]) => panels.push(panel) };
   sandbox.module.exports.default?.setup({ slots });
-  const props = { className: "echo-panel flex", children: 1 };
+  const props = { className: "echo-panel flex", children: 2 };
   expect(panels[0]?.component()).toEqual({ type: "div", props });
 });
 
