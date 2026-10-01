@@ -36,8 +36,6 @@ import {
   presentationIconName,
   presentationTintStyle,
 } from "@/components/thread/timeline/presentation-display";
-import { PluginCompactIconMask } from "@/components/plugin/PluginIcon";
-import { usePluginIconUrl } from "@/lib/plugin-logos";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 interface ThreadPendingInteractionBannerProps {
@@ -453,27 +451,18 @@ function ApprovalDetailList({
 }
 
 function ToolUseAskCard({ ask }: { ask: PendingInteractionToolUseAsk }) {
-  const iconUrl = usePluginIconUrl(ask.icon.glyph);
   return (
     <div
       className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card px-3 py-2"
       data-testid="tool-use-ask"
     >
       <div className="flex min-w-0 items-center gap-2 text-xs text-foreground">
-        {iconUrl !== undefined ? (
-          <PluginCompactIconMask
-            url={iconUrl}
-            className="size-3.5"
-            style={presentationTintStyle(ask)}
-          />
-        ) : (
-          <Icon
-            name={presentationIconName(ask) ?? "Terminal"}
-            fallback="Terminal"
-            className="size-3.5 shrink-0"
-            style={presentationTintStyle(ask)}
-          />
-        )}
+        <Icon
+          name={presentationIconName(ask) ?? "Terminal"}
+          fallback="Terminal"
+          className="size-3.5 shrink-0"
+          style={presentationTintStyle(ask)}
+        />
         <span className="min-w-0 truncate font-mono">
           {ask.headline ?? ask.tool}
         </span>

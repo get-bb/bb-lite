@@ -44,7 +44,6 @@ interface ExpandableTimelineRowProps {
   horizontalPadding?: TimelineRowHorizontalPadding;
   leadingIcon?: IconName;
   leadingIconFallback?: IconName;
-  leadingIconUrl?: string;
   leadingIconStyle?: CSSProperties;
   headerClassName?: string;
   summaryClassName?: string;
@@ -87,7 +86,6 @@ function ExpandableTimelineRowComponent({
   horizontalPadding = "default",
   leadingIcon,
   leadingIconFallback,
-  leadingIconUrl,
   leadingIconStyle,
   onTitleAction,
   renderBody,
@@ -210,7 +208,6 @@ function ExpandableTimelineRowComponent({
           <TimelineLeadingIcon
             icon={leadingIcon}
             fallback={leadingIconFallback}
-            iconUrl={leadingIconUrl}
             style={leadingIconStyle}
           />
           {titleContent ?? (

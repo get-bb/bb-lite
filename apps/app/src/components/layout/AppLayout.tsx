@@ -58,7 +58,7 @@ import {
   usePluginNavPanelChrome,
   type PluginNavPanelChrome,
 } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import {
   booleanLocalStorage,
   createLocalStorageSyncStorage,
@@ -211,7 +211,7 @@ interface AppHeaderProps {
   usesProjectChromeStyle: boolean;
   projectId?: string;
   project?: ProjectResponse;
-  pluginPanel?: PluginNavPanelSlot;
+  pluginPanel?: PluginSlot<"navPanels">;
   pluginPanelChrome?: PluginNavPanelChrome;
   pluginPanelSubPath?: string;
   meta: {

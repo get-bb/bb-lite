@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -40,7 +41,6 @@ import {
   PANEL_RESIZE_HANDLE_LAYER_CLASS,
   PANEL_RESIZE_HIT_TARGET_CLASS,
 } from "@/components/secondary-panel/panelTransitionTokens";
-import { PluginComposerHostProvider } from "@/components/plugin/plugin-composer-host";
 import { usePanelResizeSnap } from "@/components/secondary-panel/usePanelResizeSnap";
 import {
   type PaneSecondaryPanelRegistry,
@@ -298,12 +298,7 @@ export function SplitWorkspaceSecondaryPanelHost({
                 </Panel>
               </>
             ) : (
-              <PluginComposerHostProvider
-                key={focusedPaneId}
-                value={model.composerHost}
-              >
-                {model.panel}
-              </PluginComposerHostProvider>
+              <Fragment key={focusedPaneId}>{model.panel}</Fragment>
             )}
           </SecondaryPanelMinimumContext.Provider>
         </PanelGroup>

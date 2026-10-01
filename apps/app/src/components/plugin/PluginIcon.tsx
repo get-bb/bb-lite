@@ -1,16 +1,7 @@
-import { useSyncExternalStore } from "react";
-import {
-  getAppIcon,
-  getPluginAssetIcon,
-  subscribeAppIcons,
-  subscribePluginAssetIcons,
-} from "@bb/shared-ui/icon-registry";
 import { PluginCompactIconMask } from "@bb/shared-ui/plugin-icon";
 import { Icon, isBuiltinIconName, type IconName } from "@bb/shared-ui/icon";
 import { usePluginCompactBranding } from "@/lib/plugin-logos";
 import { cn } from "@bb/shared-ui/lib/utils";
-
-export { PluginCompactIconMask } from "@bb/shared-ui/plugin-icon";
 
 export function pluginIconName(icon: string | null): IconName {
   return icon ?? "Zap";
@@ -58,17 +49,7 @@ export function PluginItemIcon({
   className?: string;
 }) {
   const name = icon ?? "";
-  const custom = useSyncExternalStore(
-    subscribeAppIcons,
-    () => getAppIcon(name),
-    () => getAppIcon(name),
-  );
-  const asset = useSyncExternalStore(
-    subscribePluginAssetIcons,
-    () => getPluginAssetIcon(name),
-    () => getPluginAssetIcon(name),
-  );
-  if (isBuiltinIconName(name) || custom !== undefined || asset !== undefined) {
+  if (isBuiltinIconName(name)) {
     return (
       <Icon
         name={name}

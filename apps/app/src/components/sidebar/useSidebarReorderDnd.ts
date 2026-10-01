@@ -20,8 +20,6 @@ export function useSidebarReorderDnd({
   onDragMove,
   onDragOver,
   onDragCancel,
-  collisionDetection,
-  axis,
   measuring,
 }: UseReorderDndArgs): UseReorderDndResult {
   const handleDragStart = useCallback(
@@ -55,8 +53,6 @@ export function useSidebarReorderDnd({
     onDragMove,
     onDragOver,
     onDragCancel: handleDragCancel,
-    collisionDetection,
-    axis,
     measuring,
   });
 }

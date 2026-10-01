@@ -10,11 +10,13 @@ import {
 } from "react";
 import type { FileContents } from "@pierre/diffs";
 import type { GitDiffFileChangeKind } from "@bb/server-contract";
-import type { ExperimentalDiffFullFileContents } from "@get-bb/plugin-sdk";
 import { useIntersectionObserver } from "usehooks-ts";
 import { Button } from "@bb/shared-ui/button";
-import { DiffHost } from "@/components/code/DiffHost";
-import type { DiffPresentation } from "@/components/code/code-rendering";
+import BbDiff from "@/components/code/BbDiff";
+import type {
+  DiffPresentation,
+  ExperimentalDiffFullFileContents,
+} from "@/components/code/code-rendering";
 import {
   getWrappedImageIndex,
   ImageLightbox,
@@ -681,7 +683,7 @@ function GitDiffCardSvgBody({
       fitToFrame
     />
   ) : (
-    <DiffHost
+    <BbDiff
       file={fileDiff}
       patchText={patchText}
       fullFileContents={fullFileContents}
@@ -765,7 +767,7 @@ export function GitDiffCardBody({
         />
       ) : (
         <>
-          <DiffHost
+          <BbDiff
             file={fileDiff}
             patchText={patchText}
             fullFileContents={fullFileContents}

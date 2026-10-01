@@ -1,10 +1,9 @@
 import type { ComponentType } from "react";
 import type {
-  ExperimentalSidebarNavigationAction,
-  ExperimentalSidebarNavigationIcon,
-  ExperimentalSidebarNavigationItem,
-  ExperimentalSidebarNavigationShortcut,
-} from "@get-bb/plugin-sdk";
+  SidebarNavigationAction,
+  SidebarNavigationItemIcon,
+  SidebarNavigationItem,
+} from "@bb/plugin/app";
 import type { PluginNavPanelChromeEntry } from "@/lib/plugin-nav-panel-chrome";
 import {
   AUTOMATIONS_PLUGIN_ID,
@@ -29,8 +28,8 @@ export interface SidebarNavigationRow {
   pluginId: string;
   id: string;
   label: string;
-  icon: ExperimentalSidebarNavigationIcon;
-  action: ExperimentalSidebarNavigationAction;
+  icon: SidebarNavigationItemIcon;
+  action: SidebarNavigationAction;
   ownerPluginId: string | null;
   panelEntry: PluginNavPanelChromeEntry | null;
 }
@@ -40,8 +39,8 @@ const NEW_THREAD_CONTENT = { kind: "new-thread" } as const;
 function hostRow(
   key: string,
   label: string,
-  icon: Extract<ExperimentalSidebarNavigationIcon, { kind: "host" }>["name"],
-  action: ExperimentalSidebarNavigationAction,
+  icon: Extract<SidebarNavigationItemIcon, { kind: "host" }>["name"],
+  action: SidebarNavigationAction,
 ): SidebarNavigationRow {
   const [pluginId = "", id = ""] = key.split("/");
   return {
@@ -108,14 +107,14 @@ export function getSidebarNavigationRowContent(
 export interface SidebarNavigationItemState {
   isDisabled: boolean;
   isVisible: boolean;
-  shortcut: ExperimentalSidebarNavigationShortcut | null;
+  shortcut: SidebarNavigationItem["shortcut"];
   accessory: ComponentType | null;
 }
 
 export function toSidebarNavigationItem(
   row: SidebarNavigationRow,
   state: SidebarNavigationItemState,
-): ExperimentalSidebarNavigationItem {
+): SidebarNavigationItem {
   return {
     id: getPluginNavPanelKey(row),
     label: row.label,
@@ -126,13 +125,13 @@ export function toSidebarNavigationItem(
     isLoading: row.panelEntry !== null && row.panelEntry.panel === null,
     pluginId: row.ownerPluginId,
     shortcut: state.shortcut,
-    experimental_Accessory: state.accessory,
+    Accessory: state.accessory,
   };
 }
 
 function sameIcon(
-  left: ExperimentalSidebarNavigationIcon,
-  right: ExperimentalSidebarNavigationIcon,
+  left: SidebarNavigationItemIcon,
+  right: SidebarNavigationItemIcon,
 ): boolean {
   if (left.kind === "host" || right.kind === "host") {
     return (
@@ -146,8 +145,8 @@ function sameIcon(
 }
 
 function sameAction(
-  left: ExperimentalSidebarNavigationAction,
-  right: ExperimentalSidebarNavigationAction,
+  left: SidebarNavigationAction,
+  right: SidebarNavigationAction,
 ): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind !== "open-plugin-panel" || right.kind !== "open-plugin-panel") {
@@ -157,8 +156,8 @@ function sameAction(
 }
 
 export function isSameSidebarNavigationItem(
-  left: ExperimentalSidebarNavigationItem,
-  right: ExperimentalSidebarNavigationItem,
+  left: SidebarNavigationItem,
+  right: SidebarNavigationItem,
 ): boolean {
   return (
     left.id === right.id &&
@@ -171,7 +170,7 @@ export function isSameSidebarNavigationItem(
     left.pluginId === right.pluginId &&
     left.shortcut?.label === right.shortcut?.label &&
     left.shortcut?.ariaKeyShortcuts === right.shortcut?.ariaKeyShortcuts &&
-    left.experimental_Accessory === right.experimental_Accessory
+    left.Accessory === right.Accessory
   );
 }
 

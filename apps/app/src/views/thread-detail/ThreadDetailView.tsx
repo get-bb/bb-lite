@@ -26,7 +26,6 @@ import {
   useThreadTimelineController,
 } from "@/components/thread/timeline";
 import { serializePluginPanelParams } from "@/lib/plugin-json-value";
-import { ThreadProviderContext } from "@/components/thread/thread-provider-context";
 import {
   defaultAppSettings,
   resolveEnvironmentMergeBaseBranch,
@@ -82,7 +81,6 @@ import {
   ThreadActionsMenu,
   type ThreadActionsMenuResponsiveAction,
 } from "@/components/thread/ThreadActionsMenu";
-import { PluginThreadHeaderActions } from "@/components/plugin/PluginThreadHeaderActions";
 import { ThreadWorkspaceOpenButton } from "@/components/thread/ThreadWorkspaceOpenButton";
 import {
   formatEnvironmentDisplay,
@@ -154,7 +152,6 @@ import {
   type ThreadSecondaryPanelHostFileOpenHandler,
   type ThreadSecondaryPanelStorageFileOpenHandler,
   type ThreadSecondaryPanelWorkspaceFileOpenHandler,
-  type ThreadSecondaryPanelFileOpenOptions,
 } from "./useThreadSecondaryPanelVisibility";
 import type { HostConnectionNotice } from "@/components/thread/timeline/ThreadTimelineSurface";
 import {
@@ -176,27 +173,19 @@ import {
   PluginPanelTabContent,
   usePluginPanelActions,
 } from "@/components/plugin/PluginPanelActions";
-import { createFileOpenerOriginalTab } from "@/components/plugin/file-opener-tabs";
 import {
   PluginThreadPanelNavigationProvider,
   usePublishThreadPanelOpener,
 } from "@/components/plugin/plugin-thread-panel-navigation";
 import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
-import { usePluginSlots } from "@/lib/plugin-slots";
-import { getFileExtension } from "@/lib/plugin-slot-resolvers";
+import { usePluginSlots } from "@/plugins/registry";
 import { Icon } from "@bb/shared-ui/icon";
 import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
 import {
-  AppNavigationHostProvider,
-  type AppFilePreviewIntent,
+  openAppFixedTabFromDestinations,
   type AppFixedTabOpenIntent,
-} from "@/lib/app-navigation-host";
-import { openAppFixedTabFromDestinations } from "@/lib/app-fixed-tab-navigation";
-import {
-  getFileBasename,
-  normalizeExperimentalFileOpenOptions,
-  toFilePreviewLineRange,
-} from "@/lib/live-file-navigation";
+} from "@/lib/app-fixed-tab-navigation";
+import { getFileBasename } from "@/lib/live-file-navigation";
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
 import {
   useThreadStorageBrowser,
@@ -569,10 +558,7 @@ export function ThreadDetailView(
     openPluginPanel,
     threadId,
   });
-  const {
-    fileOpeners: pluginFileOpeners,
-    threadPanelActions: pluginThreadPanelActions,
-  } = usePluginSlots();
+  const { threadPanels: pluginThreadPanelActions } = usePluginSlots();
   useThreadOpenFileSignal({
     threadId,
     environmentId: thread?.environmentId,
@@ -580,19 +566,16 @@ export function ThreadDetailView(
   });
   const openWorkspaceFile =
     useCallback<ThreadSecondaryPanelWorkspaceFileOpenHandler>(
-      (file, options) =>
-        openTab({ kind: "workspace-file-preview", tab: file }, options),
+      (file) => openTab({ kind: "workspace-file-preview", tab: file }),
       [openTab],
     );
   const openStorageFile =
     useCallback<ThreadSecondaryPanelStorageFileOpenHandler>(
-      (file, options) =>
-        openTab({ kind: "thread-storage-file-preview", tab: file }, options),
+      (file) => openTab({ kind: "thread-storage-file-preview", tab: file }),
       [openTab],
     );
   const openHostFile = useCallback<ThreadSecondaryPanelHostFileOpenHandler>(
-    (file, options) =>
-      openTab({ kind: "host-file-preview", tab: file }, options),
+    (file) => openTab({ kind: "host-file-preview", tab: file }),
     [openTab],
   );
   const openNewTab = useCallback(() => {
@@ -746,14 +729,6 @@ export function ThreadDetailView(
           enabled: thread !== undefined,
           providerId: thread?.providerId,
         },
-  );
-  const threadProviderPluginId = threadProviderInfo?.pluginId ?? null;
-  const threadProviderContextValue = useMemo(
-    () => ({
-      providerId: thread?.providerId ?? null,
-      pluginId: threadProviderPluginId,
-    }),
-    [thread?.providerId, threadProviderPluginId],
   );
   const isForkAvailable = isThreadForkable(
     thread ?? null,
@@ -1062,50 +1037,6 @@ export function ThreadDetailView(
         target: { kind: "commit", sha },
       }),
     [openFixedTab],
-  );
-  const handleOpenLiveFilePreview = useCallback(
-    (intent: AppFilePreviewIntent): boolean => {
-      const normalized = normalizeExperimentalFileOpenOptions(intent);
-      if (normalized === null || thread === undefined) return false;
-      const lineRange = toFilePreviewLineRange(normalized.location);
-      const options =
-        intent.viewer === undefined ? undefined : { viewer: intent.viewer };
-      switch (normalized.target.kind) {
-        case "workspace":
-          if (normalized.target.environmentId !== thread.environmentId) {
-            return false;
-          }
-          openWorkspaceFile(
-            {
-              lineRange,
-              path: normalized.target.path,
-              source: { kind: "working-tree" },
-              statusLabel: null,
-            },
-            options,
-          );
-          return true;
-        case "host":
-          if (normalized.target.hostId !== environment?.hostId) return false;
-          openHostFile({ lineRange, path: normalized.target.path }, options);
-          return true;
-        case "thread-storage":
-          if (normalized.target.threadId !== thread.id) return false;
-          openStorageFile({ lineRange, path: normalized.target.path }, options);
-          return true;
-      }
-    },
-    [
-      environment?.hostId,
-      openHostFile,
-      openStorageFile,
-      openWorkspaceFile,
-      thread,
-    ],
-  );
-  const appNavigationCapabilities = useMemo(
-    () => ({ openFilePreview: handleOpenLiveFilePreview, openFixedTab }),
-    [handleOpenLiveFilePreview, openFixedTab],
   );
   const handleOpenTimelinePluginPanel =
     useCallback<ThreadTimelineOpenPluginPanelHandler>(
@@ -1577,10 +1508,7 @@ export function ThreadDetailView(
     [thread, updateThread],
   );
   const handleTimelineLocalFileLinkResolution = useCallback(
-    (
-      resolution: ThreadLocalFileLinkResolution,
-      options?: ThreadSecondaryPanelFileOpenOptions,
-    ) => {
+    (resolution: ThreadLocalFileLinkResolution) => {
       if (resolution.kind === "app-route") {
         return false;
       }
@@ -1592,45 +1520,33 @@ export function ThreadDetailView(
       }
 
       if (resolution.kind === "open-workspace-path") {
-        openWorkspaceFile(
-          {
-            lineRange: resolution.request.lineRange,
-            path: resolution.request.relativePath,
-            source: { kind: "working-tree" },
-            statusLabel: null,
-          },
-          options,
-        );
+        openWorkspaceFile({
+          lineRange: resolution.request.lineRange,
+          path: resolution.request.relativePath,
+          source: { kind: "working-tree" },
+          statusLabel: null,
+        });
         return true;
       }
 
       if (resolution.kind === "open-thread-storage-path") {
-        openStorageFile(
-          {
-            lineRange: resolution.request.lineRange,
-            path: resolution.request.relativePath,
-          },
-          options,
-        );
+        openStorageFile({
+          lineRange: resolution.request.lineRange,
+          path: resolution.request.relativePath,
+        });
         return true;
       }
 
-      openHostFile(
-        {
-          lineRange: resolution.request.lineRange,
-          path: resolution.request.path,
-        },
-        options,
-      );
+      openHostFile({
+        lineRange: resolution.request.lineRange,
+        path: resolution.request.path,
+      });
       return true;
     },
     [openHostFile, openStorageFile, openWorkspaceFile],
   );
   const handleOpenTimelineLocalFileLink = useCallback(
-    (
-      link: ThreadTimelineLocalFileLink,
-      options?: ThreadSecondaryPanelFileOpenOptions,
-    ) => {
+    (link: ThreadTimelineLocalFileLink) => {
       return handleTimelineLocalFileLinkResolution(
         resolveThreadLocalFileLink({
           hostFileLinksAvailable:
@@ -1640,7 +1556,6 @@ export function ThreadDetailView(
           threadStorageRootPath,
           workspaceRootPath: workspacePreviewRootPath,
         }),
-        options,
       );
     },
     [
@@ -1754,13 +1669,6 @@ export function ThreadDetailView(
   });
   const getLocalFileContextMenuItems = useCallback(
     (link: ThreadTimelineLocalFileLink) => {
-      const extension = getFileExtension(link.path);
-      const matching =
-        extension === null
-          ? []
-          : pluginFileOpeners.filter((opener) =>
-              opener.extensions.includes(extension),
-            );
       const lineNumber = getFilePreviewLineRangeStart({
         lineRange: link.lineRange,
       });
@@ -1784,29 +1692,6 @@ export function ThreadDetailView(
           label: "Open in",
           type: "submenu",
         });
-      }
-      if (matching.length > 0) {
-        if (items.length > 0) {
-          items.push({ id: "open-with-separator", type: "separator" });
-        }
-        items.push(
-          {
-            id: "builtin",
-            label: "Open with built-in preview",
-            onSelect: () => {
-              handleOpenTimelineLocalFileLink(link, { viewer: "builtin" });
-            },
-          },
-          ...matching.map((opener) => ({
-            id: `${opener.pluginId}:${opener.id}`,
-            label: `Open with ${opener.title}`,
-            onSelect: () => {
-              handleOpenTimelineLocalFileLink(link, {
-                viewer: { pluginId: opener.pluginId, openerId: opener.id },
-              });
-            },
-          })),
-        );
       }
       if (items.length > 0) {
         items.push({ id: "copy-separator", type: "separator" });
@@ -1835,12 +1720,7 @@ export function ThreadDetailView(
       );
       return items;
     },
-    [
-      fileOpenTargets,
-      handleOpenTimelineLocalFileLink,
-      openPathInFileTarget,
-      pluginFileOpeners,
-    ],
+    [fileOpenTargets, openPathInFileTarget],
   );
   const handleOpenFilePreview = useCallback<OpenFilePreviewHandler>(
     (relativePath) => {
@@ -1850,16 +1730,14 @@ export function ThreadDetailView(
       ) {
         return;
       }
-      handleOpenLiveFilePreview({
-        target: {
-          kind: "workspace",
-          environmentId: thread.environmentId,
-          path: relativePath,
-        },
-        location: null,
+      openWorkspaceFile({
+        lineRange: null,
+        path: relativePath,
+        source: { kind: "working-tree" },
+        statusLabel: null,
       });
     },
-    [handleOpenLiveFilePreview, thread?.environmentId],
+    [openWorkspaceFile, thread?.environmentId],
   );
 
   if (threadQueryState.status === "loading") {
@@ -2002,12 +1880,6 @@ export function ThreadDetailView(
       onClosePane={onRequestClose ?? undefined}
       onOpenThreadGitAction={gitActions.threadGitActionDialog.onOpen}
       onToggleSecondaryPanel={toggleSecondaryPanel}
-      pluginActions={
-        <PluginThreadHeaderActions
-          threadId={thread.id}
-          projectId={thread.projectId}
-        />
-      }
       threadHeaderGitActions={
         executionUnavailable ? [] : gitActions.threadHeaderGitActions
       }
@@ -2200,12 +2072,7 @@ export function ThreadDetailView(
           />
         );
       }
-      case "plugin-panel": {
-        const originalTab = createFileOpenerOriginalTab(tab);
-        const fileOpenerOriginal =
-          originalTab === null
-            ? undefined
-            : renderSecondaryTabContent(originalTab);
+      case "plugin-panel":
         return (
           <ThreadTimelineNavigationProvider
             environmentId={thread.environmentId}
@@ -2218,11 +2085,9 @@ export function ThreadDetailView(
             <PluginPanelTabContent
               tab={tab}
               context={{ kind: "thread", threadId: thread.id }}
-              fileOpenerOriginal={fileOpenerOriginal}
             />
           </ThreadTimelineNavigationProvider>
         );
-      }
     }
   };
   const filenameOfPanelTab = (path: string) => path.split("/").at(-1) ?? path;
@@ -2237,9 +2102,7 @@ export function ThreadDetailView(
           : undefined;
       const shared = {
         contentFillsRegion:
-          tab.kind === "plugin-panel" &&
-          (tab.fileOpenerOwner !== undefined ||
-            pluginAction?.layout === "flush"),
+          tab.kind === "plugin-panel" && pluginAction?.layout === "flush",
         onClose: () => closeTab(tab.id),
         renderContent: () => renderSecondaryTabContent(tab),
         tab,
@@ -2324,156 +2187,146 @@ export function ThreadDetailView(
     <MarkdownLocalFileContextMenuContext.Provider
       value={getLocalFileContextMenuItems}
     >
-      <AppNavigationHostProvider capabilities={appNavigationCapabilities}>
-        <ThreadDetailSecondaryContent
-          footer={composerFooter}
-          header={timelineHeader}
-          isMetadataLoading={environmentQuery.isLoading}
-          isSecondaryPanelOpen={isSecondaryPanelOpen}
-          isConversationCollapsed={isConversationCollapsed}
-          isBoundedPane={isBoundedPane}
-          onToggleSecondaryPanel={toggleSecondaryPanel}
-          onToggleConversationCollapse={toggleConversationCollapse}
-          renderHostedPanel={(panel) => (
-            <MarkdownLocalFileContextMenuContext.Provider
-              value={getLocalFileContextMenuItems}
-            >
-              {panel}
-            </MarkdownLocalFileContextMenuContext.Provider>
-          )}
-          metadata={{
-            thread,
-            projectId,
-            parentThreadProjectId: parentThread?.projectId ?? null,
-            parentThreadDisplayName: parentThreadDisplayName ?? null,
-            parentThreads,
-            canAssignToParent,
-            canTakeOverThread,
-            isLoadingParentThreads: parentThreadSubsetQuery.isLoading,
-            isParentThreadsError: parentThreadSubsetQuery.isError,
-            environment: environment ?? null,
-            environmentProvisioningFailure,
-            environmentDisplayHost: environmentDisplayHostContext,
-            workspaceStatus,
-            workspaceStatusError: workspaceStatusError ?? null,
-            workspaceUnavailable,
-            selectedMergeBaseBranch,
-            mergeBaseBranchRef: selectedMergeBaseBranchRef,
-            mergeBaseBranchOptions,
-            mergeBaseRemoteBranchOptions,
-            isLoadingMergeBaseBranchOptions,
-            updateThreadPending:
-              updateThread.isPending || updateEnvironment.isPending,
-            storage: metadataStorage,
-            onAssignParent: handleAssignParent,
-            onParentSelectorOpenChange: handleParentSelectorOpenChange,
-            onRetryParentThreads: handleRetryParentThreads,
-            onMergeBaseBranchChange: handleMergeBaseBranchChange,
-            onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
-            onMergeBaseBranchSearchQueryChange: setMergeBaseBranchSearchQuery,
-            onChangedFileClick: canUseGitUi
-              ? handleChangedFileClick
-              : undefined,
-            onCommitClick: canUseGitUi
-              ? openSecondaryPanelCommitDiff
-              : undefined,
+      <ThreadDetailSecondaryContent
+        footer={composerFooter}
+        header={timelineHeader}
+        isMetadataLoading={environmentQuery.isLoading}
+        isSecondaryPanelOpen={isSecondaryPanelOpen}
+        isConversationCollapsed={isConversationCollapsed}
+        isBoundedPane={isBoundedPane}
+        onToggleSecondaryPanel={toggleSecondaryPanel}
+        onToggleConversationCollapse={toggleConversationCollapse}
+        renderHostedPanel={(panel) => (
+          <MarkdownLocalFileContextMenuContext.Provider
+            value={getLocalFileContextMenuItems}
+          >
+            {panel}
+          </MarkdownLocalFileContextMenuContext.Provider>
+        )}
+        metadata={{
+          thread,
+          projectId,
+          parentThreadProjectId: parentThread?.projectId ?? null,
+          parentThreadDisplayName: parentThreadDisplayName ?? null,
+          parentThreads,
+          canAssignToParent,
+          canTakeOverThread,
+          isLoadingParentThreads: parentThreadSubsetQuery.isLoading,
+          isParentThreadsError: parentThreadSubsetQuery.isError,
+          environment: environment ?? null,
+          environmentProvisioningFailure,
+          environmentDisplayHost: environmentDisplayHostContext,
+          workspaceStatus,
+          workspaceStatusError: workspaceStatusError ?? null,
+          workspaceUnavailable,
+          selectedMergeBaseBranch,
+          mergeBaseBranchRef: selectedMergeBaseBranchRef,
+          mergeBaseBranchOptions,
+          mergeBaseRemoteBranchOptions,
+          isLoadingMergeBaseBranchOptions,
+          updateThreadPending:
+            updateThread.isPending || updateEnvironment.isPending,
+          storage: metadataStorage,
+          onAssignParent: handleAssignParent,
+          onParentSelectorOpenChange: handleParentSelectorOpenChange,
+          onRetryParentThreads: handleRetryParentThreads,
+          onMergeBaseBranchChange: handleMergeBaseBranchChange,
+          onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
+          onMergeBaseBranchSearchQueryChange: setMergeBaseBranchSearchQuery,
+          onChangedFileClick: canUseGitUi ? handleChangedFileClick : undefined,
+          onCommitClick: canUseGitUi ? openSecondaryPanelCommitDiff : undefined,
+        }}
+        secondaryPanel={{
+          canNavigateTabs: isFocused,
+          activeTab: activeFixedSecondaryTab,
+          canUseGitUi,
+          gitDiffTabStatus,
+          environmentId: thread.environmentId ?? undefined,
+          workspaceRootPath: environment?.path,
+          tabs: panelTabs,
+          fixedTabs: secondaryPanelFixedTabs,
+          splitPanelStateId: thread.id,
+          isOpen: isSecondaryPanelOpen,
+          onClose: closeSecondaryPanel,
+          onCollapse: closeSecondaryPanel,
+          onClearPendingGitDiffIntent: clearPendingGitDiffIntent,
+          onOpenFileInEditor: handleOpenFileInEditor,
+          onTabReorder: reorderTab,
+          onOpenNewTab: handleOpenNewTab,
+          onRetryGitDiffEligibility: () => {
+            void environmentQuery.refetch();
+          },
+          onOpenFilePreview: handleOpenFilePreview,
+          onSelectionAddToChat: handleSelectionAddToChat,
+          pendingGitDiffCommitSha,
+          pendingGitDiffScrollPath,
+          requestedMergeBaseBranch,
+          onPanelFocus: touchFixedPanelTabsState,
+        }}
+        timeline={{
+          activeThinking,
+          canSpawnChild: thread.canSpawnChild,
+          contextBoundarySeq,
+          threadOriginKind,
+          hasOlderTimelineRows,
+          hostConnectionNotice,
+          isLoadingOlderTimelineRows,
+          isThreadTimelinePending,
+          timelineError: Boolean(timelineError),
+          onForkMessage: isForkAvailable ? handleForkMessage : undefined,
+          onEditMessage: canEditSentMessages
+            ? handleEditSentMessage
+            : undefined,
+          inlineMessageEditor,
+          onMessageAddToChat: handleSelectionAddToChat,
+          onSelectionAddToChat: handleSelectionAddToChat,
+          onLoadOlderRows: loadOlderTimelineRows,
+          onOpenLink: handleOpenTimelineLink,
+          onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
+          onOpenPluginPanel: handleOpenTimelinePluginPanel,
+          onTitleAction: handleTimelineTitleAction,
+          projectId,
+          resolveMentionLink,
+          showOngoingIndicator:
+            thread.status !== "stopping" &&
+            !hasPendingInteraction &&
+            isRunningThreadRuntimeDisplayStatus(thread.runtime.displayStatus) &&
+            !isThreadTimelinePending,
+          timelineRows,
+          isStopping: thread.status === "stopping",
+          stoppingAnchorAt: thread.updatedAt,
+          threadId: thread.id,
+          threadRuntimeDisplayStatus: thread.runtime.displayStatus,
+          unreadDividerAutoScroll: unreadDividerState.autoScroll,
+          unreadDividerPlacement: unreadDividerState.placement,
+          workspaceRootPath: environment?.path ?? undefined,
+        }}
+      />
+      {canUseGitUi ? (
+        <ThreadGitActionDialog
+          target={gitActions.threadGitActionDialog.target}
+          branchName={threadBranchName}
+          gitStatusDisplay={threadGitStatusDisplay}
+          changedFilesSection={workingTreeChangedFilesSection}
+          onOpenChange={(open) => {
+            if (!open) {
+              gitActions.threadGitActionDialog.onClose();
+            }
           }}
-          secondaryPanel={{
-            canNavigateTabs: isFocused,
-            activeTab: activeFixedSecondaryTab,
-            canUseGitUi,
-            gitDiffTabStatus,
-            environmentId: thread.environmentId ?? undefined,
-            workspaceRootPath: environment?.path,
-            tabs: panelTabs,
-            fixedTabs: secondaryPanelFixedTabs,
-            splitPanelStateId: thread.id,
-            isOpen: isSecondaryPanelOpen,
-            onClose: closeSecondaryPanel,
-            onCollapse: closeSecondaryPanel,
-            onClearPendingGitDiffIntent: clearPendingGitDiffIntent,
-            onOpenFileInEditor: handleOpenFileInEditor,
-            onTabReorder: reorderTab,
-            onOpenNewTab: handleOpenNewTab,
-            onRetryGitDiffEligibility: () => {
-              void environmentQuery.refetch();
-            },
-            onOpenFilePreview: handleOpenFilePreview,
-            onSelectionAddToChat: handleSelectionAddToChat,
-            pendingGitDiffCommitSha,
-            pendingGitDiffScrollPath,
-            requestedMergeBaseBranch,
-            onPanelFocus: touchFixedPanelTabsState,
-          }}
-          timeline={{
-            activeThinking,
-            canSpawnChild: thread.canSpawnChild,
-            contextBoundarySeq,
-            threadOriginKind,
-            hasOlderTimelineRows,
-            hostConnectionNotice,
-            isLoadingOlderTimelineRows,
-            isThreadTimelinePending,
-            timelineError: Boolean(timelineError),
-            onForkMessage: isForkAvailable ? handleForkMessage : undefined,
-            onEditMessage: canEditSentMessages
-              ? handleEditSentMessage
-              : undefined,
-            inlineMessageEditor,
-            onMessageAddToChat: handleSelectionAddToChat,
-            onSelectionAddToChat: handleSelectionAddToChat,
-            onLoadOlderRows: loadOlderTimelineRows,
-            onOpenLink: handleOpenTimelineLink,
-            onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
-            onOpenPluginPanel: handleOpenTimelinePluginPanel,
-            onTitleAction: handleTimelineTitleAction,
-            projectId,
-            resolveMentionLink,
-            showOngoingIndicator:
-              thread.status !== "stopping" &&
-              !hasPendingInteraction &&
-              isRunningThreadRuntimeDisplayStatus(
-                thread.runtime.displayStatus,
-              ) &&
-              !isThreadTimelinePending,
-            timelineRows,
-            isStopping: thread.status === "stopping",
-            stoppingAnchorAt: thread.updatedAt,
-            threadId: thread.id,
-            threadRuntimeDisplayStatus: thread.runtime.displayStatus,
-            unreadDividerAutoScroll: unreadDividerState.autoScroll,
-            unreadDividerPlacement: unreadDividerState.placement,
-            workspaceRootPath: environment?.path ?? undefined,
-          }}
+          onCommit={gitActions.handleCommitThread}
         />
-        {canUseGitUi ? (
-          <ThreadGitActionDialog
-            target={gitActions.threadGitActionDialog.target}
-            branchName={threadBranchName}
-            gitStatusDisplay={threadGitStatusDisplay}
-            changedFilesSection={workingTreeChangedFilesSection}
-            onOpenChange={(open) => {
-              if (!open) {
-                gitActions.threadGitActionDialog.onClose();
-              }
-            }}
-            onCommit={gitActions.handleCommitThread}
-          />
-        ) : null}
-      </AppNavigationHostProvider>
+      ) : null}
     </MarkdownLocalFileContextMenuContext.Provider>
   );
   return (
     <>
       <ThreadArchiveCommandHandler thread={thread} />
       <ThreadRenameCommandHandler thread={thread} />
-      <ThreadProviderContext.Provider value={threadProviderContextValue}>
-        <PluginThreadPanelNavigationProvider
-          openThreadPanel={handleOpenTimelinePluginPanel}
-        >
-          {threadDetailContent}
-        </PluginThreadPanelNavigationProvider>
-      </ThreadProviderContext.Provider>
+      <PluginThreadPanelNavigationProvider
+        openThreadPanel={handleOpenTimelinePluginPanel}
+      >
+        {threadDetailContent}
+      </PluginThreadPanelNavigationProvider>
     </>
   );
 }

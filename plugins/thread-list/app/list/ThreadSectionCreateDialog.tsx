@@ -1,12 +1,12 @@
 import { useId, useState, type FormEvent, type RefObject } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@bb/shared-ui/button";
 import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@bb/shared-ui/dialog";
+import { Input } from "@bb/shared-ui/input";
 import { RenameDialog, useNameValidation } from "../ui/RenameDialog.js";
 
 interface ThreadSectionCreateDialogProps {

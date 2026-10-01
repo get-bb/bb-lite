@@ -9,11 +9,11 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type {
-  ExperimentalSidebarNavigationActions,
-  ExperimentalSidebarNavigationIconProps,
-  ExperimentalSidebarNavigationItem,
-  ExperimentalSidebarNavigationState,
-} from "@get-bb/plugin-sdk";
+  SidebarNavigationActions,
+  SidebarNavigationIconProps,
+  SidebarNavigationItem,
+  SidebarNavigationState,
+} from "@bb/plugin/app";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import {
   useAppCommandRunner,
@@ -21,14 +21,14 @@ import {
   useIsAppCommandModifierHeld,
 } from "@/components/commands/AppCommandProvider";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
-import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
+import { PluginSlotMount } from "@/plugins/mount";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { getPluginNavPanelKey } from "@/components/plugin/pluginNavSidebarOrder";
 import { appToast } from "@/components/ui/app-toast";
 import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import { getPluginPanelRoutePath } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
 import {
@@ -53,7 +53,7 @@ export interface SidebarNavigationHostOptions {
 }
 
 export interface SidebarNavigationModel {
-  state: ExperimentalSidebarNavigationState;
+  state: SidebarNavigationState;
   arrangement: SidebarNavigationArrangement<SidebarNavigationRow>;
   rowsById: ReadonlyMap<string, SidebarNavigationRow>;
   splitEnabled: boolean;
@@ -63,10 +63,7 @@ const SidebarNavigationModelContext =
   createContext<SidebarNavigationModel | null>(null);
 
 const HOST_ICON_NAMES: Record<
-  Extract<
-    ExperimentalSidebarNavigationIconProps["icon"],
-    { kind: "host" }
-  >["name"],
+  Extract<SidebarNavigationIconProps["icon"], { kind: "host" }>["name"],
   IconName
 > = {
   "new-thread": "MessageSquarePlus",
@@ -76,7 +73,7 @@ const HOST_ICON_NAMES: Record<
 export function SidebarNavigationIcon({
   icon,
   className,
-}: ExperimentalSidebarNavigationIconProps) {
+}: SidebarNavigationIconProps) {
   if (icon.kind === "host") {
     return (
       <Icon
@@ -97,8 +94,10 @@ export function SidebarNavigationIcon({
 
 const wrappedAccessories = new WeakMap<ComponentType, ComponentType>();
 
-function wrappedAccessory(panel: PluginNavPanelSlot): ComponentType | null {
-  const Accessory = panel.experimental_sidebarAccessory;
+function wrappedAccessory(
+  panel: PluginSlot<"navPanels">,
+): ComponentType | null {
+  const Accessory = panel.sidebarAccessory;
   if (Accessory === undefined) return null;
   const cached = wrappedAccessories.get(Accessory);
   if (cached) return cached;
@@ -120,15 +119,15 @@ function wrappedAccessory(panel: PluginNavPanelSlot): ComponentType | null {
 }
 
 function useStableItems(
-  items: readonly ExperimentalSidebarNavigationItem[],
-): readonly ExperimentalSidebarNavigationItem[] {
+  items: readonly SidebarNavigationItem[],
+): readonly SidebarNavigationItem[] {
   const previousRef = useRef<{
-    byId: Map<string, ExperimentalSidebarNavigationItem>;
-    list: readonly ExperimentalSidebarNavigationItem[];
+    byId: Map<string, SidebarNavigationItem>;
+    list: readonly SidebarNavigationItem[];
   }>({ byId: new Map(), list: [] });
   return useMemo(() => {
     const previous = previousRef.current;
-    const byId = new Map<string, ExperimentalSidebarNavigationItem>();
+    const byId = new Map<string, SidebarNavigationItem>();
     const list = items.map((item) => {
       const prior = previous.byId.get(item.id);
       const stable =
@@ -241,7 +240,7 @@ export function SidebarNavigationModelProvider({
     };
   });
 
-  const actions = useMemo<ExperimentalSidebarNavigationActions>(() => {
+  const actions = useMemo<SidebarNavigationActions>(() => {
     const lookup = (itemId: string) => {
       const current = latest.current;
       const row = current.rowsById.get(itemId);
@@ -320,7 +319,7 @@ export function SidebarNavigationModelProvider({
     };
   }, []);
 
-  const state = useMemo<ExperimentalSidebarNavigationState>(
+  const state = useMemo<SidebarNavigationState>(
     () => ({ items, activeItemId, isShortcutModifierHeld, actions }),
     [actions, activeItemId, isShortcutModifierHeld, items],
   );

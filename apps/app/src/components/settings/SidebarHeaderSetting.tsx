@@ -1,9 +1,9 @@
 import { sidebarHeaderProviderAtom } from "@/components/sidebar/sidebarHeaderProvider";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { ReplacementProviderSetting } from "./ReplacementProviderSetting";
 
 export function SidebarHeaderSetting() {
-  const { experimentalSidebarHeaders } = usePluginSlots();
+  const { sidebarHeaders } = usePluginSlots();
   return (
     <ReplacementProviderSetting
       label="Header"
@@ -12,7 +12,7 @@ export function SidebarHeaderSetting() {
       builtInDescription="Only the sidebar toggle and the back and forward buttons."
       allowAutomatic={false}
       preferenceAtom={sidebarHeaderProviderAtom}
-      slots={experimentalSidebarHeaders}
+      slots={sidebarHeaders}
     />
   );
 }

@@ -23,7 +23,6 @@ import {
   ThreadStatusGlyph,
   resolveThreadStatus,
 } from "@/components/thread/ThreadStatusGlyph";
-import { usePluginThreadRowStatus } from "@/lib/plugin-thread-row-status";
 import {
   ThreadLifecycleFilter,
   THREAD_LIFECYCLE_OPTIONS,
@@ -551,8 +550,7 @@ function ThreadSearchPaletteStatus({ row }: { row: PaletteThreadSearchRow }) {
     row.thread,
     hasUnsubmittedDraft,
   );
-  const pluginStatus = usePluginThreadRowStatus(row.threadId);
-  const { accessibleLabel: label } = resolveThreadStatus(state, pluginStatus);
+  const { accessibleLabel: label } = resolveThreadStatus(state);
   if (label === null) return null;
   return (
     <>
@@ -571,11 +569,7 @@ function ThreadSearchPaletteStatus({ row }: { row: PaletteThreadSearchRow }) {
             className="inline-flex size-3.5 shrink-0 cursor-default items-center justify-center text-subtle-foreground"
             data-palette-thread-status
           >
-            <ThreadStatusGlyph
-              {...state}
-              pluginStatus={pluginStatus}
-              size="compact"
-            />
+            <ThreadStatusGlyph {...state} size="compact" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="left">{label}</TooltipContent>

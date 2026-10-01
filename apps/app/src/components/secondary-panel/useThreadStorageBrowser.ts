@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WorkspaceFile } from "@bb/server-contract";
-import { createRetryingModuleLoader } from "@/lib/plugin-frontend-lazy";
+import { createRetryingModuleLoader } from "@/lib/retrying-module-loader";
 import type { ThreadStorageTreeModel } from "./ThreadStorageFileTree";
 
 const EMPTY_STORAGE_FILES: readonly WorkspaceFile[] = [];

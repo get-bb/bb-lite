@@ -39,7 +39,6 @@ import {
   parseEnvironmentValue,
 } from "./environment-picker-value";
 import { selectHosts } from "@/hooks/queries/host-queries";
-import { providerInputsControlRequired } from "./environment-provider-inputs";
 import { MACHINE_BADGE_CLASS_NAME, orderLocalHostFirst } from "./MachinePicker";
 import { PickerLoadingRows } from "./PickerLoadingRows";
 import { MachineIcon } from "@/components/machines/MachineLabel";
@@ -84,7 +83,6 @@ export interface EnvironmentPickerUIProps {
     readonly SystemEnvironmentProvider[] | undefined
   >;
   selectedProviderHostId?: string | null;
-  inputsControlProviderIds?: ReadonlySet<string>;
   onSelectProvider?: (
     provider: SystemEnvironmentProvider,
     hostId: string | null,
@@ -92,11 +90,6 @@ export interface EnvironmentPickerUIProps {
   onSelectHost?: (hostId: string) => void;
   onSelectReuse?: () => void;
 }
-
-export const PROVIDER_INPUTS_CONTROL_MISSING_REASON =
-  "Needs its plugin's control";
-
-const NO_INPUTS_CONTROL_PROVIDER_IDS: ReadonlySet<string> = new Set();
 
 function providerValueSelected(
   value: string,
@@ -107,30 +100,20 @@ function providerValueSelected(
 
 function providerDisabledReason(
   provider: SystemEnvironmentProvider,
-  inputsControlProviderIds: ReadonlySet<string>,
 ): string | null {
   if (provider.availability?.status === "unavailable") {
     return provider.availability.message;
-  }
-  if (
-    !inputsControlProviderIds.has(provider.id) &&
-    providerInputsControlRequired(provider)
-  ) {
-    return PROVIDER_INPUTS_CONTROL_MISSING_REASON;
   }
   return null;
 }
 
 function providerDescription(
   provider: SystemEnvironmentProvider,
-  inputsControlProviderIds: ReadonlySet<string>,
 ): string | undefined {
   if (provider.availability?.status === "setup-required") {
     return provider.availability.message;
   }
-  return (
-    providerDisabledReason(provider, inputsControlProviderIds) ?? undefined
-  );
+  return providerDisabledReason(provider) ?? undefined;
 }
 
 function scopedProviders(
@@ -205,7 +188,6 @@ export function EnvironmentPickerUI({
   projectless = false,
   providersByHostId,
   selectedProviderHostId = null,
-  inputsControlProviderIds = NO_INPUTS_CONTROL_PROVIDER_IDS,
   onSelectProvider,
   onSelectHost,
   onSelectReuse,
@@ -482,7 +464,6 @@ export function EnvironmentPickerUI({
                     environmentProviders={environmentProviders}
                     providersByHostId={providersByHostId}
                     selectedProviderHostId={selectedProviderHostId}
-                    inputsControlProviderIds={inputsControlProviderIds}
                     onPreviewHostChange={setPreviewHostId}
                     onSelectHost={onSelectHost}
                     onRequestMachineSetup={
@@ -503,7 +484,6 @@ export function EnvironmentPickerUI({
                     environmentProviders={environmentProviders}
                     providersByHostId={providersByHostId}
                     selectedProviderHostId={selectedProviderHostId}
-                    inputsControlProviderIds={inputsControlProviderIds}
                     onSelectProvider={
                       onSelectProvider ? selectProvider : undefined
                     }
@@ -522,7 +502,6 @@ export function EnvironmentPickerUI({
                     { value, selectedProviderHostId },
                   )}
                   selectedProviderHostId={selectedProviderHostId}
-                  inputsControlProviderIds={inputsControlProviderIds}
                   onSelectProvider={
                     onSelectProvider ? selectProvider : undefined
                   }
@@ -576,7 +555,6 @@ interface EnvironmentOptionsSectionProps {
   value: string;
   environmentProviders: readonly SystemEnvironmentProvider[];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
     | undefined;
@@ -589,7 +567,6 @@ function EnvironmentOptionsSection({
   value,
   environmentProviders,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onSelectProvider,
 }: EnvironmentOptionsSectionProps) {
   return (
@@ -604,19 +581,13 @@ function EnvironmentOptionsSection({
         </CommandItem>
       ) : onSelectProvider !== undefined && hostId !== null ? (
         environmentProviders.map((provider) => {
-          const disabledReason = providerDisabledReason(
-            provider,
-            inputsControlProviderIds,
-          );
+          const disabledReason = providerDisabledReason(provider);
           return (
             <EnvironmentMenuItem
               key={provider.id}
               value={`provider:${hostId}:${provider.id}`}
               label={provider.displayName}
-              description={providerDescription(
-                provider,
-                inputsControlProviderIds,
-              )}
+              description={providerDescription(provider)}
               icon={pluginIconName(provider.icon)}
               provider={provider}
               selected={
@@ -641,7 +612,6 @@ interface MachineGroupedEnvironmentOptionsProps {
   environmentProviders: readonly SystemEnvironmentProvider[];
   providersByHostId?: EnvironmentPickerUIProps["providersByHostId"];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
     | undefined;
@@ -655,7 +625,6 @@ function MachineGroupedEnvironmentOptions({
   environmentProviders,
   providersByHostId,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onSelectProvider,
 }: MachineGroupedEnvironmentOptionsProps) {
   const now = Date.now();
@@ -683,7 +652,6 @@ function MachineGroupedEnvironmentOptions({
             { value, selectedProviderHostId },
           )}
           selectedProviderHostId={selectedProviderHostId}
-          inputsControlProviderIds={inputsControlProviderIds}
           onSelectProvider={onSelectProvider}
         />
       ))}
@@ -709,7 +677,6 @@ function MachineContextualEnvironmentOptions({
   environmentProviders,
   providersByHostId,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onPreviewHostChange,
   onSelectHost,
   onRequestMachineSetup,
@@ -785,7 +752,6 @@ function MachineContextualEnvironmentOptions({
                 { value, selectedProviderHostId },
               )}
               selectedProviderHostId={selectedProviderHostId}
-              inputsControlProviderIds={inputsControlProviderIds}
               onSelectProvider={onSelectProvider}
             />
           </div>
@@ -860,7 +826,6 @@ interface MachineSectionProps {
   onRequestMachineSetup: ((host: Host) => void) | undefined;
   environmentProviders: readonly SystemEnvironmentProvider[];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   contextual?: boolean;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
@@ -876,7 +841,6 @@ function MachineSection({
   onRequestMachineSetup,
   environmentProviders,
   selectedProviderHostId,
-  inputsControlProviderIds,
   contextual = false,
   onSelectProvider,
 }: MachineSectionProps) {
@@ -915,19 +879,14 @@ function MachineSection({
     >
       {onSelectProvider !== undefined
         ? hostProviders.map((provider) => {
-            const disabledReason = providerDisabledReason(
-              provider,
-              inputsControlProviderIds,
-            );
+            const disabledReason = providerDisabledReason(provider);
             return (
               <EnvironmentMenuItem
                 key={provider.id}
                 value={`provider:${host.id}:${provider.id}`}
                 label={provider.displayName}
                 description={
-                  connected
-                    ? providerDescription(provider, inputsControlProviderIds)
-                    : undefined
+                  connected ? providerDescription(provider) : undefined
                 }
                 icon={pluginIconName(provider.icon)}
                 provider={provider}

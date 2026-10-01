@@ -16,7 +16,6 @@ export { hasTimelineExplorationIntent } from "./timeline-activity-intents.js";
 export {
   activityIntentTitleGlyph,
   workRowGlyph,
-  workRowPluginGlyph,
   workRowPresentation,
 } from "./timeline-work-row-glyph.js";
 export {

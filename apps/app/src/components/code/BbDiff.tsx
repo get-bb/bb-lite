@@ -14,7 +14,6 @@ import {
 import { enrichGitDiffFileForContext } from "@/components/git-diff/git-diff-parsing";
 import { useResolvedCodeThemePair } from "@/lib/code-theme";
 import { usePreferredTheme } from "@/hooks/useTheme";
-import { cn } from "@bb/shared-ui/lib/utils";
 import type { BbDiffProps } from "./code-rendering";
 
 const DIFF_VIEW_STYLE = {
@@ -31,7 +30,6 @@ function BbDiff({
   view,
   overflow,
   showLineNumbers,
-  className,
   onSelectionAddToChat,
 }: BbDiffProps) {
   const oldPath = fullFileContents?.old.path;
@@ -130,7 +128,7 @@ function BbDiff({
   return (
     <div
       ref={containerRef}
-      className={cn("overflow-x-auto", className)}
+      className="overflow-x-auto"
       onPointerDownCapture={lineSelectionActions.onPointerDownCapture}
       onPointerMoveCapture={lineSelectionActions.onPointerMoveCapture}
       onPointerUpCapture={lineSelectionActions.onPointerUpCapture}

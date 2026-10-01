@@ -1,4 +1,3 @@
-import { notifyComposerSubmitted } from "@/lib/composer-submissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ThreadQueuedMessage } from "@bb/domain";
 import type {
@@ -138,10 +137,6 @@ export function useCreateThread() {
       }),
     onMutate: async () => beginCreateThreadTransaction({ queryClient }),
     onSuccess: (thread, variables) => {
-      notifyComposerSubmitted({
-        kind: "new-thread",
-        projectId: variables.projectId,
-      });
       if (thread.queuedMessageCount > 0) {
         void prefetchThreadQueuedMessages({
           queryClient,
@@ -179,9 +174,7 @@ export function useSendThreadMessage() {
       reasoningLevel,
       permissionMode,
       mode,
-      sendAt,
       senderThreadId,
-      pluginSubmission,
       executionInputSources,
     }: SendThreadMessageMutationRequest) => {
       return await sdk.threads.send({
@@ -191,8 +184,6 @@ export function useSendThreadMessage() {
         serviceTier,
         reasoningLevel,
         permissionMode,
-        ...(sendAt === undefined ? {} : { sendAt }),
-        ...(pluginSubmission === undefined ? {} : { pluginSubmission }),
         executionInputSources,
         mode,
         ...(senderThreadId !== undefined ? { senderThreadId } : {}),
@@ -211,7 +202,6 @@ export function useSendThreadMessage() {
       });
     },
     onSuccess: (data, variables, context) => {
-      notifyComposerSubmitted({ kind: "thread", threadId: variables.id });
       applySendThreadMessageSuccess({
         queryClient,
         realtimeConnected: wsManager.getConnectionState() === "connected",
@@ -287,7 +277,6 @@ export function useCreateThreadQueuedMessage() {
       });
     },
     onSuccess: (queuedMessage, variables, context) => {
-      notifyComposerSubmitted({ kind: "thread", threadId: variables.id });
       applyQueuedMessageCreateResult({
         queryClient,
         queuedMessage,

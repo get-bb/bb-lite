@@ -11,19 +11,15 @@ import {
 } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { useAtomValue } from "jotai";
-import { Icon } from "@/components/ui/icon";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Icon } from "@bb/shared-ui/icon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import {
   COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
   COARSE_POINTER_ROW_HEIGHT_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
-import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
+import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import {
   hasThreadListWorkingActivity,
   threadListIndicatorStateForThread,
@@ -32,10 +28,10 @@ import {
   type ThreadListIndicatorState,
 } from "../model/thread-activity.js";
 import {
-  experimental_useSidebarThreadActions,
-  experimental_useSidebarThreadSplit,
-  experimental_useProviders,
-  experimental_ProviderIcon as ProviderIcon,
+  useSidebarThreadActions,
+  useSidebarThreadSplit,
+  useProviders,
+  ProviderIcon as ProviderIcon,
   ThreadTitle,
   useSidebarSplitLayout,
   useSidebarThreadDraft,
@@ -43,7 +39,7 @@ import {
   useSidebarThreadShortcut,
   type PluginSidebarSplitPane,
   type PluginSidebarThreadRowStatus,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin/app";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { useSidebarProjectName } from "../model/use-sidebar-data.js";
 import {
@@ -326,9 +322,9 @@ function ThreadRowComponent({
 }: ThreadRowProps) {
   const [isDropdownActionsOpen, setIsDropdownActionsOpen] = useState(false);
   const [isContextActionsOpen, setIsContextActionsOpen] = useState(false);
-  const actions = experimental_useSidebarThreadActions();
+  const actions = useSidebarThreadActions();
   const showProviderIcons = useAtomValue(sidebarShowProviderIconsAtom);
-  const { providers } = experimental_useProviders();
+  const { providers } = useProviders();
   const provider = showProviderIcons
     ? providers.find((candidate) => candidate.id === thread.providerId)
     : undefined;
@@ -372,7 +368,7 @@ function ThreadRowComponent({
   );
   const miniMap = useThreadSplitMiniMap(thread.id);
   const isOpenInSplit = miniMap !== null;
-  const split = experimental_useSidebarThreadSplit(thread.id);
+  const split = useSidebarThreadSplit(thread.id);
   const onSplitDragPointerDown = split.splitProps.onPointerDown;
   const splitAvailable = split.isAvailable;
   const openInSplit = useCallback(() => {

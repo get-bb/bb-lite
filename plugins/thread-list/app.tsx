@@ -1,5 +1,5 @@
-import { definePluginApp, type PluginThreadListProps } from "@get-bb/plugin-sdk/app";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { definePluginApp, type PluginThreadListProps } from "@bb/plugin/app";
+import { TooltipProvider } from "@bb/shared-ui/tooltip";
 import { PreferencesSync } from "./app/preferences/PreferencesSync.js";
 import { ProjectList } from "./app/list/ProjectList.js";
 import { useSidebarThreadReveal } from "./app/list/useSidebarThreadReveal.js";
@@ -15,7 +15,7 @@ function ThreadList({ activeThreadId }: PluginThreadListProps) {
 }
 
 export default definePluginApp((app) => {
-  app.slots.experimental_threadList({
+  app.slots.threadList({
     id: "thread-list",
     title: "Thread list",
     description:

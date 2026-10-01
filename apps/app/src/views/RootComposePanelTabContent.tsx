@@ -1,12 +1,8 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import type { OpenInTargetContext } from "@bb/host-daemon-contract";
 import type { SidebarProject } from "@/hooks/queries/project-queries";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
-import type { PluginFileOpenerSource } from "@get-bb/plugin-sdk";
-import type {
-  PluginPanelFixedPanelTab,
-  SecondaryFileFixedPanelTab,
-} from "@/lib/fixed-panel-tabs-state";
+import type { SecondaryFileFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
 import type { SecondaryPanelPaneRenderContext } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { FilePreview } from "@/components/secondary-panel/FilePreview";
 import { LazyThreadTerminalPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
@@ -18,15 +14,7 @@ import {
   WorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import type { FileSearchSelection } from "@/components/secondary-panel/useThreadFileTabs";
-import {
-  PluginPanelTabContent,
-  type PluginPanelActionEntry,
-} from "@/components/plugin/PluginPanelActions";
-import {
-  createFileOpenerOriginalTab,
-  parseFileOpenerParams,
-  type FileOpenerOriginalTab,
-} from "@/components/plugin/file-opener-tabs";
+import { PluginPanelTabContent } from "@/components/plugin/PluginPanelActions";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
 import { useThreadStorageLocation } from "@/hooks/queries/thread-queries";
 import { useHostDaemon } from "@/hooks/useHostDaemon";
@@ -59,7 +47,6 @@ interface RootComposePanelTabContentProps {
   onStartTerminal: () => void;
   pane: SecondaryPanelPaneRenderContext;
   primaryHostId: string | null;
-  pluginActions: readonly PluginPanelActionEntry[];
   projectSources: SidebarProject["sources"];
   projects: readonly SidebarProject[] | undefined;
   rootPanelEnvironmentId: string | null;
@@ -75,17 +62,22 @@ interface RootComposeFilePreviewTabContentProps {
   currentProjectId: string;
   isFocused: boolean;
   isPanelOpen: boolean;
-  isProjectless: boolean;
-  fileOpenerSource: PluginFileOpenerSource | null;
   onSelectionAddToChat: (text: string) => void;
-  pluginPanelTab?: PluginPanelFixedPanelTab;
   primaryHostId: string | null;
   projectSources: SidebarProject["sources"];
   projects: readonly SidebarProject[] | undefined;
   rootPanelEnvironmentId: string | null;
   rootPanelThreadId: string | null;
   rootProjectHostId: string | null;
-  tab: FileOpenerOriginalTab;
+  tab: Extract<
+    SecondaryFileFixedPanelTab,
+    {
+      kind:
+        | "workspace-file-preview"
+        | "host-file-preview"
+        | "thread-storage-file-preview";
+    }
+  >;
 }
 
 function resolveHostOpenContext(args: {
@@ -99,31 +91,6 @@ function resolveHostOpenContext(args: {
     kind: "remote-ssh",
     serverOrigin: args.serverOrigin,
     hostId: args.hostId,
-  };
-}
-
-export function resolveRootComposeProjectFileRouting({
-  fileOpenerSource,
-  selectedEnvironmentId,
-  selectedHostId,
-}: {
-  fileOpenerSource: PluginFileOpenerSource | null;
-  selectedEnvironmentId: string | null;
-  selectedHostId: string | null;
-}): { environmentId: string | null; hostId: string | null } {
-  if (
-    fileOpenerSource?.kind === "workspace" &&
-    fileOpenerSource.environmentId === null &&
-    fileOpenerSource.projectId !== null
-  ) {
-    return {
-      environmentId: null,
-      hostId: fileOpenerSource.experimental_hostId ?? null,
-    };
-  }
-  return {
-    environmentId: selectedEnvironmentId,
-    hostId: selectedHostId,
   };
 }
 
@@ -141,7 +108,6 @@ export function RootComposePanelTabContent({
   onStartTerminal,
   pane,
   primaryHostId,
-  pluginActions,
   projectSources,
   projects,
   rootPanelEnvironmentId,
@@ -193,7 +159,6 @@ export function RootComposePanelTabContent({
                 }
               : undefined
           }
-          pluginActions={pluginActions}
           showFileSearch={!isProjectless}
         />
       );
@@ -203,10 +168,8 @@ export function RootComposePanelTabContent({
       return (
         <RootComposeFilePreviewTabContent
           currentProjectId={currentProjectId}
-          fileOpenerSource={null}
           isFocused={pane.isFocused}
           isPanelOpen={isPanelOpen}
-          isProjectless={isProjectless}
           onSelectionAddToChat={onSelectionAddToChat}
           primaryHostId={primaryHostId}
           projectSources={projectSources}
@@ -217,50 +180,18 @@ export function RootComposePanelTabContent({
           tab={tab}
         />
       );
-    case "plugin-panel": {
-      const fileOpenerFile = parseFileOpenerParams(tab.paramsJson);
-      const originalTab = createFileOpenerOriginalTab(tab);
-      if (originalTab === null) {
-        return (
-          <PluginPanelTabContent
-            tab={tab}
-            context={{
-              kind: "new-thread",
-              projectId: isProjectless ? null : currentProjectId,
-            }}
-          />
-        );
-      }
+    case "plugin-panel":
       return (
-        <RootComposeFilePreviewTabContent
-          currentProjectId={currentProjectId}
-          fileOpenerSource={fileOpenerFile?.source ?? null}
-          isFocused={pane.isFocused}
-          isPanelOpen={isPanelOpen}
-          isProjectless={isProjectless}
-          onSelectionAddToChat={onSelectionAddToChat}
-          pluginPanelTab={tab}
-          primaryHostId={primaryHostId}
-          projectSources={projectSources}
-          projects={projects}
-          rootPanelEnvironmentId={rootPanelEnvironmentId}
-          rootPanelThreadId={rootPanelThreadId}
-          rootProjectHostId={rootProjectHostId}
-          tab={originalTab}
-        />
+        <PluginPanelTabContent tab={tab} context={{ kind: "new-thread" }} />
       );
-    }
   }
 }
 
 function RootComposeFilePreviewTabContent({
   currentProjectId,
-  fileOpenerSource,
   isFocused,
   isPanelOpen,
-  isProjectless,
   onSelectionAddToChat,
-  pluginPanelTab,
   primaryHostId,
   projectSources,
   projects,
@@ -269,21 +200,15 @@ function RootComposeFilePreviewTabContent({
   rootProjectHostId,
   tab,
 }: RootComposeFilePreviewTabContentProps) {
-  const environmentId =
-    fileOpenerSource === null
-      ? (tab.environmentId ?? rootPanelEnvironmentId)
-      : fileOpenerSource.environmentId;
+  const environmentId = tab.environmentId ?? rootPanelEnvironmentId;
   const environmentQuery = useEnvironment(environmentId, {
     enabled: environmentId !== null,
     staleTime: 5_000,
   });
   const environment = environmentQuery.data;
-  const imageThreadId = fileOpenerSource?.threadId ?? rootPanelThreadId;
   const storageThreadId =
     tab.kind === "thread-storage-file-preview"
-      ? fileOpenerSource === null
-        ? (tab.threadId ?? rootPanelThreadId)
-        : fileOpenerSource.threadId
+      ? (tab.threadId ?? rootPanelThreadId)
       : null;
   const threadStorageLocationQuery = useThreadStorageLocation(
     storageThreadId ?? "",
@@ -293,9 +218,7 @@ function RootComposeFilePreviewTabContent({
     threadStorageLocationQuery.data?.storageRootPath ?? null;
   const projectPreviewId =
     tab.kind === "workspace-file-preview" && tab.environmentId === null
-      ? fileOpenerSource?.kind === "workspace"
-        ? fileOpenerSource.projectId
-        : (tab.projectId ?? currentProjectId)
+      ? (tab.projectId ?? currentProjectId)
       : null;
   const previewProjectSources =
     projectPreviewId === null
@@ -304,19 +227,14 @@ function RootComposeFilePreviewTabContent({
         ? projectSources
         : (projects?.find((project) => project.id === projectPreviewId)
             ?.sources ?? []);
-  const projectFilePreviewRouting = resolveRootComposeProjectFileRouting({
-    fileOpenerSource,
-    selectedEnvironmentId: rootPanelEnvironmentId,
-    selectedHostId: rootProjectHostId,
-  });
   const projectSourceRoutingHostId =
-    projectFilePreviewRouting.environmentId === null
-      ? (projectFilePreviewRouting.hostId ?? primaryHostId)
+    rootPanelEnvironmentId === null
+      ? (rootProjectHostId ?? primaryHostId)
       : null;
   const projectPreviewRootPath =
     projectPreviewId === null
       ? null
-      : projectFilePreviewRouting.environmentId !== null
+      : rootPanelEnvironmentId !== null
         ? (environment?.path ?? null)
         : projectSourceRoutingHostId !== null
           ? (findLocalPathProjectSourceForHost(
@@ -327,7 +245,7 @@ function RootComposeFilePreviewTabContent({
   const projectPreviewHostId =
     projectPreviewRootPath === null
       ? null
-      : projectFilePreviewRouting.environmentId !== null
+      : rootPanelEnvironmentId !== null
         ? (environment?.hostId ?? null)
         : projectSourceRoutingHostId;
   const { isLocalDaemonHost } = useHostDaemon();
@@ -398,7 +316,6 @@ function RootComposeFilePreviewTabContent({
     return true;
   });
 
-  let original: ReactNode;
   switch (tab.kind) {
     case "workspace-file-preview": {
       const copyPath = resolveAbsoluteFilePath({
@@ -408,77 +325,70 @@ function RootComposeFilePreviewTabContent({
             ? projectPreviewRootPath
             : workspaceRootPath,
       });
-      original =
-        tab.environmentId !== null ? (
-          <WorkspaceFilePreviewTabContent
-            activePath={tab.path}
-            copyPath={copyPath}
-            environmentId={tab.environmentId}
-            isPanelOpen={isPanelOpen}
-            lineRange={tab.lineRange}
-            onOpenInEditor={onOpenInEditor}
-            onSelectionAddToChat={onSelectionAddToChat}
-            source={tab.source}
-            statusLabel={tab.statusLabel}
-            threadId={imageThreadId}
-          />
-        ) : projectPreviewId !== null ? (
-          <ProjectFilePreviewTabContent
-            activePath={tab.path}
-            copyPath={copyPath}
-            environmentId={projectFilePreviewRouting.environmentId}
-            hostId={projectFilePreviewRouting.hostId}
-            isPanelOpen={isPanelOpen}
-            lineRange={tab.lineRange}
-            onOpenInEditor={onOpenInEditor}
-            onSelectionAddToChat={onSelectionAddToChat}
-            projectId={projectPreviewId}
-            rootPath={projectPreviewRootPath}
-            threadId={imageThreadId}
-          />
-        ) : (
-          <FilePreview
-            path={tab.path}
-            copyPath={copyPath}
-            onOpenInEditor={onOpenInEditor}
-            state={{ kind: "loading" }}
-          />
-        );
-      break;
+      return tab.environmentId !== null ? (
+        <WorkspaceFilePreviewTabContent
+          activePath={tab.path}
+          copyPath={copyPath}
+          environmentId={tab.environmentId}
+          isPanelOpen={isPanelOpen}
+          lineRange={tab.lineRange}
+          onOpenInEditor={onOpenInEditor}
+          onSelectionAddToChat={onSelectionAddToChat}
+          source={tab.source}
+          statusLabel={tab.statusLabel}
+          threadId={rootPanelThreadId}
+        />
+      ) : projectPreviewId !== null ? (
+        <ProjectFilePreviewTabContent
+          activePath={tab.path}
+          copyPath={copyPath}
+          environmentId={rootPanelEnvironmentId}
+          hostId={rootProjectHostId}
+          isPanelOpen={isPanelOpen}
+          lineRange={tab.lineRange}
+          onOpenInEditor={onOpenInEditor}
+          onSelectionAddToChat={onSelectionAddToChat}
+          projectId={projectPreviewId}
+          rootPath={projectPreviewRootPath}
+          threadId={rootPanelThreadId}
+        />
+      ) : (
+        <FilePreview
+          path={tab.path}
+          copyPath={copyPath}
+          onOpenInEditor={onOpenInEditor}
+          state={{ kind: "loading" }}
+        />
+      );
     }
     case "host-file-preview": {
-      const threadId =
-        fileOpenerSource === null
-          ? (tab.threadId ?? rootPanelThreadId)
-          : fileOpenerSource.threadId;
-      original =
-        threadId && environmentId ? (
-          <HostFilePreviewTabContent
-            activePath={tab.path}
-            copyPath={tab.path}
-            environmentId={environmentId}
-            isPanelOpen={isPanelOpen}
-            lineRange={tab.lineRange}
-            onOpenInEditor={onOpenInEditor}
-            onSelectionAddToChat={onSelectionAddToChat}
-            threadId={threadId}
-          />
-        ) : (
-          <FilePreview
-            path={tab.path}
-            copyPath={tab.path}
-            onOpenInEditor={onOpenInEditor}
-            state={{ kind: "loading" }}
-          />
-        );
-      break;
+      const threadId = tab.threadId ?? rootPanelThreadId;
+      return threadId && environmentId ? (
+        <HostFilePreviewTabContent
+          activePath={tab.path}
+          copyPath={tab.path}
+          environmentId={environmentId}
+          isPanelOpen={isPanelOpen}
+          lineRange={tab.lineRange}
+          onOpenInEditor={onOpenInEditor}
+          onSelectionAddToChat={onSelectionAddToChat}
+          threadId={threadId}
+        />
+      ) : (
+        <FilePreview
+          path={tab.path}
+          copyPath={tab.path}
+          onOpenInEditor={onOpenInEditor}
+          state={{ kind: "loading" }}
+        />
+      );
     }
     case "thread-storage-file-preview": {
       const copyPath = resolveAbsoluteFilePath({
         path: tab.path,
         rootPath: threadStorageRootPath,
       });
-      original = storageThreadId ? (
+      return storageThreadId ? (
         <ThreadStorageFilePreviewTabContent
           activePath={tab.path}
           copyPath={copyPath}
@@ -496,20 +406,6 @@ function RootComposeFilePreviewTabContent({
           state={{ kind: "loading" }}
         />
       );
-      break;
     }
   }
-
-  return pluginPanelTab === undefined ? (
-    original
-  ) : (
-    <PluginPanelTabContent
-      tab={pluginPanelTab}
-      context={{
-        kind: "new-thread",
-        projectId: isProjectless ? null : currentProjectId,
-      }}
-      fileOpenerOriginal={original}
-    />
-  );
 }

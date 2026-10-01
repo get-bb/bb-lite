@@ -6,11 +6,9 @@ import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
 import { RouteNavigationIndicator } from "./components/ui/route-navigation-indicator";
 import { AppNavigationUrlHost } from "./lib/url-open-routing";
 import { UiPreferencesSync } from "@/lib/ui-preferences/UiPreferencesSync";
-import { AppFileExternalNavigationHost } from "./components/plugin/AppFileExternalNavigationHost";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
-import { usePluginFrontendBoot } from "./hooks/usePluginFrontendBoot";
-import { markRouteContentPainted } from "./lib/route-content-paint";
+import { bootPlugins } from "@/plugins/external";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "./hooks/useWebSocket";
 import {
@@ -135,24 +133,18 @@ export function AppRoutes() {
             }
           />
         </Routes>
-        <RouteContentPaintSignal />
       </Suspense>
     </AppLayout>
   );
-}
-
-function RouteContentPaintSignal() {
-  useEffect(() => {
-    markRouteContentPainted();
-  }, []);
-  return null;
 }
 
 export function App() {
   useWebSocket();
   useAppTheme();
   useFaviconColorSync();
-  usePluginFrontendBoot();
+  useEffect(() => {
+    void bootPlugins();
+  }, []);
   useRememberPluginNavPanelChrome();
 
   return (
@@ -161,11 +153,9 @@ export function App() {
         <RouteNavigationProvider>
           <RouteNavigationIndicator />
           <AppNavigationUrlHost>
-            <AppFileExternalNavigationHost>
-              <HashNavigationScroll />
-              <UiPreferencesSync />
-              <AppRoutes />
-            </AppFileExternalNavigationHost>
+            <HashNavigationScroll />
+            <UiPreferencesSync />
+            <AppRoutes />
           </AppNavigationUrlHost>
         </RouteNavigationProvider>
       </AppCommandProvider>

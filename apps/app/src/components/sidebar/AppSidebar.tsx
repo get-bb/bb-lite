@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { cn } from "@bb/shared-ui/lib/utils";
 import { THREAD_JUMP_APP_COMMAND_IDS } from "@bb/domain";
 import { useNavigate } from "react-router-dom";
 import { OverflowFade } from "@/components/ui/overflow-fade.js";
@@ -12,11 +10,7 @@ import {
 } from "@/components/ui/sidebar.js";
 import { PluginThreadList } from "./PluginThreadList";
 import { useThreadListReplacement } from "./threadListProvider";
-import {
-  PluginSidebarFooterDisclosure,
-  PluginSidebarFooterItems,
-  usePluginSidebarFooterDisclosure,
-} from "@/components/plugin/PluginSidebarFooterItems";
+import { PluginSidebarFooterItems } from "@/components/plugin/PluginSidebarFooterItems";
 import { SidebarPluginAttentionGlyph } from "./SidebarPluginAttentionGlyph";
 import { SidebarResizeHandle, SidebarTopReserveRow } from "./SidebarChrome";
 import { SIDEBAR_FOOTER_ACTION_CLASS } from "./sidebarRowClasses";
@@ -43,8 +37,6 @@ import {
   SidebarNavigationRegion,
 } from "./SidebarNavigationRegion";
 import { SidebarNavigationModelProvider } from "./SidebarNavigationModel";
-import { SIDEBAR_FOOTER_MORE_ID } from "./sidebarFooterPreferences";
-import { SidebarFooterCustomize } from "./SidebarFooterCustomize";
 import { SidebarHeaderSlot } from "./SidebarHeaderSlot";
 
 const BUG_REPORT_NEW_ISSUE_URL = "https://github.com/get-bb/bb/issues/new";
@@ -63,7 +55,6 @@ export function AppSidebar({
   const threadListReplacement = useThreadListReplacement();
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
-  const [isFooterCustomizing, setFooterCustomizing] = useState(false);
   const [isNavigationCustomizing, setNavigationCustomizing] = useState(false);
   const customizeFocusReturnRef = useRef<HTMLElement | null>(null);
   const [threadShortcutKeysById, setThreadShortcutKeysById] = useState<
@@ -78,7 +69,6 @@ export function AppSidebar({
   );
   const isAppCommandModifierHeld = useIsAppCommandModifierHeld();
   const settingsShortcut = useAppCommandShortcut("settings.open");
-  const pluginSidebarFooter = usePluginSidebarFooterDisclosure();
 
   const handleNewChat = useCallback(() => {
     void navigate(getRootComposeRoutePath(), {
@@ -152,7 +142,6 @@ export function AppSidebar({
     customizeFocusReturnRef.current = resolveCustomizeFocusReturnTarget(
       sidebarRef.current,
     );
-    setFooterCustomizing(false);
     setNavigationCustomizing(true);
   }, []);
   useIndexedAppCommandHandlers(
@@ -191,35 +180,8 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter className="relative">
         <OverflowFade placement="above" tone="sidebar" size="sm" />
-        {isFooterCustomizing ? (
-          <div className="max-h-[50svh] overflow-y-auto">
-            <SidebarFooterCustomize
-              onDone={() => {
-                flushSync(() => setFooterCustomizing(false));
-                document.getElementById(SIDEBAR_FOOTER_MORE_ID)?.focus();
-              }}
-            />
-          </div>
-        ) : (
-          <PluginSidebarFooterDisclosure
-            item={pluginSidebarFooter.activeItem}
-            onDismiss={pluginSidebarFooter.dismiss}
-          />
-        )}
-        <SidebarMenu
-          className={cn(
-            "flex-row items-center gap-1",
-            isFooterCustomizing && "hidden",
-          )}
-        >
+        <SidebarMenu className="flex-row items-center gap-1">
           <PluginSidebarFooterItems
-            onCustomize={() => {
-              pluginSidebarFooter.dismiss();
-              setNavigationCustomizing(false);
-              setFooterCustomizing(true);
-            }}
-            activeDisclosureKey={pluginSidebarFooter.activeKey}
-            onDisclosureCommand={pluginSidebarFooter.handleCommand}
             builtInActions={[
               {
                 id: "settings",

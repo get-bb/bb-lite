@@ -1,9 +1,9 @@
-import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
+import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import {
   COARSE_POINTER_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTEXT_SELECTION_SURFACE_CLASS } from "../ui/context-selection.js";
 import { SIDEBAR_HOVER_ACTIONS_GAP_CLASS } from "../ui/sidebar-hover-actions.js";
 

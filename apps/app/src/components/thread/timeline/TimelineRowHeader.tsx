@@ -5,7 +5,6 @@ import {
 } from "../../ui/disclosure.js";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { PluginCompactIconMask } from "../../plugin/PluginIcon.js";
 
 export type TimelineRowHorizontalPadding = "default" | "flush";
 
@@ -22,25 +21,14 @@ interface TimelineStaticRowHeaderProps {
 interface TimelineLeadingIconProps {
   icon: IconName | undefined;
   fallback?: IconName;
-  iconUrl: string | undefined;
   style: CSSProperties | undefined;
 }
 
 export function TimelineLeadingIcon({
   icon,
   fallback,
-  iconUrl,
   style,
 }: TimelineLeadingIconProps) {
-  if (iconUrl !== undefined) {
-    return (
-      <PluginCompactIconMask
-        url={iconUrl}
-        className="size-3.5 text-muted-foreground"
-        style={style}
-      />
-    );
-  }
   if (icon) {
     return (
       <Icon

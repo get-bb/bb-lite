@@ -19,23 +19,10 @@ import type {
   ThreadRuntimeDisplayStatus,
   ThreadTimelineActivePromptMode,
 } from "@bb/domain";
-import type { ComposerView, PluginComposerScope } from "@get-bb/plugin-sdk";
-import type { ComposerTextEffectSource } from "@/lib/composer-text-effects";
 import { modifierSubmitShortcutLabel } from "./modifier-submit-shortcut";
-import { ComposerBannersSlot } from "@/components/plugin/PluginComposerBanners";
+import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
+import { useComposerExtensionController } from "@/components/plugin/ComposerExtensionHost";
 import {
-  PluginComposerHostProvider,
-  PluginComposerViewProvider,
-  type PluginComposerHost,
-  usePluginComposerHostDraft,
-  usePluginComposerViewModel,
-} from "@/components/plugin/plugin-composer-host";
-import {
-  ComposerExtensionHost,
-  useComposerExtensionController,
-} from "@/components/plugin/ComposerExtensionHost";
-import {
-  DEFAULT_COMPOSER_SCOPE,
   PromptBoxInternal,
   type AttachmentsConfig,
   type HistoryConfig,
@@ -150,10 +137,7 @@ export interface FollowUpPromptBoxProps {
   permissionReadOnly?: boolean;
   typeahead: TypeaheadConfig;
   promptActions?: readonly PromptBoxAction[];
-  suppressPluginComposerCustomizations?: boolean;
   pluginComposerHost?: PluginComposerHost | null;
-  pluginComposerScope?: PluginComposerScope | null;
-  textEffects?: readonly ComposerTextEffectSource[];
   collapseResetKey: string | number;
   preferExpanded?: boolean;
   focusEndKey?: string | number;
@@ -171,40 +155,14 @@ type FollowUpPromptBoxWithComposerProps = Omit<
 
 function FollowUpPromptBoxStackOnly({
   stack,
-  pluginComposerHost,
-  pluginComposerScope,
-}: Pick<
-  FollowUpPromptBoxProps,
-  "stack" | "pluginComposerHost" | "pluginComposerScope"
->) {
-  const composerScope =
-    pluginComposerScope ?? pluginComposerHost?.scope ?? null;
-  const hostDraft = usePluginComposerHostDraft(pluginComposerHost ?? null);
-  const composerView = usePluginComposerViewModel({
-    scope: composerScope ?? DEFAULT_COMPOSER_SCOPE,
-    layout: "expanded",
-    text: hostDraft?.text ?? "",
-    attachmentCount: hostDraft?.attachments.length ?? 0,
-    isRunning: false,
-    isSubmitting: false,
-  });
-  if (!stack && !composerScope) {
+}: Pick<FollowUpPromptBoxProps, "stack">) {
+  if (!stack) {
     return null;
   }
   return (
-    <PluginComposerViewProvider value={composerView}>
-      <PluginComposerHostProvider value={pluginComposerHost ?? null}>
-        <div data-promptbox-shell="" className="space-y-2">
-          <div className={`grid gap-2 ${PROMPT_STACK_TRACK_CLASS}`}>
-            {composerScope ? (
-              <ComposerBannersSlot>{stack}</ComposerBannersSlot>
-            ) : (
-              stack
-            )}
-          </div>
-        </div>
-      </PluginComposerHostProvider>
-    </PluginComposerViewProvider>
+    <div data-promptbox-shell="" className="space-y-2">
+      <div className={`grid gap-2 ${PROMPT_STACK_TRACK_CLASS}`}>{stack}</div>
+    </div>
   );
 }
 
@@ -222,10 +180,7 @@ function FollowUpPromptBoxWithComposer({
   permissionReadOnly,
   typeahead,
   promptActions,
-  suppressPluginComposerCustomizations,
   pluginComposerHost,
-  pluginComposerScope,
-  textEffects,
   collapseResetKey,
   preferExpanded = false,
   focusEndKey,
@@ -250,19 +205,6 @@ function FollowUpPromptBoxWithComposer({
   const onStopRuntime =
     submitMode.kind === "queue" ? submitMode.onStop : undefined;
   const canStopRuntime = onStopRuntime !== undefined;
-  const attachmentCount = attachments.items?.length ?? 0;
-  const composerScope =
-    pluginComposerScope ?? pluginComposerHost?.scope ?? null;
-  const [composerLayout, setComposerLayout] =
-    useState<ComposerView["layout"]>("expanded");
-  const composerView = usePluginComposerViewModel({
-    scope: composerScope ?? DEFAULT_COMPOSER_SCOPE,
-    layout: composerLayout,
-    text: composer.message,
-    attachmentCount,
-    isRunning: canStopRuntime || isStopping,
-    isSubmitting: composer.isFollowUpSubmitting,
-  });
   const promptBoxRef = useRef<PromptBoxHandle>(null);
   const paneContext = useOptionalPaneContext();
   const isFocusedPane = paneContext?.isFocused ?? true;
@@ -416,9 +358,8 @@ function FollowUpPromptBoxWithComposer({
     collapseWidePromptBox();
     return true;
   }, [collapseWidePromptBox]);
-  const extensionController = useComposerExtensionController({
+  useComposerExtensionController({
     host: pluginComposerHost ?? null,
-    view: composerView,
     isFocused: isFocusedPane,
     isPrimary: isPrimaryComposer,
     collapseIfFocused,
@@ -542,8 +483,6 @@ function FollowUpPromptBoxWithComposer({
         onChange={composer.onChangeMessage}
         onSubmit={composer.onSubmit}
         onEscape={composer.onEscape}
-        textEffects={textEffects}
-        onComposerLayoutChange={setComposerLayout}
         scrollToBottomOnSubmit={submitMode.kind !== "queue"}
         history={composer.history}
         focusEndKey={focusEndKey}
@@ -596,9 +535,6 @@ function FollowUpPromptBoxWithComposer({
         typeahead={typeahead}
         attachments={attachments}
         promptActions={promptActions}
-        suppressPluginComposerCustomizations={
-          suppressPluginComposerCustomizations
-        }
         compact={compactConfig}
         editorLayout="thread"
         onCollapse={collapseWidePromptBox}
@@ -647,22 +583,14 @@ function FollowUpPromptBoxWithComposer({
   );
 
   return (
-    <ComposerExtensionHost
-      controller={extensionController}
-      defaultRenderer={
-        <DefaultFollowUpComposer
-          active={composer.threadRuntimeDisplayStatus === "active"}
-          composerElement={composerElement}
-          hasPluginComposerScope={
-            composerScope !== null && !suppressPluginComposerCustomizations
-          }
-          isPrimaryComposer={isPrimaryComposer}
-          pendingInteraction={pendingInteraction}
-          showScrollToBottomButton={showScrollToBottomButton}
-          stack={stack}
-          stackRef={stackRef}
-        />
-      }
+    <DefaultFollowUpComposer
+      active={composer.threadRuntimeDisplayStatus === "active"}
+      composerElement={composerElement}
+      isPrimaryComposer={isPrimaryComposer}
+      pendingInteraction={pendingInteraction}
+      showScrollToBottomButton={showScrollToBottomButton}
+      stack={stack}
+      stackRef={stackRef}
     />
   );
 }
@@ -670,7 +598,6 @@ function FollowUpPromptBoxWithComposer({
 interface DefaultFollowUpComposerProps {
   active: boolean;
   composerElement: ReactNode;
-  hasPluginComposerScope: boolean;
   isPrimaryComposer: boolean;
   pendingInteraction?: ReactNode;
   showScrollToBottomButton: boolean;
@@ -681,7 +608,6 @@ interface DefaultFollowUpComposerProps {
 function DefaultFollowUpComposer({
   active,
   composerElement,
-  hasPluginComposerScope,
   isPrimaryComposer,
   pendingInteraction = null,
   showScrollToBottomButton,
@@ -703,11 +629,7 @@ function DefaultFollowUpComposer({
           ref={stackRef}
           className={`grid gap-2 ${PROMPT_STACK_TRACK_CLASS}`}
         >
-          {hasPluginComposerScope ? (
-            <ComposerBannersSlot>{stack}</ComposerBannersSlot>
-          ) : (
-            stack
-          )}
+          {stack}
           {pendingInteraction}
         </div>
         <div data-follow-up-composer-anchor="">{composerElement}</div>
@@ -720,13 +642,7 @@ export const FollowUpPromptBox = memo(function FollowUpPromptBox(
   props: FollowUpPromptBoxProps,
 ) {
   if (props.composer === null) {
-    return (
-      <FollowUpPromptBoxStackOnly
-        stack={props.stack}
-        pluginComposerHost={props.pluginComposerHost}
-        pluginComposerScope={props.pluginComposerScope}
-      />
-    );
+    return <FollowUpPromptBoxStackOnly stack={props.stack} />;
   }
   return <FollowUpPromptBoxWithComposer {...props} composer={props.composer} />;
 });

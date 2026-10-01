@@ -1,8 +1,7 @@
 import { PageShell } from "@/components/ui/page-shell.js";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
-import { usePluginFrontendsSettled } from "@/lib/plugin-frontend-boot-state";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { PluginSlotMount } from "@/plugins/mount";
+import { usePluginSlots, usePluginsSettled } from "@/plugins/registry";
 
 interface PluginPanelViewProps {
   pluginId: string;
@@ -16,7 +15,7 @@ export function PluginPanelView({
   subPath,
 }: PluginPanelViewProps) {
   const { navPanels } = usePluginSlots();
-  const pluginsSettled = usePluginFrontendsSettled();
+  const pluginsSettled = usePluginsSettled();
   const panel =
     navPanels.find(
       (candidate) =>

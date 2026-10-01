@@ -4,7 +4,7 @@ import {
   useSidebarThreadRowStatuses,
   type PluginSidebarSplitPane,
   type PluginSidebarThreadRowStatus,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin/app";
 
 export interface ThreadSplitIndicatorTarget {
   id: string;

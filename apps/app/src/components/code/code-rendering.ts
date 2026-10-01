@@ -1,13 +1,22 @@
-import type {
-  CodeOverflowMode,
-  DiffViewMode,
-  ExperimentalDiffFullFileContents,
-  SourceCodeLineRange,
-} from "@get-bb/plugin-sdk";
 import type { ParsedGitDiffFile } from "@/components/git-diff/git-diff-parsing";
+import type { CodeOverflowMode } from "@/lib/code-overflow-mode";
 
-export const DEFAULT_CODE_OVERFLOW: CodeOverflowMode = "scroll";
-export const DEFAULT_DIFF_VIEW: DiffViewMode = "unified";
+type DiffViewMode = "unified" | "split";
+
+interface SourceCodeLineRange {
+  start: number;
+  end: number;
+}
+
+interface ExperimentalDiffFileContent {
+  path: string;
+  content: string;
+}
+
+export interface ExperimentalDiffFullFileContents {
+  old: ExperimentalDiffFileContent;
+  new: ExperimentalDiffFileContent;
+}
 
 interface SourceCodePresentation {
   overflow: CodeOverflowMode;
@@ -24,8 +33,6 @@ export interface BbSourceCodeProps extends SourceCodePresentation {
   content: string;
   path: string;
   cacheKey?: string;
-  className?: string;
-  scrollToHighlightedLines?: boolean;
   onSelectionAddToChat?: (text: string) => void;
 }
 
@@ -33,6 +40,5 @@ export interface BbDiffProps extends DiffPresentation {
   file: ParsedGitDiffFile;
   patchText?: string;
   fullFileContents: ExperimentalDiffFullFileContents | null;
-  className?: string;
   onSelectionAddToChat?: (text: string) => void;
 }

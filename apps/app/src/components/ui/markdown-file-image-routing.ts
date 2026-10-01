@@ -4,10 +4,7 @@ import {
   buildAbsoluteFilePath,
   normalizeAbsoluteFilePath,
 } from "@/lib/absolute-file-path";
-import {
-  buildHostFileContentUrl,
-  buildThreadHostFileContentUrl,
-} from "@/lib/file-content-urls";
+import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 
 const ROUTE_ROOT = "/__bb_markdown_file_root__";
 
@@ -56,23 +53,4 @@ export function buildMarkdownFileImageRouting({
       },
     },
   };
-}
-
-export function buildMarkdownHostFileImageRouting({
-  path,
-  rootPath,
-  hostId,
-}: {
-  path: string;
-  rootPath: string;
-  hostId: string | null;
-}): MarkdownLinkRouting | undefined {
-  if (hostId === null) return undefined;
-  return buildMarkdownFileImageRouting({
-    path,
-    rootPath,
-    threadId: null,
-    resolveRelativeSrc: (_relativePath, absolutePath) =>
-      buildHostFileContentUrl(hostId, absolutePath),
-  });
 }

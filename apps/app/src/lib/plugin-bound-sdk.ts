@@ -2,13 +2,10 @@ import type {
   BbSdkAreas,
   ThreadForkArgs,
   ThreadMutationResult,
-  ThreadPluginMetadataArgs,
-  ThreadPluginMetadataUpdateArgs,
   ThreadSpawnArgs,
   ThreadUpdateArgs,
 } from "@bb/sdk";
 import type { QueryClient } from "@tanstack/react-query";
-import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk";
 import {
   beginEnvironmentNameUpdateTransaction,
   completeEnvironmentNameUpdateTransaction,
@@ -115,7 +112,7 @@ export function bindSdkToPlugin(
   sdk: BbSdkAreas,
   pluginId: string,
   queryClient: QueryClient,
-): PluginBrowserBbSdk {
+): BbSdkAreas {
   const updateThread = createOptimisticThreadUpdateBatcher(sdk, queryClient);
   return {
     ...sdk,
@@ -150,26 +147,6 @@ export function bindSdkToPlugin(
     threads: {
       ...sdk.threads,
       update: updateThread,
-      getPluginMetadata(
-        args: Omit<ThreadPluginMetadataArgs, "pluginId"> & {
-          pluginId?: string;
-        },
-      ) {
-        return sdk.threads.getPluginMetadata({
-          ...args,
-          pluginId: args.pluginId ?? pluginId,
-        });
-      },
-      updatePluginMetadata(
-        args: Omit<ThreadPluginMetadataUpdateArgs, "pluginId"> & {
-          pluginId?: string;
-        },
-      ) {
-        return sdk.threads.updatePluginMetadata({
-          ...args,
-          pluginId: args.pluginId ?? pluginId,
-        });
-      },
       fork(args: ThreadForkArgs) {
         return sdk.threads.fork(withPluginThreadAttribution(args, pluginId));
       },
@@ -182,14 +159,14 @@ export function bindSdkToPlugin(
 
 const boundSdkByQueryClient = new WeakMap<
   QueryClient,
-  WeakMap<BbSdkAreas, Map<string, PluginBrowserBbSdk>>
+  WeakMap<BbSdkAreas, Map<string, BbSdkAreas>>
 >();
 
 export function getPluginBoundSdk(
   sdk: BbSdkAreas,
   pluginId: string,
   queryClient: QueryClient,
-): PluginBrowserBbSdk {
+): BbSdkAreas {
   let bySdk = boundSdkByQueryClient.get(queryClient);
   if (bySdk === undefined) {
     bySdk = new WeakMap();

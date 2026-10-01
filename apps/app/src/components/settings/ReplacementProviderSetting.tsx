@@ -1,10 +1,10 @@
 import { useAtom, type WritableAtom } from "jotai";
 import {
-  AUTOMATIC_REPLACEMENT_PROVIDER,
-  BUILT_IN_REPLACEMENT_PROVIDER,
-  findAutomaticReplacement,
-  replacementProviderKey,
-} from "@/lib/plugin-replacement-preference";
+  AUTOMATIC_PROVIDER,
+  NO_PROVIDER,
+  findAutomaticProvider,
+  providerKey,
+} from "@/plugins/registry";
 import { ChoiceDropdownSetting } from "./ChoiceDropdownSetting";
 
 interface ReplacementProviderSlot {
@@ -35,13 +35,13 @@ export function ReplacementProviderSetting({
 }) {
   const [preference, setPreference] = useAtom(preferenceAtom);
 
-  const automaticProvider = findAutomaticReplacement(slots, bundledProvider);
+  const automaticProvider = findAutomaticProvider(slots, bundledProvider);
   if (automaticProvider === undefined) return null;
   const automaticOption = {
-    key: AUTOMATIC_REPLACEMENT_PROVIDER,
+    key: AUTOMATIC_PROVIDER,
     title: "Automatic",
     description: `Chooses ${automaticProvider.title} (${
-      replacementProviderKey(automaticProvider) === bundledProvider
+      providerKey(automaticProvider) === bundledProvider
         ? "built-in"
         : automaticProvider.pluginId
     }).`,
@@ -50,14 +50,14 @@ export function ReplacementProviderSetting({
     builtInDescription === undefined
       ? null
       : {
-          key: BUILT_IN_REPLACEMENT_PROVIDER,
+          key: NO_PROVIDER,
           title: "bb (built-in)",
           description: builtInDescription,
         };
   const pluginOptions = slots.map((slot) => {
-    const bundled = replacementProviderKey(slot) === bundledProvider;
+    const bundled = providerKey(slot) === bundledProvider;
     return {
-      key: replacementProviderKey(slot),
+      key: providerKey(slot),
       title: bundled ? `${slot.title} (built-in)` : slot.title,
       description: bundled
         ? `BB default. ${slot.description ?? ""}`.trim()

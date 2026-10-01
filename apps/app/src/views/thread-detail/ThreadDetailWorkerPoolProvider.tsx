@@ -11,7 +11,7 @@ import {
   PierreWorkerPoolGateContext,
   type PierreWorkerPoolGate,
 } from "@/lib/pierre-worker-pool-gate";
-import { createRetryingModuleLoader } from "@/lib/plugin-frontend-lazy";
+import { createRetryingModuleLoader } from "@/lib/retrying-module-loader";
 
 type PierreWorkerPoolModule = typeof import("@/lib/pierre-worker-pool");
 

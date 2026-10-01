@@ -1,9 +1,7 @@
 import { z } from "zod";
 import {
   terminalCreateTargetSchema,
-  threadTabFileOpenerOwnerSchema,
   type TerminalCreateTarget,
-  type ThreadTabFileOpenerOwner,
 } from "@bb/server-contract";
 import {
   areFilePreviewLineRangesEqual,
@@ -125,7 +123,6 @@ const terminalFixedPanelTabSchema = z
 const pluginPanelFixedPanelTabSchema = z
   .object({
     actionId: z.string().min(1),
-    fileOpenerOwner: threadTabFileOpenerOwnerSchema.optional(),
     id: z.string().min(1),
     kind: z.literal("plugin-panel"),
     paramsJson: z.string().nullable(),
@@ -148,19 +145,25 @@ const DROPPED_FIXED_PANEL_TAB_KINDS: ReadonlySet<unknown> = new Set([
   "side-chat",
   "browser",
 ]);
+const DROPPED_PLUGIN_PANEL_ACTION_ID_PREFIX = "file-opener:";
+
+export function isDroppedFixedPanelTab(tab: unknown): boolean {
+  if (typeof tab !== "object" || tab === null) {
+    return false;
+  }
+  const { actionId, kind } = tab as { actionId?: unknown; kind?: unknown };
+  return (
+    DROPPED_FIXED_PANEL_TAB_KINDS.has(kind) ||
+    (kind === "plugin-panel" &&
+      typeof actionId === "string" &&
+      actionId.startsWith(DROPPED_PLUGIN_PANEL_ACTION_ID_PREFIX))
+  );
+}
+
 const secondaryFixedPanelTabsSchema = z.preprocess(
   (value) =>
     Array.isArray(value)
-      ? value.filter(
-          (tab) =>
-            !(
-              typeof tab === "object" &&
-              tab !== null &&
-              DROPPED_FIXED_PANEL_TAB_KINDS.has(
-                (tab as { kind?: unknown }).kind,
-              )
-            ),
-        )
+      ? value.filter((tab) => !isDroppedFixedPanelTab(tab))
       : value,
   z.array(secondaryFixedPanelTabSchema),
 );
@@ -204,7 +207,6 @@ export type FixedPanelViewTab =
 
 export interface PluginPanelFixedPanelTab {
   actionId: string;
-  fileOpenerOwner?: ThreadTabFileOpenerOwner;
   id: string;
   kind: "plugin-panel";
   paramsJson: string | null;
@@ -777,29 +779,8 @@ function stripTransientFixedPanelTabForStorage(
     case "plugin-page-fixed":
     case "new-tab":
     case "terminal":
-      return tab;
     case "plugin-panel":
-      return tab.fileOpenerOwner === undefined
-        ? tab
-        : {
-            ...tab,
-            fileOpenerOwner: stripFileOpenerOwnerForStorage(
-              tab.fileOpenerOwner,
-            ),
-          };
-  }
-}
-
-function stripFileOpenerOwnerForStorage(
-  owner: ThreadTabFileOpenerOwner,
-): ThreadTabFileOpenerOwner {
-  switch (owner.kind) {
-    case "workspace-file-preview":
-      return { ...owner, tab: { ...owner.tab, lineRange: null } };
-    case "host-file-preview":
-      return { ...owner, tab: { ...owner.tab, lineRange: null } };
-    case "thread-storage-file-preview":
-      return { ...owner, tab: { ...owner.tab, lineRange: null } };
+      return tab;
   }
 }
 
@@ -995,7 +976,6 @@ export function areFixedPanelTabsEquivalent(
         a.pluginId === b.pluginId &&
         a.actionId === b.actionId &&
         a.paramsJson === b.paramsJson &&
-        areFileOpenerOwnersEqual(a.fileOpenerOwner, b.fileOpenerOwner) &&
         a.title === b.title
       );
     case "workspace-file-preview":
@@ -1042,33 +1022,4 @@ export function areFixedPanelTabsEquivalent(
         JSON.stringify(a.target) === JSON.stringify(b.target)
       );
   }
-}
-
-function areFileOpenerOwnersEqual(
-  a: ThreadTabFileOpenerOwner | undefined,
-  b: ThreadTabFileOpenerOwner | undefined,
-): boolean {
-  if (a === undefined || b === undefined) return a === b;
-  if (
-    a.kind !== b.kind ||
-    a.environmentId !== b.environmentId ||
-    a.threadId !== b.threadId ||
-    a.tab.path !== b.tab.path ||
-    !areFilePreviewLineRangesEqual({
-      a: a.tab.lineRange,
-      b: b.tab.lineRange,
-    })
-  ) {
-    return false;
-  }
-  if (a.kind === "host-file-preview") {
-    return b.kind === "host-file-preview" && a.hostId === b.hostId;
-  }
-  if (a.kind !== "workspace-file-preview") return true;
-  return (
-    b.kind === "workspace-file-preview" &&
-    a.projectId === b.projectId &&
-    areEnvironmentFilePreviewSourcesEqual(a.tab.source, b.tab.source) &&
-    a.tab.statusLabel === b.tab.statusLabel
-  );
 }

@@ -6,7 +6,7 @@ import {
   type ReactNode,
   useContext,
 } from "react";
-import type { BbNavigate } from "@get-bb/plugin-sdk";
+import type { BbNavigate } from "@bb/plugin/app";
 
 export type PluginThreadPanelOpenHandler = (
   options: Parameters<BbNavigate["openThreadPanel"]>[0] & {

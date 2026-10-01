@@ -9,29 +9,20 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { PluginComposerPlusMenuEntry } from "@/components/plugin/PluginComposerActions";
-import { useResolvedComposerSendMenuItems } from "@/components/plugin/composer-slot-hooks";
-import { useOptionalPluginComposerView } from "@/components/plugin/plugin-composer-host";
 
 export function ComposerSendMenu({
   children,
-  includePluginContributions,
   queue,
   hasInput,
   canSubmit,
   onSubmit,
 }: {
   children: ReactNode;
-  includePluginContributions: boolean;
   queue: boolean;
   hasInput: boolean;
   canSubmit: boolean;
   onSubmit: (() => void) | undefined;
 }) {
-  const view = useOptionalPluginComposerView();
-  const contributions = useResolvedComposerSendMenuItems(
-    includePluginContributions ? (view?.scope.kind ?? null) : null,
-  );
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -40,27 +31,16 @@ export function ComposerSendMenu({
   const handleOpenChange = (nextOpen: boolean) =>
     setOpen(nextOpen && canSubmit);
 
-  if (!onSubmit && contributions.length === 0) return children;
+  if (!onSubmit) return children;
 
   const items = canSubmit ? (
-    <>
-      {onSubmit ? (
-        <DropdownMenuItem disabled={!canSubmit} onSelect={onSubmit}>
-          <Icon
-            name={queue ? "ListEnd" : "CornerDownRight"}
-            className={cn("size-4", queue && "-scale-x-100")}
-          />
-          {queue ? "Queue" : "Steer"}
-        </DropdownMenuItem>
-      ) : null}
-      {contributions.map((contribution) => (
-        <PluginComposerPlusMenuEntry
-          key={contribution.key}
-          contribution={contribution}
-          slotKind="composerSendMenuItem"
-        />
-      ))}
-    </>
+    <DropdownMenuItem disabled={!canSubmit} onSelect={onSubmit}>
+      <Icon
+        name={queue ? "ListEnd" : "CornerDownRight"}
+        className={cn("size-4", queue && "-scale-x-100")}
+      />
+      {queue ? "Queue" : "Steer"}
+    </DropdownMenuItem>
   ) : null;
 
   return (

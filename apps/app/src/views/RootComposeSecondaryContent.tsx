@@ -1,7 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { PluginHomepageSections } from "@/components/plugin/PluginHomepageSections";
-import { usePluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style.js";
@@ -31,8 +29,6 @@ export function RootComposeSecondaryContent({
   onToggleSecondaryPanel,
   secondaryPanel,
 }: RootComposeSecondaryContentProps) {
-  const composerHost = usePluginComposerHost();
-
   const mainContent = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="@container/page min-h-0 flex-1 overflow-y-auto">
@@ -45,7 +41,6 @@ export function RootComposeSecondaryContent({
           style={PAGE_SHELL_CONTENT_STYLE}
         >
           {children}
-          <PluginHomepageSections />
         </div>
       </div>
     </div>
@@ -60,7 +55,6 @@ export function RootComposeSecondaryContent({
         contentKey="new-thread"
         mainPanelId="root-compose-main-panel"
         main={mainContent}
-        composerHost={composerHost}
         renderPanel={({ onToggleMainCollapse, resizablePanelId }) => (
           <LazyThreadSecondaryPanel
             {...secondaryPanel}

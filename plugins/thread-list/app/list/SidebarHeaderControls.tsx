@@ -1,15 +1,15 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@bb/shared-ui/dropdown-menu";
 import {
   SidebarControlButton,
   SidebarRowControls,

@@ -15,7 +15,6 @@ import {
   useThreadHostFilePreview,
   useThreadStorageFilePreview,
 } from "@/hooks/queries/thread-queries";
-import { useHostFilePreview } from "@/hooks/queries/host-file-preview-query";
 import {
   buildEnvironmentFileContentUrl,
   buildProjectFileContentUrl,
@@ -35,10 +34,7 @@ import { clearDiffFileCardStates } from "./git-diff/diffFilesStore";
 import { buildGitDiffIdentity } from "./git-diff/gitDiffPanelHelpers";
 import { useDiffFileContentsRequester } from "./git-diff/useDiffFileContentsRequester";
 import { SecondaryPanelFilePreview } from "./ThreadStorageFilePreview";
-import {
-  buildMarkdownFileImageRouting,
-  buildMarkdownHostFileImageRouting,
-} from "@/components/ui/markdown-file-image-routing";
+import { buildMarkdownFileImageRouting } from "@/components/ui/markdown-file-image-routing";
 import { getAbsoluteDirname } from "@/lib/absolute-file-path";
 
 const GIT_DIFF_SKELETON_FILE_COUNT = 3;
@@ -96,14 +92,6 @@ interface HostFilePreviewTabContentProps {
   onSelectionAddToChat?: (text: string) => void;
   onOpenInEditor?: (path: string) => void;
   threadId: string;
-}
-
-interface HostScopedFilePreviewTabContentProps {
-  activePath: string;
-  hostId: string;
-  isPanelOpen: boolean;
-  lineRange: FilePreviewLineRange | null;
-  onOpenInEditor?: (path: string) => void;
 }
 
 interface ThreadStorageFilePreviewTabContentProps {
@@ -472,37 +460,6 @@ export function HostFilePreviewTabContent({
       lineRange={lineRange}
       markdownLinkRouting={resolvedMarkdownLinkRouting}
       onSelectionAddToChat={onSelectionAddToChat}
-      onOpenInEditor={onOpenInEditor}
-      statusLabel={null}
-    />
-  );
-}
-
-export function HostScopedFilePreviewTabContent({
-  activePath,
-  hostId,
-  isPanelOpen,
-  lineRange,
-  onOpenInEditor,
-}: HostScopedFilePreviewTabContentProps) {
-  const hostFilePreviewQuery = useHostFilePreview(hostId, activePath, {
-    enabled: isPanelOpen,
-  });
-  const markdownLinkRouting = useMemo(() => {
-    return buildMarkdownHostFileImageRouting({
-      path: activePath,
-      rootPath: getAbsoluteDirname({ path: activePath }),
-      hostId,
-    });
-  }, [activePath, hostId]);
-  return (
-    <SecondaryPanelFilePreview
-      {...filePreviewQueryProps(hostFilePreviewQuery)}
-      activePath={activePath}
-      copyPath={activePath}
-      htmlPreviewUrl={hostFilePreviewQuery.data?.url ?? null}
-      lineRange={lineRange}
-      markdownLinkRouting={markdownLinkRouting}
       onOpenInEditor={onOpenInEditor}
       statusLabel={null}
     />

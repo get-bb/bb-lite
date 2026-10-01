@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type {
-  ExperimentalProviderModelPickerProps,
-  ExperimentalProviderModelPickerValue,
-} from "@get-bb/plugin-sdk";
+  ProviderModelPickerProps,
+  ProviderModelPickerValue,
+} from "@bb/plugin/app";
 import { ModelReasoningPicker } from "@/components/pickers/ModelReasoningPicker";
 import {
   formatModelLabel,
@@ -10,7 +10,7 @@ import {
 } from "@/hooks/useThreadCreationOptions";
 import { resolvePluginExecutionRouting } from "./plugin-execution-routing";
 
-function selectionKey(value: ExperimentalProviderModelPickerValue): string {
+function selectionKey(value: ProviderModelPickerValue): string {
   return [
     value.providerId,
     value.model,
@@ -27,7 +27,7 @@ export function PluginProviderModelPicker({
   align = "start",
   disabled,
   className,
-}: ExperimentalProviderModelPickerProps) {
+}: ProviderModelPickerProps) {
   const resolvedRouting = useMemo(
     () => resolvePluginExecutionRouting(routing),
     [routing],
@@ -44,7 +44,7 @@ export function PluginProviderModelPicker({
   });
 
   const emit = useCallback(
-    (next: ExperimentalProviderModelPickerValue) => {
+    (next: ProviderModelPickerValue) => {
       if (selectionKey(next) !== selectionKey(value)) {
         onChange(next);
       }
@@ -84,9 +84,7 @@ export function PluginProviderModelPicker({
     [controller],
   );
   const handleReasoningChange = useCallback(
-    (
-      reasoningLevel: ExperimentalProviderModelPickerValue["reasoningLevel"],
-    ) => {
+    (reasoningLevel: ProviderModelPickerValue["reasoningLevel"]) => {
       if (!controller.modelCatalogIsVerified) return;
       emit({
         providerId: controller.selectedProviderId,
@@ -120,7 +118,7 @@ export function PluginProviderModelPicker({
     (selection: {
       providerId: string;
       model: string;
-      reasoningLevel: ExperimentalProviderModelPickerValue["reasoningLevel"];
+      reasoningLevel: ProviderModelPickerValue["reasoningLevel"];
       supportsServiceTier: boolean;
     }) => {
       emit({

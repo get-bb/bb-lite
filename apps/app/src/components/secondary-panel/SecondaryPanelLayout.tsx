@@ -13,7 +13,6 @@ import {
   type ImperativePanelGroupHandle,
 } from "react-resizable-panels";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import {
   useOptionalPaneContext,
   usePaneSecondaryPanelRegistration,
@@ -55,7 +54,6 @@ interface SecondaryPanelLayoutProps {
   };
   renderPanel: (args: SecondaryPanelRenderArgs) => ReactNode;
   renderHostedPanel?: (panel: ReactNode) => ReactNode;
-  composerHost: PluginComposerHost | null;
 }
 
 export function SecondaryPanelLayout({
@@ -70,7 +68,6 @@ export function SecondaryPanelLayout({
   collapse,
   renderPanel,
   renderHostedPanel,
-  composerHost,
 }: SecondaryPanelLayoutProps) {
   const { ref: sizingRef, minimum: minimumSize } = useSecondaryPanelSizing();
   const paneContext = useOptionalPaneContext();
@@ -127,7 +124,6 @@ export function SecondaryPanelLayout({
   );
   const hostedPanelModel = useMemo<PaneSecondaryPanelViewModel>(
     () => ({
-      composerHost,
       contentKey,
       isMainCollapsed,
       isOpen: open,
@@ -136,7 +132,6 @@ export function SecondaryPanelLayout({
       transitionsReady,
     }),
     [
-      composerHost,
       contentKey,
       inlinePanel,
       isMainCollapsed,

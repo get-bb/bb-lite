@@ -5,35 +5,35 @@ import {
   type ReactNode,
 } from "react";
 import {
-  experimental_SidebarNavigationIcon as NavigationIcon,
-  experimental_useSidebarNavigation,
-  experimental_useSidebarNavigationSplit,
-  type ExperimentalSidebarNavigationItem,
-} from "@get-bb/plugin-sdk/app";
+  SidebarNavigationIcon as NavigationIcon,
+  useSidebarNavigation,
+  useSidebarNavigationSplit,
+  type SidebarNavigationItem,
+} from "@bb/plugin/app";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from "@bb/shared-ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/dropdown-menu";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { AppCommandShortcutPill } from "./ui/AppCommandShortcutPill.js";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
@@ -43,8 +43,13 @@ import {
 import {
   PROJECT_LIST_ACTION_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
-  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
-} from "./ui/sidebarRowClasses.js";
+} from "@/components/sidebar/sidebarRowClasses";
+import {
+  useSidebarSortable,
+  type SidebarSortableDragBindings,
+} from "@/components/sidebar/sortableMotion";
+import { useSidebarReorderDnd } from "@/components/sidebar/useSidebarReorderDnd";
+import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS } from "./ui/sidebarRowClasses.js";
 import {
   SidebarCustomizeActionContent,
   SidebarMore,
@@ -52,11 +57,6 @@ import {
   SidebarVisibilityActionContent,
 } from "./ui/SidebarVisibilityControls.js";
 import { SplitPaneMiniMap } from "./ui/SplitPaneMiniMap.js";
-import {
-  useSidebarSortable,
-  type SidebarSortableDragBindings,
-} from "./ui/sortableMotion.js";
-import { useSidebarReorderDnd } from "./ui/useSidebarReorderDnd.js";
 
 type MenuSurface = "context" | "dropdown";
 
@@ -67,13 +67,13 @@ function RowMenuItems({
   disablePending,
   onDisable,
 }: {
-  item: ExperimentalSidebarNavigationItem;
+  item: SidebarNavigationItem;
   surface: MenuSurface;
   canOpenInSplit: boolean;
   disablePending: boolean;
   onDisable: () => void;
 }) {
-  const { actions } = experimental_useSidebarNavigation();
+  const { actions } = useSidebarNavigation();
   const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
   const Separator =
     surface === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
@@ -121,7 +121,7 @@ function NavigationRow({
   item,
   reorderDisabled,
 }: {
-  item: ExperimentalSidebarNavigationItem;
+  item: SidebarNavigationItem;
   reorderDisabled: boolean;
 }) {
   const sortable = useSidebarSortable({
@@ -144,21 +144,21 @@ function NavigationRowChrome({
   rowRef,
   rowStyle,
 }: {
-  item: ExperimentalSidebarNavigationItem;
+  item: SidebarNavigationItem;
   dragBindings: SidebarSortableDragBindings | undefined;
   rowRef: (element: HTMLElement | null) => void;
   rowStyle: CSSProperties;
 }) {
   const { activeItemId, actions, isShortcutModifierHeld } =
-    experimental_useSidebarNavigation();
-  const split = experimental_useSidebarNavigationSplit(item.id);
+    useSidebarNavigation();
+  const split = useSidebarNavigationSplit(item.id);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const isActionsOpen = isDropdownOpen || isContextMenuOpen;
   const [disablePending, setDisablePending] = useState(false);
   const isActive =
     item.id === activeItemId && item.action.kind !== "new-thread";
-  const Accessory = item.experimental_Accessory;
+  const Accessory = item.Accessory;
   const { onKeyDown: _keyboardDragActivator, ...pointerDragListeners } =
     dragBindings?.listeners ?? {};
   const onDisable = useCallback(() => {
@@ -302,11 +302,11 @@ function OverflowItem({
   item,
   onClose,
 }: {
-  item: ExperimentalSidebarNavigationItem;
+  item: SidebarNavigationItem;
   onClose: () => void;
 }) {
-  const { actions } = experimental_useSidebarNavigation();
-  const split = experimental_useSidebarNavigationSplit(item.id, {
+  const { actions } = useSidebarNavigation();
+  const split = useSidebarNavigationSplit(item.id, {
     activation: "distance",
     onDragStart: onClose,
   });
@@ -347,7 +347,7 @@ function OverflowItem({
 }
 
 export function Navigation() {
-  const { actions, items } = experimental_useSidebarNavigation();
+  const { actions, items } = useSidebarNavigation();
   const visible = items.filter((item) => item.isVisible);
   const hidden = items.filter((item) => !item.isVisible);
   const visibleIds = visible.map((item) => item.id);

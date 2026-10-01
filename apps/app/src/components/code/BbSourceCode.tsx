@@ -28,7 +28,6 @@ import {
   useRequirePierreWorkerPool,
 } from "@/lib/pierre-worker-pool-gate";
 import { usePierreStrictModeRecoveryOptions } from "@/lib/pierre-strict-mode-recovery";
-import { cn } from "@bb/shared-ui/lib/utils";
 import {
   truncateSourceCode,
   type SourceCodeTruncation,
@@ -231,8 +230,6 @@ function BbSourceCode({
   cacheKey,
   overflow,
   highlightedLines,
-  className,
-  scrollToHighlightedLines = false,
   onSelectionAddToChat,
 }: BbSourceCodeProps) {
   const fileCacheKey = cacheKey ?? path;
@@ -305,9 +302,7 @@ function BbSourceCode({
       ? null
       : { start: highlightedLines.start, end: highlightedLines.end };
   }, [highlightedLines, lineSelectionActions.selectedRange]);
-  const targetLineNumber = scrollToHighlightedLines
-    ? (selectedLines?.start ?? null)
-    : null;
+  const targetLineNumber = selectedLines?.start ?? null;
   const showsFullFile =
     truncation === null ||
     fullFileRequestedFor === fileIdentity ||
@@ -440,7 +435,7 @@ function BbSourceCode({
   return (
     <div
       ref={containerRef}
-      className={cn("flex min-h-0 flex-1 flex-col", className)}
+      className="flex min-h-0 flex-1 flex-col"
       style={SOURCE_VIEW_STYLE}
       data-bb-source-code-line-number={targetLineNumber ?? undefined}
       onPointerDownCapture={lineSelectionActions.onPointerDownCapture}

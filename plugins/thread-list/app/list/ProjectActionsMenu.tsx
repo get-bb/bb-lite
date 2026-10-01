@@ -3,8 +3,11 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { ActionMenuItem, ActionMenuSeparator } from "../ui/action-menu-items.js";
+} from "@bb/shared-ui/context-menu";
+import {
+  ActionMenuItem,
+  ActionMenuSeparator,
+} from "../ui/action-menu-items.js";
 import type { SidebarProject } from "../model/use-sidebar-data.js";
 
 export type ProjectActionsMenuSurface = "context" | "dropdown";

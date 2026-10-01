@@ -1,4 +1,7 @@
-import { closeSecondaryPanelTabInState } from "@bb/client-core";
+import {
+  closeSecondaryPanelTabInState,
+  isDroppedFixedPanelTab,
+} from "@bb/client-core";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   threadTabsSchema,
@@ -46,9 +49,7 @@ function persistedThreadTabs(
 ): readonly PersistedThreadFixedPanelTab[] {
   return tabs.filter(
     (tab): tab is PersistedThreadFixedPanelTab =>
-      tab.kind !== "side-chat" &&
-      tab.kind !== "browser" &&
-      tab.kind !== "plugin-page-fixed",
+      !isDroppedFixedPanelTab(tab) && tab.kind !== "plugin-page-fixed",
   );
 }
 

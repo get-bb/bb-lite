@@ -102,7 +102,6 @@ function ProviderRowIcon({
   return (
     <span className="flex size-5 shrink-0 items-center justify-center">
       <ProviderIcon
-        providerKind="agent"
         provider={provider}
         className={COARSE_POINTER_ICON_SIZE_CLASS}
       />

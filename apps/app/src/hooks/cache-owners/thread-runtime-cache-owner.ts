@@ -241,7 +241,7 @@ interface BuildOptimisticUserMessageRowParams {
 interface BuildOptimisticQueuedMessageParams {
   createdAt: number;
   queryClient: QueryClient;
-  request: CreateQueuedMessageRequestWithThreadId & { sendAt?: number };
+  request: CreateQueuedMessageRequestWithThreadId;
 }
 
 type OptimisticTurnRequestKind = "message" | "steer";
@@ -401,10 +401,6 @@ function buildOptimisticQueuedMessage({
     queryClient,
     request.id,
   );
-  const scheduledSendAt =
-    request.sendAt !== undefined && request.sendAt > createdAt
-      ? request.sendAt
-      : null;
 
   return {
     id: `optimistic-queued-${nanoid()}`,
@@ -426,8 +422,8 @@ function buildOptimisticQueuedMessage({
     serviceTier:
       request.serviceTier ?? defaultExecutionOptions?.serviceTier ?? "default",
     groupWithNext: false,
-    sendAt: scheduledSendAt,
-    waitingOn: scheduledSendAt === null ? null : { kind: "time" },
+    sendAt: null,
+    waitingOn: null,
     failureReason: null,
     payload: { kind: "inline" },
     editable: true,
@@ -441,7 +437,7 @@ function insertOptimisticQueuedMessage({
   request,
 }: {
   queryClient: QueryClient;
-  request: CreateQueuedMessageRequestWithThreadId & { sendAt?: number };
+  request: CreateQueuedMessageRequestWithThreadId;
 }): CreateQueuedMessageTransaction {
   const queryKey = threadQueuedMessagesQueryKey(request.id);
   const optimisticCreatedAt = Date.now();
@@ -644,10 +640,7 @@ function requestWillOptimisticallyQueue(
   request: SendThreadMessageMutationRequest,
   thread: ThreadWithRuntime | undefined,
 ): boolean {
-  return (
-    (request.sendAt !== undefined && request.sendAt > Date.now()) ||
-    (request.mode === "queue-if-active" && thread?.status === "active")
-  );
+  return request.mode === "queue-if-active" && thread?.status === "active";
 }
 
 function buildOptimisticUserMessageRow({
@@ -898,8 +891,9 @@ export function applyCreateThreadResult({
   const cachedHostId =
     environmentId === null
       ? null
-      : (queryClient.getQueryData<Environment>(environmentQueryKey(environmentId))
-          ?.hostId ?? null);
+      : (queryClient.getQueryData<Environment>(
+          environmentQueryKey(environmentId),
+        )?.hostId ?? null);
   const selectedHostId =
     request.environment.type === "provider" &&
     request.environment.machine?.type === "existing"

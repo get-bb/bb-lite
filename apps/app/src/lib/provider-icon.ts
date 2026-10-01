@@ -1,4 +1,3 @@
-import type { PluginProviderIconRegistration } from "@get-bb/plugin-sdk/app";
 import type { ComponentType } from "react";
 import { createElement } from "react";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
@@ -18,12 +17,10 @@ interface ProviderIconSource {
 const providerIcons = new Map<string, ComponentType<{ className?: string }>>();
 
 export function getProviderIconInfo(
-  providerKind: PluginProviderIconRegistration["providerKind"],
   providerId: string,
   source: ProviderIconSource | null = null,
 ): ProviderIconInfo {
   const cacheKey = JSON.stringify([
-    providerKind,
     providerId,
     source?.logoUrl,
     source?.icon?.glyph,
@@ -34,7 +31,6 @@ export function getProviderIconInfo(
       className,
     }) =>
       createElement(ProviderIcon, {
-        providerKind,
         provider: {
           id: providerId,
           logoUrl: source?.logoUrl,

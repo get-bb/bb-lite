@@ -14,7 +14,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from "@bb/shared-ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,17 +24,17 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Button } from "@bb/shared-ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
+import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
 import {
-  experimental_useSidebarThreadActions,
-  useSdk,
-} from "@get-bb/plugin-sdk/app";
-import { ActionMenuItem, ActionMenuSeparator } from "../ui/action-menu-items.js";
+  ActionMenuItem,
+  ActionMenuSeparator,
+} from "../ui/action-menu-items.js";
 import { copyToClipboardWithToast } from "../ui/clipboard.js";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import {
@@ -75,9 +75,7 @@ interface ThreadActionsContextMenuProps extends ThreadActionsMenuBaseProps {
 }
 
 type ThreadActionsMenuSurface = "context" | "dropdown";
-type SidebarThreadActions = ReturnType<
-  typeof experimental_useSidebarThreadActions
->;
+type SidebarThreadActions = ReturnType<typeof useSidebarThreadActions>;
 
 interface ThreadRowActionHandlers {
   actions: SidebarThreadActions;
@@ -199,7 +197,7 @@ function ThreadActionsMenuItems({
   surface,
 }: ThreadActionsMenuItemsProps) {
   const customizeRowActions = useCustomizeThreadRowActions();
-  const actions = experimental_useSidebarThreadActions();
+  const actions = useSidebarThreadActions();
   const unarchiveThread = useUnarchiveThread();
 
   const separator = <ActionMenuSeparator surface={surface} />;
@@ -417,7 +415,7 @@ export function ThreadArchiveQuickAction({
   thread: SidebarThread;
   className?: string;
 }) {
-  const actions = experimental_useSidebarThreadActions();
+  const actions = useSidebarThreadActions();
   const unarchiveThread = useUnarchiveThread();
   const [isRestoring, setIsRestoring] = useState(false);
   const isArchived = thread.archivedAt != null;

@@ -4,37 +4,33 @@ import {
   type PointerEventHandler,
   type ReactNode,
 } from "react";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
+import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from "@bb/shared-ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@bb/shared-ui/dropdown-menu";
 import {
   COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ICON_SIZE_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@/components/ui/chrome-style-tokens";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@bb/shared-ui/chrome-style-tokens";
+import { cn } from "@bb/shared-ui/lib/utils";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "./sidebar-hover-actions.js";
-import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "./sidebarRowClasses.js";
+import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@/components/sidebar/sidebarRowClasses";
 
 const OVERFLOW_ROW_BUTTON_CLASS =
   "w-full justify-start gap-2 rounded-sm px-2 text-xs font-normal hover:bg-state-hover focus-visible:bg-state-hover";
