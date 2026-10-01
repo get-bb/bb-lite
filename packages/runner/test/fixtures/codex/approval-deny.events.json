@@ -1,0 +1,485 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_xkq2p698hv"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "I"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "’ll"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " run"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " that"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " command"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " with"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " the"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " required"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " filesystem"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": " approval"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "."
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "I’ll run that command with the required filesystem approval.",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "/bin/bash -lc 'touch ~/bb-recording-outside.txt'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "touch ~/bb-recording-outside.txt"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i2",
+      "command": "/bin/bash -lc 'touch ~/bb-recording-outside.txt'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "interrupted",
+      "approvalStatus": "denied",
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "touch ~/bb-recording-outside.txt"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 20925,
+        "inputTokens": 20813,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 112,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 20925,
+        "inputTokens": 20813,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 112,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20925,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i3",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i3",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i4",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i4",
+    "delta": "blocked"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i4",
+      "text": "blocked",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 41995,
+        "inputTokens": 41799,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 196,
+        "reasoningOutputTokens": 77
+      },
+      "last": {
+        "totalTokens": 21070,
+        "inputTokens": 20986,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 84,
+        "reasoningOutputTokens": 77
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 21070,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021f1-b73a-7981-a86f-ffb826c0a864",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a021f1-b7dd-7a10-b8ed-ecc5cb9cbeb7"
+  }
+]
