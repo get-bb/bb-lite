@@ -75,6 +75,7 @@ it("disables providers and turns their toggles into options", async () => {
   const saved = await fetch(settings, { method: "PUT", body });
   const { values } = pluginSettingsResponseSchema.parse(await saved.json());
   expect(values).toEqual({ memoryEnabled: true, subagentsDisabled: true });
+  await changed("system", "config-changed");
   const updated = { ...defaults, providerSubagentsEnabled: false };
   expect(providerOptionsFor(ctx.db, "codex")).toEqual(updated);
 });
@@ -92,7 +93,9 @@ it("keeps environment variable values encrypted and write-only", async () => {
   await everywhere.$put({ json: set("s3cret-global") });
   await changed("system", "config-changed");
   await scoped.$put({ param, json: set("s3cret-own") });
+  await changed("system", "config-changed");
   const kept = await everywhere.$put({ json: set(null, "API_KEY", "kept") });
+  await changed("system", "config-changed");
   const hidden = { name: "API_KEY", value: null, secret: true };
   const variables = [{ ...hidden, note: "kept" }];
   expect(await kept.json()).toMatchObject({ variables });

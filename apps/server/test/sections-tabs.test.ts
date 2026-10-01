@@ -21,6 +21,7 @@ it("keeps section names unique and un-sections threads on delete", async () => {
   await changed("project", "threads-changed");
   expect((await create("Later")).status).toBe(409);
   const soon = threadSectionSchema.parse(await (await create("Soon")).json());
+  await changed("project", "threads-changed");
   const rename = (id: string, name: string) =>
     sections.$patch({ json: { id, name } });
   expect((await rename(soon.id, "Later")).status).toBe(409);
@@ -28,6 +29,7 @@ it("keeps section names unique and un-sections threads on delete", async () => {
   const renamed = await (await rename(later.id, "Someday")).json();
   const unchangedThreads = { name: "Someday", updatedThreadCount: 0 };
   expect(mutationSchema.parse(renamed)).toMatchObject(unchangedThreads);
+  await changed("project", "threads-changed");
   insertThread(server, "thr_1");
   ctx.db.run("UPDATE threads SET section_id = ?", later.id);
   const removed = await sections.$delete({ json: { id: later.id } });

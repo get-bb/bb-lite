@@ -102,7 +102,9 @@ it("keeps one source per machine and always a default", async () => {
   const json = { type: "local_path", isDefault: true, path: "/b/" } as const;
   const promoted = await (await source.$patch({ ...target, json })).json();
   expect(promoted).toMatchObject({ isDefault: true, path: "/b" });
+  await changed("project", "project-sources-changed");
   expect((await source.$delete(target)).status).toBe(200);
+  await changed("project", "project-sources-changed");
   const kept = await (await api.projects[":id"].$get({ param })).json();
   const [local] = kept.sources;
   expect(local).toMatchObject({ hostId: ctx.config.hostId, isDefault: true });
