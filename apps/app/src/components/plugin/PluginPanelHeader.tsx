@@ -46,12 +46,10 @@ export function PluginPanelHeaderCenter({
 
 export function PluginPanelHeaderActions({
   panel,
-  paneId,
   subPath,
   paneActions,
 }: {
   panel: PluginSlot<"navPanels">;
-  paneId?: string;
   subPath: string;
   paneActions?: ReactNode;
 }) {
@@ -59,7 +57,7 @@ export function PluginPanelHeaderActions({
   const HeaderContent = panel.headerContent;
   const panelStateId = getPluginPagePanelStateId({
     panelPath: panel.path,
-    paneId: paneId ?? paneContext?.paneId,
+    paneId: paneContext?.paneId,
     pluginId: panel.pluginId,
   });
   return (

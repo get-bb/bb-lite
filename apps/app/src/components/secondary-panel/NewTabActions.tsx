@@ -63,7 +63,7 @@ interface NewTabActionRowProps {
 
 const ACTIONS_SECTION_LABEL = "Actions";
 const NEW_TAB_ACTION_DRAG_HANDLE_CLASS =
-  "cursor-grab touch-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing group-hover:opacity-100 [@media(hover:none)]:opacity-100";
+  "cursor-grab touch-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing group-hover:opacity-100";
 const START_TERMINAL_ACTION_ID = "file-search-result-start-terminal";
 
 function actionIcon(iconName: IconName): ReactNode {

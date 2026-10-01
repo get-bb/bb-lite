@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { TypeaheadConfig } from "@/components/promptbox/PromptBoxInternal";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import type { PromptBoxAction } from "@/components/promptbox/PromptBoxActionsMenu";
@@ -44,10 +44,6 @@ export function useComposerTypeahead({
     query: string | null;
     trigger: import("@bb/domain").PromptMentionCommandTrigger | null;
   }>({ query: null, trigger: null });
-  const [hasComposerFocused, setHasComposerFocused] = useState(false);
-  const handleEditorFocus = useCallback(() => {
-    setHasComposerFocused(true);
-  }, []);
   const providerPromptActions = useMemo(
     () => buildProviderPromptActionProps(selectedProviderComposerActions ?? []),
     [selectedProviderComposerActions],
@@ -62,7 +58,6 @@ export function useComposerTypeahead({
     promptActions,
     environmentId,
     query: commandState.query,
-    composerFocused: hasComposerFocused,
   });
 
   const typeaheadConfig = useMemo<TypeaheadConfig>(
@@ -84,7 +79,6 @@ export function useComposerTypeahead({
         isLoadingMore: commandSuggestions.isLoadingMore,
         loadMore: commandSuggestions.loadMore,
         onQueryChange: (query, trigger) => setCommandState({ query, trigger }),
-        onEditorFocus: handleEditorFocus,
       },
     }),
     [
@@ -95,7 +89,6 @@ export function useComposerTypeahead({
       commandSuggestions.loadMore,
       commandSuggestions.suggestions,
       commandSuggestions.triggers,
-      handleEditorFocus,
       promptMentions.isError,
       promptMentions.isLoading,
       promptMentions.setQuery,

@@ -162,14 +162,11 @@ it("renames and deletes environments once their threads are gone", async () => {
   server.ctx.db.run(attach, "env_demo");
   const remove = { method: "DELETE" };
   const archive = `${env}/archive-threads`;
-  const blocked = [await request(env, remove), await send(archive, {})];
-  expect(blocked.map(({ status }) => status)).toEqual([409, 503]);
-  const archivedThreadIds: string[] = [];
-  const threads = { archive: (id: string) => archivedThreadIds.push(id) };
-  Object.assign(server.ctx, { threads });
+  expect((await request(env, remove)).status).toBe(409);
   const swept = await (await send(archive, {})).json();
   expect(swept).toEqual({ ok: true, archivedThreadIds: ["thr_demo"] });
-  expect(archivedThreadIds).toEqual(["thr_demo"]);
+  const archived = "SELECT id FROM threads WHERE archived_at IS NOT NULL";
+  expect(server.ctx.db.all(archived)).toEqual([{ id: "thr_demo" }]);
   server.ctx.db.run("DELETE FROM threads");
   expect((await request(env, remove)).status).toBe(200);
   await changed("environment", "environment-deleted");

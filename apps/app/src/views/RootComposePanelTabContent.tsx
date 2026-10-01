@@ -38,7 +38,6 @@ interface RootComposePanelTabContentProps {
   canCreateTerminal: boolean;
   currentProjectId: string;
   isPanelOpen: boolean;
-  isPanelPersistedOpen: boolean;
   isProjectless: boolean;
   onActivateTab: (tabId: string) => void;
   onAutoFocusNewTabHandled: () => void;
@@ -100,7 +99,6 @@ export function RootComposePanelTabContent({
   canCreateTerminal,
   currentProjectId,
   isPanelOpen,
-  isPanelPersistedOpen,
   isProjectless,
   onActivateTab,
   onAutoFocusNewTabHandled,
@@ -129,7 +127,6 @@ export function RootComposePanelTabContent({
           }
           canCreateTerminal={canCreateTerminal}
           isPanelOpen={isPanelOpen}
-          isPanelPersistedOpen={isPanelPersistedOpen}
           onAutoFocusHandled={onAutoFocusTerminalHandled}
           onSelectionAddToChat={onSelectionAddToChat}
           panelStateId={ROOT_COMPOSE_FIXED_PANEL_STATE_ID}

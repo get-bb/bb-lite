@@ -133,7 +133,6 @@ export function WorktreeInputs({
         align="start"
         sideOffset={6}
         collisionPadding={16}
-        mobileTitle="Branch from:"
         autoFocusRef={inputRef}
         className={cn(BRANCH_PICKER_CONTENT_CLASS_NAME, "md:w-72")}
       >

@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import type { InstalledPlugin, PluginApp } from "@bb/server-contract";
-import { dataPaths, type ServerConfig } from "../config.js";
+import { dataPaths, loopbackUrl, type ServerConfig } from "../config.js";
 import type { Logger } from "../context.js";
 import type { Db } from "../db/index.js";
 import { isPluginEnabled, setPluginEnabled } from "../db/plugins.js";
@@ -181,8 +181,7 @@ export class PluginHost extends PluginRegistry {
     const { config, db, hub, log } = this.options;
     const { id, serverEntry, appEntry } = record.manifest;
     const { dataDir } = config;
-    const host = config.bindHost === "0.0.0.0" ? "127.0.0.1" : config.bindHost;
-    const serverUrl = `http://${host}:${config.port}`;
+    const serverUrl = loopbackUrl(config);
     const { instance, api } = createPluginInstance(
       { db, hub, log, dataDir, serverUrl, deps: this.deps },
       id,

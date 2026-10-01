@@ -24,12 +24,6 @@ import { closeTerminalsFor } from "../../terminals/sessions.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 
-interface ThreadArchiver {
-  archive(threadId: string): unknown;
-}
-
-type ContextWithThreads = ServerContext & { threads?: ThreadArchiver };
-
 const BRANCH_LIST_LIMIT_DEFAULT = 50;
 const COMMIT_MESSAGE = "bb: automated commit";
 
@@ -47,11 +41,11 @@ function pageBound(value: string | undefined, minimum: number, name: string) {
 
 export function registerEnvironmentRoutes(
   app: ApiApp,
-  ctx: ContextWithThreads,
+  ctx: ServerContext,
 ): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.environments;
-  const { db, hub, runners } = ctx;
+  const { db, hub, runners, threads } = ctx;
 
   get(routes.list, (c, query) => {
     const { limit, offset, ...filter } = query;
@@ -89,12 +83,8 @@ export function registerEnvironmentRoutes(
 
   post(routes.archiveThreads, async (c) => {
     const { id } = requireEnvironment(ctx, c.req.param("id"));
-    const engine = ctx.threads;
-    if (engine === undefined) {
-      throw new ApiError(503, "unavailable", "Thread engine is not running");
-    }
     const archivedThreadIds = listEnvironmentThreadIds(db, id, "unarchived");
-    for (const threadId of archivedThreadIds) await engine.archive(threadId);
+    for (const threadId of archivedThreadIds) await threads.archive(threadId);
     return c.json({ ok: true, archivedThreadIds });
   });
 

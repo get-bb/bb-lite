@@ -34,11 +34,6 @@
       "types": "./src/components/ui/coarse-pointer-sizing.ts",
       "default": "./src/components/ui/coarse-pointer-sizing.ts"
     },
-    "./coarse-pointer-visibility": {
-      "source": "./src/components/ui/coarse-pointer-visibility.ts",
-      "types": "./src/components/ui/coarse-pointer-visibility.ts",
-      "default": "./src/components/ui/coarse-pointer-visibility.ts"
-    },
     "./collapsible": {
       "source": "./src/components/ui/collapsible.tsx",
       "types": "./src/components/ui/collapsible.tsx",
@@ -189,20 +184,10 @@
       "types": "./src/components/ui/workflow-progress.tsx",
       "default": "./src/components/ui/workflow-progress.tsx"
     },
-    "./hooks/use-compact-viewport": {
-      "source": "./src/components/ui/hooks/use-compact-viewport.tsx",
-      "types": "./src/components/ui/hooks/use-compact-viewport.tsx",
-      "default": "./src/components/ui/hooks/use-compact-viewport.tsx"
-    },
     "./hooks/use-media-query": {
       "source": "./src/components/ui/hooks/use-media-query.ts",
       "types": "./src/components/ui/hooks/use-media-query.ts",
       "default": "./src/components/ui/hooks/use-media-query.ts"
-    },
-    "./hooks/use-pointer-coarse": {
-      "source": "./src/components/ui/hooks/use-pointer-coarse.ts",
-      "types": "./src/components/ui/hooks/use-pointer-coarse.ts",
-      "default": "./src/components/ui/hooks/use-pointer-coarse.ts"
     },
     "./lib/utils": {
       "source": "./src/lib/utils.ts",
@@ -251,8 +236,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-slot": "^1.2.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "vaul": "^1.1.2"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
@@ -275,7 +259,6 @@
     "cmdk": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vaul": "^1.1.2"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

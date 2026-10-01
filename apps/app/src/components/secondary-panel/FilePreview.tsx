@@ -19,7 +19,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@bb/shared-ui/dropdown-menu";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import BbSourceCode from "@/components/code/BbSourceCode";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
@@ -231,9 +230,9 @@ const HTML_FILE_PREVIEW_IFRAME_STYLE = {
 } as CSSProperties;
 const IFRAME_LOADING_INDICATOR_DELAY_MS = 160;
 const FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS =
-  "h-5 w-5 rounded-sm p-0 [&_[data-icon-root]]:size-3 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
+  "h-5 w-5 rounded-sm p-0 [&_[data-icon-root]]:size-3";
 const FILE_PREVIEW_VIEW_MODE_BUTTON_CLASS =
-  "h-5 rounded-sm px-2 text-muted-foreground max-md:pointer-coarse:h-9";
+  "h-5 rounded-sm px-2 text-muted-foreground";
 
 function getFilePreviewExternalUrl(state: FilePreviewState): string | null {
   if (state.kind === "html") {
@@ -672,8 +671,7 @@ function FilePreviewHeader({
 }: FilePreviewHeaderProps) {
   const openShortcut = useAppCommandShortcut("workspace.openPreferred");
   const { ref: headerRef, width } = useElementWidth();
-  const isCompactViewport = useIsCompactViewport();
-  const isNarrow = width > 0 ? width < 560 : isCompactViewport;
+  const isNarrow = width > 0 && width < 560;
   const showHeaderControls = showLineOverflowToggle || toggleKind !== null;
   const copyFileContentsLabel = getFileContentsCopyLabel(toggleKind);
 
@@ -850,7 +848,6 @@ function FilePreviewHeader({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  mobileTitle="File actions"
                   className="[&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-sm [&_[role=menuitemcheckbox]]:min-h-11 [&_[role=menuitemcheckbox]]:text-sm"
                 >
                   <DropdownMenuLabel className="max-w-80 break-all font-mono">

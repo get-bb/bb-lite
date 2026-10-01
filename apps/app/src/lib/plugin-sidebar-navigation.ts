@@ -83,7 +83,6 @@ export function useSidebarNavigationSplit(
   const model = useSidebarNavigationModel();
   const target = useSidebarNavigationRowContent(itemId);
   const enabled = target !== null && (model?.splitEnabled ?? false);
-  const onNavigate = model?.onNavigate;
   const activation = splitOptions?.activation ?? "sidebar";
   const onDragStartRef = useRef(splitOptions?.onDragStart);
   useEffect(() => {
@@ -96,9 +95,8 @@ export function useSidebarNavigationSplit(
       label: target?.label ?? "",
       dragActivation: activation,
       onDragStart: () => onDragStartRef.current?.(),
-      ...(onNavigate ? { onNavigate } : {}),
     }),
-    [activation, enabled, onNavigate, target],
+    [activation, enabled, target],
   );
   const { onPointerDown } = usePaneContentSplitDrag(options);
   const indicator = usePaneContentSplitIndicator(options.content, enabled);

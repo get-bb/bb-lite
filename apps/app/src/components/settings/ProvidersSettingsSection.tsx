@@ -136,7 +136,7 @@ function ProviderActionsMenu({
           <Icon name="MoreHorizontal" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" mobileTitle={provider.displayName}>
+      <DropdownMenuContent align="end">
         {enabled ? (
           <DropdownMenuCheckboxItem
             checked={isDefault}

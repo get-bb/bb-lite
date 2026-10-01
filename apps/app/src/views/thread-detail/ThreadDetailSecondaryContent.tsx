@@ -19,10 +19,7 @@ type ThreadTimelinePaneProps = Omit<
 >;
 type ThreadSecondaryPanelProps = Omit<
   ComponentProps<typeof LazyThreadSecondaryPanel>,
-  | "metadataContent"
-  | "renderAsDrawer"
-  | "isConversationCollapsed"
-  | "onToggleConversationCollapse"
+  "metadataContent" | "isConversationCollapsed" | "onToggleConversationCollapse"
 >;
 
 interface ThreadDetailSecondaryContentProps {
@@ -90,12 +87,9 @@ export function ThreadDetailSecondaryContent({
       <SecondaryPanelLayout
         open={isSecondaryPanelOpen}
         onToggle={onToggleSecondaryPanel}
-        onClose={secondaryPanel.onClose}
         panelGroupKey="thread-detail"
         resetKey={timeline.threadId}
         contentKey={timeline.threadId}
-        drawerLabel="Thread details"
-        drawerFallback={<ThreadMetadataLoadingSkeleton />}
         mainPanelId="thread-detail-timeline-panel"
         mainHeader={header}
         main={<ThreadTimelinePane {...timeline} footer={footer} />}
@@ -105,17 +99,13 @@ export function ThreadDetailSecondaryContent({
         }}
         renderHostedPanel={renderHostedPanel}
         renderPanel={({
-          presentation,
           isMainCollapsed,
           onToggleMainCollapse,
           resizablePanelId,
         }) => (
           <LazyThreadSecondaryPanel
             {...secondaryPanel}
-            renderAsDrawer={presentation === "drawer"}
-            isConversationCollapsed={
-              presentation === "inline" && isMainCollapsed
-            }
+            isConversationCollapsed={isMainCollapsed}
             onToggleConversationCollapse={onToggleMainCollapse}
             resizablePanelId={resizablePanelId}
             metadataContent={metadataContent}

@@ -39,11 +39,7 @@ export function LauncherRowTrailing({
         )}
         aria-hidden
       >
-        <Icon
-          name="ArrowUpRight"
-          className="size-3 max-md:pointer-coarse:size-4"
-          aria-hidden
-        />
+        <Icon name="ArrowUpRight" className="size-3" aria-hidden />
         open
       </span>
     </span>

@@ -1,5 +1,4 @@
 import { useCallback, useRef } from "react";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 
 interface RenameDialogAutoFocus {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -8,19 +7,14 @@ interface RenameDialogAutoFocus {
 
 export function useRenameDialogAutoFocus(): RenameDialogAutoFocus {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const isPointerCoarse = usePointerCoarse();
-  const handleOpenAutoFocus = useCallback(
-    (event: Event) => {
-      event.preventDefault();
-      if (isPointerCoarse) return;
+  const handleOpenAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
 
-      const input = inputRef.current;
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    },
-    [isPointerCoarse],
-  );
+    const input = inputRef.current;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, []);
   return { inputRef, handleOpenAutoFocus };
 }

@@ -1,26 +1,16 @@
 import { definePluginApp, type PluginThreadListProps } from "@bb/plugin/app";
-import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { TooltipProvider } from "@bb/shared-ui/tooltip";
 import { PreferencesSync } from "./app/preferences/PreferencesSync.js";
 import { ProjectList } from "./app/list/ProjectList.js";
 import { useSidebarThreadReveal } from "./app/list/useSidebarThreadReveal.js";
 
-function ThreadList({
-  activeThreadId,
-  isCompactViewport,
-  onNavigate,
-}: PluginThreadListProps) {
+function ThreadList({ activeThreadId }: PluginThreadListProps) {
   useSidebarThreadReveal();
   return (
-    <CompactViewportOverrideProvider isCompactViewport={isCompactViewport}>
-      <TooltipProvider>
-        <PreferencesSync />
-        <ProjectList
-          activeThreadId={activeThreadId}
-          onProjectSelect={onNavigate}
-        />
-      </TooltipProvider>
-    </CompactViewportOverrideProvider>
+    <TooltipProvider>
+      <PreferencesSync />
+      <ProjectList activeThreadId={activeThreadId} />
+    </TooltipProvider>
   );
 }
 

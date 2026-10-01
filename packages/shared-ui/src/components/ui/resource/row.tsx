@@ -14,7 +14,6 @@ import {
   TooltipTrigger,
 } from "../tooltip";
 import { cn } from "../../../lib/utils";
-import { COARSE_POINTER_HOVER_REVEAL_VISIBLE_CLASS } from "../coarse-pointer-visibility";
 
 export function targetsResourceAction(event: {
   currentTarget: Element;
@@ -63,11 +62,7 @@ export function ResourceOverflowMenu({
           <Icon name="MoreHorizontal" className="size-4" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-max min-w-32 max-w-72"
-        mobileTitle={label}
-      >
+      <DropdownMenuContent align="end" className="w-max min-w-32 max-w-72">
         {items.map((item, index) => {
           if (item.kind === "separator") {
             return <DropdownMenuSeparator key={`separator-${index}`} />;
@@ -127,10 +122,7 @@ export function ResourceRowDetailChevron() {
   return (
     <Icon
       name="ChevronRight"
-      className={cn(
-        "size-3.5 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
-        COARSE_POINTER_HOVER_REVEAL_VISIBLE_CLASS,
-      )}
+      className="size-3.5 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       aria-hidden
     />
   );

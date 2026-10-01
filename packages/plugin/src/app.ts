@@ -20,9 +20,7 @@ export interface PluginAppApi {
     threadList(
       registration: T.PluginProviderRegistration<T.PluginThreadListProps>,
     ): void;
-    sidebarNavigation(
-      registration: T.PluginProviderRegistration<T.SidebarNavigationProps>,
-    ): void;
+    sidebarNavigation(registration: T.PluginProviderRegistration): void;
     sidebarHeader(
       registration: T.PluginProviderRegistration<T.SidebarHeaderProps>,
     ): void;

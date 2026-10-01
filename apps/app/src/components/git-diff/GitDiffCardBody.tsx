@@ -12,7 +12,6 @@ import type { FileContents } from "@pierre/diffs";
 import type { GitDiffFileChangeKind } from "@bb/server-contract";
 import { useIntersectionObserver } from "usehooks-ts";
 import { Button } from "@bb/shared-ui/button";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import BbDiff from "@/components/code/BbDiff";
 import type {
   DiffPresentation,
@@ -273,7 +272,6 @@ export function useGitDiffCardBody({
   const [hasBodyEnteredViewport, setHasBodyEnteredViewport] = useState(false);
   const [hasLoadedDeletedDiff, setHasLoadedDeletedDiff] = useState(false);
   const [contextRequestVersion, setContextRequestVersion] = useState(0);
-  const isPointerCoarse = usePointerCoarse();
   useEffect(() => {
     enrichmentStatusRef.current = "idle";
     setEnrichment({ status: "idle" });
@@ -300,7 +298,6 @@ export function useGitDiffCardBody({
     (needsContentsToRender || (canExpandContext && contextRequestVersion > 0));
   useEffect(() => {
     if (
-      isPointerCoarse ||
       !shouldRenderDiffView ||
       !canExpandContext ||
       contextRequestVersion > 0
@@ -310,12 +307,7 @@ export function useGitDiffCardBody({
     return scheduleIdleWork(() => {
       setContextRequestVersion((version) => (version === 0 ? 1 : version));
     });
-  }, [
-    canExpandContext,
-    contextRequestVersion,
-    isPointerCoarse,
-    shouldRenderDiffView,
-  ]);
+  }, [canExpandContext, contextRequestVersion, shouldRenderDiffView]);
   useEffect(() => {
     if (!shouldFetchContents || enrichmentStatusRef.current !== "idle") {
       return;

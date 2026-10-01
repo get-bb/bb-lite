@@ -48,19 +48,6 @@ function hasActiveGoalActivity(thread: ThreadActivityStateShape): boolean {
   return thread.activity.activeGoalCount > 0;
 }
 
-function isBusyThread(
-  thread: ThreadRuntimeShape & ThreadActivityStateShape,
-): boolean {
-  return (
-    isRuntimeBusyThread(thread) ||
-    hasActiveWorkflowActivity(thread) ||
-    hasActiveBackgroundAgentActivity(thread) ||
-    hasActiveBackgroundCommandActivity(thread) ||
-    hasActivePlanModeActivity(thread) ||
-    hasActiveGoalActivity(thread)
-  );
-}
-
 export interface ThreadListIndicatorState {
   hasPendingInteraction: boolean;
   hasUnsubmittedDraft: boolean;
@@ -174,78 +161,6 @@ export function resolveThreadListIndicator(
   if (state.queuedWork === "waiting") return "queued-waiting";
   if (state.hasUnsubmittedDraft) return "draft";
   return "none";
-}
-
-export interface CollapsedChildActivity {
-  pending: boolean;
-  working: boolean;
-  hasUnsubmittedDraft: boolean;
-  runtimeWorking: boolean;
-  workflow: boolean;
-  backgroundAgent: boolean;
-  backgroundCommand: boolean;
-  planMode: boolean;
-  goal: boolean;
-  unread: boolean;
-  unreadError: boolean;
-}
-
-type ThreadActivityShape = ThreadStatusShape &
-  ThreadRuntimeShape &
-  Pick<ThreadListEntry, "id" | "activity" | "hasPendingInteraction">;
-
-const EMPTY_DRAFT_THREAD_IDS: ReadonlySet<string> = new Set();
-
-export function getCollapsedChildActivity(
-  threads: readonly ThreadActivityShape[],
-  draftThreadIds: ReadonlySet<string> = EMPTY_DRAFT_THREAD_IDS,
-): CollapsedChildActivity {
-  let pending = false;
-  let working = false;
-  let hasUnsubmittedDraft = false;
-  let runtimeWorking = false;
-  let workflow = false;
-  let backgroundAgent = false;
-  let backgroundCommand = false;
-  let planMode = false;
-  let goal = false;
-  let unread = false;
-  let unreadError = false;
-  for (const thread of threads) {
-    if (draftThreadIds.has(thread.id)) {
-      hasUnsubmittedDraft = true;
-    }
-    const childUnreadDone = isUnreadDoneThread(thread);
-    if (childUnreadDone && thread.status === "error") {
-      unreadError = true;
-    } else if (childUnreadDone) {
-      unread = true;
-    }
-
-    if (thread.hasPendingInteraction) {
-      pending = true;
-    }
-    if (isBusyThread(thread)) working = true;
-    if (isRuntimeBusyThread(thread)) runtimeWorking = true;
-    if (hasActiveWorkflowActivity(thread)) workflow = true;
-    if (hasActiveBackgroundAgentActivity(thread)) backgroundAgent = true;
-    if (hasActiveBackgroundCommandActivity(thread)) backgroundCommand = true;
-    if (hasActivePlanModeActivity(thread)) planMode = true;
-    if (hasActiveGoalActivity(thread)) goal = true;
-  }
-  return {
-    pending,
-    working,
-    hasUnsubmittedDraft,
-    runtimeWorking,
-    workflow,
-    backgroundAgent,
-    backgroundCommand,
-    planMode,
-    goal,
-    unread,
-    unreadError,
-  };
 }
 
 export function isUnreadDoneThread(thread: ThreadStatusShape): boolean {

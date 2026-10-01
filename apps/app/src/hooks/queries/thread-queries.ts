@@ -7,8 +7,6 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import { COMPACT_VIEWPORT_QUERY } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { getMediaQuerySnapshot } from "@bb/shared-ui/hooks/use-media-query";
 import type { PendingInteraction, ThreadListEntry } from "@bb/domain";
 import type {
   PromptHistoryResponse,
@@ -129,8 +127,6 @@ type ThreadConversationOutlineQueryOptions = QueryOptions;
 type ThreadTimelineTurnSummaryDetailsQueryOptions = QueryOptions;
 
 type ThreadQueuedMessagesQueryOptions = QueryOptions;
-
-type ThreadPromptHistoryQueryOptions = QueryOptions;
 
 type ThreadPendingInteractionsQueryOptions = QueryOptions;
 
@@ -758,11 +754,8 @@ export function useThreadQueuedMessages(
   });
 }
 
-export function useThreadPromptHistory(
-  id: string,
-  options?: ThreadPromptHistoryQueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
+export function useThreadPromptHistory(id: string) {
+  const enabled = Boolean(id);
   useThreadDetailRealtimeSubscription(id, { enabled });
 
   return useQuery<PromptHistoryResponse>({
@@ -773,8 +766,8 @@ export function useThreadPromptHistory(
         signal,
       }),
     enabled,
-    refetchOnMount: options?.refetchOnMount ?? true,
-    staleTime: options?.staleTime ?? PROMPT_HISTORY_STALE_TIME_MS,
+    refetchOnMount: true,
+    staleTime: PROMPT_HISTORY_STALE_TIME_MS,
   });
 }
 
@@ -942,14 +935,6 @@ interface FetchThreadTimelineArgs {
   threadId: string;
 }
 
-export const COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT = 8;
-
-function resolveThreadTimelineSegmentLimit(): number | undefined {
-  return getMediaQuerySnapshot(COMPACT_VIEWPORT_QUERY)
-    ? COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT
-    : undefined;
-}
-
 async function fetchThreadTimeline({
   queryClient,
   signal,
@@ -957,19 +942,15 @@ async function fetchThreadTimeline({
 }: FetchThreadTimelineArgs): Promise<ThreadTimelineResponse> {
   const queryKey = threadTimelineQueryKey(threadId);
   const previous = queryClient.getQueryData<ThreadTimelineResponse>(queryKey);
-  const segmentLimit = resolveThreadTimelineSegmentLimit();
-  const pageArgs =
-    segmentLimit === undefined ? {} : { segmentLimit: String(segmentLimit) };
   const response = await sdk.threads.timeline({
     threadId,
     signal,
-    ...pageArgs,
     ...(previous?.maxSeq !== undefined
       ? { afterSequence: String(previous.maxSeq) }
       : {}),
   });
   return mergeThreadTimelineDelta(previous, response, () =>
-    sdk.threads.timeline({ threadId, signal, ...pageArgs }),
+    sdk.threads.timeline({ threadId, signal }),
   );
 }
 

@@ -10,7 +10,6 @@ interface ThreadTerminalPanelProps {
   autoFocus?: boolean;
   canCreateTerminal: boolean;
   isPanelOpen: boolean;
-  isPanelPersistedOpen: boolean;
   fixedPanelTarget?: TerminalCreateTarget;
   fixedTerminalId?: string;
   onAutoFocusHandled?: () => void;
@@ -26,7 +25,6 @@ export function ThreadTerminalPanel({
   autoFocus = false,
   canCreateTerminal,
   isPanelOpen,
-  isPanelPersistedOpen,
   fixedPanelTarget,
   fixedTerminalId,
   onAutoFocusHandled,
@@ -40,7 +38,6 @@ export function ThreadTerminalPanel({
   const terminalController = useThreadTerminalController({
     canCreateTerminal,
     isPanelOpen,
-    isPanelPersistedOpen,
     fixedPanelTarget,
     fixedTerminalId,
     panelStateId,

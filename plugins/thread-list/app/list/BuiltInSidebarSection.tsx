@@ -103,7 +103,6 @@ function BuiltInSidebarSection({
       actionsOpen={actionsOpen}
       collapsedActivity={activity}
       collapsedThreads={collapsedThreads}
-      actionsMobileAlways
       collapseControl={{
         isCollapsed,
         onToggleCollapsed: () => onToggleCollapsed(id),

@@ -19,7 +19,6 @@ import {
 } from "react";
 import { Button } from "./button";
 import { Icon } from "./icon";
-import { usePointerCoarse } from "./hooks/use-pointer-coarse";
 import { cn } from "../../lib/utils";
 import {
   answerStateFor,
@@ -208,7 +207,6 @@ function QuestionInputBlock({
   shortcuts,
 }: QuestionInputBlockProps) {
   const freeTextRef = useRef<HTMLTextAreaElement>(null);
-  const isPointerCoarse = usePointerCoarse();
   const resizeFreeTextArea = useAutoGrow(freeTextRef, {
     minHeight: FREE_TEXT_MIN_HEIGHT,
     maxHeight: FREE_TEXT_MAX_HEIGHT,
@@ -278,7 +276,7 @@ function QuestionInputBlock({
           aria-label={freeTextLabel}
           value={state.otherText}
           rows={1}
-          autoFocus={!isPointerCoarse}
+          autoFocus
           autoComplete="off"
           onChange={(event) => {
             onFreeTextChange(event.target.value);

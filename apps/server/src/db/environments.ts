@@ -5,7 +5,7 @@ import {
   type EnvironmentStatus,
   type WorkspaceProvisionType,
 } from "@bb/domain";
-import { decodeJson, type Db, type SqlValue } from "./index.js";
+import { decodeJson, newId, type Db, type SqlValue } from "./index.js";
 import { updateRow, type RowPatch } from "./update-row.js";
 
 interface EnvironmentRow {
@@ -160,6 +160,29 @@ export function listEnvironments(
     ORDER BY e.created_at, e.id LIMIT ? OFFSET ?`;
   values.push(filter.limit ?? -1, filter.offset ?? 0);
   return db.all<EnvironmentRow>(sql, ...values).map(toEnvironment);
+}
+
+export function insertReadyEnvironment(
+  db: Db,
+  input: Pick<Environment, "projectId" | "hostId" | "path"> & {
+    environmentProviderId: string;
+  },
+): string {
+  const id = newId("env");
+  db.run(
+    `INSERT INTO environments
+       (id, project_id, host_id, path, environment_provider_id, status,
+        created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'ready', ?, ?)`,
+    id,
+    input.projectId,
+    input.hostId,
+    input.path,
+    input.environmentProviderId,
+    db.now(),
+    db.now(),
+  );
+  return id;
 }
 
 export function updateEnvironment(

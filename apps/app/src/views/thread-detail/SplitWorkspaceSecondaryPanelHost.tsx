@@ -41,7 +41,6 @@ import {
   PANEL_RESIZE_HANDLE_LAYER_CLASS,
   PANEL_RESIZE_HIT_TARGET_CLASS,
 } from "@/components/secondary-panel/panelTransitionTokens";
-import { MACOS_APP_REGION_NO_DRAG_CLASS } from "@/lib/bb-desktop";
 import { usePanelResizeSnap } from "@/components/secondary-panel/usePanelResizeSnap";
 import {
   type PaneSecondaryPanelRegistry,
@@ -195,7 +194,6 @@ export function SplitWorkspaceSecondaryPanelHost({
           className={cn(
             "absolute right-4 top-2.5 z-40",
             !showsCornerToggle && "hidden",
-            MACOS_APP_REGION_NO_DRAG_CLASS,
           )}
         >
           <AppCommandShortcutHint

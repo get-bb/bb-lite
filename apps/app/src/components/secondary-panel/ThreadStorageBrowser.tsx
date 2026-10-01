@@ -7,7 +7,6 @@ import {
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyState } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -44,13 +43,12 @@ export function ThreadStorageBrowser({
     setSearchQuery,
   } = controller;
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const isPointerCoarse = usePointerCoarse();
 
   useEffect(() => {
-    if (isSearchOpen && !isPointerCoarse) {
+    if (isSearchOpen) {
       searchInputRef.current?.focus();
     }
-  }, [isPointerCoarse, isSearchOpen]);
+  }, [isSearchOpen]);
 
   const loadingState = (
     <EmptyState
@@ -99,7 +97,7 @@ export function ThreadStorageBrowser({
   return (
     <div className="flex h-full min-h-0 flex-col gap-1">
       {isSearchOpen ? (
-        <div className="flex h-7 shrink-0 items-center gap-2 max-md:pointer-coarse:h-10">
+        <div className="flex h-7 shrink-0 items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Icon
               name="Search"
@@ -112,7 +110,7 @@ export function ThreadStorageBrowser({
               ref={searchInputRef}
               aria-label="Search files"
               className={cn(
-                "h-7 pl-7 pr-2 focus-visible:ring-0 max-md:pointer-coarse:h-10",
+                "h-7 pl-7 pr-2 focus-visible:ring-0",
                 COARSE_POINTER_TEXT_SM_CLASS,
               )}
               placeholder="Search files"

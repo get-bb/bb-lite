@@ -76,9 +76,10 @@ it("loads the builtin table and the directories named in config.json", async () 
   const icon = "/api/v1/plugins/echo/assets/icon.svg";
   expect(summary).toEqual([
     ["thread-list", "running", "builtin", "thread-list", "ListView"],
+    ["navigation", "running", "builtin", undefined, "PanelLeft"],
     ["echo", "running", "external", "echo", icon],
   ]);
-  expect(plugins[1]).toMatchObject({ enabled: true, hasSettings: true });
+  expect(plugins[2]).toMatchObject({ enabled: true, hasSettings: true });
   const served = await request("/echo/assets/icon.svg");
   expect(served.response.headers.get("content-type")).toBe("image/svg+xml");
   expect((await request("/echo/assets/server.ts")).status).toBe(404);
@@ -214,14 +215,17 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   expect(await rpc("echo/rpc/echo", { text: "b" })).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
   const statusMessage = expect.stringContaining("Migration 1 changed");
-  expect((await reload())[1]).toMatchObject({ status: "error", statusMessage });
+  expect((await reload())[2]).toMatchObject({ status: "error", statusMessage });
   writeFileSync(configFile, JSON.stringify({ plugins: [] }));
-  expect((await reload()).map((plugin) => plugin.id)).toEqual(["thread-list"]);
+  expect((await reload()).map((plugin) => plugin.id)).toEqual([
+    "thread-list",
+    "navigation",
+  ]);
 });
 
 it("serves an external app bundle whose shared imports resolve at runtime", async () => {
   const { request, url } = await serverWithEcho();
-  const app = ((await request("")).body as Listing).plugins[1]?.app;
+  const app = ((await request("")).body as Listing).plugins[2]?.app;
   if (app?.kind !== "external") throw new Error("echo has no external app");
   const script = await fetch(`${url}${app.jsUrl}`);
   expect(script.headers.get("content-type")).toContain("text/javascript");

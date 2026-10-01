@@ -356,7 +356,6 @@ export function CheckoutInputs({
         align="start"
         sideOffset={6}
         collisionPadding={16}
-        mobileTitle="Start from:"
         autoFocusRef={showOptionsSearch ? inputRef : undefined}
         className={cn(
           BRANCH_PICKER_CONTENT_CLASS_NAME,

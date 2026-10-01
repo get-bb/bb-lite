@@ -12,4 +12,5 @@ const pluginDirectory = (name: string): string =>
 
 export const builtinPlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("thread-list"), server: threadList },
+  { directory: pluginDirectory("navigation"), server: null },
 ];

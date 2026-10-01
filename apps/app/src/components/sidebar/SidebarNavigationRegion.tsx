@@ -6,10 +6,8 @@ import {
   useState,
 } from "react";
 import { useAtomValue } from "jotai";
-import { cn } from "@bb/shared-ui/lib/utils";
 import { PluginSlotMount } from "@/plugins/mount";
 import { appToast } from "@/components/ui/app-toast";
-import { useSidebar } from "@/components/ui/sidebar";
 import { resetCrashedSlots, type PluginSlot } from "@/plugins/registry";
 import { SidebarNavigationCustomize } from "./SidebarNavigationCustomize";
 import {
@@ -70,12 +68,10 @@ export function resolveCustomizeFocusReturnTarget(
 
 function NavigationProvider({
   slot,
-  isCompactViewport,
   attempt,
   onReload,
 }: {
   slot: PluginSlot<"sidebarNavigations">;
-  isCompactViewport: boolean;
   attempt: number;
   onReload: () => void;
 }) {
@@ -101,7 +97,7 @@ function NavigationProvider({
         });
       }}
     >
-      <Component isCompactViewport={isCompactViewport} />
+      <Component />
     </PluginSlotMount>
   );
 }
@@ -110,18 +106,15 @@ export interface SidebarNavigationRegionProps {
   isCustomizing: boolean;
   onCustomizingChange: (isCustomizing: boolean) => void;
   focusReturnTargetRef: { current: HTMLElement | null };
-  onNavigate?: () => void;
 }
 
 export function SidebarNavigationRegion({
   isCustomizing,
   onCustomizingChange,
   focusReturnTargetRef,
-  onNavigate,
 }: SidebarNavigationRegionProps) {
   const replacement = useSidebarNavigationReplacement();
   const preference = useAtomValue(sidebarNavigationProviderAtom);
-  const { isCompactViewport } = useSidebar();
   const [attempt, setAttempt] = useState(0);
   const [isEditorShown, setEditorShown] = useState(false);
   const restoreFocusRef = useRef(false);
@@ -146,10 +139,7 @@ export function SidebarNavigationRegion({
       return;
     }
     const nav = navRef.current;
-    const scope =
-      nav?.closest<HTMLElement>(
-        '[data-sidebar="sidebar"], [data-testid="app-sidebar-body"]',
-      ) ?? null;
+    const scope = nav?.closest<HTMLElement>('[data-sidebar="sidebar"]') ?? null;
     const fallback =
       nav?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ??
       scope?.querySelector<HTMLElement>(
@@ -185,9 +175,6 @@ export function SidebarNavigationRegion({
       ref={navRef}
       aria-label="Sidebar navigation"
       data-testid="sidebar-navigation-region"
-      className={cn(
-        isCustomizing && isCompactViewport && "flex min-h-0 flex-1 flex-col",
-      )}
     >
       {isCustomizing && isEditorShown ? (
         <SidebarNavigationCustomize
@@ -211,12 +198,10 @@ export function SidebarNavigationRegion({
                   }
                 : { kind: "missing" }
             }
-            {...(onNavigate ? { onNavigate } : {})}
           />
         ) : (
           <NavigationProvider
             slot={slot}
-            isCompactViewport={isCompactViewport}
             attempt={attempt}
             onReload={handleReload}
           />

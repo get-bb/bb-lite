@@ -25,7 +25,6 @@ import {
 import type { NewThreadRequest } from "@bb/plugin/app";
 import type {
   CreateExecutionInputSources,
-  SidebarBootstrapResponse,
   SystemEnvironmentProvider,
   SystemExecutionOptionsModelLoadError,
 } from "@bb/server-contract";
@@ -80,7 +79,6 @@ import { usePromptBoxMachinePreference } from "@/hooks/thread-creation-options/p
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { promptHistoryEntriesToDrafts } from "@/lib/prompt-history";
-import { usePromptHistoryEnabled } from "@/hooks/usePromptHistoryEnabled";
 import {
   arePromptDraftStatesEqual,
   getProjectStoredPromptAttachmentPaths,
@@ -152,7 +150,6 @@ export interface NewThreadComposerState {
   projectId: string;
   isProjectless: boolean;
   projects: readonly SidebarProject[] | undefined;
-  sidebarNavigation: SidebarBootstrapResponse | undefined;
   sidebarNavigationError: boolean;
   currentProject: SidebarProject | undefined;
   projectSources: SidebarProject["sources"];
@@ -164,7 +161,6 @@ export interface NewThreadComposerState {
   promptDraft: PromptDraftController;
   focusPromptBox: () => void;
   pluginComposerHost: PluginComposerHost;
-  isSubmitting: boolean;
   seedEnvironmentSelectionValue: (value: string) => void;
   hostSelectionReady: boolean;
   selectHostForNewEnvironment: (hostId: string) => void;
@@ -1253,10 +1249,6 @@ export function NewThreadComposer({
     query: string | null;
     trigger: import("@bb/domain").PromptMentionCommandTrigger | null;
   }>({ query: null, trigger: null });
-  const [hasComposerFocused, setHasComposerFocused] = useState(false);
-  const handleEditorFocus = useCallback(() => {
-    setHasComposerFocused(true);
-  }, []);
   const providerPromptActions = useMemo(
     () => buildProviderPromptActionProps(selectedProviderComposerActions),
     [selectedProviderComposerActions],
@@ -1272,12 +1264,10 @@ export function NewThreadComposer({
     environmentId: reuseEnvironmentId,
     hostId: projectHostId,
     query: commandState.query,
-    composerFocused: hasComposerFocused,
   });
-  const promptHistoryEnabled = usePromptHistoryEnabled();
   const { data: projectPromptHistory = [] } = useProjectPromptHistory(
     projectId,
-    { enabled: promptHistoryEnabled && sidebarNavigationSettled },
+    { enabled: sidebarNavigationSettled },
   );
   const promptHistoryDrafts = useMemo(
     () => promptHistoryEntriesToDrafts(projectPromptHistory),
@@ -1513,7 +1503,6 @@ export function NewThreadComposer({
               loadMore: commandSuggestions.loadMore,
               onQueryChange: (query, trigger) =>
                 setCommandState({ query, trigger }),
-              onEditorFocus: handleEditorFocus,
             },
           }}
           attachments={{
@@ -1616,7 +1605,6 @@ export function NewThreadComposer({
       environmentProvidersByHostId,
       executionOptionsRouting,
       handleAttachFiles,
-      handleEditorFocus,
       handleModelChange,
       handlePermissionChange,
       handleProjectChange,
@@ -1677,7 +1665,6 @@ export function NewThreadComposer({
         projectId,
         isProjectless,
         projects,
-        sidebarNavigation: sidebarNavigationQuery.data,
         sidebarNavigationError: sidebarNavigationQuery.isError,
         currentProject,
         projectSources,
@@ -1689,7 +1676,6 @@ export function NewThreadComposer({
         promptDraft,
         focusPromptBox,
         pluginComposerHost,
-        isSubmitting,
         seedEnvironmentSelectionValue: setCreationEnvironmentSelectionValue,
         hostSelectionReady:
           sidebarNavigationSettled &&

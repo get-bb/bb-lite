@@ -50,15 +50,12 @@ import {
   SettingsWithControl,
 } from "@/components/ui/settings-section";
 import { AppCommandShortcutPill } from "@/components/commands/AppCommandShortcutHint";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
 
 const EMPTY_OVERRIDES: AppKeybindingOverrides = [];
 const SETTINGS_SHORTCUT_PILL_CLASS =
   "rounded-none bg-transparent px-0 py-0 text-foreground opacity-100";
 const SETTINGS_DEFAULT_SHORTCUT_CLASS =
   "bg-muted/40 px-1.5 py-0.5 text-foreground opacity-100";
-const SETTINGS_SEGMENTED_DEFAULT_SHORTCUT_CLASS =
-  "rounded-none border-l border-border bg-transparent px-1.5 py-0.5 text-foreground opacity-100";
 
 function areNullableAppShortcutsEqual(
   left: AppShortcut | null,
@@ -197,8 +194,6 @@ interface KeyboardCommandRowModel {
   description: string;
   defaultConflicts: readonly string[];
   customized: boolean;
-  desktopDefaultShortcut: AppShortcut | null;
-  desktopOnly: boolean;
   shortcut: AppShortcut | null;
   webDefaultShortcut: AppShortcut | null;
 }
@@ -210,7 +205,6 @@ interface BuildKeyboardCommandRowModelArgs {
   defaultConflicts: readonly KeyboardCommandId[];
   command: KeyboardCommandId;
   defaults: AppDefaultKeybindings;
-  isDesktop: boolean;
   overrides: AppKeybindingOverrides;
   platform: string;
 }
@@ -222,51 +216,29 @@ function buildKeyboardCommandRowModel({
   defaultConflicts,
   command,
   defaults,
-  isDesktop,
   overrides,
   platform,
 }: BuildKeyboardCommandRowModelArgs): KeyboardCommandRowModel {
-  const shortcut = getCommandShortcut(
-    defaults,
-    overrides,
-    command,
-    isDesktop,
-    platform,
-  );
+  const shortcut = getCommandShortcut(defaults, overrides, command, platform);
   const customized =
     findAppKeybindingOverride(
       overrides,
       command,
       keyboardPlatform(platform),
     ) !== undefined;
-  const commandBindings = defaults.filter(
-    (binding) => binding.command === command,
-  );
   const webDefaultShortcut = getCommandShortcut(
     defaults,
     [],
     command,
-    false,
-    platform,
-  );
-  const desktopDefaultShortcut = getCommandShortcut(
-    defaults,
-    [],
-    command,
-    true,
     platform,
   );
   const availableOnClient = isAppCommandAvailableForClient(
     defaults,
     command,
-    isDesktop,
     platform,
   );
-  const desktopOnly =
-    commandBindings.length > 0 &&
-    commandBindings.every((binding) => binding.desktopOnly);
   const conflicts = customized
-    ? getShortcutConflicts(defaults, overrides, command, isDesktop, platform)
+    ? getShortcutConflicts(defaults, overrides, command, platform)
     : [];
 
   return {
@@ -277,8 +249,6 @@ function buildKeyboardCommandRowModel({
     description,
     defaultConflicts: defaultConflicts.map((id) => labels.get(id) ?? id),
     customized,
-    desktopDefaultShortcut,
-    desktopOnly,
     shortcut,
     webDefaultShortcut,
   };
@@ -305,15 +275,10 @@ function areKeyboardCommandRowModelsEqual(
     areCommandListsEqual(left.defaultConflicts, right.defaultConflicts) &&
     left.availableOnClient === right.availableOnClient &&
     left.customized === right.customized &&
-    left.desktopOnly === right.desktopOnly &&
     areNullableAppShortcutsEqual(left.shortcut, right.shortcut) &&
     areNullableAppShortcutsEqual(
       left.webDefaultShortcut,
       right.webDefaultShortcut,
-    ) &&
-    areNullableAppShortcutsEqual(
-      left.desktopDefaultShortcut,
-      right.desktopDefaultShortcut,
     ) &&
     areCommandListsEqual(left.conflicts, right.conflicts)
   );
@@ -334,25 +299,10 @@ const KeyboardCommandRow = memo(
       command,
       conflicts,
       customized,
-      desktopDefaultShortcut,
-      desktopOnly,
       shortcut,
       webDefaultShortcut,
     } = model;
     const metadata = model;
-    const splitDefaults =
-      webDefaultShortcut !== null &&
-      desktopDefaultShortcut !== null &&
-      !areAppShortcutsEqual(webDefaultShortcut, desktopDefaultShortcut)
-        ? [
-            { label: "Web", shortcut: webDefaultShortcut },
-            { label: "Desktop", shortcut: desktopDefaultShortcut },
-          ]
-        : null;
-    const sharedDefaultShortcut =
-      splitDefaults === null
-        ? (webDefaultShortcut ?? desktopDefaultShortcut)
-        : null;
 
     return (
       <div
@@ -365,43 +315,24 @@ const KeyboardCommandRow = memo(
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-sm text-foreground">{metadata.label}</p>
-            {desktopOnly ? <SettingsBadge>Desktop</SettingsBadge> : null}
             {customized ? <SettingsBadge>Custom</SettingsBadge> : null}
           </div>
           <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
             {metadata.description}
           </p>
-          {splitDefaults !== null || sharedDefaultShortcut !== null ? (
+          {webDefaultShortcut !== null ? (
             <div
-              aria-label={`${splitDefaults === null ? "Default shortcut" : "Default shortcuts"} for ${metadata.label}`}
+              aria-label={`Default shortcut for ${metadata.label}`}
               className="mt-1.5 flex flex-wrap items-center gap-1.5"
             >
               <span className="text-xs text-subtle-foreground/75">
-                {splitDefaults === null ? "Default:" : "Defaults:"}
+                Default:
               </span>
-              {sharedDefaultShortcut !== null ? (
-                <AppCommandShortcutPill
-                  ariaHidden={false}
-                  className={SETTINGS_DEFAULT_SHORTCUT_CLASS}
-                  shortcut={presentAppShortcut(sharedDefaultShortcut, platform)}
-                />
-              ) : (
-                splitDefaults?.map((entry) => (
-                  <span
-                    className="inline-flex items-stretch overflow-hidden rounded border border-border text-foreground"
-                    key={entry.label}
-                  >
-                    <span className="inline-flex items-center bg-muted/40 px-1.5 text-2xs leading-none text-subtle-foreground">
-                      {entry.label}
-                    </span>
-                    <AppCommandShortcutPill
-                      ariaHidden={false}
-                      className={SETTINGS_SEGMENTED_DEFAULT_SHORTCUT_CLASS}
-                      shortcut={presentAppShortcut(entry.shortcut, platform)}
-                    />
-                  </span>
-                ))
-              )}
+              <AppCommandShortcutPill
+                ariaHidden={false}
+                className={SETTINGS_DEFAULT_SHORTCUT_CLASS}
+                shortcut={presentAppShortcut(webDefaultShortcut, platform)}
+              />
             </div>
           ) : null}
           {model.defaultConflicts.length > 0 ? (
@@ -473,7 +404,6 @@ export function KeyboardSettingsSection() {
     isPending: isKeyboardSettingsPending,
     mutate: mutateKeyboardSettings,
   } = useUpdateKeyboardSettings();
-  const isDesktop = getBbDesktopInfo() !== null;
   const platform = browserPlatform();
   const generalSettings =
     systemConfig.data?.generalSettings ?? defaultAppSettings;
@@ -541,7 +471,6 @@ export function KeyboardSettingsSection() {
                   labels,
                   defaultConflicts: defaultConflicts.get(command) ?? [],
                   defaults,
-                  isDesktop,
                   overrides,
                   platform,
                 }),
@@ -549,26 +478,14 @@ export function KeyboardSettingsSection() {
           ),
         ),
       ),
-    [
-      commandGroups,
-      defaultConflicts,
-      defaults,
-      isDesktop,
-      labels,
-      overrides,
-      platform,
-    ],
+    [commandGroups, defaultConflicts, defaults, labels, overrides, platform],
   );
 
   const shortcutMatches = useCallback(
     (command: KeyboardCommandId, query: string): boolean => {
       const model = commandRowModels.get(command);
       if (model === undefined) return false;
-      return [
-        model.shortcut,
-        model.webDefaultShortcut,
-        model.desktopDefaultShortcut,
-      ]
+      return [model.shortcut, model.webDefaultShortcut]
         .filter((shortcut): shortcut is AppShortcut => shortcut !== null)
         .some((shortcut) => appShortcutMatchesQuery(shortcut, platform, query));
     },
@@ -601,7 +518,6 @@ export function KeyboardSettingsSection() {
 
   const latestSettingsRef = useRef({
     defaults,
-    isDesktop,
     overrides,
     platform,
     serverOverridesKey,
@@ -609,12 +525,11 @@ export function KeyboardSettingsSection() {
   useLayoutEffect(() => {
     latestSettingsRef.current = {
       defaults,
-      isDesktop,
       overrides,
       platform,
       serverOverridesKey,
     };
-  }, [defaults, isDesktop, overrides, platform, serverOverridesKey]);
+  }, [defaults, overrides, platform, serverOverridesKey]);
 
   const applyOverrides = useCallback(
     (
@@ -649,7 +564,6 @@ export function KeyboardSettingsSection() {
         current.defaults,
         next,
         command,
-        current.isDesktop,
         current.platform,
       );
       if (shortcut !== null && conflicts.length > 0 && !replace) {

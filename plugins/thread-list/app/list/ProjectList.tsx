@@ -127,7 +127,6 @@ import {
 
 export interface ProjectListProps {
   activeThreadId: string | null;
-  onProjectSelect?: () => void;
 }
 
 interface ProjectListShellProps {
@@ -513,7 +512,6 @@ interface ProjectModeSectionsProps
   draftThreadIds: ReadonlySet<string>;
   effectivePinnedThreadIds: ReadonlySet<string>;
   onCreateProjectThread: (projectId: string) => void;
-  onProjectSelect?: () => void;
   onToggleEnvironmentCollapsed: ToggleCollapsedId;
   onToggleThreadCollapsed: ToggleCollapsedId;
   personalProjectId: string | null;
@@ -533,7 +531,6 @@ function ProjectModeSections({
   draftThreadIds,
   effectivePinnedThreadIds,
   onCreateProjectThread,
-  onProjectSelect,
   onToggleCollapsed,
   onToggleEnvironmentCollapsed,
   onToggleThreadCollapsed,
@@ -711,7 +708,6 @@ function ProjectModeSections({
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
           compareThreads={compareThreads}
-          onProjectSelect={onProjectSelect}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
@@ -740,10 +736,7 @@ function ProjectModeSections({
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
           compareThreads={compareThreads}
-          onProjectSelect={() => {
-            close();
-            onProjectSelect?.();
-          }}
+          onProjectSelect={close}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
@@ -766,10 +759,7 @@ function ProjectModeSections({
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
             compareThreads={compareThreads}
-            onProjectSelect={() => {
-              close();
-              onProjectSelect?.();
-            }}
+            onProjectSelect={close}
             onToggleThreadCollapsed={onToggleThreadCollapsed}
             onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
           />
@@ -821,7 +811,6 @@ function ProjectModeSections({
                 collapsedThreadIds={collapsedThreadIds}
                 collapsedEnvironmentIds={collapsedEnvironmentIds}
                 compareThreads={compareThreads}
-                onProjectSelect={onProjectSelect}
                 onCreateProjectThread={onCreateProjectThread}
                 onToggleProjectCollapsed={toggleProjectCollapsed}
                 onToggleThreadCollapsed={onToggleThreadCollapsed}
@@ -845,7 +834,6 @@ interface SectionModeSectionsProps extends BuiltInSectionRenderState {
   sections: readonly SidebarSectionDefinition[];
   onCreateThread: () => void;
   onCreateThreadInSection: (sectionId: string) => void;
-  onProjectSelect?: () => void;
   onRemoveSection: (section: SidebarSectionDefinition) => void;
   onToggleEnvironmentCollapsed: ToggleCollapsedId;
   onToggleThreadCollapsed: ToggleCollapsedId;
@@ -873,7 +861,6 @@ function SectionModeSections({
   sections,
   onCreateThread,
   onCreateThreadInSection,
-  onProjectSelect,
   onRemoveSection,
   onToggleCollapsed,
   onToggleEnvironmentCollapsed,
@@ -919,7 +906,6 @@ function SectionModeSections({
       selectedThreadId={selectedThreadId}
       collapsedThreadIds={collapsedThreadIds}
       collapsedEnvironmentIds={collapsedEnvironmentIds}
-      onProjectSelect={onProjectSelect}
       onCreateThread={onCreateThread}
       onCreateThreadInSection={onCreateThreadInSection}
       onRemoveSection={onRemoveSection}
@@ -951,7 +937,6 @@ interface MachineModeSectionsProps
   draftThreadIds: ReadonlySet<string>;
   effectivePinnedThreadIds: ReadonlySet<string>;
   onCreateThread?: () => void;
-  onProjectSelect?: () => void;
   onToggleEnvironmentCollapsed: ToggleCollapsedId;
   onToggleThreadCollapsed: ToggleCollapsedId;
   pinnedSection: BuiltInSidebarSectionOptions;
@@ -1020,7 +1005,6 @@ export function MachineModeSections({
   effectivePinnedThreadIds,
   isSectionDisplayOptionsOpen,
   onCreateThread,
-  onProjectSelect,
   onToggleCollapsed,
   onToggleEnvironmentCollapsed,
   onToggleThreadCollapsed,
@@ -1188,7 +1172,6 @@ export function MachineModeSections({
           selectedThreadId={selectedThreadId}
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
-          onProjectSelect={onProjectSelect}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
@@ -1211,10 +1194,7 @@ export function MachineModeSections({
           selectedThreadId={selectedThreadId}
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
-          onProjectSelect={() => {
-            close();
-            onProjectSelect?.();
-          }}
+          onProjectSelect={close}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
@@ -1235,10 +1215,7 @@ export function MachineModeSections({
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
             compareThreads={compareThreads}
-            onProjectSelect={() => {
-              close();
-              onProjectSelect?.();
-            }}
+            onProjectSelect={close}
             onToggleThreadCollapsed={onToggleThreadCollapsed}
             onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
           />
@@ -1293,7 +1270,6 @@ export function MachineModeSections({
                   hostsById.has(section.key) ? section.key : undefined,
                 )}
                 actionsOpen={isSectionDisplayOptionsOpen(sectionId)}
-                actionsMobileAlways
                 collapsedActivity={section.activity}
                 collapsedThreads={section.threadListState.threads}
                 collapseControl={{
@@ -1311,7 +1287,6 @@ export function MachineModeSections({
                   selectedThreadId={selectedThreadId}
                   collapsedThreadIds={collapsedThreadIds}
                   collapsedEnvironmentIds={collapsedEnvironmentIds}
-                  onProjectSelect={onProjectSelect}
                   onToggleThreadCollapsed={onToggleThreadCollapsed}
                   onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
                 />
@@ -1331,10 +1306,7 @@ function toThreadListStatus(
   return status === "error" ? "unavailable" : status;
 }
 
-function ProjectListComponent({
-  activeThreadId,
-  onProjectSelect,
-}: ProjectListProps) {
+function ProjectListComponent({ activeThreadId }: ProjectListProps) {
   const sdk = useSdk();
   const sidebarActions = useSidebarThreadActions();
   const { status, sections, projects, personalProject, archived } =
@@ -1386,7 +1358,6 @@ function ProjectListComponent({
       hostId?: string,
       pinned = false,
     ) => {
-      onProjectSelect?.();
       sidebarActions.openNewThread({
         ...(projectId !== null ? { projectId } : {}),
         placement: { sectionId: sectionId ?? null, pinned },
@@ -1394,7 +1365,7 @@ function ProjectListComponent({
         focusPrompt: true,
       });
     },
-    [onProjectSelect, sidebarActions],
+    [sidebarActions],
   );
   const handleCreateProjectThread = useCallback(
     (projectId: string) => {
@@ -1671,7 +1642,6 @@ function ProjectListComponent({
       selectedThreadId={selectedThreadId}
       collapsedThreadIds={collapsedThreadIds}
       collapsedEnvironmentIds={collapsedEnvironmentIds}
-      onProjectSelect={onProjectSelect}
       onToggleThreadCollapsed={toggleThreadCollapsed}
       onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
       isPinnedReorderPending={isPinnedReorderPending}
@@ -1765,7 +1735,6 @@ function ProjectListComponent({
               renderSectionDisplayOptions={renderSectionDisplayOptions}
               isSectionDisplayOptionsOpen={isSectionDisplayOptionsOpen}
               onCreateThread={handleCreateProjectlessThread}
-              onProjectSelect={onProjectSelect}
               onToggleCollapsed={toggleSidebarSectionCollapsed}
               onToggleThreadCollapsed={toggleThreadCollapsed}
               onToggleEnvironmentCollapsed={toggleEnvironmentCollapsed}
@@ -1792,7 +1761,6 @@ function ProjectListComponent({
               collapsedThreadIds={collapsedThreadIds}
               collapsedEnvironmentIds={collapsedEnvironmentIds}
               compareThreads={sidebarThreadComparator}
-              onProjectSelect={onProjectSelect}
               onCreateThread={handleCreateProjectlessThread}
               onCreateThreadInSection={handleCreateThreadInSection}
               onRemoveSection={handleRemoveThreadSection}
@@ -1824,7 +1792,6 @@ function ProjectListComponent({
               collapsedThreadIds={collapsedThreadIds}
               collapsedEnvironmentIds={collapsedEnvironmentIds}
               compareThreads={sidebarThreadComparator}
-              onProjectSelect={onProjectSelect}
               onCreateProjectThread={handleCreateProjectThread}
               onToggleCollapsed={toggleSidebarSectionCollapsed}
               onToggleThreadCollapsed={toggleThreadCollapsed}

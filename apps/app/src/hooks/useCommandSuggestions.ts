@@ -1,16 +1,11 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import type { PromptMentionCommandTrigger } from "@bb/domain";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import {
   filterCommandSuggestions,
   toProviderCommandSuggestion,
   type ProviderCommandSuggestion,
 } from "@bb/client-core";
-import {
-  projectCommandsQueryOptions,
-  useProjectCommands,
-} from "./queries/project-queries";
+import { useProjectCommands } from "./queries/project-queries";
 
 interface UseCommandSuggestionsArgs {
   projectId: string | undefined;
@@ -22,10 +17,7 @@ interface UseCommandSuggestionsArgs {
   environmentId: string | null;
   hostId?: string | null;
   query: string | null;
-  composerFocused?: boolean;
 }
-
-const COMMAND_CATALOG_PREFETCH_STALE_TIME_MS = 30_000;
 
 interface UseCommandSuggestionsResult {
   triggers: readonly PromptMentionCommandTrigger[];
@@ -131,40 +123,6 @@ export function useCommandSuggestions(
     },
     { enabled: isActive },
   );
-  const queryClient = useQueryClient();
-  const isPointerCoarse = usePointerCoarse();
-  const shouldPrefetchCatalog =
-    args.composerFocused === true &&
-    isPointerCoarse &&
-    args.projectId !== undefined &&
-    args.providerId !== undefined &&
-    args.skillsTriggers.length > 0;
-  const prefetchProjectId = args.projectId;
-  const prefetchProviderId = args.providerId;
-  const prefetchEnvironmentId = args.environmentId;
-  const prefetchHostId = args.hostId ?? null;
-  useEffect(() => {
-    if (!shouldPrefetchCatalog) {
-      return;
-    }
-    void queryClient.prefetchQuery({
-      ...projectCommandsQueryOptions({
-        projectId: prefetchProjectId,
-        providerId: prefetchProviderId,
-        environmentId: prefetchEnvironmentId,
-        hostId: prefetchHostId,
-      }),
-      retry: false,
-      staleTime: COMMAND_CATALOG_PREFETCH_STALE_TIME_MS,
-    });
-  }, [
-    prefetchEnvironmentId,
-    prefetchHostId,
-    prefetchProjectId,
-    prefetchProviderId,
-    queryClient,
-    shouldPrefetchCatalog,
-  ]);
 
   const suggestions = useMemo<ProviderCommandSuggestion[]>(() => {
     if (!isActive) {

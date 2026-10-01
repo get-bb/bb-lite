@@ -6,7 +6,6 @@ import {
 } from "react";
 import { useStore } from "jotai";
 import { useNavigate } from "react-router-dom";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   getPluginPanelRoutePath,
   getRootComposeRoutePath,
@@ -58,8 +57,7 @@ export function usePaneContentSplitDrag(options: PaneContentSplitOptions) {
   );
 
   return {
-    onPointerDown:
-      options.enabled && !actions.isCompact ? onPointerDown : undefined,
+    onPointerDown: options.enabled ? onPointerDown : undefined,
     openInSplit,
   };
 }
@@ -68,7 +66,6 @@ interface PaneContentSplitOptions {
   content: PaneContent;
   enabled: boolean;
   label: string;
-  onNavigate?: () => void;
   onDragStart?: () => void;
   dragActivation?: "sidebar" | "distance";
 }
@@ -76,20 +73,18 @@ interface PaneContentSplitOptions {
 export function usePaneContentSplitActions() {
   const store = useStore();
   const navigate = useNavigate();
-  const isCompact = useIsCompactViewport();
 
   const openInSplit = useCallback(
-    ({ content, enabled, onNavigate }: PaneContentSplitOptions) => {
-      onNavigate?.();
+    ({ content, enabled }: PaneContentSplitOptions) => {
       openPaneContentInSplit({
         store,
         navigate,
         content,
         route: routeForContent(content),
-        enabled: enabled && !isCompact,
+        enabled,
       });
     },
-    [isCompact, navigate, store],
+    [navigate, store],
   );
 
   const onPointerDown = useCallback(
@@ -99,29 +94,27 @@ export function usePaneContentSplitActions() {
         content,
         enabled,
         label,
-        onNavigate,
         onDragStart,
         dragActivation,
       }: PaneContentSplitOptions,
     ) => {
-      if (!enabled || isCompact || event.button !== 0) return;
+      if (!enabled || event.button !== 0) return;
       beginSidebarPaneContentSplitDrag({
         event,
         store,
         navigate,
         content,
         label,
-        onNavigate,
         onDragStart,
         dragActivation,
       });
     },
-    [isCompact, navigate, store],
+    [navigate, store],
   );
 
   return useMemo(
-    () => ({ beginDrag: onPointerDown, isCompact, openInSplit }),
-    [isCompact, onPointerDown, openInSplit],
+    () => ({ beginDrag: onPointerDown, openInSplit }),
+    [onPointerDown, openInSplit],
   );
 }
 
@@ -134,7 +127,6 @@ interface BeginSidebarPaneContentSplitDragArgs {
   ) => void | Promise<void>;
   content: PaneContent;
   label: string;
-  onNavigate?: () => void;
   onDragStart?: () => void;
   dragActivation?: "sidebar" | "distance";
 }
@@ -145,7 +137,6 @@ export function beginSidebarPaneContentSplitDrag({
   navigate,
   content,
   label,
-  onNavigate,
   onDragStart,
   dragActivation = "sidebar",
 }: BeginSidebarPaneContentSplitDragArgs): void {
@@ -202,7 +193,6 @@ export function beginSidebarPaneContentSplitDrag({
             ? replacePaneContent(layout, target.paneId, content)
             : splitPane(layout, target.paneId, target.zone, content);
       if (next !== layout) store.set(splitLayoutAtom, next);
-      onNavigate?.();
       void navigate(
         routeForContent(content),
         existing !== null ? { replace: true } : undefined,

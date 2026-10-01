@@ -1,7 +1,6 @@
 import {
   isBackgroundAgentTaskType,
   isBackgroundCommandTaskType,
-  isNamespacedGlyph,
 } from "@bb/domain";
 import type {
   TimelineActivityIntent,
@@ -139,18 +138,6 @@ export function workRowGlyph<HostGlyph extends string>(
     return presented;
   }
   return fallbackGlyphForWorkRow(row);
-}
-
-export function workRowPluginGlyph(
-  row: TimelineViewWorkRow,
-): string | undefined {
-  if (isSkillReadCommandRow(row)) {
-    return undefined;
-  }
-  const presented = workRowPresentation(row)?.icon.glyph;
-  return presented !== undefined && isNamespacedGlyph(presented)
-    ? presented
-    : undefined;
 }
 
 function isSkillReadCommandRow(row: TimelineViewWorkRow): boolean {

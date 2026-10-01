@@ -3,7 +3,6 @@ import { flushSync } from "react-dom";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PluginSlotMount } from "@/plugins/mount";
 import { appToast } from "@/components/ui/app-toast";
-import { useSidebar } from "@/components/ui/sidebar";
 import { useSidebarHeaderReplacement } from "./sidebarHeaderProvider";
 
 const SIDEBAR_HEADER_SLOT_KIND = "sidebarHeader";
@@ -24,7 +23,6 @@ export function SidebarHeaderSlot({
   startInsetClassName: string;
 }) {
   const replacement = useSidebarHeaderReplacement();
-  const { isCompactViewport } = useSidebar();
   const slotRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({
     width: 0,
@@ -51,7 +49,7 @@ export function SidebarHeaderSlot({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isActive, isCompactViewport]);
+  }, [isActive]);
 
   if (replacement.kind !== "plugin") return null;
   const slot = replacement.slot;

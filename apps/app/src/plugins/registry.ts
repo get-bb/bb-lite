@@ -12,7 +12,6 @@ import type {
   PluginThreadListProps,
   PluginThreadPanelRegistration,
   SidebarHeaderProps,
-  SidebarNavigationProps,
 } from "@bb/plugin/app";
 
 export interface PluginRegistrations {
@@ -23,7 +22,7 @@ export interface PluginRegistrations {
   pendingInteractions: PluginComponentRegistration<PluginPendingInteractionProps>[];
   messageDirectives: PluginComponentRegistration<PluginMessageDirectiveProps>[];
   threadLists: PluginProviderRegistration<PluginThreadListProps>[];
-  sidebarNavigations: PluginProviderRegistration<SidebarNavigationProps>[];
+  sidebarNavigations: PluginProviderRegistration[];
   sidebarHeaders: PluginProviderRegistration<SidebarHeaderProps>[];
   commands: PluginCommandRegistration[];
 }

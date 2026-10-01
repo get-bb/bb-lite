@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
   type ComponentProps,
-  type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
@@ -21,7 +20,6 @@ import type {
   ThreadTimelineActivePromptMode,
 } from "@bb/domain";
 import { modifierSubmitShortcutLabel } from "./modifier-submit-shortcut";
-import { isKeyboardFocusTarget } from "@/components/layout/useMobileVisualViewportHeight";
 import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
 import { useComposerExtensionController } from "@/components/plugin/ComposerExtensionHost";
 import {
@@ -40,8 +38,6 @@ import {
   type ExecutionPermissionConfig,
 } from "@/components/promptbox/ExecutionControls";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { ThreadTimelineScrollToBottomButton } from "@/views/thread-detail/ThreadTimelineScrollToBottomButton";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import { ThreadContextWindowIndicator } from "@/components/thread/timeline";
@@ -100,9 +96,6 @@ const FOLLOW_UP_PROMPT_BOX_ELASTIC_TARGET_HEIGHT =
 const COMPOSER_CONTROL_SELECTOR = "button, [role='button'], [aria-haspopup]";
 const COMPOSER_OVERLAY_TRIGGER_SELECTOR = "[aria-haspopup]";
 const OPEN_COMPOSER_OVERLAY_TRIGGER_SELECTOR = `${COMPOSER_OVERLAY_TRIGGER_SELECTOR}[aria-expanded="true"]`;
-const MOBILE_KEYBOARD_VIEWPORT_MIN_DELTA_PX = 80;
-const MOBILE_FOCUS_EXPANSION_FALLBACK_MS = 350;
-const MOBILE_KEYBOARD_DISMISSAL_FALLBACK_MS = 750;
 
 export type { FollowUpSubmitMode } from "@bb/client-core";
 
@@ -219,11 +212,8 @@ function FollowUpPromptBoxWithComposer({
     promptBoxRef.current?.focusEnd();
     return promptBoxRef.current !== null;
   }, []);
-  const isCompactViewport = useIsCompactViewport();
-  const isPointerCoarse = usePointerCoarse();
   const composerInteractionRef = useRef<HTMLDivElement>(null);
   const interactionExpandedRef = useRef(false);
-  const pendingFocusExpansionCleanupRef = useRef<(() => void) | null>(null);
   const pendingFocusLossCleanupRef = useRef<(() => void) | null>(null);
   const deferredControlFocusLossRef = useRef<(() => void) | null>(null);
   const pressedComposerControlRef = useRef(false);
@@ -236,32 +226,21 @@ function FollowUpPromptBoxWithComposer({
     widePromptBoxCollapsedFor === collapseResetKey;
   const isEditorExpanded =
     isInteractionExpanded || (preferExpanded && !isWidePromptBoxCollapsed);
-  const isPromptBoxCompact =
-    isWidePromptBoxCollapsed || (isCompactViewport && !isEditorExpanded);
   const compactConfig = useMemo(
     () =>
-      isCompactViewport || isWidePromptBoxCollapsed
+      isWidePromptBoxCollapsed
         ? {
-            isCompact: isPromptBoxCompact,
+            isCompact: true,
             placeholder: composer.compactPromptPlaceholder,
           }
         : undefined,
-    [
-      composer.compactPromptPlaceholder,
-      isCompactViewport,
-      isPromptBoxCompact,
-      isWidePromptBoxCollapsed,
-    ],
+    [composer.compactPromptPlaceholder, isWidePromptBoxCollapsed],
   );
   const setInteractionExpanded = useCallback((nextExpanded: boolean) => {
     if (interactionExpandedRef.current === nextExpanded) return;
     interactionExpandedRef.current = nextExpanded;
     promptBoxRef.current?.captureHeightForLayoutChange();
     setIsInteractionExpanded(nextExpanded);
-  }, []);
-  const cancelPendingFocusExpansion = useCallback(() => {
-    pendingFocusExpansionCleanupRef.current?.();
-    pendingFocusExpansionCleanupRef.current = null;
   }, []);
   const cancelPendingFocusLoss = useCallback(() => {
     deferredControlFocusLossRef.current = null;
@@ -284,7 +263,6 @@ function FollowUpPromptBoxWithComposer({
         return;
       }
 
-      cancelPendingFocusExpansion();
       cancelPendingFocusLoss();
       cancelPressedComposerControl();
       pressedComposerControlRef.current = true;
@@ -322,180 +300,51 @@ function FollowUpPromptBoxWithComposer({
       });
       pressedComposerControlCleanupRef.current = cleanup;
     },
-    [
-      cancelPendingFocusExpansion,
-      cancelPendingFocusLoss,
-      cancelPressedComposerControl,
-    ],
+    [cancelPendingFocusLoss, cancelPressedComposerControl],
   );
-  const handleComposerFocus = useCallback(
-    (event: ReactFocusEvent) => {
-      cancelPendingFocusLoss();
-      if (pressedComposerControlRef.current) return;
-      setWidePromptBoxCollapsedFor(null);
-      if (interactionExpandedRef.current) return;
-      if (
-        !isCompactViewport ||
-        !isPointerCoarse ||
-        !isKeyboardFocusTarget(event.target) ||
-        !window.visualViewport
-      ) {
-        setInteractionExpanded(true);
+  const handleComposerFocus = useCallback(() => {
+    cancelPendingFocusLoss();
+    if (pressedComposerControlRef.current) return;
+    setWidePromptBoxCollapsedFor(null);
+    if (interactionExpandedRef.current) return;
+    setInteractionExpanded(true);
+  }, [cancelPendingFocusLoss, setInteractionExpanded]);
+  const scheduleCollapseAfterFocusLoss = useCallback(() => {
+    cancelPendingFocusLoss();
+    const scheduleFocusLoss = () => {
+      const frame = window.requestAnimationFrame(checkFocusLoss);
+      pendingFocusLossCleanupRef.current = () => {
+        window.cancelAnimationFrame(frame);
+      };
+    };
+    const checkFocusLoss = () => {
+      pendingFocusLossCleanupRef.current = null;
+      const composerElement = composerInteractionRef.current;
+      if (!composerElement) return;
+
+      if (composerElement.contains(document.activeElement)) return;
+
+      if (pressedComposerControlRef.current) {
+        deferredControlFocusLossRef.current = scheduleFocusLoss;
         return;
       }
-      if (pendingFocusExpansionCleanupRef.current) return;
 
-      const visualViewport = window.visualViewport;
-      const initialViewportHeight = visualViewport.height;
-      let animationFrame: number | null = null;
-      let fallbackTimeout: number | null = null;
-      let hasFinished = false;
-      const removeSignals = () => {
-        visualViewport.removeEventListener("resize", handleViewportResize);
-        if (fallbackTimeout !== null) {
-          window.clearTimeout(fallbackTimeout);
-          fallbackTimeout = null;
-        }
-      };
-      const cleanup = () => {
-        removeSignals();
-        if (animationFrame !== null) {
-          window.cancelAnimationFrame(animationFrame);
-          animationFrame = null;
-        }
-      };
-      const finishExpansion = () => {
-        if (hasFinished) return;
-        hasFinished = true;
-        removeSignals();
-        animationFrame = window.requestAnimationFrame(() => {
-          animationFrame = null;
-          pendingFocusExpansionCleanupRef.current = null;
-          setInteractionExpanded(true);
-        });
-      };
-      const handleViewportResize = () => {
-        if (
-          initialViewportHeight - visualViewport.height <
-          MOBILE_KEYBOARD_VIEWPORT_MIN_DELTA_PX
-        ) {
-          return;
-        }
-        finishExpansion();
-      };
+      if (
+        composerElement.querySelector(OPEN_COMPOSER_OVERLAY_TRIGGER_SELECTOR)
+      ) {
+        return;
+      }
 
-      visualViewport.addEventListener("resize", handleViewportResize);
-      fallbackTimeout = window.setTimeout(
-        finishExpansion,
-        MOBILE_FOCUS_EXPANSION_FALLBACK_MS,
-      );
-      pendingFocusExpansionCleanupRef.current = cleanup;
-    },
-    [
-      cancelPendingFocusLoss,
-      isCompactViewport,
-      isPointerCoarse,
-      setInteractionExpanded,
-    ],
-  );
-  const scheduleCollapseAfterFocusLoss = useCallback(
-    (event: ReactFocusEvent) => {
-      cancelPendingFocusLoss();
-      const dismissedKeyboard = isKeyboardFocusTarget(event.target);
-      const scheduleFocusLoss = () => {
-        const frame = window.requestAnimationFrame(checkFocusLoss);
-        pendingFocusLossCleanupRef.current = () => {
-          window.cancelAnimationFrame(frame);
-        };
-      };
-      const checkFocusLoss = () => {
-        pendingFocusLossCleanupRef.current = null;
-        const composerElement = composerInteractionRef.current;
-        if (!composerElement) return;
-
-        if (composerElement.contains(document.activeElement)) return;
-
-        if (pressedComposerControlRef.current) {
-          deferredControlFocusLossRef.current = scheduleFocusLoss;
-          return;
-        }
-
-        if (
-          composerElement.querySelector(OPEN_COMPOSER_OVERLAY_TRIGGER_SELECTOR)
-        ) {
-          return;
-        }
-
-        const collapse = () => {
-          cancelPendingFocusExpansion();
-          setInteractionExpanded(false);
-        };
-        const focusSettledOnDocument =
-          document.activeElement === document.body ||
-          document.activeElement === document.documentElement;
-        const visualViewport = window.visualViewport;
-        if (
-          !dismissedKeyboard ||
-          !focusSettledOnDocument ||
-          !isCompactViewport ||
-          !isPointerCoarse ||
-          !visualViewport
-        ) {
-          collapse();
-          return;
-        }
-
-        const keyboardViewportHeight = visualViewport.height;
-        let fallbackTimeout: number | null = null;
-        let hasFinished = false;
-        const cleanup = () => {
-          visualViewport.removeEventListener("resize", handleViewportResize);
-          if (fallbackTimeout !== null) {
-            window.clearTimeout(fallbackTimeout);
-            fallbackTimeout = null;
-          }
-        };
-        const finishCollapse = () => {
-          if (hasFinished) return;
-          hasFinished = true;
-          cleanup();
-          pendingFocusLossCleanupRef.current = null;
-          collapse();
-        };
-        const handleViewportResize = () => {
-          if (
-            visualViewport.height - keyboardViewportHeight <
-            MOBILE_KEYBOARD_VIEWPORT_MIN_DELTA_PX
-          ) {
-            return;
-          }
-          finishCollapse();
-        };
-
-        visualViewport.addEventListener("resize", handleViewportResize);
-        fallbackTimeout = window.setTimeout(
-          finishCollapse,
-          MOBILE_KEYBOARD_DISMISSAL_FALLBACK_MS,
-        );
-        pendingFocusLossCleanupRef.current = cleanup;
-      };
-      scheduleFocusLoss();
-    },
-    [
-      cancelPendingFocusExpansion,
-      cancelPendingFocusLoss,
-      isCompactViewport,
-      isPointerCoarse,
-      setInteractionExpanded,
-    ],
-  );
+      setInteractionExpanded(false);
+    };
+    scheduleFocusLoss();
+  }, [cancelPendingFocusLoss, setInteractionExpanded]);
   const collapseWidePromptBox = useCallback(() => {
-    cancelPendingFocusExpansion();
     cancelPendingFocusLoss();
     interactionExpandedRef.current = false;
     setIsInteractionExpanded(false);
     setWidePromptBoxCollapsedFor(collapseResetKey);
-  }, [cancelPendingFocusExpansion, cancelPendingFocusLoss, collapseResetKey]);
+  }, [cancelPendingFocusLoss, collapseResetKey]);
   const collapseIfFocused = useCallback(() => {
     const activeElement = document.activeElement;
     if (
@@ -518,15 +367,10 @@ function FollowUpPromptBoxWithComposer({
   });
   useEffect(
     () => () => {
-      cancelPendingFocusExpansion();
       cancelPendingFocusLoss();
       cancelPressedComposerControl();
     },
-    [
-      cancelPendingFocusExpansion,
-      cancelPendingFocusLoss,
-      cancelPressedComposerControl,
-    ],
+    [cancelPendingFocusLoss, cancelPressedComposerControl],
   );
   const steerOnPrimarySubmit =
     submitMode.kind === "queue" && composer.steerActiveThreadOnEnter;
@@ -639,7 +483,6 @@ function FollowUpPromptBoxWithComposer({
         onChange={composer.onChangeMessage}
         onSubmit={composer.onSubmit}
         onEscape={composer.onEscape}
-        blurOnPointerSubmit={isCompactViewport && isPointerCoarse}
         scrollToBottomOnSubmit={submitMode.kind !== "queue"}
         history={composer.history}
         focusEndKey={focusEndKey}
@@ -694,7 +537,7 @@ function FollowUpPromptBoxWithComposer({
         promptActions={promptActions}
         compact={compactConfig}
         editorLayout="thread"
-        onCollapse={isCompactViewport ? undefined : collapseWidePromptBox}
+        onCollapse={collapseWidePromptBox}
         modeHeader={
           execution.handoff?.active ? (
             <div className="flex min-h-7 items-center gap-1.5 text-xs text-subtle-foreground">
@@ -720,7 +563,7 @@ function FollowUpPromptBoxWithComposer({
         }
         footerStart={footerStart}
       />
-      {!isPromptBoxCompact ? (
+      {!isWidePromptBoxCollapsed ? (
         <div
           data-follow-up-composer-footer=""
           className="mt-1 flex min-h-6 max-h-6 select-none items-center justify-between gap-2 overflow-hidden pl-[15px] pr-3.5 opacity-100 transition-[max-height,min-height,margin-top,opacity] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"

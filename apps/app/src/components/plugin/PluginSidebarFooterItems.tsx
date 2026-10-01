@@ -38,10 +38,8 @@ export interface BuiltinFooterAction {
 }
 
 export function PluginSidebarFooterItems({
-  onNavigate,
   builtInActions = [],
 }: {
-  onNavigate?: () => void;
   builtInActions?: readonly BuiltinFooterAction[];
 }) {
   const preferences = useSidebarFooterPreferences();
@@ -89,7 +87,7 @@ export function PluginSidebarFooterItems({
                     }
                   >
                     {builtin?.href !== undefined ? (
-                      <Link to={builtin.href} onClick={onNavigate}>
+                      <Link to={builtin.href}>
                         <FooterItemIcon item={item} />
                         <span className="sr-only">{item.label}</span>
                       </Link>
@@ -127,11 +125,7 @@ export function PluginSidebarFooterItems({
                 <span className="sr-only">More</span>
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              align="start"
-              mobileTitle="More footer actions"
-            >
+            <DropdownMenuContent side="top" align="start">
               {hidden.map((item) => (
                 <DropdownMenuItem
                   key={item.key}

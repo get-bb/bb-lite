@@ -57,7 +57,6 @@ import {
   COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import {
   getMediaQuerySnapshot,
   REDUCED_MOTION_QUERY,
@@ -123,7 +122,7 @@ import { ComposerSendMenu } from "./ComposerSendMenu";
 const PROMPTBOX_MIN_HEIGHT = 68;
 const PROMPTBOX_SELECTION_REVEAL_MARGIN = 12;
 const COMPACT_PROMPT_ACTION_BUTTON_CLASS =
-  "size-8 p-0 transition-all [&_[data-icon-root]]:size-4 max-md:pointer-coarse:size-10";
+  "size-8 p-0 transition-all [&_[data-icon-root]]:size-4";
 const RICH_PASTE_BLOCK_TAGS = new Set([
   "ADDRESS",
   "ARTICLE",
@@ -214,9 +213,7 @@ interface PromptSubmitButtonProps {
   isBusy: boolean;
   isCompact: boolean;
   label: string | undefined;
-  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onTouchSubmit: () => void;
   title: string;
 }
 
@@ -228,15 +225,9 @@ function PromptSubmitButton({
   isBusy,
   isCompact,
   label,
-  onClick,
   onPointerDown,
-  onTouchSubmit,
   title,
 }: PromptSubmitButtonProps) {
-  const touchRef = useRef<{ pointerId: number; x: number; y: number } | null>(
-    null,
-  );
-  const suppressTouchClickRef = useRef(false);
   const button = (
     <Button
       data-promptbox-submit-action=""
@@ -246,55 +237,8 @@ function PromptSubmitButton({
       aria-label={title}
       aria-busy={isBusy}
       disabled={!canSubmit}
-      onPointerDown={(event) => {
-        suppressTouchClickRef.current = false;
-        touchRef.current =
-          event.pointerType === "touch" && event.isPrimary && event.button === 0
-            ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
-            : null;
-        onPointerDown(event);
-      }}
-      onPointerMove={(event) => {
-        const touch = touchRef.current;
-        if (
-          touch &&
-          touch.pointerId === event.pointerId &&
-          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > 10
-        ) {
-          touchRef.current = null;
-          suppressTouchClickRef.current = true;
-        }
-      }}
-      onPointerCancel={() => {
-        if (touchRef.current) suppressTouchClickRef.current = true;
-        touchRef.current = null;
-      }}
-      onPointerUp={(event) => {
-        const touch = touchRef.current;
-        touchRef.current = null;
-        if (!touch || touch.pointerId !== event.pointerId) return;
-        suppressTouchClickRef.current = true;
-        if (!canSubmit) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (
-          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > 10 ||
-          event.clientX < bounds.left ||
-          event.clientX >= bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY >= bounds.bottom
-        ) {
-          return;
-        }
-        onTouchSubmit();
-      }}
+      onPointerDown={onPointerDown}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={(event) => {
-        if (suppressTouchClickRef.current && event.detail > 0) {
-          event.preventDefault();
-          return;
-        }
-        onClick(event);
-      }}
       className={cn(
         className,
         label !== undefined && !isCompact && "size-auto h-8 gap-1.5 px-2.5",
@@ -359,7 +303,6 @@ export interface TypeaheadCommandConfig {
     query: string | null,
     trigger: PromptMentionCommandTrigger | null,
   ) => void;
-  onEditorFocus?: () => void;
 }
 
 export interface TypeaheadConfig {
@@ -416,7 +359,6 @@ interface PromptBoxInternalProps {
   onChange: (value: string, mentionRanges: PromptTextMention[]) => void;
   onSubmit: () => void;
   onEscape?: () => void;
-  blurOnPointerSubmit?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
   header?: ReactNode;
@@ -996,33 +938,6 @@ function focusEditorAtEnd(editor: Editor): void {
   editor.view.focus();
 }
 
-const SAFARI_POST_COMPOSITION_KEYDOWN_WINDOW_MS = 500;
-
-function isIPadOSWebKit(): boolean {
-  if (typeof navigator === "undefined") return false;
-
-  const isAppleWebKit =
-    /Apple Computer/u.test(navigator.vendor) &&
-    /\bAppleWebKit\//u.test(navigator.userAgent);
-  const isIPad =
-    navigator.platform === "iPad" ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 2);
-  return isAppleWebKit && isIPad;
-}
-
-function usePostCompositionKeyDownEvents(): WeakSet<KeyboardEvent> {
-  const ref = useRef<WeakSet<KeyboardEvent> | null>(null);
-  ref.current ??= new WeakSet<KeyboardEvent>();
-  return ref.current;
-}
-
-function isIPadHardwareEnterCandidate(event: KeyboardEvent): boolean {
-  return (
-    event.key === "Enter" &&
-    (event.code === "Enter" || event.code === "NumpadEnter")
-  );
-}
-
 export function PromptBoxInternal({
   id,
   value,
@@ -1030,7 +945,6 @@ export function PromptBoxInternal({
   onChange,
   onSubmit: onDefaultSubmit,
   onEscape,
-  blurOnPointerSubmit = false,
   placeholder = "Ask anything. @ to mention files, folders, or sections",
   autoFocus = true,
   header,
@@ -1089,12 +1003,7 @@ export function PromptBoxInternal({
     isLoading: commandLoading,
     isError: commandError,
     onQueryChange: onCommandQueryChange,
-    onEditorFocus: onCommandEditorFocus,
   } = typeahead.command;
-  const onCommandEditorFocusRef = useRef(onCommandEditorFocus);
-  useEffect(() => {
-    onCommandEditorFocusRef.current = onCommandEditorFocus;
-  }, [onCommandEditorFocus]);
   const {
     items: attachments = [],
     pendingUploads,
@@ -1104,15 +1013,11 @@ export function PromptBoxInternal({
     onRemove: onRemoveAttachment,
     projectId: attachmentProjectId,
   } = attachmentConfig;
-  const isPointerCoarse = usePointerCoarse();
-  const isIPadOSWebKitDevice = useMemo(isIPadOSWebKit, []);
-  const editorEnterKeyHint = isPointerCoarse ? "enter" : "send";
   const formRef = useRef<HTMLFormElement>(null);
   const typeaheadMenuRef = useRef<HTMLDivElement>(null);
   const reportQueuedEditorTypeaheadLayout = useContext(
     QueuedEditorTypeaheadLayoutContext,
   );
-  const blurAfterPointerSubmitRef = useRef(false);
   const heightAnimationFromRef = useRef<number | null>(null);
   const capturePromptBoxHeight = useCallback(() => {
     const formElement = formRef.current;
@@ -1145,11 +1050,9 @@ export function PromptBoxInternal({
   const skipEditorChangeRef = useRef(false);
   const lastSyncedEditorValueRef = useRef<PromptEditorValueKey | null>(null);
   const triggerKeyRef = useRef("");
-  const handleEditorKeyDownRef = useRef<
-    (event: KeyboardEvent, isOriginalIPadHardwareEnter?: boolean) => boolean
-  >(() => false);
-  const compositionEndedAtRef = useRef(Number.NEGATIVE_INFINITY);
-  const postCompositionKeyDownEvents = usePostCompositionKeyDownEvents();
+  const handleEditorKeyDownRef = useRef<(event: KeyboardEvent) => boolean>(
+    () => false,
+  );
   const dispatchAppCommandKey = useAppCommandKeyDispatch();
   const syncTriggerStateRef = useRef<(editor: Editor) => void>(() => {});
   const onAttachFilesRef = useRef(onAttachFiles);
@@ -1363,7 +1266,7 @@ export function PromptBoxInternal({
             "min-h-full whitespace-pre-wrap break-words outline-none",
             "placeholder:select-none placeholder:text-subtle-foreground",
           ),
-          enterkeyhint: editorEnterKeyHint,
+          enterkeyhint: "send",
           ...(id ? { id } : {}),
           role: "textbox",
         },
@@ -1374,10 +1277,6 @@ export function PromptBoxInternal({
         handleDOMEvents: {
           auxclick: (_view, event) => {
             return suppressPromptEditorAnchorActivation(event);
-          },
-          focus: () => {
-            onCommandEditorFocusRef.current?.();
-            return false;
           },
           blur: () => {
             triggerKeyRef.current = "";
@@ -1399,34 +1298,6 @@ export function PromptBoxInternal({
               removeEmptyBlockquotes(currentEditor);
             });
             return false;
-          },
-          compositionend: (_view, event) => {
-            if (!_view.composing) return false;
-            compositionEndedAtRef.current = event.timeStamp;
-            return false;
-          },
-          keydown: (_view, event) => {
-            if (
-              !_view.editable ||
-              !isIPadOSWebKitDevice ||
-              !isIPadHardwareEnterCandidate(event) ||
-              _view.composing ||
-              event.isComposing ||
-              event.keyCode === 229
-            ) {
-              return false;
-            }
-
-            if (
-              Math.abs(event.timeStamp - compositionEndedAtRef.current) <
-              SAFARI_POST_COMPOSITION_KEYDOWN_WINDOW_MS
-            ) {
-              compositionEndedAtRef.current = Number.NEGATIVE_INFINITY;
-              postCompositionKeyDownEvents.add(event);
-              return false;
-            }
-
-            return handleEditorKeyDownRef.current(event, true);
           },
           click: (_view, event) => {
             return suppressPromptEditorAnchorActivation(event);
@@ -1561,15 +1432,11 @@ export function PromptBoxInternal({
   useLayoutEffect(() => {
     if (!pendingFocusEndRef.current) return;
 
-    if (isPointerCoarse) {
-      pendingFocusEndRef.current = false;
-      return;
-    }
     if (!editor) return;
     pendingFocusEndRef.current = false;
     focusEditorAtEnd(editor);
     scheduleRevealEditorSelection();
-  }, [editor, isPointerCoarse, scheduleRevealEditorSelection]);
+  }, [editor, scheduleRevealEditorSelection]);
 
   useLayoutEffect(() => {
     placeholderRef.current = effectivePlaceholder;
@@ -1577,9 +1444,8 @@ export function PromptBoxInternal({
 
     editor.view.dom.setAttribute("aria-label", effectivePlaceholder);
     editor.view.dom.setAttribute("data-placeholder", effectivePlaceholder);
-    editor.view.dom.setAttribute("enterkeyhint", editorEnterKeyHint);
     editor.view.dispatch(editor.state.tr);
-  }, [editor, editorEnterKeyHint, effectivePlaceholder]);
+  }, [editor, effectivePlaceholder]);
 
   useEffect(() => {
     if (!editor) return;
@@ -1589,7 +1455,6 @@ export function PromptBoxInternal({
       }
       return;
     }
-    if (isPointerCoarse) return;
 
     const focusEditor = () => {
       if (editor.isDestroyed) return;
@@ -1606,13 +1471,7 @@ export function PromptBoxInternal({
 
     const handle = window.requestAnimationFrame(focusEditor);
     return () => window.cancelAnimationFrame(handle);
-  }, [
-    autoFocus,
-    editor,
-    focusScopeKey,
-    scheduleRevealEditorSelection,
-    isPointerCoarse,
-  ]);
+  }, [autoFocus, editor, focusScopeKey, scheduleRevealEditorSelection]);
 
   useEffect(() => {
     mentionRangesRef.current = mentionRanges;
@@ -1663,15 +1522,11 @@ export function PromptBoxInternal({
   useLayoutEffect(() => {
     if (focusEndKey === undefined) return;
     if (focusEndKey === lastFocusEndKeyRef.current) return;
-    if (isPointerCoarse) {
-      lastFocusEndKeyRef.current = focusEndKey;
-      return;
-    }
     if (!editor) return;
     lastFocusEndKeyRef.current = focusEndKey;
     focusEditorAtEnd(editor);
     scheduleRevealEditorSelection();
-  }, [editor, focusEndKey, isPointerCoarse, scheduleRevealEditorSelection]);
+  }, [editor, focusEndKey, scheduleRevealEditorSelection]);
 
   useLayoutEffect(() => {
     scheduleRevealEditorSelection();
@@ -2082,10 +1937,6 @@ export function PromptBoxInternal({
   }, [activeTrigger, onCommandQueryChange, onMentionQueryChange]);
 
   const focusEnd = useCallback(() => {
-    if (isPointerCoarse) {
-      pendingFocusEndRef.current = false;
-      return;
-    }
     const currentEditor = editorRef.current;
     if (!currentEditor || currentEditor.isDestroyed) {
       pendingFocusEndRef.current = true;
@@ -2094,7 +1945,7 @@ export function PromptBoxInternal({
     pendingFocusEndRef.current = false;
     focusEditorAtEnd(currentEditor);
     scheduleRevealEditorSelection();
-  }, [isPointerCoarse, scheduleRevealEditorSelection]);
+  }, [scheduleRevealEditorSelection]);
 
   const focusAfterPromptAction = useCallback(
     (currentEditor: Editor, position?: "end") => {
@@ -2222,35 +2073,13 @@ export function PromptBoxInternal({
   );
 
   const submitPrompt = useCallback(() => {
-    const shouldBlurAfterSubmit = blurAfterPointerSubmitRef.current;
-    blurAfterPointerSubmitRef.current = false;
     if (!canPrimarySubmit) return;
     onSubmit?.();
-    if (shouldBlurAfterSubmit) {
-      blurPromptEditor(editorRef.current);
-    }
   }, [canPrimarySubmit, onSubmit]);
-
-  const handleSubmitClick = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      blurAfterPointerSubmitRef.current =
-        blurOnPointerSubmit && event.detail > 0;
-    },
-    [blurOnPointerSubmit],
-  );
-
-  const handleTouchSubmit = useCallback(() => {
-    blurAfterPointerSubmitRef.current = blurOnPointerSubmit;
-    submitPrompt();
-  }, [blurOnPointerSubmit, submitPrompt]);
 
   const handleSubmitPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
-      if (isPointerCoarse) {
-        event.preventDefault();
-        return;
-      }
       const currentEditor = editorRef.current;
       const editorElement = currentEditor?.view.dom;
       const activeElement = editorElement?.ownerDocument.activeElement;
@@ -2264,7 +2093,7 @@ export function PromptBoxInternal({
 
       event.preventDefault();
     },
-    [isPointerCoarse],
+    [],
   );
 
   const [pendingCommandSubmit, setPendingCommandSubmit] = useState(false);
@@ -2337,19 +2166,13 @@ export function PromptBoxInternal({
   );
 
   const handleEditorKeyDown = useCallback(
-    (event: KeyboardEvent, isOriginalIPadHardwareEnter = false): boolean => {
-      if (
-        event.isComposing ||
-        event.keyCode === 229 ||
-        postCompositionKeyDownEvents.has(event)
-      ) {
+    (event: KeyboardEvent): boolean => {
+      if (event.isComposing || event.keyCode === 229) {
         return false;
       }
       if (dispatchAppCommandKey(event)) {
         return true;
       }
-      const canSubmitWithEnterKey =
-        !isPointerCoarse || isOriginalIPadHardwareEnter;
       const currentEditor = editorRef.current;
       const selection = currentEditor?.state.selection;
       const hasCollapsedSelection = Boolean(selection?.empty);
@@ -2535,7 +2358,7 @@ export function PromptBoxInternal({
         !event.metaKey &&
         !event.altKey &&
         !event.ctrlKey &&
-        (event.shiftKey || !canSubmitWithEnterKey);
+        event.shiftKey;
       if (isPromptNewlineKey && currentEditor && exitHeading(currentEditor)) {
         event.preventDefault();
         return true;
@@ -2550,7 +2373,6 @@ export function PromptBoxInternal({
         return true;
       }
 
-      if (!canSubmitWithEnterKey) return false;
       const isSubmitKey = event.key === "Enter" && !event.shiftKey;
 
       if (!isSubmitKey) return false;
@@ -2571,11 +2393,9 @@ export function PromptBoxInternal({
       dispatchAppCommandKey,
       dismissActiveTrigger,
       history,
-      isPointerCoarse,
       loadMoreCommands,
       onEscape,
       onModifierSubmit,
-      postCompositionKeyDownEvents,
       resetHistorySession,
       selectedIndex,
       setPendingCommandSubmit,
@@ -2716,7 +2536,6 @@ export function PromptBoxInternal({
                 state={typeaheadMenuState}
                 selectedIndex={selectedIndex}
                 onApply={applyTrigger}
-                onDismiss={isPointerCoarse ? dismissActiveTrigger : undefined}
                 onCommandLoadMore={
                   canLoadMoreCommands ? loadMoreCommands : undefined
                 }
@@ -2807,7 +2626,6 @@ export function PromptBoxInternal({
                   </Button>
                 ) : (
                   <ComposerSendMenu
-                    isPointerCoarse={isPointerCoarse}
                     queue={swapSubmitActions}
                     hasInput={hasSubmittableInput}
                     canSubmit={canSubmit}
@@ -2837,8 +2655,6 @@ export function PromptBoxInternal({
                       isBusy={isSubmitting || isAttaching}
                       isCompact={showCompactLayout}
                       onPointerDown={handleSubmitPointerDown}
-                      onClick={handleSubmitClick}
-                      onTouchSubmit={handleTouchSubmit}
                       title={effectiveSubmitTitle}
                     />
                   </ComposerSendMenu>

@@ -114,7 +114,6 @@ export function PromptBoxActionsMenu({
         side="bottom"
         sideOffset={4}
         className="w-36"
-        mobileTitle="Prompt actions"
         onCloseAutoFocus={(event) => {
           if (selectedItemRef.current) {
             event.preventDefault();

@@ -38,7 +38,6 @@ export interface PinnedThreadTreeProps {
   selectedThreadId?: string;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
-  onProjectSelect?: () => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
   isPinnedReorderPending?: boolean;
@@ -54,7 +53,6 @@ interface SortablePinnedRootItemProps {
   disabled: boolean;
   displace?: boolean;
   node: ProjectThreadNode;
-  onProjectSelect?: () => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   sectionDnd?: SectionThreadDndState | null;
@@ -81,7 +79,6 @@ const PinnedRootItem = memo(function PinnedRootItem({
   consumeClickSuppression,
   dragBindings,
   node,
-  onProjectSelect,
   onToggleEnvironmentCollapsed,
   onToggleThreadCollapsed,
   sectionDnd,
@@ -99,7 +96,6 @@ const PinnedRootItem = memo(function PinnedRootItem({
       selectedThreadId={selectedThreadId}
       collapsedThreadIds={collapsedThreadIds}
       collapsedEnvironmentIds={collapsedEnvironmentIds}
-      onProjectSelect={onProjectSelect}
       onToggleThreadCollapsed={onToggleThreadCollapsed}
       onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
       consumeClickSuppression={consumeClickSuppression}
@@ -142,7 +138,6 @@ interface PinnedGroupedRootItemsProps {
   selectedThreadId?: string;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
-  onProjectSelect?: () => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
   consumeClickSuppression?: () => boolean;
@@ -154,7 +149,6 @@ const PinnedGroupedRootItems = memo(function PinnedGroupedRootItems({
   selectedThreadId,
   collapsedThreadIds,
   collapsedEnvironmentIds,
-  onProjectSelect,
   onToggleThreadCollapsed,
   onToggleEnvironmentCollapsed,
   consumeClickSuppression,
@@ -169,7 +163,6 @@ const PinnedGroupedRootItems = memo(function PinnedGroupedRootItems({
           selectedThreadId={selectedThreadId}
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
-          onProjectSelect={onProjectSelect}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         />
@@ -181,7 +174,6 @@ const PinnedGroupedRootItems = memo(function PinnedGroupedRootItems({
       selectedThreadId,
       collapsedThreadIds,
       collapsedEnvironmentIds,
-      onProjectSelect,
       onToggleThreadCollapsed,
       onToggleEnvironmentCollapsed,
     };
@@ -209,7 +201,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
   selectedThreadId,
   collapsedThreadIds,
   collapsedEnvironmentIds,
-  onProjectSelect,
   onToggleThreadCollapsed,
   onToggleEnvironmentCollapsed,
   isPinnedReorderPending = false,
@@ -282,7 +273,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
               selectedThreadId={selectedThreadId}
               collapsedThreadIds={collapsedThreadIds}
               collapsedEnvironmentIds={collapsedEnvironmentIds}
-              onProjectSelect={onProjectSelect}
               onToggleThreadCollapsed={onToggleThreadCollapsed}
               onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
             />
@@ -297,7 +287,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
                 selectedThreadId={selectedThreadId}
                 collapsedThreadIds={collapsedThreadIds}
                 collapsedEnvironmentIds={collapsedEnvironmentIds}
-                onProjectSelect={onProjectSelect}
                 onToggleThreadCollapsed={onToggleThreadCollapsed}
                 onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
               />
@@ -320,7 +309,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
           selectedThreadId={selectedThreadId}
           collapsedThreadIds={collapsedThreadIds}
           collapsedEnvironmentIds={collapsedEnvironmentIds}
-          onProjectSelect={onProjectSelect}
           onToggleThreadCollapsed={onToggleThreadCollapsed}
           onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
           consumeClickSuppression={consumeClickSuppression}
@@ -339,7 +327,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
                 selectedThreadId={selectedThreadId}
                 collapsedThreadIds={collapsedThreadIds}
                 collapsedEnvironmentIds={collapsedEnvironmentIds}
-                onProjectSelect={onProjectSelect}
                 onToggleThreadCollapsed={onToggleThreadCollapsed}
                 onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
               />
@@ -354,7 +341,6 @@ export const PinnedThreadTree = memo(function PinnedThreadTree({
             selectedThreadId={selectedThreadId}
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
-            onProjectSelect={onProjectSelect}
             onToggleThreadCollapsed={onToggleThreadCollapsed}
             onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
             consumeClickSuppression={consumeClickSuppression}

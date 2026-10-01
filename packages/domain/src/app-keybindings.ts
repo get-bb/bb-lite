@@ -280,13 +280,11 @@ export type AppDefaultKeybinding = z.infer<typeof appDefaultKeybindingSchema>;
 
 export function isAppKeybindingAvailableForClient(
   binding: AppKeybinding | AppDefaultKeybinding,
-  client: { isDesktop: boolean; platform: string },
+  client: { platform: string },
 ): boolean {
   const platform = keyboardPlatform(client.platform);
-  if (binding.desktopOnly && !client.isDesktop) return false;
-  if (binding.when.all.includes("webSurface") && client.isDesktop) return false;
-  if (binding.when.none.includes("webSurface") && !client.isDesktop)
-    return false;
+  if (binding.desktopOnly) return false;
+  if (binding.when.none.includes("webSurface")) return false;
   for (const candidate of keyboardPlatformSchema.options) {
     const context = `${candidate}Platform` as const;
     if (binding.when.all.includes(context) && platform !== candidate)
