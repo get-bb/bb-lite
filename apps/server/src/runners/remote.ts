@@ -73,6 +73,14 @@ export function attachRemoteRunner(
         await remote.runner.ackEvents({ seq });
       },
     };
+    let offDisconnected = (): void => {};
+    const release = (): void => {
+      offDisconnected();
+      runners.disconnect(hostId, runner);
+    };
+    remote.closed.then(release).catch((error: unknown) => {
+      log.error("Remote runner disconnect failed", { err: error, hostId });
+    });
     runners.connect(hostId, (sink) => {
       deliver = (event) => {
         if (event.lane === "reliable") {
@@ -83,14 +91,10 @@ export function attachRemoteRunner(
       };
       return runner;
     });
-    const offDisconnected = runners.onDisconnected((disconnectedHostId) => {
+    offDisconnected = runners.onDisconnected((disconnectedHostId) => {
       if (disconnectedHostId !== hostId) return;
       deliver = () => {};
       socket.close(REPLACED_CLOSE_CODE, "replaced or removed");
-    });
-    void remote.closed.then(() => {
-      offDisconnected();
-      runners.disconnect(hostId, runner);
     });
     const { instanceId, version } = hello;
     log.info("Remote runner connected", { hostId, instanceId, version });
