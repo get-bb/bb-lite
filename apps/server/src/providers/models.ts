@@ -51,15 +51,13 @@ function modelLoadError(
   providerId: string,
   error: unknown,
 ): SystemExecutionOptionsModelLoadError {
-  const known = toApiError(error)?.body;
+  const known = toApiError(error)?.body.code;
   const message = error instanceof Error ? error.message : String(error);
   const detail = message.replace(/\s+/gu, " ").trim();
   const code =
-    known?.code === "missing_executable" || known?.code === "auth_required"
-      ? known.code
-      : known?.code === "unavailable"
-        ? "provider_unavailable"
-        : "failed";
+    known === "missing_executable" || known === "auth_required"
+      ? known
+      : "failed";
   return {
     providerId,
     code,

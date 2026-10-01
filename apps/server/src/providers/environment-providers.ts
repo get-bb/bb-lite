@@ -9,7 +9,6 @@ import { listHosts } from "../db/hosts.js";
 import { getProjectSource } from "../db/projects.js";
 import { inspectProjectPath } from "../projects/inspect.js";
 import { requireProject } from "../projects/require.js";
-import { requireHost } from "../runners/hosts.js";
 
 type Availability = SystemEnvironmentProvider["availability"];
 
@@ -108,12 +107,11 @@ async function machineAvailability(
 ): Promise<Record<string, Availability>> {
   const { db } = ctx;
   const { projectId } = query;
-  const hosts =
-    query.hostId === undefined
-      ? listHosts(db, { includeCreating: false })
-      : [requireHost(ctx, query.hostId)];
+  const { hostId: only } = query;
+  const hosts = listHosts(db, { includeCreating: false });
   const available: Record<string, Availability> = {};
   for (const { id: hostId } of hosts) {
+    if (only !== undefined && hostId !== only) continue;
     const source = getProjectSource(db, projectId, { hostId });
     const { projectCheckout, gitCheckout } = definition.requires;
     if (projectCheckout && source === undefined) continue;
