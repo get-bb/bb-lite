@@ -1,9 +1,6 @@
 import {
-  clampPermissionModeToCeiling,
   DEFAULT_COMPLETED_TURN_DISPLAY,
-  permissionModeSchema,
-  reasoningLevelSchema,
-  serviceTierSchema,
+  resolvedThreadExecutionOptionsSchema,
   type AppSettings,
   type CompletedTurnDisplay,
   type ProviderComposerCommand,
@@ -29,8 +26,6 @@ import type { Db } from "../db/index.js";
 import {
   canThreadSpawnChild,
   findEnvironment,
-  findHost,
-  getProjectExecutionDefaults,
   listQueueCounts,
   toThread,
   type ThreadListRow,
@@ -201,41 +196,18 @@ export function toThreadResponse(
 }
 
 export function threadDefaultExecution(
-  db: Db,
   thread: ThreadListRow,
   settings: AppSettings,
 ): ResolvedThreadExecutionOptions | null {
-  const stored = getProjectExecutionDefaults(db, thread.projectId);
-  const defaults = stored?.providerId === thread.providerId ? stored : null;
-  const model = thread.modelOverride ?? thread.model ?? defaults?.model;
-  if (model === undefined) return null;
-  const parent = db.get<{ permissionMode: string | null }>(
-    `SELECT permission_mode FROM threads
-     WHERE id = ? AND archived_at IS NULL AND deleted_at IS NULL`,
-    thread.parentThreadId,
-  );
-  const permissionMode = permissionModeSchema.parse(
-    thread.permissionMode ??
-      parent?.permissionMode ??
-      defaults?.permissionMode ??
-      "auto",
-  );
-  const host = findHost(db, thread.environmentHostId ?? "", false)?.host;
-  const ceiling = host?.maxPermissionMode ?? "full";
-  const tier = thread.serviceTier ?? defaults?.serviceTier ?? "default";
-  return {
+  const model = thread.modelOverride ?? thread.model;
+  if (model === null) return null;
+  const { reasoningLevelOverride, reasoningLevel, permissionMode } = thread;
+  const tier = settings.allowFastServiceTier ? thread.serviceTier : null;
+  return resolvedThreadExecutionOptionsSchema.parse({
     model,
-    permissionMode:
-      clampPermissionModeToCeiling({ ceiling, permissionMode }) ?? ceiling,
-    reasoningLevel: reasoningLevelSchema.parse(
-      thread.reasoningLevelOverride ??
-        thread.reasoningLevel ??
-        defaults?.reasoningLevel ??
-        "medium",
-    ),
-    serviceTier: serviceTierSchema.parse(
-      settings.allowFastServiceTier ? tier : "default",
-    ),
+    permissionMode: permissionMode ?? "auto",
+    reasoningLevel: reasoningLevelOverride ?? reasoningLevel ?? "medium",
+    serviceTier: tier ?? "default",
     source: "client/turn/requested",
-  };
+  });
 }

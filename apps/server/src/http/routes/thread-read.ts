@@ -337,7 +337,7 @@ export function registerThreadReadRoutes(
   });
 
   get(threads.defaultExecutionOptions, (c) =>
-    c.json(threadDefaultExecution(db, requireThread(c), getAppSettings(db))),
+    c.json(threadDefaultExecution(requireThread(c), getAppSettings(db))),
   );
 
   get(threads.queuedMessages, (c) =>

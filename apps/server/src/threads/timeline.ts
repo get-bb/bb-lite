@@ -14,7 +14,7 @@ import {
   buildThreadTimelineFromEvents,
   compactThreadTimelineSummaryEvents,
   isExternalUserBoundaryForTurn,
-  type ExternalUserBoundaryTurnSpan,
+  type ExternalUserBoundaryTurnSpan as TurnSpan,
 } from "@bb/thread-view";
 import { z } from "zod";
 import {
@@ -186,7 +186,7 @@ function withBackgroundTaskStates(epoch: Epoch, rows: Rows): StoredEventRow[] {
 
 function groupingContext({ db, threadId, start, maxSeq }: Epoch) {
   const context = listOrderingContext(db, threadId, start, maxSeq);
-  const spans = new Map<string, ExternalUserBoundaryTurnSpan>();
+  const spans = new Map<string, TurnSpan>();
   const accepted = new Map<string, { sequence: number; turnId: string }>();
   for (const row of context) {
     const { turnId, sequence } = row;
@@ -219,14 +219,6 @@ function groupingContext({ db, threadId, start, maxSeq }: Epoch) {
     }
   }
   let boundary = firstParentedBoundary(db, threadId, start, maxSeq) ?? Infinity;
-  const ordered = [...spans.values()].sort(
-    (left, right) => left.sequenceStart - right.sequenceStart,
-  );
-  const spanEnd = (span: ExternalUserBoundaryTurnSpan | null): number =>
-    span === null ? -Infinity : (span.completionSequence ?? Infinity);
-  let next = 0;
-  let longest: ExternalUserBoundaryTurnSpan | null = null;
-  let runnerUp: ExternalUserBoundaryTurnSpan | null = null;
   for (const row of requests) {
     if (row.initiator !== "user" || row.hasInput !== 1) continue;
     const acceptance = accepted.get(row.requestId ?? "");
@@ -239,24 +231,10 @@ function groupingContext({ db, threadId, start, maxSeq }: Epoch) {
       turnId: acceptance?.turnId ?? row.expectedTurnId,
     };
     if (message.sequence >= boundary) break;
-    for (; next < ordered.length; next += 1) {
-      const span = ordered[next];
-      if (span === undefined || span.sequenceStart >= message.sequence) break;
-      if (spanEnd(span) > spanEnd(longest)) {
-        runnerUp = longest;
-        longest = span;
-      } else if (spanEnd(span) > spanEnd(runnerUp)) {
-        runnerUp = span;
-      }
-    }
-    const candidate = longest?.turnId === message.turnId ? runnerUp : longest;
-    if (
-      candidate !== null &&
-      isExternalUserBoundaryForTurn(candidate, message)
-    ) {
-      boundary = message.sequence;
-      break;
-    }
+    const overlapsOtherTurn = [...spans.values()].some((span) =>
+      isExternalUserBoundaryForTurn(span, message),
+    );
+    if (overlapsOtherTurn) boundary = message.sequence;
   }
   return {
     orderingBoundary: Number.isFinite(boundary) ? boundary : null,
@@ -630,6 +608,7 @@ function buildTurnDetails(
   const within = (rows: readonly TimelineRow[]): TimelineRow[] =>
     rows.flatMap((row) => {
       const contained =
+        row.turnId === turnId &&
         row.sourceSeqStart >= sourceSeqStart &&
         row.sourceSeqEnd <= sourceSeqEnd;
       return contained ? [row] : within(nestedTimelineRows(row) ?? []);
