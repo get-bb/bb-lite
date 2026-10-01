@@ -18,7 +18,7 @@ import {
 import { z } from "zod";
 import {
   contextClearSequence,
-  decodeEventWithMeta,
+  decodeEvents,
   firstParentedBoundary,
   latestSequence,
   listContextWindowUsageEvents,
@@ -103,7 +103,6 @@ const CONTEXT_TYPES = [
   INTERRUPTED,
   ...TURN_BOUNDS,
 ];
-const ITEM_LIFECYCLE = ["item/started", "item/completed"];
 const requestRefSchema = z.object({
   requestId: z.string().optional(),
   clientRequestId: z.string().optional(),
@@ -149,14 +148,13 @@ function withParentedRows(epoch: Epoch, input: Rows): StoredEventRow[] {
     for (const id of children.flatMap(delegatingItemId)) toolCallIds.add(id);
     rows = mergeEventRows([...rows, ...children]);
   }
-  const itemIds = rows.flatMap((row) => {
+  const startedItemIds = rows.flatMap((row) => {
     const parent = row.parentToolCallId ?? "";
     return parent.length > 0 && !toolCallIds.has(parent) ? [parent] : [];
   });
   const where = "item_kind IN ('toolCall', 'delegation')";
-  const types = ITEM_LIFECYCLE;
-  const parents = listEvents(db, { threadId, itemIds, types, where, outputs });
-  return mergeEventRows([...parents, ...rows]);
+  const missing = { threadId, startedItemIds, where, outputs };
+  return mergeEventRows([...listEvents(db, missing), ...rows]);
 }
 
 function withTurnStarts(epoch: Epoch, rows: Rows): StoredEventRow[] {
@@ -439,27 +437,22 @@ function resolveSnapshot(
 }
 
 function projectWindow(
+  db: Db,
   thread: ThreadListRow,
   display: TimelineDisplay,
   threadStatus: ThreadStatus,
   loaded: { rows: Rows } & Partial<Omit<LoadedWindow, "rows">>,
-  shape: { includeNestedRows: boolean; isLatestPage: boolean; epoch?: Epoch },
+  shape: { includeNestedRows: boolean; isLatestPage: boolean; usage?: Rows },
 ) {
-  const { epoch, ...shown } = shape;
-  const usage =
-    epoch === undefined
-      ? []
-      : listContextWindowUsageEvents(epoch.db, thread.id, epoch.start);
+  const { usage = [], ...shown } = shape;
   const timeline = buildThreadTimelineFromEvents({
     acceptedClientRequestContext: {
       acceptedClientRequestEvents: [],
       rejectedClientRequestEvents: [],
     },
-    contextWindowEvents: usage.map(decodeEventWithMeta),
-    headStateEvents: loaded.headStateRows?.map(decodeEventWithMeta),
-    events: compactThreadTimelineSummaryEvents(
-      loaded.rows.map(decodeEventWithMeta),
-    ),
+    contextWindowEvents: decodeEvents(db, usage),
+    headStateEvents: decodeEvents(db, loaded.headStateRows ?? []),
+    events: compactThreadTimelineSummaryEvents(decodeEvents(db, loaded.rows)),
     options: {
       ...display,
       ...shown,
@@ -519,9 +512,10 @@ function buildTimelinePage(
   const outputs = "inline" as const;
   const epoch = { db, threadId, start, maxSeq, excludeDiagnostics, outputs };
   const selection = selectPage(epoch, page, request.eventBudget, contentCursor);
-  const shape = { includeNestedRows, isLatestPage: latest, epoch };
+  const usage = listContextWindowUsageEvents(db, threadId, start);
+  const shape = { includeNestedRows, isLatestPage: latest, usage };
   const { status } = snapshot;
-  const timeline = projectWindow(thread, request, status, selection, shape);
+  const timeline = projectWindow(db, thread, request, status, selection, shape);
   const paginated = paginateTimeline({
     ...selection,
     contentCursor,
@@ -623,7 +617,7 @@ function buildTurnDetails(
   const rows = bytes <= RESPONSE_BYTE_LIMIT ? full : load("inline");
   const shape = { includeNestedRows: true, isLatestPage: false };
   const { status } = snapshot;
-  const timeline = projectWindow(thread, request, status, { rows }, shape);
+  const timeline = projectWindow(db, thread, request, status, { rows }, shape);
   const turn = timeline.rows.find(
     (row) =>
       row.kind === "turn" &&
@@ -674,16 +668,11 @@ function buildOutline(
   const after = (contextClearSequence(db, threadId, maxSeq) ?? 0) - 1;
   const timeline = { excludeDiagnostics: false };
   const outline = { threadId, after, where: OUTLINE_EVENT, timeline };
-  const rows = listEvents(db, outline);
+  const loaded = { rows: listEvents(db, outline) };
   const shown = { ...display, includeDiagnosticOperations: false };
   const shape = { includeNestedRows: false, isLatestPage: true };
-  const projected = projectWindow(
-    thread,
-    shown,
-    thread.status,
-    { rows },
-    shape,
-  );
+  const { status } = thread;
+  const projected = projectWindow(db, thread, shown, status, loaded, shape);
   return projected.rows.flatMap((row) => {
     if (row.kind !== "conversation") return [];
     const { webImages = 0, localImages = 0 } = row.attachments ?? {};

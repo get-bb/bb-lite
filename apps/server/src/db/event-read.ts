@@ -34,7 +34,7 @@ export interface EventQuery {
   before?: number;
   types?: readonly string[];
   turnIds?: readonly string[];
-  itemIds?: readonly string[];
+  startedItemIds?: readonly string[];
   parentToolCallIds?: readonly string[];
   requestIds?: readonly string[];
   timeline?: { excludeDiagnostics: boolean; horizon?: number };
@@ -67,6 +67,8 @@ export interface BackgroundTaskCounts {
 export const MAX_INLINE_OUTPUT_CHARS = 32_000;
 export const UNBOUNDED = Number.MAX_SAFE_INTEGER;
 const DIAGNOSTIC_TYPES = ["provider.env-resolved", "provider/unhandled"];
+const DECODED_EVENT_CACHE_LIMIT = 20_000;
+const decodedEvents = new WeakMap<Db, Map<string, ThreadEventWithMeta>>();
 const META =
   "id, thread_id, scope_kind, turn_id, provider_thread_id, sequence, type, " +
   "item_id, item_kind, parent_tool_call_id, created_at";
@@ -77,12 +79,14 @@ const COLUMNS = {
 const IN_LIST = "IN (SELECT value FROM json_each(?))";
 const REQUEST_ID = `COALESCE(json_extract(data, '$.clientRequestId'),
   json_extract(data, '$.requestId'))`;
+const STARTED_ITEM = `type IN ('item/started', 'item/completed',
+  'item/backgroundTask/completed') AND item_id`;
 const LIST_FILTERS = [
-  ["types", "type"],
-  ["turnIds", "turn_id"],
-  ["itemIds", "item_id"],
-  ["parentToolCallIds", "parent_tool_call_id"],
-  ["requestIds", REQUEST_ID],
+  ["startedItemIds", STARTED_ITEM, "events_item_lifecycle_idx"],
+  ["turnIds", "turn_id", "events_turn_type_item_idx"],
+  ["parentToolCallIds", "parent_tool_call_id", "events_parent_tool_call_idx"],
+  ["types", "type", "events_type_idx"],
+  ["requestIds", REQUEST_ID, null],
 ] as const;
 const NOT_SUPERSEDED_PROGRESS = `NOT (
   events.type = 'item/backgroundTask/progress' AND EXISTS (
@@ -138,15 +142,19 @@ function quoted(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(", ");
 }
 
-function eventWhere(query: EventQuery): { where: string; params: SqlValue[] } {
+function eventSource(query: EventQuery): { from: string; params: SqlValue[] } {
   const before = query.before ?? UNBOUNDED;
   const where = ["thread_id = ?", "sequence > ?", "sequence < ?"];
   const params: SqlValue[] = [query.threadId, query.after ?? -1, before];
-  for (const [key, column] of LIST_FILTERS) {
+  let index = "";
+  for (const [key, column, lookup] of LIST_FILTERS) {
     const values = query[key];
     if (values === undefined) continue;
-    where.push(`${column} ${IN_LIST}`);
-    params.push(JSON.stringify(values));
+    const [only] = values;
+    const single = values.length === 1 && only !== undefined;
+    where.push(single ? `${column} = ?` : `${column} ${IN_LIST}`);
+    params.push(single ? only : JSON.stringify(values));
+    if (index === "" && lookup !== null) index = `INDEXED BY ${lookup}`;
   }
   if (query.timeline !== undefined) {
     const { excludeDiagnostics, horizon = before } = query.timeline;
@@ -158,14 +166,14 @@ function eventWhere(query: EventQuery): { where: string; params: SqlValue[] } {
     params.push(horizon);
   }
   if (query.where !== undefined) where.push(query.where);
-  return { where: where.join(" AND "), params };
+  return { from: `events ${index} WHERE ${where.join(" AND ")}`, params };
 }
 
 export function listEvents(db: Db, query: EventQuery): StoredEventRow[] {
-  const { where, params } = eventWhere(query);
+  const { from, params } = eventSource(query);
   const order = query.order === "desc" ? "DESC" : "ASC";
   return db.all<StoredEventRow>(
-    `SELECT ${COLUMNS[query.outputs ?? "full"]} FROM events WHERE ${where}
+    `SELECT ${COLUMNS[query.outputs ?? "full"]} FROM ${from}
      ORDER BY sequence ${order} LIMIT ? OFFSET ?`,
     ...params,
     query.limit ?? -1,
@@ -174,8 +182,8 @@ export function listEvents(db: Db, query: EventQuery): StoredEventRow[] {
 }
 
 export function listTurnIds(db: Db, query: EventQuery): string[] {
-  const { where, params } = eventWhere(query);
-  const sql = `SELECT DISTINCT turn_id FROM events WHERE ${where}`;
+  const { from, params } = eventSource(query);
+  const sql = `SELECT DISTINCT turn_id FROM ${from}`;
   return db.all<{ turnId: string }>(sql, ...params).map((row) => row.turnId);
 }
 
@@ -252,11 +260,12 @@ export function listHeadStateEvents(
 ): StoredEventRow[] {
   const matches =
     state === "goal"
-      ? `type IN ('thread/goal/updated', 'thread/goal/cleared')
-         OR (type = 'thread/extensionState/updated'
-           AND json_extract(data, '$.kind') = 'provider-codex/goal')`
-      : `type = 'turn/plan/updated'
-         OR (item_kind = 'planSteps' AND type = 'item/completed')`;
+      ? `type IN ('thread/goal/updated', 'thread/goal/cleared',
+           'thread/extensionState/updated')
+         AND (type <> 'thread/extensionState/updated'
+           OR json_extract(data, '$.kind') = 'provider-codex/goal')`
+      : `type IN ('turn/plan/updated', 'item/completed')
+         AND (type = 'turn/plan/updated' OR item_kind = 'planSteps')`;
   return db.all<StoredEventRow>(
     `SELECT ${COLUMNS.full} FROM events
      WHERE (thread_id, sequence) IN (
@@ -303,7 +312,7 @@ export function listOrderingContext(
        json_extract(data, '$.target.expectedTurnId') AS expected_turn_id,
        CASE WHEN type = 'client/turn/requested' AND ${VISIBLE_REQUEST_INPUT}
          THEN 1 ELSE 0 END AS has_input
-     FROM events
+     FROM events INDEXED BY events_type_idx
      WHERE thread_id = ? AND sequence >= ? AND sequence <= ?
        AND type IN ('client/turn/requested', 'turn/input/accepted',
          'turn/started', 'turn/completed')
@@ -324,6 +333,9 @@ export function firstParentedBoundary(
     `WITH parents AS MATERIALIZED (
        SELECT item_id, turn_id, MIN(sequence) AS start FROM events
        WHERE thread_id = :threadId
+         AND type IN ('item/started', 'item/completed')
+         AND item_id IN (SELECT parent_tool_call_id FROM events
+           WHERE thread_id = :threadId AND parent_tool_call_id IS NOT NULL)
          AND item_kind IN ('toolCall', 'delegation')
          AND parent_tool_call_id IS NULL
          AND sequence >= :sequenceStart AND sequence <= :maxSeq
@@ -429,9 +441,29 @@ export function decodeEvent(row: StoredEventRow): ThreadEvent {
   });
 }
 
-export function decodeEventWithMeta(row: StoredEventRow): ThreadEventWithMeta {
+function decodeEventWithMeta(row: StoredEventRow): ThreadEventWithMeta {
   const { id, sequence: seq, createdAt } = row;
   return { event: decodeEvent(row), meta: { id, seq, createdAt } };
+}
+
+export function decodeEvents(
+  db: Db,
+  rows: readonly StoredEventRow[],
+): ThreadEventWithMeta[] {
+  const cache = decodedEvents.get(db) ?? new Map<string, ThreadEventWithMeta>();
+  decodedEvents.set(db, cache);
+  const events = rows.map((row) => {
+    const key = `${row.id}:${row.data.length}`;
+    const event = cache.get(key) ?? decodeEventWithMeta(row);
+    cache.delete(key);
+    cache.set(key, event);
+    return event;
+  });
+  for (const oldest of cache.keys()) {
+    if (cache.size <= DECODED_EVENT_CACHE_LIMIT) break;
+    cache.delete(oldest);
+  }
+  return events;
 }
 
 export function toThreadEventRow(row: StoredEventRow): ThreadEventRow {
