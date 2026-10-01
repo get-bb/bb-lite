@@ -1,0 +1,51 @@
+{
+  "name": "bb",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check:lines": "node scripts/count-lines.mjs --max 150000",
+    "count": "node scripts/count-lines.mjs",
+    "typecheck": "pnpm -r --no-bail run typecheck",
+    "lint": "oxlint .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt . --check",
+    "test": "vitest run",
+    "check": "pnpm run check:lines && pnpm run typecheck && pnpm run lint && pnpm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.0",
+    "oxfmt": "^0.64.0",
+    "oxlint": "^1.79.0",
+    "playwright-core": "1.61.1",
+    "tsx": "^4.23.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1",
+    "typescript-7": "npm:typescript@^7.0.2"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current"
+      ],
+      "cpu": [
+        "arm64",
+        "x64"
+      ]
+    },
+    "overrides": {
+      "zod": "4.6.5"
+    },
+    "patchedDependencies": {
+      "oniguruma-to-es@4.3.4": "patches/oniguruma-to-es@4.3.4.patch",
+      "@pierre/diffs@1.2.9": "patches/@pierre__diffs@1.2.9.patch",
+      "sonner@1.7.4": "patches/sonner@1.7.4.patch",
+      "@tiptap/extension-blockquote@3.26.0": "patches/@tiptap__extension-blockquote@3.26.0.patch"
+    }
+  }
+}

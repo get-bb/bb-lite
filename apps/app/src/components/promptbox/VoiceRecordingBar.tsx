@@ -1,0 +1,138 @@
+import { useState } from "react";
+import { Button } from "@bb/shared-ui/button";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@bb/shared-ui/tooltip";
+import { WaveformVisualizer } from "./WaveformVisualizer.js";
+
+interface VoiceRecordingBarProps {
+  isCompact: boolean;
+  state: "recording" | "transcribing";
+  stream: MediaStream | null;
+  submitIcon: IconName;
+  onConfirm: () => void;
+  onSend: () => void;
+  onCancel: () => void;
+}
+
+const CONTROL_BUTTON_CLASS =
+  "size-8 rounded-full p-0 max-md:pointer-coarse:size-10";
+const ACTION_BUTTON_CLASS =
+  "size-8 rounded-md p-0 max-md:pointer-coarse:size-10";
+
+export function VoiceRecordingBar({
+  isCompact,
+  state,
+  stream,
+  submitIcon,
+  onConfirm,
+  onSend,
+  onCancel,
+}: VoiceRecordingBarProps) {
+  const [pressedAction, setPressedAction] = useState<"confirm" | "send">(
+    "confirm",
+  );
+  const isTranscribing = state === "transcribing";
+  const isConfirming = isTranscribing && pressedAction === "confirm";
+  const isSending = isTranscribing && pressedAction === "send";
+
+  return (
+    <div
+      className={cn(
+        "flex flex-row items-center gap-2 px-2",
+        isCompact ? "h-full py-1" : "py-1.5",
+      )}
+    >
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label={
+          isTranscribing ? "Cancel transcription" : "Cancel recording"
+        }
+        onClick={onCancel}
+        className={CONTROL_BUTTON_CLASS}
+      >
+        <Icon name="X" className="size-4" />
+      </Button>
+      <div className="relative flex min-w-0 flex-1 items-center">
+        <div
+          className={cn("h-7 w-full", isTranscribing && "animate-shine-icon")}
+        >
+          <WaveformVisualizer stream={stream} active={!isTranscribing} />
+        </div>
+        <span className="sr-only" aria-live="polite">
+          {isTranscribing ? "Transcribing" : "Recording"}
+        </span>
+      </div>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              aria-label={
+                isConfirming
+                  ? "Transcribing voice input"
+                  : "Stop and add to draft"
+              }
+              disabled={isTranscribing}
+              onClick={() => {
+                setPressedAction("confirm");
+                onConfirm();
+              }}
+              className={cn(
+                ACTION_BUTTON_CLASS,
+                isConfirming && "disabled:opacity-100",
+              )}
+            >
+              {isConfirming ? (
+                <Icon name="Spinner" className="size-4 animate-spin" />
+              ) : (
+                <Icon
+                  name="Square"
+                  className="size-3.5 fill-current [&_*]:stroke-0"
+                />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Add to draft</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="default"
+              aria-label={
+                isSending ? "Transcribing and sending" : "Send voice input"
+              }
+              disabled={isTranscribing}
+              onClick={() => {
+                setPressedAction("send");
+                onSend();
+              }}
+              className={cn(
+                ACTION_BUTTON_CLASS,
+                isSending && "disabled:opacity-100",
+              )}
+            >
+              {isSending ? (
+                <Icon name="Spinner" className="size-4 animate-spin" />
+              ) : (
+                <Icon name={submitIcon} className="size-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Send</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}

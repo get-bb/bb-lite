@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.vite
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
+.tmp/
+/data/
+/.bb-dev/
+/qa-output/
+bundle-stats.json
