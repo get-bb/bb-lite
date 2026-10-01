@@ -54,7 +54,7 @@ interface SelectedEnvironment {
 
 const MACHINE_CONTEXTUAL_MENU_MIN_OPTIONS = 3;
 const MACHINE_TARGET_CONTENT_CLASS_NAME =
-  "grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2 max-md:pointer-coarse:grid-cols-[0.5rem_1.25rem_minmax(0,1fr)]";
+  "grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2";
 
 export interface EnvironmentPickerMachines {
   hosts: readonly Host[];
@@ -430,11 +430,10 @@ export function EnvironmentPickerUI({
       <PopoverContent
         align="start"
         aria-label="Environment"
-        mobileTitle="Environment"
         autoFocusRef={
           isLoading ? undefined : showSearch ? searchInputRef : commandRef
         }
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1"
+        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
       >
         {isLoading ? (
           <PickerLoadingRows
@@ -758,7 +757,7 @@ function MachineContextualEnvironmentOptions({
             />
           ))}
           {filteredHosts.length === 0 ? (
-            <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground max-md:py-2">
+            <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground">
               No machines found
             </div>
           ) : null}
@@ -816,7 +815,7 @@ function MachineChoiceItem({
       aria-current={active ? "true" : undefined}
       onSelect={onSelect}
       className={cn(
-        "flex items-center gap-3 py-[0.3125rem] text-xs max-md:py-2",
+        "flex items-center gap-3 py-[0.3125rem] text-xs",
         LIST_HOVER_TRANSITION,
         active && "font-medium text-foreground",
       )}
@@ -989,7 +988,7 @@ function EnvironmentMenuItem({
       <Icon
         name={icon}
         className={cn(
-          "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
+          "mt-px text-muted-foreground",
           COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
         )}
       />
@@ -997,7 +996,7 @@ function EnvironmentMenuItem({
       <EnvironmentProviderIcon
         provider={provider}
         className={cn(
-          "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
+          "mt-px text-muted-foreground",
           COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
         )}
       />
@@ -1013,7 +1012,7 @@ function EnvironmentMenuItem({
       }}
       className={cn(
         "flex items-start justify-between gap-3 whitespace-normal",
-        "py-[0.3125rem] text-xs max-md:py-2",
+        "py-[0.3125rem] text-xs",
         LIST_HOVER_TRANSITION,
       )}
     >

@@ -96,7 +96,6 @@ import {
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "../ui/sidebar-hover-actions.js";
 import type {
@@ -205,7 +204,6 @@ export interface ProjectRowProps {
   compareThreads: ThreadComparator;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
-  onProjectSelect?: () => void;
   onCreateProjectThread?: (projectId: string) => void;
   onToggleProjectCollapsed: (projectId: string) => void;
   onToggleThreadCollapsed: (threadId: string) => void;
@@ -237,7 +235,6 @@ interface SectionThreadTreeProps {
   selectedThreadId?: string;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
-  onProjectSelect?: () => void;
   onCreateThreadInSection?: (sectionId: string) => void;
   onRemoveSection?: (section: SidebarSectionDefinition) => void;
   onToggleThreadCollapsed: (threadId: string) => void;
@@ -748,11 +745,7 @@ function EnvironmentThreadGroupHeaderActions({
             />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          mobileTitle="Environment actions"
-          onCloseAutoFocus={onCloseAutoFocus}
-        >
+        <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>
           <DropdownMenuItem
             onSelect={() => {
               onRenameEnvironment();
@@ -917,7 +910,7 @@ function EnvironmentThreadGroupHeader({
             className={cn(
               SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
               COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground max-md:pointer-coarse:static max-md:pointer-coarse:shrink-0",
+              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground",
             )}
           >
             <CollapsedThreadStatusGlyph activity={childActivity} />
@@ -925,15 +918,11 @@ function EnvironmentThreadGroupHeader({
         ) : null}
         <div
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-          data-sidebar-hover-actions-mobile={
-            SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
-          }
           className={cn(
             SIDEBAR_HOVER_ACTIONS_CLASS,
             SIDEBAR_CONTROL_PAIR_SIZE_CLASS,
             "relative flex items-center justify-end",
             rename.isEditing && "hidden",
-            isCollapsed && "max-md:pointer-coarse:hidden",
           )}
         >
           <EnvironmentThreadGroupHeaderActions
@@ -1125,7 +1114,6 @@ interface PinnedEnvironmentThreadGroupRowProps {
   selectedThreadId?: string;
   collapsedThreadIds: Set<string>;
   collapsedEnvironmentIds: Set<string>;
-  onProjectSelect?: () => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
 }
@@ -1136,7 +1124,6 @@ export const PinnedEnvironmentThreadGroupRow = memo(
     selectedThreadId,
     collapsedThreadIds,
     collapsedEnvironmentIds,
-    onProjectSelect,
     onToggleThreadCollapsed,
     onToggleEnvironmentCollapsed,
   }: PinnedEnvironmentThreadGroupRowProps) {
@@ -1164,7 +1151,6 @@ export const PinnedEnvironmentThreadGroupRow = memo(
         isCollapsed={collapsedEnvironmentIds.has(group.environmentId)}
         collapsedThreadIds={collapsedThreadIds}
         collapsedEnvironmentIds={collapsedEnvironmentIds}
-        onProjectSelect={onProjectSelect}
         onToggleThreadCollapsed={onToggleThreadCollapsed}
         onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
       />
@@ -1484,7 +1470,6 @@ const SectionTreeItemRow = memo(function SectionTreeItemRow({
         sectionId={section.id}
         actions={topLevelActions}
         actionsOpen={isTopLevelActionsOpen}
-        actionsMobileAlways
         collapseControl={{
           isCollapsed,
           onToggleCollapsed: handleToggleCollapsed,
@@ -1990,7 +1975,6 @@ export const ChronologicalSectionThreadSections = memo(
     selectedThreadId,
     collapsedThreadIds,
     collapsedEnvironmentIds,
-    onProjectSelect,
     onCreateThread,
     onCreateThreadInSection,
     onRemoveSection,
@@ -2071,7 +2055,6 @@ export const ChronologicalSectionThreadSections = memo(
         selectedThreadId={selectedThreadId}
         collapsedThreadIds={collapsedThreadIds}
         collapsedEnvironmentIds={collapsedEnvironmentIds}
-        onProjectSelect={onProjectSelect}
         onToggleThreadCollapsed={onToggleThreadCollapsed}
         onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
         onCreateThreadInSection={onCreateThreadInSection}
@@ -2148,10 +2131,7 @@ export const ChronologicalSectionThreadSections = memo(
             selectedThreadId={selectedThreadId}
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
-            onProjectSelect={() => {
-              close();
-              onProjectSelect?.();
-            }}
+            onProjectSelect={close}
             onToggleThreadCollapsed={onToggleThreadCollapsed}
             onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
           />
@@ -2175,10 +2155,7 @@ export const ChronologicalSectionThreadSections = memo(
             selectedThreadId={selectedThreadId}
             collapsedThreadIds={collapsedThreadIds}
             collapsedEnvironmentIds={collapsedEnvironmentIds}
-            onProjectSelect={() => {
-              close();
-              onProjectSelect?.();
-            }}
+            onProjectSelect={close}
             onToggleThreadCollapsed={onToggleThreadCollapsed}
             onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
           />
@@ -2251,7 +2228,6 @@ function ProjectRowComponent({
   compareThreads,
   collapsedThreadIds,
   collapsedEnvironmentIds,
-  onProjectSelect,
   onCreateProjectThread,
   onToggleProjectCollapsed,
   onToggleThreadCollapsed,
@@ -2354,7 +2330,6 @@ function ProjectRowComponent({
             labelEditor={rename.editor}
             onRename={rename.startEditing}
             actions={projectActions}
-            actionsMobileAlways
             actionsOpen={isActionsOpen}
             collapseControl={{
               isCollapsed,
@@ -2376,7 +2351,6 @@ function ProjectRowComponent({
               collapsedThreadIds={collapsedThreadIds}
               collapsedEnvironmentIds={collapsedEnvironmentIds}
               compareThreads={compareThreads}
-              onProjectSelect={onProjectSelect}
               onToggleThreadCollapsed={onToggleThreadCollapsed}
               onToggleEnvironmentCollapsed={onToggleEnvironmentCollapsed}
             />
@@ -2483,7 +2457,6 @@ function areProjectRowPropsEqual(
     prev.isActive !== next.isActive ||
     prev.isCollapsed !== next.isCollapsed ||
     prev.compareThreads !== next.compareThreads ||
-    prev.onProjectSelect !== next.onProjectSelect ||
     prev.onCreateProjectThread !== next.onCreateProjectThread ||
     prev.onToggleProjectCollapsed !== next.onToggleProjectCollapsed ||
     prev.onToggleThreadCollapsed !== next.onToggleThreadCollapsed ||

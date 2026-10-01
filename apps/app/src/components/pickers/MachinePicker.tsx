@@ -144,9 +144,8 @@ export function MachinePickerUI({
       <PopoverContent
         align="start"
         aria-label="Machine"
-        mobileTitle="Machine"
         autoFocusRef={showSearch ? searchInputRef : commandRef}
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-72 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1"
+        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-72 flex-col overflow-hidden p-0"
       >
         <Command
           ref={commandRef}
@@ -185,7 +184,7 @@ export function MachinePickerUI({
                       handleOpenChange(false);
                     }}
                     className={cn(
-                      "flex items-center justify-between gap-3 py-[0.3125rem] text-xs max-md:py-2",
+                      "flex items-center justify-between gap-3 py-[0.3125rem] text-xs",
                       LIST_HOVER_TRANSITION,
                     )}
                   >
@@ -229,7 +228,7 @@ export function MachinePickerUI({
                 );
               })}
               {showSearch && filteredHosts.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground max-md:py-2">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
                   No machines found
                 </div>
               ) : null}

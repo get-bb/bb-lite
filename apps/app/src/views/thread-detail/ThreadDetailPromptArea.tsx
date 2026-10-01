@@ -118,7 +118,6 @@ import {
   showMutationErrorToast,
 } from "@/lib/mutation-errors";
 import { promptHistoryEntriesToDrafts } from "@/lib/prompt-history";
-import { usePromptHistoryEnabled } from "@/hooks/usePromptHistoryEnabled";
 import { getThreadRoutePath } from "@/lib/route-paths";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import {
@@ -477,13 +476,7 @@ export function ThreadDetailPromptArea({
   });
   const inlineDraftSession = queuedMessageDraftSession;
   const inlineDraftSessionRef = useLatestRef(inlineDraftSession);
-  const promptHistoryEnabled = usePromptHistoryEnabled();
-  const { data: promptHistoryEntries = [] } = useThreadPromptHistory(
-    thread.id,
-    {
-      enabled: promptHistoryEnabled,
-    },
-  );
+  const { data: promptHistoryEntries = [] } = useThreadPromptHistory(thread.id);
   const createQueuedMessage = useCreateThreadQueuedMessage();
   const stopThread = useStopThread();
   const cancelThreadPlan = useCancelThreadPlan();

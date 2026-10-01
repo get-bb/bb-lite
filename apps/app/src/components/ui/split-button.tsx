@@ -57,7 +57,6 @@ interface SplitButtonProps {
   triggerLabel?: string;
   primaryTooltip?: string;
   triggerTooltip?: string;
-  mobileTitle?: string;
   defaultOpen?: boolean;
   modal?: boolean;
 }
@@ -70,7 +69,6 @@ function SplitButton({
   triggerLabel = "More actions",
   primaryTooltip,
   triggerTooltip,
-  mobileTitle,
   defaultOpen,
   modal,
 }: SplitButtonProps) {
@@ -117,11 +115,7 @@ function SplitButton({
         <OptionalTooltip content={triggerTooltip} wrapTrigger>
           {menuTrigger}
         </OptionalTooltip>
-        <DropdownMenuContent
-          align="end"
-          sideOffset={2}
-          mobileTitle={mobileTitle}
-        >
+        <DropdownMenuContent align="end" sideOffset={2}>
           {secondaryActions.map((action, index) => {
             const previousAction = secondaryActions[index - 1];
             const showGroupLabel =

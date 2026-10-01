@@ -41,35 +41,12 @@ type SidebarViewPage = "organize" | "sort" | "filter";
 export function SidebarHeaderMenuContents({
   creation,
   anchorSectionId,
-  compact,
-  page,
-  onPageChange,
   children,
 }: {
   creation: HeaderCreationActions;
   anchorSectionId?: SidebarSectionId;
-  compact: boolean;
-  page: SidebarViewPage | null;
-  onPageChange: (page: SidebarViewPage | null) => void;
   children?: ReactNode;
 }) {
-  if (compact && page) {
-    return (
-      <>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            onPageChange(null);
-          }}
-        >
-          <Icon name="ChevronLeft" />
-          Back
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <SidebarViewItems page={page} />
-      </>
-    );
-  }
   return (
     <>
       <DropdownMenuItem
@@ -86,39 +63,25 @@ export function SidebarHeaderMenuContents({
           { page: "sort", label: "Sort by", icon: "ArrowUpDown" },
           { page: "filter", label: "Filter", icon: "SlidersHorizontal" },
         ] as const
-      ).map((item) =>
-        compact ? (
-          <DropdownMenuItem
-            key={item.page}
-            onSelect={(event) => {
-              event.preventDefault();
-              onPageChange(item.page);
-            }}
-          >
+      ).map((item) => (
+        <DropdownMenuSub key={item.page}>
+          <DropdownMenuSubTrigger>
             <Icon name={item.icon} />
             {item.label}
-            <Icon name="ChevronRight" className="ml-auto" />
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuSub key={item.page}>
-            <DropdownMenuSubTrigger>
-              <Icon name={item.icon} />
-              {item.label}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent
-                className={
-                  item.page === "organize"
-                    ? "min-w-32"
-                    : "w-max min-w-28 max-w-64"
-                }
-              >
-                <SidebarViewItems page={item.page} />
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-        ),
-      )}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent
+              className={
+                item.page === "organize"
+                  ? "min-w-32"
+                  : "w-max min-w-28 max-w-64"
+              }
+            >
+              <SidebarViewItems page={item.page} />
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+      ))}
       {children ? (
         <>
           <DropdownMenuSeparator />

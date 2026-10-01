@@ -7,7 +7,6 @@ import { systemConfigQueryOptions } from "@/hooks/queries/system-queries";
 import { markSystemConfigStale } from "@/hooks/cache-owners/system-config-cache-owner";
 import { appQueryClient } from "./app-query-client";
 import { fetchHostStatus, fetchWorkspaceOpenTargets } from "./api-host-daemon";
-import { getBbDesktopInfo } from "./bb-desktop";
 import {
   getBrowserLocalNetworkPermissionQuery,
   resolveLocalHostDaemonAccess,
@@ -229,7 +228,6 @@ export const localHostDaemonAccessStateAtom = atom<
   return resolveLocalHostDaemonAccess({
     configuredPorts: config.localHelperPorts,
     hostname: typeof window === "undefined" ? null : window.location.hostname,
-    isDesktop: getBbDesktopInfo() !== null,
     permissions: getBrowserLocalNetworkPermissionQuery(),
     sessionAccessGranted,
   });

@@ -277,7 +277,7 @@ export function useProjectFilePreview(
   });
 }
 
-export function projectCommandsQueryOptions(args: UseProjectCommandsArgs) {
+function projectCommandsQueryOptions(args: UseProjectCommandsArgs) {
   return {
     queryKey: projectCommandsQueryKey(
       args.projectId,

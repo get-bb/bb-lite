@@ -7,7 +7,6 @@ import { HEADER_PANE_ACTION_ICON_BUTTON_CLASS } from "@/components/layout/AppPag
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { useHoverPopover } from "@/components/ui/hooks/use-hover-popover";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRef } from "react";
 import type { SplitSide } from "@/lib/split-layout";
@@ -33,19 +32,6 @@ const ARRANGEMENT_REGION_CLASS: Record<SplitSide, string> = {
   top: "inset-x-[3px] top-[3px] h-1.5",
   bottom: "inset-x-[3px] bottom-[3px] h-1.5",
 };
-
-export function resolvePaneArrangementLabel({
-  isDesktopApp,
-  isFullScreen,
-}: {
-  isDesktopApp: boolean;
-  isFullScreen: boolean;
-}): string {
-  if (isDesktopApp) {
-    return isFullScreen ? "Exit Full Screen" : "Full Screen";
-  }
-  return isFullScreen ? "Restore split" : "Maximize pane";
-}
 
 function ArrangementGlyph({ side }: { side: SplitSide }) {
   return (
@@ -100,10 +86,7 @@ export function PaneArrangementButton({
     handleOpenChange,
   } = useHoverPopover({ openDelayMs: 400, closeDelayMs: 100 });
 
-  const label = resolvePaneArrangementLabel({
-    isDesktopApp: getBbDesktopInfo() !== null,
-    isFullScreen,
-  });
+  const label = isFullScreen ? "Restore split" : "Maximize pane";
   const accessibleLabel = shortcut ? `${label} (${shortcut.label})` : label;
   const menuOpen = !isFullScreen && hoverOpen;
   const menuRef = useRef<HTMLDivElement>(null);

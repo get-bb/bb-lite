@@ -2,7 +2,6 @@ import { useStore } from "jotai";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { usePrefersReducedMotion } from "@bb/shared-ui/hooks/use-media-query";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import {
   isDocumentVisible,
   subscribeToDocumentVisibility,
@@ -221,9 +220,8 @@ const AUTO_HEIGHT_INITIAL_SETTLE_MS = 250;
 const AUTO_HEIGHT_WIDTH_RESIZE_SETTLE_MS = 120;
 
 function useSnapHeightGrowth(): boolean {
-  const isPointerCoarse = usePointerCoarse();
   const prefersReducedMotion = usePrefersReducedMotion();
-  return isPointerCoarse || prefersReducedMotion || !supportsScrollAnchoring();
+  return prefersReducedMotion || !supportsScrollAnchoring();
 }
 
 export function AutoHeightContainer({

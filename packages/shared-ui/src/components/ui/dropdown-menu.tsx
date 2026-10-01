@@ -6,11 +6,7 @@ import { usePortalScopeProps } from "../../lib/portal-scope";
 import { COARSE_POINTER_CHECK_SLOT_CLASS } from "./coarse-pointer-sizing.js";
 import {
   type ResponsiveOverlayContextValue,
-  COMPACT_SHEET_CONTENT_STYLE,
   useResponsiveRoot,
-  MobileTrigger,
-  ResponsiveDrawerShell,
-  stripRadixContentProps,
 } from "./responsive-overlay.js";
 import {
   blurActiveKeyboardInputBeforeOverlayOpen,
@@ -30,12 +26,9 @@ const MENU_ITEM_NEUTRAL_STATE_CLASS =
   "focus:bg-state-hover focus:text-foreground data-[last-hovered]:bg-state-hover data-[last-hovered]:text-foreground";
 const MENU_ITEM_DESTRUCTIVE_STATE_CLASS =
   "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15";
-const MENU_ITEM_DESTRUCTIVE_TOUCH_CLASS =
-  "text-destructive focus:bg-destructive/15 focus:text-destructive active:bg-destructive/20 active:text-destructive";
 
 const ResponsiveMenuContext =
   React.createContext<ResponsiveOverlayContextValue>({
-    isCompactViewport: false,
     open: false,
     onOpenChange: () => {},
   });
@@ -57,14 +50,6 @@ function DropdownMenu({
     defaultOpen,
   );
 
-  if (ctx.isCompactViewport) {
-    return (
-      <ResponsiveMenuContext.Provider value={ctx}>
-        {children}
-      </ResponsiveMenuContext.Provider>
-    );
-  }
-
   return (
     <DropdownMenuPrimitive.Root
       open={ctx.open}
@@ -82,23 +67,7 @@ const DropdownMenuTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
 >(({ asChild, children, className, ...props }, ref) => {
-  const { isCompactViewport, open, onOpenChange } = useResponsiveMenu();
-
-  if (isCompactViewport) {
-    return (
-      <MobileTrigger
-        ref={ref}
-        asChild={asChild}
-        open={open}
-        onOpenChange={onOpenChange}
-        haspopup="menu"
-        className={className}
-        {...props}
-      >
-        {children}
-      </MobileTrigger>
-    );
-  }
+  const { open } = useResponsiveMenu();
 
   return (
     <DropdownMenuPrimitive.Trigger
@@ -121,46 +90,13 @@ DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 
 const DropdownMenuContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
-    mobileTitle?: string;
-  }
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(
   (
-    {
-      className,
-      sideOffset = 4,
-      children,
-      mobileTitle,
-      onCloseAutoFocus,
-      ...props
-    },
+    { className, sideOffset = 4, children, onCloseAutoFocus, ...props },
     ref,
   ) => {
-    const { isCompactViewport, open, onOpenChange } = useResponsiveMenu();
     const scopeProps = usePortalScopeProps();
-
-    if (isCompactViewport) {
-      const { style, ...domProps } = stripRadixContentProps(props);
-      return (
-        <ResponsiveDrawerShell
-          open={open}
-          onOpenChange={onOpenChange}
-          srLabel={mobileTitle ?? "Menu"}
-        >
-          <div
-            ref={ref}
-            className={cn(
-              "flex flex-col gap-0.5 overflow-y-auto p-2",
-              className,
-            )}
-            {...domProps}
-            style={{ ...style, ...COMPACT_SHEET_CONTENT_STYLE }}
-          >
-            {children}
-          </div>
-        </ResponsiveDrawerShell>
-      );
-    }
 
     return (
       <DropdownMenuPrimitive.Portal>
@@ -190,10 +126,6 @@ const DropdownMenuContent = React.forwardRef<
   },
 );
 DropdownMenuContent.displayName = "DropdownMenuContent";
-
-function createSelectEvent(): Event {
-  return new Event("select", { cancelable: true });
-}
 
 type DropdownMenuItemProps = Omit<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>,
@@ -230,7 +162,7 @@ const DropdownMenuItem = React.forwardRef<
     },
     ref,
   ) => {
-    const { isCompactViewport, open, onOpenChange } = useResponsiveMenu();
+    const { open } = useResponsiveMenu();
     const { hoverProps } = useMenuItemHover({
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
@@ -241,38 +173,6 @@ const DropdownMenuItem = React.forwardRef<
         handler?.(event);
         if (!open) event.preventDefault();
       };
-
-    if (isCompactViewport) {
-      return (
-        <button
-          ref={ref as React.RefCallback<HTMLButtonElement> | null}
-          type="button"
-          role={role}
-          disabled={disabled}
-          aria-disabled={disabled || undefined}
-          aria-checked={ariaChecked}
-          className={cn(
-            "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-2 text-left text-xs outline-none transition-colors focus:bg-state-hover focus:text-foreground active:bg-state-active active:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>[data-icon-root]]:size-4 [&>[data-icon-root]]:shrink-0",
-            inset && "pl-8",
-            variant === "destructive" && MENU_ITEM_DESTRUCTIVE_TOUCH_CLASS,
-            className,
-          )}
-          data-disabled={disabled ? "" : undefined}
-          onFocus={callerFocus}
-          onBlur={callerBlur}
-          onClick={() => {
-            if (disabled) return;
-            const event = createSelectEvent();
-            onSelect?.(event);
-            if (!event.defaultPrevented) {
-              onOpenChange(false);
-            }
-          }}
-        >
-          {children}
-        </button>
-      );
-    }
 
     return (
       <DropdownMenuPrimitive.Item
@@ -324,52 +224,10 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     },
     ref,
   ) => {
-    const { isCompactViewport, onOpenChange } = useResponsiveMenu();
     const { hoverProps } = useMenuItemHover({
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
     });
-
-    if (isCompactViewport) {
-      return (
-        <button
-          ref={ref as React.RefCallback<HTMLButtonElement> | null}
-          type="button"
-          role="menuitemcheckbox"
-          aria-checked={
-            checked === "indeterminate" ? "mixed" : checked === true
-          }
-          disabled={disabled}
-          aria-disabled={disabled || undefined}
-          className={cn(
-            "relative flex w-full cursor-default select-none items-center rounded-sm py-2 pl-2 pr-8 text-left text-xs outline-none transition-colors focus:bg-state-hover focus:text-foreground active:bg-state-active active:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-            className,
-          )}
-          data-disabled={disabled ? "" : undefined}
-          onClick={() => {
-            if (disabled) return;
-            const event = createSelectEvent();
-            onSelect?.(event);
-            onCheckedChange?.(checked === "indeterminate" ? true : !checked);
-            if (!event.defaultPrevented) {
-              onOpenChange(false);
-            }
-          }}
-        >
-          <span
-            className={cn(
-              "absolute right-2 flex items-center justify-center",
-              COARSE_POINTER_CHECK_SLOT_CLASS,
-            )}
-          >
-            {(checked === true || checked === "indeterminate") && (
-              <Icon name="Check" className={COARSE_POINTER_CHECK_SLOT_CLASS} />
-            )}
-          </span>
-          {children}
-        </button>
-      );
-    }
 
     return (
       <DropdownMenuPrimitive.CheckboxItem
@@ -409,12 +267,6 @@ function DropdownMenuRadioGroup({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
-  const { isCompactViewport } = useResponsiveMenu();
-
-  if (isCompactViewport) {
-    return null;
-  }
-
   return (
     <DropdownMenuPrimitive.RadioGroup {...props}>
       {children}
@@ -436,15 +288,10 @@ const DropdownMenuRadioItem = React.forwardRef<
     },
     ref,
   ) => {
-    const { isCompactViewport } = useResponsiveMenu();
     const { hoverProps } = useMenuItemHover({
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
     });
-
-    if (isCompactViewport) {
-      return null;
-    }
 
     return (
       <DropdownMenuPrimitive.RadioItem
@@ -476,23 +323,6 @@ const DropdownMenuLabel = React.forwardRef<
     inset?: boolean;
   }
 >(({ className, inset, children, ...props }, ref) => {
-  const { isCompactViewport } = useResponsiveMenu();
-
-  if (isCompactViewport) {
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "px-2 py-1.5 text-xs font-medium text-muted-foreground",
-          inset && "pl-8",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    );
-  }
-
   return (
     <DropdownMenuPrimitive.Label
       ref={ref}
@@ -513,17 +343,6 @@ const DropdownMenuSeparator = React.forwardRef<
   HTMLHRElement,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
 >(({ className, ...props }, ref) => {
-  const { isCompactViewport } = useResponsiveMenu();
-
-  if (isCompactViewport) {
-    return (
-      <hr
-        ref={ref as React.RefCallback<HTMLHRElement> | null}
-        className={cn("-mx-1 my-1 h-px border-0 bg-muted", className)}
-      />
-    );
-  }
-
   return (
     <DropdownMenuPrimitive.Separator
       ref={ref}
@@ -538,16 +357,6 @@ const DropdownMenuGroup = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Group>
 >(({ children, ...props }, ref) => {
-  const { isCompactViewport } = useResponsiveMenu();
-
-  if (isCompactViewport) {
-    return (
-      <div ref={ref} role="group" {...props}>
-        {children}
-      </div>
-    );
-  }
-
   return (
     <DropdownMenuPrimitive.Group ref={ref} {...props}>
       {children}

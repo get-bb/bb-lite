@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   PALETTE_ACTION_BUCKETS,
   type PaletteAction,
@@ -54,7 +53,6 @@ export function CommandPaletteBody({
   onChoose,
 }: CommandPaletteBodyProps) {
   const navigate = useNavigate();
-  const isCompactViewport = useIsCompactViewport();
   const listId = useId();
   const optionIdPrefix = useId();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -220,7 +218,6 @@ export function CommandPaletteBody({
                     id={`${optionIdPrefix}-${visibleIndex}`}
                     isActive={visibleIndex === activeIndex}
                     isDrillIn={entry.action.id === THREAD_SEARCH_ACTION_ID}
-                    showShortcut={!isCompactViewport}
                     onActivate={() => {
                       setHighlightedIndex(visibleIndex);
                     }}
@@ -239,7 +236,6 @@ export function CommandPaletteBody({
             id={`${optionIdPrefix}-${index}`}
             isActive={index === activeIndex}
             isDrillIn={entry.action.id === THREAD_SEARCH_ACTION_ID}
-            showShortcut={!isCompactViewport}
             onActivate={() => {
               setHighlightedIndex(index);
             }}
@@ -256,7 +252,6 @@ function PaletteRow({
   id,
   isActive,
   isDrillIn,
-  showShortcut,
   onActivate,
   onSelect,
 }: {
@@ -264,7 +259,6 @@ function PaletteRow({
   id: string;
   isActive: boolean;
   isDrillIn: boolean;
-  showShortcut: boolean;
   onActivate: () => void;
   onSelect: () => void;
 }) {
@@ -272,7 +266,7 @@ function PaletteRow({
     ? entry.action.group
     : null;
   const title = isDrillIn ? `${entry.action.title}…` : entry.action.title;
-  const shortcut = showShortcut ? entry.action.shortcut : null;
+  const shortcut = entry.action.shortcut;
   const hasTrailing = metadataGroup !== null || shortcut !== null || isDrillIn;
   return (
     <div

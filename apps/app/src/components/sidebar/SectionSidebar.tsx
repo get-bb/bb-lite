@@ -4,11 +4,7 @@ import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  Sidebar,
-  SidebarContent,
-  useCloseMobileSidebar,
-} from "@/components/ui/sidebar.js";
+import { Sidebar, SidebarContent } from "@/components/ui/sidebar.js";
 import {
   SidebarResizeHandle,
   SidebarTopReserveRow,
@@ -32,7 +28,6 @@ export function SectionSidebarRow({
   label: string;
   to: string;
 }) {
-  const closeOnMobile = useCloseMobileSidebar();
   return (
     <Button
       asChild
@@ -44,43 +39,10 @@ export function SectionSidebarRow({
         active && "bg-sidebar-accent text-sidebar-foreground",
       )}
     >
-      <Link
-        to={to}
-        onClick={closeOnMobile}
-        aria-current={active ? "page" : undefined}
-      >
+      <Link to={to} aria-current={active ? "page" : undefined}>
         {children}
         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
       </Link>
-    </Button>
-  );
-}
-
-export function SectionSidebarActionRow({
-  children,
-  label,
-  onClick,
-  testId,
-}: {
-  children: ReactNode;
-  label: string;
-  onClick: () => void;
-  testId?: string;
-}) {
-  const closeOnMobile = useCloseMobileSidebar();
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      data-testid={testId}
-      className={cn(PROJECT_LIST_ACTION_BUTTON_CLASS, "w-full")}
-      onClick={() => {
-        closeOnMobile();
-        onClick();
-      }}
-    >
-      {children}
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
     </Button>
   );
 }
@@ -103,7 +65,6 @@ export function SectionSidebar({
   backTo,
   children,
   isResizing,
-  mobileHosted = false,
   onResizeMouseDown,
   testIdPrefix,
 }: {
@@ -111,7 +72,6 @@ export function SectionSidebar({
   backTo: string;
   children: ReactNode;
   isResizing: boolean;
-  mobileHosted?: boolean;
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   testIdPrefix: string;
 }) {
@@ -137,17 +97,6 @@ export function SectionSidebar({
       />
     </>
   );
-
-  if (mobileHosted) {
-    return (
-      <div
-        data-testid={`${testIdPrefix}-sidebar-body`}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        {body}
-      </div>
-    );
-  }
 
   return <Sidebar>{body}</Sidebar>;
 }

@@ -6,14 +6,11 @@ import {
   useState,
 } from "react";
 import { useAtomValue } from "jotai";
-import type { ExperimentalSidebarNavigationProps } from "@get-bb/plugin-sdk";
-import { cn } from "@bb/shared-ui/lib/utils";
 import {
   PluginSlotMount,
   resetCrashedPluginSlots,
 } from "@/components/plugin/PluginSlotMount";
 import { appToast } from "@/components/ui/app-toast";
-import { useSidebar } from "@/components/ui/sidebar";
 import { usePluginFrontendsSettled } from "@/lib/plugin-frontend-boot-state";
 import {
   usePluginSlots,
@@ -61,11 +58,6 @@ function afterOpenMenusClose(run: () => void): () => void {
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
-type ProviderProps = Omit<
-  ExperimentalSidebarNavigationProps,
-  "experimental_Original"
->;
-
 export function resolveCustomizeFocusReturnTarget(
   container: HTMLElement | null,
 ): HTMLElement | null {
@@ -89,7 +81,6 @@ function NoOriginal() {
 
 function useBundledNavigationOriginal(
   provider: ExperimentalSidebarNavigationSlot,
-  props: ProviderProps,
 ) {
   const { experimentalSidebarNavigations } = usePluginSlots();
   const bundled =
@@ -98,9 +89,9 @@ function useBundledNavigationOriginal(
       : experimentalSidebarNavigations.find(
           (slot) => slot.pluginId === BUNDLED_NAVIGATION_PLUGIN_ID,
         );
-  const latest = useRef({ bundled, props });
+  const latest = useRef({ bundled });
   useLayoutEffect(() => {
-    latest.current = { bundled, props };
+    latest.current = { bundled };
   });
   const [Original] = useState(
     () =>
@@ -116,7 +107,10 @@ function useBundledNavigationOriginal(
             slotId={current.bundled.id}
             crashFallback={<></>}
           >
-            <Component {...current.props} experimental_Original={NoOriginal} />
+            <Component
+              isCompactViewport={false}
+              experimental_Original={NoOriginal}
+            />
           </PluginSlotMount>
         );
       },
@@ -126,16 +120,14 @@ function useBundledNavigationOriginal(
 
 function NavigationProvider({
   slot,
-  props,
   attempt,
   onReload,
 }: {
   slot: ExperimentalSidebarNavigationSlot;
-  props: ProviderProps;
   attempt: number;
   onReload: () => void;
 }) {
-  const Original = useBundledNavigationOriginal(slot, props);
+  const Original = useBundledNavigationOriginal(slot);
   const Component = slot.component;
   return (
     <PluginSlotMount
@@ -158,7 +150,7 @@ function NavigationProvider({
         });
       }}
     >
-      <Component {...props} experimental_Original={Original} />
+      <Component isCompactViewport={false} experimental_Original={Original} />
     </PluginSlotMount>
   );
 }
@@ -167,19 +159,16 @@ export interface SidebarNavigationRegionProps {
   isCustomizing: boolean;
   onCustomizingChange: (isCustomizing: boolean) => void;
   focusReturnTargetRef: { current: HTMLElement | null };
-  onNavigate?: () => void;
 }
 
 export function SidebarNavigationRegion({
   isCustomizing,
   onCustomizingChange,
   focusReturnTargetRef,
-  onNavigate,
 }: SidebarNavigationRegionProps) {
   const replacement = useSidebarNavigationReplacement();
   const preference = useAtomValue(sidebarNavigationProviderAtom);
   const bootSettled = usePluginFrontendsSettled();
-  const { isCompactViewport } = useSidebar();
   const [attempt, setAttempt] = useState(0);
   const [isEditorShown, setEditorShown] = useState(false);
   const restoreFocusRef = useRef(false);
@@ -205,10 +194,7 @@ export function SidebarNavigationRegion({
       return;
     }
     const nav = navRef.current;
-    const scope =
-      nav?.closest<HTMLElement>(
-        '[data-sidebar="sidebar"], [data-testid="app-sidebar-body"]',
-      ) ?? null;
+    const scope = nav?.closest<HTMLElement>('[data-sidebar="sidebar"]') ?? null;
     const fallback =
       nav?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ??
       scope?.querySelector<HTMLElement>(
@@ -244,9 +230,6 @@ export function SidebarNavigationRegion({
       ref={navRef}
       aria-label="Sidebar navigation"
       data-testid="sidebar-navigation-region"
-      className={cn(
-        isCustomizing && isCompactViewport && "flex min-h-0 flex-1 flex-col",
-      )}
     >
       {isCustomizing && isEditorShown ? (
         <SidebarNavigationCustomize
@@ -270,16 +253,12 @@ export function SidebarNavigationRegion({
                     height: readRememberedNavigationHeight(preference),
                   }
             }
-            {...(onNavigate ? { onNavigate } : {})}
           />
         ) : (
           <NavigationProvider
             slot={slot}
             attempt={attempt}
             onReload={handleReload}
-            props={{
-              isCompactViewport,
-            }}
           />
         )}
       </div>

@@ -12,7 +12,6 @@ import {
 } from "react";
 import { useNavigate, type NavigateOptions } from "react-router-dom";
 import { useStore } from "jotai";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { resolveRouteHref } from "@/lib/route-paths";
 import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
 import { paneContentForPathname } from "@/views/thread-detail/splitThreadNavigation";
@@ -96,7 +95,6 @@ export function RouteNavigationProvider({
 }: RouteNavigationProviderProps) {
   const navigate = useNavigate();
   const store = useStore();
-  const isCompact = useIsCompactViewport();
   const navigateRef = useRef(navigate);
   useLayoutEffect(() => {
     navigateRef.current = navigate;
@@ -126,11 +124,11 @@ export function RouteNavigationProvider({
         navigate: navigateRoute,
         content,
         route: path,
-        enabled: !isCompact,
+        enabled: true,
       });
       return true;
     },
-    [isCompact, navigateRoute, store],
+    [navigateRoute, store],
   );
   const value = useMemo<RouteNavigation>(
     () => ({ navigate: navigateRoute, navigateImmediately, openInSplit }),

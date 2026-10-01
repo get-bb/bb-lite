@@ -25,7 +25,6 @@ interface OpenThreadInSplitArgs {
   ) => void;
   projectId: string;
   threadId: string;
-  isCompact: boolean;
   state?: Record<string, unknown>;
 }
 
@@ -34,12 +33,11 @@ export function openThreadInSplit({
   navigate,
   projectId,
   threadId,
-  isCompact,
   state,
 }: OpenThreadInSplitArgs): void {
   const route = getThreadRoutePath({ projectId, threadId });
   const layout = store.get(splitLayoutAtom);
-  if (isCompact || layout === null) {
+  if (layout === null) {
     navigate(route, state === undefined ? undefined : { state });
     return;
   }

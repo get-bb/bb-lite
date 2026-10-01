@@ -26,7 +26,6 @@ import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { RemotePathBrowser } from "@/components/dialogs/RemotePathBrowser";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { selectHosts } from "@/hooks/queries/host-queries";
 
 export type ProjectPathDialogTarget =
@@ -157,7 +156,6 @@ export function ProjectPathDialogContent({
   onSubmit,
 }: ProjectPathDialogContentProps) {
   const inputId = useId();
-  const isPointerCoarse = usePointerCoarse();
   const machineOptions =
     target.kind === "create" ? selectHosts(hosts, "all") : undefined;
   const firstConnectedHostId = machineOptions?.find(
@@ -277,7 +275,6 @@ export function ProjectPathDialogContent({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
-              mobileTitle="Machine"
               className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
             >
               {machineOptions?.map((host) => {
@@ -333,7 +330,7 @@ export function ProjectPathDialogContent({
             id={inputId}
             aria-label="Project path"
             value={manualPath}
-            autoFocus={!isPointerCoarse}
+            autoFocus
             disabled={pending}
             placeholder={placeholder}
             onChange={(event) => {

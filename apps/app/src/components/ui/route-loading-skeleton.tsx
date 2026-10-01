@@ -1,5 +1,5 @@
 import { HEADER_SEAM_CLASS } from "@/components/layout/AppPageHeader";
-import { CHROME_ROW_CLASS } from "@/lib/bb-desktop";
+import { CHROME_ROW_CLASS } from "@/lib/chrome-row";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
 

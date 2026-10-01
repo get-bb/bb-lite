@@ -35,7 +35,6 @@ import {
   useSystemExecutionOptions,
 } from "@/hooks/queries/system-queries";
 import { resolveModelCatalogSelection } from "@/hooks/thread-creation-options/model-catalog-selection";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -111,25 +110,16 @@ const REASONING_CYCLE_COMMANDS = [
 
 const MODEL_SEARCH_MIN_OPTIONS = 5;
 
-const HANDOFF_DRAWER_TOP_CLASS_NAME =
-  "[&>[data-persistent-drawer-handle]]:w-full [&>[data-persistent-drawer-handle]]:rounded-t-xl [&>[data-persistent-drawer-handle]]:bg-background";
-
-export type ModelNavRow =
-  | { kind: "model"; option: ModelPickerOption }
-  | { kind: "more-toggle" };
+export type ModelNavRow = { kind: "model"; option: ModelPickerOption };
 
 export function buildModelNavRows({
   modelOptions,
   moreModelOptions,
-  isCompactViewport,
   isSearching,
-  showMoreModels,
 }: {
   modelOptions: readonly ModelPickerOption[];
   moreModelOptions: readonly ModelPickerOption[];
-  isCompactViewport: boolean;
   isSearching: boolean;
-  showMoreModels: boolean;
 }): ModelNavRow[] {
   const rows: ModelNavRow[] = modelOptions.map((option): ModelNavRow => ({
     kind: "model",
@@ -140,15 +130,6 @@ export function buildModelNavRows({
   if (isSearching) {
     for (const option of moreModelOptions) rows.push({ kind: "model", option });
     return rows;
-  }
-
-  if (isCompactViewport) {
-    rows.push({ kind: "more-toggle" });
-    if (showMoreModels) {
-      for (const option of moreModelOptions) {
-        rows.push({ kind: "model", option });
-      }
-    }
   }
 
   return rows;
@@ -219,7 +200,6 @@ export function ModelReasoningPicker({
   disabled,
   handoff,
 }: ModelReasoningPickerProps) {
-  const isCompactViewport = useIsCompactViewport();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const registeredToggleShortcut = useAppCommandShortcut("modelPicker.toggle");
@@ -238,7 +218,6 @@ export function ModelReasoningPicker({
   const [previewProviderId, setPreviewProviderId] = useState<string | null>(
     null,
   );
-  const [showMoreModels, setShowMoreModels] = useState(false);
   const [moreModelsOpen, setMoreModelsOpen] = useState(false);
   const [trackedSelectedProviderId, setTrackedSelectedProviderId] =
     useState(selectedProviderId);
@@ -257,7 +236,6 @@ export function ModelReasoningPicker({
     );
     setHandoffReasoningLevel(null);
     setPreviewProviderId(null);
-    setShowMoreModels(false);
     setMoreModelsOpen(false);
     setSearchQuery("");
     setActiveIndex(-1);
@@ -487,17 +465,9 @@ export function ModelReasoningPicker({
       buildModelNavRows({
         modelOptions: filteredModelOptions,
         moreModelOptions: filteredMoreModelOptions,
-        isCompactViewport,
         isSearching,
-        showMoreModels,
       }),
-    [
-      filteredModelOptions,
-      filteredMoreModelOptions,
-      isCompactViewport,
-      isSearching,
-      showMoreModels,
-    ],
+    [filteredModelOptions, filteredMoreModelOptions, isSearching],
   );
 
   const highlightedIndex =
@@ -525,22 +495,9 @@ export function ModelReasoningPicker({
     setHandoffMode(false);
     setHandoffReasoningLevel(null);
     setPreviewProviderId(null);
-    setShowMoreModels(false);
     setMoreModelsOpen(false);
     setSearchQuery("");
     setActiveIndex(-1);
-  }, []);
-  const handleMobileContentAnimationEnd = useCallback(
-    (isOpen: boolean) => {
-      if (!isOpen) {
-        resetBrowseState();
-      }
-    },
-    [resetBrowseState],
-  );
-
-  const toggleShowMoreModels = useCallback(() => {
-    setShowMoreModels((current) => !current);
   }, []);
 
   const handleModelSelect = useCallback(
@@ -583,7 +540,6 @@ export function ModelReasoningPicker({
         providerId === selectedProviderId ? null : providerId,
       );
       setHandoffReasoningLevel(null);
-      setShowMoreModels(false);
       setMoreModelsOpen(false);
       setSearchQuery("");
       setActiveIndex(-1);
@@ -857,14 +813,10 @@ export function ModelReasoningPicker({
         const row = navRows[highlightedIndex];
         if (!row) return;
         event.preventDefault();
-        if (row.kind === "model") {
-          handleModelSelect(row.option.value);
-        } else {
-          toggleShowMoreModels();
-        }
+        handleModelSelect(row.option.value);
       }
     },
-    [navRows, highlightedIndex, handleModelSelect, toggleShowMoreModels],
+    [navRows, highlightedIndex, handleModelSelect],
   );
 
   useEffect(() => {
@@ -999,19 +951,12 @@ export function ModelReasoningPicker({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align={align}
-        mobileTitle={handoffMode ? "Handoff to new thread" : "Model"}
-        mobileClassName={
-          handoffMode ? HANDOFF_DRAWER_TOP_CLASS_NAME : undefined
-        }
         onKeyDown={handleReasoningArrowKeyDown}
-        onMobileContentAnimationEnd={handleMobileContentAnimationEnd}
         autoFocusRef={showSearchInput ? searchInputRef : undefined}
         className={cn(
           "flex min-h-0 flex-col p-0",
           MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
-          isCompactViewport
-            ? "overflow-y-hidden"
-            : "max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-hidden",
+          "max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-hidden",
         )}
       >
         <ResetBrowseStateOnContentUnmount onReset={resetBrowseState} />
@@ -1098,8 +1043,6 @@ export function ModelReasoningPicker({
           navRows={navRows}
           highlightedIndex={highlightedIndex}
           isSearching={isSearching}
-          showMoreModels={showMoreModels}
-          onToggleMoreModels={toggleShowMoreModels}
           moreModelOptions={filteredMoreModelOptions}
           moreModelsOpen={moreModelsOpen}
           onMoreModelsOpenChange={setMoreModelsOpen}

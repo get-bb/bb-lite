@@ -60,7 +60,7 @@ export function LazyThreadSecondaryPanel(
 ) {
   const realized = useRetainedRealization(props.isOpen);
   if (!realized) {
-    return props.renderAsDrawer ? null : (
+    return (
       <ThreadSecondaryPanelClosedPlaceholder
         isConversationCollapsed={props.isConversationCollapsed}
         resizablePanelId={props.resizablePanelId}

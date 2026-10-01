@@ -1,8 +1,7 @@
-import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { type MouseEvent as ReactMouseEvent } from "react";
 import { useSidebarThreadReveal } from "@/components/sidebar/useSidebarThreadReveal";
 import { AppSidebar } from "@/components/sidebar/AppSidebar";
 import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
-import { Sidebar, useSidebar } from "@/components/ui/sidebar.js";
 
 export type AppLayoutSidebarMode = "app" | "settings";
 
@@ -22,36 +21,8 @@ export function AppLayoutSidebar({
   settingsRoutePath,
 }: AppLayoutSidebarProps) {
   useSidebarThreadReveal();
-  const { isCompactViewport, isMobileSidebarClosing } = useSidebar();
-  const holdCurrentMode = isCompactViewport && isMobileSidebarClosing;
-  const [lastVisibleMode, setLastVisibleMode] = useState(mode);
-  if (!holdCurrentMode && lastVisibleMode !== mode) {
-    setLastVisibleMode(mode);
-  }
-  const renderedMode = holdCurrentMode ? lastVisibleMode : mode;
 
-  if (isCompactViewport) {
-    return (
-      <Sidebar>
-        <AppSidebar
-          onResizeMouseDown={onResizeMouseDown}
-          isResizing={isResizing}
-          settingsRoutePath={settingsRoutePath}
-          mobileHosted={{ hidden: renderedMode !== "app" }}
-        />
-        {renderedMode === "settings" ? (
-          <SettingsSidebar
-            onResizeMouseDown={onResizeMouseDown}
-            isResizing={isResizing}
-            appRoutePath={appRoutePath}
-            mobileHosted
-          />
-        ) : null}
-      </Sidebar>
-    );
-  }
-
-  if (renderedMode === "settings") {
+  if (mode === "settings") {
     return (
       <SettingsSidebar
         onResizeMouseDown={onResizeMouseDown}

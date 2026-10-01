@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import type { SidebarVisibilityItem } from "./SidebarVisibilityControls";
 import { SidebarVisibilityCustomize } from "./SidebarVisibilityCustomize";
 import {
@@ -14,7 +13,6 @@ export function SidebarNavigationCustomize({
   onClose: (restoreFocus: boolean) => void;
 }) {
   const model = useSidebarNavigationModel();
-  const isCompactViewport = useIsCompactViewport();
   const items = useMemo<SidebarVisibilityItem[]>(
     () =>
       (model?.state.items ?? []).map((item) => ({
@@ -29,17 +27,13 @@ export function SidebarNavigationCustomize({
   const { arrangement, state } = model;
   return (
     <div
-      className={cn(
-        "px-2 py-2",
-        isCompactViewport ? "flex min-h-0 flex-1 flex-col" : "shrink-0",
-      )}
+      className={cn("px-2 py-2", "shrink-0")}
       data-testid="plugin-nav-sidebar-items"
       data-sidebar-navigation-customize-mode="true"
     >
       <SidebarVisibilityCustomize
         title="Customize sidebar"
         listLabel="Sidebar navigation"
-        variant={isCompactViewport ? "compact" : "card"}
         items={items}
         visibleIds={arrangement.visibleKeys}
         onActivate={(item, event) =>

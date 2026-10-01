@@ -47,12 +47,10 @@ export function PluginPanelHeaderCenter({
 
 export function PluginPanelHeaderActions({
   panel,
-  paneId,
   subPath,
   paneActions,
 }: {
   panel: PluginNavPanelSlot;
-  paneId?: string;
   subPath: string;
   paneActions?: ReactNode;
 }) {
@@ -61,7 +59,7 @@ export function PluginPanelHeaderActions({
   usePluginCss(HeaderContent === undefined ? null : panel.pluginId);
   const panelStateId = getPluginPagePanelStateId({
     panelPath: panel.path,
-    paneId: paneId ?? paneContext?.paneId,
+    paneId: paneContext?.paneId,
     pluginId: panel.pluginId,
   });
   return (

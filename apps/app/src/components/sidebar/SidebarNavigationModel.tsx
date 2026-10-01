@@ -15,7 +15,6 @@ import type {
   ExperimentalSidebarNavigationState,
 } from "@get-bb/plugin-sdk";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   useAppCommandRunner,
   useAppCommandShortcut,
@@ -48,9 +47,7 @@ import {
 } from "./useSidebarNavigationArrangement";
 
 export interface SidebarNavigationHostOptions {
-  onNavigate?: () => void;
   onNewChat?: () => void;
-  onSearchThreads?: () => void;
   splitEnabled: boolean;
   onOpenCustomize: () => void;
 }
@@ -60,7 +57,6 @@ export interface SidebarNavigationModel {
   arrangement: SidebarNavigationArrangement<SidebarNavigationRow>;
   rowsById: ReadonlyMap<string, SidebarNavigationRow>;
   splitEnabled: boolean;
-  onNavigate?: () => void;
 }
 
 const SidebarNavigationModelContext =
@@ -166,7 +162,6 @@ export function SidebarNavigationModelProvider({
     () => new Map(rows.map((row) => [getPluginNavPanelKey(row), row])),
     [rows],
   );
-  const isCompactViewport = useIsCompactViewport();
   const location = useLocation();
   const navigate = useNavigate();
   const commandRunner = useAppCommandRunner();
@@ -205,14 +200,12 @@ export function SidebarNavigationModelProvider({
                   ariaKeyShortcuts: threadSearchShortcut.ariaKeyshortcuts,
                 }
               : null,
-        accessory:
-          panel !== null && !isCompactViewport ? wrappedAccessory(panel) : null,
+        accessory: panel !== null ? wrappedAccessory(panel) : null,
       });
     });
   }, [
     arrangement.ordered,
     arrangement.visibleKeys,
-    isCompactViewport,
     newThreadDisabled,
     newThreadShortcut,
     searchThreadsDisabled,
@@ -264,7 +257,6 @@ export function SidebarNavigationModelProvider({
         content,
         enabled: current.host.splitEnabled,
         label,
-        onNavigate: current.host.onNavigate,
       });
     return {
       activate(itemId, options) {
@@ -281,7 +273,6 @@ export function SidebarNavigationModelProvider({
             current.host.onNewChat?.();
             return;
           case "search-threads":
-            current.host.onSearchThreads?.();
             current.commandRunner.dispatch("thread.search", null);
             return;
           case "open-plugin-panel": {
@@ -291,7 +282,6 @@ export function SidebarNavigationModelProvider({
               openInSplit(current, content, item.label);
               return;
             }
-            current.host.onNavigate?.();
             void current.navigate(
               getPluginPanelRoutePath({
                 pluginId: chrome.pluginId,
@@ -316,11 +306,7 @@ export function SidebarNavigationModelProvider({
         if (!found || !pluginId) return;
         const { current, item } = found;
         try {
-          await current.setPluginEnabled(
-            pluginId,
-            false,
-            current.host.onNavigate,
-          );
+          await current.setPluginEnabled(pluginId, false);
           appToast.success(`${item.label} disabled`);
         } catch (error) {
           appToast.error(`Failed to disable ${item.label}`, {
@@ -344,9 +330,8 @@ export function SidebarNavigationModelProvider({
       arrangement,
       rowsById,
       splitEnabled: host.splitEnabled,
-      ...(host.onNavigate ? { onNavigate: host.onNavigate } : {}),
     }),
-    [arrangement, host.onNavigate, host.splitEnabled, rowsById, state],
+    [arrangement, host.splitEnabled, rowsById, state],
   );
   return (
     <SidebarNavigationModelContext.Provider value={model}>

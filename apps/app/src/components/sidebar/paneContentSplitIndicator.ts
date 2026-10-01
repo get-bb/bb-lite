@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { atom, useAtomValue } from "jotai";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import {
   computePaneRects,
@@ -31,15 +30,8 @@ const NO_INDICATOR: PaneContentSplitIndicator = {
 
 const NULL_LAYOUT_ATOM = atom<SplitLayout | null>(null);
 
-function useSplitLayoutForIndicator(enabled: boolean): {
-  layout: SplitLayout | null;
-  isCompact: boolean;
-} {
-  const isCompact = useIsCompactViewport();
-  const layout = useAtomValue(
-    enabled && !isCompact ? splitLayoutAtom : NULL_LAYOUT_ATOM,
-  );
-  return { layout, isCompact };
+function useSplitLayoutForIndicator(enabled: boolean): SplitLayout | null {
+  return useAtomValue(enabled ? splitLayoutAtom : NULL_LAYOUT_ATOM);
 }
 
 function buildSplitIndicator(
@@ -73,15 +65,10 @@ export function usePaneContentSplitIndicator(
   content: PaneContent,
   enabled: boolean,
 ): PaneContentSplitIndicator {
-  const { layout, isCompact } = useSplitLayoutForIndicator(enabled);
+  const layout = useSplitLayoutForIndicator(enabled);
 
   return useMemo<PaneContentSplitIndicator>(() => {
-    if (
-      !enabled ||
-      layout === null ||
-      isCompact ||
-      countPanes(layout.root) < 2
-    ) {
+    if (!enabled || layout === null || countPanes(layout.root) < 2) {
       return NO_INDICATOR;
     }
     const pane = findPaneByContent(layout.root, content);
@@ -89,5 +76,5 @@ export function usePaneContentSplitIndicator(
       return NO_INDICATOR;
     }
     return buildSplitIndicator(layout, new Set([pane.paneId]));
-  }, [content, enabled, isCompact, layout]);
+  }, [content, enabled, layout]);
 }

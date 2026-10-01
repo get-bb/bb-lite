@@ -226,7 +226,7 @@ export function ImageLightbox({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute left-[max(0.5rem,env(safe-area-inset-left))] top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
+            className="absolute left-2 top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
             onClick={onPrevious}
             disabled={previousDisabled}
             aria-label="Previous image"
@@ -237,7 +237,7 @@ export function ImageLightbox({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
+            className="absolute right-2 top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
             onClick={onNext}
             disabled={nextDisabled}
             aria-label="Next image"
@@ -250,7 +250,7 @@ export function ImageLightbox({
       {navigationStatus ? (
         <p
           role="status"
-          className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] max-w-full px-4 text-center text-sm text-white"
+          className="absolute bottom-4 max-w-full px-4 text-center text-sm text-white"
         >
           {navigationStatus}
         </p>
@@ -260,7 +260,7 @@ export function ImageLightbox({
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] size-11 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white"
+        className="absolute right-2 top-2 size-11 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white"
         onClick={onClose}
         aria-label="Close image preview"
       >

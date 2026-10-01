@@ -4,10 +4,8 @@ import {
   SectionSidebar,
   SectionSidebarIcon,
   SectionSidebarLabel,
-  SectionSidebarActionRow,
   SectionSidebarRow,
 } from "@/components/sidebar/SectionSidebar";
-import { canOpenNativeScreen, shellOpenNative } from "@/lib/native-shell";
 import { getPluginConfigurationRoutePath } from "@/lib/route-paths";
 import { useSettingsNavState } from "./settings-nav";
 import type { SettingsNavState } from "./settings-nav";
@@ -17,7 +15,6 @@ interface SettingsSidebarProps {
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   appRoutePath: string;
-  mobileHosted?: boolean;
 }
 
 type SettingsSidebarNavigation = Pick<
@@ -34,7 +31,6 @@ export function SettingsSidebarContent({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted,
   navigation,
   testIdPrefix = "settings",
 }: SettingsSidebarContentProps) {
@@ -46,7 +42,6 @@ export function SettingsSidebarContent({
       backLabel="Back to app"
       backTo={appRoutePath}
       isResizing={isResizing}
-      mobileHosted={mobileHosted}
       onResizeMouseDown={onResizeMouseDown}
       testIdPrefix={testIdPrefix}
     >
@@ -88,22 +83,6 @@ export function SettingsSidebarContent({
           </div>
         </>
       ) : null}
-      {canOpenNativeScreen() ? (
-        <>
-          <div className="mt-4">
-            <SectionSidebarLabel>This phone</SectionSidebarLabel>
-          </div>
-          <div className="mt-1 space-y-0.5">
-            <SectionSidebarActionRow
-              label="This device"
-              testId="settings-nav-native-device"
-              onClick={() => shellOpenNative("device-settings")}
-            >
-              <SectionSidebarIcon name="Smartphone" />
-            </SectionSidebarActionRow>
-          </div>
-        </>
-      ) : null}
       {sections.some((section) => section.id === "archived") ? (
         <>
           <div className="mt-4">
@@ -133,7 +112,6 @@ export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted,
 }: SettingsSidebarProps) {
   const navigation = useSettingsNavState();
 
@@ -141,7 +119,6 @@ export function SettingsSidebar({
     <SettingsSidebarContent
       appRoutePath={appRoutePath}
       isResizing={isResizing}
-      mobileHosted={mobileHosted}
       navigation={navigation}
       onResizeMouseDown={onResizeMouseDown}
     />

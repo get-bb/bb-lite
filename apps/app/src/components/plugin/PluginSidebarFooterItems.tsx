@@ -10,7 +10,6 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import type { ExperimentalSidebarFooterCommandKind } from "@get-bb/plugin-sdk/internal/plugin-app-collector";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   SidebarMenu,
@@ -192,7 +191,6 @@ export interface BuiltinFooterAction {
 export function PluginSidebarFooterItems({
   activeDisclosureKey,
   onDisclosureCommand,
-  onNavigate,
   onCustomize,
   builtInActions = [],
 }: {
@@ -202,13 +200,11 @@ export function PluginSidebarFooterItems({
     command: ExperimentalSidebarFooterCommandKind,
     sequence?: number,
   ) => void;
-  onNavigate?: () => void;
   onCustomize: () => void;
   builtInActions?: readonly BuiltinFooterAction[];
 }) {
   const navigate = useNavigate();
   const preferences = useSidebarFooterPreferences();
-  const isCompactViewport = useIsCompactViewport();
   const previousHidden = useRef(preferences.hidden);
   const customizeAfterClose = useRef(false);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -257,7 +253,6 @@ export function PluginSidebarFooterItems({
       onDisclosureCommand(footerItemKey(slot), "toggle");
       return;
     }
-    onNavigate?.();
     runContainedFooterCallback(
       slot.pluginId,
       slot.source === "sidebarFooterAction"
@@ -338,7 +333,7 @@ export function PluginSidebarFooterItems({
                       }
                     >
                       {builtin?.href !== undefined ? (
-                        <Link to={builtin.href} onClick={onNavigate}>
+                        <Link to={builtin.href}>
                           <FooterItemIcon item={item} />
                           <span className="sr-only">{item.label}</span>
                         </Link>
@@ -383,7 +378,6 @@ export function PluginSidebarFooterItems({
               <DropdownMenuContent
                 side="top"
                 align="start"
-                mobileTitle="More footer actions"
                 onCloseAutoFocus={handleCloseAutoFocus}
               >
                 {hidden.map((item) => (
@@ -396,9 +390,7 @@ export function PluginSidebarFooterItems({
                   </DropdownMenuItem>
                 ))}
                 {hidden.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem
-                  onSelect={isCompactViewport ? onCustomize : customize}
-                >
+                <DropdownMenuItem onSelect={customize}>
                   <Icon name="SlidersHorizontal" />
                   Customize footer
                 </DropdownMenuItem>

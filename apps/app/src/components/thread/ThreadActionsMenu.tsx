@@ -3,13 +3,10 @@ import {
   ActionMenuSeparator,
 } from "@/components/ui/action-menu-items";
 import type { Thread } from "@bb/domain";
-import { useCallback, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -18,7 +15,6 @@ import {
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { isThreadRead } from "@bb/client-core";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
@@ -43,27 +39,11 @@ interface ThreadActionsMenuProps extends ThreadActionsMenuBaseProps {
   responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
 }
 
-type ThreadActionsCompactStep = "actions" | "move";
-
 interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
-  compactStep?: ThreadActionsCompactStep;
-  onCompactStepChange?: (step: ThreadActionsCompactStep) => void;
   responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
 }
 
-function ThreadSectionMoveMenu({
-  drawerStep = false,
-  isDrawer,
-  onBack,
-  onOpenDrawerStep,
-  thread,
-}: {
-  drawerStep?: boolean;
-  isDrawer: boolean;
-  onBack?: () => void;
-  onOpenDrawerStep?: () => void;
-  thread: Thread;
-}) {
+function ThreadSectionMoveMenu({ thread }: { thread: Thread }) {
   const sectionMove = useThreadSectionMove();
   if (
     !sectionMove ||
@@ -98,39 +78,6 @@ function ThreadSectionMoveMenu({
     );
   });
 
-  if (isDrawer) {
-    if (!drawerStep) {
-      return (
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            onOpenDrawerStep?.();
-          }}
-        >
-          <Icon name="SectionMove" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate">Move to section</span>
-          <Icon name="ChevronRight" className="ml-auto" aria-hidden="true" />
-        </DropdownMenuItem>
-      );
-    }
-    return (
-      <>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            onBack?.();
-          }}
-        >
-          <Icon name="ChevronLeft" aria-hidden="true" />
-          Back
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Move to section</DropdownMenuLabel>
-        {items}
-      </>
-    );
-  }
-
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
@@ -147,8 +94,6 @@ function ThreadSectionMoveMenu({
 function ThreadActionsMenuItems({
   thread,
   onOpenInSplit,
-  compactStep = "actions",
-  onCompactStepChange,
   responsiveActions = [],
 }: ThreadActionsMenuItemsProps) {
   const {
@@ -159,9 +104,6 @@ function ThreadActionsMenuItems({
     toggleRead,
     unarchiveThread,
   } = useThreadActions();
-  const isCompactViewport = useIsCompactViewport();
-  const isDrawer = isCompactViewport;
-  const showSeparators = !isDrawer;
   const isRead = isThreadRead(thread);
   const isArchived = thread.archivedAt != null;
   const isPinned = thread.pinnedAt !== null;
@@ -169,17 +111,6 @@ function ThreadActionsMenuItems({
     getThreadRoutePath({ projectId: thread.projectId, threadId: thread.id }),
     window.location.origin,
   ).toString();
-
-  if (isDrawer && compactStep === "move") {
-    return (
-      <ThreadSectionMoveMenu
-        drawerStep
-        isDrawer
-        onBack={() => onCompactStepChange?.("actions")}
-        thread={thread}
-      />
-    );
-  }
 
   return (
     <>
@@ -197,7 +128,7 @@ function ThreadActionsMenuItems({
               {action.label}
             </ActionMenuItem>
           ))}
-          {showSeparators ? <ActionMenuSeparator surface="dropdown" /> : null}
+          <ActionMenuSeparator surface="dropdown" />
         </>
       ) : null}
       {onOpenInSplit ? (
@@ -211,7 +142,7 @@ function ThreadActionsMenuItems({
           >
             Open in split
           </ActionMenuItem>
-          {showSeparators ? <ActionMenuSeparator surface="dropdown" /> : null}
+          <ActionMenuSeparator surface="dropdown" />
         </>
       ) : null}
       <ActionMenuItem
@@ -244,11 +175,7 @@ function ThreadActionsMenuItems({
       >
         {isPinned ? "Unpin" : "Pin"}
       </ActionMenuItem>
-      <ThreadSectionMoveMenu
-        isDrawer={isDrawer}
-        onOpenDrawerStep={() => onCompactStepChange?.("move")}
-        thread={thread}
-      />
+      <ThreadSectionMoveMenu thread={thread} />
       <ActionMenuItem
         surface="dropdown"
         icon="Edit"
@@ -260,7 +187,7 @@ function ThreadActionsMenuItems({
       >
         Rename
       </ActionMenuItem>
-      {showSeparators ? <ActionMenuSeparator surface="dropdown" /> : null}
+      <ActionMenuSeparator surface="dropdown" />
       <ActionMenuItem
         surface="dropdown"
         icon={isArchived ? "ArchiveRestore" : "Archive"}
@@ -292,22 +219,6 @@ function ThreadActionsMenuItems({
   );
 }
 
-function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
-  const [compactStep, setCompactStep] =
-    useState<ThreadActionsCompactStep>("actions");
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        setCompactStep("actions");
-      }
-      onOpenChange?.(open);
-    },
-    [onOpenChange],
-  );
-
-  return { compactStep, setCompactStep, handleOpenChange };
-}
-
 export function ThreadActionsMenu({
   thread,
   onOpenInSplit,
@@ -315,11 +226,8 @@ export function ThreadActionsMenu({
   onOpenChange,
   triggerClassName,
 }: ThreadActionsMenuProps) {
-  const { compactStep, setCompactStep, handleOpenChange } =
-    useThreadActionsMenuLifecycle(onOpenChange);
-
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -345,8 +253,6 @@ export function ThreadActionsMenu({
         <ThreadActionsMenuItems
           thread={thread}
           onOpenInSplit={onOpenInSplit}
-          compactStep={compactStep}
-          onCompactStepChange={setCompactStep}
           responsiveActions={responsiveActions}
         />
       </DropdownMenuContent>

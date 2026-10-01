@@ -119,7 +119,7 @@ function PickerOption({
 }
 
 const TRIGGER_CLASS =
-  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active max-md:pointer-coarse:size-8";
+  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active";
 
 export function StatusEditor({
   task,
@@ -151,7 +151,6 @@ export function StatusEditor({
       <DropdownMenuContent
         align="start"
         className="min-w-56"
-        mobileTitle="Change status"
         onKeyDown={(event) => {
           const status = statusForShortcut(event.key);
           if (status !== null && isBareKey(event)) {
@@ -211,7 +210,6 @@ export function PriorityEditor({
       <DropdownMenuContent
         align="start"
         className="min-w-52"
-        mobileTitle="Set priority"
         onKeyDown={(event) => {
           const priority = priorityForShortcut(event.key);
           if (priority !== null && isBareKey(event)) {

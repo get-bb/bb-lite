@@ -6,18 +6,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { CompactLongPressMenu } from "@/components/ui/compact-long-press-menu";
 import { PluginComposerPlusMenuEntry } from "@/components/plugin/PluginComposerActions";
 import { useResolvedComposerSendMenuItems } from "@/components/plugin/composer-slot-hooks";
 import { useOptionalPluginComposerView } from "@/components/plugin/plugin-composer-host";
 
 export function ComposerSendMenu({
   children,
-  isPointerCoarse,
   includePluginContributions,
   queue,
   hasInput,
@@ -25,14 +22,12 @@ export function ComposerSendMenu({
   onSubmit,
 }: {
   children: ReactNode;
-  isPointerCoarse: boolean;
   includePluginContributions: boolean;
   queue: boolean;
   hasInput: boolean;
   canSubmit: boolean;
   onSubmit: (() => void) | undefined;
 }) {
-  const isCompactViewport = useIsCompactViewport();
   const view = useOptionalPluginComposerView();
   const contributions = useResolvedComposerSendMenuItems(
     includePluginContributions ? (view?.scope.kind ?? null) : null,
@@ -68,28 +63,6 @@ export function ComposerSendMenu({
     </>
   ) : null;
 
-  if (isPointerCoarse && isCompactViewport) {
-    if (!canSubmit) return children;
-    return (
-      <CompactLongPressMenu
-        label="Send options"
-        onOpenChange={handleOpenChange}
-        items={items}
-      >
-        <span
-          className="inline-flex"
-          onPointerUpCapture={(event) => {
-            if (!open) return;
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-        >
-          {children}
-        </span>
-      </CompactLongPressMenu>
-    );
-  }
-
   return (
     <div
       data-promptbox-send-menu=""
@@ -124,7 +97,7 @@ export function ComposerSendMenu({
             />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top" mobileTitle="Send options">
+        <DropdownMenuContent align="end" side="top">
           {items}
         </DropdownMenuContent>
       </DropdownMenu>

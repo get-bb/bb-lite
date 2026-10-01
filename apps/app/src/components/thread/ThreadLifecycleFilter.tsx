@@ -38,9 +38,7 @@ export function ThreadLifecycleFilterItems({
             key={option.value}
             role="menuitemcheckbox"
             aria-checked={checked}
-            title={
-              required ? "Keep at least one filter selected" : undefined
-            }
+            title={required ? "Keep at least one filter selected" : undefined}
             onSelect={(event) => {
               event.preventDefault();
               if (required) return;
@@ -100,7 +98,7 @@ export function ThreadLifecycleFilter({
           <Icon name="ChevronDown" className="size-3.5 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" mobileTitle="Filter">
+      <DropdownMenuContent align="start">
         <DropdownMenuGroup aria-label="Filter">
           <DropdownMenuLabel>Filter</DropdownMenuLabel>
           <ThreadLifecycleFilterItems value={value} onChange={onChange} />

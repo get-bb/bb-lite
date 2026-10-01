@@ -198,10 +198,9 @@ export function ReuseEnvironmentPicker({
       <PopoverContent
         align="start"
         aria-label="Reuse an existing environment"
-        mobileTitle="Environment"
         className={cn(
           OPTION_MENU_CONTENT_CLASS_NAME,
-          "flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1",
+          "flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0",
         )}
       >
         <Command label="Search environments" shouldFilter={false}>

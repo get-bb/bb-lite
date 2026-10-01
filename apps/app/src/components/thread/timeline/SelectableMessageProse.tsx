@@ -160,21 +160,10 @@ export function anchorPointFromMouseEvent(
   return { x: event.clientX, y: event.clientY };
 }
 
-function usesLiveSelectionRange(pointerType: string | undefined): boolean {
-  return (
-    pointerType !== undefined && pointerType !== "" && pointerType !== "mouse"
-  );
-}
-
 export function selectionAnchorFromPointerRelease(
   startPoint: SelectionAnchorPoint | null,
-  releaseEvent: Pick<MouseEvent, "clientX" | "clientY"> & {
-    pointerType?: string;
-  },
+  releaseEvent: Pick<MouseEvent, "clientX" | "clientY">,
 ): SelectionAnchor | null {
-  if (usesLiveSelectionRange(releaseEvent.pointerType)) {
-    return null;
-  }
   const releasePoint = anchorPointFromMouseEvent(releaseEvent);
   if (releasePoint === null) {
     return null;
@@ -332,7 +321,6 @@ const proseInstances = new Set<SelectableProseInstance>();
 const instanceByNode = new Map<HTMLElement, SelectableProseInstance>();
 let sharedFrame: number | null = null;
 let pointerIsDown = false;
-let pointerUsesLiveSelectionRange = false;
 let pointerActiveInstance: SelectableProseInstance | null = null;
 let pointerStartPoint: SelectionAnchorPoint | null = null;
 
@@ -468,7 +456,7 @@ function handleInstanceDoubleClick(instance: SelectableProseInstance): void {
 }
 
 function handleSharedSelectionChange(): void {
-  if (pointerIsDown && !pointerUsesLiveSelectionRange) {
+  if (pointerIsDown) {
     return;
   }
   scheduleSharedReport();
@@ -483,7 +471,6 @@ function handleSharedPointerDown(event: PointerEvent): void {
   pointerActiveInstance = findInstanceContaining(event.target);
   pointerStartPoint =
     pointerActiveInstance !== null ? anchorPointFromMouseEvent(event) : null;
-  pointerUsesLiveSelectionRange = usesLiveSelectionRange(event.pointerType);
   pointerIsDown = true;
 }
 
@@ -498,7 +485,6 @@ function handleSharedPointerRelease(event: PointerEvent | MouseEvent): void {
     }
   }
   pointerIsDown = false;
-  pointerUsesLiveSelectionRange = false;
   pointerStartPoint = null;
   scheduleSharedReport();
 }
@@ -506,7 +492,6 @@ function handleSharedPointerRelease(event: PointerEvent | MouseEvent): void {
 function handleSharedPointerCancel(): void {
   pointerActiveInstance = null;
   pointerIsDown = false;
-  pointerUsesLiveSelectionRange = false;
   pointerStartPoint = null;
   scheduleSharedReport();
 }
@@ -579,7 +564,6 @@ function unregisterSelectableProseInstance(
     detachSharedDocumentListeners();
     cancelSharedFrame();
     pointerIsDown = false;
-    pointerUsesLiveSelectionRange = false;
     pointerStartPoint = null;
   }
 }
@@ -621,7 +605,7 @@ export function SelectableMessageProse({
   }, []);
 
   return (
-    <div ref={nodeRef} className={className} data-sidebar-swipe-selectable>
+    <div ref={nodeRef} className={className}>
       {children}
     </div>
   );

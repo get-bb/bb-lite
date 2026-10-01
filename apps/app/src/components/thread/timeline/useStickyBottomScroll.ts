@@ -4,7 +4,6 @@ import {
   useRef,
   type PointerEventHandler,
   type RefObject,
-  type TouchEventHandler,
   type UIEventHandler,
   type WheelEventHandler,
 } from "react";
@@ -13,8 +12,6 @@ interface StickyBottomScrollBinding<TElement extends HTMLElement> {
   contentRef: RefObject<HTMLDivElement | null>;
   onPointerDown: PointerEventHandler<TElement>;
   onScroll: UIEventHandler<TElement>;
-  onTouchMove: TouchEventHandler<TElement>;
-  onTouchStart: TouchEventHandler<TElement>;
   onWheel: WheelEventHandler<TElement>;
   ref: RefObject<TElement | null>;
 }
@@ -146,8 +143,6 @@ export function useStickyBottomScroll<TElement extends HTMLElement>({
     contentRef,
     onPointerDown,
     onScroll,
-    onTouchMove: markUserScrollIntent,
-    onTouchStart: markUserScrollIntent,
     onWheel: markUserScrollIntent,
     ref: scrollRef,
   };

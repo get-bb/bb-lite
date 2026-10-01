@@ -184,7 +184,7 @@ export function getEnvironmentWorkspaceInfoDisplay({
   };
 }
 
-export function getEnvironmentDisplayIconName(
+function getEnvironmentDisplayIconName(
   providerLookup: EnvironmentDisplayProviderLookup,
 ): IconName | null {
   const provider = resolveEnvironmentDisplayProvider(providerLookup);

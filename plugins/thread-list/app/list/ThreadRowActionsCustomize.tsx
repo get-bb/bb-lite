@@ -62,13 +62,7 @@ export function assignRowActionSlot(
   return slots.filter((slot): slot is ThreadRowActionId => slot !== null);
 }
 
-export function ThreadRowActionsCustomize({
-  onDone,
-  variant,
-}: {
-  onDone: () => void;
-  variant: "compact" | "card";
-}) {
+export function ThreadRowActionsCustomize({ onDone }: { onDone: () => void }) {
   const [enabled, setEnabled] = useAtom(threadRowActionsAtom);
   const slots = getRowActionSlots(enabled);
   const groupRef = useRef<HTMLDivElement>(null);
@@ -112,13 +106,12 @@ export function ThreadRowActionsCustomize({
       onDone={onDone}
       testIdPrefix="sidebar-thread-list-row-actions"
       title="Customize row actions"
-      variant={variant}
     >
       <div
         className="space-y-0.5 px-1 pb-1"
         data-testid="sidebar-thread-list-row-actions-preview"
       >
-        <div className="flex h-7 items-center gap-2 rounded-md bg-sidebar-accent pl-2 max-md:pointer-coarse:h-9">
+        <div className="flex h-7 items-center gap-2 rounded-md bg-sidebar-accent pl-2">
           <FakeThreadRowTitle width="w-full" />
           <div
             ref={groupRef}
@@ -174,10 +167,7 @@ export function ThreadRowActionsCustomize({
 
 function FakeThreadRow({ width }: { width: string }) {
   return (
-    <div
-      aria-hidden="true"
-      className="flex h-7 items-center gap-2 pl-2 max-md:pointer-coarse:h-9"
-    >
+    <div aria-hidden="true" className="flex h-7 items-center gap-2 pl-2">
       <FakeThreadRowTitle width={width} />
     </div>
   );
