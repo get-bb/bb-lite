@@ -7,10 +7,9 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { atom, useAtom, useAtomValue, useStore } from "jotai";
+import { atom, useAtom } from "jotai";
 import { atomFamily } from "jotai-family";
-import type { Host, JsonValue } from "@bb/domain";
-import { jsonValueSchema } from "@bb/domain";
+import type { Host } from "@bb/domain";
 import type { PluginFixedTabDeclaration } from "@get-bb/plugin-sdk";
 import { Button } from "@bb/shared-ui/button";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
@@ -51,7 +50,6 @@ import {
   type SecondaryFileFixedPanelTab,
   type TerminalFixedPanelTab,
 } from "@/lib/fixed-panel-tabs-state";
-import { createFileOpenerOriginalTab } from "./file-opener-tabs";
 import { activateSecondaryPanelTabInState } from "@bb/client-core";
 import {
   useCloseTerminal,
@@ -61,21 +59,12 @@ import {
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { usePluginSlots } from "@/lib/plugin-slots";
+import { AppNavigationHostProvider } from "@/lib/app-navigation-host";
 import {
-  AppNavigationHostProvider,
-  type AppFilePreviewIntent,
-} from "@/lib/app-navigation-host";
-import {
-  AppFixedTabTargetProvider,
   getPluginFixedTabOwnerId,
   openAppFixedTabFromDestinations,
   type AppFixedTabDestination,
-  type AppFixedTabTargetState,
 } from "@/lib/app-fixed-tab-navigation";
-import {
-  normalizeExperimentalFileOpenOptions,
-  toFilePreviewLineRange,
-} from "@/lib/live-file-navigation";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import {
   resolveTerminalHost,
@@ -92,58 +81,22 @@ const RIGHT_PANEL_TOGGLE_CLASS = `${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} ${C
 const compactDrawerOpenAtomFamily = atomFamily((_panelStateId: string) =>
   atom(false),
 );
-interface FixedTabSessionTarget {
-  sequence: number;
-  target: JsonValue;
-}
-const fixedTabTargetAtomFamily = atomFamily((_targetId: string) =>
-  atom<FixedTabSessionTarget | null>(null),
-);
 
 function PluginFixedTabContent({
-  fixedTabOwnerId,
   isOpen,
   panelGeneration,
   panelId,
-  panelStateId,
   pluginId,
   registration,
   subPath,
 }: {
-  fixedTabOwnerId: string;
   isOpen: boolean;
   panelGeneration: number;
   panelId: string;
-  panelStateId: string;
   pluginId: string;
   registration: PluginFixedTabDeclaration;
   subPath: string;
 }) {
-  const targetStore = useStore();
-  const targetAtom = fixedTabTargetAtomFamily(
-    `${panelStateId}\0${registration.id}`,
-  );
-  const targetSnapshot = useAtomValue(targetAtom);
-  const targetState = useMemo<AppFixedTabTargetState | null>(() => {
-    if (targetSnapshot === null) return null;
-    const { sequence } = targetSnapshot;
-    return {
-      ...targetSnapshot,
-      ownerId: fixedTabOwnerId,
-      tabId: registration.id,
-      clear: () => {
-        targetStore.set(targetAtom, (current) =>
-          current?.sequence === sequence ? null : current,
-        );
-      },
-    };
-  }, [
-    fixedTabOwnerId,
-    registration.id,
-    targetAtom,
-    targetSnapshot,
-    targetStore,
-  ]);
   if (!isOpen) return null;
   const FixedTabComponent = registration.component;
   return (
@@ -154,9 +107,7 @@ function PluginFixedTabContent({
       slotId={registration.id}
       instanceId={panelId}
     >
-      <AppFixedTabTargetProvider state={targetState}>
-        <FixedTabComponent subPath={subPath} />
-      </AppFixedTabTargetProvider>
+      <FixedTabComponent subPath={subPath} />
     </PluginSlotMount>
   );
 }
@@ -337,7 +288,6 @@ export function PluginPanelRightPanelHost({
       secondary: { ...state.secondary, isOpen: true },
     }));
   }, [isCompactViewport, setCompactDrawerOpen, updatePanelState]);
-  const targetStore = useStore();
   const fixedTabOwnerId = getPluginFixedTabOwnerId(
     pluginId,
     panel?.id ?? panelPath,
@@ -356,31 +306,7 @@ export function PluginPanelRightPanelHost({
               tabId: registration.id,
             },
             open: (target) => {
-              if (target !== undefined) {
-                const result = jsonValueSchema.safeParse(target);
-                if (
-                  !result.success ||
-                  registration.experimental_target === undefined
-                ) {
-                  return false;
-                }
-                try {
-                  if (!registration.experimental_target.validate(result.data)) {
-                    return false;
-                  }
-                } catch {
-                  return false;
-                }
-                targetStore.set(
-                  fixedTabTargetAtomFamily(
-                    `${panelStateId}\0${registration.id}`,
-                  ),
-                  (current) => ({
-                    sequence: (current?.sequence ?? 0) + 1,
-                    target: result.data,
-                  }),
-                );
-              }
+              if (target !== undefined) return false;
               updatePanelState((state) =>
                 activateSecondaryPanelTabInState(state, tab.id),
               );
@@ -393,10 +319,8 @@ export function PluginPanelRightPanelHost({
     [
       fixedViewTabs,
       fixedTabOwnerId,
-      panelStateId,
       panel?.fixedTabs,
       revealPanel,
-      targetStore,
       updatePanelState,
     ],
   );
@@ -405,53 +329,9 @@ export function PluginPanelRightPanelHost({
       openAppFixedTabFromDestinations(fixedTabDestinations, intent),
     [fixedTabDestinations],
   );
-  const openFilePreview = useCallback(
-    (intent: AppFilePreviewIntent) => {
-      const normalized = normalizeExperimentalFileOpenOptions(intent);
-      if (normalized === null || panel === null) return false;
-      const lineRange = toFilePreviewLineRange(normalized.location);
-      const { target } = normalized;
-      const tab =
-        target.kind === "workspace"
-          ? openTab(
-              {
-                kind: "workspace-file-preview",
-                environmentId: target.environmentId,
-                tab: {
-                  lineRange,
-                  path: target.path,
-                  source: { kind: "working-tree" },
-                  statusLabel: null,
-                },
-              },
-              { viewer: intent.viewer },
-            )
-          : target.kind === "host"
-            ? openTab(
-                {
-                  kind: "host-file-preview",
-                  hostId: target.hostId,
-                  tab: { lineRange, path: target.path },
-                },
-                { viewer: intent.viewer },
-              )
-            : openTab(
-                {
-                  kind: "thread-storage-file-preview",
-                  threadId: target.threadId,
-                  tab: { lineRange, path: target.path },
-                },
-                { viewer: intent.viewer },
-              );
-      if (tab === null) return false;
-      revealPanel();
-      return true;
-    },
-    [openTab, panel, revealPanel],
-  );
   const navigationCapabilities = useMemo(
-    () => ({ openFilePreview, openFixedTab }),
-    [openFilePreview, openFixedTab],
+    () => ({ openFixedTab }),
+    [openFixedTab],
   );
   const hidePanel = useCallback(() => {
     if (isCompactViewport) {
@@ -600,11 +480,9 @@ export function PluginPanelRightPanelHost({
             renderContent: () =>
               panel === null ? null : (
                 <PluginFixedTabContent
-                  fixedTabOwnerId={fixedTabOwnerId}
                   isOpen={isOpen}
                   panelGeneration={panel.generation}
                   panelId={panel.id}
-                  panelStateId={panelStateId}
                   pluginId={pluginId}
                   registration={registration}
                   subPath={subPath}
@@ -621,7 +499,6 @@ export function PluginPanelRightPanelHost({
       isOpen,
       openFixedTab,
       panel,
-      panelStateId,
       pluginId,
       subPath,
     ],
@@ -702,18 +579,10 @@ export function PluginPanelRightPanelHost({
               threadId={tab.threadId}
             />
           );
-        case "plugin-panel": {
-          const originalTab = createFileOpenerOriginalTab(tab);
+        case "plugin-panel":
           return (
-            <PluginPanelTabContent
-              tab={tab}
-              context={{ kind: "new-thread", projectId: null }}
-              fileOpenerOriginal={
-                originalTab === null ? undefined : renderTabContent(originalTab)
-              }
-            />
+            <PluginPanelTabContent tab={tab} context={{ kind: "new-thread" }} />
           );
-        }
       }
     },
     [

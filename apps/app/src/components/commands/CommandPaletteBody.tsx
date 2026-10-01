@@ -59,7 +59,7 @@ export function CommandPaletteBody({
   const optionIdPrefix = useId();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const pluginSlots = usePluginSlots();
-  const settingsSections = useSettingsNavSections(pluginSlots.fileOpeners);
+  const settingsSections = useSettingsNavSections();
   const pluginSettingsEntries = useMemo(
     () =>
       buildPluginSettingsEntries({

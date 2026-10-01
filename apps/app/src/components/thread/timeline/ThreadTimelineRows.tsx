@@ -90,11 +90,6 @@ import { AutoHeightContainer } from "../../ui/height-transition.js";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { presentationTintStyle } from "./presentation-display.js";
 import { usePluginIconUrl } from "@/lib/plugin-logos";
-import {
-  PluginTimelineRendererBody,
-  isPluginRenderableWorkRow,
-  usePluginTimelineRenderer,
-} from "./PluginTimelineRendererBody.js";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import {
   TimelineScrollRestoreRowIdContext,
@@ -1121,7 +1116,7 @@ function TimelineExpandableBody({
         );
       }
       return (
-        <WorkRowBodyWithPluginRenderer
+        <WorkRowBody
           row={row}
           resolveImageViewSrc={resolveImageViewSrc}
           workspaceRootPath={workspaceRootPath}
@@ -1144,34 +1139,6 @@ function TimelineExpandableBody({
     default:
       return assertNever(row);
   }
-}
-
-function WorkRowBodyWithPluginRenderer({
-  row,
-  resolveImageViewSrc,
-  workspaceRootPath,
-}: {
-  row: TimelineViewWorkRow;
-  resolveImageViewSrc: ThreadTimelineImageViewSrcResolver | undefined;
-  workspaceRootPath: string | undefined;
-}) {
-  const slot = usePluginTimelineRenderer(row);
-  const original = useCallback(
-    () => (
-      <WorkRowBody
-        row={row}
-        resolveImageViewSrc={resolveImageViewSrc}
-        workspaceRootPath={workspaceRootPath}
-      />
-    ),
-    [resolveImageViewSrc, row, workspaceRootPath],
-  );
-  if (slot !== null && isPluginRenderableWorkRow(row)) {
-    return (
-      <PluginTimelineRendererBody row={row} slot={slot} original={original} />
-    );
-  }
-  return original();
 }
 
 function TurnRowBody({
@@ -1382,9 +1349,6 @@ function TimelineRowView({
     row,
     scopeActive,
   });
-  const pluginRendererSlot = usePluginTimelineRenderer(
-    row.kind === "work" ? row : null,
-  );
   const staticLeadingIconUrl = useLeadingIconUrlForRow(row);
 
   if (row.kind === "conversation") {
@@ -1427,7 +1391,7 @@ function TimelineRowView({
     );
   }
 
-  if (!isRowExpandable(row) && pluginRendererSlot === null) {
+  if (!isRowExpandable(row)) {
     const staticLeadingIcon = leadingIconForRow(row);
     const staticLeadingIconStyle = leadingIconStyleForRow(row);
     const TitleView =

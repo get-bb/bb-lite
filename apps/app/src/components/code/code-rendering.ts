@@ -1,10 +1,22 @@
-import type {
-  CodeOverflowMode,
-  DiffViewMode,
-  ExperimentalDiffFullFileContents,
-  SourceCodeLineRange,
-} from "@get-bb/plugin-sdk";
 import type { ParsedGitDiffFile } from "@/components/git-diff/git-diff-parsing";
+import type { CodeOverflowMode } from "@/lib/code-overflow-mode";
+
+type DiffViewMode = "unified" | "split";
+
+interface SourceCodeLineRange {
+  start: number;
+  end: number;
+}
+
+interface ExperimentalDiffFileContent {
+  path: string;
+  content: string;
+}
+
+export interface ExperimentalDiffFullFileContents {
+  old: ExperimentalDiffFileContent;
+  new: ExperimentalDiffFileContent;
+}
 
 export const DEFAULT_CODE_OVERFLOW: CodeOverflowMode = "scroll";
 export const DEFAULT_DIFF_VIEW: DiffViewMode = "unified";

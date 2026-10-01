@@ -7,7 +7,6 @@ import { RouteNavigationIndicator } from "./components/ui/route-navigation-indic
 import { AppNavigationUrlHost } from "./lib/url-open-routing";
 import { NativeShellReporter } from "./lib/native-shell";
 import { UiPreferencesSync } from "@/lib/ui-preferences/UiPreferencesSync";
-import { AppFileExternalNavigationHost } from "./components/plugin/AppFileExternalNavigationHost";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
 import { useDesktopThemeSync } from "./hooks/useDesktopThemeSync";
@@ -166,14 +165,12 @@ export function App() {
         <RouteNavigationProvider>
           <RouteNavigationIndicator />
           <AppNavigationUrlHost>
-            <AppFileExternalNavigationHost>
-              <HashNavigationScroll />
-              <NativeShellReporter />
-              <UiPreferencesSync />
-              <AppRoutes />
-              <WindowFindHost />
-              <DesktopZoomIndicator />
-            </AppFileExternalNavigationHost>
+            <HashNavigationScroll />
+            <NativeShellReporter />
+            <UiPreferencesSync />
+            <AppRoutes />
+            <WindowFindHost />
+            <DesktopZoomIndicator />
           </AppNavigationUrlHost>
         </RouteNavigationProvider>
       </AppCommandProvider>

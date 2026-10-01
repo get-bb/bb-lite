@@ -1,12 +1,8 @@
-import { PluginReplacementSlot } from "@/components/plugin/PluginReplacementSlot";
 import BbSourceCode from "./BbSourceCode";
-import { useSourceCodeRendererReplacement } from "./codeRendererProvider";
 import {
   DEFAULT_CODE_OVERFLOW,
   type BbSourceCodeProps,
 } from "./code-rendering";
-
-const SOURCE_CODE_RENDERER_SLOT_KIND = "sourceCodeRenderer";
 
 interface SourceCodeHostProps extends Omit<
   BbSourceCodeProps,
@@ -26,9 +22,7 @@ export function SourceCodeHost({
   scrollToHighlightedLines,
   onSelectionAddToChat,
 }: SourceCodeHostProps) {
-  const replacement = useSourceCodeRendererReplacement();
-
-  const original = (
+  return (
     <BbSourceCode
       content={content}
       path={path}
@@ -39,25 +33,5 @@ export function SourceCodeHost({
       scrollToHighlightedLines={scrollToHighlightedLines}
       onSelectionAddToChat={onSelectionAddToChat}
     />
-  );
-
-  return (
-    <PluginReplacementSlot
-      replacement={replacement}
-      original={original}
-      slotKind={SOURCE_CODE_RENDERER_SLOT_KIND}
-    >
-      {(slot, BoundOriginal) => (
-        <div className={className}>
-          <slot.component
-            content={content}
-            path={path}
-            overflow={overflow}
-            highlightedLines={highlightedLines}
-            Original={BoundOriginal}
-          />
-        </div>
-      )}
-    </PluginReplacementSlot>
   );
 }

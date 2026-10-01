@@ -1,5 +1,7 @@
-import { appendQuoteAndAttachmentsToDraft } from "@bb/client-core";
-import type { ComposerAttachment } from "@get-bb/plugin-sdk";
+import {
+  appendQuoteAndAttachmentsToDraft,
+  type PromptDraftAttachment,
+} from "@bb/client-core";
 import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 
 import {
@@ -63,9 +65,6 @@ import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
-import type { FileOpenerOverride } from "@/lib/plugin-slot-resolvers";
-import { usePluginNewThreadPanelActions } from "@/components/plugin/PluginPanelActions";
-import { usePluginSlots } from "@/lib/plugin-slots";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
 import {
   useCloseTerminal,
@@ -114,11 +113,11 @@ import type {
 } from "@bb/client-core";
 import {
   AppNavigationHostProvider,
-  type AppFilePreviewIntent,
   type AppFixedTabOpenIntent,
 } from "@/lib/app-navigation-host";
 import { openAppFixedTabFromDestinations } from "@/lib/app-fixed-tab-navigation";
 import {
+  type AppFilePreviewIntent,
   normalizeExperimentalFileOpenOptions,
   toFilePreviewLineRange,
 } from "@/lib/live-file-navigation";
@@ -534,16 +533,15 @@ export function RootComposeView() {
         isForkDraft: forkSeed !== null,
         navigateToThreadAfterCreate,
       });
-      const { sendAt, ...requestFields } = request;
       const createRequest =
         forkSeed === null
-          ? requestFields
+          ? request
           : buildForkThreadRequest({
               ...forkSeed,
               input: request.input,
               model: request.model,
               permissionMode: request.permissionMode,
-              pluginSubmission: request.pluginSubmission,
+              pluginSubmission: undefined,
               providerSupportsFork:
                 findCachedProviderInfo(queryClient, forkSeed.providerId)
                   ?.capabilities.supportsFork ?? false,
@@ -554,7 +552,6 @@ export function RootComposeView() {
       const thread = await createThread.mutateAsync({
         ...createRequest,
         ...placement,
-        ...(sendAt === undefined ? {} : { sendAt }),
       });
       setLastCreatedThreadId(thread.id);
       setForkSeed(null);
@@ -664,7 +661,6 @@ function RootComposeSurface({
     promptDraft,
     focusPromptBox,
     pluginComposerHost: sharedPluginComposerHost,
-    textEffects: promptTextEffects,
     isSubmitting,
     seedEnvironmentSelectionValue,
     hostSelectionReady,
@@ -704,7 +700,7 @@ function RootComposeSurface({
     [pluginComposerHost],
   );
   const handleRootPanelSelectionAddToChat = useCallback(
-    (text: string, attachments?: readonly ComposerAttachment[]) => {
+    (text: string, attachments?: readonly PromptDraftAttachment[]) => {
       composerActions.replace((current) =>
         appendQuoteAndAttachmentsToDraft(current, text, attachments ?? []),
       );
@@ -1008,12 +1004,9 @@ function RootComposeSurface({
     () => setShouldAutoFocusNewTab(false),
     [],
   );
-  const { newThreadPanelActions: rootPanelNewThreadPanelActions } =
-    usePluginSlots();
   const {
     activateTab,
     closeTab,
-    openPluginPanel,
     openTab,
     orderedSecondaryFileTabs,
     reopenClosedTab,
@@ -1030,10 +1023,6 @@ function RootComposeSurface({
     projectId: isProjectless ? null : projectId,
     storageFiles: rootThreadStorageFiles,
     terminalSessions: loadedTerminalSessions,
-  });
-  const rootPluginPanelActions = usePluginNewThreadPanelActions({
-    openPluginPanel,
-    projectId: isProjectless ? null : projectId,
   });
   const syncedOrderedSecondaryFileTabs = useMemo(
     () =>
@@ -1063,27 +1052,21 @@ function RootComposeSurface({
     environmentStatus: rootPanelEnvironment?.status,
   });
   const openPersistedWorkspaceFile = useCallback(
-    (
-      file: WorkspaceFileTabState,
-      options?: { viewer?: FileOpenerOverride },
-    ) => {
-      openTab({ kind: "workspace-file-preview", tab: file }, options);
+    (file: WorkspaceFileTabState) => {
+      openTab({ kind: "workspace-file-preview", tab: file });
     },
     [openTab],
   );
   const openPersistedStorageFile = useCallback(
-    (
-      file: ThreadStorageFileTabState,
-      options?: { viewer?: FileOpenerOverride },
-    ) => {
-      openTab({ kind: "thread-storage-file-preview", tab: file }, options);
+    (file: ThreadStorageFileTabState) => {
+      openTab({ kind: "thread-storage-file-preview", tab: file });
     },
     [openTab],
   );
   const openPersistedHostFile =
     useCallback<ThreadSecondaryPanelHostFileOpenHandler>(
-      (file: HostFileTabState, options) => {
-        openTab({ kind: "host-file-preview", tab: file }, options);
+      (file: HostFileTabState) => {
+        openTab({ kind: "host-file-preview", tab: file });
       },
       [openTab],
     );
@@ -1122,22 +1105,17 @@ function RootComposeSurface({
       const normalized = normalizeExperimentalFileOpenOptions(intent);
       if (normalized === null) return false;
       const lineRange = toFilePreviewLineRange(normalized.location);
-      const options =
-        intent.viewer === undefined ? undefined : { viewer: intent.viewer };
       switch (normalized.target.kind) {
         case "workspace":
           if (normalized.target.environmentId !== rootPanelEnvironmentId) {
             return false;
           }
-          openWorkspaceFile(
-            {
-              lineRange,
-              path: normalized.target.path,
-              source: { kind: "working-tree" },
-              statusLabel: null,
-            },
-            options,
-          );
+          openWorkspaceFile({
+            lineRange,
+            path: normalized.target.path,
+            source: { kind: "working-tree" },
+            statusLabel: null,
+          });
           return true;
         case "host":
           if (
@@ -1146,11 +1124,11 @@ function RootComposeSurface({
           ) {
             return false;
           }
-          openHostFile({ lineRange, path: normalized.target.path }, options);
+          openHostFile({ lineRange, path: normalized.target.path });
           return true;
         case "thread-storage":
           if (normalized.target.threadId !== rootPanelThreadId) return false;
-          openStorageFile({ lineRange, path: normalized.target.path }, options);
+          openStorageFile({ lineRange, path: normalized.target.path });
           return true;
       }
     },
@@ -1165,11 +1143,10 @@ function RootComposeSurface({
   );
   const appNavigationCapabilities = useMemo(
     () => ({
-      openFilePreview: handleOpenLiveFilePreview,
       openFixedTab: (intent: AppFixedTabOpenIntent) =>
         openAppFixedTabFromDestinations([], intent),
     }),
-    [handleOpenLiveFilePreview],
+    [],
   );
   const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
     (resource) => {
@@ -1410,7 +1387,6 @@ function RootComposeSurface({
         onStartTerminal={handleStartTerminal}
         pane={pane}
         primaryHostId={primaryHostId}
-        pluginActions={rootPluginPanelActions}
         projectSources={projectSources}
         projects={projects}
         rootPanelEnvironmentId={rootPanelEnvironmentId}
@@ -1441,7 +1417,6 @@ function RootComposeSurface({
       rootPanelEnvironmentId,
       rootPanelThreadId,
       rootPanelTerminalTarget,
-      rootPluginPanelActions,
       rootProjectHostId,
       shouldAutoFocusNewTab,
       shouldAutoFocusTerminal,
@@ -1451,19 +1426,7 @@ function RootComposeSurface({
     const filenameOf = (path: string) => path.split("/").at(-1) ?? path;
     const tabs = syncedOrderedSecondaryFileTabs.map(
       (tab): SecondaryPanelRenderableTab => {
-        const pluginAction =
-          tab.kind === "plugin-panel"
-            ? rootPanelNewThreadPanelActions.find(
-                (action) =>
-                  action.pluginId === tab.pluginId &&
-                  action.id === tab.actionId,
-              )
-            : undefined;
         const shared = {
-          contentFillsRegion:
-            tab.kind === "plugin-panel" &&
-            (tab.fileOpenerOwner !== undefined ||
-              pluginAction?.layout === "flush"),
           onClose: () => closeTab(tab.id),
           renderContent: (pane: SecondaryPanelPaneRenderContext) =>
             renderRootPanelTabContent(tab, pane),
@@ -1536,7 +1499,7 @@ function RootComposeSurface({
               leadingVisual: (
                 <PluginItemIcon
                   pluginId={tab.pluginId}
-                  icon={pluginAction?.icon ?? null}
+                  icon={null}
                   className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
                 />
               ),
@@ -1553,7 +1516,6 @@ function RootComposeSurface({
     handleActivateTerminalTab,
     handleCloseTerminalTab,
     renderRootPanelTabContent,
-    rootPanelNewThreadPanelActions,
     syncedOrderedSecondaryFileTabs,
     terminalsById,
   ]);
@@ -1716,7 +1678,6 @@ function RootComposeSurface({
     header: promptHeader,
     resolveMentionLink,
     pluginComposerHost,
-    textEffects: promptTextEffects,
     allowNoProject: true,
     createProject: {
       onCreate: quickCreateProject.openCreateDialog,

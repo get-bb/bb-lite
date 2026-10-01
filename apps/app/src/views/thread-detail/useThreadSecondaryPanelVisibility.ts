@@ -5,27 +5,20 @@ import type {
   WorkspaceFileTabState,
 } from "@bb/client-core";
 import type { ThreadSecondaryPanel } from "@/lib/thread-secondary-panel";
-import type { FileOpenerOverride } from "@/lib/plugin-slot-resolvers";
 
 type ThreadSecondaryPanelThreadId = string | undefined;
 
 type ThreadSecondaryPanelOpenHandler = (panel: ThreadSecondaryPanel) => void;
 type ThreadSecondaryPanelDiffFileOpenHandler = (path: string) => void;
 type ThreadSecondaryPanelCommitDiffOpenHandler = (sha: string) => void;
-export interface ThreadSecondaryPanelFileOpenOptions {
-  viewer?: FileOpenerOverride;
-}
 export type ThreadSecondaryPanelWorkspaceFileOpenHandler = (
   file: WorkspaceFileTabState,
-  options?: ThreadSecondaryPanelFileOpenOptions,
 ) => void;
 export type ThreadSecondaryPanelStorageFileOpenHandler = (
   file: ThreadStorageFileTabState,
-  options?: ThreadSecondaryPanelFileOpenOptions,
 ) => void;
 export type ThreadSecondaryPanelHostFileOpenHandler = (
   file: HostFileTabState,
-  options?: ThreadSecondaryPanelFileOpenOptions,
 ) => void;
 
 export interface UseThreadSecondaryPanelVisibilityArgs {
@@ -198,9 +191,8 @@ export function useThreadSecondaryPanelVisibility({
 
   const openWorkspaceFile =
     useCallback<ThreadSecondaryPanelWorkspaceFileOpenHandler>(
-      (file, options) => {
-        if (options !== undefined) openPersistedWorkspaceFile(file, options);
-        else openPersistedWorkspaceFile(file);
+      (file) => {
+        openPersistedWorkspaceFile(file);
         openCompactDrawer();
       },
       [openCompactDrawer, openPersistedWorkspaceFile],
@@ -208,18 +200,16 @@ export function useThreadSecondaryPanelVisibility({
 
   const openStorageFile =
     useCallback<ThreadSecondaryPanelStorageFileOpenHandler>(
-      (file, options) => {
-        if (options !== undefined) openPersistedStorageFile(file, options);
-        else openPersistedStorageFile(file);
+      (file) => {
+        openPersistedStorageFile(file);
         openCompactDrawer();
       },
       [openCompactDrawer, openPersistedStorageFile],
     );
 
   const openHostFile = useCallback<ThreadSecondaryPanelHostFileOpenHandler>(
-    (file, options) => {
-      if (options !== undefined) openPersistedHostFile(file, options);
-      else openPersistedHostFile(file);
+    (file) => {
+      openPersistedHostFile(file);
       openCompactDrawer();
     },
     [openCompactDrawer, openPersistedHostFile],

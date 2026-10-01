@@ -1,22 +1,9 @@
-import { subscribeComposerSubmitted } from "./composer-submissions";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import type {
   BbContext,
   BbNavigate,
-  ComposerView,
-  PluginComposerApi,
-  PluginComposerScope,
-  PluginComposerTextEffect,
   PluginRealtimeConnectionState,
   PluginRpcContract,
   PluginRpcClient,
@@ -25,47 +12,13 @@ import type {
   PluginEnvironmentProvidersState,
   PluginProvidersState,
   PluginSettingsState,
-  ExperimentalAppPanel,
-  ExperimentalFixedTabTargetState,
-  ExperimentalPluginFixedTabReference,
-  JsonValue,
 } from "@get-bb/plugin-sdk";
-import { jsonValueSchema } from "@bb/domain";
-import {
-  PluginSlotOwnershipContext,
-  usePluginId,
-} from "@/components/plugin/plugin-context";
+import { usePluginId } from "@/components/plugin/plugin-context";
 import { usePluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
-import {
-  composerScopeIdentity,
-  PluginComposerViewContext,
-  usePluginComposerHost,
-  usePluginComposerHostDraft,
-  type PluginComposerHost,
-} from "@/components/plugin/plugin-composer-host";
-import {
-  getComposerEditorBridges,
-  subscribeComposerEditorBridges,
-  useComposerEditorBridge,
-} from "@/lib/composer-editor-registry";
-import { createComposerHandleBinding } from "@get-bb/plugin-sdk/internal/composer-handle";
-import {
-  composerHandleController,
-  listedComposerHandles,
-  type ComposerSource,
-} from "@/lib/plugin-composer-handle";
 import { sdk } from "@/lib/sdk";
 import { getPluginBoundSdk } from "@/lib/plugin-bound-sdk";
 import { useSystemProviders } from "@/hooks/queries/system-queries";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { requestComposerFocus } from "@/lib/composer-focus-requests";
-import { setComposerTextEffect } from "@/lib/composer-text-effects";
-import { createKeyedListeners } from "@/lib/keyed-listeners";
-import {
-  usePromptDraftStorage,
-  type PromptDraftScope,
-} from "@/hooks/usePromptDraftStorage";
-import { isPromptDraftEmpty } from "@bb/client-core";
 import {
   AUTOMATIONS_PLUGIN_ID,
   getPluginPanelRoutePath,
@@ -79,19 +32,11 @@ import { useServerConnectionState } from "@/hooks/useServerConnectionState";
 import { wsManager } from "@/lib/ws";
 import { pluginSdkSettingsQueryKey } from "@/hooks/queries/query-keys";
 import { useAppNavigationHost } from "@/lib/app-navigation-host";
-import { normalizeExperimentalFileOpenOptions } from "@/lib/live-file-navigation";
-import {
-  getPluginFixedTabOwnerId,
-  useAppFixedTabTarget,
-} from "@/lib/app-fixed-tab-navigation";
 
 type FetchLike = (
   input: string,
   init?: RequestInit,
 ) => Promise<Pick<Response, "ok" | "status" | "json">>;
-
-const subscribeToNoComposerSelection = () => () => {};
-const getNoComposerSelection = () => null;
 
 export function isAutomationEditRoutePath(pathname: string): boolean {
   return (
@@ -329,7 +274,10 @@ export function useBbContext(): BbContext {
   );
 }
 
-export function useBbNavigate(): BbNavigate {
+export function useBbNavigate(): Omit<
+  BbNavigate,
+  "experimental_openFilePreview" | "experimental_openFileExternally"
+> {
   const pluginId = usePluginId();
   const location = useLocation();
   const openThreadPanelHandler = usePluginThreadPanelOpenHandler();
@@ -391,428 +339,15 @@ export function useBbNavigate(): BbNavigate {
     (url) => appNavigation.openUrl({ url }),
     [appNavigation],
   );
-  const experimental_openFilePreview = useCallback<
-    BbNavigate["experimental_openFilePreview"]
-  >(
-    (options) => {
-      const normalized = normalizeExperimentalFileOpenOptions(options);
-      return normalized !== null && appNavigation.openFilePreview(normalized);
-    },
-    [appNavigation],
-  );
-  const experimental_openFileExternally = useCallback<
-    BbNavigate["experimental_openFileExternally"]
-  >(
-    (options) => {
-      const normalized = normalizeExperimentalFileOpenOptions(options);
-      return (
-        normalized !== null && appNavigation.openFileExternally(normalized)
-      );
-    },
-    [appNavigation],
-  );
-  return useMemo<BbNavigate>(
-    () => ({
-      toThread,
-      toProject,
-      toPluginPanel,
-      toCompose,
-      openThreadPanel,
-      experimental_openFileExternally,
-      experimental_openFilePreview,
-      openUrl,
-    }),
-    [
-      toThread,
-      toProject,
-      toPluginPanel,
-      toCompose,
-      openThreadPanel,
-      experimental_openFileExternally,
-      experimental_openFilePreview,
-      openUrl,
-    ],
-  );
-}
-
-function useExperimentalAppPanel(): ExperimentalAppPanel {
-  const pluginId = usePluginId();
-  const appNavigation = useAppNavigationHost();
-  const openFixedTab = useCallback<ExperimentalAppPanel["openFixedTab"]>(
-    (options) => {
-      const targetResult =
-        options.target === undefined
-          ? null
-          : jsonValueSchema.safeParse(options.target);
-      if (targetResult !== null && !targetResult.success) return false;
-      return appNavigation.openFixedTab({
-        surface: options.surface,
-        tab: {
-          ownerId: getPluginFixedTabOwnerId(pluginId, options.tab.panelId),
-          tabId: options.tab.id,
-        },
-        ...(targetResult?.success === true
-          ? { target: targetResult.data }
-          : {}),
-      });
-    },
-    [appNavigation, pluginId],
-  );
-  return useMemo(() => ({ openFixedTab }), [openFixedTab]);
-}
-
-function useExperimentalFixedTabTarget<Target extends JsonValue>(
-  tab: ExperimentalPluginFixedTabReference<Target>,
-): ExperimentalFixedTabTargetState<Target> | null {
-  const pluginId = usePluginId();
-  const state = useAppFixedTabTarget(
-    getPluginFixedTabOwnerId(pluginId, tab.panelId),
-    tab.id,
-  );
-  if (state === null || tab.experimental_target === undefined) return null;
-  try {
-    if (!tab.experimental_target.validate(state.target)) return null;
-  } catch {
-    return null;
-  }
-  return {
-    clear: state.clear,
-    sequence: state.sequence,
-    target: state.target,
-  };
-}
-
-export {
-  useExperimentalAppPanel as experimental_useAppPanel,
-  useExperimentalFixedTabTarget as experimental_useFixedTabTarget,
-};
-
-function createComposerScopeOwnership(scopeKey: string) {
-  let active = true;
-  return {
-    scopeKey,
-    activate() {
-      active = true;
-    },
-    invalidate() {
-      active = false;
-    },
-    isActive() {
-      return active;
-    },
-  };
-}
-
-let composerVisualOwnerSequence = 0;
-
-type ComposerInputLockListener = () => void;
-type ComposerInputLockOwner = string | symbol;
-
-const inputLocksByStorageKey = new Map<
-  string,
-  Map<ComposerInputLockOwner, string>
->();
-const inputLockListeners = createKeyedListeners<string>();
-
-export function getComposerInputLock(storageKey: string | null): boolean {
-  if (storageKey === null) return false;
-  return (inputLocksByStorageKey.get(storageKey)?.size ?? 0) > 0;
-}
-
-function setComposerInputLock(
-  storageKey: string | null,
-  pluginId: string,
-  locked: boolean,
-  owner: ComposerInputLockOwner,
-): void {
-  if (storageKey === null) return;
-  const wasLocked = getComposerInputLock(storageKey);
-  let owners = inputLocksByStorageKey.get(storageKey);
-  if (locked) {
-    if (!owners) {
-      owners = new Map();
-      inputLocksByStorageKey.set(storageKey, owners);
-    }
-    owners.set(owner, pluginId);
-  } else {
-    owners?.delete(owner);
-    if (owners?.size === 0) inputLocksByStorageKey.delete(storageKey);
-  }
-  if (getComposerInputLock(storageKey) !== wasLocked) {
-    inputLockListeners.notify(storageKey);
-  }
-}
-
-function subscribeComposerInputLock(
-  storageKey: string | null,
-  listener: ComposerInputLockListener,
-): () => void {
-  if (storageKey === null) return () => {};
-  return inputLockListeners.subscribe(storageKey, listener);
-}
-
-export function useComposerInputLock(storageKey: string | null): boolean {
-  const subscribe = useCallback(
-    (listener: ComposerInputLockListener) =>
-      subscribeComposerInputLock(storageKey, listener),
-    [storageKey],
-  );
-  const getSnapshot = useCallback(
-    () => getComposerInputLock(storageKey),
-    [storageKey],
-  );
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
-
-export function useComposerView(): ComposerView {
-  const providedView = useContext(PluginComposerViewContext);
-  const composerHost = usePluginComposerHost();
-  const { projectId, threadId } = useRouteState();
-  const routeScope: PromptDraftScope = useMemo(
-    () =>
-      threadId !== undefined && projectId !== undefined
-        ? { kind: "thread", projectId, threadId }
-        : { kind: "new-thread" },
-    [projectId, threadId],
-  );
-  const routeDraft = usePromptDraftStorage(routeScope);
-  const hostDraft = usePluginComposerHostDraft(composerHost);
-  const draft = hostDraft ?? routeDraft;
-  const fallback = useMemo<ComposerView>(
-    () => ({
-      scope:
-        composerHost?.scope ??
-        (threadId !== undefined
-          ? { kind: "thread", threadId }
-          : { kind: "new-thread", projectId: projectId ?? null }),
-      layout: "expanded",
-      draft: {
-        text: draft.text,
-        isEmpty: isPromptDraftEmpty(draft),
-        attachmentCount: draft.attachments.length,
-      },
-      run: { isRunning: false, isSubmitting: false },
-    }),
-    [composerHost?.scope, draft, projectId, threadId],
-  );
-  return providedView ?? fallback;
-}
-
-export function useComposer(): PluginComposerApi {
-  const pluginId = usePluginId();
-  const slotOwnershipRegistry = useContext(PluginSlotOwnershipContext);
-  const composerHost = usePluginComposerHost();
-  usePluginComposerHostDraft(composerHost);
-  useSyncExternalStore(
-    composerHost?.subscribeSelection ?? subscribeToNoComposerSelection,
-    composerHost?.getSelection ?? getNoComposerSelection,
-    composerHost?.getSelection ?? getNoComposerSelection,
-  );
-  const { projectId, threadId } = useRouteState();
-  const routeScope: PromptDraftScope = useMemo(
-    () =>
-      threadId !== undefined && projectId !== undefined
-        ? { kind: "thread", projectId, threadId }
-        : { kind: "new-thread" },
-    [projectId, threadId],
-  );
-  const routeDraft = usePromptDraftStorage(routeScope);
-  const textEffectKey = composerHost?.textEffectKey ?? routeDraft.storageKey;
-  useComposerEditorBridge(textEffectKey);
-
-  const composerScope = composerHost?.scope;
-  const scope: PluginComposerScope = useMemo(
-    () =>
-      composerScope ??
-      (threadId !== undefined
-        ? { kind: "thread", threadId }
-        : { kind: "new-thread", projectId: projectId ?? null }),
-    [composerScope, projectId, threadId],
-  );
-  const scopeOwnershipKey = [
-    pluginId,
-    composerScopeIdentity(scope),
-    textEffectKey,
-  ].join("\u0000");
-  const scopeOwnership = useMemo(
-    () => createComposerScopeOwnership(scopeOwnershipKey),
-    [scopeOwnershipKey],
-  );
-  const { visualStateOwner, visualStateOwnerOrder } = useMemo(
-    () => ({
-      visualStateOwner: Symbol(`${pluginId}:${scopeOwnershipKey}`),
-      visualStateOwnerOrder: composerVisualOwnerSequence++,
-    }),
-    [pluginId, scopeOwnershipKey],
-  );
-  const releaseVisualState = useCallback(() => {
-    scopeOwnership.invalidate();
-    setComposerTextEffect(textEffectKey, pluginId, null, visualStateOwner);
-    setComposerInputLock(textEffectKey, pluginId, false, visualStateOwner);
-  }, [pluginId, scopeOwnership, textEffectKey, visualStateOwner]);
-  const registerVisualStateOwner = useCallback(() => {
-    slotOwnershipRegistry?.register(visualStateOwner, releaseVisualState);
-  }, [releaseVisualState, slotOwnershipRegistry, visualStateOwner]);
-  const setTextEffect = useCallback(
-    (effect: PluginComposerTextEffect | null) => {
-      if (!scopeOwnership.isActive()) return;
-      if (effect !== null) registerVisualStateOwner();
-      setComposerTextEffect(
-        textEffectKey,
-        pluginId,
-        effect,
-        visualStateOwner,
-        visualStateOwnerOrder,
-      );
-    },
-    [
-      pluginId,
-      registerVisualStateOwner,
-      scopeOwnership,
-      textEffectKey,
-      visualStateOwner,
-      visualStateOwnerOrder,
-    ],
-  );
-  const setInputLock = useCallback(
-    (locked: boolean) => {
-      if (!scopeOwnership.isActive()) return;
-      if (locked) registerVisualStateOwner();
-      setComposerInputLock(textEffectKey, pluginId, locked, visualStateOwner);
-    },
-    [
-      pluginId,
-      registerVisualStateOwner,
-      scopeOwnership,
-      textEffectKey,
-      visualStateOwner,
-    ],
-  );
-  useEffect(() => {
-    scopeOwnership.activate();
-    return () => {
-      releaseVisualState();
-      slotOwnershipRegistry?.unregister(visualStateOwner);
-    };
-  }, [
-    releaseVisualState,
-    scopeOwnership,
-    slotOwnershipRegistry,
-    visualStateOwner,
-  ]);
-
-  const submissionSubscriptions = useRef(new Set<() => void>());
-  useEffect(
-    () => () => {
-      for (const unsubscribe of submissionSubscriptions.current) unsubscribe();
-      submissionSubscriptions.current.clear();
-    },
-    [],
-  );
-  const onSubmitted = useCallback(
-    (listener: () => void) => {
-      const unsubscribe = subscribeComposerSubmitted(scope, listener);
-      submissionSubscriptions.current.add(unsubscribe);
-      return () => {
-        unsubscribe();
-        submissionSubscriptions.current.delete(unsubscribe);
-      };
-    },
-    [scope],
-  );
-
-  const source = useMemo<ComposerSource>(
-    () =>
-      composerHost ?? {
-        scope,
-        textEffectKey: routeDraft.storageKey,
-        getCurrent: routeDraft.getCurrent,
-        setDraft: routeDraft.setDraft,
-        focus: () => requestComposerFocus(routeDraft.storageKey),
-      },
-    [
-      composerHost,
-      routeDraft.getCurrent,
-      routeDraft.setDraft,
-      routeDraft.storageKey,
-      scope,
-    ],
-  );
-  const controller = useMemo(
-    () =>
-      composerHandleController(pluginId, source, {
-        setTextEffect,
-        setInputLock,
-        onSubmitted,
-      }),
-    [onSubmitted, pluginId, setInputLock, setTextEffect, source],
-  );
-  const [binding, setBinding] = useState(() =>
-    createComposerHandleBinding(textEffectKey, controller),
-  );
-  let currentBinding = binding;
-  if (binding.key !== textEffectKey) {
-    currentBinding = createComposerHandleBinding(textEffectKey, controller);
-    setBinding(currentBinding);
-  }
-  currentBinding.update(controller);
-  return currentBinding.handle;
-}
-
-function createComposerDraftsStore(hosts: readonly PluginComposerHost[]) {
-  let snapshot = hosts.map((host) => host.getCurrent());
-  let selections = hosts.map((host) => host.getSelection?.() ?? null);
-  return {
-    subscribe(listener: () => void): () => void {
-      const unsubscribes = hosts.flatMap((host) => [
-        host.subscribeDraft(listener),
-        ...(host.subscribeSelection === undefined
-          ? []
-          : [host.subscribeSelection(listener)]),
-      ]);
-      return () => {
-        for (const unsubscribe of unsubscribes) unsubscribe();
-      };
-    },
-    getSnapshot() {
-      const next = hosts.map((host) => host.getCurrent());
-      const nextSelections = hosts.map((host) => host.getSelection?.() ?? null);
-      if (
-        next.some((draft, index) => draft !== snapshot[index]) ||
-        nextSelections.some(
-          (selection, index) => selection !== selections[index],
-        )
-      ) {
-        snapshot = next;
-        selections = nextSelections;
-      }
-      return snapshot;
-    },
-  };
-}
-
-export function useComposers(): readonly PluginComposerApi[] {
-  const pluginId = usePluginId();
-  const bridges = useSyncExternalStore(
-    subscribeComposerEditorBridges,
-    getComposerEditorBridges,
-    getComposerEditorBridges,
-  );
-  const hosts = useMemo(
-    () =>
-      bridges
-        .filter((bridge) => bridge.pluginCustomizable)
-        .map((bridge) => bridge.host),
-    [bridges],
-  );
-  const draftsStore = useMemo(() => createComposerDraftsStore(hosts), [hosts]);
-  useSyncExternalStore(
-    draftsStore.subscribe,
-    draftsStore.getSnapshot,
-    draftsStore.getSnapshot,
-  );
   return useMemo(
-    () => listedComposerHandles(pluginId, hosts),
-    [hosts, pluginId],
+    () => ({
+      toThread,
+      toProject,
+      toPluginPanel,
+      toCompose,
+      openThreadPanel,
+      openUrl,
+    }),
+    [toThread, toProject, toPluginPanel, toCompose, openThreadPanel, openUrl],
   );
 }

@@ -25,7 +25,6 @@ export function blurPromptEditor(editor: Editor | null | undefined): void {
 export function ComposerEditorSlot({
   editor,
   scrollContainerRef,
-  inputLocked,
   isCompactLayout,
   minHeight,
   layout,
@@ -33,7 +32,6 @@ export function ComposerEditorSlot({
 }: {
   editor: Editor | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
-  inputLocked: boolean;
   isCompactLayout: boolean;
   minHeight: number;
   layout: ComposerEditorLayout;
@@ -43,7 +41,6 @@ export function ComposerEditorSlot({
     <div
       ref={scrollContainerRef}
       data-promptbox-editor-scroll=""
-      aria-busy={inputLocked || undefined}
       className={cn(
         "w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none",
         COARSE_POINTER_TEXT_BASE_CLASS,
@@ -61,12 +58,6 @@ export function ComposerEditorSlot({
       <PromptMentionLinkContext.Provider value={resolveMentionLink ?? null}>
         <EditorContent
           editor={editor}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
-            if (editor === null || editor.isEditable) return;
-            event.preventDefault();
-            blurPromptEditor(editor);
-          }}
           data-promptbox-editor-content=""
           data-promptbox-compact-content={isCompactLayout ? "" : undefined}
           className={cn(

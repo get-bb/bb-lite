@@ -8,13 +8,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import {
-  PluginComposerPlusMenuEntry,
-  type PluginComposerPlusMenuContribution,
-  type PluginComposerPlusMenuSelection,
-} from "@/components/plugin/PluginComposerActions";
-import { useResolvedComposerPlusMenuItems } from "@/components/plugin/composer-slot-hooks";
-import { useOptionalPluginComposerView } from "@/components/plugin/plugin-composer-host";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
@@ -32,17 +25,6 @@ interface PromptBoxActionsMenuProps {
   actions?: readonly PromptBoxAction[];
   onAttach?: () => void;
   onAction: (action: PromptBoxAction) => void;
-  pluginItems?: readonly PluginComposerPlusMenuContribution[];
-}
-
-export function ComposerPlusMenuSlot(
-  props: Omit<PromptBoxActionsMenuProps, "pluginItems">,
-) {
-  const view = useOptionalPluginComposerView();
-  const pluginItems = useResolvedComposerPlusMenuItems(
-    view?.scope.kind ?? null,
-  );
-  return <PromptBoxActionsMenu {...props} pluginItems={pluginItems} />;
 }
 
 const PROMPT_ACTION_PRESENTATION = {
@@ -82,20 +64,14 @@ export function PromptBoxActionsMenu({
   actions = [],
   onAttach,
   onAction,
-  pluginItems = [],
 }: PromptBoxActionsMenuProps) {
   const selectedItemRef = useRef(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const pluginSelectionRef = useRef<PluginComposerPlusMenuSelection | null>(
-    null,
-  );
   const visibleActions = orderedPromptActions(actions).filter(
     (action) => action.text.length > 0,
   );
   const clearSelectedActionAfterClose = useCallback(() => {
     const clear = () => {
       selectedItemRef.current = false;
-      pluginSelectionRef.current = null;
     };
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(clear);
@@ -103,23 +79,8 @@ export function PromptBoxActionsMenu({
     }
     setTimeout(clear, 0);
   }, []);
-  const restorePluginComposerFocus = useCallback(
-    (selection: PluginComposerPlusMenuSelection) => {
-      const activeElement = document.activeElement;
-      const pluginMovedFocus =
-        activeElement !== null &&
-        activeElement !== document.body &&
-        activeElement !== triggerRef.current &&
-        activeElement !== selection.selectedElement &&
-        activeElement.isConnected;
-      if (!pluginMovedFocus) {
-        selection.restoreComposerFocus();
-      }
-    },
-    [],
-  );
 
-  if (visibleActions.length === 0 && !onAttach && pluginItems.length === 0) {
+  if (visibleActions.length === 0 && !onAttach) {
     return null;
   }
 
@@ -134,7 +95,6 @@ export function PromptBoxActionsMenu({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          ref={triggerRef}
           type="button"
           size="icon"
           variant="ghost"
@@ -158,10 +118,6 @@ export function PromptBoxActionsMenu({
         onCloseAutoFocus={(event) => {
           if (selectedItemRef.current) {
             event.preventDefault();
-            const pluginSelection = pluginSelectionRef.current;
-            if (pluginSelection) {
-              restorePluginComposerFocus(pluginSelection);
-            }
           }
         }}
       >
@@ -202,17 +158,6 @@ export function PromptBoxActionsMenu({
             </DropdownMenuItem>
           );
         })}
-        {pluginItems.map((contribution) => (
-          <PluginComposerPlusMenuEntry
-            key={contribution.key}
-            contribution={contribution}
-            onSelected={(selection) => {
-              selectedItemRef.current = true;
-              pluginSelectionRef.current = selection;
-              queueMicrotask(() => restorePluginComposerFocus(selection));
-            }}
-          />
-        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

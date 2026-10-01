@@ -1,18 +1,27 @@
-import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useCallback, useMemo } from "react";
+import type { WorkspaceGitOperation } from "@bb/domain";
 import { useProjectSourceBranches } from "@/hooks/queries/project-queries";
-import type {
-  BranchesState,
-  CheckoutState,
-  UseBranchesArgs,
-  UseCheckoutStateArgs,
-} from "@get-bb/plugin-sdk";
+import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 
-export function usePluginBranches({
+interface ProjectHostArgs {
+  hostId: string | null;
+  projectId: string | null;
+}
+
+export interface CheckoutState {
+  isGit: boolean | null;
+  unborn: boolean;
+  detached: boolean;
+  dirty: boolean;
+  currentBranch: string | null;
+  operation: WorkspaceGitOperation;
+}
+
+export function useProjectBranches({
   hostId,
   projectId,
-  query = "",
-}: UseBranchesArgs): BranchesState {
+  query,
+}: ProjectHostArgs & { query: string }) {
   const navigation = useSidebarNavigation({
     enabled: hostId === null && projectId !== null,
   });
@@ -44,12 +53,16 @@ export function usePluginBranches({
     () => ({
       branches: enabled ? (branchesQuery.data?.branches ?? []) : [],
       remoteBranches: enabled ? (branchesQuery.data?.remoteBranches ?? []) : [],
+      defaultWorktreeBaseBranch: enabled
+        ? (branchesQuery.data?.defaultWorktreeBaseBranch ?? null)
+        : null,
       isLoading: enabled && branchesQuery.isFetching,
       refresh,
     }),
     [
       branchesQuery.data?.branches,
       branchesQuery.data?.remoteBranches,
+      branchesQuery.data?.defaultWorktreeBaseBranch,
       branchesQuery.isFetching,
       enabled,
       refresh,
@@ -57,10 +70,10 @@ export function usePluginBranches({
   );
 }
 
-export function usePluginCheckoutState({
+export function useCheckoutState({
   hostId,
   projectId,
-}: UseCheckoutStateArgs): CheckoutState {
+}: ProjectHostArgs): CheckoutState {
   const enabled = hostId !== null && projectId !== null;
   const query = useProjectSourceBranches(projectId ?? undefined, hostId, {
     enabled,

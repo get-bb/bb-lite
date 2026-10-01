@@ -16,13 +16,10 @@ import {
 } from "@tiptap/extension-list";
 import { UndoRedo, TrailingNode } from "@tiptap/extensions";
 import type { AnyExtension } from "@tiptap/react";
-import {
-  PromptDecorationExtension,
-  type PromptDecorationExtensionOptions,
-} from "./prompt-decoration-extension";
+import { PromptDecorationExtension } from "./prompt-decoration-extension";
 import { PromptMentionExtension } from "./prompt-mention-extension";
 
-interface PromptEditorExtensionsOptions extends PromptDecorationExtensionOptions {
+interface PromptEditorExtensionsOptions {
   richTextEditing: boolean;
   getPlaceholder: () => string;
 }
@@ -30,10 +27,6 @@ interface PromptEditorExtensionsOptions extends PromptDecorationExtensionOptions
 export function promptEditorExtensions({
   richTextEditing,
   getPlaceholder,
-  getDecorationSources,
-  getDraftObservers,
-  draftObserverDebounceMs,
-  onRuleError,
 }: PromptEditorExtensionsOptions): AnyExtension[] {
   const extensions: (AnyExtension | false)[] = [
     richTextEditing && Bold,
@@ -60,13 +53,6 @@ export function promptEditorExtensions({
       placeholder: () => getPlaceholder(),
     }),
     PromptMentionExtension,
-    PromptDecorationExtension.configure({
-      ...(getDecorationSources !== undefined ? { getDecorationSources } : {}),
-      ...(getDraftObservers !== undefined ? { getDraftObservers } : {}),
-      ...(draftObserverDebounceMs !== undefined
-        ? { draftObserverDebounceMs }
-        : {}),
-      ...(onRuleError !== undefined ? { onRuleError } : {}),
-    }),
+    PromptDecorationExtension,
   ];
 }
