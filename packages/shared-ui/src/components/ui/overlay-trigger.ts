@@ -52,10 +52,6 @@ export function blurActiveKeyboardInputBeforeOverlayOpen(): void {
   blurActiveKeyboardInputWithin(null);
 }
 
-export function blurActiveKeyboardInputBeforeOverlayClose(): void {
-  blurActiveKeyboardInputWithin(null);
-}
-
 export function preventOverlayTriggerSelection(event: MouseEvent): void {
   event.preventDefault();
 }

@@ -1,15 +1,11 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
 import {
   type ResponsiveOverlayContextValue,
   useResponsiveRoot,
-  MobileTrigger,
-  ResponsiveDrawerShell,
-  stripRadixContentProps,
 } from "./responsive-overlay.js";
 import {
   blurActiveKeyboardInputBeforeOverlayOpen,
@@ -18,22 +14,10 @@ import {
 } from "./overlay-trigger.js";
 import { Icon } from "../../components/ui/icon.js";
 
-interface ResponsiveDialogContextValue extends ResponsiveOverlayContextValue {
-  titleId: string;
-  descriptionId: string;
-  registerTitleId: (id: string) => () => void;
-  registerDescriptionId: (id: string) => () => void;
-}
-
 const ResponsiveDialogContext =
-  React.createContext<ResponsiveDialogContextValue>({
-    isCompactViewport: false,
+  React.createContext<ResponsiveOverlayContextValue>({
     open: false,
     onOpenChange: () => {},
-    titleId: "",
-    descriptionId: "",
-    registerTitleId: () => () => {},
-    registerDescriptionId: () => () => {},
   });
 
 function useResponsiveDialog() {
@@ -46,59 +30,17 @@ function Dialog({
   onOpenChange: controlledOnChange,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  const responsiveRoot = useResponsiveRoot(controlledOpen, controlledOnChange);
-  const generatedTitleId = React.useId();
-  const generatedDescriptionId = React.useId();
-  const [titleId, setTitleId] = React.useState(generatedTitleId);
-  const [descriptionId, setDescriptionId] = React.useState(
-    generatedDescriptionId,
-  );
-  const registerTitleId = React.useCallback(
-    (id: string) => {
-      setTitleId(id);
-      return () => setTitleId(generatedTitleId);
-    },
-    [generatedTitleId],
-  );
-  const registerDescriptionId = React.useCallback(
-    (id: string) => {
-      setDescriptionId(id);
-      return () => setDescriptionId(generatedDescriptionId);
-    },
-    [generatedDescriptionId],
-  );
-  const ctx = React.useMemo(
-    () => ({
-      ...responsiveRoot,
-      titleId,
-      descriptionId,
-      registerTitleId,
-      registerDescriptionId,
-    }),
-    [
-      descriptionId,
-      registerDescriptionId,
-      registerTitleId,
-      responsiveRoot,
-      titleId,
-    ],
-  );
-
-  const body = ctx.isCompactViewport ? (
-    children
-  ) : (
-    <DialogPrimitive.Root
-      open={ctx.open}
-      onOpenChange={ctx.onOpenChange}
-      {...props}
-    >
-      {children}
-    </DialogPrimitive.Root>
-  );
+  const ctx = useResponsiveRoot(controlledOpen, controlledOnChange);
 
   return (
     <ResponsiveDialogContext.Provider value={ctx}>
-      {body}
+      <DialogPrimitive.Root
+        open={ctx.open}
+        onOpenChange={ctx.onOpenChange}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Root>
     </ResponsiveDialogContext.Provider>
   );
 }
@@ -107,23 +49,7 @@ const DialogTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Trigger>
 >(({ asChild, children, className, ...props }, ref) => {
-  const { isCompactViewport, open, onOpenChange } = useResponsiveDialog();
-
-  if (isCompactViewport) {
-    return (
-      <MobileTrigger
-        ref={ref}
-        asChild={asChild}
-        open={open}
-        onOpenChange={onOpenChange}
-        haspopup="dialog"
-        className={className}
-        {...props}
-      >
-        {children}
-      </MobileTrigger>
-    );
-  }
+  const { open } = useResponsiveDialog();
 
   return (
     <DialogPrimitive.Trigger
@@ -150,25 +76,6 @@ interface DialogCloseProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 
 const DialogClose = React.forwardRef<HTMLButtonElement, DialogCloseProps>(
   ({ asChild, onClick, children, ...props }, ref) => {
-    const { isCompactViewport, onOpenChange } = useResponsiveDialog();
-
-    if (isCompactViewport) {
-      const Comp = asChild ? Slot : "button";
-      const handleClick: React.MouseEventHandler<HTMLButtonElement> = (
-        event,
-      ) => {
-        onClick?.(event);
-        if (!event.defaultPrevented) {
-          onOpenChange(false);
-        }
-      };
-      return (
-        <Comp ref={ref} onClick={handleClick} {...props}>
-          {children}
-        </Comp>
-      );
-    }
-
     return (
       <DialogPrimitive.Close
         ref={ref}
@@ -218,34 +125,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     },
     ref,
   ) => {
-    const { isCompactViewport, open, onOpenChange, titleId, descriptionId } =
-      useResponsiveDialog();
     const scopeProps = usePortalScopeProps();
-
-    if (isCompactViewport) {
-      const domProps = stripRadixContentProps(props);
-      return (
-        <ResponsiveDrawerShell
-          open={open}
-          onOpenChange={onOpenChange}
-          onAfterCloseAutoFocus={onAfterCloseAutoFocus}
-          labelledBy={titleId}
-          describedBy={descriptionId}
-        >
-          <div
-            ref={ref}
-            className={cn(
-              "grid grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto px-4 pt-2 pb-4",
-              className,
-              "max-w-none",
-            )}
-            {...domProps}
-          >
-            {children}
-          </div>
-        </ResponsiveDrawerShell>
-      );
-    }
 
     return (
       <DialogPrimitive.Portal>
@@ -306,37 +186,6 @@ const DialogTitle = React.forwardRef<
   HTMLHeadingElement,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ asChild, className, id, children, ...props }, ref) => {
-  const { isCompactViewport, titleId, registerTitleId } = useResponsiveDialog();
-  const resolvedId = id ?? titleId;
-  React.useLayoutEffect(() => {
-    if (!isCompactViewport) {
-      return;
-    }
-    return registerTitleId(resolvedId);
-  }, [isCompactViewport, registerTitleId, resolvedId]);
-
-  if (isCompactViewport) {
-    const titleProps = {
-      id: resolvedId,
-      className: cn(
-        "text-base font-semibold leading-none tracking-tight",
-        className,
-      ),
-      ...props,
-    };
-    if (asChild) {
-      return (
-        <Slot ref={ref} {...titleProps}>
-          {children}
-        </Slot>
-      );
-    }
-    return (
-      <h2 ref={ref} {...titleProps}>
-        {children}
-      </h2>
-    );
-  }
   return (
     <DialogPrimitive.Title
       ref={ref}
@@ -358,35 +207,6 @@ const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ asChild, className, id, children, ...props }, ref) => {
-  const { isCompactViewport, descriptionId, registerDescriptionId } =
-    useResponsiveDialog();
-  const resolvedId = id ?? descriptionId;
-  React.useLayoutEffect(() => {
-    if (!isCompactViewport) {
-      return;
-    }
-    return registerDescriptionId(resolvedId);
-  }, [isCompactViewport, registerDescriptionId, resolvedId]);
-
-  if (isCompactViewport) {
-    const descriptionProps = {
-      id: resolvedId,
-      className: cn("text-sm text-muted-foreground", className),
-      ...props,
-    };
-    if (asChild) {
-      return (
-        <Slot ref={ref} {...descriptionProps}>
-          {children}
-        </Slot>
-      );
-    }
-    return (
-      <p ref={ref} {...descriptionProps}>
-        {children}
-      </p>
-    );
-  }
   return (
     <DialogPrimitive.Description
       ref={ref}
