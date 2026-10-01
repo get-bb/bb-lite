@@ -8,9 +8,14 @@ import {
   type ServerRunner,
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
+import { ensurePersonalProject } from "./db/projects.js";
 import { createBasicEnvironments } from "./environments/basic.js";
+import { startWorkspaceWatch } from "./environments/watch.js";
 import { createHttpApp } from "./http/app.js";
+import { PluginHost, startPlugins } from "./plugins/host.js";
+import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
+import { startTerminalSessions } from "./terminals/sessions.js";
 import { createThreadEngine } from "./threads/engine.js";
 import { createNoExtensions } from "./threads/extensions.js";
 import { registerSockets } from "./ws/endpoints.js";
@@ -22,7 +27,13 @@ export type StartupStep = (
   ctx: ServerContext,
 ) => void | Disposer | Promise<void | Disposer>;
 
-export const startupSteps: StartupStep[] = [];
+export const startupSteps: StartupStep[] = [
+  ensureLocalHost,
+  (ctx) => ensurePersonalProject(ctx.db),
+  startPlugins,
+  startTerminalSessions,
+  startWorkspaceWatch,
+];
 
 export interface CreateServerOptions {
   config: ServerConfig;
@@ -50,9 +61,10 @@ export function createServer(options: CreateServerOptions): BbServer {
   const runners = new RunnerRegistry({ localHostId, localRunner, log });
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
+  const plugins = new PluginHost({ config, db, hub, log });
   const environments = createBasicEnvironments({ db, hub, runners });
   const extensions = createNoExtensions();
-  const services = { environments, extensions };
+  const services = { plugins, environments, extensions };
   const base = { config, db, hub, runners, log, now, ...services };
   const threads = createThreadEngine(base);
   const ctx: ServerContext = Object.assign(base, { threads });

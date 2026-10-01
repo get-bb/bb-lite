@@ -1,6 +1,5 @@
 import {
   areFixedPanelTabsEquivalent,
-  type BrowserFixedPanelTab,
   type FixedPanelTab,
   type FixedPanelTabsState,
   type FixedPanelViewTab,
@@ -79,10 +78,6 @@ function isStorageFilePreviewTab(
   return tab.kind === "thread-storage-file-preview";
 }
 
-export function isBrowserTab(tab: FixedPanelTab): tab is BrowserFixedPanelTab {
-  return tab.kind === "browser";
-}
-
 function isNewTab(tab: FixedPanelTab): tab is NewTabFixedPanelTab {
   return tab.kind === "new-tab";
 }
@@ -94,7 +89,6 @@ export function isSecondaryFileTab(
     case "workspace-file-preview":
     case "host-file-preview":
     case "thread-storage-file-preview":
-    case "browser":
     case "terminal":
     case "new-tab":
     case "plugin-panel":
@@ -538,7 +532,6 @@ export function buildOrderedSecondaryPanelFileTabs({
         }
         break;
       case "host-file-preview":
-      case "browser":
       case "terminal":
       case "new-tab":
       case "thread-storage-file-preview":

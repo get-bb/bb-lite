@@ -1,10 +1,6 @@
 import { hostDaemonContributedEnvEntrySchema } from "./commands.js";
 import { desktopBrowserChangedSchema } from "./desktop-browser.js";
 import {
-  serverMovedMessageSchema,
-  serverMoveProgressMessageSchema,
-} from "./server-move.js";
-import {
   discoveredWorkspacePropertiesSchema,
   ENVIRONMENT_CHANGE_KINDS,
   jsonValueSchema,
@@ -452,12 +448,6 @@ const hostDaemonOnlineRpcResponseSuccessSchema = z.discriminatedUnion(
     onlineRpcResponseSuccessSchemaFor("workspace.diffFiles"),
     onlineRpcResponseSuccessSchemaFor("workspace.diffPatch"),
     onlineRpcResponseSuccessSchemaFor("workspace.pull_request"),
-    onlineRpcResponseSuccessSchemaFor("server_move.inspect"),
-    onlineRpcResponseSuccessSchemaFor("server_move.probe"),
-    onlineRpcResponseSuccessSchemaFor("server_move.prepare"),
-    onlineRpcResponseSuccessSchemaFor("server_move.activate"),
-    onlineRpcResponseSuccessSchemaFor("server_move.abort"),
-    onlineRpcResponseSuccessSchemaFor("server_move.delete_old_copy"),
     commandRpcResponseSuccessSchemaFor("thread.rewind.discard"),
     commandRpcResponseSuccessSchemaFor("thread.rewind.prepare"),
     commandRpcResponseSuccessSchemaFor("thread.start"),
@@ -603,7 +593,6 @@ export const hostDaemonServerWsMessageSchema = z.discriminatedUnion("type", [
       type: z.literal("machine.shutdown"),
     })
     .strict(),
-  serverMovedMessageSchema,
   z
     .object({
       type: z.literal("session-close"),
@@ -758,7 +747,6 @@ export const hostDaemonDaemonWsMessageSchema = z.union([
   pluginHostWorkerExitedMessageSchema,
   pluginHostSignalMessageSchema,
   environmentHookProgressMessageSchema,
-  serverMoveProgressMessageSchema,
   hostDaemonTerminalOpenedMessageSchema,
   hostDaemonTerminalOutputMessageSchema,
   hostDaemonTerminalReplayMessageSchema,

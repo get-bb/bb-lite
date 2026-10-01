@@ -481,9 +481,6 @@ importers:
       '@bb/core-ui':
         specifier: workspace:*
         version: link:../core-ui
-      '@bb/desktop-contract':
-        specifier: workspace:*
-        version: link:../desktop-contract
       '@bb/domain':
         specifier: workspace:*
         version: link:../domain
@@ -575,9 +572,6 @@ importers:
       '@bb/domain':
         specifier: workspace:*
         version: link:../domain
-      '@bb/host-daemon-contract':
-        specifier: workspace:*
-        version: link:../host-daemon-contract
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -889,6 +883,9 @@ importers:
       '@bb/fuzzy-match':
         specifier: workspace:*
         version: link:../fuzzy-match
+      '@bb/server-contract':
+        specifier: workspace:*
+        version: link:../server-contract
       '@parcel/watcher':
         specifier: 2.5.6
         version: 2.5.6
@@ -1703,6 +1700,9 @@ importers:
 
   plugins/thread-list:
     dependencies:
+      '@bb/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
       '@bb/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui

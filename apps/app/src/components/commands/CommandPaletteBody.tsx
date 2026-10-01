@@ -268,10 +268,9 @@ function PaletteRow({
   onActivate: () => void;
   onSelect: () => void;
 }) {
-  const metadataGroup =
-    entry.action.group === "Browser" || entry.action.id.startsWith("plugin:")
-      ? entry.action.group
-      : null;
+  const metadataGroup = entry.action.id.startsWith("plugin:")
+    ? entry.action.group
+    : null;
   const title = isDrillIn ? `${entry.action.title}…` : entry.action.title;
   const shortcut = showShortcut ? entry.action.shortcut : null;
   const hasTrailing = metadataGroup !== null || shortcut !== null || isDrillIn;

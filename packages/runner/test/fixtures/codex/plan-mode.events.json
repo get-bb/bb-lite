@@ -1,0 +1,600 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_ajrs5z7hfr"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i1",
+    "delta": "ready"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i1",
+      "text": "ready",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 20319,
+        "inputTokens": 20314,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 20319,
+        "inputTokens": 20314,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20319,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02211-36f1-7292-a11f-b395a2261561"
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "clientRequestId": "creq_tipe6az5yu"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i2",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i2",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "1"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "."
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " Inspect"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " `"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "math"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": ".js"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "`"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " conventions"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": ".\n"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "2"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "."
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " Add"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " `"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "multiply"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "(a"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": ","
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " b"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": ")"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "`.\n"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "3"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "."
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " Run"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " relevant"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": " tests"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "itemId": "da00000000-i3",
+    "delta": "."
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i3",
+      "text": "1. Inspect `math.js` conventions.\n2. Add `multiply(a, b)`.\n3. Run relevant tests.",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 40718,
+        "inputTokens": 40661,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 57,
+        "reasoningOutputTokens": 21
+      },
+      "last": {
+        "totalTokens": 20399,
+        "inputTokens": 20347,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 52,
+        "reasoningOutputTokens": 21
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20399,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a02211-3215-7c31-938e-4d186168d8e4",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02218-fe5f-7222-85ce-ae82a6b30f6c"
+  }
+]

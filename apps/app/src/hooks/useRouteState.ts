@@ -18,7 +18,6 @@ export function useRouteState(): RouteState {
   );
   const projectlessThreadMatch = useMatch("/threads/:threadId/*");
   const projectlessArchivedMatch = useMatch("/archived");
-  const projectArchivedMatch = useMatch("/projects/:projectId/archived");
   const isRootView = location.pathname === "/";
   const isUnsupportedPersonalProjectThread =
     projectThreadMatch?.params.projectId === PERSONAL_PROJECT_ID;
@@ -42,8 +41,7 @@ export function useRouteState(): RouteState {
     isThreadView:
       Boolean(projectlessThreadMatch) ||
       (Boolean(projectThreadMatch) && !isUnsupportedPersonalProjectThread),
-    isArchivedView:
-      Boolean(projectArchivedMatch) || Boolean(projectlessArchivedMatch),
+    isArchivedView: Boolean(projectlessArchivedMatch),
     isRootView,
     isProjectlessView:
       isRootView ||

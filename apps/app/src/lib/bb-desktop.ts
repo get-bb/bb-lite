@@ -1,8 +1,4 @@
-import type {
-  BbDesktopApi,
-  BbDesktopBrowserApi,
-  BbDesktopWindowState,
-} from "@bb/desktop-contract";
+import type { BbDesktopApi, BbDesktopWindowState } from "@bb/desktop-contract";
 
 export const MACOS_TRAFFIC_LIGHT_RESERVE_OFFSET_CLASS = "left-[84px]";
 export const MACOS_COLLAPSED_TOP_LEFT_RESERVE_CLASS = "pl-[104px]";
@@ -76,12 +72,4 @@ export function readWindowFindTopOffset(): number {
     return Math.round(value);
   }
   return DEFAULT_WINDOW_FIND_TOP_OFFSET;
-}
-
-export function getDesktopBrowserApi(): BbDesktopBrowserApi | null {
-  return getBbDesktopInfo()?.browser ?? null;
-}
-
-export function isDesktopBrowserAvailable(): boolean {
-  return getDesktopBrowserApi() !== null;
 }

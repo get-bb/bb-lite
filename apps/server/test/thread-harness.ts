@@ -63,7 +63,6 @@ export async function createThreadServer() {
   const { db } = ctx;
   const hostId = ctx.config.hostId;
   const at = "created_at, updated_at";
-  db.run(`INSERT INTO hosts (id, name, ${at}) VALUES (?, 'h', 1, 1)`, hostId);
   db.run(`INSERT INTO projects (id, name, ${at}) VALUES ('proj_1', 'P', 1, 1)`);
   db.run(
     `INSERT INTO project_sources (id, project_id, host_id, path, ${at})

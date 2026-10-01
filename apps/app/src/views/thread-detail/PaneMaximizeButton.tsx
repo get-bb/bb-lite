@@ -6,7 +6,6 @@ import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider"
 import { HEADER_PANE_ACTION_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { useHoverPopover } from "@/components/ui/hooks/use-hover-popover";
-import { useBrowserDimmingOverlay } from "@/hooks/useBrowserDimmingModal";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { getBbDesktopInfo } from "@/lib/bb-desktop";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -121,7 +120,6 @@ export function PaneArrangementButton({
     handleOpenChange(true);
     focusFirstMenuItem();
   };
-  useBrowserDimmingOverlay(menuOpen);
   const button = (
     <Button
       type="button"

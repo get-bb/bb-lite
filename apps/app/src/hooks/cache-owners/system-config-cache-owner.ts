@@ -3,14 +3,8 @@ import {
   applyAppKeybindingOverrides,
   type AppKeybindingOverrides,
 } from "@bb/domain";
-import type {
-  SystemAiServicesResponse,
-  SystemConfigResponse,
-} from "@bb/server-contract";
-import {
-  systemAiServicesQueryKey,
-  systemConfigQueryKey,
-} from "../queries/query-keys";
+import type { SystemConfigResponse } from "@bb/server-contract";
+import { systemConfigQueryKey } from "../queries/query-keys";
 
 interface KeyboardSettingsCacheTransaction {
   previous: SystemConfigResponse | undefined;
@@ -74,11 +68,4 @@ export function readCachedProviderOrder(
 ): readonly string[] | undefined {
   return queryClient.getQueryData<SystemConfigResponse>(systemConfigQueryKey())
     ?.generalSettings.providerOrder;
-}
-
-export function writeCachedAiServices(
-  queryClient: QueryClient,
-  view: SystemAiServicesResponse,
-): void {
-  queryClient.setQueryData(systemAiServicesQueryKey(), view);
 }

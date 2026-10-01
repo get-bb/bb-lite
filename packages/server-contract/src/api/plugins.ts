@@ -1,147 +1,13 @@
-import {
-  jsonValueSchema,
-  pluginCatalogCategoryIdSchema,
-  pluginMarketplaceCollectionIdSchema,
-} from "@bb/domain";
+import { jsonValueSchema } from "@bb/domain";
 import { z } from "zod";
 
-export const pluginRuntimeStatusSchema = z.enum([
-  "starting",
+export const pluginStatusSchema = z.enum([
   "running",
-  "error",
-  "incompatible",
-  "missing",
-  "disabled",
-  "degraded",
   "needs-configuration",
+  "error",
+  "disabled",
 ]);
-
-export const pluginUpdateOutcomeSchema = z.enum([
-  "current",
-  "update-available",
-  "pinned",
-  "incompatible",
-  "unavailable",
-]);
-
-export const pluginUpdateStateSchema = z.object({
-  outcome: pluginUpdateOutcomeSchema.optional(),
-  detail: z.string().optional(),
-  availableVersion: z.string().optional(),
-  blockedVersion: z.string().optional(),
-  blockedReasons: z.array(z.string()).optional(),
-  lastCheckAt: z.number().optional(),
-  lastFailure: z
-    .object({ version: z.string(), at: z.number(), detail: z.string() })
-    .optional(),
-});
-
-export const pluginHandlerStatsSchema = z.object({
-  count: z.number(),
-  totalMs: z.number(),
-  maxMs: z.number(),
-  errorCount: z.number(),
-});
-export type PluginHandlerStats = z.infer<typeof pluginHandlerStatsSchema>;
-
-export const pluginServiceEntrySchema = z.object({
-  name: z.string(),
-  state: z.enum(["running", "backoff", "stopped"]),
-});
-export const pluginScheduleEntrySchema = z.object({
-  name: z.string(),
-  cron: z.string(),
-  nextRunAt: z.number(),
-  lastRunAt: z.number().nullable(),
-  lastStatus: z.enum(["running", "ok", "error"]).nullable(),
-  lastError: z.string().nullable(),
-});
-
-export const pluginAppStateSchema = z.object({
-  hasApp: z.boolean(),
-  bundle: z
-    .object({
-      jsUrl: z.string(),
-      cssUrl: z.string().nullable(),
-      jsBytes: z.number().int().nonnegative(),
-      hash: z.string(),
-      sdkMajor: z.number(),
-      sdkVersion: z.string(),
-      compatible: z.boolean(),
-    })
-    .nullable(),
-});
-
-export const pluginCapabilitySchema = z.object({
-  kind: z.enum(["skill", "theme", "agent-tool", "thread-integration"]),
-  id: z.string(),
-  label: z.string(),
-  detail: z.string().nullable(),
-});
-
-export const pluginCapabilitySummarySchema = z.array(pluginCapabilitySchema);
-export type PluginCapabilitySummary = z.infer<
-  typeof pluginCapabilitySummarySchema
->;
-
-export const installedPluginSchema = z.object({
-  id: z.string(),
-  source: z.string(),
-  rootDir: z.string(),
-  version: z.string(),
-  provenance: z.enum(["builtin", "direct", "catalog"]),
-  isOrphanedBuiltin: z.boolean(),
-  catalogEntryId: z.string().optional(),
-  catalogMarketplaceName: z.string().optional(),
-  publisherLabel: z.string().nullable().default(null),
-  sourceDisplay: z.string(),
-  updateState: pluginUpdateStateSchema,
-  enabled: z.boolean(),
-  description: z.string().nullable(),
-  name: z.string().nullable(),
-  categoryId: pluginCatalogCategoryIdSchema.optional(),
-  category: z.string().optional(),
-  screenshots: z.array(z.string()),
-  collections: z.array(
-    z.object({
-      id: pluginMarketplaceCollectionIdSchema,
-      rank: z.number().int().nonnegative(),
-    }),
-  ),
-  publishedAt: z.iso.datetime({ offset: true }).optional(),
-  updatedAt: z.iso.datetime({ offset: true }).optional(),
-  icon: z.string().nullable(),
-  iconUrl: z.string().nullable(),
-  status: pluginRuntimeStatusSchema,
-  statusDetail: z.string().nullable(),
-  handlerStats: pluginHandlerStatsSchema,
-  services: z.array(pluginServiceEntrySchema),
-  schedules: z.array(pluginScheduleEntrySchema),
-  cliCommand: z.object({ name: z.string(), summary: z.string() }).nullable(),
-  capabilities: pluginCapabilitySummarySchema.default([]),
-  hasSettings: z.boolean(),
-  app: pluginAppStateSchema,
-  logoUrl: z.string().nullable(),
-  logoDarkUrl: z.string().nullable(),
-  providerIds: z.array(z.string()),
-  /**
-   * The plugin's declared icons (`bb.branding.experimental_icons`): declared
-   * name → hashed asset URL (`/api/v1/plugins/<id>/assets/icons/<name>.svg?h=…`).
-   * A timeline row or provider whose glyph is `"<pluginId>/<name>"` resolves
-   * here; a name that is absent (the plugin changed its map, or is gone)
-   * renders the per-kind fallback glyph. Identity-backed like `iconUrl`, so a
-   * disabled plugin's icons still resolve. Empty for a plugin that declares
-   * none; the server fills it for every plugin, with the same response-side
-   * tolerance as `providerIds` in @bb/sdk for servers older than the field.
-   */
-  icons: z.record(z.string(), z.string()),
-});
-export type InstalledPlugin = z.infer<typeof installedPluginSchema>;
-
-export const pluginListResponseSchema = z.object({
-  plugins: z.array(installedPluginSchema),
-});
-export type PluginListResponse = z.infer<typeof pluginListResponseSchema>;
+export type PluginStatus = z.infer<typeof pluginStatusSchema>;
 
 const pluginSettingBaseSchema = {
   label: z.string().min(1),
@@ -154,7 +20,7 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       ...pluginSettingBaseSchema,
       type: z.literal("string"),
       secret: z.literal(true).optional(),
-      experimental_multiline: z.boolean().optional(),
+      multiline: z.boolean().optional(),
       default: z.string().optional(),
     })
     .strict(),
@@ -192,9 +58,50 @@ export type PluginSettingDescriptor = z.infer<
   typeof pluginSettingDescriptorSchema
 >;
 
+const pluginSettingDescriptorsSchema = z.record(
+  z.string(),
+  pluginSettingDescriptorSchema,
+);
+
+export const pluginAppSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("builtin") }),
+  z.object({
+    kind: z.literal("external"),
+    jsUrl: z.string(),
+    cssUrl: z.string().nullable(),
+    hash: z.string(),
+  }),
+]);
+export type PluginApp = z.infer<typeof pluginAppSchema>;
+
+const pluginCliCommandSchema = z.object({
+  name: z.string(),
+  summary: z.string(),
+});
+
+export const installedPluginSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  icon: z.string().nullable(),
+  enabled: z.boolean(),
+  status: pluginStatusSchema,
+  statusMessage: z.string().nullable(),
+  hasSettings: z.boolean(),
+  settings: pluginSettingDescriptorsSchema,
+  app: pluginAppSchema.nullable(),
+  cliCommands: z.array(pluginCliCommandSchema),
+});
+export type InstalledPlugin = z.infer<typeof installedPluginSchema>;
+
+export const pluginListResponseSchema = z.object({
+  plugins: z.array(installedPluginSchema),
+});
+export type PluginListResponse = z.infer<typeof pluginListResponseSchema>;
+
 export const pluginSettingsResponseSchema = z.object({
   ok: z.literal(true),
-  schema: z.record(z.string(), pluginSettingDescriptorSchema),
+  schema: pluginSettingDescriptorsSchema,
   values: z.record(z.string(), jsonValueSchema),
 });
 export type PluginSettingsResponse = z.infer<
@@ -215,26 +122,61 @@ export const pluginTokenResponseSchema = z.object({
 });
 export type PluginTokenResponse = z.infer<typeof pluginTokenResponseSchema>;
 
-export const pluginRpcDiscoveryQuerySchema = z.object({
-  pluginId: z.string().min(1).optional(),
-  method: z.string().min(1).optional(),
+export const pluginCliRequestSchema = z.object({
+  argv: z.array(z.string()),
+  cwd: z.string().min(1).optional(),
+  threadId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
 });
-export type PluginRpcDiscoveryQuery = z.infer<
-  typeof pluginRpcDiscoveryQuerySchema
+
+export const pluginCliResponseSchema = z.object({
+  exitCode: z.number().int(),
+  stdout: z.string(),
+  stderr: z.string(),
+});
+export type PluginCliResponse = z.infer<typeof pluginCliResponseSchema>;
+
+export const pluginMentionTriggerSchema = z.enum(["@", "#", "$", "!", "~"]);
+export type PluginMentionTrigger = z.infer<typeof pluginMentionTriggerSchema>;
+
+export const pluginContributionsResponseSchema = z.object({
+  cliCommands: z.array(
+    pluginCliCommandSchema.extend({
+      pluginId: z.string(),
+      commands: z.array(pluginCliCommandSchema),
+    }),
+  ),
+  mentionProviders: z.array(
+    z.object({
+      pluginId: z.string(),
+      id: z.string(),
+      label: z.string(),
+      triggers: z.array(pluginMentionTriggerSchema),
+    }),
+  ),
+});
+export type PluginContributionsResponse = z.infer<
+  typeof pluginContributionsResponseSchema
 >;
 
-export const publishedPluginRpcMethodSchema = z.object({
-  pluginId: z.string().min(1),
-  displayName: z.string().min(1),
-  method: z.string().min(1),
-  registrationDescription: z.string().nullable(),
-  methodDescription: z.string().nullable(),
-  inputSchema: z.record(z.string(), jsonValueSchema),
-  outputSchema: z.record(z.string(), jsonValueSchema),
+export const pluginMentionSearchQuerySchema = z.object({
+  q: z.string().default(""),
+  trigger: pluginMentionTriggerSchema.default("@"),
+  projectId: z.string().min(1).optional(),
+  threadId: z.string().min(1).optional(),
 });
-export type PublishedPluginRpcMethod = z.infer<
-  typeof publishedPluginRpcMethodSchema
->;
-export const pluginRpcDiscoveryResponseSchema = z.array(
-  publishedPluginRpcMethodSchema,
-);
+
+export const pluginMentionGroupSchema = z.object({
+  pluginId: z.string(),
+  providerId: z.string(),
+  label: z.string(),
+  items: z.array(
+    z.object({
+      itemId: z.string(),
+      title: z.string(),
+      subtitle: z.string().nullable(),
+      icon: z.string().nullable(),
+    }),
+  ),
+});
+export type PluginMentionGroup = z.infer<typeof pluginMentionGroupSchema>;

@@ -1,9 +1,6 @@
-import type { MachineLifecycle } from "@bb/domain";
-import { cn } from "@bb/shared-ui/lib/utils";
-
-export type MachineLifecycleNoticeState = Pick<MachineLifecycle, "phase"> & {
+export interface MachineLifecycleNoticeState {
   message: string | null;
-};
+}
 
 export function MachineLifecycleNoticeContent({
   notice,
@@ -15,12 +12,7 @@ export function MachineLifecycleNoticeContent({
     <p
       role="status"
       aria-label="Machine maintenance"
-      className={cn(
-        "min-w-0 text-xs",
-        notice.phase === "suspending" || notice.phase === "resuming"
-          ? "text-subtle-foreground"
-          : "text-destructive-text",
-      )}
+      className="min-w-0 text-xs text-destructive-text"
     >
       {notice.message}
     </p>

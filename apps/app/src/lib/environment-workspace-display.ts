@@ -9,8 +9,6 @@ import type { SystemEnvironmentProvider } from "@bb/server-contract";
 import type { IconName } from "@bb/shared-ui/icon";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { PersistentHostIconName } from "@/lib/host-display";
-import type { MachineLabelHost } from "@/components/machines/MachineLabel";
-import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
 
 export type EnvironmentWorkspaceDisplayProviderLookup =
   | { status: "loading" }
@@ -20,7 +18,7 @@ export type EnvironmentWorkspaceDisplayProviderLookup =
       environmentProviderId: string | null;
     };
 
-export type EnvironmentSummaryChromeHost = MachineLabelHost;
+export type EnvironmentSummaryChromeHost = Pick<Host, "name" | "type">;
 
 export const UNNAMED_ENVIRONMENT_LABEL = "Environment";
 export const REUSE_ENVIRONMENT_ICON_NAME: IconName = "Folder02";
@@ -204,7 +202,6 @@ export function getEnvironmentLabelIconName(
 interface EnvironmentSummaryChromeArgs extends EnvironmentWorkspaceLabelArgs {
   hasMultipleMachines: boolean;
   host: EnvironmentSummaryChromeHost | null;
-  machineProviders: readonly MachineProviderPresentation[] | undefined;
 }
 
 interface EnvironmentSummaryChrome {
@@ -213,7 +210,6 @@ interface EnvironmentSummaryChrome {
   environmentIcon: IconName | undefined;
   environmentProviderName: string | undefined;
   environmentHost: EnvironmentSummaryChromeHost | undefined;
-  environmentMachineProvider: MachineProviderPresentation | undefined;
 }
 
 export function getEnvironmentSummaryChrome({
@@ -221,7 +217,6 @@ export function getEnvironmentSummaryChrome({
   providerLookup,
   hasMultipleMachines,
   host,
-  machineProviders,
 }: EnvironmentSummaryChromeArgs): EnvironmentSummaryChrome {
   const summary = getEnvironmentWorkspaceSummaryDisplay({
     display,
@@ -231,17 +226,12 @@ export function getEnvironmentSummaryChrome({
     hostType: host?.type ?? null,
   });
   const summaryHost =
-    host !== null && summary?.label === host.name
-      ? host
-      : undefined;
+    host !== null && summary?.label === host.name ? host : undefined;
   return {
     environmentLabel: summary?.label,
     environmentCompactLabel: summary?.compactLabel,
     environmentIcon: summary?.icon,
     environmentProviderName: summary?.providerName ?? undefined,
     environmentHost: summaryHost,
-    environmentMachineProvider: machineProviders?.find(
-      (provider) => provider.id === summaryHost?.machineProviderId,
-    ),
   };
 }

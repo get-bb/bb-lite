@@ -31,7 +31,6 @@ import {
   getEnvironmentSummaryChrome,
 } from "@/lib/environment-workspace-display";
 import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { useSystemMachineProviders } from "@/hooks/queries/machine-provider-queries";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import { BbHttpError } from "@/lib/sdk";
 import {
@@ -119,7 +118,6 @@ function PluginThreadChatBody({
     : null;
   const hasMultipleMachines = (hostsQuery.data?.length ?? 0) > 1;
   const { providers: environmentProviders } = useSystemEnvironmentProviders();
-  const { providers: machineProviders } = useSystemMachineProviders();
   const timelineNavigation = useThreadTimelineNavigation();
   const canUseHostFileNavigation =
     thread !== undefined &&
@@ -204,7 +202,6 @@ function PluginThreadChatBody({
       providerLookup,
       hasMultipleMachines,
       host: environmentHost,
-      machineProviders,
     });
     return (
       <ThreadEnvironmentSummary
@@ -212,7 +209,6 @@ function PluginThreadChatBody({
         environmentCompactLabel={chrome.environmentCompactLabel}
         environmentHost={chrome.environmentHost}
         environmentIcon={chrome.environmentIcon}
-        environmentMachineProvider={chrome.environmentMachineProvider}
         environmentProviderName={chrome.environmentProviderName}
         environmentCheckout={
           environment.branchName
@@ -233,7 +229,6 @@ function PluginThreadChatBody({
     environmentProviders,
     hasMultipleMachines,
     isLocalDaemonHost,
-    machineProviders,
   ]);
 
   const isThreadMissing =
@@ -261,7 +256,6 @@ function PluginThreadChatBody({
       <ThreadTimelinePanelContent
         leadingContent={leadingContent}
         consumerMessageActions={consumerMessageActions}
-        includePluginMessageActions={false}
         onOpenLink={onOpenLink}
         onOpenLocalFileLink={onOpenLocalFileLink}
         projectId={thread.projectId}
@@ -298,7 +292,6 @@ function PluginThreadChatBody({
         resolveMentionLink={resolveMentionLink}
         leadingContent={leadingContent}
         consumerMessageActions={consumerMessageActions}
-        includePluginMessageActions={false}
         onOpenLink={onOpenLink}
         onOpenLocalFileLink={onOpenLocalFileLink}
         workspaceRootPath={workspaceRootPath}

@@ -1,11 +1,5 @@
 import { z } from "zod";
 import {
-  BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH,
-  BB_DESKTOP_BROWSER_MAX_URL_LENGTH,
-  bbDesktopBrowserTargetSchema,
-  type BbDesktopBrowserTarget,
-} from "@bb/desktop-contract";
-import {
   terminalCreateTargetSchema,
   threadTabFileOpenerOwnerSchema,
   type TerminalCreateTarget,
@@ -114,20 +108,6 @@ const threadStorageFilePreviewFixedPanelTabSchema = z
     threadId: z.string().min(1).nullable().default(null),
   })
   .strict();
-const browserFixedPanelTabSchema = z
-  .object({
-    environmentId: z.string().min(1).nullable().default(null),
-    id: z.string().min(1),
-    kind: z.literal("browser"),
-    desktopTarget: bbDesktopBrowserTargetSchema.optional(),
-    title: z
-      .string()
-      .min(1)
-      .max(BB_DESKTOP_BROWSER_MAX_TITLE_LENGTH)
-      .nullable(),
-    url: z.string().max(BB_DESKTOP_BROWSER_MAX_URL_LENGTH),
-  })
-  .strict();
 const newTabFixedPanelTabSchema = z
   .object({
     id: z.string().min(1),
@@ -161,9 +141,12 @@ const secondaryFixedPanelTabSchema = z.union([
   workspaceFilePreviewFixedPanelTabSchema,
   hostFilePreviewFixedPanelTabSchema,
   threadStorageFilePreviewFixedPanelTabSchema,
-  browserFixedPanelTabSchema,
   newTabFixedPanelTabSchema,
   terminalFixedPanelTabSchema,
+]);
+const DROPPED_FIXED_PANEL_TAB_KINDS: ReadonlySet<unknown> = new Set([
+  "side-chat",
+  "browser",
 ]);
 const secondaryFixedPanelTabsSchema = z.preprocess(
   (value) =>
@@ -173,7 +156,9 @@ const secondaryFixedPanelTabsSchema = z.preprocess(
             !(
               typeof tab === "object" &&
               tab !== null &&
-              (tab as { kind?: unknown }).kind === "side-chat"
+              DROPPED_FIXED_PANEL_TAB_KINDS.has(
+                (tab as { kind?: unknown }).kind,
+              )
             ),
         )
       : value,
@@ -258,15 +243,6 @@ export interface ThreadStorageFilePreviewFixedPanelTab {
   threadId: string | null;
 }
 
-export interface BrowserFixedPanelTab {
-  desktopTarget?: BbDesktopBrowserTarget;
-  environmentId: string | null;
-  id: string;
-  kind: "browser";
-  title: string | null;
-  url: string;
-}
-
 export interface NewTabFixedPanelTab {
   id: string;
   kind: "new-tab";
@@ -287,7 +263,6 @@ export type SecondaryFixedPanelTab =
   | WorkspaceFilePreviewFixedPanelTab
   | HostFilePreviewFixedPanelTab
   | ThreadStorageFilePreviewFixedPanelTab
-  | BrowserFixedPanelTab
   | NewTabFixedPanelTab
   | TerminalFixedPanelTab;
 
@@ -295,7 +270,6 @@ export type SecondaryFileFixedPanelTab =
   | WorkspaceFilePreviewFixedPanelTab
   | HostFilePreviewFixedPanelTab
   | ThreadStorageFilePreviewFixedPanelTab
-  | BrowserFixedPanelTab
   | NewTabFixedPanelTab
   | TerminalFixedPanelTab
   | PluginPanelFixedPanelTab;
@@ -428,14 +402,6 @@ interface NormalizeFixedPanelTabGroupStateResult {
 
 function normalizeStorageSegment(value: string): string {
   return encodeURIComponent(value.trim());
-}
-
-function decodeStorageSegment(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 export function buildFixedPanelTabId({
@@ -723,20 +689,6 @@ function normalizeFixedPanelTabId(tab: FixedPanelTab): FixedPanelTab {
       });
       return tab.id === id ? tab : { ...tab, id };
     }
-    case "browser": {
-      if (tab.desktopTarget !== undefined) return tab;
-      const idSegments = tab.id.split(":");
-      const browserPath =
-        idSegments.length === 3 && idSegments[0] === "browser"
-          ? decodeStorageSegment(idSegments[1] ?? "")
-          : tab.id;
-      const id = buildFixedPanelTabId({
-        environmentId: tab.environmentId,
-        kind: tab.kind,
-        path: browserPath,
-      });
-      return tab.id === id ? tab : { ...tab, id };
-    }
     case "new-tab":
       return tab.id === NEW_TAB_TAB_ID
         ? tab
@@ -823,7 +775,6 @@ function stripTransientFixedPanelTabForStorage(
     case "thread-info":
     case "git-diff":
     case "plugin-page-fixed":
-    case "browser":
     case "new-tab":
     case "terminal":
       return tab;
@@ -1071,16 +1022,6 @@ export function areFixedPanelTabsEquivalent(
         }) &&
         a.path === b.path &&
         a.threadId === b.threadId
-      );
-    case "browser":
-      return (
-        b.kind === "browser" &&
-        a.desktopTarget?.hostId === b.desktopTarget?.hostId &&
-        a.desktopTarget?.instanceId === b.desktopTarget?.instanceId &&
-        a.desktopTarget?.generation === b.desktopTarget?.generation &&
-        a.environmentId === b.environmentId &&
-        a.url === b.url &&
-        a.title === b.title
       );
     case "thread-storage-file-preview":
       return (

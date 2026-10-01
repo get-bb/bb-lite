@@ -11,9 +11,7 @@ import type {
   SystemExecutionOptionsResponse,
   SystemProvidersQuery,
   SystemProviderStatesResponse,
-  SystemVersionResponse,
 } from "@bb/server-contract";
-import type { ProviderCliStatusResponse } from "@bb/host-daemon-contract";
 import { BbHttpError, sdk } from "@/lib/sdk";
 import { isAbortLikeError } from "@/lib/mutation-errors";
 import {
@@ -33,22 +31,15 @@ import {
 import {
   allSystemExecutionOptionsQueryKeyPrefix,
   allSystemProvidersQueryKeyPrefix,
-  hostProviderCliStatusQueryKey,
-  systemAiServicesQueryKey,
   systemConfigQueryKey,
   systemExecutionOptionsQueryKey,
   systemProvidersQueryKey,
   systemProviderCatalogQueryKey,
   systemProviderStatesQueryKey,
   systemThemeQueryKey,
-  systemVersionQueryKey,
   uiPreferencesQueryKey,
 } from "./query-keys";
-import { requireEnabledQueryArg, type QueryOptions } from "./query-helpers";
-import {
-  SERVER_SESSION_QUERY_POLICY,
-  SESSION_STATIC_QUERY_POLICY,
-} from "./query-policies";
+import { type QueryOptions } from "./query-helpers";
 
 interface UseSystemExecutionOptionsArgs {
   enabled?: boolean;
@@ -374,24 +365,6 @@ export function systemConfigQueryOptions() {
   });
 }
 
-export function systemAiServicesQueryOptions() {
-  return queryOptions({
-    queryKey: systemAiServicesQueryKey(),
-    queryFn: ({ signal }) => sdk.system.aiServices({ signal }),
-    staleTime: 10_000,
-  });
-}
-
-export function useSystemAiServices(options?: QueryOptions) {
-  const enabled = options?.enabled ?? true;
-  useSystemRealtimeSubscription({ enabled });
-
-  return useQuery({
-    ...systemAiServicesQueryOptions(),
-    enabled,
-  });
-}
-
 export function uiPreferencesQueryOptions() {
   return queryOptions({
     queryKey: uiPreferencesQueryKey(),
@@ -425,40 +398,6 @@ export function useSystemConfig(options?: QueryOptions) {
   return useQuery({
     ...systemConfigQueryOptions(),
     enabled,
-  });
-}
-
-export function useSystemVersion(options?: QueryOptions) {
-  return useQuery<SystemVersionResponse>({
-    queryKey: systemVersionQueryKey(),
-    queryFn: ({ signal }) => sdk.system.version({ signal }),
-    enabled: options?.enabled ?? true,
-    ...SERVER_SESSION_QUERY_POLICY,
-  });
-}
-
-interface UseHostProviderCliStatusArgs {
-  hostId: string | null;
-  enabled?: boolean;
-}
-
-export function useHostProviderCliStatus({
-  hostId,
-  enabled,
-}: UseHostProviderCliStatusArgs) {
-  return useQuery<ProviderCliStatusResponse>({
-    queryKey: hostProviderCliStatusQueryKey(hostId),
-    queryFn: ({ signal }) =>
-      sdk.hosts.providerCliStatus({
-        hostId: requireEnabledQueryArg({
-          value: hostId,
-          hookName: "useHostProviderCliStatus",
-          argName: "hostId",
-        }),
-        signal,
-      }),
-    enabled: (enabled ?? true) && hostId !== null,
-    ...SESSION_STATIC_QUERY_POLICY,
   });
 }
 

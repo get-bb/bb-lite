@@ -99,7 +99,6 @@ interface ConversationMessageContentUserProps extends ConversationMessageContent
   senderThreadId: TimelineUserConversationRow["senderThreadId"];
   senderThreadProjectId?: string;
   senderThreadTitle: string | null;
-  senderIsPluginSideChat: boolean;
   systemMessageKind: TimelineUserConversationRow["systemMessageKind"];
   systemMessageSubject: TimelineUserConversationRow["systemMessageSubject"];
   threadId?: string;
@@ -133,7 +132,6 @@ interface ConversationMessageContentAssistantProps
   onOpenLink?: ThreadTimelineLinkHandler;
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onFork?: () => void;
-  onSendToMain?: () => void;
   forkDisabled?: boolean;
   onSelectProse?: (selection: MessageProseSelection | null) => void;
   showActions: boolean;
@@ -165,7 +163,6 @@ interface UserConversationMessageProps {
   senderThreadId: TimelineUserConversationRow["senderThreadId"];
   senderThreadProjectId: string | null;
   senderThreadTitle: string | null;
-  senderIsPluginSideChat: boolean;
   systemMessageKind: TimelineUserConversationRow["systemMessageKind"];
   systemMessageSubject: TimelineUserConversationRow["systemMessageSubject"];
   text: string;
@@ -180,7 +177,6 @@ interface AssistantConversationMessageProps extends AssistantMessageRowIdentity 
   pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onFork?: () => void;
-  onSendToMain?: () => void;
   forkDisabled?: boolean;
   onSelectProse?: (selection: MessageProseSelection | null) => void;
   onOpenLink?: ThreadTimelineLinkHandler;
@@ -346,7 +342,6 @@ function UserConversationMessage({
   senderThreadId,
   senderThreadProjectId,
   senderThreadTitle,
-  senderIsPluginSideChat,
   systemMessageKind,
   systemMessageSubject,
   text,
@@ -368,12 +363,9 @@ function UserConversationMessage({
     initiator === "agent" && senderThreadId !== null
       ? {
           sourceKind: "agent" as const,
-          sourceName: senderIsPluginSideChat
-            ? "side chat"
-            : (senderThreadTitle ?? "Agent"),
+          sourceName: senderThreadTitle ?? "Agent",
           sourceProjectId: senderThreadProjectId,
           sourceThreadId: senderThreadId,
-          sourceIsPluginSideChat: senderIsPluginSideChat,
           originKind,
         }
       : initiator === "system"
@@ -382,7 +374,6 @@ function UserConversationMessage({
             sourceName: "BB",
             sourceProjectId: null,
             sourceThreadId: null,
-            sourceIsPluginSideChat: false,
             originKind: null,
           }
         : null;
@@ -473,7 +464,6 @@ function AssistantConversationMessage({
   id,
   onAddToChat,
   onFork,
-  onSendToMain,
   forkDisabled,
   onSelectProse,
   onOpenLink,
@@ -614,7 +604,6 @@ function AssistantConversationMessage({
           copyImageUrl={attachmentItems.imageItems[0]?.src}
           onAddToChat={onAddToChat}
           onFork={onFork}
-          onSendToMain={onSendToMain}
           disabled={forkDisabled}
           pluginActions={pluginActions}
         />
@@ -669,7 +658,6 @@ export function ConversationMessageContent(
         senderThreadId={props.senderThreadId}
         senderThreadProjectId={props.senderThreadProjectId ?? null}
         senderThreadTitle={props.senderThreadTitle}
-        senderIsPluginSideChat={props.senderIsPluginSideChat}
         systemMessageKind={props.systemMessageKind}
         systemMessageSubject={props.systemMessageSubject}
         text={text}
@@ -688,7 +676,6 @@ export function ConversationMessageContent(
       pluginActions={props.pluginActions}
       onAddToChat={props.onAddToChat}
       onFork={props.onFork}
-      onSendToMain={props.onSendToMain}
       forkDisabled={props.forkDisabled}
       onSelectProse={props.onSelectProse}
       onOpenLink={props.onOpenLink}

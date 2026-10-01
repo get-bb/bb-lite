@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { BbDesktopBrowserApi } from "./browser.js";
 import type { BbDesktopWindowFindRequest } from "./find.js";
 import { bbDesktopVersionFeedPlatformSchema } from "./version-feed.js";
 import type { AppCommandId } from "@bb/domain";
@@ -52,7 +51,6 @@ export type BbDesktopAppCommandHandler = (command: AppCommandId) => void;
 export type BbDesktopCloseWindowRequestHandler = () => boolean;
 
 export interface BbDesktopApi extends BbDesktopInfo {
-  browser: BbDesktopBrowserApi;
   checkForUpdates(): Promise<BbDesktopInfo>;
   getInfo(): Promise<BbDesktopInfo>;
   focusWindow?(): void;

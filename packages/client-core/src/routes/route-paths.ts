@@ -1,23 +1,12 @@
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 
 export const APP_ROOT_ROUTE_PATH = "/";
-export const AUTH_CALLBACK_ROUTE_PATH = "/auth/callback";
 export const SETTINGS_ROUTE_PATH = "/settings";
 export const SETTINGS_SECTION_ROUTE_PATH = "/settings/:section";
 export const SETTINGS_PLUGINS_ROUTE_PATH = "/settings/plugins";
 export const SETTINGS_PLUGIN_ROUTE_PATH = "/settings/plugins/:pluginId";
 export const SETTINGS_MACHINE_ROUTE_PATH = "/settings/machines/:hostId";
 export const SETTINGS_PROJECT_ROUTE_PATH = "/settings/projects/:projectId";
-export const LEGACY_TOOLS_AUTOMATIONS_ROUTE_PATH = "/tools/automations";
-export const LEGACY_TOOLS_AUTOMATION_BROWSE_ROUTE_PATH =
-  "/tools/automations/browse";
-export const LEGACY_TOOLS_AUTOMATION_DETAIL_ROUTE_PATH =
-  "/tools/automations/:projectId/:automationId";
-export const LEGACY_TOOLS_AUTOMATION_EDIT_ROUTE_PATH =
-  "/tools/automations/:projectId/:automationId/edit";
-export const LEGACY_AUTOMATIONS_ROUTE_PATH = "/automations";
-export const LEGACY_AUTOMATION_DETAIL_ROUTE_PATH =
-  "/automations/:projectId/:automationId";
 export const AUTOMATIONS_PLUGIN_ID = "automations";
 export const AUTOMATIONS_ROUTE_PATH = "/plugins/automations/automations";
 export const AUTOMATIONS_BROWSE_ROUTE_PATH =
@@ -30,9 +19,6 @@ const ROOT_COMPOSE_ROUTE_PATH = APP_ROOT_ROUTE_PATH;
 export const LEGACY_PROJECT_COMPOSE_ROUTE_PATH = "/projects/:projectId";
 export const PROJECTLESS_ARCHIVED_ROUTE_PATH = "/archived";
 const PROJECTLESS_THREAD_DETAIL_ROUTE_PATH = "/threads/:threadId";
-export const LEGACY_PROJECT_SETTINGS_ROUTE_PATH =
-  "/projects/:projectId/settings";
-export const PROJECT_ARCHIVED_ROUTE_PATH = "/projects/:projectId/archived";
 const THREAD_DETAIL_ROUTE_PATH = "/projects/:projectId/threads/:threadId";
 export const PLUGIN_PANEL_ROUTE_PATH = "/plugins/:pluginId/:panelPath/*";
 
@@ -85,30 +71,6 @@ export function getPluginConfigurationRoutePath(
   return `/settings/plugins/${encodeURIComponent(args.pluginId)}`;
 }
 
-export function getAutomationsRoutePath(): string {
-  return AUTOMATIONS_ROUTE_PATH;
-}
-
-interface AutomationDetailRoutePathArgs {
-  projectId: string;
-  automationId: string;
-}
-
-export function getAutomationDetailRoutePath({
-  projectId,
-  automationId,
-}: AutomationDetailRoutePathArgs): string {
-  return `${AUTOMATIONS_ROUTE_PATH}/${encodeURIComponent(
-    projectId,
-  )}/${encodeURIComponent(automationId)}`;
-}
-
-export function getAutomationEditRoutePath(
-  args: AutomationDetailRoutePathArgs,
-): string {
-  return `${getAutomationDetailRoutePath(args)}/edit`;
-}
-
 interface PluginPanelRoutePathArgs {
   pluginId: string;
   path: string;
@@ -140,26 +102,17 @@ export function getThreadRoutePath(args: ThreadRoutePathArgs): string {
 
 export const ROUTE_PATTERNS: readonly string[] = [
   APP_ROOT_ROUTE_PATH,
-  AUTH_CALLBACK_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,
   SETTINGS_PROJECT_ROUTE_PATH,
   SETTINGS_PLUGINS_ROUTE_PATH,
   SETTINGS_PLUGIN_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATIONS_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_BROWSE_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_DETAIL_ROUTE_PATH,
-  LEGACY_TOOLS_AUTOMATION_EDIT_ROUTE_PATH,
-  LEGACY_AUTOMATIONS_ROUTE_PATH,
-  LEGACY_AUTOMATION_DETAIL_ROUTE_PATH,
   AUTOMATIONS_ROUTE_PATH,
   AUTOMATIONS_BROWSE_ROUTE_PATH,
   AUTOMATION_DETAIL_ROUTE_PATH,
   AUTOMATION_EDIT_ROUTE_PATH,
   LEGACY_PROJECT_COMPOSE_ROUTE_PATH,
   PROJECTLESS_ARCHIVED_ROUTE_PATH,
-  LEGACY_PROJECT_SETTINGS_ROUTE_PATH,
-  PROJECT_ARCHIVED_ROUTE_PATH,
   PROJECTLESS_THREAD_DETAIL_ROUTE_PATH,
   THREAD_DETAIL_ROUTE_PATH,
   PLUGIN_PANEL_ROUTE_PATH,

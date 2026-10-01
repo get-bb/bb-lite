@@ -245,9 +245,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       next.terminalFocus =
         target instanceof HTMLElement &&
         target.closest("[data-app-terminal]") !== null;
-      next.browserFocus =
-        target instanceof HTMLElement &&
-        target.closest("[data-app-browser]") !== null;
       next.webSurface = !isDesktop;
       next.macPlatform = keyboardPlatform(browserPlatform()) === "mac";
       next.windowsPlatform = keyboardPlatform(browserPlatform()) === "windows";

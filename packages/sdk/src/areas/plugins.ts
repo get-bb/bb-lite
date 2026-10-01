@@ -1,10 +1,6 @@
 import { jsonValueSchema, type JsonValue } from "@bb/domain";
 import {
   installedPluginSchema,
-  pluginRpcDiscoveryQuerySchema,
-  pluginRpcDiscoveryResponseSchema,
-  type PluginRpcDiscoveryQuery,
-  type PublishedPluginRpcMethod,
   pluginSettingsResponseSchema,
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
@@ -17,19 +13,7 @@ import {
 import { z } from "zod";
 import type { CreateSdkAreaArgs } from "./common.js";
 
-/**
- * A server older than `providerIds` (bb-app < 0.39) or `icons` answers with
- * the installed-plugin shape minus those fields. The contract keeps them
- * required — the server fills them once at its boundary — so the tolerance
- * lives here, on the response side only: the SDK never sends this shape, and a
- * default on the contract would leak into request bodies.
- */
-const installedPluginResponseSchema = installedPluginSchema.extend({
-  screenshots: installedPluginSchema.shape.screenshots.default([]),
-  collections: installedPluginSchema.shape.collections.default([]),
-  providerIds: z.array(z.string()).default([]),
-  icons: z.record(z.string(), z.string()).default({}),
-});
+const installedPluginResponseSchema = installedPluginSchema;
 const pluginListResponseSchema = z.object({
   plugins: z.array(installedPluginResponseSchema),
 });
@@ -83,9 +67,6 @@ export type PluginTokenResult = PluginTokenResponse;
 export type PluginUpdateSettingsResult = PluginSettingsResponse;
 
 export interface PluginsArea {
-  experimental_discoverRpc(
-    args?: PluginRpcDiscoveryQuery,
-  ): Promise<PublishedPluginRpcMethod[]>;
   callRpc<TOutput>(args: PluginRpcArgs<TOutput>): Promise<TOutput>;
   disable(args: PluginIdArgs): Promise<PluginDisableResult>;
   enable(args: PluginIdArgs): Promise<PluginEnableResult>;
@@ -127,16 +108,6 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
   }
 
   return {
-    async experimental_discoverRpc(input = {}) {
-      const query = pluginRpcDiscoveryQuerySchema.parse(input);
-      const params = new URLSearchParams();
-      if (query.pluginId !== undefined) params.set("pluginId", query.pluginId);
-      if (query.method !== undefined) params.set("method", query.method);
-      return requestParsed(
-        `/api/v1/plugins/rpc?${params}`,
-        pluginRpcDiscoveryResponseSchema,
-      );
-    },
     async callRpc(input) {
       const envelope = await requestParsed(
         pluginPath(input.pluginId, `/rpc/${encodeURIComponent(input.method)}`),

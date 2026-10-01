@@ -46,7 +46,9 @@ function persistedThreadTabs(
 ): readonly PersistedThreadFixedPanelTab[] {
   return tabs.filter(
     (tab): tab is PersistedThreadFixedPanelTab =>
-      tab.kind !== "side-chat" && tab.kind !== "plugin-page-fixed",
+      tab.kind !== "side-chat" &&
+      tab.kind !== "browser" &&
+      tab.kind !== "plugin-page-fixed",
   );
 }
 

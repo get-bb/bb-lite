@@ -1,14 +1,9 @@
 import { useState } from "react";
-import { UrlLink, useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
+import { useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
 import type { DelegationRpcContract } from "../../delegate/contract.js";
-import type {
-  Preset,
-  TaskPullRequest,
-  TaskThread,
-} from "../../shared/contract.js";
+import type { Preset, TaskThread } from "../../shared/contract.js";
 import { errorMessage } from "../../shared/errors.js";
 import {
-  PR_STATE_META,
   THREAD_STATUS_META,
   formatRelativeTime,
   isActiveThread,
@@ -27,52 +22,12 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
-function ThreadPullRequestPill({
-  pullRequest,
-  unavailable,
-}: {
-  pullRequest: TaskPullRequest | undefined;
-  unavailable: boolean;
-}) {
-  if (pullRequest) {
-    const meta = PR_STATE_META[pullRequest.state];
-    return (
-      <UrlLink
-        href={pullRequest.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={`${pullRequest.title} (${meta.label})`}
-        aria-label={`Pull request #${pullRequest.number}: ${pullRequest.title} (${meta.label})`}
-        className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium shadow-2xs hover:border-input"
-      >
-        <Icon name={meta.icon} className={cn("size-3", meta.textClassName)} />#
-        {pullRequest.number}
-      </UrlLink>
-    );
-  }
-  if (unavailable) {
-    return (
-      <span
-        title="Couldn't check this thread's pull request"
-        className="shrink-0 text-xs text-muted-foreground"
-      >
-        PR unavailable
-      </span>
-    );
-  }
-  return null;
-}
-
 function ThreadCard({
   thread,
-  pullRequest,
-  pullRequestUnavailable,
   busy,
   onDetach,
 }: {
   thread: TaskThread;
-  pullRequest: TaskPullRequest | undefined;
-  pullRequestUnavailable: boolean;
   busy: boolean;
   onDetach: () => void;
 }) {
@@ -98,10 +53,6 @@ function ThreadCard({
           {thread.presetName} · attached {formatRelativeTime(thread.attachedAt)}
         </div>
       </div>
-      <ThreadPullRequestPill
-        pullRequest={pullRequest}
-        unavailable={pullRequestUnavailable}
-      />
       <button
         type="button"
         className="flex shrink-0 items-center gap-1 text-xs font-medium underline decoration-input underline-offset-2 hover:decoration-current"
@@ -269,16 +220,12 @@ export function DispatchControl({
 
 interface ThreadsSectionProps {
   threads: TaskThread[];
-  pullRequests: TaskPullRequest[] | undefined;
-  unavailableThreadIds: string[];
   onDetach: (thread: TaskThread) => Promise<void>;
   onError: (message: string) => void;
 }
 
 export function ThreadsSection({
   threads,
-  pullRequests,
-  unavailableThreadIds,
   onDetach,
   onError,
 }: ThreadsSectionProps) {
@@ -301,13 +248,6 @@ export function ThreadsSection({
   };
 
   const activeCount = threads.filter(isActiveThread).length;
-  const pullRequestByThread = new Map<string, TaskPullRequest>();
-  for (const pullRequest of pullRequests ?? []) {
-    for (const threadId of pullRequest.threadIds) {
-      pullRequestByThread.set(threadId, pullRequest);
-    }
-  }
-  const unavailable = new Set(unavailableThreadIds);
 
   return (
     <section>
@@ -321,8 +261,6 @@ export function ThreadsSection({
         <ThreadCard
           key={thread.id}
           thread={thread}
-          pullRequest={pullRequestByThread.get(thread.threadId)}
-          pullRequestUnavailable={unavailable.has(thread.threadId)}
           busy={pending.has(thread.id)}
           onDetach={() => setConfirm(thread)}
         />

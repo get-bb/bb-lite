@@ -10,7 +10,6 @@ import {
   MachineLabel,
   type MachineLabelHost,
 } from "@/components/machines/MachineLabel";
-import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
 
 const CHECKOUT_CHIP_BASE_CLASS_NAME =
   "flex min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground";
@@ -23,7 +22,6 @@ interface ThreadEnvironmentSummaryProps {
   environmentIcon?: IconName;
   environmentProviderName?: string;
   environmentHost?: MachineLabelHost;
-  environmentMachineProvider?: MachineProviderPresentation | null;
   environmentCheckout?: WorkspaceCheckoutDisplay;
   onCreateNewThreadInEnvironment?: () => void;
 }
@@ -35,7 +33,6 @@ export const ThreadEnvironmentSummary = memo(function ThreadEnvironmentSummary({
   environmentIcon,
   environmentProviderName,
   environmentHost,
-  environmentMachineProvider,
   environmentCheckout,
   onCreateNewThreadInEnvironment,
 }: ThreadEnvironmentSummaryProps) {
@@ -64,7 +61,6 @@ export const ThreadEnvironmentSummary = memo(function ThreadEnvironmentSummary({
       {environmentHost ? (
         <MachineLabel
           host={environmentHost}
-          machineProvider={environmentMachineProvider}
           className="h-6 w-fit max-w-full shrink px-1 text-xs leading-tight text-muted-foreground"
           iconClassName="size-4"
         />

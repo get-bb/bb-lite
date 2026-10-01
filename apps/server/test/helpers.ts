@@ -1,8 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { devNull, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RealtimeSubscriptionTarget } from "@bb/domain";
-import { RunnerError, type RunnerEventSink } from "@bb/runner";
+import {
+  createWorkspaceApi,
+  RunnerError,
+  type RunnerEventSink,
+} from "@bb/runner";
 import { createApiClient } from "@bb/server-contract";
 import { onTestFinished } from "vitest";
 import { WebSocket } from "ws";
@@ -36,7 +40,7 @@ export class TestSocket {
   private readonly inbox: SocketMessage[] = [];
   private wake = (): void => {};
 
-  constructor(private readonly socket: WebSocket) {
+  constructor(readonly socket: WebSocket) {
     socket.on("message", (data) => {
       this.inbox.push(JSON.parse(data.toString()) as SocketMessage);
       this.wake();
@@ -58,14 +62,37 @@ export class TestSocket {
     }
   }
 
+  send(message: object): void {
+    this.socket.send(JSON.stringify(message));
+  }
+
   async subscribe(target: RealtimeSubscriptionTarget): Promise<void> {
-    this.socket.send(JSON.stringify({ type: "subscribe", target }));
-    this.socket.send(JSON.stringify({ type: "ping" }));
+    this.send({ type: "subscribe", target });
+    this.send({ type: "ping" });
     await this.next((message) => message.type === "pong");
   }
 }
 
-export async function createTestServer(overrides: Partial<ServerConfig> = {}) {
+export const GIT_ENV = {
+  ...process.env,
+  GIT_CONFIG_GLOBAL: devNull,
+  GIT_CONFIG_NOSYSTEM: "1",
+};
+
+function scriptRealWorkspace(runner: FakeRunner, dataDir: string): void {
+  const workspace = createWorkspaceApi({
+    dataDir,
+    env: async () => GIT_ENV,
+    sink: (event) => void (event.lane === "live" && runner.emit(event)),
+  });
+  Object.assign(runner.script, workspace.api);
+  onTestFinished(() => workspace.dispose());
+}
+
+export async function createTestServer(
+  overrides: Partial<ServerConfig> = {},
+  options: { realWorkspace?: boolean } = {},
+) {
   const dataDir = mkdtempSync(join(tmpdir(), "bb-server-test-"));
   const env = { BB_DATA_DIR: dataDir, BB_SERVER_PORT: "0" };
   const logLevel = "silent" as const;
@@ -73,6 +100,7 @@ export async function createTestServer(overrides: Partial<ServerConfig> = {}) {
   const clock = { now: 1_700_000_000_000 };
   const now = (): number => clock.now;
   const runner = new FakeRunner();
+  if (options.realWorkspace) scriptRealWorkspace(runner, dataDir);
   const server = createServer({
     config,
     now,
@@ -93,9 +121,9 @@ export async function createTestServer(overrides: Partial<ServerConfig> = {}) {
     api: createApiClient(url).api.v1,
     runner,
     clock,
-    socket: (): Promise<TestSocket> =>
+    socket: (path = "/ws"): Promise<TestSocket> =>
       new Promise((resolve, reject) => {
-        const socket = new WebSocket(`${url.replace("http", "ws")}/ws`);
+        const socket = new WebSocket(`${url.replace("http", "ws")}${path}`);
         socket.on("open", () => resolve(new TestSocket(socket)));
         socket.on("error", reject);
       }),
