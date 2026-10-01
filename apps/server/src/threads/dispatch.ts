@@ -7,12 +7,14 @@ import type * as domain from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import type * as runner from "@bb/runner";
 import type { SendMessageRequest } from "@bb/server-contract";
-import { getEnvironmentRow, getHostRow } from "../db/engine-lookups.js";
+import { getEnvironment } from "../db/environments.js";
 import { isQueueAutoSendPaused } from "../db/events.js";
+import { findHost } from "../db/hosts.js";
 import { encodeJson, newId } from "../db/index.js";
 import { hasTurnBoundInteraction } from "../db/pending-interactions.js";
 import * as queue from "../db/queued-messages.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
+import { deliverAttachments } from "./attachments.js";
 import * as core from "./core.js";
 import type { Engine } from "./engine.js";
 import * as execution from "./execution.js";
@@ -130,7 +132,7 @@ export function sessionEnvironmentOf(
   const row =
     thread.environmentId === null
       ? undefined
-      : getEnvironmentRow(db, thread.environmentId);
+      : getEnvironment(db, thread.environmentId);
   if (row === undefined) {
     const reason = "never_attached";
     throw core.environmentUnavailable({ reason, environmentStatus: null });
@@ -164,13 +166,13 @@ function currentWait(
   const environment =
     thread.environmentId === null
       ? undefined
-      : getEnvironmentRow(db, thread.environmentId);
+      : getEnvironment(db, thread.environmentId);
   if (
     environment !== undefined &&
     environment.status !== "destroyed" &&
     !runners.isConnected(environment.hostId)
   ) {
-    const host = getHostRow(db, environment.hostId);
+    const host = findHost(db, "id", environment.hostId);
     const hostName = host?.name ?? environment.hostId;
     return { kind: "host-offline", hostName };
   }
@@ -244,16 +246,21 @@ function settleRejectedTurn(
 
 export function submitToRunner(
   engine: Engine,
+  thread: ThreadRow,
   hostId: string,
   args: runner.SubmitTurnArgs,
 ): void {
-  const { threadId } = args.session;
+  const { id: threadId } = thread;
   const requestId = args.clientRequestId;
   const { kind } = args.mode;
   const { db } = engine.ctx;
   if (kind === "start") engine.runtimeOf(threadId).pendingStart = requestId;
   const accepted = engine
-    .onHost(hostId, (runner) => runner.submitTurn(args))
+    .onHost(hostId, async (runner) => {
+      const target = { hostId, runner, thread };
+      const input = await deliverAttachments(engine.ctx, target, args.input);
+      return runner.submitTurn({ ...args, input });
+    })
     .then(
       ({ providerThreadId }) =>
         engine.inThread(threadId, () => {
@@ -283,9 +290,8 @@ async function submitTurn(
   }
   const environment = sessionEnvironmentOf(engine, thread);
   const message = attributedMessage(args.message);
-  const { execution: tuple, initiator, input } = message;
-  const { model } = tuple;
-  const session = await buildSessionSpec(ctx, thread, environment, model);
+  const { execution: tuple, input } = message;
+  const session = await buildSessionSpec(ctx, thread, environment);
   const requestId = newId("creq");
   const expectedTurnId = thread.activeTurnId;
   const steers = joins && mode !== "auto" && expectedTurnId !== null;
@@ -302,11 +308,14 @@ async function submitTurn(
     engine.append(out, thread, [turnRequestEvent(message, requestId, target)]);
     patchThread(ctx.db, thread.id, tuple, false);
     if (!joins) engine.transition(out, thread.id, "run.started");
-    const options = execution.toRunnerOptions(tuple, initiator, input);
-    const turn = { session, clientRequestId: requestId, input, options };
-    out.after(() =>
-      submitToRunner(engine, environment.hostId, { ...turn, mode: runnerMode }),
+    const options = execution.toRunnerOptions(
+      ctx.db,
+      thread.providerId,
+      message,
     );
+    const turn = { session, clientRequestId: requestId, input, options };
+    const submit = { ...turn, mode: runnerMode };
+    out.after(() => submitToRunner(engine, thread, environment.hostId, submit));
   });
 }
 

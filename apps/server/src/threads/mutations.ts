@@ -3,12 +3,10 @@ import {
   type ThreadChangeKind,
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
-import { threadSectionExists } from "../db/engine-lookups.js";
 import * as queue from "../db/queued-messages.js";
 import * as store from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
 import { conflict } from "./core.js";
-import { requireValidParent } from "./create.js";
+import { requireThreadSection, requireValidParent } from "./create.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
@@ -64,10 +62,7 @@ export function update(
   const thread = engine.requireThread(threadId);
   const { parentThreadId, sectionId, title } = patch;
   if (parentThreadId != null) requireValidParent(db, parentThreadId, thread);
-  if (sectionId != null && !threadSectionExists(db, sectionId)) {
-    const message = "Thread section not found";
-    throw new ApiError(404, "thread_section_not_found", message);
-  }
+  if (sectionId != null) requireThreadSection(db, sectionId);
   const fields: store.ThreadPatch = {};
   if (title !== undefined) fields.title = title;
   if (sectionId !== undefined) fields.sectionId = sectionId;

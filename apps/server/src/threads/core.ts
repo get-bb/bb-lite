@@ -8,12 +8,9 @@ import type {
   ThreadNotWritableErrorDetails,
   ThreadNotWritableReason,
 } from "@bb/server-contract";
-import type { ServerContext } from "../context.js";
 import type { ThreadRow } from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
 import type { Hub } from "../ws/hub.js";
-
-export type EngineContext = Omit<ServerContext, "threads">;
 
 export interface ThreadRuntime {
   provisioning: { id: string; abort: AbortController } | null;

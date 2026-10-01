@@ -6,7 +6,7 @@ import { errorMessage } from "./core.js";
 import { sessionEnvironmentOf } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import {
-  extensionContext,
+  pluginContext,
   UPDATE_ENVIRONMENT_DIRECTORY_TOOL,
 } from "./session-spec.js";
 
@@ -76,18 +76,15 @@ async function runTool(
   event: ToolCallEvent,
   signal: AbortSignal,
 ): Promise<ToolCallResponse> {
-  const { db, extensions } = engine.ctx;
-  const { arguments: input, callId, tool } = event;
+  const { db, plugins } = engine.ctx;
+  const { arguments: input, tool } = event;
   const thread = getThread(db, event.threadId);
   if (thread === undefined) return reply(false, "Thread not found.");
   if (tool === UPDATE_ENVIRONMENT_DIRECTORY_TOOL.name) {
     return updateEnvironmentDirectory(engine, thread, input, signal);
   }
-  const environment = sessionEnvironmentOf(engine, thread);
-  const scope = extensionContext(thread, environment, thread.model ?? "");
-  const call = { ...scope, callId, signal };
-  const response = await extensions.callAgentTool(tool, input, call);
-  return response ?? reply(false, `Unsupported tool: ${tool}`);
+  const scope = pluginContext(thread, engine.hostOf(thread));
+  return plugins.callTool(tool, input, { ...scope, signal });
 }
 
 export function startToolCall(

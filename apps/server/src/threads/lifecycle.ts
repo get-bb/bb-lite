@@ -5,12 +5,13 @@ import {
   type ChildThreadOutcome,
   type ThreadChangeKind,
 } from "@bb/domain";
-import { getHostRow, recordHostInstance } from "../db/engine-lookups.js";
 import { newId } from "../db/index.js";
 import * as pending from "../db/pending-interactions.js";
+import type { DeletedProject } from "../db/projects.js";
 import { listThreadIdsWaitingOn } from "../db/queued-messages.js";
 import * as store from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
+import { closeTerminalsForThread } from "../terminals/sessions.js";
 import { conflict, type Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import * as interactions from "./interactions.js";
@@ -141,14 +142,14 @@ function changeMembership(
   change: ThreadChangeKind,
   event: MembershipEvent,
 ): void {
-  const { db, environments, extensions } = engine.ctx;
+  const { db, environments, plugins } = engine.ctx;
   const { id, projectId } = thread;
   engine.commit((out) => {
     const changed = store.patchThread(db, id, patch);
     out.thread(id, [change], { projectId });
     out.project(projectId, ["threads-changed"]);
     out.after(() => {
-      extensions.emit(event, { thread: engine.respond(changed) });
+      plugins.emit(event, { thread: engine.respond(changed) });
       environments.onThreadDetached(id);
     });
   });
@@ -204,6 +205,7 @@ async function finalizeDeletion(
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
+    closeTerminalsForThread(engine.ctx, threadId, "thread-deleted");
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
@@ -251,6 +253,23 @@ export async function deleteThreadTree(
     );
   }
   await engine.inThread(root.id, () => tombstone(engine, root.id));
+}
+
+export function releaseDeletedProject(
+  engine: Engine,
+  { threadIds, environments }: DeletedProject,
+): void {
+  const { runners } = engine.ctx;
+  const hostIds = new Set(environments.map(({ hostId }) => hostId));
+  const online = [...hostIds].filter((hostId) => runners.isConnected(hostId));
+  for (const threadId of threadIds) {
+    engine.runtimeOf(threadId).provisioning?.abort.abort();
+    engine.forget(threadId);
+    for (const hostId of online) {
+      const removed = runners.get(hostId).deleteThreadStorage({ threadId });
+      engine.background("delete project thread storage", removed);
+    }
+  }
 }
 
 export function clearContext(engine: Engine, threadId: string) {
@@ -303,9 +322,9 @@ export async function reconcileHost(
     runner.describe(),
     runner.snapshot(),
   ]);
-  const previous = getHostRow(db, hostId)?.lastInstanceId ?? null;
-  const restarted = previous !== null && previous !== info.instanceId;
-  recordHostInstance(db, hostId, info.instanceId);
+  const previous = engine.hostInstances.get(hostId);
+  const restarted = previous !== undefined && previous !== info.instanceId;
+  engine.hostInstances.set(hostId, info.instanceId);
   const live = snapshot.sessions
     .filter((session) => session.activeTurnId !== null)
     .map((session) => session.threadId);
@@ -354,8 +373,10 @@ export function sweep(engine: Engine): void {
   const time = now();
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
-  for (const thread of store.listArchivedRunningThreads(db, expired)) {
-    engine.background("stop archived thread", stopThread(engine, thread.id));
+  for (const { id, status } of store.listExpiredArchives(db, expired)) {
+    closeTerminalsForThread(engine.ctx, id);
+    if (status !== "starting" && status !== "active") continue;
+    engine.background("stop archived thread", stopThread(engine, id));
   }
   for (const threadId of listThreadIdsWaitingOn(db, "time", time)) {
     engine.scheduleDrain(threadId);

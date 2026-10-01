@@ -65,20 +65,37 @@ it("registers, resolves and refuses provider interactions", async () => {
   expect(lifecycle).toEqual(["pending", "resolving", "resolved"]);
 });
 
-it("answers plugin interactions through requestInput", async () => {
+it("serves a plugin: attributed spawn, workspace files and requestInput", async () => {
   const server = await createThreadServer();
-  const { ctx, http, rows } = server;
-  const id = await server.spawn();
-  const request = { threadId: id, pluginId: "secrets", rendererId: "form" };
+  const { ctx, http, rows, runner } = server;
+  const bb = ctx.plugins.deps("secrets");
+  const { id } = await bb.threads.spawn({
+    projectId: "proj_1",
+    input: text("Rotate the token"),
+    model: "gpt-test",
+    environment: { type: "project-default" },
+  });
+  await server.settle();
+  const origins = rows("SELECT origin_plugin_id FROM threads");
+  expect(origins).toEqual([{ originPluginId: "secrets" }]);
+  const file = { content: "aGk=", contentEncoding: "base64", sha256: "s" };
+  Object.assign(runner.script, { readFile: async () => file });
+  const read = await bb.files.read({ threadId: id, path: "a.txt" });
+  const located = [{ path: "a.txt", rootPath: "/repo" }];
+  expect([read, server.callsTo("readFile")]).toEqual([
+    { content: "hi", sha256: "s" },
+    located,
+  ]);
+  const request = { threadId: id, rendererId: "form" };
   const form = { ...request, title: "Secret", payload: { name: "TOKEN" } };
   const latest = (): string =>
     rows<{ id: string }>(
       "SELECT id FROM pending_interactions ORDER BY rowid DESC",
     )[0].id;
-  const first = ctx.threads.requestInput(form);
+  const first = bb.requestInput(form);
   await server.settle();
   const busy = expect.objectContaining({ status: 409 });
-  await expect(ctx.threads.requestInput(form)).rejects.toEqual(busy);
+  await expect(bb.requestInput(form)).rejects.toEqual(busy);
   const value = { token: "abc" };
   const base = `/threads/${id}/interactions`;
   const answered = await http("POST", `${base}/${latest()}/respond`, { value });
@@ -86,7 +103,7 @@ it("answers plugin interactions through requestInput", async () => {
   expect(answered.body).toMatchObject({ status: "resolved", origin });
   expect(await first).toEqual({ outcome: "submitted", value });
 
-  const second = ctx.threads.requestInput(form);
+  const second = bb.requestInput(form);
   await server.settle();
   await http("POST", `${base}/${latest()}/cancel`);
   expect(await second).toEqual({ outcome: "cancelled", reason: "user" });
@@ -97,10 +114,10 @@ it("runs core and extension tools for the provider", async () => {
   const { ctx, thread } = server;
   const id = await server.spawn();
   const before = thread(id).environmentId;
-  ctx.extensions.callAgentTool = async (name, args, { callId }) => {
-    const reply = `${JSON.stringify(args)} ${callId}`;
+  ctx.plugins.callTool = async (name, args, { threadId }) => {
+    const reply = `${name} ${JSON.stringify(args)} ${threadId}`;
     const contentItems = [{ type: "inputText" as const, text: reply }];
-    return name === "Echo" ? { success: true, contentItems } : null;
+    return { success: name === "Echo", contentItems };
   };
   const invoke = async (tool: string, args: unknown, requestId: string) => {
     const call = { threadId: id, turnId: "t1", requestId, callId: "c1" };
@@ -114,13 +131,9 @@ it("runs core and extension tools for the provider", async () => {
     const { success, contentItems } = resolved.result;
     return [resolved.requestId, success, contentItems[0].text];
   };
-  expect(await invoke("Echo", { a: 1 }, "r1")).toEqual([
-    "r1",
-    true,
-    '{"a":1} c1',
-  ]);
-  const unsupported = ["r2", false, "Unsupported tool: Nope"];
-  expect(await invoke("Nope", {}, "r2")).toEqual(unsupported);
+  const echoed = ["r1", true, `Echo {"a":1} ${id}`];
+  expect(await invoke("Echo", { a: 1 }, "r1")).toEqual(echoed);
+  expect((await invoke("Nope", {}, "r2")).slice(0, 2)).toEqual(["r2", false]);
   const move = "update_environment_directory";
   expect((await invoke(move, { path: "relative" }, "r3"))[1]).toBe(false);
   const moved = await invoke(move, { path: "/other/checkout/" }, "r4");
@@ -181,6 +194,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   const parent = await server.spawn();
   const child = await server.spawn({ parentThreadId: parent });
   await ingest(child, events.identity(), events.started("c1"));
+  const terminal = server.openTerminal(parent);
   const client = await server.socket();
   await client.subscribe({ kind: "thread-detail", threadId: child });
 
@@ -193,6 +207,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   expect(await server.changes(client)).toEqual(change);
   await server.advance(29_000);
   expect(thread(child).status).toBe("active");
+  expect(server.callsTo("closeTerminal")).toEqual([]);
   const refused = await ctx.threads
     .send(child, { input: text("hello"), mode: "auto" })
     .catch((error: { body: unknown }) => error.body);
@@ -200,6 +215,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
 
   await server.advance(1_000);
   expect(thread(child).status).toBe("stopping");
+  expect(server.callsTo("closeTerminal")).toEqual([terminal]);
   await ingest(child, events.completed("c1", "interrupted"));
   await http("POST", `/threads/${child}/unarchive`);
   expect(thread(child)).toMatchObject({ status: "idle", archivedAt: null });
@@ -214,6 +230,7 @@ it("deletes a thread once its storage is gone, retrying from the sweep", async (
   const remove = (childThreadsConfirmed: boolean) =>
     http("DELETE", `/threads/${parent}`, { childThreadsConfirmed });
   expect((await remove(false)).status).toBe(409);
+  const terminal = server.openTerminal(parent);
   let attempts = 0;
   runner.script.deleteThreadStorage = async () => {
     attempts += 1;
@@ -231,6 +248,13 @@ it("deletes a thread once its storage is gone, retrying from the sweep", async (
   const remaining = rows("SELECT id, parent_thread_id FROM threads");
   const orphan = [{ id: child, parentThreadId: null }];
   expect([attempts, remaining]).toEqual([2, orphan]);
+  await http("DELETE", "/projects/proj_1");
+  const released = server.callsTo("deleteThreadStorage")[2];
+  expect([released, rows("SELECT id FROM threads")]).toEqual([
+    { threadId: child },
+    [],
+  ]);
+  expect(server.callsTo("closeTerminal")).toEqual([terminal]);
 });
 
 it("reconciles threads when a runner reconnects", async () => {

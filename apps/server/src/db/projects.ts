@@ -6,7 +6,7 @@ import {
   type ProjectSource,
 } from "@bb/domain";
 import type { ProjectResponse } from "@bb/server-contract";
-import { newId, type Db } from "./index.js";
+import { encodeJson, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 import { updateRow } from "./update-row.js";
 
@@ -106,6 +106,15 @@ export function getProjectExecutionDefaults(
     JSON.parse(row.executionDefaults),
   );
   return stored.success ? stored.data : null;
+}
+
+export function setProjectExecutionDefaults(
+  db: Db,
+  projectId: string,
+  defaults: ProjectExecutionDefaults,
+): void {
+  const executionDefaults = encodeJson(defaults);
+  updateRow(db, "projects", projectId, { executionDefaults });
 }
 
 function insertSource(

@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createThreadServer, events, text } from "./thread-harness.js";
 
@@ -6,8 +7,12 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   const { ctx, eventData, hostId, rows, submitted, thread } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
-  ctx.extensions.generateTitle = async () => "  Refactor the  scheduler ";
-  const threadId = await server.spawn();
+  ctx.plugins.generateTitle = async () => "  Refactor the  scheduler ";
+  const pool = { name: "POOL_URL", value: { serverPath: "/pool" } };
+  ctx.plugins.contributedEnv = async () => [pool];
+  const prompt = text("Please refactor the scheduler module today");
+  const image = { type: "localImage" as const, path: "shot.png" };
+  const threadId = await server.spawn({ input: [...prompt, image] });
 
   const types = ["client/turn/requested", "client/thread/start"];
   expect(server.eventTypes(threadId).slice(0, 2)).toEqual(types);
@@ -55,15 +60,22 @@ it("creates a thread, records provisioning and submits the first turn", async ()
       BB_THREAD_ID: threadId,
       BB_PROJECT_ID: "proj_1",
       BB_ENVIRONMENT_ID: row.environmentId,
+      POOL_URL: "http://127.0.0.1:0/pool",
     },
   });
   expect(session.instructions).toContain("You are working inside bb");
   const tools = session.dynamicTools.map((tool) => tool.name);
   expect(tools).toEqual(["update_environment_directory"]);
+  const providerOptions = { memoryEnabled: true };
   const asks = { permissionEscalation: "ask", planMode: false };
-  expect(options).toMatchObject({ model: "gpt-test", ...asks });
-  const prompt = text("Please refactor the scheduler module today");
-  const sent = [{ kind: "start" }, request.requestId, prompt];
+  expect(options).toMatchObject({
+    model: "gpt-test",
+    ...asks,
+    providerOptions,
+  });
+  const stored = join(ctx.config.dataDir, "attachments/proj_1/shot.png");
+  const delivered = [...prompt, { ...image, path: stored }];
+  const sent = [{ kind: "start" }, request.requestId, delivered];
   expect([mode, clientRequestId, input]).toEqual(sent);
 
   const project = { projectId: "proj_1" };

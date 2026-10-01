@@ -207,7 +207,9 @@ How the engine is built (`apps/server/src/threads`):
   to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
 - Seams on `ServerContext`: `threads` (the public operations, also for plugins), `environments`
   (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; `environments/basic.ts` is the
-  placeholder), `extensions` (plugin instructions, tools, env, events, title generation; empty by default).
+  placeholder), `plugins` (the plugin host: the engine asks it for instructions, tools, env, skill
+  directories and titles, and emits thread events to it; plugins reach the engine back through
+  `plugins/deps.ts`). Startup order is local host, personal project, engine, then plugins.
 
 ## HTTP and WebSocket surface
 

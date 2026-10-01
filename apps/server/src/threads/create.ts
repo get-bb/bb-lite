@@ -3,15 +3,12 @@ import type {
   ParentThreadInvalidErrorDetails,
   ThreadResponse,
 } from "@bb/server-contract";
-import {
-  getEnvironmentRow,
-  getProjectRow,
-  threadSectionExists,
-  writeProjectExecutionDefaults,
-  type EnvironmentRow,
-  type ProjectRow,
-} from "../db/engine-lookups.js";
+import type { Environment, Project } from "@bb/domain";
+import type { ServerContext } from "../context.js";
+import { getEnvironment } from "../db/environments.js";
 import { encodeJson, type Db } from "../db/index.js";
+import { setProjectExecutionDefaults } from "../db/projects.js";
+import { listThreadSections } from "../db/thread-sections.js";
 import {
   ancestry,
   deleteThreadRow,
@@ -26,7 +23,7 @@ import {
   type EnvironmentIntent,
 } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
-import type { EngineContext } from "./core.js";
+import { requireProject } from "../projects/require.js";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
@@ -45,6 +42,14 @@ function invalidParent(reason: InvalidReason): ApiError {
   };
   const message = "Parent thread is invalid";
   return new ApiError(400, "parent_thread_invalid", message, { details });
+}
+
+export function requireThreadSection(db: Db, sectionId: string): void {
+  if (listThreadSections(db).some((section) => section.id === sectionId)) {
+    return;
+  }
+  const message = "Thread section not found";
+  throw new ApiError(404, "thread_section_not_found", message);
 }
 
 export function requireValidParent(
@@ -69,10 +74,10 @@ export function requireValidParent(
 }
 
 function resolveIntent(
-  ctx: EngineContext,
+  ctx: ServerContext,
   args: EnvironmentArgs,
-  project: ProjectRow,
-  shared: EnvironmentRow | undefined,
+  project: Project,
+  shared: Environment | undefined,
 ): EnvironmentIntent {
   const primary = ctx.config.hostId;
   const personal = project.kind === "personal";
@@ -88,7 +93,7 @@ function resolveIntent(
   };
   switch (args.type) {
     case "reuse": {
-      const environment = getEnvironmentRow(ctx.db, args.environmentId);
+      const environment = getEnvironment(ctx.db, args.environmentId);
       if (environment === undefined || environment.status === "destroyed") {
         const message = "Environment not found";
         throw new ApiError(404, "environment_not_found", message);
@@ -137,7 +142,7 @@ function resolveIntent(
 
 function intentHostId(db: Db, intent: EnvironmentIntent): string {
   if (intent.type !== "reuse") return intent.hostId;
-  const environment = getEnvironmentRow(db, intent.environmentId);
+  const environment = getEnvironment(db, intent.environmentId);
   if (environment === undefined) throw new Error("Environment disappeared");
   return environment.hostId;
 }
@@ -147,19 +152,13 @@ export async function createThread(
   request: CreateThreadRequest,
 ): Promise<ThreadResponse> {
   const { ctx } = engine;
-  const { db, extensions } = ctx;
+  const { db, plugins } = ctx;
   const { projectId, sectionId, title } = request;
-  const project = getProjectRow(db, projectId);
-  if (project === undefined || project.deletedAt !== null) {
-    throw new ApiError(404, "project_not_found", "Project not found");
-  }
+  const project = requireProject(db, projectId);
   if (request.originKind !== null || request.sourceThreadId !== undefined) {
     throw invalidRequest("Forking a thread is not supported.");
   }
-  if (sectionId != null && !threadSectionExists(db, sectionId)) {
-    const message = "Thread section not found";
-    throw new ApiError(404, "thread_section_not_found", message);
-  }
+  if (sectionId != null) requireThreadSection(db, sectionId);
   const ownerId = request.lifecycleOwnerThreadId ?? null;
   const parent =
     request.parentThreadId === undefined
@@ -168,7 +167,7 @@ export async function createThread(
   const sharesProject = parent?.projectId === projectId;
   const shared =
     sharesProject && parent.environmentId !== null
-      ? getEnvironmentRow(db, parent.environmentId)
+      ? getEnvironment(db, parent.environmentId)
       : undefined;
   const intent = resolveIntent(ctx, request.environment, project, shared);
   const hostId = intentHostId(db, intent);
@@ -200,7 +199,7 @@ export async function createThread(
     out.thread(row.id, ["thread-created"], { projectId });
     out.project(projectId, ["threads-changed"]);
     const response = engine.respond(row);
-    out.after(() => extensions.emit("thread.created", { thread: response }));
+    out.after(() => plugins.emit("thread.created", { thread: response }));
     return row;
   });
   try {
@@ -225,7 +224,7 @@ export async function createThread(
     throw error;
   }
   if (request.origin === "app" && request.environment.type !== "reuse") {
-    writeProjectExecutionDefaults(db, projectId, { providerId, ...execution });
+    setProjectExecutionDefaults(db, projectId, { providerId, ...execution });
   }
   return engine.respond(getThread(db, thread.id) ?? thread);
 }

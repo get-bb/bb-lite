@@ -7,7 +7,7 @@ import {
 } from "@bb/domain";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { getEnvironmentRow } from "../db/engine-lookups.js";
+import { getEnvironment } from "../db/environments.js";
 import { decodeJson, newId } from "../db/index.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
 import {
@@ -111,20 +111,16 @@ async function generateTitle(
   job: ProvisioningJob,
   record: Recorder,
 ): Promise<void> {
-  const { extensions, log, now } = engine.ctx;
+  const { plugins, now } = engine.ctx;
   const startedAt = now();
   record([step("metadata-started", "Generating title", "started", startedAt)]);
   const prompt = titlePrompt(job.message.input);
+  const signal = AbortSignal.timeout(TITLE_TIMEOUT_MS);
   const timeout = delay(TITLE_TIMEOUT_MS, null, { ref: false });
   const generated =
     prompt === null
       ? null
-      : await Promise.race([extensions.generateTitle(prompt), timeout]).catch(
-          (err: unknown) => {
-            log.warn("Thread title generation failed", { err, threadId });
-            return null;
-          },
-        );
+      : await Promise.race([plugins.generateTitle(prompt, signal), timeout]);
   const title = sanitizeTitle(generated);
   const titleGenerated = title !== null;
   const text = titleGenerated ? "Generated title" : "No title generated";
@@ -146,7 +142,7 @@ async function completeProvisioning(
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const current = isCurrent(engine, thread, job);
-  const row = getEnvironmentRow(db, environmentId);
+  const row = getEnvironment(db, environmentId);
   if (row === undefined) throw new Error("Prepared environment is missing");
   const attached = engine.commit((out) => {
     const next = patchThread(db, threadId, { environmentId });
@@ -167,20 +163,19 @@ async function completeProvisioning(
     return next;
   });
   if (!current) return;
-  const { execution, initiator, input } = job.message;
+  const { input } = job.message;
   const host = { id: environmentId, hostId: row.hostId, path };
-  const session = await buildSessionSpec(ctx, attached, host, execution.model);
+  const session = await buildSessionSpec(ctx, attached, host);
   engine.commit((out) => {
     appendProvisioning(engine, out, attached, job.id, "completed", []);
     const starting = { kind: "turn-starting" as const };
     engine.relabelWaits(out, threadId, ["provisioning"], starting);
     engine.transition(out, threadId, "run.started");
-    const options = toRunnerOptions(execution, initiator, input);
+    const options = toRunnerOptions(db, attached.providerId, job.message);
     const clientRequestId = job.requestId;
-    const turn = { session, clientRequestId, input, options };
-    out.after(() =>
-      submitToRunner(engine, row.hostId, { ...turn, mode: { kind: "start" } }),
-    );
+    const mode = { kind: "start" as const };
+    const turn = { session, clientRequestId, input, options, mode };
+    out.after(() => submitToRunner(engine, attached, row.hostId, turn));
   });
 }
 

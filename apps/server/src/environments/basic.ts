@@ -1,12 +1,12 @@
 import { z } from "zod";
 import type { ServerRunner } from "../context.js";
 import {
-  findEnvironmentByPath,
-  getEnvironmentRow,
+  getEnvironment,
   insertReadyEnvironment,
-  projectSourcePath,
-} from "../db/engine-lookups.js";
+  listEnvironments,
+} from "../db/environments.js";
 import type { Db } from "../db/index.js";
+import { getProjectSource } from "../db/projects.js";
 import { ApiError } from "../http/errors.js";
 import type { RunnerRegistry } from "../runners/registry.js";
 import type { Hub } from "../ws/hub.js";
@@ -46,8 +46,9 @@ export function createBasicEnvironments(
         return (await deps.runners.get(intent.hostId).describe()).homeDir;
       }
     }
-    const source = projectSourcePath(db, projectId, intent.hostId);
-    if (source !== undefined) return source;
+    const { hostId } = intent;
+    const source = getProjectSource(db, projectId, { hostId });
+    if (source !== undefined) return source.path;
     throw unavailable("This project has no checkout on the chosen machine.");
   }
 
@@ -55,33 +56,29 @@ export function createBasicEnvironments(
     const { intent, thread } = args;
     if (intent.type === "reuse") {
       const { environmentId } = intent;
-      const path = getEnvironmentRow(db, environmentId)?.path ?? null;
+      const path = getEnvironment(db, environmentId)?.path ?? null;
       if (path === null) throw unavailable("Environment has no workspace.");
       return { environmentId, path };
     }
     const { projectId } = thread;
     const { hostId } = intent;
     const path = await workspacePath(intent, projectId);
-    const existing = findEnvironmentByPath(db, projectId, hostId, path);
+    const located = { projectId, hostId, path };
+    const [existing] = listEnvironments(db, located);
     if (existing !== undefined) return { environmentId: existing.id, path };
     const environmentProviderId =
       intent.type === "provider"
         ? intent.environmentProviderId
         : "project-checkout";
-    const created = insertReadyEnvironment(db, {
-      projectId,
-      hostId,
-      path,
-      environmentProviderId,
-    });
-    deps.hub.environment(created.id, ["environment-created"]);
-    return { environmentId: created.id, path };
+    const provided = { ...located, environmentProviderId };
+    const environmentId = insertReadyEnvironment(db, provided);
+    deps.hub.environment(environmentId, ["environment-created"]);
+    return { environmentId, path };
   }
 
   return {
     ensureForThread,
-    pathFor: (environmentId) =>
-      getEnvironmentRow(db, environmentId)?.path ?? null,
+    pathFor: (environmentId) => getEnvironment(db, environmentId)?.path ?? null,
     workspaceInstructions: async () => null,
     onThreadDetached: () => {},
   };

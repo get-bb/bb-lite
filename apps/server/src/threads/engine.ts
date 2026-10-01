@@ -8,12 +8,13 @@ import {
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import type { ThreadResponse } from "@bb/server-contract";
-import type { ServerRunner } from "../context.js";
-import { getEnvironmentRow } from "../db/engine-lookups.js";
+import type { ServerContext, ServerRunner } from "../context.js";
+import { getEnvironment } from "../db/environments.js";
 import * as eventLog from "../db/events.js";
 import * as queue from "../db/queued-messages.js";
 import * as store from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
+import { onProjectDeleted } from "../projects/remove.js";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
 import * as dispatching from "./dispatch.js";
@@ -42,12 +43,13 @@ export class Engine {
   readonly toolCalls = new Map<string, AbortController>();
   readonly noticeBatches = new Map<string, notices.NoticeBatch>();
   readonly deleting = new Set<string>();
+  readonly hostInstances = new Map<string, string>();
   private readonly serial = new core.ThreadSerial();
   private readonly runtimes = new Map<string, core.ThreadRuntime>();
   private readonly pending = new Set<Promise<unknown>>();
   private readonly disposers: (() => void)[] = [];
 
-  constructor(readonly ctx: core.EngineContext) {}
+  constructor(readonly ctx: ServerContext) {}
 
   inThread<T>(threadId: string, work: () => T | Promise<T>): Promise<T> {
     return this.serial.run(threadId, work);
@@ -102,7 +104,7 @@ export class Engine {
   hostOf(thread: ThreadRow): string | null {
     const { environmentId } = thread;
     if (environmentId === null) return null;
-    return getEnvironmentRow(this.ctx.db, environmentId)?.hostId ?? null;
+    return getEnvironment(this.ctx.db, environmentId)?.hostId ?? null;
   }
 
   connectedHostOf(thread: ThreadRow): string | null {
@@ -149,17 +151,17 @@ export class Engine {
   }
 
   private emitStatus(thread: ThreadRow): void {
-    const { db, extensions } = this.ctx;
+    const { db, plugins } = this.ctx;
     const response = this.respond(thread);
     if (thread.status === "active") {
-      extensions.emit("thread.active", { thread: response });
+      plugins.emit("thread.active", { thread: response });
     } else if (thread.status === "idle") {
       const text = eventLog.lastAssistantText(db, thread.id);
       const payload = { thread: response, lastAssistantText: text };
-      extensions.emit("thread.idle", payload);
+      plugins.emit("thread.idle", payload);
     } else if (thread.status === "error") {
       const error = eventLog.lastSystemErrorMessage(db, thread.id);
-      extensions.emit("thread.failed", { thread: response, error });
+      plugins.emit("thread.failed", { thread: response, error });
     }
   }
 
@@ -346,7 +348,7 @@ export class Engine {
   }
 }
 
-export function createThreadEngine(ctx: core.EngineContext) {
+export function createThreadEngine(ctx: ServerContext) {
   const engine = new Engine(ctx);
   const direct =
     <Args extends unknown[], Result>(
@@ -370,6 +372,13 @@ export function createThreadEngine(ctx: core.EngineContext) {
     settled: () => engine.settled(),
     sweep: direct(lifecycle.sweep),
     create: direct(createThread),
+    get: (threadId: string) => {
+      const thread = store.getThread(ctx.db, threadId);
+      const gone = thread === undefined || thread.deletedAt !== null;
+      return gone ? null : engine.respond(thread);
+    },
+    workspaceOf: (threadId: string) =>
+      dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
     send: serialized(mutations.send),
     stop: direct(lifecycle.stopThread),
     compact: direct(mutations.compact),
@@ -377,6 +386,7 @@ export function createThreadEngine(ctx: core.EngineContext) {
     archive: direct(lifecycle.archiveThreadTree),
     unarchive: serialized(lifecycle.unarchiveThread),
     delete: direct(lifecycle.deleteThreadTree),
+    releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
     update: serialized(mutations.update),
     pin: serialized(mutations.pin),
     unpin: serialized(mutations.unpin),
@@ -397,3 +407,7 @@ export function createThreadEngine(ctx: core.EngineContext) {
 }
 
 export type ThreadEngine = ReturnType<typeof createThreadEngine>;
+
+onProjectDeleted.push((ctx, deleted) =>
+  ctx.threads.releaseDeletedProject(deleted),
+);

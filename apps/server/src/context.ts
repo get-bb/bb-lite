@@ -5,7 +5,6 @@ import type { Environments } from "./environments/types.js";
 import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
 import type { ThreadEngine } from "./threads/engine.js";
-import type { Extensions } from "./threads/extensions.js";
 import type { Hub } from "./ws/hub.js";
 
 export type ServerRunner = Runner;
@@ -19,7 +18,6 @@ export interface ServerContext {
   log: Logger;
   now: () => number;
   environments: Environments;
-  extensions: Extensions;
   threads: ThreadEngine;
 }
 

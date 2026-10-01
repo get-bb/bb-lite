@@ -13,6 +13,7 @@ import { WebSocket } from "ws";
 import { loadConfig, type ServerConfig } from "../src/config.js";
 import type { ServerRunner } from "../src/context.js";
 import { openDatabase } from "../src/db/index.js";
+import type { RunnerFactory } from "../src/runners/registry.js";
 import { createServer } from "../src/server.js";
 
 export type SocketMessage = { type: string } & Record<string, unknown>;
@@ -91,7 +92,10 @@ function scriptRealWorkspace(runner: FakeRunner, dataDir: string): void {
 
 export async function createTestServer(
   overrides: Partial<ServerConfig> = {},
-  options: { realWorkspace?: boolean } = {},
+  options: {
+    realWorkspace?: boolean;
+    localRunner?: (config: ServerConfig) => RunnerFactory<ServerRunner>;
+  } = {},
 ) {
   const dataDir = mkdtempSync(join(tmpdir(), "bb-server-test-"));
   const env = { BB_DATA_DIR: dataDir, BB_SERVER_PORT: "0" };
@@ -105,10 +109,12 @@ export async function createTestServer(
     config,
     now,
     db: openDatabase({ path: ":memory:", now }),
-    localRunner: (sink) => {
-      runner.emit = sink;
-      return runner.api;
-    },
+    localRunner:
+      options.localRunner?.(config) ??
+      ((sink) => {
+        runner.emit = sink;
+        return runner.api;
+      }),
   });
   const { url } = await server.listen();
   onTestFinished(async () => {

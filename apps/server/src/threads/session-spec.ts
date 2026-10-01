@@ -1,19 +1,19 @@
 import { readFile } from "node:fs/promises";
 import type { DynamicTool } from "@bb/domain";
+import type { ThreadContext } from "@bb/plugin";
 import type { SessionSpec } from "@bb/runner";
-import { dataPaths } from "../config.js";
+import { dataPaths, loopbackUrl } from "../config.js";
+import type { ServerContext } from "../context.js";
+import { getAppSettings } from "../db/settings.js";
 import type { ThreadRow } from "../db/threads.js";
-import type { EngineContext } from "./core.js";
+import { resolveContributedEnvironment } from "../machine-environment.js";
 import { requireProviderId } from "./execution.js";
-import type { ThreadExtensionContext } from "./extensions.js";
 
 export interface SessionEnvironment {
   id: string;
   hostId: string;
   path: string;
 }
-
-const PLUGIN_INSTRUCTIONS_MAX_CHARS = 4096;
 
 const BB_INTRODUCTION = [
   "You are working inside bb, an agentic IDE for managing coding agents in projects, threads, and environments. The `bb` CLI is available when you need BB context or orchestration.",
@@ -63,50 +63,38 @@ async function readUserInstructions(dataDir: string): Promise<string | null> {
   }
 }
 
-export function extensionContext(
+export function pluginContext(
   thread: ThreadRow,
-  environment: SessionEnvironment,
-  model: string,
-): ThreadExtensionContext {
-  return {
-    threadId: thread.id,
-    projectId: thread.projectId,
-    providerId: thread.providerId,
-    environmentId: environment.id,
-    hostId: environment.hostId,
-    model,
-  };
+  hostId: string | null,
+): ThreadContext {
+  const { id: threadId, projectId, providerId } = thread;
+  return { threadId, projectId, hostId, providerId };
+}
+
+function serverUrlFor(ctx: ServerContext, hostId: string): string {
+  const local = hostId === ctx.config.hostId;
+  const published = local ? null : getAppSettings(ctx.db).machineServerUrl;
+  return published?.replace(/\/+$/u, "") ?? loopbackUrl(ctx.config);
 }
 
 export async function buildSessionSpec(
-  ctx: EngineContext,
+  ctx: ServerContext,
   thread: ThreadRow,
   environment: SessionEnvironment,
-  model: string,
 ): Promise<SessionSpec> {
-  const scope = extensionContext(thread, environment, model);
-  const [tools, contributions, contributedEnv, user, workspace] =
-    await Promise.all([
-      ctx.extensions.agentTools(scope),
-      ctx.extensions.instructions(scope),
-      ctx.extensions.contributedEnv(scope),
-      readUserInstructions(ctx.config.dataDir),
-      ctx.environments.workspaceInstructions(environment.id),
-    ]);
+  const { hostId } = environment;
+  const scope = pluginContext(thread, hostId);
+  const providerId = requireProviderId(thread.providerId);
+  const [plugins, pluginEnv, machineEnv, user, workspace] = await Promise.all([
+    ctx.plugins.instructionsFor(scope),
+    ctx.plugins.contributedEnv(providerId, scope),
+    resolveContributedEnvironment(ctx, thread.projectId),
+    readUserInstructions(ctx.config.dataDir),
+    ctx.environments.workspaceInstructions(environment.id),
+  ]);
   const sections = [BB_INTRODUCTION, UPDATE_ENVIRONMENT_DIRECTORY_INSTRUCTIONS];
-  for (const { pluginId, tool, instructions } of tools) {
-    if (instructions === null) continue;
-    const origin = `the BB plugin "${pluginId}" for its tool "${tool.name}"`;
-    sections.push(`The following instructions come from ${origin}:`);
-    sections.push(instructions);
-  }
-  for (const { pluginId, text, dynamic } of contributions) {
-    if (text.trim() === "") continue;
-    const kind = dynamic ? "dynamic instructions" : "instructions";
-    sections.push(
-      `The following ${kind} come from the BB plugin "${pluginId}":`,
-    );
-    sections.push(text.slice(0, PLUGIN_INSTRUCTIONS_MAX_CHARS));
+  if (plugins !== "") {
+    sections.push("The following instructions come from BB plugins:", plugins);
   }
   if (user !== null) {
     const origin = "<dataDir>/AGENTS.md";
@@ -117,23 +105,30 @@ export async function buildSessionSpec(
     sections.push(`The following workspace instructions come from ${origin}:`);
     sections.push(workspace);
   }
+  const serverUrl = serverUrlFor(ctx, hostId);
+  const contributed = pluginEnv.map(({ name, value }) => {
+    const expanded =
+      typeof value === "string" ? value : serverUrl + value.serverPath;
+    return [name, expanded];
+  });
   return {
     threadId: thread.id,
-    providerId: requireProviderId(thread.providerId),
+    providerId,
     cwd: environment.path,
     providerThreadId: thread.providerThreadId,
     fork: null,
     instructions: sections.join("\n\n"),
     dynamicTools: [
       UPDATE_ENVIRONMENT_DIRECTORY_TOOL,
-      ...tools.map((contribution) => contribution.tool),
+      ...ctx.plugins.toolsFor(scope),
     ],
     env: {
-      ...contributedEnv,
+      ...machineEnv,
+      ...Object.fromEntries(contributed),
       BB_THREAD_ID: thread.id,
       BB_PROJECT_ID: thread.projectId,
       BB_ENVIRONMENT_ID: environment.id,
     },
-    skillDirs: [],
+    skillDirs: hostId === ctx.config.hostId ? ctx.plugins.skillDirs() : [],
   };
 }

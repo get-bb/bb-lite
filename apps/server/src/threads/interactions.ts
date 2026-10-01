@@ -1,4 +1,5 @@
 import * as domain from "@bb/domain";
+import type { InputResult as PluginInputResult } from "@bb/plugin";
 import * as pending from "../db/pending-interactions.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
@@ -20,10 +21,6 @@ export interface PluginInputRequest {
   presentation?: domain.ThreadEventItemPresentation;
   signal?: AbortSignal;
 }
-
-export type PluginInputResult =
-  | { outcome: "submitted"; value: domain.JsonValue }
-  | { outcome: "cancelled"; reason: string };
 
 export interface InputWaiter {
   resolve(result: PluginInputResult): void;
@@ -110,7 +107,7 @@ export function registerProviderInteraction(
   hostId: string,
   event: RunnerEventOf<"interaction.requested">,
 ): void {
-  const { db, extensions } = engine.ctx;
+  const { db, plugins } = engine.ctx;
   const { threadId, requestId, payload } = event;
   const thread = getThread(db, threadId);
   const active = pending.listActiveInteractions(db, threadId);
@@ -138,7 +135,7 @@ export function registerProviderInteraction(
     const interaction = announce(engine, out, thread, row);
     out.after(() => {
       const response = engine.respond(thread);
-      extensions.emit("interaction.pending", { thread: response, interaction });
+      plugins.emit("interaction.pending", { thread: response, interaction });
       notifyParentBlocked(engine, thread, interaction);
     });
   });
@@ -315,7 +312,7 @@ function openPluginInteraction(
   engine: Engine,
   request: PluginInputRequest,
 ): { result: Promise<PluginInputResult> } {
-  const { db, extensions } = engine.ctx;
+  const { db, plugins } = engine.ctx;
   const { threadId, signal } = request;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) throw threadNotFound();
@@ -334,7 +331,7 @@ function openPluginInteraction(
     const interaction = announce(engine, out, thread, created);
     const response = engine.respond(thread);
     out.after(() =>
-      extensions.emit("interaction.pending", { thread: response, interaction }),
+      plugins.emit("interaction.pending", { thread: response, interaction }),
     );
     return created;
   });

@@ -10,12 +10,15 @@ import {
   type ThreadTurnInitiator,
 } from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
-import * as lookups from "../db/engine-lookups.js";
+import type { ServerContext } from "../context.js";
+import { getEnvironment } from "../db/environments.js";
+import { findHost } from "../db/hosts.js";
 import type { Db } from "../db/index.js";
+import { getProjectExecutionDefaults } from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
-import type { EngineContext } from "./core.js";
+import { providerOptionsFor } from "../providers/settings.js";
 
 export interface ExecutionTuple {
   model: string;
@@ -38,6 +41,12 @@ interface CreateExecutionArgs {
   projectId: string;
   hostId: string;
   parent: ThreadRow | null;
+}
+
+interface TurnOptionsSource {
+  execution: ExecutionTuple;
+  initiator: ThreadTurnInitiator;
+  input: readonly PromptInput[];
 }
 
 const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
@@ -70,7 +79,7 @@ function resolve(
 ): ExecutionTuple {
   const pick = <Field extends ExecutionField>(field: Field) =>
     layers.map((layer) => layer[field]).find((value) => value != null);
-  const host = hostId === null ? undefined : lookups.getHostRow(db, hostId);
+  const host = hostId === null ? undefined : findHost(db, "id", hostId);
   const permissionMode = pick("permissionMode") ?? "auto";
   const ceiling = host?.maxPermissionMode ?? "full";
   const fast = getAppSettings(db).allowFastServiceTier;
@@ -85,7 +94,7 @@ function resolve(
 }
 
 function projectDefaults(db: Db, projectId: string, providerId: string) {
-  const stored = lookups.readProjectExecutionDefaults(db, projectId);
+  const stored = getProjectExecutionDefaults(db, projectId);
   return stored?.providerId === providerId ? stored : {};
 }
 
@@ -112,14 +121,12 @@ export function resolveTurnExecution(
     throw new ApiError(500, "internal_error", message);
   }
   const environment =
-    environmentId === null
-      ? undefined
-      : lookups.getEnvironmentRow(db, environmentId);
+    environmentId === null ? undefined : getEnvironment(db, environmentId);
   return resolve(db, environment?.hostId ?? null, model, layers);
 }
 
 async function firstInstalledProvider(
-  ctx: EngineContext,
+  ctx: ServerContext,
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(ctx.db);
@@ -139,7 +146,7 @@ async function firstInstalledProvider(
 }
 
 async function catalogDefaultModel(
-  ctx: EngineContext,
+  ctx: ServerContext,
   hostId: string,
   providerId: ProviderId,
 ): Promise<string> {
@@ -157,14 +164,14 @@ async function catalogDefaultModel(
 }
 
 export async function resolveCreateExecution(
-  ctx: EngineContext,
+  ctx: ServerContext,
   args: CreateExecutionArgs,
 ): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
   const { request, projectId, hostId, parent } = args;
   const { db } = ctx;
   const providerId = requireProviderId(
     request.providerId ??
-      lookups.readProjectExecutionDefaults(db, projectId)?.providerId ??
+      getProjectExecutionDefaults(db, projectId)?.providerId ??
       getAppSettings(db).defaultProviderId ??
       (await firstInstalledProvider(ctx, hostId)),
   );
@@ -186,15 +193,15 @@ export function recordedExecution(
 }
 
 export function toRunnerOptions(
-  execution: ExecutionTuple,
-  initiator: ThreadTurnInitiator,
-  input: readonly PromptInput[],
+  db: Db,
+  providerId: string,
+  { execution, initiator, input }: TurnOptionsSource,
 ): ExecutionOptions {
   const plan = { trigger: "/" as const, name: "plan" };
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
     planMode: promptInputHasCommandMention(input, plan),
-    providerOptions: {},
+    providerOptions: providerOptionsFor(db, providerId),
   };
 }

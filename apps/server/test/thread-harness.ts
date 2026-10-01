@@ -6,6 +6,7 @@ import type {
 } from "@bb/runner";
 import type { CreateThreadRequest } from "@bb/server-contract";
 import type { SqlValue } from "../src/db/index.js";
+import { insertTerminal } from "../src/db/terminals.js";
 import type { ThreadRow } from "../src/db/threads.js";
 import type { ThreadEnvironment } from "../src/environments/types.js";
 import { createTestServer, type TestSocket } from "./helpers.js";
@@ -178,6 +179,11 @@ export async function createThreadServer() {
     runner.calls
       .filter((call) => call.method === method)
       .map((call) => call.args[0]);
+  const openTerminal = (threadId: string): { terminalId: string } => {
+    const owner = { threadId, environmentId: null, hostId, title: "sh" };
+    const shape = { initialCwd: "/repo", cols: 80, rows: 24 };
+    return { terminalId: insertTerminal(db, { ...owner, ...shape }).id };
+  };
   const advance = async (ms: number): Promise<void> => {
     server.clock.now += ms;
     ctx.threads.sweep();
@@ -228,6 +234,7 @@ export async function createThreadServer() {
     lastSubmit,
     interact,
     callsTo,
+    openTerminal,
     advance,
     reconnect,
     deferEnvironment,

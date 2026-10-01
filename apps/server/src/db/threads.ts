@@ -267,9 +267,12 @@ export function listTombstonedThreads(db: Db): ThreadRow[] {
   return select(db, "deleted_at IS NOT NULL");
 }
 
-export function listArchivedRunningThreads(db: Db, archivedBefore: number) {
-  const where = "archived_at <= ? AND status IN ('starting', 'active')";
-  return select(db, `${where} AND ${LIVE}`, archivedBefore);
+export function listExpiredArchives(db: Db, archivedBefore: number) {
+  const terminals = `SELECT thread_id FROM terminal_sessions
+    WHERE status <> 'exited' AND thread_id IS NOT NULL`;
+  const busy = `status IN ('starting', 'active') OR id IN (${terminals})`;
+  const where = `archived_at <= ? AND (${busy}) AND ${LIVE}`;
+  return select(db, where, archivedBefore);
 }
 
 export function deleteThreadRow(db: Db, id: string): void {
