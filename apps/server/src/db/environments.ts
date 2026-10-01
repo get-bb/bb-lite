@@ -57,7 +57,25 @@ export type EnvironmentPatch = {
   mergeBaseBranch?: string | null;
   status?: EnvironmentStatus;
   statusMessage?: string | null;
+  retireAt?: number | null;
+  teardownStatus?: EnvironmentRow["teardownStatus"];
+  teardownAttempt?: number;
+  teardownMessage?: string | null;
 };
+
+export interface NewEnvironment {
+  projectId: string;
+  hostId: string;
+  path: string | null;
+  environmentProviderId: string;
+  ownerThreadId: string | null;
+  instanceKey: string | null;
+}
+
+export interface EnvironmentUse {
+  attached: number;
+  live: number;
+}
 
 export interface ThreadEnvironmentLink {
   environmentId: string | null;
@@ -136,10 +154,18 @@ function toEnvironment(row: EnvironmentRow): Environment {
   };
 }
 
-export function getEnvironment(db: Db, id: string): Environment | undefined {
-  const sql = `${SELECT_ENVIRONMENTS} WHERE e.id = ?`;
-  const row = db.get<EnvironmentRow>(sql, id);
+export function findEnvironment(
+  db: Db,
+  where: string,
+  ...values: SqlValue[]
+): Environment | undefined {
+  const sql = `${SELECT_ENVIRONMENTS} WHERE ${where}`;
+  const row = db.get<EnvironmentRow>(sql, ...values);
   return row === undefined ? undefined : toEnvironment(row);
+}
+
+export function getEnvironment(db: Db, id: string): Environment | undefined {
+  return findEnvironment(db, "e.id = ?", id);
 }
 
 export function listEnvironments(
@@ -162,23 +188,29 @@ export function listEnvironments(
   return db.all<EnvironmentRow>(sql, ...values).map(toEnvironment);
 }
 
-export function insertReadyEnvironment(
-  db: Db,
-  input: Pick<Environment, "projectId" | "hostId" | "path"> & {
-    environmentProviderId: string;
-  },
-): string {
+export function insertEnvironment(db: Db, input: NewEnvironment): string {
   const id = newId("env");
+  const { ownerThreadId } = input;
+  const managed = ownerThreadId !== null;
+  const worktree = input.environmentProviderId === "git-worktree";
   db.run(
     `INSERT INTO environments
-       (id, project_id, host_id, path, environment_provider_id, status,
+       (id, project_id, host_id, path, environment_provider_id,
+        environment_provider_instance_key, owner_thread_id,
+        provider_owns_path, is_git_repo, is_worktree, status,
         created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'ready', ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.projectId,
     input.hostId,
     input.path,
     input.environmentProviderId,
+    input.instanceKey,
+    ownerThreadId,
+    Number(managed),
+    Number(worktree),
+    Number(worktree),
+    managed ? "creating" : "provisioning",
     db.now(),
     db.now(),
   );
@@ -226,4 +258,41 @@ export function findThreadEnvironment(
      WHERE id = ? AND deleted_at IS NULL`,
     threadId,
   );
+}
+
+export function environmentUse(db: Db, environmentId: string): EnvironmentUse {
+  const use = db.get<EnvironmentUse>(
+    `SELECT COUNT(*) AS attached,
+       COALESCE(SUM(t.archived_at IS NULL), 0) AS live
+     FROM threads t JOIN environments e ON e.id = ?
+     WHERE t.deleted_at IS NULL AND (t.environment_id = e.id
+       OR (t.id = e.owner_thread_id AND t.environment_id IS NULL))`,
+    environmentId,
+  );
+  return use ?? { attached: 0, live: 0 };
+}
+
+export function listRetirableEnvironmentIds(db: Db): string[] {
+  return db
+    .all<{ id: string }>(
+      `SELECT id FROM environments
+       WHERE provider_owns_path = 1 AND status <> 'destroyed'`,
+    )
+    .map((environment) => environment.id);
+}
+
+export function hasOtherLiveThread(
+  db: Db,
+  environmentId: string,
+  threadId: string,
+): boolean {
+  const other = db.get(
+    `SELECT 1 FROM threads
+     WHERE environment_id = ? AND id <> ? AND deleted_at IS NULL
+       AND archived_at IS NULL
+       AND status IN ('starting', 'active', 'idle', 'stopping')`,
+    environmentId,
+    threadId,
+  );
+  return other !== undefined;
 }

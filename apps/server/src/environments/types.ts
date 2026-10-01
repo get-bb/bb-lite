@@ -38,4 +38,7 @@ export interface Environments {
   pathFor(environmentId: string): string | null;
   workspaceInstructions(environmentId: string): Promise<string | null>;
   onThreadDetached(threadId: string): void;
+  remove(environmentId: string): Promise<void>;
+  sweep(): Promise<void>;
+  start(): () => void;
 }

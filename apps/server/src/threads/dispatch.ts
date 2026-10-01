@@ -146,6 +146,12 @@ export function sessionEnvironmentOf(
   return { id: row.id, hostId: row.hostId, path };
 }
 
+function hasReadyWorkspace(engine: Engine, thread: ThreadRow): boolean {
+  const { environmentId } = thread;
+  if (environmentId === null) return false;
+  return getEnvironment(engine.ctx.db, environmentId)?.status === "ready";
+}
+
 function currentWait(
   engine: Engine,
   thread: ThreadRow,
@@ -167,11 +173,7 @@ function currentWait(
     thread.environmentId === null
       ? undefined
       : getEnvironment(db, thread.environmentId);
-  if (
-    environment !== undefined &&
-    environment.status !== "destroyed" &&
-    !runners.isConnected(environment.hostId)
-  ) {
+  if (environment !== undefined && !runners.isConnected(environment.hostId)) {
     const host = findHost(db, "id", environment.hostId);
     const hostName = host?.name ?? environment.hostId;
     return { kind: "host-offline", hostName };
@@ -337,11 +339,12 @@ export async function dispatchMessage(
     const row = recordWait(engine, thread, args, waitingOn);
     return { delivery: "queued", row };
   }
-  if (thread.status === "pending" || thread.environmentId === null) {
+  const settled = thread.status !== "active";
+  const unprepared = settled && !hasReadyWorkspace(engine, thread);
+  if (thread.status === "pending" || unprepared) {
     engine.beginProvisioning(thread, args);
     return SENT;
   }
-  const settled = thread.status !== "active";
   if (settled && isStandaloneBuiltinClearCommand(args.message.input)) {
     engine.commit((out) => consumeRows(engine, out, thread, args.rows));
     await engine.resetContext(thread);

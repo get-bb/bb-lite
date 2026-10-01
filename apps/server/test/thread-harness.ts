@@ -86,6 +86,17 @@ export async function createThreadServer() {
     describe: async () => ({ instanceId: "inst-1", homeDir: "/home/me" }),
     snapshot: async () => ({ sessions: [] }),
     listProviders: async () => [{ providerId: "codex", installed: true }],
+    inspectGitSource: async () => ({
+      defaultBranch: null,
+      originDefaultBranch: null,
+    }),
+    inspectPath: async () => ({ exists: true, isGitRepo: false }),
+    createWorktree: async ({ key }: { key: string }) => ({
+      path: `/worktrees/${key}`,
+      mergeBaseBranch: "main",
+      worktreeInclude: null,
+    }),
+    pathsExist: async () => ({ existence: {} }),
   });
   const settle = (): Promise<void> => ctx.threads.settled();
   const rows = <Row = Json>(sql: string, ...params: SqlValue[]): Row[] =>
