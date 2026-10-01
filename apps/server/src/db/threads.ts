@@ -339,16 +339,16 @@ function toThreadWithRuntime<Row extends ThreadRow>(
   runtime: ThreadRuntimeState,
 ) {
   const {
-    providerThreadId,
-    activeTurnId,
-    model,
-    reasoningLevel,
-    permissionMode,
-    serviceTier,
-    modelOverride,
-    reasoningLevelOverride,
-    startupContext,
-    storageDeletedAt,
+    providerThreadId: _providerThreadId,
+    activeTurnId: _activeTurnId,
+    model: _model,
+    reasoningLevel: _reasoningLevel,
+    permissionMode: _permissionMode,
+    serviceTier: _serviceTier,
+    modelOverride: _modelOverride,
+    reasoningLevelOverride: _reasoningLevelOverride,
+    startupContext: _startupContext,
+    storageDeletedAt: _storageDeletedAt,
     ...shared
   } = thread;
   return { ...shared, runtime };
@@ -392,7 +392,10 @@ export function toThreadResponse(
   runtime: ThreadRuntimeState,
 ): ThreadResponse {
   const [listed] = listThreadRows(db, "t.id = ?", thread.id);
-  const { pinSortKey, ...shared } = toThreadWithRuntime(thread, runtime);
+  const { pinSortKey: _pinned, ...shared } = toThreadWithRuntime(
+    thread,
+    runtime,
+  );
   return {
     ...shared,
     activeBackgroundAgentCount: threadActivity(db, thread.id)

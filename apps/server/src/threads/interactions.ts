@@ -113,9 +113,10 @@ export function registerProviderInteraction(
   const { db, extensions } = engine.ctx;
   const { threadId, requestId, payload } = event;
   const thread = getThread(db, threadId);
-  if (pending.findProviderInteraction(db, threadId, requestId) !== undefined)
-    return;
-  const busy = pending.listActiveInteractions(db, threadId).length > 0;
+  const active = pending.listActiveInteractions(db, threadId);
+  if (active.some((row) => row.providerRequestId === requestId)) return;
+  const known = pending.findProviderInteraction(db, threadId, requestId);
+  const busy = active.length > 0 || known !== undefined;
   if (thread === undefined || thread.deletedAt !== null || busy) {
     const resolution = denial(payload);
     const refused = engine.onHost(hostId, (runner) =>
