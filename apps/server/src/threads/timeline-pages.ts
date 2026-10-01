@@ -97,7 +97,9 @@ export function bindCursor(
   return { anchorSeq: cursor.anchorSeq, anchorId: CURSOR_PREFIX + encoded };
 }
 
-function nestedRows(row: TimelineRow): readonly TimelineRow[] | null {
+export function nestedTimelineRows(
+  row: TimelineRow,
+): readonly TimelineRow[] | null {
   if (row.kind === "turn" && row.children?.length) return row.children;
   const delegation = row.kind === "work" && row.workKind === "delegation";
   return delegation && row.childRows.length > 0 ? row.childRows : null;
@@ -124,7 +126,7 @@ export function paginateContents(
   const costs: number[] = [];
   const measure = (items: readonly TimelineRow[], ancestors: number): void => {
     for (const row of items) {
-      const nested = nestedRows(row);
+      const nested = nestedTimelineRows(row);
       if (nested === null) costs.push(jsonBytes(row) + ancestors);
       else measure(nested, ancestors + jsonBytes(withNestedRows(row, [])));
     }
@@ -149,7 +151,7 @@ export function paginateContents(
   };
   const pick = (items: readonly TimelineRow[]): TimelineRow[] =>
     items.flatMap((row) => {
-      const nested = nestedRows(row);
+      const nested = nestedTimelineRows(row);
       if (nested === null) {
         const position = index++;
         if (position < start) recordOlder(row);
@@ -193,7 +195,7 @@ function logicalSegments(args: PaginateTimelineArgs) {
 }
 
 function rowChangesFrom(row: TimelineRow, sequence: number): TimelineRow {
-  const nested = nestedRows(row);
+  const nested = nestedTimelineRows(row);
   return nested === null
     ? row
     : withNestedRows(row, rowsChangedFrom(nested, sequence));

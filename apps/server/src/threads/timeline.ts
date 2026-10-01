@@ -7,6 +7,7 @@ import {
   computeTimelineRowDelta,
   type ThreadConversationOutlineResponse,
   type ThreadTimelineResponse,
+  type TimelineRow,
   type TimelineTurnSummaryDetailsResponse,
 } from "@bb/server-contract";
 import {
@@ -44,6 +45,7 @@ import {
   paginateContents,
   paginateTimeline,
   snapshotFromCursor,
+  nestedTimelineRows,
   splitsSurrogatePair,
   type TimelineContentCursor,
   type TimelinePage,
@@ -624,7 +626,16 @@ function buildTurnDetails(
       row.turnId === turnId &&
       row.sourceSeqEnd >= sourceSeqStart,
   );
-  if (turn?.kind !== "turn" || turn.children === null) {
+  const collapsed = turn?.kind === "turn" ? turn.children : null;
+  const within = (rows: readonly TimelineRow[]): TimelineRow[] =>
+    rows.flatMap((row) => {
+      const contained =
+        row.sourceSeqStart >= sourceSeqStart &&
+        row.sourceSeqEnd <= sourceSeqEnd;
+      return contained ? [row] : within(nestedTimelineRows(row) ?? []);
+    });
+  const found = collapsed ?? within(timeline.rows);
+  if (found.length === 0) {
     const range = `${sourceSeqStart}-${sourceSeqEnd}`;
     throw invalidRequest(
       `Timeline turn summary details range ${range} does not include ` +
@@ -632,7 +643,7 @@ function buildTurnDetails(
     );
   }
   const page = paginateContents(
-    turn.children,
+    found,
     content?.beforeLeaf,
     DETAIL_LEAF_LIMIT,
     RESPONSE_BYTE_LIMIT,
