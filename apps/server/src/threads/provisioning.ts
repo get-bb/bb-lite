@@ -193,7 +193,7 @@ async function completeProvisioning(
   const row = getEnvironmentRow(db, environmentId);
   if (row === undefined) throw new Error("Prepared environment is missing");
   const attached = engine.commit((out) => {
-    const next = patchThread(db, threadId, { environmentId }) ?? thread;
+    const next = patchThread(db, threadId, { environmentId });
     const { projectId } = thread;
     out.thread(threadId, ["environment-changed"], { projectId });
     if (!current) return next;

@@ -4,6 +4,7 @@ import { appendEvents, type StoredEvent } from "../db/events.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
+import { interruptAll } from "./interactions.js";
 
 type EventOf<Type extends RunnerThreadEvent["type"]> = Extract<
   RunnerThreadEvent,
@@ -64,7 +65,8 @@ function onTurnCompleted(
   if (scope.kind !== "turn" || scope.turnId !== thread.activeTurnId) return;
   patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
   const stopped = status === "interrupted" && thread.status === "stopping";
-  engine.interruptInteractions(
+  interruptAll(
+    engine,
     out,
     thread,
     stopped ? STOPPED_REASON : TURN_ENDED_REASON,
@@ -124,7 +126,7 @@ function applyEffect(
       return;
     case "system/error": {
       if (!FATAL_SYSTEM_ERROR_CODES.includes(event.code ?? "")) return;
-      engine.interruptInteractions(out, thread, PROVIDER_EXIT_REASON);
+      interruptAll(engine, out, thread, PROVIDER_EXIT_REASON);
       const outcome = engine.transition(out, threadId, "run.failed");
       if (!outcome.applied) return;
       engine.notifyParent(out, outcome.thread, { status: "failed" });

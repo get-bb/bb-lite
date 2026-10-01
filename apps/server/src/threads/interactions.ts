@@ -5,6 +5,7 @@ import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
 import type { RunnerEventOf } from "../runners/registry.js";
 import { conflict, threadNotFound, type Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
+import { notifyParentBlocked } from "./parent-notices.js";
 
 type PendingInteraction = domain.PendingInteraction;
 type PendingInteractionRow = pending.PendingInteractionRow;
@@ -82,7 +83,7 @@ function settle(
   return announce(engine, out, thread, row);
 }
 
-export function interruptInteractions(
+export function interruptAll(
   engine: Engine,
   out: Outbox,
   thread: ThreadRow,
@@ -140,7 +141,7 @@ export function registerProviderInteraction(
     out.after(() => {
       const response = engine.respond(thread);
       extensions.emit("interaction.pending", { thread: response, interaction });
-      engine.notifyParentBlocked(thread, interaction);
+      notifyParentBlocked(engine, thread, interaction);
     });
   });
 }

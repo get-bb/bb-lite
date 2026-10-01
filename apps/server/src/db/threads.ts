@@ -142,7 +142,7 @@ export function patchThread(
   id: string,
   patch: ThreadPatch,
   touch = true,
-): ThreadRow | undefined {
+): ThreadRow {
   const values: Record<string, SqlValue> = { ...patch, id };
   const assignments = Object.keys(patch).map(
     (key) => `${snakeCase(key)} = @${key}`,
@@ -156,7 +156,8 @@ export function patchThread(
     db.run(`UPDATE threads SET ${sets} WHERE id = @id`, values);
   }
   const thread = getThread(db, id);
-  if (thread !== undefined && "title" in patch) syncTitleSearch(db, thread);
+  if (thread === undefined) throw new Error(`Thread ${id} does not exist`);
+  if ("title" in patch) syncTitleSearch(db, thread);
   return thread;
 }
 
@@ -261,7 +262,7 @@ export function subtreeDepth(db: Db, thread: ThreadRow): number {
 export function listThreadsOnHost(
   db: Db,
   hostId: string,
-  statuses: readonly ThreadStatus[],
+  ...statuses: ThreadStatus[]
 ): ThreadRow[] {
   const marks = statuses.map(() => "?").join(", ");
   const onHost = "(SELECT id FROM environments WHERE host_id = ?)";

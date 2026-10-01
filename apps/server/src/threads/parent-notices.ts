@@ -8,6 +8,7 @@ import type {
 } from "@bb/domain";
 import { lastAssistantText } from "../db/events.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
+import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
 
@@ -138,7 +139,7 @@ function deliverNotice(
     const parent = getThread(db, parentThreadId);
     if (parent === undefined || parent.deletedAt !== null) return;
     if (parent.archivedAt !== null) return;
-    await engine.dispatch(parentThreadId, {
+    await dispatchMessage(engine, parentThreadId, {
       message: {
         input,
         execution: resolveTurnExecution(db, parent, {}),

@@ -27,6 +27,7 @@ import {
 } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import type { EngineContext } from "./core.js";
+import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
 import { deriveTitleFallback, type StartupContext } from "./provisioning.js";
@@ -207,7 +208,7 @@ export async function createThread(
   });
   try {
     await engine.inThread(thread.id, () =>
-      engine.dispatch(thread.id, {
+      dispatchMessage(engine, thread.id, {
         message: {
           input: request.input,
           execution,

@@ -28,7 +28,7 @@ export async function send(
 ) {
   const thread = engine.requireThread(threadId);
   const senderThreadId = engine.senderOf(thread, request.senderThreadId);
-  const outcome = await engine.dispatch(threadId, {
+  const outcome = await dispatching.dispatchMessage(engine, threadId, {
     message: {
       input: request.input,
       execution: resolveTurnExecution(engine.ctx.db, thread, request),
@@ -92,7 +92,7 @@ export function update(
   const updated = engine.commit((out) => {
     const { projectId } = thread;
     if (changes.length > 0) out.thread(threadId, changes, { projectId });
-    return store.patchThread(db, threadId, fields) ?? thread;
+    return store.patchThread(db, threadId, fields);
   });
   if (title != null && title !== thread.title) {
     engine.renameSession(updated, title);
@@ -111,7 +111,7 @@ function patchAndAnnounce(
     out.thread(threadId, [change], { projectId });
     return store.patchThread(engine.ctx.db, threadId, patch);
   });
-  return engine.respond(updated ?? engine.requireThread(threadId));
+  return engine.respond(updated);
 }
 
 export function pin(engine: Engine, threadId: string) {

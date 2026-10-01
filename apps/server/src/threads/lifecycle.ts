@@ -3,6 +3,7 @@ import {
   threadScope,
   turnScope,
   type ChildThreadOutcome,
+  type ThreadChangeKind,
 } from "@bb/domain";
 import { getHostRow, recordHostInstance } from "../db/engine-lookups.js";
 import { newId } from "../db/index.js";
@@ -12,22 +13,19 @@ import * as store from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
 import { conflict, type Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
-import { cancelPluginInteraction } from "./interactions.js";
+import * as interactions from "./interactions.js";
 import { flushDueNotices } from "./parent-notices.js";
 import { cancelProvisioning } from "./provisioning.js";
 
 type ThreadRow = store.ThreadRow;
 type Interruption = NonNullable<ChildThreadOutcome["interruption"]>;
+type MembershipEvent = `thread.${"archived" | "unarchived" | "deleted"}`;
 
 const ARCHIVE_UNDO_GRACE_MS = 30_000;
-const STOP_SETTLE_TIMEOUT_MS = 30_000;
 const STOPPED_REASON = "Thread stopped by user request";
 const MANUAL_STOP: Interruption = { reason: "manual-stop" };
-const RUNNER_RESTARTED: Interruption = { reason: "host-daemon-restarted" };
-const CONNECTION_LOST: Interruption = {
-  reason: "host-daemon-restarted",
-  cause: "host-connection-lost",
-};
+const RESTARTED: Interruption = { reason: "host-daemon-restarted" };
+const CONNECTION_LOST = "host-connection-lost";
 const CONTEXT_CLEARED_MESSAGE =
   "Earlier chat is hidden from the active timeline. Durable history and " +
   "workspace are unchanged.";
@@ -51,39 +49,34 @@ function closeActiveTurn(engine: Engine, out: Outbox, thread: ThreadRow) {
   store.patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
 }
 
-function releaseSession(engine: Engine, thread: ThreadRow): void {
-  const hostId = engine.connectedHostOf(thread);
-  if (hostId === null) return;
-  const threadId = thread.id;
-  const released = engine.onHost(hostId, (runner) =>
-    runner.releaseSession({ threadId }),
-  );
-  engine.background("release session", released);
-}
-
 function requestStop(engine: Engine, threadId: string): string | null {
   const thread = engine.requireThread(threadId);
   const runtime = engine.runtimeOf(threadId);
-  if (thread.status === "stopping") return engine.hostOf(thread);
+  const hostId = engine.hostOf(thread);
+  if (thread.status === "stopping") return hostId;
   if (thread.status === "active") {
     engine.commit((out) => {
       appendInterrupted(engine, out, thread, MANUAL_STOP);
       engine.transition(out, threadId, "stop.requested");
     });
     runtime.cancelledStart = runtime.pendingStart;
-    return engine.hostOf(thread);
+    return hostId;
   }
-  if (thread.status !== "starting") {
-    releaseSession(engine, thread);
-    return null;
+  const online = engine.connectedHostOf(thread);
+  if (thread.status === "starting") {
+    engine.commit((out) => {
+      cancelProvisioning(engine, out, thread);
+      appendInterrupted(engine, out, thread, MANUAL_STOP);
+      interactions.interruptAll(engine, out, thread, STOPPED_REASON);
+      engine.transition(out, threadId, "stop.requested");
+      engine.transition(out, threadId, "stop.settled");
+    });
+  } else if (online !== null) {
+    const released = engine.onHost(online, (runner) =>
+      runner.releaseSession({ threadId }),
+    );
+    engine.background("release session", released);
   }
-  engine.commit((out) => {
-    cancelProvisioning(engine, out, thread);
-    appendInterrupted(engine, out, thread, MANUAL_STOP);
-    engine.interruptInteractions(out, thread, STOPPED_REASON);
-    engine.transition(out, threadId, "stop.requested");
-    engine.transition(out, threadId, "stop.settled");
-  });
   return null;
 }
 
@@ -92,7 +85,7 @@ function finalizeStop(engine: Engine, threadId: string): void {
   if (thread === undefined || thread.status !== "stopping") return;
   engine.commit((out) => {
     closeActiveTurn(engine, out, thread);
-    engine.interruptInteractions(out, thread, STOPPED_REASON);
+    interactions.interruptAll(engine, out, thread, STOPPED_REASON);
     engine.transition(out, threadId, "stop.settled");
     out.after(() => engine.scheduleDrain(threadId));
   });
@@ -116,7 +109,7 @@ export async function stopThread(
   await engine.inThread(threadId, () => finalizeStop(engine, threadId));
 }
 
-export function interruptThread(
+function interruptThread(
   engine: Engine,
   threadId: string,
   interruption: Interruption,
@@ -128,42 +121,48 @@ export function interruptThread(
   runtime.provisioning?.abort.abort();
   runtime.provisioning = null;
   const stopping = thread.status === "stopping";
-  const lost = interruption.cause === "host-connection-lost";
+  const lost = interruption.cause === CONNECTION_LOST;
+  const cause = lost ? "Connection to host was lost" : "Host daemon restarted";
+  const reason = `${cause} while awaiting user interaction`;
   engine.commit((out) => {
     closeActiveTurn(engine, out, thread);
     appendInterrupted(engine, out, thread, interruption);
-    engine.interruptInteractions(
-      out,
-      thread,
-      lost
-        ? "Connection to host was lost while awaiting user interaction"
-        : "Host daemon restarted while awaiting user interaction",
-      "provider",
-    );
-    const lifecycle = stopping ? "stop.settled" : "run.failed";
-    const outcome = engine.transition(out, threadId, lifecycle);
+    interactions.interruptAll(engine, out, thread, reason, "provider");
+    const settlement = stopping ? "stop.settled" : "run.failed";
+    const outcome = engine.transition(out, threadId, settlement);
     if (!outcome.applied || stopping) return;
     const status = "interrupted";
     engine.notifyParent(out, outcome.thread, { status, interruption });
   });
 }
 
-function archiveOne(engine: Engine, threadId: string): boolean {
-  const { db, environments, extensions, now } = engine.ctx;
-  const thread = store.getThread(db, threadId);
-  if (thread === undefined || thread.deletedAt !== null) return false;
-  if (thread.archivedAt !== null) return false;
-  const { projectId } = thread;
+function changeMembership(
+  engine: Engine,
+  thread: ThreadRow,
+  patch: store.ThreadPatch,
+  change: ThreadChangeKind,
+  event: MembershipEvent,
+): void {
+  const { db, environments, extensions } = engine.ctx;
+  const { id, projectId } = thread;
   engine.commit((out) => {
-    const archived =
-      store.patchThread(db, threadId, { archivedAt: now() }) ?? thread;
-    out.thread(threadId, ["archived-changed"], { projectId });
+    const changed = store.patchThread(db, id, patch);
+    out.thread(id, [change], { projectId });
     out.project(projectId, ["threads-changed"]);
     out.after(() => {
-      extensions.emit("thread.archived", { thread: engine.respond(archived) });
-      environments.onThreadDetached(threadId);
+      extensions.emit(event, { thread: engine.respond(changed) });
+      environments.onThreadDetached(id);
     });
   });
+}
+
+function archiveOne(engine: Engine, threadId: string): boolean {
+  const thread = store.getThread(engine.ctx.db, threadId);
+  if (thread === undefined || thread.deletedAt !== null) return false;
+  if (thread.archivedAt !== null) return false;
+  const archived = { archivedAt: engine.ctx.now() };
+  const change = "archived-changed";
+  changeMembership(engine, thread, archived, change, "thread.archived");
   return true;
 }
 
@@ -181,27 +180,18 @@ export async function archiveThreadTree(
 }
 
 export function unarchiveThread(engine: Engine, threadId: string): void {
-  const { db, environments, extensions } = engine.ctx;
   const thread = engine.requireThread(threadId);
   if (thread.archivedAt === null) return;
   const ownerId = thread.lifecycleOwnerThreadId;
-  const owner = ownerId === null ? undefined : store.getThread(db, ownerId);
+  const owner =
+    ownerId === null ? undefined : store.getThread(engine.ctx.db, ownerId);
   if (owner !== undefined && owner.archivedAt !== null) {
     throw conflict("Lifecycle owner must be unarchived first");
   }
-  const { projectId } = thread;
-  engine.commit((out) => {
-    const restored =
-      store.patchThread(db, threadId, { archivedAt: null }) ?? thread;
-    out.thread(threadId, ["archived-changed"], { projectId });
-    out.project(projectId, ["threads-changed"]);
-    out.after(() => {
-      const response = engine.respond(restored);
-      extensions.emit("thread.unarchived", { thread: response });
-      environments.onThreadDetached(threadId);
-      engine.scheduleDrain(threadId);
-    });
-  });
+  const restored = { archivedAt: null };
+  const change = "archived-changed";
+  changeMembership(engine, thread, restored, change, "thread.unarchived");
+  engine.scheduleDrain(threadId);
 }
 
 async function finalizeDeletion(
@@ -239,25 +229,17 @@ function retryDeletions(engine: Engine): void {
 }
 
 function tombstone(engine: Engine, threadId: string): void {
-  const { db, environments, extensions, now } = engine.ctx;
-  const thread = store.getThread(db, threadId);
+  const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const runtime = engine.runtimeOf(threadId);
   runtime.provisioning?.abort.abort();
   runtime.provisioning = null;
-  const { projectId } = thread;
-  engine.commit((out) => {
-    engine.interruptInteractions(out, thread, "thread-deleted");
-    const deleted =
-      store.patchThread(db, threadId, { deletedAt: now() }) ?? thread;
-    out.thread(threadId, ["thread-deleted"], { projectId });
-    out.project(projectId, ["threads-changed"]);
-    out.after(() => {
-      extensions.emit("thread.deleted", { thread: engine.respond(deleted) });
-      environments.onThreadDetached(threadId);
-      retryDeletions(engine);
-    });
-  });
+  engine.commit((out) =>
+    interactions.interruptAll(engine, out, thread, "thread-deleted"),
+  );
+  const deleted = { deletedAt: engine.ctx.now() };
+  changeMembership(engine, thread, deleted, "thread-deleted", "thread.deleted");
+  retryDeletions(engine);
 }
 
 export async function deleteThreadTree(
@@ -267,10 +249,8 @@ export async function deleteThreadTree(
 ): Promise<void> {
   const { db } = engine.ctx;
   const root = engine.requireThread(threadId);
-  if (
-    !childThreadsConfirmed &&
-    store.listChildThreads(db, root.id).length > 0
-  ) {
+  const children = store.listChildThreads(db, root.id);
+  if (!childThreadsConfirmed && children.length > 0) {
     throw new ApiError(
       409,
       "child_threads_confirmation_required",
@@ -336,22 +316,15 @@ export async function reconcileHost(
   const previous = getHostRow(db, hostId)?.lastInstanceId ?? null;
   const restarted = previous !== null && previous !== info.instanceId;
   recordHostInstance(db, hostId, info.instanceId);
-  const live = new Set(
-    snapshot.sessions
-      .filter((session) => session.activeTurnId !== null)
-      .map((session) => session.threadId),
-  );
-  const interruption = restarted ? RUNNER_RESTARTED : CONNECTION_LOST;
-  for (const thread of store.listThreadsOnHost(db, hostId, [
-    "active",
-    "stopping",
-  ])) {
-    engine.later(thread.id, "reconcile thread", () => {
-      if (restarted || !live.has(thread.id)) {
-        interruptThread(engine, thread.id, interruption);
-      } else {
-        engine.announceStatus(thread.id);
-      }
+  const live = snapshot.sessions
+    .filter((session) => session.activeTurnId !== null)
+    .map((session) => session.threadId);
+  const lost: Interruption = { ...RESTARTED, cause: CONNECTION_LOST };
+  const affected = store.listThreadsOnHost(db, hostId, "active", "stopping");
+  for (const { id } of affected) {
+    engine.later(id, "reconcile thread", () => {
+      if (!restarted && live.includes(id)) engine.announceStatus(id);
+      else interruptThread(engine, id, restarted ? RESTARTED : lost);
     });
   }
   for (const threadId of listThreadIdsWaitingOn(db, "host-offline")) {
@@ -361,40 +334,27 @@ export async function reconcileHost(
 }
 
 export function onHostDisconnected(engine: Engine, hostId: string): void {
-  const { db } = engine.ctx;
-  const hostName = getHostRow(db, hostId)?.name ?? hostId;
-  for (const thread of store.listThreadsOnHost(db, hostId, ["active"])) {
-    engine.later(thread.id, "host disconnected", () => {
-      engine.commit((out) => {
-        const waiting = [null, "thread-busy", "turn-starting"] as const;
-        const offline = { kind: "host-offline" as const, hostName };
-        engine.relabelWaits(out, thread.id, waiting, offline);
-      });
-      engine.announceStatus(thread.id);
-    });
-  }
+  const active = store.listThreadsOnHost(engine.ctx.db, hostId, "active");
+  for (const { id } of active) engine.announceStatus(id);
 }
 
 export function recoverAfterRestart(engine: Engine): void {
   const { db } = engine.ctx;
   const { localHostId } = engine.ctx.runners;
-  for (const row of pending.listActivePluginInteractions(db)) {
-    const { threadId, id } = row;
+  for (const { threadId, id } of pending.listActivePluginInteractions(db)) {
     engine.later(threadId, "interrupt plugin interaction", () => {
-      cancelPluginInteraction(engine, threadId, id, "server-restarted");
+      const reason = "server-restarted";
+      interactions.cancelPluginInteraction(engine, threadId, id, reason);
     });
   }
+  const running = ["starting", "active", "stopping"] as const;
   const interrupted = [
-    ...store.listThreadsOnHost(db, localHostId, [
-      "starting",
-      "active",
-      "stopping",
-    ]),
+    ...store.listThreadsOnHost(db, localHostId, ...running),
     ...store.listStartingWithoutEnvironment(db),
   ];
-  for (const thread of interrupted) {
-    engine.later(thread.id, "restart recovery", () =>
-      interruptThread(engine, thread.id, RUNNER_RESTARTED),
+  for (const { id } of interrupted) {
+    engine.later(id, "restart recovery", () =>
+      interruptThread(engine, id, RESTARTED),
     );
   }
 }
@@ -411,11 +371,4 @@ export function sweep(engine: Engine): void {
     engine.scheduleDrain(threadId);
   }
   retryDeletions(engine);
-  const stuck = db.all<{ id: string }>(
-    "SELECT id FROM threads WHERE status = 'stopping' AND updated_at <= ?",
-    time - STOP_SETTLE_TIMEOUT_MS,
-  );
-  for (const { id } of stuck) {
-    engine.later(id, "settle stuck stop", () => finalizeStop(engine, id));
-  }
 }

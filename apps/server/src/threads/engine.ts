@@ -1,6 +1,5 @@
 import {
   threadScope,
-  type PendingInteraction,
   type QueuedMessageWaitingOn,
   type QueuedMessageWaitingOnKind,
   type ThreadChangeMetadata,
@@ -247,13 +246,6 @@ export class Engine {
     );
   }
 
-  dispatch(
-    threadId: string,
-    args: dispatching.DispatchArgs,
-  ): Promise<dispatching.Delivery> {
-    return dispatching.dispatchMessage(this, threadId, args);
-  }
-
   beginProvisioning(thread: ThreadRow, args: dispatching.DispatchArgs): void {
     beginProvisioning(this, thread, args);
   }
@@ -262,25 +254,12 @@ export class Engine {
     return lifecycle.resetContext(this, thread);
   }
 
-  interruptInteractions(
-    out: Outbox,
-    thread: ThreadRow,
-    reason: string,
-    scope: "all" | "provider" = "all",
-  ): void {
-    interactions.interruptInteractions(this, out, thread, reason, scope);
-  }
-
   notifyParent(
     out: Outbox,
     child: ThreadRow,
     outcome: notices.ChildOutcome,
   ): void {
     out.after(() => notices.queueChildOutcome(this, child, outcome));
-  }
-
-  notifyParentBlocked(child: ThreadRow, interaction: PendingInteraction): void {
-    notices.notifyParentBlocked(this, child, interaction);
   }
 
   requireUnarchived(threadId: string): ThreadRow {
