@@ -13,8 +13,6 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 
-const SPLIT_BUTTON_TOOLBAR_CLASS = COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS;
-
 function OptionalTooltip({
   children,
   content,
@@ -57,8 +55,6 @@ interface SplitButtonProps {
   triggerLabel?: string;
   primaryTooltip?: string;
   triggerTooltip?: string;
-  defaultOpen?: boolean;
-  modal?: boolean;
 }
 
 function SplitButton({
@@ -69,12 +65,10 @@ function SplitButton({
   triggerLabel = "More actions",
   primaryTooltip,
   triggerTooltip,
-  defaultOpen,
-  modal,
 }: SplitButtonProps) {
   const base = cn(
     buttonVariants({ variant: "outline", size: "sm" }),
-    SPLIT_BUTTON_TOOLBAR_CLASS,
+    COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
     className,
   );
   const primaryButton = (
@@ -111,7 +105,7 @@ function SplitButton({
       <OptionalTooltip content={primaryTooltip}>
         {primaryButton}
       </OptionalTooltip>
-      <DropdownMenu defaultOpen={defaultOpen} modal={modal}>
+      <DropdownMenu>
         <OptionalTooltip content={triggerTooltip} wrapTrigger>
           {menuTrigger}
         </OptionalTooltip>
