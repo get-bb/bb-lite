@@ -33,11 +33,6 @@ export function registerTerminalRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(await sessions.writeTerminalInput(ctx, session, dataBase64));
   });
 
-  post(routes.resize, async (c, size) => {
-    const session = sessions.requireRunning(ctx, c.req.param("terminalId"));
-    return c.json(await sessions.resizeTerminal(ctx, session, size));
-  });
-
   get(routes.output, async (c, query) => {
     const terminalId = c.req.param("terminalId");
     return c.json(await sessions.readTerminalOutput(ctx, terminalId, query));

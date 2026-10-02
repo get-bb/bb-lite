@@ -130,7 +130,6 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
       defaultKeybindings: DEFAULT_APP_KEYBINDINGS,
       keybindingOverrides,
       appearance: builtInTheme(appearance()),
-      customThemes: [],
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
       primaryHostId: ctx.config.hostId,
       primaryHostPlatform: serverPlatform(),

@@ -11,7 +11,7 @@ import {
 
 const personal = { id: PERSONAL_PROJECT_ID };
 
-it("finds or creates projects by host and path and orders them", async () => {
+it("finds or creates projects by host and path, in creation order", async () => {
   const server = await createTestServer();
   const { api, ctx } = server;
   const changed = await watchChanges(server);
@@ -23,21 +23,8 @@ it("finds or creates projects by host and path and orders them", async () => {
   const again = await createProject(server, "again", "/repos/alpha");
   expect(again.id).toBe(alpha.id);
   const beta = await createProject(server, "beta");
-  const gamma = await createProject(server, "gamma");
-  const order = api.projects[":id"].order;
-  const move = async (id: string, ...around: (string | null)[]) => {
-    const [previousProjectId = null, nextProjectId = null] = around;
-    const json = { previousProjectId, nextProjectId };
-    const response = await order.$patch({ param: { id }, json });
-    if (!response.ok) return response.status;
-    return (await response.json()).map((project) => project.name).join();
-  };
-  expect(await move(gamma.id, alpha.id, beta.id)).toBe("alpha,gamma,beta");
-  await changed("project", "project-order-changed");
-  expect(await move(alpha.id, beta.id, null)).toBe("gamma,beta,alpha");
-  expect(await move(beta.id, null, gamma.id)).toBe("beta,gamma,alpha");
-  expect(await move(beta.id, alpha.id, gamma.id)).toBe(409);
-  expect(await move(beta.id, "proj_gone", null)).toBe(409);
+  const listed = await (await api.projects.$get({ query: {} })).json();
+  expect(listed.map((project) => project.name)).toEqual(["alpha", "beta"]);
   const param = { id: beta.id };
   const json = { name: "beta two" };
   const renamed = await api.projects[":id"].$patch({ param, json });
@@ -56,17 +43,15 @@ it("protects the personal project and deletes others entirely", async () => {
   expect(first).toMatchObject({ ...personal, name: "Personal", ...empty });
   expect(second).toMatchObject({ name: "alpha", threads: [] });
   const param = personal;
-  const neighbours = { previousProjectId: null, nextProjectId: null };
   const { hostId } = ctx.config;
   const local = { type: "local_path", hostId, path: "/home/me" } as const;
   const refusals = await Promise.all([
     api.projects[":id"].$patch({ param, json: { name: "Mine" } }),
-    api.projects[":id"].order.$patch({ param, json: neighbours }),
     api.projects[":id"].$delete({ param }),
     api.projects[":id"].sources.$post({ param, json: local }),
   ]);
   const statuses = refusals.map((response) => response.status).join();
-  expect(statuses).toBe("404,404,409,404");
+  expect(statuses).toBe("404,409,404");
   insertThread(server, "thr_1", id);
   const deleted = await api.projects[":id"].$delete({ param: { id } });
   expect(await deleted.json()).toEqual({ ok: true });

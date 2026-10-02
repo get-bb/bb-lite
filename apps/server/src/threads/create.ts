@@ -138,9 +138,6 @@ export async function createThread(
   const { db, plugins } = ctx;
   const { projectId, sectionId, title } = request;
   const project = requireProject(db, projectId);
-  if (request.originKind !== null || request.sourceThreadId !== undefined) {
-    throw invalidRequest("Forking a thread is not supported.");
-  }
   if (sectionId != null) requireThreadSection(db, sectionId);
   const ownerId = request.lifecycleOwnerThreadId ?? null;
   const parent =

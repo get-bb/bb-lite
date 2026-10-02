@@ -1,15 +1,11 @@
-import { createHash } from "node:crypto";
 import { once } from "node:events";
 import fs from "node:fs";
 import http, { type IncomingHttpHeaders, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { updateHost } from "../../../apps/server/src/db/hosts.js";
 import { writePluginRow } from "../../../apps/server/src/db/plugins.js";
-import { hashToken } from "../../../apps/server/src/runners/enrollment.js";
 import { createTestServer } from "../../../apps/server/test/helpers.js";
-import { startCliProxy } from "../../../packages/runner/src/remote/cli-proxy.js";
 import { HUB_PATH } from "../src/contract.js";
 
 interface Seen {
@@ -33,8 +29,6 @@ type TestServer = Awaited<ReturnType<typeof createTestServer>>;
 const LIMIT = "anthropic-ratelimit-unified";
 const uuid = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 const later = String(Math.round(Date.now() / 1_000) + 3_600);
-const encode = (claims: object) => Buffer.from(JSON.stringify(claims));
-const jwt = (claims: object) => `h.${encode(claims).toString("base64url")}.s`;
 const parse = (text = ""): Loose => JSON.parse(text) as Loose;
 
 function send(response: ServerResponse, reply: Reply = {}): void {
@@ -127,7 +121,7 @@ async function seed(server: TestServer, upstream: string, accounts: object[]) {
     const json = argv.includes("--json") ? parse(String(result.stdout)) : {};
     return { exitCode: Number(result.exitCode), json: json as Loose };
   };
-  const hub = (path: string, token: string, session: string, base = url) => {
+  const hub = (path: string, token: string, session: string) => {
     const user = { account_uuid: uuid(9), session_id: session };
     const metadata = { user_id: JSON.stringify(user) };
     const body = JSON.stringify({ model: "claude-opus-4", metadata });
@@ -136,11 +130,11 @@ async function seed(server: TestServer, upstream: string, accounts: object[]) {
     const headers = { authorization: "Bearer local-login", ...custom, ...sent };
     const post = { method: "POST", headers, body };
     const init = path.endsWith("/models") ? { headers } : post;
-    return fetch(`${base}${HUB_PATH}${path}`, init);
+    return fetch(`${url}${HUB_PATH}${path}`, init);
   };
   const token = async (providerId: string, variable: string) =>
     String((await env(providerId))[variable]);
-  return { ...server, secrets, secretFile, writeSecret, env, cli, hub, token };
+  return { ...server, secretFile, writeSecret, env, cli, hub, token };
 }
 
 it("forwards Claude messages for stored accounts and streams SSE unbuffered", async () => {
@@ -153,22 +147,9 @@ it("forwards Claude messages for stored accounts and streams SSE unbuffered", as
     await held;
     response.end("event: message_stop\ndata: {}\n\n");
   });
-  const server = await createTestServer();
-  const { hostId, dataDir } = server.ctx.config;
-  const value = "t".repeat(43);
-  const legacyToken = {
-    hostId,
-    value,
-    mintedAt: 5,
-    lastUsedAt: null,
-    previous: [],
-  };
-  const tokenDir = join(dataDir, "plugins/account-pool/secrets/accounts");
-  fs.mkdirSync(tokenDir, { recursive: true });
-  const tokenFile = join(tokenDir, `hub-token-${hostId}.json`);
-  fs.writeFileSync(tokenFile, JSON.stringify(legacyToken));
   const accounts = [stored(1, "claude"), stored(2, "claude")];
-  const pool = await seed(server, upstream.url, accounts);
+  const pool = await seed(await createTestServer(), upstream.url, accounts);
+  const value = await pool.token("claude-code", "ANTHROPIC_AUTH_TOKEN");
   expect(await pool.env("claude-code")).toEqual({
     ANTHROPIC_BASE_URL: { serverPath: HUB_PATH },
     ANTHROPIC_AUTH_TOKEN: value,
@@ -199,10 +180,6 @@ it("forwards Claude messages for stored accounts and streams SSE unbuffered", as
   expect(posted?.headers).not.toHaveProperty("x-bb-account-pool-token");
   const user = parse(String(parse(posted?.body).metadata?.user_id));
   expect(user).toEqual({ account_uuid: uuid(5), session_id: "s1" });
-  const hello = await fetch(`${pool.url}${HUB_PATH}/api/hello`, {
-    method: "HEAD",
-  });
-  expect(hello.status).toBe(200);
 });
 
 it("switches at the usage threshold, keeps sessions sticky and reports exhaustion", async () => {
@@ -285,6 +262,8 @@ it("routes Codex responses with ChatGPT headers and rotates on a usage-limit 429
   const window = { key: "primary", minutes: 300, utilization: 1 };
   expect(listed?.[0]).toMatchObject({ status: "exhausted", windows: [window] });
   expect((await pool.hub("/v1/responses", "", "t1")).status).toBe(401);
+  await pool.cli("routing", "codex", "--off");
+  expect(await pool.env("codex")).toEqual({});
 });
 
 it("refreshes an expiring token once and marks an account whose refresh is refused", async () => {
@@ -344,106 +323,4 @@ it("fails over on upstream errors and retries a rejected token after one forced 
   expect(await ask()).toBe(200);
   expect(upstream.tokens("/v1/messages").join("")).toBe("122127");
   expect(upstream.at("/v1/oauth/token")).toHaveLength(1);
-});
-
-it("contributes nothing without routing or a usable account and serves remote machines through the runner proxy", async () => {
-  const upstream = await fakeUpstream((_seen, response) => send(response));
-  const server = await createTestServer();
-  const status = () =>
-    server.ctx.plugins.list().find(({ id }) => id === "account-pool")?.status;
-  expect(status()).toBe("needs-configuration");
-  const accounts = [stored(1, "claude"), stored(3, "codex")];
-  const pool = await seed(server, upstream.url, accounts);
-  expect(status()).toBe("running");
-  const json = { machineProviderId: "manual", inputs: null };
-  const { id: hostId } = await (await server.api.hosts.$post({ json })).json();
-  updateHost(server.ctx.db, hostId, { tokenHash: hashToken("bbr_remote") });
-  const remote = await pool.env("claude-code", hostId);
-  const local = await pool.token("claude-code", "ANTHROPIC_AUTH_TOKEN");
-  const token = String(remote.ANTHROPIC_AUTH_TOKEN);
-  expect(remote.ANTHROPIC_BASE_URL).toEqual({ serverPath: HUB_PATH });
-  expect(token).not.toBe(local);
-  const credentials = { headers: {}, runnerToken: "bbr_remote" };
-  const proxy = await startCliProxy({ serverUrl: pool.url, ...credentials });
-  onTestFinished(() => proxy.close());
-  const proxied = await pool.hub("/v1/messages", token, "s1", proxy.url);
-  expect(proxied.status).toBe(200);
-  expect(upstream.tokens("/v1/messages")).toEqual(["1"]);
-  const anonymous = await fetch(`${pool.url}${HUB_PATH}/v1/models`);
-  expect(anonymous.status).toBe(401);
-  await pool.cli("routing", "claude", "--off");
-  fs.rmSync(pool.secretFile(3));
-  expect(await pool.env("claude-code")).toEqual({});
-  expect(await pool.env("codex")).toEqual({});
-});
-
-it("adds accounts through the Codex device flow and the Claude code flow", async () => {
-  const claims = { chatgpt_account_id: "acct-9" };
-  const identity = { "https://api.openai.com/auth": claims };
-  const idToken = jwt({ email: "dev@example.com", ...identity });
-  const accessToken = jwt({ exp: 4_000_000_000 });
-  const device = { device_auth_id: "dev", user_code: "ABCD-1234" };
-  const grant = { authorization_code: "grant", code_verifier: "verifier" };
-  const codexTokens = { access_token: accessToken, id_token: idToken };
-  const claudeTokens = { access_token: "claude-access", expires_in: 3_600 };
-  const profile = { uuid: uuid(7), display_name: "Ada", has_claude_max: true };
-  const replies: Record<string, Reply[]> = {
-    "/auth/api/accounts/deviceauth/usercode": [
-      { body: { ...device, interval: "0.05" } },
-    ],
-    "/auth/api/accounts/deviceauth/token": [{ status: 403 }, { body: grant }],
-    "/auth/oauth/token": [{ body: { ...codexTokens, refresh_token: "r" } }],
-    "/v1/oauth/token": [{ body: { ...claudeTokens, refresh_token: "r" } }],
-    "/api/oauth/profile": [{ body: { account: profile } }],
-  };
-  const upstream = await fakeUpstream((seen, response) =>
-    send(response, replies[seen.path]?.shift()),
-  );
-  const pool = await seed(await createTestServer(), upstream.url, []);
-  const begin = async (provider: Provider) => {
-    const flags = ["--provider", provider, "--login", "--json"];
-    return (await pool.cli("account", "add", ...flags)).json.login ?? {};
-  };
-  const started = await begin("codex");
-  expect(started.url).toBe(`${upstream.url}/auth/codex/device`);
-  expect(started.device).toEqual({ userCode: "ABCD-1234", intervalMs: 50 });
-  const session = ["--session", String(started.sessionId), "--json"];
-  const polled = await pool.cli("account", "login-poll", ...session);
-  const codex = { provider: "codex", codexAccountId: "acct-9" };
-  const owner = { email: "dev@example.com" };
-  expect(polled.json.account).toMatchObject({ ...codex, ...owner });
-  const [exchange] = upstream.at("/auth/oauth/token");
-  expect(exchange?.body).toContain("grant_type=authorization_code&code=grant");
-  const browser = await begin("claude");
-  const query = new URL(String(browser.url)).searchParams;
-  const pasted = ["--code", `the-code#${query.get("state")}`];
-  const finish = ["--session", String(browser.sessionId), ...pasted, "--json"];
-  const completed = await pool.cli("account", "login-complete", ...finish);
-  const ada = { label: "Ada", accountUuid: uuid(7), subscriptionType: "max" };
-  expect(completed.json.account).toMatchObject({ provider: "claude", ...ada });
-  const sent = parse(upstream.at("/v1/oauth/token")[0]?.body);
-  const verifier = createHash("sha256").update(String(sent.code_verifier));
-  expect(sent.code).toBe("the-code");
-  expect(verifier.digest("base64url")).toBe(query.get("code_challenge"));
-  const home = fs.mkdtempSync(join(pool.ctx.config.dataDir, "home-"));
-  const realHome = process.env.HOME;
-  onTestFinished(() => void (process.env.HOME = realHome));
-  process.env.HOME = home;
-  fs.mkdirSync(join(home, ".codex"));
-  const login = { access_token: accessToken, refresh_token: "r2" };
-  const auth = { tokens: { ...login, account_id: "acct-home" } };
-  fs.writeFileSync(join(home, ".codex/auth.json"), JSON.stringify(auth));
-  const source = ["--provider", "codex", "--import", "--json"];
-  const imported = (await pool.cli("account", "add", ...source)).json.account;
-  expect(imported).toMatchObject({
-    codexAccountId: "acct-home",
-    kind: "oauth",
-  });
-  const key = ["--provider", "claude", "--api-key", "sk-test", "--json"];
-  expect((await pool.cli("account", "add", ...key)).exitCode).toBe(0);
-  const added = fs
-    .readdirSync(pool.secrets)
-    .filter((name) => /^account-(?!0{8}-0000-4000)/u.test(name));
-  const modes = added.map((name) => fs.statSync(join(pool.secrets, name)).mode);
-  expect(modes.map((mode) => mode & 0o777)).toEqual(Array(4).fill(0o600));
 });

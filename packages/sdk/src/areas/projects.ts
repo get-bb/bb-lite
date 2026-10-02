@@ -14,8 +14,6 @@ import type {
   ProjectPathsQuery,
   PromptHistoryResponse,
   PromptHistoryQuery,
-  ReorderProjectRequest,
-  SidebarBootstrapResponse,
   UpdateProjectRequest,
   UpdateProjectSourceRequest,
   UploadedPromptAttachment,
@@ -46,10 +44,6 @@ export interface ProjectDeleteArgs {
   projectId: string;
 }
 
-export interface ProjectReorderArgs extends ReorderProjectRequest {
-  projectId: string;
-}
-
 export interface ProjectPromptHistoryArgs extends PromptHistoryQuery {
   projectId: string;
   signal?: AbortSignal;
@@ -72,12 +66,6 @@ export type ProjectCommandsArgs = ProjectWorkspaceRoutingArgs &
     signal?: AbortSignal;
   };
 
-export type ProjectFileContentArgs = ProjectWorkspaceRoutingArgs & {
-  path: string;
-  projectId: string;
-  signal?: AbortSignal;
-};
-
 export interface ProjectBranchesArgs extends ProjectBranchesQuery {
   projectId: string;
   signal?: AbortSignal;
@@ -85,10 +73,6 @@ export interface ProjectBranchesArgs extends ProjectBranchesQuery {
 
 export interface ProjectDefaultExecutionOptionsArgs {
   projectId: string;
-  signal?: AbortSignal;
-}
-
-export interface ProjectSidebarBootstrapArgs {
   signal?: AbortSignal;
 }
 
@@ -121,12 +105,6 @@ export type ProjectAttachmentUploadArgs = ProjectAttachmentUploadArgsBase &
       }
   );
 
-export interface ProjectAttachmentReadArgs {
-  path: string;
-  projectId: string;
-  signal?: AbortSignal;
-}
-
 export interface ProjectAttachmentCopyArgs extends CopyProjectAttachmentsRequest {
   projectId: string;
 }
@@ -146,30 +124,17 @@ export interface ProjectSourceDeleteArgs {
 }
 
 export type ProjectBranchesResult = ProjectBranchesResponse;
-export interface ProjectAttachmentReadResult {
-  bytes: Uint8Array;
-  mimeType: string;
-  sizeBytes: number;
-}
 export type ProjectAttachmentUploadResult = UploadedPromptAttachment;
 export type ProjectCommandsResult = CommandListResponse;
 export type ProjectCreateResult = ProjectResponse;
 export type ProjectDefaultExecutionOptionsResult = ProjectExecutionDefaults | null;
 export type ProjectDeleteResult = { ok: true };
-export interface ProjectFileContentResult {
-  content: string;
-  contentEncoding: "utf8" | "base64";
-  mimeType: string;
-  sizeBytes: number;
-}
 export type ProjectGetResult = ProjectResponse;
 export type ProjectListResult =
   | ProjectResponse[]
   | ProjectWithThreadsResponse[];
 export type ProjectPathsResult = WorkspacePathListResponse;
 export type ProjectPromptHistoryResult = PromptHistoryResponse;
-export type ProjectReorderResult = ProjectResponse[];
-export type ProjectSidebarBootstrapResult = SidebarBootstrapResponse;
 export type ProjectSourceAddResult = ProjectSource;
 export type ProjectSourceDeleteResult = { ok: true };
 export type ProjectSourceUpdateResult = ProjectSource;
@@ -183,7 +148,6 @@ export interface ProjectSourcesArea {
 
 export interface ProjectAttachmentsArea {
   copy(args: ProjectAttachmentCopyArgs): Promise<void>;
-  read(args: ProjectAttachmentReadArgs): Promise<ProjectAttachmentReadResult>;
   upload(
     args: ProjectAttachmentUploadArgs,
   ): Promise<ProjectAttachmentUploadResult>;
@@ -204,17 +168,12 @@ export interface ProjectsArea {
     args: ProjectDefaultExecutionOptionsArgs,
   ): Promise<ProjectDefaultExecutionOptionsResult>;
   delete(args: ProjectDeleteArgs): Promise<ProjectDeleteResult>;
-  fileContent(args: ProjectFileContentArgs): Promise<ProjectFileContentResult>;
   get(args: ProjectGetArgs): Promise<ProjectGetResult>;
   list(args?: ProjectListArgs): Promise<ProjectListResult>;
   paths(args: ProjectPathsArgs): Promise<ProjectPathsResult>;
   promptHistory(
     args: ProjectPromptHistoryArgs,
   ): Promise<ProjectPromptHistoryResult>;
-  reorder(args: ProjectReorderArgs): Promise<ProjectReorderResult>;
-  sidebarBootstrap(
-    args?: ProjectSidebarBootstrapArgs,
-  ): Promise<ProjectSidebarBootstrapResult>;
   sources: ProjectSourcesArea;
   update(args: ProjectUpdateArgs): Promise<ProjectUpdateResult>;
 }
@@ -303,52 +262,6 @@ function resolveAttachmentFilename(input: ProjectAttachmentUploadArgs): string {
   return filename;
 }
 
-function encodeProjectFilePath(path: string): string {
-  const segments = path.split("/");
-  if (
-    path.includes("\0") ||
-    path.includes("\\") ||
-    segments.some(
-      (segment) => segment === "" || segment === "." || segment === "..",
-    )
-  ) {
-    throw new Error(`Invalid file path: ${path}`);
-  }
-  return segments.map(encodeURIComponent).join("/");
-}
-
-function isUtf8FileContent(bytes: Uint8Array, mimeType: string): boolean {
-  if (mimeType.startsWith("image/") && !mimeType.startsWith("image/svg+xml")) {
-    return false;
-  }
-  try {
-    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const BASE64_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-function encodeBase64(bytes: Uint8Array): string {
-  let encoded = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index] ?? 0;
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    const block =
-      (first << 16) | ((second ?? 0) << 8) | (third === undefined ? 0 : third);
-    encoded += BASE64_ALPHABET.charAt((block >> 18) & 63);
-    encoded += BASE64_ALPHABET.charAt((block >> 12) & 63);
-    encoded +=
-      second === undefined ? "=" : BASE64_ALPHABET.charAt((block >> 6) & 63);
-    encoded += third === undefined ? "=" : BASE64_ALPHABET.charAt(block & 63);
-  }
-  return encoded;
-}
-
 export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
   const { transport } = args;
   const attachments: ProjectAttachmentsArea = {
@@ -360,24 +273,6 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
           json,
         }),
       );
-    },
-    async read(input) {
-      const response = await transport.resolve(
-        transport.api.v1.projects[":id"].attachments.content.$get(
-          {
-            param: { id: input.projectId },
-            query: { path: input.path },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      return {
-        bytes,
-        mimeType:
-          response.headers.get("content-type") ?? "application/octet-stream",
-        sizeBytes: bytes.byteLength,
-      };
     },
     async upload(input) {
       const filename = resolveAttachmentFilename(input);
@@ -483,37 +378,6 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
         ),
       );
     },
-    async fileContent(input) {
-      const { projectId, path, signal, environmentId, hostId } = input;
-      const filePath = encodeProjectFilePath(path);
-      const routePath =
-        environmentId !== undefined
-          ? `/environments/${encodeURIComponent(environmentId)}/files/${filePath}`
-          : hostId !== undefined
-            ? `/projects/${encodeURIComponent(projectId)}/hosts/${encodeURIComponent(hostId)}/files/${filePath}`
-            : `/projects/${encodeURIComponent(projectId)}/files/${filePath}`;
-      const response = await transport.resolve(
-        transport.fetch(
-          `${transport.baseUrl.replace(/\/+$/u, "")}/api/v1${routePath}`,
-          signal === undefined ? undefined : { signal },
-        ),
-      );
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      const mimeType =
-        response.headers.get("content-type") ?? "application/octet-stream";
-      const contentEncoding = isUtf8FileContent(bytes, mimeType)
-        ? "utf8"
-        : "base64";
-      return {
-        content:
-          contentEncoding === "utf8"
-            ? new TextDecoder().decode(bytes)
-            : encodeBase64(bytes),
-        contentEncoding,
-        mimeType,
-        sizeBytes: bytes.byteLength,
-      };
-    },
     async machineEnvironment(input) {
       return transport.readJson(
         transport.api.v1.projects[":id"]["machine-environment"].$get({
@@ -569,25 +433,6 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
             param: { id: input.projectId },
             query: { limit: input.limit },
           },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async reorder(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"].order.$patch({
-          param: { id: input.projectId },
-          json: {
-            previousProjectId: input.previousProjectId,
-            nextProjectId: input.nextProjectId,
-          },
-        }),
-      );
-    },
-    async sidebarBootstrap(input = {}) {
-      return transport.readJson(
-        transport.api.v1["sidebar-bootstrap"].$get(
-          {},
           ...signalRequestArgs(input.signal),
         ),
       );

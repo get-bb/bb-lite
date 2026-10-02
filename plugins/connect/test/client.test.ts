@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -37,8 +37,6 @@ async function startClient(heartbeat?: TunnelOptions["heartbeat"]) {
     clientName: "test",
     warn: () => {},
     onChange: () => tunnel.set(account.link),
-    pollMarginMs: 5,
-    slowDownStepMs: 5,
   });
   const tunnel = new ConnectTunnel({
     loopbackUrl,
@@ -53,10 +51,7 @@ async function startClient(heartbeat?: TunnelOptions["heartbeat"]) {
   const state = () => tunnel.status().state;
   const error = () => tunnel.status().lastError;
   const connected = () => vi.waitFor(() => expect(state()).toBe("connected"));
-  const polls = () =>
-    gate.calls.filter((call) => call.endsWith("/poll")).length;
-  const tools = { state, error, connected, polls };
-  return { gate, account, tunnel, file, loopbackUrl, ...tools };
+  return { gate, account, tunnel, loopbackUrl, state, error, connected };
 }
 
 it("marks forwarded requests and drops a visitor's own marker", async () => {
@@ -103,55 +98,4 @@ it("redials after a lost keepalive and holds off when replaced", async () => {
   await sleep(100);
   expect(gate.tunnelsAccepted).toBe(held);
   await vi.waitFor(() => expect(gate.tunnelsAccepted).toBe(held + 1));
-});
-
-it("clears a refused credential only when the account agrees", async () => {
-  const { gate, account, file, state, error } = await startClient();
-  const checked = () => gate.calls.includes("apex GET /api/account/me");
-  gate.dialStatus = 401;
-  account.adopt(gate.link());
-  await vi.waitFor(() => expect(error()).toMatch(/401/u));
-  await vi.waitFor(() => expect(checked()).toBe(true));
-  await sleep(40);
-  expect(account.link).toEqual(gate.link());
-  expect(state()).toBe("reconnecting");
-  gate.profileStatus = 401;
-  await vi.waitFor(() => expect(account.link).toBeNull());
-  expect([existsSync(file), state()]).toEqual([false, "disconnected"]);
-});
-
-it("links at the first approval and stops polling", async () => {
-  const { gate, account, file, connected, polls } = await startClient();
-  const { credential, serverId } = gate.link();
-  const approved = { status: "approved", credential, serverId };
-  gate.pollReplies.push([200, { status: "pending" }], [429], [200, approved]);
-  const login = await account.startLogin();
-  expect(login).toMatchObject({ state: "pending", userCode: "ABCD-1234" });
-  expect(login.verificationUrl).toContain(gate.apexUrl);
-  expect(await account.startLogin()).toBe(login);
-  await connected();
-  expect(account.login?.state).toBe("signed-in");
-  expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(gate.link());
-  expect(statSync(file).mode & 0o777).toBe(0o600);
-  await sleep(60);
-  expect(polls()).toBe(3);
-});
-
-it("reports a denied or expired sign-in and signs out", async () => {
-  const { gate, account, file, connected, state } = await startClient();
-  for (const refusal of [{ 403: "denied" }, { 410: "expired" }]) {
-    const [[status, reason]] = Object.entries(refusal);
-    gate.pollReplies.push([Number(status)]);
-    await account.startLogin();
-    await vi.waitFor(() => expect(account.login?.state).toBe("failed"));
-    expect(account.login?.message).toContain(reason);
-  }
-  expect(account.link).toBeNull();
-  account.adopt(gate.link());
-  await connected();
-  expect(await account.logout()).toEqual({ revoked: true });
-  expect(gate.calls).toContain("gate POST /api/connect/disconnect");
-  expect([existsSync(file), state()]).toEqual([false, "disconnected"]);
-  await sleep(40);
-  expect(gate.tunnelsAccepted).toBe(1);
 });

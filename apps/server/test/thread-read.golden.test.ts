@@ -34,7 +34,7 @@ const SHARED_GOLDENS = [
   { file: "search.json", path: "/threads/search?query=claude%20models" },
 ];
 
-const CUT_ROUTES = ["/system/attention"];
+const CUT_ROUTES = ["/system/attention", "/threads/count"];
 
 function readJson<T>(path: string) {
   return JSON.parse(readFileSync(path, "utf8")) as T;
@@ -184,7 +184,7 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
       ? readJson<typeof SHARED_GOLDENS>(extraManifest)
       : [];
     const recorded = [...perThread, ...SHARED_GOLDENS, ...extras].filter(
-      ({ path }) => !CUT_ROUTES.includes(path),
+      ({ path }) => !CUT_ROUTES.some((route) => path.startsWith(route)),
     );
     for (const { file, path } of recorded) {
       const response = await fetch(`${server.url}/api/v1${path}`);
