@@ -553,7 +553,7 @@ export function useNewThreadComposer({
       data-app-composer=""
       data-app-composer-role="primary"
       data-promptbox-shell=""
-      className="w-full"
+      className="w-full pt-2"
     >
       <PromptBoxInternal
         id="root-compose-prompt"
