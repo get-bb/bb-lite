@@ -25,9 +25,7 @@ import { AppCommandProvider } from "./components/commands/AppCommandProvider";
 import { RouteLoadingSkeleton } from "./components/ui/route-loading-skeleton";
 
 const SettingsView = lazy(() =>
-  import("./views/SettingsView").then((m) => ({
-    default: m.SettingsView,
-  })),
+  import("./views/SettingsView").then((m) => ({ default: m.SettingsView })),
 );
 const ProjectDetailSettingsView = lazy(() =>
   import("./views/ProjectDetailSettingsView").then((m) => ({
@@ -43,24 +41,14 @@ const splitWorkspaceRouteModule = import("./views/SplitWorkspaceRoute");
 splitWorkspaceRouteModule.catch(() => {});
 const SplitWorkspaceRoute = lazy(() => splitWorkspaceRouteModule);
 
-function hashTargetId(hash: string): string | null {
-  if (hash.length <= 1) return null;
-  try {
-    return decodeURIComponent(hash.slice(1));
-  } catch {
-    return hash.slice(1);
-  }
-}
-
-const HASH_NAVIGATION_WAIT_MS = 2_000;
-
-export function HashNavigationScroll() {
+function HashNavigationScroll() {
   const location = useLocation();
-
   useEffect(() => {
-    const targetId = hashTargetId(location.hash);
-    if (targetId === null) return;
-
+    if (location.hash.length <= 1) return;
+    let targetId = location.hash.slice(1);
+    try {
+      targetId = decodeURIComponent(targetId);
+    } catch {}
     const scrollToTarget = (): boolean => {
       const target = document.getElementById(targetId);
       if (target === null) return false;
@@ -71,71 +59,19 @@ export function HashNavigationScroll() {
       target.scrollIntoView({ block: "start", inline: "nearest" });
       return true;
     };
-
     if (scrollToTarget()) return;
-
-    let observer: MutationObserver | null = null;
-    let timeoutId: number | null = null;
-    const stopWaiting = () => {
-      observer?.disconnect();
-      observer = null;
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-    };
-    observer = new MutationObserver(() => {
+    const observer = new MutationObserver(() => {
       if (scrollToTarget()) stopWaiting();
     });
+    const timeoutId = window.setTimeout(() => observer.disconnect(), 2_000);
+    const stopWaiting = () => {
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+    };
     observer.observe(document.body, { childList: true, subtree: true });
-    timeoutId = window.setTimeout(stopWaiting, HASH_NAVIGATION_WAIT_MS);
     return stopWaiting;
   }, [location.hash, location.key]);
-
   return null;
-}
-
-export function AppRoutes() {
-  return (
-    <AppLayout>
-      <Suspense fallback={null}>
-        <Routes>
-          <Route path={SETTINGS_ROUTE_PATH} element={<SettingsView />} />
-          <Route
-            path={SETTINGS_SECTION_ROUTE_PATH}
-            element={<SettingsView />}
-          />
-          <Route
-            path={SETTINGS_PLUGINS_ROUTE_PATH}
-            element={<SettingsView />}
-          />
-          <Route path={SETTINGS_PLUGIN_ROUTE_PATH} element={<SettingsView />} />
-          <Route
-            path={SETTINGS_MACHINE_ROUTE_PATH}
-            element={<MachineSettingsView />}
-          />
-          <Route
-            path={SETTINGS_PROJECT_ROUTE_PATH}
-            element={<ProjectDetailSettingsView />}
-          />
-          <Route
-            path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
-            element={<Navigate to={getSettingsRoutePath("archived")} replace />}
-          />
-          <Route
-            path="*"
-            element={
-              <Suspense
-                fallback={<RouteLoadingSkeleton isBoundedPane={false} />}
-              >
-                <SplitWorkspaceRoute />
-              </Suspense>
-            }
-          />
-        </Routes>
-      </Suspense>
-    </AppLayout>
-  );
 }
 
 export function App() {
@@ -146,6 +82,7 @@ export function App() {
     void bootPlugins();
   }, []);
   useRememberPluginNavPanelChrome();
+  const settings = <SettingsView />;
 
   return (
     <QuickCreateProjectProvider>
@@ -155,7 +92,48 @@ export function App() {
           <AppNavigationUrlHost>
             <HashNavigationScroll />
             <UiPreferencesSync />
-            <AppRoutes />
+            <AppLayout>
+              <Suspense fallback={null}>
+                <Routes>
+                  <Route path={SETTINGS_ROUTE_PATH} element={settings} />
+                  <Route
+                    path={SETTINGS_SECTION_ROUTE_PATH}
+                    element={settings}
+                  />
+                  <Route
+                    path={SETTINGS_PLUGINS_ROUTE_PATH}
+                    element={settings}
+                  />
+                  <Route path={SETTINGS_PLUGIN_ROUTE_PATH} element={settings} />
+                  <Route
+                    path={SETTINGS_MACHINE_ROUTE_PATH}
+                    element={<MachineSettingsView />}
+                  />
+                  <Route
+                    path={SETTINGS_PROJECT_ROUTE_PATH}
+                    element={<ProjectDetailSettingsView />}
+                  />
+                  <Route
+                    path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
+                    element={
+                      <Navigate to={getSettingsRoutePath("archived")} replace />
+                    }
+                  />
+                  <Route
+                    path="*"
+                    element={
+                      <Suspense
+                        fallback={
+                          <RouteLoadingSkeleton isBoundedPane={false} />
+                        }
+                      >
+                        <SplitWorkspaceRoute />
+                      </Suspense>
+                    }
+                  />
+                </Routes>
+              </Suspense>
+            </AppLayout>
           </AppNavigationUrlHost>
         </RouteNavigationProvider>
       </AppCommandProvider>

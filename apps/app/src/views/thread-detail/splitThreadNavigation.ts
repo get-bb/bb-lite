@@ -1,11 +1,10 @@
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
-import type { ThreadOpenSplit, ThreadPaneAction } from "@bb/server-contract";
+import type { ThreadOpenSplit } from "@bb/server-contract";
 import {
   computePaneRects,
   countPanes,
   findPane,
   findPaneByContent,
-  findPaneByThread,
   isSamePaneContent,
   MAX_PANES,
   replacePaneContent,
@@ -129,37 +128,6 @@ export function applyThreadOpenToLayout(
         split === "down" ? "bottom" : split,
         content,
       );
-}
-
-export function applyThreadPaneActionToLayout(
-  layout: SplitLayout,
-  maximizedPaneId: string | null,
-  thread: ThreadRoutePathArgs,
-  action: ThreadPaneAction,
-): {
-  layout: SplitLayout;
-  maximizedPaneId: string | null;
-  dimInactiveSplits: boolean | null;
-} {
-  const pane = findPaneByThread(layout.root, thread.projectId, thread.threadId);
-  const unchanged = { layout, maximizedPaneId, dimInactiveSplits: null };
-  if (pane === null || countPanes(layout.root) < 2) return unchanged;
-  const isMaximized = maximizedPaneId === pane.paneId;
-  if (action === "spotlight" || action === "clear-spotlight") {
-    return {
-      layout: focusPaneIn(layout, pane.paneId),
-      maximizedPaneId,
-      dimInactiveSplits: action === "spotlight",
-    };
-  }
-  if (action === "restore" || (action === "toggle" && isMaximized)) {
-    return isMaximized ? { ...unchanged, maximizedPaneId: null } : unchanged;
-  }
-  return {
-    layout: focusPaneIn(layout, pane.paneId),
-    maximizedPaneId: pane.paneId,
-    dimInactiveSplits: null,
-  };
 }
 
 export function getAdjacentPaneId(

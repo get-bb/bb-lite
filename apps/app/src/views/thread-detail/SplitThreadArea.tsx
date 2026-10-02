@@ -4,7 +4,6 @@ import {
   PANE_DIRECTION_APP_COMMAND_IDS,
   PANE_FOCUS_APP_COMMAND_IDS,
 } from "@bb/domain";
-import type { ThreadPaneActionSignal } from "@bb/server-contract";
 import { useAtomValue, useStore } from "jotai";
 import {
   createContext,
@@ -80,7 +79,6 @@ import {
   PluginPanelHeaderCenter,
 } from "@/components/plugin/PluginPanelHeader";
 import {
-  applyThreadPaneActionToLayout,
   focusedPaneRoute,
   focusPaneIn,
   getAdjacentPaneId,
@@ -96,7 +94,6 @@ import {
   CONTEXT_SELECTION_SURFACE_CLASS,
 } from "@/components/ui/context-selection";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
-import { wsManager } from "@/lib/ws";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 
 const LazyPluginPanelRightPanelHost = lazy(() =>
@@ -244,21 +241,6 @@ function createSplitController(
         navigate(getThreadRoutePath(thread));
       }
     },
-    applyPaneAction: (signal: ThreadPaneActionSignal) => {
-      const current = store.get(splitLayoutAtom);
-      if (current === null) return;
-      const next = applyThreadPaneActionToLayout(
-        current,
-        store.get(maximizedPaneIdAtom),
-        signal,
-        signal.action,
-      );
-      commit(next.layout);
-      setMaximized(next.maximizedPaneId);
-      if (next.dimInactiveSplits !== null) {
-        store.set(dimInactiveSplitsAtom, next.dimInactiveSplits);
-      }
-    },
   };
 }
 
@@ -295,10 +277,6 @@ export function SplitThreadArea({
       reconcileLayoutForContent(previous, routeContent),
     );
   }, [routeContent, store]);
-  useEffect(
-    () => wsManager.onThreadPaneAction(controller.applyPaneAction),
-    [controller],
-  );
 
   const layout = storedLayout ?? reconcileLayoutForContent(null, routeContent);
   const panes = listPanes(layout.root);
