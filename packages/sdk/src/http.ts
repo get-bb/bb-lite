@@ -165,13 +165,12 @@ function describeFailure(response: Response, rawBody: string) {
 
 export function createHttp(args: CreateHttpArgs): Http {
   const { timeoutMs } = args;
-  if (
-    timeoutMs !== undefined &&
-    !(Number.isFinite(timeoutMs) && timeoutMs >= 0)
-  )
+  const usable = Number.isFinite(timeoutMs) && Number(timeoutMs) >= 0;
+  if (timeoutMs !== undefined && !usable) {
     throw new RangeError(
       "BB request timeout must be a non-negative finite number.",
     );
+  }
   const baseUrl = args.baseUrl.replace(/\/+$/u, "");
 
   async function exchange(path: string, init: RequestInit): Promise<HttpReply> {
