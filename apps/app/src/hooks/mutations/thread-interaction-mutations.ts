@@ -5,14 +5,8 @@ import { sdk } from "@/lib/sdk";
 import { isHostDisconnectedError } from "@/lib/lifecycle-errors";
 import { useEnvironment } from "../queries/environment-queries";
 import { useHosts } from "../queries/host-queries";
+import { qk } from "../queries/query-keys";
 import { useThread } from "../queries/thread-queries";
-import { invalidateThreadPendingInteractionResolutionQueries } from "../cache-owners/mutation-cache-effects";
-
-interface ResolveThreadPendingInteractionMutationRequest {
-  threadId: string;
-  interactionId: string;
-  resolution: ResolvePendingInteractionRequest;
-}
 
 function useIsThreadHostConnected(threadId: string): boolean {
   const environmentId = useThread(threadId).data?.environmentId;
@@ -25,33 +19,38 @@ function useIsThreadHostConnected(threadId: string): boolean {
 }
 
 export function useResolveThreadPendingInteraction(threadId: string) {
-  const queryClient = useQueryClient();
+  const client = useQueryClient();
   const isHostConnected = useIsThreadHostConnected(threadId);
-
   const mutation = useMutation({
     meta: {
       errorMessage: "Failed to resolve pending interaction.",
       showErrorToast: false,
     },
-    mutationFn: ({
-      threadId,
-      interactionId,
-      resolution,
-    }: ResolveThreadPendingInteractionMutationRequest): Promise<PendingInteraction> =>
-      sdk.threads.interactions.resolve({
-        interactionId,
-        resolution,
-        threadId,
-      }),
-    onSuccess: (interaction, variables) => {
-      invalidateThreadPendingInteractionResolutionQueries({
-        queryClient,
-        threadId: variables.threadId,
-      });
-      return interaction;
+    mutationFn: (args: {
+      threadId: string;
+      interactionId: string;
+      resolution: ResolvePendingInteractionRequest;
+    }): Promise<PendingInteraction> => sdk.threads.interactions.resolve(args),
+    onSuccess: (interaction, { threadId }) => {
+      const open =
+        interaction.status === "pending" || interaction.status === "resolving";
+      client.setQueryData<PendingInteraction[]>(
+        qk.interactions(threadId),
+        (interactions) =>
+          interactions?.flatMap((current) => {
+            if (current.id !== interaction.id) return [current];
+            return open ? [interaction] : [];
+          }),
+      );
+      for (const queryKey of [
+        qk.interactions(threadId),
+        qk.timeline(threadId),
+        qk.threadDetail(threadId),
+      ]) {
+        void client.invalidateQueries({ queryKey }, { cancelRefetch: false });
+      }
     },
   });
-
   const isStaleHostError =
     isHostConnected && isHostDisconnectedError(mutation.error);
   return { ...mutation, error: isStaleHostError ? null : mutation.error };

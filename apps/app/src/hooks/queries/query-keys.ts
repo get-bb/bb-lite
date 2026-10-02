@@ -1090,3 +1090,103 @@ export function allPluginSettingsQueryKeyPrefix() {
 export function systemProviderCatalogQueryKey() {
   return [SYSTEM_PROVIDERS_QUERY_KEY, "catalog"] as const;
 }
+
+export const qk = {
+  sidebar: sidebarNavigationQueryKey,
+  threadLists: threadsQueryKey,
+  threadSearch: threadSearchQueryKeyPrefix,
+  threadDetail: threadQueryKey,
+  timeline: threadTimelineQueryKey,
+  turnDetails: threadTimelineTurnSummaryDetailsQueryKeyPrefix,
+  queue: threadQueuedMessagesQueryKey,
+  interactions: threadPendingInteractionsQueryKey,
+  threadPromptHistory: threadPromptHistoryQueryKey,
+  threadExecution: threadDefaultExecutionOptionsQueryKey,
+  projectPromptHistory: projectPromptHistoryQueryKey,
+  projectBranches: projectSourceBranchesQueryKeyPrefix,
+  environment: environmentQueryKey,
+  hosts: hostsQueryKey,
+  systemConfig: systemConfigQueryKey,
+  uiPreferences: uiPreferencesQueryKey,
+  providerCatalog: systemProviderCatalogQueryKey,
+  machineEnvironments: allMachineEnvironmentQueryKeyPrefix,
+  threadBootstrap: threadDetailBootstrapQueryKey,
+  environmentProviders: () => ["systemEnvironmentProviders"] as const,
+  threadListState: () => [
+    sidebarNavigationQueryKey(),
+    threadsQueryKey(),
+    threadSearchQueryKeyPrefix(),
+  ],
+  threadStorageState: (threadId?: string) =>
+    threadId === undefined
+      ? [
+          allThreadStorageFilesQueryKeyPrefix(),
+          allThreadStorageLocationsQueryKeyPrefix(),
+          allThreadStoragePathsQueryKeyPrefix(),
+          allThreadStorageFilePreviewQueryKeyPrefix(),
+        ]
+      : [
+          threadStorageFilesForThreadQueryKeyPrefix(threadId),
+          threadStorageLocationQueryKey(threadId),
+          threadStoragePathsForThreadQueryKeyPrefix(threadId),
+          threadStorageFilePreviewQueryKeyPrefix(threadId),
+        ],
+  threadState: (threadId: string) => [
+    threadDetailBootstrapQueryKey(threadId),
+    threadTimelineQueryKey(threadId),
+    threadTimelineTurnSummaryDetailsQueryKeyPrefix(threadId),
+    threadQueuedMessagesQueryKey(threadId),
+    threadPendingInteractionsQueryKey(threadId),
+    threadPromptHistoryQueryKey(threadId),
+    threadDefaultExecutionOptionsQueryKey(threadId),
+  ],
+  environmentWorkspace: (environmentId: string) => [
+    environmentWorkStatusQueryKeyPrefix(environmentId),
+    environmentDiffFilesQueryKeyPrefix(environmentId),
+    environmentFilePreviewQueryKeyPrefix(environmentId),
+  ],
+  hostState: () => [
+    hostsQueryKey(),
+    allHostQueryKeyPrefix(),
+    sidebarNavigationQueryKey(),
+    allSystemProvidersQueryKeyPrefix(),
+    allSystemExecutionOptionsQueryKeyPrefix(),
+    ["systemEnvironmentProviders"],
+    hostPathExistenceQueryKeyPrefix(),
+  ],
+  pluginState: () => [
+    systemConfigQueryKey(),
+    allPluginListQueryKeyPrefix(),
+    allPluginSettingsViewQueryKeyPrefix(),
+    allPluginSettingsQueryKeyPrefix(),
+    allPluginContributionsQueryKeyPrefix(),
+    allProjectCommandsQueryKeyPrefix(),
+    ["systemEnvironmentProviders"],
+  ],
+  environmentState: (environmentId: string) => [
+    environmentQueryKey(environmentId),
+    environmentWorkStatusQueryKeyPrefix(environmentId),
+    environmentDiffFilesQueryKeyPrefix(environmentId),
+    environmentFilePreviewQueryKeyPrefix(environmentId),
+    environmentMergeBaseBranchesQueryKeyPrefix(environmentId),
+  ],
+  projectState: () => [
+    sidebarNavigationQueryKey(),
+    threadsQueryKey(),
+    threadSearchQueryKeyPrefix(),
+    allProjectPathsQueryKeyPrefix(),
+    allProjectSourceBranchesQueryKeyPrefix(),
+    hostPathExistenceQueryKeyPrefix(),
+    projectPromptHistoryQueryKeyPrefix(),
+  ],
+  systemState: () => [
+    systemConfigQueryKey(),
+    allSystemThemesQueryKeyPrefix(),
+    allSystemProvidersQueryKeyPrefix(),
+    allSystemExecutionOptionsQueryKeyPrefix(),
+    allThreadTimelineQueryKeyPrefix(),
+    allThreadTimelineTurnSummaryDetailsQueryKeyPrefix(),
+    allMachineEnvironmentQueryKeyPrefix(),
+    ["systemEnvironmentProviders"],
+  ],
+};

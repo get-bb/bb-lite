@@ -5,10 +5,7 @@ import type { HostDirectoryListing } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import { useHostListRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import {
-  hostDirectoryQueryKey,
-  hostsQueryKey,
-} from "./query-keys";
+import { hostDirectoryQueryKey, hostsQueryKey } from "./query-keys";
 import type { QueryOptions } from "./query-helpers";
 
 export function useHosts(

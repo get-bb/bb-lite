@@ -6,11 +6,9 @@ import type {
 } from "@bb/sdk";
 import type { QueryClient } from "@tanstack/react-query";
 import {
-  applyThreadMetadataBatchResult,
-  beginThreadMetadataBatchTransaction,
-  invalidateThreadMetadataBatch,
-  rollbackThreadMetadataBatchTransaction,
-} from "@/hooks/cache-owners/thread-state-cache-owner";
+  beginThreadUpdates,
+  settleThreadUpdates,
+} from "@/hooks/mutations/thread-state-mutations";
 import { sdk } from "@/lib/sdk";
 
 interface PendingThreadUpdate {
@@ -24,31 +22,23 @@ function createThreadUpdateBatcher(queryClient: QueryClient) {
   const flush = async () => {
     const batch = pending;
     pending = [];
-    let transaction;
+    const updates = batch.map(({ args }) => args);
+    let snapshot;
     try {
-      transaction = await beginThreadMetadataBatchTransaction({
-        queryClient,
-        updates: batch.map(({ args }) => args),
-      });
+      snapshot = await beginThreadUpdates(queryClient, updates);
     } catch (error) {
       for (const request of batch) request.reject(error);
       return;
     }
     const results = await Promise.allSettled(
-      batch.map(({ args }) => sdk.threads.update(args)),
+      updates.map((args) => sdk.threads.update(args)),
     );
-    const threads = results.flatMap((result) =>
-      result.status === "fulfilled" ? [result.value] : [],
+    const failed = results.some((result) => result.status === "rejected");
+    settleThreadUpdates(
+      queryClient,
+      updates.map(({ threadId }) => threadId),
+      failed ? snapshot : undefined,
     );
-    if (threads.length === results.length) {
-      applyThreadMetadataBatchResult({ queryClient, threads });
-    } else {
-      rollbackThreadMetadataBatchTransaction({ queryClient, transaction });
-      invalidateThreadMetadataBatch({
-        queryClient,
-        threadIds: batch.map(({ args }) => args.threadId),
-      });
-    }
     results.forEach((result, index) => {
       if (result.status === "fulfilled") batch[index]?.resolve(result.value);
       else batch[index]?.reject(result.reason);
