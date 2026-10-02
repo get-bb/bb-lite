@@ -4,7 +4,6 @@ import {
   jsonValueSchema,
   type ProviderErrorCategory as Category,
   type ProviderErrorInfo,
-  type ProviderRateLimitState,
   type ThreadEventPlanStep as PlanStep,
 } from "@bb/domain";
 import { z } from "zod";
@@ -51,18 +50,6 @@ const ERRORS: Record<string, Category | undefined> = {
   error_max_budget_usd: "budget-exceeded",
   error_max_structured_output_retries: "structured-output-retries",
 };
-const RATE_LIMIT_LABELS: Record<string, string | undefined> = {
-  five_hour: "Five-hour limit",
-  seven_day: "Weekly limit",
-  seven_day_opus: "Weekly Opus limit",
-  seven_day_sonnet: "Weekly Sonnet limit",
-  seven_day_overage_included: "Weekly included overage",
-  overage: "Overage",
-};
-const SOFT_LIMITS: Record<string, "allowed" | "warning" | undefined> = {
-  allowed: "allowed",
-  allowed_warning: "warning",
-};
 const TASK_TYPES = "local_workflow local_bash local_agent local_subagent";
 const QUIET = `assistant stream_event result rate_limit_event tool_progress
   tool_use_summary command_lifecycle conversation_reset auth_status
@@ -90,13 +77,6 @@ const retrySchema = z.object({
   retry_delay_ms: z.number(),
   error_status: z.number().nullable(),
   error: z.string(),
-});
-const rateLimitSchema = z.object({
-  status: z.string(),
-  resetsAt: count,
-  rateLimitType: z.string().optional(),
-  overageStatus: z.string().optional(),
-  overageDisabledReason: z.string().optional(),
 });
 const taskUsageSchema = z
   .object({
@@ -168,28 +148,6 @@ function errorInfo(
   return { category: category ?? "unknown", providerCode, httpStatusCode };
 }
 
-function rateLimitState(
-  info: z.infer<typeof rateLimitSchema>,
-): ProviderRateLimitState {
-  const rejected = info.status === "rejected";
-  const status = rejected ? "blocked" : (SOFT_LIMITS[info.status] ?? "unknown");
-  const softened = SOFT_LIMITS[info.overageStatus ?? ""];
-  const overage = info.overageStatus === "rejected" ? "rejected" : softened;
-  const providerKey = info.rateLimitType || null;
-  const resetsAtMs = info.resetsAt === undefined ? null : info.resetsAt * 1_000;
-  const label = RATE_LIMIT_LABELS[providerKey ?? ""] ?? null;
-  const subscription = providerKey === null ? "unknown" : "subscription-window";
-  return {
-    providerId: "claude-code",
-    status: (rejected ? softened : undefined) ?? status,
-    kind: providerKey === "overage" ? "credits" : subscription,
-    windows: [{ providerKey, label, status, resetsAtMs }],
-    reachedReason: rejected ? (providerKey ?? "rate_limit_rejected") : null,
-    overageStatus: info.overageStatus ? (overage ?? "unavailable") : null,
-    overageReason: info.overageDisabledReason || null,
-  };
-}
-
 export class ClaudeTranslator {
   private turn: Turn = { id: "", responded: false, compacting: false };
   private total = ui.ZERO_TOKEN_USAGE;
@@ -237,8 +195,6 @@ export class ClaudeTranslator {
     const reset = type === "conversation_reset" && !this.blocked();
     if (reset) this.ensureTurn();
     if (reset) this.events.cleared();
-    const limits = rateLimitSchema.safeParse(message.rate_limit_info).data;
-    if (limits !== undefined) this.events.rateLimits(rateLimitState(limits));
     const subtype = str(message.subtype) ?? "";
     if (type !== "system") return QUIET.includes(type);
     const expected = /^(hook|task|model)_/.test(subtype);

@@ -2,8 +2,6 @@ import {
   fromProviderExternalThreadName as threadName,
   providerRawEventSchema,
   type ProviderErrorCategory,
-  type ProviderRateLimitState,
-  type ProviderRateLimitWindow,
   type ThreadEventItemPresentation as Presentation,
 } from "@bb/domain";
 import { z } from "zod";
@@ -40,20 +38,6 @@ const usageSchema = z.object({
   cacheWriteInputTokens: count.nonnegative().optional(),
   outputTokens: count,
   reasoningOutputTokens: count,
-});
-const windowSchema = z.object({
-  usedPercent: count,
-  windowDurationMins: count.nullish(),
-  resetsAt: count.nullish(),
-});
-const spendSchema = z.object({ remainingPercent: count, resetsAt: count });
-const rateLimitSchema = z.object({
-  primary: windowSchema.nullish(),
-  secondary: windowSchema.nullish(),
-  credits: z.object({ hasCredits: z.boolean() }).nullish(),
-  individualLimit: spendSchema.nullish(),
-  spendControlReached: z.boolean().nullish(),
-  rateLimitReachedType: text.nullish(),
 });
 const contentItem = z.object({
   text: text.optional(),
@@ -161,6 +145,7 @@ const goalSchema = z.object({
 });
 
 const NOISE = new Set([
+  "account/rateLimits/updated",
   "item/autoApprovalReview/completed",
   "item/autoApprovalReview/started",
   "mcpServer/startupStatus/updated",
@@ -236,59 +221,6 @@ function rawEvent(method: string, params: unknown) {
   const event = params ? { ...base, params } : base;
   const parsed = providerRawEventSchema.safeParse(event);
   return parsed.success ? parsed.data : base;
-}
-
-function rateLimitState(
-  limits: z.infer<typeof rateLimitSchema>,
-): ProviderRateLimitState {
-  const windows: ProviderRateLimitWindow[] = [];
-  const add = (
-    providerKey: string,
-    label: string,
-    used: number,
-    at: number,
-  ) => {
-    const status = used >= 100 ? "blocked" : used >= 90 ? "warning" : "allowed";
-    const resetsAtMs = Number.isNaN(at) ? null : at * 1_000;
-    windows.push({ providerKey, label, status, resetsAtMs });
-  };
-  for (const key of ["primary", "secondary"] as const) {
-    const window = limits[key];
-    const minutes = window?.windowDurationMins;
-    const weekly =
-      minutes === 10_080 || (minutes !== 300 && key === "secondary");
-    const label = weekly ? "Weekly limit" : "Current session";
-    if (window) add(key, label, window.usedPercent, window.resetsAt ?? NaN);
-  }
-  const spend = limits.individualLimit;
-  const spent = spend ? 100 - spend.remainingPercent : 0;
-  if (spend) add("individual-limit", "Spend control", spent, spend.resetsAt);
-  const reachedReason = limits.rateLimitReachedType ?? null;
-  const windowed = Boolean(limits.primary || limits.secondary);
-  const spendControl = spent >= 100 || (spend && !windowed);
-  const reasonKind = reachedReason?.includes("credits_depleted")
-    ? "credits"
-    : reachedReason?.includes("usage_limit_reached")
-      ? "spend-control"
-      : reachedReason === "rate_limit_reached"
-        ? "subscription-window"
-        : "unknown";
-  const inferred = spendControl ? "spend-control" : "subscription-window";
-  const measured = windowed || spend ? inferred : "unknown";
-  const has = (status: string) => windows.some((w) => w.status === status);
-  const usable = windows.length > 0 || limits.credits?.hasCredits === true;
-  const level = has("warning") ? "warning" : usable ? "allowed" : "unknown";
-  const blocked = reachedReason !== null || has("blocked");
-  const capped = limits.spendControlReached === true;
-  return {
-    providerId: "codex",
-    status: blocked || capped ? "blocked" : level,
-    kind: capped ? "spend-control" : reachedReason ? reasonKind : measured,
-    windows,
-    reachedReason,
-    overageStatus: null,
-    overageReason: null,
-  };
 }
 
 interface Translated {
@@ -688,10 +620,6 @@ export class CodexTranslator {
         return read(usageEvent, (data) => this.usage(data));
       case "turn/plan/updated":
         return read(planEvent, (data) => this.plan(data));
-      case "account/rateLimits/updated":
-        return read(z.object({ rateLimits: rateLimitSchema }), (data) =>
-          events.rateLimits(rateLimitState(data.rateLimits)),
-        );
       case "error":
         return read(failureEvent, (data) => this.failure(data));
       case "deprecationNotice":

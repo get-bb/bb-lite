@@ -18,7 +18,7 @@ import {
   type SessionHost,
   type SessionSpec,
 } from "@bb/runner";
-import { internIds, settle } from "./kit.js";
+import { internIds, kept, settle } from "./kit.js";
 
 type QueryArgs = Parameters<NonNullable<ClaudeAdapterOptions["query"]>>[0];
 type CanUseTool = NonNullable<QueryArgs["options"]["canUseTool"]>;
@@ -241,7 +241,8 @@ export async function replayClaudeRecording(scenario: string) {
   await state.live?.session.close();
   if (failures.length > 0) throw failures[0];
   const expected = readFileSync(`${FIXTURES}${scenario}.events.json`, "utf8");
-  const original = internIds<unknown>(JSON.parse(expected), true);
+  const recorded = JSON.parse(expected) as { type: string }[];
+  const original = internIds<unknown>(kept(recorded), true);
   const events = internIds<unknown>(harness.events, true);
   return { events, original, mismatches, checked };
 }

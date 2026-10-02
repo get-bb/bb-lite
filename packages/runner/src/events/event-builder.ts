@@ -4,7 +4,6 @@ import {
   turnScope,
   type ExtensionKind,
   type JsonValue,
-  type ProviderRateLimitState,
   type ProviderRawEvent,
   type ThreadEventItem as Item,
   type ThreadEventItemPresentation as Presentation,
@@ -233,10 +232,6 @@ export class EventBuilder {
 
   name(threadName: string) {
     this.send(undefined, { type: "thread/name/updated", threadName });
-  }
-
-  rateLimits(rateLimits: ProviderRateLimitState) {
-    this.send(undefined, { type: "provider/rateLimits/updated", rateLimits });
   }
 
   extensionState(kind: ExtensionKind, payload: JsonValue) {
