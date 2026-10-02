@@ -392,12 +392,6 @@ const threadExecutionSourceSchema = z.enum([
   "client/turn/start",
 ]);
 
-/**
- * Where a caller-supplied execution value came from. `explicit` is a user
- * choice and `client-preference` is a remembered client-side default. Only
- * `explicit` is a user decision, so only `explicit` shapes project execution
- * defaults.
- */
 const callerExecutionInputSourceValues = [
   "explicit",
   "client-preference",

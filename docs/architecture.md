@@ -260,6 +260,36 @@ directory; one row per `(project, machine, path)`, shared, never removed), **man
   when no thread references it and kept as `destroyed` otherwise. Deleting a project removes its managed
   paths on connected machines without running teardown scripts.
 
+## Stored data and shared schemas
+
+`packages/domain` decodes what is already on disk, including rows `bb import-legacy` copied from the
+original product, so its event, item, scope, presentation and pending-interaction schemas accept more than
+this product writes. Facts the code no longer states in comments:
+
+- `system/provider-turn-watchdog` and `system/manager/user_message` have no producer. They stay so stored
+  events decode and render.
+- A stored `client/turn/requested` carries `retryOfRequestId` and `retryAttempt` together or not at all
+  (attempt 2 is the first retry, and the id is always the original request's). The stored-event parser
+  checks the pair, because the discriminated union the base schema feeds cannot carry a refinement.
+- Recorded execution options are history: the stored-event schema accepts the retired permission modes
+  `workspace-write` and `readonly`, which are not current modes (a request may still say
+  `workspace-write`, read as `accept-edits`).
+- `systemMessageKind: "unlabeled"` marks system messages stored before the kinds existed; they render
+  generically. `system-message.ts` is its own module because both `thread-events.ts` and
+  `queued-message.ts` import it; folding it into either makes the two import each other and leaves the
+  second one loaded holding `undefined` schemas.
+- Queued messages: `waitingOn` is `null` for a row that is simply next in line (and for rows stored before
+  waits were typed). `failureReason` is not part of `waitingOn` because every new wait replaces
+  `waitingOn` whole. `waitHolder` repeats a plugin wait's owner in an indexed column and is only ever
+  written with it. A `host-offline` wait stores the machine's display name because the code that words
+  the wait has no database. `editable` is the server's answer; clients do not derive it. In a thread's
+  queue state `failed` outranks `waiting`.
+- Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
+  `client-preference` (a remembered default) does not.
+- A plugin id is the npm package name without scope and without the `bb-plugin-` prefix, lowercased
+  (`@me/bb-plugin-linear` → `linear`).
+- `provisioning` and `waiting-for-host` are display-only refinements of a thread's stored status.
+
 ## HTTP and WebSocket surface
 
 Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
