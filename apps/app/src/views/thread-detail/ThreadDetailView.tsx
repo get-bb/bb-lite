@@ -573,8 +573,6 @@ export function ThreadDetailView(
   const {
     activePromptMode,
     activeThinking,
-    activeWorkflows,
-    activeBackgroundCommands,
     contextBoundarySeq,
     contextWindowUsage,
     hasOlderTimelineRows,
@@ -1671,8 +1669,6 @@ export function ThreadDetailView(
       pendingTodos={pendingTodos}
       activePromptMode={activePromptMode}
       modelFallback={modelFallback}
-      activeWorkflows={activeWorkflows}
-      activeBackgroundCommands={activeBackgroundCommands}
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={childThreadsSection}

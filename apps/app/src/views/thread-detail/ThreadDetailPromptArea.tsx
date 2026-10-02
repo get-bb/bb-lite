@@ -15,10 +15,7 @@ import type {
   ThreadTimelinePendingTodos,
   ThreadWithRuntime,
 } from "@bb/domain";
-import type {
-  ThreadTimelineResponse,
-  TimelineWorkflowWorkRow,
-} from "@bb/server-contract";
+import type { ThreadTimelineResponse } from "@bb/server-contract";
 import type { ChildThreadPendingAttention } from "@/hooks/queries/child-thread-pending-interactions";
 import { ThreadPendingInteractionBanner } from "@/components/thread/pending-interactions/ThreadPendingInteractionBanner";
 import {
@@ -30,9 +27,6 @@ import {
 } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import { ThreadTodoCard } from "@/components/promptbox/banner/ThreadTodoCard";
 import { ThreadPromptModeCard } from "@/components/promptbox/banner/ThreadPromptModeCard";
-import { ThreadWorkflowCard } from "@/components/promptbox/banner/ThreadWorkflowCard";
-import { ThreadBackgroundCommandsCard } from "@/components/promptbox/banner/ThreadBackgroundCommandsCard";
-import { ThreadModelFallbackCard } from "@/components/promptbox/banner/ThreadModelFallbackCard";
 import type {
   WorkspaceChangedFileSelection,
   WorkspaceChangedFilesSection,
@@ -115,8 +109,6 @@ interface ThreadDetailPromptAreaProps {
   pendingTodos: ThreadTimelinePendingTodos | null;
   activePromptMode: ThreadTimelineActivePromptMode | null;
   modelFallback: ThreadTimelineModelFallback | null;
-  activeWorkflows: TimelineWorkflowWorkRow[];
-  activeBackgroundCommands: TimelineWorkflowWorkRow[];
   parentThreadSection: ThreadPromptParentThreadSection | null;
   childPendingInteractions: readonly ChildThreadPendingAttention[];
   childThreadsSection: ThreadPromptChildThreadsSection | null;
@@ -150,8 +142,6 @@ export function ThreadDetailPromptArea({
   pendingTodos,
   activePromptMode,
   modelFallback,
-  activeWorkflows,
-  activeBackgroundCommands,
   parentThreadSection,
   childPendingInteractions,
   childThreadsSection,
@@ -224,11 +214,6 @@ export function ThreadDetailPromptArea({
     useState<ThreadPromptContextBannerExpandedSection | null>(null);
   const [isTodoExpanded, setIsTodoExpanded] = useState(false);
   const [isPromptModeExpanded, setIsPromptModeExpanded] = useState(false);
-  const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
-  const [isBackgroundCommandsExpanded, setIsBackgroundCommandsExpanded] =
-    useState(false);
   const [isFollowUpShortcutSending, setIsFollowUpShortcutSending] =
     useState(false);
   const {
@@ -536,25 +521,6 @@ export function ThreadDetailPromptArea({
   ) : (
     <>
       {childPendingInteractionBanners}
-      {activeWorkflows.map((workflow) => (
-        <ThreadWorkflowCard
-          key={workflow.id}
-          workflow={workflow}
-          isExpanded={expandedWorkflowIds.has(workflow.id)}
-          onToggle={() =>
-            setExpandedWorkflowIds((current) => {
-              const next = new Set(current);
-              if (!next.delete(workflow.id)) next.add(workflow.id);
-              return next;
-            })
-          }
-        />
-      ))}
-      <ThreadBackgroundCommandsCard
-        commands={activeBackgroundCommands}
-        isExpanded={isBackgroundCommandsExpanded}
-        onToggle={() => setIsBackgroundCommandsExpanded((value) => !value)}
-      />
       {shouldHideComposer ? null : promptModeCard}
       <ThreadTodoCard
         pendingTodos={shouldHideComposer ? null : pendingTodos}
@@ -610,13 +576,6 @@ export function ThreadDetailPromptArea({
           )
         }
       />
-      {modelFallback ? (
-        <ThreadModelFallbackCard
-          key={`${thread.id}:${modelFallback.sourceSeq}`}
-          fallback={modelFallback}
-          threadId={thread.id}
-        />
-      ) : null}
       {shouldHideComposer ? null : (
         <QueuedMessagesList
           attachedToComposer={true}
