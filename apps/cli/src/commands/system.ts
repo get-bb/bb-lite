@@ -8,6 +8,7 @@ import {
   machineFlag,
   parseJson,
   readStdin,
+  valid,
   type Call,
 } from "../call.js";
 import { CliError, commandReference, usageError, type Run } from "../engine.js";
@@ -19,6 +20,7 @@ const DEFAULT_TOPIC = "concepts";
 const KEYBINDING = "keybinding.";
 const UI = "ui.";
 const UNBOUND = "none";
+const MODIFIERS = ["mod", "meta", "control", "alt", "shift"] as const;
 
 function quiet<Value>(request: Promise<Value>): Promise<Value | null> {
   return request.catch(() => null);
@@ -47,19 +49,9 @@ export const status: Run = async (c) => {
   const pluginsNeedingAttention = (listed?.plugins ?? [])
     .filter((plugin) => plugin.enabled && plugin.status !== "running")
     .map((plugin) => ({ id: plugin.id, status: plugin.status }));
-  const summary = thread && {
-    id: thread.id,
-    status: thread.status,
-    title: thread.title,
-    projectId: thread.projectId,
-    parentThreadId: thread.parentThreadId,
-    pinnedAt: thread.pinnedAt,
-    environmentId,
-    environment,
-  };
   const data = {
     project: project && { id: project.id, name: project.name },
-    thread: summary,
+    thread: thread && { ...thread, environment },
     childThreads,
     pendingTodos,
     pluginsNeedingAttention,
@@ -151,10 +143,12 @@ async function readSettings(c: Call): Promise<Record<string, unknown>> {
     system.uiPreferences.list(),
   ]);
   const keybindings = config.keybindingOverrides.map(
-    ({ command, shortcut }): [string, unknown] => [
-      `${KEYBINDING}${command}`,
-      shortcut ?? UNBOUND,
-    ],
+    ({ command, shortcut }): [string, unknown] => {
+      const held = MODIFIERS.filter((name) => shortcut?.[name]);
+      const keys =
+        shortcut === null ? UNBOUND : [...held, shortcut.key].join("+");
+      return [`${KEYBINDING}${command}`, keys];
+    },
   );
   const preferences = Object.entries(ui.preferences).map(
     ([key, entry]): [string, unknown] => [`${UI}${key}`, entry.value],
@@ -186,18 +180,24 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       key === "theme"
         ? { themeId: next, faviconColor }
         : { themeId, faviconColor: next };
-    return theme.set(domain.appThemeSelectionSchema.parse(selection));
+    return theme.set(valid(domain.appThemeSelectionSchema, selection, key));
   }
   if (key.startsWith(KEYBINDING)) {
     const command = key.slice(KEYBINDING.length);
     const kept = config.keybindingOverrides.filter(
       (override) => override.command !== command,
     );
-    const shortcut = raw === UNBOUND ? null : raw;
+    const held = (raw ?? "")
+      .toLowerCase()
+      .replace("ctrl", "control")
+      .split("+");
+    const pressed = MODIFIERS.map((name) => [name, held.includes(name)]);
+    const combination = { key: held.at(-1), ...Object.fromEntries(pressed) };
+    const shortcut = raw === UNBOUND ? null : combination;
     const added = raw === undefined ? [] : [{ command, shortcut }];
-    const overrides = [...kept, ...added];
-    const parsed = domain.appKeybindingOverridesSchema.parse(overrides);
-    return system.updateKeyboardSettings(parsed);
+    const schema = domain.appKeybindingOverridesSchema;
+    const overrides = valid(schema, [...kept, ...added], "keybinding");
+    return system.updateKeyboardSettings(overrides);
   }
   if (key.startsWith(UI)) {
     const name = key.slice(UI.length);
@@ -221,7 +221,8 @@ async function writeSetting(c: Call, key: string, raw?: string) {
   const value = raw === undefined ? defaults[key] : settingValue(raw);
   const { showUnhandledProviderEvents: _legacy, ...general } =
     config.generalSettings;
-  const next = domain.appSettingsSchema.parse({ ...general, [key]: value });
+  const changed = { ...general, [key]: value };
+  const next = valid(domain.appSettingsSchema, changed, "setting");
   return system.updateGeneralSettings(next);
 }
 
@@ -239,21 +240,17 @@ export const settingsReset = changeSetting(true);
 
 export const settingsShow: Run = async (c) => {
   const settings = await readSettings(c);
-  const lines = Object.entries(settings).map(
-    ([key, value]) => `${key} = ${JSON.stringify(value)}`,
+  const { key } = c.args;
+  const all = Object.entries(settings);
+  const shown = all.filter(([name]) => key === undefined || name === key);
+  if (shown.length === 0) throw usageError(`Unknown setting '${key}'.`);
+  const lines = shown.map(([name, value]) =>
+    key === undefined ? `${name} = ${JSON.stringify(value)}` : `${value}`,
   );
-  c.out(settings, lines);
+  c.out(key === undefined ? settings : { key, value: settings[key] }, lines);
 };
 
-export const settingsGet: Run = async (c) => {
-  const key = c.arg("key");
-  const settings = await readSettings(c);
-  if (!Object.hasOwn(settings, key)) {
-    throw usageError(`Unknown setting '${key}'.`);
-  }
-  const value = settings[key];
-  c.out({ key, value }, JSON.stringify(value));
-};
+export const settingsGet = settingsShow;
 
 export const pluginList: Run = async (c) => {
   const result = await c.sdk.plugins.list();
@@ -290,7 +287,7 @@ async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const entry = z.looseObject({ path: z.string() });
   const schema = z.looseObject({ plugins: z.array(entry).default([]) });
   const text = await readFile(file, "utf8").catch(() => "{}");
-  const config = schema.parse(parseJson(text, file));
+  const config = valid(schema, parseJson(text, file), file);
   const others = config.plugins.filter((known) => resolve(known.path) !== path);
   const plugins = add ? [...others, { path, enabled: true }] : others;
   const next = JSON.stringify({ ...config, plugins }, null, 2);
@@ -335,11 +332,10 @@ export const runnerJoin: Run = async (c) => {
   const { z } = await import("zod");
   const decoded = Buffer.from(blob, "base64url").toString("utf8");
   const schema = z.object({ serverUrl: z.url() });
-  const target = schema.safeParse(settingValue(decoded));
-  if (!target.success) throw usageError("That is not a bb join command.");
+  const target = valid(schema, settingValue(decoded), "join command");
   const legacyMachineConfigPath = c.on("reuse-connect-credential")
     ? (c.flag("reuse-connect-credential") ??
-      runner.defaultLegacyMachineConfigPath(target.data.serverUrl))
+      runner.defaultLegacyMachineConfigPath(target.serverUrl))
     : undefined;
   const joined = await runner.joinServer({
     blob,

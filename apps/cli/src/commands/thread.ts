@@ -24,23 +24,10 @@ import {
   todoLines,
 } from "../render.js";
 
-type Action =
-  | "stop"
-  | "archive"
-  | "unarchive"
-  | "compact"
-  | "clearContext"
-  | "pin"
-  | "unpin"
-  | "markRead"
-  | "markUnread";
+type Action = "stop" | "archive" | "unarchive" | "compact" | "pin" | "unpin";
+type Marker = "clearContext" | "markRead" | "markUnread";
 
 const WORKSPACE_KINDS = ["worktree", "checkout", "personal"] as const;
-const TELL_MODES = {
-  steer: "steer-if-active",
-  queue: "queue-if-active",
-  auto: "auto",
-} as const;
 const OPEN_SPLITS = ["right", "down", "left", "top", "replace"] as const;
 const TIMELINE_TURN_LIMIT = 100;
 const EVENT_PAGE_SIZE = 100;
@@ -57,11 +44,6 @@ function execution(c: Call) {
 
 function visibility(c: Call) {
   return c.choice("visibility", loaded().domain.threadVisibilityValues);
-}
-
-function sendAt(c: Call): number | undefined {
-  const value = c.flag("send-at");
-  return value === undefined ? undefined : sendAtMs(value);
 }
 
 function clientPath(value: string): string | null {
@@ -151,17 +133,15 @@ export const threadSpawn: Run = async (c) => {
   const text = await textInput(c, prompt, "prompt-file", "--prompt <text>");
   const projectId = c.id("project");
   if (projectId === undefined) {
-    const current = c.env.projectId;
-    throw new CliError("Missing required option --project <id>.", {
+    const current = c.env.projectId ?? "<id> (see `bb project list`)";
+    const detail = {
       code: "missing_required",
-      hint:
-        current === undefined
-          ? "List project IDs with `bb project list`."
-          : `This thread's project is ${current}; add --project ${current}.`,
-    });
+      hint: `Add --project ${current}.`,
+    };
+    throw new CliError("Missing required option --project <id>.", detail);
   }
   const parentThreadId = spawnParent(c);
-  const scheduled = sendAt(c);
+  const scheduled = sendAtMs(c.flag("send-at"));
   const thread = await c.sdk.threads.spawn({
     origin: "cli",
     projectId,
@@ -191,7 +171,6 @@ export const threadTell: Run = async (c) => {
   const { message } = c.args;
   const text = await textInput(c, message, "message-file", "<message>");
   const mode = c.choice("mode", ["steer", "queue", "auto"]) ?? "steer";
-  const scheduled = sendAt(c);
   const { sdk } = c;
   const project = async (): Promise<string> =>
     (await sdk.threads.get({ threadId })).projectId;
@@ -199,10 +178,10 @@ export const threadTell: Run = async (c) => {
   const response = await sdk.threads.send({
     threadId,
     input: await promptInput(c, text, project),
-    mode: TELL_MODES[mode],
+    mode: mode === "auto" ? mode : `${mode}-if-active`,
     ...execution(c),
     senderThreadId: sender === threadId ? undefined : sender,
-    sendAt: scheduled,
+    sendAt: sendAtMs(c.flag("send-at")),
   });
   const outcome =
     response.delivery === "queued"
@@ -291,11 +270,8 @@ async function logEvents(c: Call, threadId: string) {
   const shown = rows.slice(0, wanted);
   c.out(shown);
   if (rows.length > wanted) {
-    const from = after === undefined ? "" : ` after seq ${after}`;
-    console.error(
-      `Showing the oldest ${shown.length} events${from}; more exist. Use ` +
-        `--after-seq ${shown.at(-1)?.seq} for the next page or --all.`,
-    );
+    const next = `--after-seq ${shown.at(-1)?.seq} for the next page, or --all`;
+    console.error(`Showing ${shown.length} events; more exist. Use ${next}.`);
   }
 }
 
@@ -329,8 +305,8 @@ export const threadLog: Run = async (c) => {
       beforeAnchorSeq: String(page.olderCursor.anchorSeq),
       beforeAnchorId: page.olderCursor.anchorId,
     });
-    const loaded = new Set(rows.map((row) => row.id));
-    rows = [...older.rows.filter((row) => !loaded.has(row.id)), ...rows];
+    const known = new Set(rows.map((row) => row.id));
+    rows = [...older.rows.filter((row) => !known.has(row.id)), ...rows];
     page = older.timelinePage;
   }
   const { formatThreadTimelineText } = await import("@bb/thread-view");
@@ -404,7 +380,7 @@ export const threadUpdate: Run = async (c) => {
   c.out(thread, [`Thread ${thread.id} updated`, ...lines]);
 };
 
-function action(method: Action, done: string): Run {
+function action(method: Action | Marker, done: string): Run {
   return async (c) => {
     const threadId = threadTarget(c);
     const result = await c.sdk.threads[method]({ threadId });
@@ -468,7 +444,7 @@ export const threadOpen: Run = async (c) => {
   const current = c.env.threadId;
   const named =
     first !== undefined &&
-    (second !== undefined || current === undefined || /^thr_/u.test(first));
+    (second !== undefined || current === undefined || first.startsWith("thr_"));
   const threadId = named ? validId(first, "<id> argument") : current;
   if (threadId === undefined) {
     throw usageError("Missing thread ID. Pass [id] or run inside a thread.");

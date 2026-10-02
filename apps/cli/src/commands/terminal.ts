@@ -9,10 +9,6 @@ import {
 } from "../call.js";
 import { CliError, usageError, type Run } from "../engine.js";
 
-interface OutputChunk {
-  dataBase64: string;
-}
-
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const INPUT_CHUNK_BYTES = 64 * 1024;
@@ -52,7 +48,7 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
-function decode(chunks: readonly OutputChunk[]): Buffer {
+function decode(chunks: readonly { dataBase64: string }[]): Buffer {
   return Buffer.concat(
     chunks.map((chunk) => Buffer.from(chunk.dataBase64, "base64")),
   );

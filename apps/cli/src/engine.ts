@@ -94,29 +94,24 @@ function parseFlag(line: string): FlagSpec {
   return { names: names.split("|"), kind, placeholder, help };
 }
 
-function parseCommand(block: string, handlers: Record<string, Run>) {
+function parseCommand(
+  block: string,
+  handlers: Record<string, Run>,
+): CommandSpec {
   const lines = block.replace(/\n {4,}/gu, " ").split("\n");
   const [, usage = "", summary = ""] = COMMAND_LINE.exec(lines[0] ?? "") ?? [];
   const words = usage.split(" ");
   const argsAt = words.findIndex((word) => /^[<[]/u.test(word));
-  const args = argsAt < 0 ? [] : words.splice(argsAt);
+  const args = argsAt < 0 ? "" : words.splice(argsAt).join(" ");
   const [leaf = "", ...aliases] = (words.pop() ?? "").split("|");
   const path = [...words, leaf].join(" ");
   const run = handlers[camelCase(path)];
   if (run === undefined) throw new Error(`'bb ${path}' has no handler`);
   const marked = (mark: string): string[] =>
     lines.flatMap((line) => (line.startsWith(mark) ? [line.slice(4)] : []));
-  const spec: CommandSpec = {
-    path,
-    aliases,
-    args: args.join(" "),
-    summary,
-    flags: lines.filter((line) => line.startsWith("  --")).map(parseFlag),
-    examples: marked("  $ "),
-    json: marked("  > ").join(" "),
-    run,
-  };
-  return spec;
+  const flags = lines.filter((line) => line.startsWith("  --")).map(parseFlag);
+  const [examples, json] = [marked("  $ "), marked("  > ").join(" ")];
+  return { path, aliases, args, summary, flags, examples, json, run };
 }
 
 export function parseCommands(
@@ -147,15 +142,13 @@ export function resolveCommand(table: Table, input: string[]): Resolution {
     ),
   );
   for (let size = Math.min(words.length, MAX_PATH_WORDS); size > 0; size--) {
-    const spec = index.get(words.slice(0, size).join(" "));
+    const path = words.slice(0, size).join(" ");
+    const spec = index.get(path);
     if (spec !== undefined) {
       return { kind: "command", spec, argv: argv.slice(size) };
     }
-  }
-  for (let size = Math.min(words.length, MAX_PATH_WORDS); size > 0; size--) {
-    const group = words.slice(0, size).join(" ");
-    if (Object.hasOwn(table.groups, group)) {
-      return { kind: "group", group, unknown: words[size] ?? null };
+    if (Object.hasOwn(table.groups, path)) {
+      return { kind: "group", group: path, unknown: words[size] ?? null };
     }
   }
   return { kind: "other", name: words[0] ?? null, argv };
@@ -179,17 +172,15 @@ function editDistance(left: string, right: string): number {
 }
 
 function didYouMean(word: string, candidates: string[], prefix: string) {
-  const scored = candidates
-    .map((candidate) => ({
-      candidate,
-      distance: editDistance(word, candidate),
-    }))
-    .sort((left, right) => left.distance - right.distance);
-  const best = scored[0];
   const tolerance = Math.max(2, Math.floor(word.length / 3));
-  return best !== undefined && best.distance <= tolerance
-    ? ` Did you mean '${prefix}${best.candidate}'?`
-    : "";
+  const near = candidates
+    .map((candidate) => ({ candidate, far: editDistance(word, candidate) }))
+    .filter(({ far }) => far <= tolerance)
+    .sort((left, right) => left.far - right.far);
+  const [best] = near;
+  return best === undefined
+    ? ""
+    : ` Did you mean '${prefix}${best.candidate}'?`;
 }
 
 export function usageLine(spec: CommandSpec): string {
@@ -268,65 +259,54 @@ function columns(rows: [string, string][]): string[] {
   return rows.map(([left, right]) => `  ${left.padEnd(width)}  ${right}`);
 }
 
-function flagRows(spec: CommandSpec, own: boolean): string[] {
-  const shown = own ? spec.flags.slice(0, -2) : spec.flags;
-  return columns(
-    shown.map((flag) => {
-      const [name, ...aliases] = flag.names;
-      const repeat = flag.kind === "list" ? " (repeatable)" : "";
-      const also = aliases.map((alias) => ` (alias --${alias})`).join("");
-      const label = `--${name} ${flag.placeholder}`.trimEnd();
-      return [label, `${flag.help}${repeat}${also}`];
-    }),
-  );
+function flagRow(flag: FlagSpec): [string, string] {
+  const [name, ...aliases] = flag.names;
+  const repeat = flag.kind === "list" ? " (repeatable)" : "";
+  const also = aliases.map((alias) => ` (alias --${alias})`).join("");
+  const label = `--${name} ${flag.placeholder}`.trimEnd();
+  return [label, `${flag.help}${repeat}${also}`];
 }
 
-export function commandHelp(spec: CommandSpec): string {
+export function commandHelp(spec: CommandSpec, brief = false): string {
+  const flags = brief ? spec.flags.slice(0, -2) : spec.flags;
+  const options = columns(flags.map(flagRow));
   const examples = spec.examples.map((example) => `  ${example}`);
   const sections = [
     `Usage: ${usageLine(spec)}`,
     spec.summary,
     spec.aliases.length === 0 ? "" : `Aliases: ${spec.aliases.join(", ")}`,
-    ["Options:", ...flagRows(spec, false)].join("\n"),
-    examples.length === 0 ? "" : ["Examples:", ...examples].join("\n"),
+    options.length === 0 ? "" : ["Options:", ...options].join("\n"),
+    examples.length === 0 || brief ? "" : ["Examples:", ...examples].join("\n"),
     spec.json === "" ? "" : `JSON (--json): ${spec.json}`,
-    JSON_FAILURE,
+    brief ? "" : JSON_FAILURE,
   ];
-  return sections.filter(Boolean).join("\n\n");
+  return sections.filter(Boolean).join(brief ? "\n" : "\n\n");
 }
 
 function commandsUnder(table: Table, group: string): CommandSpec[] {
-  const prefix = `${group} `;
-  return table.commands.filter((spec) => spec.path.startsWith(prefix));
+  const prefix = group === "" ? "" : `${group} `;
+  return table.commands.filter((spec) => `${spec.path} `.startsWith(prefix));
 }
 
-export function groupHelp(table: Table, group: string): string {
-  const rows = commandsUnder(table, group).map((spec): [string, string] => [
-    spec.path.slice(group.length + 1),
-    spec.summary,
-  ]);
-  return [
-    `Usage: bb ${group} <command> [options]`,
-    table.groups[group] ?? "",
-    ["Commands:", ...columns(rows)].join("\n"),
-    `Run \`bb ${group} <command> --help\` for arguments and flags.`,
-  ].join("\n\n");
-}
-
-export function rootHelp(table: Table): string {
+export function groupHelp(table: Table, group = ""): string {
+  const prefix = group === "" ? "" : `${group} `;
   const rows = new Map<string, string>();
-  for (const spec of table.commands) {
-    const [word = ""] = spec.path.split(" ");
-    if (!rows.has(word)) rows.set(word, table.groups[word] ?? spec.summary);
+  for (const spec of commandsUnder(table, group)) {
+    const [word = ""] = spec.path.slice(prefix.length).split(" ");
+    const summary = table.groups[`${prefix}${word}`] ?? spec.summary;
+    if (!rows.has(word)) rows.set(word, summary);
   }
+  const usage = `bb ${prefix}<command>`;
   return [
-    "Usage: bb <command> [options]",
+    `Usage: ${usage} [options]`,
+    table.groups[group] ?? "",
     ["Commands:", ...columns([...rows])].join("\n"),
-    "Run `bb <command> --help` for details and `bb guide` for concepts. " +
-      "Enabled plugins add commands such as `bb tasks`; `bb plugin list` " +
-      "shows them.",
+    `Run \`${usage} --help\` for details and \`bb guide\` for concepts. ` +
+      "Enabled plugins add commands such as `bb tasks`; see `bb plugin list`.",
     JSON_FAILURE,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function unknownCommand(
@@ -351,20 +331,10 @@ export function unknownCommand(
   return new CliError(`Unknown command 'bb ${name}'.${close}`, { code, hint });
 }
 
-export function commandReference(table: Table, group?: string): string {
-  const selected = table.commands.filter(
-    (spec) =>
-      group === undefined ||
-      spec.path === group ||
-      spec.path.startsWith(`${group} `),
+export function commandReference(table: Table, group = ""): string {
+  const entries = commandsUnder(table, group).map((spec) =>
+    commandHelp(spec, true),
   );
-  const entries = selected.map((spec) => {
-    const also = spec.aliases.join(", ");
-    const aliases = also === "" ? "" : ` (aliases: ${also})`;
-    const shape = spec.json === "" ? [] : [`  JSON: ${spec.json}`];
-    const head = `${usageLine(spec)}\n  ${spec.summary}${aliases}`;
-    return [head, ...flagRows(spec, true), ...shape].join("\n");
-  });
   const footer = `Every command takes --json. ${JSON_FAILURE}`;
   return [...entries, footer].join("\n\n");
 }

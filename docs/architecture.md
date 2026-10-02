@@ -295,6 +295,35 @@ materialised by the CLI before the request.
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 
+## CLI
+
+`apps/cli` is one table and one engine.
+
+- **The table** (`src/table.ts`) is text in the shape of help output: one line per command
+  (`thread tell|message|send <id> [message]  Summary`), then indented lines for its flags
+  (`--mode <mode>  Help`; `<v>...` repeats, `[v]` is optional, `--machine|host` declares an alias),
+  examples (`$ …`) and the `--json` shape (`> …`). Two spaces separate a declaration from its text.
+  `groups` and `aliases` (first-word rewrites such as `models` → `provider models`) sit beside it.
+- **Handlers** are the exported functions of `src/commands/*.ts`, bound by name: `thread section list` runs
+  `threadSectionList`. A command without a handler, or a flag line that does not parse, fails at startup; a
+  handler that reads a flag its command does not declare throws.
+- **The engine** (`src/engine.ts`) derives everything else from the table: resolution (longest path first,
+  then group help, then plugin dispatch), flag and argument parsing, `--help` at every level, the short
+  "did you mean" errors, and the reference `bb guide commands` prints. Every command gets `--json` and
+  `--help`. A failure with `--json` prints `{"ok": false, "error": {code, message, hint?}}` on stdout.
+- Handlers reach the server only through `@bb/sdk`. The SDK and `@bb/domain` are loaded just before a
+  handler runs, never for help, `bb guide`, `bb server` or `bb runner`, so those start without them.
+- A first word that is not in the table is looked up in `GET /plugins/contributions` and dispatched to
+  the server.
+- `bin/bb` runs `dist/bb.mjs` when `pnpm build:cli` has produced it and the TypeScript source through
+  `tsx` otherwise. The bundle keeps native packages in `node_modules` and rewrites `import.meta.url` per
+  source file, so it depends on the repository layout (schema, logos, plugin directories) but not on
+  where the repository lives.
+- `bb server` calls `startServer({ cliDir })` from `@bb/server`, the same function `apps/server/src/main.ts`
+  runs. `ServerConfig.cliDir` is the CLI package root: the local runner gets `<cliDir>/bin/bb` as the agent's
+  `bb`, and every local session gets `<cliDir>/skills` (the `bb-cli` skill) as a skill directory.
+- Topic text for `bb guide` is Markdown under `apps/cli/guide/`.
+
 ## Conventions
 
 - No code comments (lint tool directives excepted). Names and small functions carry the meaning; this

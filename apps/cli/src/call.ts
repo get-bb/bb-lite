@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import type { BbSdk } from "@bb/sdk";
+import type { ZodType } from "zod";
 import {
   CliError,
   usageError,
@@ -48,6 +49,7 @@ export function loaded(): Modules {
 
 export function errorMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
+  if (error.name === "ZodError") return "The server sent unexpected data.";
   const cause = error.cause instanceof Error ? `: ${error.cause.message}` : "";
   return `${error.message}${cause}`;
 }
@@ -162,9 +164,11 @@ export class Call {
     keys: (keyof Row & string)[],
     data: unknown = rows,
   ): void {
-    const cells = rows.map((row) =>
-      keys.map((key) => clip(`${row[key] ?? "-"}`)),
-    );
+    const shown = (key: string, value: unknown): string =>
+      key.endsWith("At") && typeof value === "number"
+        ? new Date(value).toLocaleString()
+        : clip(`${value ?? "-"}`);
+    const cells = rows.map((row) => keys.map((key) => shown(key, row[key])));
     const widths = keys.map((key, column) =>
       Math.max(key.length, ...cells.map((row) => (row[column] ?? "").length)),
     );
@@ -192,10 +196,7 @@ export function threadTarget(call: Call): string {
   if (id !== undefined) return validId(id, "<id> argument");
   throw new CliError("Missing thread ID. Pass <id> or use --self.", {
     code: "missing_required",
-    hint:
-      current === undefined
-        ? "--self is unavailable because BB_THREAD_ID is not set."
-        : `Add --self to target the current thread (${current}).`,
+    hint: current && `Add --self to target the current thread (${current}).`,
   });
 }
 
@@ -278,7 +279,8 @@ export function durationMs(
   throw usageError(`${label} must be greater than zero.`);
 }
 
-export function sendAtMs(value: string, now = Date.now()): number {
+export function sendAtMs(value?: string, now = Date.now()): number | undefined {
+  if (value === undefined) return undefined;
   const trimmed = value.trim();
   const relative = /[a-z]$/iu.test(trimmed) && DURATION.test(trimmed);
   const at = relative
@@ -309,6 +311,18 @@ export function parseJson(value: string, label: string): unknown {
   } catch {
     throw usageError(`${label} must be valid JSON.`);
   }
+}
+
+export function valid<Output>(
+  schema: ZodType<Output>,
+  value: unknown,
+  label: string,
+): Output {
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const [issue] = parsed.error.issues;
+  const where = issue?.path.length ? ` (${issue.path.join(".")})` : "";
+  throw usageError(`Invalid ${label}${where}: ${issue?.message}`);
 }
 
 export async function machineId(call: Call, target: string): Promise<string> {

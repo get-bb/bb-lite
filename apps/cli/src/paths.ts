@@ -8,4 +8,3 @@ export const cliDir = inPackage(".");
 export const bbCliPath = inPackage("bin/bb");
 export const builtinSkillsDir = inPackage("skills");
 export const guideDir = inPackage("guide");
-export const packageJsonPath = inPackage("package.json");

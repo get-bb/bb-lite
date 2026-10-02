@@ -21,10 +21,6 @@ const TERMINAL_SCOPE = `
   --environment <id>  Terminal of an environment
 ${MACHINE}  Terminal on a machine
   --cwd <path>  Working directory, with --machine`;
-const TERMINAL_ID = `
-  --thread <id>  Accepted and ignored: the terminal ID is enough
-  --environment <id>  Accepted and ignored
-${MACHINE}  Accepted and ignored`;
 const OUTPUT_BOUNDS = `
   --tail-bytes <n>  Only the latest N bytes
   --limit-chunks <n>  Only the latest N chunks`;
@@ -110,12 +106,10 @@ ${SELF}
   --model <model>  Model for the next turn
   --reasoning-level <level>  Reasoning level for the next turn
   --visibility <visibility>  visible or hidden
-  > the updated thread
 thread stop [id]  Stop work and release the agent runtime
 ${SELF}
 thread archive [id]  Archive a thread and its children
 ${SELF}
-  > {ok, threadId, archivedThreadIds}
 thread unarchive [id]  Unarchive a thread
 ${SELF}
 thread compact [id]  Compact the context of an idle thread
@@ -135,7 +129,6 @@ ${YES}
   --confirm-child-threads  Also delete its child threads
 thread search <query>  Search thread titles and messages
   --limit <count>  Results per group
-  > {active: {total, results}, archived: {total, results}}
 thread open [id] [path]  Open a thread in the app, optionally with a file
   --line <number>  Line to focus
   --split <placement>  right, down, left, top or replace
@@ -155,13 +148,11 @@ ${SELF}
   --value <json>  Answer a plugin form with a JSON value
   $ bb thread interactions resolve pint_1 thr_abc --approve
   $ bb thread interactions resolve pint_2 --self --answer staging
-  > the updated interaction
 thread queue list [threadId]  List queued messages of one thread, or of all
 thread queue send <threadId> <messageId>  Send a queued message now
   --mode <mode>  auto (default) or steer
 thread queue delete <threadId> <messageId>  Delete a queued message
 thread section list  List sidebar sections
-  > [{id, name, createdAt, updatedAt}]
 thread section create <name>  Create a sidebar section
 thread section rename <id> <name>  Rename a sidebar section
 thread section delete <id>  Delete a section; its threads become unsectioned
@@ -191,7 +182,6 @@ ${YES}
 project attachment upload <id>  Upload a file here as a prompt attachment
   --client-file <path>  File to upload (required)
   --filename <name>  Stored file name
-  > {path, …}; pass .path to --file or --image
 
 env list  List environments: the checkouts and worktrees threads run in
   --project <id>  Only this project
@@ -200,7 +190,6 @@ ${MACHINE}  Only this machine
   --limit <count>  At most this many, oldest first
   > [{id, name, projectId, hostId, path, branchName, status}]
 env show|get <id>  Show an environment
-  > {id, name, projectId, hostId, path, branchName, baseBranch, status}
 env status <id>  Show the git state of an environment
   --merge-base-branch <branch>  Also compare with this branch
 env diff <id>  Print the diff of an environment
@@ -221,7 +210,6 @@ machine list  List machines
 machine show <machine>  Show a machine, by ID or name
 machine add  Register a machine and print the command that joins it
   --name <name>  Machine name (default: its hostname)
-  > {host, command, expiresAt}
 machine reconnect <machine>  Print a new join command for an offline machine
 machine rename <machine> <name>  Rename a machine
 machine remove <machine>  Revoke and remove a machine
@@ -258,13 +246,11 @@ terminal list  List terminals in one scope
 ${TERMINAL_SCOPE}
   > {sessions: [{id, title, status, exitCode, closeReason, cols, rows}]}
 terminal output|read <terminalId>  Print terminal scrollback
-${TERMINAL_ID}
   --since-seq <n>  Only chunks from this sequence
 ${OUTPUT_BOUNDS}
   > {chunks: [{seq, dataBase64}], nextSeq, truncated, status, exitCode,
     closeReason}
 terminal wait <terminalId>  Wait for output or exit (exit 124 if it ends first)
-${TERMINAL_ID}
   --contains <text>  Wait until the output contains this text
   --regex <pattern>  Wait until the output matches
   --exit  Wait until the terminal exits
@@ -274,18 +260,15 @@ ${TERMINAL_ID}
 ${OUTPUT_BOUNDS}
   > {terminalId, matched, nextSeq, exitCode}
 terminal send <terminalId>  Send input to a terminal
-${TERMINAL_ID}
   --text <text>  Text to send
   --stdin  Send the bytes read from stdin
   --enter  Append a newline
 terminal close|stop <terminalId>  Close a terminal
-${TERMINAL_ID}
   --if-clean  Only if nobody typed into it
 
 file read <path>  Print a file from a machine
 ${MACHINE}  Machine holding the file (default: the server's)
   --root <path>  Refuse paths outside this directory
-  > {path, content, contentEncoding, sizeBytes, sha256, …}
 file write <path>  Write a UTF-8 file on a machine
 ${MACHINE}  Machine holding the file (default: the server's)
   --content <text>  File content
@@ -297,7 +280,6 @@ file list <path>  List files under a directory on a machine
 ${MACHINE}  Machine holding the directory (default: the server's)
   --query <query>  Fuzzy path filter
   --limit <count>  Maximum entries
-  > {files: [{path, name}], truncated}
 
 settings show  Print every setting as key = value
 settings get <key>  Print one setting

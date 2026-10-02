@@ -5,7 +5,7 @@ command; the ones scripts read most:
 
 | Command | Shape |
 |---|---|
-| `bb status` | `{project: {id, name} \| null, thread: {id, status, title, projectId, parentThreadId, environmentId, environment} \| null, childThreads: [{id, status, title}] \| null, pendingTodos, pluginsNeedingAttention: [{id, status}], dataDir, serverUrl}` |
+| `bb status` | `{project: {id, name} \| null, thread: {id, status, title, projectId, parentThreadId, environmentId, …, environment} \| null, childThreads: [{id, status, title}] \| null, pendingTodos, pluginsNeedingAttention: [{id, status}], dataDir, serverUrl}` |
 | `bb thread spawn` | the created thread: `{id, status, title, projectId, environmentId, parentThreadId, …}` |
 | `bb thread show` | `{thread, environment, pendingTodos}`: thread fields are under `.thread` |
 | `bb thread list` | bare array of threads; `--count` gives `{count}` |

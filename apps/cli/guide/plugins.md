@@ -28,6 +28,5 @@ command and returns its exit code, stdout and stderr.
 - `bb <name> --help` is answered by the plugin.
 - `--<flag>-stdin` reads one line from stdin and passes it as `--<flag>
   <value>`, so a secret never appears in a process list.
-- File paths given to a plugin command are read on the server side.
 - An unknown first word that no enabled plugin owns is an `unknown_command`
   error.

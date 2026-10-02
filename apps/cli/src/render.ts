@@ -12,6 +12,13 @@ interface QueueWait {
 }
 
 const TODO_MARKS = { in_progress: "[>]", pending: "[ ]", completed: "[x]" };
+const WAITS = {
+  "thread-busy": "waiting for the current turn to finish",
+  stopping: "sending once the thread finishes stopping",
+  "turn-starting": "waiting for the current turn to start",
+  provisioning: "waiting for the workspace",
+  interaction: "waiting for a pending interaction",
+};
 
 function date(at: number): string {
   return new Date(at).toLocaleString();
@@ -60,24 +67,14 @@ export function threadLines(
 
 export function queueWait(row: QueueWait): string {
   const waitingOn = row.waitingOn ?? { kind: "thread-busy" };
-  switch (waitingOn.kind) {
-    case "time":
-      return row.sendAt === null
-        ? "scheduled"
-        : `scheduled for ${date(row.sendAt)}`;
-    case "thread-busy":
-      return "waiting for the current turn to finish";
-    case "stopping":
-      return "sending once the thread finishes stopping";
-    case "turn-starting":
-      return "waiting for the current turn to start";
-    case "provisioning":
-      return "waiting for the workspace";
-    case "host-offline":
-      return `waiting for ${waitingOn.hostName} to reconnect`;
-    case "interaction":
-      return "waiting for a pending interaction";
-    case "plugin":
-      return `${waitingOn.pluginId}: ${waitingOn.reason}`;
+  if (waitingOn.kind === "time") {
+    return row.sendAt === null ? "scheduled" : `due ${date(row.sendAt)}`;
   }
+  if (waitingOn.kind === "host-offline") {
+    return `waiting for ${waitingOn.hostName} to reconnect`;
+  }
+  if (waitingOn.kind === "plugin") {
+    return `${waitingOn.pluginId}: ${waitingOn.reason}`;
+  }
+  return WAITS[waitingOn.kind];
 }

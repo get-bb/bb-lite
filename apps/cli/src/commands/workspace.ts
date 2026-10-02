@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
+import type { ProviderHostRoutingArgs } from "@bb/sdk";
 import {
   confirm,
   integer,
@@ -11,11 +12,6 @@ import {
   type Call,
 } from "../call.js";
 import { usageError, type Run } from "../engine.js";
-
-type Routing =
-  | { environmentId: string; hostId?: never }
-  | { environmentId?: never; hostId: string }
-  | { environmentId?: never; hostId?: never };
 
 const DIFF_TARGETS = [
   "uncommitted",
@@ -132,27 +128,7 @@ export const envShow: Run = async (c) => {
 export const envStatus: Run = async (c) => {
   const environmentId = id(c, "id");
   const mergeBaseBranch = c.flag("merge-base-branch");
-  const query = { environmentId, mergeBaseBranch };
-  const status = await c.sdk.environments.status(query);
-  if (status.outcome !== "available") {
-    const unavailable = status.outcome === "unavailable";
-    const reason = unavailable ? status.failure.message : status.message;
-    return c.out(status, `Work status: ${reason}`);
-  }
-  const { branch, workingTree, mergeBase } = status.workspace;
-  const compared =
-    mergeBase === null
-      ? []
-      : [
-          `Base:    ${mergeBase.mergeBaseBranch} (ahead ` +
-            `${mergeBase.aheadCount}, behind ${mergeBase.behindCount})`,
-        ];
-  c.out(status, [
-    `State:   ${workingTree.state}`,
-    `Branch:  ${branch.currentBranch ?? "-"}`,
-    `Changed: ${workingTree.files.length} file(s)`,
-    ...compared,
-  ]);
+  c.out(await c.sdk.environments.status({ environmentId, mergeBaseBranch }));
 };
 
 async function requestDiff(c: Call) {
@@ -234,11 +210,7 @@ export const envDelete: Run = async (c) => {
 
 export const machineList: Run = async (c) => {
   const hosts = await c.sdk.hosts.list({ includeCreating: true });
-  const rows = hosts.map((host) => ({
-    ...host,
-    lastSeen: host.lastSeenAt && new Date(host.lastSeenAt).toLocaleString(),
-  }));
-  c.rows(rows, ["id", "name", "status", "lastSeen"], hosts);
+  c.rows(hosts, ["id", "name", "status", "lastSeenAt"]);
 };
 
 function joinInstructions(command: string, expiresAt: number): string[] {
@@ -302,11 +274,11 @@ async function variables(c: Call, change?: "set" | "unset") {
   const name = c.arg("name");
   const kept = current.variables
     .filter((variable) => variable.name !== name)
-    .map((variable) => ({ ...variable, value: null }));
+    .map(({ name: other, note }) => ({ name: other, value: null, note }));
   const stdin = change === "set" ? await readStdin() : Buffer.alloc(0);
   const value = stdin.toString("utf8").replace(/\r?\n$/u, "");
-  const added = { name, value, note: c.flag("note") ?? null };
-  const next = change === "set" ? [...kept, added] : kept;
+  const note = change === "set" ? (c.flag("note") ?? null) : null;
+  const next = change === "set" ? [...kept, { name, value, note }] : kept;
   return projectId === undefined
     ? sdk.system.replaceMachineEnvironment({ variables: next })
     : sdk.projects.replaceMachineEnvironment({ projectId, variables: next });
@@ -325,7 +297,7 @@ export const machineEnvUnset: Run = async (c) => {
   c.out(await variables(c, "unset"), `${c.arg("name")} removed`);
 };
 
-async function routing(c: Call): Promise<Routing> {
+async function routing(c: Call): Promise<ProviderHostRoutingArgs> {
   const hostId = await machineFlag(c);
   const environmentId = c.id("environment");
   if (hostId !== undefined && environmentId !== undefined) {

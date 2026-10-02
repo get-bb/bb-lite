@@ -10,6 +10,7 @@ import {
   loaded,
   parseJson,
   threadTarget,
+  valid,
   validId,
   type Call,
 } from "../call.js";
@@ -117,7 +118,7 @@ export const threadInteractionsResolve: Run = async (c) => {
     updated = await interactions.resolve({ ...target, resolution: resolved });
   } else {
     const { jsonValueSchema } = loaded().domain;
-    const value = jsonValueSchema.parse(parseJson(raw, "--value"));
+    const value = valid(jsonValueSchema, parseJson(raw, "--value"), "--value");
     updated = await interactions.respond({ ...target, value });
   }
   const delivering = updated.status === "resolving";

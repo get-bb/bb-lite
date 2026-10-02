@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import {
   Call,
   errorMessage,
@@ -12,19 +11,10 @@ import {
   groupHelp,
   parseInvocation,
   resolveCommand,
-  rootHelp,
   unknownCommand,
 } from "./engine.js";
-import { packageJsonPath } from "./paths.js";
 import { findPluginCommand, runPluginCommand } from "./plugin-proxy.js";
 import { table } from "./table.js";
-
-interface Failure {
-  code: string;
-  message: string;
-  hint: string | null;
-  exitCode: number;
-}
 
 const SERVERLESS_COMMANDS = ["guide", "server", "runner join", "runner run"];
 const CONNECTION_FAILURES = ["Cannot connect to BB server", "fetch failed"];
@@ -41,29 +31,23 @@ function wantsJson(argv: string[]): boolean {
   );
 }
 
-function describeFailure(error: unknown, env: CliEnv): Failure {
-  if (error instanceof CliError) {
-    const { code, message, hint, exitCode } = error;
-    return { code, message, hint, exitCode };
-  }
+function asCliError(error: unknown, env: CliEnv): CliError {
+  if (error instanceof CliError) return error;
   const message = errorMessage(error);
   if (error instanceof Error && "status" in error && "code" in error) {
     const { code, status } = error;
     const known = typeof code === "string" ? code : `http_${String(status)}`;
-    return { code: known, message, hint: null, exitCode: 1 };
+    return new CliError(message, { code: known });
   }
   if (CONNECTION_FAILURES.some((text) => message.includes(text))) {
-    return {
-      code: "server_unreachable",
-      message: `Cannot reach the bb server at ${env.serverUrl}.`,
-      hint: "Start it with `bb server`, or point BB_SERVER_URL at it.",
-      exitCode: 1,
-    };
+    const unreachable = `Cannot reach the bb server at ${env.serverUrl}.`;
+    const hint = "Start it with `bb server`, or point BB_SERVER_URL at it.";
+    return new CliError(unreachable, { code: "server_unreachable", hint });
   }
-  return { code: "error", message, hint: null, exitCode: 1 };
+  return new CliError(message);
 }
 
-function report(failure: Failure, envelope: boolean): number {
+function report(failure: CliError, envelope: boolean): number {
   console.error(`Error: ${failure.message}`);
   if (failure.hint !== null) console.error(failure.hint);
   if (envelope) {
@@ -72,13 +56,6 @@ function report(failure: Failure, envelope: boolean): number {
     console.log(JSON.stringify({ ok: false, error }, null, 2));
   }
   return failure.exitCode;
-}
-
-async function version(): Promise<string> {
-  const manifest: unknown = JSON.parse(await readFile(packageJsonPath, "utf8"));
-  const known =
-    typeof manifest === "object" && manifest !== null && "version" in manifest;
-  return known ? String(manifest.version) : "unknown";
 }
 
 async function dispatch(argv: string[], env: CliEnv): Promise<number> {
@@ -97,7 +74,7 @@ async function dispatch(argv: string[], env: CliEnv): Promise<number> {
       await spec.run(call);
     } catch (error) {
       const envelope = wantsJson(found.argv) && !call.wroteJson;
-      return report(describeFailure(error, env), envelope);
+      return report(asCliError(error, env), envelope);
     }
     return 0;
   }
@@ -107,12 +84,8 @@ async function dispatch(argv: string[], env: CliEnv): Promise<number> {
   }
   if (found.kind === "group") throw unknownCommand(table, found);
   const [first, ...rest] = found.argv;
-  if (first === "--version" || first === "-V") {
-    console.log(await version());
-    return 0;
-  }
   if (found.name === null) {
-    console.log(rootHelp(table));
+    console.log(groupHelp(table));
     return ROOT_HELP_FLAGS.includes(first) ? 0 : 1;
   }
   const pluginId = await findPluginCommand(env, found.name);
@@ -125,10 +98,10 @@ async function main(): Promise<void> {
   try {
     const env = readEnv();
     process.exitCode = await dispatch(argv, env).catch((error: unknown) =>
-      report(describeFailure(error, env), wantsJson(argv)),
+      report(asCliError(error, env), wantsJson(argv)),
     );
   } catch (error) {
-    const failure = describeFailure(error, { serverUrl: "" });
+    const failure = asCliError(error, { serverUrl: "" });
     process.exitCode = report(failure, wantsJson(argv));
   }
 }

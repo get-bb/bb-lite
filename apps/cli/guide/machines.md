@@ -16,7 +16,7 @@ bb runner run                         # foreground; keep it under your superviso
 ```
 
 - The join command is single use. `bb machine reconnect <machine>` prints a new
-  one for a machine that lost its credential; it keeps its ID.
+  one for a disconnected machine that lost its credential; it keeps its ID.
 - `bb runner join <blob> --header name=value` adds a header to every request
   the runner makes (for a gateway in front of the server).
   `--reuse-connect-credential [path]` takes the bb connect credential of an

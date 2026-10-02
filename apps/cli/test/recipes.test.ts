@@ -47,10 +47,11 @@ it(
     expect(spawned.stdout).toContain(notice);
     const [, child = ""] =
       /Thread spawned: (thr_\w+)/u.exec(spawned.stdout) ?? [];
+    const drained = { timeout: 30_000, interval: 250 };
     const turn = "SELECT active_turn_id FROM threads WHERE id = ?";
     const started = (): unknown => ctx.db.get(turn, child);
     const running = { activeTurnId: expect.any(String) };
-    await vi.waitFor(() => expect(started()).toEqual(running));
+    await vi.waitFor(() => expect(started()).toEqual(running), drained);
 
     const tell = ["thread", "tell", child];
     const later = await bb(
@@ -67,7 +68,6 @@ it(
 
     const output = async (): Promise<string> =>
       (await bb(["thread", "output", child])).stdout;
-    const drained = { timeout: 30_000, interval: 250 };
     await vi.waitFor(
       async () => expect(await output()).toContain("queued note"),
       drained,
@@ -88,6 +88,17 @@ it(
     const family = ["--parent-thread", parent.id, "--include-hidden", "--json"];
     const children = parsed<Thread[]>(await bb(["thread", "list", ...family]));
     expect(children.map((thread) => thread.id)).toEqual([child]);
+    const host = ctx.db.get<{ name: string }>("SELECT name FROM hosts");
+    const fresh = [
+      "--machine",
+      host?.name ?? "",
+      "--new-environment",
+      "worktree",
+    ];
+    const branch = ["--base-branch", "origin/main", "--prompt", "x", "--json"];
+    const isolated = await bb([...spawn, ...echo, ...fresh, ...branch]);
+    const accepted = { projectId: project.id, parentThreadId: null };
+    expect(parsed(isolated)).toMatchObject(accepted);
     const archive = ["thread", "archive", "--self", "--json"];
     const archived = await bb(archive, { BB_THREAD_ID: child });
     const gone = { ok: true, threadId: child, archivedThreadIds: [child] };

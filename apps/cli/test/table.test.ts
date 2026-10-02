@@ -22,9 +22,7 @@ it("declares each command once with a summary, a handler and its groups", () => 
     const parents = words.slice(1).map((_, at) => words.slice(0, at + 1));
     for (const parent of parents) expect(prefixes).toContain(parent.join(" "));
   }
-  const bound = new Set(table.commands.map((spec) => spec.run));
-  expect(bound.size).toBe(Object.keys(handlers).length);
-  expect(table.commands.length).toBe(bound.size);
+  expect(table.commands.length).toBe(Object.keys(handlers).length);
   const firstWords = paths.map((path) => path.split(" ")[0]);
   for (const alias of Object.keys(table.aliases)) {
     expect(firstWords).not.toContain(alias);

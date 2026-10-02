@@ -20,8 +20,9 @@ bb thread spawn --project <proj> --machine <id-or-name> \
   --provider claude-code --prompt-file brief.md
 ```
 
-- `--project` is required. Omitted execution flags fall back to the parent
-  thread's, then the project's remembered choice, then the provider default.
+- `--project` is required. An omitted provider or model falls back to the
+  project's remembered choice, then the default; an omitted permission mode is
+  inherited from the parent thread.
 - Where it runs: `--environment <env id>` reuses an environment;
   `--environment <path>` runs in an existing directory; `--new-environment
   worktree|checkout|personal` creates one (`--base-branch` only with
