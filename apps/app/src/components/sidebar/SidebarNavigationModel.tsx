@@ -32,7 +32,7 @@ import {
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
-import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
+import { openPaneContentInSplit } from "@/lib/split-layout/atoms";
 
 interface SidebarNavigationEntry {
   item: SidebarNavigationItem;

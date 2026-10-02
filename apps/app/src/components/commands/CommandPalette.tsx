@@ -14,25 +14,18 @@ import {
   useAppCommandShortcuts,
 } from "./AppCommandProvider";
 import {
-  PALETTE_ACTION_BUCKETS,
-  type PaletteAction,
-} from "@/lib/command-palette/palette-action";
-import {
   buildAppCommandActions,
+  buildNavigationPaletteActions,
+  buildPluginPaletteActions,
+  PALETTE_ACTION_BUCKETS,
   PALETTE_COMMAND_IDS,
   paletteActionIdForCommand,
-} from "@/lib/command-palette/palette-app-commands";
-import {
+  rankPaletteActions,
   readPaletteRecents,
   recordPaletteRecent,
-} from "@/lib/command-palette/palette-recents";
-import { buildPluginPaletteActions } from "@/lib/command-palette/palette-plugin-actions";
-import {
-  rankPaletteActions,
+  type PaletteAction,
   type RankedPaletteAction,
-} from "@/lib/command-palette/palette-ranking";
-import { buildSettingsPaletteActions } from "@/lib/command-palette/palette-settings-actions";
-import { buildPluginPagePaletteActions } from "@/lib/command-palette/palette-plugin-page-actions";
+} from "@/lib/command-palette";
 import { usePluginSlots } from "@/plugins/registry";
 import { getActiveThreadPanelOpener } from "@/components/plugin/plugin-thread-panel-navigation";
 import { pluginListQueryOptions } from "@/hooks/queries/plugin-settings-queries";
@@ -154,16 +147,13 @@ export function CommandPalette({
   const ranked = rankPaletteActions({
     actions: [
       ...actions,
-      ...buildSettingsPaletteActions({
+      ...buildNavigationPaletteActions({
         navigate: goTo,
         pluginEntries: buildPluginSettingsEntries({
           installedPlugins,
           settingsSections: pluginSlots.settingsSections,
         }),
         sections: SETTINGS_NAV_SECTIONS,
-      }),
-      ...buildPluginPagePaletteActions({
-        navigate: goTo,
         panels: pluginSlots.navPanels,
       }),
     ],
