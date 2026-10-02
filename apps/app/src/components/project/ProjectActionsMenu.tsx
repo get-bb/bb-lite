@@ -1,115 +1,32 @@
-import { Icon } from "@bb/shared-ui/icon";
-import {
-  ActionMenuItem,
-  ActionMenuSeparator,
-} from "@/components/ui/action-menu-items";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
 import type { ProjectResponse } from "@bb/server-contract";
-import type { MouseEvent, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
-
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
+import { Icon } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  ActionMenuItem,
+  ActionMenuSeparator,
+} from "@/components/ui/action-menu-items";
 import { usePathPickerHost } from "@/hooks/useLocalPathPicker";
 import { getSettingsProjectRoutePath } from "@/lib/route-paths";
-import { cn } from "@bb/shared-ui/lib/utils";
 import { useProjectActions } from "./ProjectActionsProvider";
-
-interface ProjectActionsMenuBaseProps {
-  project: ProjectResponse;
-  onRename?: () => void;
-  onCloseAutoFocus?: (event: Event) => void;
-  extraActions?: (surface: ProjectActionsMenuSurface) => ReactNode;
-}
-
-interface ProjectActionsMenuProps extends ProjectActionsMenuBaseProps {
-  triggerClassName?: string;
-}
-
-type ProjectActionsMenuSurface = "context" | "dropdown";
-
-interface ProjectActionsMenuItemsProps extends ProjectActionsMenuBaseProps {
-  surface: ProjectActionsMenuSurface;
-}
-
-function stopProjectActionsMenuClickPropagation(event: MouseEvent) {
-  event.stopPropagation();
-}
-
-export function ProjectActionsMenuItems({
-  project,
-  surface,
-  onRename,
-  extraActions,
-}: ProjectActionsMenuItemsProps) {
-  const navigate = useNavigate();
-  const { hostId: pickerHostId } = usePathPickerHost();
-  const { requestRename, requestDelete, requestAddLocalPath } =
-    useProjectActions();
-  const showAddLocalPath =
-    pickerHostId != null &&
-    !findLocalPathProjectSourceForHost(project.sources, pickerHostId);
-
-  return (
-    <>
-      <ActionMenuItem
-        surface={surface}
-        icon="Settings"
-        onSelect={() => {
-          navigate(getSettingsProjectRoutePath(project.id));
-        }}
-      >
-        Project settings
-      </ActionMenuItem>
-      <ActionMenuItem
-        surface={surface}
-        icon="Edit"
-        onSelect={() => {
-          if (onRename) onRename();
-          else requestRename(project);
-        }}
-      >
-        Rename
-      </ActionMenuItem>
-      {showAddLocalPath ? (
-        <ActionMenuItem
-          surface={surface}
-          icon="FolderPlus"
-          onSelect={() => {
-            requestAddLocalPath(project);
-          }}
-        >
-          Add local path
-        </ActionMenuItem>
-      ) : null}
-      {extraActions?.(surface)}
-      <ActionMenuSeparator surface={surface} />
-      <ActionMenuItem
-        surface={surface}
-        icon="Trash2"
-        variant="destructive"
-        onSelect={() => {
-          requestDelete(project);
-        }}
-      >
-        Remove
-      </ActionMenuItem>
-    </>
-  );
-}
 
 export function ProjectActionsMenu({
   project,
   triggerClassName,
-  onRename,
-  onCloseAutoFocus,
-  extraActions,
-}: ProjectActionsMenuProps) {
+}: {
+  project: ProjectResponse;
+  triggerClassName?: string;
+}) {
+  const navigate = useNavigate();
+  const { hostId: pickerHostId } = usePathPickerHost();
+  const actions = useProjectActions();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -123,27 +40,48 @@ export function ProjectActionsMenu({
             "data-[state=open]:bg-state-active data-[state=open]:text-foreground",
           )}
           aria-label={`${project.name} actions`}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
+          onClick={(event) => event.stopPropagation()}
         >
-          <Icon
-            name="MoreHorizontal"
-            className={COARSE_POINTER_ICON_SIZE_CLASS}
-          />
+          <Icon name="MoreHorizontal" className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        onCloseAutoFocus={onCloseAutoFocus}
-        onClick={stopProjectActionsMenuClickPropagation}
+        onClick={(event) => event.stopPropagation()}
       >
-        <ProjectActionsMenuItems
-          project={project}
+        <ActionMenuItem
           surface="dropdown"
-          onRename={onRename}
-          extraActions={extraActions}
-        />
+          icon="Settings"
+          onSelect={() => navigate(getSettingsProjectRoutePath(project.id))}
+        >
+          Project settings
+        </ActionMenuItem>
+        <ActionMenuItem
+          surface="dropdown"
+          icon="Edit"
+          onSelect={() => actions.requestRename(project)}
+        >
+          Rename
+        </ActionMenuItem>
+        {pickerHostId != null &&
+        !findLocalPathProjectSourceForHost(project.sources, pickerHostId) ? (
+          <ActionMenuItem
+            surface="dropdown"
+            icon="FolderPlus"
+            onSelect={() => actions.requestAddLocalPath(project)}
+          >
+            Add local path
+          </ActionMenuItem>
+        ) : null}
+        <ActionMenuSeparator surface="dropdown" />
+        <ActionMenuItem
+          surface="dropdown"
+          icon="Trash2"
+          variant="destructive"
+          onSelect={() => actions.requestDelete(project)}
+        >
+          Remove
+        </ActionMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

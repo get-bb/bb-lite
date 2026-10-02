@@ -1,47 +1,31 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import type { ProjectResponse } from "@bb/server-contract";
-import { useRouteState } from "@/hooks/useRouteState";
+import {
+  ConfirmDeleteDialog,
+  ConfirmDeleteDialogContent,
+} from "@/components/dialogs/ConfirmDeleteDialog";
+import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
+import { RenameDialog } from "@/components/dialogs/RenameDialog";
+import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";
 import {
   useAddLocalProjectSource,
   useDeleteProject,
   useUpdateProject,
 } from "@/hooks/mutations/project-mutations";
-import { useDialogState } from "@/hooks/useDialogState";
-import {
-  useLocalPathPicker,
-  type LocalPathSubmitParams,
-} from "@/hooks/useLocalPathPicker";
-import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
-import {
-  ProjectDeleteDialog,
-  type ProjectDeleteDialogTarget,
-} from "@/components/dialogs/ProjectDeleteDialog";
-import {
-  ProjectRenameDialog,
-  type ProjectRenameDialogTarget,
-} from "@/components/dialogs/ProjectRenameDialog";
-import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";
+import { useLocalPathPicker } from "@/hooks/useLocalPathPicker";
+import { useRouteState } from "@/hooks/useRouteState";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
 
-interface ProjectActionsContextValue {
-  requestRename: (project: ProjectResponse) => void;
-  requestDelete: (project: ProjectResponse) => void;
-  requestAddLocalPath: (project: ProjectResponse) => void;
-}
+type ProjectActions = Record<
+  "requestRename" | "requestDelete" | "requestAddLocalPath",
+  (project: ProjectResponse) => void
+>;
 
-const ProjectActionsContext = createContext<ProjectActionsContextValue | null>(
-  null,
-);
+const ProjectActionsContext = createContext<ProjectActions | null>(null);
 
-export function useProjectActions(): ProjectActionsContextValue {
+export function useProjectActions(): ProjectActions {
   const value = useContext(ProjectActionsContext);
   if (!value) {
     throw new Error(
@@ -51,133 +35,95 @@ export function useProjectActions(): ProjectActionsContextValue {
   return value;
 }
 
-interface ProjectActionsProviderProps {
-  children: ReactNode;
-}
-
-export function ProjectActionsProvider({
-  children,
-}: ProjectActionsProviderProps) {
+export function ProjectActionsProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useRouteState();
-  const setCollapsedProjectIdList = useSetAtom(collapsedProjectIdsAtom);
+  const setCollapsedProjectIds = useSetAtom(collapsedProjectIdsAtom);
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
   const addLocalSource = useAddLocalProjectSource();
-  const { mutate: updateProjectMutate } = updateProject;
-  const { mutate: deleteProjectMutate } = deleteProject;
-  const { mutate: addLocalSourceMutate } = addLocalSource;
-
-  const renameDialog = useDialogState<ProjectRenameDialogTarget>();
-  const deleteDialog = useDialogState<ProjectDeleteDialogTarget>();
-
-  const { onClose: closeRenameDialog, onOpen: openRenameDialog } = renameDialog;
-  const { onClose: closeDeleteDialog, onOpen: openDeleteDialog } = deleteDialog;
-
-  const addLocalSourceSubmit = useCallback(
-    ({ path, hostId, target, closeDialog }: LocalPathSubmitParams) => {
+  const [renameTarget, setRenameTarget] = useState<ProjectResponse | null>(
+    null,
+  );
+  const [deleteTarget, setDeleteTarget] = useState<ProjectResponse | null>(
+    null,
+  );
+  const picker = useLocalPathPicker({
+    isPending: addLocalSource.isPending,
+    submit: ({ path, hostId, target, closeDialog }) => {
       if (target.kind !== "add-source") return;
-      addLocalSourceMutate(
+      addLocalSource.mutate(
         { projectId: target.projectId, path, hostId },
         { onSuccess: closeDialog },
       );
     },
-    [addLocalSourceMutate],
-  );
-  const addLocalSourcePicker = useLocalPathPicker({
-    isPending: addLocalSource.isPending,
-    submit: addLocalSourceSubmit,
   });
-
-  const requestRename = useCallback(
-    (project: ProjectResponse) => {
-      openRenameDialog({ id: project.id, currentName: project.name });
-    },
-    [openRenameDialog],
-  );
-
-  const submitRename = useCallback(
-    (projectId: string, name: string) => {
-      updateProjectMutate(
-        { id: projectId, name },
-        { onSuccess: () => closeRenameDialog() },
-      );
-    },
-    [closeRenameDialog, updateProjectMutate],
-  );
-
-  const requestDelete = useCallback(
-    (project: ProjectResponse) => {
-      openDeleteDialog({ id: project.id, name: project.name });
-    },
-    [openDeleteDialog],
-  );
-
-  const confirmDelete = useCallback(
-    (projectId: string) => {
-      deleteProjectMutate(projectId, {
-        onSuccess: () => {
-          closeDeleteDialog();
-          setCollapsedProjectIdList((current) =>
-            current.filter((id) => id !== projectId),
-          );
-          if (routeProjectId === projectId) {
-            navigate(getRootComposeRoutePath(), { replace: true });
-          }
-        },
-      });
-    },
-    [
-      closeDeleteDialog,
-      deleteProjectMutate,
-      navigate,
-      routeProjectId,
-      setCollapsedProjectIdList,
-    ],
-  );
-
-  const requestAddLocalPath = useCallback(
-    (project: ProjectResponse) => {
-      addLocalSourcePicker.openPicker({
+  const actions: ProjectActions = {
+    requestRename: setRenameTarget,
+    requestDelete: setDeleteTarget,
+    requestAddLocalPath: (project) =>
+      picker.openPicker({
         kind: "add-source",
         projectId: project.id,
         projectName: project.name,
-      });
-    },
-    [addLocalSourcePicker],
-  );
-
-  const value = useMemo<ProjectActionsContextValue>(
-    () => ({
-      requestRename,
-      requestDelete,
-      requestAddLocalPath,
-    }),
-    [requestRename, requestDelete, requestAddLocalPath],
-  );
-
+      }),
+  };
   return (
-    <ProjectActionsContext.Provider value={value}>
+    <ProjectActionsContext.Provider value={actions}>
       {children}
-      <ProjectRenameDialog
-        target={renameDialog.target}
+      <RenameDialog
+        target={
+          renameTarget && { key: renameTarget.id, name: renameTarget.name }
+        }
+        entityLabel="project"
+        autoCapitalize="words"
         pending={updateProject.isPending}
-        onOpenChange={renameDialog.onOpenChange}
-        onRename={submitRename}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+        onRename={(name) =>
+          renameTarget &&
+          updateProject.mutate(
+            { id: renameTarget.id, name },
+            { onSuccess: () => setRenameTarget(null) },
+          )
+        }
       />
-      <ProjectDeleteDialog
-        target={deleteDialog.target}
-        pending={deleteProject.isPending}
-        onOpenChange={deleteDialog.onOpenChange}
-        onDelete={confirmDelete}
-      />
+      <ConfirmDeleteDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        {deleteTarget ? (
+          <ConfirmDeleteDialogContent
+            title="Remove project?"
+            description={`Remove "${deleteTarget.name}" and all of its threads? This cannot be undone.`}
+            confirmLabel="Remove project"
+            pending={deleteProject.isPending}
+            onConfirm={() =>
+              deleteProject.mutate(deleteTarget.id, {
+                onSuccess: () => {
+                  setDeleteTarget(null);
+                  setCollapsedProjectIds((current) =>
+                    current.filter((id) => id !== deleteTarget.id),
+                  );
+                  if (routeProjectId === deleteTarget.id) {
+                    navigate(getRootComposeRoutePath(), { replace: true });
+                  }
+                },
+              })
+            }
+          />
+        ) : null}
+      </ConfirmDeleteDialog>
       <ProjectPathDialog
-        target={addLocalSourcePicker.projectPathDialog.target}
+        target={picker.projectPathDialog.target}
         pending={addLocalSource.isPending}
-        hostId={addLocalSourcePicker.hostId}
-        hostName={addLocalSourcePicker.hostName}
-        onOpenChange={addLocalSourcePicker.projectPathDialog.onOpenChange}
-        onSubmit={addLocalSourcePicker.submitProjectPath}
+        hostId={picker.hostId}
+        hostName={picker.hostName}
+        onOpenChange={picker.projectPathDialog.onOpenChange}
+        onSubmit={picker.submitProjectPath}
       />
     </ProjectActionsContext.Provider>
   );

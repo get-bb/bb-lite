@@ -1,13 +1,5 @@
 import { capitalize } from "@bb/thread-view";
-import {
-  useCallback,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useRef, useState, type RefObject } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
   Dialog,
@@ -18,129 +10,119 @@ import {
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { Input } from "@bb/shared-ui/input";
-import { useNameValidation } from "./useNameValidation.js";
-import { useRenameDialogAutoFocus } from "./useRenameDialogAutoFocus.js";
 
 interface RenameDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  target: { key: string; name: string } | null;
+  entityLabel: string;
+  autoCapitalize?: "words" | "sentences";
+  compact?: boolean;
   shellClassName?: string;
-  children: (inputRef: RefObject<HTMLInputElement | null>) => ReactNode;
+  pending: boolean;
+  description?: string;
+  errorMessage?: string | null;
+  maxLength?: number;
+  onOpenChange: (open: boolean) => void;
+  onRename: (name: string) => void;
 }
 
-export function RenameDialog({
-  open,
-  onOpenChange,
-  shellClassName,
-  children,
-}: RenameDialogProps) {
-  const { inputRef, handleOpenAutoFocus: focusInputOnOpen } =
-    useRenameDialogAutoFocus();
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const capturedOpenFocusRef = useRef(false);
-  const handleOpenAutoFocus = useCallback(
-    (event: Event) => {
-      if (!capturedOpenFocusRef.current) {
-        const activeElement = document.activeElement;
-        returnFocusRef.current =
-          activeElement instanceof HTMLElement &&
-          activeElement !== document.body
-            ? activeElement
-            : null;
-        capturedOpenFocusRef.current = true;
-      }
-      focusInputOnOpen(event);
-    },
-    [focusInputOnOpen],
-  );
-  const handleAfterCloseAutoFocus = useCallback(() => {
-    const returnFocus = returnFocusRef.current;
-    returnFocusRef.current = null;
-    capturedOpenFocusRef.current = false;
-    if (
-      returnFocus?.isConnected &&
-      returnFocus.closest('[aria-hidden="true"], [inert]') === null
-    ) {
-      returnFocus.focus({ preventScroll: true });
-    }
-  }, []);
+export function RenameDialog(props: RenameDialogProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null | undefined>(undefined);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={props.target !== null} onOpenChange={props.onOpenChange}>
       <DialogContent
-        className={shellClassName}
-        onOpenAutoFocus={handleOpenAutoFocus}
-        onAfterCloseAutoFocus={handleAfterCloseAutoFocus}
+        className={props.shellClassName}
+        onOpenAutoFocus={(event) => {
+          if (returnFocusRef.current === undefined) {
+            const active = document.activeElement;
+            returnFocusRef.current =
+              active instanceof HTMLElement && active !== document.body
+                ? active
+                : null;
+          }
+          event.preventDefault();
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }}
+        onAfterCloseAutoFocus={() => {
+          const returnFocus = returnFocusRef.current;
+          returnFocusRef.current = undefined;
+          if (
+            returnFocus?.isConnected &&
+            returnFocus.closest('[aria-hidden="true"], [inert]') === null
+          ) {
+            returnFocus.focus({ preventScroll: true });
+          }
+        }}
       >
-        {children(inputRef)}
+        {props.target ? (
+          <RenameForm
+            key={props.target.key}
+            {...props}
+            name={props.target.name}
+            inputRef={inputRef}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-interface RenameDialogContentProps {
-  entityLabel: string;
-  initialName: string;
-  pending: boolean;
-  autoCapitalize: "words" | "sentences";
-  compact?: boolean;
-  onRename: (name: string) => void;
-  inputRef: RefObject<HTMLInputElement | null>;
-}
-
-export function RenameDialogContent({
+function RenameForm({
+  name,
   entityLabel,
-  initialName,
-  pending,
   autoCapitalize,
   compact = false,
+  pending,
+  description,
+  errorMessage,
+  maxLength,
   onRename,
   inputRef,
-}: RenameDialogContentProps) {
-  const inputId = useId();
-  const [nextName, setNextName] = useState(initialName);
-  const { validationMessage, validate, clearMessage } = useNameValidation({
-    emptyMessage: `${capitalize(entityLabel)} name cannot be empty.`,
-  });
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (pending) return;
-
-    const trimmedName = validate(nextName);
-    if (trimmedName === null) return;
-
-    onRename(trimmedName);
-  };
-
+}: RenameDialogProps & {
+  name: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+}) {
+  const [nextName, setNextName] = useState(name);
+  const [empty, setEmpty] = useState(false);
+  const message = empty
+    ? `${capitalize(entityLabel)} name cannot be empty.`
+    : errorMessage;
   return (
     <>
       <DialogHeader>
         <DialogTitle>Rename {entityLabel}</DialogTitle>
         <DialogDescription>
-          Choose a new name for this {entityLabel}.
+          {description ?? `Choose a new name for this ${entityLabel}.`}
         </DialogDescription>
       </DialogHeader>
       <form
         className={compact ? "space-y-3" : "space-y-4"}
-        onSubmit={handleSubmit}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending) return;
+          const trimmed = nextName.trim();
+          if (trimmed) onRename(trimmed);
+          else setEmpty(true);
+        }}
       >
         <div className={compact ? "space-y-1.5" : "space-y-2"}>
           <Input
             ref={inputRef}
-            id={inputId}
             aria-label={`${capitalize(entityLabel)} name`}
             value={nextName}
+            maxLength={maxLength}
             autoCapitalize={autoCapitalize}
             autoCorrect="off"
             spellCheck={false}
             disabled={pending}
             onChange={(event) => {
               setNextName(event.target.value);
-              clearMessage();
+              setEmpty(false);
             }}
           />
-          {validationMessage ? (
-            <p className="text-sm text-destructive">{validationMessage}</p>
+          {message ? (
+            <p className="text-sm text-destructive">{message}</p>
           ) : null}
         </div>
         <DialogFooter>

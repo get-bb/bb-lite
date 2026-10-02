@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   closestCenter,
   DndContext,
@@ -6,7 +6,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
   type Modifier,
 } from "@dnd-kit/core";
 import {
@@ -21,12 +20,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { SettingsRowList } from "@/components/ui/settings-section";
 
-const restrictDragToVerticalAxis: Modifier = ({ transform }) => ({
-  ...transform,
-  x: 0,
-});
-
-const sortableSettingsRowModifiers: Modifier[] = [restrictDragToVerticalAxis];
+const VERTICAL_ONLY: Modifier[] = [({ transform }) => ({ ...transform, x: 0 })];
 
 export function SortableSettingsRowList({
   ids,
@@ -45,24 +39,15 @@ export function SortableSettingsRowList({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-
-  const handleDragEnd = (event: DragEndEvent): void => {
-    if (
-      disabled ||
-      typeof event.active.id !== "string" ||
-      typeof event.over?.id !== "string"
-    ) {
-      return;
-    }
-    onReorder(event.active.id, event.over.id);
-  };
-
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      modifiers={sortableSettingsRowModifiers}
-      onDragEnd={handleDragEnd}
+      modifiers={VERTICAL_ONLY}
+      onDragEnd={({ active, over }) => {
+        if (!disabled && typeof active.id === "string" && over)
+          onReorder(active.id, String(over.id));
+      }}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <SettingsRowList>{children}</SettingsRowList>
@@ -80,22 +65,10 @@ export function useSortableSettingsRow({
   disabled: boolean;
   label: string;
 }) {
-  const {
-    attributes,
-    isDragging,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id, disabled });
-  const style = useMemo<CSSProperties>(
-    () => ({ transform: CSS.Translate.toString(transform), transition }),
-    [transform, transition],
-  );
+  const sortable = useSortable({ id, disabled });
   const handle = (
     <Button
-      ref={setActivatorNodeRef}
+      ref={sortable.setActivatorNodeRef}
       type="button"
       variant="ghost"
       size="icon"
@@ -105,11 +78,19 @@ export function useSortableSettingsRow({
       )}
       disabled={disabled}
       aria-label={`Reorder ${label}`}
-      {...attributes}
-      {...listeners}
+      {...sortable.attributes}
+      {...sortable.listeners}
     >
       <Icon name="DragDropVertical" aria-hidden="true" />
     </Button>
   );
-  return { setNodeRef, style, isDragging, handle };
+  return {
+    setNodeRef: sortable.setNodeRef,
+    style: {
+      transform: CSS.Translate.toString(sortable.transform),
+      transition: sortable.transition,
+    },
+    isDragging: sortable.isDragging,
+    handle,
+  };
 }

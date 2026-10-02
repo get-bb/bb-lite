@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import {
   SectionSidebar,
@@ -8,59 +8,48 @@ import {
 } from "@/components/sidebar/SectionSidebar";
 import { getPluginConfigurationRoutePath } from "@/lib/route-paths";
 import { useSettingsNavState } from "./settings-nav";
-import type { SettingsNavState } from "./settings-nav";
-import { getSettingsSectionRoutePath } from "./settings-sections";
+import {
+  SETTINGS_NAV_SECTIONS,
+  getSettingsSectionRoutePath,
+  type SettingsNavSection,
+} from "./settings-sections";
 
-interface SettingsSidebarProps {
-  onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
-  isResizing: boolean;
-  appRoutePath: string;
-}
-
-type SettingsSidebarNavigation = Pick<
-  SettingsNavState,
-  "activePluginId" | "activeSection" | "pluginEntries" | "sections"
->;
-
-interface SettingsSidebarContentProps extends SettingsSidebarProps {
-  navigation: SettingsSidebarNavigation;
-  testIdPrefix?: string;
-}
-
-export function SettingsSidebarContent({
+export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  navigation,
-  testIdPrefix = "settings",
-}: SettingsSidebarContentProps) {
-  const { activePluginId, activeSection, pluginEntries, sections } = navigation;
-  const hasPlugins = pluginEntries.length > 0;
-
+}: {
+  onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  isResizing: boolean;
+  appRoutePath: string;
+}) {
+  const { activePluginId, activeSection, pluginEntries } =
+    useSettingsNavState();
+  const sectionRow = (section: SettingsNavSection) => (
+    <SectionSidebarRow
+      key={section.id}
+      active={activeSection === section.id}
+      label={section.label}
+      to={getSettingsSectionRoutePath(section.id)}
+    >
+      <SectionSidebarIcon name={section.icon} />
+    </SectionSidebarRow>
+  );
   return (
     <SectionSidebar
       backLabel="Back to app"
       backTo={appRoutePath}
       isResizing={isResizing}
       onResizeMouseDown={onResizeMouseDown}
-      testIdPrefix={testIdPrefix}
+      testIdPrefix="settings"
     >
       <SectionSidebarLabel>Settings</SectionSidebarLabel>
       <div className="mt-1 space-y-0.5">
-        {sections
-          .filter((section) => section.id !== "archived")
-          .map((section) => (
-            <SectionSidebarRow
-              key={section.id}
-              active={activeSection === section.id}
-              label={section.label}
-              to={getSettingsSectionRoutePath(section.id)}
-            >
-              <SectionSidebarIcon name={section.icon} />
-            </SectionSidebarRow>
-          ))}
+        {SETTINGS_NAV_SECTIONS.filter(
+          (section) => section.id !== "archived",
+        ).map(sectionRow)}
       </div>
-      {hasPlugins ? (
+      {pluginEntries.length > 0 ? (
         <>
           <div className="mt-4">
             <SectionSidebarLabel>Plugins</SectionSidebarLabel>
@@ -76,6 +65,7 @@ export function SettingsSidebarContent({
                 <PluginIcon
                   pluginId={entry.id}
                   icon={entry.icon}
+                  compactIconUrl={entry.compactIconUrl}
                   className="size-4 shrink-0"
                 />
               </SectionSidebarRow>
@@ -83,44 +73,14 @@ export function SettingsSidebarContent({
           </div>
         </>
       ) : null}
-      {sections.some((section) => section.id === "archived") ? (
-        <>
-          <div className="mt-4">
-            <SectionSidebarLabel>Archived</SectionSidebarLabel>
-          </div>
-          <div className="mt-1 space-y-0.5">
-            {sections
-              .filter((section) => section.id === "archived")
-              .map((section) => (
-                <SectionSidebarRow
-                  key={section.id}
-                  active={activeSection === section.id}
-                  label={section.label}
-                  to={getSettingsSectionRoutePath(section.id)}
-                >
-                  <SectionSidebarIcon name={section.icon} />
-                </SectionSidebarRow>
-              ))}
-          </div>
-        </>
-      ) : null}
+      <div className="mt-4">
+        <SectionSidebarLabel>Archived</SectionSidebarLabel>
+      </div>
+      <div className="mt-1 space-y-0.5">
+        {SETTINGS_NAV_SECTIONS.filter(
+          (section) => section.id === "archived",
+        ).map(sectionRow)}
+      </div>
     </SectionSidebar>
-  );
-}
-
-export function SettingsSidebar({
-  onResizeMouseDown,
-  isResizing,
-  appRoutePath,
-}: SettingsSidebarProps) {
-  const navigation = useSettingsNavState();
-
-  return (
-    <SettingsSidebarContent
-      appRoutePath={appRoutePath}
-      isResizing={isResizing}
-      navigation={navigation}
-      onResizeMouseDown={onResizeMouseDown}
-    />
   );
 }

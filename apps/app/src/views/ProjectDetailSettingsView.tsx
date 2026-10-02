@@ -1,35 +1,24 @@
-import { ScopedMachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import "@bb/shared-ui/icon-extended";
-import {
-  findLocalPathProjectSourceForHost,
-  type Host,
-  type LocalPathProjectSource,
-} from "@bb/domain";
+import { findLocalPathProjectSourceForHost } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Pill } from "@bb/shared-ui/pill";
 import { ResourceOverflowMenu } from "@bb/shared-ui/resource-list";
-import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import {
-  ProjectDeleteDialog,
-  type ProjectDeleteDialogTarget,
-} from "@/components/dialogs/ProjectDeleteDialog";
+  ConfirmDeleteDialog,
+  ConfirmDeleteDialogContent,
+} from "@/components/dialogs/ConfirmDeleteDialog";
 import {
   ProjectMachineSetupDialog,
   type ProjectMachineSetupDialogTarget,
 } from "@/components/dialogs/ProjectMachineSetupDialog";
-import {
-  ProjectRenameDialog,
-  type ProjectRenameDialogTarget,
-} from "@/components/dialogs/ProjectRenameDialog";
-import {
-  ProjectSourceDeleteDialog,
-  type ProjectSourceDeleteDialogTarget,
-} from "@/components/dialogs/ProjectSourceDeleteDialog";
+import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
+import { useProjectActions } from "@/components/project/ProjectActionsProvider";
+import { ScopedMachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import {
   formatGitRemote,
   pluralize,
@@ -45,9 +34,7 @@ import {
 import {
   useAddLocalProjectSource,
   useDeleteLocalProjectSource,
-  useDeleteProject,
   useUpdateLocalProjectSource,
-  useUpdateProject,
 } from "@/hooks/mutations/project-mutations";
 import {
   isHostPathMissing,
@@ -57,10 +44,7 @@ import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useProjectDefaultExecutionOptions } from "@/hooks/queries/project-default-execution-options-query";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import {
-  useLocalPathPicker,
-  type LocalPathSubmitParams,
-} from "@/hooks/useLocalPathPicker";
+import { useLocalPathPicker } from "@/hooks/useLocalPathPicker";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
@@ -68,286 +52,118 @@ import {
   getSettingsRoutePath,
 } from "@/lib/route-paths";
 
-const CHECKOUTS_DESCRIPTION =
-  "Where this project lives on each machine. A machine needs a checkout before it can run threads for this project.";
-
-const DEFAULTS_DESCRIPTION =
-  "What new threads in this project start with. bb remembers the last options you used here.";
-
-interface CheckoutRowProps {
-  host: Host;
-  isPrimary: boolean;
-  source: LocalPathProjectSource | null;
-  isPathInvalid: boolean;
-  canEditPath: boolean;
-  isOnlySource: boolean;
-  pending: boolean;
-  onSetUp: () => void;
-  onChangePath: () => void;
-  onRemove: () => void;
-}
-
-function CheckoutRow({
-  host,
-  isPrimary,
-  source,
-  isPathInvalid,
-  canEditPath,
-  isOnlySource,
-  pending,
-  onSetUp,
-  onChangePath,
-  onRemove,
-}: CheckoutRowProps) {
-  const connected = host.status === "connected";
-  return (
-    <SettingsRow className="items-start">
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Icon
-            name="Laptop"
-            className={cn(
-              "size-4 shrink-0 text-muted-foreground",
-              !connected && "opacity-60",
-            )}
-          />
-          <MachineStatusDot connected={connected} />
-          <Link
-            to={getSettingsMachineRoutePath(host.id)}
-            className="min-w-0 truncate text-sm font-medium text-foreground hover:underline"
-          >
-            {host.name}
-          </Link>
-          {isPrimary ? <SettingsBadge>primary</SettingsBadge> : null}
-          {isPathInvalid ? (
-            <Pill variant="destructive">Path not found</Pill>
-          ) : null}
-        </div>
-        <div className="min-w-0 truncate font-mono text-xs text-subtle-foreground/75">
-          {source === null ? (
-            <span className="font-sans italic">Not set up on this machine</span>
-          ) : (
-            source.path
-          )}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {source === null ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending || !connected}
-            onClick={onSetUp}
-          >
-            {connected ? "Set up" : "Offline"}
-          </Button>
-        ) : (
-          <ResourceOverflowMenu
-            label={`${host.name} checkout actions`}
-            items={[
-              {
-                label: "Change folder",
-                icon: "Folder",
-                disabled: !canEditPath || pending,
-                disabledReason: canEditPath
-                  ? undefined
-                  : "Folders on other machines are changed from that machine.",
-                onSelect: onChangePath,
-              },
-              {
-                label: "Remove checkout",
-                icon: "Trash2",
-                tone: "destructive",
-                disabled: isOnlySource || pending,
-                disabledReason: isOnlySource
-                  ? "A project needs at least one checkout."
-                  : undefined,
-                onSelect: onRemove,
-              },
-            ]}
-          />
-        )}
-      </div>
-    </SettingsRow>
-  );
-}
-
-function LoadingShell({ children }: { children: ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-3">
-        <Link
-          to={getSettingsRoutePath("projects")}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <Icon name="ChevronLeft" className="size-3.5" />
-          Projects
-        </Link>
+        <BackLink />
         {children}
       </div>
     </PageShell>
   );
 }
 
+function BackLink() {
+  return (
+    <Link
+      to={getSettingsRoutePath("projects")}
+      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+    >
+      <Icon name="ChevronLeft" className="size-3.5" />
+      Projects
+    </Link>
+  );
+}
+
 export function ProjectDetailSettingsView() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
-  const sidebarNavigationQuery = useSidebarNavigation();
+  const navigation = useSidebarNavigation();
   const hostsQuery = useHosts();
-  const systemConfig = useSystemConfig();
+  const primaryHostId = useSystemConfig().data?.primaryHostId ?? null;
   const defaultsQuery = useProjectDefaultExecutionOptions({ projectId });
-  const updateProject = useUpdateProject();
-  const deleteProject = useDeleteProject();
+  const { requestRename, requestDelete } = useProjectActions();
   const addLocalSource = useAddLocalProjectSource();
   const updateLocalSource = useUpdateLocalProjectSource();
   const deleteSource = useDeleteLocalProjectSource();
-
-  const [renameTarget, setRenameTarget] =
-    useState<ProjectRenameDialogTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] =
-    useState<ProjectDeleteDialogTarget | null>(null);
-  const [sourceDeleteTarget, setSourceDeleteTarget] =
-    useState<ProjectSourceDeleteDialogTarget | null>(null);
+  const [sourceDeleteTarget, setSourceDeleteTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
   const [machineSetupTarget, setMachineSetupTarget] =
     useState<ProjectMachineSetupDialogTarget | null>(null);
+  const [existed, setExisted] = useState(false);
 
-  const projects = sidebarNavigationQuery.data?.projects;
+  const projects = navigation.data?.projects;
   const project = projects?.find((entry) => entry.id === projectId) ?? null;
-  const projectSources = project?.sources;
-  const sources = useMemo(() => projectSources ?? [], [projectSources]);
-  const projectName = project?.name ?? "";
-  const everyHost = useMemo(
-    () => selectHosts(hostsQuery.data, "all"),
-    [hostsQuery.data],
-  );
-  const persistentHosts = useMemo(
-    () => selectHosts(hostsQuery.data, "persistent"),
-    [hostsQuery.data],
-  );
-  const [showAllMachines, setShowAllMachines] = useState(false);
-  const hosts = showAllMachines ? everyHost : persistentHosts;
-  const hiddenMachineCount = everyHost.length - persistentHosts.length;
-  const primaryHostId = systemConfig.data?.primaryHostId ?? null;
-
-  const localSourcePending =
-    addLocalSource.isPending || updateLocalSource.isPending;
-  const localSourceSubmit = useCallback(
-    ({ path, hostId, target, closeDialog }: LocalPathSubmitParams) => {
-      if (!projectId) return;
-      if (target.kind === "add-source") {
+  const sources = project?.sources ?? [];
+  const hosts = selectHosts(hostsQuery.data, "persistent");
+  const pathPending = addLocalSource.isPending || updateLocalSource.isPending;
+  const picker = useLocalPathPicker({
+    isPending: pathPending,
+    submit: ({ path, hostId, target, closeDialog }) => {
+      if (target.kind === "create") return;
+      const source = sources.find((candidate) => candidate.hostId === hostId);
+      const options = { onSuccess: closeDialog };
+      if (target.kind === "add-source")
         addLocalSource.mutate(
-          { projectId, path, hostId },
-          { onSuccess: closeDialog },
+          { projectId: target.projectId, path, hostId },
+          options,
         );
-      } else if (target.kind === "update") {
-        const source = sources.find((candidate) => candidate.hostId === hostId);
-        if (!source) return;
+      else if (source)
         updateLocalSource.mutate(
-          { projectId, sourceId: source.id, path },
-          { onSuccess: closeDialog },
+          { projectId: target.projectId, sourceId: source.id, path },
+          options,
         );
-      }
     },
-    [addLocalSource, projectId, sources, updateLocalSource],
-  );
-  const localSourcePicker = useLocalPathPicker({
-    isPending: localSourcePending,
-    submit: localSourceSubmit,
   });
-  const pickerHostId = localSourcePicker.hostId;
-  const pickerHostSourcePaths = useMemo(
-    () =>
-      pickerHostId
-        ? sources
-            .filter((source) => source.hostId === pickerHostId)
-            .map((source) => source.path)
-        : [],
-    [pickerHostId, sources],
-  );
   const pathExistence = useHostPathExistence(
-    pickerHostId,
-    pickerHostSourcePaths,
+    picker.hostId,
+    sources
+      .filter((source) => source.hostId === picker.hostId)
+      .map((source) => source.path),
   );
+  if (project !== null && !existed) setExisted(true);
 
-  const openSetUp = useCallback(
-    (host: Host) => {
-      if (!project) return;
-      if (host.id === pickerHostId) {
-        localSourcePicker.openPicker({
-          kind: "add-source",
-          projectId: project.id,
-          projectName: project.name,
-        });
-        return;
-      }
-      setMachineSetupTarget({
-        projectId: project.id,
-        projectName: project.name,
-        gitRemoteUrl: project.gitRemoteUrl,
-        hostId: host.id,
-        hostName: host.name,
-      });
-    },
-    [localSourcePicker, pickerHostId, project],
-  );
-
-  if (sidebarNavigationQuery.isError || hostsQuery.isError) {
+  if (navigation.isError || hostsQuery.isError) {
     return (
-      <LoadingShell>
+      <Shell>
         <p className="text-sm text-destructive" role="alert">
           Couldn't load this project.
         </p>
-      </LoadingShell>
+      </Shell>
     );
   }
-
   if (projects === undefined || hostsQuery.data === undefined) {
     return (
-      <LoadingShell>
+      <Shell>
         <p className="text-sm text-muted-foreground">Loading…</p>
-      </LoadingShell>
+      </Shell>
     );
   }
-
   if (project === null) {
-    return (
-      <LoadingShell>
+    return existed ? (
+      <Navigate to={getSettingsRoutePath("projects")} replace />
+    ) : (
+      <Shell>
         <p className="text-sm text-muted-foreground">
           This project no longer exists.
         </p>
-      </LoadingShell>
+      </Shell>
     );
   }
 
-  const remoteLabel =
-    project.gitRemoteUrl === null
-      ? null
-      : formatGitRemote(project.gitRemoteUrl);
-  const configuredHostIds = new Set(sources.map((source) => source.hostId));
   const configuredCount = hosts.filter((host) =>
-    configuredHostIds.has(host.id),
+    sources.some((source) => source.hostId === host.id),
   ).length;
   const defaults = defaultsQuery.data ?? null;
-  const permissionLabel =
-    defaults === null
-      ? null
-      : (PERMISSION_MODE_OPTIONS.find(
-          (option) => option.value === defaults.permissionMode,
-        )?.label ?? defaults.permissionMode);
-  const now = Date.now();
+  const pending = pathPending || deleteSource.isPending;
+  const target = { projectId: project.id, projectName: project.name };
 
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-10">
         <div className="space-y-3">
-          <Link
-            to={getSettingsRoutePath("projects")}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronLeft" className="size-3.5" />
-            Projects
-          </Link>
+          <BackLink />
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -363,7 +179,9 @@ export function ProjectDetailSettingsView() {
                 ) : null}
               </div>
               <p className="mt-1 min-w-0 truncate text-xs text-subtle-foreground/75">
-                {remoteLabel ?? "No git remote"}
+                {project.gitRemoteUrl === null
+                  ? "No git remote"
+                  : formatGitRemote(project.gitRemoteUrl)}
                 {" · "}
                 {hosts.length > 1
                   ? `${configuredCount} of ${pluralize(hosts.length, "machine")}`
@@ -378,20 +196,17 @@ export function ProjectDetailSettingsView() {
                 {
                   label: "Rename",
                   icon: "Edit",
-                  onSelect: () => {
-                    updateProject.reset();
-                    setRenameTarget({
-                      id: project.id,
-                      currentName: project.name,
-                    });
-                  },
+                  onSelect: () => requestRename(project),
                 },
               ]}
             />
           </div>
         </div>
 
-        <SettingsSection title="Checkouts" description={CHECKOUTS_DESCRIPTION}>
+        <SettingsSection
+          title="Checkouts"
+          description="Where this project lives on each machine. A machine needs a checkout before it can run threads for this project."
+        >
           {hosts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No machines are paired yet.
@@ -399,72 +214,116 @@ export function ProjectDetailSettingsView() {
           ) : (
             <SettingsRowList>
               {hosts.map((host) => {
-                const source = findLocalPathProjectSourceForHost(
-                  sources,
-                  host.id,
-                );
-                const isPickerHost = host.id === pickerHostId;
+                const source =
+                  findLocalPathProjectSourceForHost(sources, host.id) ?? null;
+                const isPickerHost = host.id === picker.hostId;
+                const connected = host.status === "connected";
                 return (
-                  <CheckoutRow
-                    key={host.id}
-                    host={host}
-                    isPrimary={hosts.length > 1 && host.id === primaryHostId}
-                    source={source ?? null}
-                    isPathInvalid={
-                      source !== undefined &&
-                      isPickerHost &&
-                      isHostPathMissing(pathExistence, source.path)
-                    }
-                    canEditPath={isPickerHost}
-                    isOnlySource={sources.length <= 1}
-                    pending={localSourcePending || deleteSource.isPending}
-                    onSetUp={() => openSetUp(host)}
-                    onChangePath={() => {
-                      if (!source) return;
-                      localSourcePicker.openPicker({
-                        kind: "update",
-                        projectId: project.id,
-                        projectName,
-                        currentPath: source.path,
-                      });
-                    }}
-                    onRemove={() => {
-                      if (!source) return;
-                      setSourceDeleteTarget({
-                        id: source.id,
-                        label: `${host.name} · ${source.path}`,
-                      });
-                    }}
-                  />
+                  <SettingsRow key={host.id} className="items-start">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Icon
+                          name="Laptop"
+                          className={cn(
+                            "size-4 shrink-0 text-muted-foreground",
+                            !connected && "opacity-60",
+                          )}
+                        />
+                        <MachineStatusDot connected={connected} />
+                        <Link
+                          to={getSettingsMachineRoutePath(host.id)}
+                          className="min-w-0 truncate text-sm font-medium text-foreground hover:underline"
+                        >
+                          {host.name}
+                        </Link>
+                        {hosts.length > 1 && host.id === primaryHostId ? (
+                          <SettingsBadge>primary</SettingsBadge>
+                        ) : null}
+                        {isPickerHost &&
+                        isHostPathMissing(pathExistence, source?.path) ? (
+                          <Pill variant="destructive">Path not found</Pill>
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 truncate font-mono text-xs text-subtle-foreground/75">
+                        {source === null ? (
+                          <span className="font-sans italic">
+                            Not set up on this machine
+                          </span>
+                        ) : (
+                          source.path
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {source === null ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={pending || !connected}
+                          onClick={() =>
+                            isPickerHost
+                              ? picker.openPicker({
+                                  kind: "add-source",
+                                  ...target,
+                                })
+                              : setMachineSetupTarget({
+                                  ...target,
+                                  gitRemoteUrl: project.gitRemoteUrl,
+                                  hostId: host.id,
+                                  hostName: host.name,
+                                })
+                          }
+                        >
+                          {connected ? "Set up" : "Offline"}
+                        </Button>
+                      ) : (
+                        <ResourceOverflowMenu
+                          label={`${host.name} checkout actions`}
+                          items={[
+                            {
+                              label: "Change folder",
+                              icon: "Folder",
+                              disabled: !isPickerHost || pending,
+                              disabledReason: isPickerHost
+                                ? undefined
+                                : "Folders on other machines are changed from that machine.",
+                              onSelect: () =>
+                                picker.openPicker({
+                                  kind: "update",
+                                  ...target,
+                                  currentPath: source.path,
+                                }),
+                            },
+                            {
+                              label: "Remove checkout",
+                              icon: "Trash2",
+                              tone: "destructive",
+                              disabled: sources.length <= 1 || pending,
+                              disabledReason:
+                                sources.length <= 1
+                                  ? "A project needs at least one checkout."
+                                  : undefined,
+                              onSelect: () =>
+                                setSourceDeleteTarget({
+                                  id: source.id,
+                                  label: `${host.name} · ${source.path}`,
+                                }),
+                            },
+                          ]}
+                        />
+                      )}
+                    </div>
+                  </SettingsRow>
                 );
               })}
             </SettingsRowList>
           )}
-          {hiddenMachineCount > 0 ? (
-            <button
-              type="button"
-              aria-expanded={showAllMachines}
-              onClick={() => setShowAllMachines((previous) => !previous)}
-              className="-ml-1 inline-flex items-center gap-1.5 self-start rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground"
-            >
-              <Icon
-                name="ChevronDown"
-                className={cn(
-                  "size-3.5 transition-transform",
-                  showAllMachines && "rotate-180",
-                )}
-                aria-hidden
-              />
-              <span>
-                {showAllMachines ? "Show fewer machines" : "Show all machines"}
-              </span>
-            </button>
-          ) : null}
         </SettingsSection>
 
         <SettingsSection
           title="Thread defaults"
-          description={DEFAULTS_DESCRIPTION}
+          description="What new threads in this project start with. bb remembers the last options you used here."
         >
           {defaultsQuery.isError ? (
             <p className="text-sm text-destructive" role="alert">
@@ -486,7 +345,11 @@ export function ProjectDetailSettingsView() {
                 <span className="font-mono text-xs">{defaults.model}</span>
               </SettingsDetailRow>
               <SettingsDetailRow label="Permission mode">
-                <span>{permissionLabel}</span>
+                <span>
+                  {PERMISSION_MODE_OPTIONS.find(
+                    (option) => option.value === defaults.permissionMode,
+                  )?.label ?? defaults.permissionMode}
+                </span>
               </SettingsDetailRow>
               <SettingsDetailRow label="Reasoning">
                 <span>{defaults.reasoningLevel}</span>
@@ -511,13 +374,19 @@ export function ProjectDetailSettingsView() {
             </SettingsDetailRow>
             <SettingsDetailRow label="Created">
               <span>
-                {formatRelativeTime({ timestamp: project.createdAt, now })}
+                {formatRelativeTime({
+                  timestamp: project.createdAt,
+                  now: Date.now(),
+                })}
               </span>
             </SettingsDetailRow>
           </SettingsRowList>
         </SettingsSection>
 
-        <ScopedMachineEnvironmentSettings projectId={project.id} />
+        <ScopedMachineEnvironmentSettings
+          key={project.id}
+          projectId={project.id}
+        />
 
         <SettingsSection
           title="Danger zone"
@@ -529,10 +398,7 @@ export function ProjectDetailSettingsView() {
                 type="button"
                 variant="destructive"
                 size="sm"
-                onClick={() => {
-                  deleteProject.reset();
-                  setDeleteTarget({ id: project.id, name: project.name });
-                }}
+                onClick={() => requestDelete(project)}
               >
                 Delete project
               </Button>
@@ -542,14 +408,13 @@ export function ProjectDetailSettingsView() {
       </div>
 
       <ProjectPathDialog
-        target={localSourcePicker.projectPathDialog.target}
-        pending={localSourcePending}
-        hostId={localSourcePicker.hostId}
-        hostName={localSourcePicker.hostName}
-        onOpenChange={localSourcePicker.projectPathDialog.onOpenChange}
-        onSubmit={localSourcePicker.submitProjectPath}
+        target={picker.projectPathDialog.target}
+        pending={pathPending}
+        hostId={picker.hostId}
+        hostName={picker.hostName}
+        onOpenChange={picker.projectPathDialog.onOpenChange}
+        onSubmit={picker.submitProjectPath}
       />
-
       <ProjectMachineSetupDialog
         target={machineSetupTarget}
         onOpenChange={(open) => {
@@ -557,50 +422,27 @@ export function ProjectDetailSettingsView() {
         }}
         onComplete={() => setMachineSetupTarget(null)}
       />
-
-      <ProjectSourceDeleteDialog
-        target={sourceDeleteTarget}
-        pending={deleteSource.isPending}
+      <ConfirmDeleteDialog
+        open={sourceDeleteTarget !== null}
         onOpenChange={(open) => {
           if (!open) setSourceDeleteTarget(null);
         }}
-        onDelete={(sourceId) =>
-          deleteSource.mutate(
-            { projectId: project.id, sourceId },
-            { onSuccess: () => setSourceDeleteTarget(null) },
-          )
-        }
-      />
-
-      <ProjectRenameDialog
-        target={renameTarget}
-        pending={updateProject.isPending}
-        onOpenChange={(open) => {
-          if (!open && !updateProject.isPending) setRenameTarget(null);
-        }}
-        onRename={(id, name) =>
-          updateProject.mutate(
-            { id, name },
-            { onSuccess: () => setRenameTarget(null) },
-          )
-        }
-      />
-
-      <ProjectDeleteDialog
-        target={deleteTarget}
-        pending={deleteProject.isPending}
-        onOpenChange={(open) => {
-          if (!open && !deleteProject.isPending) setDeleteTarget(null);
-        }}
-        onDelete={(id) =>
-          deleteProject.mutate(id, {
-            onSuccess: () => {
-              setDeleteTarget(null);
-              navigate(getSettingsRoutePath("projects"), { replace: true });
-            },
-          })
-        }
-      />
+      >
+        {sourceDeleteTarget ? (
+          <ConfirmDeleteDialogContent
+            title="Remove source?"
+            description={`Remove "${sourceDeleteTarget.label}" from this project? This cannot be undone.`}
+            confirmLabel="Remove source"
+            pending={deleteSource.isPending}
+            onConfirm={() =>
+              deleteSource.mutate(
+                { projectId: project.id, sourceId: sourceDeleteTarget.id },
+                { onSuccess: () => setSourceDeleteTarget(null) },
+              )
+            }
+          />
+        ) : null}
+      </ConfirmDeleteDialog>
     </PageShell>
   );
 }

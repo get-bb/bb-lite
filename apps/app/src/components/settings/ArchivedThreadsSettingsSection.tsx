@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { ThreadListEntry } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { ProjectSelector } from "@/components/pickers/ProjectSelector";
 import {
@@ -10,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { Pill } from "@bb/shared-ui/pill";
 import { ThreadUnarchiveButton } from "@/components/thread/ThreadUnarchiveButton";
@@ -43,21 +42,13 @@ const KIND_OPTIONS: ReadonlyArray<{
   { label: "Child threads", value: "child" },
 ];
 
-interface ArchiveFilterMenuProps<T extends string> {
-  icon: IconName;
-  label: string;
-  options: ReadonlyArray<{ label: string; value: T }>;
-  onChange: (value: T) => void;
-  value: T;
-}
-
-function ArchiveFilterMenu<T extends string>({
-  icon,
-  label,
+function KindFilterMenu({
   onChange,
-  options,
   value,
-}: ArchiveFilterMenuProps<T>) {
+}: {
+  onChange: (value: ArchivedThreadsKindFilter) => void;
+  value: ArchivedThreadsKindFilter;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -67,14 +58,16 @@ function ArchiveFilterMenu<T extends string>({
           className="h-8 min-w-36 justify-between gap-2 px-3 text-xs font-normal"
         >
           <span className="flex min-w-0 items-center gap-2">
-            <Icon name={icon} className="size-3.5 shrink-0" />
-            <span className="truncate">{label}</span>
+            <Icon name="SlidersHorizontal" className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {KIND_OPTIONS.find((option) => option.value === value)?.label}
+            </span>
           </span>
           <Icon name="ChevronDown" className="size-3.5 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
-        {options.map((option) => (
+        {KIND_OPTIONS.map((option) => (
           <DropdownMenuItem
             key={option.value}
             onSelect={() => onChange(option.value)}
@@ -88,21 +81,6 @@ function ArchiveFilterMenu<T extends string>({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
-
-function filterArchivedThreadsBySearch(
-  threads: ThreadListEntry[],
-  search: string,
-  resolveTitle: (title: string) => string,
-): ThreadListEntry[] {
-  const normalizedSearch = search.trim().toLocaleLowerCase();
-  if (normalizedSearch.length === 0) return threads;
-  return threads.filter((thread) => {
-    const title = getThreadDisplayTitle(thread);
-    return [title, resolveTitle(title)].some((text) =>
-      text.toLocaleLowerCase().includes(normalizedSearch),
-    );
-  });
 }
 
 export function ArchivedThreadsSettingsSection() {
@@ -126,56 +104,35 @@ export function ArchivedThreadsSettingsSection() {
   const unarchiveThread = useUnarchiveThread();
   const resolveTitle = useResolveThreadTitle();
 
-  const projects = useMemo(() => {
-    if (!sidebarNavigation.data) return [];
-    return [
-      sidebarNavigation.data.personalProject,
-      ...sidebarNavigation.data.projects,
-    ];
-  }, [sidebarNavigation.data]);
-  const projectNames = useMemo(
-    () => new Map(projects.map((project) => [project.id, project.name])),
-    [projects],
-  );
-
-  const archivedThreads = useMemo(() => {
-    const threads = searchIsActive
+  const navigation = sidebarNavigation.data;
+  const projects = navigation
+    ? [navigation.personalProject, ...navigation.projects]
+    : [];
+  const needle = search.trim().toLocaleLowerCase();
+  const archivedThreads = (
+    searchIsActive
       ? (threadSearch.data?.archived.results.map((result) => result.thread) ??
         [])
-      : (archivedThreadsQuery.data?.pages ?? []).flat();
-    const filteredThreads = threads.filter(
-      (thread) =>
-        thread.archivedAt !== null &&
-        (projectId === ALL_PROJECTS || thread.projectId === projectId) &&
-        (kind === "all" ||
-          (thread.parentThreadId !== null) === (kind === "child")),
+      : (archivedThreadsQuery.data?.pages ?? []).flat()
+  ).filter((thread) => {
+    const title = getThreadDisplayTitle(thread);
+    return (
+      thread.archivedAt !== null &&
+      (projectId === ALL_PROJECTS || thread.projectId === projectId) &&
+      (kind === "all" ||
+        (thread.parentThreadId !== null) === (kind === "child")) &&
+      (searchIsActive ||
+        [title, resolveTitle(title)].some((text) =>
+          text.toLocaleLowerCase().includes(needle),
+        ))
     );
-    return searchIsActive
-      ? filteredThreads
-      : filterArchivedThreadsBySearch(filteredThreads, search, resolveTitle);
-  }, [
-    archivedThreadsQuery.data,
-    kind,
-    projectId,
-    search,
-    searchIsActive,
-    threadSearch.data,
-    resolveTitle,
-  ]);
-
-  const groupedThreads = useMemo(() => {
-    const groups = new Map<string, ThreadListEntry[]>();
-    for (const thread of archivedThreads) {
-      const group = groups.get(thread.projectId);
-      if (group) group.push(thread);
-      else groups.set(thread.projectId, [thread]);
-    }
-    return [...groups.entries()];
-  }, [archivedThreads]);
-
-  const selectedKindLabel =
-    KIND_OPTIONS.find((option) => option.value === kind)?.label ??
-    "All threads";
+  });
+  const groups = new Map<string, typeof archivedThreads>();
+  for (const thread of archivedThreads) {
+    const group = groups.get(thread.projectId) ?? [];
+    groups.set(thread.projectId, [...group, thread]);
+  }
+  const groupedThreads = [...groups];
   const isInitialLoading = searchIsActive
     ? threadSearch.isDebouncing ||
       (threadSearch.isLoading && threadSearch.data === undefined)
@@ -206,13 +163,7 @@ export function ArchivedThreadsSettingsSection() {
             value={search}
           />
         </div>
-        <ArchiveFilterMenu
-          icon="SlidersHorizontal"
-          label={selectedKindLabel}
-          onChange={setKind}
-          options={KIND_OPTIONS}
-          value={kind}
-        />
+        <KindFilterMenu onChange={setKind} value={kind} />
         <ProjectSelector
           projects={projects}
           value={projectId}
@@ -241,7 +192,8 @@ export function ArchivedThreadsSettingsSection() {
               <div className="flex items-center gap-2 px-0.5 text-xs font-medium text-muted-foreground">
                 <Icon name="Folder" className="size-3.5" />
                 <h3 className="min-w-0 flex-1 truncate">
-                  {projectNames.get(groupProjectId) ?? "Unknown project"}
+                  {projects.find((project) => project.id === groupProjectId)
+                    ?.name ?? "Unknown project"}
                 </h3>
                 <span>
                   {threads.length} {threads.length === 1 ? "thread" : "threads"}

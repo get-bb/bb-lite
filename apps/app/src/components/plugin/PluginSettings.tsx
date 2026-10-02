@@ -1,7 +1,6 @@
-import { usePluginEnabledMutation } from "@/components/plugin/usePluginEnabledMutation";
-import { useEffect, useId, useState, type FocusEvent } from "react";
+import { useId, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { PluginSettingsSections } from "@/components/plugin/PluginSettingsSections";
 import { Button } from "@bb/shared-ui/button";
 import {
   DropdownMenu,
@@ -11,17 +10,28 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
-import { Textarea } from "@bb/shared-ui/textarea";
-import { SettingsWithControl } from "@/components/ui/settings-section.js";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { Switch } from "@bb/shared-ui/switch";
 import {
   ResourceDetailConfigurationSection,
   ResourceDetailPanel,
   ResourceDetailStack,
 } from "@bb/shared-ui/resource-list";
+import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Switch } from "@bb/shared-ui/switch";
+import { Textarea } from "@bb/shared-ui/textarea";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
-import { applyPluginSettingsView } from "@/hooks/cache-owners/plugin-cache-owner";
+import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
+import { appToast } from "@/components/ui/app-toast";
+import {
+  SettingsRow,
+  SettingsRowList,
+  SettingsSection,
+  SettingsWithControl,
+} from "@/components/ui/settings-section.js";
+import {
+  applyPluginSettingsView,
+  invalidatePluginList,
+} from "@/hooks/cache-owners/plugin-cache-owner";
+import { useSetProviderEnabled } from "@/hooks/mutations/provider-mutations";
 import {
   updatePluginSettings,
   usePluginList,
@@ -30,393 +40,207 @@ import {
   type PluginSettingFieldDescriptor,
 } from "@/hooks/queries/plugin-settings-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { usePluginSlots } from "@/plugins/registry";
+import { useSystemProviderCatalog } from "@/hooks/queries/system-queries";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import {
-  SETTINGS_DROPDOWN_CONTENT_CLASS,
-  SETTINGS_DROPDOWN_TRIGGER_CLASS,
-} from "@/components/settings/settings-dropdown";
+import { getPluginConfigurationRoutePath } from "@/lib/route-paths";
+import { PluginSlotMount } from "@/plugins/mount";
+import { usePluginSlots } from "@/plugins/registry";
 
-const MULTILINE_MIN_ROWS = 6;
-const MULTILINE_MAX_ROWS = 24;
-const INVALID_NUMBER_DRAFT = Symbol();
-const MULTILINE_TEXTAREA_CLASS =
-  "max-h-96 min-h-32 w-full resize-y overflow-y-auto font-mono text-xs field-sizing-content";
-function multilineRows(value: string): number {
-  const lines = value.split("\n").length;
-  return Math.min(MULTILINE_MAX_ROWS, Math.max(MULTILINE_MIN_ROWS, lines + 1));
-}
+type SettingValue = string | number | boolean | null;
 
-function isMultilineSetting(descriptor: PluginSettingFieldDescriptor): boolean {
-  return (
-    descriptor.type === "string" &&
-    descriptor.multiline === true &&
-    descriptor.secret !== true
-  );
-}
-
-interface SettingOptionPickerProps {
-  ariaDescribedBy: string | undefined;
-  ariaInvalid: boolean;
-  ariaLabel: string;
-  onSelect: (value: string) => void;
-  options: readonly { label: string; value: string }[];
-  valueLabel: string;
-}
-
-function SettingOptionPicker({
-  ariaDescribedBy,
-  ariaInvalid,
-  ariaLabel,
-  onSelect,
-  options,
-  valueLabel,
-}: SettingOptionPickerProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={SETTINGS_DROPDOWN_TRIGGER_CLASS}
-          aria-label={ariaLabel}
-          aria-describedby={ariaDescribedBy}
-          aria-invalid={ariaInvalid}
-        >
-          <span className="min-w-0 truncate">{valueLabel}</span>
-          <Icon name="ChevronDown" className="size-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className={SETTINGS_DROPDOWN_CONTENT_CLASS}
-      >
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onSelect={() => onSelect(option.value)}
-          >
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-interface PluginSettingFieldProps {
-  ariaDescribedBy: string | undefined;
-  ariaInvalid: boolean;
-  descriptor: PluginSettingFieldDescriptor;
-  draft: string | boolean;
-  onBlur: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onChange: (value: string | boolean) => void;
-  storedValue: unknown;
-}
-
-function PluginSettingField({
-  ariaDescribedBy,
-  ariaInvalid,
-  descriptor,
-  draft,
-  onBlur,
-  onChange,
-  storedValue,
-}: PluginSettingFieldProps) {
-  const projects = useSidebarNavigation({
-    enabled: descriptor.type === "project",
-  });
-
-  if (descriptor.type === "boolean") {
-    const checked =
-      typeof draft === "boolean"
-        ? draft
-        : typeof storedValue === "boolean"
-          ? storedValue
-          : false;
-    return (
-      <Switch
-        checked={checked}
-        onCheckedChange={onChange}
-        aria-label={descriptor.label}
-        aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
-      />
-    );
-  }
-
-  if (descriptor.type === "select") {
-    const value =
-      typeof draft === "string"
-        ? draft
-        : typeof storedValue === "string"
-          ? storedValue
-          : "";
-    return (
-      <SettingOptionPicker
-        ariaDescribedBy={ariaDescribedBy}
-        ariaInvalid={ariaInvalid}
-        ariaLabel={descriptor.label}
-        valueLabel={value.length > 0 ? value : "Select…"}
-        options={descriptor.options.map((option) => ({
-          label: option,
-          value: option,
-        }))}
-        onSelect={onChange}
-      />
-    );
-  }
-
-  if (descriptor.type === "project") {
-    const value =
-      typeof draft === "string"
-        ? draft
-        : typeof storedValue === "string"
-          ? storedValue
-          : "";
-    const navigation = projects.data;
-    const options = navigation
-      ? [
-          {
-            label: navigation.personalProject.name,
-            value: navigation.personalProject.id,
-          },
-          ...navigation.projects.map((project) => ({
-            label: project.name,
-            value: project.id,
-          })),
-        ]
-      : [];
-    const valueLabel =
-      options.find((option) => option.value === value)?.label ??
-      (value.length > 0 ? value : "Select a project…");
-    return (
-      <SettingOptionPicker
-        ariaDescribedBy={ariaDescribedBy}
-        ariaInvalid={ariaInvalid}
-        ariaLabel={descriptor.label}
-        valueLabel={valueLabel}
-        options={options}
-        onSelect={onChange}
-      />
-    );
-  }
-
-  if (descriptor.type === "number") {
-    const value =
-      typeof draft === "string"
-        ? draft
-        : typeof storedValue === "number"
-          ? String(storedValue)
-          : "";
-    return (
-      <Input
-        type="number"
-        inputMode="decimal"
-        step="any"
-        value={value}
-        aria-label={descriptor.label}
-        aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-        className="h-7 w-full text-xs sm:w-64"
-      />
-    );
-  }
-
-  const isSecret = descriptor.secret === true;
-  const secretIsSet =
-    isSecret &&
-    typeof storedValue === "object" &&
-    storedValue !== null &&
-    "set" in storedValue &&
-    storedValue.set === true;
-  const value =
-    typeof draft === "string"
-      ? draft
-      : !isSecret && typeof storedValue === "string"
-        ? storedValue
-        : "";
-  if (isMultilineSetting(descriptor)) {
-    return (
-      <Textarea
-        value={value}
-        aria-label={descriptor.label}
-        aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
-        rows={multilineRows(value)}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-        className={MULTILINE_TEXTAREA_CLASS}
-      />
-    );
-  }
-  return (
-    <Input
-      type={isSecret ? "password" : "text"}
-      value={value}
-      aria-label={descriptor.label}
-      aria-describedby={ariaDescribedBy}
-      aria-invalid={ariaInvalid}
-      placeholder={isSecret ? (secretIsSet ? "[set]" : "[not set]") : undefined}
-      onChange={(event) => onChange(event.target.value)}
-      onBlur={onBlur}
-      className="h-7 w-full text-xs sm:w-64"
-    />
-  );
-}
-
-function initialSettingDraft(
-  descriptor: PluginSettingFieldDescriptor,
-  storedValue: unknown,
-): string | boolean {
-  if (descriptor.type === "boolean") {
-    return typeof storedValue === "boolean" ? storedValue : false;
-  }
-  if (descriptor.type === "number") {
-    return typeof storedValue === "number" ? String(storedValue) : "";
-  }
-  if (descriptor.type === "string" && descriptor.secret === true) return "";
-  return typeof storedValue === "string" ? storedValue : "";
-}
-
-interface AutosavingPluginSettingProps {
-  descriptor: PluginSettingFieldDescriptor;
-  pluginId: string;
-  settingKey: string;
-  storedValue: unknown;
-}
-
-function AutosavingPluginSetting({
+function PluginSetting({
   descriptor,
   pluginId,
   settingKey,
   storedValue,
-}: AutosavingPluginSettingProps) {
+}: {
+  descriptor: PluginSettingFieldDescriptor;
+  pluginId: string;
+  settingKey: string;
+  storedValue: unknown;
+}) {
   const queryClient = useQueryClient();
   const messageId = useId();
-  const initialDraft = initialSettingDraft(descriptor, storedValue);
-  const [draftState, setDraftState] = useState({
-    value: initialDraft,
-    hasNewerDraft: false,
-  });
-  const draft = draftState.value;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
+  const projects = useSidebarNavigation({
+    enabled: descriptor.type === "project",
+  }).data;
   const save = useMutation({
     scope: { id: `plugin-setting:${pluginId}:${settingKey}` },
-    mutationFn: (value: string | boolean | typeof INVALID_NUMBER_DRAFT) => {
-      if (value === INVALID_NUMBER_DRAFT)
-        throw new Error("Enter a finite number");
-      let settingValue: string | number | boolean | null = value;
-      if (descriptor.type === "number") {
-        const trimmed = typeof value === "string" ? value.trim() : "";
-        const parsed = Number(trimmed);
-        if (trimmed.length > 0 && !Number.isFinite(parsed)) {
-          throw new Error("Enter a finite number");
-        }
-        settingValue = trimmed.length === 0 ? null : parsed;
-      }
-      return updatePluginSettings(fetch, pluginId, {
-        [settingKey]: settingValue,
-      });
-    },
+    mutationFn: (value: SettingValue) =>
+      updatePluginSettings(fetch, pluginId, { [settingKey]: value }),
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
+      setDraft(null);
     },
   });
-
-  useEffect(() => {
-    if (!draftState.hasNewerDraft && !save.isPending && !save.isError) {
-      setDraftState({ value: initialDraft, hasNewerDraft: false });
-    }
-  }, [draftState.hasNewerDraft, initialDraft, save.isError, save.isPending]);
-
-  function changeDraft(value: string | boolean): void {
-    setDraftState({
-      value,
-      hasNewerDraft:
-        descriptor.type === "string" || descriptor.type === "number",
-    });
-    if (!save.isPending) save.reset();
-    if (descriptor.type !== "string" && descriptor.type !== "number") {
-      save.mutate(value);
-    }
-  }
-
-  function saveDraft(
-    event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ): void {
-    if (descriptor.type !== "string" && descriptor.type !== "number") return;
-    if (descriptor.type === "number" && event.currentTarget.validity.badInput) {
-      setDraftState({ value: initialDraft, hasNewerDraft: false });
-      save.mutate(INVALID_NUMBER_DRAFT);
-      return;
-    }
-    if (descriptor.type === "number") {
-      const trimmed = typeof draft === "string" ? draft.trim() : "";
-      const parsed = Number(trimmed);
-      if (
-        (trimmed.length === 0 && storedValue === undefined) ||
-        (trimmed.length > 0 && parsed === storedValue && !save.isPending)
-      ) {
-        setDraftState({ value: draft, hasNewerDraft: false });
-        return;
+  const error = invalid
+    ? "Enter a finite number"
+    : save.isError
+      ? getMutationErrorMessage({
+          error: save.error,
+          fallbackMessage: "Could not save this setting",
+        })
+      : null;
+  const aria = {
+    "aria-label": descriptor.label,
+    "aria-describedby": error === null ? undefined : messageId,
+    "aria-invalid": error !== null,
+  };
+  const secret = descriptor.type === "string" && descriptor.secret === true;
+  const multiline =
+    descriptor.type === "string" && descriptor.multiline === true && !secret;
+  const stored = save.isPending ? save.variables : storedValue;
+  const text =
+    draft ??
+    (secret || (typeof stored !== "string" && typeof stored !== "number")
+      ? ""
+      : String(stored));
+  const textProps = {
+    ...aria,
+    value: text,
+    onChange: (event: { target: { value: string } }) => {
+      setDraft(event.target.value);
+      setInvalid(false);
+      if (!save.isPending) save.reset();
+    },
+    onBlur: (event: { currentTarget: HTMLElement }) => {
+      const target = event.currentTarget;
+      const badInput =
+        target instanceof HTMLInputElement && target.validity.badInput;
+      if (draft === null && !badInput) return;
+      const trimmed = (draft ?? "").trim();
+      const value: SettingValue =
+        descriptor.type !== "number"
+          ? (draft ?? "")
+          : trimmed.length === 0
+            ? null
+            : Number(trimmed);
+      if (badInput || (typeof value === "number" && !Number.isFinite(value))) {
+        setDraft(null);
+        return setInvalid(true);
       }
-    }
-    if (
-      (draft === storedValue && !save.isPending) ||
-      (descriptor.type === "string" &&
-        descriptor.secret === true &&
-        draft === "")
-    ) {
-      setDraftState({ value: draft, hasNewerDraft: false });
-      return;
-    }
-    setDraftState({ value: draft, hasNewerDraft: false });
-    save.mutate(draft);
-  }
-
-  const saveError = save.isError
-    ? getMutationErrorMessage({
-        error: save.error,
-        fallbackMessage: "Could not save this setting",
-      })
-    : null;
+      if (value === (storedValue ?? null) || (secret && value === "")) {
+        return setDraft(null);
+      }
+      save.mutate(value);
+    },
+  };
+  const picker = (
+    options: readonly { label: string; value: string }[],
+    placeholder: string,
+  ) => {
+    const value = typeof stored === "string" ? stored : "";
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-full justify-between border-border/60 bg-card px-2 text-xs sm:w-44"
+            {...aria}
+          >
+            <span className="min-w-0 truncate">
+              {options.find((option) => option.value === value)?.label ??
+                (value || placeholder)}
+            </span>
+            <Icon
+              name="ChevronDown"
+              className="size-3.5 text-muted-foreground"
+            />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="min-w-[var(--radix-dropdown-menu-trigger-width)]"
+        >
+          {options.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              onSelect={() => save.mutate(option.value)}
+            >
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
   return (
     <SettingsWithControl
       label={descriptor.label}
-      labelBadge={
-        descriptor.type === "string" && descriptor.secret === true
-          ? "secret"
-          : undefined
-      }
+      labelBadge={secret ? "secret" : undefined}
       controlPlacement={
         descriptor.type === "boolean"
           ? "trailing"
-          : isMultilineSetting(descriptor)
+          : multiline
             ? "below"
             : "inline"
       }
-      {...(descriptor.description !== undefined
-        ? { description: descriptor.description }
-        : {})}
+      description={descriptor.description}
     >
       <div className="space-y-1">
-        <PluginSettingField
-          ariaDescribedBy={saveError !== null ? messageId : undefined}
-          ariaInvalid={saveError !== null}
-          descriptor={descriptor}
-          storedValue={storedValue}
-          draft={draft}
-          onBlur={saveDraft}
-          onChange={changeDraft}
-        />
-        {saveError !== null ? (
+        {descriptor.type === "boolean" ? (
+          <Switch
+            checked={stored === true}
+            onCheckedChange={(checked) => save.mutate(checked)}
+            {...aria}
+          />
+        ) : descriptor.type === "select" ? (
+          picker(
+            descriptor.options.map((option) => ({
+              label: option,
+              value: option,
+            })),
+            "Select…",
+          )
+        ) : descriptor.type === "project" ? (
+          picker(
+            projects
+              ? [projects.personalProject, ...projects.projects].map(
+                  (project) => ({ label: project.name, value: project.id }),
+                )
+              : [],
+            "Select a project…",
+          )
+        ) : multiline ? (
+          <Textarea
+            {...textProps}
+            rows={Math.min(24, Math.max(6, text.split("\n").length + 1))}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            className="max-h-96 min-h-32 w-full resize-y overflow-y-auto font-mono text-xs field-sizing-content"
+          />
+        ) : descriptor.type === "number" ? (
+          <Input
+            {...textProps}
+            type="number"
+            inputMode="decimal"
+            step="any"
+            className="h-7 w-full text-xs sm:w-64"
+          />
+        ) : (
+          <Input
+            {...textProps}
+            type={secret ? "password" : "text"}
+            placeholder={
+              !secret
+                ? undefined
+                : typeof storedValue === "object" &&
+                    storedValue !== null &&
+                    "set" in storedValue &&
+                    storedValue.set === true
+                  ? "[set]"
+                  : "[not set]"
+            }
+            className="h-7 w-full text-xs sm:w-64"
+          />
+        )}
+        {error !== null ? (
           <p id={messageId} className="text-xs text-destructive" role="alert">
-            {saveError}
+            {error}
           </p>
         ) : null}
       </div>
@@ -424,15 +248,13 @@ function AutosavingPluginSetting({
   );
 }
 
-export function PluginSettingsForm({ pluginId }: { pluginId: string }) {
-  const viewQuery = usePluginSettingsView(pluginId, { enabled: true });
-  const view = viewQuery.data ?? null;
-  if (view === null || Object.keys(view.schema).length === 0) return null;
-
+function PluginSettingsForm({ pluginId }: { pluginId: string }) {
+  const view = usePluginSettingsView(pluginId, { enabled: true }).data;
+  if (!view || Object.keys(view.schema).length === 0) return null;
   return (
     <div className="space-y-4">
       {Object.entries(view.schema).map(([key, descriptor]) => (
-        <AutosavingPluginSetting
+        <PluginSetting
           key={key}
           descriptor={descriptor}
           pluginId={pluginId}
@@ -444,112 +266,125 @@ export function PluginSettingsForm({ pluginId }: { pluginId: string }) {
   );
 }
 
-const PLUGIN_STATUSES_WITH_SETTINGS = ["running", "needs-configuration"];
+function usePluginEnabledMutation(plugin: PluginListItem) {
+  const queryClient = useQueryClient();
+  const setEnabled = useSetPluginEnabled();
+  const toggle = useMutation({
+    meta: { showErrorToast: false },
+    mutationFn: (enabled: boolean) => setEnabled(plugin.id, enabled),
+    onError: (error, enabled) => {
+      appToast.error(
+        `${enabled ? "Enabling" : "Disabling"} ${plugin.id} failed`,
+        { description: error instanceof Error ? error.message : String(error) },
+      );
+    },
+    onSettled: () => invalidatePluginList({ queryClient }),
+  });
+  return {
+    pending: toggle.isPending,
+    enabled: toggle.isPending ? toggle.variables : plugin.enabled,
+    setEnabled: toggle.mutate,
+  };
+}
 
-function PluginSettingsFieldSkeleton() {
+function InstalledPluginRow({ plugin }: { plugin: PluginListItem }) {
+  const toggle = usePluginEnabledMutation(plugin);
   return (
-    <div className="min-w-0 space-y-2">
-      <div className="flex h-5 items-center">
-        <Skeleton className="h-3.5 w-40 max-w-[60%]" />
+    <SettingsRow data-testid={`plugin-row-${plugin.id}`}>
+      <PluginIcon
+        pluginId={plugin.id}
+        icon={plugin.icon}
+        compactIconUrl={plugin.compactIconUrl}
+        className="size-4 shrink-0"
+      />
+      <div className="min-w-0 flex-1">
+        <Link
+          to={getPluginConfigurationRoutePath({ pluginId: plugin.id })}
+          className="block truncate text-foreground underline-offset-2 hover:underline"
+        >
+          {plugin.name}
+        </Link>
+        {plugin.description ? (
+          <p className="truncate text-xs text-subtle-foreground">
+            {plugin.description}
+          </p>
+        ) : null}
       </div>
-      <div className="flex h-4 items-center">
-        <Skeleton className="h-3 w-72 max-w-full" />
-      </div>
-    </div>
+      <Switch
+        checked={toggle.enabled}
+        disabled={toggle.pending}
+        onCheckedChange={toggle.setEnabled}
+        aria-label={`${toggle.enabled ? "Disable" : "Enable"} ${plugin.id}`}
+      />
+    </SettingsRow>
   );
 }
 
-function PluginSettingsPageSkeleton() {
-  return (
-    <div
-      className="mx-auto w-full max-w-5xl"
-      data-testid="plugin-settings-skeleton"
-      role="status"
-      aria-busy="true"
-    >
-      <span className="sr-only">Loading plugin settings…</span>
-      <div aria-hidden>
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <Skeleton className="size-9 shrink-0" />
-            <div className="min-w-0">
-              <div className="flex h-7 items-center">
-                <Skeleton className="h-4 w-44 max-w-full" />
-              </div>
-              <div className="flex h-4 items-center">
-                <Skeleton className="h-3 w-80 max-w-full" />
-              </div>
-            </div>
-          </div>
-          <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
-        </header>
-        <ResourceDetailStack className="mt-6">
-          <ResourceDetailConfigurationSection
-            label={<Skeleton className="h-3.5 w-24" />}
-          >
-            <ResourceDetailPanel surface="recessed" className="px-3 py-3">
-              <div className="space-y-4">
-                <PluginSettingsFieldSkeleton />
-                <PluginSettingsFieldSkeleton />
-              </div>
-            </ResourceDetailPanel>
-          </ResourceDetailConfigurationSection>
-        </ResourceDetailStack>
-      </div>
-    </div>
-  );
-}
-
-export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
+export function InstalledPluginsSettingsSection() {
   const listQuery = usePluginList({ enabled: true });
-  const plugin =
-    listQuery.data?.plugins.find(
-      (entry: PluginListItem) => entry.id === pluginId,
-    ) ?? null;
-  if (listQuery.data === undefined && !listQuery.isError) {
-    return <PluginSettingsPageSkeleton />;
-  }
-  if (listQuery.data === undefined && listQuery.isError) {
-    return (
-      <p className="text-sm text-muted-foreground" role="status">
-        Could not load plugin settings.
-      </p>
-    );
-  }
-  if (plugin === null) {
-    return (
-      <p className="text-sm text-muted-foreground" role="status">
-        This plugin is not installed.
-      </p>
-    );
-  }
-  return <PluginSettingsContent key={plugin.id} plugin={plugin} />;
+  const plugins = [...(listQuery.data?.plugins ?? [])].sort(
+    (left, right) =>
+      left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+  );
+  return (
+    <SettingsSection title="Installed plugins">
+      {listQuery.data === undefined ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {listQuery.isError ? "Couldn't load plugins." : "Loading plugins"}
+        </p>
+      ) : plugins.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No plugins installed.</p>
+      ) : (
+        <SettingsRowList>
+          {plugins.map((plugin) => (
+            <InstalledPluginRow key={plugin.id} plugin={plugin} />
+          ))}
+        </SettingsRowList>
+      )}
+    </SettingsSection>
+  );
 }
 
-function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
-  const { settingsSections } = usePluginSlots();
-  const { toggle, enabled } = usePluginEnabledMutation(plugin);
-  const hasAvailableSettings =
-    plugin.hasSettings ||
-    settingsSections.some((section) => section.pluginId === plugin.id);
+function SettingsPageFrame({
+  id,
+  name,
+  description,
+  icon,
+  compactIconUrl,
+  enabled,
+  pending,
+  onEnabledChange,
+  children,
+}: {
+  id: string;
+  name: string;
+  description: string;
+  icon: string | null;
+  compactIconUrl?: string | null;
+  enabled: boolean;
+  pending: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mx-auto w-full max-w-5xl">
       <header className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-9 shrink-0">
             <PluginIcon
-              pluginId={plugin.id}
-              icon={plugin.icon}
+              pluginId={id}
+              icon={icon}
+              compactIconUrl={compactIconUrl}
               className="size-full"
             />
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-foreground">
-              {plugin.name}
+              {name}
             </h1>
-            {plugin.description ? (
+            {description ? (
               <p className="truncate text-xs text-subtle-foreground">
-                {plugin.description}
+                {description}
               </p>
             ) : null}
           </div>
@@ -557,15 +392,17 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
         <Switch
           className="mr-[13px]"
           checked={enabled}
-          disabled={toggle.isPending}
-          onCheckedChange={(next) => toggle.mutate(next)}
-          aria-label={`${enabled ? "Disable" : "Enable"} ${plugin.id}`}
+          disabled={pending}
+          onCheckedChange={onEnabledChange}
+          aria-label={`${enabled ? "Disable" : "Enable"} ${id}`}
         />
       </header>
       <ResourceDetailStack className="mt-6">
-        {enabled && plugin.enabled && hasAvailableSettings ? (
+        {children ? (
           <ResourceDetailConfigurationSection label="Configuration">
-            <PluginSettingsDetail plugin={plugin} />
+            <div className="space-y-6" data-testid={`plugin-detail-${id}`}>
+              {children}
+            </div>
           </ResourceDetailConfigurationSection>
         ) : null}
       </ResourceDetailStack>
@@ -573,33 +410,119 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
   );
 }
 
-function PluginSettingsDetail({ plugin }: { plugin: PluginListItem }) {
-  const { settingsSections } = usePluginSlots();
-  const hasSettingsSections = settingsSections.some(
+function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
+  const sections = usePluginSlots().settingsSections.filter(
     (section) => section.pluginId === plugin.id,
   );
-  const settingsAvailable =
-    plugin.enabled && PLUGIN_STATUSES_WITH_SETTINGS.includes(plugin.status);
-  if (!plugin.hasSettings && !hasSettingsSections) return null;
-
+  const toggle = usePluginEnabledMutation(plugin);
+  const available = ["running", "needs-configuration"].includes(plugin.status);
+  const shown =
+    toggle.enabled &&
+    plugin.enabled &&
+    (plugin.hasSettings || sections.length > 0);
   return (
-    <div className="space-y-6" data-testid={`plugin-detail-${plugin.id}`}>
-      {plugin.hasSettings || !settingsAvailable ? (
-        <ResourceDetailPanel surface="recessed" className="px-3 py-3">
-          {settingsAvailable ? (
-            <PluginSettingsForm key={plugin.id} pluginId={plugin.id} />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {plugin.enabled
-                ? `Settings are unavailable while the plugin is ${plugin.status}.`
-                : "Enable this plugin to edit its settings."}
-            </p>
-          )}
-        </ResourceDetailPanel>
+    <SettingsPageFrame
+      {...plugin}
+      enabled={toggle.enabled}
+      pending={toggle.pending}
+      onEnabledChange={toggle.setEnabled}
+    >
+      {shown ? (
+        <>
+          {plugin.hasSettings || !available ? (
+            <ResourceDetailPanel surface="recessed" className="px-3 py-3">
+              {available ? (
+                <PluginSettingsForm pluginId={plugin.id} />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Settings are unavailable while the plugin is {plugin.status}.
+                </p>
+              )}
+            </ResourceDetailPanel>
+          ) : null}
+          {available && sections.length > 0 ? (
+            <div className="space-y-6" data-testid="plugin-settings-sections">
+              {sections.map((section) => (
+                <div
+                  key={`${section.id}/${section.generation}`}
+                  className="space-y-3"
+                >
+                  {section.title === undefined ? null : (
+                    <h3 className="text-xs font-medium text-foreground">
+                      {section.title}
+                    </h3>
+                  )}
+                  {section.description === undefined ? null : (
+                    <p className="text-xs leading-snug text-subtle-foreground/75">
+                      {section.description}
+                    </p>
+                  )}
+                  <PluginSlotMount
+                    pluginId={section.pluginId}
+                    slotKind="settingsSection"
+                    slotId={section.id}
+                  >
+                    <section.component />
+                  </PluginSlotMount>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : null}
-      {settingsAvailable ? (
-        <PluginSettingsSections pluginId={plugin.id} />
-      ) : null}
+    </SettingsPageFrame>
+  );
+}
+
+export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
+  const listQuery = usePluginList({ enabled: true });
+  const provider = useSystemProviderCatalog().data?.find(
+    (entry) => entry.pluginId === pluginId,
+  );
+  const setProviderEnabled = useSetProviderEnabled();
+  const plugin = listQuery.data?.plugins.find((entry) => entry.id === pluginId);
+  if (plugin) return <PluginSettingsContent key={plugin.id} plugin={plugin} />;
+  if (provider) {
+    return (
+      <SettingsPageFrame
+        id={pluginId}
+        name={provider.pluginName}
+        description={`Run bb threads with ${provider.displayName}.`}
+        icon={null}
+        compactIconUrl={provider.logoUrl}
+        enabled={provider.enabled}
+        pending={setProviderEnabled.isPending}
+        onEnabledChange={(enabled) =>
+          setProviderEnabled.mutate({ providerId: provider.id, enabled })
+        }
+      >
+        {provider.enabled ? (
+          <ResourceDetailPanel surface="recessed" className="px-3 py-3">
+            <PluginSettingsForm key={pluginId} pluginId={pluginId} />
+          </ResourceDetailPanel>
+        ) : null}
+      </SettingsPageFrame>
+    );
+  }
+  if (listQuery.data !== undefined || listQuery.isError) {
+    return (
+      <p className="text-sm text-muted-foreground" role="status">
+        {listQuery.isError
+          ? "Could not load plugin settings."
+          : "This plugin is not installed."}
+      </p>
+    );
+  }
+  return (
+    <div className="mx-auto w-full max-w-5xl" role="status" aria-busy="true">
+      <span className="sr-only">Loading plugin settings…</span>
+      <div aria-hidden className="flex items-center gap-3">
+        <Skeleton className="size-9 shrink-0" />
+        <div className="min-w-0 space-y-2">
+          <Skeleton className="h-4 w-44 max-w-full" />
+          <Skeleton className="h-3 w-80 max-w-full" />
+        </div>
+      </div>
     </div>
   );
 }
