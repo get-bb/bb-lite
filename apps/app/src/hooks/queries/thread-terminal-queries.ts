@@ -17,10 +17,6 @@ import { REALTIME_OWNED_NO_FOCUS_QUERY_POLICY } from "./query-policies";
 
 type ScopedCreateTerminalRequest = Omit<CreateTerminalRequest, "target">;
 
-interface CreateThreadTerminalMutationRequest extends ScopedCreateTerminalRequest {
-  threadId: string;
-}
-
 interface CreateEnvironmentTerminalMutationRequest extends ScopedCreateTerminalRequest {
   environmentId: string;
 }
@@ -29,21 +25,9 @@ interface RenameTerminalMutationRequest extends UpdateTerminalRequest {
   terminalId: string;
 }
 
-interface RenameThreadTerminalMutationRequest extends RenameTerminalMutationRequest {
-  threadId: string;
-}
-
-interface RenameEnvironmentTerminalMutationRequest extends RenameTerminalMutationRequest {
-  environmentId: string;
-}
-
 interface CloseTerminalMutationRequest {
   mode: CloseTerminalRequest["mode"];
   terminalId: string;
-}
-
-interface CloseThreadTerminalMutationRequest extends CloseTerminalMutationRequest {
-  threadId: string;
 }
 
 interface CloseEnvironmentTerminalMutationRequest extends CloseTerminalMutationRequest {
@@ -73,10 +57,6 @@ export function useTerminals(
   });
 }
 
-export function useThreadTerminals(id: string, options?: QueryOptions) {
-  return useTerminals(id ? { kind: "thread", threadId: id } : null, options);
-}
-
 export function useEnvironmentTerminals(id: string, options?: QueryOptions) {
   return useTerminals(
     id ? { kind: "environment", environmentId: id } : null,
@@ -98,33 +78,6 @@ export function useCreateTerminal() {
       applyTerminalSessionUpsert({ queryClient, session });
     },
   });
-}
-
-export function useCreateThreadTerminal() {
-  const createTerminal = useCreateTerminal();
-
-  return {
-    ...createTerminal,
-    mutate: (
-      { threadId, ...request }: CreateThreadTerminalMutationRequest,
-      options?: Parameters<typeof createTerminal.mutate>[1],
-    ) =>
-      createTerminal.mutate(
-        {
-          ...request,
-          target: { kind: "thread", threadId },
-        },
-        options,
-      ),
-    mutateAsync: ({
-      threadId,
-      ...request
-    }: CreateThreadTerminalMutationRequest) =>
-      createTerminal.mutateAsync({
-        ...request,
-        target: { kind: "thread", threadId },
-      }),
-  };
 }
 
 export function useCreateEnvironmentTerminal() {
@@ -169,43 +122,6 @@ export function useRenameTerminal() {
   });
 }
 
-export function useRenameThreadTerminal() {
-  const renameTerminal = useRenameTerminal();
-
-  return {
-    ...renameTerminal,
-    mutate: (
-      { threadId: _threadId, ...request }: RenameThreadTerminalMutationRequest,
-      options?: Parameters<typeof renameTerminal.mutate>[1],
-    ) => renameTerminal.mutate(request, options),
-    mutateAsync: ({
-      threadId: _threadId,
-      ...request
-    }: RenameThreadTerminalMutationRequest) =>
-      renameTerminal.mutateAsync(request),
-  };
-}
-
-export function useRenameEnvironmentTerminal() {
-  const renameTerminal = useRenameTerminal();
-
-  return {
-    ...renameTerminal,
-    mutate: (
-      {
-        environmentId: _environmentId,
-        ...request
-      }: RenameEnvironmentTerminalMutationRequest,
-      options?: Parameters<typeof renameTerminal.mutate>[1],
-    ) => renameTerminal.mutate(request, options),
-    mutateAsync: ({
-      environmentId: _environmentId,
-      ...request
-    }: RenameEnvironmentTerminalMutationRequest) =>
-      renameTerminal.mutateAsync(request),
-  };
-}
-
 export function useCloseTerminal() {
   const queryClient = useQueryClient();
 
@@ -223,23 +139,6 @@ export function useCloseTerminal() {
       });
     },
   });
-}
-
-export function useCloseThreadTerminal() {
-  const closeTerminal = useCloseTerminal();
-
-  return {
-    ...closeTerminal,
-    mutate: (
-      { threadId: _threadId, ...request }: CloseThreadTerminalMutationRequest,
-      options?: Parameters<typeof closeTerminal.mutate>[1],
-    ) => closeTerminal.mutate(request, options),
-    mutateAsync: ({
-      threadId: _threadId,
-      ...request
-    }: CloseThreadTerminalMutationRequest) =>
-      closeTerminal.mutateAsync(request),
-  };
 }
 
 export function useCloseEnvironmentTerminal() {
