@@ -49,7 +49,7 @@ import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section";
-import { AppCommandShortcutPill } from "@/components/commands/AppCommandShortcutHint";
+import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 
 const EMPTY_OVERRIDES: AppKeybindingOverrides = [];
 const SETTINGS_SHORTCUT_PILL_CLASS =

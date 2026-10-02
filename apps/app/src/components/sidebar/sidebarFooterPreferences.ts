@@ -1,7 +1,7 @@
 import { type RefObject, useLayoutEffect } from "react";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { createSyncedPreferenceAtom } from "@/lib/ui-preferences/synced-preference-atom";
-import { arrangeByStoredOrder } from "@/lib/stored-order";
+import { arrangeByStoredOrder } from "@bb/client-core";
 
 export const sidebarFooterOrderAtom = createSyncedPreferenceAtom(
   "sidebar.footerOrder",

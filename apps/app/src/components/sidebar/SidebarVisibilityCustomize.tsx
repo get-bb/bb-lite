@@ -17,8 +17,8 @@ import type {
   SidebarActivationModifiers,
 } from "./SidebarVisibilityControls";
 import { SidebarVisibilityCustomizeFrame } from "./SidebarVisibilityCustomizeFrame";
-import { useSidebarSortable } from "./sortableMotion";
-import { useSidebarReorderDnd } from "./useSidebarReorderDnd";
+import { useSidebarSortable } from "@bb/shared-ui/sortable-motion";
+import { useSidebarReorderDnd } from "@bb/shared-ui/use-sidebar-reorder-dnd";
 
 export function SidebarVisibilityCustomize({
   items,

@@ -1,8 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebarRowClasses.js";
 import type { RenameSession, RenameController } from "./SidebarInlineRename.js";
 
 interface HttpErrorShape {
@@ -87,11 +84,11 @@ export function SidebarRenameEditor({
     });
   };
 
-  const submit = async (restore: boolean, clear = false) => {
+  const submit = async (restore: boolean) => {
     restoreFocusRef.current = restore;
     const input = inputRef.current;
     input?.setSelectionRange(input.value.length, input.value.length);
-    const saved = await controller.save(clear);
+    const saved = await controller.save();
     if (saved && restoreFocusRef.current) restoreFocus();
   };
 
@@ -157,7 +154,6 @@ export function SidebarRenameEditor({
         )}
         spellCheck={false}
         value={session.draft}
-        placeholder={session.placeholder}
         readOnly={isPending || session.cannotRetry}
         onChange={(event) => controller.change(event.target.value)}
         onCompositionStart={() => {
@@ -171,22 +167,6 @@ export function SidebarRenameEditor({
         <span role="status" aria-label="Saving name" className="sr-only">
           Saving name
         </span>
-      )}
-      {session.onClear && session.name && (
-        <button
-          type="button"
-          aria-label="Clear custom name"
-          disabled={isPending || session.cannotRetry}
-          className={cn(
-            SIDEBAR_CONTROL_BUTTON_CLASS,
-            "inline-flex items-center justify-center disabled:opacity-50",
-          )}
-          onClick={(event) => {
-            void submit(event.detail === 0, true);
-          }}
-        >
-          <Icon name="RotateCcw" className={COARSE_POINTER_ICON_SIZE_CLASS} />
-        </button>
       )}
       {session.error && (
         <span

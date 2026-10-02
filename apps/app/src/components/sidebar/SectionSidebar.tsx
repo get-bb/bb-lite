@@ -9,8 +9,10 @@ import {
   SidebarResizeHandle,
   SidebarTopReserveRow,
 } from "@/components/sidebar/SidebarChrome";
-import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@/components/sidebar/sidebarRowClasses";
-import { SIDEBAR_STANDARD_ROW_PADDING_CLASS } from "@/components/sidebar/sidebarRowClasses";
+import {
+  PROJECT_LIST_ACTION_BUTTON_CLASS,
+  SIDEBAR_STANDARD_ROW_PADDING_CLASS,
+} from "@bb/shared-ui/sidebar-row-classes";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 
 export function SectionSidebarIcon({ name }: { name: IconName }) {

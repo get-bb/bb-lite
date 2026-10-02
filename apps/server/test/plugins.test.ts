@@ -75,7 +75,7 @@ it("loads the builtin table and the directories named in config.json", async () 
   ]);
   const icon = "/api/v1/plugins/echo/assets/icon.svg";
   expect(summary).toEqual([
-    ["thread-list", "running", "builtin", "thread-list", "ListView"],
+    ["thread-list", "running", "builtin", undefined, "ListView"],
     ["navigation", "running", "builtin", undefined, "PanelLeft"],
     ["echo", "running", "external", "echo", icon],
   ]);
@@ -85,11 +85,10 @@ it("loads the builtin table and the directories named in config.json", async () 
   expect((await request("/echo/assets/server.ts")).status).toBe(404);
   expect((await request("/echo/assets/..%2F..%2Ficon.svg")).status).toBe(404);
   expect((await request("/contributions")).body).toMatchObject({
-    cliCommands: [{}, { pluginId: "echo", commands: [{ name: "say" }] }],
+    cliCommands: [{ pluginId: "echo", commands: [{ name: "say" }] }],
     mentionProviders: [],
   });
-  const skills = expect.stringMatching(/thread-list\/skills$/u);
-  expect(ctx.plugins.skillDirs()).toEqual([skills]);
+  expect(ctx.plugins.skillDirs()).toEqual([]);
 });
 
 it("validates rpc calls, stores data and broadcasts realtime signals", async () => {
@@ -253,8 +252,8 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(panels[0]?.component()).toEqual({ type: "div", props });
 });
 
-it("round-trips thread-list preferences over rpc and its CLI", async () => {
-  const { rpc, cli, socket } = await serverWithEcho();
+it("round-trips thread-list preferences over rpc", async () => {
+  const { rpc, socket } = await serverWithEcho();
   const client = await socket();
   const list = async (): Promise<unknown> =>
     (await rpc("thread-list/rpc/listPreferences", null))[1];
@@ -272,8 +271,6 @@ it("round-trips thread-list preferences over rpc and its CLI", async () => {
     "handler_error",
   ]);
   expect(await list()).toMatchObject(sorted("alpha"));
-  const read = await cli("thread-list", "prefs", "get", change.key, "--json");
-  expect(read).toEqual([0, JSON.stringify(change), ""]);
 });
 
 it("answers the thread engine's queries from plugin registrations", async () => {
