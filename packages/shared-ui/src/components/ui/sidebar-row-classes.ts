@@ -18,14 +18,7 @@ export const SIDEBAR_ROW_BASE_CLASS =
 export const SIDEBAR_ROW_GLYPH_SLOT_CLASS =
   "inline-flex shrink-0 items-center justify-center text-subtle-foreground";
 
-export const SIDEBAR_STATUS_ICON_CLASS = "size-4";
-
 export const SIDEBAR_STATUS_GLYPH_BOX_CLASS = "h-4 w-4";
-
-export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-muted-foreground/50";
-
-export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60";
 
 const SIDEBAR_THREAD_ROW_BASE_PADDING_PX = 8;
 const SIDEBAR_THREAD_ROW_DEPTH_STEP_PX = 24;

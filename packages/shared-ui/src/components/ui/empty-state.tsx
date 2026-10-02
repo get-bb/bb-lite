@@ -2,21 +2,19 @@ import type { HTMLAttributes } from "react";
 import { cn } from "../../lib/utils";
 import { Icon, type IconName } from "./icon";
 
-export interface EmptyStateProps {
-  message: string;
-  icon?: IconName;
-  className?: string;
-  iconClassName?: string;
-  messageClassName?: string;
-}
-
 export function EmptyState({
   message,
   icon,
   className,
   iconClassName,
   messageClassName,
-}: EmptyStateProps) {
+}: {
+  message: string;
+  icon?: IconName;
+  className?: string;
+  iconClassName?: string;
+  messageClassName?: string;
+}) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {icon ? (
@@ -41,13 +39,10 @@ export function EmptyState({
   );
 }
 
-type EmptyStatePanelProps = HTMLAttributes<HTMLDivElement>;
-
 export function EmptyStatePanel({
   className,
-  children,
   ...props
-}: EmptyStatePanelProps) {
+}: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
@@ -55,8 +50,6 @@ export function EmptyStatePanel({
         className,
       )}
       {...props}
-    >
-      {children}
-    </div>
+    />
   );
 }
