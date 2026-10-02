@@ -1,28 +1,8 @@
 import { rm } from "node:fs/promises";
 import type { ServerContext } from "../context.js";
-import { deleteProject, type DeletedProject } from "../db/projects.js";
+import { deleteProject } from "../db/projects.js";
+import { removeProjectWorkspaces } from "../environments/manager.js";
 import { projectAttachmentsDir } from "./attachments.js";
-
-export type ProjectDeletedHook = (
-  ctx: ServerContext,
-  deleted: DeletedProject,
-) => void | Promise<void>;
-
-export const onProjectDeleted: ProjectDeletedHook[] = [];
-
-async function runProjectDeletedHooks(
-  ctx: ServerContext,
-  deleted: DeletedProject,
-): Promise<void> {
-  const { projectId } = deleted;
-  for (const hook of onProjectDeleted) {
-    try {
-      await hook(ctx, deleted);
-    } catch (error) {
-      ctx.log.error("Project deletion hook failed", { err: error, projectId });
-    }
-  }
-}
 
 export async function removeProject(
   ctx: ServerContext,
@@ -38,5 +18,10 @@ export async function removeProject(
   }
   const attachments = projectAttachmentsDir(ctx.config.dataDir, projectId);
   await rm(attachments, { recursive: true, force: true });
-  void runProjectDeletedHooks(ctx, deleted);
+  const failed = (err: unknown) =>
+    ctx.log.error("Project deletion cleanup failed", { err, projectId });
+  void removeProjectWorkspaces(ctx, deleted)
+    .catch(failed)
+    .then(() => ctx.threads.releaseDeletedProject(deleted))
+    .catch(failed);
 }

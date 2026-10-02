@@ -1,4 +1,4 @@
-import { BRANCH_LIST_LIMIT_MAX, type WorkspaceDiffTarget } from "@bb/domain";
+import type { WorkspaceDiffTarget } from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import {
   publicApiRoutes,
@@ -11,7 +11,7 @@ import {
   updateEnvironment,
 } from "../../db/environments.js";
 import {
-  boundedLimit,
+  branchSearch,
   readGitWorkspace,
   recordWorkspaceMetadata,
   requireEnvironment,
@@ -20,9 +20,8 @@ import {
   workspaceFailure,
 } from "../../environments/workspace.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
+import { ApiError, conflict, invalidRequest } from "../errors.js";
 
-const BRANCH_LIST_LIMIT_DEFAULT = 50;
 const COMMIT_MESSAGE = "bb: automated commit";
 
 function diffTarget(query: EnvironmentDiffQuery): WorkspaceDiffTarget {
@@ -66,8 +65,7 @@ export function registerEnvironmentRoutes(
   del(routes.delete, async (c) => {
     const { id } = requireEnvironment(ctx, c.req.param("id"));
     if (listEnvironmentThreadIds(db, id, "unarchived").length > 0) {
-      const message = "Environment still has live threads";
-      throw new ApiError(409, "invalid_request", message);
+      throw conflict("Environment still has live threads");
     }
     await ctx.environments.remove(id);
     return c.json({ ok: true });
@@ -90,20 +88,6 @@ export function registerEnvironmentRoutes(
       recordWorkspaceMetadata(ctx, found, observed);
       return { workspace };
     });
-    return c.json(await read);
-  });
-
-  get(routes.diff, async (c, query) => {
-    const target = diffTarget(query);
-    const id = c.req.param("id");
-    const read = readGitWorkspace(
-      ctx,
-      id,
-      "diff",
-      async (runner, { path }) => ({
-        diff: await runner.gitDiff({ path, target }),
-      }),
-    );
     return c.json(await read);
   });
 
@@ -135,17 +119,9 @@ export function registerEnvironmentRoutes(
 
   get(routes.diffBranches, async (c, query) => {
     const { hostId, path } = requireReadyEnvironment(ctx, c.req.param("id"));
-    const bounds = {
-      fallback: BRANCH_LIST_LIMIT_DEFAULT,
-      max: BRANCH_LIST_LIMIT_MAX,
-    };
-    const branches = await runners.get(hostId).listBranches({
-      path,
-      query: query.query?.trim() || undefined,
-      selectedBranch: query.selectedBranch,
-      limit: boundedLimit(query.limit, bounds),
-    });
-    return c.json(branches);
+    const runner = runners.get(hostId);
+    const search = { path, ...branchSearch(query) };
+    return c.json(await runner.listBranches(search));
   });
 
   get(routes.paths, async (c, query) => {

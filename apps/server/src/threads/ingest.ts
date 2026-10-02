@@ -21,13 +21,13 @@ const PROVIDER_EXIT_REASON =
 const TURN_ENDED_REASON = "The turn ended before the interaction was resolved";
 const STOPPED_REASON = "Thread stopped by user request";
 
-function isRunnerAuthored(event: RunnerThreadEvent): boolean {
+function isRunnerAuthored(event: RunnerThreadEvent) {
   const { type } = event;
   if (type === "system/error") return true;
   return !type.startsWith("client/") && !type.startsWith("system/");
 }
 
-function changesBackgroundActivity(event: RunnerThreadEvent): boolean {
+function changesBackgroundActivity(event: RunnerThreadEvent) {
   if (!("item" in event) || event.item.type !== "backgroundTask") return false;
   if (event.type !== "item/backgroundTask/progress") return true;
   return event.item.status !== "pending";
@@ -38,7 +38,7 @@ function onRootTurnStarted(
   out: Outbox,
   thread: ThreadRow,
   turnId: string,
-): void {
+) {
   const runtime = engine.runtimeOf(thread.id);
   const { cancelledStart, pendingStart } = runtime;
   const abandoned =
@@ -64,7 +64,7 @@ function onTurnCompleted(
   out: Outbox,
   thread: ThreadRow,
   event: EventOf<"turn/completed">,
-): void {
+) {
   const { scope, status } = event;
   if (scope.kind !== "turn" || scope.turnId !== thread.activeTurnId) return;
   patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
@@ -92,7 +92,7 @@ function adoptProviderThread(
   out: Outbox,
   thread: ThreadRow,
   providerThreadId: string,
-): void {
+) {
   if (thread.providerThreadId === providerThreadId) return;
   patchThread(engine.ctx.db, thread.id, { providerThreadId }, false);
   const { title } = thread;
@@ -104,7 +104,7 @@ function applyEffect(
   out: Outbox,
   threadId: string,
   event: RunnerThreadEvent,
-): void {
+) {
   const thread = getThread(engine.ctx.db, threadId);
   if (thread === undefined) return;
   switch (event.type) {

@@ -2,14 +2,8 @@ import { hostname } from "node:os";
 import type { Host } from "@bb/domain";
 import { dataPaths } from "../config.js";
 import type { ServerContext } from "../context.js";
-import {
-  findEnvironmentHostId,
-  findHost,
-  insertHost,
-  toHost,
-  updateHost,
-  type HostRow,
-} from "../db/hosts.js";
+import { getEnvironment } from "../db/environments.js";
+import * as hosts from "../db/hosts.js";
 import { getAppSettings } from "../db/settings.js";
 import { ApiError } from "../http/errors.js";
 import type { Disposer } from "../server.js";
@@ -20,8 +14,8 @@ export function publicServerUrl(ctx: ServerContext): string | null {
   return url?.replace(/\/+$/u, "") ?? null;
 }
 
-export function requireHost(ctx: ServerContext, hostId: string): HostRow {
-  const host = findHost(ctx.db, "id", hostId);
+export function requireHost(ctx: ServerContext, hostId: string): hosts.HostRow {
+  const host = hosts.findHost(ctx.db, "id", hostId);
   if (host === undefined) {
     throw new ApiError(404, "host_not_found", "Host not found");
   }
@@ -35,15 +29,15 @@ export function resolveLookupHostId(
   if (query.environmentId === undefined) {
     return requireHost(ctx, query.hostId ?? ctx.config.hostId).id;
   }
-  const hostId = findEnvironmentHostId(ctx.db, query.environmentId);
-  if (hostId === undefined) {
+  const environment = getEnvironment(ctx.db, query.environmentId);
+  if (environment === undefined) {
     throw new ApiError(404, "environment_not_found", "Environment not found");
   }
-  return requireHost(ctx, hostId).id;
+  return requireHost(ctx, environment.hostId).id;
 }
 
-export function hostResponse(ctx: ServerContext, row: HostRow): Host {
-  return toHost(row, {
+export function hostResponse(ctx: ServerContext, row: hosts.HostRow): Host {
+  return hosts.toHost(row, {
     connected: ctx.runners.isConnected(row.id),
     local: row.id === ctx.config.hostId,
   });
@@ -54,17 +48,21 @@ export function ensureLocalHost(ctx: ServerContext): Disposer {
   const { hostId: id, dataDir } = ctx.config;
   const { platform } = process;
   const threadStorageRoot = dataPaths(dataDir).threadStorage;
-  insertHost(db, { id, name: hostname(), phase: "active" });
-  updateHost(db, id, { platform, threadStorageRoot, lastSeenAt: db.now() });
+  hosts.insertHost(db, { id, name: hostname(), phase: "active" });
+  hosts.updateHost(db, id, {
+    platform,
+    threadStorageRoot,
+    lastSeenAt: db.now(),
+  });
   const offConnected = runners.onConnected((hostId) => {
-    const enrolling = findHost(db, "id", hostId)?.phase === "creating";
-    updateHost(db, hostId, {
+    const enrolling = hosts.findHost(db, "id", hostId)?.phase === "creating";
+    hosts.updateHost(db, hostId, {
       lastSeenAt: db.now(),
       ...(enrolling ? { phase: "active", statusMessage: null } : {}),
     });
   });
   const offDisconnected = runners.onDisconnected((hostId) => {
-    updateHost(db, hostId, { lastSeenAt: db.now() });
+    hosts.updateHost(db, hostId, { lastSeenAt: db.now() });
   });
   return () => {
     offConnected();

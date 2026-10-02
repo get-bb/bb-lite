@@ -1,29 +1,28 @@
+import * as domain from "@bb/domain";
+import type { ListEnvironmentsQuery } from "@bb/server-contract";
 import {
-  environmentProviderSelectionSchema,
-  resolveEnvironmentHostLifecycle,
-  type Environment,
-  type EnvironmentStatus,
-  type WorkspaceProvisionType,
-} from "@bb/domain";
-import { decodeJson, newId, type Db, type SqlValue } from "./index.js";
-import { updateRow, type RowPatch } from "./update-row.js";
+  decodeJson,
+  insertRow,
+  newId,
+  updateRow,
+  type Db,
+  type RowValues,
+  type SqlValue,
+} from "./index.js";
 
-interface EnvironmentRow {
-  id: string;
-  name: string | null;
-  projectId: string;
-  hostId: string;
-  path: string | null;
+type Derived =
+  | "isGitRepo"
+  | "isWorktree"
+  | "lifecycle"
+  | "hostLifecycle"
+  | "environmentProviderSelection"
+  | "managed"
+  | "workspaceProvisionType";
+
+interface EnvironmentRow extends Omit<domain.Environment, Derived> {
   isGitRepo: number;
   isWorktree: number;
-  branchName: string | null;
-  baseBranch: string | null;
-  defaultBranch: string | null;
-  mergeBaseBranch: string | null;
-  status: EnvironmentStatus;
-  environmentProviderId: string | null;
   environmentProviderSelection: string | null;
-  environmentProviderInstanceKey: string | null;
   providerOwnsPath: number;
   retireAt: number | null;
   teardownStatus: "running" | "failed" | "removed" | null;
@@ -31,20 +30,11 @@ interface EnvironmentRow {
   teardownMessage: string | null;
   hostPhase: string;
   hostDestroyedAt: number | null;
-  createdAt: number;
-  updatedAt: number;
 }
 
-export interface EnvironmentFilter {
-  projectId?: string;
-  hostId?: string;
-  environmentProviderId?: string;
-  instanceKey?: string;
-  path?: string;
-  status?: EnvironmentStatus;
-  limit?: number;
-  offset?: number;
-}
+type Page = "limit" | "offset";
+type EnvironmentFilter = Omit<ListEnvironmentsQuery, Page> &
+  Partial<Record<Page, number>>;
 
 export type EnvironmentPatch = {
   name?: string | null;
@@ -55,7 +45,7 @@ export type EnvironmentPatch = {
   baseBranch?: string | null;
   defaultBranch?: string | null;
   mergeBaseBranch?: string | null;
-  status?: EnvironmentStatus;
+  status?: domain.EnvironmentStatus;
   statusMessage?: string | null;
   retireAt?: number | null;
   teardownStatus?: EnvironmentRow["teardownStatus"];
@@ -77,11 +67,6 @@ export interface EnvironmentUse {
   live: number;
 }
 
-export interface ThreadEnvironmentLink {
-  environmentId: string | null;
-  archivedAt: number | null;
-}
-
 const SELECT_ENVIRONMENTS = `SELECT e.id, e.name, e.project_id, e.host_id,
   e.path, e.is_git_repo, e.is_worktree, e.branch_name, e.base_branch,
   e.default_branch, e.merge_base_branch, e.status, e.environment_provider_id,
@@ -100,13 +85,13 @@ const FILTER_COLUMNS = {
   status: "e.status",
 } as const;
 
-const PROVISION_TYPES: Record<string, WorkspaceProvisionType> = {
+const PROVISION_TYPES: Record<string, domain.WorkspaceProvisionType> = {
   "git-worktree": "managed-worktree",
   "personal-workspace": "personal",
   "project-checkout": "unmanaged",
 };
 
-function lifecycle(row: EnvironmentRow): Environment["lifecycle"] {
+function lifecycle(row: EnvironmentRow): domain.Environment["lifecycle"] {
   const { retireAt, teardownStatus: status, teardownAttempt: attempt } = row;
   const message = row.teardownMessage ?? undefined;
   const teardown = status === null ? null : { status, attempt, message };
@@ -118,7 +103,7 @@ function lifecycle(row: EnvironmentRow): Environment["lifecycle"] {
   return { phase, retireAt, teardown };
 }
 
-function toEnvironment(row: EnvironmentRow): Environment {
+function toEnvironment(row: EnvironmentRow): domain.Environment {
   const { hostPhase: phase, hostDestroyedAt: destroyedAt } = row;
   const selection = row.environmentProviderSelection;
   const providerId = row.environmentProviderId;
@@ -137,7 +122,7 @@ function toEnvironment(row: EnvironmentRow): Environment {
     status: row.status,
     environmentProviderId: providerId,
     lifecycle: lifecycle(row),
-    hostLifecycle: resolveEnvironmentHostLifecycle({
+    hostLifecycle: domain.resolveEnvironmentHostLifecycle({
       destroyedAt,
       phase,
       teardownStatus: null,
@@ -145,7 +130,7 @@ function toEnvironment(row: EnvironmentRow): Environment {
     environmentProviderSelection:
       selection === null
         ? null
-        : decodeJson(environmentProviderSelectionSchema, selection),
+        : decodeJson(domain.environmentProviderSelectionSchema, selection),
     environmentProviderInstanceKey: row.environmentProviderInstanceKey,
     managed: row.providerOwnsPath === 1,
     workspaceProvisionType: PROVISION_TYPES[providerId ?? ""] ?? null,
@@ -158,20 +143,23 @@ export function findEnvironment(
   db: Db,
   where: string,
   ...values: SqlValue[]
-): Environment | undefined {
+): domain.Environment | undefined {
   const sql = `${SELECT_ENVIRONMENTS} WHERE ${where}`;
   const row = db.get<EnvironmentRow>(sql, ...values);
   return row === undefined ? undefined : toEnvironment(row);
 }
 
-export function getEnvironment(db: Db, id: string): Environment | undefined {
+export function getEnvironment(
+  db: Db,
+  id: string,
+): domain.Environment | undefined {
   return findEnvironment(db, "e.id = ?", id);
 }
 
 export function listEnvironments(
   db: Db,
   filter: EnvironmentFilter = {},
-): Environment[] {
+): domain.Environment[] {
   const conditions =
     filter.status === undefined ? ["e.status <> 'destroyed'"] : [];
   const values: SqlValue[] = [];
@@ -190,30 +178,20 @@ export function listEnvironments(
 
 export function insertEnvironment(db: Db, input: NewEnvironment): string {
   const id = newId("env");
-  const { ownerThreadId } = input;
-  const managed = ownerThreadId !== null;
+  const { instanceKey, ...columns } = input;
+  const managed = input.ownerThreadId !== null;
   const worktree = input.environmentProviderId === "git-worktree";
-  db.run(
-    `INSERT INTO environments
-       (id, project_id, host_id, path, environment_provider_id,
-        environment_provider_instance_key, owner_thread_id,
-        provider_owns_path, is_git_repo, is_worktree, status,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  insertRow(db, "environments", {
     id,
-    input.projectId,
-    input.hostId,
-    input.path,
-    input.environmentProviderId,
-    input.instanceKey,
-    ownerThreadId,
-    Number(managed),
-    Number(worktree),
-    Number(worktree),
-    managed ? "creating" : "provisioning",
-    db.now(),
-    db.now(),
-  );
+    ...columns,
+    environmentProviderInstanceKey: instanceKey,
+    providerOwnsPath: Number(managed),
+    isGitRepo: Number(worktree),
+    isWorktree: Number(worktree),
+    status: managed ? "creating" : "provisioning",
+    createdAt: db.now(),
+    updatedAt: db.now(),
+  });
   return id;
 }
 
@@ -222,15 +200,11 @@ export function updateEnvironment(
   id: string,
   patch: EnvironmentPatch,
 ): boolean {
-  const columns: RowPatch = {};
+  const columns: RowValues = {};
   for (const [key, value] of Object.entries(patch)) {
     columns[key] = typeof value === "boolean" ? Number(value) : value;
   }
   return updateRow(db, "environments", id, columns);
-}
-
-export function deleteEnvironment(db: Db, id: string): void {
-  db.run("DELETE FROM environments WHERE id = ?", id);
 }
 
 export function listEnvironmentThreadIds(
@@ -247,17 +221,6 @@ export function listEnvironmentThreadIds(
       environmentId,
     )
     .map((thread) => thread.id);
-}
-
-export function findThreadEnvironment(
-  db: Db,
-  threadId: string,
-): ThreadEnvironmentLink | undefined {
-  return db.get<ThreadEnvironmentLink>(
-    `SELECT environment_id, archived_at FROM threads
-     WHERE id = ? AND deleted_at IS NULL`,
-    threadId,
-  );
 }
 
 export function environmentUse(db: Db, environmentId: string): EnvironmentUse {

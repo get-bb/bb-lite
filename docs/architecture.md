@@ -34,7 +34,7 @@ The runner never imports the server. The server talks to machines only through t
   (the runner only removes paths under its own data directory, and the original may still be using
   them). `apps/cli/guide/migrating.md` lists what is and is not copied.
 - `<dataDir>/bb.db` (WAL), `attachments/<projectId>/`, `thread-storage/<threadId>/`, `worktrees/`,
-  `plugins/<id>/` (plugin `data.db`, secrets, files), `theme/<name>/theme.css`, `AGENTS.md`,
+  `plugins/<id>/` (plugin `data.db`, secrets, files), `AGENTS.md`,
   `config.json`, `connect.json` (0600), `host-id`, `logs/`.
 - One schema file, `apps/server/src/db/schema.sql`, applied through `PRAGMA user_version` steps. No ORM:
   `better-sqlite3` prepared statements behind small typed query modules. Never mock the database in tests;
@@ -174,7 +174,11 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
   environment intent (reuse | project checkout | managed worktree | personal workspace); insert the row;
   append `client/turn/requested` (the user message) and `client/thread/start`; answer 201; then, off the
   request: provisioning steps as `system/thread-provisioning` events, environment creation through the
-  runner, title generation, and the first `submitTurn`.
+  runner, title generation, and the first `submitTurn`. Titles come from the first inference service a
+  plugin registered; when none did, `startServer` installs `codexTitle` (`providers/title-service.ts`),
+  which reads the Codex CLI's own `auth.json` (never written, never logged) and asks the Codex responses
+  endpoint within 5 s. `createServer` alone has no fallback, and under vitest the service refuses its real
+  endpoints, so tests never call out.
 - **Send** (`POST /threads/:id/send`) goes through one dispatch checkpoint that either submits or records
   a `queued_thread_messages` row with a typed `waiting_on` (`time`, `stopping`, `host-offline`,
   `thread-busy`, `turn-starting`, `provisioning`, `interaction`). Modes: `start`, `steer`,
@@ -342,8 +346,9 @@ materialised by the CLI before the request.
   `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
   mints one getbb.app machine credential per machine and revokes it on removal.
 - **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
-  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
-  `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
+  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `generateTitle`, `skillDirs`). Mention
+  resolution and plugin-contributed environments are accepted by the plugin API but nothing in the
+  server reads them yet. The calls a plugin makes outward (`threads`, `projects`,
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 - **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,

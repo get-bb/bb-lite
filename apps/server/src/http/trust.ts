@@ -1,5 +1,5 @@
 import type { IncomingHttpHeaders } from "node:http";
-import { ApiError, notFound } from "./errors.js";
+import { ApiError, forbidden, notFound } from "./errors.js";
 
 export type Principal =
   | { kind: "owner" }
@@ -34,12 +34,12 @@ export function requestHeader(
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isLoopbackAddress(address: string | undefined): boolean {
+function isLoopbackAddress(address: string | undefined) {
   const ipv4 = address?.replace(/^::ffff:/u, "");
   return ipv4 === "::1" || ipv4?.startsWith("127.") === true;
 }
 
-function isLoopbackAuthority(authority: string): boolean {
+function isLoopbackAuthority(authority: string) {
   try {
     return LOOPBACK_HOSTNAMES.includes(new URL(`http://${authority}`).hostname);
   } catch {
@@ -75,7 +75,7 @@ function identify(request: TrustRequest, lookups: TrustLookups): Principal {
 function assertOwnBrowserRequest(
   request: TrustRequest,
   publicUrl: () => string | null,
-): void {
+) {
   const host = request.headers.host;
   if (host !== undefined && !isLoopbackAuthority(host)) {
     throw new ApiError(
@@ -115,11 +115,7 @@ export function authorize(
     !READ_METHODS.includes(request.method) &&
     RUNNER_FORBIDDEN_WRITES.test(path)
   ) {
-    throw new ApiError(
-      403,
-      "forbidden",
-      "Machine credentials cannot manage machines or settings",
-    );
+    throw forbidden("Machine credentials cannot manage machines or settings");
   }
   return principal;
 }
@@ -130,4 +126,11 @@ export function principalOf(context: { req: { raw: Request } }): Principal {
   const principal = principals.get(context.req.raw);
   if (principal === undefined) throw new Error("Request has no principal");
   return principal;
+}
+
+export function requireOwner(
+  context: { req: { raw: Request } },
+  refusal: string,
+): void {
+  if (principalOf(context).kind !== "owner") throw forbidden(refusal);
 }

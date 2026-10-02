@@ -5,8 +5,7 @@ import { pluginSettingsResponseSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
 import { resolveContributedEnvironment } from "../src/machine-environment.js";
 import { providerOptionsFor } from "../src/providers/settings.js";
-import { createTestServer } from "./helpers.js";
-import { createProject, watchChanges } from "./watch.js";
+import { createProject, createTestServer, watchChanges } from "./helpers.js";
 
 function model(id: string): AvailableModel {
   const efforts = { supportedReasoningEfforts: [], isDefault: false };

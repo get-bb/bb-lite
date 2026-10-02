@@ -37,11 +37,6 @@ export type HostCloneDefaultPathResponse = z.infer<
   typeof hostCloneDefaultPathResponseSchema
 >;
 
-export const createHostJoinCodeRequestSchema = z.object({}).strict();
-export type CreateHostJoinCodeRequest = z.infer<
-  typeof createHostJoinCodeRequestSchema
->;
-
 export const createMachineRequestSchema = z
   .object({
     machineProviderId: z.string().min(1),
@@ -69,15 +64,6 @@ export const hostReconnectResponseSchema = z
   })
   .strict();
 export type HostReconnectResponse = z.infer<typeof hostReconnectResponseSchema>;
-
-export const createHostJoinCodeResponseSchema = z.object({
-  joinCode: z.string().min(1),
-  hostId: z.string().min(1),
-  expiresAt: z.number().int().positive(),
-});
-export type CreateHostJoinCodeResponse = z.infer<
-  typeof createHostJoinCodeResponseSchema
->;
 
 export const updateHostRequestSchema = z
   .object({

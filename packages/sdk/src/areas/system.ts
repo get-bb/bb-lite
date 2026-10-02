@@ -1,6 +1,5 @@
 import type {
   MachineEnvironmentReplace,
-  MachineEnvironmentSet,
   MachineEnvironmentList,
 } from "@bb/server-contract";
 import type {
@@ -11,8 +10,6 @@ import type {
   UiPreferenceValue,
 } from "@bb/domain";
 import type {
-  SystemAttentionResponse,
-  SystemConfigReloadResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
@@ -27,10 +24,6 @@ import {
   type CreateSdkAreaArgs,
 } from "./common.js";
 
-export interface SystemAttentionArgs {
-  signal?: AbortSignal;
-}
-
 export interface SystemConfigArgs {
   signal?: AbortSignal;
 }
@@ -39,13 +32,9 @@ export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery 
   signal?: AbortSignal;
 }
 
-export type SystemAttentionResult = SystemAttentionResponse;
 export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
-export type SystemReloadConfigResult = SystemConfigReloadResponse;
-export type SystemUpdateGeneralSettingsResult = AppSettings & {
-  showUnhandledProviderEvents?: boolean;
-};
+export type SystemUpdateGeneralSettingsResult = AppSettings;
 export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
 export interface SystemProviderStatesArgs extends SystemProvidersQuery {
   signal?: AbortSignal;
@@ -78,22 +67,14 @@ export interface SystemUiPreferencesArea {
 }
 
 export interface SystemArea {
-  setMachineEnvironmentVariable(
-    input: MachineEnvironmentSet,
-  ): Promise<MachineEnvironmentList>;
-  deleteMachineEnvironmentVariable(input: {
-    name: string;
-  }): Promise<MachineEnvironmentList>;
   machineEnvironment(): Promise<MachineEnvironmentList>;
   replaceMachineEnvironment(
     input: MachineEnvironmentReplace,
   ): Promise<MachineEnvironmentList>;
-  attention(args?: SystemAttentionArgs): Promise<SystemAttentionResult>;
   config(args?: SystemConfigArgs): Promise<SystemConfigResult>;
   executionOptions(
     args?: SystemExecutionOptionsArgs,
   ): Promise<SystemExecutionOptionsResult>;
-  reloadConfig(): Promise<SystemReloadConfigResult>;
   uiPreferences: SystemUiPreferencesArea;
   updateGeneralSettings(
     args: AppSettingsUpdate,
@@ -140,18 +121,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
   };
   return {
     uiPreferences,
-    async setMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$post({ json: input }),
-      );
-    },
-    async deleteMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$delete({
-          json: input,
-        }),
-      );
-    },
     async machineEnvironment() {
       return transport.readJson(
         transport.api.v1.settings["machine-environment"].$get(),
@@ -160,14 +129,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async replaceMachineEnvironment(input) {
       return transport.readJson(
         transport.api.v1.settings["machine-environment"].$put({ json: input }),
-      );
-    },
-    async attention(input) {
-      return transport.readJson(
-        transport.api.v1.system.attention.$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
       );
     },
     async config(input) {
@@ -180,9 +141,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     },
     async executionOptions(input = {}) {
       return readExecutionOptions(transport, input);
-    },
-    async reloadConfig() {
-      return transport.readJson(transport.api.v1.system.config.reload.$post());
     },
     async updateGeneralSettings(input) {
       return transport.readJson(

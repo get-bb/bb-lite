@@ -1,25 +1,19 @@
-import {
-  THREAD_CONTEXT_CLEAR_OPERATION,
-  threadScope,
-  turnScope,
-  type ChildThreadOutcome,
-  type ThreadChangeKind,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import { newId } from "../db/index.js";
 import * as pending from "../db/pending-interactions.js";
 import type { DeletedProject } from "../db/projects.js";
 import { listThreadIdsWaitingOn } from "../db/queued-messages.js";
 import * as store from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
-import { closeTerminalsForThread } from "../terminals/sessions.js";
-import { conflict, type Outbox } from "./core.js";
+import { ApiError, conflict } from "../http/errors.js";
+import { closeTerminalsFor } from "../terminals/sessions.js";
+import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import * as interactions from "./interactions.js";
 import { flushDueNotices } from "./parent-notices.js";
 import { cancelProvisioning } from "./provisioning.js";
 
 type ThreadRow = store.ThreadRow;
-type Interruption = NonNullable<ChildThreadOutcome["interruption"]>;
+type Interruption = NonNullable<domain.ChildThreadOutcome["interruption"]>;
 type MembershipEvent = `thread.${"archived" | "unarchived" | "deleted"}`;
 
 const ARCHIVE_UNDO_GRACE_MS = 30_000;
@@ -36,21 +30,23 @@ function appendInterrupted(
   out: Outbox,
   thread: ThreadRow,
   interruption: Interruption,
-): void {
+) {
   const type = "system/thread/interrupted";
-  engine.append(out, thread, [{ type, scope: threadScope(), ...interruption }]);
+  engine.append(out, thread, [
+    { type, scope: domain.threadScope(), ...interruption },
+  ]);
 }
 
 function closeActiveTurn(engine: Engine, out: Outbox, thread: ThreadRow) {
   const { activeTurnId, providerThreadId } = thread;
   if (activeTurnId === null) return;
-  const turn = { scope: turnScope(activeTurnId), providerThreadId };
+  const turn = { scope: domain.turnScope(activeTurnId), providerThreadId };
   const type = "turn/completed";
   engine.append(out, thread, [{ type, ...turn, status: "interrupted" }]);
   store.patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
 }
 
-function requestStop(engine: Engine, threadId: string): string | null {
+function requestStop(engine: Engine, threadId: string) {
   const thread = engine.requireThread(threadId);
   const runtime = engine.runtimeOf(threadId);
   const hostId = engine.hostOf(thread);
@@ -79,7 +75,7 @@ function requestStop(engine: Engine, threadId: string): string | null {
   return null;
 }
 
-function finalizeStop(engine: Engine, threadId: string): void {
+function finalizeStop(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.status !== "stopping") return;
   engine.commit((out) => {
@@ -112,7 +108,7 @@ function interruptThread(
   engine: Engine,
   threadId: string,
   interruption: Interruption,
-): void {
+) {
   const thread = store.getThread(engine.ctx.db, threadId);
   const running = ["starting", "active", "stopping"];
   if (thread === undefined || !running.includes(thread.status)) return;
@@ -139,9 +135,9 @@ function changeMembership(
   engine: Engine,
   thread: ThreadRow,
   patch: store.ThreadPatch,
-  change: ThreadChangeKind,
+  change: domain.ThreadChangeKind,
   event: MembershipEvent,
-): void {
+) {
   const { db, environments, plugins } = engine.ctx;
   const { id, projectId } = thread;
   engine.commit((out) => {
@@ -155,7 +151,7 @@ function changeMembership(
   });
 }
 
-function archiveOne(engine: Engine, threadId: string): boolean {
+function archiveOne(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return false;
   if (thread.archivedAt !== null) return false;
@@ -187,10 +183,7 @@ export function unarchiveThread(engine: Engine, threadId: string): void {
   engine.scheduleDrain(threadId);
 }
 
-async function finalizeDeletion(
-  engine: Engine,
-  threadId: string,
-): Promise<void> {
+async function finalizeDeletion(engine: Engine, threadId: string) {
   const { db, runners } = engine.ctx;
   const thread = store.getThread(db, threadId);
   if (thread === undefined || thread.deletedAt === null) return;
@@ -205,13 +198,13 @@ async function finalizeDeletion(
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
-    closeTerminalsForThread(engine.ctx, threadId, "thread-deleted");
+    closeTerminalsFor(engine.ctx, "thread_id", threadId, "thread-deleted");
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
 }
 
-function retryDeletions(engine: Engine): void {
+function retryDeletions(engine: Engine) {
   for (const { id } of store.listTombstonedThreads(engine.ctx.db)) {
     if (engine.deleting.has(id)) continue;
     engine.deleting.add(id);
@@ -222,7 +215,7 @@ function retryDeletions(engine: Engine): void {
   }
 }
 
-function tombstone(engine: Engine, threadId: string): void {
+function tombstone(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const runtime = engine.runtimeOf(threadId);
@@ -298,13 +291,15 @@ export async function resetContext(
   }
   engine.commit((out) => {
     const operation = {
-      operation: THREAD_CONTEXT_CLEAR_OPERATION,
+      operation: domain.THREAD_CONTEXT_CLEAR_OPERATION,
       operationId: newId("evt"),
       status: "completed",
       message: CONTEXT_CLEARED_MESSAGE,
     };
     const type = "system/operation";
-    engine.append(out, thread, [{ type, scope: threadScope(), ...operation }]);
+    engine.append(out, thread, [
+      { type, scope: domain.threadScope(), ...operation },
+    ]);
     store.patchThread(db, thread.id, { providerThreadId: null }, false);
     const metadata = engine.statusMetadata(thread.id);
     out.thread(thread.id, ["history-rewritten", "status-changed"], metadata);
@@ -373,7 +368,7 @@ export function sweep(engine: Engine): void {
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
   for (const { id, status } of store.listExpiredArchives(db, expired)) {
-    closeTerminalsForThread(engine.ctx, id);
+    closeTerminalsFor(engine.ctx, "thread_id", id, "thread-archived");
     if (status !== "starting" && status !== "active") continue;
     engine.background("stop archived thread", stopThread(engine, id));
   }

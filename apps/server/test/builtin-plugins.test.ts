@@ -1,43 +1,28 @@
 import * as fs from "node:fs";
 import { join } from "node:path";
-import { createEchoAdapter } from "@bb/runner";
-import { expect, it, onTestFinished, vi } from "vitest";
-import type { ServerConfig } from "../src/config.js";
+import { expect, it, vi } from "vitest";
 import * as interactions from "../src/db/pending-interactions.js";
-import { localRunnerFor } from "../src/runners/local.js";
-import { createTestServer } from "./helpers.js";
+import { createEchoServer, type Json } from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
-import { createProject } from "./watch.js";
 
-type Json = Record<string, unknown>;
 type EventData = { item: Json; interaction: Json };
 
 const EVENTS = `SELECT data FROM events WHERE thread_id = ? AND type = ?
   ORDER BY sequence`;
 
 async function echoServer() {
-  const localRunner = (config: ServerConfig) => {
-    const local = localRunnerFor(config, [createEchoAdapter()]);
-    onTestFinished(local.shutdown);
-    return local.connect;
-  };
-  const server = await createTestServer({}, { localRunner });
-  const { ctx, url } = server;
-  const directory = join(ctx.config.dataDir, "repo");
-  fs.mkdirSync(directory);
-  const { id: projectId } = await createProject(server, "echo", directory);
-  const post = async (path: string, json: unknown = {}): Promise<Json> => {
-    const headers = { "content-type": "application/json" };
-    const init = { method: "POST", headers, body: JSON.stringify(json) };
-    return (await fetch(`${url}/api/v1${path}`, init)).json() as Promise<Json>;
-  };
-  const spawn = async (prompt: string): Promise<string> => {
+  const server = await createEchoServer();
+  const { ctx } = server;
+  const projectId = server.project.id;
+  const post = async (path: string, json: unknown = {}) =>
+    (await server.send(path, json)).json() as Promise<Json>;
+  const spawn = async (prompt: string) => {
     const environment = { type: "project-default" };
     const base = { projectId, providerId: "echo", origin: "app", environment };
     const thread = await post("/threads", { ...base, input: text(prompt) });
     return String(thread.id);
   };
-  const idle = (id: string): Promise<void> =>
+  const idle = (id: string) =>
     vi.waitFor(() => expect(ctx.threads.get(id)?.status).toBe("idle"), 5_000);
   const pending = (id: string) =>
     vi.waitFor(() => {
@@ -46,11 +31,11 @@ async function echoServer() {
       const path = `/threads/${id}/interactions/${row.id}`;
       return { path, interaction: interactions.toPendingInteraction(row) };
     }, 5_000);
-  const events = (id: string, type: string): EventData[] =>
+  const events = (id: string, type: string) =>
     ctx.db
       .all<{ data: string }>(EVENTS, id, type)
       .map(({ data }) => JSON.parse(data) as EventData);
-  return { ...server, directory, post, spawn, idle, pending, events };
+  return { ...server, post, spawn, idle, pending, events };
 }
 
 it("collects secrets in a thread form and writes them to the dotenv file", async () => {

@@ -13,7 +13,7 @@ export interface BuiltinPlugin {
   server: PluginServerEntry | null;
 }
 
-const pluginDirectory = (name: string): string =>
+const pluginDirectory = (name: string) =>
   fileURLToPath(new URL(`../../../../plugins/${name}`, import.meta.url));
 
 export const builtinPlugins: BuiltinPlugin[] = [

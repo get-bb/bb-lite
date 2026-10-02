@@ -1,14 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createEchoAdapter } from "@bb/runner";
-import { onTestFinished } from "vitest";
-import type { ServerConfig } from "../../server/src/config.js";
-import { localRunnerFor } from "../../server/src/runners/local.js";
-import { createTestServer } from "../../server/test/helpers.js";
-import { createProject } from "../../server/test/watch.js";
+import { createEchoServer } from "../../server/test/helpers.js";
 
 export interface BbResult {
   code: number | null;
@@ -41,17 +34,7 @@ export async function runBb(
 }
 
 export async function startBb() {
-  const localRunner = (config: ServerConfig) => {
-    const local = localRunnerFor(config, [createEchoAdapter()]);
-    onTestFinished(local.shutdown);
-    return local.connect;
-  };
-  const server = await createTestServer({}, { localRunner });
-  const { ctx } = server;
-  const directory = join(ctx.config.dataDir, "repo");
-  mkdirSync(directory);
-  const project = await createProject(server, "cli", directory);
-  const BB_SERVER_URL = server.url;
+  const { ctx, project, url: BB_SERVER_URL } = await createEchoServer();
   const bb = (args: string[], env: Record<string, string> = {}, stdin = "") =>
     runBb(args, { BB_SERVER_URL, BB_PROJECT_ID: project.id, ...env }, stdin);
   return { ctx, project, bb };

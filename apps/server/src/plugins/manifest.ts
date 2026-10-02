@@ -43,7 +43,7 @@ export async function readManifest(path: string): Promise<PluginManifest> {
   const directory = resolve(path);
   const text = await readFile(join(directory, "package.json"), "utf8");
   const { name, bb } = packageSchema.parse(JSON.parse(text));
-  const inside = (entry: string): string => {
+  const inside = (entry: string) => {
     const resolved = resolveInside(directory, entry);
     if (resolved !== null) return resolved;
     throw new Error(`"${entry}" is outside the plugin directory`);

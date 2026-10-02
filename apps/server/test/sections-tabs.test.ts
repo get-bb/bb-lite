@@ -5,8 +5,7 @@ import {
   type UpdateThreadTabsRequest,
 } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { createTestServer } from "./helpers.js";
-import { insertThread, watchChanges } from "./watch.js";
+import { createTestServer, insertThread, watchChanges } from "./helpers.js";
 
 it("keeps section names unique and un-sections threads on delete", async () => {
   const server = await createTestServer();

@@ -1,24 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import {
-  disabledProviderIdsSchema,
-  type PermissionMode,
-  type ProviderComposerAction,
-  type ProviderComposerCommand,
-  type ProviderInfo,
-  type ProviderOptionDescriptor,
-  type ReasoningLevel,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ProviderId } from "@bb/runner";
 import type { SystemProviderCatalogEntry } from "@bb/server-contract";
 import type { Db } from "../db/index.js";
-import {
-  getAppSettings,
-  readSetting,
-  setAppSettings,
-  writeSetting,
-  type Setting,
-} from "../db/settings.js";
+import * as store from "../db/settings.js";
 
 export interface ProviderLogo {
   content: Buffer;
@@ -27,29 +13,36 @@ export interface ProviderLogo {
 
 export interface ProviderDefinition {
   id: ProviderId;
-  info: ProviderInfo;
+  info: domain.ProviderInfo;
   pluginName: string;
-  reasoningLevels: ReasoningLevel[];
+  reasoningLevels: domain.ReasoningLevel[];
   logo: ProviderLogo | null;
 }
 
 interface ProviderSeed extends Pick<
-  ProviderInfo,
+  domain.ProviderInfo,
   "displayName" | "completedTurnDisplay"
 > {
   id: ProviderId;
   logoFile: string | null;
-  reasoningLevels: ReasoningLevel[];
+  reasoningLevels: domain.ReasoningLevel[];
   composerCommands: ("plan" | "goal")[];
   capabilities: Omit<
-    ProviderInfo["capabilities"],
+    domain.ProviderInfo["capabilities"],
     "permissionModes" | "modelCatalogScope"
   >;
-  optional: Pick<ProviderInfo, "strings" | "serviceTiers" | "extensionKinds">;
+  optional: Pick<
+    domain.ProviderInfo,
+    "strings" | "serviceTiers" | "extensionKinds"
+  >;
 }
 
-const PERMISSION_MODES: PermissionMode[] = ["accept-edits", "auto", "full"];
-const LEVEL_LABELS: Record<ReasoningLevel, string> = {
+const PERMISSION_MODES: domain.PermissionMode[] = [
+  "accept-edits",
+  "auto",
+  "full",
+];
+const LEVEL_LABELS: Record<domain.ReasoningLevel, string> = {
   none: "None",
   low: "Low",
   medium: "Medium",
@@ -59,16 +52,16 @@ const LEVEL_LABELS: Record<ReasoningLevel, string> = {
   max: "Max",
   ultra: "Ultra",
 };
-const LEVEL_DESCRIPTIONS: Partial<Record<ReasoningLevel, string>> = {
+const LEVEL_DESCRIPTIONS: Partial<Record<domain.ReasoningLevel, string>> = {
   ultracode: "Extra-high effort plus standing workflow orchestration.",
   ultra: "Max effort plus automatic task delegation.",
 };
 const CLAUDE_FAST_TIER =
   "Faster responses on supported Opus models at a higher cost per token.";
 
-const disabledProvidersSetting: Setting<string[]> = {
+const disabledProvidersSetting: store.Setting<string[]> = {
   key: "disabledProviderIds",
-  schema: disabledProviderIdsSchema,
+  schema: domain.disabledProviderIdsSchema,
   fallback: [],
 };
 
@@ -78,7 +71,9 @@ function loadLogo(file: string): ProviderLogo {
   return { content, hash: digest.slice(0, 16) };
 }
 
-function levelDescriptor(level: ReasoningLevel): ProviderOptionDescriptor {
+function levelDescriptor(
+  level: domain.ReasoningLevel,
+): domain.ProviderOptionDescriptor {
   const description = LEVEL_DESCRIPTIONS[level];
   const descriptor = { id: level, label: LEVEL_LABELS[level] };
   return description === undefined
@@ -86,7 +81,7 @@ function levelDescriptor(level: ReasoningLevel): ProviderOptionDescriptor {
     : { ...descriptor, description };
 }
 
-function slashCommand(name: "plan" | "goal"): ProviderComposerAction {
+function slashCommand(name: "plan" | "goal"): domain.ProviderComposerAction {
   return { kind: name, command: { trigger: "/", name, trailingText: " " } };
 }
 
@@ -94,7 +89,7 @@ function defineProvider(seed: ProviderSeed): ProviderDefinition {
   const { id, reasoningLevels } = seed;
   const logo = seed.logoFile === null ? null : loadLogo(seed.logoFile);
   const logoPath = `/api/v1/system/providers/${id}/logo`;
-  const info: ProviderInfo = {
+  const info: domain.ProviderInfo = {
     id,
     pluginId: `provider-${id}`,
     displayName: seed.displayName,
@@ -131,7 +126,7 @@ const CODEX = defineProvider({
     supportsThreadRename: true,
     supportsServiceTier: true,
     supportsNativeUserQuestion: false,
-    supportsFork: true,
+    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
@@ -164,7 +159,7 @@ const CLAUDE_CODE = defineProvider({
     supportsThreadRename: false,
     supportsServiceTier: true,
     supportsNativeUserQuestion: true,
-    supportsFork: true,
+    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
@@ -202,14 +197,14 @@ const ECHO = defineProvider({
   optional: {},
 });
 
-function devProviderEnabled(id: string, env = process.env): boolean {
+function devProviderEnabled(id: string, env = process.env) {
   if (env.VITEST === "true") return true;
   return (env.BB_DEV_PROVIDERS ?? "").split(",").includes(id);
 }
 
 export function listProviderDefinitions(db: Db): ProviderDefinition[] {
-  const { providerOrder } = getAppSettings(db);
-  const rank = ({ id }: ProviderDefinition): number => {
+  const { providerOrder } = store.getAppSettings(db);
+  const rank = ({ id }: ProviderDefinition) => {
     const index = providerOrder.indexOf(id);
     return index < 0 ? providerOrder.length : index;
   };
@@ -228,19 +223,19 @@ export function findProviderDefinition(
 export function providerPlanCommand(
   db: Db,
   providerId: string,
-): ProviderComposerCommand | null {
+): domain.ProviderComposerCommand | null {
   const actions = findProviderDefinition(db, providerId)?.info.composerActions;
   const plan = actions?.find((action) => action.kind === "plan");
   return plan?.kind === "plan" ? plan.command : null;
 }
 
 export function listEnabledProviders(db: Db): ProviderDefinition[] {
-  const disabled = readSetting(db, disabledProvidersSetting);
+  const disabled = store.readSetting(db, disabledProvidersSetting);
   return listProviderDefinitions(db).filter(({ id }) => !disabled.includes(id));
 }
 
 export function listProviderCatalog(db: Db): SystemProviderCatalogEntry[] {
-  const disabled = readSetting(db, disabledProvidersSetting);
+  const disabled = store.readSetting(db, disabledProvidersSetting);
   return listProviderDefinitions(db).map(({ id, info, pluginName }) => ({
     id,
     displayName: info.displayName,
@@ -259,13 +254,13 @@ export function setProviderEnabled(
   providerId: string,
   enabled: boolean,
 ): void {
-  const others = readSetting(db, disabledProvidersSetting).filter(
-    (id) => id !== providerId,
-  );
+  const others = store
+    .readSetting(db, disabledProvidersSetting)
+    .filter((id) => id !== providerId);
   const disabled = enabled ? others : [...others, providerId];
-  writeSetting(db, disabledProvidersSetting, disabled);
-  const settings = getAppSettings(db);
+  store.writeSetting(db, disabledProvidersSetting, disabled);
+  const settings = store.getAppSettings(db);
   if (!enabled && settings.defaultProviderId === providerId) {
-    setAppSettings(db, { ...settings, defaultProviderId: null });
+    store.setAppSettings(db, { ...settings, defaultProviderId: null });
   }
 }

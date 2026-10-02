@@ -1,14 +1,4 @@
-import {
-  clampPermissionModeToCeiling,
-  promptInputHasCommandMention,
-  type CallerExecutionInputSource,
-  type PermissionMode,
-  type PromptInput,
-  type ReasoningLevel,
-  type ResolvedThreadExecutionOptions,
-  type ServiceTier,
-  type ThreadTurnInitiator,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
@@ -20,19 +10,17 @@ import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import { providerOptionsFor } from "../providers/settings.js";
 
-export interface ExecutionTuple {
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
-}
+export type ExecutionTuple = Omit<
+  domain.ResolvedThreadExecutionOptions,
+  "source"
+>;
 
 type ExecutionField = keyof ExecutionTuple;
 type Stored = { [Field in ExecutionField]?: ExecutionTuple[Field] | null };
 
 export interface ExecutionRequest extends Partial<ExecutionTuple> {
   executionInputSources?: Partial<
-    Record<ExecutionField, CallerExecutionInputSource>
+    Record<ExecutionField, domain.CallerExecutionInputSource>
   >;
 }
 
@@ -45,8 +33,8 @@ interface CreateExecutionArgs {
 
 interface TurnOptionsSource {
   execution: ExecutionTuple;
-  initiator: ThreadTurnInitiator;
-  input: readonly PromptInput[];
+  initiator: domain.ThreadTurnInitiator;
+  input: readonly domain.PromptInput[];
 }
 
 const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
@@ -60,7 +48,7 @@ export function requireProviderId(value: string): ProviderId {
 
 function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
   const sources = request.executionInputSources;
-  const named = (field: ExecutionField): boolean =>
+  const named = (field: ExecutionField) =>
     sources === undefined || sources[field] !== undefined;
   const { model, reasoningLevel, permissionMode, serviceTier } = request;
   return {
@@ -87,7 +75,7 @@ function resolve(
     model,
     reasoningLevel: pick("reasoningLevel") ?? "medium",
     permissionMode:
-      clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
+      domain.clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
       permissionMode,
     serviceTier: (fast ? pick("serviceTier") : null) ?? "default",
   };
@@ -138,7 +126,7 @@ async function firstInstalledProvider(
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(ctx.db);
-  const rank = (providerId: string): number =>
+  const rank = (providerId: string) =>
     (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
   const [first] = (await ctx.runners.get(hostId).listProviders())
     .filter((provider) => provider.installed)
@@ -157,7 +145,7 @@ async function catalogDefaultModel(
   ctx: ServerContext,
   hostId: string,
   providerId: ProviderId,
-): Promise<string> {
+) {
   const runner = ctx.runners.get(hostId);
   const { models } = await runner.listModels({ providerId, cwd: null });
   const model = models.find((candidate) => candidate.isDefault) ?? models.at(0);
@@ -196,7 +184,7 @@ export async function resolveCreateExecution(
 
 export function recordedExecution(
   execution: ExecutionTuple,
-): ResolvedThreadExecutionOptions {
+): domain.ResolvedThreadExecutionOptions {
   return { ...execution, source: "client/turn/requested" };
 }
 
@@ -209,7 +197,7 @@ export function toRunnerOptions(
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
-    planMode: promptInputHasCommandMention(input, plan),
+    planMode: domain.promptInputHasCommandMention(input, plan),
     providerOptions: providerOptionsFor(db, providerId),
   };
 }

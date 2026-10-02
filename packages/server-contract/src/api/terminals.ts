@@ -116,11 +116,6 @@ export const closeTerminalRequestSchema = z
   .strict();
 export type CloseTerminalRequest = z.infer<typeof closeTerminalRequestSchema>;
 
-export const restartTerminalRequestSchema = z.object({}).strict();
-export type RestartTerminalRequest = z.infer<
-  typeof restartTerminalRequestSchema
->;
-
 export const updateTerminalRequestSchema = z
   .object({
     title: z.string().trim().min(1).max(200),

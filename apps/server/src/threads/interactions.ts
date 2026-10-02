@@ -5,9 +5,15 @@ import type {
 } from "@bb/plugin";
 import * as pending from "../db/pending-interactions.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
-import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
+import {
+  ApiError,
+  conflict,
+  hostUnavailable,
+  invalidRequest,
+  threadNotFound,
+} from "../http/errors.js";
 import type { RunnerEventOf } from "../runners/registry.js";
-import { conflict, threadNotFound, type Outbox } from "./core.js";
+import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import { notifyParentBlocked } from "./parent-notices.js";
 
@@ -40,7 +46,7 @@ function announce(
   out: Outbox,
   thread: ThreadRow,
   row: PendingInteractionRow,
-): PendingInteraction {
+) {
   const interaction = pending.toPendingInteraction(row);
   const scope =
     row.turnId === null ? domain.threadScope() : domain.turnScope(row.turnId);
@@ -59,7 +65,7 @@ function settleWaiter(
   engine: Engine,
   interactionId: string,
   result: PluginInputResult,
-): void {
+) {
   const waiter = engine.inputWaiters.get(interactionId);
   if (waiter === undefined) return;
   engine.inputWaiters.delete(interactionId);
@@ -75,7 +81,7 @@ function settle(
   from: readonly PendingInteractionRow["status"][],
   next: InteractionSettlement,
   answer?: PluginInputResult,
-): PendingInteraction | null {
+) {
   const row = pending.settleInteraction(engine.ctx.db, id, from, next);
   if (row === undefined) return null;
   const reason = next.statusReason ?? "thread-stopped";
@@ -174,14 +180,14 @@ function requireInteraction(engine: Engine, threadId: string, id: string) {
   return row;
 }
 
-function alreadySettled(row: PendingInteractionRow): ApiError {
+function alreadySettled(row: PendingInteractionRow) {
   return conflict(`Pending interaction ${row.id} is already ${row.status}`);
 }
 
 function assertResolutionFits(
   interaction: PendingInteraction,
   resolution: domain.PendingInteractionResolution,
-): void {
+) {
   if (domain.isApprovalPendingInteraction(interaction)) {
     const { availableDecisions } = interaction.payload;
     if (
@@ -205,7 +211,7 @@ function finishResolution(
   threadId: string,
   interactionId: string,
   delivered: boolean,
-): void {
+) {
   const thread = getThread(engine.ctx.db, threadId);
   if (thread === undefined) return;
   engine.commit((out) => {
@@ -267,7 +273,7 @@ function settlePluginInteraction(
   row: PendingInteractionRow,
   next: InteractionSettlement,
   result: PluginInputResult,
-): PendingInteraction {
+) {
   const thread = getThread(engine.ctx.db, row.threadId);
   if (thread === undefined) throw threadNotFound();
   return engine.commit((out) => {
@@ -281,7 +287,7 @@ function describeSubmission(
   engine: Engine,
   interactionId: string,
   value: domain.JsonValue,
-): domain.PluginInteractionDescription | undefined {
+) {
   const describe = engine.inputWaiters.get(interactionId)?.describeSubmission;
   try {
     const described = describe?.(value);
@@ -328,10 +334,7 @@ export function cancelPluginInteraction(
   return settlePluginInteraction(engine, row, next, result);
 }
 
-function openPluginInteraction(
-  engine: Engine,
-  request: PluginInputRequest,
-): { result: Promise<PluginInputResult> } {
+function openPluginInteraction(engine: Engine, request: PluginInputRequest) {
   const { db, plugins } = engine.ctx;
   const { threadId, signal } = request;
   const thread = getThread(db, threadId);
@@ -355,7 +358,7 @@ function openPluginInteraction(
     );
     return created;
   });
-  const cancel = (reason: string): void =>
+  const cancel = (reason: string) =>
     engine.later(threadId, "cancel plugin interaction", () => {
       const current = pending.getPendingInteraction(db, row.id);
       if (current === undefined || current.status !== "pending") return;
@@ -363,7 +366,7 @@ function openPluginInteraction(
     });
   const { describeSubmission } = request;
   const result = new Promise<PluginInputResult>((resolve) => {
-    const abort = (): void => {
+    const abort = () => {
       const reason: unknown = signal?.reason;
       const expired = reason instanceof Error && reason.name === "TimeoutError";
       cancel(expired ? "timeout" : "request-aborted");

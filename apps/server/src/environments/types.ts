@@ -32,13 +32,3 @@ export interface ThreadEnvironment {
   environmentId: string;
   path: string;
 }
-
-export interface Environments {
-  ensureForThread(args: EnsureEnvironmentArgs): Promise<ThreadEnvironment>;
-  pathFor(environmentId: string): string | null;
-  workspaceInstructions(environmentId: string): Promise<string | null>;
-  onThreadDetached(threadId: string): void;
-  remove(environmentId: string): Promise<void>;
-  sweep(): Promise<void>;
-  start(): () => void;
-}

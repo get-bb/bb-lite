@@ -1,67 +1,39 @@
-import {
-  promptInputSchema,
-  queuedMessageSystemNoticeSchema,
-  queuedMessageWaitingOnSchema,
-  type PermissionMode,
-  type PromptInput,
-  type QueuedMessageSystemNotice,
-  type QueuedMessageWaitingOn,
-  type QueuedMessageWaitingOnKind,
-  type ReasoningLevel,
-  type ServiceTier,
-  type ThreadCreateOrigin,
-  type ThreadQueuedMessage,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
+import type { ReorderQueuedMessageRequest } from "@bb/server-contract";
 import { z } from "zod";
-import { ApiError } from "../http/errors.js";
-import { decodeJson, encodeJson, newId, type Db } from "./index.js";
+import { ApiError, conflict as rejected } from "../http/errors.js";
+import { decodeJson, insertRow, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
-export interface QueuedMessageRow {
-  id: string;
-  threadId: string;
+type Encoded = "content" | "waitingOn" | "groupWithNext";
+type Derived = "initiator" | "payload" | "editable";
+
+export interface QueuedMessageRow extends Omit<
+  domain.ThreadQueuedMessage,
+  Encoded | Derived
+> {
   content: string;
-  senderThreadId: string | null;
-  origin: ThreadCreateOrigin | null;
-  originPluginId: string | null;
   systemNotice: string | null;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
   groupWithNext: number;
-  sendAt: number | null;
   waitingOn: string | null;
-  failureReason: string | null;
   sortKey: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
-export interface NewQueuedMessage {
-  threadId: string;
-  content: PromptInput[];
-  senderThreadId: string | null;
-  origin: ThreadCreateOrigin | null;
-  originPluginId: string | null;
-  systemNotice: QueuedMessageSystemNotice | null;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
-  waitingOn: QueuedMessageWaitingOn | null;
-  sendAt: number | null;
-}
+type Envelope = "threadId" | "senderThreadId" | "sendAt" | "content";
+type Execution = "model" | "reasoningLevel" | "permissionMode" | "serviceTier";
 
-function rejected(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
+export interface NewQueuedMessage extends Pick<
+  domain.ThreadQueuedMessage,
+  Envelope | Execution | "waitingOn"
+> {
+  systemNotice: domain.QueuedMessageSystemNotice | null;
 }
 
 export function queuedMessageNotFound(): ApiError {
   return new ApiError(404, "invalid_request", "Queued message not found");
 }
 
-const contentSchema = z.array(promptInputSchema).min(1);
+const contentSchema = z.array(domain.promptInputSchema).min(1);
 
 export function listQueuedMessages(db: Db, threadId: string) {
   return db.all<QueuedMessageRow>(
@@ -79,8 +51,8 @@ export function getQueuedMessage(db: Db, threadId: string, id: string) {
   );
 }
 
-function encodeOptional(value: object | null): string | null {
-  return value === null ? null : encodeJson(value);
+function encodeOptional(value: object | null) {
+  return value === null ? null : JSON.stringify(value);
 }
 
 export function insertQueuedMessage(
@@ -88,31 +60,17 @@ export function insertQueuedMessage(
   input: NewQueuedMessage,
 ): QueuedMessageRow {
   const id = newId("qmsg");
-  const now = db.now();
   const last = listQueuedMessages(db, input.threadId).at(-1);
-  db.run(
-    `INSERT INTO queued_thread_messages
-       (id, thread_id, content, sender_thread_id, origin, origin_plugin_id,
-        system_notice, model, reasoning_level, permission_mode, service_tier,
-        send_at, waiting_on, sort_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  insertRow(db, "queued_thread_messages", {
+    ...input,
     id,
-    input.threadId,
-    encodeJson(input.content),
-    input.senderThreadId,
-    input.origin,
-    input.originPluginId,
-    encodeOptional(input.systemNotice),
-    input.model,
-    input.reasoningLevel,
-    input.permissionMode,
-    input.serviceTier,
-    input.sendAt,
-    encodeOptional(input.waitingOn),
-    orderKeyBetween(last?.sortKey ?? null, null),
-    now,
-    now,
-  );
+    content: JSON.stringify(input.content),
+    systemNotice: encodeOptional(input.systemNotice),
+    waitingOn: encodeOptional(input.waitingOn),
+    sortKey: orderKeyBetween(last?.sortKey ?? null, null),
+    createdAt: db.now(),
+    updatedAt: db.now(),
+  });
   const row = getQueuedMessage(db, input.threadId, id);
   if (row === undefined) throw new Error("Queued message insert was lost");
   return row;
@@ -127,7 +85,7 @@ export function deleteQueuedMessages(db: Db, ids: readonly string[]): void {
 export function setQueuedMessageWait(
   db: Db,
   rows: readonly QueuedMessageRow[],
-  waitingOn: QueuedMessageWaitingOn | null,
+  waitingOn: domain.QueuedMessageWaitingOn | null,
 ): void {
   for (const row of rows) {
     db.run(
@@ -143,32 +101,34 @@ export function setQueuedMessageWait(
 export function updateQueuedMessageContent(
   db: Db,
   row: QueuedMessageRow,
-  content: PromptInput[],
+  content: domain.PromptInput[],
 ): void {
   db.run(
     "UPDATE queued_thread_messages SET content = ?, updated_at = ? WHERE id = ?",
-    encodeJson(content),
+    JSON.stringify(content),
     Math.max(db.now(), row.updatedAt + 1),
     row.id,
   );
 }
 
-export function parseQueuedContent(row: QueuedMessageRow): PromptInput[] {
+export function parseQueuedContent(
+  row: QueuedMessageRow,
+): domain.PromptInput[] {
   return decodeJson(contentSchema, row.content);
 }
 
 export function parseQueuedWait(
   row: QueuedMessageRow,
-): QueuedMessageWaitingOn | null {
+): domain.QueuedMessageWaitingOn | null {
   if (row.waitingOn === null) return null;
-  return decodeJson(queuedMessageWaitingOnSchema, row.waitingOn);
+  return decodeJson(domain.queuedMessageWaitingOnSchema, row.waitingOn);
 }
 
 export function parseQueuedNotice(
   row: QueuedMessageRow,
-): QueuedMessageSystemNotice | null {
+): domain.QueuedMessageSystemNotice | null {
   if (row.systemNotice === null) return null;
-  return decodeJson(queuedMessageSystemNoticeSchema, row.systemNotice);
+  return decodeJson(domain.queuedMessageSystemNoticeSchema, row.systemNotice);
 }
 
 export function sharesGroupEnvelope(
@@ -202,7 +162,7 @@ function setGroupFlags(
   db: Db,
   rows: readonly QueuedMessageRow[],
   groupedCount: number,
-): void {
+) {
   rows.forEach((row, index) => {
     const flag = index < groupedCount - 1 ? 1 : 0;
     if (row.groupWithNext === flag) return;
@@ -221,7 +181,7 @@ function applyGroupBoundary(
   threadId: string,
   boundaryId: string,
   expectedPrefixIds: readonly string[] | null,
-): QueuedMessageRow[] {
+) {
   const rows = listQueuedMessages(db, threadId);
   const boundary = rows.findIndex((row) => row.id === boundaryId);
   if (boundary < 0) throw queuedMessageNotFound();
@@ -253,19 +213,15 @@ export function setQueuedMessageGroupBoundary(
   );
 }
 
-export interface QueueReorder {
-  threadId: string;
-  id: string;
-  previousId: string | null;
-  nextId: string | null;
-  boundaryId: string | undefined;
-}
-
 export function reorderQueuedMessage(
   db: Db,
-  move: QueueReorder,
+  threadId: string,
+  id: string,
+  move: ReorderQueuedMessageRequest,
 ): QueuedMessageRow[] {
-  const { threadId, id, previousId, nextId, boundaryId } = move;
+  const previousId = move.previousQueuedMessageId;
+  const nextId = move.nextQueuedMessageId;
+  const boundaryId = move.groupBoundaryQueuedMessageId;
   return db.transaction(() => {
     const rows = listQueuedMessages(db, threadId);
     const index = rows.findIndex((row) => row.id === id);
@@ -307,7 +263,7 @@ export function reorderQueuedMessage(
 
 export function listThreadIdsWaitingOn(
   db: Db,
-  kind: QueuedMessageWaitingOnKind,
+  kind: domain.QueuedMessageWaitingOnKind,
   dueBy?: number,
 ): string[] {
   const rows = db.all<{ threadId: string }>(
@@ -328,7 +284,7 @@ export function queuedInitiator(row: QueuedMessageRow) {
 
 export function toThreadQueuedMessage(
   row: QueuedMessageRow,
-): ThreadQueuedMessage {
+): domain.ThreadQueuedMessage {
   return {
     id: row.id,
     origin: row.origin,
