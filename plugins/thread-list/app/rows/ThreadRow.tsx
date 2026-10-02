@@ -70,7 +70,7 @@ import { useSidebarProjectName } from "../model/use-sidebar-data.js";
 import { sidebarShowProviderIconsAtom } from "../preferences.js";
 import { SidebarStickyTier } from "../ui/sidebar.js";
 import { SidebarChildToggleChevron } from "./SidebarChildToggleChevron.js";
-import { useSidebarRename } from "./SidebarInlineRename.js";
+import { useSidebarRename } from "@bb/shared-ui/sidebar-inline-rename";
 import { SidebarRowControls } from "./SidebarRowControls.js";
 import {
   ThreadActionsContextMenu,
@@ -527,7 +527,6 @@ function ThreadRowComponent({
     onClick: isEditing ? undefined : handleRowClick,
     onClickCapture:
       !isEditing && consumeClickSuppression ? handleRowClickCapture : undefined,
-    onPointerDown: isEditing ? undefined : split.splitProps.onPointerDown,
   };
 
   return (

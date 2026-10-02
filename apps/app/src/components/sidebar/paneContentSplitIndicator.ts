@@ -1,80 +1,33 @@
-import { useMemo } from "react";
-import { atom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
+import type { PluginSidebarSplitPane } from "@bb/plugin/app";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import {
   computePaneRects,
-  countPanes,
   findPaneByContent,
   listPanes,
   type PaneContent,
-  type PaneRect,
-  type SplitLayout,
 } from "@/lib/split-layout";
 
-export interface MiniMapSlot {
-  paneId: string;
-  rect: PaneRect;
-  isMe: boolean;
-  isFocused: boolean;
-}
-
-interface PaneContentSplitIndicator {
-  isOpenInSplit: boolean;
-  miniMap: MiniMapSlot[] | null;
-}
-
-const NO_INDICATOR: PaneContentSplitIndicator = {
-  isOpenInSplit: false,
-  miniMap: null,
-};
-
-const NULL_LAYOUT_ATOM = atom<SplitLayout | null>(null);
-
-function useSplitLayoutForIndicator(enabled: boolean): SplitLayout | null {
-  return useAtomValue(enabled ? splitLayoutAtom : NULL_LAYOUT_ATOM);
-}
-
-function buildSplitIndicator(
-  layout: SplitLayout,
-  matchingPaneIds: ReadonlySet<string>,
-): PaneContentSplitIndicator {
-  if (matchingPaneIds.size === 0) {
-    return NO_INDICATOR;
-  }
+export function usePaneContentSplitPanes(
+  content: PaneContent | null,
+): readonly PluginSidebarSplitPane[] | null {
+  const layout = useAtomValue(splitLayoutAtom);
+  if (content === null || layout === null) return null;
+  const panes = listPanes(layout.root);
+  const mine = findPaneByContent(layout.root, content);
+  if (panes.length < 2 || mine === null) return null;
   const rects = computePaneRects(layout.root);
-  const miniMap: MiniMapSlot[] = listPanes(layout.root).flatMap((entry) => {
-    const rect = rects.get(entry.paneId);
+  return panes.flatMap(({ paneId }) => {
+    const rect = rects.get(paneId);
     return rect === undefined
       ? []
       : [
           {
-            paneId: entry.paneId,
-            rect,
-            isMe: matchingPaneIds.has(entry.paneId),
-            isFocused: entry.paneId === layout.focusedPaneId,
+            paneId,
+            rect: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
+            isMe: paneId === mine.paneId,
+            isFocused: paneId === layout.focusedPaneId,
           },
         ];
   });
-  return {
-    isOpenInSplit: true,
-    miniMap,
-  };
-}
-
-export function usePaneContentSplitIndicator(
-  content: PaneContent,
-  enabled: boolean,
-): PaneContentSplitIndicator {
-  const layout = useSplitLayoutForIndicator(enabled);
-
-  return useMemo<PaneContentSplitIndicator>(() => {
-    if (!enabled || layout === null || countPanes(layout.root) < 2) {
-      return NO_INDICATOR;
-    }
-    const pane = findPaneByContent(layout.root, content);
-    if (pane === null) {
-      return NO_INDICATOR;
-    }
-    return buildSplitIndicator(layout, new Set([pane.paneId]));
-  }, [content, enabled, layout]);
 }

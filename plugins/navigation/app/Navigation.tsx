@@ -1,21 +1,10 @@
-import {
-  useCallback,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import {
   SidebarNavigationIcon as NavigationIcon,
   useSidebarNavigation,
   useSidebarNavigationSplit,
   type SidebarNavigationItem,
 } from "@bb/plugin/app";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import {
@@ -44,15 +33,8 @@ import {
   SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
 } from "@bb/shared-ui/sidebar-row-classes";
 import {
-  useSidebarSortable,
-  type SidebarSortableDragBindings,
-} from "@bb/shared-ui/sortable-motion";
-import { useSidebarReorderDnd } from "@bb/shared-ui/use-sidebar-reorder-dnd";
-import {
-  SidebarCustomizeActionContent,
   SidebarMore,
   SidebarOverflowItem,
-  SidebarVisibilityActionContent,
 } from "./ui/SidebarVisibilityControls.js";
 import { SplitPaneMiniMap } from "@bb/shared-ui/split-pane-mini-map";
 
@@ -75,18 +57,6 @@ function RowMenuItems({
   const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
   const Separator =
     surface === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
-  if (item.pluginId === null) {
-    return (
-      <>
-        <Item onSelect={() => actions.setVisible(item.id, false)}>
-          <SidebarVisibilityActionContent visible />
-        </Item>
-        <Item onSelect={() => actions.openCustomize()}>
-          <SidebarCustomizeActionContent label="Customize sidebar" />
-        </Item>
-      </>
-    );
-  }
   return (
     <>
       {canOpenInSplit ? (
@@ -100,13 +70,6 @@ function RowMenuItems({
           <Separator />
         </>
       ) : null}
-      <Item onSelect={() => actions.setVisible(item.id, false)}>
-        <SidebarVisibilityActionContent visible />
-      </Item>
-      <Item onSelect={() => actions.openCustomize()}>
-        <SidebarCustomizeActionContent label="Customize sidebar" />
-      </Item>
-      <Separator />
       <Item disabled={disablePending} onSelect={onDisable}>
         <Icon name="Unavailable" aria-hidden="true" />
         Disable
@@ -115,38 +78,7 @@ function RowMenuItems({
   );
 }
 
-function NavigationRow({
-  item,
-  reorderDisabled,
-}: {
-  item: SidebarNavigationItem;
-  reorderDisabled: boolean;
-}) {
-  const sortable = useSidebarSortable({
-    id: item.id,
-    disabled: reorderDisabled || item.pluginId === null,
-  });
-  return (
-    <NavigationRowChrome
-      item={item}
-      dragBindings={item.pluginId === null ? undefined : sortable.dragBindings}
-      rowRef={sortable.setNodeRef}
-      rowStyle={sortable.style}
-    />
-  );
-}
-
-function NavigationRowChrome({
-  item,
-  dragBindings,
-  rowRef,
-  rowStyle,
-}: {
-  item: SidebarNavigationItem;
-  dragBindings: SidebarSortableDragBindings | undefined;
-  rowRef: (element: HTMLElement | null) => void;
-  rowStyle: CSSProperties;
-}) {
+function NavigationRow({ item }: { item: SidebarNavigationItem }) {
   const { activeItemId, actions, isShortcutModifierHeld } =
     useSidebarNavigation();
   const split = useSidebarNavigationSplit(item.id);
@@ -157,8 +89,6 @@ function NavigationRowChrome({
   const isActive =
     item.id === activeItemId && item.action.kind !== "new-thread";
   const Accessory = item.Accessory;
-  const { onKeyDown: _keyboardDragActivator, ...pointerDragListeners } =
-    dragBindings?.listeners ?? {};
   const onDisable = useCallback(() => {
     setDisablePending(true);
     actions
@@ -176,119 +106,111 @@ function NavigationRowChrome({
     />
   );
   const shortcut = isShortcutModifierHeld ? item.shortcut : null;
-  const optionsLabel =
-    item.pluginId === null
-      ? `${item.label} options`
-      : `${item.label} panel options`;
+  const optionsLabel = `${item.label} panel options`;
+  const hasMenu = item.pluginId !== null;
+  const row = (
+    <div
+      className={cn(
+        SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
+        "relative",
+        !item.isLoading &&
+          "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
+      )}
+      data-sidebar-navigation-item={item.id}
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className={cn(
+          PROJECT_LIST_ACTION_BUTTON_CLASS,
+          "group/nav-row w-full",
+          shortcut ? "pr-0" : "pr-7",
+          Accessory && "pr-18",
+          (isActive || isContextMenuOpen) &&
+            "bg-sidebar-accent text-sidebar-foreground",
+          item.isLoading &&
+            "text-sidebar-foreground/55 dark:text-sidebar-foreground/55 [&_[data-icon-root]]:opacity-60",
+        )}
+        disabled={item.isDisabled}
+        aria-busy={item.isLoading || undefined}
+        aria-current={isActive ? "page" : undefined}
+        aria-keyshortcuts={item.shortcut?.ariaKeyShortcuts}
+        aria-label={
+          item.shortcut ? `${item.label} (${item.shortcut.label})` : undefined
+        }
+        onClick={(event) =>
+          actions.activate(item.id, {
+            openInSplit: event.metaKey || event.ctrlKey,
+          })
+        }
+      >
+        <NavigationIcon icon={item.icon} />
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          {split.layout ? (
+            <SplitPaneMiniMap
+              slots={split.layout.panes}
+              label={`${item.label} — open in split`}
+            />
+          ) : null}
+          {shortcut ? <AppCommandShortcutPill shortcut={shortcut} /> : null}
+        </span>
+      </Button>
+      {Accessory ? (
+        <span
+          data-plugin-nav-sidebar-accessory=""
+          data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+          className={cn(
+            SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+            "pointer-events-none absolute right-1 top-1/2 block min-w-5 max-h-5 max-w-16 -translate-y-1/2 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-center leading-5",
+          )}
+        >
+          <Accessory />
+        </span>
+      ) : null}
+      {hasMenu ? (
+        <div
+          data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+          className={cn(
+            SIDEBAR_HOVER_ACTIONS_CLASS,
+            "absolute inset-y-0 right-0 flex items-center",
+            shortcut && "hidden",
+          )}
+        >
+          <DropdownMenu onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={optionsLabel}
+                className={cn(
+                  "rounded-md p-0",
+                  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+                  SIDEBAR_CONTROL_STATE_CLASS,
+                  isContextMenuOpen && "bg-state-active",
+                )}
+              >
+                <Icon
+                  name="MoreHorizontal"
+                  className={COARSE_POINTER_ICON_SIZE_CLASS}
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {menuItems("dropdown")}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
+    </div>
+  );
+  if (!hasMenu) return row;
 
   return (
     <ContextMenu onOpenChange={setIsContextMenuOpen}>
-      <ContextMenuTrigger asChild>
-        <div
-          ref={rowRef}
-          style={rowStyle}
-          className={cn(
-            SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-            "relative",
-            !item.isLoading &&
-              "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
-          )}
-          data-sidebar-navigation-item={item.id}
-        >
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className={cn(
-              PROJECT_LIST_ACTION_BUTTON_CLASS,
-              "group/nav-row w-full",
-              shortcut ? "pr-0" : "pr-7",
-              Accessory && "pr-18",
-              (isActive || isContextMenuOpen) &&
-                "bg-sidebar-accent text-sidebar-foreground",
-              item.isLoading &&
-                "text-sidebar-foreground/55 dark:text-sidebar-foreground/55 [&_[data-icon-root]]:opacity-60",
-            )}
-            disabled={item.isDisabled}
-            aria-busy={item.isLoading || undefined}
-            aria-current={isActive ? "page" : undefined}
-            aria-keyshortcuts={item.shortcut?.ariaKeyShortcuts}
-            aria-label={
-              item.shortcut
-                ? `${item.label} (${item.shortcut.label})`
-                : undefined
-            }
-            ref={dragBindings?.setActivatorNodeRef}
-            {...dragBindings?.attributes}
-            {...pointerDragListeners}
-            {...split.splitProps}
-            onClick={(event) =>
-              actions.activate(item.id, {
-                openInSplit: event.metaKey || event.ctrlKey,
-              })
-            }
-          >
-            <NavigationIcon icon={item.icon} />
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {split.layout ? (
-                <SplitPaneMiniMap
-                  slots={split.layout.panes}
-                  label={`${item.label} — open in split`}
-                />
-              ) : null}
-              {shortcut ? <AppCommandShortcutPill shortcut={shortcut} /> : null}
-            </span>
-          </Button>
-          {Accessory ? (
-            <span
-              data-plugin-nav-sidebar-accessory=""
-              data-sidebar-hover-actions-open={
-                isActionsOpen ? "true" : undefined
-              }
-              className={cn(
-                SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-                "pointer-events-none absolute right-1 top-1/2 block min-w-5 max-h-5 max-w-16 -translate-y-1/2 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-center leading-5",
-              )}
-            >
-              <Accessory />
-            </span>
-          ) : null}
-          <div
-            data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-            className={cn(
-              SIDEBAR_HOVER_ACTIONS_CLASS,
-              "absolute inset-y-0 right-0 flex items-center",
-              shortcut && "hidden",
-            )}
-          >
-            <DropdownMenu onOpenChange={setIsDropdownOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={optionsLabel}
-                  className={cn(
-                    "rounded-md p-0",
-                    SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
-                    SIDEBAR_CONTROL_STATE_CLASS,
-                    isContextMenuOpen && "bg-state-active",
-                  )}
-                >
-                  <Icon
-                    name="MoreHorizontal"
-                    className={COARSE_POINTER_ICON_SIZE_CLASS}
-                  />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {menuItems("dropdown")}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </ContextMenuTrigger>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
       <ContextMenuContent aria-label={optionsLabel}>
         {menuItems("context")}
       </ContextMenuContent>
@@ -304,16 +226,10 @@ function OverflowItem({
   onClose: () => void;
 }) {
   const { actions } = useSidebarNavigation();
-  const split = useSidebarNavigationSplit(item.id, {
-    activation: "distance",
-    onDragStart: onClose,
-  });
+  const split = useSidebarNavigationSplit(item.id);
   const canSplit = split.isAvailable && !item.isDisabled;
   return (
     <SidebarOverflowItem
-      {...(canSplit && split.splitProps.onPointerDown
-        ? { onPointerDown: split.splitProps.onPointerDown }
-        : {})}
       item={{
         id: item.id,
         title: item.label,
@@ -325,7 +241,6 @@ function OverflowItem({
           openInSplit: event.metaKey || event.ctrlKey,
         })
       }
-      onAddToSidebar={(id) => actions.setVisible(id, true)}
       onClose={onClose}
       additionalActions={
         <DropdownMenuItem
@@ -345,64 +260,25 @@ function OverflowItem({
 }
 
 export function Navigation() {
-  const { actions, items } = useSidebarNavigation();
+  const { items } = useSidebarNavigation();
   const visible = items.filter((item) => item.isVisible);
   const hidden = items.filter((item) => !item.isVisible);
-  const visibleIds = visible.map((item) => item.id);
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const activeId = event.active.id;
-      const overId = event.over?.id;
-      if (typeof activeId !== "string" || typeof overId !== "string") return;
-      const from = visibleIds.indexOf(activeId);
-      const to = visibleIds.indexOf(overId);
-      if (from === -1 || to === -1 || from === to) return;
-      const nextVisible = arrayMove(visibleIds, from, to);
-      let cursor = 0;
-      actions.setOrder(
-        items.map((item) =>
-          item.isVisible ? (nextVisible[cursor++] ?? item.id) : item.id,
-        ),
-      );
-    },
-    [actions, items, visibleIds],
-  );
-  const { dndContextProps, onClickCapture } = useSidebarReorderDnd({
-    onDragEnd: handleDragEnd,
-  });
 
   if (items.length === 0) return null;
-  const reorderDisabled =
-    visible.filter((item) => item.pluginId !== null).length < 2;
 
   return (
     <>
       <div
         className="relative shrink-0 space-y-0.5 px-2 py-2"
         data-testid="plugin-nav-sidebar-items"
-        onClickCapture={onClickCapture}
       >
-        <DndContext {...dndContextProps}>
-          <SortableContext
-            items={visibleIds}
-            strategy={verticalListSortingStrategy}
-          >
-            {visible.map((item) => (
-              <NavigationRow
-                key={item.id}
-                item={item}
-                reorderDisabled={reorderDisabled}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+        {visible.map((item) => (
+          <NavigationRow key={item.id} item={item} />
+        ))}
         {hidden.length > 0 ? (
           <SidebarMore
             ariaLabel="More sidebar navigation"
             listLabel="More navigation"
-            customizeLabel="Customize sidebar"
-            onCustomize={() => actions.openCustomize()}
           >
             {(close) =>
               hidden.map((item) => (

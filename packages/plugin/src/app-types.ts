@@ -2,7 +2,6 @@ import type {
   ComponentPropsWithoutRef,
   ComponentType,
   CSSProperties,
-  PointerEvent,
   ReactNode,
 } from "react";
 import type {
@@ -94,9 +93,6 @@ export interface SidebarNavigationItem {
 
 export interface SidebarNavigationActions {
   activate(itemId: string, options: { openInSplit: boolean }): void;
-  setVisible(itemId: string, isVisible: boolean): void;
-  setOrder(itemIds: readonly string[]): void;
-  openCustomize(): void;
   disablePlugin(itemId: string): Promise<void>;
 }
 
@@ -115,14 +111,8 @@ export interface PluginSidebarSplitPane {
 }
 
 export interface PluginSidebarThreadSplit {
-  splitProps: { onPointerDown?: (event: PointerEvent<HTMLElement>) => void };
   isAvailable: boolean;
   layout: { panes: readonly PluginSidebarSplitPane[] } | null;
-}
-
-export interface SidebarNavigationSplitOptions {
-  activation?: "sidebar" | "distance";
-  onDragStart?: () => void;
 }
 
 export interface SidebarNavigationIconProps {

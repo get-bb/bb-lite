@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import type { ProjectResponse } from "@bb/server-contract";
 import {
@@ -8,7 +7,6 @@ import {
 } from "@bb/shared-ui/confirm-delete-dialog";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { RenameDialog } from "@/components/dialogs/RenameDialog";
-import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";
 import {
   useAddLocalProjectSource,
   useDeleteProject,
@@ -38,7 +36,6 @@ export function useProjectActions(): ProjectActions {
 export function ProjectActionsProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useRouteState();
-  const setCollapsedProjectIds = useSetAtom(collapsedProjectIdsAtom);
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
   const addLocalSource = useAddLocalProjectSource();
@@ -105,9 +102,6 @@ export function ProjectActionsProvider({ children }: { children: ReactNode }) {
               deleteProject.mutate(deleteTarget.id, {
                 onSuccess: () => {
                   setDeleteTarget(null);
-                  setCollapsedProjectIds((current) =>
-                    current.filter((id) => id !== deleteTarget.id),
-                  );
                   if (routeProjectId === deleteTarget.id) {
                     navigate(getRootComposeRoutePath(), { replace: true });
                   }

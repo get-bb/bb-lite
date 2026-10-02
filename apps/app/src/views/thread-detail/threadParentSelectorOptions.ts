@@ -1,26 +1,9 @@
 import type { ThreadListEntry } from "@bb/domain";
 
-interface ParentSelectorOption {
-  label: string;
-  value: string;
-}
-
 interface ThreadAssignmentState {
   id: string;
   parentThreadId: string | null;
   visibility?: ThreadListEntry["visibility"];
-}
-
-interface CollectDescendantThreadIdsArgs {
-  currentThreadId: string;
-  threads: readonly ThreadListEntry[];
-}
-
-interface BuildParentSelectorOptionsArgs {
-  currentThreadId: string | undefined;
-  parentThreads: readonly ThreadListEntry[];
-  parentThreadDisplayName: string | null | undefined;
-  parentThreadId: string | null | undefined;
 }
 
 export function isRootThread(
@@ -29,40 +12,8 @@ export function isRootThread(
   return (
     thread !== undefined &&
     thread.parentThreadId === null &&
-    !isHiddenThread(thread)
+    thread.visibility !== "hidden"
   );
-}
-
-function isHiddenThread(
-  thread: Pick<ThreadAssignmentState, "visibility">,
-): boolean {
-  return thread.visibility === "hidden";
-}
-
-function collectDescendantThreadIds({
-  currentThreadId,
-  threads,
-}: CollectDescendantThreadIdsArgs): Set<string> {
-  const childrenByParentId = new Map<string, ThreadListEntry[]>();
-  for (const thread of threads) {
-    if (thread.parentThreadId === null) continue;
-    const children = childrenByParentId.get(thread.parentThreadId);
-    if (children) {
-      children.push(thread);
-    } else {
-      childrenByParentId.set(thread.parentThreadId, [thread]);
-    }
-  }
-
-  const descendantThreadIds = new Set<string>();
-  const stack = [...(childrenByParentId.get(currentThreadId) ?? [])];
-  while (stack.length > 0) {
-    const child = stack.pop();
-    if (child === undefined || descendantThreadIds.has(child.id)) continue;
-    descendantThreadIds.add(child.id);
-    stack.push(...(childrenByParentId.get(child.id) ?? []));
-  }
-  return descendantThreadIds;
 }
 
 export function buildParentSelectorOptions({
@@ -70,54 +21,44 @@ export function buildParentSelectorOptions({
   parentThreads,
   parentThreadDisplayName,
   parentThreadId,
-}: BuildParentSelectorOptionsArgs): ParentSelectorOption[] {
-  if (!currentThreadId) {
-    return [];
+}: {
+  currentThreadId: string | undefined;
+  parentThreads: readonly ThreadListEntry[];
+  parentThreadDisplayName: string | null | undefined;
+  parentThreadId: string | null | undefined;
+}): { label: string; value: string }[] {
+  if (!currentThreadId) return [];
+  const childrenOf = (id: string) =>
+    parentThreads.filter((thread) => thread.parentThreadId === id);
+  const excluded = new Set(["none", currentThreadId]);
+  const stack = childrenOf(currentThreadId);
+  for (let child = stack.pop(); child; child = stack.pop()) {
+    if (excluded.has(child.id)) continue;
+    excluded.add(child.id);
+    stack.push(...childrenOf(child.id));
   }
-
-  const descendantThreadIds = collectDescendantThreadIds({
-    currentThreadId,
-    threads: parentThreads,
-  });
-  const options: ParentSelectorOption[] = [{ value: "none", label: "None" }];
-  const seen = new Set<string>(["none"]);
-  const addOption = (value: string | undefined, label: string) => {
-    if (
-      !value ||
-      value === currentThreadId ||
-      descendantThreadIds.has(value) ||
-      seen.has(value)
-    ) {
-      return;
-    }
-    seen.add(value);
+  const options = [{ value: "none", label: "None" }];
+  const addOption = (value: string | null | undefined, label: string) => {
+    if (!value || excluded.has(value)) return;
+    excluded.add(value);
     options.push({ value, label });
   };
-
-  addOption(
-    parentThreadId ?? undefined,
-    parentThreadDisplayName ?? "Parent thread",
+  addOption(parentThreadId, parentThreadDisplayName ?? "Parent thread");
+  const withChildren = new Set(
+    parentThreads.map((thread) => thread.parentThreadId),
   );
-  const threadIdsWithChildren = new Set<string>();
-  for (const thread of parentThreads) {
-    if (thread.parentThreadId !== null) {
-      threadIdsWithChildren.add(thread.parentThreadId);
-    }
-  }
   for (const hasChildren of [true, false]) {
-    for (const parentThread of parentThreads) {
+    for (const thread of parentThreads) {
       if (
-        isHiddenThread(parentThread) ||
-        threadIdsWithChildren.has(parentThread.id) !== hasChildren
+        thread.visibility !== "hidden" &&
+        withChildren.has(thread.id) === hasChildren
       ) {
-        continue;
+        addOption(
+          thread.id,
+          thread.title?.trim() ? thread.title : "Parent thread",
+        );
       }
-      addOption(
-        parentThread.id,
-        parentThread.title?.trim() ? parentThread.title : "Parent thread",
-      );
     }
   }
-
   return options;
 }

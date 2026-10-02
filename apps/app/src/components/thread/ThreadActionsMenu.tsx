@@ -20,12 +20,6 @@ import { isThreadRead } from "@bb/client-core";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import { getThreadRoutePath } from "@/lib/route-paths";
 import { useThreadActions } from "./ThreadActionsProvider";
-import { useThreadSectionMove } from "./ThreadSectionMoveProvider";
-
-interface ThreadActionsMenuBaseProps {
-  thread: Thread;
-  onOpenInSplit?: () => void;
-}
 
 export interface ThreadActionsMenuResponsiveAction {
   icon: IconName;
@@ -33,51 +27,17 @@ export interface ThreadActionsMenuResponsiveAction {
   onSelect: () => void | Promise<void>;
 }
 
-interface ThreadActionsMenuProps extends ThreadActionsMenuBaseProps {
-  onOpenChange?: (open: boolean) => void;
-  triggerClassName?: string;
-  responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
-}
-
-interface ThreadActionsMenuItemsProps extends ThreadActionsMenuBaseProps {
-  responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
-}
-
 function ThreadSectionMoveMenu({ thread }: { thread: Thread }) {
-  const sectionMove = useThreadSectionMove();
+  const { sectionDestinations, moveToSection } = useThreadActions();
+  const isCurrent = (sectionId: string | null) =>
+    thread.pinnedAt === null && thread.sectionId === sectionId;
   if (
-    !sectionMove ||
     thread.parentThreadId !== null ||
-    thread.archivedAt !== null
+    thread.archivedAt !== null ||
+    sectionDestinations.every(({ sectionId }) => isCurrent(sectionId))
   ) {
     return null;
   }
-
-  const hasValidDestination = sectionMove.destinations.some(
-    (destination) =>
-      thread.pinnedAt !== null || thread.sectionId !== destination.sectionId,
-  );
-  if (!hasValidDestination) return null;
-
-  const items = sectionMove.destinations.map((destination) => {
-    const isCurrent =
-      thread.pinnedAt === null && thread.sectionId === destination.sectionId;
-    return (
-      <DropdownMenuItem
-        key={destination.sectionId ?? "threads"}
-        aria-current={isCurrent ? "true" : undefined}
-        className="flex items-center justify-between gap-3"
-        disabled={isCurrent}
-        onSelect={() => sectionMove.moveThread(thread, destination.sectionId)}
-      >
-        <span className="min-w-0 flex-1 truncate">{destination.label}</span>
-        {isCurrent ? (
-          <Icon name="Check" className="ml-auto" aria-hidden="true" />
-        ) : null}
-      </DropdownMenuItem>
-    );
-  });
-
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
@@ -85,149 +45,43 @@ function ThreadSectionMoveMenu({ thread }: { thread: Thread }) {
         Move to section
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-h-[min(24rem,calc(100vh-2rem))] min-w-44 overflow-y-auto">
-        {items}
+        {sectionDestinations.map(({ sectionId, label }) => (
+          <DropdownMenuItem
+            key={sectionId ?? "threads"}
+            aria-current={isCurrent(sectionId) ? "true" : undefined}
+            className="flex items-center justify-between gap-3"
+            disabled={isCurrent(sectionId)}
+            onSelect={() => moveToSection(thread, sectionId)}
+          >
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            {isCurrent(sectionId) ? (
+              <Icon name="Check" className="ml-auto" aria-hidden="true" />
+            ) : null}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );
 }
 
-function ThreadActionsMenuItems({
+export function ThreadActionsMenu({
   thread,
-  onOpenInSplit,
   responsiveActions = [],
-}: ThreadActionsMenuItemsProps) {
-  const {
-    requestArchive,
-    requestRename,
-    requestDelete,
-    togglePin,
-    toggleRead,
-    unarchiveThread,
-  } = useThreadActions();
+  triggerClassName,
+}: {
+  thread: Thread;
+  triggerClassName?: string;
+  responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
+}) {
+  const actions = useThreadActions();
   const isRead = isThreadRead(thread);
   const isArchived = thread.archivedAt != null;
   const isPinned = thread.pinnedAt !== null;
-  const threadUrl = new URL(
-    getThreadRoutePath({ projectId: thread.projectId, threadId: thread.id }),
-    window.location.origin,
-  ).toString();
-
+  const afterMenuCloses = (run: (thread: Thread) => void) => () => {
+    window.setTimeout(() => run(thread), 0);
+  };
   return (
-    <>
-      {responsiveActions.length > 0 ? (
-        <>
-          {responsiveActions.map((action) => (
-            <ActionMenuItem
-              key={action.label}
-              surface="dropdown"
-              icon={action.icon}
-              onSelect={() => {
-                void action.onSelect();
-              }}
-            >
-              {action.label}
-            </ActionMenuItem>
-          ))}
-          <ActionMenuSeparator surface="dropdown" />
-        </>
-      ) : null}
-      {onOpenInSplit ? (
-        <>
-          <ActionMenuItem
-            surface="dropdown"
-            icon="Columns2"
-            onSelect={() => {
-              onOpenInSplit();
-            }}
-          >
-            Open in split
-          </ActionMenuItem>
-          <ActionMenuSeparator surface="dropdown" />
-        </>
-      ) : null}
-      <ActionMenuItem
-        surface="dropdown"
-        icon="Copy"
-        onSelect={() => {
-          void copyToClipboardWithToast(threadUrl, {
-            successMessage: "Thread link copied",
-            errorMessage: "Failed to copy thread link",
-          });
-        }}
-      >
-        Copy thread link
-      </ActionMenuItem>
-      <ActionMenuItem
-        surface="dropdown"
-        icon={isRead ? "Mail" : "MailOpen"}
-        onSelect={() => {
-          toggleRead(thread);
-        }}
-      >
-        {isRead ? "Mark unread" : "Mark read"}
-      </ActionMenuItem>
-      <ActionMenuItem
-        surface="dropdown"
-        icon={isPinned ? "PinOff" : "Pin"}
-        onSelect={() => {
-          togglePin(thread);
-        }}
-      >
-        {isPinned ? "Unpin" : "Pin"}
-      </ActionMenuItem>
-      <ThreadSectionMoveMenu thread={thread} />
-      <ActionMenuItem
-        surface="dropdown"
-        icon="Edit"
-        onSelect={() => {
-          window.setTimeout(() => {
-            requestRename(thread);
-          }, 0);
-        }}
-      >
-        Rename
-      </ActionMenuItem>
-      <ActionMenuSeparator surface="dropdown" />
-      <ActionMenuItem
-        surface="dropdown"
-        icon={isArchived ? "ArchiveRestore" : "Archive"}
-        onSelect={() => {
-          if (isArchived) {
-            unarchiveThread(thread);
-            return;
-          }
-          window.setTimeout(() => {
-            requestArchive(thread);
-          }, 0);
-        }}
-      >
-        {isArchived ? "Unarchive" : "Archive"}
-      </ActionMenuItem>
-      <ActionMenuItem
-        surface="dropdown"
-        icon="Trash2"
-        variant="destructive"
-        onSelect={() => {
-          window.setTimeout(() => {
-            requestDelete(thread);
-          }, 0);
-        }}
-      >
-        Delete
-      </ActionMenuItem>
-    </>
-  );
-}
-
-export function ThreadActionsMenu({
-  thread,
-  onOpenInSplit,
-  responsiveActions,
-  onOpenChange,
-  triggerClassName,
-}: ThreadActionsMenuProps) {
-  return (
-    <DropdownMenu onOpenChange={onOpenChange}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -250,11 +104,84 @@ export function ThreadActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <ThreadActionsMenuItems
-          thread={thread}
-          onOpenInSplit={onOpenInSplit}
-          responsiveActions={responsiveActions}
-        />
+        {responsiveActions.map((action) => (
+          <ActionMenuItem
+            key={action.label}
+            surface="dropdown"
+            icon={action.icon}
+            onSelect={() => {
+              void action.onSelect();
+            }}
+          >
+            {action.label}
+          </ActionMenuItem>
+        ))}
+        {responsiveActions.length > 0 ? (
+          <ActionMenuSeparator surface="dropdown" />
+        ) : null}
+        <ActionMenuItem
+          surface="dropdown"
+          icon="Copy"
+          onSelect={() => {
+            void copyToClipboardWithToast(
+              new URL(
+                getThreadRoutePath({
+                  projectId: thread.projectId,
+                  threadId: thread.id,
+                }),
+                window.location.origin,
+              ).toString(),
+              {
+                successMessage: "Thread link copied",
+                errorMessage: "Failed to copy thread link",
+              },
+            );
+          }}
+        >
+          Copy thread link
+        </ActionMenuItem>
+        <ActionMenuItem
+          surface="dropdown"
+          icon={isRead ? "Mail" : "MailOpen"}
+          onSelect={() => actions.toggleRead(thread)}
+        >
+          {isRead ? "Mark unread" : "Mark read"}
+        </ActionMenuItem>
+        <ActionMenuItem
+          surface="dropdown"
+          icon={isPinned ? "PinOff" : "Pin"}
+          onSelect={() => actions.togglePin(thread)}
+        >
+          {isPinned ? "Unpin" : "Pin"}
+        </ActionMenuItem>
+        <ThreadSectionMoveMenu thread={thread} />
+        <ActionMenuItem
+          surface="dropdown"
+          icon="Edit"
+          onSelect={afterMenuCloses(actions.requestRename)}
+        >
+          Rename
+        </ActionMenuItem>
+        <ActionMenuSeparator surface="dropdown" />
+        <ActionMenuItem
+          surface="dropdown"
+          icon={isArchived ? "ArchiveRestore" : "Archive"}
+          onSelect={
+            isArchived
+              ? () => actions.unarchiveThread(thread)
+              : afterMenuCloses(actions.requestArchive)
+          }
+        >
+          {isArchived ? "Unarchive" : "Archive"}
+        </ActionMenuItem>
+        <ActionMenuItem
+          surface="dropdown"
+          icon="Trash2"
+          variant="destructive"
+          onSelect={afterMenuCloses(actions.requestDelete)}
+        >
+          Delete
+        </ActionMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

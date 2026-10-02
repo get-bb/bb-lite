@@ -1,14 +1,44 @@
 import { useEffect, useId, useRef } from "react";
-import { BbHttpError } from "@bb/sdk/browser";
-import { cn } from "@bb/shared-ui/lib/utils";
-import type { RenameSession, RenameController } from "./SidebarInlineRename";
+import { Icon } from "./icon.js";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "./coarse-pointer-sizing.js";
+import { cn } from "../../lib/utils";
+import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebar-row-classes.js";
+import type {
+  RenameSession,
+  RenameController,
+} from "./sidebar-inline-rename.js";
 
-export function renameError(error: unknown) {
-  if (error instanceof BbHttpError) {
-    if (error.status === 404 || error.status === 410) {
+interface HttpErrorShape {
+  status: number | null;
+  code: string | null;
+}
+
+function readHttpError(error: unknown): HttpErrorShape | null {
+  if (typeof error !== "object" || error === null) return null;
+  const status =
+    "status" in error && typeof error.status === "number" ? error.status : null;
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : null;
+  if (status === null && code === null) return null;
+  return { status, code };
+}
+
+export function renameError(error: unknown, kind: RenameSession["kind"]) {
+  const http = readHttpError(error);
+  if (http !== null) {
+    if (
+      http.code === "section_name_conflict" ||
+      (kind === "section" && http.status === 409)
+    ) {
+      return {
+        error: "A section with this name already exists.",
+        cannotRetry: false,
+      };
+    }
+    if (http.status === 404 || http.status === 410) {
       return { error: "This item no longer exists.", cannotRetry: true };
     }
-    if (error.status === 401 || error.status === 403) {
+    if (http.status === 401 || http.status === 403) {
       return {
         error: "You do not have permission to rename this item.",
         cannotRetry: true,
@@ -18,7 +48,7 @@ export function renameError(error: unknown) {
   return { error: "Could not save the name. Try again.", cannotRetry: false };
 }
 
-export default function SidebarRenameEditor({
+export function SidebarRenameEditor({
   session,
   controller,
 }: {
@@ -60,11 +90,11 @@ export default function SidebarRenameEditor({
     });
   };
 
-  const submit = async (restore: boolean) => {
+  const submit = async (restore: boolean, clear = false) => {
     restoreFocusRef.current = restore;
     const input = inputRef.current;
     input?.setSelectionRange(input.value.length, input.value.length);
-    const saved = await controller.save();
+    const saved = await controller.save(clear);
     if (saved && restoreFocusRef.current) restoreFocus();
   };
 
@@ -81,7 +111,11 @@ export default function SidebarRenameEditor({
       className="relative z-50 flex min-w-0 flex-1 items-center gap-1"
       aria-busy={isPending}
       onBlur={(event) => {
-        if (openingRef.current) return;
+        if (
+          openingRef.current ||
+          event.currentTarget.contains(event.relatedTarget)
+        )
+          return;
         restoreFocusRef.current = false;
         if (!isPending) void submit(false);
       }}
@@ -121,7 +155,8 @@ export default function SidebarRenameEditor({
         autoCapitalize="sentences"
         autoCorrect="off"
         className={cn(
-          "min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 py-0 [font:inherit] outline-none field-sizing-content",
+          "min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 py-0 [font:inherit] outline-none",
+          session.inputClassName,
           isPending && "animate-shine motion-reduce:opacity-60",
         )}
         spellCheck={false}
@@ -140,6 +175,22 @@ export default function SidebarRenameEditor({
         <span role="status" aria-label="Saving name" className="sr-only">
           Saving name
         </span>
+      )}
+      {session.onClear && session.name && (
+        <button
+          type="button"
+          aria-label="Clear custom name"
+          disabled={isPending || session.cannotRetry}
+          className={cn(
+            SIDEBAR_CONTROL_BUTTON_CLASS,
+            "inline-flex items-center justify-center disabled:opacity-50",
+          )}
+          onClick={(event) => {
+            void submit(event.detail === 0, true);
+          }}
+        >
+          <Icon name="RotateCcw" className={COARSE_POINTER_ICON_SIZE_CLASS} />
+        </button>
       )}
       {session.error && (
         <span

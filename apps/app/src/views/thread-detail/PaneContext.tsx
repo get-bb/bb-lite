@@ -1,10 +1,8 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useLayoutEffect,
   useSyncExternalStore,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
@@ -24,7 +22,6 @@ export interface PaneContextValue {
   isTopRow: boolean;
   ownsWindowTopLeft: boolean;
   navigateInPane: (thread: ThreadRoutePathArgs) => void;
-  beginPaneDrag?: (event: ReactPointerEvent, label: string) => void;
 }
 
 export interface PaneSecondaryPanelViewModel {
@@ -41,43 +38,29 @@ export interface PaneSecondaryPanelRegistration {
   publish: (model: PaneSecondaryPanelViewModel) => void;
 }
 
-type PaneSecondaryPanelRegistryListener = () => void;
-
 export interface PaneSecondaryPanelRegistry {
   clear: (paneId: string) => void;
   getSnapshot: (paneId: string) => PaneSecondaryPanelViewModel | null;
   publish: (paneId: string, model: PaneSecondaryPanelViewModel) => void;
-  subscribe: (
-    paneId: string,
-    listener: PaneSecondaryPanelRegistryListener,
-  ) => () => void;
+  subscribe: (listener: () => void) => () => void;
 }
 
 export function createPaneSecondaryPanelRegistry(): PaneSecondaryPanelRegistry {
   const models = new Map<string, PaneSecondaryPanelViewModel>();
-  const listeners = new Map<string, Set<PaneSecondaryPanelRegistryListener>>();
-  const notify = (paneId: string) => {
-    listeners.get(paneId)?.forEach((listener) => listener());
-  };
-
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((listener) => listener());
   return {
     clear: (paneId) => {
-      if (!models.delete(paneId)) return;
-      notify(paneId);
+      if (models.delete(paneId)) notify();
     },
     getSnapshot: (paneId) => models.get(paneId) ?? null,
     publish: (paneId, model) => {
       models.set(paneId, model);
-      notify(paneId);
+      notify();
     },
-    subscribe: (paneId, listener) => {
-      const paneListeners = listeners.get(paneId) ?? new Set();
-      paneListeners.add(listener);
-      listeners.set(paneId, paneListeners);
-      return () => {
-        paneListeners.delete(listener);
-        if (paneListeners.size === 0) listeners.delete(paneId);
-      };
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   };
 }
@@ -86,16 +69,9 @@ export function usePaneSecondaryPanelModel(
   registry: PaneSecondaryPanelRegistry,
   paneId: string,
 ): PaneSecondaryPanelViewModel | null {
-  const subscribe = useCallback(
-    (listener: PaneSecondaryPanelRegistryListener) =>
-      registry.subscribe(paneId, listener),
-    [paneId, registry],
+  return useSyncExternalStore(registry.subscribe, () =>
+    registry.getSnapshot(paneId),
   );
-  const getSnapshot = useCallback(
-    () => registry.getSnapshot(paneId),
-    [paneId, registry],
-  );
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export function usePaneSecondaryPanelRegistration(
@@ -103,13 +79,9 @@ export function usePaneSecondaryPanelRegistration(
   model: PaneSecondaryPanelViewModel,
 ): void {
   useLayoutEffect(() => {
-    if (registration === null) return;
-    registration.publish(model);
+    registration?.publish(model);
   }, [model, registration]);
-  useLayoutEffect(
-    () => (registration === null ? undefined : registration.clear),
-    [registration],
-  );
+  useLayoutEffect(() => registration?.clear, [registration]);
 }
 
 export const PaneContext = createContext<PaneContextValue | null>(null);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useAtomValue, useStore } from "jotai";
 import {
   getThreadListIndicatorLabel,
@@ -20,25 +20,15 @@ import type {
   PluginSidebarThreadSplit,
   PluginSidebarThreadsState,
   ShortcutHint,
-  SidebarNavigationSplitOptions,
   SidebarNavigationState,
 } from "@bb/plugin/app";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
-import {
-  useSidebarNavigationModel,
-  useSidebarNavigationRowContent,
-} from "@/components/sidebar/SidebarNavigationModel";
-import {
-  usePaneContentSplitIndicator,
-  type MiniMapSlot,
-} from "@/components/sidebar/paneContentSplitIndicator";
+import { useSidebarNavigationModel } from "@/components/sidebar/SidebarNavigationModel";
+import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
 import { useSidebarThreadShortcut as useHostSidebarThreadShortcut } from "@/components/sidebar/sidebarThreadShortcuts";
-import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
-import { useThreadRowSplitDrag } from "@/components/sidebar/useThreadRowSplitDrag";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import {
   resolveThreadTitleDisplayText,
-  useThreadTitleDisplayText,
   useThreadTitleMentionResources,
   type ThreadTitleMentionResources,
 } from "@/components/thread/ThreadTitleMentions";
@@ -393,60 +383,33 @@ export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
   }, [layout]);
 }
 
-function useSplit(
-  miniMap: MiniMapSlot[] | null,
-  onPointerDown: PluginSidebarThreadSplit["splitProps"]["onPointerDown"],
-): PluginSidebarThreadSplit {
+function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
+  const panes = usePaneContentSplitPanes(content);
   return useMemo(
     () => ({
-      splitProps: onPointerDown ? { onPointerDown } : {},
-      isAvailable: onPointerDown !== undefined,
-      layout: miniMap && {
-        panes: miniMap.map(({ rect, ...slot }) => ({
-          ...slot,
-          rect: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
-        })),
-      },
+      isAvailable: content !== null,
+      layout: panes === null ? null : { panes },
     }),
-    [miniMap, onPointerDown],
+    [content, panes],
   );
 }
 
 export function useSidebarThreadSplit(
   threadId: string,
 ): PluginSidebarThreadSplit {
-  const entry = useSidebarThreadEntry(threadId);
-  const projectId = entry?.projectId ?? "";
-  const title = useThreadTitleDisplayText(
-    entry ? getThreadDisplayTitle(entry) : "",
-  );
-  const { onPointerDown } = useThreadRowSplitDrag({
-    projectId,
-    threadId,
-    title,
-  });
-  const content = useMemo<PaneContent>(
-    () => ({ kind: "thread", projectId, threadId }),
+  const projectId = useSidebarThreadEntry(threadId)?.projectId ?? null;
+  const content = useMemo<PaneContent | null>(
+    () => (projectId === null ? null : { kind: "thread", projectId, threadId }),
     [projectId, threadId],
   );
-  const indicator = usePaneContentSplitIndicator(content, entry !== null);
-  return useSplit(
-    entry === null ? null : indicator.miniMap,
-    entry === null ? undefined : onPointerDown,
-  );
+  return useSplit(content);
 }
 
 const EMPTY_NAVIGATION: SidebarNavigationState = {
   items: [],
   activeItemId: null,
   isShortcutModifierHeld: false,
-  actions: {
-    activate() {},
-    setVisible() {},
-    setOrder() {},
-    openCustomize() {},
-    disablePlugin: () => Promise.resolve(),
-  },
+  actions: { activate() {}, disablePlugin: () => Promise.resolve() },
 };
 
 export function useSidebarNavigation(): SidebarNavigationState {
@@ -460,27 +423,9 @@ export function useSidebarNavigation(): SidebarNavigationState {
 
 export function useSidebarNavigationSplit(
   itemId: string,
-  splitOptions?: SidebarNavigationSplitOptions,
 ): PluginSidebarThreadSplit {
-  const model = useSidebarNavigationModel();
-  const target = useSidebarNavigationRowContent(itemId);
-  const enabled = target !== null && (model?.splitEnabled ?? false);
-  const dragActivation = splitOptions?.activation ?? "sidebar";
-  const onDragStartRef = useRef(splitOptions?.onDragStart);
-  useEffect(() => {
-    onDragStartRef.current = splitOptions?.onDragStart;
-  });
-  const options = useMemo(
-    () => ({
-      content: target?.content ?? ({ kind: "new-thread" } as const),
-      enabled,
-      label: target?.label ?? "",
-      dragActivation,
-      onDragStart: () => onDragStartRef.current?.(),
-    }),
-    [dragActivation, enabled, target],
+  const entry = useSidebarNavigationModel()?.entries.find(
+    (candidate) => candidate.item.id === itemId,
   );
-  const { onPointerDown } = usePaneContentSplitDrag(options);
-  const indicator = usePaneContentSplitIndicator(options.content, enabled);
-  return useSplit(indicator.miniMap, onPointerDown);
+  return useSplit(entry?.content ?? null);
 }

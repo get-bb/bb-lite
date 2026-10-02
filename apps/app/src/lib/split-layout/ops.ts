@@ -300,32 +300,6 @@ export function movePane(
   };
 }
 
-export function swapPanes(
-  layout: SplitLayout,
-  paneId: string,
-  targetPaneId: string,
-): SplitLayout {
-  if (paneId === targetPaneId) {
-    return layout;
-  }
-  const pane = findPane(layout.root, paneId);
-  const targetPane = findPane(layout.root, targetPaneId);
-  if (pane === null || targetPane === null) {
-    return layout;
-  }
-  const withFirstSwap = replacePaneNode(layout.root, paneId, {
-    ...pane,
-    content: targetPane.content,
-  });
-  return {
-    root: replacePaneNode(withFirstSwap, targetPaneId, {
-      ...targetPane,
-      content: pane.content,
-    }),
-    focusedPaneId: targetPaneId,
-  };
-}
-
 function equalSizes(count: number): number[] {
   if (count === 0) {
     return [];

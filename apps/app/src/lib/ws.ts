@@ -5,7 +5,6 @@ import {
   pongMessageLenientSchema,
   realtimeSubscriptionTargetKey,
   threadOpenSignalLenientSchema,
-  threadPaneActionSignalLenientSchema,
 } from "@bb/server-contract";
 import type {
   ClientMessage,
@@ -14,7 +13,6 @@ import type {
   RealtimeSubscriptionTarget,
   ThreadOpenFile,
   ThreadOpenSignal,
-  ThreadPaneActionSignal,
 } from "@bb/server-contract";
 import { buildBrowserWebSocketUrl } from "./browser-websocket-url";
 import {
@@ -24,7 +22,6 @@ import {
 
 type ChangeCallback = (message: ChangedMessage) => void;
 type ThreadOpenCallback = (signal: ThreadOpenSignal) => void;
-type ThreadPaneActionCallback = (signal: ThreadPaneActionSignal) => void;
 type PluginSignalCallback = (signal: PluginSignal) => void;
 export type WebSocketConnectedEvent =
   | { reconnected: false }
@@ -74,7 +71,6 @@ export class WebSocketManager {
   private subscriptions = new Map<string, ActiveSubscription>();
   private callbacks = new Set<ChangeCallback>();
   private threadOpenCallbacks = new Set<ThreadOpenCallback>();
-  private threadPaneActionCallbacks = new Set<ThreadPaneActionCallback>();
   private pluginSignalCallbacks = new Set<PluginSignalCallback>();
   private pendingOpenFileByThreadId = new Map<string, ThreadOpenFile>();
   private connectedCallbacks = new Set<ConnectedCallback>();
@@ -296,15 +292,6 @@ export class WebSocketManager {
       return;
     }
 
-    const threadPaneAction =
-      threadPaneActionSignalLenientSchema.safeParse(parsed);
-    if (threadPaneAction.success) {
-      for (const cb of this.threadPaneActionCallbacks) {
-        cb(threadPaneAction.data);
-      }
-      return;
-    }
-
     const pluginSignal = pluginSignalLenientSchema.safeParse(parsed);
     if (pluginSignal.success) {
       for (const cb of this.pluginSignalCallbacks) {
@@ -381,13 +368,6 @@ export class WebSocketManager {
     this.threadOpenCallbacks.add(callback);
     return () => {
       this.threadOpenCallbacks.delete(callback);
-    };
-  }
-
-  onThreadPaneAction(callback: ThreadPaneActionCallback): () => void {
-    this.threadPaneActionCallbacks.add(callback);
-    return () => {
-      this.threadPaneActionCallbacks.delete(callback);
     };
   }
 
