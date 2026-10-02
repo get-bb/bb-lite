@@ -29,6 +29,9 @@ export type MachineLifecycle = z.infer<typeof machineLifecycleSchema>;
 export const hostTypeSchema = z.enum(["persistent", "ephemeral"]);
 export type HostType = z.infer<typeof hostTypeSchema>;
 
+export const hostPlatformSchema = z.enum(["darwin", "linux", "wsl", "unknown"]);
+export type HostPlatform = z.infer<typeof hostPlatformSchema>;
+
 export const hostSchema = z.object({
   id: z.string(),
   name: z.string(),

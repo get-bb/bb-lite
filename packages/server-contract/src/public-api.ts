@@ -34,7 +34,6 @@ import {
   appKeybindingOverridesSchema,
   appThemeSelectionSchema,
 } from "@bb/domain";
-import type { ProviderUsageResponse } from "@bb/host-daemon-contract";
 import {
   binaryResponse,
   defineRoute,
@@ -114,8 +113,8 @@ import type {
   HostRemovePathResponse,
   CreateFilePreviewRequest,
   CreateFilePreviewResponse,
-  HostPickFolderRequest,
-  HostPickFolderResponse,
+  HostOpenRequest,
+  HostOpenTargetsResponse,
   HostPathsExistRequest,
   HostPathsExistResponse,
   ProjectAttachmentContentQuery,
@@ -156,7 +155,6 @@ import type {
   SystemProviderInfo,
   SystemProvidersQuery,
   SystemProviderStatesResponse,
-  SystemUsageLimitsQuery,
   TerminalListResponse,
   ThemeCatalogResponse,
   TerminalSession,
@@ -265,7 +263,7 @@ import {
   hostMovePathRequestSchema,
   hostPathListRequestSchema,
   hostRemovePathRequestSchema,
-  hostPickFolderRequestSchema,
+  hostOpenRequestSchema,
   hostPathsExistRequestSchema,
   projectAttachmentContentQuerySchema,
   projectBranchesQuerySchema,
@@ -289,7 +287,6 @@ import {
   systemExecutionOptionsQuerySchema,
   systemEnvironmentProvidersQuerySchema,
   systemProvidersQuerySchema,
-  systemUsageLimitsQuerySchema,
   threadEventWaitQuerySchema,
   threadEventsQuerySchema,
   threadGetQuerySchema,
@@ -696,13 +693,17 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<HostPathsExistResponse>(),
     }),
-    pickFolder: defineRoute({
-      path: "/hosts/:id/pick-folder",
+    openTargets: defineRoute({
+      path: "/hosts/:id/open-targets",
+      method: "get",
+      request: noRequest<PathId>(),
+      response: jsonResponse<HostOpenTargetsResponse>(),
+    }),
+    open: defineRoute({
+      path: "/hosts/:id/open",
       method: "post",
-      request: jsonRequest<PathId, HostPickFolderRequest>(
-        hostPickFolderRequestSchema,
-      ),
-      response: jsonResponse<HostPickFolderResponse>(),
+      request: jsonRequest<PathId, HostOpenRequest>(hostOpenRequestSchema),
+      response: jsonResponse<{ ok: true }>(),
     }),
   },
 
@@ -1599,14 +1600,6 @@ export const publicApiRoutes = {
         systemProvidersQuerySchema,
       ),
       response: jsonResponse<SystemProviderStatesResponse>(),
-    }),
-    usageLimits: defineRoute({
-      path: "/system/usage-limits",
-      method: "get",
-      request: optionalQueryRequest<EmptyInput, SystemUsageLimitsQuery>(
-        systemUsageLimitsQuerySchema,
-      ),
-      response: jsonResponse<ProviderUsageResponse>(),
     }),
   },
 };

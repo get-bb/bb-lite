@@ -11,11 +11,9 @@
   },
   "dependencies": {
     "@bb/client-core": "workspace:*",
-    "@bb/config": "workspace:*",
     "@bb/core-ui": "workspace:*",
     "@bb/domain": "workspace:*",
     "@bb/fuzzy-match": "workspace:*",
-    "@bb/host-daemon-contract": "workspace:*",
     "@bb/plugin": "workspace:*",
     "@bb/sdk": "workspace:*",
     "@bb/server-contract": "workspace:*",

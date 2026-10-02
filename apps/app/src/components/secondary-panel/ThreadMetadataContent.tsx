@@ -16,9 +16,9 @@ import type {
   Thread,
   ThreadListEntry,
   WorkspaceCommitSummary,
+  WorkspaceResolutionFailure,
   WorkspaceStatus,
 } from "@bb/domain";
-import type { WorkspaceResolutionFailure } from "@bb/host-daemon-contract";
 import {
   formatEnvironmentDisplay,
   type EnvironmentDisplayHostContext,

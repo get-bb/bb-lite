@@ -10,7 +10,6 @@ import type {
   UiPreferenceKey,
   UiPreferenceValue,
 } from "@bb/domain";
-import type { ProviderUsageResponse } from "@bb/host-daemon-contract";
 import type {
   SystemAttentionResponse,
   SystemConfigReloadResponse,
@@ -19,7 +18,6 @@ import type {
   SystemExecutionOptionsResponse,
   SystemProviderStatesResponse,
   SystemProvidersQuery,
-  SystemUsageLimitsQuery,
   UiPreferenceResponse,
   UiPreferencesResponse,
 } from "@bb/server-contract";
@@ -41,10 +39,6 @@ export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery 
   signal?: AbortSignal;
 }
 
-export interface SystemUsageLimitsArgs extends SystemUsageLimitsQuery {
-  signal?: AbortSignal;
-}
-
 export type SystemAttentionResult = SystemAttentionResponse;
 export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
@@ -53,7 +47,6 @@ export type SystemUpdateGeneralSettingsResult = AppSettings & {
   showUnhandledProviderEvents?: boolean;
 };
 export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
-export type SystemUsageLimitsResult = ProviderUsageResponse;
 export interface SystemProviderStatesArgs extends SystemProvidersQuery {
   signal?: AbortSignal;
 }
@@ -111,7 +104,6 @@ export interface SystemArea {
   providerStates(
     args?: SystemProviderStatesArgs,
   ): Promise<SystemProviderStatesResult>;
-  usageLimits(args?: SystemUsageLimitsArgs): Promise<SystemUsageLimitsResult>;
 }
 
 export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
@@ -209,19 +201,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
             query: {
               environmentId: input.environmentId,
               hostId: input.hostId,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async usageLimits(input = {}) {
-      return transport.readJson(
-        transport.api.v1.system["usage-limits"].$get(
-          {
-            query: {
-              hostId: input.hostId,
-              providerId: input.providerId,
             },
           },
           ...signalRequestArgs(input.signal),

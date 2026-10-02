@@ -1,37 +1,47 @@
-import { defineConfig } from "vite";
-import { loadViteDevConfig } from "@bb/config/vite-dev";
+import type { ClientRequest, IncomingMessage } from "node:http";
+import { defineConfig, type ProxyOptions } from "vite";
 import { sharedViteConfig } from "./vite.config.js";
 
-const viteDevConfig = loadViteDevConfig();
-const devWebSocketBrowserHostPortDefine = JSON.stringify(
-  viteDevConfig.serverPort,
+const LOOPBACK_HOST = "127.0.0.1";
+const LOOPBACK_AUTHORITY = /^(?:127\.0\.0\.1|localhost|\[::1\]):\d+$/u;
+const appPort = Number(process.env.BB_DEV_APP_PORT ?? 48887);
+const serverUrl = new URL(
+  process.env.BB_SERVER_URL ?? `http://${LOOPBACK_HOST}:48886`,
 );
+
+function presentDevPageAsServerPage(
+  proxyRequest: ClientRequest,
+  request: IncomingMessage,
+): void {
+  const { host, origin } = request.headers;
+  if (host === undefined || !LOOPBACK_AUTHORITY.test(host)) {
+    return;
+  }
+  proxyRequest.setHeader("host", serverUrl.host);
+  if (origin === `http://${host}`) {
+    proxyRequest.setHeader("origin", serverUrl.origin);
+  }
+}
+
+const serverProxy: ProxyOptions = {
+  target: serverUrl.origin,
+  configure: (proxy) => {
+    proxy.on("proxyReq", presentDevPageAsServerPage);
+    proxy.on("proxyReqWs", presentDevPageAsServerPage);
+  },
+};
 
 export default defineConfig({
   ...sharedViteConfig,
   css: {
     transformer: "lightningcss",
   },
-  define: {
-    __BB_DEV_WS_BROWSER_HOST_PORT__: devWebSocketBrowserHostPortDefine,
-    __BB_DEV_APP_BROWSER_HOST_PORT__: JSON.stringify(viteDevConfig.appPort),
-  },
   server: {
-    allowedHosts: [".ts.net"],
-    host: viteDevConfig.appHost,
-    port: viteDevConfig.appPort,
+    host: LOOPBACK_HOST,
+    port: appPort,
     proxy: {
-      "/api": {
-        target: viteDevConfig.serverHttpOrigin,
-        changeOrigin: true,
-        xfwd: true,
-      },
-      "/ws": {
-        target: viteDevConfig.serverHttpOrigin,
-        changeOrigin: true,
-        ws: true,
-        xfwd: true,
-      },
+      "/api": serverProxy,
+      "/ws": { ...serverProxy, ws: true },
     },
   },
 });

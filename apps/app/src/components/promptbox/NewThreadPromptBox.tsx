@@ -51,7 +51,7 @@ import {
   useHosts,
 } from "@/hooks/queries/host-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
+import { useLocalHostId } from "@/hooks/useOpenTargets";
 
 const NEW_THREAD_PROMPT_BOX_MIN_HEIGHT = 80;
 
@@ -437,7 +437,7 @@ export function ProjectlessMachineSlot({
   return (
     <MachinePickerUI
       hosts={availableHosts}
-      localDaemonHostId={machines.localDaemonHostId}
+      localHostId={machines.localHostId}
       primaryHostId={machines.primaryHostId}
       selectedHostId={
         selectedProvider !== undefined
@@ -483,7 +483,7 @@ export function NewThreadPromptBox({
     () => selectPrimaryHost(availableHosts, primaryHostId),
     [availableHosts, primaryHostId],
   );
-  const { isLocalDaemonHost, localDaemonHostId } = useHostDaemon();
+  const localHostId = useLocalHostId();
 
   const parsedEnvironment = parseEnvironmentValue(
     threadConfig.environment.value,
@@ -497,13 +497,11 @@ export function NewThreadPromptBox({
       ? (availableHosts.find((host) => host.id === selectedEnvironmentHostId) ??
         primaryHost)
       : primaryHost;
-  const isLocalHost = selectedHost ? isLocalDaemonHost(selectedHost.id) : false;
+  const isLocalHost = selectedHost ? selectedHost.id === localHostId : false;
   const machines = useMemo<EnvironmentPickerMachines | null>(
     () =>
-      hosts
-        ? { hosts: availableHosts, localDaemonHostId, primaryHostId }
-        : null,
-    [availableHosts, hosts, localDaemonHostId, primaryHostId],
+      hosts ? { hosts: availableHosts, localHostId, primaryHostId } : null,
+    [availableHosts, hosts, localHostId, primaryHostId],
   );
 
   const uiEnvironment = useMemo(

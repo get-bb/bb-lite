@@ -8,13 +8,12 @@ import {
   appThemeSchema,
   availableModelSchema,
   featureFlagsSchema,
+  hostPlatformSchema,
   jsonValueSchema,
   permissionModeSchema,
   pluginThemeMetaSchema,
   providerInfoSchema,
 } from "@bb/domain";
-import { providerHealthSchema as providerHealthSchema } from "@bb/provider-bridge-protocol/provider-maintenance";
-import { hostPlatformSchema } from "@bb/host-daemon-contract/local";
 import { machineEnvironmentSetSchema } from "./machine-environment.js";
 
 const machineEnvironmentReplacementVariableSchema =
@@ -100,21 +99,31 @@ export type SystemExecutionOptionsQuery = z.infer<
   typeof systemExecutionOptionsQuerySchema
 >;
 
-export const systemUsageLimitsQuerySchema = z.object({
-  hostId: z.string().min(1).optional(),
-  providerId: z.string().min(1).optional(),
-});
-export type SystemUsageLimitsQuery = z.infer<
-  typeof systemUsageLimitsQuerySchema
->;
-
 export { providerInfoSchema as systemProviderInfoSchema } from "@bb/domain";
 export type { ProviderInfo as SystemProviderInfo } from "@bb/domain";
 
-export const systemProviderStateSchema = providerHealthSchema.extend({
-  providerId: z.string().min(1),
-  displayName: z.string().min(1),
-});
+export const systemProviderStateSchema = z
+  .object({
+    status: z.enum([
+      "ready",
+      "not_installed",
+      "unauthenticated",
+      "expired",
+      "unsupported_version",
+      "unknown",
+    ]),
+    statusMessage: z.string().min(1).nullable(),
+    accountEmail: z.string().nullable(),
+    planLabel: z.string().min(1).nullable(),
+    installedVersion: z.string().min(1).nullable(),
+    minimumSupportedVersion: z.string().min(1).nullable(),
+    canInstall: z.boolean(),
+    canUpdate: z.boolean(),
+    loginCommand: z.string().min(1).nullable(),
+    providerId: z.string().min(1),
+    displayName: z.string().min(1),
+  })
+  .passthrough();
 export type SystemProviderState = z.infer<typeof systemProviderStateSchema>;
 
 export const systemProviderStatesResponseSchema = z.object({
@@ -164,8 +173,6 @@ export const systemConfigResponseSchema = z.object({
   customThemes: z.array(z.string()),
   pluginThemes: z.array(pluginThemeMetaSchema),
   featureFlags: featureFlagsSchema,
-  hostDaemonPort: z.number().nullable(),
-  localHelperPorts: z.array(z.number().int().min(1).max(65_535)),
   serverUrl: z.string().url(),
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: hostPlatformSchema.nullable(),

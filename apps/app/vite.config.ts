@@ -20,8 +20,6 @@ export const sharedViteConfig = {
   cacheDir: "node_modules/.vite/app",
   build: {
     reportCompressedSize: false,
-    assetsInlineLimit: (filePath) =>
-      filePath.includes("/workspace-open-target-icons/") ? false : undefined,
     rolldownOptions: {
       output: {
         advancedChunks: {

@@ -26,7 +26,6 @@ import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { REUSE_ENVIRONMENT_ICON_NAME } from "@/lib/environment-workspace-display";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { formatHostUpdateStatus } from "@/lib/host-update-status";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   OPTION_BASE_CLASS_NAME,
@@ -57,7 +56,7 @@ const MACHINE_TARGET_CONTENT_CLASS_NAME =
 
 export interface EnvironmentPickerMachines {
   hosts: readonly Host[];
-  localDaemonHostId: string | null;
+  localHostId: string | null;
   primaryHostId: string | null;
 }
 
@@ -160,7 +159,7 @@ function contextualActiveHost({
     machines.hosts.find((machineHost) => machineHost.id === previewHostId) ??
     machines.hosts.find((machineHost) => machineHost.id === selectedHostId) ??
     machines.hosts.find(
-      (machineHost) => machineHost.id === machines.localDaemonHostId,
+      (machineHost) => machineHost.id === machines.localHostId,
     ) ??
     machines.hosts.find(
       (machineHost) => machineHost.id === machines.primaryHostId,
@@ -629,8 +628,8 @@ function MachineGroupedEnvironmentOptions({
 }: MachineGroupedEnvironmentOptionsProps) {
   const now = Date.now();
   const orderedHosts = useMemo(
-    () => orderLocalHostFirst(machines.hosts, machines.localDaemonHostId),
-    [machines.hosts, machines.localDaemonHostId],
+    () => orderLocalHostFirst(machines.hosts, machines.localHostId),
+    [machines.hosts, machines.localHostId],
   );
   return (
     <>
@@ -638,7 +637,7 @@ function MachineGroupedEnvironmentOptions({
         <MachineSection
           key={machineHost.id}
           host={machineHost}
-          isThisMachine={machineHost.id === machines.localDaemonHostId}
+          isThisMachine={machineHost.id === machines.localHostId}
           source={
             findLocalPathProjectSourceForHost(sources, machineHost.id) ?? null
           }
@@ -688,10 +687,10 @@ function MachineContextualEnvironmentOptions({
     () =>
       [...machines.hosts].sort(
         (left, right) =>
-          Number(left.id !== machines.localDaemonHostId) -
-          Number(right.id !== machines.localDaemonHostId),
+          Number(left.id !== machines.localHostId) -
+          Number(right.id !== machines.localHostId),
       ),
-    [machines.hosts, machines.localDaemonHostId],
+    [machines.hosts, machines.localHostId],
   );
   const filteredHosts = useMemo(
     () => searchMachineHosts(orderedHosts, searchQuery),
@@ -715,7 +714,7 @@ function MachineContextualEnvironmentOptions({
             <MachineChoiceItem
               key={machineHost.id}
               host={machineHost}
-              isThisMachine={machineHost.id === machines.localDaemonHostId}
+              isThisMachine={machineHost.id === machines.localHostId}
               active={machineHost.id === activeHost?.id}
               onSelect={() => {
                 onPreviewHostChange(machineHost.id);
@@ -736,7 +735,7 @@ function MachineContextualEnvironmentOptions({
           <div className="shrink-0">
             <MachineSection
               host={activeHost}
-              isThisMachine={activeHost.id === machines.localDaemonHostId}
+              isThisMachine={activeHost.id === machines.localHostId}
               source={
                 findLocalPathProjectSourceForHost(sources, activeHost.id) ??
                 null
@@ -847,12 +846,10 @@ function MachineSection({
   const connected = host.status === "connected";
   const hostProviders = environmentProviders;
   const selectable = connected && host.lifecycle.phase === "active";
-  const updateStatus = formatHostUpdateStatus(host);
   const statusLabel =
-    updateStatus ??
-    (!connected && host.lastSeenAt !== null
+    !connected && host.lastSeenAt !== null
       ? `last seen ${formatRelativeTime({ timestamp: host.lastSeenAt, now })}`
-      : null);
+      : null;
   return (
     <CommandGroup
       heading={
@@ -865,12 +862,7 @@ function MachineSection({
             <span className={MACHINE_BADGE_CLASS_NAME}>this machine</span>
           ) : null}
           {statusLabel ? (
-            <span
-              className={cn(
-                "ml-auto shrink-0 pl-2 text-2xs",
-                updateStatus && "text-warning-foreground",
-              )}
-            >
+            <span className="ml-auto shrink-0 pl-2 text-2xs">
               {statusLabel}
             </span>
           ) : null}

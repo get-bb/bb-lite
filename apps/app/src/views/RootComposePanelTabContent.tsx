@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import type { OpenInTargetContext } from "@bb/host-daemon-contract";
 import type { SidebarProject } from "@/hooks/queries/project-queries";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
 import type { SecondaryFileFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
@@ -17,12 +16,8 @@ import type { FileSearchSelection } from "@/components/secondary-panel/useThread
 import { PluginPanelTabContent } from "@/components/plugin/PluginPanelActions";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
 import { useThreadStorageLocation } from "@/hooks/queries/thread-queries";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
-import { useLocalOpenTargets } from "@/hooks/useLocalOpenTargets";
-import {
-  buildOpenInEditorHandler,
-  resolveEnvironmentOpenContext,
-} from "./thread-detail/threadWorkspaceOpenPath";
+import { useOpenTargets } from "@/hooks/useOpenTargets";
+import { buildOpenInEditorHandler } from "./thread-detail/threadWorkspaceOpenPath";
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
 import { resolveAbsoluteFilePath } from "@/lib/absolute-file-path";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
@@ -78,20 +73,6 @@ interface RootComposeFilePreviewTabContentProps {
         | "thread-storage-file-preview";
     }
   >;
-}
-
-function resolveHostOpenContext(args: {
-  hostId: string | null;
-  isLocal: boolean;
-  serverOrigin: string;
-}): OpenInTargetContext | null {
-  if (args.hostId === null) return null;
-  if (args.isLocal) return { kind: "local" };
-  return {
-    kind: "remote-ssh",
-    serverOrigin: args.serverOrigin,
-    hostId: args.hostId,
-  };
 }
 
 export function RootComposePanelTabContent({
@@ -248,29 +229,11 @@ function RootComposeFilePreviewTabContent({
       : rootPanelEnvironmentId !== null
         ? (environment?.hostId ?? null)
         : projectSourceRoutingHostId;
-  const { isLocalDaemonHost } = useHostDaemon();
-  const serverOrigin = window.location.origin;
-  const environmentOpenContext = resolveEnvironmentOpenContext({
-    environment,
-    threadEnvironmentIsLocal: environment
-      ? isLocalDaemonHost(environment.hostId)
-      : false,
-    serverOrigin,
-  });
-  const projectOpenContext = resolveHostOpenContext({
-    hostId: projectPreviewHostId,
-    isLocal: isLocalDaemonHost(projectPreviewHostId),
-    serverOrigin,
-  });
-  const openContext =
+  const { openInPreferredFileTarget } = useOpenTargets(
     tab.kind === "workspace-file-preview" && tab.environmentId === null
-      ? projectOpenContext
-      : environmentOpenContext;
-  const { canOpenPreferredFileTarget, openPathInPreferredFileTarget } =
-    useLocalOpenTargets({
-      enabled: openContext !== null,
-      ...(openContext ? { openContext } : {}),
-    });
+      ? projectPreviewHostId
+      : (environment?.hostId ?? null),
+  );
   const workspaceRootPath = environment?.path ?? null;
   const relativeFileRootPath =
     tab.kind === "workspace-file-preview"
@@ -284,22 +247,17 @@ function RootComposeFilePreviewTabContent({
     () =>
       buildOpenInEditorHandler({
         rootPath: relativeFileRootPath,
-        canOpenPreferredTarget: canOpenPreferredFileTarget,
-        openInPreferredTarget: openPathInPreferredFileTarget,
+        openInPreferredTarget: openInPreferredFileTarget,
       }),
-    [
-      canOpenPreferredFileTarget,
-      openPathInPreferredFileTarget,
-      relativeFileRootPath,
-    ],
+    [openInPreferredFileTarget, relativeFileRootPath],
   );
   const hostFileLineNumber = getFilePreviewLineRangeStart({
     lineRange: tab.kind === "host-file-preview" ? tab.lineRange : null,
   });
   const openHostFileInEditor =
-    tab.kind === "host-file-preview" && canOpenPreferredFileTarget
+    tab.kind === "host-file-preview" && openInPreferredFileTarget
       ? (path: string) => {
-          void openPathInPreferredFileTarget({
+          openInPreferredFileTarget({
             lineNumber: hostFileLineNumber,
             path,
           });
