@@ -94,6 +94,7 @@ export async function createTestServer(
   overrides: Partial<ServerConfig> = {},
   options: {
     realWorkspace?: boolean;
+    databasePath?: string;
     localRunner?: (config: ServerConfig) => RunnerFactory<ServerRunner>;
   } = {},
 ) {
@@ -108,7 +109,7 @@ export async function createTestServer(
   const server = createServer({
     config,
     now,
-    db: openDatabase({ path: ":memory:", now }),
+    db: openDatabase({ path: options.databasePath ?? ":memory:", now }),
     localRunner:
       options.localRunner?.(config) ??
       ((sink) => {

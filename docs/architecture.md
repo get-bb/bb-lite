@@ -27,6 +27,12 @@ The runner never imports the server. The server talks to machines only through t
   `127.0.0.1` (`BB_SERVER_BIND_HOST`). These differ from the original on purpose.
 - The server refuses to start when the data directory contains a database with a
   `__drizzle_migrations` table (an original bb data directory).
+- `bb import-legacy --from <dir>` (`apps/server/src/import-legacy.ts`) is the only code that reads an
+  original database: read-only, with the server stopped, row for row into this schema and idempotent on
+  primary keys. Thread content goes in one transaction per thread; a thread that already has events is
+  skipped whole. Environments the original still had on disk are imported with `provider_owns_path = 0`
+  (the runner only removes paths under its own data directory, and the original may still be using
+  them). `apps/cli/guide/migrating.md` lists what is and is not copied.
 - `<dataDir>/bb.db` (WAL), `attachments/<projectId>/`, `thread-storage/<threadId>/`, `worktrees/`,
   `plugins/<id>/` (plugin `data.db`, secrets, files), `theme/<name>/theme.css`, `AGENTS.md`,
   `config.json`, `connect.json` (0600), `host-id`, `logs/`.
