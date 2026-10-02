@@ -8,6 +8,7 @@ import type {
 import { sdk } from "@/lib/sdk";
 import { registerLocalAttachmentPreview } from "@/lib/attachment-local-previews";
 import { qk } from "../queries/query-keys";
+import { ANY, filterFor } from "../queries/refresh";
 
 function useProjectMutation<TVariables, TData>(config: {
   errorMessage?: string;
@@ -21,9 +22,9 @@ function useProjectMutation<TVariables, TData>(config: {
     mutationFn: config.mutationFn,
     onSuccess: () =>
       Promise.all(
-        qk
-          .projectState()
-          .map((queryKey) => client.invalidateQueries({ queryKey })),
+        [qk.sidebar(), qk.project(ANY), qk.hostPaths()].map((queryKey) =>
+          client.invalidateQueries(filterFor(queryKey)),
+        ),
       ),
   });
 }

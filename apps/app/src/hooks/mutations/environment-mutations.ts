@@ -8,15 +8,14 @@ import { sdk } from "@/lib/sdk";
 import type { RequestEnvironmentActionMutationRequest } from "./mutation-request-types";
 import { bumpDiffPatchEvictionGeneration } from "../cache-owners/environment-diff-patch-cache-owner";
 import { environmentDiffPatchQueryKeyPrefix, qk } from "../queries/query-keys";
+import { refresh } from "../queries/refresh";
 
 function refreshEnvironment(client: QueryClient, environmentId: string) {
   bumpDiffPatchEvictionGeneration(environmentId);
   client.removeQueries({
     queryKey: environmentDiffPatchQueryKeyPrefix(environmentId),
   });
-  for (const queryKey of qk.environmentState(environmentId)) {
-    void client.invalidateQueries({ queryKey });
-  }
+  refresh(client, qk.environment(environmentId));
 }
 
 export function useRequestEnvironmentAction() {
@@ -47,7 +46,7 @@ export function useUpdateEnvironment() {
         mergeBaseBranch: request.mergeBaseBranch,
       }),
     onSuccess: (environment) => {
-      client.setQueryData(qk.environment(environment.id), environment);
+      client.setQueryData(qk.environmentRecord(environment.id), environment);
       refreshEnvironment(client, environment.id);
     },
   });

@@ -15,28 +15,43 @@ import {
 } from "./cache-owners/environment-diff-patch-cache-owner";
 import { dropCachedThread } from "./mutations/thread-state-mutations";
 import {
-  allEnvironmentDiffPatchQueryKeyPrefix,
+  environmentDiffPatchQueryKeyPrefix,
   qk,
   terminalsQueryKey,
   threadTabsQueryKey,
 } from "./queries/query-keys";
-import { refresh, STREAM, type RefreshTiming } from "./queries/refresh";
+import { ANY, refresh, STREAM, type RefreshTiming } from "./queries/refresh";
 import { patchCachedThreads } from "./queries/thread-cache";
 
 type Keys = readonly QueryKey[];
 
 const WORKSPACE: RefreshTiming = { delay: 250, gap: 1000 };
 
-const listed = (id: string): Keys => [
-  ...qk.threadListState(),
-  qk.threadDetail(id),
+const listed = (id: string): Keys => [...qk.threadLists(), qk.threadDetail(id)];
+const projectState = (id: string): Keys => [
+  ...qk.threadLists(),
+  qk.project(id),
+  qk.hostPaths(),
+];
+const workspace = (id: string): Keys => [
+  qk.environmentStatus(id),
+  qk.environmentDiffFiles(id),
+  qk.environmentFile(id),
+];
+const hostState = (): Keys => [
+  qk.hosts(),
+  qk.sidebar(),
+  qk.systemProviders(),
+  qk.executionOptions(),
+  qk.environmentProviders(),
+  qk.hostPaths(),
 ];
 
 const THREAD: Record<ThreadChangeKind, (id: string) => Keys> = {
   "thread-created": listed,
-  "thread-deleted": qk.threadListState,
+  "thread-deleted": qk.threadLists,
   "events-appended": () => [],
-  "history-rewritten": (id) => [...listed(id), ...qk.threadState(id)],
+  "history-rewritten": (id) => [...qk.threadLists(), qk.thread(id)],
   "interactions-changed": (id) => [qk.interactions(id)],
   "status-changed": (id) => [qk.threadDetail(id)],
   "title-changed": listed,
@@ -52,7 +67,7 @@ const THREAD: Record<ThreadChangeKind, (id: string) => Keys> = {
     ...listed(id),
     qk.threadBootstrap(id),
     qk.threadExecution(id),
-    ...qk.threadStorageState(id),
+    qk.threadStorage(id),
   ],
   "read-state-changed": listed,
   "tabs-changed": (id) => [threadTabsQueryKey(id)],
@@ -61,38 +76,40 @@ const THREAD: Record<ThreadChangeKind, (id: string) => Keys> = {
   ],
 };
 
-const PROJECT: Record<ProjectChangeKind, () => Keys> = {
-  "project-created": qk.projectState,
-  "project-updated": qk.projectState,
-  "project-deleted": qk.projectState,
-  "project-sources-changed": qk.projectState,
-  "threads-changed": qk.projectState,
-  "project-order-changed": qk.projectState,
+const PROJECT: Record<ProjectChangeKind, (id: string) => Keys> = {
+  "project-created": projectState,
+  "project-updated": projectState,
+  "project-deleted": projectState,
+  "project-sources-changed": projectState,
+  "threads-changed": projectState,
+  "project-order-changed": projectState,
 };
 
 const ENVIRONMENT: Record<EnvironmentChangeKind, (id: string) => Keys> = {
-  "environment-created": qk.environmentState,
-  "environment-deleted": qk.environmentState,
-  "metadata-changed": (id) => [
-    ...qk.environmentState(id),
-    ...qk.threadListState(),
-  ],
-  "status-changed": qk.environmentState,
-  "work-status-changed": qk.environmentWorkspace,
-  "git-refs-changed": qk.environmentState,
-  "thread-storage-changed": () => qk.threadStorageState(),
+  "environment-created": (id) => [qk.environment(id)],
+  "environment-deleted": (id) => [qk.environment(id)],
+  "metadata-changed": (id) => [qk.environment(id), ...qk.threadLists()],
+  "status-changed": (id) => [qk.environment(id)],
+  "work-status-changed": workspace,
+  "git-refs-changed": (id) => [...workspace(id), qk.environmentBranches(id)],
+  "thread-storage-changed": () => [qk.threadStorage(ANY)],
 };
 
 const HOST: Record<HostChangeKind, () => Keys> = {
-  "host-connected": () => [...qk.hostState(), ...qk.threadStorageState()],
-  "host-disconnected": qk.hostState,
-  "provider-model-catalog-changed": qk.hostState,
+  "host-connected": () => [...hostState(), qk.threadStorage(ANY)],
+  "host-disconnected": hostState,
+  "provider-model-catalog-changed": () => [qk.executionOptions()],
 };
 
 const SYSTEM: Record<SystemChangeKind, () => Keys> = {
-  "config-changed": qk.systemState,
-  "plugins-changed": qk.pluginState,
-  "provider-registrations-changed": qk.systemState,
+  "config-changed": () => [qk.system(), qk.timeline(ANY), qk.turnDetails(ANY)],
+  "plugins-changed": () => [
+    qk.plugins(),
+    qk.systemConfig(),
+    qk.environmentProviders(),
+    qk.project(ANY, "commands"),
+  ],
+  "provider-registrations-changed": () => [qk.system()],
   "ui-preferences-changed": () => [qk.uiPreferences()],
   "environment-availability-changed": () => [qk.environmentProviders()],
 };
@@ -124,21 +141,20 @@ function threadChanged(
 export function applyChange(client: QueryClient, message: ChangedMessage) {
   const refreshAll = (keys: Keys, timing?: RefreshTiming) =>
     keys.forEach((queryKey) => refresh(client, queryKey, timing));
-  const { changes, entity } = message;
-  if (entity === "system") {
-    if (changes.includes("plugins-changed")) reloadPlugins();
-    return refreshAll(changes.flatMap((kind) => SYSTEM[kind]()));
+  if (message.entity === "system") {
+    if (message.changes.includes("plugins-changed")) reloadPlugins();
+    return refreshAll(message.changes.flatMap((kind) => SYSTEM[kind]()));
   }
   const { id } = message;
   if (id === undefined) return;
-  if (entity === "thread") {
+  if (message.entity === "thread") {
     const metadata = message.metadata ?? {};
     return refreshAll(threadChanged(client, id, message.changes, metadata));
   }
-  if (entity === "project") {
-    return refreshAll(message.changes.flatMap((kind) => PROJECT[kind]()));
+  if (message.entity === "project") {
+    return refreshAll(message.changes.flatMap((kind) => PROJECT[kind](id)));
   }
-  if (entity === "host") {
+  if (message.entity === "host") {
     return refreshAll(message.changes.flatMap((kind) => HOST[kind]()));
   }
   if (!message.changes.includes("thread-storage-changed")) {
@@ -160,6 +176,6 @@ export function resync(client: QueryClient, reconnected: boolean): void {
   }
   reloadPlugins();
   bumpAllDiffPatchEvictionGenerations();
-  client.removeQueries({ queryKey: allEnvironmentDiffPatchQueryKeyPrefix() });
+  client.removeQueries({ queryKey: environmentDiffPatchQueryKeyPrefix() });
   void client.invalidateQueries(undefined, { cancelRefetch: false });
 }

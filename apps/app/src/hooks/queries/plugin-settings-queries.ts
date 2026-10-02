@@ -4,11 +4,13 @@ import type {
   PluginSettingsResponse,
 } from "@bb/server-contract";
 import { pluginSettingsUpdateRequestSchema } from "@bb/server-contract";
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { createPluginsClient } from "./plugin-client";
-import { pluginListQueryKey, pluginSettingsViewQueryKey } from "./query-keys";
-
-type FetchLike = typeof fetch;
+import {
+  queryOptions,
+  useQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { sdk } from "@/lib/sdk";
+import { qk } from "./query-keys";
 
 export interface PluginListItem {
   id: string;
@@ -22,15 +24,15 @@ export interface PluginListItem {
   hasSettings: boolean;
 }
 
-export interface PluginListResult {
-  plugins: PluginListItem[];
-}
+export type PluginSettingFieldDescriptor = PluginSettingDescriptor;
+
+type PluginSettingsView = Pick<PluginSettingsResponse, "schema" | "values">;
 
 export function pluginIconUrl(icon: string | null): string | null {
   return icon?.startsWith("/") ? icon : null;
 }
 
-export function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
+function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
   const compactIconUrl = pluginIconUrl(plugin.icon);
   return {
     id: plugin.id,
@@ -45,61 +47,40 @@ export function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
   };
 }
 
-export async function fetchInstalledPlugins(
-  fetchImpl: FetchLike,
-  signal?: AbortSignal,
-): Promise<InstalledPlugin[]> {
-  return (await createPluginsClient(fetchImpl).list({ signal })).plugins;
-}
-
-export type PluginSettingFieldDescriptor = PluginSettingDescriptor;
-
-export interface PluginSettingsView {
-  schema: Record<string, PluginSettingFieldDescriptor>;
-  values: PluginSettingsResponse["values"];
-}
-
-async function fetchPluginSettingsView(
-  fetchImpl: FetchLike,
-  pluginId: string,
-): Promise<PluginSettingsView | null> {
-  try {
-    const result = await createPluginsClient(fetchImpl).getSettings({
-      pluginId,
-    });
-    return { schema: result.schema, values: result.values };
-  } catch {
-    return null;
-  }
-}
-
 export async function updatePluginSettings(
-  fetchImpl: FetchLike,
   pluginId: string,
   values: Record<string, unknown>,
 ): Promise<PluginSettingsView> {
   const request = pluginSettingsUpdateRequestSchema.parse({ values });
-  const result = await createPluginsClient(fetchImpl).updateSettings({
-    pluginId,
-    values: request.values,
-  });
-  return { schema: result.schema, values: result.values };
+  return sdk.plugins.updateSettings({ pluginId, values: request.values });
 }
 
 export async function setPluginEnabled(
-  fetchImpl: FetchLike,
   pluginId: string,
   enabled: boolean,
 ): Promise<void> {
-  const plugins = createPluginsClient(fetchImpl);
-  if (enabled) await plugins.enable({ pluginId });
-  else await plugins.disable({ pluginId });
+  await (enabled ? sdk.plugins.enable : sdk.plugins.disable)({ pluginId });
+}
+
+export function applyPluginSettingsView(args: {
+  queryClient: QueryClient;
+  pluginId: string;
+  view: PluginSettingsView;
+}): void {
+  const { pluginId, queryClient, view } = args;
+  queryClient.setQueryData(qk.pluginSettings(pluginId), view);
+}
+
+export function invalidatePluginList(args: {
+  queryClient: QueryClient;
+}): Promise<void> {
+  return args.queryClient.invalidateQueries({ queryKey: qk.pluginList() });
 }
 
 export function pluginListQueryOptions(args: { enabled: boolean }) {
   return queryOptions({
-    queryKey: pluginListQueryKey(args.enabled),
-    queryFn: ({ signal }) => fetchInstalledPlugins(fetch, signal),
+    queryKey: qk.pluginList(),
+    queryFn: async ({ signal }) => (await sdk.plugins.list({ signal })).plugins,
     enabled: args.enabled,
     staleTime: 30_000,
   });
@@ -108,9 +89,7 @@ export function pluginListQueryOptions(args: { enabled: boolean }) {
 export function usePluginList(args: { enabled: boolean }) {
   return useQuery({
     ...pluginListQueryOptions(args),
-    select: (plugins): PluginListResult => ({
-      plugins: plugins.map(toPluginListItem),
-    }),
+    select: (plugins) => ({ plugins: plugins.map(toPluginListItem) }),
   });
 }
 
@@ -119,8 +98,9 @@ export function usePluginSettingsView(
   options: { enabled: boolean },
 ) {
   return useQuery({
-    queryKey: pluginSettingsViewQueryKey(pluginId),
-    queryFn: () => fetchPluginSettingsView(fetch, pluginId),
+    queryKey: qk.pluginSettings(pluginId),
+    queryFn: (): Promise<PluginSettingsView | null> =>
+      sdk.plugins.getSettings({ pluginId }).catch(() => null),
     enabled: options.enabled,
     staleTime: 30_000,
   });

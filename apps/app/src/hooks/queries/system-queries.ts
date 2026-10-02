@@ -1,349 +1,196 @@
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { QueryKey } from "@tanstack/react-query";
-import type {
-  PermissionMode,
-  ProviderInfo,
-  ProviderModelCatalogScope,
+import {
+  queryOptions,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import {
+  availableModelSchema,
+  permissionModeValues,
+  providerInfoSchema,
+  type ProviderInfo,
+  type ProviderModelCatalogScope,
 } from "@bb/domain";
-import { SYSTEM_EXECUTION_OPTIONS_QUERY_KEY } from "@/hooks/queries/query-keys";
-import { permissionModeValues } from "@bb/domain";
 import type {
   SystemExecutionOptionsResponse,
   SystemProvidersQuery,
+  UiPreferencesResponse,
 } from "@bb/server-contract";
-import { BbHttpError, sdk } from "@/lib/sdk";
-import { isAbortLikeError } from "@/lib/mutation-errors";
-import {
-  modelCatalogCacheKey,
-  readCachedModelCatalog,
-  writeCachedModelCatalog,
-} from "@/lib/model-catalog-cache";
-import {
-  providerListCacheKey,
-  readCachedProviderList,
-  writeCachedProviderList,
-} from "@/lib/provider-list-cache";
-import {
-  useHostListRealtimeSubscription,
-  useSystemRealtimeSubscription,
-} from "@/hooks/useRealtimeSubscription";
-import {
-  allSystemExecutionOptionsQueryKeyPrefix,
-  allSystemProvidersQueryKeyPrefix,
-  systemConfigQueryKey,
-  systemExecutionOptionsQueryKey,
-  systemProvidersQueryKey,
-  systemProviderCatalogQueryKey,
-  systemThemeQueryKey,
-  uiPreferencesQueryKey,
-} from "./query-keys";
-import { type QueryOptions } from "./query-helpers";
+import { z } from "zod";
+import { createLastKnownCache } from "@/lib/last-known-cache";
+import { sdk } from "@/lib/sdk";
+import type { QueryOptions } from "./query-helpers";
+import { qk } from "./query-keys";
 
-interface UseSystemExecutionOptionsArgs {
-  enabled?: boolean;
-  environmentId?: string;
-  hostId?: string;
-  providerId?: string;
-}
-
-interface SystemExecutionOptionsQueryArgs {
-  environmentId: string | null;
-  hostId: string | null;
-  providerId: string | null;
-  writeLastKnown: boolean;
-}
-
-type SystemProviderRoutingArgs =
+type ProviderRouting =
   | { environmentId: string; hostId?: never }
   | { environmentId?: never; hostId: string }
   | { environmentId?: never; hostId?: never };
 
-type UseSystemProvidersArgs = QueryOptions &
-  SystemProviderRoutingArgs &
-  Pick<SystemProvidersQuery, "capability">;
-
-const SYSTEM_EXECUTION_OPTIONS_RETRY_DELAY_MS = 250;
-const SYSTEM_EXECUTION_OPTIONS_RETRY_COUNT = 1;
-const PLACEHOLDER_PERMISSION_CEILING: PermissionMode = permissionModeValues[0];
-
-function isSameExecutionOptionsRoute(
-  previousQueryKey: QueryKey | undefined,
-  environmentId: string | null,
-  hostId: string | null,
-): boolean {
-  return (
-    previousQueryKey?.[0] === SYSTEM_EXECUTION_OPTIONS_QUERY_KEY &&
-    previousQueryKey[1] === environmentId &&
-    previousQueryKey[2] === hostId
-  );
-}
-
-function resolveExecutionOptionsPlaceholder({
-  previousData,
-  previousQueryKey,
-  environmentId,
-  hostId,
-  providerId,
-  catalogCacheKey,
-  providersCacheKey,
-}: {
-  previousData: SystemExecutionOptionsResponse | undefined;
-  previousQueryKey: QueryKey | undefined;
-  environmentId: string | null;
-  hostId: string | null;
-  providerId: string | null;
-  catalogCacheKey: string;
-  providersCacheKey: string;
-}): SystemExecutionOptionsResponse | undefined {
-  const previousProviders = isSameExecutionOptionsRoute(
-    previousQueryKey,
-    environmentId,
-    hostId,
-  )
-    ? previousData?.providers
-    : undefined;
-  const cached = readCachedModelCatalog(catalogCacheKey);
-  const remembered = readCachedProviderList(providersCacheKey);
-  const providers =
-    previousProviders ??
-    (remembered !== null && remembered.length > 0 ? remembered : null);
-  if (
-    providers === null ||
-    (providerId !== null &&
-      !providers.some((provider) => provider.id === providerId))
-  ) {
-    return undefined;
-  }
-  return {
-    providers,
-    models: cached?.models ?? [],
-    selectedOnlyModels: cached?.selectedOnlyModels ?? [],
-    permissionCeiling: PLACEHOLDER_PERMISSION_CEILING,
-    modelLoadError: null,
-  };
-}
-
-function shouldRetrySystemExecutionOptions(
-  failureCount: number,
-  error: unknown,
-): boolean {
-  if (failureCount >= SYSTEM_EXECUTION_OPTIONS_RETRY_COUNT) {
-    return false;
-  }
-
-  if (isAbortLikeError(error)) {
-    return false;
-  }
-
-  if (error instanceof BbHttpError) {
-    return error.status === 408 || error.status === 429 || error.status >= 500;
-  }
-
-  return true;
-}
-
-export function useKnownProviderModelCatalogScope(
-  providerId: string,
-): ProviderModelCatalogScope | undefined {
-  const queryClient = useQueryClient();
-  if (providerId.length === 0) {
-    return undefined;
-  }
-  const scopeIn = (
-    providers: readonly ProviderInfo[] | undefined,
-  ): ProviderModelCatalogScope | undefined =>
-    providers?.find((provider) => provider.id === providerId)?.capabilities
-      ?.modelCatalogScope;
-  for (const [, options] of queryClient.getQueriesData<{
-    providers: ProviderInfo[];
-  }>({ queryKey: allSystemExecutionOptionsQueryKeyPrefix() })) {
-    const scope = scopeIn(options?.providers);
-    if (scope !== undefined) {
-      return scope;
-    }
-  }
-  for (const [, providers] of queryClient.getQueriesData<ProviderInfo[]>({
-    queryKey: allSystemProvidersQueryKeyPrefix(),
-  })) {
-    const scope = scopeIn(providers);
-    if (scope !== undefined) {
-      return scope;
-    }
-  }
-  return undefined;
-}
-
-export function useSystemProviders(args: UseSystemProvidersArgs = {}) {
-  const capability = args.capability ?? null;
-  const environmentId = args.environmentId ?? null;
-  const hostId = args.hostId ?? null;
-  const enabled = args.enabled ?? true;
-  useSystemRealtimeSubscription({ enabled });
-  const providersCacheKey = providerListCacheKey({ environmentId, hostId });
-  return useQuery<ProviderInfo[]>({
-    queryKey: systemProvidersQueryKey({ capability, environmentId, hostId }),
-    queryFn: async ({ signal }) => {
-      const capabilityFilter =
-        args.capability === undefined ? {} : { capability: args.capability };
-      const providers = await (args.environmentId !== undefined
-        ? sdk.providers.list({
-            ...capabilityFilter,
-            environmentId: args.environmentId,
-            signal,
-          })
-        : args.hostId !== undefined
-          ? sdk.providers.list({
-              ...capabilityFilter,
-              hostId: args.hostId,
-              signal,
-            })
-          : sdk.providers.list({ ...capabilityFilter, signal }));
-      if (capability === null) {
-        writeCachedProviderList(providersCacheKey, providers);
-      }
-      return providers;
-    },
-    enabled,
-    staleTime: 60_000,
-    placeholderData: () => {
-      const remembered = readCachedProviderList(providersCacheKey);
-      if (remembered === null) return undefined;
-      const eligible =
-        capability === null
-          ? remembered
-          : remembered.filter((provider) => provider.maintenance[capability]);
-      return eligible.length > 0 ? eligible : undefined;
-    },
-  });
-}
-
-function systemExecutionOptionsQueryOptions({
-  environmentId,
-  hostId,
-  providerId,
-  writeLastKnown,
-}: SystemExecutionOptionsQueryArgs) {
-  return queryOptions<SystemExecutionOptionsResponse>({
-    queryKey: systemExecutionOptionsQueryKey({
-      environmentId,
-      hostId,
-      providerId,
-    }),
-    queryFn: async ({ signal }) => {
-      const response = await sdk.system.executionOptions({
-        environmentId: environmentId ?? undefined,
-        hostId: hostId ?? undefined,
-        providerId: providerId ?? undefined,
-        signal,
-      });
-      if (writeLastKnown) {
-        writeCachedProviderList(
-          providerListCacheKey({ environmentId, hostId }),
-          response.providers,
-        );
-        if (response.modelLoadError === null) {
-          const catalog = {
-            models: response.models,
-            selectedOnlyModels: response.selectedOnlyModels,
-          };
-          writeCachedModelCatalog(
-            modelCatalogCacheKey({ environmentId, hostId, providerId }),
-            catalog,
-          );
-        }
-      }
-      return response;
-    },
-    staleTime: 60_000,
-    retry: shouldRetrySystemExecutionOptions,
-    retryDelay: SYSTEM_EXECUTION_OPTIONS_RETRY_DELAY_MS,
-  });
-}
-
-export function useSystemExecutionOptions(
-  args: UseSystemExecutionOptionsArgs = {},
-) {
-  const environmentId = args.environmentId ?? null;
-  const hostId = args.hostId ?? null;
-  const providerId = args.providerId ?? null;
-  const enabled = args.enabled ?? true;
-  useSystemRealtimeSubscription({ enabled });
-  useHostListRealtimeSubscription({ enabled });
-  const providersCacheKey = providerListCacheKey({ environmentId, hostId });
-  const catalogCacheKey = modelCatalogCacheKey({
-    environmentId,
-    hostId,
-    providerId,
-  });
+export function useSystemConfig(options?: QueryOptions) {
   return useQuery({
-    ...systemExecutionOptionsQueryOptions({
-      environmentId,
-      hostId,
-      providerId,
-      writeLastKnown: true,
-    }),
-    enabled,
-    placeholderData: (previousData, previousQuery) =>
-      resolveExecutionOptionsPlaceholder({
-        previousData,
-        previousQueryKey: previousQuery?.queryKey,
-        environmentId,
-        hostId,
-        providerId,
-        catalogCacheKey,
-        providersCacheKey,
-      }),
-  });
-}
-
-export function systemConfigQueryOptions() {
-  return queryOptions({
-    queryKey: systemConfigQueryKey(),
+    queryKey: qk.systemConfig(),
     queryFn: ({ signal }) => sdk.system.config({ signal }),
+    enabled: options?.enabled ?? true,
     staleTime: 60_000,
-  });
-}
-
-export function uiPreferencesQueryOptions() {
-  return queryOptions({
-    queryKey: uiPreferencesQueryKey(),
-    queryFn: ({ signal }) => sdk.system.uiPreferences.list({ signal }),
-    staleTime: 60_000,
-  });
-}
-
-export function useUiPreferences(options?: QueryOptions) {
-  const enabled = options?.enabled ?? true;
-  useSystemRealtimeSubscription({ enabled });
-
-  return useQuery({
-    ...uiPreferencesQueryOptions(),
-    enabled,
   });
 }
 
 export function systemThemeQueryOptions(themeId: string) {
   return queryOptions({
-    queryKey: systemThemeQueryKey(themeId),
+    queryKey: qk.systemTheme(themeId),
     queryFn: ({ signal }) => sdk.theme.resolve({ signal, themeId }),
     staleTime: 60_000,
   });
 }
 
-export function useSystemConfig(options?: QueryOptions) {
-  const enabled = options?.enabled ?? true;
-  useSystemRealtimeSubscription({ enabled });
-
+export function useUiPreferences(options?: QueryOptions) {
   return useQuery({
-    ...systemConfigQueryOptions(),
-    enabled,
+    queryKey: qk.uiPreferences(),
+    queryFn: ({ signal }) => sdk.system.uiPreferences.list({ signal }),
+    enabled: options?.enabled ?? true,
+    staleTime: 60_000,
   });
 }
 
+export function getCachedUiPreferences(
+  client: QueryClient,
+): UiPreferencesResponse | undefined {
+  return client.getQueryData<UiPreferencesResponse>(qk.uiPreferences());
+}
+
+export function setCachedUiPreferences(
+  client: QueryClient,
+  response: UiPreferencesResponse,
+): void {
+  client.setQueryData(qk.uiPreferences(), response);
+}
+
+export function invalidateCachedUiPreferences(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: qk.uiPreferences() });
+}
+
 export function useSystemProviderCatalog() {
-  useSystemRealtimeSubscription({ enabled: true });
   return useQuery({
-    queryKey: systemProviderCatalogQueryKey(),
+    queryKey: qk.providerCatalog(),
     queryFn: () => sdk.providers.catalog(),
+  });
+}
+
+const lastKnownProviders = createLastKnownCache({
+  prefix: "bb.provider-list",
+  version: "2",
+  schema: z.array(providerInfoSchema),
+  maxEntries: 16,
+});
+const lastKnownModels = createLastKnownCache({
+  prefix: "bb.model-catalog",
+  version: "1",
+  schema: z.object({
+    models: z.array(availableModelSchema),
+    selectedOnlyModels: z.array(availableModelSchema),
+  }),
+  maxEntries: 8,
+});
+
+export function useSystemProviders(
+  args: QueryOptions &
+    ProviderRouting &
+    Pick<SystemProvidersQuery, "capability"> = {},
+) {
+  const { capability, enabled = true, ...routing } = args;
+  const cacheKey = lastKnownProviders.key(
+    routing.environmentId,
+    routing.hostId,
+  );
+  return useQuery({
+    queryKey: qk.systemProviders({ capability, ...routing }),
+    queryFn: async ({ signal }) => {
+      const providers = await sdk.providers.list({
+        ...routing,
+        ...(capability ? { capability } : {}),
+        signal,
+      });
+      if (!capability) lastKnownProviders.write(cacheKey, providers);
+      return providers;
+    },
+    enabled,
+    staleTime: 60_000,
+    placeholderData: () => {
+      const eligible = lastKnownProviders
+        .read(cacheKey)
+        ?.filter((provider) => !capability || provider.maintenance[capability]);
+      return eligible?.length ? eligible : undefined;
+    },
+  });
+}
+
+export function useKnownProviderModelCatalogScope(
+  providerId: string,
+): ProviderModelCatalogScope | undefined {
+  const client = useQueryClient();
+  const cached = [
+    ...client.getQueriesData<SystemExecutionOptionsResponse>({
+      queryKey: qk.executionOptions(),
+    }),
+    ...client.getQueriesData<ProviderInfo[]>({
+      queryKey: qk.systemProviders(),
+    }),
+  ];
+  for (const [, data] of cached) {
+    const providers = Array.isArray(data) ? data : data?.providers;
+    const provider = providers?.find(({ id }) => id === providerId);
+    const scope = provider?.capabilities.modelCatalogScope;
+    if (scope !== undefined) return scope;
+  }
+  return undefined;
+}
+
+export function useSystemExecutionOptions(
+  args: {
+    enabled?: boolean;
+    environmentId?: string;
+    hostId?: string;
+    providerId?: string;
+  } = {},
+) {
+  const { enabled = true, environmentId, hostId, providerId } = args;
+  const route = { environmentId, hostId };
+  const providersKey = lastKnownProviders.key(environmentId, hostId);
+  const modelsKey = lastKnownModels.key(environmentId, hostId, providerId);
+  return useQuery({
+    queryKey: qk.executionOptions(route, providerId),
+    queryFn: async ({ signal }) => {
+      const request = { ...route, providerId, signal };
+      const response = await sdk.system.executionOptions(request);
+      const { models, modelLoadError, providers, selectedOnlyModels } =
+        response;
+      lastKnownProviders.write(providersKey, providers);
+      if (modelLoadError === null) {
+        lastKnownModels.write(modelsKey, { models, selectedOnlyModels });
+      }
+      return response;
+    },
+    enabled,
+    staleTime: 60_000,
+    placeholderData: (previous, previousQuery) => {
+      const sameRoute =
+        JSON.stringify(previousQuery?.queryKey[2]) === JSON.stringify(route);
+      const providers =
+        (sameRoute ? previous?.providers : undefined) ??
+        lastKnownProviders.read(providersKey);
+      const known =
+        providerId === undefined ||
+        providers?.some((provider) => provider.id === providerId);
+      if (!providers?.length || !known) return undefined;
+      const catalog = lastKnownModels.read(modelsKey);
+      return {
+        providers,
+        models: catalog?.models ?? [],
+        selectedOnlyModels: catalog?.selectedOnlyModels ?? [],
+        permissionCeiling: permissionModeValues[0],
+        modelLoadError: null,
+      };
+    },
   });
 }

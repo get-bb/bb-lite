@@ -260,7 +260,7 @@ function insertCreatedThread(
   const environmentHostId =
     environment.type === "reuse"
       ? client.getQueryData<Environment>(
-          qk.environment(environment.environmentId),
+          qk.environmentRecord(environment.environmentId),
         )?.hostId
       : environment.type === "provider" &&
           environment.machine?.type === "existing"

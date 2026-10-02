@@ -1,125 +1,55 @@
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useRef } from "react";
-import type {
-  CommandListResponse,
-  ProjectBranchesResponse,
-  ProjectWithThreadsResponse,
-  PromptHistoryResponse,
-  WorkspacePathListResponse,
-} from "@bb/server-contract";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
+import type { ProjectWithThreadsResponse } from "@bb/server-contract";
 import type { FilePreview } from "@bb/client-core";
 import { loadFilePreview } from "@/lib/api";
 import { buildProjectFileContentUrl } from "@/lib/file-content-urls";
 import { readProjectBranchOptions } from "@/lib/project-branch-options";
 import { sdk } from "@/lib/sdk";
-import { useProjectDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
-import {
-  projectCommandsQueryKey,
-  projectFilePreviewQueryKey,
-  projectPathsQueryKey,
-  projectPromptHistoryQueryKey,
-  projectSourceBranchesQueryKey,
-} from "./query-keys";
-import { resolveProjectSourceBranchesPlaceholder } from "./query-placeholders";
-import { useDebouncedBranchSearchQuery } from "./branch-search-debounce";
-import {
-  PROMPT_HISTORY_STALE_TIME_MS,
-  requireEnabledQueryArg,
-  requireProjectId,
-  type QueryOptions,
-} from "./query-helpers";
-import {
-  EXPENSIVE_MANUAL_QUERY_POLICY,
-  HEAVY_PAYLOAD_QUERY_POLICY,
-  REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
-  TYPEAHEAD_QUERY_POLICY,
-} from "./query-policies";
+import { useDebouncedValue } from "../useDebouncedValue";
+import type { QueryOptions } from "./query-helpers";
+import { qk } from "./query-keys";
 
-interface BranchQueryOptions extends QueryOptions {
-  limit?: number;
-  query?: string;
-  selectedBranch?: string;
-}
-
-interface UseProjectPathSuggestionsArgs {
-  projectId: string | undefined;
-  environmentId: string | null;
-  hostId: string | null;
-  query: string | null;
-  limit?: number;
-  includeFiles: boolean;
-  includeDirectories: boolean;
-}
-
-interface UseProjectCommandsArgs {
-  projectId: string | undefined;
-  providerId: string | undefined;
+interface ProjectRouting {
   environmentId: string | null;
   hostId: string | null;
 }
 
-const PROJECT_SOURCE_BRANCHES_LIMIT = 50;
-const PROJECT_SOURCE_BRANCHES_STALE_MS = 30_000;
-
-function requireProviderId(
-  providerId: string | undefined,
-  hookName: string,
-): string {
-  return requireEnabledQueryArg({
-    value: providerId,
-    hookName,
-    argName: "providerId",
-  });
+function routed({ environmentId, hostId }: ProjectRouting) {
+  if (environmentId !== null) return { environmentId };
+  return hostId !== null ? { hostId } : {};
 }
-
-export type SidebarProject = Omit<ProjectWithThreadsResponse, "threads">;
 
 export function stripProjectThreads(
   project: ProjectWithThreadsResponse,
-): SidebarProject {
-  const { threads, ...rest } = project;
+): Omit<ProjectWithThreadsResponse, "threads"> {
+  const { threads: _threads, ...rest } = project;
   return rest;
 }
 
 export function useProjectSourceBranches(
   projectId: string | undefined,
   hostId: string | null,
-  options?: BranchQueryOptions,
+  options?: QueryOptions & {
+    limit?: number;
+    query?: string;
+    selectedBranch?: string;
+  },
 ) {
-  const enabled =
-    (options?.enabled ?? true) && Boolean(projectId) && Boolean(hostId);
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-  const query = useDebouncedBranchSearchQuery(options?.query?.trim() ?? "");
-  const limit = options?.limit ?? PROJECT_SOURCE_BRANCHES_LIMIT;
+  const query = useDebouncedValue(options?.query?.trim() ?? "", 120);
   const selectedBranch = options?.selectedBranch?.trim() ?? "";
-  const remoteRefreshRef = useRef<{
-    blockingSignal: AbortSignal | null;
-    inFlight: Promise<void> | null;
-    requested: boolean;
-  }>({ blockingSignal: null, inFlight: null, requested: false });
-  const result = useQuery<ProjectBranchesResponse>({
-    queryKey: projectSourceBranchesQueryKey(
-      projectId ?? "",
-      hostId ?? "",
-      query,
-      limit,
-      selectedBranch,
-    ),
+  const limit = options?.limit ?? 50;
+  const fromRemote = useRef(false);
+  const stable = { hostId, limit, selectedBranch };
+  const result = useQuery({
+    queryKey: qk.projectBranches(projectId, { ...stable, query }),
     queryFn: ({ signal }) => {
-      const remoteRefresh = remoteRefreshRef.current;
-      const startsBlockingRefresh =
-        remoteRefresh.requested && remoteRefresh.blockingSignal === null;
-      const blocking =
-        startsBlockingRefresh || remoteRefresh.blockingSignal === signal;
-      if (startsBlockingRefresh) {
-        remoteRefresh.requested = false;
-        remoteRefresh.blockingSignal = signal;
-      }
-      const readBranches = blocking
+      const read = fromRemote.current
         ? sdk.projects.branches
         : readProjectBranchOptions;
-      return readBranches({
-        projectId: requireProjectId(projectId, "useProjectSourceBranches"),
+      fromRemote.current = false;
+      return read({
+        projectId: projectId ?? "",
         hostId: hostId ?? "",
         ...(query ? { query } : {}),
         ...(selectedBranch ? { selectedBranch } : {}),
@@ -127,41 +57,24 @@ export function useProjectSourceBranches(
         signal,
       });
     },
-    enabled,
-    ...REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
-    staleTime: PROJECT_SOURCE_BRANCHES_STALE_MS,
-    placeholderData: (previousData, previousQuery) =>
-      projectId && hostId
-        ? resolveProjectSourceBranchesPlaceholder({
-            previousData,
-            previousQueryKey: previousQuery?.queryKey,
-            projectId,
-            hostId,
-            limit,
-            selectedBranch,
-          })
-        : undefined,
+    enabled: (options?.enabled ?? true) && Boolean(projectId && hostId),
+    staleTime: 30_000,
+    placeholderData: (previous, previousQuery) => {
+      const [, id, , args] = previousQuery?.queryKey ?? [];
+      const same = args as Partial<typeof stable> | undefined;
+      return id === projectId &&
+        same?.hostId === hostId &&
+        same.limit === limit &&
+        same.selectedBranch === selectedBranch
+        ? previous
+        : undefined;
+    },
   });
-  const refetch = result.refetch;
-  const refreshFromRemote = useCallback((): Promise<void> => {
-    const remoteRefresh = remoteRefreshRef.current;
-    if (remoteRefresh.inFlight) return remoteRefresh.inFlight;
-
-    const run = async (): Promise<void> => {
-      remoteRefresh.requested = true;
-      remoteRefresh.blockingSignal = null;
-      try {
-        await refetch();
-        if (remoteRefresh.requested) await refetch();
-      } finally {
-        remoteRefresh.requested = false;
-        remoteRefresh.blockingSignal = null;
-        remoteRefresh.inFlight = null;
-      }
-    };
-    remoteRefresh.inFlight = run();
-    return remoteRefresh.inFlight;
-  }, [refetch]);
+  const { refetch } = result;
+  const refreshFromRemote = async (): Promise<void> => {
+    fromRemote.current = true;
+    await refetch();
+  };
   return { ...result, refreshFromRemote };
 }
 
@@ -169,150 +82,88 @@ export function useProjectPromptHistory(
   projectId: string | undefined,
   options?: QueryOptions,
 ) {
-  const enabled = (options?.enabled ?? true) && Boolean(projectId);
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-
-  return useQuery<PromptHistoryResponse>({
-    queryKey: projectPromptHistoryQueryKey(projectId),
+  return useQuery({
+    queryKey: qk.projectPromptHistory(projectId),
     queryFn: ({ signal }) =>
-      sdk.projects.promptHistory({
-        projectId: requireProjectId(projectId, "useProjectPromptHistory"),
-        signal,
-      }),
-    enabled,
-    staleTime: PROMPT_HISTORY_STALE_TIME_MS,
+      sdk.projects.promptHistory({ projectId: projectId ?? "", signal }),
+    enabled: (options?.enabled ?? true) && Boolean(projectId),
+    staleTime: 10_000,
   });
 }
 
-export function useProjectPathSuggestions(args: UseProjectPathSuggestionsArgs) {
-  const {
-    projectId,
-    query,
-    limit = 8,
-    includeFiles,
-    includeDirectories,
-  } = args;
-  const trimmedQuery = query?.trim() ?? "";
-  const enabled = Boolean(projectId) && trimmedQuery.length > 0;
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-
-  return useQuery<WorkspacePathListResponse>({
-    queryKey: projectPathsQueryKey(
-      projectId,
-      args.environmentId,
-      args.hostId,
-      trimmedQuery,
-      limit,
-      includeFiles,
-      includeDirectories,
-    ),
+export function useProjectPathSuggestions(
+  args: ProjectRouting & {
+    projectId: string | undefined;
+    query: string | null;
+    limit?: number;
+    includeFiles: boolean;
+    includeDirectories: boolean;
+  },
+) {
+  const { projectId, limit = 8, includeFiles, includeDirectories } = args;
+  const query = args.query?.trim() ?? "";
+  const route = routed(args);
+  const filter = { ...route, query, limit, includeFiles, includeDirectories };
+  return useQuery({
+    queryKey: qk.projectPaths(projectId, filter),
     queryFn: ({ signal }) =>
       sdk.projects.paths({
         projectId: projectId ?? "",
-        query: trimmedQuery,
+        query,
         limit: String(limit),
         includeFiles: includeFiles ? "true" : "false",
         includeDirectories: includeDirectories ? "true" : "false",
         signal,
-        ...(args.environmentId !== null
-          ? { environmentId: args.environmentId }
-          : args.hostId !== null
-            ? { hostId: args.hostId }
-            : {}),
+        ...route,
       }),
-    enabled,
-    ...TYPEAHEAD_QUERY_POLICY,
-    placeholderData: (previousData) => previousData,
+    enabled: Boolean(projectId) && query.length > 0,
+    retry: false,
+    staleTime: 15_000,
+    placeholderData: keepPreviousData,
   });
-}
-
-interface ProjectFileRouting {
-  environmentId: string | null;
-  hostId: string | null;
 }
 
 export function useProjectFilePreview(
   projectId: string | undefined,
   path: string | null,
-  routing: ProjectFileRouting,
+  routing: ProjectRouting,
   options?: QueryOptions,
 ) {
-  const enabled =
-    (options?.enabled ?? true) && Boolean(projectId) && Boolean(path);
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-
   return useQuery<FilePreview>({
-    queryKey: projectFilePreviewQueryKey(
-      projectId,
-      routing.environmentId,
-      routing.hostId,
-      path,
-    ),
-    queryFn: async ({ signal }) => {
-      const requiredProjectId = requireProjectId(
-        projectId,
-        "useProjectFilePreview",
-      );
-      const requiredPath = requireEnabledQueryArg({
-        value: path,
-        hookName: "useProjectFilePreview",
-        argName: "path",
-      });
-      return loadFilePreview(
-        {
-          name: requiredPath.split("/").at(-1),
-          path: requiredPath,
-          url: buildProjectFileContentUrl(
-            requiredProjectId,
-            requiredPath,
-            routing,
-          ),
-        },
-        signal,
-      );
+    queryKey: qk.projectFile(projectId, { ...routing, path }),
+    queryFn: ({ signal }) => {
+      if (!projectId || !path) {
+        throw new Error("File preview needs a project and a path");
+      }
+      const url = buildProjectFileContentUrl(projectId, path, routing);
+      const name = path.split("/").at(-1);
+      return loadFilePreview({ name, path, url }, signal);
     },
-    enabled,
-    ...EXPENSIVE_MANUAL_QUERY_POLICY,
-    ...HEAVY_PAYLOAD_QUERY_POLICY,
+    enabled: (options?.enabled ?? true) && Boolean(projectId && path),
+    gcTime: 60_000,
   });
 }
 
-function projectCommandsQueryOptions(args: UseProjectCommandsArgs) {
-  return {
-    queryKey: projectCommandsQueryKey(
-      args.projectId,
-      args.providerId,
-      args.environmentId,
-      args.hostId,
-    ),
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      sdk.projects.commands({
-        projectId: requireProjectId(args.projectId, "useProjectCommands"),
-        provider: requireProviderId(args.providerId, "useProjectCommands"),
-        signal,
-        ...(args.environmentId !== null
-          ? { environmentId: args.environmentId }
-          : args.hostId !== null
-            ? { hostId: args.hostId }
-            : {}),
-      }),
-  };
-}
-
 export function useProjectCommands(
-  args: UseProjectCommandsArgs,
+  args: ProjectRouting & {
+    projectId: string | undefined;
+    providerId: string | undefined;
+  },
   options?: QueryOptions,
 ) {
-  const enabled =
-    (options?.enabled ?? true) &&
-    Boolean(args.projectId) &&
-    Boolean(args.providerId);
-  useProjectDetailRealtimeSubscription(args.projectId, { enabled });
-
-  return useQuery<CommandListResponse>({
-    ...projectCommandsQueryOptions(args),
-    enabled,
-    ...TYPEAHEAD_QUERY_POLICY,
+  const { projectId, providerId } = args;
+  const route = routed(args);
+  return useQuery({
+    queryKey: qk.projectCommands(projectId, { ...route, providerId }),
+    queryFn: ({ signal }) =>
+      sdk.projects.commands({
+        projectId: projectId ?? "",
+        provider: providerId ?? "",
+        signal,
+        ...route,
+      }),
+    enabled: (options?.enabled ?? true) && Boolean(projectId && providerId),
+    retry: false,
     staleTime: 0,
   });
 }

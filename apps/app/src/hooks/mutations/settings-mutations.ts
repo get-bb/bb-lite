@@ -12,6 +12,7 @@ import {
 import type { SystemConfigResponse } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import { qk } from "../queries/query-keys";
+import { ANY, filterFor } from "../queries/refresh";
 
 interface QueryClientArg {
   queryClient: QueryClient;
@@ -21,16 +22,16 @@ export function invalidateSystemConfig({
   queryClient,
 }: QueryClientArg): Promise<void[]> {
   return Promise.all(
-    qk
-      .systemState()
-      .map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    [qk.system(), qk.timeline(ANY), qk.turnDetails(ANY)].map((queryKey) =>
+      queryClient.invalidateQueries(filterFor(queryKey)),
+    ),
   );
 }
 
 export function invalidateMachineEnvironment({
   queryClient,
 }: QueryClientArg): void {
-  void queryClient.invalidateQueries({ queryKey: qk.machineEnvironments() });
+  void queryClient.invalidateQueries({ queryKey: qk.machineEnvironment() });
 }
 
 export function useUpdateGeneralSettings() {

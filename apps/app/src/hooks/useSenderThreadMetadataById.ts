@@ -10,18 +10,7 @@ import type {
   ThreadVisibility,
   ThreadWithRuntime,
 } from "@bb/domain";
-import {
-  allThreadQueryKeyPrefix,
-  SIDEBAR_NAVIGATION_QUERY_KEY,
-  THREAD_QUERY_KEY,
-  THREADS_QUERY_KEY,
-  threadsQueryKey,
-} from "@/hooks/queries/query-keys";
-import { getCachedSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
-import {
-  getCachedThreadLists,
-  iterateThreadListCacheEntries,
-} from "@/hooks/cache-owners/thread-list-cache-data";
+import { cachedThreads } from "@/hooks/queries/thread-cache";
 
 export interface SenderThreadMetadata {
   projectId: string;
@@ -79,22 +68,17 @@ function buildSenderThreadMetadataById(
     return metadataById;
   }
 
-  for (const thread of getCachedSidebarNavigationThreads(queryClient)) {
+  for (const thread of cachedThreads(queryClient)) {
     addSenderThreadMetadata(metadataById, thread);
   }
 
-  for (const [, thread] of queryClient.getQueriesData<ThreadWithRuntime>({
-    queryKey: allThreadQueryKeyPrefix(),
+  for (const [
+    queryKey,
+    thread,
+  ] of queryClient.getQueriesData<ThreadWithRuntime>({
+    queryKey: ["thread"],
   })) {
-    if (thread) {
-      addSenderThreadMetadata(metadataById, thread);
-    }
-  }
-
-  for (const cachedList of getCachedThreadLists(queryClient, {
-    queryKey: threadsQueryKey(),
-  })) {
-    for (const thread of iterateThreadListCacheEntries(cachedList.data)) {
+    if (thread && queryKey[2] === "detail") {
       addSenderThreadMetadata(metadataById, thread);
     }
   }
@@ -103,11 +87,12 @@ function buildSenderThreadMetadataById(
 }
 
 function shouldSyncSenderThreadMetadata(event: QueryCacheNotifyEvent): boolean {
+  const [family, , part] = event.query.queryKey;
   return (
     event.type === "updated" &&
-    (event.query.queryKey[0] === SIDEBAR_NAVIGATION_QUERY_KEY ||
-      event.query.queryKey[0] === THREADS_QUERY_KEY ||
-      event.query.queryKey[0] === THREAD_QUERY_KEY)
+    (family === "sidebar" ||
+      family === "archived-threads" ||
+      (family === "thread" && part === "detail"))
   );
 }
 

@@ -12,7 +12,7 @@ import {
   getCachedUiPreferences,
   invalidateCachedUiPreferences,
   setCachedUiPreferences,
-} from "@/hooks/cache-owners/ui-preferences-cache-owner";
+} from "@/hooks/queries/system-queries";
 import { BbHttpError, sdk } from "../sdk";
 
 type JotaiStore = ReturnType<typeof getDefaultStore>;

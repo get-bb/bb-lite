@@ -32,23 +32,3 @@ export function useEnvironmentDetailRealtimeSubscription(
     [id],
   );
 }
-
-export function useProjectDetailRealtimeSubscription(
-  _projectId: string | null | undefined,
-  _options?: RealtimeSubscriptionOptions,
-): void {}
-export function useThreadListRealtimeSubscription(
-  _options?: RealtimeSubscriptionOptions,
-): void {}
-export function useProjectListRealtimeSubscription(
-  _options?: RealtimeSubscriptionOptions,
-): void {}
-export function useEnvironmentListRealtimeSubscription(
-  _options?: RealtimeSubscriptionOptions,
-): void {}
-export function useHostListRealtimeSubscription(
-  _options?: RealtimeSubscriptionOptions,
-): void {}
-export function useSystemRealtimeSubscription(
-  _options?: RealtimeSubscriptionOptions,
-): void {}

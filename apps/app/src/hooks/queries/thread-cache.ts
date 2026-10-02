@@ -9,10 +9,11 @@ import type {
   SidebarBootstrapResponse,
   ThreadResponse,
 } from "@bb/server-contract";
+import { readCachedSidebarBootstrap } from "@/lib/sidebar-bootstrap-cache";
 import { qk } from "./query-keys";
 import { refresh } from "./refresh";
 
-type ThreadListData = ThreadListEntry[] | InfiniteData<ThreadListEntry[]>;
+type ArchivedThreads = InfiniteData<ThreadListEntry[]>;
 type ThreadListMapper = (
   threads: ThreadListEntry[],
   projectId: string | null,
@@ -30,17 +31,13 @@ export function listSidebarNavigationThreads(
 }
 
 export function cachedThreads(client: QueryClient): ThreadListEntry[] {
-  const navigation = client.getQueryData<SidebarBootstrapResponse>(
-    qk.sidebar(),
-  );
-  const lists = client.getQueriesData<ThreadListData>({
-    queryKey: qk.threadLists(),
-  });
+  const navigation =
+    client.getQueryData<SidebarBootstrapResponse>(qk.sidebar()) ??
+    readCachedSidebarBootstrap();
+  const archived = client.getQueryData<ArchivedThreads>(qk.archivedThreads());
   return [
     ...(navigation ? listSidebarNavigationThreads(navigation) : []),
-    ...lists.flatMap(([, data]) =>
-      Array.isArray(data) ? data : (data?.pages.flat() ?? []),
-    ),
+    ...(archived?.pages.flat() ?? []),
   ];
 }
 
@@ -76,13 +73,10 @@ export function mapCachedThreadLists(
         },
       },
   );
-  client.setQueriesData<ThreadListData>(
-    { queryKey: qk.threadLists() },
-    (data) => {
-      if (Array.isArray(data)) return mapper(data, null);
-      const pages = data?.pages.map((page) => mapper(page, null));
-      return data && pages ? { ...data, pages } : data;
-    },
+  client.setQueryData<ArchivedThreads>(
+    qk.archivedThreads(),
+    (data) =>
+      data && { ...data, pages: data.pages.map((page) => mapper(page, null)) },
   );
 }
 
@@ -110,10 +104,10 @@ export async function snapshotThreadCaches(
   threadIds: readonly string[],
 ): Promise<CacheSnapshot> {
   const filters: QueryFilters[] = [
-    { queryKey: qk.sidebar() },
-    { queryKey: qk.threadLists() },
-    ...threadIds.map((id) => ({ queryKey: qk.threadDetail(id), exact: true })),
-  ];
+    qk.sidebar(),
+    qk.archivedThreads(),
+    ...threadIds.map((id) => qk.threadDetail(id)),
+  ].map((queryKey) => ({ queryKey, exact: true }));
   await Promise.all(filters.map((filter) => client.cancelQueries(filter)));
   return filters.flatMap((filter) => client.getQueriesData(filter));
 }
@@ -132,7 +126,7 @@ export function refreshThreadCaches(
   threadIds: readonly string[],
 ): void {
   for (const queryKey of [
-    ...qk.threadListState(),
+    ...qk.threadLists(),
     ...threadIds.map((id) => qk.threadDetail(id)),
   ]) {
     refresh(client, queryKey);

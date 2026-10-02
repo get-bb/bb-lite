@@ -1,4 +1,8 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type {
+  QueryClient,
+  QueryFilters,
+  QueryKey,
+} from "@tanstack/react-query";
 
 export interface RefreshTiming {
   delay: number;
@@ -15,18 +19,27 @@ interface Slot {
   timing: RefreshTiming;
 }
 
+export const ANY = "*";
 const SOON: RefreshTiming = { delay: 50, gap: 0 };
 export const STREAM: RefreshTiming = { delay: 0, gap: 200 };
 const slots = new Map<string, Slot>();
 
+export function filterFor(queryKey: QueryKey): QueryFilters {
+  if (!queryKey.includes(ANY)) return { queryKey };
+  const matches = (key: QueryKey) =>
+    queryKey.every((part, index) => part === ANY || part === key[index]);
+  return { predicate: (query) => matches(query.queryKey) };
+}
+
 async function run(slot: Slot): Promise<void> {
-  const { client, queryKey } = slot;
+  const { client } = slot;
+  const filter = filterFor(slot.queryKey);
   slot.timer = null;
   slot.pending = false;
   slot.running = true;
   slot.last = Date.now();
-  const joined = client.isFetching({ queryKey }) > 0;
-  await client.invalidateQueries({ queryKey }, { cancelRefetch: false });
+  const joined = client.isFetching(filter) > 0;
+  await client.invalidateQueries(filter, { cancelRefetch: false });
   slot.running = false;
   if (joined || slot.pending) schedule(slot);
 }
