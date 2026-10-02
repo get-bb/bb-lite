@@ -180,7 +180,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       key === "theme"
         ? { themeId: next, faviconColor }
         : { themeId, faviconColor: next };
-    return theme.set(valid(domain.appThemeSelectionSchema, selection, key));
+    return theme.set(valid(domain.appThemeSchema, selection, key));
   }
   if (key.startsWith(KEYBINDING)) {
     const command = key.slice(KEYBINDING.length);

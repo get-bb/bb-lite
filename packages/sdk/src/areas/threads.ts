@@ -1,68 +1,37 @@
-import {
-  parseThreadEventRow,
-  type PromptInput,
-  type PendingInteraction,
-  type PendingInteractionResolution,
-  type JsonValue,
-  type ResolvedThreadExecutionOptions,
-  type ThreadEventRow,
-  type ThreadEventType,
-  type QueuedMessageWaitHolder,
-  type ThreadQueuedMessage,
-  type ThreadStatus,
-  validatePluginMetadata,
-} from "@bb/domain";
-import { threadTabsResponseSchema } from "@bb/server-contract";
-import type {
-  CreateQueuedMessageRequest,
-  CreateThreadRequest,
-  QueuedMessageListQuery,
-  DeleteThreadRequest,
-  PromptHistoryResponse,
-  SendQueuedMessageResponse,
-  ThreadArchiveAllResponse,
-  ThreadChildSummaryResponse,
-  ThreadListResponse,
-  ThreadOpenResponse,
-  ThreadPendingInteractionsResponse,
-  ThreadQueuedMessageListResponse,
-  ThreadResponse,
-  ThreadSearchResponse,
-  ThreadStorageFileListResponse,
-  ThreadStorageLocationResponse,
-  ThreadStoragePathListResponse,
-  ThreadTabsResponse,
-  ThreadTimelineResponse,
-  ThreadWithIncludesResponse,
-  TimelineTurnSummaryDetailsResponse,
-  ThreadOpenFile,
-  ThreadOpenSplit,
-  PromptHistoryQuery,
-  ReorderPinnedThreadRequest,
-  ResolveThreadMentionsRequest,
-  ResolveThreadMentionsResponse,
-  SendMessageRequest,
-  SendMessageResponse,
-  SendQueuedMessageRequest,
-  ThreadEventsQuery,
-  ThreadEventWaitQuery,
-  ThreadGetQuery,
-  ThreadListQuery,
-  ThreadSearchQuery,
-  ThreadStorageFilesQuery,
-  ThreadStoragePathsQuery,
-  ThreadTimelineQuery,
-  TimelineTurnSummaryDetailsQuery,
-  UpdateThreadTabsRequest,
-  UpdateThreadRequest,
-  UpdateQueuedMessageRequest,
-} from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import { parseThreadEventRow, validatePluginMetadata } from "@bb/domain";
+import type * as domain from "@bb/domain";
+import { publicApiRoutes, threadTabsResponseSchema } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { count, flag, pick, type Http } from "../http.js";
 
-export const DEFAULT_THREAD_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
-export const DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS = 250;
+const DEFAULT_THREAD_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
+const DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS = 250;
+const MAX_EVENT_WAIT_MS = 30_000;
 
-export interface ThreadListArgs {
+type Ok = { ok: true };
+type Acknowledged =
+  | "stop"
+  | "compact"
+  | "clearContext"
+  | "cancelPlan"
+  | "unarchive";
+type Abortable = { signal?: AbortSignal };
+
+export interface ThreadTarget extends Abortable {
+  threadId: string;
+}
+
+interface QueuedMessageTarget {
+  queuedMessageId: string;
+  threadId: string;
+}
+
+interface InteractionTarget {
+  interactionId: string;
+  threadId: string;
+}
+
+export interface ThreadListArgs extends Abortable {
   archived?: boolean;
   environmentId?: string;
   hostId?: string;
@@ -71,273 +40,92 @@ export interface ThreadListArgs {
   includeHidden?: boolean;
   limit?: number;
   offset?: number;
-  originKind?: ThreadListQuery["originKind"];
+  originKind?: api.ThreadListQuery["originKind"];
   originPluginId?: string;
   parentThreadId?: string;
   projectId?: string;
-  signal?: AbortSignal;
-  sourceThreadId?: string;
   unsectioned?: boolean;
 }
 
-export interface ThreadSearchArgs extends ThreadSearchQuery {
-  signal?: AbortSignal;
-}
+export type ThreadGetResult =
+  | api.ThreadResponse
+  | api.ThreadWithIncludesResponse;
+export type ThreadMutationResult = api.ThreadResponse;
 
-export interface ThreadResolveMentionsArgs extends ResolveThreadMentionsRequest {
-  signal?: AbortSignal;
-}
-
-export interface ThreadGetArgs {
-  include?: ThreadGetQuery["include"];
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export type ThreadGetResult = ThreadResponse | ThreadWithIncludesResponse;
-export type ThreadListResult = ThreadListResponse;
-export type ThreadSearchResult = ThreadSearchResponse;
-export type ThreadResolveMentionsResult = ResolveThreadMentionsResponse;
-export interface ThreadOutputResponse {
-  output: string | null;
-}
-export type ThreadMutationResult = ThreadResponse;
-export type ThreadSpawnResult = ThreadResponse;
-export type ThreadInteractionGetResult = PendingInteraction;
-export type ThreadInteractionListResult = ThreadPendingInteractionsResponse;
-export type ThreadInteractionResolveResult = PendingInteraction;
-export type ThreadInteractionRespondResult = PendingInteraction;
-export type ThreadInteractionCancelResult = PendingInteraction;
-export type ThreadEventsListResult = ThreadEventRow[];
-export type ThreadEventWaitResult = ThreadEventRow | null;
-export type ThreadTimelineResult = ThreadTimelineResponse;
-export type ThreadArchiveResult = ThreadArchiveAllResponse;
-export type ThreadOpenResult = ThreadOpenResponse;
-export type ThreadDeleteResult = { ok: true };
-export type ThreadSendResult = SendMessageResponse;
-export type ThreadStopResult = { ok: true };
-export type ThreadCompactResult = { ok: true };
-export type ThreadBannerActionResult = { ok: true };
-export type ThreadUnarchiveResult = { ok: true };
-export type ThreadArchiveAllResult = ThreadArchiveAllResponse;
-export type ThreadReadStateResult = ThreadResponse;
-export type ThreadRestoreEnvironmentResult = ThreadResponse;
-export type ThreadPinOrderResult = ThreadListResponse;
-export type ThreadPromptHistoryResult = PromptHistoryResponse;
-export type ThreadQueuedMessagesResult = ThreadQueuedMessageListResponse;
-export type ThreadQueuedMessageCreateResult = ThreadQueuedMessage;
-export type ThreadQueuedMessageUpdateResult = ThreadQueuedMessage;
-export type ThreadQueuedMessageDeleteResult = { ok: true };
-export type ThreadQueuedMessageSendResult = SendQueuedMessageResponse;
-export type ThreadQueueListResult = ThreadQueuedMessageListResponse;
-export type ThreadTabsResult = ThreadTabsResponse;
-export type ThreadTabsUpdateResult = ThreadTabsResponse;
-export type ThreadStorageFilesResult = ThreadStorageFileListResponse;
-export type ThreadStorageLocationResult = ThreadStorageLocationResponse;
-export type ThreadStoragePathsResult = ThreadStoragePathListResponse;
-export type ThreadChildSummaryResult = ThreadChildSummaryResponse;
-export type ThreadDefaultExecutionOptionsResult = ResolvedThreadExecutionOptions | null;
-export type ThreadTimelineTurnSummaryDetailsResult =
-  TimelineTurnSummaryDetailsResponse;
-
-export interface ThreadSpawnBaseArgs extends Omit<
-  CreateThreadRequest,
+type SpawnRequest = api.CreateThreadRequest;
+export type ThreadSpawnArgs = Omit<
+  SpawnRequest,
   "input" | "origin" | "startedOnBehalfOf"
-> {
-  origin?: CreateThreadRequest["origin"];
-  startedOnBehalfOf?: CreateThreadRequest["startedOnBehalfOf"];
-}
-
-export type ThreadSpawnArgs = ThreadSpawnBaseArgs &
+> &
+  Partial<Pick<SpawnRequest, "origin" | "startedOnBehalfOf">> &
   (
-    | {
-        input: CreateThreadRequest["input"];
-        prompt?: never;
-      }
-    | {
-        input?: never;
-        prompt: string;
-      }
+    | { input: SpawnRequest["input"]; prompt?: never }
+    | { input?: never; prompt: string }
   );
 
-export interface ThreadUpdateArgs extends UpdateThreadRequest {
+export interface ThreadUpdateArgs extends api.UpdateThreadRequest {
   threadId: string;
 }
 
-export interface ThreadDeleteArgs extends DeleteThreadRequest {
-  threadId: string;
-}
-
-export interface ThreadSendArgs extends SendMessageRequest {
-  threadId: string;
-}
-
-export interface ThreadActionArgs {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadStatusArgs extends ThreadActionArgs {
-  signal?: AbortSignal;
-}
-
-export interface ThreadPromptHistoryArgs extends PromptHistoryQuery {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadPinOrderArgs extends ReorderPinnedThreadRequest {
-  threadId: string;
-}
-
-export interface ThreadQueuedMessageArgs {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadQueuedMessageCreateArgs extends CreateQueuedMessageRequest {
-  threadId: string;
-}
-
-export interface ThreadQueuedMessageUpdateArgs
-  extends ThreadQueuedMessageTargetArgs, UpdateQueuedMessageRequest {}
-
-export interface ThreadQueuedMessageTargetArgs {
-  queuedMessageId: string;
-  threadId: string;
-}
-
-export interface ThreadQueuedMessageSendArgs
-  extends ThreadQueuedMessageTargetArgs, SendQueuedMessageRequest {}
-
-export interface ThreadQueueListArgs {
-  waitHolder?: QueuedMessageWaitHolder;
-  signal?: AbortSignal;
-  threadId?: string;
-}
-
-export interface ThreadStorageFilesArgs extends ThreadStorageFilesQuery {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadStoragePathsArgs extends ThreadStoragePathsQuery {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadTimelineTurnSummaryDetailsArgs extends TimelineTurnSummaryDetailsQuery {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadTabsUpdateArgs extends UpdateThreadTabsRequest {
-  threadId: string;
-}
-
-export interface ThreadOpenArgs {
-  threadId: string;
-  split?: ThreadOpenSplit;
-  file: ThreadOpenFile | null;
-}
-
-export interface ThreadEventsListArgs {
+export interface ThreadEventsListArgs extends ThreadTarget {
   afterSeq?: string;
   beforeSeq?: string;
   limit?: string;
   order?: "asc" | "desc";
-  signal?: AbortSignal;
-  threadId: string;
-  types?: readonly [ThreadEventType, ...ThreadEventType[]];
+  types?: readonly [domain.ThreadEventType, ...domain.ThreadEventType[]];
 }
 
-export interface ThreadEventWaitArgs {
+export interface ThreadEventWaitArgs extends ThreadTarget {
   afterSeq?: string;
-  signal?: AbortSignal;
-  threadId: string;
   type: string;
   waitMs: string;
 }
 
-export interface ThreadTimelineArgs extends ThreadTimelineQuery {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadOutputArgs {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadInteractionListArgs {
-  signal?: AbortSignal;
-  threadId: string;
-}
-
-export interface ThreadInteractionTargetArgs {
-  interactionId: string;
-  threadId: string;
-}
-
-export interface ThreadInteractionGetArgs extends ThreadInteractionTargetArgs {
-  signal?: AbortSignal;
-}
-
-export interface ThreadInteractionResolveArgs extends ThreadInteractionTargetArgs {
-  resolution: PendingInteractionResolution;
-}
-
-export interface ThreadInteractionRespondArgs extends ThreadInteractionTargetArgs {
-  value: JsonValue;
-}
-
 export type ThreadWaitTarget =
-  | { kind: "status"; status: ThreadStatus }
+  | { kind: "status"; status: domain.ThreadStatus }
   | { kind: "event"; eventType: string };
+type StatusWaitTarget = Extract<ThreadWaitTarget, { kind: "status" }>;
 
-export interface ThreadWaitArgs {
+export interface ThreadWaitArgs extends ThreadTarget {
   event?: string;
   pollIntervalMs?: number;
-  signal?: AbortSignal;
-  status?: ThreadStatus;
-  threadId: string;
+  status?: domain.ThreadStatus;
   timeoutMs?: number;
 }
 
-export type ThreadWaitResult =
+export type ThreadWaitResult = { matched: true; threadId: string } & (
   | {
-      event: NonNullable<ThreadEventWaitResult>;
-      matched: true;
+      event: domain.ThreadEventRow;
       target: Extract<ThreadWaitTarget, { kind: "event" }>;
-      threadId: string;
     }
-  | {
-      matched: true;
-      target: Extract<ThreadWaitTarget, { kind: "status" }>;
-      thread: ThreadGetResult;
-      threadId: string;
-    };
+  | { target: StatusWaitTarget; thread: ThreadGetResult }
+);
 
 export class ThreadWaitTimeoutError extends Error {
   readonly target: ThreadWaitTarget;
   readonly threadId: string;
 
   constructor(args: { target: ThreadWaitTarget; threadId: string }) {
-    super(formatThreadWaitTimeoutMessage(args));
+    const { target, threadId } = args;
+    super(
+      target.kind === "status"
+        ? `Timed out waiting for thread ${threadId} to reach status ${target.status}.`
+        : `Timed out waiting for thread ${threadId} event ${target.eventType}.`,
+    );
     this.name = "ThreadWaitTimeoutError";
-    this.target = args.target;
-    this.threadId = args.threadId;
+    this.target = target;
+    this.threadId = threadId;
   }
 }
 
 export class ThreadWaitUnreachableError extends Error {
-  readonly currentStatus: ThreadStatus;
-  readonly target: Extract<ThreadWaitTarget, { kind: "status" }>;
+  readonly currentStatus: domain.ThreadStatus;
+  readonly target: StatusWaitTarget;
   readonly threadId: string;
 
   constructor(args: {
-    currentStatus: ThreadStatus;
-    target: Extract<ThreadWaitTarget, { kind: "status" }>;
+    currentStatus: domain.ThreadStatus;
+    target: StatusWaitTarget;
     threadId: string;
   }) {
     super(
@@ -351,260 +139,144 @@ export class ThreadWaitUnreachableError extends Error {
   }
 }
 
-export interface ThreadInteractionsArea {
-  cancel(
-    args: ThreadInteractionTargetArgs,
-  ): Promise<ThreadInteractionCancelResult>;
-  get(args: ThreadInteractionGetArgs): Promise<ThreadInteractionGetResult>;
-  list(args: ThreadInteractionListArgs): Promise<ThreadInteractionListResult>;
-  resolve(
-    args: ThreadInteractionResolveArgs,
-  ): Promise<ThreadInteractionResolveResult>;
-  respond(
-    args: ThreadInteractionRespondArgs,
-  ): Promise<ThreadInteractionRespondResult>;
-}
-
-export interface ThreadEventsArea {
-  list(args: ThreadEventsListArgs): Promise<ThreadEventsListResult>;
-  wait(args: ThreadEventWaitArgs): Promise<ThreadEventWaitResult>;
-}
-
-export interface ThreadQueuedMessagesArea {
-  create(
-    args: ThreadQueuedMessageCreateArgs,
-  ): Promise<ThreadQueuedMessageCreateResult>;
-  delete(
-    args: ThreadQueuedMessageTargetArgs,
-  ): Promise<ThreadQueuedMessageDeleteResult>;
-  list(args: ThreadQueuedMessageArgs): Promise<ThreadQueuedMessagesResult>;
-  send(
-    args: ThreadQueuedMessageSendArgs,
-  ): Promise<ThreadQueuedMessageSendResult>;
-  update(
-    args: ThreadQueuedMessageUpdateArgs,
-  ): Promise<ThreadQueuedMessageUpdateResult>;
-}
-
-export interface ThreadTabsArea {
-  get(args: ThreadStatusArgs): Promise<ThreadTabsResult>;
-  update(args: ThreadTabsUpdateArgs): Promise<ThreadTabsUpdateResult>;
-}
-
-export interface ThreadQueueArea {
-  list(args?: ThreadQueueListArgs): Promise<ThreadQueueListResult>;
-}
-
 export interface ThreadsArea {
-  archive(args: ThreadActionArgs): Promise<ThreadArchiveResult>;
-  archiveAll(args: ThreadActionArgs): Promise<ThreadArchiveAllResult>;
-  childSummary(args: ThreadStatusArgs): Promise<ThreadChildSummaryResult>;
-  compact(args: ThreadActionArgs): Promise<ThreadCompactResult>;
-  cancelPlan(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
-  clearContext(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
+  archive(args: ThreadTarget): Promise<api.ThreadArchiveAllResponse>;
+  archiveAll(args: ThreadTarget): Promise<api.ThreadArchiveAllResponse>;
+  childSummary(args: ThreadTarget): Promise<api.ThreadChildSummaryResponse>;
+  compact(args: ThreadTarget): Promise<Ok>;
+  cancelPlan(args: ThreadTarget): Promise<Ok>;
+  clearContext(args: ThreadTarget): Promise<Ok>;
   defaultExecutionOptions(
-    args: ThreadStatusArgs,
-  ): Promise<ThreadDefaultExecutionOptionsResult>;
-  delete(args: ThreadDeleteArgs): Promise<ThreadDeleteResult>;
-  events: ThreadEventsArea;
-  get(args: ThreadGetArgs): Promise<ThreadGetResult>;
-  queue: ThreadQueueArea;
-  interactions: ThreadInteractionsArea;
-  list(args?: ThreadListArgs): Promise<ThreadListResult>;
-  markRead(args: ThreadActionArgs): Promise<ThreadReadStateResult>;
-  markUnread(args: ThreadActionArgs): Promise<ThreadReadStateResult>;
-  open(args: ThreadOpenArgs): Promise<ThreadOpenResult>;
-  output(args: ThreadOutputArgs): Promise<ThreadOutputResponse>;
-  pin(args: ThreadActionArgs): Promise<ThreadMutationResult>;
+    args: ThreadTarget,
+  ): Promise<domain.ResolvedThreadExecutionOptions | null>;
+  delete(args: api.DeleteThreadRequest & { threadId: string }): Promise<Ok>;
+  events: {
+    list(args: ThreadEventsListArgs): Promise<domain.ThreadEventRow[]>;
+  };
+  get(
+    args: ThreadTarget & { include?: api.ThreadGetQuery["include"] },
+  ): Promise<ThreadGetResult>;
+  queue: {
+    list(
+      args?: Abortable & {
+        threadId?: string;
+        waitHolder?: domain.QueuedMessageWaitHolder;
+      },
+    ): Promise<api.ThreadQueuedMessageListResponse>;
+  };
+  interactions: {
+    cancel(args: InteractionTarget): Promise<domain.PendingInteraction>;
+    get(
+      args: InteractionTarget & Abortable,
+    ): Promise<domain.PendingInteraction>;
+    list(args: ThreadTarget): Promise<api.ThreadPendingInteractionsResponse>;
+    resolve(
+      args: InteractionTarget & {
+        resolution: domain.PendingInteractionResolution;
+      },
+    ): Promise<domain.PendingInteraction>;
+    respond(
+      args: InteractionTarget & { value: domain.JsonValue },
+    ): Promise<domain.PendingInteraction>;
+  };
+  list(args?: ThreadListArgs): Promise<api.ThreadListResponse>;
+  markRead(args: ThreadTarget): Promise<api.ThreadResponse>;
+  markUnread(args: ThreadTarget): Promise<api.ThreadResponse>;
+  open(args: {
+    threadId: string;
+    split?: api.ThreadOpenSplit;
+    file: api.ThreadOpenFile | null;
+  }): Promise<api.ThreadOpenResponse>;
+  output(args: ThreadTarget): Promise<{ output: string | null }>;
+  pin(args: ThreadTarget): Promise<ThreadMutationResult>;
   promptHistory(
-    args: ThreadPromptHistoryArgs,
-  ): Promise<ThreadPromptHistoryResult>;
-  queuedMessages: ThreadQueuedMessagesArea;
-  reorderPinned(args: ThreadPinOrderArgs): Promise<ThreadPinOrderResult>;
+    args: ThreadTarget & api.PromptHistoryQuery,
+  ): Promise<api.PromptHistoryResponse>;
+  queuedMessages: {
+    create(
+      args: api.CreateQueuedMessageRequest & { threadId: string },
+    ): Promise<domain.ThreadQueuedMessage>;
+    delete(args: QueuedMessageTarget): Promise<Ok>;
+    list(args: ThreadTarget): Promise<api.ThreadQueuedMessageListResponse>;
+    send(
+      args: QueuedMessageTarget & api.SendQueuedMessageRequest,
+    ): Promise<api.SendQueuedMessageResponse>;
+    update(
+      args: QueuedMessageTarget & api.UpdateQueuedMessageRequest,
+    ): Promise<domain.ThreadQueuedMessage>;
+  };
+  reorderPinned(
+    args: api.ReorderPinnedThreadRequest & { threadId: string },
+  ): Promise<api.ThreadListResponse>;
   resolveMentions(
-    args: ThreadResolveMentionsArgs,
-  ): Promise<ThreadResolveMentionsResult>;
-  restoreEnvironment(
-    args: ThreadActionArgs,
-  ): Promise<ThreadRestoreEnvironmentResult>;
-  search(args: ThreadSearchArgs): Promise<ThreadSearchResult>;
-  send(args: ThreadSendArgs): Promise<ThreadSendResult>;
-  spawn(args: ThreadSpawnArgs): Promise<ThreadSpawnResult>;
-  stop(args: ThreadActionArgs): Promise<ThreadStopResult>;
-  tabs: ThreadTabsArea;
-  timeline(args: ThreadTimelineArgs): Promise<ThreadTimelineResult>;
+    args: api.ResolveThreadMentionsRequest & Abortable,
+  ): Promise<api.ResolveThreadMentionsResponse>;
+  restoreEnvironment(args: ThreadTarget): Promise<api.ThreadResponse>;
+  search(
+    args: api.ThreadSearchQuery & Abortable,
+  ): Promise<api.ThreadSearchResponse>;
+  send(
+    args: api.SendMessageRequest & { threadId: string },
+  ): Promise<api.SendMessageResponse>;
+  spawn(args: ThreadSpawnArgs): Promise<api.ThreadResponse>;
+  stop(args: ThreadTarget): Promise<Ok>;
+  tabs: {
+    get(args: ThreadTarget): Promise<api.ThreadTabsResponse>;
+    update(
+      args: api.UpdateThreadTabsRequest & { threadId: string },
+    ): Promise<api.ThreadTabsResponse>;
+  };
+  timeline(
+    args: ThreadTarget & api.ThreadTimelineQuery,
+  ): Promise<api.ThreadTimelineResponse>;
   timelineTurnSummaryDetails(
-    args: ThreadTimelineTurnSummaryDetailsArgs,
-  ): Promise<ThreadTimelineTurnSummaryDetailsResult>;
-  storageFiles(args: ThreadStorageFilesArgs): Promise<ThreadStorageFilesResult>;
-  storageLocation(args: ThreadStatusArgs): Promise<ThreadStorageLocationResult>;
-  storagePaths(args: ThreadStoragePathsArgs): Promise<ThreadStoragePathsResult>;
-  unarchive(args: ThreadActionArgs): Promise<ThreadUnarchiveResult>;
-  unpin(args: ThreadActionArgs): Promise<ThreadMutationResult>;
+    args: ThreadTarget & api.TimelineTurnSummaryDetailsQuery,
+  ): Promise<api.TimelineTurnSummaryDetailsResponse>;
+  storagePaths(
+    args: ThreadTarget & api.ThreadStoragePathsQuery,
+  ): Promise<api.ThreadStoragePathListResponse>;
+  unarchive(args: ThreadTarget): Promise<Ok>;
+  unpin(args: ThreadTarget): Promise<ThreadMutationResult>;
   update(args: ThreadUpdateArgs): Promise<ThreadMutationResult>;
   wait(args: ThreadWaitArgs): Promise<ThreadWaitResult>;
 }
 
-function listQuery(args: ThreadListArgs | undefined): ThreadListQuery {
+function listQuery(args: ThreadListArgs = {}): api.ThreadListQuery {
   return {
-    ...(args?.projectId ? { projectId: args.projectId } : {}),
-    ...(args?.environmentId ? { environmentId: args.environmentId } : {}),
-    ...(args?.hostId ? { hostId: args.hostId } : {}),
-    ...(args?.parentThreadId ? { parentThreadId: args.parentThreadId } : {}),
-    ...(args?.sourceThreadId ? { sourceThreadId: args.sourceThreadId } : {}),
-    ...(args?.sectionId ? { sectionId: args.sectionId } : {}),
-    ...(args?.originKind ? { originKind: args.originKind } : {}),
-    ...(args?.originPluginId ? { originPluginId: args.originPluginId } : {}),
-    ...(args?.archived === undefined
-      ? {}
-      : { archived: args.archived ? "true" : "false" }),
-    ...(args?.unsectioned === undefined
-      ? {}
-      : { unsectioned: args.unsectioned ? "true" : "false" }),
-    ...(args?.includeHidden === undefined
-      ? {}
-      : { includeHidden: args.includeHidden ? "true" : "false" }),
-    ...(args?.limit === undefined ? {} : { limit: String(args.limit) }),
-    ...(args?.offset === undefined ? {} : { offset: String(args.offset) }),
-    ...(args?.hasParent === undefined
-      ? {}
-      : { hasParent: args.hasParent ? "true" : "false" }),
+    projectId: args.projectId || undefined,
+    environmentId: args.environmentId || undefined,
+    hostId: args.hostId || undefined,
+    parentThreadId: args.parentThreadId || undefined,
+    sectionId: args.sectionId || undefined,
+    originKind: args.originKind || undefined,
+    originPluginId: args.originPluginId || undefined,
+    archived: flag(args.archived),
+    unsectioned: flag(args.unsectioned),
+    includeHidden: flag(args.includeHidden),
+    limit: count(args.limit),
+    offset: count(args.offset),
+    hasParent: flag(args.hasParent),
   };
 }
 
-function updateJson(args: ThreadUpdateArgs): UpdateThreadRequest {
-  return {
-    title: args.title,
-    sectionId: args.sectionId,
-    parentThreadId: args.parentThreadId,
-    model: args.model,
-    reasoningLevel: args.reasoningLevel,
-    visibility: args.visibility,
-  };
-}
-
-function sendJson(args: ThreadSendArgs): SendMessageRequest {
-  return {
-    input: args.input,
-    mode: args.mode,
-    model: args.model,
-    permissionMode: args.permissionMode,
-    reasoningLevel: args.reasoningLevel,
-    senderThreadId: args.senderThreadId,
-    serviceTier: args.serviceTier,
-    pluginSubmission: args.pluginSubmission,
-    executionInputSources: args.executionInputSources,
-    sendAt: args.sendAt,
-  };
-}
-
-function queueListQuery(
-  args: ThreadQueueListArgs | undefined,
-): QueuedMessageListQuery {
-  return {
-    ...(args?.threadId === undefined ? {} : { threadId: args.threadId }),
-    ...(args?.waitHolder === undefined ? {} : { waitHolder: args.waitHolder }),
-  };
-}
-
-function spawnInput(input: ThreadSpawnArgs): PromptInput[] {
-  if (input.input !== undefined && input.prompt !== undefined) {
+function spawnJson(args: ThreadSpawnArgs): api.CreateThreadRequest {
+  const { input, origin, prompt, startedOnBehalfOf, ...request } = args;
+  if (input !== undefined && prompt !== undefined) {
     throw new Error("Provide only one of input or prompt.");
   }
-  if (input.input !== undefined) {
-    return input.input;
-  }
-  return [{ type: "text", text: input.prompt, mentions: [] }];
-}
-
-function spawnJson(args: ThreadSpawnArgs): CreateThreadRequest {
-  const {
-    input: _input,
-    origin,
-    prompt: _prompt,
-    startedOnBehalfOf,
-    ...request
-  } = args;
+  const { pluginMetadata } = args;
   return {
     ...request,
-    ...(args.pluginMetadata === undefined
+    ...(pluginMetadata === undefined
       ? {}
-      : { pluginMetadata: validatePluginMetadata(args.pluginMetadata) }),
-    input: spawnInput(args),
+      : { pluginMetadata: validatePluginMetadata(pluginMetadata) }),
+    input: input ?? [{ type: "text", text: prompt ?? "", mentions: [] }],
     origin: origin ?? "sdk",
     startedOnBehalfOf: startedOnBehalfOf ?? null,
   };
 }
 
-function eventsListQuery(args: ThreadEventsListArgs): ThreadEventsQuery {
-  return {
-    ...(args.afterSeq !== undefined ? { afterSeq: args.afterSeq } : {}),
-    ...(args.beforeSeq !== undefined ? { beforeSeq: args.beforeSeq } : {}),
-    ...(args.limit !== undefined ? { limit: args.limit } : {}),
-    ...(args.order !== undefined ? { order: args.order } : {}),
-    ...(args.types !== undefined ? { types: args.types.join(",") } : {}),
-  };
-}
-
-function eventWaitQuery(args: ThreadEventWaitArgs): ThreadEventWaitQuery {
-  return {
-    ...(args.afterSeq !== undefined ? { afterSeq: args.afterSeq } : {}),
-    type: args.type,
-    waitMs: args.waitMs,
-  };
-}
-
-function searchQuery(args: ThreadSearchArgs): ThreadSearchQuery {
-  return {
-    limitPerGroup: args.limitPerGroup,
-    query: args.query,
-  };
-}
-
-function timelineQuery(args: ThreadTimelineArgs): ThreadTimelineQuery {
-  return {
-    ...(args.includeNestedRows !== undefined
-      ? { includeNestedRows: args.includeNestedRows }
-      : {}),
-    ...(args.summaryOnly !== undefined
-      ? { summaryOnly: args.summaryOnly }
-      : {}),
-    ...(args.segmentLimit !== undefined
-      ? { segmentLimit: args.segmentLimit }
-      : {}),
-    ...(args.beforeAnchorSeq !== undefined
-      ? { beforeAnchorSeq: args.beforeAnchorSeq }
-      : {}),
-    ...(args.beforeAnchorId !== undefined
-      ? { beforeAnchorId: args.beforeAnchorId }
-      : {}),
-    ...(args.afterSequence !== undefined
-      ? { afterSequence: args.afterSequence }
-      : {}),
-  };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function resolveThreadWaitTarget(args: ThreadWaitArgs): ThreadWaitTarget {
-  const hasStatus = args.status !== undefined;
-  const hasEvent = args.event !== undefined;
-  if (hasStatus && hasEvent) {
-    throw new Error("Provide only one of status or event.");
-  }
-  if (hasEvent) {
-    return { kind: "event", eventType: args.event ?? "" };
-  }
-  return { kind: "status", status: args.status ?? "idle" };
-}
-
-function validateThreadWaitArgs(args: ThreadWaitArgs): {
-  pollIntervalMs: number;
-  target: ThreadWaitTarget;
-  timeoutMs: number;
-} {
+function waitPlan(args: ThreadWaitArgs) {
   const timeoutMs = args.timeoutMs ?? DEFAULT_THREAD_WAIT_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
     throw new RangeError(
@@ -618,559 +290,267 @@ function validateThreadWaitArgs(args: ThreadWaitArgs): {
       "Poll interval must be a positive integer number of milliseconds.",
     );
   }
-  return {
-    pollIntervalMs,
-    target: resolveThreadWaitTarget(args),
-    timeoutMs,
-  };
-}
-
-function formatThreadWaitTimeoutMessage(args: {
-  target: ThreadWaitTarget;
-  threadId: string;
-}): string {
-  if (args.target.kind === "status") {
-    return `Timed out waiting for thread ${args.threadId} to reach status ${args.target.status}.`;
+  if (args.status !== undefined && args.event !== undefined) {
+    throw new Error("Provide only one of status or event.");
   }
-  return `Timed out waiting for thread ${args.threadId} event ${args.target.eventType}.`;
+  const target: ThreadWaitTarget =
+    args.event === undefined
+      ? { kind: "status", status: args.status ?? "idle" }
+      : { kind: "event", eventType: args.event };
+  return { pollIntervalMs, target, deadline: Date.now() + timeoutMs };
 }
 
-function isThreadWaitTargetUnreachable(
-  currentStatus: ThreadStatus,
-  target: ThreadWaitTarget,
-): target is Extract<ThreadWaitTarget, { kind: "status" }> {
-  return (
-    target.kind === "status" &&
-    target.status === "idle" &&
-    currentStatus === "error"
-  );
-}
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
-  const { transport } = args;
-  const getThread = (input: ThreadGetArgs) =>
-    transport.readJson(
-      transport.api.v1.threads[":id"].$get(
-        {
-          param: { id: input.threadId },
-          ...(input.include === undefined
-            ? {}
-            : { query: { include: input.include } }),
-        },
-        ...signalRequestArgs(input.signal),
-      ),
-    );
-  const archiveAll = async (
-    input: ThreadActionArgs,
-  ): Promise<ThreadArchiveAllResult> =>
-    transport.readJson(
-      transport.api.v1.threads[":id"]["archive-all"].$post({
-        param: { id: input.threadId },
-      }),
-    );
-  const events: ThreadEventsArea = {
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].events.$get(
-          {
-            param: { id: input.threadId },
-            query: eventsListQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async wait(input) {
-      const response = await transport.resolve(
-        transport.api.v1.threads[":id"].events.wait.$get(
-          {
-            param: { id: input.threadId },
-            query: eventWaitQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-      const statusCode: number = response.status;
-      if (statusCode === 204) {
-        return null;
-      }
-      return parseThreadEventRow(await response.json());
-    },
-  };
-  const interactions: ThreadInteractionsArea = {
-    async cancel(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].interactions[
-          ":interactionId"
-        ].cancel.$post({
-          param: { id: input.threadId, interactionId: input.interactionId },
-        }),
-      );
-    },
-    async get(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].interactions[":interactionId"].$get(
-          {
-            param: {
-              id: input.threadId,
-              interactionId: input.interactionId,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].interactions.$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async resolve(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].interactions[
-          ":interactionId"
-        ].resolve.$post({
-          param: {
-            id: input.threadId,
-            interactionId: input.interactionId,
-          },
-          json: input.resolution,
-        }),
-      );
-    },
-    async respond(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].interactions[
-          ":interactionId"
-        ].respond.$post({
-          param: { id: input.threadId, interactionId: input.interactionId },
-          json: { value: input.value },
-        }),
-      );
-    },
-  };
-  const queuedMessages: ThreadQueuedMessagesArea = {
-    async create(input) {
-      const { threadId, ...json } = input;
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"].$post({
-          param: { id: threadId },
-          json,
-        }),
-      );
-    },
-    async delete(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"]["queued-messages"][
-          ":queuedMessageId"
-        ].$delete({
-          param: {
-            id: input.threadId,
-            queuedMessageId: input.queuedMessageId,
-          },
-        }),
-      );
+export function createThreadsArea(http: Http): ThreadsArea {
+  const routes = publicApiRoutes.threads;
+  const at = (threadId: string) => ({ param: { id: threadId } });
+  const queued = ({ threadId, queuedMessageId }: QueuedMessageTarget) => ({
+    param: { id: threadId, queuedMessageId },
+  });
+  const interaction = ({ threadId, interactionId }: InteractionTarget) => ({
+    param: { id: threadId, interactionId },
+  });
+  const acknowledged =
+    (route: (typeof routes)[Acknowledged]) =>
+    async ({ threadId }: ThreadTarget): Promise<Ok> => {
+      await http.send(route, at(threadId));
       return { ok: true };
-    },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"].$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async send(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"][
-          ":queuedMessageId"
-        ].send.$post({
-          param: {
-            id: input.threadId,
-            queuedMessageId: input.queuedMessageId,
-          },
-          json: { mode: input.mode },
-        }),
-      );
-    },
-    async update(input) {
-      const { queuedMessageId, threadId, ...json } = input;
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"][
-          ":queuedMessageId"
-        ].$patch({
-          param: { id: threadId, queuedMessageId },
-          json,
-        }),
-      );
-    },
-  };
-  const queue: ThreadQueueArea = {
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1["queued-messages"].$get(
-          { query: queueListQuery(input) },
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-    },
-  };
-  const tabs: ThreadTabsArea = {
-    async get(input) {
-      const body = await transport.readJson(
-        transport.api.v1.threads[":id"].tabs.$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-      return threadTabsResponseSchema.parse(body);
-    },
-    async update(input) {
-      const body = await transport.readJson(
-        transport.api.v1.threads[":id"].tabs.$put({
-          param: { id: input.threadId },
-          json: {
-            expectedRevision: input.expectedRevision,
-            tabs: input.tabs,
-          },
-        }),
-      );
-      return threadTabsResponseSchema.parse(body);
-    },
-  };
+    };
+
+  const get: ThreadsArea["get"] = ({ threadId, include, signal }) =>
+    http.json(
+      routes.get,
+      {
+        ...at(threadId),
+        ...(include === undefined ? {} : { query: { include } }),
+      },
+      signal,
+    );
+  const archiveAll: ThreadsArea["archiveAll"] = ({ threadId }) =>
+    http.json(routes.archiveAll, at(threadId));
+
+  async function waitForEvent(args: ThreadEventWaitArgs) {
+    const { threadId, signal } = args;
+    const query = pick(args, ["afterSeq", "type", "waitMs"]);
+    const input = { ...at(threadId), query };
+    const reply = await http.send(routes.eventWait, input, signal);
+    if (reply.status === 204) return null;
+    return parseThreadEventRow(await reply.json());
+  }
+
+  async function wait(args: ThreadWaitArgs): Promise<ThreadWaitResult> {
+    const { pollIntervalMs, target, deadline } = waitPlan(args);
+    const { threadId, signal } = args;
+    for (;;) {
+      if (target.kind === "status") {
+        const thread = await get({ signal, threadId });
+        if (thread.status === target.status) {
+          return { matched: true, target, thread, threadId };
+        }
+        if (target.status === "idle" && thread.status === "error") {
+          const currentStatus = thread.status;
+          throw new ThreadWaitUnreachableError({
+            currentStatus,
+            target,
+            threadId,
+          });
+        }
+      } else {
+        const remainingMs = Math.max(0, deadline - Date.now());
+        const waitMs = Math.floor(Math.min(remainingMs, MAX_EVENT_WAIT_MS));
+        const type = target.eventType;
+        const waiting = { signal, threadId, type, waitMs: String(waitMs) };
+        const event = await waitForEvent(waiting);
+        if (event !== null) return { event, matched: true, target, threadId };
+      }
+      if (Date.now() >= deadline) {
+        throw new ThreadWaitTimeoutError({ target, threadId });
+      }
+      await sleep(pollIntervalMs);
+    }
+  }
+
   return {
     archive: archiveAll,
     archiveAll,
-    async childSummary(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["child-summary"].$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async defaultExecutionOptions(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["default-execution-options"].$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async delete(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].$delete({
-          param: { id: input.threadId },
-          json: {
-            childThreadsConfirmed: input.childThreadsConfirmed,
-          },
-        }),
-      );
+    childSummary: ({ threadId, signal }) =>
+      http.json(routes.childSummary, at(threadId), signal),
+    compact: acknowledged(routes.compact),
+    cancelPlan: acknowledged(routes.cancelPlan),
+    clearContext: acknowledged(routes.clearContext),
+    defaultExecutionOptions: ({ threadId, signal }) =>
+      http.json(routes.defaultExecutionOptions, at(threadId), signal),
+    async delete({ threadId, childThreadsConfirmed }) {
+      const json = { childThreadsConfirmed };
+      await http.send(routes.delete, { ...at(threadId), json });
       return { ok: true };
     },
-    events,
-    get: getThread,
-    queue,
-    interactions,
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.threads.$get(
-          { query: listQuery(input) },
-          ...signalRequestArgs(input?.signal),
+    events: {
+      list({ threadId, signal, types, ...page }) {
+        const query = {
+          ...pick(page, ["afterSeq", "beforeSeq", "limit", "order"]),
+          types: types?.join(","),
+        };
+        return http.json(routes.events, { ...at(threadId), query }, signal);
+      },
+    },
+    get,
+    queue: {
+      list: (args = {}) =>
+        http.json(
+          publicApiRoutes.queue.list,
+          { query: pick(args, ["threadId", "waitHolder"]) },
+          args.signal,
         ),
-      );
     },
-    async markRead(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].read.$post(
-          {
-            param: { id: input.threadId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async markUnread(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].unread.$post(
-          {
-            param: { id: input.threadId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async output(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].output.$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async open(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].open.$post({
-          param: { id: input.threadId },
-          json: {
-            ...(input.split === undefined ? {} : { split: input.split }),
-            file: input.file,
-          },
+    interactions: {
+      cancel: (args) => http.json(routes.cancelInteraction, interaction(args)),
+      get: (args) =>
+        http.json(routes.interaction, interaction(args), args.signal),
+      list: ({ threadId, signal }) =>
+        http.json(routes.interactions, at(threadId), signal),
+      resolve: (args) =>
+        http.json(routes.resolveInteraction, {
+          ...interaction(args),
+          json: args.resolution,
         }),
-      );
-    },
-    async pin(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].pin.$post({
-          param: { id: input.threadId },
+      respond: (args) =>
+        http.json(routes.respondToInteraction, {
+          ...interaction(args),
+          json: { value: args.value },
         }),
-      );
     },
-    async promptHistory(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["prompt-history"].$get(
-          {
-            param: { id: input.threadId },
-            query: { limit: input.limit },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    list: (args) =>
+      http.json(routes.list, { query: listQuery(args) }, args?.signal),
+    markRead: ({ threadId, signal }) =>
+      http.json(routes.read, at(threadId), signal),
+    markUnread: ({ threadId, signal }) =>
+      http.json(routes.unread, at(threadId), signal),
+    open({ threadId, split, file }) {
+      const json = { ...(split === undefined ? {} : { split }), file };
+      return http.json(routes.open, { ...at(threadId), json });
     },
-    queuedMessages,
-    async reorderPinned(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["pin-order"].$patch({
-          param: { id: input.threadId },
-          json: {
-            previousThreadId: input.previousThreadId,
-            nextThreadId: input.nextThreadId,
-          },
+    output: ({ threadId, signal }) =>
+      http.json(routes.output, at(threadId), signal),
+    pin: ({ threadId }) => http.json(routes.pin, at(threadId)),
+    promptHistory: ({ threadId, limit, signal }) =>
+      http.json(
+        routes.promptHistory,
+        { ...at(threadId), query: { limit } },
+        signal,
+      ),
+    queuedMessages: {
+      create: ({ threadId, ...json }) =>
+        http.json(routes.createQueuedMessage, { ...at(threadId), json }),
+      async delete(args) {
+        await http.send(routes.deleteQueuedMessage, queued(args));
+        return { ok: true };
+      },
+      list: ({ threadId, signal }) =>
+        http.json(routes.queuedMessages, at(threadId), signal),
+      send: (args) =>
+        http.json(routes.sendQueuedMessage, {
+          ...queued(args),
+          json: { mode: args.mode },
         }),
-      );
+      update({ queuedMessageId, threadId, ...json }) {
+        const target = queued({ queuedMessageId, threadId });
+        return http.json(routes.updateQueuedMessage, { ...target, json });
+      },
     },
-    async resolveMentions(input) {
-      return transport.readJson(
-        transport.api.v1.threads["resolve-mentions"].$post(
-          { json: { threadIds: input.threadIds } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    reorderPinned: (args) =>
+      http.json(routes.pinOrder, {
+        ...at(args.threadId),
+        json: pick(args, ["previousThreadId", "nextThreadId"]),
+      }),
+    resolveMentions: ({ threadIds, signal }) =>
+      http.json(routes.resolveMentions, { json: { threadIds } }, signal),
+    restoreEnvironment: ({ threadId }) =>
+      http.json(routes.restoreEnvironment, at(threadId)),
+    search: (args) =>
+      http.json(
+        routes.search,
+        { query: pick(args, ["limitPerGroup", "query"]) },
+        args.signal,
+      ),
+    send: (args) =>
+      http.json(routes.send, {
+        ...at(args.threadId),
+        json: pick(args, [
+          "input",
+          "mode",
+          "model",
+          "permissionMode",
+          "reasoningLevel",
+          "senderThreadId",
+          "serviceTier",
+          "pluginSubmission",
+          "executionInputSources",
+          "sendAt",
+        ]),
+      }),
+    spawn: (args) => http.json(routes.create, { json: spawnJson(args) }),
+    stop: acknowledged(routes.stop),
+    tabs: {
+      async get({ threadId, signal }) {
+        const body = await http.json(routes.tabs, at(threadId), signal);
+        return threadTabsResponseSchema.parse(body);
+      },
+      async update(args) {
+        const json = pick(args, ["expectedRevision", "tabs"]);
+        const input = { ...at(args.threadId), json };
+        const body = await http.json(routes.updateTabs, input);
+        return threadTabsResponseSchema.parse(body);
+      },
     },
-    async search(input) {
-      return transport.readJson(
-        transport.api.v1.threads.search.$get(
-          { query: searchQuery(input) },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    timeline(args) {
+      const query = pick(args, [
+        "includeNestedRows",
+        "summaryOnly",
+        "segmentLimit",
+        "beforeAnchorSeq",
+        "beforeAnchorId",
+        "afterSequence",
+      ]);
+      const input = { ...at(args.threadId), query };
+      return http.json(routes.timeline, input, args.signal);
     },
-    async send(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].send.$post({
-          param: { id: input.threadId },
-          json: sendJson(input),
-        }),
-      );
+    timelineTurnSummaryDetails(args) {
+      const query = pick(args, [
+        "turnId",
+        "sourceSeqStart",
+        "sourceSeqEnd",
+        "beforeCursor",
+      ]);
+      const input = { ...at(args.threadId), query };
+      return http.json(routes.timelineTurnSummaryDetails, input, args.signal);
     },
-    async restoreEnvironment(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["restore-environment"].$post({
-          param: { id: input.threadId },
-        }),
-      );
+    storagePaths(args) {
+      const query = pick(args, [
+        "query",
+        "limit",
+        "includeFiles",
+        "includeDirectories",
+      ]);
+      const input = { ...at(args.threadId), query };
+      return http.json(routes.storagePaths, input, args.signal);
     },
-    async spawn(input) {
-      return transport.readJson(
-        transport.api.v1.threads.$post({
-          json: spawnJson(input),
-        }),
-      );
-    },
-    async stop(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].stop.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    async compact(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].compact.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    async clearContext(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].context.clear.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    async cancelPlan(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].plan.cancel.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    tabs,
-    async timeline(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].timeline.$get(
-          {
-            param: { id: input.threadId },
-            query: timelineQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async timelineTurnSummaryDetails(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].timeline["turn-summary-details"].$get(
-          {
-            param: { id: input.threadId },
-            query: {
-              turnId: input.turnId,
-              sourceSeqStart: input.sourceSeqStart,
-              sourceSeqEnd: input.sourceSeqEnd,
-              ...(input.beforeCursor === undefined
-                ? {}
-                : { beforeCursor: input.beforeCursor }),
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async storageFiles(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["thread-storage"].files.$get(
-          {
-            param: { id: input.threadId },
-            query: { query: input.query, limit: input.limit },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async storageLocation(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["thread-storage"].location.$get(
-          {
-            param: { id: input.threadId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async storagePaths(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["thread-storage"].paths.$get(
-          {
-            param: { id: input.threadId },
-            query: {
-              query: input.query,
-              limit: input.limit,
-              includeFiles: input.includeFiles,
-              includeDirectories: input.includeDirectories,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async unarchive(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].unarchive.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    async unpin(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].unpin.$post({
-          param: { id: input.threadId },
-        }),
-      );
-    },
-    async update(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].$patch({
-          param: { id: input.threadId },
-          json: updateJson(input),
-        }),
-      );
-    },
-    async wait(input) {
-      const { pollIntervalMs, target, timeoutMs } =
-        validateThreadWaitArgs(input);
-      const deadline = Date.now() + timeoutMs;
-      while (true) {
-        if (target.kind === "status") {
-          const thread = await getThread({
-            signal: input.signal,
-            threadId: input.threadId,
-          });
-          if (thread.status === target.status) {
-            return {
-              matched: true,
-              target,
-              thread,
-              threadId: input.threadId,
-            };
-          }
-          if (isThreadWaitTargetUnreachable(thread.status, target)) {
-            throw new ThreadWaitUnreachableError({
-              currentStatus: thread.status,
-              target,
-              threadId: input.threadId,
-            });
-          }
-          if (Date.now() >= deadline) {
-            throw new ThreadWaitTimeoutError({
-              target,
-              threadId: input.threadId,
-            });
-          }
-          await sleep(pollIntervalMs);
-          continue;
-        }
-
-        const remainingMs = Math.max(0, deadline - Date.now());
-        const waitMs = Math.floor(Math.min(remainingMs, 30_000));
-        const event = await events.wait({
-          signal: input.signal,
-          threadId: input.threadId,
-          type: target.eventType,
-          waitMs: String(waitMs),
-        });
-        if (event !== null) {
-          return {
-            event,
-            matched: true,
-            target,
-            threadId: input.threadId,
-          };
-        }
-        if (Date.now() >= deadline) {
-          throw new ThreadWaitTimeoutError({
-            target,
-            threadId: input.threadId,
-          });
-        }
-        await sleep(pollIntervalMs);
-      }
-    },
+    unarchive: acknowledged(routes.unarchive),
+    unpin: ({ threadId }) => http.json(routes.unpin, at(threadId)),
+    update: (args) =>
+      http.json(routes.update, {
+        ...at(args.threadId),
+        json: pick(args, [
+          "title",
+          "sectionId",
+          "parentThreadId",
+          "model",
+          "reasoningLevel",
+          "visibility",
+        ]),
+      }),
+    wait,
   };
 }

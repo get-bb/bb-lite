@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   defaultAppSettings,
   getUiPreferenceDefault,
+  UI_PREFERENCE_KEYS,
   type RealtimeSubscriptionTarget,
   type ThreadEventType,
 } from "@bb/domain";
@@ -10,7 +11,7 @@ import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig } from "../src/config.js";
-import { LegacyDataDirectoryError } from "../src/db/index.js";
+import { insertRow, LegacyDataDirectoryError } from "../src/db/index.js";
 import { authorize } from "../src/http/trust.js";
 import { Hub } from "../src/ws/hub.js";
 import { createTestServer, scratch } from "./helpers.js";
@@ -124,10 +125,17 @@ it("answers errors in the API envelope", async () => {
 });
 
 it("guards ui preferences with per-key revisions", async () => {
-  const { api } = await createTestServer();
-  const key = "sidebar.organizationMode";
+  const { api, ctx } = await createTestServer();
+  const key = "sidebar.headerProvider";
   const value = getUiPreferenceDefault(key);
+  const imported = { key: "sidebar.organizationMode", valueJson: '"machine"' };
+  insertRow(ctx.db, "ui_preferences", {
+    ...imported,
+    revision: 3,
+    updatedAt: 1,
+  });
   const { preferences } = await (await api.preferences.ui.$get()).json();
+  expect(Object.keys(preferences)).toEqual(UI_PREFERENCE_KEYS);
   expect(preferences[key]).toEqual({ revision: 0, value });
   const write = async (expectedRevision: number, next: unknown) => {
     const json = { expectedRevision, value: next };
@@ -135,11 +143,11 @@ it("guards ui preferences with per-key revisions", async () => {
     const response = await path.$put({ param: { key }, json });
     return { status: response.status, ...(await response.json()) };
   };
-  const saved = { status: 200, key, revision: 1, value: "machine" };
-  expect(await write(0, "machine")).toEqual(saved);
+  const saved = { status: 200, key, revision: 1, value: "nav/header" };
+  expect(await write(0, "nav/header")).toEqual(saved);
   const conflict = { status: 409, code: "ui_preference_conflict" };
   const details = { currentRevision: 1 };
-  expect(await write(0, "project")).toMatchObject({ ...conflict, details });
+  expect(await write(0, "other")).toMatchObject({ ...conflict, details });
   const reset = await api.preferences.ui[":key"].$delete({ param: { key } });
   expect(await reset.json()).toEqual({ key, revision: 2, value });
 });
@@ -163,6 +171,21 @@ it("announces settings writes to system subscribers", async () => {
     ),
   );
   expect(status).toBe(403);
+});
+
+it("keeps stored keybinding overrides whose command still exists", async () => {
+  const { api, ctx } = await createTestServer();
+  const shortcut = { key: "k", mod: true, meta: false, control: false };
+  const kept = { command: "thread.new", shortcut: null };
+  const removed = {
+    command: "plugins.enterSafeMode",
+    shortcut: { ...shortcut, alt: false, shift: true },
+  };
+  const value = JSON.stringify([removed, kept]);
+  const row = { key: "keybindingOverrides", value, updatedAt: 1 };
+  insertRow(ctx.db, "settings", row);
+  const config = await (await api.system.config.$get()).json();
+  expect(config.keybindingOverrides).toEqual([kept]);
 });
 
 it("serves the app with an SPA fallback that spares /assets", async () => {

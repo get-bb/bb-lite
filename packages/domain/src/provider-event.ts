@@ -41,9 +41,6 @@ export type ThreadEventItemStatus = z.infer<typeof threadEventItemStatusSchema>;
 const threadEventItemApprovalStatusSchema = z
   .enum(["waiting_for_approval", "denied"])
   .nullable();
-export type ThreadEventItemApprovalStatus = z.infer<
-  typeof threadEventItemApprovalStatusSchema
->;
 
 export const threadEventTurnStatusSchema = z.enum([
   "completed",
@@ -51,8 +48,7 @@ export const threadEventTurnStatusSchema = z.enum([
   "interrupted",
 ]);
 export type ThreadEventTurnStatus = z.infer<typeof threadEventTurnStatusSchema>;
-
-const providerErrorCategoryValues = [
+export const providerErrorCategorySchema = z.enum([
   "active-turn-not-steerable",
   "bad-request",
   "connection-failed",
@@ -72,8 +68,7 @@ const providerErrorCategoryValues = [
   "too-many-failed-attempts",
   "unauthorized",
   "unknown",
-] as const;
-export const providerErrorCategorySchema = z.enum(providerErrorCategoryValues);
+]);
 export type ProviderErrorCategory = z.infer<typeof providerErrorCategorySchema>;
 
 export const providerErrorInfoSchema = z.object({
@@ -89,9 +84,6 @@ const providerRateLimitStatusSchema = z.enum([
   "blocked",
   "unknown",
 ]);
-export type ProviderRateLimitStatus = z.infer<
-  typeof providerRateLimitStatusSchema
->;
 
 const providerRateLimitWindowSchema = z.object({
   providerKey: z.string().min(1).nullable(),
@@ -99,9 +91,6 @@ const providerRateLimitWindowSchema = z.object({
   status: providerRateLimitStatusSchema,
   resetsAtMs: z.number().int().nonnegative().nullable(),
 });
-export type ProviderRateLimitWindow = z.infer<
-  typeof providerRateLimitWindowSchema
->;
 
 export const providerRateLimitStateSchema = z.object({
   providerId: z.string().min(1),
@@ -114,19 +103,13 @@ export const providerRateLimitStateSchema = z.object({
     .nullable(),
   overageReason: z.string().min(1).nullable(),
 });
-export type ProviderRateLimitState = z.infer<
-  typeof providerRateLimitStateSchema
->;
-
-const threadEventFileChangeKindSchema = z.enum(["add", "delete", "update"]);
 
 const threadEventFileChangeSchema = z.object({
   path: z.string(),
-  kind: threadEventFileChangeKindSchema,
+  kind: z.enum(["add", "delete", "update"]),
   movePath: z.string().optional(),
   diff: z.string().optional(),
 });
-export type ThreadEventFileChange = z.infer<typeof threadEventFileChangeSchema>;
 
 const threadEventPlanStepStatusSchema = z.enum([
   "pending",
@@ -145,96 +128,83 @@ const itemPresentationField = {
   presentation: threadEventItemPresentationSchema.optional(),
 };
 
-const threadEventWebSearchItemSchema = z.object({
-  type: z.literal("webSearch"),
-  id: z.string(),
+function item<Type extends string, Shape extends z.ZodRawShape>(
+  type: Type,
+  shape: Shape,
+) {
+  return z.object({
+    type: z.literal(type),
+    id: z.string(),
+    ...shape,
+    ...itemPresentationField,
+    parentToolCallId: z.string().optional(),
+  });
+}
+
+function providerEvent<Type extends string, Shape extends z.ZodRawShape>(
+  type: Type,
+  shape: Shape,
+) {
+  return z.object({
+    type: z.literal(type),
+    threadId: z.string(),
+    providerThreadId: z.string(),
+    ...shape,
+  });
+}
+
+function systemEvent<Type extends string, Data extends z.ZodRawShape>(
+  type: Type,
+  data: z.ZodObject<Data>,
+) {
+  return z.object({ type: z.literal(type), threadId: z.string() }).merge(data);
+}
+
+const threadEventWebSearchItemSchema = item("webSearch", {
   queries: z.array(z.string()).min(1),
   resultText: z.string().nullable(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventWebSearchItem = z.infer<
-  typeof threadEventWebSearchItemSchema
->;
 
-const threadEventWebFetchItemSchema = z.object({
-  type: z.literal("webFetch"),
-  id: z.string(),
+const threadEventWebFetchItemSchema = item("webFetch", {
   url: z.string(),
   prompt: z.string().nullable(),
   pattern: z.string().nullable(),
   resultText: z.string().nullable(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventWebFetchItem = z.infer<
-  typeof threadEventWebFetchItemSchema
->;
 
-const threadEventImageViewItemSchema = z.object({
-  type: z.literal("imageView"),
-  id: z.string(),
+const threadEventImageViewItemSchema = item("imageView", {
   path: z.string(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
 
-export const threadEventFileReadItemSchema = z.object({
-  type: z.literal("fileRead"),
-  id: z.string(),
+export const threadEventFileReadItemSchema = item("fileRead", {
   path: z.string(),
   cmd: z.string().optional(),
   status: threadEventItemStatusSchema,
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventFileReadItem = z.infer<
-  typeof threadEventFileReadItemSchema
->;
 
 export const threadEventSearchModeSchema = z.enum(["content", "path", "list"]);
-export type ThreadEventSearchMode = z.infer<typeof threadEventSearchModeSchema>;
 
-export const threadEventSearchItemSchema = z.object({
-  type: z.literal("search"),
-  id: z.string(),
+export const threadEventSearchItemSchema = item("search", {
   mode: threadEventSearchModeSchema,
   query: z.string(),
   path: z.string().optional(),
   cmd: z.string().optional(),
   status: threadEventItemStatusSchema,
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventSearchItem = z.infer<typeof threadEventSearchItemSchema>;
 
-export const threadEventDelegationItemSchema = z.object({
-  type: z.literal("delegation"),
-  id: z.string(),
+export const threadEventDelegationItemSchema = item("delegation", {
   childRef: z.string().min(1),
   label: z.string(),
   status: threadEventItemStatusSchema,
   background: z.boolean(),
   summary: z.string().optional(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventDelegationItem = z.infer<
-  typeof threadEventDelegationItemSchema
->;
 
-export const threadEventPlanStepsItemSchema = z.object({
-  type: z.literal("planSteps"),
-  id: z.string(),
+export const threadEventPlanStepsItemSchema = item("planSteps", {
   steps: z.array(threadEventPlanStepSchema),
   explanation: z.string().optional(),
   status: threadEventItemStatusSchema,
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
-export type ThreadEventPlanStepsItem = z.infer<
-  typeof threadEventPlanStepsItemSchema
->;
 
 export const threadEventExtensionItemSchema = z.object({
   type: z.literal("extension"),
@@ -245,9 +215,6 @@ export const threadEventExtensionItemSchema = z.object({
   presentation: threadEventItemPresentationSchema,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventExtensionItem = z.infer<
-  typeof threadEventExtensionItemSchema
->;
 
 const threadEventTextTruncationSchema = z.object({
   originalLength: z.number(),
@@ -262,9 +229,7 @@ const threadEventItemTruncationSchema = z.object({
   resultText: threadEventTextTruncationSchema.optional(),
 });
 
-export const threadEventImageGenerationItemSchema = z.object({
-  type: z.literal("imageGeneration"),
-  id: z.string(),
+export const threadEventImageGenerationItemSchema = item("imageGeneration", {
   status: threadEventItemStatusSchema,
   prompt: z.string().nullable(),
   path: z.string().nullable(),
@@ -272,8 +237,6 @@ export const threadEventImageGenerationItemSchema = z.object({
   error: z.string().nullable(),
   transparentBackground: z.boolean(),
   truncation: threadEventItemTruncationSchema.optional(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
 
 const threadEventUserContentSchema = z.discriminatedUnion("type", [
@@ -282,9 +245,6 @@ const threadEventUserContentSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("localImage"), path: z.string() }),
   z.object({ type: z.literal("localFile"), path: z.string() }),
 ]);
-export type ThreadEventUserContent = z.infer<
-  typeof threadEventUserContentSchema
->;
 
 export const threadEventTokenUsageBreakdownSchema = z.object({
   totalTokens: z.number(),
@@ -305,9 +265,6 @@ const threadEventContextWindowUsageSchema = z.object({
   modelContextWindow: z.number().nullable(),
   estimated: z.boolean(),
 });
-export type ThreadEventContextWindowUsage = z.infer<
-  typeof threadEventContextWindowUsageSchema
->;
 
 const threadEventTokenUsageSchema = z.object({
   total: threadEventTokenUsageBreakdownSchema,
@@ -321,9 +278,6 @@ export const threadEventWarningCategorySchema = z.enum([
   "general",
   "compaction-skipped",
 ]);
-export type ThreadEventWarningCategory = z.infer<
-  typeof threadEventWarningCategorySchema
->;
 
 export const providerRawEventSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -331,30 +285,21 @@ export const providerRawEventSchema = z.object({
   method: z.string(),
   params: jsonValueSchema.optional(),
 });
-export type ProviderRawEvent = z.infer<typeof providerRawEventSchema>;
 
-const providerUnhandledEventSchema = z.object({
-  type: z.literal("provider/unhandled"),
-  threadId: z.string(),
-  providerThreadId: z.string(),
+const providerUnhandledEventSchema = providerEvent("provider/unhandled", {
   providerId: z.string(),
   rawType: z.string(),
   rawEvent: providerRawEventSchema,
   parentToolCallId: z.string().optional(),
 });
 
-const toolCallProgressEventSchema = z.object({
-  type: z.literal("item/toolCall/progress"),
-  threadId: z.string(),
-  providerThreadId: z.string(),
+const toolCallProgressEventSchema = providerEvent("item/toolCall/progress", {
   itemId: z.string(),
   message: z.string().optional(),
   parentToolCallId: z.string().optional(),
 });
 
-export const threadEventBackgroundTaskItemSchema = z.object({
-  type: z.literal("backgroundTask"),
-  id: z.string(),
+export const threadEventBackgroundTaskItemSchema = item("backgroundTask", {
   familyId: z.string().optional(),
   taskType: z.string(),
   description: z.string(),
@@ -367,8 +312,6 @@ export const threadEventBackgroundTaskItemSchema = z.object({
   summary: z.string().optional(),
   error: z.string().optional(),
   outputFile: z.string().optional(),
-  ...itemPresentationField,
-  parentToolCallId: z.string().optional(),
 });
 export type ThreadEventBackgroundTaskItem = z.infer<
   typeof threadEventBackgroundTaskItemSchema
@@ -384,16 +327,10 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
       parentToolCallId: z.string().optional(),
     })
     .strict(),
-  z.object({
-    type: z.literal("agentMessage"),
-    id: z.string(),
+  item("agentMessage", {
     text: z.string(),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("commandExecution"),
-    id: z.string(),
+  item("commandExecution", {
     command: z.string(),
     cwd: z.string(),
     status: threadEventItemStatusSchema,
@@ -402,17 +339,11 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
     exitCode: z.number().optional(),
     durationMs: z.number().optional(),
     truncation: threadEventItemTruncationSchema.optional(),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("fileChange"),
-    id: z.string(),
+  item("fileChange", {
     changes: z.array(threadEventFileChangeSchema),
     status: threadEventItemStatusSchema,
     approvalStatus: threadEventItemApprovalStatusSchema,
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
   threadEventWebSearchItemSchema,
   threadEventWebFetchItemSchema,
@@ -420,9 +351,7 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
   threadEventImageGenerationItemSchema,
   threadEventFileReadItemSchema,
   threadEventSearchItemSchema,
-  z.object({
-    type: z.literal("toolCall"),
-    id: z.string(),
+  item("toolCall", {
     server: z.string().optional(),
     tool: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
@@ -431,31 +360,16 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
     error: z.string().optional(),
     durationMs: z.number().optional(),
     truncation: threadEventItemTruncationSchema.optional(),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("reasoning"),
-    id: z.string(),
+  item("reasoning", {
     summary: z.array(z.string()),
     content: z.array(z.string()),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("plan"),
-    id: z.string(),
+  item("plan", {
     text: z.string(),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
   }),
   threadEventPlanStepsItemSchema,
-  z.object({
-    type: z.literal("contextCompaction"),
-    id: z.string(),
-    ...itemPresentationField,
-    parentToolCallId: z.string().optional(),
-  }),
+  item("contextCompaction", {}),
   threadEventBackgroundTaskItemSchema,
   threadEventDelegationItemSchema,
   threadEventExtensionItemSchema,
@@ -463,11 +377,8 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
 export type ThreadEventItem = z.infer<typeof threadEventItemSchema>;
 export type ThreadEventItemType = ThreadEventItem["type"];
 
-function itemTextDeltaEventSchema<TType extends string>(type: TType) {
-  return z.object({
-    type: z.literal(type),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+function itemTextDeltaEventSchema<Type extends string>(type: Type) {
+  return providerEvent(type, {
     itemId: z.string(),
     delta: z.string(),
     parentToolCallId: z.string().optional(),
@@ -479,15 +390,8 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
     type: z.literal("thread/started"),
     threadId: z.string(),
   }),
-  z.object({
-    type: z.literal("thread/identity"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
-  }),
-  z.object({
-    type: z.literal("turn/started"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/identity", {}),
+  providerEvent("turn/started", {
     parentToolCallId: z.string().optional(),
   }),
   z.object({
@@ -507,54 +411,27 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
       scope: threadEventScopeSchema,
     })
     .strict(),
-  z.object({
-    type: z.literal("thread/name/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/name/updated", {
     threadName: z.string(),
   }),
-  z.object({
-    type: z.literal("thread/compacted"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
-  }),
-  z.object({
-    type: z.literal("thread/context/cleared"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
-  }),
-  z.object({
-    type: z.literal("thread/goal/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/compacted", {}),
+  providerEvent("thread/context/cleared", {}),
+  providerEvent("thread/goal/updated", {
     objective: z.string(),
     status: threadTimelineGoalStatusSchema,
     tokenBudget: z.number().nullable(),
     tokensUsed: z.number(),
     timeUsedSeconds: z.number(),
   }),
-  z.object({
-    type: z.literal("thread/goal/cleared"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
-  }),
-  z.object({
-    type: z.literal("item/started"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/goal/cleared", {}),
+  providerEvent("item/started", {
     item: threadEventItemSchema,
   }),
-  z.object({
-    type: z.literal("item/completed"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/completed", {
     item: threadEventItemSchema,
   }),
   itemTextDeltaEventSchema("item/agentMessage/delta"),
-  z.object({
-    type: z.literal("item/commandExecution/outputDelta"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/commandExecution/outputDelta", {
     itemId: z.string(),
     delta: z.string(),
     reset: z.boolean().optional(),
@@ -564,83 +441,47 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
   itemTextDeltaEventSchema("item/reasoning/summaryTextDelta"),
   itemTextDeltaEventSchema("item/reasoning/textDelta"),
   itemTextDeltaEventSchema("item/plan/delta"),
-  z.object({
-    type: z.literal("item/mcpToolCall/progress"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/mcpToolCall/progress", {
     itemId: z.string(),
     message: z.string().optional(),
     parentToolCallId: z.string().optional(),
   }),
   toolCallProgressEventSchema,
-  z.object({
-    type: z.literal("item/backgroundTask/progress"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/backgroundTask/progress", {
     item: threadEventBackgroundTaskItemSchema,
   }),
-  z.object({
-    type: z.literal("item/backgroundTask/completed"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/backgroundTask/completed", {
     item: threadEventBackgroundTaskItemSchema,
   }),
-  z.object({
-    type: z.literal("item/delegation/progress"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/delegation/progress", {
     item: threadEventDelegationItemSchema,
   }),
-  z.object({
-    type: z.literal("item/delegation/completed"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("item/delegation/completed", {
     item: threadEventDelegationItemSchema,
   }),
-  z.object({
-    type: z.literal("thread/tokenUsage/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/tokenUsage/updated", {
     tokenUsage: threadEventTokenUsageSchema,
   }),
-  z.object({
-    type: z.literal("thread/contextWindowUsage/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/contextWindowUsage/updated", {
     contextWindowUsage: threadEventContextWindowUsageSchema,
   }),
-  z.object({
-    type: z.literal("turn/plan/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("turn/plan/updated", {
     plan: z.array(threadEventPlanStepSchema),
     explanation: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("turn/diff/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("turn/diff/updated", {
     diff: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("provider/error"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("provider/error", {
     message: z.string(),
     detail: z.string().optional(),
     willRetry: z.boolean().optional(),
     errorInfo: providerErrorInfoSchema.optional(),
   }),
-  z.object({
-    type: z.literal("provider/rateLimits/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("provider/rateLimits/updated", {
     rateLimits: providerRateLimitStateSchema,
   }),
-  z.object({
-    type: z.literal("provider.env-resolved"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("provider.env-resolved", {
     entries: z.array(
       z
         .object({
@@ -667,25 +508,16 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
         .strict(),
     ),
   }),
-  z.object({
-    type: z.literal("thread/extensionState/updated"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("thread/extensionState/updated", {
     kind: extensionKindSchema,
     payload: jsonValueSchema,
   }),
-  z.object({
-    type: z.literal("provider/warning"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("provider/warning", {
     category: threadEventWarningCategorySchema,
     summary: z.string().optional(),
     details: z.string().optional(),
   }),
-  z.object({
-    type: z.literal("provider/modelFallback"),
-    threadId: z.string(),
-    providerThreadId: z.string(),
+  providerEvent("provider/modelFallback", {
     originalModel: z.string().min(1),
     fallbackModel: z.string().min(1),
     reason: z.enum(["refusal", "provider"]),
@@ -699,94 +531,45 @@ const scopedEventDataSchema = z.object({
 const providerEventSchema = unscopedProviderEventSchema.and(
   scopedEventDataSchema,
 );
-type ProviderEvent = z.infer<typeof providerEventSchema>;
-export type ProviderUnhandledEvent = Extract<
-  ProviderEvent,
-  { type: "provider/unhandled" }
->;
 const providerEventTypeValues = unscopedProviderEventSchema.options.map(
   (option) => option.shape.type.value,
 );
 
 const unscopedSystemEventSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      type: z.literal("client/thread/start"),
-      threadId: z.string(),
-    })
-    .merge(clientTurnLifecycleEventDataSchema),
-  z
-    .object({
-      type: z.literal("client/turn/requested"),
-      threadId: z.string(),
-    })
-    .merge(turnRequestEventDataSchema),
-  z
-    .object({
-      type: z.literal("client/turn/rejected"),
-      threadId: z.string(),
-    })
-    .merge(turnRequestRejectedEventDataSchema),
-  z
-    .object({
-      type: z.literal("client/turn/start"),
-      threadId: z.string(),
-    })
-    .merge(clientTurnLifecycleEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/error"),
-      threadId: z.string(),
-    })
-    .merge(systemErrorEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/manager/user_message"),
-      threadId: z.string(),
-    })
-    .merge(systemLegacyUserMessageEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/thread/interrupted"),
-      threadId: z.string(),
-    })
-    .merge(systemThreadInterruptedEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/operation"),
-      threadId: z.string(),
-    })
-    .merge(systemOperationEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/interaction/lifecycle"),
-      threadId: z.string(),
-    })
-    .merge(systemInteractionLifecycleEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/permissionGrant/lifecycle"),
-      threadId: z.string(),
-    })
-    .merge(systemPermissionGrantLifecycleEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/userQuestion/lifecycle"),
-      threadId: z.string(),
-    })
-    .merge(systemUserQuestionLifecycleEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/thread-provisioning"),
-      threadId: z.string(),
-    })
-    .merge(systemThreadProvisioningEventDataSchema),
-  z
-    .object({
-      type: z.literal("system/provider-turn-watchdog"),
-      threadId: z.string(),
-    })
-    .merge(systemProviderTurnWatchdogEventDataSchema),
+  systemEvent("client/thread/start", clientTurnLifecycleEventDataSchema),
+  systemEvent("client/turn/requested", turnRequestEventDataSchema),
+  systemEvent("client/turn/rejected", turnRequestRejectedEventDataSchema),
+  systemEvent("client/turn/start", clientTurnLifecycleEventDataSchema),
+  systemEvent("system/error", systemErrorEventDataSchema),
+  systemEvent(
+    "system/manager/user_message",
+    systemLegacyUserMessageEventDataSchema,
+  ),
+  systemEvent(
+    "system/thread/interrupted",
+    systemThreadInterruptedEventDataSchema,
+  ),
+  systemEvent("system/operation", systemOperationEventDataSchema),
+  systemEvent(
+    "system/interaction/lifecycle",
+    systemInteractionLifecycleEventDataSchema,
+  ),
+  systemEvent(
+    "system/permissionGrant/lifecycle",
+    systemPermissionGrantLifecycleEventDataSchema,
+  ),
+  systemEvent(
+    "system/userQuestion/lifecycle",
+    systemUserQuestionLifecycleEventDataSchema,
+  ),
+  systemEvent(
+    "system/thread-provisioning",
+    systemThreadProvisioningEventDataSchema,
+  ),
+  systemEvent(
+    "system/provider-turn-watchdog",
+    systemProviderTurnWatchdogEventDataSchema,
+  ),
 ]);
 const systemEventSchema = unscopedSystemEventSchema.and(scopedEventDataSchema);
 
@@ -809,34 +592,6 @@ export const threadEventSchema = z
 export type ThreadEvent = z.infer<typeof threadEventSchema>;
 export type ThreadEventType = ThreadEvent["type"];
 
-export type ThreadEventWithItem = Extract<
-  ThreadEvent,
-  {
-    type:
-      | "item/started"
-      | "item/completed"
-      | "item/delegation/progress"
-      | "item/delegation/completed"
-      | "item/backgroundTask/progress"
-      | "item/backgroundTask/completed";
-  }
->;
-
-export function isThreadEventWithItem(
-  event: ThreadEvent,
-): event is ThreadEventWithItem {
-  switch (event.type) {
-    case "item/started":
-    case "item/completed":
-    case "item/delegation/progress":
-    case "item/delegation/completed":
-    case "item/backgroundTask/progress":
-    case "item/backgroundTask/completed":
-      return true;
-    default:
-      return false;
-  }
-}
 export const threadEventTypeValues = [
   ...providerEventTypeValues,
   ...systemEventTypeValues,

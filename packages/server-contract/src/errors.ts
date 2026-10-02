@@ -1,10 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  environmentStatusSchema,
-  hostStatusSchema,
-  pluginIdSchema,
-  threadStatusSchema,
-} from "@bb/domain";
 
 export const apiErrorSchema = z.object({
   code: z.string().min(1),
@@ -15,7 +10,7 @@ export const apiErrorSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 export const environmentNotReadyErrorDetailsSchema = z.object({
-  environmentStatus: environmentStatusSchema,
+  environmentStatus: domain.environmentStatusSchema,
   hasPath: z.boolean(),
 });
 export type EnvironmentNotReadyErrorDetails = z.infer<
@@ -39,7 +34,7 @@ export type ThreadNotWritableReason = z.infer<
 export const threadNotWritableErrorDetailsSchema = z.object({
   reason: threadNotWritableReasonSchema,
   archivedAt: z.number().int().nonnegative().nullable(),
-  threadStatus: threadStatusSchema,
+  threadStatus: domain.threadStatusSchema,
 });
 export type ThreadNotWritableErrorDetails = z.infer<
   typeof threadNotWritableErrorDetailsSchema
@@ -54,7 +49,7 @@ export const threadEnvironmentUnavailableReasonSchema = z.enum([
 
 export const threadEnvironmentUnavailableErrorDetailsSchema = z.object({
   reason: threadEnvironmentUnavailableReasonSchema,
-  environmentStatus: environmentStatusSchema.nullable(),
+  environmentStatus: domain.environmentStatusSchema.nullable(),
 });
 export type ThreadEnvironmentUnavailableErrorDetails = z.infer<
   typeof threadEnvironmentUnavailableErrorDetailsSchema
@@ -68,25 +63,12 @@ export const hostUnavailableReasonSchema = z.enum([
 
 export const hostUnavailableErrorDetailsSchema = z.object({
   reason: hostUnavailableReasonSchema,
-  hostStatus: hostStatusSchema.nullable(),
+  hostStatus: domain.hostStatusSchema.nullable(),
   suspendedAt: z.number().int().nonnegative().nullable(),
   destroyedAt: z.number().int().nonnegative().nullable(),
 });
 export type HostUnavailableErrorDetails = z.infer<
   typeof hostUnavailableErrorDetailsSchema
->;
-
-export const projectUnavailableReasonSchema = z.enum([
-  "deleted",
-  "pending_deletion",
-]);
-
-export const projectUnavailableErrorDetailsSchema = z.object({
-  reason: projectUnavailableReasonSchema,
-  deletedAt: z.number().int().nonnegative().nullable(),
-});
-export type ProjectUnavailableErrorDetails = z.infer<
-  typeof projectUnavailableErrorDetailsSchema
 >;
 
 export const parentThreadInvalidReasonSchema = z.enum([
@@ -97,14 +79,8 @@ export const parentThreadInvalidReasonSchema = z.enum([
   "cycle",
   "too_deep",
 ]);
-export type ParentThreadInvalidReason = z.infer<
-  typeof parentThreadInvalidReasonSchema
->;
 
 export const parentThreadInvalidSubjectSchema = z.enum(["parent", "sender"]);
-export type ParentThreadInvalidSubject = z.infer<
-  typeof parentThreadInvalidSubjectSchema
->;
 
 export const parentThreadInvalidErrorDetailsSchema = z.object({
   reason: parentThreadInvalidReasonSchema,
@@ -113,10 +89,6 @@ export const parentThreadInvalidErrorDetailsSchema = z.object({
 export type ParentThreadInvalidErrorDetails = z.infer<
   typeof parentThreadInvalidErrorDetailsSchema
 >;
-
-export const dispatchHookErrorDetailsSchema = z.object({
-  pluginId: pluginIdSchema,
-});
 
 export const environmentNotReadyApiErrorSchema = apiErrorSchema.extend({
   code: z.literal("environment_not_ready"),
@@ -140,24 +112,9 @@ export const hostUnavailableApiErrorSchema = apiErrorSchema.extend({
   details: hostUnavailableErrorDetailsSchema,
 });
 
-export const projectUnavailableApiErrorSchema = apiErrorSchema.extend({
-  code: z.literal("project_unavailable"),
-  details: projectUnavailableErrorDetailsSchema,
-});
-
 export const parentThreadInvalidApiErrorSchema = apiErrorSchema.extend({
   code: z.literal("parent_thread_invalid"),
   details: parentThreadInvalidErrorDetailsSchema,
-});
-
-export const dispatchRejectedApiErrorSchema = apiErrorSchema.extend({
-  code: z.literal("dispatch_rejected"),
-  details: dispatchHookErrorDetailsSchema,
-});
-
-export const dispatchHookFailedApiErrorSchema = apiErrorSchema.extend({
-  code: z.literal("dispatch_hook_failed"),
-  details: dispatchHookErrorDetailsSchema,
 });
 
 export const lifecycleApiErrorSchema = z.discriminatedUnion("code", [
@@ -165,9 +122,6 @@ export const lifecycleApiErrorSchema = z.discriminatedUnion("code", [
   threadNotWritableApiErrorSchema,
   threadEnvironmentUnavailableApiErrorSchema,
   hostUnavailableApiErrorSchema,
-  projectUnavailableApiErrorSchema,
   parentThreadInvalidApiErrorSchema,
-  dispatchRejectedApiErrorSchema,
-  dispatchHookFailedApiErrorSchema,
 ]);
 export type LifecycleApiError = z.infer<typeof lifecycleApiErrorSchema>;

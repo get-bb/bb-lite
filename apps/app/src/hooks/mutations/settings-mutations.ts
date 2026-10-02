@@ -7,7 +7,7 @@ import {
   applyAppKeybindingOverrides,
   type AppKeybindingOverrides,
   type AppSettings,
-  type AppThemeSelection,
+  type AppTheme,
 } from "@bb/domain";
 import type { SystemConfigResponse } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
@@ -79,7 +79,7 @@ export function useUpdateAppearance() {
   const queryClient = useQueryClient();
   return useMutation({
     meta: { errorMessage: "Failed to update appearance." },
-    mutationFn: (selection: AppThemeSelection) => sdk.theme.set(selection),
+    mutationFn: (selection: AppTheme) => sdk.theme.set(selection),
     onSuccess: () => invalidateSystemConfig({ queryClient }),
   });
 }

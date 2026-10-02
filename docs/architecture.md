@@ -14,7 +14,7 @@ budgets; this file has the shapes.
 | `apps/app` | Web UI |
 | `packages/thread-view` | Events → timeline rows. Projection runs in the server; row helpers run in the browser |
 | `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes |
-| `packages/sdk` | Typed HTTP + WebSocket client used by the app, the CLI and plugins |
+| `packages/sdk` | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`) |
 | `packages/plugin` | The plugin API (types and helpers) |
 | `plugins/*` | In-repo plugins compiled into the server and the app |
 
@@ -260,10 +260,60 @@ directory; one row per `(project, machine, path)`, shared, never removed), **man
   when no thread references it and kept as `destroyed` otherwise. Deleting a project removes its managed
   paths on connected machines without running teardown scripts.
 
+## Stored data and shared schemas
+
+`packages/domain` decodes what is already on disk, including rows `bb import-legacy` copied from the
+original product, so its event, item, scope, presentation and pending-interaction schemas accept more than
+this product writes. Facts the code no longer states in comments:
+
+- `system/provider-turn-watchdog` and `system/manager/user_message` have no producer. They stay so stored
+  events decode and render.
+- A stored `client/turn/requested` carries `retryOfRequestId` and `retryAttempt` together or not at all
+  (attempt 2 is the first retry, and the id is always the original request's). The stored-event parser
+  checks the pair, because the discriminated union the base schema feeds cannot carry a refinement.
+- Recorded execution options are history: the stored-event schema accepts the retired permission modes
+  `workspace-write` and `readonly`, which are not current modes (a request may still say
+  `workspace-write`, read as `accept-edits`).
+- `systemMessageKind: "unlabeled"` marks system messages stored before the kinds existed; they render
+  generically. `system-message.ts` is its own module because both `thread-events.ts` and
+  `queued-message.ts` import it; folding it into either makes the two import each other and leaves the
+  second one loaded holding `undefined` schemas.
+- Queued messages: `waitingOn` is `null` for a row that is simply next in line (and for rows stored before
+  waits were typed). `failureReason` is not part of `waitingOn` because every new wait replaces
+  `waitingOn` whole. `waitHolder` repeats a plugin wait's owner in an indexed column and is only ever
+  written with it. A `host-offline` wait stores the machine's display name because the code that words
+  the wait has no database. `editable` is the server's answer; clients do not derive it. In a thread's
+  queue state `failed` outranks `waiting`.
+- Event scope (`thread-event-scope.ts`) is fixed per event type. Turn scope: what belongs to one turn's
+  transcript. Thread scope: thread metadata (identity, name, goal, extension state, rate limits, resolved
+  environment), client requests (recorded before a provider turn exists), provisioning, interruption, and
+  background task and delegation progress and completion, which outlive the turn that spawned them (thread
+  scope keeps every turn's sequence range contiguous). Either: context-window usage, provider errors,
+  warnings, model fallback and unhandled events, system errors, operations and interaction lifecycle,
+  which are turn-scoped inside a turn and thread-scoped outside one.
+- Settings and preferences are read leniently, because an import copies the original's rows: a UI
+  preference row whose key this build does not define is ignored, a keybinding override for a command
+  that no longer exists is dropped without touching the others, unknown general settings are stripped,
+  and an appearance naming a theme that is not built in shows the default palette.
+- `code-themes/*.ts` describe the light syntax themes shiki does not ship (Nord, Dracula) as a recolouring
+  of the bundled dark theme: a `swap` of the few colours that differ and the `colors` the highlighter
+  reads (`editor.foreground`/`background`, `gitDecoration.*ResourceForeground`, `terminal.ansi*`). The
+  app registers each one with a loader that resolves the dark theme and calls `deriveLightCodeTheme`
+  (`apps/app/src/lib/code-theme-registration.ts`); the result equals the hand-expanded themes of the
+  original rule for rule.
+- Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
+  `client-preference` (a remembered default) does not.
+- A plugin id is the npm package name without scope and without the `bb-plugin-` prefix, lowercased
+  (`@me/bb-plugin-linear` → `linear`).
+- `provisioning` and `waiting-for-host` are display-only refinements of a thread's stored status.
+
 ## HTTP and WebSocket surface
 
 Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
-`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. Errors are
+`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. The SDK sends
+every request through the same descriptors (`packages/sdk/src/http.ts`: path parameters, query and JSON
+body typed by the route, one place for timeouts and error bodies). A descriptor types the success
+response only. Errors are
 `{code, message, details?, retryable?}` with the HTTP status. Research note 01 lists every kept route, its
 callers, the response shapes and the change notifications each mutation must emit.
 

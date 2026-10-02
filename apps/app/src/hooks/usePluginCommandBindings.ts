@@ -25,7 +25,6 @@ export function usePluginCommandBindings() {
     const pluginDefaults: AppDefaultKeybindings = commands.map(
       ({ pluginId, id, defaultShortcut: shortcut }) => ({
         command: pluginCommandId(pluginId, id),
-        desktopOnly: false,
         shortcut:
           shortcut === undefined
             ? null

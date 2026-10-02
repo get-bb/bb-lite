@@ -1,80 +1,34 @@
-import type {
-  MachineEnvironmentReplace,
-  ProjectMachineEnvironmentList,
-  CommandListResponse,
-  CopyProjectAttachmentsRequest,
-  CreateProjectRequest,
-  CreateProjectSourceRequest,
-  ProjectBranchesResponse,
-  ProjectBranchesQuery,
-  ProjectCommandsQuery,
-  ProjectResponse,
-  ProjectWithThreadsResponse,
-  ProjectListQuery,
-  ProjectPathsQuery,
-  PromptHistoryResponse,
-  PromptHistoryQuery,
-  UpdateProjectRequest,
-  UpdateProjectSourceRequest,
-  UploadedPromptAttachment,
-  WorkspacePathListResponse,
-} from "@bb/server-contract";
-import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import type { ProjectExecutionDefaults, ProjectSource } from "@bb/domain";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import {
+  publicApiRoutes,
+  uploadedPromptAttachmentSchema,
+} from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { flag, pick, type Http } from "../http.js";
 
-export interface ProjectListArgs {
-  include?: ProjectListQuery["include"];
-  includePersonal?: boolean;
-  signal?: AbortSignal;
-}
+type Abortable = { signal?: AbortSignal };
+type Ok = { ok: true };
 
-export interface ProjectCreateArgs extends CreateProjectRequest {}
-
-export interface ProjectGetArgs {
-  projectId: string;
-  signal?: AbortSignal;
-}
-
-export interface ProjectUpdateArgs extends UpdateProjectRequest {
+interface ProjectTarget extends Abortable {
   projectId: string;
 }
 
-export interface ProjectDeleteArgs {
+interface SourceTarget {
   projectId: string;
+  sourceId: string;
 }
 
-export interface ProjectPromptHistoryArgs extends PromptHistoryQuery {
-  projectId: string;
-  signal?: AbortSignal;
-}
-
-export type ProjectWorkspaceRoutingArgs =
+type WorkspaceRouting =
   | { environmentId: string; hostId?: never }
   | { environmentId?: never; hostId: string }
   | { environmentId?: never; hostId?: never };
 
-export type ProjectPathsArgs = ProjectWorkspaceRoutingArgs &
-  Omit<ProjectPathsQuery, "environmentId" | "hostId"> & {
-    projectId: string;
-    signal?: AbortSignal;
-  };
+type Routed<Query> = ProjectTarget &
+  WorkspaceRouting &
+  Omit<Query, "environmentId" | "hostId">;
 
-export type ProjectCommandsArgs = ProjectWorkspaceRoutingArgs &
-  Omit<ProjectCommandsQuery, "environmentId" | "hostId"> & {
-    projectId: string;
-    signal?: AbortSignal;
-  };
-
-export interface ProjectBranchesArgs extends ProjectBranchesQuery {
-  projectId: string;
-  signal?: AbortSignal;
-}
-
-export interface ProjectDefaultExecutionOptionsArgs {
-  projectId: string;
-  signal?: AbortSignal;
-}
+export type ProjectBranchesArgs = ProjectTarget & api.ProjectBranchesQuery;
+export type ProjectBranchesResult = api.ProjectBranchesResponse;
 
 export interface ProjectAttachmentFileLike {
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -82,369 +36,180 @@ export interface ProjectAttachmentFileLike {
   readonly type?: string;
 }
 
-export type ProjectAttachmentUploadFile =
-  | ArrayBuffer
-  | Blob
-  | ProjectAttachmentFileLike
-  | Uint8Array;
+type AttachmentBytes = ArrayBuffer | Blob | Uint8Array;
 
-interface ProjectAttachmentUploadArgsBase {
+export type ProjectAttachmentUploadArgs = {
   mimeType?: string;
   projectId: string;
-}
-
-export type ProjectAttachmentUploadArgs = ProjectAttachmentUploadArgsBase &
-  (
-    | {
-        clientFile: ProjectAttachmentFileLike;
-        filename?: string;
-      }
-    | {
-        clientFile: ArrayBuffer | Blob | Uint8Array;
-        filename: string;
-      }
-  );
-
-export interface ProjectAttachmentCopyArgs extends CopyProjectAttachmentsRequest {
-  projectId: string;
-}
-
-export type ProjectSourceAddArgs = CreateProjectSourceRequest & {
-  projectId: string;
-};
-
-export interface ProjectSourceUpdateArgs extends UpdateProjectSourceRequest {
-  projectId: string;
-  sourceId: string;
-}
-
-export interface ProjectSourceDeleteArgs {
-  projectId: string;
-  sourceId: string;
-}
-
-export type ProjectBranchesResult = ProjectBranchesResponse;
-export type ProjectAttachmentUploadResult = UploadedPromptAttachment;
-export type ProjectCommandsResult = CommandListResponse;
-export type ProjectCreateResult = ProjectResponse;
-export type ProjectDefaultExecutionOptionsResult = ProjectExecutionDefaults | null;
-export type ProjectDeleteResult = { ok: true };
-export type ProjectGetResult = ProjectResponse;
-export type ProjectListResult =
-  | ProjectResponse[]
-  | ProjectWithThreadsResponse[];
-export type ProjectPathsResult = WorkspacePathListResponse;
-export type ProjectPromptHistoryResult = PromptHistoryResponse;
-export type ProjectSourceAddResult = ProjectSource;
-export type ProjectSourceDeleteResult = { ok: true };
-export type ProjectSourceUpdateResult = ProjectSource;
-export type ProjectUpdateResult = ProjectResponse;
-
-export interface ProjectSourcesArea {
-  add(args: ProjectSourceAddArgs): Promise<ProjectSourceAddResult>;
-  delete(args: ProjectSourceDeleteArgs): Promise<ProjectSourceDeleteResult>;
-  update(args: ProjectSourceUpdateArgs): Promise<ProjectSourceUpdateResult>;
-}
-
-export interface ProjectAttachmentsArea {
-  copy(args: ProjectAttachmentCopyArgs): Promise<void>;
-  upload(
-    args: ProjectAttachmentUploadArgs,
-  ): Promise<ProjectAttachmentUploadResult>;
-}
+} & (
+  | { clientFile: ProjectAttachmentFileLike; filename?: string }
+  | { clientFile: AttachmentBytes; filename: string }
+);
 
 export interface ProjectsArea {
-  machineEnvironment(args: {
-    projectId: string;
-  }): Promise<ProjectMachineEnvironmentList>;
+  machineEnvironment(
+    args: ProjectTarget,
+  ): Promise<api.ProjectMachineEnvironmentList>;
   replaceMachineEnvironment(
-    args: { projectId: string } & MachineEnvironmentReplace,
-  ): Promise<ProjectMachineEnvironmentList>;
-  attachments: ProjectAttachmentsArea;
+    args: { projectId: string } & api.MachineEnvironmentReplace,
+  ): Promise<api.ProjectMachineEnvironmentList>;
+  attachments: {
+    copy(
+      args: api.CopyProjectAttachmentsRequest & { projectId: string },
+    ): Promise<void>;
+    upload(
+      args: ProjectAttachmentUploadArgs,
+    ): Promise<api.UploadedPromptAttachment>;
+  };
   branches(args: ProjectBranchesArgs): Promise<ProjectBranchesResult>;
-  commands(args: ProjectCommandsArgs): Promise<ProjectCommandsResult>;
-  create(args: ProjectCreateArgs): Promise<ProjectCreateResult>;
+  commands(
+    args: Routed<api.ProjectCommandsQuery>,
+  ): Promise<api.CommandListResponse>;
+  create(args: api.CreateProjectRequest): Promise<api.ProjectResponse>;
   defaultExecutionOptions(
-    args: ProjectDefaultExecutionOptionsArgs,
-  ): Promise<ProjectDefaultExecutionOptionsResult>;
-  delete(args: ProjectDeleteArgs): Promise<ProjectDeleteResult>;
-  get(args: ProjectGetArgs): Promise<ProjectGetResult>;
-  list(args?: ProjectListArgs): Promise<ProjectListResult>;
-  paths(args: ProjectPathsArgs): Promise<ProjectPathsResult>;
+    args: ProjectTarget,
+  ): Promise<ProjectExecutionDefaults | null>;
+  delete(args: ProjectTarget): Promise<Ok>;
+  get(args: ProjectTarget): Promise<api.ProjectResponse>;
+  list(
+    args?: Abortable & {
+      include?: api.ProjectListQuery["include"];
+      includePersonal?: boolean;
+    },
+  ): Promise<api.ProjectResponse[] | api.ProjectWithThreadsResponse[]>;
+  paths(
+    args: Routed<api.ProjectPathsQuery>,
+  ): Promise<api.WorkspacePathListResponse>;
   promptHistory(
-    args: ProjectPromptHistoryArgs,
-  ): Promise<ProjectPromptHistoryResult>;
-  sources: ProjectSourcesArea;
-  update(args: ProjectUpdateArgs): Promise<ProjectUpdateResult>;
+    args: ProjectTarget & api.PromptHistoryQuery,
+  ): Promise<api.PromptHistoryResponse>;
+  sources: {
+    add(
+      args: api.CreateProjectSourceRequest & { projectId: string },
+    ): Promise<ProjectSource>;
+    delete(args: SourceTarget): Promise<Ok>;
+    update(
+      args: api.UpdateProjectSourceRequest & SourceTarget,
+    ): Promise<ProjectSource>;
+  };
+  update(
+    args: api.UpdateProjectRequest & { projectId: string },
+  ): Promise<api.ProjectResponse>;
 }
 
-function projectUpdateJson(args: ProjectUpdateArgs): UpdateProjectRequest {
+function sourceJson(
+  args: api.CreateProjectSourceRequest,
+): api.CreateProjectSourceRequest {
+  if (args.type === "local_path") return pick(args, ["hostId", "path", "type"]);
+  const { remoteUrl, targetPath } = args;
   return {
-    name: args.name,
+    ...pick(args, ["hostId", "type"]),
+    ...(remoteUrl === undefined ? {} : { remoteUrl }),
+    ...(targetPath === undefined ? {} : { targetPath }),
   };
 }
 
-function projectSourceAddJson(
-  args: ProjectSourceAddArgs,
-): CreateProjectSourceRequest {
-  if (args.type === "local_path") {
-    return { hostId: args.hostId, path: args.path, type: args.type };
-  }
-  return {
-    hostId: args.hostId,
-    type: args.type,
-    ...(args.remoteUrl !== undefined ? { remoteUrl: args.remoteUrl } : {}),
-    ...(args.targetPath !== undefined ? { targetPath: args.targetPath } : {}),
-  };
-}
-
-function projectSourceUpdateJson(
-  args: ProjectSourceUpdateArgs,
-): UpdateProjectSourceRequest {
-  return {
-    isDefault: args.isDefault,
-    path: args.path,
-    type: args.type,
-  };
-}
-
-function embeddedAttachmentFilename(
-  clientFile: ProjectAttachmentUploadFile,
-): string | undefined {
-  if ("name" in clientFile && typeof clientFile.name === "string") {
-    return clientFile.name;
-  }
-  return undefined;
-}
-
-function projectListQuery(input: ProjectListArgs): ProjectListQuery {
-  return {
-    ...(input.include === undefined ? {} : { include: input.include }),
-    ...(input.includePersonal === undefined
-      ? {}
-      : { includePersonal: input.includePersonal ? "true" : "false" }),
-  };
-}
-
-function embeddedAttachmentMimeType(
-  clientFile: ProjectAttachmentUploadFile,
-): string | undefined {
-  if ("type" in clientFile && typeof clientFile.type === "string") {
-    return clientFile.type;
-  }
-  return undefined;
-}
-
-function hasAttachmentArrayBuffer(
-  clientFile: ProjectAttachmentUploadFile,
-): clientFile is Blob | ProjectAttachmentFileLike {
-  return "arrayBuffer" in clientFile;
-}
-
-async function attachmentBytes(
-  clientFile: ProjectAttachmentUploadFile,
-): Promise<ArrayBuffer> {
-  if (hasAttachmentArrayBuffer(clientFile)) {
-    return clientFile.arrayBuffer();
-  }
-  if (ArrayBuffer.isView(clientFile)) {
-    return Uint8Array.from(clientFile).buffer;
-  }
-  return clientFile.slice(0);
-}
-
-function resolveAttachmentFilename(input: ProjectAttachmentUploadArgs): string {
-  const filename =
-    input.filename ?? embeddedAttachmentFilename(input.clientFile);
-  if (!filename || filename.trim().length === 0) {
+async function attachmentForm(args: ProjectAttachmentUploadArgs) {
+  const { clientFile } = args;
+  const embeddedName = "name" in clientFile ? clientFile.name : undefined;
+  const filename = args.filename ?? embeddedName;
+  if (typeof filename !== "string" || filename.trim().length === 0) {
     throw new Error("Project attachment filename must not be empty");
   }
-  return filename;
+  const embeddedType = "type" in clientFile ? clientFile.type : undefined;
+  const mimeType =
+    args.mimeType ?? (typeof embeddedType === "string" ? embeddedType : "");
+  const bytes = async () => {
+    if ("arrayBuffer" in clientFile) return clientFile.arrayBuffer();
+    if (ArrayBuffer.isView(clientFile)) {
+      return Uint8Array.from(clientFile).buffer;
+    }
+    return clientFile.slice(0);
+  };
+  const file =
+    clientFile instanceof Blob && clientFile.type === mimeType
+      ? clientFile
+      : new Blob([await bytes()], { type: mimeType });
+  const form = new FormData();
+  form.set("file", file, filename);
+  return form;
 }
 
-export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
-  const { transport } = args;
-  const attachments: ProjectAttachmentsArea = {
-    async copy(input) {
-      const { projectId, ...json } = input;
-      await transport.readVoid(
-        transport.api.v1.projects[":id"].attachments.copy.$post({
-          param: { id: projectId },
-          json,
-        }),
-      );
-    },
-    async upload(input) {
-      const filename = resolveAttachmentFilename(input);
-      const mimeType =
-        input.mimeType ?? embeddedAttachmentMimeType(input.clientFile) ?? "";
-      const file =
-        input.clientFile instanceof Blob && input.clientFile.type === mimeType
-          ? input.clientFile
-          : new Blob([await attachmentBytes(input.clientFile)], {
-              type: mimeType,
-            });
-      const form = new FormData();
-      form.set("file", file, filename);
-      const baseUrl = transport.baseUrl.replace(/\/$/u, "");
-      const response = await transport.resolve(
-        transport.fetch(
-          `${baseUrl}/api/v1/projects/${encodeURIComponent(input.projectId)}/attachments`,
-          {
-            body: form,
-            method: "POST",
-          },
-        ),
-      );
-      return uploadedPromptAttachmentSchema.parse(await response.json());
-    },
-  };
-  const sources: ProjectSourcesArea = {
-    async add(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"].sources.$post({
-          param: { id: input.projectId },
-          json: projectSourceAddJson(input),
-        }),
-      );
-    },
-    async delete(input) {
-      await transport.readVoid(
-        transport.api.v1.projects[":id"].sources[":sourceId"].$delete({
-          param: { id: input.projectId, sourceId: input.sourceId },
-        }),
-      );
-      return { ok: true };
-    },
-    async update(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"].sources[":sourceId"].$patch({
-          param: { id: input.projectId, sourceId: input.sourceId },
-          json: projectSourceUpdateJson(input),
-        }),
-      );
-    },
-  };
-
+export function createProjectsArea(http: Http): ProjectsArea {
+  const routes = publicApiRoutes.projects;
+  const at = (projectId: string) => ({ param: { id: projectId } });
+  const source = ({ projectId, sourceId }: SourceTarget) => ({
+    param: { id: projectId, sourceId },
+  });
   return {
-    attachments,
-    async branches(input) {
-      const { projectId, signal, ...query } = input;
-      return transport.readJson(
-        transport.api.v1.projects[":id"].branches.$get(
-          {
-            param: { id: projectId },
-            query,
-          },
-          ...signalRequestArgs(signal),
-        ),
-      );
+    attachments: {
+      async copy({ projectId, ...json }) {
+        await http.send(routes.copyAttachments, { ...at(projectId), json });
+      },
+      async upload(args) {
+        const body = await attachmentForm(args);
+        const project = encodeURIComponent(args.projectId);
+        const path = `/api/v1/projects/${project}/attachments`;
+        const reply = await http.request(path, { body, method: "POST" });
+        return uploadedPromptAttachmentSchema.parse(await reply.json());
+      },
     },
-    async commands(input) {
-      const { projectId, signal, ...query } = input;
-      return transport.readJson(
-        transport.api.v1.projects[":id"].commands.$get(
-          {
-            param: { id: projectId },
-            query,
-          },
-          ...signalRequestArgs(signal),
-        ),
-      );
-    },
-    async create(input) {
-      return transport.readJson(
-        transport.api.v1.projects.$post({
-          json: input,
-        }),
-      );
-    },
-    async delete(input) {
-      await transport.readVoid(
-        transport.api.v1.projects[":id"].$delete({
-          param: { id: input.projectId },
-        }),
-      );
+    branches: ({ projectId, signal, ...query }) =>
+      http.json(routes.branches, { ...at(projectId), query }, signal),
+    commands: ({ projectId, signal, ...query }) =>
+      http.json(routes.commands, { ...at(projectId), query }, signal),
+    create: (json) => http.json(routes.create, { json }),
+    async delete({ projectId }) {
+      await http.send(routes.delete, at(projectId));
       return { ok: true };
     },
-    async defaultExecutionOptions(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["default-execution-options"].$get(
-          {
-            param: { id: input.projectId },
-            query: {},
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    defaultExecutionOptions: ({ projectId, signal }) =>
+      http.json(
+        routes.defaultExecutionOptions,
+        { ...at(projectId), query: {} },
+        signal,
+      ),
+    machineEnvironment: ({ projectId }) =>
+      http.json(routes.machineEnvironment, at(projectId)),
+    replaceMachineEnvironment: ({ projectId, variables }) =>
+      http.json(routes.replaceMachineEnvironment, {
+        ...at(projectId),
+        json: { variables },
+      }),
+    get: ({ projectId, signal }) =>
+      http.json(routes.get, at(projectId), signal),
+    list({ include, includePersonal, signal } = {}) {
+      const query = {
+        ...(include === undefined ? {} : { include }),
+        includePersonal: flag(includePersonal),
+      };
+      return http.json(routes.list, { query }, signal);
     },
-    async machineEnvironment(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["machine-environment"].$get({
-          param: { id: input.projectId },
+    paths: ({ projectId, signal, ...query }) =>
+      http.json(routes.paths, { ...at(projectId), query }, signal),
+    promptHistory: ({ projectId, limit, signal }) =>
+      http.json(
+        routes.promptHistory,
+        { ...at(projectId), query: { limit } },
+        signal,
+      ),
+    sources: {
+      add: ({ projectId, ...request }) =>
+        http.json(routes.createSource, {
+          ...at(projectId),
+          json: sourceJson(request),
         }),
-      );
-    },
-    async replaceMachineEnvironment(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["machine-environment"].$put({
-          param: { id: input.projectId },
-          json: { variables: input.variables },
+      async delete(args) {
+        await http.send(routes.deleteSource, source(args));
+        return { ok: true };
+      },
+      update: (args) =>
+        http.json(routes.updateSource, {
+          ...source(args),
+          json: pick(args, ["isDefault", "path", "type"]),
         }),
-      );
     },
-    async get(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"].$get(
-          {
-            param: { id: input.projectId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async list(input = {}) {
-      const { signal, ...query } = input;
-      return transport.readJson(
-        transport.api.v1.projects.$get(
-          {
-            query: projectListQuery(query),
-          },
-          ...signalRequestArgs(signal),
-        ),
-      );
-    },
-    async paths(input) {
-      const { projectId, signal, ...query } = input;
-      return transport.readJson(
-        transport.api.v1.projects[":id"].paths.$get(
-          {
-            param: { id: projectId },
-            query,
-          },
-          ...signalRequestArgs(signal),
-        ),
-      );
-    },
-    async promptHistory(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["prompt-history"].$get(
-          {
-            param: { id: input.projectId },
-            query: { limit: input.limit },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    sources,
-    async update(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"].$patch({
-          param: { id: input.projectId },
-          json: projectUpdateJson(input),
-        }),
-      );
-    },
+    update: ({ projectId, name }) =>
+      http.json(routes.update, { ...at(projectId), json: { name } }),
   };
 }

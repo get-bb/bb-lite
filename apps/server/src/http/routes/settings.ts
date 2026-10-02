@@ -20,7 +20,6 @@ interface PreferenceRow {
   revision: number;
 }
 
-const NO_PLUGIN_THEMES: domain.PluginThemeMeta[] = [];
 const DIRECT_ACCESS: ServerAccessStatus["providers"][number] = {
   id: "direct",
   displayName: "Manual",
@@ -29,17 +28,12 @@ const DIRECT_ACCESS: ServerAccessStatus["providers"][number] = {
   availability: null,
 };
 
-function builtInTheme(selection: domain.AppThemeSelection): domain.AppTheme {
+function builtInTheme(selection: domain.AppTheme): domain.AppTheme {
   const { themeId, faviconColor } = selection;
-  const paletteId = domain.isBuiltInThemeId(themeId)
-    ? themeId
-    : domain.defaultAppTheme.themeId;
-  const resolvedCodeTheme = domain.resolveCodeTheme(null, paletteId);
+  const known = domain.isBuiltInThemeId(themeId);
   return {
-    themeId: paletteId,
-    customCss: null,
+    themeId: known ? themeId : domain.defaultAppTheme.themeId,
     faviconColor,
-    resolvedCodeTheme,
   };
 }
 
@@ -115,7 +109,6 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     const publicUrl = publicServerUrl(ctx);
     return c.json({
       featureFlags: domain.defaultFeatureFlags,
-      pluginThemes: NO_PLUGIN_THEMES,
       serverAccess: {
         providers: [DIRECT_ACCESS],
         defaultProviderId: DIRECT_ACCESS.id,
@@ -157,12 +150,6 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     store.writeSetting(db, store.appearanceSetting, selection);
     hub.system(["config-changed"]);
     return c.json(builtInTheme(selection));
-  });
-
-  get(routes.resolveTheme, (c) => {
-    const themeId = c.req.param("id");
-    requireBuiltInTheme(themeId);
-    return c.json(builtInTheme({ ...appearance(), themeId }));
   });
 
   get(routes.uiPreferences, (c) =>

@@ -1,220 +1,94 @@
 import type { Host, HostType } from "@bb/domain";
-import type {
-  CreateMachineRequest,
-  HostEnrollmentCommandResponse,
-  HostReconnectResponse,
-  HostDirectoryListing,
-  HostDirectoryQuery,
-  HostOpenRequest,
-  HostOpenTargetsResponse,
-  HostPathsExistRequest,
-  HostPathsExistResponse,
-  UpdateHostRequest,
-} from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import { publicApiRoutes } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { flag, type Http } from "../http.js";
 
-export interface HostGetArgs {
-  hostId: string;
-  signal?: AbortSignal;
-}
+type Abortable = { signal?: AbortSignal };
 
-export interface HostDeleteArgs {
+interface HostTarget extends Abortable {
   hostId: string;
 }
 
-export interface HostUpdateArgs extends UpdateHostRequest {
-  hostId: string;
-}
-
-export interface HostActionArgs {
-  hostId: string;
-}
-
-export interface HostReconnectArgs extends HostActionArgs {
-  signal?: AbortSignal;
-}
-
-export interface HostDirectoryArgs extends HostDirectoryQuery {
-  hostId: string;
-  signal?: AbortSignal;
-}
-
-export interface HostPathsExistArgs extends HostPathsExistRequest {
-  hostId: string;
-  signal?: AbortSignal;
-}
-
-export interface HostOpenArgs extends HostOpenRequest {
-  hostId: string;
-}
-
-export interface HostListArgs {
-  includeCreating?: boolean;
-  type?: HostType;
-  signal?: AbortSignal;
-}
-
-export interface MachineCreateArgs extends CreateMachineRequest {
-  wait?: boolean;
-  signal?: AbortSignal;
-}
-export type HostDeleteResult = { ok: true };
-export type HostDirectoryResult = HostDirectoryListing;
-export type HostGetResult = Host & {
+type HostDetail = Host & {
   connectMachineId: string | null;
   threadStorageRootPath: string | null;
 };
-export type HostEnrollmentCommandResult = HostEnrollmentCommandResponse;
-export type HostReconnectResult = HostReconnectResponse;
-export type HostListResult = Host[];
-export type HostPathsExistResult = HostPathsExistResponse;
-export type HostUpdateResult = Host;
 
 export interface HostsArea {
-  experimental_create(args: MachineCreateArgs): Promise<Host>;
+  experimental_create(
+    args: api.CreateMachineRequest & Abortable & { wait?: boolean },
+  ): Promise<Host>;
   experimental_getEnrollmentCommand(
-    args: HostGetArgs,
-  ): Promise<HostEnrollmentCommandResult>;
-  experimental_reconnect(args: HostReconnectArgs): Promise<HostReconnectResult>;
-  delete(args: HostDeleteArgs): Promise<HostDeleteResult>;
-  directory(args: HostDirectoryArgs): Promise<HostDirectoryResult>;
-  get(args: HostGetArgs): Promise<HostGetResult>;
-  list(args?: HostListArgs): Promise<HostListResult>;
-  pathsExist(args: HostPathsExistArgs): Promise<HostPathsExistResult>;
-  openTargets(args: HostGetArgs): Promise<HostOpenTargetsResponse>;
-  open(args: HostOpenArgs): Promise<void>;
-  update(args: HostUpdateArgs): Promise<HostUpdateResult>;
+    args: HostTarget,
+  ): Promise<api.HostEnrollmentCommandResponse>;
+  experimental_reconnect(args: HostTarget): Promise<api.HostReconnectResponse>;
+  delete(args: HostTarget): Promise<{ ok: true }>;
+  directory(
+    args: HostTarget & api.HostDirectoryQuery,
+  ): Promise<api.HostDirectoryListing>;
+  get(args: HostTarget): Promise<HostDetail>;
+  list(
+    args?: Abortable & { includeCreating?: boolean; type?: HostType },
+  ): Promise<Host[]>;
+  pathsExist(
+    args: HostTarget & api.HostPathsExistRequest,
+  ): Promise<api.HostPathsExistResponse>;
+  openTargets(args: HostTarget): Promise<api.HostOpenTargetsResponse>;
+  open(args: api.HostOpenRequest & { hostId: string }): Promise<void>;
+  update(args: api.UpdateHostRequest & { hostId: string }): Promise<Host>;
 }
 
-export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
-  const { transport } = args;
+const CREATION_POLL_MS = 1000;
+
+export function createHostsArea(http: Http): HostsArea {
+  const routes = publicApiRoutes.hosts;
+  const at = (hostId: string) => ({ param: { id: hostId } });
+  const get: HostsArea["get"] = ({ hostId, signal }) =>
+    http.json(routes.get, at(hostId), signal);
   return {
-    async experimental_create(input) {
-      let host = await transport.readJson(
-        transport.api.v1.hosts.$post(
-          {
-            json: {
-              machineProviderId: input.machineProviderId,
-              inputs: input.inputs,
-              ...(input.key === undefined ? {} : { key: input.key }),
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-      if (input.wait === false) return host;
+    async experimental_create({ wait, signal, ...request }) {
+      const { machineProviderId, inputs, key } = request;
+      const json = {
+        machineProviderId,
+        inputs,
+        ...(key === undefined ? {} : { key }),
+      };
+      let host: Host = await http.json(routes.create, { json }, signal);
+      if (wait === false) return host;
       for (;;) {
-        input.signal?.throwIfAborted();
-        if (host.lifecycle.phase === "active") return host;
-        if (
-          host.lifecycle.phase === "removing" ||
-          host.lifecycle.phase === "destroyed"
-        )
-          throw new Error(
-            host.lifecycle.message ?? "Machine creation cancelled",
-          );
-        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-        host = await this.get({ hostId: host.id, signal: input.signal });
+        signal?.throwIfAborted();
+        const { phase, message } = host.lifecycle;
+        if (phase === "active") return host;
+        if (phase === "removing" || phase === "destroyed") {
+          throw new Error(message ?? "Machine creation cancelled");
+        }
+        await new Promise((resolve) => setTimeout(resolve, CREATION_POLL_MS));
+        host = await get({ hostId: host.id, signal });
       }
     },
-    async experimental_getEnrollmentCommand(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["enrollment-command"].$get(
-          {
-            param: { id: input.hostId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async experimental_reconnect(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["reconnect-commands"].$post(
-          { param: { id: input.hostId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async delete(input) {
-      await transport.readVoid(
-        transport.api.v1.hosts[":id"].$delete({
-          param: { id: input.hostId },
-        }),
-      );
+    experimental_getEnrollmentCommand: ({ hostId, signal }) =>
+      http.json(routes.enrollmentCommand, at(hostId), signal),
+    experimental_reconnect: ({ hostId, signal }) =>
+      http.json(routes.reconnect, at(hostId), signal),
+    async delete({ hostId }) {
+      await http.send(routes.delete, at(hostId));
       return { ok: true };
     },
-    async directory(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].directory.$get(
-          {
-            param: { id: input.hostId },
-            query: { path: input.path },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    directory: ({ hostId, path, signal }) =>
+      http.json(routes.directory, { ...at(hostId), query: { path } }, signal),
+    get,
+    list({ includeCreating, type, signal } = {}) {
+      const query = { includeCreating: flag(includeCreating), type };
+      return http.json(routes.list, { query }, signal);
     },
-    async get(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].$get(
-          {
-            param: { id: input.hostId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.hosts.$get(
-          {
-            query: {
-              ...(input?.includeCreating === undefined
-                ? {}
-                : {
-                    includeCreating: input.includeCreating ? "true" : "false",
-                  }),
-              ...(input?.type === undefined ? {} : { type: input.type }),
-            },
-          },
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-    },
-    async pathsExist(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].paths.exist.$post(
-          {
-            param: { id: input.hostId },
-            json: { paths: input.paths },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async openTargets(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["open-targets"].$get(
-          { param: { id: input.hostId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
+    pathsExist: ({ hostId, paths, signal }) =>
+      http.json(routes.pathsExist, { ...at(hostId), json: { paths } }, signal),
+    openTargets: ({ hostId, signal }) =>
+      http.json(routes.openTargets, at(hostId), signal),
     async open({ hostId, ...json }) {
-      await transport.readVoid(
-        transport.api.v1.hosts[":id"].open.$post({
-          param: { id: hostId },
-          json,
-        }),
-      );
+      await http.send(routes.open, { ...at(hostId), json });
     },
-    async update(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"].$patch({
-          param: { id: input.hostId },
-          json: { name: input.name },
-        }),
-      );
-    },
+    update: ({ hostId, name }) =>
+      http.json(routes.update, { ...at(hostId), json: { name } }),
   };
 }

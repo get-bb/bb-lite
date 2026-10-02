@@ -48,7 +48,6 @@ export const gitBranchSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("named"), name: gitBranchNameSchema }),
   z.object({ kind: z.literal("default") }),
 ]);
-export type GitBranchSelection = z.infer<typeof gitBranchSelectionSchema>;
 
 export const gitCheckoutRefSchema = z.discriminatedUnion("kind", [
   z.object({

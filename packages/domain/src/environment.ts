@@ -9,17 +9,11 @@ export const environmentMachineSelectionSchema = z.discriminatedUnion("type", [
     inputs: jsonValueSchema.nullable(),
   }),
 ]);
-export type EnvironmentMachineSelection = z.infer<
-  typeof environmentMachineSelectionSchema
->;
 
 export const environmentProviderSelectionSchema = z.object({
   machine: environmentMachineSelectionSchema,
   inputs: jsonValueSchema.nullable(),
 });
-export type EnvironmentProviderSelection = z.infer<
-  typeof environmentProviderSelectionSchema
->;
 export const environmentStatusValues = [
   "creating",
   "provisioning",
@@ -60,38 +54,21 @@ export function resolveEnvironmentHostLifecycle(
   if (host.phase !== "removing") return "active";
   return host.teardownStatus === "failed" ? "cleanup-failed" : "removing";
 }
-
-const WORKSPACE_PROVISION_TYPES = [
+export const workspaceProvisionTypeSchema = z.enum([
   "unmanaged",
   "managed-worktree",
   "personal",
-] as const;
-export const workspaceProvisionTypeSchema = z.enum(WORKSPACE_PROVISION_TYPES);
+]);
 export type WorkspaceProvisionType = z.infer<
   typeof workspaceProvisionTypeSchema
 >;
-
-const environmentWorkspaceDisplayKindValues = [
+export const environmentWorkspaceDisplayKindSchema = z.enum([
   "managed-worktree",
   "unmanaged-worktree",
   "other",
-] as const;
-export const environmentWorkspaceDisplayKindSchema = z.enum(
-  environmentWorkspaceDisplayKindValues,
-);
+]);
 export type EnvironmentWorkspaceDisplayKind = z.infer<
   typeof environmentWorkspaceDisplayKindSchema
->;
-
-export const discoveredWorkspacePropertiesSchema = z.object({
-  path: z.string().min(1),
-  isGitRepo: z.boolean(),
-  isWorktree: z.boolean(),
-  branchName: z.string().nullable(),
-  defaultBranch: z.string().nullable(),
-});
-export type DiscoveredWorkspaceProperties = z.infer<
-  typeof discoveredWorkspacePropertiesSchema
 >;
 
 export const environmentLifecycleSchema = z.object({

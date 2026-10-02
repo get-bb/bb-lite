@@ -6,23 +6,19 @@ import {
   getHighlighterIfLoaded,
   preloadHighlighter,
   registerCustomTheme,
+  resolveTheme,
 } from "@pierre/diffs";
-import { stampRegisteredThemeName } from "@bb/domain";
-import {
-  getResolvedCodeTheme,
-  useResolvedCodeThemePair,
-} from "@/lib/code-theme";
+import { deriveLightCodeTheme, lightCodeThemes } from "@bb/domain";
+import { useResolvedCodeThemePair } from "@/lib/code-theme";
 
-const registeredFileNames = new Set<string>();
+for (const light of lightCodeThemes) {
+  registerCustomTheme(light.name, async () =>
+    deriveLightCodeTheme(await resolveTheme(light.dark), light),
+  );
+}
 
 export function useCodeHighlighter(path: string) {
   const theme = useResolvedCodeThemePair();
-  for (const [name, file] of Object.entries(getResolvedCodeTheme().files)) {
-    if (registeredFileNames.has(name)) continue;
-    registeredFileNames.add(name);
-    const stamped = stampRegisteredThemeName(name, file);
-    registerCustomTheme(name, () => Promise.resolve(stamped));
-  }
   const language = getFiletypeFromFileName(path);
   const key = `${language}:${theme.dark}:${theme.light}`;
   const [settledKey, setSettledKey] = useState("");

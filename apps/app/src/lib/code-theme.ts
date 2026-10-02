@@ -20,10 +20,6 @@ function subscribe(callback: () => void): () => void {
   return () => void subscribers.delete(callback);
 }
 
-export function getResolvedCodeTheme(): ResolvedCodeTheme {
-  return current;
-}
-
 export function applyResolvedCodeTheme(resolved: ResolvedCodeTheme): void {
   committed = resolved;
   previewed = null;

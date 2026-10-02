@@ -126,7 +126,6 @@ const CODEX = defineProvider({
     supportsThreadRename: true,
     supportsServiceTier: true,
     supportsNativeUserQuestion: false,
-    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
@@ -159,7 +158,6 @@ const CLAUDE_CODE = defineProvider({
     supportsThreadRename: false,
     supportsServiceTier: true,
     supportsNativeUserQuestion: true,
-    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
@@ -191,7 +189,6 @@ const ECHO = defineProvider({
     supportsThreadRename: false,
     supportsServiceTier: false,
     supportsNativeUserQuestion: false,
-    supportsFork: false,
     supportsSessionRewind: false,
   },
   optional: {},

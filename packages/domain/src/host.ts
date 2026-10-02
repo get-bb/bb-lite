@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { permissionModeSchema } from "./shared-types.js";
-
-const hostStatusValues = ["connected", "disconnected"] as const;
-export const hostStatusSchema = z.enum(hostStatusValues);
+export const hostStatusSchema = z.enum(["connected", "disconnected"]);
 
 export const machineLifecycleSchema = z.object({
   phase: z.enum([
@@ -24,7 +22,6 @@ export const machineLifecycleSchema = z.object({
     })
     .nullable(),
 });
-export type MachineLifecycle = z.infer<typeof machineLifecycleSchema>;
 
 export const hostTypeSchema = z.enum(["persistent", "ephemeral"]);
 export type HostType = z.infer<typeof hostTypeSchema>;

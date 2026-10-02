@@ -32,20 +32,11 @@ export const systemEventTypeValues = [
   "system/permissionGrant/lifecycle",
   "system/userQuestion/lifecycle",
   "system/thread-provisioning",
-  // Legacy persisted watchdog diagnostic; retained for read/decode/render
-  // only, with no current producer.
   "system/provider-turn-watchdog",
 ] as const;
-
-const threadTurnInitiatorValues = ["user", "agent", "system"] as const;
-export const threadTurnInitiatorSchema = z.enum(threadTurnInitiatorValues);
+export const threadTurnInitiatorSchema = z.enum(["user", "agent", "system"]);
 export type ThreadTurnInitiator = z.infer<typeof threadTurnInitiatorSchema>;
 
-/**
- * Execution values are historical facts once recorded in the event stream.
- * The stored-event boundary therefore accepts the two retired modes without
- * treating either as a current public preset.
- */
 const turnRequestOptionsSchema = recordedThreadExecutionOptionsSchema;
 
 export const turnRequestTargetSchema = z.discriminatedUnion("kind", [
@@ -71,21 +62,11 @@ export const clientTurnLifecycleEventDataSchema = z.object({
     params: z.record(z.string(), z.unknown()),
   }),
 });
-export type ClientTurnLifecycleEventData = z.infer<
-  typeof clientTurnLifecycleEventDataSchema
->;
 
 export const turnRequestEventDataSchema = z.object({
   direction: z.literal("outbound"),
   requestId: clientTurnRequestIdSchema,
-  // Retry provenance, written only when a `turn.failed` gate's retry row
-  // dispatches. Both fields are present together or not at all: absence means
-  // "this is an original dispatch", which is the overwhelmingly common case.
-  // (Supersedes the pre-plugin `continuationOfRequestId` key, which the removed
-  // core rate-limit recovery wrote and nothing ever read.)
-  /** The original request this attempt re-submits, unchanged across attempts. */
   retryOfRequestId: clientTurnRequestIdSchema.optional(),
-  /** Which attempt this is: 2 is the first retry of the original request. */
   retryAttempt: z.number().int().min(2).optional(),
   source: z.enum(["spawn", "tell"]),
   initiator: threadTurnInitiatorSchema,
@@ -103,13 +84,6 @@ export const turnRequestEventDataSchema = z.object({
 });
 export type TurnRequestEventData = z.infer<typeof turnRequestEventDataSchema>;
 
-/**
- * The retry marker is one fact in two keys, so a stored request that carries
- * one without the other is malformed — it would misstate which turn a retry
- * re-runs, or which attempt it is. Applied where persisted events are parsed,
- * since the discriminated unions the base schema feeds cannot carry a
- * refinement themselves.
- */
 export function refineTurnRequestRetryMarker(
   data: Pick<TurnRequestEventData, "retryOfRequestId" | "retryAttempt">,
   ctx: z.RefinementCtx,
@@ -137,19 +111,11 @@ export const systemErrorEventDataSchema = z.object({
   message: z.string(),
   detail: z.string().optional(),
 });
-export type SystemErrorEventData = z.infer<typeof systemErrorEventDataSchema>;
-
-const ownershipChangeOperationActionValues = [
+const ownershipChangeOperationActionSchema = z.enum([
   "assign",
   "release",
   "transfer",
-] as const;
-const ownershipChangeOperationActionSchema = z.enum(
-  ownershipChangeOperationActionValues,
-);
-export type OwnershipChangeOperationAction = z.infer<
-  typeof ownershipChangeOperationActionSchema
->;
+]);
 
 export const ownershipChangeOperationMetadataSchema = z.object({
   action: ownershipChangeOperationActionSchema,
@@ -221,16 +187,12 @@ export const provisioningTranscriptEntrySchema = z.object({
 export type ProvisioningTranscriptEntry = z.infer<
   typeof provisioningTranscriptEntrySchema
 >;
-
-const systemThreadProvisioningStatusValues = [
+const systemThreadProvisioningStatusSchema = z.enum([
   "active",
   "completed",
   "failed",
   "cancelled",
-] as const;
-const systemThreadProvisioningStatusSchema = z.enum(
-  systemThreadProvisioningStatusValues,
-);
+]);
 export type SystemThreadProvisioningStatus = z.infer<
   typeof systemThreadProvisioningStatusSchema
 >;

@@ -1,16 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  FILE_LIST_QUERY_MAX_LENGTH,
-  getProjectPathValidationMessage,
-  gitBranchNameSchema,
-  normalizeProjectPathInput,
-  projectExecutionDefaultsSchema,
-  projectSchema,
-  projectSourceCheckoutSchema,
-  projectSourceSchema,
-  promptHistoryEntrySchema,
-  threadListEntrySchema,
-} from "@bb/domain";
 import {
   rejectMultipleWorkspaceSelectors,
   branchListQuerySchema,
@@ -22,9 +11,9 @@ const localProjectPathRequestSchema = z
   .string()
   .trim()
   .min(1)
-  .transform(normalizeProjectPathInput)
+  .transform(domain.normalizeProjectPathInput)
   .superRefine((path, ctx) => {
-    const validationMessage = getProjectPathValidationMessage(path);
+    const validationMessage = domain.getProjectPathValidationMessage(path);
     if (!validationMessage) {
       return;
     }
@@ -145,7 +134,7 @@ const projectWorkspaceRoutingFields = {
 export const projectPathsQuerySchema = z
   .object({
     ...projectWorkspaceRoutingFields,
-    query: z.string().min(1).max(FILE_LIST_QUERY_MAX_LENGTH).optional(),
+    query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH).optional(),
     limit: z.string().regex(/^\d+$/).optional(),
     includeFiles: pathListIncludeQueryValueSchema,
     includeDirectories: pathListIncludeQueryValueSchema,
@@ -162,16 +151,15 @@ export type ProjectPathsQuery = z.infer<typeof projectPathsQuerySchema>;
 export const projectBranchesQuerySchema = branchListQuerySchema
   .extend({
     hostId: z.string().min(1),
-    selectedBranch: gitBranchNameSchema.optional(),
+    selectedBranch: domain.gitBranchNameSchema.optional(),
   })
   .strict();
 export type ProjectBranchesQuery = z.infer<typeof projectBranchesQuerySchema>;
 
-export const projectBranchesResponseSchema = projectSourceCheckoutSchema.extend(
-  {
+export const projectBranchesResponseSchema =
+  domain.projectSourceCheckoutSchema.extend({
     defaultWorktreeBaseBranch: z.string().min(1).nullable(),
-  },
-);
+  });
 export type ProjectBranchesResponse = z.infer<
   typeof projectBranchesResponseSchema
 >;
@@ -195,7 +183,9 @@ export const promptHistoryQuerySchema = z
   .partial();
 export type PromptHistoryQuery = z.infer<typeof promptHistoryQuerySchema>;
 
-export const promptHistoryResponseSchema = z.array(promptHistoryEntrySchema);
+export const promptHistoryResponseSchema = z.array(
+  domain.promptHistoryEntrySchema,
+);
 export type PromptHistoryResponse = z.infer<typeof promptHistoryResponseSchema>;
 
 export type ProjectAttachmentUploadForm = Record<"file", Blob>;
@@ -289,14 +279,14 @@ export const projectCommandsQuerySchema = z
   .superRefine(rejectMultipleWorkspaceSelectors);
 export type ProjectCommandsQuery = z.infer<typeof projectCommandsQuerySchema>;
 
-export const projectResponseSchema = projectSchema.extend({
-  sources: z.array(projectSourceSchema),
+export const projectResponseSchema = domain.projectSchema.extend({
+  sources: z.array(domain.projectSourceSchema),
 });
 export type ProjectResponse = z.infer<typeof projectResponseSchema>;
 
 export const projectWithThreadsResponseSchema = projectResponseSchema.extend({
-  threads: z.array(threadListEntrySchema),
-  defaultExecutionOptions: projectExecutionDefaultsSchema.nullable(),
+  threads: z.array(domain.threadListEntrySchema),
+  defaultExecutionOptions: domain.projectExecutionDefaultsSchema.nullable(),
 });
 export type ProjectWithThreadsResponse = z.infer<
   typeof projectWithThreadsResponseSchema

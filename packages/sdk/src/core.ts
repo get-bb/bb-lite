@@ -1,33 +1,27 @@
-import type { BbSdkContext, BbSdkTransport } from "./transport.js";
 import {
   createEnvironmentsArea,
   type EnvironmentsArea,
 } from "./areas/environments.js";
 import { createFilesArea, type FilesArea } from "./areas/files.js";
 import { createHostsArea, type HostsArea } from "./areas/hosts.js";
+import { createPluginsArea, type PluginsArea } from "./areas/plugins.js";
 import { createProjectsArea, type ProjectsArea } from "./areas/projects.js";
 import { createProvidersArea, type ProvidersArea } from "./areas/providers.js";
-import { createPluginsArea, type PluginsArea } from "./areas/plugins.js";
-import { createBbRealtimeClient } from "./realtime-client.js";
-import type { BbRealtime } from "./realtime-types.js";
-import { createThemeArea, type ThemeArea } from "./areas/theme.js";
 import { createSystemArea, type SystemArea } from "./areas/system.js";
 import { createTerminalsArea, type TerminalsArea } from "./areas/terminals.js";
-import { createThreadsArea, type ThreadsArea } from "./areas/threads.js";
+import { createThemeArea, type ThemeArea } from "./areas/theme.js";
 import {
   createThreadSectionsArea,
   type ThreadSectionsArea,
 } from "./areas/thread-sections.js";
+import { createThreadsArea, type ThreadsArea } from "./areas/threads.js";
+import { createHttp, type CreateHttpArgs } from "./http.js";
 
+export { BbHttpError, BbRequestTimeoutError } from "./http.js";
+export type { BbHttpErrorArgs, FetchImplementation } from "./http.js";
 export type * from "./public-types.js";
-export { createBuiltinPlanCommandTextInput } from "@bb/domain";
 
-export interface CreateBbSdkArgs {
-  context?: BbSdkContext;
-  transport: BbSdkTransport;
-}
-
-export interface BbSdkAreas extends BbRealtime {
+export interface BbSdkAreas {
   environments: EnvironmentsArea;
   files: FilesArea;
   hosts: HostsArea;
@@ -43,26 +37,19 @@ export interface BbSdkAreas extends BbRealtime {
 
 export type BbSdk = BbSdkAreas;
 
-export function createBbSdk(args: CreateBbSdkArgs): BbSdkAreas | BbSdk {
-  const sdkContext = { transport: args.transport };
-  const realtime = createBbRealtimeClient({
-    transport: args.transport,
-  });
-  const areas: BbSdkAreas = {
-    environments: createEnvironmentsArea(sdkContext),
-    files: createFilesArea(sdkContext),
-    hosts: createHostsArea(sdkContext),
-    subscribe(args) {
-      return realtime.subscribe(args);
-    },
-    projects: createProjectsArea(sdkContext),
-    plugins: createPluginsArea(sdkContext),
-    providers: createProvidersArea(sdkContext),
-    system: createSystemArea(sdkContext),
-    terminals: createTerminalsArea(sdkContext),
-    theme: createThemeArea(sdkContext),
-    threadSections: createThreadSectionsArea(sdkContext),
-    threads: createThreadsArea(sdkContext),
+export function createBbSdk(args: CreateHttpArgs): BbSdk {
+  const http = createHttp(args);
+  return {
+    environments: createEnvironmentsArea(http),
+    files: createFilesArea(http),
+    hosts: createHostsArea(http),
+    projects: createProjectsArea(http),
+    plugins: createPluginsArea(http),
+    providers: createProvidersArea(http),
+    system: createSystemArea(http),
+    terminals: createTerminalsArea(http),
+    theme: createThemeArea(http),
+    threadSections: createThreadSectionsArea(http),
+    threads: createThreadsArea(http),
   };
-  return areas;
 }

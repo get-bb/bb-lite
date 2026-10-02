@@ -1,37 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  activeThinkingSchema,
-  callerExecutionInputSourceSchema,
-  completedTurnDisplaySchema,
-  environmentSchema,
-  hostSchema,
-  jsonValueSchema,
-  pluginIdSchema,
-  pluginMetadataSchema,
-  pendingInteractionResolutionSchema,
-  pendingInteractionSchema,
-  permissionModeInputSchema,
-  promptInputSchema,
-  queuedMessageWaitHolderSchema,
-  reasoningLevelSchema,
-  rawThreadIdSchema,
-  serviceTierSchema,
-  startedOnBehalfOfSchema,
-  threadCreateOriginSchema,
-  threadOriginKindSchema,
-  threadListEntrySchema,
-  threadQueuedMessageSchema,
-  threadSearchSourceKindSchema,
-  threadTimelineActivePromptModeSchema,
-  threadTimelineGoalSchema,
-  threadTimelineModelFallbackSchema,
-  threadTimelinePendingTodosSchema,
-  threadEventTypeValues,
-  threadVisibilitySchema,
-  threadWithRuntimeSchema,
-} from "@bb/domain";
-import type { CallerExecutionInputSource } from "@bb/domain";
-import { THREAD_EVENT_LIST_PAGE_SIZE } from "../common.js";
 import {
   timelineDeltaSchema,
   timelineRowSchema,
@@ -39,13 +7,13 @@ import {
 } from "../thread-timeline.js";
 import {
   createThreadEnvironmentArgsSchema,
-  FILE_LIST_QUERY_MAX_LENGTH,
   isCommaSeparatedIncludeQueryValue,
   pathListIncludeQueryValueSchema,
   threadContextWindowUsageSchema,
-  workspaceFileListResponseSchema,
   workspacePathListResponseSchema,
 } from "./shared.js";
+
+export const THREAD_EVENT_LIST_PAGE_SIZE = 100;
 
 export const sendMessageModeSchema = z.enum([
   "queue-if-active",
@@ -55,8 +23,9 @@ export const sendMessageModeSchema = z.enum([
   "steer",
 ]);
 
-export const executionInputFieldSourceSchema = callerExecutionInputSourceSchema;
-export type ExecutionInputFieldSource = CallerExecutionInputSource;
+export const executionInputFieldSourceSchema =
+  domain.callerExecutionInputSourceSchema;
+export type ExecutionInputFieldSource = domain.CallerExecutionInputSource;
 
 export const createExecutionInputSourcesSchema = z
   .object({
@@ -87,26 +56,26 @@ export const createThreadRequestSchema = z
   .object({
     projectId: z.string().min(1),
     providerId: z.string().min(1).optional(),
-    origin: threadCreateOriginSchema,
+    origin: domain.threadCreateOriginSchema,
     originPluginId: z.string().min(1).optional(),
-    pluginMetadata: pluginMetadataSchema.optional(),
+    pluginMetadata: domain.pluginMetadataSchema.optional(),
     lifecycleOwnerThreadId: z.string().min(1).optional(),
-    visibility: threadVisibilitySchema.optional(),
+    visibility: domain.threadVisibilitySchema.optional(),
     title: z.string().min(1).optional(),
-    input: z.array(promptInputSchema),
+    input: z.array(domain.promptInputSchema),
     model: z.string().min(1).optional(),
-    serviceTier: serviceTierSchema.optional(),
-    reasoningLevel: reasoningLevelSchema.optional(),
-    permissionMode: permissionModeInputSchema.optional(),
+    serviceTier: domain.serviceTierSchema.optional(),
+    reasoningLevel: domain.reasoningLevelSchema.optional(),
+    permissionMode: domain.permissionModeInputSchema.optional(),
     executionInputSources: createExecutionInputSourcesSchema.optional(),
     environment: createThreadEnvironmentArgsSchema,
     parentThreadId: z.string().min(1).optional(),
     sectionId: z.string().min(1).nullable().optional(),
     pinned: z.boolean().optional(),
-    startedOnBehalfOf: startedOnBehalfOfSchema.nullable().default(null),
+    startedOnBehalfOf: domain.startedOnBehalfOfSchema.nullable().default(null),
     sendAt: z.number().int().nonnegative().optional(),
     pluginSubmission: z
-      .object({ pluginId: pluginIdSchema, data: jsonValueSchema })
+      .object({ pluginId: domain.pluginIdSchema, data: domain.jsonValueSchema })
       .optional(),
   })
   .superRefine((value, ctx) => {
@@ -134,7 +103,7 @@ export const createThreadRequestSchema = z
     if (
       value.pluginMetadata !== undefined &&
       value.originPluginId !== undefined &&
-      !pluginIdSchema.safeParse(value.originPluginId).success
+      !domain.pluginIdSchema.safeParse(value.originPluginId).success
     ) {
       ctx.addIssue({
         code: "custom",
@@ -154,16 +123,16 @@ export const createThreadRequestSchema = z
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 
 const sendMessageRequestFieldsSchema = z.object({
-  input: z.array(promptInputSchema).min(1),
+  input: z.array(domain.promptInputSchema).min(1),
   model: z.string().optional(),
-  serviceTier: serviceTierSchema.optional(),
-  reasoningLevel: reasoningLevelSchema.optional(),
-  permissionMode: permissionModeInputSchema.optional(),
+  serviceTier: domain.serviceTierSchema.optional(),
+  reasoningLevel: domain.reasoningLevelSchema.optional(),
+  permissionMode: domain.permissionModeInputSchema.optional(),
   executionInputSources: existingThreadExecutionInputSourcesSchema.optional(),
   mode: sendMessageModeSchema,
   senderThreadId: z.string().min(1).optional(),
   pluginSubmission: z
-    .object({ pluginId: pluginIdSchema, data: jsonValueSchema })
+    .object({ pluginId: domain.pluginIdSchema, data: domain.jsonValueSchema })
     .optional(),
   sendAt: z.number().int().nonnegative().optional(),
 });
@@ -176,7 +145,7 @@ export const sendMessageResponseSchema = z.discriminatedUnion("delivery", [
   z.object({
     ok: z.literal(true),
     delivery: z.literal("queued"),
-    queuedMessage: threadQueuedMessageSchema,
+    queuedMessage: domain.threadQueuedMessageSchema,
   }),
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
@@ -185,11 +154,11 @@ export const sendQueuedMessageModeSchema = z.enum(["auto", "steer"]);
 export type SendQueuedMessageMode = z.infer<typeof sendQueuedMessageModeSchema>;
 
 export const createQueuedMessageRequestSchema = z.object({
-  input: z.array(promptInputSchema).min(1),
+  input: z.array(domain.promptInputSchema).min(1),
   model: z.string().optional(),
-  serviceTier: serviceTierSchema.optional(),
-  reasoningLevel: reasoningLevelSchema.optional(),
-  permissionMode: permissionModeInputSchema.optional(),
+  serviceTier: domain.serviceTierSchema.optional(),
+  reasoningLevel: domain.reasoningLevelSchema.optional(),
+  permissionMode: domain.permissionModeInputSchema.optional(),
   executionInputSources: existingThreadExecutionInputSourcesSchema.optional(),
   senderThreadId: z.string().min(1).optional(),
 });
@@ -199,7 +168,7 @@ export type CreateQueuedMessageRequest = z.infer<
 
 export const updateQueuedMessageRequestSchema = z.object({
   expectedUpdatedAt: z.number().int().nonnegative(),
-  input: z.array(promptInputSchema).min(1),
+  input: z.array(domain.promptInputSchema).min(1),
 });
 export type UpdateQueuedMessageRequest = z.infer<
   typeof updateQueuedMessageRequestSchema
@@ -217,14 +186,16 @@ export type SendQueuedMessageResponse = z.infer<
   typeof sendQueuedMessageResponseSchema
 >;
 
-export const threadListResponseSchema = z.array(threadListEntrySchema);
+export const threadListResponseSchema = z.array(domain.threadListEntrySchema);
 export type ThreadListResponse = z.infer<typeof threadListResponseSchema>;
 
 export const THREAD_MENTION_RESOLVE_MAX_IDS = 32;
 
 export const resolveThreadMentionsRequestSchema = z
   .object({
-    threadIds: z.array(rawThreadIdSchema).max(THREAD_MENTION_RESOLVE_MAX_IDS),
+    threadIds: z
+      .array(domain.rawThreadIdSchema)
+      .max(THREAD_MENTION_RESOLVE_MAX_IDS),
   })
   .strict();
 export type ResolveThreadMentionsRequest = z.infer<
@@ -233,7 +204,7 @@ export type ResolveThreadMentionsRequest = z.infer<
 
 export const threadMentionResolutionSchema = z
   .object({
-    threadId: rawThreadIdSchema,
+    threadId: domain.rawThreadIdSchema,
     projectId: z.string().min(1),
     label: z.string().min(1),
   })
@@ -258,7 +229,7 @@ export const threadSearchHighlightRangeSchema = z
 
 export const threadSearchMatchSchema = z
   .object({
-    sourceKind: threadSearchSourceKindSchema,
+    sourceKind: domain.threadSearchSourceKindSchema,
     text: z.string(),
     highlightRanges: z.array(threadSearchHighlightRangeSchema),
     sourceSeq: z.number().int().nonnegative().nullable(),
@@ -268,7 +239,7 @@ export type ThreadSearchMatch = z.infer<typeof threadSearchMatchSchema>;
 
 export const threadSearchResultSchema = z
   .object({
-    thread: threadListEntrySchema,
+    thread: domain.threadListEntrySchema,
     matches: z.array(threadSearchMatchSchema),
   })
   .strict();
@@ -288,7 +259,7 @@ export const threadSearchResponseSchema = z
   .strict();
 export type ThreadSearchResponse = z.infer<typeof threadSearchResponseSchema>;
 
-export const threadResponseSchema = threadWithRuntimeSchema.extend({
+export const threadResponseSchema = domain.threadWithRuntimeSchema.extend({
   activeBackgroundAgentCount: z.number().int().nonnegative(),
   canRestoreEnvironment: z.boolean(),
   canSpawnChild: z.boolean(),
@@ -315,8 +286,8 @@ export const threadGetQuerySchema = z.object({
 export type ThreadGetQuery = z.infer<typeof threadGetQuerySchema>;
 
 export const threadWithIncludesResponseSchema = threadResponseSchema.extend({
-  environment: environmentSchema.nullable().optional(),
-  host: hostSchema.nullable().optional(),
+  environment: domain.environmentSchema.nullable().optional(),
+  host: domain.hostSchema.nullable().optional(),
   environmentHostName: z.string().nullable().optional(),
 });
 export type ThreadWithIncludesResponse = z.infer<
@@ -324,20 +295,20 @@ export type ThreadWithIncludesResponse = z.infer<
 >;
 
 export const threadPendingInteractionsResponseSchema = z.array(
-  pendingInteractionSchema,
+  domain.pendingInteractionSchema,
 );
 export type ThreadPendingInteractionsResponse = z.infer<
   typeof threadPendingInteractionsResponseSchema
 >;
 
 export const resolvePendingInteractionRequestSchema =
-  pendingInteractionResolutionSchema;
+  domain.pendingInteractionResolutionSchema;
 export type ResolvePendingInteractionRequest = z.infer<
   typeof resolvePendingInteractionRequestSchema
 >;
 
 export const respondPluginInteractionRequestSchema = z.object({
-  value: jsonValueSchema,
+  value: domain.jsonValueSchema,
 });
 export type RespondPluginInteractionRequest = z.infer<
   typeof respondPluginInteractionRequestSchema
@@ -345,14 +316,14 @@ export type RespondPluginInteractionRequest = z.infer<
 
 export const queuedMessageListQuerySchema = z.object({
   threadId: z.string().min(1).optional(),
-  waitHolder: queuedMessageWaitHolderSchema.optional(),
+  waitHolder: domain.queuedMessageWaitHolderSchema.optional(),
 });
 export type QueuedMessageListQuery = z.infer<
   typeof queuedMessageListQuerySchema
 >;
 
 export const threadQueuedMessageListResponseSchema = z.array(
-  threadQueuedMessageSchema,
+  domain.threadQueuedMessageSchema,
 );
 export type ThreadQueuedMessageListResponse = z.infer<
   typeof threadQueuedMessageListResponseSchema
@@ -377,8 +348,8 @@ export const updateThreadRequestSchema = z
     sectionId: z.string().min(1).nullable(),
     parentThreadId: z.string().min(1).nullable(),
     model: z.string().min(1).nullable(),
-    reasoningLevel: reasoningLevelSchema.nullable(),
-    visibility: threadVisibilitySchema,
+    reasoningLevel: domain.reasoningLevelSchema.nullable(),
+    visibility: domain.threadVisibilitySchema,
   })
   .partial()
   .refine(
@@ -472,12 +443,11 @@ export const threadListQuerySchema = z.object({
   environmentId: z.string().min(1).optional(),
   hostId: z.string().min(1).optional(),
   parentThreadId: z.string().min(1).optional(),
-  sourceThreadId: z.string().min(1).optional(),
   archived: z.enum(["true", "false"]).optional(),
   sectionId: z.string().min(1).optional(),
   unsectioned: z.enum(["true", "false"]).optional(),
   hasParent: z.enum(["true", "false"]).optional(),
-  originKind: threadOriginKindSchema.optional(),
+  originKind: domain.threadOriginKindSchema.optional(),
   originPluginId: z.string().min(1).optional(),
   includeHidden: z.enum(["true", "false"]).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
@@ -573,7 +543,7 @@ export const threadEventsQuerySchema = z
     types: z.string().refine(
       (value) =>
         isCommaSeparatedIncludeQueryValue({
-          allowedValues: threadEventTypeValues,
+          allowedValues: domain.threadEventTypeValues,
           value,
         }),
       "Invalid thread event types",
@@ -591,13 +561,10 @@ export type ThreadEventWaitQuery = z.infer<typeof threadEventWaitQuerySchema>;
 
 export const threadStorageFilesQuerySchema = z
   .object({
-    query: z.string().min(1).max(FILE_LIST_QUERY_MAX_LENGTH),
+    query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH),
     limit: z.string().regex(/^\d+$/),
   })
   .partial();
-export type ThreadStorageFilesQuery = z.infer<
-  typeof threadStorageFilesQuerySchema
->;
 
 export const threadStoragePathsQuerySchema =
   threadStorageFilesQuerySchema.extend({
@@ -606,16 +573,6 @@ export const threadStoragePathsQuerySchema =
   });
 export type ThreadStoragePathsQuery = z.infer<
   typeof threadStoragePathsQuerySchema
->;
-
-export const threadStorageLocationResponseSchema = z
-  .object({
-    hostId: z.string().min(1),
-    storageRootPath: z.string().min(1),
-  })
-  .strict();
-export type ThreadStorageLocationResponse = z.infer<
-  typeof threadStorageLocationResponseSchema
 >;
 
 export const timelineTurnSummaryDetailsResponseSchema = z.object({
@@ -630,14 +587,14 @@ export type TimelineTurnSummaryDetailsResponse = z.infer<
 export const threadTimelineResponseSchema = z.object({
   rows: z.array(timelineRowSchema),
   contextBoundarySeq: z.number().int().nonnegative().nullable(),
-  completedTurnDisplay: completedTurnDisplaySchema,
-  activePromptMode: threadTimelineActivePromptModeSchema.nullable(),
-  activeThinking: activeThinkingSchema.nullable(),
+  completedTurnDisplay: domain.completedTurnDisplaySchema,
+  activePromptMode: domain.threadTimelineActivePromptModeSchema.nullable(),
+  activeThinking: domain.activeThinkingSchema.nullable(),
   activeWorkflows: z.array(timelineWorkflowWorkRowSchema),
   activeBackgroundCommands: z.array(timelineWorkflowWorkRowSchema),
-  pendingTodos: threadTimelinePendingTodosSchema.nullable(),
-  goal: threadTimelineGoalSchema.nullable(),
-  modelFallback: threadTimelineModelFallbackSchema.nullable(),
+  pendingTodos: domain.threadTimelinePendingTodosSchema.nullable(),
+  goal: domain.threadTimelineGoalSchema.nullable(),
+  modelFallback: domain.threadTimelineModelFallbackSchema.nullable(),
   contextWindowUsage: threadContextWindowUsageSchema.optional(),
   timelinePage: timelinePageMetadataSchema,
   maxSeq: z.number().int().nonnegative(),
@@ -645,14 +602,6 @@ export const threadTimelineResponseSchema = z.object({
 });
 export type ThreadTimelineResponse = z.infer<
   typeof threadTimelineResponseSchema
->;
-
-export const threadStorageFileListResponseSchema =
-  workspaceFileListResponseSchema.extend({
-    storageRootPath: z.string(),
-  });
-export type ThreadStorageFileListResponse = z.infer<
-  typeof threadStorageFileListResponseSchema
 >;
 
 export const threadStoragePathListResponseSchema =

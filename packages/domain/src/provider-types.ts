@@ -36,7 +36,6 @@ const providerCapabilitiesSchema = z.object({
   supportsThreadRename: z.boolean(),
   supportsServiceTier: z.boolean(),
   supportsNativeUserQuestion: z.boolean(),
-  supportsFork: z.boolean(),
   supportsSessionRewind: z.boolean(),
   permissionModes: z.array(permissionModeSchema).min(1),
   modelCatalogScope: providerModelCatalogScopeSchema,
@@ -102,9 +101,6 @@ export const providerExtensionKindsSchema = z.record(
   extensionKindSchema,
   providerExtensionKindInfoSchema,
 );
-export type ProviderExtensionKinds = z.infer<
-  typeof providerExtensionKindsSchema
->;
 
 export const providerInfoSchema = z.object({
   id: z.string(),
@@ -129,16 +125,6 @@ export const providerInfoSchema = z.object({
 });
 export type ProviderInfo = z.infer<typeof providerInfoSchema>;
 
-export const providerRecoveryKindValues = [
-  "sessionArchived",
-  "authRequired",
-  "restartRecommended",
-  "staleTurn",
-  "rateLimited",
-] as const;
-export const providerRecoveryKindSchema = z.enum(providerRecoveryKindValues);
-export type ProviderRecoveryKind = z.infer<typeof providerRecoveryKindSchema>;
-
 export const toolCallOutputItemSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("inputText"),
@@ -149,17 +135,6 @@ export const toolCallOutputItemSchema = z.discriminatedUnion("type", [
     imageUrl: z.string(),
   }),
 ]);
-
-export const toolCallRequestSchema = z.object({
-  requestId: z.union([z.string().min(1), z.number()]),
-  threadId: z.string().min(1),
-  providerThreadId: z.string().min(1),
-  turnId: z.string().min(1),
-  callId: z.string().min(1),
-  tool: z.string().min(1),
-  arguments: z.unknown().optional(),
-});
-export type ToolCallRequest = z.infer<typeof toolCallRequestSchema>;
 
 export const toolCallResponseSchema = z.object({
   contentItems: z.array(toolCallOutputItemSchema),

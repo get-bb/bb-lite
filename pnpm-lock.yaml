@@ -617,9 +617,6 @@ importers:
       '@bb/server-contract':
         specifier: workspace:*
         version: link:../server-contract
-      ws:
-        specifier: ^8.19.0
-        version: 8.21.0
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -630,9 +627,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.10
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'

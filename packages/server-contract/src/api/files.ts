@@ -1,9 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  FILE_LIST_EXCLUDE_NAME_MAX_LENGTH,
-  FILE_LIST_EXCLUDE_NAMES_MAX,
-  FILE_LIST_LIMIT_MAX,
-} from "@bb/domain";
 import type { WorkspaceFileListResponse } from "./shared.js";
 
 export const hostFileReadRequestSchema = z
@@ -30,8 +26,8 @@ export const hostFileWriteRequestSchema = z
 export type HostFileWriteRequest = z.infer<typeof hostFileWriteRequestSchema>;
 
 const fileListExcludeNamesRequestSchema = z
-  .array(z.string().min(1).max(FILE_LIST_EXCLUDE_NAME_MAX_LENGTH))
-  .max(FILE_LIST_EXCLUDE_NAMES_MAX)
+  .array(z.string().min(1).max(domain.FILE_LIST_EXCLUDE_NAME_MAX_LENGTH))
+  .max(domain.FILE_LIST_EXCLUDE_NAMES_MAX)
   .optional();
 
 export const hostFileListRequestSchema = z
@@ -39,7 +35,12 @@ export const hostFileListRequestSchema = z
     hostId: z.string().min(1).optional(),
     path: z.string().min(1),
     query: z.string().optional(),
-    limit: z.number().int().positive().max(FILE_LIST_LIMIT_MAX).optional(),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(domain.FILE_LIST_LIMIT_MAX)
+      .optional(),
     includeHidden: z.boolean().optional(),
     excludeNames: fileListExcludeNamesRequestSchema,
   })

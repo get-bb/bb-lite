@@ -56,15 +56,11 @@ export type AnyRouteResponseDescriptor = RouteResponseDescriptor<
   RouteResponseFormat
 >;
 
-export type RouteResponseDefinition =
-  | AnyRouteResponseDescriptor
-  | readonly AnyRouteResponseDescriptor[];
-
 export interface RouteDefinition<
   Path extends string = string,
   Method extends RouteMethod = RouteMethod,
   Request extends AnyRouteRequestDescriptor = AnyRouteRequestDescriptor,
-  Response extends RouteResponseDefinition = RouteResponseDefinition,
+  Response extends AnyRouteResponseDescriptor = AnyRouteResponseDescriptor,
 > {
   path: Path;
   method: Method;
@@ -85,20 +81,13 @@ export type RouteParsedInput<Request> = Request extends {
   : never;
 
 export type EndpointFromRouteResponse<Input, Response> =
-  Response extends readonly AnyRouteResponseDescriptor[]
-    ? {
-        [Index in keyof Response]: EndpointFromRouteResponse<
-          Input,
-          Response[Index]
-        >;
-      }[number]
-    : Response extends RouteResponseDescriptor<
-          infer Output,
-          infer Status,
-          infer Format
-        >
-      ? Endpoint<Input, Output, Status, Format>
-      : never;
+  Response extends RouteResponseDescriptor<
+    infer Output,
+    infer Status,
+    infer Format
+  >
+    ? Endpoint<Input, Output, Status, Format>
+    : never;
 
 export type EndpointFromRouteDescriptor<Descriptor> =
   Descriptor extends RouteDefinition<any, any, infer Request, infer Response>
@@ -147,26 +136,15 @@ export interface RouteResponseOptions<Status extends ContentfulStatusCode> {
 export function jsonResponse<Output>(
   options: RouteResponseOptions<201>,
 ): RouteResponseDescriptor<Output, 201, "json">;
+export function jsonResponse<Output>(): RouteResponseDescriptor<
+  Output,
+  200,
+  "json"
+>;
 export function jsonResponse<Output>(
-  options: RouteResponseOptions<404>,
-): RouteResponseDescriptor<Output, 404, "json">;
-export function jsonResponse<Output>(
-  options: RouteResponseOptions<409>,
-): RouteResponseDescriptor<Output, 409, "json">;
-export function jsonResponse<Output>(
-  options?: undefined,
-): RouteResponseDescriptor<Output, 200, "json">;
-export function jsonResponse<Output, const Status extends ContentfulStatusCode>(
-  options: RouteResponseOptions<Status>,
-): RouteResponseDescriptor<Output, Status, "json">;
-export function jsonResponse<Output, const Status extends ContentfulStatusCode>(
-  options?: RouteResponseOptions<Status>,
-): RouteResponseDescriptor<Output, 200 | Status, "json"> {
-  const status = options && "status" in options ? options.status : 200;
-  return {
-    status,
-    format: "json",
-  };
+  options?: RouteResponseOptions<201>,
+): RouteResponseDescriptor<Output, 200 | 201, "json"> {
+  return { status: options?.status ?? 200, format: "json" };
 }
 
 export function binaryResponse<Output>(): RouteResponseDescriptor<
@@ -175,14 +153,6 @@ export function binaryResponse<Output>(): RouteResponseDescriptor<
   "binary"
 > {
   return { status: 200, format: "binary" };
-}
-
-export function textResponse<Output>(): RouteResponseDescriptor<
-  Output,
-  200,
-  "text"
-> {
-  return { status: 200, format: "text" };
 }
 
 export function noRequest<Input = EmptyInput>(): NoRouteRequest<Input> {
@@ -229,9 +199,24 @@ export function defineRoute<
   const Path extends string,
   const Method extends RouteMethod,
   const Request extends AnyRouteRequestDescriptor,
-  const Response extends RouteResponseDefinition,
+  const Response extends AnyRouteResponseDescriptor,
 >(
   definition: RouteDefinition<Path, Method, Request, Response>,
 ): RouteDefinition<Path, Method, Request, Response> {
   return definition;
 }
+
+export type RouteInput<Descriptor> =
+  Descriptor extends RouteDefinition<string, RouteMethod, infer Request>
+    ? RouteRequestInput<Request>
+    : never;
+
+export type RouteOutput<Descriptor> =
+  Descriptor extends RouteDefinition<
+    string,
+    RouteMethod,
+    AnyRouteRequestDescriptor,
+    RouteResponseDescriptor<infer Output, ContentfulStatusCode, "json">
+  >
+    ? Output
+    : never;

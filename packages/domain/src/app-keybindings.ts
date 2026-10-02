@@ -57,11 +57,8 @@ export const APP_COMMAND_IDS = [
   ...PANE_FOCUS_APP_COMMAND_IDS,
   "pane.maximize.toggle",
   "pane.close",
-  "window.new",
-  "window.find",
   "app.back",
   "settings.open",
-  "settings.openServers",
   "sidebar.toggle",
   "panel.previousTab",
   "panel.nextTab",
@@ -81,13 +78,7 @@ export const APP_COMMAND_IDS = [
   "modelPicker.cycleProviderBackward",
   "modelPicker.cycleReasoning",
   "modelPicker.cycleReasoningBackward",
-  "browser.focusLocation",
-  "browser.reload",
-  "browser.find",
   "workspace.openPreferred",
-  "logs.openServerDaemon",
-  "dataDirectory.open",
-  "notifications.open",
   ...QUESTION_SELECT_APP_COMMAND_IDS,
 ] as const;
 
@@ -116,7 +107,7 @@ export function pluginCommandId(
   return pluginCommandIdSchema.parse(`plugin:${pluginId}/${commandId}`);
 }
 
-const APP_COMMAND_CONTEXT_KEYS = [
+const appCommandContextKeySchema = z.enum([
   "mainSurface",
   "modalOpen",
   "editableFocus",
@@ -130,9 +121,7 @@ const APP_COMMAND_CONTEXT_KEYS = [
   "macPlatform",
   "windowsPlatform",
   "linuxPlatform",
-] as const;
-
-const appCommandContextKeySchema = z.enum(APP_COMMAND_CONTEXT_KEYS);
+]);
 export type AppCommandContextKey = z.infer<typeof appCommandContextKeySchema>;
 export type AppCommandContext = Record<AppCommandContextKey, boolean>;
 
@@ -265,7 +254,6 @@ const appCommandWhenSchema = z
 export const appKeybindingSchema = z
   .object({
     command: keyboardCommandIdSchema,
-    desktopOnly: z.boolean(),
     shortcut: appShortcutSchema,
     when: appCommandWhenSchema,
   })
@@ -282,7 +270,6 @@ export function isAppKeybindingAvailableForClient(
   client: { platform: string },
 ): boolean {
   const platform = keyboardPlatform(client.platform);
-  if (binding.desktopOnly) return false;
   if (binding.when.none.includes("webSurface")) return false;
   for (const candidate of keyboardPlatformSchema.options) {
     const context = `${candidate}Platform` as const;

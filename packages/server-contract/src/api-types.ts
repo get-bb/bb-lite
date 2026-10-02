@@ -8,3 +8,5 @@ export * from "./api/system.js";
 export * from "./api/ui-preferences.js";
 export * from "./api/terminals.js";
 export * from "./api/threads.js";
+export * from "./api/thread-tabs.js";
+export * from "./api/machine-environment.js";

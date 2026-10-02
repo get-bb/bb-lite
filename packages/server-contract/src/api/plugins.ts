@@ -1,4 +1,4 @@
-import { jsonValueSchema } from "@bb/domain";
+import * as domain from "@bb/domain";
 import { z } from "zod";
 
 export const pluginStatusSchema = z.enum([
@@ -79,14 +79,14 @@ export type PluginListResponse = z.infer<typeof pluginListResponseSchema>;
 export const pluginSettingsResponseSchema = z.object({
   ok: z.literal(true),
   schema: pluginSettingDescriptorsSchema,
-  values: z.record(z.string(), jsonValueSchema),
+  values: z.record(z.string(), domain.jsonValueSchema),
 });
 export type PluginSettingsResponse = z.infer<
   typeof pluginSettingsResponseSchema
 >;
 
 export const pluginSettingsUpdateRequestSchema = z
-  .object({ values: z.record(z.string(), jsonValueSchema) })
+  .object({ values: z.record(z.string(), domain.jsonValueSchema) })
   .strict();
 
 export const pluginTokenRequestSchema = z

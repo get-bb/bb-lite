@@ -1,22 +1,18 @@
-import type {
-  UiPreferenceEntries,
-  UiPreferenceKey,
-  UiPreferenceValue,
-} from "@bb/domain";
+import type * as domain from "@bb/domain";
 import { z } from "zod";
 
 export type PathUiPreferenceKey = { param: { key: string } };
 
 export interface UiPreferencesResponse {
-  preferences: UiPreferenceEntries;
+  preferences: domain.UiPreferenceEntries;
 }
 
 export interface UiPreferenceResponse<
-  Key extends UiPreferenceKey = UiPreferenceKey,
+  Key extends domain.UiPreferenceKey = domain.UiPreferenceKey,
 > {
   key: Key;
   revision: number;
-  value: UiPreferenceValue<Key>;
+  value: domain.UiPreferenceValue<Key>;
 }
 
 export const updateUiPreferenceRequestSchema = z

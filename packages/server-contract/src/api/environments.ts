@@ -1,14 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  environmentStatusSchema,
-  FILE_LIST_QUERY_MAX_LENGTH,
-  gitBranchNameSchema,
-  gitBranchOptionsSchema,
-  workspaceDiffTargetSchema,
-  workspaceResolutionFailureSchema,
-  workspaceStatusSchema,
-} from "@bb/domain";
-import { apiErrorSchema } from "../errors.js";
 import {
   branchListQuerySchema,
   environmentProviderInstanceKeySchema,
@@ -19,7 +10,7 @@ export const environmentNameSchema = z.string().trim().min(1).max(80);
 
 export const updateEnvironmentRequestSchema = z
   .object({
-    mergeBaseBranch: gitBranchNameSchema.nullable(),
+    mergeBaseBranch: domain.gitBranchNameSchema.nullable(),
     name: environmentNameSchema.nullable(),
   })
   .partial()
@@ -37,14 +28,14 @@ export const listEnvironmentsQuerySchema = z.object({
   hostId: z.string().min(1).optional(),
   instanceKey: environmentProviderInstanceKeySchema.optional(),
   path: z.string().min(1).optional(),
-  status: environmentStatusSchema.optional(),
+  status: domain.environmentStatusSchema.optional(),
   limit: z.string().regex(/^\d+$/).optional(),
   offset: z.string().regex(/^\d+$/).optional(),
 });
 export type ListEnvironmentsQuery = z.infer<typeof listEnvironmentsQuerySchema>;
 
 export const environmentPathsQuerySchema = z.object({
-  query: z.string().min(1).max(FILE_LIST_QUERY_MAX_LENGTH).optional(),
+  query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
   includeFiles: pathListIncludeQueryValueSchema,
   includeDirectories: pathListIncludeQueryValueSchema,
@@ -52,20 +43,21 @@ export const environmentPathsQuerySchema = z.object({
 export type EnvironmentPathsQuery = z.infer<typeof environmentPathsQuerySchema>;
 
 export const environmentDiffBranchesQuerySchema = branchListQuerySchema.extend({
-  selectedBranch: gitBranchNameSchema.optional(),
+  selectedBranch: domain.gitBranchNameSchema.optional(),
 });
 export type EnvironmentDiffBranchesQuery = z.infer<
   typeof environmentDiffBranchesQuerySchema
 >;
 
-export const environmentDiffBranchesResponseSchema = gitBranchOptionsSchema;
+export const environmentDiffBranchesResponseSchema =
+  domain.gitBranchOptionsSchema;
 export type EnvironmentDiffBranchesResponse = z.infer<
   typeof environmentDiffBranchesResponseSchema
 >;
 
 const mergeBaseBranchQuerySchema = z
   .string("A merge base branch is required")
-  .pipe(gitBranchNameSchema);
+  .pipe(domain.gitBranchNameSchema);
 
 export const environmentStatusQuerySchema = z.object({
   mergeBaseBranch: mergeBaseBranchQuerySchema.optional(),
@@ -172,18 +164,6 @@ export type EnvironmentActionResponse = z.infer<
   typeof environmentActionResponseSchema
 >;
 
-export const environmentActionFailureDetailsSchema = z.object({
-  kind: z.literal("workspace_unavailable"),
-  failure: workspaceResolutionFailureSchema,
-});
-
-export const environmentActionApiErrorSchema = apiErrorSchema.extend({
-  details: environmentActionFailureDetailsSchema.optional(),
-});
-export type EnvironmentActionApiError = z.infer<
-  typeof environmentActionApiErrorSchema
->;
-
 export const environmentWorkspaceNotApplicableReasonSchema = z.enum([
   "non_git_environment",
 ]);
@@ -200,14 +180,14 @@ export const environmentStatusResponseSchema = z.discriminatedUnion("outcome", [
   z
     .object({
       outcome: z.literal("available"),
-      workspace: workspaceStatusSchema,
+      workspace: domain.workspaceStatusSchema,
     })
     .strict(),
   environmentWorkspaceNotApplicableOutcomeSchema,
   z
     .object({
       outcome: z.literal("unavailable"),
-      failure: workspaceResolutionFailureSchema,
+      failure: domain.workspaceResolutionFailureSchema,
     })
     .strict(),
 ]);
@@ -260,7 +240,7 @@ export const environmentDiffFilesResponseSchema = z.discriminatedUnion(
     z
       .object({
         outcome: z.literal("unavailable"),
-        failure: workspaceResolutionFailureSchema,
+        failure: domain.workspaceResolutionFailureSchema,
       })
       .strict(),
   ],
@@ -282,7 +262,7 @@ export const environmentDiffPatchResponseSchema = z.discriminatedUnion(
     z
       .object({
         outcome: z.literal("unavailable"),
-        failure: workspaceResolutionFailureSchema,
+        failure: domain.workspaceResolutionFailureSchema,
       })
       .strict(),
   ],
@@ -293,7 +273,7 @@ export type EnvironmentDiffPatchResponse = z.infer<
 
 export const environmentDiffPatchRequestSchema = z
   .object({
-    target: workspaceDiffTargetSchema,
+    target: domain.workspaceDiffTargetSchema,
     paths: z
       .array(z.string().min(1))
       .min(1)

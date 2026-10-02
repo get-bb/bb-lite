@@ -66,7 +66,6 @@ export const qk = {
 
   system,
   systemConfig: () => system("config"),
-  systemTheme: (themeId: string) => system("theme", themeId),
   systemProviders: (query?: object) => system("providers", query),
   providerCatalog: () => system("provider-catalog"),
   executionOptions: (route?: object, providerId?: string) =>

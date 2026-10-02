@@ -6,9 +6,6 @@ export const threadEventItemPresentationLabelSchema = z.object({
   pending: z.string().min(1),
   completed: z.string().min(1),
 });
-export type ThreadEventItemPresentationLabel = z.infer<
-  typeof threadEventItemPresentationLabelSchema
->;
 
 export const threadEventItemPresentationIconSchema = z.object({
   glyph: z.string().min(1),

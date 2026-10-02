@@ -1,11 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  terminalColsSchema,
-  terminalDataBase64Schema,
-  terminalRowsSchema,
-  terminalSessionCloseReasonSchema,
-  terminalSessionStatusSchema,
-} from "@bb/domain";
 
 export const terminalSessionSchema = z.object({
   id: z.string().min(1),
@@ -14,11 +8,11 @@ export const terminalSessionSchema = z.object({
   hostId: z.string().min(1),
   title: z.string().min(1),
   initialCwd: z.string().min(1),
-  cols: terminalColsSchema,
-  rows: terminalRowsSchema,
-  status: terminalSessionStatusSchema,
+  cols: domain.terminalColsSchema,
+  rows: domain.terminalRowsSchema,
+  status: domain.terminalSessionStatusSchema,
   exitCode: z.number().int().nullable(),
-  closeReason: terminalSessionCloseReasonSchema.nullable(),
+  closeReason: domain.terminalSessionCloseReasonSchema.nullable(),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
   lastUserInputAt: z.number().int().nonnegative().nullable(),
@@ -85,8 +79,8 @@ export type TerminalCreateTarget = z.infer<typeof terminalCreateTargetSchema>;
 
 export const createTerminalRequestSchema = z
   .object({
-    cols: terminalColsSchema,
-    rows: terminalRowsSchema,
+    cols: domain.terminalColsSchema,
+    rows: domain.terminalRowsSchema,
     start: z
       .discriminatedUnion("mode", [
         z
@@ -126,22 +120,22 @@ export type UpdateTerminalRequest = z.infer<typeof updateTerminalRequestSchema>;
 export const terminalOutputChunkSchema = z
   .object({
     seq: z.number().int().nonnegative(),
-    dataBase64: terminalDataBase64Schema,
+    dataBase64: domain.terminalDataBase64Schema,
   })
   .strict();
 export type TerminalOutputChunk = z.infer<typeof terminalOutputChunkSchema>;
 
 export const terminalInputRequestSchema = z
   .object({
-    dataBase64: terminalDataBase64Schema,
+    dataBase64: domain.terminalDataBase64Schema,
   })
   .strict();
 export type TerminalInputRequest = z.infer<typeof terminalInputRequestSchema>;
 
 export const terminalResizeRequestSchema = z
   .object({
-    cols: terminalColsSchema,
-    rows: terminalRowsSchema,
+    cols: domain.terminalColsSchema,
+    rows: domain.terminalRowsSchema,
   })
   .strict();
 export type TerminalResizeRequest = z.infer<typeof terminalResizeRequestSchema>;
@@ -171,9 +165,9 @@ export const terminalOutputResponseSchema = z
     chunks: z.array(terminalOutputChunkSchema),
     nextSeq: z.number().int().nonnegative(),
     truncated: z.boolean(),
-    status: terminalSessionStatusSchema,
+    status: domain.terminalSessionStatusSchema,
     exitCode: z.number().int().nullable(),
-    closeReason: terminalSessionCloseReasonSchema.nullable(),
+    closeReason: domain.terminalSessionCloseReasonSchema.nullable(),
   })
   .strict();
 export type TerminalOutputResponse = z.infer<
@@ -184,14 +178,14 @@ export const terminalClientMessageSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("input"),
-      dataBase64: terminalDataBase64Schema,
+      dataBase64: domain.terminalDataBase64Schema,
     })
     .strict(),
   z
     .object({
       type: z.literal("resize"),
-      cols: terminalColsSchema,
-      rows: terminalRowsSchema,
+      cols: domain.terminalColsSchema,
+      rows: domain.terminalRowsSchema,
     })
     .strict(),
   z

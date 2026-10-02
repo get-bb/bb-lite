@@ -1,62 +1,39 @@
-import type {
-  CreateThreadSectionRequest,
-  DeleteThreadSectionRequest,
-  ThreadSectionMutationResponse,
-  ThreadSectionResponse,
-  UpdateThreadSectionRequest,
-} from "@bb/server-contract";
 import {
+  publicApiRoutes,
   threadSectionMutationResponseSchema,
   threadSectionSchema,
 } from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import type * as api from "@bb/server-contract";
+import type { Http } from "../http.js";
 
-export type ThreadSectionCreateResult = ThreadSectionResponse;
-export type ThreadSectionUpdateResult = ThreadSectionMutationResponse;
-export type ThreadSectionDeleteResult = ThreadSectionMutationResponse;
-export type ThreadSectionListResult = ThreadSectionResponse[];
-
-export interface ThreadSectionListArgs {
-  signal?: AbortSignal;
-}
+type Mutation = api.ThreadSectionMutationResponse;
 
 export interface ThreadSectionsArea {
-  create(args: CreateThreadSectionRequest): Promise<ThreadSectionCreateResult>;
-  delete(args: DeleteThreadSectionRequest): Promise<ThreadSectionDeleteResult>;
-  list(args?: ThreadSectionListArgs): Promise<ThreadSectionListResult>;
-  update(args: UpdateThreadSectionRequest): Promise<ThreadSectionUpdateResult>;
+  create(
+    args: api.CreateThreadSectionRequest,
+  ): Promise<api.ThreadSectionResponse>;
+  delete(args: api.DeleteThreadSectionRequest): Promise<Mutation>;
+  list(args?: { signal?: AbortSignal }): Promise<api.ThreadSectionResponse[]>;
+  update(args: api.UpdateThreadSectionRequest): Promise<Mutation>;
 }
 
-export function createThreadSectionsArea(
-  args: CreateSdkAreaArgs,
-): ThreadSectionsArea {
-  const { transport } = args;
+export function createThreadSectionsArea(http: Http): ThreadSectionsArea {
+  const routes = publicApiRoutes.threadSections;
   return {
-    async create(input) {
-      const body = await transport.readJson(
-        transport.api.v1["thread-sections"].$post({ json: input }),
-      );
+    async create(json) {
+      const body = await http.json(routes.create, { json });
       return threadSectionSchema.parse(body);
     },
-    async delete(input) {
-      const body = await transport.readJson(
-        transport.api.v1["thread-sections"].$delete({ json: input }),
-      );
+    async delete(json) {
+      const body = await http.json(routes.delete, { json });
       return threadSectionMutationResponseSchema.parse(body);
     },
-    async list(input) {
-      const body = await transport.readJson(
-        transport.api.v1["thread-sections"].$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
+    async list(args) {
+      const body = await http.json(routes.list, {}, args?.signal);
       return threadSectionSchema.array().parse(body);
     },
-    async update(input) {
-      const body = await transport.readJson(
-        transport.api.v1["thread-sections"].$patch({ json: input }),
-      );
+    async update(json) {
+      const body = await http.json(routes.update, { json });
       return threadSectionMutationResponseSchema.parse(body);
     },
   };

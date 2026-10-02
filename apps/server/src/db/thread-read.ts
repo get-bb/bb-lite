@@ -79,7 +79,6 @@ export function listThreadRows(
       "threads.environment_id": query.environmentId,
       "e.host_id": query.hostId,
       "threads.parent_thread_id": query.parentThreadId,
-      "threads.source_thread_id": query.sourceThreadId,
       "threads.section_id": query.sectionId,
       "threads.origin_kind": query.originKind,
       "threads.origin_plugin_id": query.originPluginId,

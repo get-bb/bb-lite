@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { jsonObjectSchema } from "./json-value.js";
 
 export const reasoningLevelValues = [
   "none",
@@ -16,10 +15,6 @@ export type ReasoningLevel = z.infer<typeof reasoningLevelSchema>;
 
 export const serviceTierSchema = z.enum(["fast", "default"]);
 export type ServiceTier = z.infer<typeof serviceTierSchema>;
-
-export const instructionModeValues = ["append", "replace"] as const;
-export const instructionModeSchema = z.enum(instructionModeValues);
-export type InstructionMode = z.infer<typeof instructionModeSchema>;
 
 export const permissionModeValues = ["accept-edits", "auto", "full"] as const;
 export const permissionModeSchema = z.enum(permissionModeValues);
@@ -61,28 +56,14 @@ const recordedPermissionModeSchema = z.enum([
   ...permissionModeValues,
   ...legacyRecordedPermissionModeValues,
 ]);
-export type RecordedPermissionMode = z.infer<
-  typeof recordedPermissionModeSchema
->;
 
 export const permissionEscalationValues = ["ask", "deny"] as const;
 const permissionEscalationSchema = z.enum(permissionEscalationValues);
 export type PermissionEscalation = z.infer<typeof permissionEscalationSchema>;
 
-const promptInputVisibilityValues = ["agent-only"] as const;
-const promptInputVisibilitySchema = z.enum(promptInputVisibilityValues);
-
 const promptInputVisibilityFields = {
-  visibility: promptInputVisibilitySchema.optional(),
+  visibility: z.enum(["agent-only"]).optional(),
 };
-
-const promptMentionPathSourceValues = ["workspace", "thread-storage"] as const;
-const promptMentionPathSourceSchema = z.enum(promptMentionPathSourceValues);
-
-const promptMentionPathEntryKindValues = ["file", "directory"] as const;
-const promptMentionPathEntryKindSchema = z.enum(
-  promptMentionPathEntryKindValues,
-);
 
 export const promptMentionCommandTriggerValues = ["/", "$"] as const;
 export const promptMentionCommandTriggerSchema = z.enum(
@@ -90,23 +71,6 @@ export const promptMentionCommandTriggerSchema = z.enum(
 );
 export type PromptMentionCommandTrigger = z.infer<
   typeof promptMentionCommandTriggerSchema
->;
-
-const promptMentionCommandSourceValues = ["skill", "command"] as const;
-const promptMentionCommandSourceSchema = z.enum(
-  promptMentionCommandSourceValues,
-);
-
-const promptMentionCommandOriginValues = [
-  "builtin",
-  "project",
-  "user",
-] as const;
-const promptMentionCommandOriginSchema = z.enum(
-  promptMentionCommandOriginValues,
-);
-export type PromptMentionCommandOrigin = z.infer<
-  typeof promptMentionCommandOriginSchema
 >;
 
 const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
@@ -128,8 +92,8 @@ const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("path"),
-    source: promptMentionPathSourceSchema,
-    entryKind: promptMentionPathEntryKindSchema,
+    source: z.enum(["workspace", "thread-storage"]),
+    entryKind: z.enum(["file", "directory"]),
     path: z.string(),
     label: z.string(),
   }),
@@ -137,8 +101,8 @@ const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("command"),
     trigger: promptMentionCommandTriggerSchema,
     name: z.string(),
-    source: promptMentionCommandSourceSchema,
-    origin: promptMentionCommandOriginSchema,
+    source: z.enum(["skill", "command"]),
+    origin: z.enum(["builtin", "project", "user"]),
     label: z.string(),
     argumentHint: z.string().nullable(),
   }),
@@ -205,16 +169,6 @@ export const promptInputSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type PromptInput = z.infer<typeof promptInputSchema>;
-
-export function flattenPromptInputGroups(
-  inputGroups: readonly PromptInput[][],
-): PromptInput[] {
-  return inputGroups.flatMap((group, index) =>
-    index === 0
-      ? group
-      : [{ type: "text" as const, text: "\n\n", mentions: [] }, ...group],
-  );
-}
 
 interface PromptCommandSelector {
   trigger: PromptMentionCommandTrigger;
@@ -309,35 +263,6 @@ export function createStandaloneBuiltinCompactCommandInput(): PromptInput[] {
       ],
     },
   ];
-}
-
-const BUILTIN_PLAN_COMMAND_TEXT = "/plan";
-
-export function createBuiltinPlanCommandTextInput(
-  text: string,
-): TextPromptInput {
-  return {
-    type: "text",
-    text:
-      text.length > 0
-        ? `${BUILTIN_PLAN_COMMAND_TEXT} ${text}`
-        : BUILTIN_PLAN_COMMAND_TEXT,
-    mentions: [
-      {
-        start: 0,
-        end: BUILTIN_PLAN_COMMAND_TEXT.length,
-        resource: {
-          kind: "command",
-          trigger: "/",
-          name: "plan",
-          source: "command",
-          origin: "builtin",
-          label: "plan",
-          argumentHint: null,
-        },
-      },
-    ],
-  };
 }
 
 export function promptInputHasCommandMention(
@@ -441,21 +366,10 @@ const threadExecutionSourceSchema = z.enum([
   "client/turn/requested",
   "client/turn/start",
 ]);
-export type ThreadExecutionSource = z.infer<typeof threadExecutionSourceSchema>;
-
-/**
- * Where a caller-supplied execution value came from. `explicit` is a user
- * choice and `client-preference` is a remembered client-side default. Only
- * `explicit` is a user decision, so only `explicit` shapes project execution
- * defaults.
- */
-const callerExecutionInputSourceValues = [
+export const callerExecutionInputSourceSchema = z.enum([
   "explicit",
   "client-preference",
-] as const;
-export const callerExecutionInputSourceSchema = z.enum(
-  callerExecutionInputSourceValues,
-);
+]);
 export type CallerExecutionInputSource = z.infer<
   typeof callerExecutionInputSourceSchema
 >;
@@ -468,9 +382,6 @@ const threadExecutionOptionsSchema = z.object({
   source: threadExecutionSourceSchema.optional(),
   seq: z.number().int().optional(),
 });
-export type ThreadExecutionOptions = z.infer<
-  typeof threadExecutionOptionsSchema
->;
 
 export const resolvedThreadExecutionOptionsSchema =
   threadExecutionOptionsSchema.extend({
@@ -488,59 +399,6 @@ export const recordedThreadExecutionOptionsSchema =
   resolvedThreadExecutionOptionsSchema.extend({
     permissionMode: recordedPermissionModeSchema,
   });
-export type RecordedThreadExecutionOptions = z.infer<
-  typeof recordedThreadExecutionOptionsSchema
->;
-
-export const runtimePermissionScopeValues = ["workspace", "full"] as const;
-const runtimePermissionScopeSchema = z.enum(runtimePermissionScopeValues);
-export type RuntimePermissionScope = z.infer<
-  typeof runtimePermissionScopeSchema
->;
-
-export const runtimePermissionPolicySchema = z.discriminatedUnion(
-  "permissionMode",
-  [
-    z.object({
-      permissionMode: z.literal("accept-edits"),
-      permissionScope: z.literal("workspace"),
-      approvalReviewer: z.literal("user"),
-      permissionEscalation: permissionEscalationSchema,
-    }),
-    z.object({
-      permissionMode: z.literal("auto"),
-      permissionScope: z.literal("workspace"),
-      approvalReviewer: z.literal("automatic"),
-      permissionEscalation: permissionEscalationSchema,
-    }),
-    z.object({
-      permissionMode: z.literal("full"),
-      permissionScope: z.literal("full"),
-      approvalReviewer: z.null(),
-      permissionEscalation: z.null(),
-    }),
-  ],
-);
-export type RuntimePermissionPolicy = z.infer<
-  typeof runtimePermissionPolicySchema
->;
-
-export const promptModeSchema = z.literal("plan");
-export type PromptMode = z.infer<typeof promptModeSchema>;
-
-const runtimeThreadExecutionBaseOptionsSchema = z.object({
-  model: z.string().min(1),
-  serviceTier: serviceTierSchema,
-  reasoningLevel: reasoningLevelSchema,
-  promptMode: promptModeSchema.optional(),
-  providerOptions: jsonObjectSchema,
-});
-
-export const runtimeThreadExecutionOptionsSchema =
-  runtimeThreadExecutionBaseOptionsSchema.and(runtimePermissionPolicySchema);
-export type RuntimeThreadExecutionOptions = z.infer<
-  typeof runtimeThreadExecutionOptionsSchema
->;
 
 export const projectExecutionDefaultsSchema = z.object({
   providerId: z.string().min(1),

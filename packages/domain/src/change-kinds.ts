@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  threadEventTypeSchema,
   threadEventTypeValues,
   type ThreadEventType,
 } from "./provider-event.js";
@@ -35,7 +34,6 @@ export const PROJECT_CHANGE_KINDS = [
   "project-deleted",
   "project-sources-changed",
   "threads-changed",
-  "project-order-changed",
 ] as const;
 export type ProjectChangeKind = (typeof PROJECT_CHANGE_KINDS)[number];
 
@@ -60,68 +58,26 @@ export type HostChangeKind = (typeof HOST_CHANGE_KINDS)[number];
 export const SYSTEM_CHANGE_KINDS = [
   "config-changed",
   "plugins-changed",
-  "provider-registrations-changed",
   "ui-preferences-changed",
-  "environment-availability-changed",
 ] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
-export const threadChangeKindSchema = z.enum(THREAD_CHANGE_KINDS);
-export const projectChangeKindSchema = z.enum(PROJECT_CHANGE_KINDS);
-export const environmentChangeKindSchema = z.enum(ENVIRONMENT_CHANGE_KINDS);
-export const hostChangeKindSchema = z.enum(HOST_CHANGE_KINDS);
-export const systemChangeKindSchema = z.enum(SYSTEM_CHANGE_KINDS);
+function target<Kind extends string, Shape extends z.ZodRawShape>(
+  kind: Kind,
+  scope: Shape,
+) {
+  return z.object({ kind: z.literal(kind), ...scope }).strict();
+}
 
+const targetId = z.string().min(1);
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("thread-detail"),
-      threadId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("thread-list"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("project-detail"),
-      projectId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("project-list"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("environment-detail"),
-      environmentId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("environment-list"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("host-detail"),
-      hostId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("host-list"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("system"),
-    })
-    .strict(),
+  target("thread-detail", { threadId: targetId }),
+  target("thread-list", {}),
+  target("project-list", {}),
+  target("environment-detail", { environmentId: targetId }),
+  target("environment-list", {}),
+  target("host-list", {}),
+  target("system", {}),
 ]);
 export type RealtimeSubscriptionTarget = z.infer<
   typeof realtimeSubscriptionTargetSchema
@@ -148,49 +104,15 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-export const pongMessageSchema = z
-  .object({
-    type: z.literal("pong"),
-  })
-  .strict();
-export type PongMessage = z.infer<typeof pongMessageSchema>;
-
-export const pongMessageLenientSchema = z.object({
-  type: z.literal("pong"),
-});
-
-function assertUnhandledRealtimeSubscriptionTarget(target: never): never {
-  throw new Error(`Unhandled realtime subscription target: ${target}`);
-}
-
 export function realtimeSubscriptionTargetKey(
   target: RealtimeSubscriptionTarget,
 ): string {
-  switch (target.kind) {
-    case "thread-detail":
-      return `thread-detail:${target.threadId}`;
-    case "thread-list":
-      return "thread-list";
-    case "project-detail":
-      return `project-detail:${target.projectId}`;
-    case "project-list":
-      return "project-list";
-    case "environment-detail":
-      return `environment-detail:${target.environmentId}`;
-    case "environment-list":
-      return "environment-list";
-    case "host-detail":
-      return `host-detail:${target.hostId}`;
-    case "host-list":
-      return "host-list";
-    case "system":
-      return "system";
-    default:
-      return assertUnhandledRealtimeSubscriptionTarget(target);
-  }
+  const { kind, ...scope } = target;
+  const [id] = Object.values(scope);
+  return id === undefined ? kind : `${kind}:${id}`;
 }
 
-export const threadStatusChangeMetadataSchema = z
+const threadStatusChangeMetadataSchema = z
   .object({
     status: threadStatusSchema,
     runtime: threadRuntimeStateSchema,
@@ -199,75 +121,28 @@ export const threadStatusChangeMetadataSchema = z
     updatedAt: z.number(),
   })
   .strict();
-export type ThreadStatusChangeMetadata = z.infer<
-  typeof threadStatusChangeMetadataSchema
->;
 
-export const threadChangeMetadataSchema = z
-  .object({
-    backgroundActivityChanged: z.boolean().optional(),
-    eventTypes: z.array(threadEventTypeSchema).readonly().optional(),
-    hasPendingInteraction: z.boolean().optional(),
-    projectId: z.string().optional(),
-    statusChange: threadStatusChangeMetadataSchema.optional(),
-  })
-  .strict();
-export type ThreadChangeMetadata = z.infer<typeof threadChangeMetadataSchema>;
+export interface ThreadChangeMetadata {
+  backgroundActivityChanged?: boolean;
+  eventTypes?: readonly ThreadEventType[];
+  hasPendingInteraction?: boolean;
+  projectId?: string;
+  statusChange?: z.infer<typeof threadStatusChangeMetadataSchema>;
+}
 
-export const threadChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("thread"),
-    id: z.string().optional(),
-    metadata: threadChangeMetadataSchema.optional(),
-    changes: z.array(threadChangeKindSchema).readonly(),
-  })
-  .strict();
-export type ThreadChangedMessage = z.infer<typeof threadChangedMessageSchema>;
+interface Changed<Entity extends string, Kind extends string> {
+  type: "changed";
+  entity: Entity;
+  id?: string;
+  changes: readonly Kind[];
+}
 
-export const projectChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("project"),
-    id: z.string().optional(),
-    changes: z.array(projectChangeKindSchema).readonly(),
-  })
-  .strict();
-export type ProjectChangedMessage = z.infer<typeof projectChangedMessageSchema>;
-
-export const environmentChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("environment"),
-    id: z.string().optional(),
-    changes: z.array(environmentChangeKindSchema).readonly(),
-  })
-  .strict();
-export const hostChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("host"),
-    id: z.string().optional(),
-    changes: z.array(hostChangeKindSchema).readonly(),
-  })
-  .strict();
-
-export const systemChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("system"),
-    changes: z.array(systemChangeKindSchema).readonly(),
-  })
-  .strict();
-
-export const changedMessageSchema = z.discriminatedUnion("entity", [
-  threadChangedMessageSchema,
-  projectChangedMessageSchema,
-  environmentChangedMessageSchema,
-  hostChangedMessageSchema,
-  systemChangedMessageSchema,
-]);
-export type ChangedMessage = z.infer<typeof changedMessageSchema>;
+export type ChangedMessage =
+  | (Changed<"thread", ThreadChangeKind> & { metadata?: ThreadChangeMetadata })
+  | Changed<"project", ProjectChangeKind>
+  | Changed<"environment", EnvironmentChangeKind>
+  | Changed<"host", HostChangeKind>
+  | Omit<Changed<"system", SystemChangeKind>, "id">;
 
 function lenientKinds<TKind extends string>(kinds: readonly TKind[]) {
   const known: ReadonlySet<string> = new Set(kinds);
@@ -305,26 +180,17 @@ const threadChangedMessageLenientSchema = z.object({
   changes: lenientKinds(THREAD_CHANGE_KINDS),
 });
 
-const projectChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("project"),
-  id: z.string().optional(),
-  changes: lenientKinds(PROJECT_CHANGE_KINDS),
-});
-
-const environmentChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("environment"),
-  id: z.string().optional(),
-  changes: lenientKinds(ENVIRONMENT_CHANGE_KINDS),
-});
-
-const hostChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("host"),
-  id: z.string().optional(),
-  changes: lenientKinds(HOST_CHANGE_KINDS),
-});
+function changedLenient<Entity extends string, Kind extends string>(
+  entity: Entity,
+  kinds: readonly Kind[],
+) {
+  return z.object({
+    type: z.literal("changed"),
+    entity: z.literal(entity),
+    id: z.string().optional(),
+    changes: lenientKinds(kinds),
+  });
+}
 
 const systemChangedMessageLenientSchema = z.object({
   type: z.literal("changed"),
@@ -334,8 +200,8 @@ const systemChangedMessageLenientSchema = z.object({
 
 export const changedMessageLenientSchema = z.discriminatedUnion("entity", [
   threadChangedMessageLenientSchema,
-  projectChangedMessageLenientSchema,
-  environmentChangedMessageLenientSchema,
-  hostChangedMessageLenientSchema,
+  changedLenient("project", PROJECT_CHANGE_KINDS),
+  changedLenient("environment", ENVIRONMENT_CHANGE_KINDS),
+  changedLenient("host", HOST_CHANGE_KINDS),
   systemChangedMessageLenientSchema,
 ]);
