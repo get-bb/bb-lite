@@ -1,12 +1,8 @@
 import { useMemo } from "react";
-import {
-  usePathSuggestions,
-  type PathSuggestion,
-  type PathSuggestionSource,
-} from "./usePathSuggestions";
+import { usePathSuggestions, type PathSuggestion } from "./usePathSuggestions";
 
 export interface FilePathSearchSuggestion {
-  source: PathSuggestionSource;
+  source: "workspace" | "thread-storage";
   entryKind: "file";
   path: string;
   name: string;
@@ -63,7 +59,6 @@ export function useFileSearchSuggestions(
     limit: args.limit,
     environmentId: args.environmentId,
     hostId: args.hostId,
-    currentThreadId: args.currentThreadId,
     includeDirectories: false,
   });
   const suggestions = useMemo<FilePathSearchSuggestion[]>(
