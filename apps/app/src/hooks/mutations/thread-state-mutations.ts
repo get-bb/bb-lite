@@ -296,6 +296,7 @@ export function useUnarchiveThread() {
       const entry =
         recentlyArchived.get(id) ??
         cachedThreads(client).find((thread) => thread.id === id);
+      recentlyArchived.delete(id);
       setArchivedAt(client, id, null);
       mapCachedThreadLists(client, (threads, projectId) => {
         const rest = threads.filter((thread) => thread.id !== id);

@@ -60,19 +60,17 @@ export function refresh(
   timing: RefreshTiming = SOON,
 ): void {
   const id = JSON.stringify(queryKey);
-  let slot = slots.get(id);
-  if (slot === undefined) {
-    slot = {
-      client,
-      last: 0,
-      pending: false,
-      queryKey,
-      running: false,
-      timer: null,
-      timing,
-    };
-    slots.set(id, slot);
-  }
+  const slot = slots.get(id) ?? {
+    client,
+    last: 0,
+    pending: false,
+    queryKey,
+    running: false,
+    timer: null,
+    timing,
+  };
+  slot.timing = timing;
+  slots.set(id, slot);
   schedule(slot);
 }
 

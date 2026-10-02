@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import {
+  matchQuery,
   notifyManager,
   QueryClientContext,
   type QueryCacheNotifyEvent,
@@ -10,7 +11,16 @@ import type {
   ThreadVisibility,
   ThreadWithRuntime,
 } from "@bb/domain";
+import { qk } from "@/hooks/queries/query-keys";
+import { ANY, filterFor } from "@/hooks/queries/refresh";
 import { cachedThreads } from "@/hooks/queries/thread-cache";
+
+const THREAD_DETAILS = filterFor(qk.threadDetail(ANY));
+const THREAD_SOURCES = [
+  THREAD_DETAILS,
+  filterFor(qk.sidebar()),
+  filterFor(qk.archivedThreads()),
+];
 
 export interface SenderThreadMetadata {
   projectId: string;
@@ -72,27 +82,18 @@ function buildSenderThreadMetadataById(
     addSenderThreadMetadata(metadataById, thread);
   }
 
-  for (const [
-    queryKey,
-    thread,
-  ] of queryClient.getQueriesData<ThreadWithRuntime>({
-    queryKey: ["thread"],
-  })) {
-    if (thread && queryKey[2] === "detail") {
-      addSenderThreadMetadata(metadataById, thread);
-    }
+  const details = queryClient.getQueriesData<ThreadWithRuntime>(THREAD_DETAILS);
+  for (const [, thread] of details) {
+    if (thread) addSenderThreadMetadata(metadataById, thread);
   }
 
   return metadataById;
 }
 
 function shouldSyncSenderThreadMetadata(event: QueryCacheNotifyEvent): boolean {
-  const [family, , part] = event.query.queryKey;
   return (
     event.type === "updated" &&
-    (family === "sidebar" ||
-      family === "archived-threads" ||
-      (family === "thread" && part === "detail"))
+    THREAD_SOURCES.some((filter) => matchQuery(filter, event.query))
   );
 }
 
