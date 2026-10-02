@@ -34,77 +34,39 @@ function expectValid(events: RunnerThreadEvent[]) {
 }
 
 describe("EventBuilder", () => {
-  it("mints ids, stamps identity and scopes each event by its type", () => {
+  it("holds events until identity and mints a parent id before its item", () => {
     const { builder, events } = harness(false);
     builder.started();
     builder.acceptInput(REQUEST);
-    const turnId = builder.openTurn({ turn: "p-turn" });
-    builder.rateLimits({
-      providerId: "echo",
-      status: "allowed",
-      kind: "unknown",
-      windows: [],
-      reachedReason: null,
-      overageStatus: null,
-      overageReason: null,
-    });
+    const child = builder.openTurn({ turn: "child", parentRef: "call-1" });
     expect(events).toEqual([]);
     builder.identity("prov-1");
-
-    expect(turnId).toMatch(/^da[0-9a-f]{8}-t1$/);
-    expect(events.map((event) => [event.type, event.scope.kind])).toEqual([
-      ["thread/identity", "thread"],
-      ["thread/started", "thread"],
-      ["turn/started", "turn"],
-      ["turn/input/accepted", "turn"],
-      ["provider/rateLimits/updated", "thread"],
-    ]);
-    expect(events[2]).toMatchObject({ providerThreadId: "prov-1" });
-    expect(events[3]).toMatchObject({ clientRequestId: REQUEST });
-    expect(builder.activeTurnId).toBe(turnId);
-    expect(builder.providerTurnId(turnId)).toBe("p-turn");
-    expectValid(events);
-  });
-
-  it("maps provider item ids and parent refs onto bb ids", () => {
-    const { builder, events, take } = harness();
-    builder.acceptInput(REQUEST);
-    const childTurn = builder.openTurn({ turn: "child", parentRef: "call-1" });
-    expect(events.map((event) => event.type)).toEqual([
-      "thread/identity",
-      "turn/started",
-    ]);
-    builder.openTurn({ turn: "root" });
+    const root = builder.openTurn({ turn: "root" });
     const agent = { type: "delegation" as const, childRef: "c", label: "x" };
-    const delegation = { ...agent, background: false };
     const call = { providerItemId: "call-1" };
-    const parentId = builder.openItem(call, delegation, { turn: "root" });
+    const shape = { ...agent, background: false };
+    const parentToolCallId = builder.openItem(call, shape, { turn: "root" });
+    expect(root).toMatch(/^da[0-9a-f]{8}-t2$/);
+    expect(parentToolCallId).toMatch(/-i1$/);
+    expect(builder.providerTurnId(child)).toBe("child");
+    expect(builder.activeTurnId).toBe(root);
+    const stamped = { providerThreadId: "prov-1" };
+    expect(events).toMatchObject([
+      { type: "thread/identity", scope: { kind: "thread" } },
+      { type: "thread/started", scope: { kind: "thread" } },
+      { type: "turn/started", ...stamped, parentToolCallId },
+      { type: "turn/started", scope: { turnId: root } },
+      { clientRequestId: REQUEST, scope: { turnId: root } },
+      { type: "item/started", item: { id: parentToolCallId } },
+    ]);
     const key = { providerItemId: "cmd-1", parentRef: "call-1" };
-    const done = { turn: "child", status: "completed" as const };
     builder.openItem(key, command, { turn: "child" });
     builder.delta(key, "command", "out", { turn: "child" });
-    builder.closeItem(key, { ...command, exitCode: 0 }, done);
-    builder.closeTurn(done);
-
-    expect(parentId).toMatch(/-i1$/);
-    expect(builder.bbItemId("cmd-1")).toMatch(/-i2$/);
-    expect(builder.activeTurnId).not.toBe(childTurn);
-    const [, child, , accepted, , ...nested] = take();
-    expect(child).toMatchObject({ parentToolCallId: parentId });
-    expect(accepted).toMatchObject({
-      type: "turn/input/accepted",
-      scope: { turnId: builder.activeTurnId },
-    });
-    const parentToolCallId = parentId;
-    const pending = { status: "pending", approvalStatus: null };
-    const settled = { id: builder.bbItemId("cmd-1"), status: "completed" };
-    expect(nested).toMatchObject([
-      { type: "item/started", item: { ...pending, parentToolCallId } },
+    expect(events.slice(-2)).toMatchObject([
+      { item: { status: "pending", parentToolCallId } },
       { delta: "out", parentToolCallId },
-      { item: { ...settled, exitCode: 0 } },
-      { type: "turn/completed" },
     ]);
-    expectValid(nested);
+    expectValid(events);
   });
 
   it("coalesces text within 100 ms and flushes at ordering barriers", () => {

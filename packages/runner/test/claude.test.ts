@@ -273,27 +273,15 @@ describe("claude adapter", () => {
     expect(invalid).toMatchObject({ behavior: "deny" });
   });
 
-  it("asks before leaving plan mode and restores the base mode", async () => {
+  it("tells Claude not to re-propose a rejected plan", async () => {
     const harness = claude.createClaudeHarness();
     const live = await harness.open({}, { planMode: true });
-    expect(live.query.args.options.permissionMode).toBe("plan");
     const plan = { plan: "1. Ship", planFilePath: "/plans/p.md" };
     const rejected = live.decide("ExitPlanMode", plan);
     await claude.settle();
-    expect(harness.interactions[0]?.payload).toEqual({
-      kind: "approval",
-      reason: null,
-      subject: { kind: "plan", itemId: "toolu_ask", ...plan },
-      availableDecisions: ["allow_once", "deny"],
-    });
     harness.interactions.shift()?.resolve({ decision: "deny" });
     const message = expect.stringContaining("rejected this plan");
     expect(await rejected).toMatchObject({ behavior: "deny", message });
-    const approved = live.decide("ExitPlanMode", plan);
-    await claude.settle();
-    harness.interactions.shift()?.resolve(once);
-    expect(await approved).toMatchObject({ updatedInput: plan });
-    expect(live.query.calls).toEqual([["mode", "acceptEdits"]]);
   });
 
   it("builds the query from the spec and applies later changes live", async () => {

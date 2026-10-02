@@ -56,9 +56,7 @@ export function createHarness() {
   ) => {
     for (let attempt = 0; attempt < 400; attempt += 1) {
       const value = probe();
-      if (value !== undefined && value !== false) {
-        return value;
-      }
+      if (value !== undefined && value !== false) return value;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(`Timed out waiting for ${label}`);
