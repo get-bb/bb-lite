@@ -31,18 +31,6 @@ export function repairStreamingMarkdownTail(tail: string): string {
   });
 }
 
-const MATH_DELIMITER = "$$";
-
-function countOccurrences(line: string, needle: string): number {
-  let count = 0;
-  let index = line.indexOf(needle);
-  while (index !== -1) {
-    count += 1;
-    index = line.indexOf(needle, index + needle.length);
-  }
-  return count;
-}
-
 function isBlankLine(line: string): boolean {
   return line.trim().length === 0;
 }
@@ -53,7 +41,6 @@ export function splitStreamingMarkdown(
   const lines = text.split("\n");
   const lastCompleteLineIndex = lines.length - 2;
   let openFence: MarkdownFence | null = null;
-  let mathOpen = false;
   let lastNonBlankLine: string | null = null;
   let boundaryLineIndex = -1;
 
@@ -62,13 +49,6 @@ export function splitStreamingMarkdown(
     if (openFence !== null) {
       if (closesAnyIndentMarkdownFence(line, openFence)) {
         openFence = null;
-      }
-      lastNonBlankLine = line;
-      continue;
-    }
-    if (mathOpen) {
-      if (countOccurrences(line, MATH_DELIMITER) % 2 === 1) {
-        mathOpen = false;
       }
       lastNonBlankLine = line;
       continue;
@@ -95,14 +75,7 @@ export function splitStreamingMarkdown(
       continue;
     }
     lastNonBlankLine = line;
-    const fence = parseAnyIndentMarkdownFenceStart(line);
-    if (fence !== null) {
-      openFence = fence;
-      continue;
-    }
-    if (countOccurrences(line, MATH_DELIMITER) % 2 === 1) {
-      mathOpen = true;
-    }
+    openFence = parseAnyIndentMarkdownFenceStart(line);
   }
 
   if (boundaryLineIndex === -1) {

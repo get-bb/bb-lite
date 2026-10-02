@@ -12,34 +12,8 @@ interface TerminalOutputBlockProps {
   streaming: boolean;
 }
 
-interface TerminalScrollContentKeyArgs {
-  commandLine: string;
-  exitCode: number | null;
-  metadataLines: readonly string[];
-  output: string;
-}
-
-const ANSI_THEME_COLORS: Record<number, string> = {
-  0: "var(--ansi-0)",
-  1: "var(--ansi-1)",
-  2: "var(--ansi-2)",
-  3: "var(--ansi-3)",
-  4: "var(--ansi-4)",
-  5: "var(--ansi-5)",
-  6: "var(--ansi-6)",
-  7: "var(--ansi-7)",
-  8: "var(--ansi-8)",
-  9: "var(--ansi-9)",
-  10: "var(--ansi-10)",
-  11: "var(--ansi-11)",
-  12: "var(--ansi-12)",
-  13: "var(--ansi-13)",
-  14: "var(--ansi-14)",
-  15: "var(--ansi-15)",
-};
-const ANSI_COLOR_INDEXES = Object.keys(ANSI_THEME_COLORS).map(Number);
+const ANSI_COLOR_INDEXES = Array.from({ length: 16 }, (_, index) => index);
 const BACKGROUND_RESET_STYLE = "background-color:var(--background)";
-const BACKGROUND_RESET_CONTRAST_STYLE = `${BACKGROUND_RESET_STYLE};color:var(--foreground)`;
 
 function addBackgroundContrastColors(html: string): string {
   let out = html;
@@ -52,7 +26,7 @@ function addBackgroundContrastColors(html: string): string {
   }
   return out.replaceAll(
     BACKGROUND_RESET_STYLE,
-    BACKGROUND_RESET_CONTRAST_STYLE,
+    `${BACKGROUND_RESET_STYLE};color:var(--foreground)`,
   );
 }
 
@@ -62,30 +36,10 @@ const ANSI_TO_HTML = new Convert({
   stream: false,
   fg: "var(--muted-foreground)",
   bg: "var(--background)",
-  colors: ANSI_THEME_COLORS,
+  colors: Object.fromEntries(
+    ANSI_COLOR_INDEXES.map((index) => [index, `var(--ansi-${index})`]),
+  ),
 });
-
-function stringLengthSum(values: readonly string[]): number {
-  let length = 0;
-  for (const value of values) {
-    length += value.length;
-  }
-  return length;
-}
-
-function terminalScrollContentKey({
-  commandLine,
-  exitCode,
-  metadataLines,
-  output,
-}: TerminalScrollContentKeyArgs): string {
-  return [
-    commandLine.length,
-    stringLengthSum(metadataLines),
-    output.length,
-    exitCode ?? "",
-  ].join(":");
-}
 
 export function TerminalOutputBlock({
   commandLine,
@@ -101,14 +55,6 @@ export function TerminalOutputBlock({
         : null,
     [output],
   );
-
-  const showExitCode = exitCode !== null;
-  const outputContentKey = terminalScrollContentKey({
-    commandLine,
-    exitCode,
-    metadataLines,
-    output,
-  });
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -132,14 +78,14 @@ export function TerminalOutputBlock({
           <TimelineDetailScroll
             size="base"
             streaming={streaming}
-            contentKey={outputContentKey}
+            contentKey={`${output.length}:${exitCode ?? ""}`}
             className="mt-1.5"
             scrollClassName="whitespace-pre leading-tight text-muted-foreground"
           >
             <div dangerouslySetInnerHTML={{ __html: renderedOutputHtml }} />
           </TimelineDetailScroll>
         ) : null}
-        {showExitCode ? (
+        {exitCode !== null ? (
           <div className="mt-1.5 font-mono text-xs leading-tight text-muted-foreground">
             exit code {exitCode}
           </div>

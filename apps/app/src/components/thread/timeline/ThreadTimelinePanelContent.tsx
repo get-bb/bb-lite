@@ -10,23 +10,18 @@ import {
   ThreadTimelineSurface,
   type ThreadTimelineSurfaceProps,
 } from "./ThreadTimelineSurface.js";
-import {
-  useThreadTimelineController,
-  type UseThreadTimelineControllerResult,
-} from "./useThreadTimelineController.js";
+import { useThreadTimelineController } from "./useThreadTimelineController.js";
 
 interface ThreadTimelinePanelContentProps {
   isTurnSubmitting?: boolean;
   leadingContent?: ReactNode;
   onMessageAddToChat?: ThreadTimelineSurfaceProps["onMessageAddToChat"];
-  onSelectionAddToChat?: ThreadTimelineSurfaceProps["onSelectionAddToChat"];
   onOpenLink?: ThreadTimelineSurfaceProps["onOpenLink"];
   onOpenLocalFileLink?: ThreadTimelineSurfaceProps["onOpenLocalFileLink"];
   projectId?: string;
   resolveMentionLink?: PromptMentionLinkResolver;
   surfaceKey?: string;
   threadId: string;
-  timeline?: UseThreadTimelineControllerResult;
   workspaceRootPath?: string;
 }
 
@@ -34,23 +29,19 @@ export function ThreadTimelinePanelContent({
   isTurnSubmitting = false,
   leadingContent,
   onMessageAddToChat,
-  onSelectionAddToChat,
   onOpenLink,
   onOpenLocalFileLink,
   projectId,
   resolveMentionLink,
   surfaceKey,
   threadId,
-  timeline,
   workspaceRootPath,
 }: ThreadTimelinePanelContentProps) {
   const threadQuery = useThread(threadId);
-  const ownedTimeline = useThreadTimelineController({
-    enabled: timeline === undefined,
+  const resolvedTimeline = useThreadTimelineController({
     surfaceKey,
     threadId,
   });
-  const resolvedTimeline = timeline ?? ownedTimeline;
   const displayStatus = threadQuery.data?.runtime.displayStatus ?? "idle";
   const isProvisioningDisplayStatus =
     displayStatus === "provisioning" || displayStatus === "starting";
@@ -105,7 +96,6 @@ export function ThreadTimelinePanelContent({
       loadingContent={<ThreadTimelinePanelLoadingSkeleton />}
       leadingContent={leadingContent}
       onMessageAddToChat={onMessageAddToChat}
-      onSelectionAddToChat={onSelectionAddToChat}
       onLoadOlderRows={resolvedTimeline.loadOlderTimelineRows}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}

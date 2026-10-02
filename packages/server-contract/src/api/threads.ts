@@ -281,26 +281,6 @@ export const sendMessageResponseSchema = z.discriminatedUnion("delivery", [
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
-// `sendAt` is deliberately dropped: an edit rewrites a message that has
-// already been dispatched, so there is nothing left to schedule.
-export const editMessageRequestSchema = sendMessageRequestFieldsSchema
-  .omit({ mode: true, sendAt: true, pluginSubmission: true })
-  .extend({
-    operationId: z.string().min(1),
-    expectedRequestSequence: z.number().int().nonnegative().optional(),
-  })
-  .strict();
-export type EditMessageRequest = z.infer<typeof editMessageRequestSchema>;
-
-export const editMessageResponseSchema = z
-  .object({
-    ok: z.literal(true),
-    operationId: z.string().min(1),
-    requestSequence: z.number().int().nonnegative(),
-  })
-  .strict();
-export type EditMessageResponse = z.infer<typeof editMessageResponseSchema>;
-
 /**
  * The reason a retry carries when the caller names none. Filled here at the
  * boundary so the queued row, its card and `bb thread queue list` all read the
@@ -1025,39 +1005,6 @@ export const threadTimelineResponseSchema = z.object({
 });
 export type ThreadTimelineResponse = z.infer<
   typeof threadTimelineResponseSchema
->;
-
-export const threadConversationOutlineAttachmentSummarySchema = z
-  .object({
-    imageCount: z.number().int().nonnegative(),
-    fileCount: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ThreadConversationOutlineAttachmentSummary = z.infer<
-  typeof threadConversationOutlineAttachmentSummarySchema
->;
-
-export const threadConversationOutlineItemSchema = z
-  .object({
-    id: z.string().min(1),
-    role: z.enum(["user", "assistant"]),
-    preview: z.string(),
-    attachmentSummary:
-      threadConversationOutlineAttachmentSummarySchema.nullable(),
-  })
-  .strict();
-export type ThreadConversationOutlineItem = z.infer<
-  typeof threadConversationOutlineItemSchema
->;
-
-export const threadConversationOutlineResponseSchema = z
-  .object({
-    items: z.array(threadConversationOutlineItemSchema),
-    maxSeq: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ThreadConversationOutlineResponse = z.infer<
-  typeof threadConversationOutlineResponseSchema
 >;
 
 export const threadStorageFileListResponseSchema =

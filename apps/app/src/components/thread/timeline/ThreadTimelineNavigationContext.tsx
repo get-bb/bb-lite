@@ -3,7 +3,7 @@ import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/pr
 import type {
   ThreadTimelineLinkHandler,
   ThreadTimelineLocalFileLinkHandler,
-} from "./types.js";
+} from "./timeline-context.js";
 
 interface ThreadTimelineNavigation {
   environmentId: string | null;

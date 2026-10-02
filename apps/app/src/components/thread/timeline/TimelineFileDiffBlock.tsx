@@ -11,11 +11,6 @@ import { EventCodeBlock } from "../../ui/event-code-block.js";
 import type { DiffPresentation } from "@/components/code/code-rendering";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 
-interface TimelineFileDiffBlockProps {
-  change: TimelineFileChange;
-  workspaceRootPath: string | undefined;
-}
-
 interface RenderablePatch {
   disableLineNumbers: boolean;
   fileDiff: FileDiffMetadata;
@@ -33,19 +28,19 @@ const renderedFileChangeCache = new WeakMap<
 >();
 
 function parseRenderablePatch(
-  patchText: RenderablePatchText,
+  patchText: RenderablePatchText | null,
 ): RenderablePatch | null {
+  if (patchText === null) {
+    return null;
+  }
   try {
     const parsedPatches = parsePatchFiles(patchText.patch);
-    if (parsedPatches.length !== 1) {
-      return null;
-    }
-    const parsedPatch = parsedPatches[0];
-    if (!parsedPatch || parsedPatch.files.length !== 1) {
-      return null;
-    }
-    const fileDiff = parsedPatch.files[0];
-    if (!fileDiff) {
+    const fileDiff = parsedPatches[0]?.files[0];
+    if (
+      parsedPatches.length !== 1 ||
+      parsedPatches[0]?.files.length !== 1 ||
+      !fileDiff
+    ) {
       return null;
     }
     return {
@@ -61,28 +56,27 @@ function parseRenderablePatch(
 function buildRenderedFileChange(
   change: TimelineFileChange,
 ): RenderedFileChange {
-  const cached = renderedFileChangeCache.get(change);
-  if (cached) {
-    return cached;
+  let rendered = renderedFileChangeCache.get(change);
+  if (!rendered) {
+    const renderablePatch = parseRenderablePatch(
+      getRenderablePatchText(change),
+    );
+    rendered = {
+      renderablePatch,
+      plainDiff: getPlainDiffFallback(change, renderablePatch !== null),
+    };
+    renderedFileChangeCache.set(change, rendered);
   }
-
-  const renderablePatchText = getRenderablePatchText(change);
-  const renderablePatch =
-    renderablePatchText === null
-      ? null
-      : parseRenderablePatch(renderablePatchText);
-  const renderedChange: RenderedFileChange = {
-    renderablePatch,
-    plainDiff: getPlainDiffFallback(change, renderablePatch !== null),
-  };
-  renderedFileChangeCache.set(change, renderedChange);
-  return renderedChange;
+  return rendered;
 }
 
 export const TimelineFileDiffBlock = memo(function TimelineFileDiffBlock({
   change,
   workspaceRootPath,
-}: TimelineFileDiffBlockProps) {
+}: {
+  change: TimelineFileChange;
+  workspaceRootPath: string | undefined;
+}) {
   const renderedChange = useMemo(
     () => buildRenderedFileChange(change),
     [change],
