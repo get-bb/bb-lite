@@ -100,14 +100,12 @@ it("runs a worktree thread, shares, retires and restores its workspace", async (
   const shape = { isWorktree: true, mergeBaseBranch: "origin/main" };
   const ready = { status: "ready", path, branchName, managed: true };
   expect(world.environmentOf(first)).toMatchObject({ ...ready, ...shape });
-  expect(git(path, "branch", "--show-current")).toBe(branchName);
   const transcript = stored(first, "system/thread-provisioning").join("\n");
   const steps = ["Creating worktree", "Created worktree", `Running ${SETUP}`];
   const outcome = ["setting up repo", `${SETUP} finished`];
   const used = [`Using workspace: ${path}`, `Using branch: ${branchName}`];
-  for (const line of [...steps, ...outcome, ...used]) {
-    expect(transcript).toContain(line);
-  }
+  const shown = [...steps, ...outcome, ...used];
+  expect(shown.filter((line) => !transcript.includes(line))).toEqual([]);
   expect(stored(first, "item/completed").join()).toContain(`"cwd":"${path}"`);
   const [{ id: environmentId }] = listEnvironments(db);
   const instructions = ctx.environments.workspaceInstructions(environmentId);
@@ -141,6 +139,7 @@ it("runs a worktree thread, shares, retires and restores its workspace", async (
   expect(found()).toMatchObject(ready);
   expect(git(path, "branch", "--show-current")).toBe(branchName);
   expect(stored(first, "turn/completed")).toHaveLength(2);
+  expect(stored(first, "client/thread/start")).toHaveLength(1);
 });
 
 it("fails the thread when the setup script fails and retries in place", async () => {
@@ -151,7 +150,8 @@ it("fails the thread when the setup script fails and retries in place", async ()
   await reaches(id, "error");
   const [failed] = listEnvironments(db);
   const kind = { environmentProviderId: "git-worktree" };
-  expect(failed).toMatchObject({ status: "error", ...kind });
+  const base = { mergeBaseBranch: "origin/main" };
+  expect(failed).toMatchObject({ status: "error", ...kind, ...base });
   expect(getThread(db, id)?.environmentId).toBeNull();
   const detail = "Setup script failed with exit code 3";
   expect(stored(id, "system/error").join()).toContain(detail);

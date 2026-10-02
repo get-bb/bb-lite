@@ -126,14 +126,14 @@ export function createEnvironments(ctx: ServerContext): Environments {
     const done = "completed";
     const entries = [step("git-worktree-completed", created, done, startedAt)];
     if (made.worktreeInclude !== null) {
-      const { copied } = made.worktreeInclude;
-      const text = `Copied ${copied} file(s) from .worktreeinclude`;
+      const { copied, skipped } = made.worktreeInclude;
+      const kept = skipped === 0 ? "" : `, skipped ${skipped}`;
+      const text = `Copied ${copied} file(s) from .worktreeinclude${kept}`;
       entries.push(step("worktree-include-completed", text, done, now()));
     }
     onProgress(entries);
-    const { path, mergeBaseBranch } = made;
-    patch(found.id, { path, branchName, mergeBaseBranch });
-    return path;
+    patch(found.id, { branchName, mergeBaseBranch: made.mergeBaseBranch });
+    return made.path;
   }
 
   async function materialize(
@@ -177,6 +177,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
       const found = requireEnvironment(ctx, environmentId);
       const runner = runners.get(found.hostId);
       if (found.status === "ready" && found.path !== null) {
+        if (found.lifecycle.retireAt !== null) patch(environmentId, IN_USE);
         return { environmentId, path: found.path };
       }
       try {

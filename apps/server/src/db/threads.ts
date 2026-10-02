@@ -258,9 +258,8 @@ export function listThreadsOnHost(
   return select(db, `${where} AND ${LIVE}`, hostId, ...statuses);
 }
 
-export function listStartingWithoutEnvironment(db: Db): ThreadRow[] {
-  const where = "status = 'starting' AND environment_id IS NULL";
-  return select(db, `${where} AND ${LIVE}`);
+export function listStartingThreads(db: Db): ThreadRow[] {
+  return select(db, `status = 'starting' AND ${LIVE}`);
 }
 
 export function listTombstonedThreads(db: Db): ThreadRow[] {
