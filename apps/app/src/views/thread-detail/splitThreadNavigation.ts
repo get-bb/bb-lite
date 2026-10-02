@@ -1,6 +1,7 @@
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
 import type { ThreadOpenSplit, ThreadPaneAction } from "@bb/server-contract";
 import {
+  computePaneRects,
   countPanes,
   findPane,
   findPaneByContent,
@@ -11,8 +12,13 @@ import {
   setFocus,
   splitPane,
 } from "@/lib/split-layout";
-import { decideThreadDrop, type SplitZone } from "@/lib/split-drag";
-import type { PaneContent, SplitLayout } from "@/lib/split-layout";
+import type {
+  LayoutNode,
+  PaneContent,
+  PaneNode,
+  SplitLayout,
+  SplitSide,
+} from "@/lib/split-layout";
 import { matchPath } from "react-router-dom";
 import {
   APP_ROOT_ROUTE_PATH,
@@ -22,44 +28,9 @@ import {
   PLUGIN_PANEL_ROUTE_PATH,
 } from "@/lib/route-paths";
 
-const FIRST_PANE_ID = "pane-1";
-const SPLITTABLE_THREAD_ROUTE_PATH = "/projects/:projectId/threads/:threadId";
-
-export function threadPaneContent(thread: ThreadRoutePathArgs): PaneContent {
-  return {
-    kind: "thread",
-    projectId: thread.projectId,
-    threadId: thread.threadId,
-  };
-}
-
-export function createSinglePaneLayout(
-  thread: ThreadRoutePathArgs,
-): SplitLayout {
-  return {
-    root: {
-      type: "pane",
-      paneId: FIRST_PANE_ID,
-      content: threadPaneContent(thread),
-    },
-    focusedPaneId: FIRST_PANE_ID,
-  };
-}
-
-function createSinglePaneContentLayout(content: PaneContent): SplitLayout {
-  return {
-    root: { type: "pane", paneId: FIRST_PANE_ID, content },
-    focusedPaneId: FIRST_PANE_ID,
-  };
-}
-
 export function paneContentRoute(content: PaneContent): string {
-  if (content.kind === "thread") {
-    return getThreadRoutePath(content);
-  }
-  if (content.kind === "new-thread") {
-    return getRootComposeRoutePath();
-  }
+  if (content.kind === "thread") return getThreadRoutePath(content);
+  if (content.kind === "new-thread") return getRootComposeRoutePath();
   return getPluginPanelRoutePath({
     pluginId: content.pluginId,
     path: content.panelPath,
@@ -68,11 +39,9 @@ export function paneContentRoute(content: PaneContent): string {
 }
 
 export function paneContentForPathname(pathname: string): PaneContent | null {
-  if (pathname === APP_ROOT_ROUTE_PATH) {
-    return { kind: "new-thread" };
-  }
+  if (pathname === APP_ROOT_ROUTE_PATH) return { kind: "new-thread" };
   const thread = matchPath(
-    { path: SPLITTABLE_THREAD_ROUTE_PATH, end: false },
+    { path: "/projects/:projectId/threads/:threadId", end: false },
     pathname,
   );
   if (thread?.params.projectId && thread.params.threadId) {
@@ -94,26 +63,32 @@ export function paneContentForPathname(pathname: string): PaneContent | null {
   return null;
 }
 
+export function focusPaneIn(layout: SplitLayout, paneId: string): SplitLayout {
+  return layout.focusedPaneId === paneId ? layout : setFocus(layout, paneId);
+}
+
 export function reconcileLayoutForContent(
   layout: SplitLayout | null,
   content: PaneContent,
 ): SplitLayout {
   if (layout === null) {
-    return createSinglePaneContentLayout(content);
+    return {
+      root: { type: "pane", paneId: "pane-1", content },
+      focusedPaneId: "pane-1",
+    };
   }
   const existing = findPaneByContent(layout.root, content);
-  if (existing !== null) {
-    const withRouteState =
-      existing.content.kind === "plugin-panel" &&
+  if (existing === null) {
+    return replacePaneContent(layout, layout.focusedPaneId, content);
+  }
+  return focusPaneIn(
+    existing.content.kind === "plugin-panel" &&
       content.kind === "plugin-panel" &&
       existing.content.subPath !== content.subPath
-        ? replacePaneContent(layout, existing.paneId, content)
-        : layout;
-    return withRouteState.focusedPaneId === existing.paneId
-      ? withRouteState
-      : setFocus(withRouteState, existing.paneId);
-  }
-  return replacePaneContent(layout, layout.focusedPaneId, content);
+      ? replacePaneContent(layout, existing.paneId, content)
+      : layout,
+    existing.paneId,
+  );
 }
 
 export function replaceOriginPaneContent(
@@ -137,43 +112,23 @@ export function focusedPaneRoute(layout: SplitLayout): string | null {
   return focused === null ? null : paneContentRoute(focused.content);
 }
 
-function threadOpenSplitZone(split: ThreadOpenSplit): SplitZone {
-  return split === "replace" ? "center" : split === "down" ? "bottom" : split;
-}
-
 export function applyThreadOpenToLayout(
   layout: SplitLayout | null,
   thread: ThreadRoutePathArgs,
   split: ThreadOpenSplit,
 ): SplitLayout {
-  if (layout === null) {
-    return createSinglePaneLayout(thread);
-  }
-  const existing = findPaneByThread(
-    layout.root,
-    thread.projectId,
-    thread.threadId,
-  );
-  const decision = decideThreadDrop({
-    zone: threadOpenSplitZone(split),
-    threadAlreadyOpen: existing !== null,
-    atMaxPanes: countPanes(layout.root) >= MAX_PANES,
-  });
-  if (existing !== null) {
-    return layout.focusedPaneId === existing.paneId
-      ? layout
-      : setFocus(layout, existing.paneId);
-  }
-  const content = threadPaneContent(thread);
-  return decision.zone === "center"
+  const content: PaneContent = { kind: "thread", ...thread };
+  if (layout === null) return reconcileLayoutForContent(null, content);
+  const existing = findPaneByContent(layout.root, content);
+  if (existing !== null) return focusPaneIn(layout, existing.paneId);
+  return split === "replace" || countPanes(layout.root) >= MAX_PANES
     ? replacePaneContent(layout, layout.focusedPaneId, content)
-    : splitPane(layout, layout.focusedPaneId, decision.zone, content);
-}
-
-interface ThreadPaneActionLayoutResult {
-  layout: SplitLayout;
-  maximizedPaneId: string | null;
-  dimInactiveSplits: boolean | null;
+    : splitPane(
+        layout,
+        layout.focusedPaneId,
+        split === "down" ? "bottom" : split,
+        content,
+      );
 }
 
 export function applyThreadPaneActionToLayout(
@@ -181,37 +136,88 @@ export function applyThreadPaneActionToLayout(
   maximizedPaneId: string | null,
   thread: ThreadRoutePathArgs,
   action: ThreadPaneAction,
-): ThreadPaneActionLayoutResult {
+): {
+  layout: SplitLayout;
+  maximizedPaneId: string | null;
+  dimInactiveSplits: boolean | null;
+} {
   const pane = findPaneByThread(layout.root, thread.projectId, thread.threadId);
-  if (pane === null || countPanes(layout.root) < 2) {
-    return { layout, maximizedPaneId, dimInactiveSplits: null };
-  }
+  const unchanged = { layout, maximizedPaneId, dimInactiveSplits: null };
+  if (pane === null || countPanes(layout.root) < 2) return unchanged;
+  const isMaximized = maximizedPaneId === pane.paneId;
   if (action === "spotlight" || action === "clear-spotlight") {
     return {
-      layout:
-        layout.focusedPaneId === pane.paneId
-          ? layout
-          : setFocus(layout, pane.paneId),
+      layout: focusPaneIn(layout, pane.paneId),
       maximizedPaneId,
       dimInactiveSplits: action === "spotlight",
     };
   }
-  if (action === "restore") {
-    return {
-      layout,
-      maximizedPaneId: maximizedPaneId === pane.paneId ? null : maximizedPaneId,
-      dimInactiveSplits: null,
-    };
-  }
-  if (action === "toggle" && maximizedPaneId === pane.paneId) {
-    return { layout, maximizedPaneId: null, dimInactiveSplits: null };
+  if (action === "restore" || (action === "toggle" && isMaximized)) {
+    return isMaximized ? { ...unchanged, maximizedPaneId: null } : unchanged;
   }
   return {
-    layout:
-      layout.focusedPaneId === pane.paneId
-        ? layout
-        : setFocus(layout, pane.paneId),
+    layout: focusPaneIn(layout, pane.paneId),
     maximizedPaneId: pane.paneId,
     dimInactiveSplits: null,
   };
+}
+
+export function getAdjacentPaneId(
+  panes: readonly PaneNode[],
+  focusedPaneId: string,
+  offset: -1 | 1,
+): string | null {
+  if (panes.length < 2) return null;
+  const index = panes.findIndex((pane) => pane.paneId === focusedPaneId);
+  return (
+    panes[(Math.max(index, 0) + offset + panes.length) % panes.length]
+      ?.paneId ?? null
+  );
+}
+
+export function getDirectionalPaneId(
+  root: LayoutNode,
+  focusedPaneId: string,
+  direction: SplitSide,
+): string | null {
+  const rects = computePaneRects(root);
+  const focused = rects.get(focusedPaneId);
+  if (!focused) return null;
+  const horizontal = direction === "left" || direction === "right";
+  const forward = direction === "right" || direction === "bottom";
+  const start = horizontal ? focused.x : focused.y;
+  const size = horizontal ? focused.w : focused.h;
+  const crossStart = horizontal ? focused.y : focused.x;
+  const crossSize = horizontal ? focused.h : focused.w;
+  let nearest: string | null = null;
+  let nearestGap = Infinity;
+  let nearestOffset = Infinity;
+  for (const [paneId, rect] of rects) {
+    if (paneId === focusedPaneId) continue;
+    const candidateStart = horizontal ? rect.x : rect.y;
+    const candidateSize = horizontal ? rect.w : rect.h;
+    const candidateCrossStart = horizontal ? rect.y : rect.x;
+    const candidateCrossSize = horizontal ? rect.h : rect.w;
+    const overlap =
+      Math.min(
+        crossStart + crossSize,
+        candidateCrossStart + candidateCrossSize,
+      ) - Math.max(crossStart, candidateCrossStart);
+    const gap = forward
+      ? candidateStart - start - size
+      : start - candidateStart - candidateSize;
+    if (gap < -1e-9 || overlap <= 1e-9) continue;
+    const offset = Math.abs(
+      candidateCrossStart + candidateCrossSize / 2 - crossStart - crossSize / 2,
+    );
+    if (
+      gap < nearestGap - 1e-9 ||
+      (Math.abs(gap - nearestGap) <= 1e-9 && offset < nearestOffset)
+    ) {
+      nearest = paneId;
+      nearestGap = gap;
+      nearestOffset = offset;
+    }
+  }
+  return nearest;
 }
