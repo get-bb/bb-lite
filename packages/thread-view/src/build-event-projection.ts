@@ -13,7 +13,6 @@ import {
   getEventProviderThreadId,
   getEventTurnId,
   emptyEventProjection,
-  type BuildEventProjectionOptions,
   type EventProjectionWorkflowMessage,
   type EventProjection,
 } from "./event-projection-types.js";
@@ -63,7 +62,6 @@ import {
 import {
   shouldPreservePendingMessages,
   buildAcceptedClientRequestById,
-  EMPTY_ACCEPTED_CLIENT_REQUEST_CONTEXT,
   type AcceptedClientRequest,
   parseAcceptedSteersFromClientRequest,
   parseRejectedUsersFromClientRequest,
@@ -81,7 +79,6 @@ import {
 import {
   normalizeEventProjection,
   sortEventProjectionMessagesBySource,
-  applyProjectionTurnMessageDetail,
   groupEventProjectionTurns,
   getOrderedThreadEvents,
   type ThreadEventWithMeta,
@@ -621,16 +618,11 @@ function applyExecLifecycleEvent(
 
 function buildFlatProjectionData(
   orderedEvents: ThreadEventWithMeta[],
-  options: BuildEventProjectionOptions,
-  includeActiveThinking: boolean,
+  options: BuildEventProjectionMessagesOptions,
 ): Pick<EventProjection, "state"> & { messages: EventProjectionMessage[] } {
   const state = createProjectionState();
-  const acceptedClientRequestById = buildAcceptedClientRequestById({
-    context:
-      options.acceptedClientRequestContext ??
-      EMPTY_ACCEPTED_CLIENT_REQUEST_CONTEXT,
-    events: orderedEvents,
-  });
+  const acceptedClientRequestById =
+    buildAcceptedClientRequestById(orderedEvents);
   const clientRequestById = buildClientTurnRequestById(orderedEvents);
   const rejectedClientRequestIds = buildRejectedClientRequestIds(orderedEvents);
   const selectedStartedTurnIds = buildSelectedStartedTurnIds(orderedEvents);
@@ -896,9 +888,10 @@ function buildFlatProjectionData(
   return {
     messages,
     state: {
-      activeThinking: includeActiveThinking
-        ? buildProjectionActiveThinking(state, options.threadStatus)
-        : null,
+      activeThinking: buildProjectionActiveThinking(
+        state,
+        options.threadStatus,
+      ),
       activeWorkflows: selectActiveWorkflowMessages(messages),
       activeBackgroundCommands: selectActiveBackgroundCommandMessages(
         messages,
@@ -908,37 +901,15 @@ function buildFlatProjectionData(
   };
 }
 
-function buildProjection(
+export function buildEventProjection(
   events: ThreadEventWithMeta[] | undefined,
-  options: BuildEventProjectionOptions,
-  includeActiveThinking: boolean,
+  options: BuildEventProjectionMessagesOptions,
 ): EventProjection {
   if (!events || events.length === 0) return emptyEventProjection();
   const orderedEvents = getOrderedThreadEvents(events);
-  const { messages, state } = buildFlatProjectionData(
-    orderedEvents,
-    options,
-    includeActiveThinking,
-  );
-  return applyProjectionTurnMessageDetail(
-    normalizeEventProjection({
-      ...groupEventProjectionTurns({ events: orderedEvents, messages }),
-      state,
-    }),
-    options.turnMessageDetail,
-  );
-}
-
-export function buildEventProjectionEntries(
-  events: ThreadEventWithMeta[] | undefined,
-  options: BuildEventProjectionOptions,
-): EventProjection {
-  return buildProjection(events, options, false);
-}
-
-export function buildEventProjection(
-  events: ThreadEventWithMeta[] | undefined,
-  options: BuildEventProjectionOptions,
-): EventProjection {
-  return buildProjection(events, options, true);
+  const { messages, state } = buildFlatProjectionData(orderedEvents, options);
+  return normalizeEventProjection({
+    ...groupEventProjectionTurns({ events: orderedEvents, messages }),
+    state,
+  });
 }

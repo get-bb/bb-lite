@@ -24,7 +24,6 @@ import {
   threadScope,
   turnScope,
 } from "@bb/domain";
-import type { AcceptedClientRequestContext } from "./user-message-parsing.js";
 
 export function getEventTurnId(decoded: ThreadEvent): string | undefined {
   return getThreadEventScopeTurnId(decoded.scope);
@@ -54,13 +53,6 @@ export type EventProjectionTurnStatus =
   | "error"
   | "interrupted";
 
-export type EventProjectionTurnMessageDetail = "summary" | "full";
-
-export interface BuildEventProjectionOptions extends BuildEventProjectionMessagesOptions {
-  acceptedClientRequestContext?: AcceptedClientRequestContext;
-  turnMessageDetail: EventProjectionTurnMessageDetail;
-}
-
 export type EventProjectionEntry =
   | { kind: "projected-message"; message: EventProjectionMessage }
   | { kind: "turn"; turn: EventProjectionTurn };
@@ -77,7 +69,7 @@ export interface EventProjectionTurn {
   summaryCount: number;
   externalUserBoundarySeqs?: number[];
   terminalMessage?: EventProjectionMessage;
-  messages?: EventProjectionMessage[];
+  messages: EventProjectionMessage[];
 }
 
 export interface EventProjection {
@@ -346,7 +338,6 @@ export interface EventProjectionOperationMessage extends EventProjectionMessageB
   kind: "operation";
   opType:
     | "reasoning"
-    | "provider-unhandled"
     | "provider-environment"
     | "warning"
     | "deprecation"
@@ -464,7 +455,6 @@ export interface BuildEventProjectionMessagesOptions {
   includeDiagnosticOperations?: boolean;
   threadStatus?: Thread["status"];
   threadName: string;
-  providerDisplayName?: string;
 }
 
 export function areThreadEventScopesEqual(
@@ -518,10 +508,9 @@ export function emptyEventProjection(
 export function getProjectionEntryMessages(
   entry: EventProjectionEntry,
 ): readonly EventProjectionMessage[] {
-  if (entry.kind === "projected-message") return [entry.message];
-  if (entry.turn.messages) return entry.turn.messages;
-  if (entry.turn.terminalMessage) return [entry.turn.terminalMessage];
-  return [];
+  return entry.kind === "projected-message"
+    ? [entry.message]
+    : entry.turn.messages;
 }
 
 export function extendMessageBounds(

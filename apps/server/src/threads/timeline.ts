@@ -405,10 +405,6 @@ function projectWindow(
 ) {
   const { usage = [], ...shown } = shape;
   const timeline = buildThreadTimelineFromEvents({
-    acceptedClientRequestContext: {
-      acceptedClientRequestEvents: [],
-      rejectedClientRequestEvents: [],
-    },
     contextWindowEvents: events.decodeEvents(db, usage),
     headStateEvents: events.decodeEvents(db, loaded.headStateRows ?? []),
     events: compactThreadTimelineSummaryEvents(

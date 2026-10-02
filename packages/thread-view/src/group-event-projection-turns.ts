@@ -2,10 +2,8 @@ import {
   type EventProjectionMessage,
   type EventProjection,
   type EventProjectionTurn,
-  type EventProjectionTurnMessageDetail,
   findLastTerminalTimelineMessage,
   isSingletonContextManagementOperation,
-  isTimelineTerminalMessage,
   isTimelineUngroupableMessage,
   type EventProjectionEntry,
   type EventMeta,
@@ -71,90 +69,12 @@ export function getProjectionSummaryCount(
   return count;
 }
 
-function shouldIncludeSummaryTurnMessages(
-  messages: EventProjectionMessage[],
-  terminalMessage: EventProjectionMessage | undefined,
-): boolean {
-  let foundTerminalMessage = false;
-  for (const message of messages) {
-    if (terminalMessage && message.id === terminalMessage.id) {
-      foundTerminalMessage = true;
-      continue;
-    }
-    if (terminalMessage && isTimelineTerminalMessage(message)) return true;
-    if (isTimelineUngroupableMessage(message)) return true;
-    if (terminalMessage && foundTerminalMessage) return true;
-  }
-  return false;
-}
-
-export function assertTerminalMessageIncludedInMessages(
-  turn: EventProjectionTurn,
-): void {
-  const messages = turn.messages;
-  const terminalMessage = turn.terminalMessage;
-  if (!messages || !terminalMessage) return;
-  if (messages.some((message) => message.id === terminalMessage.id)) return;
-  throw new Error(
-    `Timeline projection turn ${turn.turnId} has terminal message ${terminalMessage.id} outside its messages array`,
-  );
-}
-
-function summarizeTurn(turn: EventProjectionTurn): EventProjectionTurn {
-  const messages = turn.messages ?? [];
-  const terminalMessage = findLastTerminalTimelineMessage(messages);
-  const summaryMessages = terminalMessage
-    ? messages.slice(0, messages.indexOf(terminalMessage))
-    : messages;
-  const summaryCount = getProjectionSummaryCount(messages, terminalMessage);
-  const includeMessages =
-    turn.status === "pending" ||
-    (turn.externalUserBoundarySeqs?.length ?? 0) > 0 ||
-    isSingletonContextManagementOperation(summaryMessages) ||
-    shouldIncludeSummaryTurnMessages(messages, terminalMessage);
-  const detailedTurn: EventProjectionTurn = {
-    turnId: turn.turnId,
-    threadId: turn.threadId,
-    sourceSeqStart: turn.sourceSeqStart,
-    sourceSeqEnd: turn.sourceSeqEnd,
-    startedAt: turn.startedAt,
-    createdAt: turn.createdAt,
-    completedAt: turn.completedAt,
-    status: turn.status,
-    summaryCount,
-    ...(turn.externalUserBoundarySeqs
-      ? { externalUserBoundarySeqs: turn.externalUserBoundarySeqs }
-      : {}),
-  };
-  if (terminalMessage) detailedTurn.terminalMessage = terminalMessage;
-  if (includeMessages) detailedTurn.messages = messages;
-  assertTerminalMessageIncludedInMessages(detailedTurn);
-  return detailedTurn;
-}
-
-export function applyProjectionTurnMessageDetail(
-  projection: EventProjection,
-  turnMessageDetail: EventProjectionTurnMessageDetail,
-): EventProjection {
-  if (turnMessageDetail === "full") return projection;
-  return {
-    state: projection.state,
-    entries: projection.entries.map((entry) => {
-      if (entry.kind === "projected-message") {
-        return { kind: "projected-message", message: entry.message };
-      }
-      return { kind: "turn", turn: summarizeTurn(entry.turn) };
-    }),
-  };
-}
-
 export type ThreadEventWithMeta = { event: ThreadEvent; meta: EventMeta };
 
 type TurnStartedEvent = Extract<ThreadEvent, { type: "turn/started" }>;
 
 interface ProjectionTurnDraft {
   completionSequence: number | null;
-  messages: EventProjectionMessage[];
   startedSequence: number;
   turn: EventProjectionTurn;
 }
@@ -190,7 +110,6 @@ function createProjectionTurn(
   const turnId = requireThreadEventScopeTurnId(event);
   return {
     completionSequence: null,
-    messages: [],
     startedSequence: meta.seq,
     turn: {
       turnId,
@@ -202,6 +121,7 @@ function createProjectionTurn(
       completedAt: null,
       status: "pending",
       summaryCount: 0,
+      messages: [],
     },
   };
 }
@@ -225,7 +145,7 @@ function addProjectionTurnMessage(
   draft: ProjectionTurnDraft,
   message: EventProjectionMessage,
 ): void {
-  draft.messages.push(message);
+  draft.turn.messages.push(message);
   updateProjectionTurnBounds(
     draft,
     message.threadId,
@@ -302,18 +222,7 @@ function createEventProjectionEntry(
       `Cannot build timeline projection for missing turn ${draft.turnId}`,
     );
   }
-  const terminalMessage = findLastTerminalTimelineMessage(turnDraft.messages);
-  const turn: EventProjectionTurn = {
-    ...turnDraft.turn,
-    summaryCount: getProjectionSummaryCount(
-      turnDraft.messages,
-      terminalMessage,
-    ),
-    messages: turnDraft.messages,
-  };
-  if (terminalMessage) turn.terminalMessage = terminalMessage;
-  assertTerminalMessageIncludedInMessages(turn);
-  return { kind: "turn", turn };
+  return { kind: "turn", turn: turnDraft.turn };
 }
 
 export function groupEventProjectionTurns(args: {
@@ -988,9 +897,8 @@ function groupCompletedTurnSummaryMessages(
 export function groupCompletedTurnMessages(
   turn: EventProjectionTurn,
 ): CompletedTurnMessageGroups {
-  const messages = turn.messages ?? [];
   const { summaryMessages, terminalMessages, trailingMessages } =
-    splitCompletedTurnMessages(messages, turn.terminalMessage);
+    splitCompletedTurnMessages(turn.messages, turn.terminalMessage);
   return {
     summaryItems: unwrapSingletonContextManagementGroups(
       groupCompletedTurnSummaryMessages(
@@ -1028,7 +936,7 @@ function planTurn(
     turn.completedAt === null ||
     completedTurnDisplay === "flat"
   ) {
-    return (turn.messages ?? []).map(messagePlan);
+    return turn.messages.map(messagePlan);
   }
   const { summaryItems, terminalMessages, trailingMessages } =
     groupCompletedTurnMessages(turn);

@@ -1,5 +1,4 @@
 import {
-  type ProviderUnhandledEvent,
   type ProvisioningTranscriptEntry,
   type ApprovalInteractionLifecycle,
   type PendingInteractionPermissionGrantApprovalSubject,
@@ -37,50 +36,6 @@ import {
 } from "./timeline-format.js";
 import { getCompactionKey } from "./item-lifecycle.js";
 import { getProviderModelFallbackData } from "./thread-state-extraction.js";
-
-const HUMANIZED_EVENT_TOKEN_MAP: Record<string, string> = {
-  api: "API",
-  chatgpt: "ChatGPT",
-  id: "ID",
-  mcp: "MCP",
-  oauth: "OAuth",
-  sdk: "SDK",
-  ui: "UI",
-  url: "URL",
-};
-
-function splitCamelCaseToken(token: string): string[] {
-  return token
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .split(" ")
-    .filter((part) => part.length > 0);
-}
-
-function humanizeEventToken(token: string): string {
-  const normalized = token.toLowerCase();
-  const mapped = HUMANIZED_EVENT_TOKEN_MAP[normalized];
-  if (mapped) return mapped;
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
-function humanizeRawType(rawType: string): string {
-  const tokens = rawType
-    .split(/[:/._-]+/u)
-    .flatMap((token) => splitCamelCaseToken(token))
-    .filter((token) => token.length > 0);
-  return tokens.map((token) => humanizeEventToken(token)).join(" ");
-}
-
-export function buildProviderUnhandledDetail(
-  event: ProviderUnhandledEvent,
-): string {
-  return [
-    humanizeRawType(event.rawType),
-    `Raw event: ${event.rawType}`,
-    "Payload:",
-    JSON.stringify(event.rawEvent, null, 2),
-  ].join("\n");
-}
 
 export function readProvisioningTranscript(
   entries: ProvisioningTranscriptEntry[] | undefined,
@@ -188,7 +143,7 @@ export function mergeProvisioningMetadata(
 
 type ParseOperationMessageOptions = Pick<
   BuildEventProjectionMessagesOptions,
-  "includeDiagnosticOperations" | "providerDisplayName" | "threadName"
+  "includeDiagnosticOperations" | "threadName"
 >;
 
 function withThreadName(threadName: string, verb: string): string {
@@ -200,13 +155,6 @@ type InteractionLifecycleEvent = Extract<
   ThreadEvent,
   { type: "system/interaction/lifecycle" }
 >;
-
-function providerDisplayName(
-  providerId: string,
-  projectedDisplayName: string | undefined,
-): string {
-  return projectedDisplayName?.trim() || providerId;
-}
 
 function normalizeThreadOperationKind(
   rawOperation: string,
@@ -540,18 +488,6 @@ export function parseOperationMessage(
       opType: "warning",
       title: `Model fallback: ${modelFallback.originalModel} → ${modelFallback.fallbackModel}`,
       detail: modelFallback.message,
-      status: "completed",
-    });
-  }
-  if (decoded.type === "provider/unhandled") {
-    if (options?.includeDiagnosticOperations !== true) return null;
-    return op(decoded, meta, "provider-unhandled", {
-      opType: "provider-unhandled",
-      title: `Unhandled ${providerDisplayName(
-        decoded.providerId,
-        options?.providerDisplayName,
-      )} event`,
-      detail: buildProviderUnhandledDetail(decoded),
       status: "completed",
     });
   }

@@ -42,20 +42,15 @@ import {
 } from "./timeline-format.js";
 import {
   buildEventProjection,
-  buildEventProjectionEntries,
   type ThreadEventWithMeta,
 } from "./build-event-projection.js";
 import {
   buildAcceptedClientRequestById,
-  buildRejectedClientRequestById,
-  type AcceptedClientRequestContext,
   parsePendingSteersFromClientRequest,
-  parseRejectedUsersFromClientRequest,
 } from "./user-message-parsing.js";
 import {
   getOrderedThreadEvents,
   planTimelineRows,
-  type TimelineRowPlan,
 } from "./group-event-projection-turns.js";
 import {
   extractThreadContextWindowUsage,
@@ -161,7 +156,6 @@ interface ThreadTimelineFromEventsOptions {
   includeNestedRows: boolean;
   isLatestPage: boolean;
   providerId?: string;
-  providerDisplayName?: string;
   planCommand?: PlanCommand | null;
   threadStatus: Thread["status"];
   threadName: string;
@@ -716,60 +710,33 @@ function isSuppressedSystemMessage(
 }
 
 function buildPendingSteerRowsFromEvents(
-  acceptedClientRequestContext: AcceptedClientRequestContext,
   events: ThreadEventWithMeta[],
   options: ThreadTimelineFromEventsOptions,
 ): TimelineUserConversationRow[] {
   const orderedEvents = getOrderedThreadEvents(events);
-  const acceptedClientRequestById = buildAcceptedClientRequestById({
-    context: acceptedClientRequestContext,
-    events: orderedEvents,
-  });
-  const rejectedClientRequestById = buildRejectedClientRequestById(
-    acceptedClientRequestContext,
-    orderedEvents,
-  );
-  const inWindowRejectedClientRequestIds = new Set(
+  const acceptedClientRequestById =
+    buildAcceptedClientRequestById(orderedEvents);
+  const rejectedClientRequestIds = new Set(
     orderedEvents.flatMap(({ event }) =>
       event.type === "client/turn/rejected" ? [event.requestId] : [],
     ),
   );
-  const pendingSteerRows: TimelineUserConversationRow[] = [];
-  for (const { event, meta } of orderedEvents) {
+  return orderedEvents.flatMap(({ event, meta }) => {
     if (
       event.type !== "client/turn/requested" ||
-      inWindowRejectedClientRequestIds.has(event.requestId)
+      rejectedClientRequestIds.has(event.requestId)
     ) {
-      continue;
+      return [];
     }
-    const acceptedClientRequest = acceptedClientRequestById.get(
-      event.requestId,
-    );
-    const rejectedMeta = rejectedClientRequestById.get(event.requestId);
-    const steers =
-      acceptedClientRequest === undefined && rejectedMeta
-        ? parseRejectedUsersFromClientRequest({
-            decoded: event,
-            meta: rejectedMeta,
-            options,
-          })
-        : parsePendingSteersFromClientRequest({
-            acceptedClientRequest,
-            decoded: event,
-            meta,
-            options,
-          });
-    for (const steer of steers) {
-      if (isSuppressedSystemMessage(steer)) continue;
-      if (steer.turnRequest.kind !== "steer") {
-        throw new Error(`Expected steer message, received ${steer.kind}`);
-      }
-      pendingSteerRows.push(
-        userConversationRow(steer, ROOT_TIMELINE_ROW_ID_PREFIX),
-      );
-    }
-  }
-  return pendingSteerRows;
+    return parsePendingSteersFromClientRequest({
+      acceptedClientRequest: acceptedClientRequestById.get(event.requestId),
+      decoded: event,
+      meta,
+      options,
+    })
+      .filter((steer) => !isSuppressedSystemMessage(steer))
+      .map((steer) => userConversationRow(steer, ROOT_TIMELINE_ROW_ID_PREFIX));
+  });
 }
 
 function isCompanionThreadInterruptedRow(
@@ -858,7 +825,6 @@ function buildTimelineRows(
 }
 
 export function buildThreadTimelineFromEvents(args: {
-  acceptedClientRequestContext: AcceptedClientRequestContext;
   contextWindowEvents: ThreadEventWithMeta[];
   headStateEvents?: ThreadEventWithMeta[];
   events: ThreadEventWithMeta[];
@@ -869,12 +835,9 @@ export function buildThreadTimelineFromEvents(args: {
     ? getOrderedThreadEvents([...events, ...args.headStateEvents])
     : events;
   const projection = buildEventProjection(events, {
-    acceptedClientRequestContext: args.acceptedClientRequestContext,
     includeDiagnosticOperations: options.includeDiagnosticOperations,
-    providerDisplayName: options.providerDisplayName,
     threadStatus: options.threadStatus,
     threadName: options.threadName,
-    turnMessageDetail: "full",
   });
   const rows = [
     ...buildTimelineRows(projection, {
@@ -883,11 +846,7 @@ export function buildThreadTimelineFromEvents(args: {
       rowIdPrefix: ROOT_TIMELINE_ROW_ID_PREFIX,
       workspaceRoot: options.workspaceRoot,
     }),
-    ...buildPendingSteerRowsFromEvents(
-      args.acceptedClientRequestContext,
-      events,
-      options,
-    ),
+    ...buildPendingSteerRowsFromEvents(events, options),
   ];
   const latest = options.isLatestPage;
   return {
@@ -917,90 +876,5 @@ export function buildThreadTimelineFromEvents(args: {
       ? extractThreadTimelinePendingTodos(options.threadStatus, stateEvents)
       : null,
     rows,
-  };
-}
-
-function findTurnSummaryStartingAt(
-  plan: readonly TimelineRowPlan[],
-  turnId: string,
-  sourceSeqStart: number,
-): Extract<TimelineRowPlan, { kind: "summary" }> | undefined {
-  let match: Extract<TimelineRowPlan, { kind: "summary" }> | undefined;
-  let matchSeq = Infinity;
-  for (const item of plan) {
-    if (item.kind !== "summary" || item.row.turnId !== turnId) continue;
-    for (const message of item.messages) {
-      if (
-        message.sourceSeqStart >= sourceSeqStart &&
-        message.sourceSeqStart < matchSeq
-      ) {
-        match = item;
-        matchSeq = message.sourceSeqStart;
-      }
-    }
-  }
-  return match;
-}
-
-export function buildThreadTimelineTurnDetailsFromEvents(args: {
-  events: ThreadEventWithMeta[];
-  options: Pick<
-    ThreadTimelineFromEventsOptions,
-    | "completedTurnDisplay"
-    | "includeDiagnosticOperations"
-    | "providerDisplayName"
-    | "threadStatus"
-    | "threadName"
-    | "workspaceRoot"
-  > & { sourceSeqStart: number; turnId: string };
-}):
-  | { kind: "matched"; rows: TimelineRow[] }
-  | { kind: "missing-match" }
-  | { kind: "ungrouped"; rows: TimelineRow[] } {
-  const projection = buildEventProjectionEntries(args.events, {
-    includeDiagnosticOperations: args.options.includeDiagnosticOperations,
-    providerDisplayName: args.options.providerDisplayName,
-    threadStatus: args.options.threadStatus,
-    threadName: args.options.threadName,
-    turnMessageDetail: "full",
-  });
-  const options: BuildTimelineRowsOptions = {
-    completedTurnDisplay: args.options.completedTurnDisplay,
-    includeNestedRows: true,
-    rowIdPrefix: ROOT_TIMELINE_ROW_ID_PREFIX,
-    workspaceRoot: args.options.workspaceRoot,
-  };
-  const plan = planTimelineRows(
-    projection,
-    options.completedTurnDisplay,
-    options.rowIdPrefix,
-  );
-  const matchingSummary = findTurnSummaryStartingAt(
-    plan,
-    args.options.turnId,
-    args.options.sourceSeqStart,
-  );
-  if (matchingSummary) {
-    return {
-      kind: "matched",
-      rows: matchingSummary.messages.flatMap((message) =>
-        convertMessage(message, options),
-      ),
-    };
-  }
-  if (plan.some((item) => item.kind === "summary")) {
-    return { kind: "missing-match" };
-  }
-  return {
-    kind: "ungrouped",
-    rows: buildTimelineRows(projection, options).filter(
-      (row) =>
-        !(
-          row.kind === "conversation" &&
-          row.role === "user" &&
-          row.initiator === "user" &&
-          row.turnRequest?.kind === "steer"
-        ),
-    ),
   };
 }

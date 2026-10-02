@@ -19,42 +19,11 @@ export type ThreadEventWithMetaLike = { event: ThreadEvent; meta: EventMeta };
 
 export type AcceptedClientRequest = { meta: EventMeta; turnId: string };
 
-export interface AcceptedClientRequestContext {
-  acceptedClientRequestEvents: readonly ThreadEventWithMetaLike[];
-  rejectedClientRequestEvents: readonly ThreadEventWithMetaLike[];
-}
-
-export const EMPTY_ACCEPTED_CLIENT_REQUEST_CONTEXT: AcceptedClientRequestContext =
-  { acceptedClientRequestEvents: [], rejectedClientRequestEvents: [] };
-
-export function buildRejectedClientRequestById(
-  context: AcceptedClientRequestContext,
+export function buildAcceptedClientRequestById(
   events: readonly ThreadEventWithMetaLike[],
-): Map<ClientTurnRequestId, EventMeta> {
-  const rejectedRequestById = new Map<ClientTurnRequestId, EventMeta>();
-  for (const { event, meta } of [
-    ...events,
-    ...context.rejectedClientRequestEvents,
-  ]) {
-    if (
-      event.type === "client/turn/rejected" &&
-      !rejectedRequestById.has(event.requestId)
-    ) {
-      rejectedRequestById.set(event.requestId, meta);
-    }
-  }
-  return rejectedRequestById;
-}
-
-export function buildAcceptedClientRequestById(args: {
-  context: AcceptedClientRequestContext;
-  events: readonly ThreadEventWithMetaLike[];
-}): Map<ClientTurnRequestId, AcceptedClientRequest> {
+): Map<ClientTurnRequestId, AcceptedClientRequest> {
   const acceptedById = new Map<ClientTurnRequestId, AcceptedClientRequest>();
-  for (const { event, meta } of [
-    ...args.events,
-    ...args.context.acceptedClientRequestEvents,
-  ]) {
+  for (const { event, meta } of events) {
     if (event.type !== "turn/input/accepted") continue;
     const turnId = requireThreadEventScopeTurnId(event);
     if (!acceptedById.has(event.clientRequestId)) {
