@@ -27,7 +27,7 @@ async function until<T>(read: () => T) {
 function turn(threadId: string, text: string): SubmitTurnArgs {
   turnCounter += 1;
   const identity = { threadId, providerId: "echo" as const, cwd: tmpdir() };
-  const blank = { providerThreadId: null, fork: null, instructions: "" };
+  const blank = { providerThreadId: null, instructions: "" };
   const extras = { dynamicTools: [], env: {}, skillDirs: [] };
   return {
     session: { ...identity, ...blank, ...extras },

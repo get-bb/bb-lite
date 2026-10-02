@@ -10,7 +10,7 @@ import { settle } from "./kit.js";
 
 const SCENARIOS = `turn-tools:2 steer-compaction:4 stop-interrupt:4
   approval-allow:4 approval-deny:4 subagent:2 resume:4 web-search:2
-  plan-mode:7 user-question:4 fork:1 auth-failure:2`.split(/\s+/);
+  plan-mode:7 user-question:4 auth-failure:2`.split(/\s+/);
 const session_id = "sess-1";
 const reason = { decisionReason: "Needs approval" };
 const once = { decision: "allow_once" as const, grantedPermissions: null };

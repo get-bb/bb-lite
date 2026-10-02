@@ -14,7 +14,6 @@ const SCENARIOS = [
   "web-search",
   "plan-mode",
   "user-question",
-  "fork",
   "auth-failure",
 ];
 

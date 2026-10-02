@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -110,7 +109,6 @@ export function createClaudeHarness() {
       queries.push(query);
       return query;
     },
-    forkSession: async () => ({ sessionId: randomUUID() }),
   });
   async function open(
     spec: Partial<SessionSpec> = {},
@@ -188,7 +186,7 @@ export async function replayClaudeRecording(scenario: string) {
       const [spec] = step.open;
       state.live = await harness.open(...step.open);
       const { resume } = state.live.query.args.options;
-      if (spec.fork === null) compare("resume", resume, spec.providerThreadId);
+      compare("resume", resume, spec.providerThreadId);
       return;
     }
     const answer = step.resolve;
