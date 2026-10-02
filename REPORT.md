@@ -45,28 +45,27 @@ All browser checks ran in Playwright Chromium against isolated instances on thei
 directories. The live install (`~/.bb`, ports 38886 and 38887) was never started, stopped, called or
 written.
 
-| Check                                                                                                                                              | Result                                                                                      |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| New thread from the home screen, reply streaming line by line                                                                                      | pass (text updates every ~101 ms; the original ~108 ms)                                     |
-| Steer with Enter into the running turn                                                                                                             | pass (one turn, `steer` request)                                                            |
-| Two and three split panes, send from one pane, reload restores layout, close a pane                                                                | pass                                                                                        |
-| Sidebar section created from the sidebar, thread moved into it from its context menu                                                               | pass                                                                                        |
-| Worktree thread runs in its own git worktree on a new branch                                                                                       | pass                                                                                        |
-| Child thread from `bb thread spawn --parent-self`, `bb thread wait`, `bb thread output`, child nested in the sidebar, parent told when it finishes | pass                                                                                        |
-| One real Codex turn (5.6-Luna) and one real Claude Code turn (Haiku 4.5), each resumed after a server restart with the same provider session id    | pass, on the final build                                                                    |
-| Thread title generation                                                                                                                            | pass ("Connectivity check", "Connectivity")                                                 |
-| Timeline projection against the original server on nine real threads                                                                               | 297 recorded responses identical                                                            |
-| Timeline projection package old vs new                                                                                                             | 229,518 cases byte-identical                                                                |
-| Stored events decode with pruned schemas                                                                                                           | 35,283 decodes byte-identical, no rejects                                                   |
-| Side-by-side screenshots, original vs rewrite, 39 scenarios                                                                                        | in `.qa/comparison/` (`<name>.ref.png`, `<name>.new.png`, `<name>.diff.png`, `results.txt`) |
+| Check                                                                                                                                              | Result                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| New thread from the home screen, reply streaming line by line                                                                                      | pass (text updates every ~101 ms; the original ~108 ms)                                                                 |
+| Steer with Enter into the running turn                                                                                                             | pass (one turn, `steer` request)                                                                                        |
+| Two and three split panes, send from one pane, reload restores layout, close a pane                                                                | pass                                                                                                                    |
+| Sidebar section created from the sidebar, thread moved into it from its context menu                                                               | pass                                                                                                                    |
+| Worktree thread runs in its own git worktree on a new branch                                                                                       | pass                                                                                                                    |
+| Child thread from `bb thread spawn --parent-self`, `bb thread wait`, `bb thread output`, child nested in the sidebar, parent told when it finishes | pass                                                                                                                    |
+| One real Codex turn (5.6-Luna) and one real Claude Code turn (Haiku 4.5), each resumed after a server restart with the same provider session id    | pass, on the final build                                                                                                |
+| Thread title generation                                                                                                                            | pass ("Connectivity check", "Connectivity")                                                                             |
+| Timeline projection against the original server on nine real threads                                                                               | 297 recorded responses identical                                                                                        |
+| Timeline projection package old vs new                                                                                                             | 229,518 cases byte-identical                                                                                            |
+| Stored events decode with pruned schemas                                                                                                           | 35,283 decodes byte-identical, no rejects                                                                               |
+| Side-by-side screenshots, original vs rewrite, 39 scenarios in dark and light                                                                      | in `.qa/comparison/` and `.qa/comparison-light/` (`<name>.ref.png`, `<name>.new.png`, `<name>.diff.png`, `results.txt`) |
 
 The regression drivers, the comparison tool and the equivalence test that needs private thread
 exports are in `.qa/kit/` (not tracked). Screenshots of the flows above are in `.qa/flows/`.
 
 ## Visible differences from the original
 
-Each line is something the main user can see or reach. Nothing else differed in the 39 compared
-scenarios beyond a text offset of about one pixel near the bottom of long threads.
+Each line is something the main user can see or reach. Nothing else differed in the 39 compared scenarios (dark and light) beyond a vertical text offset near the bottom of long threads: about one pixel on most, up to four on the 1,052-row thread.
 
 ### Sidebar and shell
 
