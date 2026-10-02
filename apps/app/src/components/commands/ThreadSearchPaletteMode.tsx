@@ -12,6 +12,7 @@ import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { listSidebarNavigationThreads } from "@/hooks/queries/thread-cache";
 import {
   hasThreadSearchableQuery,
+  useArchivedThreads,
   useThreadSearch,
 } from "@/hooks/queries/thread-queries";
 import { useRouteNavigate } from "@/components/ui/app-route-anchor";
@@ -50,6 +51,7 @@ export function ThreadSearchPaletteMode({
   const threadSearch = useThreadSearch({ active: true, query });
   const trimmedQuery = query.trim();
   const isRecent = trimmedQuery.length === 0;
+  const archived = useArchivedThreads({ enabled: isRecent });
   const searchable = hasThreadSearchableQuery(trimmedQuery);
   const searchResultsAreCurrent =
     !searchable || threadSearch.debouncedQuery === trimmedQuery;
@@ -62,9 +64,10 @@ export function ThreadSearchPaletteMode({
       projects.map((project) => [project.id, project.name]),
     ),
     query,
-    recentThreads: navigation.data
-      ? listSidebarNavigationThreads(navigation.data)
-      : [],
+    recentThreads: [
+      ...(navigation.data ? listSidebarNavigationThreads(navigation.data) : []),
+      ...(archived.data?.pages[0]?.slice(0, 20) ?? []),
+    ],
     searchResponse: threadSearch.data,
     searchResultsAreCurrent,
   });
@@ -85,9 +88,10 @@ export function ThreadSearchPaletteMode({
         : { index, threadId: activeThreadId },
     );
   }, [activeIndex, activeThreadId]);
-  const isRecentLoading = isRecent && navigation.isLoading;
+  const isRecentLoading =
+    isRecent && (navigation.isLoading || archived.isLoading);
   const hasLoadError = isRecent
-    ? navigation.isError
+    ? navigation.isError || archived.isError
     : searchResultsAreCurrent && threadSearch.isError;
   const isLoading =
     searchable &&
@@ -165,48 +169,58 @@ export function ThreadSearchPaletteMode({
       value={query}
     >
       {emptyMessage === null ? (
-        <div
-          role="group"
-          aria-labelledby={`${idPrefix}-label`}
-          className="not-last:mb-2"
-        >
-          <div id={`${idPrefix}-label`} className={PALETTE_SECTION_LABEL_CLASS}>
-            Active
-          </div>
-          {rows.map((row, index) => (
+        [false, true].map((isArchivedGroup) =>
+          rows.some((row) => row.archived === isArchivedGroup) ? (
             <div
-              key={`${row.threadId}:${row.primaryText}`}
-              className={cn(
-                "flex min-w-0 items-center rounded-md",
-                index === activeIndex && "bg-state-hover text-foreground",
-              )}
-              onPointerMove={() =>
-                setHighlighted({ index, threadId: row.threadId })
-              }
+              key={String(isArchivedGroup)}
+              role="group"
+              aria-labelledby={`${idPrefix}-${isArchivedGroup}-label`}
+              className="not-last:mb-2"
             >
               <div
-                id={`${idPrefix}-${index}`}
-                role="option"
-                aria-selected={index === activeIndex}
-                className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm"
-                onClick={() => choose(index, false)}
+                id={`${idPrefix}-${isArchivedGroup}-label`}
+                className={PALETTE_SECTION_LABEL_CLASS}
               >
-                <ThreadSearchPaletteRow row={row} />
+                {isArchivedGroup ? "Archived" : "Active"}
               </div>
-              {index === activeIndex && canSplit ? (
-                <button
-                  type="button"
-                  aria-label="Open in split"
-                  className="mr-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-sm px-1 text-xs text-subtle-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                  onClick={() => choose(index, true)}
-                >
-                  <span className="mr-1">Open in split</span>
-                  <PaletteShortcut>{`${splitModifier} ↵`}</PaletteShortcut>
-                </button>
-              ) : null}
+              {rows.map((row, index) =>
+                row.archived !== isArchivedGroup ? null : (
+                  <div
+                    key={`${row.threadId}:${row.primaryText}`}
+                    className={cn(
+                      "flex min-w-0 items-center rounded-md",
+                      index === activeIndex && "bg-state-hover text-foreground",
+                    )}
+                    onPointerMove={() =>
+                      setHighlighted({ index, threadId: row.threadId })
+                    }
+                  >
+                    <div
+                      id={`${idPrefix}-${index}`}
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm"
+                      onClick={() => choose(index, false)}
+                    >
+                      <ThreadSearchPaletteRow row={row} />
+                    </div>
+                    {index === activeIndex && canSplit ? (
+                      <button
+                        type="button"
+                        aria-label="Open in split"
+                        className="mr-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-sm px-1 text-xs text-subtle-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        onClick={() => choose(index, true)}
+                      >
+                        <span className="mr-1">Open in split</span>
+                        <PaletteShortcut>{`${splitModifier} ↵`}</PaletteShortcut>
+                      </button>
+                    ) : null}
+                  </div>
+                ),
+              )}
             </div>
-          ))}
-        </div>
+          ) : null,
+        )
       ) : !hasLoadError &&
         (isRecent ? !isRecentLoading : searchable && !isLoading) ? (
         <EmptyState
