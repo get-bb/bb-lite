@@ -35,13 +35,15 @@ import {
   parseEnvironmentValue,
 } from "./environment-picker-value";
 import { selectPrimaryHost } from "@/hooks/queries/host-queries";
-import { MACHINE_BADGE_CLASS_NAME, orderLocalHostFirst } from "./MachinePicker";
 import {
   PickerLoadingRows,
   searchMachineHosts,
   useResetPickerScroll,
 } from "./picker-search";
 import { MachineIcon } from "@/components/machines/MachineLabel";
+
+const MACHINE_BADGE_CLASS_NAME =
+  "shrink-0 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-2xs leading-none text-subtle-foreground";
 
 export interface EnvironmentPickerProps {
   value: string;
@@ -141,7 +143,10 @@ export function EnvironmentPicker({
             }
           : { label: "Environment", compactLabel: "Env", icon: "Laptop" };
 
-  const orderedHosts = orderLocalHostFirst(hosts, localHostId);
+  const orderedHosts = [...hosts].sort(
+    (left, right) =>
+      Number(left.id !== localHostId) - Number(right.id !== localHostId),
+  );
   const activeHost =
     findHost(previewHostId) ??
     findHost(

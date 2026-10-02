@@ -30,7 +30,6 @@ import {
   type EnvironmentInputsChange,
 } from "@/components/pickers/EnvironmentInputs";
 import { EnvironmentPicker } from "@/components/pickers/EnvironmentPicker";
-import { MachinePicker } from "@/components/pickers/MachinePicker";
 import { formatModelLoadErrorText } from "@/components/pickers/model-load-error-message";
 import { PermissionModePicker } from "@/components/pickers/PermissionModePicker";
 import { ReuseEnvironmentPicker } from "@/components/pickers/ReuseEnvironmentPicker";
@@ -139,6 +138,10 @@ export interface NewThreadComposerProps {
   children: (state: NewThreadComposerState) => ReactNode;
 }
 
+function sanitizeStoredEnvironmentValue(stored: string): string {
+  return parseEnvironmentValue(stored)?.type === "provider" ? stored : "";
+}
+
 function NewThreadComposerStateRenderer({
   render,
   state,
@@ -147,10 +150,6 @@ function NewThreadComposerStateRenderer({
   state: NewThreadComposerState;
 }) {
   return render(state);
-}
-
-function sanitizeStoredEnvironmentValue(stored: string): string {
-  return parseEnvironmentValue(stored)?.type === "provider" ? stored : "";
 }
 
 export function NewThreadComposer({
@@ -653,7 +652,8 @@ export function NewThreadComposer({
     environmentLoading ||
     (environmentProviders?.length ?? 0) > 1 ||
     parsedEnvironment?.type === "reuse" ||
-    environmentPickerOpen ? (
+    environmentPickerOpen ||
+    hosts.length > 1 ? (
       <>
         <EnvironmentPicker
           value={environmentValue}
@@ -696,21 +696,6 @@ export function NewThreadComposer({
           />
         ) : null}
       </>
-    ) : hostsQuery.data && hosts.length > 1 ? (
-      <MachinePicker
-        hosts={hosts}
-        localHostId={localHostId}
-        primaryHostId={configuredPrimaryHostId}
-        selectedHostId={environmentProvider ? providerHostId : null}
-        onChange={(hostId) => {
-          if (environmentProvider) {
-            selectEnvironment(
-              encodeProviderValue(environmentProvider.id),
-              hostId,
-            );
-          }
-        }}
-      />
     ) : null;
 
   const renderPromptBox = (options: NewThreadComposerPromptOptions) => (
