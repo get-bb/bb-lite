@@ -1,7 +1,7 @@
 import { isSettledWorkflowAgentState } from "@bb/domain";
 import type { TimelineWorkflowWorkRow } from "@bb/server-contract";
-import { AnimatedBody } from "@/components/promptbox/banner/AnimatedBody";
 import {
+  AnimatedBody,
   PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
   PROMPT_STACK_CARD_ROW_HEIGHT,
   PromptStackCard,
@@ -20,38 +20,25 @@ import { WorkflowPhaseStrip } from "@bb/shared-ui/workflow-progress";
 
 const BODY_ID = "thread-workflow-card-body";
 const TOGGLE_ID = "thread-workflow-card-toggle";
-const WORKFLOW_HEADER_BUTTON_CLASS = activityRowClass(
-  "active",
-  PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
-);
-
-function agentProgressLabel(workflow: TimelineWorkflowWorkRow): string | null {
-  const agents = workflow.workflow?.agents ?? [];
-  if (agents.length === 0) {
-    return null;
-  }
-  const settled = agents.filter((agent) =>
-    isSettledWorkflowAgentState(agent.state),
-  ).length;
-  return `${settled}/${agents.length} agents`;
-}
-
-interface ThreadWorkflowCardProps {
-  workflow: TimelineWorkflowWorkRow;
-  isExpanded: boolean;
-  onToggle: () => void;
-}
 
 export function ThreadWorkflowCard({
   workflow,
   isExpanded,
   onToggle,
-}: ThreadWorkflowCardProps) {
+}: {
+  workflow: TimelineWorkflowWorkRow;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
   if (workflow.status !== "pending") {
     return null;
   }
   const name = workflow.workflowName ?? workflow.description;
-  const progress = agentProgressLabel(workflow);
+  const agents = workflow.workflow?.agents ?? [];
+  const metaClass = activityMetaClass(
+    "active",
+    "shrink-0 text-2xs tabular-nums",
+  );
   return (
     <PromptStackCard
       ariaLabel="Workflow"
@@ -66,7 +53,10 @@ export function ThreadWorkflowCard({
           aria-controls={BODY_ID}
           aria-label={`Workflow: ${name}`}
           onClick={onToggle}
-          className={WORKFLOW_HEADER_BUTTON_CLASS}
+          className={activityRowClass(
+            "active",
+            PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
+          )}
         >
           <Icon
             name="Workflow"
@@ -80,22 +70,17 @@ export function ThreadWorkflowCard({
             >
               {name}
             </span>
-            {progress ? (
-              <span
-                className={activityMetaClass(
-                  "active",
-                  "shrink-0 text-2xs tabular-nums",
-                )}
-              >
-                {progress}
+            {agents.length > 0 ? (
+              <span className={metaClass}>
+                {
+                  agents.filter((agent) =>
+                    isSettledWorkflowAgentState(agent.state),
+                  ).length
+                }
+                /{agents.length} agents
               </span>
             ) : null}
-            <span
-              className={activityMetaClass(
-                "active",
-                "shrink-0 text-2xs tabular-nums",
-              )}
-            >
+            <span className={metaClass}>
               <LiveDurationText startedAt={workflow.startedAt} />
             </span>
           </span>

@@ -4,15 +4,6 @@ import { Icon } from "@bb/shared-ui/icon";
 import { PromptStackCard } from "@/components/promptbox/banner/PromptStackCard";
 import { rawStringLocalStorage } from "@/lib/browser-storage";
 
-interface ThreadModelFallbackCardProps {
-  fallback: ThreadTimelineModelFallback;
-  threadId: string;
-}
-
-function dismissalStorageKey(threadId: string): string {
-  return `bb.thread.model-fallback-dismissed.${threadId}`;
-}
-
 function modelLabel(model: string): string {
   const parts = model
     .replace(/^(?:anthropic[-/])?claude-/i, "")
@@ -34,9 +25,12 @@ function modelLabel(model: string): string {
 export function ThreadModelFallbackCard({
   fallback,
   threadId,
-}: ThreadModelFallbackCardProps) {
+}: {
+  fallback: ThreadTimelineModelFallback;
+  threadId: string;
+}) {
   const occurrence = String(fallback.sourceSeq);
-  const storageKey = dismissalStorageKey(threadId);
+  const storageKey = `bb.thread.model-fallback-dismissed.${threadId}`;
   const [dismissedOccurrence, setDismissedOccurrence] = useState(() =>
     rawStringLocalStorage.getItem(storageKey, ""),
   );

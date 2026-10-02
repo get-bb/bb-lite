@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { isBackgroundAgentTaskType } from "@bb/domain";
 import type { TimelineWorkflowWorkRow } from "@bb/server-contract";
 import { useResizeObserver } from "usehooks-ts";
-import { AnimatedBody } from "@/components/promptbox/banner/AnimatedBody";
 import {
+  AnimatedBody,
   PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
   PROMPT_STACK_CARD_ROW_HEIGHT,
   PromptStackCard,
@@ -22,85 +22,20 @@ import { cn } from "@bb/shared-ui/lib/utils";
 const BODY_ID = "thread-background-commands-card-body";
 const TOGGLE_ID = "thread-background-commands-card-toggle";
 const COMPACT_PROMPT_SHELL_MAX_WIDTH_REM = 34;
-const DEFAULT_ROOT_FONT_SIZE_PX = 16;
 
-function isCompactPromptShellWidth(width: number): boolean {
-  const parsedRootFontSize =
-    typeof window === "undefined"
-      ? Number.NaN
-      : Number.parseFloat(
-          window.getComputedStyle(document.documentElement).fontSize,
-        );
-  const rootFontSize = Number.isFinite(parsedRootFontSize)
-    ? parsedRootFontSize
-    : DEFAULT_ROOT_FONT_SIZE_PX;
-  return width <= COMPACT_PROMPT_SHELL_MAX_WIDTH_REM * rootFontSize;
-}
+const isAgent = (row: TimelineWorkflowWorkRow) =>
+  isBackgroundAgentTaskType(row.taskType);
+const iconOf = (row: TimelineWorkflowWorkRow) =>
+  isAgent(row) ? "UserRoundPlus" : "Terminal";
+const kindOf = (row: TimelineWorkflowWorkRow) =>
+  isAgent(row) ? "background agent" : "background command";
+const plural = (count: number, noun: string) =>
+  `Running ${count} ${noun}${count === 1 ? "" : "s"}`;
 
-interface BackgroundActivityDisplay {
-  icon: "Terminal" | "UserRoundPlus";
-  label: string;
-  runningPrefix: string;
-}
-
-function backgroundActivityDisplay(
-  row: TimelineWorkflowWorkRow,
-): BackgroundActivityDisplay {
-  if (isBackgroundAgentTaskType(row.taskType)) {
-    return {
-      icon: "UserRoundPlus",
-      label: "Background agent",
-      runningPrefix: "Running background agent:",
-    };
-  }
-  return {
-    icon: "Terminal",
-    label: "Background command",
-    runningPrefix: "Running background command:",
-  };
-}
-
-function backgroundActivityGroupLabel(
-  rows: readonly TimelineWorkflowWorkRow[],
-): string {
-  const hasAgent = rows.some((row) => isBackgroundAgentTaskType(row.taskType));
-  const hasCommand = rows.some(
-    (row) => !isBackgroundAgentTaskType(row.taskType),
-  );
-  if (hasAgent && hasCommand) {
-    return "Background activity";
-  }
-  return hasAgent ? "Background agents" : "Background commands";
-}
-
-function backgroundActivityModel(row: TimelineWorkflowWorkRow): string | null {
-  return isBackgroundAgentTaskType(row.taskType) ? row.model : null;
-}
-
-function backgroundActivityAriaLabel(
-  row: TimelineWorkflowWorkRow,
-  label = backgroundActivityDisplay(row).label,
-): string {
-  const model = backgroundActivityModel(row);
-  return model
-    ? `${label}: ${row.description} · Model ${model}`
+function ariaLabelOf(row: TimelineWorkflowWorkRow, label: string): string {
+  return isAgent(row) && row.model
+    ? `${label}: ${row.description} · Model ${row.model}`
     : `${label}: ${row.description}`;
-}
-
-function compactBackgroundActivityLabel(
-  rows: readonly TimelineWorkflowWorkRow[],
-): string {
-  const agentCount = rows.filter((row) =>
-    isBackgroundAgentTaskType(row.taskType),
-  ).length;
-  const commandCount = rows.length - agentCount;
-  if (commandCount === 0) {
-    return `Running ${agentCount} background agent${agentCount === 1 ? "" : "s"}`;
-  }
-  if (agentCount === 0) {
-    return `Running ${commandCount} background command${commandCount === 1 ? "" : "s"}`;
-  }
-  return `Running ${rows.length} background activities`;
 }
 
 function BackgroundActivitySummary({
@@ -110,8 +45,7 @@ function BackgroundActivitySummary({
   row: TimelineWorkflowWorkRow;
   showDuration: boolean;
 }) {
-  const display = backgroundActivityDisplay(row);
-  const model = backgroundActivityModel(row);
+  const model = isAgent(row) ? row.model : null;
   return (
     <span className="flex min-w-0 flex-1 items-center gap-1 text-left">
       <span
@@ -120,7 +54,7 @@ function BackgroundActivitySummary({
           activityMetaClass("active"),
         )}
       >
-        {display.runningPrefix}
+        Running {kindOf(row)}:
       </span>
       <span
         className={cn("min-w-0 truncate", activityTextClass("active"))}
@@ -150,27 +84,28 @@ function BackgroundActivitySummary({
   );
 }
 
-interface ThreadBackgroundCommandsCardProps {
-  commands: TimelineWorkflowWorkRow[];
-  isExpanded: boolean;
-  onToggle: () => void;
-}
-
 export function ThreadBackgroundCommandsCard({
   commands,
   isExpanded,
   onToggle,
-}: ThreadBackgroundCommandsCardProps) {
+}: {
+  commands: TimelineWorkflowWorkRow[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
   const cardRef = useRef<HTMLElement>(null!);
-  const [isCompactCard, setIsCompactCard] = useState<boolean | null>(null);
+  const [useCompactSummary, setUseCompactSummary] = useState(false);
   useResizeObserver({
     ref: cardRef,
     box: "border-box",
     onResize: ({ width }) => {
       if (width === undefined) return;
-      const nextIsCompact = isCompactPromptShellWidth(width);
-      setIsCompactCard((previous) =>
-        previous === nextIsCompact ? previous : nextIsCompact,
+      const rootFontSize =
+        Number.parseFloat(
+          window.getComputedStyle(document.documentElement).fontSize,
+        ) || 16;
+      setUseCompactSummary(
+        width <= COMPACT_PROMPT_SHELL_MAX_WIDTH_REM * rootFontSize,
       );
     },
   });
@@ -179,13 +114,21 @@ export function ThreadBackgroundCommandsCard({
     return null;
   }
   const others = commands.slice(1);
-  const hasMore = others.length > 0;
-  const useCompactSummary = isCompactCard ?? false;
-  const canExpand = hasMore || useCompactSummary;
-  const expandedRows = useCompactSummary ? commands : others;
-  const compactLabel = compactBackgroundActivityLabel(commands);
-  const primaryDisplay = backgroundActivityDisplay(primary);
-  const groupLabel = backgroundActivityGroupLabel(commands);
+  const canExpand = others.length > 0 || useCompactSummary;
+  const agentCount = commands.filter(isAgent).length;
+  const commandCount = commands.length - agentCount;
+  const compactLabel =
+    commandCount === 0
+      ? plural(agentCount, "background agent")
+      : agentCount === 0
+        ? plural(commandCount, "background command")
+        : `Running ${commands.length} background activities`;
+  const groupLabel =
+    agentCount > 0 && commandCount > 0
+      ? "Background activity"
+      : agentCount > 0
+        ? "Background agents"
+        : "Background commands";
 
   return (
     <PromptStackCard
@@ -204,7 +147,7 @@ export function ThreadBackgroundCommandsCard({
             aria-label={
               useCompactSummary
                 ? compactLabel
-                : backgroundActivityAriaLabel(primary, groupLabel)
+                : ariaLabelOf(primary, groupLabel)
             }
             onClick={onToggle}
             className={activityRowClass(
@@ -213,7 +156,7 @@ export function ThreadBackgroundCommandsCard({
             )}
           >
             <Icon
-              name={primaryDisplay.icon}
+              name={iconOf(primary)}
               className={activityIconClass("active", "size-3.5 shrink-0")}
               aria-hidden="true"
             />
@@ -240,10 +183,13 @@ export function ThreadBackgroundCommandsCard({
               "active",
               "flex min-h-8 w-full min-w-0 cursor-default items-center gap-1.5 rounded-none px-3 py-1.5 text-xs text-foreground",
             )}
-            aria-label={backgroundActivityAriaLabel(primary)}
+            aria-label={ariaLabelOf(
+              primary,
+              isAgent(primary) ? "Background agent" : "Background command",
+            )}
           >
             <Icon
-              name={primaryDisplay.icon}
+              name={iconOf(primary)}
               className={activityIconClass("active", "size-3.5 shrink-0")}
               aria-hidden="true"
             />
@@ -259,49 +205,45 @@ export function ThreadBackgroundCommandsCard({
           collapsedBorder="none"
         >
           <div className="flex flex-col gap-0.5 py-1">
-            {expandedRows.map((row) => {
-              const display = backgroundActivityDisplay(row);
-              const model = backgroundActivityModel(row);
-              return (
-                <div
-                  key={row.id}
+            {(useCompactSummary ? commands : others).map((row) => (
+              <div
+                key={row.id}
+                className={cn(
+                  "flex min-w-0 gap-1.5 px-3 py-0.5 text-xs",
+                  useCompactSummary ? "items-start" : "items-center",
+                )}
+              >
+                <Icon
+                  name={iconOf(row)}
+                  className="size-3.5 shrink-0 text-muted-foreground/60"
+                  aria-hidden="true"
+                />
+                <span
                   className={cn(
-                    "flex min-w-0 gap-1.5 px-3 py-0.5 text-xs",
-                    useCompactSummary ? "items-start" : "items-center",
+                    "min-w-0 flex-1 text-muted-foreground",
+                    useCompactSummary
+                      ? "whitespace-normal [overflow-wrap:anywhere]"
+                      : "truncate",
                   )}
+                  title={row.description}
                 >
-                  <Icon
-                    name={display.icon}
-                    className="size-3.5 shrink-0 text-muted-foreground/60"
-                    aria-hidden="true"
-                  />
+                  {row.description}
+                </span>
+                {isAgent(row) && row.model ? (
                   <span
-                    className={cn(
-                      "min-w-0 flex-1 text-muted-foreground",
-                      useCompactSummary
-                        ? "whitespace-normal [overflow-wrap:anywhere]"
-                        : "truncate",
-                    )}
-                    title={row.description}
+                    className="shrink-0 whitespace-nowrap font-mono text-2xs text-subtle-foreground"
+                    title={`Model: ${row.model}`}
                   >
-                    {row.description}
+                    {row.model}
                   </span>
-                  {model ? (
-                    <span
-                      className="shrink-0 whitespace-nowrap font-mono text-2xs text-subtle-foreground"
-                      title={`Model: ${model}`}
-                    >
-                      {model}
-                    </span>
+                ) : null}
+                <span className="shrink-0 whitespace-nowrap tabular-nums text-subtle-foreground">
+                  {isExpanded ? (
+                    <LiveDurationText startedAt={row.startedAt} />
                   ) : null}
-                  <span className="shrink-0 whitespace-nowrap tabular-nums text-subtle-foreground">
-                    {isExpanded ? (
-                      <LiveDurationText startedAt={row.startedAt} />
-                    ) : null}
-                  </span>
-                </div>
-              );
-            })}
+                </span>
+              </div>
+            ))}
           </div>
         </AnimatedBody>
       ) : null}
