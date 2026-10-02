@@ -68,17 +68,7 @@ export const pendingInteractionFileSystemPermissionsSchema = z.object({
   write: z.array(z.string()),
 });
 
-const pendingInteractionMacOsPreferencesPermissionSchema = z.enum([
-  "none",
-  "read_only",
-  "read_write",
-]);
-
-const pendingInteractionMacOsContactsPermissionSchema = z.enum([
-  "none",
-  "read_only",
-  "read_write",
-]);
+const macOsAccessSchema = z.enum(["none", "read_only", "read_write"]);
 
 const pendingInteractionMacOsAutomationPermissionSchema = z.union([
   z.literal("none"),
@@ -90,13 +80,13 @@ const pendingInteractionMacOsAutomationPermissionSchema = z.union([
 ]);
 
 export const pendingInteractionMacOsPermissionsSchema = z.object({
-  preferences: pendingInteractionMacOsPreferencesPermissionSchema,
+  preferences: macOsAccessSchema,
   automations: pendingInteractionMacOsAutomationPermissionSchema,
   launchServices: z.boolean(),
   accessibility: z.boolean(),
   calendar: z.boolean(),
   reminders: z.boolean(),
-  contacts: pendingInteractionMacOsContactsPermissionSchema,
+  contacts: macOsAccessSchema,
 });
 export type PendingInteractionMacOsPermissions = z.infer<
   typeof pendingInteractionMacOsPermissionsSchema
@@ -201,47 +191,14 @@ export const USER_QUESTION_MAX_OPTIONS = 4;
 export const USER_QUESTION_MAX_SELECTED = 4;
 export const USER_QUESTION_MAX_FREE_TEXT_LENGTH = 4096;
 
-const pendingInteractionUserQuestionIdSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question ids cannot be blank",
-  });
-
-const pendingInteractionUserQuestionPromptSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question prompts cannot be blank",
-  });
-
-const pendingInteractionUserQuestionShortLabelSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question short labels cannot be blank",
-  });
-
-const pendingInteractionUserQuestionOptionValueSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question option values cannot be blank",
-  });
-
-const pendingInteractionUserQuestionOptionLabelSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question option labels cannot be blank",
-  });
-
-const pendingInteractionUserQuestionOptionDescriptionSchema = z
-  .string()
-  .min(1)
-  .refine((value) => value.trim().length > 0, {
-    message: "User question option descriptions cannot be blank",
-  });
+function nonBlank(subject: string) {
+  return z
+    .string()
+    .min(1)
+    .refine((value) => value.trim().length > 0, {
+      message: `${subject} cannot be blank`,
+    });
+}
 
 const pendingInteractionUserQuestionFreeTextSchema = z
   .string()
@@ -255,16 +212,16 @@ const pendingInteractionUserQuestionFreeTextSchema = z
   });
 
 const pendingInteractionUserQuestionOptionSchema = z.object({
-  value: pendingInteractionUserQuestionOptionValueSchema,
-  label: pendingInteractionUserQuestionOptionLabelSchema,
-  description: pendingInteractionUserQuestionOptionDescriptionSchema.optional(),
+  value: nonBlank("User question option values"),
+  label: nonBlank("User question option labels"),
+  description: nonBlank("User question option descriptions").optional(),
 });
 
 export const pendingInteractionUserQuestionQuestionSchema = z
   .object({
-    id: pendingInteractionUserQuestionIdSchema,
-    prompt: pendingInteractionUserQuestionPromptSchema,
-    shortLabel: pendingInteractionUserQuestionShortLabelSchema.optional(),
+    id: nonBlank("User question ids"),
+    prompt: nonBlank("User question prompts"),
+    shortLabel: nonBlank("User question short labels").optional(),
     multiSelect: z.boolean(),
     options: z
       .array(pendingInteractionUserQuestionOptionSchema)
