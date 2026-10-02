@@ -110,13 +110,10 @@ export const labels = {
   reasoning: label("Thinking", "Thought", "Brain"),
   plan: label("Writing plan", "Wrote plan", "ListTodo"),
   compaction: label("Compacting context", "Compacted context", "Archive"),
-  command: (command: string) =>
-    label(
-      "Running command",
-      "Ran command",
-      "Terminal",
-      unwrapShellCommand(command),
-    ),
+  command(command: string) {
+    const title = unwrapShellCommand(command);
+    return label("Running command", "Ran command", "Terminal", title);
+  },
   fileChange(paths: readonly string[]) {
     const names = [...new Set(paths.map(fileName))];
     const noun = names.length > 1 ? "files" : "file";

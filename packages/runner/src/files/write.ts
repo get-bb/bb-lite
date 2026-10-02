@@ -9,6 +9,7 @@ import {
 } from "../workspace-types.js";
 import {
   absoluteTarget,
+  confinedTarget,
   requireInsideRoot,
   resolveRoot,
   sha256Hex,
@@ -157,12 +158,7 @@ async function existingTarget(location: FileLocation) {
   if ((await fs.lstat(absolute)).isSymbolicLink()) {
     fail("invalid_path", `Path "${location.path}" must not be a symlink`);
   }
-  const [target, root] = await Promise.all([
-    fs.realpath(absolute),
-    resolveRoot(location.rootPath),
-  ]);
-  requireInsideRoot(root, target, location.path);
-  return { target, root };
+  return confinedTarget(location);
 }
 
 export const mutatePath: Method<"mutatePath"> = async (_ctx, args) => {

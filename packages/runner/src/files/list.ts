@@ -90,9 +90,8 @@ function withDirectories(
 }
 
 export const listPaths: Method<"listPaths"> = async (ctx, args) => {
-  const root = await resolveRoot(requireAbsolute(args.rootPath)).catch(
-    unlessCode("ENOENT", null),
-  );
+  const absolute = requireAbsolute(args.rootPath);
+  const root = await resolveRoot(absolute).catch(unlessCode("ENOENT", null));
   if (root === null) return { paths: [], truncated: false };
   const excluded = new Set(args.excludeNames);
   const skipHidden = args.includeHidden !== true;

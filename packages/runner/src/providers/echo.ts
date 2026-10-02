@@ -38,24 +38,20 @@ const answerSchema = z.object({
 });
 const toolInputSchema = z.record(z.string(), z.unknown());
 const CONTEXT_WINDOW = 200_000;
+const EFFORTS = reasoningEffortsForLevels(["low", "medium", "high"]);
 const MODELS: AvailableModel[] = ["echo-1", "echo-2"].map((id, index) => ({
   id,
   model: id,
   displayName: index === 0 ? "Echo" : "Echo Two",
   description: "Scripted provider for development and tests",
-  supportedReasoningEfforts: reasoningEffortsForLevels([
-    "low",
-    "medium",
-    "high",
-  ]),
+  supportedReasoningEfforts: EFFORTS,
   defaultReasoningEffort: "medium",
   isDefault: index === 0,
 }));
 
 function directive(text: string, name: string) {
-  const match = new RegExp(`(?:^|\\s)${name}(?::(\\S+))?(?=\\s|$)`, "u").exec(
-    text,
-  );
+  const pattern = new RegExp(`(?:^|\\s)${name}(?::(\\S+))?(?=\\s|$)`, "u");
+  const match = pattern.exec(text);
   return match === null ? undefined : (match[1] ?? "").replaceAll("_", " ");
 }
 
@@ -311,9 +307,8 @@ class EchoSession implements ProviderSession {
     const echoed =
       text.length > 0 ? `Response to: ${text}` : "Response complete";
     const reply = outcome ?? (counted ? `Turn count: ${this.turns}` : echoed);
-    const size = Math.ceil(
-      reply.length / Number(directive(text, "stream") ?? 1),
-    );
+    const pieces = Number(directive(text, "stream") ?? 1);
+    const size = Math.ceil(reply.length / pieces);
     const empty = { type: "agentMessage" as const, text: "" };
     const item = this.item(turn, "reply", empty, ui.labels.message);
     for (let offset = 0; offset < reply.length; offset += Math.max(1, size)) {

@@ -64,14 +64,14 @@ export function requireInsideRoot(
   }
 }
 
-async function resolveReadablePath(target: ReadTarget): Promise<string> {
-  const absolute = absoluteTarget(target.path, target.rootPath);
-  const [realRoot, realTarget] = await Promise.all([
-    resolveRoot(target.rootPath),
+export async function confinedTarget(location: FileLocation) {
+  const absolute = absoluteTarget(location.path, location.rootPath);
+  const [root, target] = await Promise.all([
+    resolveRoot(location.rootPath),
     fs.realpath(absolute),
   ]);
-  requireInsideRoot(realRoot, realTarget, target.path);
-  return realTarget;
+  requireInsideRoot(root, target, location.path);
+  return { target, root };
 }
 
 function mimeTypeOf(target: string): string | undefined {
@@ -127,7 +127,7 @@ export async function readFileContent(ctx: Ctx, target: ReadTarget) {
     const blob = await readBlob(ctx, target, target.gitRef, limit);
     return describe(blob?.contents ?? Buffer.alloc(0));
   }
-  const readablePath = await resolveReadablePath(target);
+  const { target: readablePath } = await confinedTarget(target);
   const stat = await fs.stat(readablePath);
   if (!stat.isFile()) fail("invalid_path", "Path is not a regular file");
   const contents =
@@ -179,7 +179,7 @@ export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
   }
   const flags =
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
-  const file = await fs.open(await resolveReadablePath(args), flags);
+  const file = await fs.open((await confinedTarget(args)).target, flags);
   try {
     const stat = await file.stat({ bigint: true });
     if (!stat.isFile() || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) {

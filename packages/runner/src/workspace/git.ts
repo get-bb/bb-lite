@@ -434,10 +434,8 @@ async function untrackedLineStats(repo: Repo, paths: string[]) {
       return { entries: [], complete: false };
     return await withUntrackedIndex(repo, paths, async (index, indexed) => {
       const numstat = await index.git("diff", "--numstat", "-z");
-      return {
-        entries: parseNumstatZ(numstat.stdout),
-        complete: indexed.length === paths.length,
-      };
+      const entries = parseNumstatZ(numstat.stdout);
+      return { entries, complete: indexed.length === paths.length };
     });
   } catch {
     return { entries: [], complete: false };
