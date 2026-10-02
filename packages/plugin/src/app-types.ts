@@ -215,7 +215,6 @@ export type PluginSidebarThreadIndicator =
   | "workflow"
   | "background-agent"
   | "background-command"
-  | "plan-mode"
   | "goal"
   | "runtime"
   | "queued-failed"
@@ -228,7 +227,6 @@ export interface PluginSidebarThreadActivity {
   workflows: number;
   backgroundAgents: number;
   backgroundCommands: number;
-  planMode: number;
   goals: number;
 }
 

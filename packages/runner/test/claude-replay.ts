@@ -82,7 +82,6 @@ class FakeQuery {
     this.wake();
   };
   interrupt = async () => this.note("interrupt");
-  setPermissionMode = async (mode: string) => this.note("mode", mode);
   setModel = async (model?: string) => this.note("model", model);
   applyFlagSettings = async (flags: unknown) => this.note("flags", flags);
   initializationResult = () => Promise.reject(new Error("not scripted"));

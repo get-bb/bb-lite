@@ -25,7 +25,6 @@ const GLYPHS: Record<
   workflow: ["Workflow", SHINE],
   "background-agent": ["UserRoundPlus", SHINE],
   "background-command": ["Terminal", SHINE],
-  "plan-mode": ["ListTodo", SHINE],
   goal: ["Target", SHINE],
   runtime: ["Loading", `animate-spin motion-reduce:animate-none ${WORKING}`],
 };

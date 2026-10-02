@@ -12,7 +12,6 @@ const NO_THREAD_ACTIVITY: ThreadListIndicatorState = {
   isBackgroundAgentActive: false,
   isBackgroundCommandActive: false,
   isGoalActive: false,
-  isPlanModeActive: false,
   isRuntimeActive: false,
   isWorkflowActive: false,
   queuedWork: "none",
@@ -34,7 +33,6 @@ export function threadIndicatorState(
     isBackgroundAgentActive: thread.activity.backgroundAgents > 0,
     isBackgroundCommandActive: thread.activity.backgroundCommands > 0,
     isGoalActive: thread.activity.goals > 0,
-    isPlanModeActive: thread.activity.planMode > 0,
     isRuntimeActive: isRunningThreadRuntimeDisplayStatus(thread.runtimeStatus),
     isWorkflowActive: thread.activity.workflows > 0,
     queuedWork: thread.queuedWork,
@@ -56,7 +54,6 @@ export function mergeThreadActivity(
     isBackgroundCommandActive:
       base.isBackgroundCommandActive || extra.isBackgroundCommandActive,
     isGoalActive: base.isGoalActive || extra.isGoalActive,
-    isPlanModeActive: base.isPlanModeActive || extra.isPlanModeActive,
     isRuntimeActive: base.isRuntimeActive || extra.isRuntimeActive,
     isWorkflowActive: base.isWorkflowActive || extra.isWorkflowActive,
     queuedWork: base.queuedWork,

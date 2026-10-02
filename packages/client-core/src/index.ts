@@ -11,7 +11,6 @@ export * from "./sidebar/sidebarSectionOrder.js";
 export * from "./prompt/prompt-draft.js";
 export * from "./prompt/threadDetailPromptSubmission.js";
 export * from "./prompt/threadQueuedMessages.js";
-export * from "./prompt/effective-prompt-mode.js";
 export * from "./prompt/mentions/plugin-mention-triggers.js";
 export * from "./prompt/mentions/types.js";
 export * from "./prompt/mentions/mention-candidates.js";

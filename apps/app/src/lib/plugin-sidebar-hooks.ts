@@ -89,7 +89,6 @@ function toPluginSidebarThread(
       workflows: activity.activeWorkflowCount,
       backgroundAgents: activity.activeBackgroundAgentCount,
       backgroundCommands: activity.activeBackgroundCommandCount,
-      planMode: activity.activePlanModeCount,
       goals: activity.activeGoalCount,
     },
     indicator,

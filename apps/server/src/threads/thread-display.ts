@@ -1,9 +1,6 @@
 import * as domain from "@bb/domain";
 import type { ThreadResponse } from "@bb/server-contract";
-import {
-  extractThreadTimelineActivePlanTurn,
-  extractThreadTimelineGoal,
-} from "@bb/thread-view";
+import { extractThreadTimelineGoal } from "@bb/thread-view";
 import type { ServerContext } from "../context.js";
 import * as eventRead from "../db/event-read.js";
 import type { Db } from "../db/index.js";
@@ -13,12 +10,7 @@ import {
   listSidebarThreadRows,
   type ThreadListRow,
 } from "../db/thread-read.js";
-import {
-  ancestry,
-  MAX_THREAD_HIERARCHY_DEPTH,
-  type ThreadRow,
-} from "../db/threads.js";
-import { providerPlanCommand } from "../providers/catalog.js";
+import { ancestry, MAX_THREAD_HIERARCHY_DEPTH } from "../db/threads.js";
 
 type DisplayContext = Pick<ServerContext, "db" | "runners">;
 
@@ -43,32 +35,6 @@ function threadDisplayStatus(
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
-export function activePlanTurnId(db: Db, thread: ThreadRow): string | null {
-  const { id: threadId, providerId, status: threadStatus } = thread;
-  if (threadStatus !== "active") return null;
-  const planCommand = providerPlanCommand(db, providerId);
-  if (planCommand === null) return null;
-  const types = ["turn/input/accepted"];
-  const accepted = eventRead.listEvents(db, {
-    threadId,
-    types,
-    where: eventRead.OPEN_TURN,
-  });
-  const requestIds = eventRead
-    .decodeEvents(db, accepted)
-    .flatMap(({ event }) =>
-      event.type === "turn/input/accepted" ? [event.clientRequestId] : [],
-    );
-  const requested = { threadId, requestIds, types: ["client/turn/requested"] };
-  const rows = eventRead.mergeEventRows([
-    ...eventRead.listEvents(db, requested),
-    ...accepted,
-  ]);
-  const events = eventRead.decodeEvents(db, rows);
-  const args = { events, planCommand, providerId, threadStatus };
-  return extractThreadTimelineActivePlanTurn(args)?.turnId ?? null;
-}
-
 function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
   const threadIds = threads.map((thread) => thread.id);
   const activities = new Map(
@@ -83,12 +49,9 @@ function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
   for (const thread of threads) {
     const states = goals.filter((row) => row.threadId === thread.id);
     const goal = extractThreadTimelineGoal(eventRead.decodeEvents(db, states));
-    const activeGoalCount = goal?.status === "active" ? 1 : 0;
-    const activePlanModeCount = activePlanTurnId(db, thread) === null ? 0 : 1;
-    if (activeGoalCount + activePlanModeCount === 0) continue;
+    if (goal?.status !== "active") continue;
     const activity = activities.get(thread.id) ?? NO_ACTIVITY;
-    const merged = { ...activity, activeGoalCount, activePlanModeCount };
-    activities.set(thread.id, merged);
+    activities.set(thread.id, { ...activity, activeGoalCount: 1 });
   }
   return activities;
 }

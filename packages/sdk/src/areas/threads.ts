@@ -9,12 +9,7 @@ const DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS = 250;
 const MAX_EVENT_WAIT_MS = 30_000;
 
 type Ok = { ok: true };
-type Acknowledged =
-  | "stop"
-  | "compact"
-  | "clearContext"
-  | "cancelPlan"
-  | "unarchive";
+type Acknowledged = "stop" | "compact" | "clearContext" | "unarchive";
 type Abortable = { signal?: AbortSignal };
 
 export interface ThreadTarget extends Abortable {
@@ -144,7 +139,6 @@ export interface ThreadsArea {
   archiveAll(args: ThreadTarget): Promise<api.ThreadArchiveAllResponse>;
   childSummary(args: ThreadTarget): Promise<api.ThreadChildSummaryResponse>;
   compact(args: ThreadTarget): Promise<Ok>;
-  cancelPlan(args: ThreadTarget): Promise<Ok>;
   clearContext(args: ThreadTarget): Promise<Ok>;
   defaultExecutionOptions(
     args: ThreadTarget,
@@ -366,7 +360,6 @@ export function createThreadsArea(http: Http): ThreadsArea {
     childSummary: ({ threadId, signal }) =>
       http.json(routes.childSummary, at(threadId), signal),
     compact: acknowledged(routes.compact),
-    cancelPlan: acknowledged(routes.cancelPlan),
     clearContext: acknowledged(routes.clearContext),
     defaultExecutionOptions: ({ threadId, signal }) =>
       http.json(routes.defaultExecutionOptions, at(threadId), signal),

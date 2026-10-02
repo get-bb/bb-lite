@@ -1,16 +1,9 @@
 import {
   LEGACY_CODEX_GOAL_EXTENSION_KIND,
-  promptInputHasCommandMention,
-  removeCommandMentionsFromPromptInput,
-  requireThreadEventScopeTurnId,
   threadTimelineGoalStatusSchema,
   toPositiveNumber,
-  type PromptInput,
-  type ProviderComposerCommand,
   type Thread,
-  type ThreadEvent,
   type ThreadEventType,
-  type ThreadTimelineActivePromptMode,
   type ThreadTimelineGoal,
   type ThreadTimelineModelFallback,
   type ThreadTimelinePendingTodos,
@@ -21,7 +14,6 @@ import { z } from "zod";
 import type { ThreadEventWithMeta } from "./event-projection-types.js";
 import { getOrderedThreadEvents } from "./group-event-projection-turns.js";
 import { bufferedTextIdentity } from "./text-projection.js";
-import { parsePromptInput } from "./user-message-parsing.js";
 
 export const THREAD_TIMELINE_EXCLUDED_EVENT_TYPES = [
   "thread/started",
@@ -96,82 +88,6 @@ export function extractThreadContextWindowUsage(
     estimated,
     modelContextWindow,
     usedTokens,
-  };
-}
-
-export type PlanCommand = Pick<ProviderComposerCommand, "trigger" | "name">;
-
-type ClientTurnRequestedEvent = Extract<
-  ThreadEvent,
-  { type: "client/turn/requested" }
->;
-
-export interface ThreadTimelineActivePlanTurn {
-  promptMode: ThreadTimelineActivePromptMode;
-  turnId: string;
-}
-
-export function extractThreadTimelineActivePlanTurn({
-  events,
-  planCommand,
-  providerId,
-  threadStatus,
-}: {
-  events: readonly ThreadEventWithMeta[];
-  planCommand: PlanCommand | null | undefined;
-  providerId: string | undefined;
-  threadStatus: Thread["status"];
-}): ThreadTimelineActivePlanTurn | null {
-  if (threadStatus !== "active" || providerId === undefined || !planCommand) {
-    return null;
-  }
-  const requestsById = new Map<string, ClientTurnRequestedEvent>();
-  const completedTurnIds = new Set<string>();
-  let latestThreadInterruptionSeq = -1;
-  for (const { event, meta } of events) {
-    if (event.type === "client/turn/requested") {
-      requestsById.set(event.requestId, event);
-    } else if (event.type === "turn/completed") {
-      completedTurnIds.add(requireThreadEventScopeTurnId(event));
-    } else if (event.type === "system/thread/interrupted") {
-      latestThreadInterruptionSeq = Math.max(
-        latestThreadInterruptionSeq,
-        meta.seq,
-      );
-    }
-  }
-  let latest: { input: PromptInput[]; seq: number; turnId: string } | null =
-    null;
-  for (const { event, meta } of events) {
-    if (
-      event.type !== "turn/input/accepted" ||
-      meta.seq <= latestThreadInterruptionSeq
-    ) {
-      continue;
-    }
-    const turnId = requireThreadEventScopeTurnId(event);
-    const input = requestsById.get(event.clientRequestId)?.input;
-    if (
-      !completedTurnIds.has(turnId) &&
-      input &&
-      promptInputHasCommandMention(input, planCommand) &&
-      (!latest || meta.seq > latest.seq)
-    ) {
-      latest = { input, seq: meta.seq, turnId };
-    }
-  }
-  if (!latest) return null;
-  const prompt = removeCommandMentionsFromPromptInput(
-    latest.input,
-    planCommand,
-  );
-  return {
-    promptMode: {
-      mode: "plan",
-      providerId,
-      prompt: parsePromptInput(prompt)?.text.trim() ?? "",
-    },
-    turnId: latest.turnId,
   };
 }
 

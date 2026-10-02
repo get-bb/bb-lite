@@ -524,17 +524,3 @@ export function useStopThread() {
       refreshThreadCaches(client, [threadId]),
   });
 }
-
-export function useCancelThreadPlan() {
-  const client = useQueryClient();
-  return useMutation({
-    meta: { errorMessage: "Failed to exit Plan mode." },
-    mutationFn: async (threadId: string) => {
-      await sdk.threads.cancelPlan({ threadId });
-    },
-    onSuccess: (_data, threadId) => {
-      refreshRuntime(client, threadId);
-      refreshThreadCaches(client, [threadId]);
-    },
-  });
-}

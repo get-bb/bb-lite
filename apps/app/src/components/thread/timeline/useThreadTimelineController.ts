@@ -32,7 +32,6 @@ const PROPS_WITHOUT_ROWS: TimelineQueryResultProp[] = [
 ];
 
 export interface UseThreadTimelineControllerResult {
-  activePromptMode: ThreadTimelineResponse["activePromptMode"];
   activeThinking: ThreadTimelineResponse["activeThinking"];
   activeWorkflows: ThreadTimelineResponse["activeWorkflows"];
   activeBackgroundCommands: ThreadTimelineResponse["activeBackgroundCommands"];
@@ -231,7 +230,6 @@ export function useThreadTimelineController({
       : latestTimelineQuery.error;
 
   return {
-    activePromptMode: latestTimeline?.activePromptMode ?? null,
     activeThinking: latestTimeline?.activeThinking ?? null,
     activeWorkflows: latestTimeline?.activeWorkflows ?? [],
     activeBackgroundCommands: latestTimeline?.activeBackgroundCommands ?? [],

@@ -562,7 +562,7 @@ export const threadTimelineResponseSchema = z.object({
   rows: z.array(timelineRowSchema),
   contextBoundarySeq: z.number().int().nonnegative().nullable(),
   completedTurnDisplay: domain.completedTurnDisplaySchema,
-  activePromptMode: domain.threadTimelineActivePromptModeSchema.nullable(),
+  activePromptMode: z.null(),
   activeThinking: domain.activeThinkingSchema.nullable(),
   activeWorkflows: z.array(timelineWorkflowWorkRowSchema),
   activeBackgroundCommands: z.array(timelineWorkflowWorkRowSchema),

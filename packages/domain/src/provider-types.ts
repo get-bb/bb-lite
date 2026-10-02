@@ -60,10 +60,6 @@ const providerComposerActionSchema = z.discriminatedUnion("kind", [
     trigger: promptMentionCommandTriggerSchema,
   }),
   z.object({
-    kind: z.literal("plan"),
-    command: providerComposerCommandSchema,
-  }),
-  z.object({
     kind: z.literal("goal"),
     command: providerComposerCommandSchema,
   }),
@@ -77,7 +73,6 @@ export const providerStringsSchema = z.object({
   expiredHint: z.string().min(1),
   installUrl: z.string().min(1),
   brandPrefix: z.string().min(1).optional(),
-  planModeCopy: z.string().min(1).optional(),
   iconTint: z
     .object({ light: z.string().min(1), dark: z.string().min(1) })
     .optional(),

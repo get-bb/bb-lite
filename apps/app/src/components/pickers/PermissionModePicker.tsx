@@ -16,14 +16,7 @@ interface PermissionModePickerProps {
   supported: boolean;
   className?: string;
   align?: "start" | "center" | "end";
-  displayOverride?: {
-    label: string;
-    compactLabel?: string;
-    description?: string;
-    title?: string;
-  };
   disabled?: boolean;
-  showChevronWhenDisabled?: boolean;
   showWhenSingleOption?: boolean;
 }
 
@@ -34,9 +27,7 @@ export function PermissionModePicker({
   supported,
   className,
   align = "end",
-  displayOverride,
   disabled,
-  showChevronWhenDisabled,
   showWhenSingleOption = false,
 }: PermissionModePickerProps) {
   if (
@@ -60,9 +51,7 @@ export function PermissionModePicker({
       contentClassName="max-w-72"
       muted
       align={align}
-      displayOverride={displayOverride}
       disabled={disabled || options.length <= 1}
-      showChevronWhenDisabled={showChevronWhenDisabled}
     />
   );
 }

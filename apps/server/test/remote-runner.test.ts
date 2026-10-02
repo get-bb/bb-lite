@@ -40,7 +40,6 @@ function turn(threadId: string, text: string): SubmitTurnArgs {
       serviceTier: "default",
       permissionMode: "accept-edits",
       permissionEscalation: "ask",
-      planMode: false,
       providerOptions: {},
     },
   };

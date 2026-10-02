@@ -26,17 +26,13 @@ export interface PermissionHost {
   turnId(): string | null;
   mode(): PermissionMode;
   escalation(): PermissionEscalation;
-  planApproved(): void;
 }
 
 type Options = Parameters<CanUseTool>[2];
 type Input = Record<string, unknown>;
 type Outcome = Resolution | PermissionResult;
 
-const PLAN_TOOL = "ExitPlanMode";
 const INVALID_RESPONSE = "Invalid interactive response payload";
-const PLAN_REJECTED =
-  "The user rejected this plan. Do not call ExitPlanMode again with the same plan. Use AskUserQuestion to find out what they want changed, revise the plan, and only then propose it again.";
 const WORKSPACE_DENIAL =
   "bb's workspace sandbox allows work inside the current workspace only. Stay inside the workspace or explain why extra access is needed.";
 const NETWORK_TOOLS = ["WebFetch", "WebSearch", "SandboxNetworkAccess"];
@@ -44,7 +40,6 @@ const READ_TOOLS = ["Read", "Grep", "Glob", "LS"];
 const WRITE_TOOLS = ["Edit", "Write", "NotebookEdit"];
 
 const text = z.string().min(1);
-const planSchema = z.object({ plan: text, planFilePath: text.optional() });
 const questionSchema = z.object({
   question: text,
   header: text,
@@ -107,22 +102,15 @@ function approvalPayload(
   reason: string | null,
   permissions: Permissions,
 ) {
-  const plan = planSchema.safeParse(input).data;
   const bash = parseBashCommand(input);
   const path = input.file_path ?? input.path;
   const edits = WRITE_TOOLS.includes(toolName) && typeof path === "string";
   const grantable = sessionUpdates(permissions, toolName) !== undefined;
-  const availableDecisions: ApprovalPayload["availableDecisions"] =
-    toolName !== PLAN_TOOL && grantable
-      ? ["allow_once", "allow_for_session", "deny"]
-      : ["allow_once", "deny"];
+  const availableDecisions: ApprovalPayload["availableDecisions"] = grantable
+    ? ["allow_once", "allow_for_session", "deny"]
+    : ["allow_once", "deny"];
   const base = { kind: "approval" as const, reason, availableDecisions };
   const sessionGrant = permissions;
-  if (toolName === PLAN_TOOL && plan !== undefined) {
-    const planFilePath = plan.planFilePath ?? null;
-    const subject = { kind: "plan" as const, itemId, plan: plan.plan };
-    return { ...base, subject: { ...subject, planFilePath } };
-  }
   if (toolName === "Bash" && bash !== undefined) {
     const actions = [{ type: "unknown" as const, command: bash.command }];
     const subject = { kind: "command" as const, itemId, ...bash, actions };
@@ -194,8 +182,7 @@ function approvalResult(
   if (!isApproval(resolution)) return undefined;
   const { subject } = payload;
   if (resolution.decision === "deny") {
-    const planned = subject.kind === "plan";
-    const message = planned ? PLAN_REJECTED : "Permission request denied";
+    const message = "Permission request denied";
     return { behavior: "deny", message, decisionClassification: "user_reject" };
   }
   const allowed = { behavior: "allow" as const, updatedInput: input };
@@ -248,10 +235,6 @@ export class ClaudePermissions {
       if (updatedInput === undefined) return deny(INVALID_RESPONSE);
       return { behavior: "allow", updatedInput };
     }
-    const plan = toolName === PLAN_TOOL;
-    if (plan && !planSchema.safeParse(input).success) {
-      return deny("Invalid ExitPlanMode input");
-    }
     const unattended = this.host.escalation() === "deny";
     const mode = this.host.mode();
     const escaping = input.dangerouslyDisableSandbox === true;
@@ -259,23 +242,20 @@ export class ClaudePermissions {
       options.blockedPath !== undefined ||
       decisionReason !== undefined ||
       (options.suggestions?.length ?? 0) > 0;
-    if (!plan && toolName === "Bash" && unattended && escaping) {
+    if (toolName === "Bash" && unattended && escaping) {
       return deny(WORKSPACE_DENIAL);
     }
-    if (!plan && (!asks || mode === "bypassPermissions")) return allow;
-    if (!plan && unattended) return deny(decisionReason ?? WORKSPACE_DENIAL);
+    if (!asks || mode === "bypassPermissions") return allow;
+    if (unattended) return deny(decisionReason ?? WORKSPACE_DENIAL);
     const prompt = options.title ?? options.description ?? null;
-    const reason = plan ? null : (decisionReason ?? prompt);
-    const profile = plan
-      ? { network: null, fileSystem: null }
-      : permissionProfile(toolName, options);
+    const reason = decisionReason ?? prompt;
+    const profile = permissionProfile(toolName, options);
     const itemId = this.host.itemId(toolUseID);
     const payload = approvalPayload(toolName, itemId, input, reason, profile);
     const cancelled = "Interactive request cancelled";
     const resolution = await this.request(payload, signal, cancelled);
     if ("behavior" in resolution) return resolution;
     const result = approvalResult(payload, resolution, input);
-    if (plan && result?.behavior === "allow") this.host.planApproved();
     return result ?? deny(INVALID_RESPONSE);
   }
 

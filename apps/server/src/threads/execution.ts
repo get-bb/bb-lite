@@ -34,7 +34,6 @@ interface CreateExecutionArgs {
 interface TurnOptionsSource {
   execution: ExecutionTuple;
   initiator: domain.ThreadTurnInitiator;
-  input: readonly domain.PromptInput[];
 }
 
 const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
@@ -191,13 +190,11 @@ export function recordedExecution(
 export function toRunnerOptions(
   db: Db,
   providerId: string,
-  { execution, initiator, input }: TurnOptionsSource,
+  { execution, initiator }: TurnOptionsSource,
 ): ExecutionOptions {
-  const plan = { trigger: "/" as const, name: "plan" };
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
-    planMode: domain.promptInputHasCommandMention(input, plan),
     providerOptions: providerOptionsFor(db, providerId),
   };
 }

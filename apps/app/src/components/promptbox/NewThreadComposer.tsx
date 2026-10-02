@@ -36,7 +36,6 @@ import {
   PromptBoxInternal,
   type PromptBoxHandle,
 } from "@/components/promptbox/PromptBoxInternal";
-import { usePromptModePermissionDisplay } from "@/components/promptbox/usePromptModePermissionDisplay";
 import {
   GIT_WORKTREE_ENVIRONMENT_PROVIDER_ID,
   getProjectStoredPromptAttachmentPaths,
@@ -483,13 +482,6 @@ export function useNewThreadComposer({
     setIsSubmitting(false);
   };
 
-  const { permissionDisplayOverride, permissionPickerDisabledByPlanMode } =
-    usePromptModePermissionDisplay({
-      execution,
-      value: promptDraft.text,
-      mentionRanges: promptDraft.mentions,
-      activePromptMode: null,
-    });
   const [environmentPickerOpen, setEnvironmentPickerOpen] = useState(false);
   const environmentLoading = environmentProviders === undefined;
   const renderEnvironmentControls = (
@@ -613,12 +605,7 @@ export function useNewThreadComposer({
           {renderEnvironmentControls(options.onRequestMachineSetup)}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <PermissionModePicker
-            {...permission}
-            disabled={permissionPickerDisabledByPlanMode}
-            showChevronWhenDisabled={permissionPickerDisabledByPlanMode}
-            displayOverride={permissionDisplayOverride}
-          />
+          <PermissionModePicker {...permission} />
         </div>
       </div>
     </div>

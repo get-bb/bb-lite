@@ -128,8 +128,6 @@ function ApprovalBanner({
 }: BannerProps & { payload: ApprovalPendingInteractionPayload }) {
   const resolvePendingInteraction =
     useResolveThreadPendingInteraction(threadId);
-  const { subject } = payload;
-  const isPlan = subject.kind === "plan";
   const isResolving = interaction.status === "resolving";
   const { resolution } = interaction;
   const loadingDecision =
@@ -139,46 +137,20 @@ function ApprovalBanner({
   const errorMessage = resolvePendingInteraction.error
     ? getMutationErrorMessage({
         error: resolvePendingInteraction.error,
-        fallbackMessage: isPlan
-          ? "Failed to resolve plan review"
-          : "Failed to resolve pending interaction",
+        fallbackMessage: "Failed to resolve pending interaction",
         lifecycleOperation: "resolve_interaction",
       })
     : null;
-  const view = isPlan
-    ? {
-        title: payload.reason ?? "Ready to code?",
-        body: (
-          <div
-            className="overflow-hidden rounded-lg border border-border bg-card"
-            data-testid="plan-review-request"
-          >
-            <div
-              className={cn(
-                getDetailScrollMaxHeightClass("base"),
-                "overflow-auto px-3 py-2",
-              )}
-            >
-              <MarkdownPreview content={subject.plan} className="text-xs" />
-            </div>
-            {subject.planFilePath ? (
-              <p className="truncate border-t border-border px-3 py-2 font-mono text-xs text-muted-foreground">
-                {subject.planFilePath}
-              </p>
-            ) : null}
-          </div>
-        ),
-      }
-    : buildApprovalSubject(interaction, payload);
+  const view = buildApprovalSubject(interaction, payload);
 
   return (
     <PendingInteractionShell
-      label={isPlan ? "Plan review" : "Approval needed"}
+      label="Approval needed"
       title={view.title}
       initiallyExpanded={false}
       errorMessage={errorMessage}
       sourceThread={sourceThread}
-      testId={isPlan ? "plan-review-banner" : "approval-banner"}
+      testId="approval-banner"
       footer={[...payload.availableDecisions]
         .sort(
           (left, right) =>
@@ -210,11 +182,7 @@ function ApprovalBanner({
             {loadingDecision === decision ? (
               <Icon name="Spinner" className="size-3 animate-spin" />
             ) : null}
-            {!isPlan
-              ? APPROVAL_DECISION_LABEL[decision]
-              : decision === "deny"
-                ? "Keep planning"
-                : "Approve plan"}
+            {APPROVAL_DECISION_LABEL[decision]}
           </Button>
         ))}
     >

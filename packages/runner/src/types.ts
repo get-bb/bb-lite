@@ -28,7 +28,6 @@ export interface ExecutionOptions {
   serviceTier: ServiceTier;
   permissionMode: PermissionMode;
   permissionEscalation: PermissionEscalation;
-  planMode: boolean;
   providerOptions: Record<string, unknown>;
 }
 
