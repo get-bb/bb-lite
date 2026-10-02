@@ -21,11 +21,16 @@ function loads() {
 }
 
 if (!loads()) {
-  const moduleDir = dirname(requireFromServer.resolve("better-sqlite3/package.json"));
+  const moduleDir = dirname(
+    requireFromServer.resolve("better-sqlite3/package.json"),
+  );
   const prebuild = requireFromServer.resolve("prebuild-install/bin.js", {
     paths: [moduleDir],
   });
-  execFileSync(process.execPath, [prebuild], { cwd: moduleDir, stdio: "inherit" });
+  execFileSync(process.execPath, [prebuild], {
+    cwd: moduleDir,
+    stdio: "inherit",
+  });
   if (!loads()) {
     console.error("better-sqlite3 does not load on this Node version");
     process.exit(1);
