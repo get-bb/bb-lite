@@ -82,7 +82,7 @@ function announce(ctx: ServerContext, session: TerminalSession) {
   return session;
 }
 
-function change(
+export function changeTerminal(
   ctx: ServerContext,
   session: TerminalSession,
   patch: RowValues,
@@ -99,7 +99,8 @@ function finish(
   closeReason: TerminalSessionCloseReason,
   exitCode: number | null = null,
 ): TerminalSession {
-  return change(ctx, session, { status: "exited", closeReason, exitCode });
+  const exited = { status: "exited", closeReason, exitCode };
+  return changeTerminal(ctx, session, exited);
 }
 
 function endTerminal(
@@ -173,7 +174,7 @@ async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
   if (snapshot === null) return;
   for (const session of stale) {
     if (snapshot.terminalIds.includes(session.id)) {
-      resume(ctx, change(ctx, session, { status: "running" }));
+      resume(ctx, changeTerminal(ctx, session, { status: "running" }));
     } else {
       finish(ctx, session, "daemon-disconnect");
     }
@@ -207,7 +208,7 @@ export function startTerminalSessions(ctx: ServerContext): Disposer {
     runners.onDisconnected((hostId) => {
       const open = `host_id = ? AND ${OPEN_ON_RUNNER}`;
       for (const session of selectTerminals(db, open, hostId)) {
-        change(ctx, session, { status: "disconnected" });
+        changeTerminal(ctx, session, { status: "disconnected" });
       }
     }),
     runners.onConnected(reattach),
@@ -232,7 +233,7 @@ function notRunning(): ApiError {
   return new ApiError(409, "terminal_not_running", message);
 }
 
-function requireRunning(ctx: ServerContext, terminalId: string) {
+export function requireRunning(ctx: ServerContext, terminalId: string) {
   const session = requireTerminal(ctx, terminalId);
   if (session.status === "running") return session;
   throw notRunning();
@@ -301,7 +302,7 @@ export async function createTerminal(
       runner.closeTerminal({ terminalId }).catch(() => undefined);
       return current;
     }
-    const running = change(ctx, current, {
+    const running = changeTerminal(ctx, current, {
       status: "running",
       cols: opened.cols,
       rows: opened.rows,
@@ -314,14 +315,6 @@ export async function createTerminal(
     finish(ctx, starting, "process-exit");
     throw error;
   }
-}
-
-export function renameTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-  title: string,
-): TerminalSession {
-  return change(ctx, requireTerminal(ctx, terminalId), { title });
 }
 
 export function closeTerminal(
@@ -347,7 +340,7 @@ export function closeTerminalsFor(
   }
 }
 
-async function writeInput(
+export async function writeTerminalInput(
   ctx: ServerContext,
   session: TerminalSession,
   dataBase64: string,
@@ -355,38 +348,22 @@ async function writeInput(
   const { id: terminalId, hostId } = session;
   const marked =
     session.lastUserInputAt === null
-      ? change(ctx, session, { lastUserInputAt: ctx.now() })
+      ? changeTerminal(ctx, session, { lastUserInputAt: ctx.now() })
       : session;
   await ctx.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
   return marked;
 }
 
-async function applySize(
+export async function resizeTerminal(
   ctx: ServerContext,
   session: TerminalSession,
   { cols, rows }: TerminalResizeRequest,
 ): Promise<TerminalSession> {
   const { id: terminalId, hostId } = session;
   const same = session.cols === cols && session.rows === rows;
-  const resized = same ? session : change(ctx, session, { cols, rows });
+  const resized = same ? session : changeTerminal(ctx, session, { cols, rows });
   await ctx.runners.get(hostId).resizeTerminal({ terminalId, cols, rows });
   return resized;
-}
-
-export function sendTerminalInput(
-  ctx: ServerContext,
-  terminalId: string,
-  dataBase64: string,
-): Promise<TerminalSession> {
-  return writeInput(ctx, requireRunning(ctx, terminalId), dataBase64);
-}
-
-export function resizeTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-  size: TerminalResizeRequest,
-): Promise<TerminalSession> {
-  return applySize(ctx, requireRunning(ctx, terminalId), size);
 }
 
 export async function readTerminalOutput(
@@ -452,8 +429,8 @@ function receive(
   if (message.type === "resize" && !owner) return;
   const work =
     message.type === "input"
-      ? writeInput(ctx, session, message.dataBase64)
-      : applySize(ctx, session, message);
+      ? writeTerminalInput(ctx, session, message.dataBase64)
+      : resizeTerminal(ctx, session, message);
   work.catch((error: unknown) => {
     client.send({ type: "error", ...errorFrame(error) });
   });

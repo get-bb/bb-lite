@@ -1,14 +1,15 @@
 import { publicApiRoutes } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import {
+  changeTerminal,
   closeTerminal,
   createTerminal,
   listTerminalSessions,
   readTerminalOutput,
-  renameTerminal,
+  requireRunning,
   requireTerminal,
   resizeTerminal,
-  sendTerminalInput,
+  writeTerminalInput,
 } from "../../terminals/sessions.js";
 import { typedApi, type ApiApp } from "../api.js";
 
@@ -28,22 +29,24 @@ export function registerTerminalRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json(requireTerminal(ctx, c.req.param("terminalId"))),
   );
 
-  patch(routes.update, (c, payload) =>
-    c.json(renameTerminal(ctx, c.req.param("terminalId"), payload.title)),
-  );
+  patch(routes.update, (c, { title }) => {
+    const session = requireTerminal(ctx, c.req.param("terminalId"));
+    return c.json(changeTerminal(ctx, session, { title }));
+  });
 
   post(routes.close, (c, payload) =>
     c.json(closeTerminal(ctx, c.req.param("terminalId"), payload)),
   );
 
   post(routes.input, async (c, { dataBase64 }) => {
-    const terminalId = c.req.param("terminalId");
-    return c.json(await sendTerminalInput(ctx, terminalId, dataBase64));
+    const session = requireRunning(ctx, c.req.param("terminalId"));
+    return c.json(await writeTerminalInput(ctx, session, dataBase64));
   });
 
-  post(routes.resize, async (c, size) =>
-    c.json(await resizeTerminal(ctx, c.req.param("terminalId"), size)),
-  );
+  post(routes.resize, async (c, size) => {
+    const session = requireRunning(ctx, c.req.param("terminalId"));
+    return c.json(await resizeTerminal(ctx, session, size));
+  });
 
   get(routes.output, async (c, query) => {
     const terminalId = c.req.param("terminalId");
