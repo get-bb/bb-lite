@@ -177,7 +177,8 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
   runner, title generation, and the first `submitTurn`. Titles come from the first inference service a
   plugin registered; when none did, `startServer` installs `codexTitle` (`providers/title-service.ts`),
   which reads the Codex CLI's own `auth.json` (never written, never logged) and asks the Codex responses
-  endpoint within 5 s. `createServer` alone has no fallback, so tests never call out.
+  endpoint within 5 s. `createServer` alone has no fallback, and under vitest the service refuses its real
+  endpoints, so tests never call out.
 - **Send** (`POST /threads/:id/send`) goes through one dispatch checkpoint that either submits or records
   a `queued_thread_messages` row with a typed `waiting_on` (`time`, `stopping`, `host-offline`,
   `thread-busy`, `turn-starting`, `provisioning`, `interaction`). Modes: `start`, `steer`,

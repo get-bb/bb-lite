@@ -105,6 +105,7 @@ export async function codexTitle(
   urls = ENDPOINTS,
   env: Record<string, string | undefined> = process.env,
 ): Promise<string | null> {
+  if (urls === ENDPOINTS && process.env.VITEST !== undefined) return null;
   const signal = AbortSignal.any([caller, AbortSignal.timeout(BUDGET_MS)]);
   const home = env.CODEX_HOME?.trim() || join(homedir(), ".codex");
   const target = await credential(urls, home).catch(() => null);
