@@ -13,15 +13,13 @@
   "types": "./src/index.ts",
   "scripts": {
     "clean": "rimraf dist tsconfig.tsbuildinfo",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "fzf": "^0.5.2"
   },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.1"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }
