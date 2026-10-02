@@ -1,20 +1,17 @@
 import type { ReactNode, Ref } from "react";
 import { useIsSidebarShowing } from "@/components/ui/sidebar.js";
 import {
-  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
-  COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import {
   BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
   CHROME_ROW_CLASS,
   CHROME_ROW_HEIGHT_CLASS,
 } from "@/lib/chrome-row";
 import { cn } from "@bb/shared-ui/lib/utils";
 
-export const HEADER_ICON_BUTTON_CLASS = COARSE_POINTER_HEADER_ICON_BUTTON_CLASS;
+export const HEADER_ICON_BUTTON_CLASS =
+  "h-[28px] w-[28px] rounded-md p-0 [&_[data-icon-root]]:size-[16px]";
 
 export const HEADER_PANE_ACTION_ICON_BUTTON_CLASS =
-  COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS;
+  "h-[28px] w-[28px] rounded-md p-0 [&_[data-icon-root]]:size-[13px]";
 
 export const HEADER_SEAM_CLASS = "border-b border-border-seam-vertical/60";
 

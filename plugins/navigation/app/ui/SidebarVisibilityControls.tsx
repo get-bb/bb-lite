@@ -7,11 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import {
-  COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
 import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -75,7 +70,7 @@ export function SidebarMore({
                 <span
                   className={cn(
                     "ml-auto inline-flex shrink-0 items-center justify-center",
-                    COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+                    "h-7 w-7",
                   )}
                 >
                   {activity}
@@ -139,15 +134,9 @@ export function SidebarOverflowItem({
           variant="ghost"
           size="icon"
           aria-label={`${item.title} options`}
-          className={cn(
-            COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-            "rounded-sm p-0 hover:bg-state-hover",
-          )}
+          className={cn("h-7 w-7", "rounded-sm p-0 hover:bg-state-hover")}
         >
-          <Icon
-            name="MoreHorizontal"
-            className={COARSE_POINTER_ICON_SIZE_CLASS}
-          />
+          <Icon name="MoreHorizontal" className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -168,11 +157,7 @@ export function SidebarOverflowItem({
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(
-            OVERFLOW_ROW_BUTTON_CLASS,
-            COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-            "pr-9",
-          )}
+          className={cn(OVERFLOW_ROW_BUTTON_CLASS, "h-7", "pr-9")}
           disabled={item.disabled}
           data-sidebar-overflow-item={item.id}
           data-sidebar-navigation-more-item={

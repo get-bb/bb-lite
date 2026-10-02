@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { disableGlobalCursorStyles } from "react-resizable-panels";
 import { matchPath, Navigate, useLocation } from "react-router-dom";
-import "@bb/shared-ui/icon-extended";
 import {
   APP_ROOT_ROUTE_PATH,
   LEGACY_PROJECT_COMPOSE_ROUTE_PATH,

@@ -1,65 +1,38 @@
-import {
-  forwardRef,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-} from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useClipboardCopy, type ClipboardCopyOptions } from "@/lib/clipboard";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Icon } from "@bb/shared-ui/icon";
 import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 
-interface CopyButtonProps
-  extends
-    ClipboardCopyOptions,
-    Omit<ComponentPropsWithoutRef<"button">, "type" | "onClick" | "title"> {
-  iconClassName?: string;
-  label?: string;
+export function CopyButton({
+  text,
+  className,
+  label,
+  imageUrl,
+  ...rest
+}: Pick<ClipboardCopyOptions, "text" | "imageUrl"> &
+  Omit<ComponentProps<"button">, "type" | "onClick" | "title"> & {
+    label: string;
+  }) {
+  const { copied, copy } = useClipboardCopy({ text, imageUrl });
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      {...rest}
+      className={cn(
+        `inline-flex size-5 cursor-pointer items-center justify-center text-muted-foreground ${CONTROL_HOVER_TRANSITION} hover:text-foreground focus-visible:opacity-100`,
+        className,
+      )}
+      onClick={() => {
+        void copy();
+      }}
+    >
+      <Icon name={copied ? "Check" : "Copy"} className="size-3" />
+    </button>
+  );
 }
-
-export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
-  function CopyButton(
-    {
-      text,
-      className,
-      iconClassName,
-      label = "Copy to clipboard",
-      successMessage,
-      errorMessage,
-      imageUrl,
-      ...rest
-    },
-    ref,
-  ) {
-    const { copied, copy } = useClipboardCopy({
-      text,
-      successMessage,
-      errorMessage,
-      imageUrl,
-    });
-
-    return (
-      <button
-        ref={ref}
-        type="button"
-        aria-label={label}
-        {...rest}
-        className={cn(
-          `inline-flex size-5 cursor-pointer items-center justify-center text-muted-foreground ${CONTROL_HOVER_TRANSITION} hover:text-foreground focus-visible:opacity-100`,
-          className,
-        )}
-        onClick={() => {
-          void copy();
-        }}
-      >
-        {copied ? (
-          <Icon name="Check" className={cn("size-3", iconClassName)} />
-        ) : (
-          <Icon name="Copy" className={cn("size-3", iconClassName)} />
-        )}
-      </button>
-    );
-  },
-);
 
 interface CopyableInlineLabelProps extends ClipboardCopyOptions {
   label: string;

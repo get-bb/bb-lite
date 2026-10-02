@@ -1,40 +1,22 @@
 import { cn } from "../../lib/utils";
 
 const GLYPH_SIZE = 14;
-const GLYPH_PADDING = 1;
-const INNER = GLYPH_SIZE - 2 * GLYPH_PADDING;
-const OUTLINE_WIDTH = 1;
-
-interface SplitPaneMiniMapSlot {
-  paneId: string;
-  rect: { x: number; y: number; width: number; height: number };
-  isMe: boolean;
-  isFocused: boolean;
-}
-
-interface SplitPaneMiniMapProps {
-  slots: readonly SplitPaneMiniMapSlot[];
-  label: string;
-  isWorking?: boolean;
-}
-
-function offset(value: number): number {
-  return GLYPH_PADDING + value * INNER;
-}
-
-function extent(value: number): number {
-  return value * INNER;
-}
-
-function outlineInset(isFilled: boolean): number {
-  return isFilled ? 0 : OUTLINE_WIDTH / 2;
-}
+const INNER = GLYPH_SIZE - 2;
 
 export function SplitPaneMiniMap({
   slots,
   label,
   isWorking = false,
-}: SplitPaneMiniMapProps) {
+}: {
+  slots: readonly {
+    paneId: string;
+    rect: { x: number; y: number; width: number; height: number };
+    isMe: boolean;
+    isFocused: boolean;
+  }[];
+  label: string;
+  isWorking?: boolean;
+}) {
   const representsFocusedPane = slots.some(
     (slot) => slot.isMe && slot.isFocused,
   );
@@ -54,15 +36,15 @@ export function SplitPaneMiniMap({
       aria-label={label}
     >
       {slots.map((slot) => {
-        const inset = outlineInset(slot.isMe);
+        const inset = slot.isMe ? 0 : 0.5;
         return (
           <rect
             key={slot.paneId}
-            x={offset(slot.rect.x) + inset}
-            y={offset(slot.rect.y) + inset}
-            width={Math.max(extent(slot.rect.width) - 2 * inset, 0)}
-            height={Math.max(extent(slot.rect.height) - 2 * inset, 0)}
-            strokeWidth={slot.isMe ? 0 : OUTLINE_WIDTH}
+            x={1 + slot.rect.x * INNER + inset}
+            y={1 + slot.rect.y * INNER + inset}
+            width={Math.max(slot.rect.width * INNER - 2 * inset, 0)}
+            height={Math.max(slot.rect.height * INNER - 2 * inset, 0)}
+            strokeWidth={slot.isMe ? 0 : 1}
             className={cn(
               slot.isMe
                 ? slot.isFocused

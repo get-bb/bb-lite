@@ -1,25 +1,18 @@
-import { forwardRef, type ComponentPropsWithoutRef } from "react";
+import type { ComponentProps } from "react";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 
-interface OpenInEditorButtonProps extends Omit<
-  ComponentPropsWithoutRef<"button">,
-  "type" | "onClick" | "title"
-> {
+export function OpenInEditorButton({
+  className,
+  onClick,
+  label,
+  ...props
+}: Omit<ComponentProps<"button">, "type" | "onClick" | "title"> & {
   onClick: () => void;
-  label?: string;
-}
-
-export const OpenInEditorButton = forwardRef<
-  HTMLButtonElement,
-  OpenInEditorButtonProps
->(function OpenInEditorButton(
-  { className, onClick, label = "Open in editor", ...props },
-  ref,
-) {
+  label: string;
+}) {
   return (
     <button
-      ref={ref}
       type="button"
       {...props}
       onClick={onClick}
@@ -32,4 +25,4 @@ export const OpenInEditorButton = forwardRef<
       <Icon name="ExternalLink" aria-hidden className="size-3" />
     </button>
   );
-});
+}

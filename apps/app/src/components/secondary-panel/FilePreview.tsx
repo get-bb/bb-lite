@@ -14,7 +14,6 @@ import {
 import { useElementWidth } from "@/hooks/useElementWidth";
 import BbSourceCode from "@/components/code/BbSourceCode";
 import { hashSourceContents } from "@/components/code/source-code-budget";
-import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CopyButton } from "@/components/ui/copy-button.js";
 import { Icon } from "@bb/shared-ui/icon";
@@ -296,7 +295,7 @@ function FilePreviewHeader({
       type="button"
       variant="ghost"
       size="sm"
-      className={cn(VIEW_MODE_BUTTON_CLASS, COARSE_POINTER_TEXT_SM_CLASS)}
+      className={cn(VIEW_MODE_BUTTON_CLASS, "text-xs")}
       onClick={() => onRawChange(raw)}
       aria-pressed={isRaw === raw}
     >
@@ -321,7 +320,7 @@ function FilePreviewHeader({
                   type="button"
                   className={cn(
                     "min-w-0 font-mono font-medium leading-5 text-file-accent",
-                    COARSE_POINTER_TEXT_SM_CLASS,
+                    "text-xs",
                     "cursor-pointer rounded-sm text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   )}
                   aria-label="Copy file path"
@@ -336,7 +335,7 @@ function FilePreviewHeader({
               <span
                 className={cn(
                   "shrink-0 leading-5 text-muted-foreground",
-                  COARSE_POINTER_TEXT_SM_CLASS,
+                  "text-xs",
                 )}
               >
                 ({statusLabel})

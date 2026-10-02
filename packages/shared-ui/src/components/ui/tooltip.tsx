@@ -9,13 +9,12 @@ const TooltipProvider = TooltipPrimitive.Provider;
 
 const Tooltip = TooltipPrimitive.Root;
 
-const TooltipTrigger = React.forwardRef<
-  React.ComponentRef<typeof TooltipPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->(function TooltipTriggerComponent({ onFocus, ...props }, ref) {
+function TooltipTrigger({
+  onFocus,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return (
     <TooltipPrimitive.Trigger
-      ref={ref}
       onFocus={(event) => {
         onFocus?.(event);
         if (!event.defaultPrevented && !isLastInputKeyboard()) {
@@ -25,26 +24,18 @@ const TooltipTrigger = React.forwardRef<
       {...props}
     />
   );
-});
-TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName;
+}
 
-const TooltipContent = React.forwardRef<
-  React.ComponentRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(function TooltipContentComponent(
-  {
-    avoidCollisions = true,
-    className,
-    collisionPadding = 8,
-    sideOffset = 4,
-    ...props
-  },
-  ref,
-) {
+function TooltipContent({
+  avoidCollisions = true,
+  className,
+  collisionPadding = 8,
+  sideOffset = 4,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
-        ref={ref}
         {...usePortalScopeProps()}
         avoidCollisions={avoidCollisions}
         collisionPadding={collisionPadding}
@@ -57,7 +48,6 @@ const TooltipContent = React.forwardRef<
       />
     </TooltipPrimitive.Portal>
   );
-});
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+}
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

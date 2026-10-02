@@ -272,6 +272,7 @@ export function recordPaletteRecent(
 type HighlightRange = ThreadSearchMatch["highlightRanges"][number];
 
 export interface PaletteThreadSearchRow {
+  archived: boolean;
   primaryText: string;
   highlightRanges: readonly HighlightRange[];
   secondaryTitle: string | null;
@@ -297,6 +298,7 @@ export function buildPaletteThreadSearchRows(args: {
   const row = (
     thread: ThreadListEntry,
     matches: readonly ThreadSearchMatch[],
+    archived: boolean,
   ): PaletteThreadSearchRow => {
     const title = getThreadDisplayTitle(thread);
     const snippet = matches.find((match) => !isTitleMatch(match));
@@ -304,6 +306,7 @@ export function buildPaletteThreadSearchRows(args: {
       snippet ??
       matches.find((match) => isTitleMatch(match) && match.text === title);
     return {
+      archived,
       primaryText: primary?.text ?? title,
       highlightRanges: primary?.highlightRanges ?? [],
       secondaryTitle: snippet === undefined ? null : title,
@@ -317,18 +320,25 @@ export function buildPaletteThreadSearchRows(args: {
       messageSeq: snippet?.sourceSeq ?? null,
     };
   };
-  if (query.length === 0) {
-    return args.recentThreads
-      .filter((thread) => thread.archivedAt === null)
-      .sort((left, right) => right.updatedAt - left.updatedAt)
-      .slice(0, 20)
-      .map((thread) => row(thread, []));
-  }
-  return query.length >= 2 && args.searchResultsAreCurrent
-    ? (args.searchResponse?.active.results ?? []).map((result) =>
-        row(result.thread, result.matches),
-      )
-    : [];
+  return [false, true].flatMap((archived) => {
+    if (query.length === 0) {
+      return args.recentThreads
+        .filter((thread) => (thread.archivedAt !== null) === archived)
+        .sort((left, right) =>
+          archived
+            ? (right.archivedAt ?? 0) - (left.archivedAt ?? 0)
+            : right.updatedAt - left.updatedAt,
+        )
+        .slice(0, 20)
+        .map((thread) => row(thread, [], archived));
+    }
+    const group = args.searchResponse?.[archived ? "archived" : "active"];
+    return query.length >= 2 && args.searchResultsAreCurrent
+      ? (group?.results ?? []).map((result) =>
+          row(result.thread, result.matches, archived),
+        )
+      : [];
+  });
 }
 
 const WINDOW_LEAD_CHARS = 16;

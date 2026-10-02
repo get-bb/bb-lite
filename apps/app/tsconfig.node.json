@@ -7,11 +7,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": [
-    "vite.config.ts",
-    "vite.dev.config.ts",
-    "vite-font-preload.ts",
-    "vite-shared-ui-seam.ts",
-    "vite-react-compiler.ts"
-  ]
+  "include": ["vite.config.ts", "vite.dev.config.ts"]
 }

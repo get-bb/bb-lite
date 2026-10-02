@@ -2,7 +2,6 @@ import type {
   PendingInteractionApprovalDecision,
   PendingInteractionCommandAction,
   PendingInteractionGrantablePermissionProfile,
-  PendingInteractionGrantedPermissionProfile,
   PendingInteractionMacOsPermissions,
   PendingInteraction,
   PendingInteractionResolution,
@@ -13,265 +12,156 @@ import {
   isUserQuestionPendingInteractionPayload,
 } from "@bb/domain";
 import { assertNever } from "./assert-never.js";
-import {
-  describePendingInteractionToolUse,
-  formatPendingInteractionToolUseDetailLines,
-} from "./pending-interaction-tool-use.js";
+import { describePendingInteractionToolUse } from "./pending-interaction-tool-use.js";
 
-type PendingInteractionPermissionSummaryProfile =
+type PermissionProfile =
   | PendingInteractionGrantablePermissionProfile
   | PendingInteractionRequestedPermissionProfile;
 
-function summarizeRequestedMacOsPermissions(
+function summarizeMacOsPermissions(
   permissions: PendingInteractionMacOsPermissions | null,
 ): string[] {
-  if (permissions === null) {
-    return [];
-  }
-
-  const summaries: string[] = [];
-  if (permissions.accessibility) {
-    summaries.push("macOS accessibility");
-  }
-  if (permissions.launchServices) {
-    summaries.push("macOS launch services");
-  }
-  if (permissions.calendar) {
-    summaries.push("macOS calendar");
-  }
-  if (permissions.reminders) {
-    summaries.push("macOS reminders");
-  }
-  if (permissions.preferences !== "none") {
-    summaries.push(
-      `macOS preferences (${permissions.preferences.replace("_", " ")})`,
-    );
-  }
-  if (permissions.contacts !== "none") {
-    summaries.push(
-      `macOS contacts (${permissions.contacts.replace("_", " ")})`,
-    );
-  }
-  if (permissions.automations === "all") {
-    summaries.push("macOS automation (all apps)");
-  } else if (
-    permissions.automations !== "none" &&
-    permissions.automations.bundleIds.length > 0
-  ) {
-    summaries.push(
-      permissions.automations.bundleIds.length === 1
-        ? "macOS automation (1 app)"
-        : `macOS automation (${permissions.automations.bundleIds.length} apps)`,
-    );
-  }
-
-  return summaries;
+  if (permissions === null) return [];
+  const { preferences, contacts, automations } = permissions;
+  const appCount =
+    typeof automations === "string" ? 0 : automations.bundleIds.length;
+  return [
+    permissions.accessibility ? "macOS accessibility" : null,
+    permissions.launchServices ? "macOS launch services" : null,
+    permissions.calendar ? "macOS calendar" : null,
+    permissions.reminders ? "macOS reminders" : null,
+    preferences !== "none"
+      ? `macOS preferences (${preferences.replace("_", " ")})`
+      : null,
+    contacts !== "none"
+      ? `macOS contacts (${contacts.replace("_", " ")})`
+      : null,
+    automations === "all"
+      ? "macOS automation (all apps)"
+      : appCount > 0
+        ? `macOS automation (${appCount === 1 ? "1 app" : `${appCount} apps`})`
+        : null,
+  ].filter((summary) => summary !== null);
 }
 
-export function summarizePendingInteractionRequestedPermissions(
-  permissions: PendingInteractionPermissionSummaryProfile,
-): string[] {
-  const summaries: string[] = [];
-  if (permissions.network?.enabled === true) {
-    summaries.push("Network access");
-  }
-  if (permissions.fileSystem) {
-    if (permissions.fileSystem.read.length > 0) {
-      summaries.push(
-        permissions.fileSystem.read.length === 1
-          ? "Read 1 path"
-          : `Read ${permissions.fileSystem.read.length} paths`,
-      );
-    }
-    if (permissions.fileSystem.write.length > 0) {
-      summaries.push(
-        permissions.fileSystem.write.length === 1
-          ? "Write 1 path"
-          : `Write ${permissions.fileSystem.write.length} paths`,
-      );
-    }
-  }
-
+function summarizePermissions(permissions: PermissionProfile): string[] {
+  const paths = (verb: string, list: readonly string[] | undefined) =>
+    list && list.length > 0
+      ? [list.length === 1 ? `${verb} 1 path` : `${verb} ${list.length} paths`]
+      : [];
   return [
-    ...summaries,
-    ...summarizeRequestedMacOsPermissions(
+    ...(permissions.network?.enabled === true ? ["Network access"] : []),
+    ...paths("Read", permissions.fileSystem?.read),
+    ...paths("Write", permissions.fileSystem?.write),
+    ...summarizeMacOsPermissions(
       "macos" in permissions ? permissions.macos : null,
     ),
   ];
 }
 
-function summarizeCommandActions(
-  actions: PendingInteractionCommandAction[],
-): string[] {
-  return actions.map((action) => {
-    switch (action.type) {
-      case "read":
-        return `Read ${action.path}`;
-      case "listFiles":
-        return action.path ? `List files in ${action.path}` : "List files";
-      case "search":
-        return action.query
-          ? `Search for ${action.query}${action.path ? ` in ${action.path}` : ""}`
-          : action.path
-            ? `Search in ${action.path}`
-            : "Search files";
-      case "unknown":
-        return action.command;
-      default:
-        return assertNever(action);
-    }
-  });
+function summarizeCommandAction(
+  action: PendingInteractionCommandAction,
+): string {
+  switch (action.type) {
+    case "read":
+      return `Read ${action.path}`;
+    case "listFiles":
+      return action.path ? `List files in ${action.path}` : "List files";
+    case "search":
+      return action.query
+        ? `Search for ${action.query}${action.path ? ` in ${action.path}` : ""}`
+        : action.path
+          ? `Search in ${action.path}`
+          : "Search files";
+    case "unknown":
+      return action.command;
+    default:
+      return assertNever(action);
+  }
 }
 
-function formatPermissionSummaryLine(
-  label: string,
+function sessionGrantLines(
   permissions: PendingInteractionGrantablePermissionProfile | null,
-): string | null {
-  if (permissions === null) {
-    return null;
-  }
+): string[] {
   const summaries =
-    summarizePendingInteractionRequestedPermissions(permissions);
-  return summaries.length > 0 ? `${label}: ${summaries.join(", ")}` : null;
+    permissions === null ? [] : summarizePermissions(permissions);
+  return summaries.length > 0 ? [`Session grant: ${summaries.join(", ")}`] : [];
 }
 
 export function formatPendingInteractionSubjectDetailLines(
   interaction: PendingInteraction,
 ): string[] {
-  if (isUserQuestionPendingInteractionPayload(interaction.payload)) {
-    return interaction.payload.questions.map((question) => question.prompt);
+  const { payload } = interaction;
+  if (isUserQuestionPendingInteractionPayload(payload)) {
+    return payload.questions.map((question) => question.prompt);
   }
-  if (!isApprovalPendingInteractionPayload(interaction.payload)) {
-    return [];
-  }
-  switch (interaction.payload.subject.kind) {
-    case "command": {
-      const actionLines = summarizeCommandActions(
-        interaction.payload.subject.actions,
-      ).map((action) => `Action: ${action}`);
-      const sessionGrant = formatPermissionSummaryLine(
-        "Session grant",
-        interaction.payload.subject.sessionGrant,
-      );
+  if (!isApprovalPendingInteractionPayload(payload)) return [];
+  const { subject } = payload;
+  switch (subject.kind) {
+    case "command":
       return [
-        `Command: ${interaction.payload.subject.command}`,
-        ...(interaction.payload.subject.cwd
-          ? [`Cwd: ${interaction.payload.subject.cwd}`]
-          : []),
-        ...actionLines,
-        ...(sessionGrant ? [sessionGrant] : []),
+        `Command: ${subject.command}`,
+        ...(subject.cwd ? [`Cwd: ${subject.cwd}`] : []),
+        ...subject.actions.map(
+          (action) => `Action: ${summarizeCommandAction(action)}`,
+        ),
+        ...sessionGrantLines(subject.sessionGrant),
+      ];
+    case "file_change":
+      return [
+        `Item: ${subject.itemId}`,
+        ...(subject.writeScope ? [`Write root: ${subject.writeScope}`] : []),
+        ...sessionGrantLines(subject.sessionGrant),
+      ];
+    case "permission_grant":
+      return [
+        ...(subject.toolName ? [`Tool: ${subject.toolName}`] : []),
+        ...summarizePermissions(subject.permissions).map(
+          (permission) => `Permission: ${permission}`,
+        ),
+      ];
+    case "plan":
+      return subject.planFilePath ? [`Plan file: ${subject.planFilePath}`] : [];
+    case "tool_use": {
+      const ask = describePendingInteractionToolUse({ ...payload, subject });
+      return [
+        `Tool: ${ask.tool}`,
+        ...(ask.headline !== null ? [ask.headline] : []),
+        ...(ask.detail !== null ? [ask.detail] : []),
       ];
     }
-    case "file_change": {
-      const sessionGrant = formatPermissionSummaryLine(
-        "Session grant",
-        interaction.payload.subject.sessionGrant,
-      );
-      return [
-        `Item: ${interaction.payload.subject.itemId}`,
-        ...(interaction.payload.subject.writeScope
-          ? [`Write root: ${interaction.payload.subject.writeScope}`]
-          : []),
-        ...(sessionGrant ? [sessionGrant] : []),
-      ];
-    }
-    case "permission_grant": {
-      const permissions = summarizePendingInteractionRequestedPermissions(
-        interaction.payload.subject.permissions,
-      );
-      return [
-        ...(interaction.payload.subject.toolName
-          ? [`Tool: ${interaction.payload.subject.toolName}`]
-          : []),
-        ...permissions.map((permission) => `Permission: ${permission}`),
-      ];
-    }
-    case "plan": {
-      return interaction.payload.subject.planFilePath
-        ? [`Plan file: ${interaction.payload.subject.planFilePath}`]
-        : [];
-    }
-    case "tool_use":
-      return formatPendingInteractionToolUseDetailLines(
-        describePendingInteractionToolUse({
-          ...interaction.payload,
-          subject: interaction.payload.subject,
-        }),
-      );
     default:
-      return assertNever(interaction.payload.subject);
+      return assertNever(subject);
   }
-}
-
-function toGrantedPermissions(
-  permissions: PendingInteractionPermissionSummaryProfile,
-): PendingInteractionGrantedPermissionProfile {
-  return {
-    network: permissions.network?.enabled === true ? { enabled: true } : null,
-    fileSystem: permissions.fileSystem
-      ? {
-          read: permissions.fileSystem.read,
-          write: permissions.fileSystem.write,
-        }
-      : null,
-  };
-}
-
-export function formatPendingInteractionApprovalResolutionOutcome(
-  decision: PendingInteractionApprovalDecision,
-): string {
-  switch (decision) {
-    case "allow_once":
-      return "approved";
-    case "allow_for_session":
-      return "approved for this session";
-    case "deny":
-      return "denied";
-    default:
-      return assertNever(decision);
-  }
-}
-
-function resolveGrantedPermissionsForApproval(
-  interaction: PendingInteraction,
-  decision: PendingInteractionApprovalDecision,
-): PendingInteractionGrantedPermissionProfile | null {
-  if (!isApprovalPendingInteractionPayload(interaction.payload)) {
-    return null;
-  }
-  if (interaction.payload.subject.kind === "permission_grant") {
-    return toGrantedPermissions(interaction.payload.subject.permissions);
-  }
-
-  if (decision !== "allow_for_session") {
-    return null;
-  }
-
-  if (
-    interaction.payload.subject.kind === "command" ||
-    interaction.payload.subject.kind === "file_change"
-  ) {
-    return interaction.payload.subject.sessionGrant;
-  }
-
-  return null;
 }
 
 export function buildPendingInteractionApprovalResolution(
   interaction: PendingInteraction,
   decision: PendingInteractionApprovalDecision,
 ): PendingInteractionResolution {
-  if (decision === "deny") {
+  if (decision === "deny") return { decision };
+  const { payload } = interaction;
+  if (!isApprovalPendingInteractionPayload(payload)) {
+    return { decision, grantedPermissions: null };
+  }
+  const { subject } = payload;
+  if (subject.kind === "permission_grant") {
+    const { network, fileSystem } = subject.permissions;
     return {
       decision,
+      grantedPermissions: {
+        network: network?.enabled === true ? { enabled: true } : null,
+        fileSystem: fileSystem
+          ? { read: fileSystem.read, write: fileSystem.write }
+          : null,
+      },
     };
   }
-
+  const grantsSession =
+    decision === "allow_for_session" &&
+    (subject.kind === "command" || subject.kind === "file_change");
   return {
     decision,
-    grantedPermissions: resolveGrantedPermissionsForApproval(
-      interaction,
-      decision,
-    ),
+    grantedPermissions: grantsSession ? subject.sessionGrant : null,
   };
 }

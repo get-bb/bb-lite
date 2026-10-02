@@ -1,37 +1,25 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
-
-interface SettingsSectionProps {
-  action?: ReactNode;
-  actionPlacement?: "inline" | "responsive";
-  children: ReactNode;
-  description?: string;
-  title: ReactNode;
-  bodyClassName?: string;
-}
 
 export function SettingsSection({
   action,
-  actionPlacement = "responsive",
   children,
   description,
   title,
   bodyClassName,
-}: SettingsSectionProps) {
+}: {
+  action?: ReactNode;
+  children: ReactNode;
+  description?: string;
+  title: ReactNode;
+  bodyClassName?: string;
+}) {
   return (
     <section className="space-y-3">
       <div
         className={cn(
-          actionPlacement === "inline"
-            ? "flex flex-row justify-between gap-4"
-            : "flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-4",
-          description
-            ? actionPlacement === "inline"
-              ? "items-start"
-              : "sm:items-start"
-            : actionPlacement === "inline"
-              ? "items-center"
-              : "sm:items-center",
+          "flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-4",
+          description ? "sm:items-start" : "sm:items-center",
         )}
       >
         <div className="min-w-0">
@@ -60,36 +48,21 @@ export function SettingsSection({
   );
 }
 
-interface SettingsRowListProps {
-  children: ReactNode;
-}
-
-export function SettingsRowList({ children }: SettingsRowListProps) {
+export function SettingsRowList({ children }: { children: ReactNode }) {
   return <div className="divide-y divide-border">{children}</div>;
 }
 
-interface SettingsRowProps extends Omit<
-  HTMLAttributes<HTMLDivElement>,
-  "children"
-> {
-  children: ReactNode;
-}
-
-export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
-  ({ children, className, ...props }, ref) => (
+export function SettingsRow({ className, ...props }: ComponentProps<"div">) {
+  return (
     <div
-      ref={ref}
       className={cn(
         "flex items-center gap-3 py-2.5 text-sm first:pt-0 last:pb-0",
         className,
       )}
       {...props}
-    >
-      {children}
-    </div>
-  ),
-);
-SettingsRow.displayName = "SettingsRow";
+    />
+  );
+}
 
 export function SettingsDetailRow({
   label,
@@ -108,16 +81,6 @@ export function SettingsDetailRow({
   );
 }
 
-export type SettingsControlPlacement = "inline" | "below" | "trailing";
-
-interface SettingsWithControlProps {
-  label: string;
-  labelBadge?: string;
-  description?: ReactNode;
-  controlPlacement?: SettingsControlPlacement;
-  children: ReactNode;
-}
-
 export function SettingsBadge({ children }: { children: ReactNode }) {
   return (
     <span className="shrink-0 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-2xs leading-none text-subtle-foreground">
@@ -132,7 +95,13 @@ export function SettingsWithControl({
   description,
   controlPlacement = "inline",
   children,
-}: SettingsWithControlProps) {
+}: {
+  label: string;
+  labelBadge?: string;
+  description?: ReactNode;
+  controlPlacement?: "inline" | "below" | "trailing";
+  children: ReactNode;
+}) {
   const inline = controlPlacement === "inline";
   const trailing = controlPlacement === "trailing";
   return (
