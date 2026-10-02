@@ -11,8 +11,6 @@ export const COARSE_POINTER_COMPACT_ICON_SIZE_CLASS = "size-3.5";
 export const COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS =
   "size-3.5 shrink-0";
 
-export const COARSE_POINTER_DOT_SIZE_CLASS = "size-1.5";
-
 export const COARSE_POINTER_GLYPH_BOX_CLASS = "h-4 w-4";
 
 export const COARSE_POINTER_CHECK_SLOT_CLASS = "h-3.5 w-3.5";
@@ -32,14 +30,8 @@ export const COARSE_POINTER_CHILD_ICON_BUTTON_CLASS =
 export const COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS =
   "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground";
 
-export const COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS =
-  "h-8 px-2 transition-all";
-
 export const COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS =
   "size-auto h-8 px-2 transition-all";
-
-export const COARSE_POINTER_PROMPT_COMBO_BUTTON_CLASS =
-  "h-8 w-8 rounded-l-none border-l border-l-primary-foreground/20 px-0 transition-all hover:border-l-primary-foreground/30";
 
 export const COARSE_POINTER_INPUT_HEIGHT_CLASS = "h-9";
 
@@ -47,7 +39,5 @@ export const COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS = "h-7";
 
 export const COARSE_POINTER_ROW_HEIGHT_CLASS =
   "h-[var(--bb-sidebar-row-height)]";
-
-export const COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS = "h-7 w-6";
 
 export const COARSE_POINTER_ROW_ACTION_SIZE_CLASS = "h-7 w-7";

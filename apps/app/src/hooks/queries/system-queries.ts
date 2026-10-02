@@ -62,10 +62,6 @@ type UseSystemProvidersArgs = QueryOptions &
   SystemProviderRoutingArgs &
   Pick<SystemProvidersQuery, "capability">;
 
-type UseSystemProviderInfoArgs = UseSystemProvidersArgs & {
-  providerId?: string;
-};
-
 const SYSTEM_EXECUTION_OPTIONS_RETRY_DELAY_MS = 250;
 const SYSTEM_EXECUTION_OPTIONS_RETRY_COUNT = 1;
 const PLACEHOLDER_PERMISSION_CEILING: PermissionMode = permissionModeValues[0];
@@ -125,22 +121,6 @@ function resolveExecutionOptionsPlaceholder({
     permissionCeiling: PLACEHOLDER_PERMISSION_CEILING,
     modelLoadError: null,
   };
-}
-
-export function findCachedProviderInfo(
-  queryClient: import("@tanstack/react-query").QueryClient,
-  providerId: string,
-): ProviderInfo | null {
-  const entries = queryClient.getQueriesData<SystemExecutionOptionsResponse>({
-    queryKey: [SYSTEM_EXECUTION_OPTIONS_QUERY_KEY],
-  });
-  for (const [, data] of entries) {
-    const match = data?.providers.find((info) => info.id === providerId);
-    if (match !== undefined) {
-      return match;
-    }
-  }
-  return null;
 }
 
 function shouldRetrySystemExecutionOptions(
@@ -235,23 +215,6 @@ export function useSystemProviders(args: UseSystemProvidersArgs = {}) {
       return eligible.length > 0 ? eligible : undefined;
     },
   });
-}
-
-export function useSystemProviderInfo({
-  providerId,
-  ...args
-}: UseSystemProviderInfoArgs): ProviderInfo | null {
-  const queryClient = useQueryClient();
-  const providersQuery = useSystemProviders({
-    ...args,
-    enabled: (args.enabled ?? true) && providerId !== undefined,
-  });
-  return (
-    providersQuery.data?.find((provider) => provider.id === providerId) ??
-    (providerId === undefined
-      ? null
-      : findCachedProviderInfo(queryClient, providerId))
-  );
 }
 
 function systemExecutionOptionsQueryOptions({
