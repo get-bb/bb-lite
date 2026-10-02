@@ -6,14 +6,11 @@ import type {
 } from "@bb/client-core";
 import { buildAbsoluteFilePath } from "@/lib/absolute-file-path";
 
-export type OpenInPreferredTarget = (request: {
-  lineNumber: number | null;
-  path: string;
-}) => void;
-
 interface BuildOpenInEditorHandlerArgs {
   rootPath: string | null;
-  openInPreferredTarget: OpenInPreferredTarget | undefined;
+  openInPreferredTarget:
+    | ((request: { lineNumber: number | null; path: string }) => void)
+    | undefined;
 }
 
 export function buildOpenInEditorHandler(

@@ -208,7 +208,6 @@ import {
 import {
   buildOpenInEditorHandler,
   resolveWorkspaceChangedFileOpenTarget,
-  type OpenInPreferredTarget,
 } from "./threadWorkspaceOpenPath";
 import {
   resolveThreadLocalFileLink,
@@ -1367,18 +1366,11 @@ export function ThreadDetailView(
   const {
     directoryTargets,
     fileTargets,
+    openInPreferredFileTarget,
     openPath,
     preferredDirectoryTarget,
-    preferredFileTarget,
   } = useOpenTargets(
     executionUnavailable ? null : (environment?.hostId ?? null),
-  );
-  const openInPreferredFileTarget = useMemo<OpenInPreferredTarget | undefined>(
-    () =>
-      preferredFileTarget
-        ? (request) => void openPath(preferredFileTarget, request)
-        : undefined,
-    [openPath, preferredFileTarget],
   );
   const parentThreadSection: ThreadPromptParentThreadSection | null =
     useMemo(() => {

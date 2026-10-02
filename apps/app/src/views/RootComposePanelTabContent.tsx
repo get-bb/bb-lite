@@ -17,10 +17,7 @@ import { PluginPanelTabContent } from "@/components/plugin/PluginPanelActions";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
 import { useThreadStorageLocation } from "@/hooks/queries/thread-queries";
 import { useOpenTargets } from "@/hooks/useOpenTargets";
-import {
-  buildOpenInEditorHandler,
-  type OpenInPreferredTarget,
-} from "./thread-detail/threadWorkspaceOpenPath";
+import { buildOpenInEditorHandler } from "./thread-detail/threadWorkspaceOpenPath";
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
 import { resolveAbsoluteFilePath } from "@/lib/absolute-file-path";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
@@ -232,17 +229,10 @@ function RootComposeFilePreviewTabContent({
       : rootPanelEnvironmentId !== null
         ? (environment?.hostId ?? null)
         : projectSourceRoutingHostId;
-  const { openPath, preferredFileTarget } = useOpenTargets(
+  const { openInPreferredFileTarget } = useOpenTargets(
     tab.kind === "workspace-file-preview" && tab.environmentId === null
       ? projectPreviewHostId
       : (environment?.hostId ?? null),
-  );
-  const openInPreferredFileTarget = useMemo<OpenInPreferredTarget | undefined>(
-    () =>
-      preferredFileTarget
-        ? (request) => void openPath(preferredFileTarget, request)
-        : undefined,
-    [openPath, preferredFileTarget],
   );
   const workspaceRootPath = environment?.path ?? null;
   const relativeFileRootPath =

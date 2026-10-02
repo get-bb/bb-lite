@@ -102,12 +102,20 @@ export function useOpenTargets(hostId: string | null) {
     },
     [openHostId, setLastTargetId],
   );
+  const openInPreferredFileTarget = useMemo(
+    () =>
+      preferredFileTarget
+        ? (request: OpenPathRequest) =>
+            void openPath(preferredFileTarget, request)
+        : undefined,
+    [openPath, preferredFileTarget],
+  );
 
   return {
     directoryTargets,
     fileTargets,
+    openInPreferredFileTarget,
     openPath,
     preferredDirectoryTarget,
-    preferredFileTarget,
   };
 }
