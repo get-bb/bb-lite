@@ -21,7 +21,7 @@ interface Slot {
 
 export const ANY = "*";
 const SOON: RefreshTiming = { delay: 50, gap: 0 };
-export const STREAM: RefreshTiming = { delay: 0, gap: 200 };
+export const STREAM: RefreshTiming = { delay: 0, gap: 100 };
 const slots = new Map<string, Slot>();
 
 export function filterFor(queryKey: QueryKey): QueryFilters {
