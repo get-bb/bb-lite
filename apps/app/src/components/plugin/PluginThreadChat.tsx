@@ -247,6 +247,8 @@ function ThreadChatWithComposer({
           pendingTodos={null}
           activePromptMode={null}
           modelFallback={null}
+          activeWorkflows={NOTHING}
+          activeBackgroundCommands={NOTHING}
           parentThreadSection={null}
           childPendingInteractions={NOTHING}
           childThreadsSection={null}

@@ -524,6 +524,8 @@ export function ThreadDetailView({
       pendingTodos={timeline.pendingTodos}
       activePromptMode={timeline.activePromptMode}
       modelFallback={timeline.modelFallback}
+      activeWorkflows={timeline.activeWorkflows}
+      activeBackgroundCommands={timeline.activeBackgroundCommands}
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={
