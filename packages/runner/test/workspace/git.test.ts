@@ -100,7 +100,7 @@ describe("git status, diffs and commits", () => {
 
   it("diffs the branch, everything since the merge base, and one commit", async () => {
     const files = async (
-      target: Parameters<typeof h.api.gitDiff>[0]["target"],
+      target: Parameters<typeof h.api.gitDiffFiles>[0]["target"],
     ) => h.api.gitDiffFiles({ path: repo, target });
     const committed = await files({
       type: "branch_committed",
@@ -117,12 +117,6 @@ describe("git status, diffs and commits", () => {
     const commit = await files({ type: "commit", sha: featureSha });
     const added = { path: "committed.txt", changeKind: "added", additions: 1 };
     expect(commit.files).toMatchObject([added]);
-
-    const whole = await h.api.gitDiff({ path: repo, target: everything });
-    expect(whole.diff).toContain("diff --git a/blob.bin b/blob.bin");
-    expect(whole.files).toContain("R\trename-me.txt\trenamed.txt\n");
-    expect(whole.truncated).toBe(true);
-    expect(Buffer.byteLength(whole.diff)).toBeLessThanOrEqual(640 * KIB);
   });
 
   it("reads a changed file, lists branches, commits once", async () => {

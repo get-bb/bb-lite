@@ -1,6 +1,5 @@
 import type {
   GitSourceInspection,
-  ThreadGitDiffResponse,
   WorkspaceDiffTarget,
   WorkspaceStatus,
 } from "@bb/domain";
@@ -142,7 +141,6 @@ export interface WorkspaceApi {
     path: string;
     mergeBaseBranch?: string;
   }): Promise<WorkspaceStatus>;
-  gitDiff(args: DiffScope): Promise<ThreadGitDiffResponse>;
   gitDiffFiles(args: DiffScope): Promise<DiffFiles>;
   gitDiffPatch(
     args: DiffScope & { paths: string[] },

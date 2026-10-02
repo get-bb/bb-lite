@@ -58,7 +58,6 @@ export function createWorkspaceApi(deps: WorkspaceDeps): WorkspaceHandle {
       inspectGitSource: bind(git.inspectGitSource),
       listBranches: bind(git.listBranches),
       gitStatus: bind(git.gitStatus),
-      gitDiff: bind(diff.gitDiff),
       gitDiffFiles: bind(diff.gitDiffFiles),
       gitDiffPatch: bind(diff.gitDiffPatch),
       gitDiffFile: bind(diff.gitDiffFile),
