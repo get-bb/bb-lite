@@ -8,43 +8,11 @@ import {
 } from "./api/machine-environment.js";
 import {
   machineEnvironmentReplaceSchema,
-  setAiServiceSelectionRequestSchema,
   systemProviderEnabledRequestSchema,
-  testAiServiceRequestSchema,
   type MachineEnvironmentReplace,
-  type SetAiServiceSelectionRequest,
-  type SystemAiServicesResponse,
   type SystemProviderCatalogEntry,
   type SystemProviderEnabledRequest,
-  type TestAiServiceRequest,
-  type TestAiServiceResponse,
 } from "./api/system.js";
-import {
-  desktopBrowserHostRequestSchema,
-  desktopBrowserScopeSchema,
-  desktopBrowserCreateRequestSchema,
-  desktopBrowserAcquireRequestSchema,
-  desktopBrowserLeaseRequestSchema,
-  desktopBrowserTabRequestSchema,
-  type ExperimentalDesktopBrowserHostRequest,
-  type ExperimentalDesktopBrowserScope,
-  type ExperimentalDesktopBrowserCreateInput,
-  type ExperimentalDesktopBrowserAcquireInput,
-  type ExperimentalDesktopBrowserLeaseRequest,
-  type ExperimentalDesktopBrowserTabRequest,
-  type ExperimentalDesktopBrowserInstances,
-  type ExperimentalDesktopBrowserTabs,
-  type ExperimentalDesktopBrowserCreated,
-  type ExperimentalDesktopBrowserLease,
-  type ExperimentalDesktopBrowserConnection,
-  type ExperimentalDesktopBrowserCapture,
-  desktopBrowserInstanceRequestSchema,
-  desktopBrowserImportCookiesRequestSchema,
-  type ExperimentalDesktopBrowserInstanceRequest,
-  type ExperimentalDesktopBrowserImportCookiesInput,
-  type ExperimentalDesktopBrowserImportSources,
-  type ExperimentalDesktopBrowserImportOutcome,
-} from "./api/desktop-browsers.js";
 import type { Hono } from "hono";
 import type {
   AppTheme,
@@ -53,7 +21,6 @@ import type {
   AppSettingsUpdate,
   AppKeybindingOverrides,
   Environment,
-  Experiments,
   Host,
   PendingInteraction,
   ProjectExecutionDefaults,
@@ -66,7 +33,6 @@ import {
   appSettingsUpdateSchema,
   appKeybindingOverridesSchema,
   appThemeSelectionSchema,
-  experimentsSchema,
 } from "@bb/domain";
 import type { ProviderUsageResponse } from "@bb/host-daemon-contract";
 import {
@@ -78,7 +44,6 @@ import {
   noRequest,
   optionalQueryRequest,
   queryRequest,
-  textResponse,
   type ApiSchemaFromRouteDescriptors,
   type EmptyInput,
 } from "@bb/hono-typed-routes";
@@ -124,7 +89,6 @@ import type {
   EnvironmentDiffQuery,
   EnvironmentDiffResponse,
   EnvironmentPathsQuery,
-  EnvironmentPullRequestResponse,
   EnvironmentStatusQuery,
   EnvironmentStatusResponse,
   HostDirectoryListing,
@@ -132,7 +96,6 @@ import type {
   HostEnrollmentCommandResponse,
   HostReconnectResponse,
   HostListQuery,
-  HostActionResponse,
   HostCloneDefaultPathQuery,
   HostCloneDefaultPathResponse,
   HostFileListRequest,
@@ -155,10 +118,6 @@ import type {
   HostPickFolderResponse,
   HostPathsExistRequest,
   HostPathsExistResponse,
-  HostProviderCliInstallEvent,
-  HostProviderCliInstallRequest,
-  HostProviderCliStatusResponse,
-  HostRetryUpdateResponse,
   ProjectAttachmentContentQuery,
   ProjectAttachmentUploadForm,
   ProjectBranchesQuery,
@@ -190,24 +149,14 @@ import type {
   SystemAttentionResponse,
   SystemConfigReloadResponse,
   SystemConfigResponse,
-  SystemMobileAppReleasesResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
   SystemEnvironmentProvidersQuery,
   SystemEnvironmentProvidersResponse,
-  SystemMachineProvidersResponse,
   SystemProviderInfo,
   SystemProvidersQuery,
   SystemProviderStatesResponse,
   SystemUsageLimitsQuery,
-  SystemAppUpdateAcknowledgeRequest,
-  SystemAppUpdateApplyRequest,
-  SystemAppUpdateQuery,
-  SystemAppUpdateStatus,
-  SystemVersionQuery,
-  SystemVersionResponse,
-  SystemVoiceTranscriptionForm,
-  SystemVoiceTranscriptionResponse,
   TerminalListResponse,
   ThemeCatalogResponse,
   TerminalSession,
@@ -318,7 +267,6 @@ import {
   hostRemovePathRequestSchema,
   hostPickFolderRequestSchema,
   hostPathsExistRequestSchema,
-  hostProviderCliInstallRequestSchema,
   projectAttachmentContentQuerySchema,
   projectBranchesQuerySchema,
   projectCommandsQuerySchema,
@@ -342,10 +290,6 @@ import {
   systemEnvironmentProvidersQuerySchema,
   systemProvidersQuerySchema,
   systemUsageLimitsQuerySchema,
-  systemVersionQuerySchema,
-  systemAppUpdateAcknowledgeRequestSchema,
-  systemAppUpdateApplyRequestSchema,
-  systemAppUpdateQuerySchema,
   threadEventWaitQuerySchema,
   threadEventsQuerySchema,
   threadGetQuerySchema,
@@ -372,16 +316,6 @@ import {
   updateProjectSourceRequestSchema,
   updateThreadRequestSchema,
 } from "./api-types.js";
-import {
-  serverMoveCheckRequestSchema,
-  serverMoveStartRequestSchema,
-  type DeleteOldServerCopyResponse,
-  type ServerMoveCheckRequest,
-  type ServerMoveCheckResponse,
-  type ServerMoveStartRequest,
-  type ServerMoveStatus,
-  type ServerMoveStatusResponse,
-} from "./api/server-move.js";
 import type { ApiError } from "./errors.js";
 
 type PathProjectSourceId = { param: { id: string; sourceId: string } };
@@ -664,99 +598,6 @@ export const publicApiRoutes = {
     }),
   },
 
-  desktopBrowsers: {
-    listInstances: defineRoute({
-      path: "/desktop-browsers/instances",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserHostRequest>(
-        desktopBrowserHostRequestSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserInstances>(),
-    }),
-    listTabs: defineRoute({
-      path: "/desktop-browsers/tabs",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserScope>(
-        desktopBrowserScopeSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserTabs>(),
-    }),
-    createTab: defineRoute({
-      path: "/desktop-browsers/create",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserCreateInput>(
-        desktopBrowserCreateRequestSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserCreated>(),
-    }),
-    acquireControl: defineRoute({
-      path: "/desktop-browsers/acquire",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserAcquireInput>(
-        desktopBrowserAcquireRequestSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserLease>(),
-    }),
-    openConnection: defineRoute({
-      path: "/desktop-browsers/connection",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserLeaseRequest>(
-        desktopBrowserLeaseRequestSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserConnection>(),
-    }),
-    releaseControl: defineRoute({
-      path: "/desktop-browsers/release",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserLeaseRequest>(
-        desktopBrowserLeaseRequestSchema,
-      ),
-      response: jsonResponse<{ ok: true }>(),
-    }),
-    closeTab: defineRoute({
-      path: "/desktop-browsers/close",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserTabRequest>(
-        desktopBrowserTabRequestSchema,
-      ),
-      response: jsonResponse<{ ok: true }>(),
-    }),
-    revealTab: defineRoute({
-      path: "/desktop-browsers/reveal",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserTabRequest>(
-        desktopBrowserTabRequestSchema,
-      ),
-      response: jsonResponse<{ ok: true }>(),
-    }),
-    captureTab: defineRoute({
-      path: "/desktop-browsers/capture",
-      method: "post",
-      request: jsonRequest<EmptyInput, ExperimentalDesktopBrowserTabRequest>(
-        desktopBrowserTabRequestSchema,
-      ),
-      response: jsonResponse<ExperimentalDesktopBrowserCapture>(),
-    }),
-    listImportSources: defineRoute({
-      path: "/desktop-browsers/import-sources",
-      method: "post",
-      request: jsonRequest<
-        EmptyInput,
-        ExperimentalDesktopBrowserInstanceRequest
-      >(desktopBrowserInstanceRequestSchema),
-      response: jsonResponse<ExperimentalDesktopBrowserImportSources>(),
-    }),
-    importCookies: defineRoute({
-      path: "/desktop-browsers/import-cookies",
-      method: "post",
-      request: jsonRequest<
-        EmptyInput,
-        ExperimentalDesktopBrowserImportCookiesInput
-      >(desktopBrowserImportCookiesRequestSchema),
-      response: jsonResponse<ExperimentalDesktopBrowserImportOutcome>(),
-    }),
-  },
-
   hosts: {
     create: defineRoute({
       path: "/hosts",
@@ -819,36 +660,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<Host>(),
     }),
-    retryUpdate: defineRoute({
-      path: "/hosts/:id/retry-update",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<HostRetryUpdateResponse>(),
-    }),
-    reconcile: defineRoute({
-      path: "/hosts/:id/reconcile",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<Host, 202>({ status: 202 }),
-    }),
-    suspend: defineRoute({
-      path: "/hosts/:id/suspend",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<Host, 202>({ status: 202 }),
-    }),
-    resume: defineRoute({
-      path: "/hosts/:id/resume",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<Host, 202>({ status: 202 }),
-    }),
-    retryCleanup: defineRoute({
-      path: "/hosts/:id/retry-cleanup",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<HostActionResponse>(),
-    }),
     delete: defineRoute({
       path: "/hosts/:id",
       method: "delete",
@@ -892,62 +703,6 @@ export const publicApiRoutes = {
         hostPickFolderRequestSchema,
       ),
       response: jsonResponse<HostPickFolderResponse>(),
-    }),
-    providerCliStatus: defineRoute({
-      path: "/hosts/:id/provider-clis/status",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<HostProviderCliStatusResponse>(),
-    }),
-    providerCliInstall: defineRoute({
-      path: "/hosts/:id/provider-clis/install",
-      method: "post",
-      request: jsonRequest<PathId, HostProviderCliInstallRequest>(
-        hostProviderCliInstallRequestSchema,
-      ),
-      response: textResponse<HostProviderCliInstallEvent>(),
-    }),
-    deleteOldServerCopy: defineRoute({
-      path: "/hosts/:id/old-server-copy",
-      method: "delete",
-      request: noRequest<PathId>(),
-      response: jsonResponse<DeleteOldServerCopyResponse>(),
-    }),
-  },
-  server: {
-    checkMove: defineRoute({
-      path: "/server/move/check",
-      method: "post",
-      request: jsonRequest<EmptyInput, ServerMoveCheckRequest>(
-        serverMoveCheckRequestSchema,
-      ),
-      response: jsonResponse<ServerMoveCheckResponse>(),
-    }),
-    startMove: defineRoute({
-      path: "/server/move",
-      method: "post",
-      request: jsonRequest<EmptyInput, ServerMoveStartRequest>(
-        serverMoveStartRequestSchema,
-      ),
-      response: jsonResponse<ServerMoveStatus>(),
-    }),
-    moveStatus: defineRoute({
-      path: "/server/move",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<ServerMoveStatusResponse>(),
-    }),
-    cancelMove: defineRoute({
-      path: "/server/move/cancel",
-      method: "post",
-      request: noRequest(),
-      response: jsonResponse<ServerMoveStatus>(),
-    }),
-    export: defineRoute({
-      path: "/server/export",
-      method: "post",
-      request: noRequest(),
-      response: binaryResponse<Uint8Array>(),
     }),
   },
 
@@ -1073,12 +828,6 @@ export const publicApiRoutes = {
         environmentStatusQuerySchema,
       ),
       response: jsonResponse<EnvironmentStatusResponse>(),
-    }),
-    pullRequest: defineRoute({
-      path: "/environments/:id/pull-request",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<EnvironmentPullRequestResponse>(),
     }),
     diff: defineRoute({
       path: "/environments/:id/diff",
@@ -1715,39 +1464,11 @@ export const publicApiRoutes = {
       request: noRequest(),
       response: jsonResponse<SystemAttentionResponse>(),
     }),
-    mobileAppReleases: defineRoute({
-      path: "/system/mobile-app-releases",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<SystemMobileAppReleasesResponse>(),
-    }),
     config: defineRoute({
       path: "/system/config",
       method: "get",
       request: noRequest(),
       response: jsonResponse<SystemConfigResponse>(),
-    }),
-    aiServices: defineRoute({
-      path: "/system/ai-services",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<SystemAiServicesResponse>(),
-    }),
-    setAiServiceSelection: defineRoute({
-      path: "/system/ai-services/selection",
-      method: "put",
-      request: jsonRequest<EmptyInput, SetAiServiceSelectionRequest>(
-        setAiServiceSelectionRequestSchema,
-      ),
-      response: jsonResponse<SystemAiServicesResponse>(),
-    }),
-    testAiService: defineRoute({
-      path: "/system/ai-services/test",
-      method: "post",
-      request: jsonRequest<EmptyInput, TestAiServiceRequest>(
-        testAiServiceRequestSchema,
-      ),
-      response: jsonResponse<TestAiServiceResponse>(),
     }),
     generalSettings: defineRoute({
       path: "/settings/general",
@@ -1766,12 +1487,6 @@ export const publicApiRoutes = {
         appKeybindingOverridesSchema,
       ),
       response: jsonResponse<AppKeybindingOverrides>(),
-    }),
-    experiments: defineRoute({
-      path: "/settings/experiments",
-      method: "put",
-      request: jsonRequest<EmptyInput, Experiments>(experimentsSchema),
-      response: jsonResponse<Experiments>(),
     }),
     appearance: defineRoute({
       path: "/settings/appearance",
@@ -1849,12 +1564,6 @@ export const publicApiRoutes = {
       >(systemEnvironmentProvidersQuerySchema),
       response: jsonResponse<SystemEnvironmentProvidersResponse>(),
     }),
-    machineProviders: defineRoute({
-      path: "/system/machine-providers",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<SystemMachineProvidersResponse>(),
-    }),
     providers: defineRoute({
       path: "/system/providers",
       method: "get",
@@ -1898,44 +1607,6 @@ export const publicApiRoutes = {
         systemUsageLimitsQuerySchema,
       ),
       response: jsonResponse<ProviderUsageResponse>(),
-    }),
-    voiceTranscription: defineRoute({
-      path: "/system/voice-transcription",
-      method: "post",
-      request: formRequest<EmptyInput, SystemVoiceTranscriptionForm>(),
-      response: jsonResponse<SystemVoiceTranscriptionResponse>(),
-    }),
-    version: defineRoute({
-      path: "/system/version",
-      method: "get",
-      request: optionalQueryRequest<EmptyInput, SystemVersionQuery>(
-        systemVersionQuerySchema,
-      ),
-      response: jsonResponse<SystemVersionResponse>(),
-    }),
-    appUpdate: defineRoute({
-      path: "/system/app-update",
-      method: "get",
-      request: optionalQueryRequest<EmptyInput, SystemAppUpdateQuery>(
-        systemAppUpdateQuerySchema,
-      ),
-      response: jsonResponse<SystemAppUpdateStatus>(),
-    }),
-    applyAppUpdate: defineRoute({
-      path: "/system/app-update/apply",
-      method: "post",
-      request: jsonRequest<EmptyInput, SystemAppUpdateApplyRequest>(
-        systemAppUpdateApplyRequestSchema,
-      ),
-      response: jsonResponse<SystemAppUpdateStatus>(),
-    }),
-    acknowledgeAppUpdate: defineRoute({
-      path: "/system/app-update/acknowledge",
-      method: "post",
-      request: jsonRequest<EmptyInput, SystemAppUpdateAcknowledgeRequest>(
-        systemAppUpdateAcknowledgeRequestSchema,
-      ),
-      response: jsonResponse<SystemAppUpdateStatus>(),
     }),
   },
 };

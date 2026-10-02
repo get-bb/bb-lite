@@ -1,9 +1,6 @@
-import { nanoid } from "nanoid";
 import {
-  buildFixedPanelTabId,
   isFixedPanelTabsStateStorageKey,
   shouldPruneStoredFixedPanelTabsState,
-  type BrowserFixedPanelTab,
 } from "@bb/client-core";
 import { getLocalStorage } from "./browser-storage";
 
@@ -36,7 +33,6 @@ export type {
   WorkspaceFilePreviewFixedPanelTab,
   HostFilePreviewFixedPanelTab,
   ThreadStorageFilePreviewFixedPanelTab,
-  BrowserFixedPanelTab,
   NewTabFixedPanelTab,
   TerminalFixedPanelTab,
   SecondaryFixedPanelTab,
@@ -45,31 +41,8 @@ export type {
   FixedPanelTabsState,
 } from "@bb/client-core";
 
-interface CreateBrowserFixedPanelTabArgs {
-  environmentId: string | null;
-  url: string;
-}
-
 interface PruneFixedPanelTabsStorageArgs {
   now: number;
-}
-
-export function createBrowserFixedPanelTab({
-  environmentId,
-  url,
-}: CreateBrowserFixedPanelTabArgs): BrowserFixedPanelTab {
-  const browserInstanceId = nanoid();
-  return {
-    environmentId,
-    id: buildFixedPanelTabId({
-      environmentId,
-      kind: "browser",
-      path: browserInstanceId,
-    }),
-    kind: "browser",
-    title: null,
-    url,
-  };
 }
 
 export function pruneFixedPanelTabsStorage({

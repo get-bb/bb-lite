@@ -7,7 +7,6 @@ import { systemConfigQueryOptions } from "@/hooks/queries/system-queries";
 import { markSystemConfigStale } from "@/hooks/cache-owners/system-config-cache-owner";
 import { appQueryClient } from "./app-query-client";
 import { fetchHostStatus, fetchWorkspaceOpenTargets } from "./api-host-daemon";
-import { getBbDesktopInfo } from "./bb-desktop";
 import {
   getBrowserLocalNetworkPermissionQuery,
   resolveLocalHostDaemonAccess,
@@ -27,11 +26,6 @@ const unavailableSystemConfig: SystemConfigResponse = {
   keybindings: [],
   defaultKeybindings: [],
   keybindingOverrides: [],
-  experiments: {
-    changelogPreview: false,
-    legacyJitiPluginLoader: false,
-    serverMove: false,
-  },
   appearance: defaultAppTheme,
   customThemes: [],
   pluginThemes: [],
@@ -41,7 +35,6 @@ const unavailableSystemConfig: SystemConfigResponse = {
   serverUrl: "",
   primaryHostId: null,
   primaryHostPlatform: null,
-  voiceTranscriptionEnabled: false,
   dataDir: "",
 };
 
@@ -235,7 +228,6 @@ export const localHostDaemonAccessStateAtom = atom<
   return resolveLocalHostDaemonAccess({
     configuredPorts: config.localHelperPorts,
     hostname: typeof window === "undefined" ? null : window.location.hostname,
-    isDesktop: getBbDesktopInfo() !== null,
     permissions: getBrowserLocalNetworkPermissionQuery(),
     sessionAccessGranted,
   });

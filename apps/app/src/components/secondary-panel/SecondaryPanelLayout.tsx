@@ -1,11 +1,8 @@
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
-  useSyncExternalStore,
   type Key,
   type ReactNode,
 } from "react";
@@ -15,12 +12,7 @@ import {
   PanelGroup,
   type ImperativePanelGroupHandle,
 } from "react-resizable-panels";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { useResponsiveDrawerRealization } from "@bb/shared-ui/responsive-overlay";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { CompactSecondaryPanelShelf } from "./CompactSecondaryPanelShelf";
-import type { PluginComposerHost } from "@/components/plugin/plugin-composer-host";
-import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import {
   useOptionalPaneContext,
   usePaneSecondaryPanelRegistration,
@@ -33,10 +25,6 @@ import {
 } from "./panelTransitionTokens";
 import { secondaryPanelWidthPercentAtom } from "./threadSecondaryPanelAtoms";
 import {
-  isCompactSidebarDrawerShowing,
-  subscribeCompactSidebarDrawerShowing,
-} from "@/components/ui/sidebar-mobile-drawer-visibility";
-import {
   SecondaryPanelMinimumContext,
   useSecondaryPanelSizing,
 } from "./secondaryPanelSizing";
@@ -46,8 +34,6 @@ const FULL_PANEL_SIZE_PERCENT = 100;
 function noopToggleMainCollapse(): void {}
 
 interface SecondaryPanelRenderArgs {
-  presentation: "inline" | "drawer";
-  canShowNativeBrowserView: boolean;
   isMainCollapsed: boolean;
   onToggleMainCollapse: () => void;
   resizablePanelId?: string;
@@ -56,12 +42,9 @@ interface SecondaryPanelRenderArgs {
 interface SecondaryPanelLayoutProps {
   open: boolean;
   onToggle: () => void;
-  onClose: () => void;
   panelGroupKey?: Key;
   resetKey: Key;
   contentKey: string;
-  drawerLabel: string;
-  drawerFallback: ReactNode;
   mainPanelId: string;
   mainHeader?: ReactNode;
   main: ReactNode;
@@ -71,51 +54,29 @@ interface SecondaryPanelLayoutProps {
   };
   renderPanel: (args: SecondaryPanelRenderArgs) => ReactNode;
   renderHostedPanel?: (panel: ReactNode) => ReactNode;
-  composerHost: PluginComposerHost | null;
 }
 
 export function SecondaryPanelLayout({
   open,
   onToggle,
-  onClose,
   panelGroupKey,
   resetKey,
   contentKey,
-  drawerLabel,
-  drawerFallback,
   mainPanelId,
   mainHeader,
   main,
   collapse,
   renderPanel,
   renderHostedPanel,
-  composerHost,
 }: SecondaryPanelLayoutProps) {
   const { ref: sizingRef, minimum: minimumSize } = useSecondaryPanelSizing();
   const paneContext = useOptionalPaneContext();
   const secondaryPanelHost = paneContext?.secondaryPanelHost ?? null;
-  const renderAsDrawer = useIsCompactViewport();
-  const sidebarDrawerShowing = useSyncExternalStore(
-    subscribeCompactSidebarDrawerShowing,
-    isCompactSidebarDrawerShowing,
-    () => false,
-  );
-  const previousSidebarDrawerShowing = useRef(sidebarDrawerShowing);
-  useEffect(() => {
-    const sidebarOpened =
-      sidebarDrawerShowing && !previousSidebarDrawerShowing.current;
-    previousSidebarDrawerShowing.current = sidebarDrawerShowing;
-    if (!renderAsDrawer || !open || !sidebarOpened) return;
-    onClose();
-  }, [onClose, open, renderAsDrawer, sidebarDrawerShowing]);
-  const transitionsReady = usePanelCollapseTransitionsReady(
-    resetKey,
-    !renderAsDrawer,
-  );
+  const transitionsReady = usePanelCollapseTransitionsReady(resetKey);
   const persistedSecondaryWidthPercent = useAtomValue(
     secondaryPanelWidthPercentAtom,
   );
-  const isMainCollapsed = open && !renderAsDrawer && collapse?.active === true;
+  const isMainCollapsed = open && collapse?.active === true;
 
   const horizontalPanelGroupRef = useRef<ImperativePanelGroupHandle | null>(
     null,
@@ -127,7 +88,7 @@ export function SecondaryPanelLayout({
 
   useLayoutEffect(() => {
     const group = horizontalPanelGroupRef.current;
-    if (group === null || renderAsDrawer) {
+    if (group === null) {
       return;
     }
     if (group.getLayout().length !== 2) {
@@ -145,102 +106,8 @@ export function SecondaryPanelLayout({
 
     const secondaryWidth = persistedSecondaryWidthRef.current;
     group.setLayout([FULL_PANEL_SIZE_PERCENT - secondaryWidth, secondaryWidth]);
-  }, [isMainCollapsed, open, renderAsDrawer]);
+  }, [isMainCollapsed, open]);
 
-  const [isCompactDrawerContentSettled, setIsCompactDrawerContentSettled] =
-    useState(false);
-  const { isContentRealized: isPanelRealized, realizeContent: realizePanel } =
-    useResponsiveDrawerRealization({
-      open,
-      enabled: renderAsDrawer,
-    });
-  const compactDrawerContentSettleFrameRef = useRef<number | null>(null);
-  const compactDrawerContentSettleGenerationRef = useRef(0);
-  const compactDrawerContentSettleStateRef = useRef({
-    open,
-    renderAsDrawer,
-    resetKey,
-  });
-
-  useLayoutEffect(() => {
-    compactDrawerContentSettleStateRef.current = {
-      open,
-      renderAsDrawer,
-      resetKey,
-    };
-  }, [open, renderAsDrawer, resetKey]);
-
-  const cancelCompactDrawerContentSettleFrame = useCallback(() => {
-    compactDrawerContentSettleGenerationRef.current += 1;
-    if (compactDrawerContentSettleFrameRef.current === null) {
-      return;
-    }
-    window.cancelAnimationFrame(compactDrawerContentSettleFrameRef.current);
-    compactDrawerContentSettleFrameRef.current = null;
-  }, []);
-
-  useLayoutEffect(() => {
-    cancelCompactDrawerContentSettleFrame();
-    // oxlint-disable-next-line react/set-state-in-effect
-    setIsCompactDrawerContentSettled(false);
-  }, [cancelCompactDrawerContentSettleFrame, open, renderAsDrawer, resetKey]);
-
-  useLayoutEffect(
-    () => () => {
-      cancelCompactDrawerContentSettleFrame();
-    },
-    [cancelCompactDrawerContentSettleFrame],
-  );
-
-  const handleDrawerContentAnimationEnd = useCallback(
-    (animationEndedOpen: boolean) => {
-      if (!animationEndedOpen) {
-        return;
-      }
-      const currentState = compactDrawerContentSettleStateRef.current;
-      if (!currentState.open || !currentState.renderAsDrawer) {
-        return;
-      }
-
-      cancelCompactDrawerContentSettleFrame();
-      const requestGeneration = compactDrawerContentSettleGenerationRef.current;
-      const requestResetKey = currentState.resetKey;
-      compactDrawerContentSettleFrameRef.current = window.requestAnimationFrame(
-        () => {
-          compactDrawerContentSettleFrameRef.current = null;
-          const latestState = compactDrawerContentSettleStateRef.current;
-          if (
-            compactDrawerContentSettleGenerationRef.current !==
-              requestGeneration ||
-            latestState.resetKey !== requestResetKey ||
-            !latestState.open ||
-            !latestState.renderAsDrawer
-          ) {
-            return;
-          }
-
-          dispatchBrowserViewBoundsSync();
-
-          const stateAfterSync = compactDrawerContentSettleStateRef.current;
-          if (
-            compactDrawerContentSettleGenerationRef.current ===
-              requestGeneration &&
-            stateAfterSync.resetKey === requestResetKey &&
-            stateAfterSync.open &&
-            stateAfterSync.renderAsDrawer
-          ) {
-            setIsCompactDrawerContentSettled(true);
-            realizePanel();
-          }
-        },
-      );
-    },
-    [cancelCompactDrawerContentSettleFrame, realizePanel],
-  );
-
-  const canShowNativeBrowserView = renderAsDrawer
-    ? open && isCompactDrawerContentSettled
-    : open && (secondaryPanelHost === null || paneContext?.isFocused === true);
   const resizablePanelId =
     secondaryPanelHost === null || paneContext === null
       ? undefined
@@ -248,39 +115,15 @@ export function SecondaryPanelLayout({
 
   const inlinePanel = useMemo(
     () =>
-      renderAsDrawer
-        ? null
-        : renderPanel({
-            presentation: "inline",
-            canShowNativeBrowserView,
-            isMainCollapsed,
-            onToggleMainCollapse: collapse?.onToggle ?? noopToggleMainCollapse,
-            resizablePanelId,
-          }),
-    [
-      canShowNativeBrowserView,
-      collapse?.onToggle,
-      isMainCollapsed,
-      renderAsDrawer,
-      renderPanel,
-      resizablePanelId,
-    ],
-  );
-  const drawerPanel = useMemo(
-    () =>
-      renderAsDrawer
-        ? renderPanel({
-            presentation: "drawer",
-            canShowNativeBrowserView,
-            isMainCollapsed: false,
-            onToggleMainCollapse: collapse?.onToggle ?? noopToggleMainCollapse,
-          })
-        : null,
-    [canShowNativeBrowserView, collapse?.onToggle, renderAsDrawer, renderPanel],
+      renderPanel({
+        isMainCollapsed,
+        onToggleMainCollapse: collapse?.onToggle ?? noopToggleMainCollapse,
+        resizablePanelId,
+      }),
+    [collapse?.onToggle, isMainCollapsed, renderPanel, resizablePanelId],
   );
   const hostedPanelModel = useMemo<PaneSecondaryPanelViewModel>(
     () => ({
-      composerHost,
       contentKey,
       isMainCollapsed,
       isOpen: open,
@@ -289,7 +132,6 @@ export function SecondaryPanelLayout({
       transitionsReady,
     }),
     [
-      composerHost,
       contentKey,
       inlinePanel,
       isMainCollapsed,
@@ -329,55 +171,43 @@ export function SecondaryPanelLayout({
   }
 
   return (
-    <>
-      <div ref={sizingRef} className="flex min-h-0 w-full min-w-0 flex-1">
-        <PanelGroup
-          key={panelGroupKey ?? resetKey}
-          ref={horizontalPanelGroupRef}
-          data-split-resize-grid-root=""
-          direction="horizontal"
-          className="@container h-full min-w-0 flex-1"
-          style={{
-            overflow: "clip",
-            ...getPanelCollapseTransitionStyle(transitionsReady),
-          }}
+    <div ref={sizingRef} className="flex min-h-0 w-full min-w-0 flex-1">
+      <PanelGroup
+        key={panelGroupKey ?? resetKey}
+        ref={horizontalPanelGroupRef}
+        data-split-resize-grid-root=""
+        direction="horizontal"
+        className="@container h-full min-w-0 flex-1"
+        style={{
+          overflow: "clip",
+          ...getPanelCollapseTransitionStyle(transitionsReady),
+        }}
+      >
+        <Panel
+          id={mainPanelId}
+          {...(collapse === undefined
+            ? {}
+            : { collapsible: true, collapsedSize: 0 })}
+          defaultSize={
+            isMainCollapsed
+              ? 0
+              : open
+                ? FULL_PANEL_SIZE_PERCENT - persistedSecondaryWidthPercent
+                : FULL_PANEL_SIZE_PERCENT
+          }
+          minSize={minimumSize.min * 100}
+          order={1}
+          className={cn(
+            "min-w-0 overflow-clip transition-[flex-grow,flex-basis]",
+            PANEL_COLLAPSE_TRANSITION_CLASS,
+          )}
         >
-          <Panel
-            id={mainPanelId}
-            {...(collapse === undefined
-              ? {}
-              : { collapsible: true, collapsedSize: 0 })}
-            defaultSize={
-              isMainCollapsed
-                ? 0
-                : open && !renderAsDrawer
-                  ? FULL_PANEL_SIZE_PERCENT - persistedSecondaryWidthPercent
-                  : FULL_PANEL_SIZE_PERCENT
-            }
-            minSize={minimumSize.min * 100}
-            order={1}
-            className={cn(
-              "min-w-0 overflow-clip transition-[flex-grow,flex-basis]",
-              PANEL_COLLAPSE_TRANSITION_CLASS,
-            )}
-          >
-            {mainContent}
-          </Panel>
-          <SecondaryPanelMinimumContext.Provider value={minimumSize}>
-            {inlinePanel}
-          </SecondaryPanelMinimumContext.Provider>
-        </PanelGroup>
-      </div>
-      {renderAsDrawer ? (
-        <CompactSecondaryPanelShelf
-          open={open}
-          onClose={onClose}
-          srLabel={drawerLabel}
-          onContentAnimationEnd={handleDrawerContentAnimationEnd}
-        >
-          {isPanelRealized ? drawerPanel : drawerFallback}
-        </CompactSecondaryPanelShelf>
-      ) : null}
-    </>
+          {mainContent}
+        </Panel>
+        <SecondaryPanelMinimumContext.Provider value={minimumSize}>
+          {inlinePanel}
+        </SecondaryPanelMinimumContext.Provider>
+      </PanelGroup>
+    </div>
   );
 }

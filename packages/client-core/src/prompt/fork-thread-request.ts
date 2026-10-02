@@ -25,11 +25,13 @@ export interface ForkThreadCreateSeed {
 
 interface BuildForkThreadRequestArgs extends ForkThreadCreateSeed {
   input: PromptInput[];
-  pluginSubmission: AppCreateThreadRequest["pluginSubmission"];
   providerSupportsFork: boolean;
 }
 
-type ForkableThread = Pick<Thread, "archivedAt" | "environmentId" | "providerId">;
+type ForkableThread = Pick<
+  Thread,
+  "archivedAt" | "environmentId" | "providerId"
+>;
 
 export function isThreadForkable(
   sourceThread: ForkableThread | null,
@@ -50,7 +52,6 @@ export function buildForkThreadRequest({
   input,
   model,
   permissionMode,
-  pluginSubmission,
   projectId,
   providerId,
   providerSupportsFork,
@@ -69,7 +70,6 @@ export function buildForkThreadRequest({
     model,
     originKind: "fork",
     permissionMode,
-    ...(pluginSubmission === undefined ? {} : { pluginSubmission }),
     projectId,
     providerId,
     reasoningLevel,

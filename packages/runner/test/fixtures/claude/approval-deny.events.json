@@ -1,0 +1,246 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "769365bc-819a-4f1f-80e4-97929e7c31fc",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "769365bc-819a-4f1f-80e4-97929e7c31fc",
+    "scope": {
+      "kind": "thread"
+    },
+    "contextWindowUsage": {
+      "usedTokens": null,
+      "modelContextWindow": null,
+      "estimated": true
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "769365bc-819a-4f1f-80e4-97929e7c31fc",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "769365bc-819a-4f1f-80e4-97929e7c31fc",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_jcvc62m6n5"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 28811,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i1",
+      "command": "touch ~/bb-recording-outside.txt",
+      "cwd": "",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "touch ~/bb-recording-outside.txt"
+      }
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "claude-code",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "five_hour",
+          "label": "Five-hour limit",
+          "status": "allowed",
+          "resetsAtMs": 1787288400000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": "allowed",
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i1",
+      "command": "touch ~/bb-recording-outside.txt",
+      "cwd": "",
+      "aggregatedOutput": "Permission request denied",
+      "exitCode": 1,
+      "status": "failed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "touch ~/bb-recording-outside.txt"
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": ""
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i2",
+    "delta": "den"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i2",
+    "delta": "ied"
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30043,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": "denied"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 30043,
+      "modelContextWindow": 1000000,
+      "estimated": true
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 58948,
+        "inputTokens": 4,
+        "cachedInputTokens": 58850,
+        "cacheReadInputTokens": 49634,
+        "cacheWriteInputTokens": 9216,
+        "outputTokens": 94,
+        "reasoningOutputTokens": 0
+      },
+      "last": {
+        "totalTokens": 58948,
+        "inputTokens": 4,
+        "cachedInputTokens": 58850,
+        "cacheReadInputTokens": 49634,
+        "cacheWriteInputTokens": 9216,
+        "outputTokens": 94,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 1000000
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "451f0987-160f-433f-8d12-d0561e197bda",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "9b74d7f6-cc6f-4e5b-9871-e3b2de73a22a"
+  }
+]

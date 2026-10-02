@@ -11,7 +11,7 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { SettingsWithControl } from "@/components/ui/settings-section";
 
-export interface ChoiceDropdownOption {
+interface ChoiceDropdownOption {
   key: string;
   title: string;
   description: string;

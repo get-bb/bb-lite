@@ -22,7 +22,14 @@ export interface OpenDatabaseOptions {
 }
 
 type EntityIdPrefix = "host" | "proj" | "src" | "env" | "thr" | "sec" | "term";
-type RecordIdPrefix = "evt" | "phist" | "qmsg" | "qclaim" | "pint" | "creq";
+type RecordIdPrefix =
+  | "evt"
+  | "phist"
+  | "qmsg"
+  | "qclaim"
+  | "pint"
+  | "creq"
+  | "tpv";
 export type IdPrefix = EntityIdPrefix | RecordIdPrefix | "att";
 
 export class LegacyDataDirectoryError extends Error {

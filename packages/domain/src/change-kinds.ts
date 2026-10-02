@@ -63,8 +63,6 @@ export const SYSTEM_CHANGE_KINDS = [
   "provider-registrations-changed",
   "ui-preferences-changed",
   "environment-availability-changed",
-  "server-move-changed",
-  "app-update-changed",
 ] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
@@ -245,10 +243,6 @@ export const environmentChangedMessageSchema = z
     changes: z.array(environmentChangeKindSchema).readonly(),
   })
   .strict();
-export type EnvironmentChangedMessage = z.infer<
-  typeof environmentChangedMessageSchema
->;
-
 export const hostChangedMessageSchema = z
   .object({
     type: z.literal("changed"),

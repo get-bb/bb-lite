@@ -11,19 +11,15 @@ import {
 } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { useAtomValue } from "jotai";
-import { Icon } from "@/components/ui/icon";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Icon } from "@bb/shared-ui/icon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import {
   COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
   COARSE_POINTER_ROW_HEIGHT_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
-import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
+import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import {
   hasThreadListWorkingActivity,
   threadListIndicatorStateForThread,
@@ -32,10 +28,10 @@ import {
   type ThreadListIndicatorState,
 } from "../model/thread-activity.js";
 import {
-  experimental_useSidebarThreadActions,
-  experimental_useSidebarThreadSplit,
-  experimental_useProviders,
-  experimental_ProviderIcon as ProviderIcon,
+  useSidebarThreadActions,
+  useSidebarThreadSplit,
+  useProviders,
+  ProviderIcon as ProviderIcon,
   ThreadTitle,
   useSidebarSplitLayout,
   useSidebarThreadDraft,
@@ -43,7 +39,7 @@ import {
   useSidebarThreadShortcut,
   type PluginSidebarSplitPane,
   type PluginSidebarThreadRowStatus,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin/app";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import { useSidebarProjectName } from "../model/use-sidebar-data.js";
 import {
@@ -79,7 +75,6 @@ import type {
   ThreadRowNestDrop,
 } from "./sidebarThreadRowDroppable.js";
 import type { SidebarSortableDragBindings } from "./sortableMotion.js";
-import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import { SplitPaneMiniMap } from "./SplitPaneMiniMap.js";
 import {
   ThreadActionsContextMenu,
@@ -327,9 +322,9 @@ function ThreadRowComponent({
 }: ThreadRowProps) {
   const [isDropdownActionsOpen, setIsDropdownActionsOpen] = useState(false);
   const [isContextActionsOpen, setIsContextActionsOpen] = useState(false);
-  const actions = experimental_useSidebarThreadActions();
+  const actions = useSidebarThreadActions();
   const showProviderIcons = useAtomValue(sidebarShowProviderIconsAtom);
-  const { providers } = experimental_useProviders();
+  const { providers } = useProviders();
   const provider = showProviderIcons
     ? providers.find((candidate) => candidate.id === thread.providerId)
     : undefined;
@@ -373,7 +368,7 @@ function ThreadRowComponent({
   );
   const miniMap = useThreadSplitMiniMap(thread.id);
   const isOpenInSplit = miniMap !== null;
-  const split = experimental_useSidebarThreadSplit(thread.id);
+  const split = useSidebarThreadSplit(thread.id);
   const onSplitDragPointerDown = split.splitProps.onPointerDown;
   const splitAvailable = split.isAvailable;
   const openInSplit = useCallback(() => {
@@ -468,7 +463,6 @@ function ThreadRowComponent({
     !showActive &&
       "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
     rowDragBindings && !rowDragBindings.disabled && "select-none",
-    !isActionsOpen && "data-[sidebar-touch-armed=true]:!bg-transparent",
     nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
     reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
   );
@@ -510,12 +504,10 @@ function ThreadRowComponent({
       <span
         className={cn(
           "relative flex min-w-0 flex-1 items-center gap-1.5 self-stretch",
-          !isActionsOpen &&
-            "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           !shortcut &&
             !isEditing &&
             (reserveActionSpace
-              ? "pr-(--bb-sidebar-hover-actions-inset) max-md:pointer-coarse:pr-0"
+              ? "pr-(--bb-sidebar-hover-actions-inset)"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
         )}
         style={getHoverActionsInsetStyle(
@@ -634,31 +626,22 @@ function ThreadRowComponent({
           />
         ) : null}
       </span>
-      {rowDragBindings && !rowDragBindings.disabled && !isActionsOpen ? (
-        <SidebarThreadDragChip
-          title={labelTitle}
-          visualOnly
-          className="hidden group-data-[sidebar-touch-armed=true]/thread-row:flex"
-        />
-      ) : null}
       <span
         data-sidebar-thread-trailing=""
         className={cn(
           "flex shrink-0 items-center gap-0.5",
-          !isActionsOpen &&
-            "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           isEditing && "hidden",
         )}
       >
         {thread.archivedAt !== null ? (
-          <span className="relative flex items-center max-md:pointer-coarse:hidden">
+          <span className="relative flex items-center">
             <div
               data-sidebar-hover-actions-open={
                 isActionsOpen ? "true" : undefined
               }
               className={cn(
                 SIDEBAR_HOVER_ACTIONS_CLASS,
-                "absolute right-full z-10 max-md:pointer-coarse:hidden",
+                "absolute right-full z-10",
               )}
             >
               <ThreadActionsMenu
@@ -677,7 +660,7 @@ function ThreadRowComponent({
         ) : (
           <span
             className={cn(
-              "flex shrink-0 items-center justify-end max-md:pointer-coarse:pointer-events-none",
+              "flex shrink-0 items-center justify-end",
               COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
             )}
           >
@@ -726,7 +709,7 @@ function ThreadRowComponent({
                 }
                 className={cn(
                   SIDEBAR_HOVER_ACTIONS_CLASS,
-                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
+                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end",
                   isEditing && "invisible pointer-events-none",
                 )}
               >

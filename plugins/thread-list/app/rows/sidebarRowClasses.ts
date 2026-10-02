@@ -1,9 +1,9 @@
-import { LIST_HOVER_TRANSITION } from "@/components/ui/motion";
+import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import {
   COARSE_POINTER_ROW_HEIGHT_CLASS,
   COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTEXT_SELECTION_SURFACE_CLASS } from "../ui/context-selection.js";
 import { SIDEBAR_HOVER_ACTIONS_GAP_CLASS } from "../ui/sidebar-hover-actions.js";
 
@@ -22,7 +22,7 @@ export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-muted-foreground/50";
 export const SIDEBAR_SUCCESS_STATUS_COLOR_CLASS = "text-success-foreground";
 
 export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5";
+  "size-[5px] rounded-full bg-muted-foreground/60";
 
 const SIDEBAR_THREAD_ROW_BASE_PADDING_PX = 8;
 const SIDEBAR_THREAD_ROW_DEPTH_STEP_PX = 24;
@@ -43,12 +43,11 @@ const SIDEBAR_CONTROL_BUTTON_BASE_CLASS = `${SIDEBAR_CONTROL_STATE_CLASS} relati
 
 export const SIDEBAR_CONTROL_BUTTON_CLASS = `${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
-export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-8 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
+export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
-export const SIDEBAR_CONTROL_PAIR_GAP_CLASS = `${SIDEBAR_HOVER_ACTIONS_GAP_CLASS} max-md:pointer-coarse:gap-0`;
+export const SIDEBAR_CONTROL_PAIR_GAP_CLASS = SIDEBAR_HOVER_ACTIONS_GAP_CLASS;
 
-export const SIDEBAR_CONTROL_PAIR_SIZE_CLASS =
-  "h-7 w-[3.625rem] max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-[4.25rem]";
+export const SIDEBAR_CONTROL_PAIR_SIZE_CLASS = "h-7 w-[3.625rem]";
 
 export function getSidebarThreadRowPaddingLeft(depth: number): number {
   return (
@@ -84,5 +83,5 @@ export const PROJECT_LIST_ACTION_BUTTON_CLASS = cn(
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
   COARSE_POINTER_ROW_HEIGHT_CLASS,
-  "min-w-0 cursor-pointer justify-start overflow-hidden font-normal ring-sidebar-ring focus-visible:ring-2 disabled:cursor-default disabled:opacity-70 max-md:pointer-coarse:[&_[data-icon-root]]:size-5",
+  "min-w-0 cursor-pointer justify-start overflow-hidden font-normal ring-sidebar-ring focus-visible:ring-2 disabled:cursor-default disabled:opacity-70",
 );

@@ -6,22 +6,19 @@ import {
 } from "react";
 import type { Nodes, Paragraph, Parent, RootContent } from "mdast";
 import type {} from "mdast-util-to-hast";
-import type {
-  BbNavigate,
-  PluginMessageDirectiveProps,
-} from "@get-bb/plugin-sdk";
+import type { BbNavigate, PluginMessageDirectiveProps } from "@bb/plugin/app";
 import { SKIP, visit } from "unist-util-visit";
 import type {} from "remark-parse";
 import { directive as directiveSyntax } from "micromark-extension-directive";
 import type { Extension } from "micromark-util-types";
 import type { Processor } from "unified";
-import { PluginSlotMount } from "@/components/plugin/PluginSlotMount.js";
+import { PluginSlotMount } from "@/plugins/mount";
 import { PluginThreadPanelNavigationProvider } from "@/components/plugin/plugin-thread-panel-navigation.js";
 import {
-  resolveMessageDirectiveRegistry,
+  resolveMessageDirectives,
+  type PluginSlot,
   type ResolvedMessageDirective,
-} from "@/lib/plugin-slot-resolvers.js";
-import type { PluginMessageDirectiveSlot } from "@/lib/plugin-slots.js";
+} from "@/plugins/registry";
 
 export const MESSAGE_DIRECTIVE_MOUNT_LIMIT = 32;
 
@@ -38,7 +35,7 @@ export type MessageDirectiveRegistry = ReadonlyMap<
 export interface MountedMessageDirective {
   attributes: Readonly<Record<string, string>>;
   index: number;
-  slot: PluginMessageDirectiveSlot;
+  slot: PluginSlot<"messageDirectives">;
   source: string;
 }
 
@@ -90,11 +87,11 @@ declare module "react" {
 }
 
 export function buildMessageDirectiveRegistry(
-  slots: readonly PluginMessageDirectiveSlot[],
+  slots: readonly PluginSlot<"messageDirectives">[],
   options?: { warn?: (message: string) => void },
 ): MessageDirectiveRegistry {
   const warn = options?.warn ?? defaultCollisionWarn;
-  const registry = resolveMessageDirectiveRegistry(slots);
+  const registry = resolveMessageDirectives(slots);
   for (const [id, directive] of registry) {
     if (directive.status === "collision") {
       warn(

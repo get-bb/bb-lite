@@ -23,8 +23,6 @@ import type {
   ThreadTimelineEditMessageHandler,
   ThreadTimelineInlineMessageEditor,
   ThreadTimelineAddToChatHandler,
-  ThreadTimelineSendToMainMessageHandler,
-  ThreadTimelineConsumerMessageAction,
   ThreadTimelineLinkHandler,
   ThreadTimelineLocalFileLinkHandler,
   ThreadTimelineOpenPluginPanelHandler,
@@ -51,10 +49,7 @@ export interface ThreadTimelineSurfaceProps {
   onEditMessage?: ThreadTimelineEditMessageHandler;
   inlineMessageEditor?: ThreadTimelineInlineMessageEditor;
   onMessageAddToChat?: ThreadTimelineAddToChatHandler;
-  onSendToMainMessage?: ThreadTimelineSendToMainMessageHandler;
   onSelectionAddToChat?: ThreadTimelineAddToChatHandler;
-  consumerMessageActions?: readonly ThreadTimelineConsumerMessageAction[];
-  includePluginMessageActions?: boolean;
   onLoadOlderRows?: () => Promise<void> | void;
   onOpenLink?: ThreadTimelineLinkHandler;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
@@ -153,10 +148,7 @@ export function ThreadTimelineSurface({
   onEditMessage,
   inlineMessageEditor,
   onMessageAddToChat,
-  onSendToMainMessage,
   onSelectionAddToChat,
-  consumerMessageActions,
-  includePluginMessageActions,
   onLoadOlderRows,
   onOpenLink,
   onOpenLocalFileLink,
@@ -227,10 +219,7 @@ export function ThreadTimelineSurface({
             onEditMessage={onEditMessage}
             inlineMessageEditor={inlineMessageEditor}
             onMessageAddToChat={onMessageAddToChat}
-            onSendToMainMessage={onSendToMainMessage}
             onSelectionAddToChat={onSelectionAddToChat}
-            consumerMessageActions={consumerMessageActions}
-            includePluginMessageActions={includePluginMessageActions}
             onOpenLink={onOpenLink}
             onOpenLocalFileLink={onOpenLocalFileLink}
             onOpenPluginPanel={onOpenPluginPanel}

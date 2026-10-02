@@ -7,15 +7,13 @@ import {
   machineRemovalLabels,
   type MachineRemovalStatus,
 } from "@/lib/machine-removal-display";
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import type {
   EnvironmentStatus,
   GitBranchRefClassification,
-  ThreadPullRequest,
   ThreadRuntimeDisplayStatus,
 } from "@bb/domain";
-import type { PullRequestMergeMethod } from "@bb/server-contract";
 import {
   BranchPicker,
   getMergeBaseBranchCandidateGroups,
@@ -42,27 +40,11 @@ import {
 } from "@/components/workspace/workspace-change-summary";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import {
-  getPullRequestAttentionDisplay,
-  getPullRequestGithubCheckStatus,
-  PULL_REQUEST_STATE_DISPLAY,
-} from "@/lib/pull-request-display";
-import { PullRequestStatusPill } from "@/components/pull-request/PullRequestStatusPill";
 import { AnimatedBody } from "@/components/promptbox/banner/AnimatedBody";
 import {
   BannerActionSlot,
-  PROMPT_BANNER_ACTION_FILL_CLASS,
-  PROMPT_BANNER_ACTION_SEGMENT_CLASS,
   PromptBannerActionButton,
 } from "@/components/promptbox/banner/prompt-banner-actions";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { useUrlAnchorClickHandler } from "@/lib/url-open-routing";
 import {
   ThreadTitle,
   useThreadTitleDisplayText,
@@ -88,7 +70,7 @@ export interface ThreadPromptGitSection {
 export interface ThreadPromptParentThreadSection {
   parentThreadTitle: string;
   href: string;
-  relationship: "parent" | "fork" | "side-chat";
+  relationship: "parent" | "fork";
 }
 
 interface ThreadPromptChildThreadItem {
@@ -100,17 +82,6 @@ interface ThreadPromptChildThreadItem {
 
 export interface ThreadPromptChildThreadsSection {
   items: readonly ThreadPromptChildThreadItem[];
-}
-
-export interface ThreadPromptPullRequestSection {
-  pullRequest: ThreadPullRequest;
-  actions?: {
-    isPending?: boolean;
-    onMarkReady?: () => void;
-    onMerge?: (method: PullRequestMergeMethod) => void;
-    onConvertToDraft?: () => void;
-    selectedMergeMethod?: PullRequestMergeMethod;
-  };
 }
 
 export interface ThreadPromptArchivedSection {
@@ -147,7 +118,6 @@ interface ThreadPromptContextBannerProps {
   environmentGoneSection: ThreadPromptEnvironmentGoneSection | null;
   parentThreadSection: ThreadPromptParentThreadSection | null;
   childThreadsSection: ThreadPromptChildThreadsSection | null;
-  pullRequestSection: ThreadPromptPullRequestSection | null;
   expandedSection: ThreadPromptContextBannerExpandedSection | null;
   onToggleSection: (section: ThreadPromptContextBannerExpandedSection) => void;
 }
@@ -219,8 +189,6 @@ interface SectionToggleButtonProps {
   ariaLabel?: string;
   icon: ReactNode;
   label: ReactNode;
-  compactLabel?: ReactNode;
-  hideLabelInCompact?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
 }
@@ -231,8 +199,6 @@ function SectionToggleButton({
   ariaLabel,
   icon,
   label,
-  compactLabel,
-  hideLabelInCompact = true,
   isExpanded,
   onToggle,
 }: SectionToggleButtonProps) {
@@ -254,19 +220,7 @@ function SectionToggleButton({
     >
       {icon}
       {label !== null && label !== undefined ? (
-        <span
-          className="min-w-0 truncate"
-          data-promptbox-hide-compact={hideLabelInCompact ? "" : undefined}
-        >
-          {label}
-        </span>
-      ) : null}
-      {hideLabelInCompact &&
-      compactLabel !== null &&
-      compactLabel !== undefined ? (
-        <span className="min-w-0 truncate" data-promptbox-compact-label="">
-          {compactLabel}
-        </span>
+        <span className="min-w-0 truncate">{label}</span>
       ) : null}
       <Icon
         name="ChevronDown"
@@ -291,11 +245,6 @@ const PARENT_SECTION_COPY: Record<
     bodyLead: "This thread was forked from ",
     ariaPrefix: "Forked from",
   },
-  "side-chat": {
-    verb: "Side chat of",
-    bodyLead: "This thread is a side chat of ",
-    ariaPrefix: "Side chat of",
-  },
 };
 
 const PARENT_SECTION_ICON: Record<
@@ -304,7 +253,6 @@ const PARENT_SECTION_ICON: Record<
 > = {
   parent: "UserRound",
   fork: "Fork",
-  "side-chat": "SideChat",
 };
 
 function useParentSectionAriaLabel(
@@ -349,20 +297,6 @@ function ParentThreadInlineSegment({
         </NavLink>
       </span>
     </div>
-  );
-}
-
-function shouldShowPullRequestAttentionLabel(
-  pullRequest: ThreadPullRequest,
-): boolean {
-  if (pullRequest.attention === "checks_failed") return false;
-  return (
-    (pullRequest.state === "open" &&
-      (pullRequest.autoMerge || pullRequest.attention === "queued")) ||
-    pullRequest.attention === "changes_requested" ||
-    pullRequest.attention === "review_requested" ||
-    pullRequest.attention === "conflicts" ||
-    pullRequest.attention === "blocked"
   );
 }
 
@@ -459,38 +393,6 @@ function ChildThreadsBody({
   );
 }
 
-const PromptBannerActionGroup = ({ children }: { children: ReactNode }) => (
-  <div
-    className={cn(
-      "inline-flex overflow-hidden rounded border border-border",
-      PROMPT_BANNER_ACTION_FILL_CLASS,
-    )}
-  >
-    {children}
-  </div>
-);
-
-const PromptBannerActionSegmentButton = forwardRef<
-  HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement>
->(function PromptBannerActionSegmentButton(
-  { className, type = "button", ...props },
-  ref,
-) {
-  return (
-    <button
-      ref={ref}
-      type={type}
-      className={cn(
-        "px-1.5 py-0.5",
-        PROMPT_BANNER_ACTION_SEGMENT_CLASS,
-        className,
-      )}
-      {...props}
-    />
-  );
-});
-
 function PendingBannerActionButton({
   pending,
   label,
@@ -506,134 +408,6 @@ function PendingBannerActionButton({
     <PromptBannerActionButton onClick={onClick} disabled={pending}>
       {pending ? pendingLabel : label}
     </PromptBannerActionButton>
-  );
-}
-
-const PULL_REQUEST_MERGE_ACTIONS: readonly {
-  method: PullRequestMergeMethod;
-  label: string;
-}[] = [
-  { method: "merge", label: "Merge" },
-  { method: "squash", label: "Squash merge" },
-  { method: "rebase", label: "Rebase and merge" },
-];
-
-function PullRequestMergeSplitButton({
-  disabled,
-  onConvertToDraft,
-  onMerge,
-  selectedMethod,
-}: {
-  disabled?: boolean;
-  onConvertToDraft?: () => void;
-  onMerge: (method: PullRequestMergeMethod) => void;
-  selectedMethod: PullRequestMergeMethod;
-}) {
-  const selectedAction =
-    PULL_REQUEST_MERGE_ACTIONS.find(
-      (action) => action.method === selectedMethod,
-    ) ?? PULL_REQUEST_MERGE_ACTIONS[0];
-  return (
-    <PromptBannerActionGroup>
-      <PromptBannerActionSegmentButton
-        disabled={Boolean(disabled)}
-        onClick={() => onMerge(selectedAction.method)}
-      >
-        {selectedAction.label}
-      </PromptBannerActionSegmentButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <PromptBannerActionSegmentButton
-            disabled={Boolean(disabled)}
-            className={cn(
-              "inline-flex items-center border-l border-border px-1 data-[state=open]:bg-state-active data-[state=open]:text-foreground",
-            )}
-            aria-label="Choose pull request merge method"
-          >
-            <Icon name="ChevronDown" className="size-3" aria-hidden="true" />
-          </PromptBannerActionSegmentButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          sideOffset={2}
-          mobileTitle="Merge pull request"
-        >
-          {PULL_REQUEST_MERGE_ACTIONS.map((action) => (
-            <DropdownMenuItem
-              key={action.method}
-              onSelect={() => onMerge(action.method)}
-              textValue={action.label}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          ))}
-          {onConvertToDraft ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={onConvertToDraft}
-                textValue="Convert to draft"
-              >
-                Convert to draft
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </PromptBannerActionGroup>
-  );
-}
-
-function PullRequestBannerLink({
-  pullRequest,
-  hideLabelInCompact,
-  showLabel,
-  showStateLabel,
-}: {
-  pullRequest: ThreadPullRequest;
-  hideLabelInCompact: boolean;
-  showLabel: boolean;
-  showStateLabel: boolean;
-}) {
-  const attentionDisplay = getPullRequestAttentionDisplay(pullRequest);
-  const stateDisplay = PULL_REQUEST_STATE_DISPLAY[pullRequest.state];
-  const handlePullRequestClick = useUrlAnchorClickHandler(pullRequest.url);
-  const showAttentionLabel =
-    showLabel && shouldShowPullRequestAttentionLabel(pullRequest);
-  return (
-    <a
-      href={pullRequest.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={handlePullRequestClick}
-      aria-label={`Pull request ${pullRequest.number}: ${attentionDisplay.label}`}
-      className={cn(
-        "flex items-center gap-1.5 text-xs text-muted-foreground no-underline transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        PROMPT_STACK_INLAY_SEGMENT_CLASS,
-        getPullRequestGithubCheckStatus(pullRequest) !== null
-          ? "min-w-13"
-          : "min-w-8",
-        "overflow-hidden",
-      )}
-    >
-      <PullRequestStatusPill pullRequest={pullRequest} className="h-4" />
-      {showLabel ? (
-        <span
-          className="min-w-0 truncate"
-          data-promptbox-hide-compact={hideLabelInCompact ? "" : undefined}
-        >
-          PR #{pullRequest.number}
-          {showStateLabel && pullRequest.state !== "open"
-            ? ` · ${stateDisplay.label}`
-            : ""}
-        </span>
-      ) : null}
-      {showAttentionLabel ? (
-        <span className={cn("min-w-0 truncate", attentionDisplay.className)}>
-          · {attentionDisplay.label}
-        </span>
-      ) : null}
-    </a>
   );
 }
 
@@ -808,7 +582,6 @@ function ReadOnlyContextBanner({
             controlsId={SECTION_IDS.status.body}
             icon={statusIcon}
             label={statusLabel}
-            hideLabelInCompact={false}
             isExpanded={isStatusExpanded}
             onToggle={() => onToggleSection("status")}
           />
@@ -846,7 +619,6 @@ export function ThreadPromptContextBanner({
   environmentGoneSection,
   parentThreadSection,
   childThreadsSection,
-  pullRequestSection,
   expandedSection,
   onToggleSection,
 }: ThreadPromptContextBannerProps) {
@@ -890,15 +662,11 @@ export function ThreadPromptContextBanner({
   const showParentThread = parentThreadSection !== null;
   const showChildThreads =
     childThreadsSection !== null && childThreadsSection.items.length > 0;
-  const showPullRequest = pullRequestSection !== null;
-  if (!showGit && !showParentThread && !showChildThreads && !showPullRequest) {
+  if (!showGit && !showParentThread && !showChildThreads) {
     return null;
   }
-  const visibleSegmentCount =
-    Number(showParentThread) + Number(showPullRequest) + Number(showGit);
+  const visibleSegmentCount = Number(showParentThread) + Number(showGit);
   const hasSingleVisibleSegment = visibleSegmentCount === 1;
-  const isPullRequestAndGitOnly =
-    showPullRequest && showGit && visibleSegmentCount === 2;
   const isGitExpanded = expandedSection === "git" && showGit;
   const isParentThreadExpanded =
     expandedSection === "parentThread" && showParentThread;
@@ -948,8 +716,6 @@ export function ThreadPromptContextBanner({
           value={gitSection.mergeBase.branch}
           options={mergeBaseCandidates.options}
           remoteOptions={mergeBaseCandidates.remoteOptions}
-          variant="minimal"
-          emphasizeTriggerValue={false}
           loading={gitSection.mergeBase.optionsLoading}
           onChange={gitSection.mergeBase.onChange}
           onOpenChange={gitSection.mergeBase.onPickerOpenChange}
@@ -961,36 +727,7 @@ export function ThreadPromptContextBanner({
       </BannerActionSlot>
     ) : null;
 
-  const isParentThreadOnly = showParentThread && !showGit && !showPullRequest;
-
-  const pullRequest = pullRequestSection?.pullRequest ?? null;
-  const showPullRequestLabel =
-    hasSingleVisibleSegment || isPullRequestAndGitOnly;
-  const pullRequestActions = pullRequestSection?.actions;
-  const pullRequestAction =
-    pullRequest && pullRequestActions ? (
-      pullRequest.state === "draft" && pullRequestActions.onMarkReady ? (
-        <BannerActionSlot>
-          <PendingBannerActionButton
-            pending={Boolean(pullRequestActions.isPending)}
-            label="Mark ready"
-            pendingLabel="Marking..."
-            onClick={pullRequestActions.onMarkReady}
-          />
-        </BannerActionSlot>
-      ) : pullRequest.state === "open" &&
-        pullRequest.mergeability.state === "mergeable" &&
-        pullRequestActions.onMerge ? (
-        <BannerActionSlot>
-          <PullRequestMergeSplitButton
-            disabled={pullRequestActions.isPending}
-            onConvertToDraft={pullRequestActions.onConvertToDraft}
-            onMerge={pullRequestActions.onMerge}
-            selectedMethod={pullRequestActions.selectedMergeMethod ?? "merge"}
-          />
-        </BannerActionSlot>
-      ) : null
-    ) : null;
+  const isParentThreadOnly = showParentThread && !showGit;
 
   const compactContextBanner =
     visibleSegmentCount > 0 ? (
@@ -1015,14 +752,6 @@ export function ThreadPromptContextBanner({
               onToggle={() => onToggleSection("parentThread")}
             />
           ) : null}
-          {showPullRequest && pullRequest ? (
-            <PullRequestBannerLink
-              pullRequest={pullRequest}
-              hideLabelInCompact={!hasSingleVisibleSegment}
-              showLabel={showPullRequestLabel}
-              showStateLabel={hasSingleVisibleSegment}
-            />
-          ) : null}
           {showGit && gitSummary ? (
             <SectionToggleButton
               id={SECTION_IDS.git.toggle}
@@ -1035,14 +764,11 @@ export function ThreadPromptContextBanner({
                 />
               }
               label={gitSummary}
-              compactLabel={gitTally ? renderChangeSummary(gitTally) : null}
-              hideLabelInCompact={visibleSegmentCount > 2}
               ariaLabel={`Changed files: ${gitSummaryPrefix}, ${gitSummaryText}`}
               isExpanded={isGitExpanded}
               onToggle={() => onToggleSection("git")}
             />
           ) : null}
-          {pullRequestAction}
           {segmentAction}
         </div>
         {showParentThread && parentThreadSection && !isParentThreadOnly ? (

@@ -18,7 +18,6 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar.js";
 import {
   resolveThreadTitleDisplayText,
@@ -45,10 +44,6 @@ import { useRouteState } from "@/hooks/useRouteState";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
-import {
-  COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
-  usePanelShelfState,
-} from "@/components/ui/secondary-panel-shelf-visibility";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { ProjectActionsMenu } from "@/components/project/ProjectActionsMenu";
 import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
@@ -63,7 +58,7 @@ import {
   usePluginNavPanelChrome,
   type PluginNavPanelChrome,
 } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import {
   booleanLocalStorage,
   createLocalStorageSyncStorage,
@@ -71,17 +66,7 @@ import {
 import {
   BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
   CHROME_ROW_CLASS,
-  getBbDesktopInfo,
-  MACOS_CHROME_CONTROL_AXIS_CLASS,
-  MACOS_CHROME_CONTROL_NO_DRAG_CLASS,
-  MACOS_TRAFFIC_LIGHT_RESERVE_OFFSET_CLASS,
-  MACOS_WINDOW_DRAG_CLASS,
-  shouldReserveMacosTrafficLights,
-  shouldUseMacosDesktopChrome,
-} from "@/lib/bb-desktop";
-import { useDesktopWindowState } from "@/hooks/useDesktopWindowState";
-import { useDataDirectoryCommand } from "@/hooks/useDataDirectoryCommand";
-import { useServerDaemonLogsCommand } from "@/hooks/useServerDaemonLogsCommand";
+} from "@/lib/chrome-row";
 import {
   getLegacyProjectComposeRoutePath,
   getSettingsProjectRoutePath,
@@ -93,7 +78,6 @@ import {
 } from "@/lib/route-paths";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
-import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
 import { useFaviconBadge } from "@/lib/favicon-color-preference";
 import { shouldShowFaviconAttentionDot } from "./faviconAttentionDot";
 import { AppLayoutSidebar } from "./AppLayoutSidebar";
@@ -101,11 +85,6 @@ import {
   useAppCommandHandler,
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import {
-  shouldRestoreIOSViewportOnKeyboardDismissal,
-  useMobileVisualViewportHeight,
-} from "./useMobileVisualViewportHeight";
 import { wsManager } from "@/lib/ws";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
 import { findPaneByThread } from "@/lib/split-layout";
@@ -166,7 +145,6 @@ function SidebarStateBridge({ children }: SidebarStateBridgeProps) {
   const handleOpenChange = useCallback<SidebarOpenChangeHandler>(
     (nextOpen) => {
       setOpen(nextOpen);
-      window.requestAnimationFrame(dispatchBrowserViewBoundsSync);
     },
     [setOpen],
   );
@@ -190,21 +168,7 @@ function resetSidebarResizeDocumentState(): void {
   document.body.classList.remove("sidebar-resizing");
 }
 
-interface SidebarTriggerOverlayProps {
-  reserveMacosTrafficLights: boolean;
-  usesDesktopChrome: boolean;
-}
-
-function SidebarTriggerOverlay({
-  reserveMacosTrafficLights,
-  usesDesktopChrome,
-}: SidebarTriggerOverlayProps) {
-  const isCompactViewport = useIsCompactViewport();
-  const { openMobile } = useSidebar();
-  const panelShelfState = usePanelShelfState({
-    isCompactViewport,
-    isSidebarDrawerOpen: openMobile,
-  });
+function SidebarTriggerOverlay() {
   const shortcut = useAppCommandShortcut("sidebar.toggle");
   const triggerProps = {
     "aria-label": shortcut
@@ -212,49 +176,12 @@ function SidebarTriggerOverlay({
       : "Toggle sidebar",
     "aria-keyshortcuts": shortcut?.ariaKeyshortcuts,
   };
-  if (usesDesktopChrome) {
-    return (
-      <div
-        data-testid="app-desktop-sidebar-trigger"
-        data-panel-shelf={panelShelfState}
-        style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
-        className={cn(
-          "fixed top-0",
-          COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
-          CHROME_ROW_CLASS,
-          reserveMacosTrafficLights
-            ? MACOS_TRAFFIC_LIGHT_RESERVE_OFFSET_CLASS
-            : "left-0",
-          !reserveMacosTrafficLights && BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
-          MACOS_WINDOW_DRAG_CLASS,
-        )}
-      >
-        <SidebarTrigger
-          className={MACOS_CHROME_CONTROL_NO_DRAG_CLASS}
-          {...triggerProps}
-        />
-        <AppCommandShortcutHint
-          shortcut={shortcut}
-          className={cn(
-            "absolute left-full ml-1",
-            MACOS_CHROME_CONTROL_AXIS_CLASS,
-          )}
-        />
-      </div>
-    );
-  }
   return (
     <div
       data-testid="app-sidebar-trigger-overlay"
-      data-panel-shelf={panelShelfState}
-      style={{
-        zIndex: isCompactViewport
-          ? APP_OVERLAY_LAYER.compactSidebarTrigger
-          : APP_OVERLAY_LAYER.sidebarTrigger,
-      }}
+      style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
       className={cn(
-        "fixed top-[env(safe-area-inset-top)] left-[env(safe-area-inset-left)]",
-        COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
+        "fixed top-0 left-0",
         CHROME_ROW_CLASS,
         BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
       )}
@@ -271,7 +198,6 @@ function SidebarTriggerOverlay({
 const routeTitles: Record<string, { title: string }> = {
   "/": { title: "bb" },
   "/settings": { title: "Settings" },
-  "/automations": { title: "Automations" },
 };
 
 function resolveRouteTitle(pathname: string): { title: string } | undefined {
@@ -283,10 +209,9 @@ function resolveRouteTitle(pathname: string): { title: string } | undefined {
 
 interface AppHeaderProps {
   usesProjectChromeStyle: boolean;
-  usesDesktopChrome: boolean;
   projectId?: string;
   project?: ProjectResponse;
-  pluginPanel?: PluginNavPanelSlot;
+  pluginPanel?: PluginSlot<"navPanels">;
   pluginPanelChrome?: PluginNavPanelChrome;
   pluginPanelSubPath?: string;
   meta: {
@@ -297,7 +222,6 @@ interface AppHeaderProps {
 
 function AppHeader({
   usesProjectChromeStyle,
-  usesDesktopChrome,
   projectId,
   project,
   pluginPanel,
@@ -313,10 +237,7 @@ function AppHeader({
 
   const center = headerBreadcrumbs ? (
     <div className="min-w-0 flex-1">
-      <AppBreadcrumbs
-        breadcrumbs={headerBreadcrumbs}
-        usesDesktopChrome={usesDesktopChrome}
-      />
+      <AppBreadcrumbs breadcrumbs={headerBreadcrumbs} />
     </div>
   ) : pluginPanelChrome ? (
     <PluginPanelHeaderCenter chrome={pluginPanelChrome} />
@@ -366,18 +287,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const quickCreateProject = useQuickCreateProjectController();
-  const isCompactViewport = useIsCompactViewport();
   const store = useStore();
-  const [contentShell, setContentShell] = useState<HTMLDivElement | null>(null);
-  const restoreIOSViewportOnKeyboardDismissal = useMemo(
-    () => shouldRestoreIOSViewportOnKeyboardDismissal(navigator),
-    [],
-  );
-  useMobileVisualViewportHeight(
-    contentShell,
-    isCompactViewport,
-    restoreIOSViewportOnKeyboardDismissal,
-  );
   const location = useLocation();
   const { projectId, threadId, isThreadView, isArchivedView, isRootView } =
     useRouteState();
@@ -428,14 +338,14 @@ export function AppLayout({ children }: AppLayoutProps) {
         const next = applyThreadOpenToLayout(
           current,
           { projectId: signal.projectId, threadId: signal.threadId },
-          isCompactViewport ? "replace" : signal.split,
+          signal.split,
         );
         if (next !== current) {
           store.set(splitLayoutAtom, next);
         }
         void navigate(route, alreadyOpen ? { replace: true } : undefined);
       }),
-    [isCompactViewport, navigate, store],
+    [navigate, store],
   );
   useAppCommandHandler("thread.new", () => {
     if (projectId !== undefined) {
@@ -454,8 +364,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     void navigate(`${SETTINGS_ROUTE_PATH}/servers`);
     return true;
   });
-  useServerDaemonLogsCommand();
-  useDataDirectoryCommand();
   const archivedSectionId = isArchivedView
     ? new URLSearchParams(location.search).get("sectionId")
     : null;
@@ -519,13 +427,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const liveWidthRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   const showHeader = !isThreadView && !isRootView && pluginPanelMatch === null;
-  const [desktopInfo] = useState(getBbDesktopInfo);
-  const desktopWindowState = useDesktopWindowState();
-  const usesDesktopChrome = shouldUseMacosDesktopChrome(desktopInfo);
-  const reserveMacosTrafficLights = shouldReserveMacosTrafficLights({
-    desktopInfo,
-    windowState: desktopWindowState,
-  });
   const project = projectId
     ? projects?.find((candidate) => candidate.id === projectId)
     : undefined;
@@ -655,7 +556,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       store.set(sidebarWidthAtom, liveWidthRef.current);
       store.set(sidebarLiveWidthAtom, null);
     });
-    dispatchBrowserViewBoundsSync();
     setIsSidebarResizing(false);
     resetSidebarResizeDocumentState();
   }, [store]);
@@ -668,7 +568,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       flushSync(() => {
         store.set(sidebarLiveWidthAtom, liveWidthRef.current);
       });
-      dispatchBrowserViewBoundsSync();
     };
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -743,13 +642,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 />
                 <SidebarInset>
                   <div
-                    ref={setContentShell}
                     data-testid="app-layout-content-shell"
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[var(--bb-safe-area-bottom,env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)]"
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
                   >
                     {showHeader ? (
                       <AppHeader
-                        usesDesktopChrome={usesDesktopChrome}
                         usesProjectChromeStyle={isRootView || isArchivedView}
                         projectId={projectId}
                         project={project}
@@ -764,10 +661,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </main>
                   </div>
                 </SidebarInset>
-                <SidebarTriggerOverlay
-                  reserveMacosTrafficLights={reserveMacosTrafficLights}
-                  usesDesktopChrome={usesDesktopChrome}
-                />
+                <SidebarTriggerOverlay />
               </SidebarStateBridge>
               <PluginAppOverlays />
               <IframeDragGuardOverlay

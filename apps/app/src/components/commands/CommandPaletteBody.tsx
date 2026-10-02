@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   PALETTE_ACTION_BUCKETS,
   type PaletteAction,
@@ -19,7 +18,7 @@ import {
   rankPaletteActions,
   type RankedPaletteAction,
 } from "@/lib/command-palette/palette-ranking";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { buildSettingsPaletteActions } from "@/lib/command-palette/palette-settings-actions";
 import { buildPluginPagePaletteActions } from "@/lib/command-palette/palette-plugin-page-actions";
 import {
@@ -54,12 +53,11 @@ export function CommandPaletteBody({
   onChoose,
 }: CommandPaletteBodyProps) {
   const navigate = useNavigate();
-  const isCompactViewport = useIsCompactViewport();
   const listId = useId();
   const optionIdPrefix = useId();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const pluginSlots = usePluginSlots();
-  const settingsSections = useSettingsNavSections(pluginSlots.fileOpeners);
+  const settingsSections = useSettingsNavSections();
   const pluginSettingsEntries = useMemo(
     () =>
       buildPluginSettingsEntries({
@@ -220,7 +218,6 @@ export function CommandPaletteBody({
                     id={`${optionIdPrefix}-${visibleIndex}`}
                     isActive={visibleIndex === activeIndex}
                     isDrillIn={entry.action.id === THREAD_SEARCH_ACTION_ID}
-                    showShortcut={!isCompactViewport}
                     onActivate={() => {
                       setHighlightedIndex(visibleIndex);
                     }}
@@ -239,7 +236,6 @@ export function CommandPaletteBody({
             id={`${optionIdPrefix}-${index}`}
             isActive={index === activeIndex}
             isDrillIn={entry.action.id === THREAD_SEARCH_ACTION_ID}
-            showShortcut={!isCompactViewport}
             onActivate={() => {
               setHighlightedIndex(index);
             }}
@@ -256,7 +252,6 @@ function PaletteRow({
   id,
   isActive,
   isDrillIn,
-  showShortcut,
   onActivate,
   onSelect,
 }: {
@@ -264,16 +259,14 @@ function PaletteRow({
   id: string;
   isActive: boolean;
   isDrillIn: boolean;
-  showShortcut: boolean;
   onActivate: () => void;
   onSelect: () => void;
 }) {
-  const metadataGroup =
-    entry.action.group === "Browser" || entry.action.id.startsWith("plugin:")
-      ? entry.action.group
-      : null;
+  const metadataGroup = entry.action.id.startsWith("plugin:")
+    ? entry.action.group
+    : null;
   const title = isDrillIn ? `${entry.action.title}…` : entry.action.title;
-  const shortcut = showShortcut ? entry.action.shortcut : null;
+  const shortcut = entry.action.shortcut;
   const hasTrailing = metadataGroup !== null || shortcut !== null || isDrillIn;
   return (
     <div

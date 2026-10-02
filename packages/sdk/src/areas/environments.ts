@@ -6,9 +6,6 @@ import {
 } from "@bb/domain";
 import {
   commitActionResponseSchema,
-  pullRequestDraftActionResponseSchema,
-  pullRequestMergeActionResponseSchema,
-  pullRequestReadyActionResponseSchema,
   updateEnvironmentRequestSchema,
 } from "@bb/server-contract";
 import type {
@@ -24,12 +21,7 @@ import type {
   EnvironmentDiffResponse,
   EnvironmentDiffFilesResponse,
   EnvironmentPathsQuery,
-  EnvironmentPullRequestResponse,
   EnvironmentStatusResponse,
-  PullRequestMergeMethod,
-  PullRequestDraftActionResponse,
-  PullRequestMergeActionResponse,
-  PullRequestReadyActionResponse,
   EnvironmentStatusQuery,
   UpdateEnvironmentRequest,
   WorkspacePathListResponse,
@@ -97,11 +89,6 @@ export interface EnvironmentCommitArgs {
   environmentId: string;
 }
 
-export interface EnvironmentPullRequestMergeArgs {
-  environmentId: string;
-  method: PullRequestMergeMethod;
-}
-
 export type EnvironmentDiffPatchArgs = EnvironmentDiffPatchRequest & {
   environmentId: string;
   signal?: AbortSignal;
@@ -120,13 +107,7 @@ export type EnvironmentDiffFileResult = EnvironmentDiffFileResponse;
 export type EnvironmentDiffFilesResult = EnvironmentDiffFilesResponse;
 export type EnvironmentDiffPatchResult = EnvironmentDiffPatchResponse;
 export type EnvironmentGetResult = Environment;
-export type EnvironmentMarkPullRequestDraftResult =
-  PullRequestDraftActionResponse;
-export type EnvironmentMarkPullRequestReadyResult =
-  PullRequestReadyActionResponse;
-export type EnvironmentMergePullRequestResult = PullRequestMergeActionResponse;
 export type EnvironmentPathsResult = WorkspacePathListResponse;
-export type EnvironmentPullRequestResult = EnvironmentPullRequestResponse;
 export type EnvironmentStatusResult = EnvironmentStatusResponse;
 export type EnvironmentUpdateResult = Environment;
 export interface EnvironmentListArgs {
@@ -175,16 +156,6 @@ export interface EnvironmentsArea {
     args?: EnvironmentListProvidersArgs,
   ): Promise<EnvironmentListProvidersResult>;
   delete(args: EnvironmentDeleteArgs): Promise<EnvironmentDeleteResult>;
-  pullRequest(args: EnvironmentGetArgs): Promise<EnvironmentPullRequestResult>;
-  markPullRequestDraft(
-    args: EnvironmentActionArgs,
-  ): Promise<EnvironmentMarkPullRequestDraftResult>;
-  markPullRequestReady(
-    args: EnvironmentActionArgs,
-  ): Promise<EnvironmentMarkPullRequestReadyResult>;
-  mergePullRequest(
-    args: EnvironmentPullRequestMergeArgs,
-  ): Promise<EnvironmentMergePullRequestResult>;
   paths(args: EnvironmentPathsArgs): Promise<EnvironmentPathsResult>;
   status(args: EnvironmentStatusArgs): Promise<EnvironmentStatusResult>;
   update(args: EnvironmentUpdateArgs): Promise<EnvironmentUpdateResult>;
@@ -425,46 +396,6 @@ export function createEnvironmentsArea(
         ),
       );
       return environmentSchema.parse(body);
-    },
-    async pullRequest(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"]["pull-request"].$get(
-          {
-            param: { id: input.environmentId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async markPullRequestDraft(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].actions.$post({
-          param: { id: input.environmentId },
-          json: { action: "pull_request_draft" },
-        }),
-      );
-      return pullRequestDraftActionResponseSchema.parse(body);
-    },
-    async markPullRequestReady(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].actions.$post({
-          param: { id: input.environmentId },
-          json: { action: "pull_request_ready" },
-        }),
-      );
-      return pullRequestReadyActionResponseSchema.parse(body);
-    },
-    async mergePullRequest(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].actions.$post({
-          param: { id: input.environmentId },
-          json: {
-            action: "pull_request_merge",
-            options: { method: input.method },
-          },
-        }),
-      );
-      return pullRequestMergeActionResponseSchema.parse(body);
     },
     async paths(input) {
       return transport.readJson(

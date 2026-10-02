@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { cn } from "@bb/shared-ui/lib/utils";
 import { THREAD_JUMP_APP_COMMAND_IDS } from "@bb/domain";
 import { useNavigate } from "react-router-dom";
 import { OverflowFade } from "@/components/ui/overflow-fade.js";
@@ -9,18 +7,11 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarMenu,
-  useCloseMobileSidebar,
-  useSidebar,
 } from "@/components/ui/sidebar.js";
 import { PluginThreadList } from "./PluginThreadList";
 import { useThreadListReplacement } from "./threadListProvider";
-import {
-  PluginSidebarFooterDisclosure,
-  PluginSidebarFooterItems,
-  usePluginSidebarFooterDisclosure,
-} from "@/components/plugin/PluginSidebarFooterItems";
+import { PluginSidebarFooterItems } from "@/components/plugin/PluginSidebarFooterItems";
 import { SidebarPluginAttentionGlyph } from "./SidebarPluginAttentionGlyph";
-import { SidebarUpdatesBadge } from "./SidebarUpdatesBadge";
 import { SidebarResizeHandle, SidebarTopReserveRow } from "./SidebarChrome";
 import { SIDEBAR_FOOTER_ACTION_CLASS } from "./sidebarRowClasses";
 import { getRootComposeRoutePath, getThreadRoutePath } from "@/lib/route-paths";
@@ -46,8 +37,6 @@ import {
   SidebarNavigationRegion,
 } from "./SidebarNavigationRegion";
 import { SidebarNavigationModelProvider } from "./SidebarNavigationModel";
-import { SIDEBAR_FOOTER_MORE_ID } from "./sidebarFooterPreferences";
-import { SidebarFooterCustomize } from "./SidebarFooterCustomize";
 import { SidebarHeaderSlot } from "./SidebarHeaderSlot";
 
 const BUG_REPORT_NEW_ISSUE_URL = "https://github.com/get-bb/bb/issues/new";
@@ -56,21 +45,16 @@ interface AppSidebarProps {
   onResizeMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   settingsRoutePath: string;
-  mobileHosted?: { hidden: boolean };
 }
 
 export function AppSidebar({
   onResizeMouseDown,
   isResizing,
   settingsRoutePath,
-  mobileHosted,
 }: AppSidebarProps) {
   const threadListReplacement = useThreadListReplacement();
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
-  const closeOnMobile = useCloseMobileSidebar();
-  const { isCompactViewport, openMobile } = useSidebar();
-  const [isFooterCustomizing, setFooterCustomizing] = useState(false);
   const [isNavigationCustomizing, setNavigationCustomizing] = useState(false);
   const customizeFocusReturnRef = useRef<HTMLElement | null>(null);
   const [threadShortcutKeysById, setThreadShortcutKeysById] = useState<
@@ -85,14 +69,12 @@ export function AppSidebar({
   );
   const isAppCommandModifierHeld = useIsAppCommandModifierHeld();
   const settingsShortcut = useAppCommandShortcut("settings.open");
-  const pluginSidebarFooter = usePluginSidebarFooterDisclosure();
 
   const handleNewChat = useCallback(() => {
-    closeOnMobile();
     void navigate(getRootComposeRoutePath(), {
       state: { focusPrompt: true },
     });
-  }, [closeOnMobile, navigate]);
+  }, [navigate]);
 
   const showThreadShortcuts = useCallback(() => {
     const targets = getSidebarThreadShortcutTargets(sidebarRef.current);
@@ -145,7 +127,6 @@ export function AppSidebar({
         return true;
       }
       if (!target.projectId) return false;
-      closeOnMobile();
       void navigate(
         getThreadRoutePath({
           projectId: target.projectId,
@@ -154,40 +135,21 @@ export function AppSidebar({
       );
       return true;
     },
-    [activeThreadId, closeOnMobile, navigate],
+    [activeThreadId, navigate],
   );
 
-  const isHiddenHostedBody = mobileHosted?.hidden === true;
-  const isCompactCustomizeModeActive =
-    isCompactViewport && isNavigationCustomizing;
-  useEffect(() => {
-    if (isCompactViewport && (!openMobile || isHiddenHostedBody)) {
-      setNavigationCustomizing(false);
-      setFooterCustomizing(false);
-    }
-  }, [isCompactViewport, isHiddenHostedBody, openMobile]);
   const openNavigationCustomize = useCallback(() => {
     customizeFocusReturnRef.current = resolveCustomizeFocusReturnTarget(
       sidebarRef.current,
     );
-    setFooterCustomizing(false);
     setNavigationCustomizing(true);
   }, []);
-  const activateVisibleThreadShortcut = useCallback(
-    (index: number) =>
-      isHiddenHostedBody ? false : activateThreadShortcut(index),
-    [activateThreadShortcut, isHiddenHostedBody],
-  );
   useIndexedAppCommandHandlers(
     THREAD_JUMP_APP_COMMAND_IDS,
-    activateVisibleThreadShortcut,
+    activateThreadShortcut,
   );
-  useAppCommandHandler("thread.previous", () =>
-    isHiddenHostedBody ? false : activateAdjacentThread(-1),
-  );
-  useAppCommandHandler("thread.next", () =>
-    isHiddenHostedBody ? false : activateAdjacentThread(1),
-  );
+  useAppCommandHandler("thread.previous", () => activateAdjacentThread(-1));
+  useAppCommandHandler("thread.next", () => activateAdjacentThread(1));
 
   useEffect(() => {
     if (isAppCommandModifierHeld) {
@@ -212,50 +174,14 @@ export function AppSidebar({
         isCustomizing={isNavigationCustomizing}
         onCustomizingChange={setNavigationCustomizing}
         focusReturnTargetRef={customizeFocusReturnRef}
-        onNavigate={closeOnMobile}
       />
-      <SidebarContent
-        className={cn(isCompactCustomizeModeActive && "hidden")}
-        aria-hidden={isCompactCustomizeModeActive ? true : undefined}
-        inert={isCompactCustomizeModeActive ? true : undefined}
-      >
-        <PluginThreadList
-          replacement={threadListReplacement}
-          onNavigate={closeOnMobile}
-        />
+      <SidebarContent>
+        <PluginThreadList replacement={threadListReplacement} />
       </SidebarContent>
       <SidebarFooter className="relative">
         <OverflowFade placement="above" tone="sidebar" size="sm" />
-        {isFooterCustomizing ? (
-          <div className="max-h-[50svh] overflow-y-auto">
-            <SidebarFooterCustomize
-              onDone={() => {
-                flushSync(() => setFooterCustomizing(false));
-                document.getElementById(SIDEBAR_FOOTER_MORE_ID)?.focus();
-              }}
-            />
-          </div>
-        ) : (
-          <PluginSidebarFooterDisclosure
-            item={pluginSidebarFooter.activeItem}
-            onDismiss={pluginSidebarFooter.dismiss}
-          />
-        )}
-        <SidebarMenu
-          className={cn(
-            "flex-row items-center gap-1",
-            isFooterCustomizing && "hidden",
-          )}
-        >
+        <SidebarMenu className="flex-row items-center gap-1">
           <PluginSidebarFooterItems
-            onCustomize={() => {
-              pluginSidebarFooter.dismiss();
-              setNavigationCustomizing(false);
-              setFooterCustomizing(true);
-            }}
-            activeDisclosureKey={pluginSidebarFooter.activeKey}
-            onDisclosureCommand={pluginSidebarFooter.handleCommand}
-            onNavigate={closeOnMobile}
             builtInActions={[
               {
                 id: "settings",
@@ -265,22 +191,12 @@ export function AppSidebar({
                   : "Settings",
                 ariaKeyShortcuts: settingsShortcut?.ariaKeyshortcuts,
                 onActivate: () => {
-                  closeOnMobile();
                   void navigate(settingsRoutePath);
-                },
-              },
-              {
-                id: "mobile",
-                href: "/settings/mobile",
-                onActivate: () => {
-                  closeOnMobile();
-                  void navigate("/settings/mobile");
                 },
               },
               {
                 id: "report-bug",
                 onActivate: () => {
-                  closeOnMobile();
                   openUrlInExternalBrowser(BUG_REPORT_NEW_ISSUE_URL);
                 },
               },
@@ -288,9 +204,7 @@ export function AppSidebar({
           />
           <SidebarPluginAttentionGlyph
             className={SIDEBAR_FOOTER_ACTION_CLASS}
-            onNavigate={closeOnMobile}
           />
-          <SidebarUpdatesBadge onNavigate={closeOnMobile} />
         </SidebarMenu>
       </SidebarFooter>
       <SidebarResizeHandle
@@ -304,24 +218,11 @@ export function AppSidebar({
   return (
     <SidebarThreadShortcutKeysContext.Provider value={threadShortcutKeysById}>
       <SidebarNavigationModelProvider
-        onNavigate={closeOnMobile}
         onNewChat={handleNewChat}
-        onSearchThreads={closeOnMobile}
         onOpenCustomize={openNavigationCustomize}
         splitEnabled
       >
-        {mobileHosted ? (
-          <div
-            ref={sidebarRef}
-            data-testid="app-sidebar-body"
-            hidden={mobileHosted.hidden}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            {body}
-          </div>
-        ) : (
-          <Sidebar ref={sidebarRef}>{body}</Sidebar>
-        )}
+        <Sidebar ref={sidebarRef}>{body}</Sidebar>
       </SidebarNavigationModelProvider>
     </SidebarThreadShortcutKeysContext.Provider>
   );

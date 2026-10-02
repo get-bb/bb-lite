@@ -243,14 +243,12 @@ function getPromptDraftStorageKey(scope: PromptDraftScope): string {
 export function getPromptDraftAccessor(scope: PromptDraftScope): {
   storageKey: string;
   getCurrent: () => PromptDraftState;
-  subscribe: (listener: () => void) => () => void;
   setDraft: (draft: PromptDraftState) => void;
 } {
   const storageKey = getPromptDraftStorageKey(scope);
   return {
     storageKey,
     getCurrent: () => readPromptDraft(storageKey),
-    subscribe: (listener) => subscribePromptDraft(storageKey, listener),
     setDraft: (draft) => writePromptDraft(storageKey, draft),
   };
 }
@@ -276,11 +274,6 @@ export function usePromptDraftStorage(scope: PromptDraftScope) {
   const getCurrent = useCallback((): PromptDraftState => {
     return readPromptDraft(storageKey);
   }, [storageKey]);
-
-  const subscribe = useCallback(
-    (listener: () => void) => subscribePromptDraft(storageKey, listener),
-    [storageKey],
-  );
 
   const setTextAndMentions = useCallback(
     (nextText: string, nextMentions: PromptTextMention[]) => {
@@ -370,7 +363,6 @@ export function usePromptDraftStorage(scope: PromptDraftScope) {
     () => ({
       storageKey,
       getCurrent,
-      subscribe,
       value: draft.text,
       text: draft.text,
       mentions: draft.mentions,
@@ -398,7 +390,6 @@ export function usePromptDraftStorage(scope: PromptDraftScope) {
       setDraftAndPersist,
       setTextAndMentions,
       storageKey,
-      subscribe,
     ],
   );
 }

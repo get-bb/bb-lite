@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
 import { useHostDaemon, useLocalHostDaemonAccess } from "@/hooks/useHostDaemon";
-import { usePluginSlots, type PluginFileOpenerSlot } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
 import {
   SETTINGS_MACHINE_ROUTE_PATH,
@@ -28,9 +28,7 @@ export interface SettingsNavState {
   sections: readonly SettingsNavSection[];
 }
 
-export function useSettingsNavSections(
-  fileOpeners: readonly PluginFileOpenerSlot[],
-): readonly SettingsNavSection[] {
+export function useSettingsNavSections(): readonly SettingsNavSection[] {
   const { hasDaemon } = useHostDaemon();
   const { accessState } = useLocalHostDaemonAccess();
 
@@ -38,19 +36,16 @@ export function useSettingsNavSections(
     () =>
       SETTINGS_NAV_SECTIONS.filter(
         (section) =>
-          section.id !== "files" ||
-          hasDaemon ||
-          accessState !== "unavailable" ||
-          fileOpeners.length > 0,
+          section.id !== "files" || hasDaemon || accessState !== "unavailable",
       ),
-    [accessState, fileOpeners.length, hasDaemon],
+    [accessState, hasDaemon],
   );
 }
 
 export function useSettingsNavState(): SettingsNavState {
   const location = useLocation();
-  const { fileOpeners, settingsSections } = usePluginSlots();
-  const sections = useSettingsNavSections(fileOpeners);
+  const { settingsSections } = usePluginSlots();
+  const sections = useSettingsNavSections();
   const pluginListQuery = usePluginList({ enabled: true });
 
   const sectionMatch = matchPath(

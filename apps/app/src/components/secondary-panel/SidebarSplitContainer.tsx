@@ -28,7 +28,6 @@ import {
   createSplitResizeSnapSession,
 } from "@/lib/split-resize-snap";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
-import { MACOS_APP_REGION_NO_DRAG_CLASS } from "@/lib/bb-desktop";
 import { withLocalStorage } from "@/lib/browser-storage";
 import {
   PaneContext,
@@ -978,7 +977,6 @@ function SidebarSplitDivider({
       aria-orientation={horizontal ? "vertical" : "horizontal"}
       className={cn(
         "group relative z-[25] shrink-0 bg-border-seam transition-colors hover:bg-ring/40 data-[dragging]:bg-ring/40",
-        MACOS_APP_REGION_NO_DRAG_CLASS,
         "pointer-events-auto",
         hidden && "invisible pointer-events-none",
         horizontal ? "w-px cursor-col-resize" : "h-px cursor-row-resize",

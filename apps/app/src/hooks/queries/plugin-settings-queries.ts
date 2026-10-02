@@ -15,8 +15,8 @@ export interface PluginListItem {
   enabled: boolean;
   status: InstalledPlugin["status"];
   statusDetail: string | null;
-  description: string | null;
-  name: string | null;
+  description: string;
+  name: string;
   icon: string | null;
   compactIconUrl: string | null;
   hasSettings: boolean;
@@ -26,16 +26,21 @@ export interface PluginListResult {
   plugins: PluginListItem[];
 }
 
+export function pluginIconUrl(icon: string | null): string | null {
+  return icon?.startsWith("/") ? icon : null;
+}
+
 export function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
+  const compactIconUrl = pluginIconUrl(plugin.icon);
   return {
     id: plugin.id,
     enabled: plugin.enabled,
     status: plugin.status,
-    statusDetail: plugin.statusDetail,
+    statusDetail: plugin.statusMessage,
     description: plugin.description,
     name: plugin.name,
-    icon: plugin.icon,
-    compactIconUrl: plugin.iconUrl,
+    icon: compactIconUrl === null ? plugin.icon : null,
+    compactIconUrl,
     hasSettings: plugin.hasSettings,
   };
 }

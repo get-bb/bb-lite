@@ -1,4 +1,3 @@
-import type { ThreadChatMessageReference } from "@get-bb/plugin-sdk";
 import type { PromptInput } from "@bb/domain";
 import type {
   MarkdownPreviewLocalFileLink,
@@ -41,35 +40,10 @@ export interface ThreadTimelineInlineMessageEditor {
   onHostElementChange: (element: HTMLDivElement | null) => void;
 }
 
-export interface ThreadTimelineSendToMainMessageTarget {
-  messageText: string;
-}
-
-export type ThreadTimelineSendToMainMessageHandler = (
-  target: ThreadTimelineSendToMainMessageTarget,
-) => void;
-
 export type ThreadTimelineAddToChatHandler = (
   text: string,
   attachments?: readonly PromptDraftAttachment[],
 ) => void;
-
-export interface ThreadTimelinePluginMessageAction {
-  key: string;
-  pluginId: string | null;
-  icon: string | null;
-  label: string;
-  onSelect: () => void;
-}
-
-export interface ThreadTimelineConsumerMessageAction {
-  id: string;
-  pluginId: string | null;
-  icon: string | null;
-  label: string;
-  roles?: readonly ("user" | "assistant")[];
-  run(message: ThreadChatMessageReference): void | Promise<void>;
-}
 
 export type ThreadTimelineUnreadDividerPlacement =
   | {

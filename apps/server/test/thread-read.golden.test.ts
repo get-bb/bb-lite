@@ -122,8 +122,8 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
     };
     const { environment, host } = detail;
     const selection = JSON.stringify(environment.environmentProviderSelection);
-    insertRow(db, "hosts", snakeCased(host));
     server.ctx.runners.connect(host.id, () => server.runner.api);
+    insertRow(db, "hosts", snakeCased(host));
     insertRow(db, "projects", { ...snakeCased(project), sources: undefined });
     insertRow(db, "projects", snakeCased(sidebar.personalProject));
     insertRow(db, "project_sources", snakeCased(project.sources[0]));

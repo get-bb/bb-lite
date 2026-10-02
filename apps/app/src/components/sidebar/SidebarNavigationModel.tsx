@@ -9,27 +9,26 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type {
-  ExperimentalSidebarNavigationActions,
-  ExperimentalSidebarNavigationIconProps,
-  ExperimentalSidebarNavigationItem,
-  ExperimentalSidebarNavigationState,
-} from "@get-bb/plugin-sdk";
+  SidebarNavigationActions,
+  SidebarNavigationIconProps,
+  SidebarNavigationItem,
+  SidebarNavigationState,
+} from "@bb/plugin/app";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   useAppCommandRunner,
   useAppCommandShortcut,
   useIsAppCommandModifierHeld,
 } from "@/components/commands/AppCommandProvider";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
-import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
+import { PluginSlotMount } from "@/plugins/mount";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { getPluginNavPanelKey } from "@/components/plugin/pluginNavSidebarOrder";
 import { appToast } from "@/components/ui/app-toast";
 import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import { getPluginPanelRoutePath } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
 import {
@@ -48,29 +47,23 @@ import {
 } from "./useSidebarNavigationArrangement";
 
 export interface SidebarNavigationHostOptions {
-  onNavigate?: () => void;
   onNewChat?: () => void;
-  onSearchThreads?: () => void;
   splitEnabled: boolean;
   onOpenCustomize: () => void;
 }
 
 export interface SidebarNavigationModel {
-  state: ExperimentalSidebarNavigationState;
+  state: SidebarNavigationState;
   arrangement: SidebarNavigationArrangement<SidebarNavigationRow>;
   rowsById: ReadonlyMap<string, SidebarNavigationRow>;
   splitEnabled: boolean;
-  onNavigate?: () => void;
 }
 
 const SidebarNavigationModelContext =
   createContext<SidebarNavigationModel | null>(null);
 
 const HOST_ICON_NAMES: Record<
-  Extract<
-    ExperimentalSidebarNavigationIconProps["icon"],
-    { kind: "host" }
-  >["name"],
+  Extract<SidebarNavigationIconProps["icon"], { kind: "host" }>["name"],
   IconName
 > = {
   "new-thread": "MessageSquarePlus",
@@ -80,7 +73,7 @@ const HOST_ICON_NAMES: Record<
 export function SidebarNavigationIcon({
   icon,
   className,
-}: ExperimentalSidebarNavigationIconProps) {
+}: SidebarNavigationIconProps) {
   if (icon.kind === "host") {
     return (
       <Icon
@@ -101,8 +94,10 @@ export function SidebarNavigationIcon({
 
 const wrappedAccessories = new WeakMap<ComponentType, ComponentType>();
 
-function wrappedAccessory(panel: PluginNavPanelSlot): ComponentType | null {
-  const Accessory = panel.experimental_sidebarAccessory;
+function wrappedAccessory(
+  panel: PluginSlot<"navPanels">,
+): ComponentType | null {
+  const Accessory = panel.sidebarAccessory;
   if (Accessory === undefined) return null;
   const cached = wrappedAccessories.get(Accessory);
   if (cached) return cached;
@@ -124,15 +119,15 @@ function wrappedAccessory(panel: PluginNavPanelSlot): ComponentType | null {
 }
 
 function useStableItems(
-  items: readonly ExperimentalSidebarNavigationItem[],
-): readonly ExperimentalSidebarNavigationItem[] {
+  items: readonly SidebarNavigationItem[],
+): readonly SidebarNavigationItem[] {
   const previousRef = useRef<{
-    byId: Map<string, ExperimentalSidebarNavigationItem>;
-    list: readonly ExperimentalSidebarNavigationItem[];
+    byId: Map<string, SidebarNavigationItem>;
+    list: readonly SidebarNavigationItem[];
   }>({ byId: new Map(), list: [] });
   return useMemo(() => {
     const previous = previousRef.current;
-    const byId = new Map<string, ExperimentalSidebarNavigationItem>();
+    const byId = new Map<string, SidebarNavigationItem>();
     const list = items.map((item) => {
       const prior = previous.byId.get(item.id);
       const stable =
@@ -166,7 +161,6 @@ export function SidebarNavigationModelProvider({
     () => new Map(rows.map((row) => [getPluginNavPanelKey(row), row])),
     [rows],
   );
-  const isCompactViewport = useIsCompactViewport();
   const location = useLocation();
   const navigate = useNavigate();
   const commandRunner = useAppCommandRunner();
@@ -205,14 +199,12 @@ export function SidebarNavigationModelProvider({
                   ariaKeyShortcuts: threadSearchShortcut.ariaKeyshortcuts,
                 }
               : null,
-        accessory:
-          panel !== null && !isCompactViewport ? wrappedAccessory(panel) : null,
+        accessory: panel !== null ? wrappedAccessory(panel) : null,
       });
     });
   }, [
     arrangement.ordered,
     arrangement.visibleKeys,
-    isCompactViewport,
     newThreadDisabled,
     newThreadShortcut,
     searchThreadsDisabled,
@@ -248,7 +240,7 @@ export function SidebarNavigationModelProvider({
     };
   });
 
-  const actions = useMemo<ExperimentalSidebarNavigationActions>(() => {
+  const actions = useMemo<SidebarNavigationActions>(() => {
     const lookup = (itemId: string) => {
       const current = latest.current;
       const row = current.rowsById.get(itemId);
@@ -264,7 +256,6 @@ export function SidebarNavigationModelProvider({
         content,
         enabled: current.host.splitEnabled,
         label,
-        onNavigate: current.host.onNavigate,
       });
     return {
       activate(itemId, options) {
@@ -281,7 +272,6 @@ export function SidebarNavigationModelProvider({
             current.host.onNewChat?.();
             return;
           case "search-threads":
-            current.host.onSearchThreads?.();
             current.commandRunner.dispatch("thread.search", null);
             return;
           case "open-plugin-panel": {
@@ -291,7 +281,6 @@ export function SidebarNavigationModelProvider({
               openInSplit(current, content, item.label);
               return;
             }
-            current.host.onNavigate?.();
             void current.navigate(
               getPluginPanelRoutePath({
                 pluginId: chrome.pluginId,
@@ -316,11 +305,7 @@ export function SidebarNavigationModelProvider({
         if (!found || !pluginId) return;
         const { current, item } = found;
         try {
-          await current.setPluginEnabled(
-            pluginId,
-            false,
-            current.host.onNavigate,
-          );
+          await current.setPluginEnabled(pluginId, false);
           appToast.success(`${item.label} disabled`);
         } catch (error) {
           appToast.error(`Failed to disable ${item.label}`, {
@@ -334,7 +319,7 @@ export function SidebarNavigationModelProvider({
     };
   }, []);
 
-  const state = useMemo<ExperimentalSidebarNavigationState>(
+  const state = useMemo<SidebarNavigationState>(
     () => ({ items, activeItemId, isShortcutModifierHeld, actions }),
     [actions, activeItemId, isShortcutModifierHeld, items],
   );
@@ -344,9 +329,8 @@ export function SidebarNavigationModelProvider({
       arrangement,
       rowsById,
       splitEnabled: host.splitEnabled,
-      ...(host.onNavigate ? { onNavigate: host.onNavigate } : {}),
     }),
-    [arrangement, host.onNavigate, host.splitEnabled, rowsById, state],
+    [arrangement, host.splitEnabled, rowsById, state],
   );
   return (
     <SidebarNavigationModelContext.Provider value={model}>

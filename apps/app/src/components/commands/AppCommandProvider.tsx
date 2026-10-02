@@ -23,7 +23,6 @@ import {
 } from "@bb/domain";
 import { usePluginCommandBindings } from "@/hooks/usePluginCommandBindings";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { getBbDesktopInfo } from "@/lib/bb-desktop";
 import {
   browserPlatform,
   isEditableKeyboardTarget,
@@ -106,7 +105,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
   const showKeyboardHints =
     systemConfig.data?.generalSettings?.showKeyboardHints ??
     defaultAppSettings.showKeyboardHints;
-  const isDesktop = getBbDesktopInfo() !== null;
   const [isShortcutHintModifierHeld, setIsShortcutHintModifierHeld] =
     useState(false);
   const modifierHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -215,9 +213,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
         activeContextsRef.current.delete(key);
       }
     }
-    if (key === "splitActive") {
-      getBbDesktopInfo()?.setSplitNavigationEnabled?.(sources.size > 0);
-    }
   }, []);
 
   const dispatch = useCallback(
@@ -245,10 +240,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       next.terminalFocus =
         target instanceof HTMLElement &&
         target.closest("[data-app-terminal]") !== null;
-      next.browserFocus =
-        target instanceof HTMLElement &&
-        target.closest("[data-app-browser]") !== null;
-      next.webSurface = !isDesktop;
+      next.webSurface = true;
       next.macPlatform = keyboardPlatform(browserPlatform()) === "mac";
       next.windowsPlatform = keyboardPlatform(browserPlatform()) === "windows";
       next.linuxPlatform = keyboardPlatform(browserPlatform()) === "linux";
@@ -257,7 +249,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       }
       return next;
     },
-    [isDesktop],
+    [],
   );
 
   const isCommandAvailable = useCallback(
@@ -268,7 +260,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
         (binding) =>
           binding.command === command &&
           isAppKeybindingAvailableForClient(binding, {
-            isDesktop,
             platform: browserPlatform(),
           }),
       );
@@ -278,7 +269,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
         binding.when.all.every((key) => context[key]),
       );
     },
-    [currentContext, defaultKeybindings, isDesktop],
+    [currentContext, defaultKeybindings],
   );
 
   const getShortcut = useCallback(
@@ -289,7 +280,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
         if (
           candidate?.command === command &&
           isAppKeybindingAvailableForClient(candidate, {
-            isDesktop,
             platform: browserPlatform(),
           })
         ) {
@@ -299,7 +289,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       }
       return binding?.shortcut ?? null;
     },
-    [isDesktop, keybindings],
+    [keybindings],
   );
 
   const getShortcutCommand = useCallback(
@@ -317,7 +307,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
           candidate &&
           commands.includes(candidate.command) &&
           isAppKeybindingAvailableForClient(candidate, {
-            isDesktop,
             platform: browserPlatform(),
           }) &&
           matchesAppShortcut(event, candidate.shortcut, isMac)
@@ -327,7 +316,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    [isDesktop, keybindings],
+    [keybindings],
   );
 
   const handleKeyboardEvent = useCallback(
@@ -345,7 +334,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
         if (!binding) continue;
         if (
           !isAppKeybindingAvailableForClient(binding, {
-            isDesktop,
             platform: browserPlatform(),
           })
         ) {
@@ -361,7 +349,7 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       }
       return false;
     },
-    [currentContext, dispatch, isDesktop],
+    [currentContext, dispatch],
   );
 
   useEffect(() => {
@@ -390,14 +378,6 @@ export function AppCommandProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [getShortcutCommand, handleKeyboardEvent]);
-
-  useEffect(() => {
-    const desktop = getBbDesktopInfo();
-    if (!desktop?.onAppCommand) return;
-    return desktop.onAppCommand((command) => {
-      dispatch(command, null);
-    });
-  }, [dispatch]);
 
   const value = useMemo<AppCommandProviderValue>(
     () => ({

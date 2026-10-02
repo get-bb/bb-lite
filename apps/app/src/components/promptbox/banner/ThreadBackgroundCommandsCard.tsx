@@ -11,7 +11,6 @@ import {
 } from "@/components/promptbox/banner/PromptStackCard";
 import { LiveDurationText } from "@/components/thread/timeline/LiveDurationText";
 import { Icon } from "@bb/shared-ui/icon";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   activityIconClass,
   activityMetaClass,
@@ -162,7 +161,6 @@ export function ThreadBackgroundCommandsCard({
   isExpanded,
   onToggle,
 }: ThreadBackgroundCommandsCardProps) {
-  const isCompactViewport = useIsCompactViewport();
   const cardRef = useRef<HTMLElement>(null!);
   const [isCompactCard, setIsCompactCard] = useState<boolean | null>(null);
   useResizeObserver({
@@ -182,7 +180,7 @@ export function ThreadBackgroundCommandsCard({
   }
   const others = commands.slice(1);
   const hasMore = others.length > 0;
-  const useCompactSummary = isCompactCard ?? isCompactViewport;
+  const useCompactSummary = isCompactCard ?? false;
   const canExpand = hasMore || useCompactSummary;
   const expandedRows = useCompactSummary ? commands : others;
   const compactLabel = compactBackgroundActivityLabel(commands);

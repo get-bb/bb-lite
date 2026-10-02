@@ -80,12 +80,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "Open quick palette",
         "Search and run bb commands from the keyboard.",
       ),
-      command("window.new", "New window", "Open another bb desktop window."),
-      command(
-        "window.find",
-        "Find in window",
-        "Search the text shown in the current bb desktop window.",
-      ),
       command("app.back", "Back to app", "Return from Settings to the app."),
       command("settings.open", "Open settings", "Open bb settings."),
       command(
@@ -186,16 +180,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "Close the focused chat pane when more than one is open.",
       ),
       command(
-        "logs.openServerDaemon",
-        "Open server and daemon logs",
-        "Open the desktop log viewer for the bb server and host daemon.",
-      ),
-      command(
-        "dataDirectory.open",
-        "Open data directory",
-        "Reveal the bb data directory in the system file manager.",
-      ),
-      command(
         "notifications.open",
         "Show all notifications",
         "Open the notification center to read and clear past notifications.",
@@ -269,26 +253,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "modelPicker.cycleReasoningBackward",
         "Cycle reasoning effort backward",
         "Select the next lower supported reasoning effort, wrapping before the lowest.",
-      ),
-    ],
-  },
-  {
-    label: "Browser",
-    commands: [
-      command(
-        "browser.focusLocation",
-        "Focus location",
-        "Focus the embedded browser address bar.",
-      ),
-      command(
-        "browser.reload",
-        "Reload page",
-        "Reload the active embedded browser page.",
-      ),
-      command(
-        "browser.find",
-        "Find in page",
-        "Open the find bar for the active embedded browser page.",
       ),
     ],
   },

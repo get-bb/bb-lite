@@ -6,11 +6,8 @@ import {
   type ThreadListIndicatorKind,
   type ThreadListIndicatorState,
 } from "@bb/client-core";
-import type { PluginComposerThreadRowStatus } from "@get-bb/plugin-sdk";
-import { pluginIconName } from "@/components/plugin/PluginIcon";
 import {
   SIDEBAR_STATUS_ICON_CLASS,
-  SIDEBAR_SUCCESS_STATUS_COLOR_CLASS,
   SIDEBAR_SUCCESS_STATUS_DOT_CLASS,
   SIDEBAR_WORKING_STATUS_COLOR_CLASS,
 } from "@/components/sidebar/sidebarRowClasses";
@@ -57,95 +54,35 @@ function ThreadDraftIndicator({
   );
 }
 
-function PluginThreadRowStatusIndicator({
-  status,
-  size,
-}: {
-  status: PluginComposerThreadRowStatus;
-  size: "default" | "compact";
-}) {
-  const iconSizeClass =
-    size === "compact" ? "size-3.5" : SIDEBAR_STATUS_ICON_CLASS;
-  if (status.tone === "running") {
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center justify-center motion-safe:animate-pulse",
-          iconSizeClass,
-          "text-success",
-        )}
-      >
-        <Icon
-          name={pluginIconName(status.icon)}
-          className={cn(
-            "pointer-events-none shrink-0 animate-shine-icon",
-            iconSizeClass,
-          )}
-          aria-label={status.label}
-        />
-      </span>
-    );
-  }
-
-  return (
-    <Icon
-      name={pluginIconName(status.icon)}
-      className={cn(
-        "pointer-events-none shrink-0",
-        iconSizeClass,
-        status.tone === "success"
-          ? SIDEBAR_SUCCESS_STATUS_COLOR_CLASS
-          : status.tone === "error"
-            ? "text-destructive"
-            : "text-muted-foreground",
-      )}
-      aria-label={status.label}
-    />
-  );
-}
-
 interface ThreadStatusResolution {
   accessibleLabel: string | null;
   indicatorKind: ThreadListIndicatorKind | "archived";
-  pluginStatusIsVisible: boolean;
 }
 
 export function resolveThreadStatus(
   statusProps: ThreadListIndicatorState,
-  pluginStatus: PluginComposerThreadRowStatus | null = null,
   archived = false,
 ): ThreadStatusResolution {
   const indicatorKind = archived
     ? "archived"
     : resolveThreadListIndicator(statusProps);
-  const pluginStatusIsVisible =
-    !archived &&
-    pluginStatus !== null &&
-    indicatorKind !== "runtime" &&
-    indicatorKind !== "unread-error" &&
-    indicatorKind !== "waiting-for-input";
-
   return {
-    accessibleLabel: pluginStatusIsVisible
-      ? pluginStatus.label
-      : indicatorKind === "archived"
+    accessibleLabel:
+      indicatorKind === "archived"
         ? "Archived thread"
         : getThreadListIndicatorLabel(indicatorKind),
     indicatorKind,
-    pluginStatusIsVisible,
   };
 }
 
 export interface ThreadStatusGlyphProps extends ThreadListIndicatorState {
   archived?: boolean;
-  pluginStatus?: PluginComposerThreadRowStatus | null;
   hideIdleDraftLabel?: boolean;
   size?: "default" | "compact";
 }
 
 export function ThreadStatusGlyph({
   archived = false,
-  pluginStatus = null,
   hasPendingInteraction,
   hasUnsubmittedDraft,
   hasUnreadError,
@@ -162,7 +99,7 @@ export function ThreadStatusGlyph({
 }: ThreadStatusGlyphProps) {
   const iconSizeClass =
     size === "compact" ? "size-3.5" : SIDEBAR_STATUS_ICON_CLASS;
-  const { indicatorKind: kind, pluginStatusIsVisible } = resolveThreadStatus(
+  const { indicatorKind: kind } = resolveThreadStatus(
     {
       hasPendingInteraction,
       hasUnsubmittedDraft,
@@ -176,13 +113,8 @@ export function ThreadStatusGlyph({
       isWorkflowActive,
       queuedWork,
     },
-    pluginStatus,
     archived,
   );
-
-  if (pluginStatusIsVisible && pluginStatus) {
-    return <PluginThreadRowStatusIndicator status={pluginStatus} size={size} />;
-  }
 
   switch (kind) {
     case "archived":

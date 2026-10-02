@@ -30,10 +30,8 @@ import {
   type PluginSettingFieldDescriptor,
 } from "@/hooks/queries/plugin-settings-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { PluginMachineServerAccessNotice } from "@/components/machines/MachineServerAccessNotice";
-import { invalidateMachineProviders } from "@/hooks/cache-owners/system-cache-effects";
 import {
   SETTINGS_DROPDOWN_CONTENT_CLASS,
   SETTINGS_DROPDOWN_TRIGGER_CLASS,
@@ -52,7 +50,7 @@ function multilineRows(value: string): number {
 function isMultilineSetting(descriptor: PluginSettingFieldDescriptor): boolean {
   return (
     descriptor.type === "string" &&
-    descriptor.experimental_multiline === true &&
+    descriptor.multiline === true &&
     descriptor.secret !== true
   );
 }
@@ -327,7 +325,6 @@ function AutosavingPluginSetting({
     },
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
-      void invalidateMachineProviders({ queryClient });
     },
   });
 
@@ -447,11 +444,7 @@ export function PluginSettingsForm({ pluginId }: { pluginId: string }) {
   );
 }
 
-const PLUGIN_STATUSES_WITH_SETTINGS = [
-  "running",
-  "needs-configuration",
-  "degraded",
-];
+const PLUGIN_STATUSES_WITH_SETTINGS = ["running", "needs-configuration"];
 
 function PluginSettingsFieldSkeleton() {
   return (
@@ -534,11 +527,8 @@ export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
 }
 
 function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
-  const queryClient = useQueryClient();
   const { settingsSections } = usePluginSlots();
-  const { toggle, enabled } = usePluginEnabledMutation(plugin, () =>
-    invalidateMachineProviders({ queryClient }),
-  );
+  const { toggle, enabled } = usePluginEnabledMutation(plugin);
   const hasAvailableSettings =
     plugin.hasSettings ||
     settingsSections.some((section) => section.pluginId === plugin.id);
@@ -555,7 +545,7 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-foreground">
-              {plugin.name ?? plugin.id}
+              {plugin.name}
             </h1>
             {plugin.description ? (
               <p className="truncate text-xs text-subtle-foreground">
@@ -573,9 +563,6 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
         />
       </header>
       <ResourceDetailStack className="mt-6">
-        {enabled && plugin.enabled ? (
-          <PluginMachineServerAccessNotice pluginId={plugin.id} />
-        ) : null}
         {enabled && plugin.enabled && hasAvailableSettings ? (
           <ResourceDetailConfigurationSection label="Configuration">
             <PluginSettingsDetail plugin={plugin} />

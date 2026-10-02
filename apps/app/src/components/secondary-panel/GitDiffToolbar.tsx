@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Input } from "@bb/shared-ui/input";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
 import {
@@ -70,7 +69,7 @@ function GitDiffSelector({
           size="sm"
           disabled={disabled}
           className={cn(
-            "h-8 w-full min-w-0 justify-between gap-2 rounded-lg border border-border bg-transparent px-2.5 font-normal max-md:pointer-coarse:h-10",
+            "h-8 w-full min-w-0 justify-between gap-2 rounded-lg border border-border bg-transparent px-2.5 font-normal",
             COARSE_POINTER_TEXT_SM_CLASS,
             disabled && "opacity-60",
           )}
@@ -144,13 +143,10 @@ function GitDiffFileFilterInput({
   onChange,
 }: GitDiffFileFilterInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isPointerCoarse = usePointerCoarse();
 
   useEffect(() => {
-    if (!isPointerCoarse) {
-      inputRef.current?.focus();
-    }
-  }, [isPointerCoarse]);
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <div className="relative mt-2">
@@ -163,9 +159,7 @@ function GitDiffFileFilterInput({
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        className={cn(
-          "h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0 max-md:pointer-coarse:h-10 max-md:pointer-coarse:text-base",
-        )}
+        className="h-8 rounded-lg border-border pl-12 pr-8 text-xs focus-visible:ring-0"
         placeholder="Filter files, e.g. *.md, docs/**, !*.test.ts"
         value={value}
         onChange={(event) => onChange(event.target.value)}

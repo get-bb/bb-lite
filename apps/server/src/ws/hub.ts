@@ -24,10 +24,7 @@ export type SubscriptionListener = (
   subscribed: boolean,
 ) => void;
 
-export type ThreadChangeListener = (
-  threadId: string,
-  changes: readonly ThreadChangeKind[],
-) => void;
+export type ChangeListener = (message: ChangedMessage) => void;
 
 type ThreadChangedMessage = Extract<ChangedMessage, { entity: "thread" }>;
 
@@ -83,14 +80,13 @@ export class Hub {
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly pendingListEvents = new Map<string, PendingListEvents>();
   private readonly subscriptionListeners = new Set<SubscriptionListener>();
-  private readonly threadChangeListeners = new Set<ThreadChangeListener>();
+  private readonly changeListeners = new Set<ChangeListener>();
 
   thread(
     id: string,
     changes: ThreadChangeKind[],
     metadata?: ThreadChangeMetadata,
   ): void {
-    for (const listener of this.threadChangeListeners) listener(id, changes);
     const message: ThreadChangedMessage = {
       type: "changed",
       entity: "thread",
@@ -98,8 +94,9 @@ export class Hub {
       changes,
       ...(metadata === undefined ? {} : { metadata }),
     };
+    for (const listener of this.changeListeners) listener(message);
     if (isListRelevant(message)) {
-      this.publish(message);
+      this.route(message);
       return;
     }
     this.send(this.subscribers(`thread-detail:${id}`), message);
@@ -152,14 +149,14 @@ export class Hub {
     return this.subscriptions.has(targetKey(target));
   }
 
-  onThreadChange(listener: ThreadChangeListener): () => void {
-    this.threadChangeListeners.add(listener);
-    return () => this.threadChangeListeners.delete(listener);
-  }
-
   onSubscriptionChange(listener: SubscriptionListener): () => void {
     this.subscriptionListeners.add(listener);
     return () => this.subscriptionListeners.delete(listener);
+  }
+
+  onChanged(listener: ChangeListener): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
   }
 
   connect(socket: HubSocket): void {
@@ -230,6 +227,11 @@ export class Hub {
   }
 
   private publish(message: ChangedMessage): void {
+    for (const listener of this.changeListeners) listener(message);
+    this.route(message);
+  }
+
+  private route(message: ChangedMessage): void {
     const sockets = subscriptionKeys(message).flatMap((key) =>
       this.subscribers(key),
     );

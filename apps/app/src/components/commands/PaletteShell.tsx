@@ -30,7 +30,6 @@ interface PaletteModeChipProps {
   icon: Parameters<typeof Icon>[0]["name"];
   label: string;
   onClear: () => void;
-  hideShortcut?: boolean;
 }
 
 interface PaletteShellProps {
@@ -146,7 +145,6 @@ function PaletteModeChip({
   icon,
   label,
   onClear,
-  hideShortcut,
 }: PaletteModeChipProps) {
   return (
     <span
@@ -168,7 +166,7 @@ function PaletteModeChip({
         closeAction={{
           onClose: onClear,
           closeLabel: clearLabel,
-          tooltip: hideShortcut ? clearLabel : `${clearLabel} (Esc)`,
+          tooltip: `${clearLabel} (Esc)`,
         }}
       />
     </span>

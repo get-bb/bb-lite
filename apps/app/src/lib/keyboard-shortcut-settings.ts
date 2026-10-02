@@ -79,7 +79,6 @@ export function getCommandShortcut(
   defaults: AppDefaultKeybindings,
   overrides: AppKeybindingOverrides,
   command: KeyboardCommandId,
-  isDesktop: boolean,
   platform: string,
 ): AppShortcut | null {
   let defaultShortcut: AppShortcut | null = null;
@@ -88,7 +87,7 @@ export function getCommandShortcut(
     const binding = defaults[index];
     if (
       binding?.command === command &&
-      isAppKeybindingAvailableForClient(binding, { isDesktop, platform })
+      isAppKeybindingAvailableForClient(binding, { platform })
     ) {
       available = true;
       defaultShortcut = binding.shortcut;
@@ -107,13 +106,12 @@ export function getCommandShortcut(
 export function isAppCommandAvailableForClient(
   defaults: AppDefaultKeybindings,
   command: KeyboardCommandId,
-  isDesktop: boolean,
   platform: string,
 ): boolean {
   return defaults.some(
     (binding) =>
       binding.command === command &&
-      isAppKeybindingAvailableForClient(binding, { isDesktop, platform }),
+      isAppKeybindingAvailableForClient(binding, { platform }),
   );
 }
 
@@ -167,16 +165,9 @@ export function getShortcutConflicts(
   defaults: AppDefaultKeybindings,
   overrides: AppKeybindingOverrides,
   command: KeyboardCommandId,
-  isDesktop: boolean,
   platform: string,
 ): KeyboardCommandId[] {
-  const shortcut = getCommandShortcut(
-    defaults,
-    overrides,
-    command,
-    isDesktop,
-    platform,
-  );
+  const shortcut = getCommandShortcut(defaults, overrides, command, platform);
   if (shortcut === null) return [];
   return [...new Set(defaults.map((binding) => binding.command))].filter(
     (candidate) => {
@@ -185,7 +176,6 @@ export function getShortcutConflicts(
         defaults,
         overrides,
         candidate,
-        isDesktop,
         platform,
       );
       return (

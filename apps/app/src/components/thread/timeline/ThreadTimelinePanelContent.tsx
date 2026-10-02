@@ -20,8 +20,6 @@ interface ThreadTimelinePanelContentProps {
   leadingContent?: ReactNode;
   onMessageAddToChat?: ThreadTimelineSurfaceProps["onMessageAddToChat"];
   onSelectionAddToChat?: ThreadTimelineSurfaceProps["onSelectionAddToChat"];
-  consumerMessageActions?: ThreadTimelineSurfaceProps["consumerMessageActions"];
-  includePluginMessageActions?: ThreadTimelineSurfaceProps["includePluginMessageActions"];
   onOpenLink?: ThreadTimelineSurfaceProps["onOpenLink"];
   onOpenLocalFileLink?: ThreadTimelineSurfaceProps["onOpenLocalFileLink"];
   projectId?: string;
@@ -37,8 +35,6 @@ export function ThreadTimelinePanelContent({
   leadingContent,
   onMessageAddToChat,
   onSelectionAddToChat,
-  consumerMessageActions,
-  includePluginMessageActions,
   onOpenLink,
   onOpenLocalFileLink,
   projectId,
@@ -110,8 +106,6 @@ export function ThreadTimelinePanelContent({
       leadingContent={leadingContent}
       onMessageAddToChat={onMessageAddToChat}
       onSelectionAddToChat={onSelectionAddToChat}
-      consumerMessageActions={consumerMessageActions}
-      includePluginMessageActions={includePluginMessageActions}
       onLoadOlderRows={resolvedTimeline.loadOlderTimelineRows}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}

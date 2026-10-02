@@ -59,7 +59,6 @@ interface GeneratedConversationMessageProps {
   sourceName: string;
   sourceProjectId: string | null;
   sourceThreadId: string | null;
-  sourceIsPluginSideChat: boolean;
   systemMessageKind: SystemMessageKind;
   systemMessageSubject: SystemMessageSubject | null;
   text: string;
@@ -100,7 +99,6 @@ interface GeneratedConversationTitleArgs {
   sourceKind: GeneratedConversationSourceKind;
   sourceName: string;
   sourceThreadId: string | null;
-  sourceIsPluginSideChat: boolean;
   systemMessageKind: SystemMessageKind;
   systemMessageSubject: SystemMessageSubject | null;
 }
@@ -255,21 +253,12 @@ export function generatedConversationTitle({
   sourceKind,
   sourceName,
   sourceThreadId,
-  sourceIsPluginSideChat,
   systemMessageKind,
   systemMessageSubject,
 }: GeneratedConversationTitleArgs): TimelineTitle {
-  const agentLeadIn = sourceIsPluginSideChat
-    ? "Replying to"
-    : originKind === "fork"
-      ? "Forked from"
-      : "Message from";
-  const sideChatAction =
-    sourceIsPluginSideChat && sourceThreadId !== null
-      ? ({ kind: "open-plugin-side-chat", threadId: sourceThreadId } as const)
-      : null;
+  const agentLeadIn = originKind === "fork" ? "Forked from" : "Message from";
   const sourceLink =
-    sourceThreadId === null || sideChatAction !== null
+    sourceThreadId === null
       ? null
       : ({ kind: "thread", threadId: sourceThreadId } as const);
   const segments: TimelineTitleSegment[] =
@@ -293,7 +282,7 @@ export function generatedConversationTitle({
       : systemMessageTitleSegments(systemMessageKind, systemMessageSubject);
 
   return {
-    action: sideChatAction,
+    action: null,
     decorations: [],
     plain: segments
       .map((segment) => segment.plainText ?? segment.text)
@@ -354,9 +343,7 @@ function generatedConversationIconName(
 }
 
 interface GeneratedAgentSourceTitleProps {
-  onTitleAction?: TimelineTitleActionResolver;
   resolveSegmentLinkHref?: TimelineTitleLinkResolver;
-  sourceIsPluginSideChat: boolean;
   sourceName: string;
   sourceProjectId: string | null;
   sourceThreadId: string | null;
@@ -364,19 +351,15 @@ interface GeneratedAgentSourceTitleProps {
 }
 
 function GeneratedAgentSourceTitle({
-  onTitleAction,
   resolveSegmentLinkHref,
-  sourceIsPluginSideChat,
   sourceName,
   sourceProjectId,
   sourceThreadId,
   title,
 }: GeneratedAgentSourceTitleProps) {
   const sourceDisplayName = useThreadTitleDisplayText(sourceName);
-  const sourceTitleAction =
-    title.action && onTitleAction ? onTitleAction(title.action) : null;
   const sourceLinkHref =
-    sourceThreadId !== null && !sourceIsPluginSideChat
+    sourceThreadId !== null
       ? sourceProjectId !== null
         ? getThreadRoutePath({
             projectId: sourceProjectId,
@@ -411,7 +394,6 @@ function GeneratedAgentSourceTitle({
           }}
           serializedText={`@thread:${sourceThreadId}`}
           linkHref={sourceLinkHref ?? undefined}
-          onActivate={sourceTitleAction ?? undefined}
         />
       )}
     </span>
@@ -456,7 +438,6 @@ export const GeneratedConversationMessage = memo(
     sourceName,
     sourceProjectId,
     sourceThreadId,
-    sourceIsPluginSideChat,
     systemMessageKind,
     systemMessageSubject,
     text,
@@ -493,7 +474,6 @@ export const GeneratedConversationMessage = memo(
           sourceKind,
           sourceName,
           sourceThreadId,
-          sourceIsPluginSideChat,
           systemMessageKind,
           systemMessageSubject,
         }),
@@ -502,7 +482,6 @@ export const GeneratedConversationMessage = memo(
         sourceKind,
         sourceName,
         sourceThreadId,
-        sourceIsPluginSideChat,
         systemMessageKind,
         systemMessageSubject,
       ],
@@ -510,9 +489,7 @@ export const GeneratedConversationMessage = memo(
     const sourceTitleContent =
       sourceKind === "agent" ? (
         <GeneratedAgentSourceTitle
-          onTitleAction={onTitleAction}
           resolveSegmentLinkHref={resolveSegmentLinkHref}
-          sourceIsPluginSideChat={sourceIsPluginSideChat}
           sourceName={sourceName}
           sourceProjectId={sourceProjectId}
           sourceThreadId={sourceThreadId}
@@ -561,8 +538,7 @@ export const GeneratedConversationMessage = memo(
       collapsedPreviewSource.hasAdditionalBodyLines
         ? closeUnterminatedMarkdownCodeSpan(collapsedPreviewBody.text)
         : collapsedPreviewBody.text;
-    const suppressGeneratedAgentImages =
-      sourceKind === "agent" && !sourceIsPluginSideChat;
+    const suppressGeneratedAgentImages = sourceKind === "agent";
     const collapsedPreview =
       !titleOnly && collapsedPreviewBody.text ? (
         <div

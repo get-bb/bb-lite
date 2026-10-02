@@ -28,7 +28,7 @@ function InstalledPluginRow({ plugin }: { plugin: PluginListItem }) {
           to={getPluginConfigurationRoutePath({ pluginId: plugin.id })}
           className="block truncate text-foreground underline-offset-2 hover:underline"
         >
-          {plugin.name ?? plugin.id}
+          {plugin.name}
         </Link>
         {plugin.description ? (
           <p className="truncate text-xs text-subtle-foreground">
@@ -50,7 +50,7 @@ export function InstalledPluginsSettingsSection() {
   const listQuery = usePluginList({ enabled: true });
   const plugins = [...(listQuery.data?.plugins ?? [])].sort(
     (left, right) =>
-      (left.name ?? left.id).localeCompare(right.name ?? right.id) ||
+      left.name.localeCompare(right.name) ||
       left.id.localeCompare(right.id),
   );
   return (

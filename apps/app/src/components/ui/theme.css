@@ -7,6 +7,10 @@
    overlay, icon sizing — get purged from the app's CSS. */
 @source "../../../../../packages/shared-ui/src";
 @source "../../../../../plugins/thread-list/app";
+@source "../../../../../plugins/thread-list/app.tsx";
+@source "../../../../../plugins/navigation/app";
+@source "../../../../../plugins/secrets/app.tsx";
+@source "../../../../../plugins/ask-user-question/app.tsx";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -107,12 +111,7 @@
 /*
  * Typography scale overrides.
  *
- * Desktop gets tighter copy (~13px text-sm, ~15px text-base) for denser UI.
- * On narrow touch viewports (<768px with a coarse pointer) we bump xs/sm/base
- * back up so dense copy lands at a legible size. The 767px breakpoint matches
- * Tailwind's md:, where the sidebar switches to a drawer and the rest of the
- * app's responsive sizing fires. Keeping these in sync avoids an
- * intermediate state where icons have grown but text hasn't.
+ * Tighter copy (~13px text-sm, ~15px text-base) for denser UI.
  *
  * Overriding the --text-* tokens (rather than the .text-* classes) ensures
  * responsive variants like md:text-sm resolve to the same value and don't
@@ -126,19 +125,6 @@
    * never paired with a tier below --subtle-foreground or it fails AA at 10px. */
   --text-2xs: 0.625rem;
   --text-2xs--line-height: 0.875rem;
-}
-
-@media (max-width: 767px) and (pointer: coarse) {
-  :root {
-    --text-2xs: 0.6875rem;
-    --text-2xs--line-height: 0.9375rem;
-    --text-xs: 0.875rem;
-    --text-xs--line-height: 1.25rem;
-    --text-sm: 0.9375rem;
-    --text-sm--line-height: 1.375rem;
-    --text-base: 1rem;
-    --text-base--line-height: 1.5rem;
-  }
 }
 
 @layer components {
@@ -326,38 +312,6 @@
     opacity: 0;
   }
 
-  @media (max-width: 767px) and (pointer: coarse) {
-    /* The overlay is hidden on coarse phones, so no room is reserved. */
-    .bb-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
-      .bb-sidebar-hover-actions-inset,
-    .bb-sidebar-hover-actions-row:has(
-        .bb-sidebar-hover-actions[data-sidebar-hover-actions-open="true"]
-      )
-      .bb-sidebar-hover-actions-inset {
-      padding-right: 0;
-    }
-
-    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
-      .bb-sidebar-hover-actions:not(
-        [data-sidebar-hover-actions-open="true"]
-      ):not([data-sidebar-hover-actions-mobile="always"]) {
-      pointer-events: none;
-      opacity: 0;
-    }
-
-    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
-      .bb-sidebar-hover-actions-fade:not(
-        [data-sidebar-hover-actions-open="true"]
-      ) {
-      opacity: 1;
-    }
-
-    .bb-sidebar-hover-actions[data-sidebar-hover-actions-mobile="always"] {
-      pointer-events: auto;
-      opacity: 1;
-    }
-  }
-
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier="label"] {
     --bb-sidebar-sticky-tier-top: var(--bb-sidebar-sticky-label-top);
     --bb-sidebar-sticky-tier-height: var(--bb-sidebar-sticky-label-height);
@@ -425,12 +379,6 @@
      empty project-row slot. One base override covers every depth. */
   [data-sidebar-sticky-stack] [data-sidebar-sticky-section] {
     --bb-sidebar-sticky-parent-base-top: var(--bb-sidebar-sticky-project-top);
-  }
-
-  @media (max-width: 767px) and (pointer: coarse) {
-    [data-sidebar-sticky-stack] {
-      --bb-sidebar-sticky-row-height: var(--bb-sidebar-row-height-coarse);
-    }
   }
 }
 
@@ -595,7 +543,6 @@
     "Courier New", monospace;
   --radius: 0.5rem;
   --bb-sidebar-row-height: 1.75rem;
-  --bb-sidebar-row-height-coarse: 2.5rem;
   --shadow-x: 0px;
   --shadow-y: 2px;
   --shadow-blur: 0px;
@@ -916,17 +863,6 @@
 body.sidebar-resizing [data-sidebar="gap"],
 body.sidebar-resizing [data-sidebar="panel"] {
   transition-duration: 0ms !important;
-}
-
-/*
- * Radix portals paint outside the pane tree, but Electron resolves native
- * window-drag regions separately from ordinary CSS stacking. Explicitly carve
- * every interactive portaled surface out of an underlying drag strip so a
- * menu/select/dialog that crosses split chrome keeps its visible hit target.
- */
-[data-bb-portaled-overlay] {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
 }
 
 @layer utilities {

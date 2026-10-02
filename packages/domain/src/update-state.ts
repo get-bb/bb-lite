@@ -21,8 +21,6 @@ interface UpdateStatePresentation {
   inFlight?: boolean;
 }
 
-export const RETRY_ACTION_ICON = "RotateCcw";
-
 export const UPDATE_ACTION_ICON = "Download";
 
 export const UPDATE_STATE_PRESENTATION: Record<

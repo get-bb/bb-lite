@@ -5,7 +5,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import {
   anchorPointFromMouseEvent,
   firstClientRect,
@@ -102,11 +101,9 @@ export function SecondaryPanelSelectionActions({
   const pointerStartPointRef = useRef<SelectionAnchorPoint | null>(null);
   const pointerIsDownRef = useRef(false);
   const lastPointerReleaseAnchorRef = useRef<SelectionAnchor | null>(null);
-  const isPointerCoarse = usePointerCoarse();
   const [selection, setSelection] = useState<MessageProseSelection | null>(
     null,
   );
-  const isEnabled = !isPointerCoarse;
 
   const dismissSelection = useCallback(() => {
     setSelection(null);
@@ -123,7 +120,7 @@ export function SecondaryPanelSelectionActions({
   }, []);
 
   useEffect(() => {
-    if (!isEnabled || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
 
     let frame: number | null = null;
     const cancelFrame = () => {
@@ -191,7 +188,7 @@ export function SecondaryPanelSelectionActions({
       document.removeEventListener("selectionchange", handleSelectionChange);
       document.removeEventListener("keyup", handleSelectionChange);
     };
-  }, [isEnabled, reportSelection]);
+  }, [reportSelection]);
 
   const handleAddToChat = useCallback(
     (text: string) => {
@@ -200,10 +197,6 @@ export function SecondaryPanelSelectionActions({
     },
     [onSelectionAddToChat],
   );
-
-  if (!isEnabled) {
-    return <>{children}</>;
-  }
 
   return (
     <>

@@ -1,33 +1,23 @@
 import { useCallback, useState } from "react";
-import {
-  PluginSlotMount,
-  resetCrashedPluginSlots,
-} from "@/components/plugin/PluginSlotMount";
-import { useSidebar } from "@/components/ui/sidebar.js";
+import { PluginSlotMount } from "@/plugins/mount";
 import { useRouteState } from "@/hooks/useRouteState";
-import type { ResolvedReplacement } from "@/lib/plugin-slot-resolvers";
-import type { PluginThreadListSlot } from "@/lib/plugin-slots";
+import {
+  resetCrashedSlots,
+  type PluginSlot,
+  type ResolvedProvider,
+} from "@/plugins/registry";
 import { appToast } from "@/components/ui/app-toast";
-import { usePluginFrontendsSettled } from "@/lib/plugin-frontend-boot-state";
 import { ThreadListPlaceholder } from "./ThreadListPlaceholder";
 
 const THREAD_LIST_SLOT_KIND = "threadList";
-
 interface PluginThreadListProps {
-  replacement: ResolvedReplacement<PluginThreadListSlot>;
-  onNavigate: () => void;
+  replacement: ResolvedProvider<PluginSlot<"threadLists">>;
 }
 
-export function PluginThreadList({
-  replacement,
-  onNavigate,
-}: PluginThreadListProps) {
+export function PluginThreadList({ replacement }: PluginThreadListProps) {
   const { projectId, threadId } = useRouteState();
-  const { isCompactViewport } = useSidebar();
-  const bootSettled = usePluginFrontendsSettled();
   const [attempt, setAttempt] = useState(0);
-  const registration =
-    replacement.kind === "plugin" ? replacement.registration : null;
+  const registration = replacement.kind === "plugin" ? replacement.slot : null;
   const pluginId = registration?.pluginId ?? null;
   const title = registration?.title ?? "Thread list";
 
@@ -40,14 +30,18 @@ export function PluginThreadList({
     [title],
   );
   const handleReload = useCallback(() => {
-    if (pluginId !== null) resetCrashedPluginSlots(pluginId);
+    if (pluginId !== null) resetCrashedSlots(pluginId);
     setAttempt((current) => current + 1);
   }, [pluginId]);
 
   if (registration === null) {
     return (
       <ThreadListPlaceholder
-        state={bootSettled ? { kind: "missing" } : { kind: "loading" }}
+        state={
+          replacement.kind === "loading"
+            ? { kind: "loading" }
+            : { kind: "missing" }
+        }
       />
     );
   }
@@ -72,8 +66,6 @@ export function PluginThreadList({
       <List
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
-        isCompactViewport={isCompactViewport}
-        onNavigate={onNavigate}
         searchQuery=""
       />
     </PluginSlotMount>

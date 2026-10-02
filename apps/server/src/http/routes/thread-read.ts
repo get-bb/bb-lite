@@ -67,9 +67,12 @@ export function registerThreadReadRoutes(
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
-  ctx.hub.onThreadChange((threadId, changes) => {
-    if (changes.includes("history-rewritten")) timelines.forgetThread(threadId);
-    for (const wake of [...(eventWaiters.get(threadId) ?? [])]) wake();
+  ctx.hub.onChanged((message) => {
+    if (message.entity !== "thread") return;
+    const { id, changes } = message;
+    if (id === undefined) return;
+    if (changes.includes("history-rewritten")) timelines.forgetThread(id);
+    for (const wake of eventWaiters.get(id) ?? []) wake();
   });
 
   function nextThreadChange(threadId: string, timeoutMs: number) {

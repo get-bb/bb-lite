@@ -2,11 +2,11 @@ import {
   BUNDLED_NAVIGATION_PROVIDER,
   sidebarNavigationProviderAtom,
 } from "@/components/sidebar/sidebarNavigationProvider";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { ReplacementProviderSetting } from "./ReplacementProviderSetting";
 
 export function SidebarNavigationSetting() {
-  const { experimentalSidebarNavigations } = usePluginSlots();
+  const { sidebarNavigations } = usePluginSlots();
   return (
     <ReplacementProviderSetting
       label="Navigation"
@@ -14,7 +14,7 @@ export function SidebarNavigationSetting() {
       description="Choose who arranges the host-owned sidebar destinations on this device."
       bundledProvider={BUNDLED_NAVIGATION_PROVIDER}
       preferenceAtom={sidebarNavigationProviderAtom}
-      slots={experimentalSidebarNavigations}
+      slots={sidebarNavigations}
     />
   );
 }

@@ -5,19 +5,16 @@ import {
   type Host,
   type ThreadListEntry,
 } from "@bb/domain";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import type {
-  PluginSdkApp,
+  PluginAppHost,
   PluginSidebarProject,
   PluginSidebarSection,
   PluginSidebarThread,
   PluginSidebarThreadActions,
   PluginSidebarThreadDraftState,
-  PluginSidebarThreadPullRequestState,
-  PluginSidebarThreadRowStatus,
-  PluginSidebarThreadShortcut,
+  ShortcutHint,
   PluginSidebarThreadsState,
-} from "@get-bb/plugin-sdk";
+} from "@bb/plugin/app";
 import { useSidebarThreadShortcut as useHostSidebarThreadShortcut } from "@/components/sidebar/sidebarThreadShortcuts";
 import {
   useThreadTitleMentionResources,
@@ -27,16 +24,8 @@ import {
   usePromptDraftHasInput,
   usePromptDraftInputThreadIds,
 } from "@/hooks/usePromptDraftStorage";
-import {
-  usePluginThreadRowStatus,
-  usePluginThreadRowStatuses,
-} from "./plugin-thread-row-status";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
-import {
-  getEnvironmentPullRequestFromResponse,
-  useEnvironmentPullRequest,
-} from "@/hooks/queries/environment-queries";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useArchivedThreads } from "@/hooks/queries/thread-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
@@ -110,9 +99,9 @@ function toPluginSidebarThreadCached(
 }
 
 export function useSidebarThreads(
-  options?: Parameters<PluginSdkApp["experimental_useSidebarThreads"]>[0],
+  options?: Parameters<PluginAppHost["useSidebarThreads"]>[0],
 ): PluginSidebarThreadsState {
-  const lifecycles = options?.experimental_lifecycles;
+  const lifecycles = options?.lifecycles;
   const active = !lifecycles?.length || lifecycles.includes("active");
   const includeArchived = lifecycles?.includes("archived") ?? false;
   const archived = useArchivedThreads({}, { enabled: includeArchived });
@@ -120,9 +109,7 @@ export function useSidebarThreads(
   const fetchNextPage = useCallback(async () => {
     await fetchArchivedPage();
   }, [fetchArchivedPage]);
-  const archiveState = useMemo<
-    PluginSidebarThreadsState["experimental_archived"]
-  >(
+  const archiveState = useMemo<PluginSidebarThreadsState["archived"]>(
     () =>
       includeArchived
         ? {
@@ -157,10 +144,10 @@ export function useSidebarThreads(
   return useMemo<PluginSidebarThreadsState>(() => {
     if (data === undefined) {
       return {
-        experimental_archived: archiveState,
+        archived: archiveState,
         status: query.isError ? "error" : "loading",
         threads: EMPTY_THREADS,
-        experimental_hosts: hosts ?? [],
+        hosts: hosts ?? [],
         projects: EMPTY_PROJECTS,
         sections: EMPTY_SECTIONS,
       };
@@ -180,12 +167,12 @@ export function useSidebarThreads(
       }
     }
     return {
-      experimental_archived: archiveState,
+      archived: archiveState,
       status: !active && archiveState !== null ? archiveState.status : "ready",
       threads: [...selected.values()].map((thread) =>
         toPluginSidebarThreadCached(thread, hostNamesById, titleResources),
       ),
-      experimental_hosts: hosts ?? [],
+      hosts: hosts ?? [],
       projects: allProjects.map((project) => ({
         id: project.id,
         name: project.name,
@@ -268,7 +255,6 @@ export function useSidebarThreadEntry(
 export function useSidebarThreadActions(): PluginSidebarThreadActions {
   const navigate = useRouteNavigate();
   const store = useStore();
-  const isCompact = useIsCompactViewport();
   const setRootComposeProjectId = useSetRootComposeProjectId();
   const hostActions = useThreadActions();
   const entriesById = useThreadEntryMap();
@@ -300,7 +286,6 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
             navigate,
             projectId,
             threadId,
-            isCompact,
           });
           return;
         }
@@ -313,7 +298,7 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
           setRootComposeProjectId(projectId);
         }
         const state = {
-          placement: options?.experimental_placement ?? {
+          placement: options?.placement ?? {
             sectionId: options?.sectionId ?? null,
             pinned: false,
           },
@@ -362,7 +347,6 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
     [
       entriesById,
       hostActions,
-      isCompact,
       navigate,
       pinThreadAsync,
       requireEntry,
@@ -401,54 +385,8 @@ export function useSidebarThreadDraftIds(): ReadonlySet<string> {
   return ids.size === 0 ? EMPTY_DRAFT_IDS : ids;
 }
 
-export function useSidebarThreadRowStatus(
-  threadId: string,
-): PluginSidebarThreadRowStatus | null {
-  return usePluginThreadRowStatus(threadId);
-}
-
-export function useSidebarThreadRowStatuses(): ReadonlyMap<
-  string,
-  PluginSidebarThreadRowStatus
-> {
-  return usePluginThreadRowStatuses();
-}
-
 export function useSidebarThreadShortcut(
   threadId: string,
-): PluginSidebarThreadShortcut | null {
+): ShortcutHint | null {
   return useHostSidebarThreadShortcut(threadId) ?? null;
-}
-
-export function useSidebarThreadPullRequest(
-  threadId: string,
-): PluginSidebarThreadPullRequestState {
-  const entry = useSidebarThreadEntry(threadId);
-  const environmentId = entry?.environmentId ?? null;
-  const query = useEnvironmentPullRequest(environmentId);
-  const pullRequest = getEnvironmentPullRequestFromResponse(query.data);
-
-  return useMemo<PluginSidebarThreadPullRequestState>(
-    () => ({
-      isLoading: environmentId !== null && query.isPending,
-      pullRequest:
-        pullRequest === null
-          ? null
-          : {
-              number: pullRequest.number,
-              title: pullRequest.title,
-              url: pullRequest.url,
-              state: pullRequest.state,
-              attention: pullRequest.attention,
-              experimental_autoMerge: pullRequest.autoMerge,
-              experimental_inMergeQueue: pullRequest.inMergeQueue,
-              experimental_checks: { state: pullRequest.checks.state },
-              experimental_review: { state: pullRequest.review.state },
-              experimental_mergeability: {
-                state: pullRequest.mergeability.state,
-              },
-            },
-    }),
-    [environmentId, pullRequest, query.isPending],
-  );
 }

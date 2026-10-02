@@ -59,8 +59,6 @@ export function TimelineDetailScroll({
         ref={refCallback}
         onScroll={sticky.onScroll}
         onPointerDown={sticky.onPointerDown}
-        onTouchMove={sticky.onTouchMove}
-        onTouchStart={sticky.onTouchStart}
         onWheel={sticky.onWheel}
         data-detail-scroll-area={size}
         className={cn(

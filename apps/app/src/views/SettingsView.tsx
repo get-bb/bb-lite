@@ -1,4 +1,3 @@
-import { MobileAppSection } from "@/components/settings/MobileAppSection";
 import { MachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import { MachineAccessSettings } from "@/components/settings/MachineAccessSettings";
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -8,12 +7,8 @@ import {
   builtInThemes,
   defaultAppSettings,
   defaultAppTheme,
-  defaultExperiments,
-  experimentKeys,
   managedBranchPrefixSchema,
   type AppTheme,
-  type ExperimentKey,
-  type Experiments,
   type FaviconColorPreference,
   type PluginThemeMeta,
 } from "@bb/domain";
@@ -47,37 +42,27 @@ import {
 import { useHostDaemon, useLocalHostDaemonAccess } from "@/hooks/useHostDaemon";
 import { useAppThemePreview } from "@/hooks/useAppThemePreview";
 import { ProvidersSettingsSection } from "@/components/settings/ProvidersSettingsSection";
-import { CodeRendererSettings } from "@/components/settings/CodeRendererSettings";
 import { SidebarThreadListSetting } from "@/components/settings/SidebarThreadListSetting";
-import { SidebarFooterSettings } from "@/components/settings/SidebarFooterSettings";
 import { SidebarNavigationSetting } from "@/components/settings/SidebarNavigationSetting";
 import { SidebarHeaderSetting } from "@/components/settings/SidebarHeaderSetting";
 import { SplitDimmingSetting } from "@/components/settings/SplitDimmingSetting";
 import { useSettingsNavState } from "@/components/settings/settings-nav";
 import { InstalledPluginsSettingsSection } from "@/components/settings/InstalledPluginsSettingsSection";
 import { PluginSettingsPage } from "@/components/plugin/PluginSettings";
-import { FileOpenersSettingsSection } from "@/components/settings/FileOpenersSettingsSection";
-import { VoiceInputSettingsSection } from "@/components/settings/VoiceInputSettingsSection";
-import { AiServicesSettingsSection } from "@/components/settings/AiServicesSettingsSection";
-import { CommunitySettingsSection } from "@/components/settings/CommunitySettingsSection";
 import { KeyboardSettingsSection } from "@/components/settings/KeyboardSettingsSection";
-import { BrowserSettingsSection } from "@/components/settings/BrowserSettingsSection";
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
 import { ProjectsSettingsSection } from "@/components/settings/ProjectsSettingsSection";
 import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
 import {
   useUpdateGeneralSettings,
   useUpdateAppearance,
-  useUpdateExperiments,
 } from "@/hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useWorkspaceOpenTargets } from "@/hooks/useWorkspaceOpenTargets";
-import { isDesktopBrowserAvailable } from "@/lib/bb-desktop";
 import {
   FAVICON_COLOR_VALUES,
   getFaviconGlyphHref,
 } from "@/lib/favicon-color-preference";
-import { useOpenLinksInAppBrowserPreference } from "@/lib/in-app-browser-link-preference";
 import { useRewriteLocalhostLinksPreference } from "@/lib/localhost-link-rewrite-preference";
 import { localhostLinkRewriteDescription } from "@/lib/localhost-link-rewrite-description";
 import { useRichTextEditingPreference } from "@/lib/rich-text-editing-preference";
@@ -160,17 +145,14 @@ interface AppearanceSettingsSectionProps {
 interface GeneralSettingsSectionProps {
   confirmThreadArchive: boolean;
   onConfirmThreadArchiveChange: (enabled: boolean) => void;
-  desktopBrowserAvailable: boolean;
   generalSettingsDisabled: boolean;
   managedBranchPrefix: string;
   navigateToThreadAfterCreate: boolean;
   onManagedBranchPrefixChange: (prefix: string) => Promise<void> | void;
   onNavigateToThreadAfterCreateChange: (enabled: boolean) => void;
-  onOpenLinksInAppBrowserChange: (enabled: boolean) => void;
   onRewriteLocalhostLinksChange: (enabled: boolean) => void;
   onRichTextEditingChange: (enabled: boolean) => void;
   onSteerActiveThreadOnEnterChange: (enabled: boolean) => void;
-  openLinksInAppBrowser: boolean;
   rewriteLocalhostLinks: boolean;
   richTextEditing: boolean;
   steerActiveThreadOnEnter: boolean;
@@ -179,8 +161,6 @@ interface GeneralSettingsSectionProps {
 interface PrivacySettingsSectionProps {
   onStreamerModeChange: (enabled: boolean) => void;
   streamerMode: boolean;
-  telemetryEnabled: boolean;
-  onTelemetryEnabledChange: (enabled: boolean) => void;
   disabled: boolean;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
@@ -196,12 +176,6 @@ function appPaletteLabel(
     pluginThemes.find((entry) => entry.id === appearance.themeId)?.name ??
     appearance.themeId
   );
-}
-
-interface ExperimentsSettingsSectionProps {
-  disabled: boolean;
-  experiments: Experiments;
-  onExperimentChange: (key: ExperimentKey, enabled: boolean) => void;
 }
 
 const THEME_PREFERENCE_OPTIONS: ReadonlyArray<ThemePreferenceOption> = [
@@ -570,7 +544,6 @@ export function LocalOpenTargetSettingsSection({
   );
 }
 
-const IN_APP_BROWSER_LINK_SETTING_LABEL = "Open links in the in-app browser";
 const REWRITE_LOCALHOST_LINKS_SETTING_LABEL = "Rewrite localhost links";
 const NAVIGATE_TO_THREAD_AFTER_CREATE_SETTING_LABEL =
   "Navigate to threads on creation";
@@ -832,8 +805,6 @@ export function AppearanceSettingsSection({
           <SidebarThreadListSetting />
           <SidebarNavigationSetting />
           <SidebarHeaderSetting />
-          <CodeRendererSettings />
-          <SidebarFooterSettings />
         </div>
       </SettingsSection>
     </div>
@@ -843,17 +814,14 @@ export function AppearanceSettingsSection({
 export function GeneralSettingsSection({
   confirmThreadArchive,
   onConfirmThreadArchiveChange,
-  desktopBrowserAvailable,
   generalSettingsDisabled,
   managedBranchPrefix,
   navigateToThreadAfterCreate,
   onManagedBranchPrefixChange,
   onNavigateToThreadAfterCreateChange,
-  onOpenLinksInAppBrowserChange,
   onRewriteLocalhostLinksChange,
   onRichTextEditingChange,
   onSteerActiveThreadOnEnterChange,
-  openLinksInAppBrowser,
   rewriteLocalhostLinks,
   richTextEditing,
   steerActiveThreadOnEnter,
@@ -949,38 +917,23 @@ export function GeneralSettingsSection({
           </SettingsWithControl>
         </div>
       </SettingsSection>
-      {desktopBrowserAvailable || localhostRewriteDescription !== null ? (
+      {localhostRewriteDescription !== null ? (
         <SettingsSection title="Links">
           <div className="space-y-5">
-            {desktopBrowserAvailable ? (
-              <SettingsWithControl
-                label={IN_APP_BROWSER_LINK_SETTING_LABEL}
-                description="Open web links inside bb."
-              >
-                <Switch
-                  checked={openLinksInAppBrowser}
-                  onCheckedChange={onOpenLinksInAppBrowserChange}
-                  aria-label={IN_APP_BROWSER_LINK_SETTING_LABEL}
-                />
-              </SettingsWithControl>
-            ) : null}
-
-            {localhostRewriteDescription !== null ? (
-              <SettingsWithControl
-                label={REWRITE_LOCALHOST_LINKS_SETTING_LABEL}
-                description={
-                  <span className="break-words [overflow-wrap:anywhere]">
-                    {localhostRewriteDescription}
-                  </span>
-                }
-              >
-                <Switch
-                  checked={rewriteLocalhostLinks}
-                  onCheckedChange={onRewriteLocalhostLinksChange}
-                  aria-label={REWRITE_LOCALHOST_LINKS_SETTING_LABEL}
-                />
-              </SettingsWithControl>
-            ) : null}
+            <SettingsWithControl
+              label={REWRITE_LOCALHOST_LINKS_SETTING_LABEL}
+              description={
+                <span className="break-words [overflow-wrap:anywhere]">
+                  {localhostRewriteDescription}
+                </span>
+              }
+            >
+              <Switch
+                checked={rewriteLocalhostLinks}
+                onCheckedChange={onRewriteLocalhostLinksChange}
+                aria-label={REWRITE_LOCALHOST_LINKS_SETTING_LABEL}
+              />
+            </SettingsWithControl>
           </div>
         </SettingsSection>
       ) : null}
@@ -1003,8 +956,6 @@ export function PrivacySettingsSection({
   onEnabledChange,
   streamerMode,
   onStreamerModeChange,
-  telemetryEnabled,
-  onTelemetryEnabledChange,
 }: PrivacySettingsSectionProps) {
   return (
     <SettingsSection title="Privacy & diagnostics">
@@ -1018,18 +969,6 @@ export function PrivacySettingsSection({
             disabled={disabled}
             onCheckedChange={onStreamerModeChange}
             aria-label={STREAMER_MODE_SETTING_LABEL}
-          />
-        </SettingsWithControl>
-
-        <SettingsWithControl
-          label="Share anonymous usage data"
-          description="Send anonymous app starts, thread and message counts, and plugin installs to help improve BB. Turning this off takes effect immediately for this server."
-        >
-          <Switch
-            checked={telemetryEnabled}
-            disabled={disabled}
-            onCheckedChange={onTelemetryEnabledChange}
-            aria-label="Share anonymous usage data"
           />
         </SettingsWithControl>
 
@@ -1049,63 +988,6 @@ export function PrivacySettingsSection({
   );
 }
 
-const EXPERIMENT_DEFINITIONS: Record<
-  ExperimentKey,
-  { label: string; description: string }
-> = {
-  changelogPreview: {
-    label: "Changelog preview",
-    description:
-      "Show the latest release notes as a compact preview on the Updates page.",
-  },
-  legacyJitiPluginLoader: {
-    label: "Legacy plugin loader (JITI)",
-    description:
-      "Load plugin server code with the legacy JITI runtime. Takes effect the next time a plugin loads.",
-  },
-  serverMove: {
-    label: "Server move",
-    description:
-      "Move the bb server to another machine from Settings → Machines, and export or import server data with bb server.",
-  },
-};
-export function ExperimentsSettingsSection({
-  disabled,
-  experiments,
-  onExperimentChange,
-}: ExperimentsSettingsSectionProps) {
-  return (
-    <>
-      <SettingsSection
-        title="Experiments"
-        description="Early features that are off by default. Opt in to try them."
-      >
-        <div className="space-y-5">
-          {experimentKeys.map((experimentKey) => {
-            const definition = EXPERIMENT_DEFINITIONS[experimentKey];
-            return (
-              <SettingsWithControl
-                key={experimentKey}
-                label={definition.label}
-                description={definition.description}
-              >
-                <Switch
-                  checked={experiments[experimentKey]}
-                  disabled={disabled}
-                  onCheckedChange={(enabled) =>
-                    onExperimentChange(experimentKey, enabled)
-                  }
-                  aria-label={definition.label}
-                />
-              </SettingsWithControl>
-            );
-          })}
-        </div>
-      </SettingsSection>
-    </>
-  );
-}
-
 export function SettingsView() {
   const navigate = useNavigate();
   const themePreference = useThemePreference();
@@ -1119,16 +1001,11 @@ export function SettingsView() {
     useWorkspaceOpenTargetPreference(workspaceOpenTargets);
   const [fileTargetId, setFileTargetId] =
     useFileOpenTargetPreference(workspaceOpenTargets);
-  const [openLinksInAppBrowser, setOpenLinksInAppBrowser] =
-    useOpenLinksInAppBrowserPreference();
   const [rewriteLocalhostLinks, setRewriteLocalhostLinks] =
     useRewriteLocalhostLinksPreference();
   const [navigateToThreadAfterCreate, setNavigateToThreadAfterCreate] =
     useNavigateToThreadAfterCreatePreference();
   const [richTextEditing, setRichTextEditing] = useRichTextEditingPreference();
-  const [desktopBrowserAvailable] = useState(isDesktopBrowserAvailable);
-  const experiments = systemConfigQuery.data?.experiments ?? defaultExperiments;
-  const updateExperimentsMutation = useUpdateExperiments();
   const generalSettings =
     systemConfigQuery.data?.generalSettings ?? defaultAppSettings;
   const updateGeneralSettingsMutation = useUpdateGeneralSettings();
@@ -1159,8 +1036,6 @@ export function SettingsView() {
         }
       />
     );
-  } else if (activeSection === "ai-services") {
-    content = <AiServicesSettingsSection />;
   } else if (activeSection === "appearance") {
     content = (
       <AppearanceSettingsSection
@@ -1203,23 +1078,18 @@ export function SettingsView() {
     );
   } else if (activeSection === "keyboard") {
     content = <KeyboardSettingsSection />;
-  } else if (activeSection === "browser") {
-    content = <BrowserSettingsSection />;
   } else if (activeSection === "files") {
     content = (
-      <>
-        <LocalOpenTargetSettingsSection
-          accessState={accessState}
-          directoryTargetId={directoryTargetId}
-          fileTargetId={fileTargetId}
-          hasDaemon={hasDaemon}
-          onDirectoryTargetChange={setDirectoryTargetId}
-          onFileTargetChange={setFileTargetId}
-          onRequestAccess={requestAccess}
-          targets={workspaceOpenTargets}
-        />
-        <FileOpenersSettingsSection />
-      </>
+      <LocalOpenTargetSettingsSection
+        accessState={accessState}
+        directoryTargetId={directoryTargetId}
+        fileTargetId={fileTargetId}
+        hasDaemon={hasDaemon}
+        onDirectoryTargetChange={setDirectoryTargetId}
+        onFileTargetChange={setFileTargetId}
+        onRequestAccess={requestAccess}
+        targets={workspaceOpenTargets}
+      />
     );
   } else if (activeSection === "projects") {
     content = <ProjectsSettingsSection />;
@@ -1232,23 +1102,6 @@ export function SettingsView() {
     );
   } else if (activeSection === "environment-variables") {
     content = <MachineEnvironmentSettings />;
-  } else if (activeSection === "mobile") {
-    content = <MobileAppSection />;
-  } else if (activeSection === "experiments") {
-    content = (
-      <ExperimentsSettingsSection
-        disabled={
-          systemConfigQuery.data === undefined ||
-          updateExperimentsMutation.isPending
-        }
-        experiments={experiments}
-        onExperimentChange={(key, enabled) =>
-          updateExperimentsMutation.mutate({ ...experiments, [key]: enabled })
-        }
-      />
-    );
-  } else if (activeSection === "community") {
-    content = <CommunitySettingsSection />;
   } else if (activeSection === "archived") {
     content = <ArchivedThreadsSettingsSection />;
   } else {
@@ -1262,7 +1115,6 @@ export function SettingsView() {
               confirmThreadArchive: enabled,
             })
           }
-          desktopBrowserAvailable={desktopBrowserAvailable}
           generalSettingsDisabled={
             systemConfigQuery.data === undefined ||
             updateGeneralSettingsMutation.isPending
@@ -1275,12 +1127,10 @@ export function SettingsView() {
             });
           }}
           navigateToThreadAfterCreate={navigateToThreadAfterCreate}
-          openLinksInAppBrowser={openLinksInAppBrowser}
           rewriteLocalhostLinks={rewriteLocalhostLinks}
           richTextEditing={richTextEditing}
           steerActiveThreadOnEnter={generalSettings.steerActiveThreadOnEnter}
           onNavigateToThreadAfterCreateChange={setNavigateToThreadAfterCreate}
-          onOpenLinksInAppBrowserChange={setOpenLinksInAppBrowser}
           onRewriteLocalhostLinksChange={setRewriteLocalhostLinks}
           onRichTextEditingChange={setRichTextEditing}
           onSteerActiveThreadOnEnterChange={(enabled) =>
@@ -1290,15 +1140,7 @@ export function SettingsView() {
             })
           }
         />
-        <VoiceInputSettingsSection />
         <PrivacySettingsSection
-          telemetryEnabled={generalSettings.telemetryEnabled}
-          onTelemetryEnabledChange={(enabled) =>
-            updateGeneralSettingsMutation.mutate({
-              ...generalSettings,
-              telemetryEnabled: enabled,
-            })
-          }
           streamerMode={generalSettings.streamerMode}
           onStreamerModeChange={(enabled) =>
             updateGeneralSettingsMutation.mutate({

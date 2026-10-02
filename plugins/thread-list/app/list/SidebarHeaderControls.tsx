@@ -1,16 +1,15 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@/components/ui/coarse-pointer-sizing";
-import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@bb/shared-ui/dropdown-menu";
 import {
   SidebarControlButton,
   SidebarRowControls,
@@ -47,12 +46,6 @@ export function SidebarHeaderControls({
   onCloseAutoFocus?: (event: Event) => void;
 }) {
   const creation = useContext(HeaderCreationContext);
-  const compact = useIsCompactViewport();
-  const [page, setPage] = useState<"organize" | "sort" | "filter" | null>(null);
-  const changeOpen = (next: boolean) => {
-    if (!next) setPage(null);
-    onOpenChange?.(next);
-  };
   return (
     <SidebarRowControls
       primaryAction={
@@ -66,7 +59,7 @@ export function SidebarHeaderControls({
         ) : null
       }
     >
-      <DropdownMenu open={open} onOpenChange={changeOpen}>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -82,25 +75,10 @@ export function SidebarHeaderControls({
             />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          onCloseAutoFocus={onCloseAutoFocus}
-          mobileTitle={
-            page === "organize"
-              ? "Organize"
-              : page === "sort"
-                ? "Sort by"
-                : page === "filter"
-                  ? "Filter"
-                  : `${label} actions`
-          }
-        >
+        <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>
           <SidebarHeaderMenuContents
             creation={creation}
             anchorSectionId={sectionId}
-            compact={compact}
-            page={page}
-            onPageChange={setPage}
           >
             {children}
           </SidebarHeaderMenuContents>

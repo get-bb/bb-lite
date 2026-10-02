@@ -6,12 +6,12 @@ import {
   sectionNameOverridesAtom,
 } from "./section-name-overrides.js";
 import {
-  experimental_useSidebarThreads,
+  useSidebarThreads,
   type PluginSidebarProject,
   type PluginSidebarSection,
   type PluginSidebarThread,
   type PluginSidebarThreadsState,
-} from "@get-bb/plugin-sdk/app";
+} from "@bb/plugin/app";
 import type { SidebarThread } from "./sidebar-thread.js";
 
 export interface SidebarProject {
@@ -148,7 +148,7 @@ let sidebarDataCache: SidebarDataCacheEntry | null = null;
 
 export function getSidebarData(state: PluginSidebarThreadsState): SidebarData {
   const cached = sidebarDataCache;
-  const hosts = state.experimental_hosts ?? EMPTY_HOSTS;
+  const hosts = state.hosts ?? EMPTY_HOSTS;
   if (
     cached !== null &&
     cached.status === state.status &&
@@ -185,7 +185,7 @@ export function resetSidebarDataCacheForTest(): void {
 export function useSidebarProjectName(
   projectId: string | null,
 ): string | undefined {
-  const { projects } = experimental_useSidebarThreads();
+  const { projects } = useSidebarThreads();
   return projectId === null
     ? undefined
     : projects.find((project) => project.id === projectId)?.name;
@@ -195,8 +195,8 @@ export function useSidebarData() {
   const lifecycles = useAtomValue(sidebarThreadLifecyclesAtom);
   const sectionNameOverrides = useAtomValue(sectionNameOverridesAtom);
   const setSectionNameOverrides = useSetAtom(sectionNameOverridesAtom);
-  const state = experimental_useSidebarThreads({
-    experimental_lifecycles: lifecycles,
+  const state = useSidebarThreads({
+    lifecycles: lifecycles,
   });
   useEffect(() => {
     const settledIds = state.sections
@@ -212,30 +212,27 @@ export function useSidebarData() {
       return next;
     });
   }, [state.sections, sectionNameOverrides, setSectionNameOverrides]);
-  return useMemo(
-    () => {
-      const sections = state.sections.map((section) => {
-        const name = resolveSectionName(
-          section.id,
-          section.name,
-          sectionNameOverrides,
-        );
-        return name === section.name ? section : { ...section, name };
-      });
-      return {
-        ...getSidebarData({
-          ...state,
-          sections: sections.every(
-            (section, index) => section === state.sections[index],
-          )
-            ? state.sections
-            : sections,
-        }),
-        archived: state.experimental_archived,
-      };
-    },
-    [state, sectionNameOverrides],
-  );
+  return useMemo(() => {
+    const sections = state.sections.map((section) => {
+      const name = resolveSectionName(
+        section.id,
+        section.name,
+        sectionNameOverrides,
+      );
+      return name === section.name ? section : { ...section, name };
+    });
+    return {
+      ...getSidebarData({
+        ...state,
+        sections: sections.every(
+          (section, index) => section === state.sections[index],
+        )
+          ? state.sections
+          : sections,
+      }),
+      archived: state.archived,
+    };
+  }, [state, sectionNameOverrides]);
 }
 
 export function useSidebarMachineHosts(

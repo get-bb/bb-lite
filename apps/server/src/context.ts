@@ -1,18 +1,24 @@
-import type { SessionApi } from "@bb/runner";
+import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
+import type { Environments } from "./environments/types.js";
+import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
+import type { ThreadEngine } from "./threads/engine.js";
 import type { Hub } from "./ws/hub.js";
 
-export type ServerRunner = SessionApi;
+export type ServerRunner = Runner;
 
 export interface ServerContext {
   config: ServerConfig;
   db: Db;
   hub: Hub;
   runners: RunnerRegistry<ServerRunner>;
+  plugins: PluginHost;
   log: Logger;
   now: () => number;
+  environments: Environments;
+  threads: ThreadEngine;
 }
 
 export const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;

@@ -1,8 +1,4 @@
-import {
-  defaultExperiments,
-  defaultFeatureFlags,
-  type PluginThemeMeta,
-} from "@bb/domain";
+import { defaultFeatureFlags, type PluginThemeMeta } from "@bb/domain";
 import type { ServerAccessStatus } from "@bb/server-contract";
 
 const NO_PLUGIN_THEMES: PluginThemeMeta[] = [];
@@ -18,10 +14,8 @@ export const DIRECT_SERVER_ACCESS_PROVIDER: ServerAccessStatus["providers"][numb
   };
 
 export const CUT_FEATURE_SYSTEM_CONFIG = {
-  experiments: defaultExperiments,
   featureFlags: defaultFeatureFlags,
   pluginThemes: NO_PLUGIN_THEMES,
   hostDaemonPort: null,
   localHelperPorts: NO_LOCAL_HELPER_PORTS,
-  voiceTranscriptionEnabled: false,
 };

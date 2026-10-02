@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Icon } from "@/components/ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import {
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -10,7 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuPortal,
-} from "@/components/ui/dropdown-menu";
+} from "@bb/shared-ui/dropdown-menu";
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
 import type { HeaderCreationActions } from "./SidebarHeaderControls.js";
 import { ThreadListVisibilityMenuItems } from "./ThreadListVisibility.js";
@@ -41,35 +41,12 @@ type SidebarViewPage = "organize" | "sort" | "filter";
 export function SidebarHeaderMenuContents({
   creation,
   anchorSectionId,
-  compact,
-  page,
-  onPageChange,
   children,
 }: {
   creation: HeaderCreationActions;
   anchorSectionId?: SidebarSectionId;
-  compact: boolean;
-  page: SidebarViewPage | null;
-  onPageChange: (page: SidebarViewPage | null) => void;
   children?: ReactNode;
 }) {
-  if (compact && page) {
-    return (
-      <>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            onPageChange(null);
-          }}
-        >
-          <Icon name="ChevronLeft" />
-          Back
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <SidebarViewItems page={page} />
-      </>
-    );
-  }
   return (
     <>
       <DropdownMenuItem
@@ -86,39 +63,25 @@ export function SidebarHeaderMenuContents({
           { page: "sort", label: "Sort by", icon: "ArrowUpDown" },
           { page: "filter", label: "Filter", icon: "SlidersHorizontal" },
         ] as const
-      ).map((item) =>
-        compact ? (
-          <DropdownMenuItem
-            key={item.page}
-            onSelect={(event) => {
-              event.preventDefault();
-              onPageChange(item.page);
-            }}
-          >
+      ).map((item) => (
+        <DropdownMenuSub key={item.page}>
+          <DropdownMenuSubTrigger>
             <Icon name={item.icon} />
             {item.label}
-            <Icon name="ChevronRight" className="ml-auto" />
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuSub key={item.page}>
-            <DropdownMenuSubTrigger>
-              <Icon name={item.icon} />
-              {item.label}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent
-                className={
-                  item.page === "organize"
-                    ? "min-w-32"
-                    : "w-max min-w-28 max-w-64"
-                }
-              >
-                <SidebarViewItems page={item.page} />
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-        ),
-      )}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent
+              className={
+                item.page === "organize"
+                  ? "min-w-32"
+                  : "w-max min-w-28 max-w-64"
+              }
+            >
+              <SidebarViewItems page={item.page} />
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+      ))}
       {children ? (
         <>
           <DropdownMenuSeparator />

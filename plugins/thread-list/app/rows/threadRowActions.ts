@@ -1,4 +1,4 @@
-import type { IconName } from "@/components/ui/icon";
+import type { IconName } from "@bb/shared-ui/icon";
 import type { ThreadRowActionId } from "../../shared/preferences.js";
 
 export const THREAD_ROW_ACTIONS: Record<

@@ -6,7 +6,6 @@ import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-po
 import { useRouteStateHistoryNavigation } from "@/lib/app-route-history";
 
 interface SidebarHistoryNavigationControlsProps {
-  onNavigate?: () => void;
   className?: string;
 }
 
@@ -44,7 +43,6 @@ function SidebarHistoryNavButton({
 }
 
 export function SidebarHistoryNavigationControls({
-  onNavigate,
   className,
 }: SidebarHistoryNavigationControlsProps) {
   const { canGoBack, canGoForward, goBack, goForward } =
@@ -55,16 +53,14 @@ export function SidebarHistoryNavigationControls({
       return;
     }
     goBack();
-    onNavigate?.();
-  }, [canGoBack, goBack, onNavigate]);
+  }, [canGoBack, goBack]);
 
   const handleForward = useCallback(() => {
     if (!canGoForward) {
       return;
     }
     goForward();
-    onNavigate?.();
-  }, [canGoForward, goForward, onNavigate]);
+  }, [canGoForward, goForward]);
 
   return (
     <div className={cn("flex items-center gap-1", className)}>

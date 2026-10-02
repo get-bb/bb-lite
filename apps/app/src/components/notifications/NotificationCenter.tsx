@@ -187,11 +187,9 @@ export function NotificationCenter() {
         onOpenAutoFocus={(event) => {
           event.preventDefault();
         }}
-        mobileTitle="Notifications"
         aria-label="Notifications"
         data-testid="notification-center"
         className="w-96 max-w-[calc(100vw-2rem)] p-0"
-        mobileClassName="p-0"
       >
         <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
           <div className="text-sm font-medium leading-5">Notifications</div>

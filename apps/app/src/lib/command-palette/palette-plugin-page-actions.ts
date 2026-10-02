@@ -1,10 +1,10 @@
-import type { PluginNavPanelSlot } from "@/lib/plugin-slots";
+import type { PluginSlot } from "@/plugins/registry";
 import { getPluginPanelRoutePath } from "@/lib/route-paths";
 import type { PaletteAction } from "./palette-action";
 
 interface BuildPluginPagePaletteActionsArgs {
   navigate: (path: string) => void;
-  panels: readonly PluginNavPanelSlot[];
+  panels: readonly PluginSlot<"navPanels">[];
 }
 
 export function buildPluginPagePaletteActions(

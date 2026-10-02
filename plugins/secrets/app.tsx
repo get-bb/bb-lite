@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import {
   definePluginApp,
   type PluginPendingInteractionProps,
-} from "@get-bb/plugin-sdk/app";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@bb/plugin/app";
+import { Button } from "@bb/shared-ui/button";
+import { Input } from "@bb/shared-ui/input";
+import { Label } from "@bb/shared-ui/label";
 import DashedLineCircleIcon from "@hugeicons/core-free-icons/DashedLineCircleIcon";
 import ViewIcon from "@hugeicons/core-free-icons/ViewIcon";
 import ViewOffSlashIcon from "@hugeicons/core-free-icons/ViewOffSlashIcon";

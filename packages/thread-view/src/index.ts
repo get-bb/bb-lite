@@ -19,7 +19,6 @@ export {
   findActiveLatestBundleId,
   findTimelineFrontierRow,
   workRowGlyph,
-  workRowPluginGlyph,
   workRowPresentation,
   type BuildTimelineRowTitleOptions,
   type TimelineActivityIntentTitle,

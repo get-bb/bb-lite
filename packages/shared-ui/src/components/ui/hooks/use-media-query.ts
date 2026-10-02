@@ -57,7 +57,7 @@ export function getMediaQuerySnapshot(query: string): boolean {
   );
 }
 
-export function useMediaQuery(query: string): boolean {
+function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (notify) => subscribeMediaQuery(query, notify),
     () => getMediaQuerySnapshot(query),

@@ -15,14 +15,10 @@ export function getPanelCollapseTransitionStyle(
   };
 }
 
-export function usePanelCollapseTransitionsReady(
-  resetKey: Key,
-  enabled: boolean,
-): boolean {
+export function usePanelCollapseTransitionsReady(resetKey: Key): boolean {
   const [readyKey, setReadyKey] = useState<Key | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
     let secondFrame: number | null = null;
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
@@ -33,12 +29,12 @@ export function usePanelCollapseTransitionsReady(
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
     };
-  }, [enabled, resetKey]);
+  }, [resetKey]);
 
-  return !enabled || readyKey === resetKey;
+  return readyKey === resetKey;
 }
 
 export const PANEL_RESIZE_HANDLE_LAYER_CLASS = "z-[25]";
 
 export const PANEL_RESIZE_HIT_TARGET_CLASS =
-  "absolute inset-y-0 left-1/2 z-10 w-4 -translate-x-1/2 touch-none cursor-col-resize pointer-coarse:w-8 bg-transparent";
+  "absolute inset-y-0 left-1/2 z-10 w-4 -translate-x-1/2 touch-none cursor-col-resize bg-transparent";

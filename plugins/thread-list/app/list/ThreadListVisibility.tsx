@@ -12,10 +12,9 @@ import { useAtom } from "jotai";
 import type { SidebarThread } from "../model/sidebar-thread.js";
 import type { SidebarSectionId } from "../model/sidebar-section-id.js";
 import { getCollapsedChildActivity } from "../model/thread-activity.js";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { ContextMenuItem } from "@/components/ui/context-menu";
-import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
-import { useSidebarThreadDraftIds } from "@get-bb/plugin-sdk/app";
+import { DropdownMenuItem } from "@bb/shared-ui/dropdown-menu";
+import { ContextMenuItem } from "@bb/shared-ui/context-menu";
+import { useSidebarThreadDraftIds } from "@bb/plugin/app";
 import { ActionMenuSeparator } from "../ui/action-menu-items.js";
 import {
   SIDEBAR_CONTENT_SELECTOR,
@@ -74,7 +73,6 @@ export function ThreadListVisibility({
   const [customizing, setCustomizing] = useState<"list" | "rowActions" | null>(
     null,
   );
-  const compact = useIsCompactViewport();
   const container = useRef<HTMLDivElement>(null);
   const focusTarget = useRef<string | null>(null);
   const rowActionsOrigin = useRef<{
@@ -176,10 +174,7 @@ export function ThreadListVisibility({
       <CustomizeRowActionsContext.Provider value={customizeRowActions}>
         <div ref={container} tabIndex={-1} className="min-w-0 outline-none">
           {customizing === "rowActions" ? (
-            <ThreadRowActionsCustomize
-              onDone={() => setCustomizing(null)}
-              variant={compact ? "compact" : "card"}
-            />
+            <ThreadRowActionsCustomize onDone={() => setCustomizing(null)} />
           ) : customizing === "list" ? (
             <SidebarVisibilityCustomize
               items={orderedGroups}
@@ -203,7 +198,6 @@ export function ThreadListVisibility({
               }}
               title="Customize list"
               listLabel={label}
-              variant={compact ? "compact" : "card"}
               testIdPrefix="sidebar-thread-list"
             />
           ) : (

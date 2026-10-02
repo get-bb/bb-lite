@@ -1,5 +1,5 @@
-import type { PluginEnvironmentProvider } from "@get-bb/plugin-sdk/app";
-import type { IconName } from "@/components/ui/icon";
+import type { PluginEnvironmentProvider } from "@bb/plugin/app";
+import type { IconName } from "@bb/shared-ui/icon";
 
 export type EnvironmentWorkspaceDisplayProviderLookup =
   | { status: "loading" }

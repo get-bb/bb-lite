@@ -46,10 +46,8 @@ import {
   type ThreadArchiveDialogTarget,
 } from "@/components/dialogs/ThreadArchiveDialog";
 import { ArchivedThreadToastDescription } from "@/components/thread/ArchivedThreadToastDescription";
-import { destroyPersistedBrowserViewsForThread } from "@/components/secondary-panel/browserViewVisibilityCoordinator";
 import { getThreadReadToggleAction } from "@bb/client-core";
 import { getRootComposeRoutePath, getThreadRoutePath } from "@/lib/route-paths";
-import { getDesktopBrowserApi } from "@/lib/bb-desktop";
 import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 
 export interface ThreadActionsContextValue {
@@ -263,10 +261,6 @@ export function ThreadActionsProvider({
         { id: thread.id, childThreadsConfirmed },
         {
           onSuccess: () => {
-            destroyPersistedBrowserViewsForThread({
-              desktopBrowser: getDesktopBrowserApi(),
-              threadId: thread.id,
-            });
             closeDialog();
             syncNavigationAfterClose(closePanesForThreads([thread.id]), () =>
               navigateAwayIfViewing(thread),

@@ -21,11 +21,7 @@ import { selectHosts, selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { formatHostUpdateStatus } from "@/lib/host-update-status";
-import {
-  MachineLabel,
-  type MachineLabelHost,
-} from "@/components/machines/MachineLabel";
-import type { MachineProviderPresentation } from "@/components/plugin/MachineProviderIcon";
+import { MachineLabel } from "@/components/machines/MachineLabel";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -62,7 +58,6 @@ interface MachinePickerUIProps {
   disabled?: boolean;
   className?: string;
   modal?: boolean;
-  machineProviders?: readonly MachineProviderPresentation[];
 }
 
 export function MachinePickerUI({
@@ -75,7 +70,6 @@ export function MachinePickerUI({
   disabled = false,
   className,
   modal = true,
-  machineProviders = [],
 }: MachinePickerUIProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -132,10 +126,6 @@ export function MachinePickerUI({
             ) : (
               <MachineLabel
                 host={selectedHost}
-                machineProvider={findMachineProvider(
-                  selectedHost,
-                  machineProviders,
-                )}
                 iconClassName={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
               />
             )}
@@ -154,9 +144,8 @@ export function MachinePickerUI({
       <PopoverContent
         align="start"
         aria-label="Machine"
-        mobileTitle="Machine"
         autoFocusRef={showSearch ? searchInputRef : commandRef}
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-72 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1"
+        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-72 flex-col overflow-hidden p-0"
       >
         <Command
           ref={commandRef}
@@ -195,7 +184,7 @@ export function MachinePickerUI({
                       handleOpenChange(false);
                     }}
                     className={cn(
-                      "flex items-center justify-between gap-3 py-[0.3125rem] text-xs max-md:py-2",
+                      "flex items-center justify-between gap-3 py-[0.3125rem] text-xs",
                       LIST_HOVER_TRANSITION,
                     )}
                   >
@@ -203,10 +192,6 @@ export function MachinePickerUI({
                       <MachineStatusDot connected={connected} />
                       <MachineLabel
                         host={host}
-                        machineProvider={findMachineProvider(
-                          host,
-                          machineProviders,
-                        )}
                         iconClassName="size-3"
                         nameClassName="text-xs"
                       />
@@ -243,7 +228,7 @@ export function MachinePickerUI({
                 );
               })}
               {showSearch && filteredHosts.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground max-md:py-2">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
                   No machines found
                 </div>
               ) : null}
@@ -252,17 +237,5 @@ export function MachinePickerUI({
         </Command>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function findMachineProvider(
-  host: MachineLabelHost,
-  machineProviders: readonly MachineProviderPresentation[],
-): MachineProviderPresentation | null {
-  if (host.machineProviderId === null) return null;
-  return (
-    machineProviders.find(
-      (provider) => provider.id === host.machineProviderId,
-    ) ?? null
   );
 }

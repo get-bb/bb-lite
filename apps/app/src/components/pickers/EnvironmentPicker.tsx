@@ -39,7 +39,6 @@ import {
   parseEnvironmentValue,
 } from "./environment-picker-value";
 import { selectHosts } from "@/hooks/queries/host-queries";
-import { providerInputsControlRequired } from "./environment-provider-inputs";
 import { MACHINE_BADGE_CLASS_NAME, orderLocalHostFirst } from "./MachinePicker";
 import { PickerLoadingRows } from "./PickerLoadingRows";
 import { MachineIcon } from "@/components/machines/MachineLabel";
@@ -54,7 +53,7 @@ interface SelectedEnvironment {
 
 const MACHINE_CONTEXTUAL_MENU_MIN_OPTIONS = 3;
 const MACHINE_TARGET_CONTENT_CLASS_NAME =
-  "grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2 max-md:pointer-coarse:grid-cols-[0.5rem_1.25rem_minmax(0,1fr)]";
+  "grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2";
 
 export interface EnvironmentPickerMachines {
   hosts: readonly Host[];
@@ -84,7 +83,6 @@ export interface EnvironmentPickerUIProps {
     readonly SystemEnvironmentProvider[] | undefined
   >;
   selectedProviderHostId?: string | null;
-  inputsControlProviderIds?: ReadonlySet<string>;
   onSelectProvider?: (
     provider: SystemEnvironmentProvider,
     hostId: string | null,
@@ -92,11 +90,6 @@ export interface EnvironmentPickerUIProps {
   onSelectHost?: (hostId: string) => void;
   onSelectReuse?: () => void;
 }
-
-export const PROVIDER_INPUTS_CONTROL_MISSING_REASON =
-  "Needs its plugin's control";
-
-const NO_INPUTS_CONTROL_PROVIDER_IDS: ReadonlySet<string> = new Set();
 
 function providerValueSelected(
   value: string,
@@ -107,30 +100,20 @@ function providerValueSelected(
 
 function providerDisabledReason(
   provider: SystemEnvironmentProvider,
-  inputsControlProviderIds: ReadonlySet<string>,
 ): string | null {
   if (provider.availability?.status === "unavailable") {
     return provider.availability.message;
-  }
-  if (
-    !inputsControlProviderIds.has(provider.id) &&
-    providerInputsControlRequired(provider)
-  ) {
-    return PROVIDER_INPUTS_CONTROL_MISSING_REASON;
   }
   return null;
 }
 
 function providerDescription(
   provider: SystemEnvironmentProvider,
-  inputsControlProviderIds: ReadonlySet<string>,
 ): string | undefined {
   if (provider.availability?.status === "setup-required") {
     return provider.availability.message;
   }
-  return (
-    providerDisabledReason(provider, inputsControlProviderIds) ?? undefined
-  );
+  return providerDisabledReason(provider) ?? undefined;
 }
 
 function scopedProviders(
@@ -168,25 +151,21 @@ function contextualActiveHost({
   machines,
   previewHostId,
   selectedHostId,
-  hasSelectedHostlessProvider,
 }: {
   machines: EnvironmentPickerMachines;
   previewHostId: string | null;
   selectedHostId: string | null;
-  hasSelectedHostlessProvider: boolean;
 }): Host | undefined {
   return (
     machines.hosts.find((machineHost) => machineHost.id === previewHostId) ??
     machines.hosts.find((machineHost) => machineHost.id === selectedHostId) ??
-    (hasSelectedHostlessProvider
-      ? undefined
-      : (machines.hosts.find(
-          (machineHost) => machineHost.id === machines.localDaemonHostId,
-        ) ??
-        machines.hosts.find(
-          (machineHost) => machineHost.id === machines.primaryHostId,
-        ) ??
-        machines.hosts[0]))
+    machines.hosts.find(
+      (machineHost) => machineHost.id === machines.localDaemonHostId,
+    ) ??
+    machines.hosts.find(
+      (machineHost) => machineHost.id === machines.primaryHostId,
+    ) ??
+    machines.hosts[0]
   );
 }
 
@@ -209,7 +188,6 @@ export function EnvironmentPickerUI({
   projectless = false,
   providersByHostId,
   selectedProviderHostId = null,
-  inputsControlProviderIds = NO_INPUTS_CONTROL_PROVIDER_IDS,
   onSelectProvider,
   onSelectHost,
   onSelectReuse,
@@ -245,9 +223,7 @@ export function EnvironmentPickerUI({
   const environmentProviders = useMemo(
     () =>
       providers.filter(
-        (provider) =>
-          !provider.machineProviderId &&
-          provider.requires.projectless === projectless,
+        (provider) => provider.requires.projectless === projectless,
       ),
     [projectless, providers],
   );
@@ -281,14 +257,6 @@ export function EnvironmentPickerUI({
         : undefined,
     [providers, parsed],
   );
-  const hostlessProviders = providers.filter(
-    (provider) =>
-      provider.machineProviderId &&
-      provider.requires.projectless === projectless,
-  );
-  const selectedHostlessProvider = hostlessProviders.find((provider) =>
-    providerValueSelected(value, provider),
-  );
   const contextualSelectedHostId =
     parsed?.type === "provider" ? selectedProviderHostId : hostId;
   const contextualHost =
@@ -297,29 +265,22 @@ export function EnvironmentPickerUI({
           machines: availableMachines,
           previewHostId,
           selectedHostId: contextualSelectedHostId,
-          hasSelectedHostlessProvider: selectedHostlessProvider !== undefined,
         })
       : undefined;
   const selectedCommandValue = contextualHost
     ? `machine:${contextualHost.id}`
-    : selectedHostlessProvider
-      ? `provider:any:${selectedHostlessProvider.id}`
-      : parsed?.type === "reuse"
-        ? "reuse"
-        : selectedProvider !== undefined && selectedProviderHostId !== null
-          ? `provider:${selectedProviderHostId}:${selectedProvider.id}`
-          : "";
+    : parsed?.type === "reuse"
+      ? "reuse"
+      : selectedProvider !== undefined && selectedProviderHostId !== null
+        ? `provider:${selectedProviderHostId}:${selectedProvider.id}`
+        : "";
   const selected = useMemo((): SelectedEnvironment => {
-    if (
-      selectedProvider !== undefined &&
-      (selectedProvider.machineProviderId || hostUnavailableReason === null)
-    ) {
-      const showsHost =
-        !selectedProvider.machineProviderId && selectedMachineName !== null;
+    if (selectedProvider !== undefined && hostUnavailableReason === null) {
       return {
-        modeLabel: showsHost
-          ? `${selectedMachineName} · ${selectedProvider.displayName}`
-          : selectedProvider.displayName,
+        modeLabel:
+          selectedMachineName !== null
+            ? `${selectedMachineName} · ${selectedProvider.displayName}`
+            : selectedProvider.displayName,
         compactModeLabel: selectedProvider.displayName,
         icon: pluginIconName(selectedProvider.icon),
       };
@@ -451,11 +412,10 @@ export function EnvironmentPickerUI({
       <PopoverContent
         align="start"
         aria-label="Environment"
-        mobileTitle="Environment"
         autoFocusRef={
           isLoading ? undefined : showSearch ? searchInputRef : commandRef
         }
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1"
+        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
       >
         {isLoading ? (
           <PickerLoadingRows
@@ -502,10 +462,8 @@ export function EnvironmentPickerUI({
                     value={value}
                     searchQuery={searchQuery}
                     environmentProviders={environmentProviders}
-                    hostlessProviders={hostlessProviders}
                     providersByHostId={providersByHostId}
                     selectedProviderHostId={selectedProviderHostId}
-                    inputsControlProviderIds={inputsControlProviderIds}
                     onPreviewHostChange={setPreviewHostId}
                     onSelectHost={onSelectHost}
                     onRequestMachineSetup={
@@ -516,62 +474,38 @@ export function EnvironmentPickerUI({
                     }
                   />
                 ) : (
-                  <>
-                    <MachineGroupedEnvironmentOptions
-                      machines={availableMachines}
-                      sources={sources}
-                      value={value}
-                      onRequestMachineSetup={
-                        onRequestMachineSetup ? requestMachineSetup : undefined
-                      }
-                      environmentProviders={environmentProviders}
-                      providersByHostId={providersByHostId}
-                      selectedProviderHostId={selectedProviderHostId}
-                      inputsControlProviderIds={inputsControlProviderIds}
-                      onSelectProvider={
-                        onSelectProvider ? selectProvider : undefined
-                      }
-                    />
-                    <HostlessEnvironmentOptions
-                      providers={hostlessProviders}
-                      value={value}
-                      inputsControlProviderIds={inputsControlProviderIds}
-                      onSelectProvider={
-                        onSelectProvider ? selectProvider : undefined
-                      }
-                      separated={environmentProviders.length > 0}
-                    />
-                  </>
+                  <MachineGroupedEnvironmentOptions
+                    machines={availableMachines}
+                    sources={sources}
+                    value={value}
+                    onRequestMachineSetup={
+                      onRequestMachineSetup ? requestMachineSetup : undefined
+                    }
+                    environmentProviders={environmentProviders}
+                    providersByHostId={providersByHostId}
+                    selectedProviderHostId={selectedProviderHostId}
+                    onSelectProvider={
+                      onSelectProvider ? selectProvider : undefined
+                    }
+                  />
                 )
               ) : (
-                <>
-                  <EnvironmentOptionsSection
-                    hostId={hostId}
-                    hostName={isLocal ? null : (availableHost?.name ?? null)}
-                    hostUnavailableReason={hostUnavailableReason}
-                    value={value}
-                    environmentProviders={scopedProviders(
-                      environmentProviders,
-                      providersByHostId,
-                      hostId,
-                      { value, selectedProviderHostId },
-                    )}
-                    selectedProviderHostId={selectedProviderHostId}
-                    inputsControlProviderIds={inputsControlProviderIds}
-                    onSelectProvider={
-                      onSelectProvider ? selectProvider : undefined
-                    }
-                  />
-                  <HostlessEnvironmentOptions
-                    providers={hostlessProviders}
-                    value={value}
-                    inputsControlProviderIds={inputsControlProviderIds}
-                    onSelectProvider={
-                      onSelectProvider ? selectProvider : undefined
-                    }
-                    separated={environmentProviders.length > 0}
-                  />
-                </>
+                <EnvironmentOptionsSection
+                  hostId={hostId}
+                  hostName={isLocal ? null : (availableHost?.name ?? null)}
+                  hostUnavailableReason={hostUnavailableReason}
+                  value={value}
+                  environmentProviders={scopedProviders(
+                    environmentProviders,
+                    providersByHostId,
+                    hostId,
+                    { value, selectedProviderHostId },
+                  )}
+                  selectedProviderHostId={selectedProviderHostId}
+                  onSelectProvider={
+                    onSelectProvider ? selectProvider : undefined
+                  }
+                />
               )}
               <ReuseEnvironmentOption
                 selected={parsed?.type === "reuse"}
@@ -614,53 +548,6 @@ function ReuseEnvironmentOption({
   );
 }
 
-interface HostlessEnvironmentOptionsProps {
-  providers: readonly SystemEnvironmentProvider[];
-  value: string;
-  inputsControlProviderIds: ReadonlySet<string>;
-  onSelectProvider:
-    | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
-    | undefined;
-  separated: boolean;
-}
-
-function HostlessEnvironmentOptions({
-  providers,
-  value,
-  inputsControlProviderIds,
-  onSelectProvider,
-  separated,
-}: HostlessEnvironmentOptionsProps) {
-  if (onSelectProvider === undefined || providers.length === 0) return null;
-
-  return (
-    <>
-      {separated ? <CommandSeparator className="mx-0 shrink-0" /> : null}
-      <CommandGroup className="shrink-0">
-        {providers.map((provider) => (
-          <EnvironmentMenuItem
-            key={provider.id}
-            value={`provider:any:${provider.id}`}
-            label={provider.displayName}
-            description={providerDescription(
-              provider,
-              inputsControlProviderIds,
-            )}
-            icon={pluginIconName(provider.icon)}
-            provider={provider}
-            selected={providerValueSelected(value, provider)}
-            disabled={
-              providerDisabledReason(provider, inputsControlProviderIds) !==
-              null
-            }
-            onSelect={() => onSelectProvider(provider, null)}
-          />
-        ))}
-      </CommandGroup>
-    </>
-  );
-}
-
 interface EnvironmentOptionsSectionProps {
   hostId: string | null;
   hostName: string | null;
@@ -668,7 +555,6 @@ interface EnvironmentOptionsSectionProps {
   value: string;
   environmentProviders: readonly SystemEnvironmentProvider[];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
     | undefined;
@@ -681,7 +567,6 @@ function EnvironmentOptionsSection({
   value,
   environmentProviders,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onSelectProvider,
 }: EnvironmentOptionsSectionProps) {
   return (
@@ -696,19 +581,13 @@ function EnvironmentOptionsSection({
         </CommandItem>
       ) : onSelectProvider !== undefined && hostId !== null ? (
         environmentProviders.map((provider) => {
-          const disabledReason = providerDisabledReason(
-            provider,
-            inputsControlProviderIds,
-          );
+          const disabledReason = providerDisabledReason(provider);
           return (
             <EnvironmentMenuItem
               key={provider.id}
               value={`provider:${hostId}:${provider.id}`}
               label={provider.displayName}
-              description={providerDescription(
-                provider,
-                inputsControlProviderIds,
-              )}
+              description={providerDescription(provider)}
               icon={pluginIconName(provider.icon)}
               provider={provider}
               selected={
@@ -733,7 +612,6 @@ interface MachineGroupedEnvironmentOptionsProps {
   environmentProviders: readonly SystemEnvironmentProvider[];
   providersByHostId?: EnvironmentPickerUIProps["providersByHostId"];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
     | undefined;
@@ -747,7 +625,6 @@ function MachineGroupedEnvironmentOptions({
   environmentProviders,
   providersByHostId,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onSelectProvider,
 }: MachineGroupedEnvironmentOptionsProps) {
   const now = Date.now();
@@ -775,7 +652,6 @@ function MachineGroupedEnvironmentOptions({
             { value, selectedProviderHostId },
           )}
           selectedProviderHostId={selectedProviderHostId}
-          inputsControlProviderIds={inputsControlProviderIds}
           onSelectProvider={onSelectProvider}
         />
       ))}
@@ -784,7 +660,6 @@ function MachineGroupedEnvironmentOptions({
 }
 
 interface MachineContextualEnvironmentOptionsProps extends MachineGroupedEnvironmentOptionsProps {
-  hostlessProviders: readonly SystemEnvironmentProvider[];
   selectedHostId: string | null;
   previewHostId: string | null;
   searchQuery: string;
@@ -800,10 +675,8 @@ function MachineContextualEnvironmentOptions({
   value,
   searchQuery,
   environmentProviders,
-  hostlessProviders,
   providersByHostId,
   selectedProviderHostId,
-  inputsControlProviderIds,
   onPreviewHostChange,
   onSelectHost,
   onRequestMachineSetup,
@@ -824,14 +697,10 @@ function MachineContextualEnvironmentOptions({
     () => searchMachineHosts(orderedHosts, searchQuery),
     [orderedHosts, searchQuery],
   );
-  const selectedHostlessProvider = hostlessProviders.find((provider) =>
-    providerValueSelected(value, provider),
-  );
   const activeHost = contextualActiveHost({
     machines: { ...machines, hosts: orderedHosts },
     previewHostId,
     selectedHostId,
-    hasSelectedHostlessProvider: selectedHostlessProvider !== undefined,
   });
 
   return (
@@ -855,37 +724,10 @@ function MachineContextualEnvironmentOptions({
             />
           ))}
           {filteredHosts.length === 0 ? (
-            <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground max-md:py-2">
+            <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground">
               No machines found
             </div>
           ) : null}
-          {onSelectProvider
-            ? hostlessProviders.map((provider) => (
-                <EnvironmentMenuItem
-                  key={provider.id}
-                  value={`provider:any:${provider.id}`}
-                  label={provider.displayName}
-                  description={providerDescription(
-                    provider,
-                    inputsControlProviderIds,
-                  )}
-                  icon={pluginIconName(provider.icon)}
-                  provider={provider}
-                  alignIconWithMachine
-                  selected={
-                    activeHost === undefined &&
-                    providerValueSelected(value, provider)
-                  }
-                  disabled={
-                    providerDisabledReason(
-                      provider,
-                      inputsControlProviderIds,
-                    ) !== null
-                  }
-                  onSelect={() => onSelectProvider(provider, null)}
-                />
-              ))
-            : null}
         </CommandGroup>
       </div>
       {activeHost ? (
@@ -910,7 +752,6 @@ function MachineContextualEnvironmentOptions({
                 { value, selectedProviderHostId },
               )}
               selectedProviderHostId={selectedProviderHostId}
-              inputsControlProviderIds={inputsControlProviderIds}
               onSelectProvider={onSelectProvider}
             />
           </div>
@@ -940,7 +781,7 @@ function MachineChoiceItem({
       aria-current={active ? "true" : undefined}
       onSelect={onSelect}
       className={cn(
-        "flex items-center gap-3 py-[0.3125rem] text-xs max-md:py-2",
+        "flex items-center gap-3 py-[0.3125rem] text-xs",
         LIST_HOVER_TRANSITION,
         active && "font-medium text-foreground",
       )}
@@ -957,7 +798,7 @@ function MachineChoiceItem({
           data-machine-target-icon=""
           className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
         >
-          <MachineIcon host={host} className="!size-full" />
+          <MachineIcon className="!size-full" />
         </span>
         <span className="min-w-0 truncate text-xs">{host.name}</span>
       </span>
@@ -985,7 +826,6 @@ interface MachineSectionProps {
   onRequestMachineSetup: ((host: Host) => void) | undefined;
   environmentProviders: readonly SystemEnvironmentProvider[];
   selectedProviderHostId: string | null;
-  inputsControlProviderIds: ReadonlySet<string>;
   contextual?: boolean;
   onSelectProvider:
     | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
@@ -1001,7 +841,6 @@ function MachineSection({
   onRequestMachineSetup,
   environmentProviders,
   selectedProviderHostId,
-  inputsControlProviderIds,
   contextual = false,
   onSelectProvider,
 }: MachineSectionProps) {
@@ -1040,19 +879,14 @@ function MachineSection({
     >
       {onSelectProvider !== undefined
         ? hostProviders.map((provider) => {
-            const disabledReason = providerDisabledReason(
-              provider,
-              inputsControlProviderIds,
-            );
+            const disabledReason = providerDisabledReason(provider);
             return (
               <EnvironmentMenuItem
                 key={provider.id}
                 value={`provider:${host.id}:${provider.id}`}
                 label={provider.displayName}
                 description={
-                  connected
-                    ? providerDescription(provider, inputsControlProviderIds)
-                    : undefined
+                  connected ? providerDescription(provider) : undefined
                 }
                 icon={pluginIconName(provider.icon)}
                 provider={provider}
@@ -1096,7 +930,6 @@ interface EnvironmentMenuItemProps {
   selected: boolean;
   onSelect: () => void;
   disabled?: boolean;
-  alignIconWithMachine?: boolean;
 }
 
 function EnvironmentMenuItem({
@@ -1108,29 +941,22 @@ function EnvironmentMenuItem({
   selected,
   onSelect,
   disabled,
-  alignIconWithMachine = false,
 }: EnvironmentMenuItemProps) {
   const menuIcon =
     provider === undefined ? (
       <Icon
         name={icon}
         className={cn(
-          !alignIconWithMachine &&
-            "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
-          alignIconWithMachine
-            ? "!size-full"
-            : COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+          "mt-px text-muted-foreground",
+          COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
         )}
       />
     ) : (
       <EnvironmentProviderIcon
         provider={provider}
         className={cn(
-          !alignIconWithMachine &&
-            "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
-          alignIconWithMachine
-            ? "!size-full !min-h-0 !min-w-0"
-            : COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+          "mt-px text-muted-foreground",
+          COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
         )}
       />
     );
@@ -1145,39 +971,12 @@ function EnvironmentMenuItem({
       }}
       className={cn(
         "flex items-start justify-between gap-3 whitespace-normal",
-        "py-[0.3125rem] text-xs max-md:py-2",
+        "py-[0.3125rem] text-xs",
         LIST_HOVER_TRANSITION,
       )}
     >
-      <span
-        data-machine-target-content={alignIconWithMachine ? "" : undefined}
-        className={cn(
-          alignIconWithMachine
-            ? MACHINE_TARGET_CONTENT_CLASS_NAME
-            : "flex min-w-0 flex-1 gap-2",
-          "items-start",
-        )}
-      >
-        {alignIconWithMachine ? (
-          <span
-            aria-hidden
-            data-machine-status-spacer=""
-            className={COARSE_POINTER_DOT_SIZE_CLASS}
-          />
-        ) : null}
-        {alignIconWithMachine ? (
-          <span
-            data-machine-target-icon=""
-            className={cn(
-              "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
-              COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-            )}
-          >
-            {menuIcon}
-          </span>
-        ) : (
-          menuIcon
-        )}
+      <span className="flex min-w-0 flex-1 gap-2 items-start">
+        {menuIcon}
         <span className="flex min-w-0 flex-col">
           <span className="whitespace-normal break-words text-xs">{label}</span>
           {description ? (

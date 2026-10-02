@@ -3,7 +3,6 @@ import {
   isBackgroundAgentTaskType,
   isBackgroundCommandTaskType,
   isSettledWorkflowAgentState,
-  isNamespacedGlyph,
 } from "@bb/domain";
 import type {
   TimelineActivityIntent,
@@ -94,9 +93,7 @@ export type TimelineTitleDecoration =
       tone: "neutral" | "destructive";
     };
 
-export type TimelineTitleAction =
-  | { kind: "open-file-diff"; path: string }
-  | { kind: "open-plugin-side-chat"; threadId: string };
+export type TimelineTitleAction = { kind: "open-file-diff"; path: string };
 
 export interface TimelineTitle {
   segments: TimelineTitleSegment[];
@@ -1237,16 +1234,6 @@ export function workRowGlyph<HostGlyph extends string>(
   const presented = workRowPresentation(row)?.icon.glyph;
   if (presented !== undefined && isHostGlyph(presented)) return presented;
   return fallbackGlyphForWorkRow(row);
-}
-
-export function workRowPluginGlyph(
-  row: TimelineViewWorkRow,
-): string | undefined {
-  if (isSkillReadCommandRow(row)) return undefined;
-  const presented = workRowPresentation(row)?.icon.glyph;
-  return presented !== undefined && isNamespacedGlyph(presented)
-    ? presented
-    : undefined;
 }
 
 function isSkillReadCommandRow(row: TimelineViewWorkRow): boolean {

@@ -26,7 +26,7 @@ export function useSetPluginEnabled() {
   }, [location]);
 
   return useCallback(
-    async (pluginId: string, enabled: boolean, onNavigate?: () => void) => {
+    async (pluginId: string, enabled: boolean) => {
       await setPluginEnabled(fetch, pluginId, enabled);
       if (enabled) return;
       const current = store.get(splitLayoutAtom);
@@ -61,7 +61,6 @@ export function useSetPluginEnabled() {
           getPluginPanelRoutePluginId(currentLocation.current.pathname) ===
           pluginId
         ) {
-          onNavigate?.();
           void navigate(
             (next && focusedPaneRoute(next)) ?? getRootComposeRoutePath(),
             { replace: true },

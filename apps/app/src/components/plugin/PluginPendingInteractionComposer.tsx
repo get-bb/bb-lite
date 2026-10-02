@@ -5,12 +5,10 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@bb/shared-ui/button";
 import type { JsonValue, PendingInteraction } from "@bb/domain";
-import { PluginSlotMount } from "./PluginSlotMount";
+import { PluginSlotMount } from "@/plugins/mount";
 import { Skeleton } from "@bb/shared-ui/skeleton";
-import { resolvePendingInteraction } from "@/lib/plugin-slot-resolvers";
 import { usePluginDisplayName } from "@/lib/plugin-logos";
-import { usePluginFrontendsSettled } from "@/lib/plugin-frontend-boot-state";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots, usePluginsSettled } from "@/plugins/registry";
 import { useStopThread } from "@/hooks/mutations/thread-runtime-mutations";
 import { sdk } from "@/lib/sdk";
 
@@ -39,17 +37,17 @@ export function PluginPendingInteractionComposer({
 }: PluginPendingInteractionComposerProps) {
   const { pendingInteractions } = usePluginSlots();
   const pluginName = usePluginDisplayName(request.pluginId);
-  const pluginsSettled = usePluginFrontendsSettled();
+  const pluginsSettled = usePluginsSettled();
   const stopThread = useStopThread();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const slot = useMemo(
     () =>
-      resolvePendingInteraction(
-        pendingInteractions,
-        request.pluginId,
-        request.rendererId,
-      ),
+      pendingInteractions.find(
+        (candidate) =>
+          candidate.pluginId === request.pluginId &&
+          candidate.id === request.rendererId,
+      ) ?? null,
     [request.pluginId, request.rendererId, pendingInteractions],
   );
   const submit = useCallback(

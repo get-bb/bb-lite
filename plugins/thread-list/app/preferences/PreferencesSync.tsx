@@ -1,10 +1,6 @@
 import { useEffect } from "react";
 import { useAtomValue, useStore } from "jotai";
-import {
-  experimental_usePluginId,
-  useRealtime,
-  useRpc,
-} from "@get-bb/plugin-sdk/app";
+import { usePluginId, useRealtime, useRpc } from "@bb/plugin/app";
 import type { threadListRpcContract } from "../../server.js";
 import { PREFERENCES_CHANGED_CHANNEL } from "../../shared/preferences.js";
 import {
@@ -22,7 +18,7 @@ export function usePreferencesReady(): boolean {
 export function PreferencesSync() {
   const rpc = useRpc<typeof threadListRpcContract>();
   const store = useStore();
-  const pluginId = experimental_usePluginId();
+  const pluginId = usePluginId();
   useEffect(() => {
     attachPreferencesStore(store, pluginId);
     hydratePreferencesFromMirror();

@@ -1,0 +1,1587 @@
+[
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/started",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_f6urefffrj"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i1",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i2",
+    "delta": "1"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i2",
+      "text": "1",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i3",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i3",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "exitCode": 0,
+      "durationMs": 1853,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 19848,
+        "inputTokens": 19657,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 191,
+        "reasoningOutputTokens": 141
+      },
+      "last": {
+        "totalTokens": 19848,
+        "inputTokens": 19657,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 191,
+        "reasoningOutputTokens": 141
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19848,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i4",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i4",
+    "delta": "2"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i4",
+      "text": "2",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i5",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i5",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "exitCode": 0,
+      "durationMs": 1853,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 39799,
+        "inputTokens": 39560,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 239,
+        "reasoningOutputTokens": 141
+      },
+      "last": {
+        "totalTokens": 19951,
+        "inputTokens": 19903,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 48,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 19951,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i6",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i6",
+    "delta": "3"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i6",
+      "text": "3",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i7",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i7",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "exitCode": 0,
+      "durationMs": 1854,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 59854,
+        "inputTokens": 59567,
+        "cachedInputTokens": 38400,
+        "cacheReadInputTokens": 38400,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 287,
+        "reasoningOutputTokens": 141
+      },
+      "last": {
+        "totalTokens": 20055,
+        "inputTokens": 20007,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 48,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20055,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i8",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i8",
+    "delta": "4"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i8",
+      "text": "4",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i9",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i9",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "exitCode": 0,
+      "durationMs": 1854,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 80014,
+        "inputTokens": 79679,
+        "cachedInputTokens": 57600,
+        "cacheReadInputTokens": 57600,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 335,
+        "reasoningOutputTokens": 141
+      },
+      "last": {
+        "totalTokens": 20160,
+        "inputTokens": 20112,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 48,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20160,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "clientRequestId": "creq_sqcjrsq4n7"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i10",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i10",
+    "delta": "5"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i10",
+      "text": "5",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i11",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i11",
+      "command": "/bin/bash -lc 'sleep 2'",
+      "cwd": "/tmp/bb-recording-ws",
+      "exitCode": 0,
+      "durationMs": 1853,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "sleep 2"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 100282,
+        "inputTokens": 99899,
+        "cachedInputTokens": 76800,
+        "cacheReadInputTokens": 76800,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 383,
+        "reasoningOutputTokens": 141
+      },
+      "last": {
+        "totalTokens": 20268,
+        "inputTokens": 20220,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 48,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20268,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i12",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "reasoning",
+      "id": "da00000000-i12",
+      "summary": [],
+      "content": [],
+      "presentation": {
+        "label": {
+          "pending": "Thinking",
+          "completed": "Thought"
+        },
+        "icon": {
+          "glyph": "Brain"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i13",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": "Stopping"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " the"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " count"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " and"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " checking"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " the"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " current"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": " branch"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i13",
+    "delta": "."
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i13",
+      "text": "Stopping the count and checking the current branch.",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i14",
+      "command": "/bin/bash -lc 'git branch --show-current'",
+      "cwd": "/tmp/bb-recording-ws",
+      "status": "pending",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "git branch --show-current"
+      }
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "commandExecution",
+      "id": "da00000000-i14",
+      "command": "/bin/bash -lc 'git branch --show-current'",
+      "cwd": "/tmp/bb-recording-ws",
+      "aggregatedOutput": "main\n",
+      "exitCode": 0,
+      "durationMs": 0,
+      "status": "completed",
+      "approvalStatus": null,
+      "presentation": {
+        "label": {
+          "pending": "Running command",
+          "completed": "Ran command"
+        },
+        "icon": {
+          "glyph": "Terminal"
+        },
+        "title": "git branch --show-current"
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 120717,
+        "inputTokens": 120247,
+        "cachedInputTokens": 96000,
+        "cacheReadInputTokens": 96000,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 470,
+        "reasoningOutputTokens": 155
+      },
+      "last": {
+        "totalTokens": 20435,
+        "inputTokens": 20348,
+        "cachedInputTokens": 19200,
+        "cacheReadInputTokens": 19200,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 87,
+        "reasoningOutputTokens": 14
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20435,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i15",
+      "text": "",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": "Current"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": " git"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": " branch"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": ":"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": " `"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": "main"
+  },
+  {
+    "type": "item/agentMessage/delta",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "itemId": "da00000000-i15",
+    "delta": "`"
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "item": {
+      "type": "agentMessage",
+      "id": "da00000000-i15",
+      "text": "Current git branch: `main`",
+      "presentation": {
+        "label": {
+          "pending": "Responding",
+          "completed": "Responded"
+        },
+        "icon": {
+          "glyph": "MessageSquare"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 141221,
+        "inputTokens": 140740,
+        "cachedInputTokens": 116224,
+        "cacheReadInputTokens": 116224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 481,
+        "reasoningOutputTokens": 155
+      },
+      "last": {
+        "totalTokens": 20504,
+        "inputTokens": 20493,
+        "cachedInputTokens": 20224,
+        "cacheReadInputTokens": 20224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 11,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20504,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "provider/rateLimits/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "rateLimits": {
+      "providerId": "codex",
+      "status": "allowed",
+      "kind": "subscription-window",
+      "windows": [
+        {
+          "providerKey": "primary",
+          "label": "Weekly limit",
+          "status": "allowed",
+          "resetsAtMs": 1787810287000
+        }
+      ],
+      "reachedReason": null,
+      "overageStatus": null,
+      "overageReason": null
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t1"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a021e5-8334-74f2-8afc-75ee97e98d52"
+  },
+  {
+    "type": "thread/identity",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 20504,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "thread/extensionState/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "thread"
+    },
+    "kind": "provider-codex/goal",
+    "payload": null
+  },
+  {
+    "type": "turn/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    }
+  },
+  {
+    "type": "turn/input/accepted",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "clientRequestId": "creq_62dt5w3bnz"
+  },
+  {
+    "type": "item/started",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "contextCompaction",
+      "id": "da00000000-i16",
+      "presentation": {
+        "label": {
+          "pending": "Compacting context",
+          "completed": "Compacted context"
+        },
+        "icon": {
+          "glyph": "Archive"
+        }
+      }
+    }
+  },
+  {
+    "type": "thread/tokenUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 141221,
+        "inputTokens": 140740,
+        "cachedInputTokens": 116224,
+        "cacheReadInputTokens": 116224,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 481,
+        "reasoningOutputTokens": 155
+      },
+      "last": {
+        "totalTokens": 4748,
+        "inputTokens": 0,
+        "cachedInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 0,
+        "reasoningOutputTokens": 0
+      },
+      "modelContextWindow": 258400
+    }
+  },
+  {
+    "type": "thread/contextWindowUsage/updated",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "contextWindowUsage": {
+      "usedTokens": 4748,
+      "modelContextWindow": 258400,
+      "estimated": false
+    }
+  },
+  {
+    "type": "item/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "item": {
+      "type": "contextCompaction",
+      "id": "da00000000-i16",
+      "presentation": {
+        "label": {
+          "pending": "Compacting context",
+          "completed": "Compacted context"
+        },
+        "icon": {
+          "glyph": "Archive"
+        }
+      }
+    }
+  },
+  {
+    "type": "turn/completed",
+    "providerThreadId": "01a021e5-8275-7c13-9237-3810346aa397",
+    "scope": {
+      "kind": "turn",
+      "turnId": "da00000000-t2"
+    },
+    "status": "completed",
+    "providerCheckpointId": "01a02228-eb7d-7030-9c24-07b98f02dbef"
+  }
+]

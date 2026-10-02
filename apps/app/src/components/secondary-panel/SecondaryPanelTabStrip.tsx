@@ -16,7 +16,6 @@ import {
   DndContext,
   DragOverlay,
   MouseSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -37,7 +36,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@bb/shared-ui/context-menu";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   OverflowFade,
   type OverflowFadeTone,
@@ -45,10 +43,6 @@ import {
 import { TabPill } from "@/components/ui/tab-pill";
 import { useDragClickSuppression } from "@/components/ui/use-drag-click-suppression";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  MACOS_APP_REGION_NO_DRAG_CLASS,
-  MACOS_WINDOW_NO_DRAG_CLASS,
-} from "@/lib/bb-desktop";
 import type {
   SecondaryPanelRenderableTab,
   SecondaryPanelTabReorderHandler,
@@ -57,17 +51,11 @@ import type {
 const CHEVRON_SCROLL_STEP_PX = 140;
 
 const TAB_STRIP_SCROLL_BUTTON_CLASS =
-  "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
+  "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5";
 
 const EDGE_EPSILON_PX = 1;
 
 const SECONDARY_PANEL_TAB_STRIP_FADE_TONE: OverflowFadeTone = "sidebar";
-
-class InertTouchSensor extends TouchSensor {
-  static override setup(): () => void {
-    return () => {};
-  }
-}
 
 interface TabStripOverflowState {
   hasOverflow: boolean;
@@ -89,8 +77,6 @@ export interface SecondaryPanelTabStripProps {
     event: ReactPointerEvent<HTMLElement>,
   ) => void;
   onReorderTab: SecondaryPanelTabReorderHandler;
-  usesDesktopChrome: boolean;
-  isPanelOpen: boolean;
 }
 
 export type SecondaryPanelTabCloseScope = "self" | "others" | "right";
@@ -116,9 +102,7 @@ export function secondaryPanelTabsToClose(
 interface SortablePanelTabProps {
   isActive: boolean;
   activeTabRef: RefObject<HTMLDivElement | null>;
-  contextMenuDisabled: boolean;
   dragDisabled: boolean;
-  noDragClass: string | null;
   onCloseTabs: (tabId: string, scope: SecondaryPanelTabCloseScope) => void;
   tabs: readonly SecondaryPanelRenderableTab[];
   onBeginTabDrag?: (
@@ -133,8 +117,6 @@ export function SecondaryPanelTabStrip({
   tabs,
   onBeginTabDrag,
   onReorderTab,
-  usesDesktopChrome,
-  isPanelOpen,
 }: SecondaryPanelTabStripProps) {
   const stripRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -158,11 +140,7 @@ export function SecondaryPanelTabStrip({
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 4 },
   });
-  const touchSensor = useSensor(
-    isPanelOpen && !dragDisabled ? TouchSensor : InertTouchSensor,
-    { activationConstraint: { delay: 200, tolerance: 6 } },
-  );
-  const sensors = useSensors(mouseSensor, touchSensor);
+  const sensors = useSensors(mouseSensor);
   const tabIds = useMemo(() => tabs.map((tab) => tab.tab.id), [tabs]);
   const draggingTab =
     draggingTabId === null
@@ -361,7 +339,6 @@ export function SecondaryPanelTabStrip({
     [consumeDragClickSuppression],
   );
 
-  const isCompactViewport = useIsCompactViewport();
   const handleCloseTabs = useCallback(
     (tabId: string, scope: SecondaryPanelTabCloseScope) => {
       const tabsToClose = secondaryPanelTabsToClose(tabs, tabId, scope);
@@ -378,10 +355,6 @@ export function SecondaryPanelTabStrip({
     [activeTabId, tabs],
   );
 
-  const noDragClass = usesDesktopChrome ? MACOS_WINDOW_NO_DRAG_CLASS : null;
-  const chevronNoDragClass = usesDesktopChrome
-    ? MACOS_APP_REGION_NO_DRAG_CLASS
-    : null;
   const dndTabs = useMemo(
     () => (
       <DndContext
@@ -399,10 +372,8 @@ export function SecondaryPanelTabStrip({
             <SortablePanelTab
               key={tab.tab.id}
               activeTabRef={activeTabRef}
-              contextMenuDisabled={isCompactViewport}
               dragDisabled={dragDisabled}
               isActive={tab.tab.id === activeTabId}
-              noDragClass={noDragClass}
               onBeginTabDrag={onBeginTabDrag}
               onCloseTabs={handleCloseTabs}
               tab={tab}
@@ -431,8 +402,6 @@ export function SecondaryPanelTabStrip({
       tabIds,
       tabs,
       dragDisabled,
-      isCompactViewport,
-      noDragClass,
       onBeginTabDrag,
       handleCloseTabs,
       draggingTab,
@@ -450,7 +419,6 @@ export function SecondaryPanelTabStrip({
         buttonRef={leftScrollButtonRef}
         direction="left"
         canScroll={overflow.canScrollLeft}
-        className={chevronNoDragClass}
         onClick={() => scrollByStep(-1)}
       />
       <div data-secondary-panel-tab-scroll-region className="relative min-w-0">
@@ -473,10 +441,7 @@ export function SecondaryPanelTabStrip({
         <div
           ref={viewportRef}
           onClickCapture={handleClickCapture}
-          className={cn(
-            "no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden",
-            usesDesktopChrome && MACOS_APP_REGION_NO_DRAG_CLASS,
-          )}
+          className="no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
         >
           <div
             ref={contentRef}
@@ -491,7 +456,6 @@ export function SecondaryPanelTabStrip({
         buttonRef={rightScrollButtonRef}
         direction="right"
         canScroll={overflow.canScrollRight}
-        className={chevronNoDragClass}
         onClick={() => scrollByStep(1)}
       />
     </div>
@@ -500,10 +464,8 @@ export function SecondaryPanelTabStrip({
 
 function SortablePanelTab({
   activeTabRef,
-  contextMenuDisabled,
   dragDisabled,
   isActive,
-  noDragClass,
   onBeginTabDrag,
   onCloseTabs,
   tab,
@@ -543,7 +505,7 @@ function SortablePanelTab({
 
   return (
     <ContextMenu modal={false}>
-      <ContextMenuTrigger asChild disabled={contextMenuDisabled}>
+      <ContextMenuTrigger asChild>
         <div
           ref={setTabRef}
           style={style}
@@ -551,7 +513,6 @@ function SortablePanelTab({
             "shrink-0",
             !dragDisabled && "cursor-grab active:cursor-grabbing",
             isDragging && "opacity-40",
-            noDragClass,
           )}
           onPointerDown={(event) => {
             onBeginTabDrag?.(tabId, event);
@@ -591,7 +552,6 @@ interface TabStripScrollButtonProps {
   buttonRef: RefObject<HTMLButtonElement | null>;
   direction: "left" | "right";
   canScroll: boolean;
-  className: string | null;
   onClick: () => void;
 }
 
@@ -599,7 +559,6 @@ function TabStripScrollButton({
   buttonRef,
   direction,
   canScroll,
-  className,
   onClick,
 }: TabStripScrollButtonProps) {
   const label = direction === "left" ? "Scroll tabs left" : "Scroll tabs right";
@@ -617,12 +576,11 @@ function TabStripScrollButton({
         "z-20 shrink-0 bg-sidebar text-muted-foreground/70 shadow-none hover:bg-surface-raised-solid hover:text-foreground focus-visible:bg-sidebar",
         canScroll
           ? TAB_STRIP_SCROLL_BUTTON_CLASS
-          : "h-7 w-0 overflow-hidden p-0 max-md:pointer-coarse:h-9",
+          : "h-7 w-0 overflow-hidden p-0",
         "transition-opacity",
         canScroll
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-0",
-        className,
       )}
     >
       <Icon name={direction === "left" ? "ChevronLeft" : "ChevronRight"} />
@@ -648,11 +606,6 @@ function PanelTab({
       isActive={isActive}
       onSelect={tab.onSelect}
       labelMaxWidthClass="max-w-[160px]"
-      enlargeCloseTargetOnCoarsePointer={
-        tab.tab.kind === "workspace-file-preview" ||
-        tab.tab.kind === "host-file-preview" ||
-        tab.tab.kind === "thread-storage-file-preview"
-      }
       closeAction={
         tab.isPinned
           ? null

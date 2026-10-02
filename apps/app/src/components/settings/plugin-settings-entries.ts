@@ -3,7 +3,7 @@ export interface PluginSettingsCandidate {
   hasSettings: boolean;
   icon: string | null;
   id: string;
-  name: string | null;
+  name: string;
 }
 
 interface PluginSettingsSectionOwner {
@@ -35,7 +35,7 @@ export function buildPluginSettingsEntries(
     )
     .map((plugin) => ({
       id: plugin.id,
-      label: plugin.name ?? plugin.id,
+      label: plugin.name,
       icon: plugin.icon,
     }))
     .sort((left, right) => left.label.localeCompare(right.label));

@@ -34,31 +34,8 @@ import {
   partitionThreadChangesByFlushPriority,
 } from "./cache-owners/realtime-cache-registry";
 
-interface ThreadInvalidationDebounce {
-  debounceMs: number;
-  maxWaitMs: number;
-}
-
-export function resolveThreadInvalidationDebounce(
-  isCoarsePointer: boolean,
-): ThreadInvalidationDebounce {
-  return isCoarsePointer
-    ? { debounceMs: 150, maxWaitMs: 400 }
-    : { debounceMs: 50, maxWaitMs: 200 };
-}
-
-function detectCoarsePointer(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(pointer: coarse)").matches
-  );
-}
-
-const {
-  debounceMs: INVALIDATION_DEBOUNCE_MS,
-  maxWaitMs: INVALIDATION_MAX_WAIT_MS,
-} = resolveThreadInvalidationDebounce(detectCoarsePointer());
+const INVALIDATION_DEBOUNCE_MS = 50;
+const INVALIDATION_MAX_WAIT_MS = 200;
 const ENVIRONMENT_INVALIDATION_DEBOUNCE_MS = 250;
 const ENVIRONMENT_INVALIDATION_MAX_WAIT_MS = 500;
 

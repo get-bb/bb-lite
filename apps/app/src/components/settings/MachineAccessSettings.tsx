@@ -120,38 +120,20 @@ function useMachineAccess(): MachineAccessState {
   };
 }
 
-export function MachineAccessSettings({
-  children,
-  title = "Machine access",
-}: {
-  children?: (pluginId: string | null) => ReactNode;
-  title?: string;
-}) {
+export function MachineAccessSettings() {
   const machineAccess = useMachineAccess();
-  return (
-    <MachineAccessSettingsContent machineAccess={machineAccess} title={title}>
-      {children?.(
-        machineAccess.selected === "direct"
-          ? null
-          : (machineAccess.effective?.pluginId ?? null),
-      )}
-    </MachineAccessSettingsContent>
-  );
+  return <MachineAccessSettingsContent machineAccess={machineAccess} />;
 }
 
 export function MachineAccessSettingsContent({
   machineAccess,
-  children,
-  title = "Machine access",
 }: {
   machineAccess: MachineAccessState;
-  children?: ReactNode;
-  title?: string;
 }) {
   return (
-    <section aria-label={title} className="space-y-3">
+    <section aria-label="Machine access" className="space-y-3">
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-semibold">Machine access</h2>
         <p className="mt-1 text-xs text-subtle-foreground">
           Choose how your devices reach this bb server.
         </p>
@@ -166,32 +148,26 @@ export function MachineAccessSettingsContent({
               <Icon name="Spinner" className="size-3.5 animate-spin" />
               Loading connection settings…
             </p>
-          ) : (
-            <>
-              {machineAccess.selected !== "direct" &&
-              machineAccess.effective ? (
-                <MachineAccessStatus
+          ) : machineAccess.selected !== "direct" && machineAccess.effective ? (
+            <MachineAccessStatus
+              machineAccess={machineAccess}
+              methodPicker={
+                <MachineAccessMethodPicker
                   machineAccess={machineAccess}
-                  methodPicker={
-                    <MachineAccessMethodPicker
-                      machineAccess={machineAccess}
-                      align="start"
-                    />
-                  }
+                  align="start"
                 />
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex">
-                    <MachineAccessMethodPicker
-                      machineAccess={machineAccess}
-                      align="start"
-                    />
-                  </div>
-                  <MachineAccessDetails machineAccess={machineAccess} />
-                </div>
-              )}
-              {children}
-            </>
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex">
+                <MachineAccessMethodPicker
+                  machineAccess={machineAccess}
+                  align="start"
+                />
+              </div>
+              <MachineAccessDetails machineAccess={machineAccess} />
+            </div>
           )}
         </div>
       </div>

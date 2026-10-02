@@ -1,24 +1,12 @@
-import { useCallback, useMemo, type ReactNode } from "react";
-import type { ComposerView } from "@get-bb/plugin-sdk";
+import { useCallback } from "react";
 import {
   useAppCommandContext,
   useAppCommandHandler,
 } from "@/components/commands/AppCommandProvider";
-import {
-  PluginComposerHostProvider,
-  PluginComposerViewProvider,
-  type PluginComposerHost,
-} from "./plugin-composer-host";
-
-interface ComposerExtensionController {
-  host: PluginComposerHost | null;
-  view: ComposerView;
-  focus(): boolean;
-}
+import type { PluginComposerHost } from "./plugin-composer-host";
 
 interface UseComposerExtensionControllerOptions {
   host: PluginComposerHost | null;
-  view: ComposerView;
   isFocused: boolean;
   isPrimary: boolean;
   collapseIfFocused?(): boolean;
@@ -27,12 +15,11 @@ interface UseComposerExtensionControllerOptions {
 
 export function useComposerExtensionController({
   host,
-  view,
   isFocused,
   isPrimary,
   collapseIfFocused,
   focusDefault,
-}: UseComposerExtensionControllerOptions): ComposerExtensionController {
+}: UseComposerExtensionControllerOptions): void {
   const focus = useCallback(() => {
     if (!isFocused || !isPrimary) return false;
     if (collapseIfFocused?.()) return true;
@@ -44,22 +31,4 @@ export function useComposerExtensionController({
   }, [collapseIfFocused, focusDefault, host, isFocused, isPrimary]);
   useAppCommandContext("promptAvailable", true);
   useAppCommandHandler("composer.focus", focus);
-
-  return useMemo(() => ({ host, view, focus }), [focus, host, view]);
-}
-
-export function ComposerExtensionHost({
-  controller,
-  defaultRenderer,
-}: {
-  controller: ComposerExtensionController;
-  defaultRenderer: ReactNode;
-}) {
-  return (
-    <PluginComposerViewProvider value={controller.view}>
-      <PluginComposerHostProvider value={controller.host}>
-        {defaultRenderer}
-      </PluginComposerHostProvider>
-    </PluginComposerViewProvider>
-  );
 }

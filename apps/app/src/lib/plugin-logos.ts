@@ -1,22 +1,30 @@
-import { useCallback, useSyncExternalStore } from "react";
-import { parseNamespacedGlyph } from "@bb/domain";
+import { useSyncExternalStore } from "react";
+import type { InstalledPlugin } from "@bb/server-contract";
+import { pluginIconUrl } from "@/hooks/queries/plugin-settings-queries";
 
-export interface PluginLogoUrls {
-  displayName: string | null;
+interface PluginLogoUrls {
+  displayName: string;
   icon: string | null;
   compactIconUrl: string | null;
-  logoUrl: string | null;
-  logoDarkUrl: string | null;
-  icons: ReadonlyMap<string, string>;
 }
 
 let logoUrls: ReadonlyMap<string, PluginLogoUrls> = new Map();
 const listeners = new Set<() => void>();
 
-export function setPluginLogoUrls(
-  next: ReadonlyMap<string, PluginLogoUrls>,
-): void {
-  logoUrls = next;
+export function setPluginBranding(plugins: readonly InstalledPlugin[]): void {
+  logoUrls = new Map(
+    plugins.map((plugin) => {
+      const compactIconUrl = pluginIconUrl(plugin.icon);
+      return [
+        plugin.id,
+        {
+          displayName: plugin.name,
+          icon: compactIconUrl === null ? plugin.icon : null,
+          compactIconUrl,
+        },
+      ];
+    }),
+  );
   for (const listener of listeners) listener();
 }
 
@@ -56,29 +64,4 @@ export function usePluginDisplayName(pluginId: string): string {
     getPluginLogoUrls,
   );
   return entries.get(pluginId)?.displayName ?? pluginId;
-}
-
-export function usePluginIconUrl(
-  glyph: string | undefined,
-): string | undefined {
-  const getSnapshot = useCallback(
-    () => resolvePluginIconUrl(getPluginLogoUrls(), glyph),
-    [glyph],
-  );
-  return useSyncExternalStore(subscribePluginLogos, getSnapshot, getSnapshot);
-}
-
-export function resolvePluginIconUrl(
-  entries: ReadonlyMap<string, Pick<PluginLogoUrls, "icons">>,
-  glyph: string | undefined,
-): string | undefined {
-  const parsed = glyph === undefined ? null : parseNamespacedGlyph(glyph);
-  if (parsed === null) {
-    return undefined;
-  }
-  return entries.get(parsed.pluginId)?.icons.get(parsed.name);
-}
-
-export function resetPluginLogoStoreForTest(): void {
-  setPluginLogoUrls(new Map());
 }

@@ -1,5 +1,5 @@
-import { COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS } from "@/components/ui/coarse-pointer-sizing";
-import { cn } from "@/lib/utils";
+import { COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { cn } from "@bb/shared-ui/lib/utils";
 import type { ClientRect, Modifier } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import { useMemo } from "react";
@@ -19,31 +19,15 @@ export const SIDEBAR_THREAD_DRAG_CHIP_STYLE = {
   paddingLeft: `${getSidebarThreadRowPaddingLeft(0)}px`,
 } satisfies CSSProperties;
 
-export function SidebarThreadDragChip({
-  title,
-  className,
-  visualOnly = false,
-}: {
-  title: string;
-  className?: string;
-  visualOnly?: boolean;
-}) {
+export function SidebarThreadDragChip({ title }: { title: string }) {
   return (
     <div
       aria-hidden="true"
       data-sidebar-section-drag-overlay="true"
-      data-sidebar-touch-armed-chip={visualOnly ? "" : undefined}
       style={SIDEBAR_THREAD_DRAG_CHIP_STYLE}
-      className={cn(SIDEBAR_THREAD_DRAG_CHIP_CLASS, className)}
+      className={SIDEBAR_THREAD_DRAG_CHIP_CLASS}
     >
-      {visualOnly ? (
-        <span
-          data-sidebar-drag-title={title}
-          className="min-w-0 flex-1 truncate before:content-[attr(data-sidebar-drag-title)]"
-        />
-      ) : (
-        <span className="min-w-0 flex-1 truncate">{title}</span>
-      )}
+      <span className="min-w-0 flex-1 truncate">{title}</span>
     </div>
   );
 }

@@ -22,7 +22,7 @@ import {
   recordPaletteRecent,
 } from "@/lib/command-palette/palette-recents";
 import { buildPluginPaletteActions } from "@/lib/command-palette/palette-plugin-actions";
-import { usePluginSlots } from "@/lib/plugin-slots";
+import { usePluginSlots } from "@/plugins/registry";
 import { getActiveThreadPanelOpener } from "@/components/plugin/plugin-thread-panel-navigation";
 import { pluginListQueryOptions } from "@/hooks/queries/plugin-settings-queries";
 import type { PluginSettingsCandidate } from "@/components/settings/plugin-settings-entries";
@@ -69,14 +69,14 @@ export function CommandPalette({ threadId, projectId }: CommandPaletteProps) {
   const pluginSlots = usePluginSlots();
   const pluginCommandIds = useMemo(
     () =>
-      pluginSlots.commandPaletteActions.map((command) =>
+      pluginSlots.commands.map((command) =>
         pluginCommandId(command.pluginId, command.id),
       ),
-    [pluginSlots.commandPaletteActions],
+    [pluginSlots.commands],
   );
   const pluginShortcuts = useAppCommandShortcuts(pluginCommandIds);
   useIndexedAppCommandHandlers(pluginCommandIds, (index) => {
-    const slot = pluginSlots.commandPaletteActions[index];
+    const slot = pluginSlots.commands[index];
     if (!slot) return false;
     const action = buildPluginPaletteActions({
       slots: [slot],
@@ -100,7 +100,7 @@ export function CommandPalette({ threadId, projectId }: CommandPaletteProps) {
         shortcuts,
       }),
       ...buildPluginPaletteActions({
-        slots: pluginSlots.commandPaletteActions,
+        slots: pluginSlots.commands,
         threadId,
         projectId,
         openThreadPanel: getActiveThreadPanelOpener(),
@@ -117,7 +117,7 @@ export function CommandPalette({ threadId, projectId }: CommandPaletteProps) {
       runner.isCommandAvailable,
       shortcuts,
       threadId,
-      pluginSlots.commandPaletteActions,
+      pluginSlots.commands,
     ],
   );
 

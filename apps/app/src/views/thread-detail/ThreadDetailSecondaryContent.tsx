@@ -1,10 +1,6 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  PluginComposerHostScopeProvider,
-  usePluginComposerHost,
-} from "@/components/plugin/plugin-composer-host";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import { LazyThreadSecondaryPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
 import {
@@ -23,19 +19,8 @@ type ThreadTimelinePaneProps = Omit<
 >;
 type ThreadSecondaryPanelProps = Omit<
   ComponentProps<typeof LazyThreadSecondaryPanel>,
-  | "metadataContent"
-  | "renderAsDrawer"
-  | "isConversationCollapsed"
-  | "onToggleConversationCollapse"
-  | "renderBrowserDeck"
-> & {
-  renderBrowserDeck?: (args: {
-    activeBrowserTabId?: string | null;
-    canHandleBrowserCommands?: boolean;
-    canShowNativeBrowserView: boolean;
-    onNativeFocus?: () => void;
-  }) => ReactNode;
-};
+  "metadataContent" | "isConversationCollapsed" | "onToggleConversationCollapse"
+>;
 
 interface ThreadDetailSecondaryContentProps {
   footer: ReactNode;
@@ -52,17 +37,7 @@ interface ThreadDetailSecondaryContentProps {
   timeline: ThreadTimelinePaneProps;
 }
 
-export function ThreadDetailSecondaryContent(
-  props: ThreadDetailSecondaryContentProps,
-) {
-  return (
-    <PluginComposerHostScopeProvider>
-      <ThreadDetailSecondaryContentBody {...props} />
-    </PluginComposerHostScopeProvider>
-  );
-}
-
-function ThreadDetailSecondaryContentBody({
+export function ThreadDetailSecondaryContent({
   footer,
   header,
   isMetadataLoading,
@@ -76,9 +51,6 @@ function ThreadDetailSecondaryContentBody({
   secondaryPanel,
   timeline,
 }: ThreadDetailSecondaryContentProps) {
-  const composerHost = usePluginComposerHost();
-  const { renderBrowserDeck, ...threadSecondaryPanelProps } = secondaryPanel;
-
   const forksQuery = useThreads(
     {
       projectId: metadata.thread.projectId,
@@ -115,12 +87,9 @@ function ThreadDetailSecondaryContentBody({
       <SecondaryPanelLayout
         open={isSecondaryPanelOpen}
         onToggle={onToggleSecondaryPanel}
-        onClose={threadSecondaryPanelProps.onClose}
         panelGroupKey="thread-detail"
         resetKey={timeline.threadId}
         contentKey={timeline.threadId}
-        drawerLabel="Thread details"
-        drawerFallback={<ThreadMetadataLoadingSkeleton />}
         mainPanelId="thread-detail-timeline-panel"
         mainHeader={header}
         main={<ThreadTimelinePane {...timeline} footer={footer} />}
@@ -128,30 +97,15 @@ function ThreadDetailSecondaryContentBody({
           active: isConversationCollapsed,
           onToggle: onToggleConversationCollapse,
         }}
-        composerHost={composerHost}
         renderHostedPanel={renderHostedPanel}
         renderPanel={({
-          presentation,
-          canShowNativeBrowserView,
           isMainCollapsed,
           onToggleMainCollapse,
           resizablePanelId,
         }) => (
           <LazyThreadSecondaryPanel
-            {...threadSecondaryPanelProps}
-            renderBrowserDeck={(activeBrowserTabId, pane) =>
-              renderBrowserDeck?.({
-                activeBrowserTabId,
-                canHandleBrowserCommands:
-                  canShowNativeBrowserView && pane.isFocused,
-                canShowNativeBrowserView,
-                onNativeFocus: pane.onFocusPane,
-              })
-            }
-            renderAsDrawer={presentation === "drawer"}
-            isConversationCollapsed={
-              presentation === "inline" && isMainCollapsed
-            }
+            {...secondaryPanel}
+            isConversationCollapsed={isMainCollapsed}
             onToggleConversationCollapse={onToggleMainCollapse}
             resizablePanelId={resizablePanelId}
             metadataContent={metadataContent}

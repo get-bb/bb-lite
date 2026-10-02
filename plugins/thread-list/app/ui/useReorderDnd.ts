@@ -10,7 +10,6 @@ import {
   KeyboardSensor,
   MouseSensor,
   pointerWithin,
-  TouchSensor,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -21,8 +20,6 @@ import {
   type DragStartEvent,
   type MeasuringConfiguration,
   type Modifier,
-  type Sensor,
-  type TouchSensorOptions,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import {
@@ -49,7 +46,6 @@ export interface UseReorderDndArgs {
   onDragOver?: (event: DragOverEvent) => void;
   onDragCancel?: () => void;
   collisionDetection?: CollisionDetection;
-  touchSensor?: Sensor<TouchSensorOptions>;
   axis?: "vertical" | "free";
   measuring?: MeasuringConfiguration;
 }
@@ -80,7 +76,6 @@ export function useReorderDnd({
   onDragOver,
   onDragCancel,
   collisionDetection = reorderCollisionDetection,
-  touchSensor = TouchSensor,
   axis = "vertical",
   measuring,
 }: UseReorderDndArgs): UseReorderDndResult {
@@ -92,9 +87,6 @@ export function useReorderDnd({
   const isDraggingRef = useRef(false);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(touchSensor, {
-      activationConstraint: { delay: 500, tolerance: 6 },
-    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),

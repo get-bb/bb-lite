@@ -29,7 +29,6 @@ export function SidebarVisibilityCustomize({
   onReorder,
   onVisibleChange,
   title,
-  variant,
   visibleIds,
 }: {
   items: readonly SidebarVisibilityItem[];
@@ -43,11 +42,9 @@ export function SidebarVisibilityCustomize({
   onReorder: (activeId: string, overId: string) => void;
   onVisibleChange: (id: string, visible: boolean) => void;
   title: string;
-  variant: "compact" | "card";
   visibleIds: readonly string[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const doneButtonRef = useRef<HTMLButtonElement>(null);
   const orderedIds = useMemo(() => items.map((item) => item.id), [items]);
   const visibleIdSet = useMemo(() => new Set(visibleIds), [visibleIds]);
   const handleDragEnd = useCallback(
@@ -66,14 +63,10 @@ export function SidebarVisibilityCustomize({
   });
 
   useEffect(() => {
-    if (variant === "compact") {
-      doneButtonRef.current?.focus();
-      return;
-    }
     containerRef.current
       ?.querySelector<HTMLElement>("[data-sidebar-customize-launch]")
       ?.focus();
-  }, [variant]);
+  }, []);
 
   const list = (
     <div
@@ -108,11 +101,9 @@ export function SidebarVisibilityCustomize({
   return (
     <SidebarVisibilityCustomizeFrame
       containerRef={containerRef}
-      doneButtonRef={doneButtonRef}
       onDone={onDone}
       testId="sidebar-navigation-customize-inline"
       title={title}
-      variant={variant}
     >
       {list}
     </SidebarVisibilityCustomizeFrame>

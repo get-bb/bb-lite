@@ -93,7 +93,6 @@ export function ThreadWorkspaceOpenButton({
         secondaryActions={secondaryActions}
         triggerLabel="Choose another app to open workspace"
         triggerTooltip="Choose another app"
-        mobileTitle="Open Workspace"
       />
     </span>
   );

@@ -1,7 +1,5 @@
-import type { PluginProviderIconRegistration } from "@get-bb/plugin-sdk/app";
-import type { CSSProperties, ComponentType } from "react";
+import type { ComponentType } from "react";
 import { createElement } from "react";
-import { isPresentationTintColor, type ProviderInfo } from "@bb/domain";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
 
 interface ProviderIconInfo {
@@ -19,12 +17,10 @@ interface ProviderIconSource {
 const providerIcons = new Map<string, ComponentType<{ className?: string }>>();
 
 export function getProviderIconInfo(
-  providerKind: PluginProviderIconRegistration["providerKind"],
   providerId: string,
   source: ProviderIconSource | null = null,
 ): ProviderIconInfo {
   const cacheKey = JSON.stringify([
-    providerKind,
     providerId,
     source?.logoUrl,
     source?.icon?.glyph,
@@ -35,7 +31,6 @@ export function getProviderIconInfo(
       className,
     }) =>
       createElement(ProviderIcon, {
-        providerKind,
         provider: {
           id: providerId,
           logoUrl: source?.logoUrl,
@@ -52,18 +47,4 @@ export function getProviderIconInfo(
       source?.displayName ??
       (source?.family === "acp" ? "ACP provider" : providerId),
   };
-}
-
-export function getProviderIconTintStyle(
-  provider: Pick<ProviderInfo, "strings"> | undefined,
-): CSSProperties | undefined {
-  const tint = provider?.strings?.iconTint;
-  if (
-    tint === undefined ||
-    !isPresentationTintColor(tint.light) ||
-    !isPresentationTintColor(tint.dark)
-  ) {
-    return undefined;
-  }
-  return { color: `light-dark(${tint.light.trim()}, ${tint.dark.trim()})` };
 }

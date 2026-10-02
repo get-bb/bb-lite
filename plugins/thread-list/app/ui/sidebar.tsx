@@ -1,6 +1,6 @@
 import * as React from "react";
-import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@bb/shared-ui/lib/utils";
+import { Skeleton } from "@bb/shared-ui/skeleton";
 
 export const SIDEBAR_CONTENT_SELECTOR = '[data-sidebar="content"]';
 
@@ -13,8 +13,7 @@ export function useSidebarContentElement(
   const [element, setElement] = React.useState<HTMLElement | null>(null);
   React.useLayoutEffect(() => {
     const next =
-      anchorRef.current?.closest<HTMLElement>(SIDEBAR_CONTENT_SELECTOR) ??
-      null;
+      anchorRef.current?.closest<HTMLElement>(SIDEBAR_CONTENT_SELECTOR) ?? null;
     setElement((current) => (current === next ? current : next));
   }, [anchorRef]);
   return element;

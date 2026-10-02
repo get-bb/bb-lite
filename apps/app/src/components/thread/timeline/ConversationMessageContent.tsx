@@ -69,7 +69,6 @@ import {
   SelectableMessageProse,
   type MessageProseSelection,
 } from "./SelectableMessageProse.js";
-import type { ThreadTimelinePluginMessageAction } from "./types.js";
 import type { PromptDraftAttachment } from "@bb/client-core";
 import { buildMarkdownMessageLinkRouting } from "@/components/ui/markdown-message-link-routing";
 
@@ -77,7 +76,6 @@ interface ConversationMessageContentBaseProps {
   attachments: TimelineConversationAttachments | null;
   onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
   onOpenPluginPanel?: MarkdownMessageDirectives["openThreadPanel"];
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   projectId?: string;
   resolveUserAttachmentImageSrc?: UserAttachmentImageSrcResolver;
   text: string;
@@ -86,7 +84,6 @@ interface ConversationMessageContentBaseProps {
 
 interface ConversationMessageContentUserProps extends ConversationMessageContentBaseProps {
   role: "user";
-  mobileActionDisplay?: "inline" | "overflow";
   originKind: ThreadOriginKind | null;
   initiator: TimelineUserConversationRow["initiator"];
   mentions: readonly PromptTextMention[];
@@ -99,7 +96,6 @@ interface ConversationMessageContentUserProps extends ConversationMessageContent
   senderThreadId: TimelineUserConversationRow["senderThreadId"];
   senderThreadProjectId?: string;
   senderThreadTitle: string | null;
-  senderIsPluginSideChat: boolean;
   systemMessageKind: TimelineUserConversationRow["systemMessageKind"];
   systemMessageSubject: TimelineUserConversationRow["systemMessageSubject"];
   threadId?: string;
@@ -133,11 +129,9 @@ interface ConversationMessageContentAssistantProps
   onOpenLink?: ThreadTimelineLinkHandler;
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onFork?: () => void;
-  onSendToMain?: () => void;
   forkDisabled?: boolean;
   onSelectProse?: (selection: MessageProseSelection | null) => void;
   showActions: boolean;
-  mobileActionDisplay: "inline" | "overflow";
   streaming: boolean;
   workspaceRootPath?: string;
 }
@@ -150,10 +144,8 @@ interface UserConversationMessageProps {
   addToChatAttachments: readonly PromptDraftAttachment[];
   attachmentItems: ConversationAttachmentItems;
   originKind: ThreadOriginKind | null;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   initiator: TimelineUserConversationRow["initiator"];
   mentions: readonly PromptTextMention[];
-  mobileActionDisplay: "inline" | "overflow";
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onEdit?: () => void;
   onOpenLink?: ThreadTimelineLinkHandler;
@@ -165,7 +157,6 @@ interface UserConversationMessageProps {
   senderThreadId: TimelineUserConversationRow["senderThreadId"];
   senderThreadProjectId: string | null;
   senderThreadTitle: string | null;
-  senderIsPluginSideChat: boolean;
   systemMessageKind: TimelineUserConversationRow["systemMessageKind"];
   systemMessageSubject: TimelineUserConversationRow["systemMessageSubject"];
   text: string;
@@ -177,10 +168,8 @@ interface UserConversationMessageProps {
 interface AssistantConversationMessageProps extends AssistantMessageRowIdentity {
   addToChatAttachments: readonly PromptDraftAttachment[];
   attachmentItems: ConversationAttachmentItems;
-  pluginActions?: readonly ThreadTimelinePluginMessageAction[];
   onAddToChat?: ThreadTimelineAddToChatHandler;
   onFork?: () => void;
-  onSendToMain?: () => void;
   forkDisabled?: boolean;
   onSelectProse?: (selection: MessageProseSelection | null) => void;
   onOpenLink?: ThreadTimelineLinkHandler;
@@ -188,7 +177,6 @@ interface AssistantConversationMessageProps extends AssistantMessageRowIdentity 
   onOpenPluginPanel?: MarkdownMessageDirectives["openThreadPanel"];
   projectId?: string;
   showActions: boolean;
-  mobileActionDisplay: "inline" | "overflow";
   streaming: boolean;
   text: string;
   workspaceRootPath?: string;
@@ -333,12 +321,10 @@ function UserConversationMessage({
   originKind,
   initiator,
   mentions,
-  mobileActionDisplay,
   onAddToChat,
   onEdit,
   onOpenLink,
   onOpenLocalFileLink,
-  pluginActions = [],
   projectId,
   resolveMentionLink,
   resolveSegmentLinkHref,
@@ -346,7 +332,6 @@ function UserConversationMessage({
   senderThreadId,
   senderThreadProjectId,
   senderThreadTitle,
-  senderIsPluginSideChat,
   systemMessageKind,
   systemMessageSubject,
   text,
@@ -368,12 +353,9 @@ function UserConversationMessage({
     initiator === "agent" && senderThreadId !== null
       ? {
           sourceKind: "agent" as const,
-          sourceName: senderIsPluginSideChat
-            ? "side chat"
-            : (senderThreadTitle ?? "Agent"),
+          sourceName: senderThreadTitle ?? "Agent",
           sourceProjectId: senderThreadProjectId,
           sourceThreadId: senderThreadId,
-          sourceIsPluginSideChat: senderIsPluginSideChat,
           originKind,
         }
       : initiator === "system"
@@ -382,7 +364,6 @@ function UserConversationMessage({
             sourceName: "BB",
             sourceProjectId: null,
             sourceThreadId: null,
-            sourceIsPluginSideChat: false,
             originKind: null,
           }
         : null;
@@ -419,7 +400,7 @@ function UserConversationMessage({
   const requestLabel = turnRequestLabel(turnRequest);
 
   return (
-    <div className="w-full" data-message-column="">
+    <div className="w-full">
       <div className="group/message ml-auto flex w-fit max-w-[70%] flex-col items-end">
         {requestLabel ? (
           <div className="mb-1 flex items-center justify-end gap-2">
@@ -454,12 +435,10 @@ function UserConversationMessage({
           <MessageActionBar
             messageText={messageText}
             alignment="end"
-            mobileActionDisplay={mobileActionDisplay}
             addToChatAttachments={addToChatAttachments}
             copyImageUrl={attachmentItems.imageItems[0]?.src}
             onAddToChat={onAddToChat}
             onEdit={onEdit}
-            pluginActions={pluginActions}
           />
         </div>
       </div>
@@ -473,16 +452,13 @@ function AssistantConversationMessage({
   id,
   onAddToChat,
   onFork,
-  onSendToMain,
   forkDisabled,
   onSelectProse,
   onOpenLink,
   onOpenLocalFileLink,
   onOpenPluginPanel,
-  pluginActions,
   projectId,
   showActions,
-  mobileActionDisplay,
   streaming,
   text,
   threadId,
@@ -568,7 +544,6 @@ function AssistantConversationMessage({
         "group/message w-full text-sm font-normal leading-relaxed",
         PROSE_COLUMN_INSET_CLASS,
       )}
-      data-message-column=""
     >
       <SelectableMessageProse onSelect={onSelectProse}>
         <MarkdownPreview
@@ -609,14 +584,11 @@ function AssistantConversationMessage({
         <MessageActionBar
           messageText={text}
           alignment="start"
-          mobileActionDisplay={mobileActionDisplay}
           addToChatAttachments={addToChatAttachments}
           copyImageUrl={attachmentItems.imageItems[0]?.src}
           onAddToChat={onAddToChat}
           onFork={onFork}
-          onSendToMain={onSendToMain}
           disabled={forkDisabled}
-          pluginActions={pluginActions}
         />
       ) : null}
     </div>
@@ -654,10 +626,8 @@ export function ConversationMessageContent(
         addToChatAttachments={addToChatAttachments}
         attachmentItems={attachmentItems}
         originKind={props.originKind}
-        pluginActions={props.pluginActions}
         initiator={props.initiator}
         mentions={props.mentions}
-        mobileActionDisplay={props.mobileActionDisplay ?? "overflow"}
         onAddToChat={props.onAddToChat}
         onEdit={props.onEdit}
         onOpenLink={props.onOpenLink}
@@ -669,7 +639,6 @@ export function ConversationMessageContent(
         senderThreadId={props.senderThreadId}
         senderThreadProjectId={props.senderThreadProjectId ?? null}
         senderThreadTitle={props.senderThreadTitle}
-        senderIsPluginSideChat={props.senderIsPluginSideChat}
         systemMessageKind={props.systemMessageKind}
         systemMessageSubject={props.systemMessageSubject}
         text={text}
@@ -685,10 +654,8 @@ export function ConversationMessageContent(
       addToChatAttachments={addToChatAttachments}
       attachmentItems={attachmentItems}
       id={props.id}
-      pluginActions={props.pluginActions}
       onAddToChat={props.onAddToChat}
       onFork={props.onFork}
-      onSendToMain={props.onSendToMain}
       forkDisabled={props.forkDisabled}
       onSelectProse={props.onSelectProse}
       onOpenLink={props.onOpenLink}
@@ -696,7 +663,6 @@ export function ConversationMessageContent(
       onOpenPluginPanel={onOpenPluginPanel}
       projectId={projectId}
       showActions={props.showActions}
-      mobileActionDisplay={props.mobileActionDisplay}
       streaming={props.streaming}
       text={text}
       threadId={props.threadId}

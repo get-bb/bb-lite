@@ -1,28 +1,10 @@
-import {
-  usePluginSlots,
-  type PluginSettingsSectionSlot,
-} from "@/lib/plugin-slots";
-import { PluginSlotMount } from "./PluginSlotMount";
+import { usePluginSlots, type PluginSlot } from "@/plugins/registry";
+import { PluginSlotMount } from "@/plugins/mount";
 
 export function PluginSettingsSections({ pluginId }: { pluginId: string }) {
   const { settingsSections } = usePluginSlots();
   const sections = settingsSections.filter(
-    (section) =>
-      section.pluginId === pluginId && section.experimental_page === undefined,
-  );
-  if (sections.length === 0) return null;
-  return <PluginSettingsSectionList sections={sections} />;
-}
-
-export function PluginMobileSettingsSections({
-  pluginId,
-}: {
-  pluginId: string | null;
-}) {
-  const { settingsSections } = usePluginSlots();
-  const sections = settingsSections.filter(
-    (section) =>
-      section.experimental_page === "mobile" && section.pluginId === pluginId,
+    (section) => section.pluginId === pluginId,
   );
   if (sections.length === 0) return null;
   return <PluginSettingsSectionList sections={sections} />;
@@ -31,7 +13,7 @@ export function PluginMobileSettingsSections({
 function PluginSettingsSectionList({
   sections,
 }: {
-  sections: readonly PluginSettingsSectionSlot[];
+  sections: readonly PluginSlot<"settingsSections">[];
 }) {
   return (
     <div className="space-y-6" data-testid="plugin-settings-sections">

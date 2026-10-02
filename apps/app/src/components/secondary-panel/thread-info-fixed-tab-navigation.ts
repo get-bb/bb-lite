@@ -1,5 +1,7 @@
-import type { AppFixedTabDestination } from "@/lib/app-fixed-tab-navigation";
-import type { AppFixedTabReference } from "@/lib/app-navigation-host";
+import type {
+  AppFixedTabDestination,
+  AppFixedTabReference,
+} from "@/lib/app-fixed-tab-navigation";
 
 export const THREAD_INFO_FIXED_TAB_REFERENCE: AppFixedTabReference = {
   ownerId: "core:thread-info",

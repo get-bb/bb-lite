@@ -1,0 +1,207 @@
+import {
+  clampPermissionModeToCeiling,
+  promptInputHasCommandMention,
+  type CallerExecutionInputSource,
+  type PermissionMode,
+  type PromptInput,
+  type ReasoningLevel,
+  type ResolvedThreadExecutionOptions,
+  type ServiceTier,
+  type ThreadTurnInitiator,
+} from "@bb/domain";
+import type { ExecutionOptions, ProviderId } from "@bb/runner";
+import type { ServerContext } from "../context.js";
+import { getEnvironment } from "../db/environments.js";
+import { findHost } from "../db/hosts.js";
+import type { Db } from "../db/index.js";
+import { getProjectExecutionDefaults } from "../db/projects.js";
+import { getAppSettings } from "../db/settings.js";
+import { getThread, type ThreadRow } from "../db/threads.js";
+import { ApiError, invalidRequest } from "../http/errors.js";
+import { providerOptionsFor } from "../providers/settings.js";
+
+export interface ExecutionTuple {
+  model: string;
+  reasoningLevel: ReasoningLevel;
+  permissionMode: PermissionMode;
+  serviceTier: ServiceTier;
+}
+
+type ExecutionField = keyof ExecutionTuple;
+type Stored = { [Field in ExecutionField]?: ExecutionTuple[Field] | null };
+
+export interface ExecutionRequest extends Partial<ExecutionTuple> {
+  executionInputSources?: Partial<
+    Record<ExecutionField, CallerExecutionInputSource>
+  >;
+}
+
+interface CreateExecutionArgs {
+  request: ExecutionRequest & { providerId?: string };
+  projectId: string;
+  hostId: string;
+  parent: ThreadRow | null;
+}
+
+interface TurnOptionsSource {
+  execution: ExecutionTuple;
+  initiator: ThreadTurnInitiator;
+  input: readonly PromptInput[];
+}
+
+const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
+
+export function requireProviderId(value: string): ProviderId {
+  const known = PROVIDER_IDS.find((providerId) => providerId === value);
+  if (known !== undefined) return known;
+  const names = PROVIDER_IDS.join(", ");
+  throw invalidRequest(`Unknown provider "${value}". Use ${names}.`);
+}
+
+function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
+  const sources = request.executionInputSources;
+  const named = (field: ExecutionField): boolean =>
+    sources === undefined || sources[field] !== undefined;
+  const { model, reasoningLevel, permissionMode, serviceTier } = request;
+  return {
+    ...(named("model") && model ? { model } : {}),
+    ...(named("reasoningLevel") && reasoningLevel ? { reasoningLevel } : {}),
+    ...(named("permissionMode") && permissionMode ? { permissionMode } : {}),
+    ...(named("serviceTier") && serviceTier ? { serviceTier } : {}),
+  };
+}
+
+function resolve(
+  db: Db,
+  hostId: string | null,
+  model: string,
+  layers: Stored[],
+): ExecutionTuple {
+  const pick = <Field extends ExecutionField>(field: Field) =>
+    layers.map((layer) => layer[field]).find((value) => value != null);
+  const host = hostId === null ? undefined : findHost(db, "id", hostId);
+  const permissionMode = pick("permissionMode") ?? "auto";
+  const ceiling = host?.maxPermissionMode ?? "full";
+  const fast = getAppSettings(db).allowFastServiceTier;
+  return {
+    model,
+    reasoningLevel: pick("reasoningLevel") ?? "medium",
+    permissionMode:
+      clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
+      permissionMode,
+    serviceTier: (fast ? pick("serviceTier") : null) ?? "default",
+  };
+}
+
+function projectDefaults(db: Db, projectId: string, providerId: string) {
+  const stored = getProjectExecutionDefaults(db, projectId);
+  return stored?.providerId === providerId ? stored : {};
+}
+
+export function resolveTurnExecution(
+  db: Db,
+  thread: ThreadRow,
+  request: ExecutionRequest,
+): ExecutionTuple {
+  const asked = namedFields(request);
+  const defaults = projectDefaults(db, thread.projectId, thread.providerId);
+  const overrides = {
+    model: thread.modelOverride,
+    reasoningLevel: thread.reasoningLevelOverride,
+  };
+  const { parentThreadId, environmentId } = thread;
+  const parent =
+    parentThreadId === null ? undefined : getThread(db, parentThreadId);
+  const live = parent?.archivedAt === null && parent.deletedAt === null;
+  const inherited = { permissionMode: live ? parent?.permissionMode : null };
+  const layers = [asked, overrides, thread, inherited, defaults];
+  const model = layers.map((layer: Stored) => layer.model).find(Boolean);
+  if (model == null) {
+    const message = `Thread ${thread.id} has no stored execution model`;
+    throw new ApiError(500, "internal_error", message);
+  }
+  const environment =
+    environmentId === null ? undefined : getEnvironment(db, environmentId);
+  return resolve(db, environment?.hostId ?? null, model, layers);
+}
+
+async function firstInstalledProvider(
+  ctx: ServerContext,
+  hostId: string,
+): Promise<string> {
+  const { providerOrder } = getAppSettings(ctx.db);
+  const rank = (providerId: string): number =>
+    (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
+  const [first] = (await ctx.runners.get(hostId).listProviders())
+    .filter((provider) => provider.installed)
+    .map((provider) => provider.providerId)
+    .sort((left, right) => rank(left) - rank(right));
+  if (first !== undefined) return first;
+  throw new ApiError(
+    409,
+    "no_provider_available",
+    "No agent provider is installed on this machine. Install Codex or " +
+      "Claude Code to start a thread.",
+  );
+}
+
+async function catalogDefaultModel(
+  ctx: ServerContext,
+  hostId: string,
+  providerId: ProviderId,
+): Promise<string> {
+  const runner = ctx.runners.get(hostId);
+  const { models } = await runner.listModels({ providerId, cwd: null });
+  const model = models.find((candidate) => candidate.isDefault) ?? models.at(0);
+  if (model !== undefined) return model.model;
+  throw new ApiError(
+    503,
+    "model_catalog_unavailable",
+    `The ${providerId} model catalog is empty, so no default model can ` +
+      "be resolved. Pick a model explicitly.",
+    { retryable: true },
+  );
+}
+
+export async function resolveCreateExecution(
+  ctx: ServerContext,
+  args: CreateExecutionArgs,
+): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
+  const { request, projectId, hostId, parent } = args;
+  const { db } = ctx;
+  const providerId = requireProviderId(
+    request.providerId ??
+      getProjectExecutionDefaults(db, projectId)?.providerId ??
+      getAppSettings(db).defaultProviderId ??
+      (await firstInstalledProvider(ctx, hostId)),
+  );
+  const asked = namedFields(request);
+  const defaults: Stored = projectDefaults(db, projectId, providerId);
+  const inherited = { permissionMode: parent?.permissionMode };
+  const model =
+    asked.model ??
+    defaults.model ??
+    (await catalogDefaultModel(ctx, hostId, providerId));
+  const layers = [asked, inherited, defaults];
+  return { providerId, execution: resolve(db, hostId, model, layers) };
+}
+
+export function recordedExecution(
+  execution: ExecutionTuple,
+): ResolvedThreadExecutionOptions {
+  return { ...execution, source: "client/turn/requested" };
+}
+
+export function toRunnerOptions(
+  db: Db,
+  providerId: string,
+  { execution, initiator, input }: TurnOptionsSource,
+): ExecutionOptions {
+  const plan = { trigger: "/" as const, name: "plan" };
+  return {
+    ...execution,
+    permissionEscalation: initiator === "user" ? "ask" : "deny",
+    planMode: promptInputHasCommandMention(input, plan),
+    providerOptions: providerOptionsFor(db, providerId),
+  };
+}

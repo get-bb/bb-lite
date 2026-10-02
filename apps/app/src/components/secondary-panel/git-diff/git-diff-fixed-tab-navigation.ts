@@ -1,6 +1,8 @@
-import type { JsonValue } from "@get-bb/plugin-sdk";
-import type { AppFixedTabDestination } from "@/lib/app-fixed-tab-navigation";
-import type { AppFixedTabReference } from "@/lib/app-navigation-host";
+import type { JsonValue } from "@bb/domain";
+import type {
+  AppFixedTabDestination,
+  AppFixedTabReference,
+} from "@/lib/app-fixed-tab-navigation";
 
 type GitDiffFixedTabTarget =
   | { kind: "file"; path: string }

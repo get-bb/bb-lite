@@ -1,6 +1,5 @@
 import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useStore } from "jotai";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 import { openThreadInSplit } from "@/lib/split-layout/openThreadInSplit";
 import { beginSidebarPaneContentSplitDrag } from "./usePaneContentSplitDrag";
@@ -16,12 +15,11 @@ export function useThreadRowSplitDrag({
   threadId,
   title,
 }: UseThreadRowSplitDragArgs): {
-  onPointerDown: ((event: ReactPointerEvent<HTMLElement>) => void) | undefined;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
   openInSplit: () => void;
 } {
   const store = useStore();
   const navigate = useRouteNavigate();
-  const isCompact = useIsCompactViewport();
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -45,12 +43,11 @@ export function useThreadRowSplitDrag({
       navigate,
       projectId,
       threadId,
-      isCompact,
     });
-  }, [isCompact, navigate, projectId, store, threadId]);
+  }, [navigate, projectId, store, threadId]);
 
   return {
-    onPointerDown: !isCompact ? onPointerDown : undefined,
+    onPointerDown,
     openInSplit,
   };
 }
