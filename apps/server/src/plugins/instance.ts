@@ -2,24 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import type {
-  AgentTool,
-  CliRegistration,
-  EnvironmentDefinition,
-  HttpAuth,
-  HttpHandler,
-  InferenceService,
-  MachineAccessProvider,
-  MentionProvider,
-  PluginEvents,
-  PluginServerApi,
-  ProviderEnvEntry,
-  RpcMethodContract,
-  SettingDescriptors,
-  SettingsHandle,
-  SettingValues,
-  ThreadContext,
-} from "@bb/plugin";
+import type * as plugin from "@bb/plugin";
 import Database from "better-sqlite3";
 import type { Logger } from "../context.js";
 import type { Db } from "../db/index.js";
@@ -30,10 +13,12 @@ import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 
 type MaybePromise<T> = T | Promise<T>;
-type Contributor<T> = (context: ThreadContext) => MaybePromise<T>;
-type EventHandler = (payload: PluginEvents[keyof PluginEvents]) => unknown;
+type Contributor<T> = (context: plugin.ThreadContext) => MaybePromise<T>;
+type EventHandler = (
+  payload: plugin.PluginEvents[keyof plugin.PluginEvents],
+) => unknown;
 type RpcHandler = (input: unknown) => unknown;
-type Service = Parameters<PluginServerApi["background"]["service"]>;
+type Service = Parameters<plugin.PluginServerApi["background"]["service"]>;
 
 export interface PluginApiHost {
   db: Db;
@@ -53,27 +38,31 @@ const SERVICE_HEALTHY_MS = 60_000;
 export class PluginInstance {
   readonly rpc = new Map<
     string,
-    { contract: RpcMethodContract; handler: RpcHandler }
+    { contract: plugin.RpcMethodContract; handler: RpcHandler }
   >();
-  readonly routes = new Map<string, { handler: HttpHandler; auth: HttpAuth }>();
-  cli: CliRegistration | null = null;
-  readonly tools: AgentTool[] = [];
+  readonly routes = new Map<
+    string,
+    { handler: plugin.HttpHandler; auth: plugin.HttpAuth }
+  >();
+  cli: plugin.CliRegistration | null = null;
+  readonly tools: plugin.AgentTool[] = [];
   readonly instructions: Contributor<string | null>[] = [];
-  readonly env: [providerId: string, Contributor<ProviderEnvEntry[]>][] = [];
-  readonly mentionProviders: MentionProvider[] = [];
-  readonly environments: EnvironmentDefinition[] = [];
-  readonly inference: InferenceService[] = [];
+  readonly env: [providerId: string, Contributor<plugin.ProviderEnvEntry[]>][] =
+    [];
+  readonly mentionProviders: plugin.MentionProvider[] = [];
+  readonly environments: plugin.EnvironmentDefinition[] = [];
+  readonly inference: plugin.InferenceService[] = [];
   readonly listeners: [name: string, handler: EventHandler][] = [];
   readonly services: Service[] = [];
   readonly disposers: (() => unknown)[] = [];
   readonly stopping = new AbortController();
   needsConfiguration: string | null = null;
   publicUrl: string | null = null;
-  machineAccess: MachineAccessProvider | null = null;
+  machineAccess: plugin.MachineAccessProvider | null = null;
 
   constructor(
     readonly settings: PluginSettings,
-    readonly log: PluginServerApi["log"],
+    readonly log: plugin.PluginServerApi["log"],
   ) {}
 
   startServices(): void {
@@ -145,7 +134,7 @@ function migrate(database: Database.Database, statements: string[]): void {
 export function createPluginInstance(
   host: PluginApiHost,
   pluginId: string,
-): { instance: PluginInstance; api: PluginServerApi } {
+): { instance: PluginInstance; api: plugin.PluginServerApi } {
   const { db, hub } = host;
   const dataDir = join(host.dataDir, "plugins", pluginId);
   mkdirSync(dataDir, { recursive: true });
@@ -164,16 +153,17 @@ export function createPluginInstance(
   const { requestInput, ...outward } = host.deps(pluginId);
   let database: Database.Database | undefined;
 
-  const api: PluginServerApi = {
+  const api: plugin.PluginServerApi = {
     ...outward,
     pluginId,
     log,
     dataDir,
     settings: {
-      define<D extends SettingDescriptors>(descriptors: D) {
+      define<D extends plugin.SettingDescriptors>(descriptors: D) {
         settings.define(descriptors);
-        const typed = (values: SettingRecord) => values as SettingValues<D>;
-        const handle: SettingsHandle<D> = {
+        const typed = (values: SettingRecord) =>
+          values as plugin.SettingValues<D>;
+        const handle: plugin.SettingsHandle<D> = {
           get: async () => typed(await settings.read()),
           set: async (values) => typed(await settings.write(values)),
           onChange: (listener) => {

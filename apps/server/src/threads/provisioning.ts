@@ -1,10 +1,4 @@
-import {
-  threadScope,
-  WORKSPACE_PROVISIONING_STEP_KEYS,
-  type PromptInput,
-  type ProvisioningTranscriptEntry,
-  type SystemThreadProvisioningStatus,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { getEnvironment } from "../db/environments.js";
@@ -17,14 +11,7 @@ import {
 } from "../environments/types.js";
 import { ApiError, errorMessage } from "../http/errors.js";
 import type { Outbox } from "./core.js";
-import {
-  attributedMessage,
-  consumeRows,
-  submitToRunner,
-  turnRequestEvent,
-  type DispatchArgs,
-  type OutboundMessage,
-} from "./dispatch.js";
+import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { toRunnerOptions } from "./execution.js";
 import { buildSessionSpec } from "./session-spec.js";
@@ -39,7 +26,7 @@ interface ProvisioningJob {
   id: string;
   requestId: string;
   startup: StartupContext;
-  message: OutboundMessage;
+  message: dispatching.OutboundMessage;
 }
 
 const TITLE_FALLBACK_MAX_LENGTH = 80;
@@ -47,9 +34,9 @@ const GENERATED_TITLE_MAX_LENGTH = 48;
 const TITLE_MIN_WORDS = 5;
 const TITLE_TIMEOUT_MS = 5_000;
 
-type Recorder = (entries: ProvisioningTranscriptEntry[]) => void;
+type Recorder = (entries: domain.ProvisioningTranscriptEntry[]) => void;
 
-function promptText(input: readonly PromptInput[]): string {
+function promptText(input: readonly domain.PromptInput[]): string {
   return input
     .flatMap((part) => (part.type === "text" ? [part.text.trim()] : []))
     .join(" ")
@@ -57,14 +44,14 @@ function promptText(input: readonly PromptInput[]): string {
     .trim();
 }
 
-export function deriveTitleFallback(input: readonly PromptInput[]) {
+export function deriveTitleFallback(input: readonly domain.PromptInput[]) {
   const text = promptText(input);
   if (text === "") return null;
   if (text.length <= TITLE_FALLBACK_MAX_LENGTH) return text;
   return `${text.slice(0, TITLE_FALLBACK_MAX_LENGTH - 3)}...`;
 }
 
-function titlePrompt(input: readonly PromptInput[]): string | null {
+function titlePrompt(input: readonly domain.PromptInput[]): string | null {
   const text = deriveTitleFallback(input);
   const words = text?.split(" ").length ?? 0;
   return words >= TITLE_MIN_WORDS ? text : null;
@@ -85,13 +72,15 @@ function appendProvisioning(
   out: Outbox,
   thread: ThreadRow,
   provisioningId: string,
-  status: SystemThreadProvisioningStatus,
-  entries: ProvisioningTranscriptEntry[],
+  status: domain.SystemThreadProvisioningStatus,
+  entries: domain.ProvisioningTranscriptEntry[],
 ): void {
   const { environmentId } = thread;
   const progress = { provisioningId, status, environmentId, entries };
   const type = "system/thread-provisioning";
-  engine.append(out, thread, [{ type, scope: threadScope(), ...progress }]);
+  engine.append(out, thread, [
+    { type, scope: domain.threadScope(), ...progress },
+  ]);
 }
 
 async function generateTitle(
@@ -138,7 +127,7 @@ async function completeProvisioning(
     const { projectId } = thread;
     out.thread(threadId, ["environment-changed"], { projectId });
     if (!current) return next;
-    const keys = WORKSPACE_PROVISIONING_STEP_KEYS;
+    const keys = domain.WORKSPACE_PROVISIONING_STEP_KEYS;
     const { branchName } = row;
     const at = ctx.now();
     const workspace = `Using workspace: ${path}`;
@@ -164,7 +153,9 @@ async function completeProvisioning(
     const clientRequestId = job.requestId;
     const mode = { kind: "start" as const };
     const turn = { session, clientRequestId, input, options, mode };
-    out.after(() => submitToRunner(engine, attached, row.hostId, turn));
+    out.after(() =>
+      dispatching.submitToRunner(engine, attached, row.hostId, turn),
+    );
   });
 }
 
@@ -254,24 +245,24 @@ function startupOf(thread: ThreadRow): StartupContext {
 export function beginProvisioning(
   engine: Engine,
   thread: ThreadRow,
-  args: DispatchArgs,
+  args: dispatching.DispatchArgs,
 ): void {
   const { db } = engine.ctx;
   const startup = startupOf(thread);
-  const message = attributedMessage(args.message);
+  const message = dispatching.attributedMessage(args.message);
   const requestId = newId("creq");
   const job = { id: newId("tpv"), requestId, startup, message };
   engine.commit((out) => {
-    consumeRows(engine, out, thread, args.rows);
+    dispatching.consumeRows(engine, out, thread, args.rows);
     const restores = thread.environmentId !== null;
     const kind = restores ? "new-turn" : "thread-start";
     const { initiator } = message;
     const request = { method: "thread/start" as const, params: {} };
     const start = { direction: "outbound", source: "spawn" } as const;
     const type = "client/thread/start";
-    const started = { type, scope: threadScope(), ...start } as const;
+    const started = { type, scope: domain.threadScope(), ...start } as const;
     engine.append(out, thread, [
-      turnRequestEvent(message, requestId, { kind }),
+      dispatching.turnRequestEvent(message, requestId, { kind }),
       ...(restores ? [] : [{ ...started, initiator, request }]),
     ]);
     patchThread(db, thread.id, message.execution, false);

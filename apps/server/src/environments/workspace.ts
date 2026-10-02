@@ -4,13 +4,7 @@ import {
   type Environment,
 } from "@bb/domain";
 import { RunnerError } from "@bb/runner";
-import type {
-  EnvironmentNotReadyErrorDetails,
-  EnvironmentPathsQuery,
-  EnvironmentStatusResponse,
-  ThreadEnvironmentUnavailableErrorDetails,
-  WorkspacePathListResponse,
-} from "@bb/server-contract";
+import type * as contract from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
 import { getEnvironment, updateEnvironment } from "../db/environments.js";
 import { requireThread } from "../db/threads.js";
@@ -18,11 +12,11 @@ import { ApiError, invalidRequest } from "../http/errors.js";
 
 export type ReadyEnvironment = Environment & { path: string };
 type Unavailable = Extract<
-  EnvironmentStatusResponse,
+  contract.EnvironmentStatusResponse,
   { outcome: "unavailable" }
 >;
 type NotApplicable = Extract<
-  EnvironmentStatusResponse,
+  contract.EnvironmentStatusResponse,
   { outcome: "not_applicable" }
 >;
 export type WorkspaceFailure = Unavailable["failure"];
@@ -74,7 +68,7 @@ export function requireReadyEnvironment(
   const environment = requireEnvironment(ctx, environmentId);
   const { path, status: environmentStatus } = environment;
   if (environmentStatus === "ready" && path) return { ...environment, path };
-  const details: EnvironmentNotReadyErrorDetails = {
+  const details: contract.EnvironmentNotReadyErrorDetails = {
     environmentStatus,
     hasPath: Boolean(path),
   };
@@ -89,7 +83,7 @@ export function requireThreadEnvironment(
 ): Environment {
   const { environmentId } = requireThread(ctx.db, threadId);
   if (environmentId !== null) return requireEnvironment(ctx, environmentId);
-  const details: ThreadEnvironmentUnavailableErrorDetails = {
+  const details: contract.ThreadEnvironmentUnavailableErrorDetails = {
     reason: "never_attached",
     environmentStatus: null,
   };
@@ -189,8 +183,8 @@ export function branchSearch(search: {
 export function searchWorkspacePaths(
   ctx: ServerContext,
   workspace: { hostId: string; path: string },
-  query: EnvironmentPathsQuery,
-): Promise<WorkspacePathListResponse> {
+  query: contract.EnvironmentPathsQuery,
+): Promise<contract.WorkspacePathListResponse> {
   const includeFiles = query.includeFiles === "true";
   const includeDirectories = query.includeDirectories === "true";
   if (!includeFiles && !includeDirectories) {

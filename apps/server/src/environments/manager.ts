@@ -1,17 +1,7 @@
 import type { Environment } from "@bb/domain";
 import type { z } from "zod";
 import type { ServerContext, ServerRunner } from "../context.js";
-import {
-  environmentUse,
-  findEnvironment,
-  getEnvironment,
-  hasOtherLiveThread,
-  insertEnvironment,
-  listRetirableEnvironmentIds,
-  updateEnvironment,
-  type EnvironmentPatch,
-  type NewEnvironment,
-} from "../db/environments.js";
+import * as store from "../db/environments.js";
 import { getProjectSource, type DeletedProject } from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
@@ -69,15 +59,15 @@ export function createEnvironments(ctx: ServerContext) {
   const queue = new ThreadSerial();
   const retiring = new Set<string>();
 
-  function patch(id: string, changes: EnvironmentPatch): Environment {
-    updateEnvironment(db, id, changes);
+  function patch(id: string, changes: store.EnvironmentPatch): Environment {
+    store.updateEnvironment(db, id, changes);
     const moved = changes.status !== undefined;
     hub.environment(id, [moved ? "status-changed" : "metadata-changed"]);
     return requireEnvironment(ctx, id);
   }
 
-  function create(input: NewEnvironment): Environment {
-    const id = insertEnvironment(db, input);
+  function create(input: store.NewEnvironment): Environment {
+    const id = store.insertEnvironment(db, input);
     hub.environment(id, ["environment-created"]);
     return requireEnvironment(ctx, id);
   }
@@ -202,7 +192,7 @@ export function createEnvironments(ctx: ServerContext) {
     thread: ThreadRow,
     branch: CheckoutBranch,
   ): Promise<void> {
-    if (hasOtherLiveThread(db, environmentId, thread.id)) {
+    if (store.hasOtherLiveThread(db, environmentId, thread.id)) {
       throw notReady(SHARED_CHECKOUT);
     }
     const wanted =
@@ -231,7 +221,13 @@ export function createEnvironments(ctx: ServerContext) {
       environmentProviderId,
       ...unowned,
     };
-    const existing = findEnvironment(db, AT_PATH, projectId, hostId, path);
+    const existing = store.findEnvironment(
+      db,
+      AT_PATH,
+      projectId,
+      hostId,
+      path,
+    );
     const target = existing ?? create(fresh);
     const prepared = await prepare(target, job).catch((error: unknown) => {
       if (existing === undefined) discard(target.id);
@@ -280,14 +276,14 @@ export function createEnvironments(ctx: ServerContext) {
     const owned = { ownerThreadId, instanceKey, path: null };
     const fresh = { projectId, hostId, environmentProviderId, ...owned };
     const target =
-      findEnvironment(db, OWNED_BY, ownerThreadId) ?? create(fresh);
+      store.findEnvironment(db, OWNED_BY, ownerThreadId) ?? create(fresh);
     const branch = worktree?.branch;
     return prepare(target, job, branch?.kind === "named" ? branch.name : null);
   }
 
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
-    if (environmentUse(db, found.id).live > 0) {
+    if (store.environmentUse(db, found.id).live > 0) {
       const unmarked = retireAt === null && teardown === null;
       return unmarked ? found : patch(found.id, IN_USE);
     }
@@ -302,7 +298,7 @@ export function createEnvironments(ctx: ServerContext) {
   }
 
   async function teardown(id: string, forced: boolean): Promise<void> {
-    const found = getEnvironment(db, id);
+    const found = store.getEnvironment(db, id);
     if (found === undefined || found.status === "destroyed") return;
     if (!forced && !due(refresh(found))) return;
     const { hostId, path, projectId } = found;
@@ -328,8 +324,8 @@ export function createEnvironments(ctx: ServerContext) {
   }
 
   async function sweep(): Promise<void> {
-    const removals = listRetirableEnvironmentIds(db).flatMap((id) => {
-      const found = getEnvironment(db, id);
+    const removals = store.listRetirableEnvironmentIds(db).flatMap((id) => {
+      const found = store.getEnvironment(db, id);
       const idle = found !== undefined && !retiring.has(id);
       if (!idle || !due(refresh(found))) return [];
       retiring.add(id);
@@ -350,13 +346,13 @@ export function createEnvironments(ctx: ServerContext) {
     const attachedId = thread?.environmentId ?? null;
     const found =
       attachedId === null
-        ? findEnvironment(db, OWNED_BY, threadId)
-        : getEnvironment(db, attachedId);
+        ? store.findEnvironment(db, OWNED_BY, threadId)
+        : store.getEnvironment(db, attachedId);
     const orphaned =
       found?.managed === true &&
       found.status !== "destroyed" &&
       thread?.deletedAt != null &&
-      environmentUse(db, found.id).attached === 0;
+      store.environmentUse(db, found.id).attached === 0;
     if (orphaned) patch(found.id, { retireAt: now() });
     setImmediate(sweepSoon);
   }
@@ -368,7 +364,7 @@ export function createEnvironments(ctx: ServerContext) {
   }
 
   async function workspaceInstructions(environmentId: string) {
-    const found = getEnvironment(db, environmentId);
+    const found = store.getEnvironment(db, environmentId);
     if (found === undefined || found.path === null) return null;
     const file = { path: INSTRUCTIONS_FILE, rootPath: found.path };
     try {
@@ -393,7 +389,7 @@ export function createEnvironments(ctx: ServerContext) {
 
   return {
     ensureForThread,
-    pathFor: (id: string) => getEnvironment(db, id)?.path ?? null,
+    pathFor: (id: string) => store.getEnvironment(db, id)?.path ?? null,
     workspaceInstructions,
     onThreadDetached,
     remove,

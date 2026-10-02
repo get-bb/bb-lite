@@ -1,13 +1,4 @@
-import {
-  promptInputSchema,
-  queuedMessageSystemNoticeSchema,
-  queuedMessageWaitingOnSchema,
-  type PromptInput,
-  type QueuedMessageSystemNotice,
-  type QueuedMessageWaitingOn,
-  type QueuedMessageWaitingOnKind,
-  type ThreadQueuedMessage,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ReorderQueuedMessageRequest } from "@bb/server-contract";
 import { z } from "zod";
 import { ApiError, conflict as rejected } from "../http/errors.js";
@@ -18,7 +9,7 @@ type Encoded = "content" | "waitingOn" | "groupWithNext";
 type Derived = "initiator" | "payload" | "editable";
 
 export interface QueuedMessageRow extends Omit<
-  ThreadQueuedMessage,
+  domain.ThreadQueuedMessage,
   Encoded | Derived
 > {
   content: string;
@@ -32,17 +23,17 @@ type Envelope = "threadId" | "senderThreadId" | "sendAt" | "content";
 type Execution = "model" | "reasoningLevel" | "permissionMode" | "serviceTier";
 
 export interface NewQueuedMessage extends Pick<
-  ThreadQueuedMessage,
+  domain.ThreadQueuedMessage,
   Envelope | Execution | "waitingOn"
 > {
-  systemNotice: QueuedMessageSystemNotice | null;
+  systemNotice: domain.QueuedMessageSystemNotice | null;
 }
 
 export function queuedMessageNotFound(): ApiError {
   return new ApiError(404, "invalid_request", "Queued message not found");
 }
 
-const contentSchema = z.array(promptInputSchema).min(1);
+const contentSchema = z.array(domain.promptInputSchema).min(1);
 
 export function listQueuedMessages(db: Db, threadId: string) {
   return db.all<QueuedMessageRow>(
@@ -94,7 +85,7 @@ export function deleteQueuedMessages(db: Db, ids: readonly string[]): void {
 export function setQueuedMessageWait(
   db: Db,
   rows: readonly QueuedMessageRow[],
-  waitingOn: QueuedMessageWaitingOn | null,
+  waitingOn: domain.QueuedMessageWaitingOn | null,
 ): void {
   for (const row of rows) {
     db.run(
@@ -110,7 +101,7 @@ export function setQueuedMessageWait(
 export function updateQueuedMessageContent(
   db: Db,
   row: QueuedMessageRow,
-  content: PromptInput[],
+  content: domain.PromptInput[],
 ): void {
   db.run(
     "UPDATE queued_thread_messages SET content = ?, updated_at = ? WHERE id = ?",
@@ -120,22 +111,24 @@ export function updateQueuedMessageContent(
   );
 }
 
-export function parseQueuedContent(row: QueuedMessageRow): PromptInput[] {
+export function parseQueuedContent(
+  row: QueuedMessageRow,
+): domain.PromptInput[] {
   return decodeJson(contentSchema, row.content);
 }
 
 export function parseQueuedWait(
   row: QueuedMessageRow,
-): QueuedMessageWaitingOn | null {
+): domain.QueuedMessageWaitingOn | null {
   if (row.waitingOn === null) return null;
-  return decodeJson(queuedMessageWaitingOnSchema, row.waitingOn);
+  return decodeJson(domain.queuedMessageWaitingOnSchema, row.waitingOn);
 }
 
 export function parseQueuedNotice(
   row: QueuedMessageRow,
-): QueuedMessageSystemNotice | null {
+): domain.QueuedMessageSystemNotice | null {
   if (row.systemNotice === null) return null;
-  return decodeJson(queuedMessageSystemNoticeSchema, row.systemNotice);
+  return decodeJson(domain.queuedMessageSystemNoticeSchema, row.systemNotice);
 }
 
 export function sharesGroupEnvelope(
@@ -270,7 +263,7 @@ export function reorderQueuedMessage(
 
 export function listThreadIdsWaitingOn(
   db: Db,
-  kind: QueuedMessageWaitingOnKind,
+  kind: domain.QueuedMessageWaitingOnKind,
   dueBy?: number,
 ): string[] {
   const rows = db.all<{ threadId: string }>(
@@ -291,7 +284,7 @@ export function queuedInitiator(row: QueuedMessageRow) {
 
 export function toThreadQueuedMessage(
   row: QueuedMessageRow,
-): ThreadQueuedMessage {
+): domain.ThreadQueuedMessage {
   return {
     id: row.id,
     origin: row.origin,

@@ -1,11 +1,4 @@
-import type {
-  ChildThreadOutcome,
-  PendingInteraction,
-  PromptInput,
-  PromptTextMention,
-  QueuedMessageSystemNotice,
-  ThreadEventTurnStatus,
-} from "@bb/domain";
+import type * as domain from "@bb/domain";
 import { lastOutput } from "../db/event-read.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { dispatchMessage } from "./dispatch.js";
@@ -13,9 +6,9 @@ import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
 
 export interface ChildOutcome {
-  status: ThreadEventTurnStatus;
+  status: domain.ThreadEventTurnStatus;
   failureContext?: string;
-  interruption?: ChildThreadOutcome["interruption"];
+  interruption?: domain.ChildThreadOutcome["interruption"];
 }
 
 interface OutcomeItem extends ChildOutcome {
@@ -29,8 +22,8 @@ export interface NoticeBatch {
   timer: ReturnType<typeof setTimeout>;
 }
 
-interface SystemNotice extends QueuedMessageSystemNotice {
-  input: PromptInput[];
+interface SystemNotice extends domain.QueuedMessageSystemNotice {
+  input: domain.PromptInput[];
 }
 
 type Segment = string | ThreadRow;
@@ -50,9 +43,9 @@ function label(thread: ThreadRow): string {
   return thread.title?.trim() || thread.id;
 }
 
-function compose(segments: Segment[]): PromptInput[] {
+function compose(segments: Segment[]): domain.PromptInput[] {
   let text = SYSTEM_PREFIX;
-  const mentions: PromptTextMention[] = [];
+  const mentions: domain.PromptTextMention[] = [];
   for (const segment of segments) {
     if (typeof segment === "string") {
       text += segment;
@@ -68,7 +61,7 @@ function compose(segments: Segment[]): PromptInput[] {
   return [{ type: "text", text, mentions }];
 }
 
-function subjectOf(thread: ThreadRow, outcomes?: ChildThreadOutcome[]) {
+function subjectOf(thread: ThreadRow, outcomes?: domain.ChildThreadOutcome[]) {
   const kind = "thread" as const;
   const base = { kind, threadId: thread.id, threadName: label(thread) };
   return outcomes === undefined ? base : { ...base, outcomes };
@@ -197,7 +190,7 @@ export function queueChildOutcome(
   engine.noticeBatches.set(parentThreadId, { items, dueAt, timer });
 }
 
-function blockerSummary(interaction: PendingInteraction): string {
+function blockerSummary(interaction: domain.PendingInteraction): string {
   const { payload } = interaction;
   const details =
     payload.kind === "user_question"
@@ -218,7 +211,7 @@ function blockerSummary(interaction: PendingInteraction): string {
 export function notifyParentBlocked(
   engine: Engine,
   child: ThreadRow,
-  interaction: PendingInteraction,
+  interaction: domain.PendingInteraction,
 ): void {
   if (child.parentThreadId === null || child.originKind !== null) return;
   const summary = blockerSummary(interaction);

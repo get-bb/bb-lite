@@ -1,13 +1,5 @@
 import type { DynamicTool, ToolCallResponse } from "@bb/domain";
-import type {
-  AgentTool,
-  MachineAccessProvider,
-  MentionQuery,
-  PluginEvents,
-  PluginServerEntry,
-  ProviderEnvEntry,
-  ThreadContext,
-} from "@bb/plugin";
+import type * as plugin from "@bb/plugin";
 import type {
   PluginContributionsResponse,
   PluginMentionGroup,
@@ -21,7 +13,7 @@ import type { PluginManifest } from "./manifest.js";
 
 export interface PluginRecord {
   manifest: PluginManifest;
-  server: PluginServerEntry | null;
+  server: plugin.PluginServerEntry | null;
   external: boolean;
   configEnabled: boolean;
   instance: PluginInstance | null;
@@ -59,7 +51,7 @@ export class PluginRegistry {
     throw new ApiError(503, "plugin_unavailable", message);
   }
 
-  async instructionsFor(context: ThreadContext): Promise<string> {
+  async instructionsFor(context: plugin.ThreadContext): Promise<string> {
     const parts: (string | null | undefined)[] = [];
     for (const [id, instance] of this.active()) {
       for (const tool of this.tools(instance, context)) {
@@ -72,7 +64,7 @@ export class PluginRegistry {
     return parts.filter((part) => part?.trim()).join("\n\n");
   }
 
-  toolsFor(context: ThreadContext): DynamicTool[] {
+  toolsFor(context: plugin.ThreadContext): DynamicTool[] {
     return this.active().flatMap(([, instance]) =>
       this.tools(instance, context).map((tool) => {
         const { name, description, presentation, parameters } = tool;
@@ -86,7 +78,7 @@ export class PluginRegistry {
   async callTool(
     name: string,
     input: unknown,
-    context: ThreadContext & { signal: AbortSignal },
+    context: plugin.ThreadContext & { signal: AbortSignal },
   ): Promise<ToolCallResponse> {
     const tool = this.active()
       .flatMap(([, instance]) => this.tools(instance, context))
@@ -110,9 +102,9 @@ export class PluginRegistry {
 
   async contributedEnv(
     providerId: string,
-    context: ThreadContext,
-  ): Promise<ProviderEnvEntry[]> {
-    const entries: ProviderEnvEntry[] = [];
+    context: plugin.ThreadContext,
+  ): Promise<plugin.ProviderEnvEntry[]> {
+    const entries: plugin.ProviderEnvEntry[] = [];
     for (const [id, instance] of this.active()) {
       for (const [contributorProviderId, contribute] of instance.env) {
         if (contributorProviderId !== providerId) continue;
@@ -123,9 +115,9 @@ export class PluginRegistry {
     return entries;
   }
 
-  emit<Name extends keyof PluginEvents>(
+  emit<Name extends keyof plugin.PluginEvents>(
     name: Name,
-    payload: PluginEvents[Name],
+    payload: plugin.PluginEvents[Name],
   ): void {
     for (const [id, instance] of this.active()) {
       for (const [listened, handler] of instance.listeners) {
@@ -135,7 +127,9 @@ export class PluginRegistry {
     }
   }
 
-  async searchMentions(query: MentionQuery): Promise<PluginMentionGroup[]> {
+  async searchMentions(
+    query: plugin.MentionQuery,
+  ): Promise<PluginMentionGroup[]> {
     const groups: PluginMentionGroup[] = [];
     const sources = query.query === "" ? [] : this.active();
     for (const [pluginId, instance] of sources) {
@@ -190,7 +184,7 @@ export class PluginRegistry {
     return this.firstSet((instance) => instance.publicUrl);
   }
 
-  machineAccess(): MachineAccessProvider | null {
+  machineAccess(): plugin.MachineAccessProvider | null {
     return this.firstSet((instance) => instance.machineAccess);
   }
 
@@ -230,7 +224,10 @@ export class PluginRegistry {
     return null;
   }
 
-  private tools(instance: PluginInstance, context: ThreadContext): AgentTool[] {
+  private tools(
+    instance: PluginInstance,
+    context: plugin.ThreadContext,
+  ): plugin.AgentTool[] {
     return instance.tools.filter(
       (tool) => tool.enabledFor?.(context) !== false,
     );

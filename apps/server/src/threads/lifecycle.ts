@@ -1,10 +1,4 @@
-import {
-  THREAD_CONTEXT_CLEAR_OPERATION,
-  threadScope,
-  turnScope,
-  type ChildThreadOutcome,
-  type ThreadChangeKind,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import { newId } from "../db/index.js";
 import * as pending from "../db/pending-interactions.js";
 import type { DeletedProject } from "../db/projects.js";
@@ -19,7 +13,7 @@ import { flushDueNotices } from "./parent-notices.js";
 import { cancelProvisioning } from "./provisioning.js";
 
 type ThreadRow = store.ThreadRow;
-type Interruption = NonNullable<ChildThreadOutcome["interruption"]>;
+type Interruption = NonNullable<domain.ChildThreadOutcome["interruption"]>;
 type MembershipEvent = `thread.${"archived" | "unarchived" | "deleted"}`;
 
 const ARCHIVE_UNDO_GRACE_MS = 30_000;
@@ -38,13 +32,15 @@ function appendInterrupted(
   interruption: Interruption,
 ): void {
   const type = "system/thread/interrupted";
-  engine.append(out, thread, [{ type, scope: threadScope(), ...interruption }]);
+  engine.append(out, thread, [
+    { type, scope: domain.threadScope(), ...interruption },
+  ]);
 }
 
 function closeActiveTurn(engine: Engine, out: Outbox, thread: ThreadRow) {
   const { activeTurnId, providerThreadId } = thread;
   if (activeTurnId === null) return;
-  const turn = { scope: turnScope(activeTurnId), providerThreadId };
+  const turn = { scope: domain.turnScope(activeTurnId), providerThreadId };
   const type = "turn/completed";
   engine.append(out, thread, [{ type, ...turn, status: "interrupted" }]);
   store.patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
@@ -139,7 +135,7 @@ function changeMembership(
   engine: Engine,
   thread: ThreadRow,
   patch: store.ThreadPatch,
-  change: ThreadChangeKind,
+  change: domain.ThreadChangeKind,
   event: MembershipEvent,
 ): void {
   const { db, environments, plugins } = engine.ctx;
@@ -298,13 +294,15 @@ export async function resetContext(
   }
   engine.commit((out) => {
     const operation = {
-      operation: THREAD_CONTEXT_CLEAR_OPERATION,
+      operation: domain.THREAD_CONTEXT_CLEAR_OPERATION,
       operationId: newId("evt"),
       status: "completed",
       message: CONTEXT_CLEARED_MESSAGE,
     };
     const type = "system/operation";
-    engine.append(out, thread, [{ type, scope: threadScope(), ...operation }]);
+    engine.append(out, thread, [
+      { type, scope: domain.threadScope(), ...operation },
+    ]);
     store.patchThread(db, thread.id, { providerThreadId: null }, false);
     const metadata = engine.statusMetadata(thread.id);
     out.thread(thread.id, ["history-rewritten", "status-changed"], metadata);

@@ -1,16 +1,4 @@
-import {
-  clientMessageSchema,
-  realtimeSubscriptionTargetKey as targetKey,
-  type ChangedMessage,
-  type EnvironmentChangeKind,
-  type HostChangeKind,
-  type ProjectChangeKind,
-  type RealtimeSubscriptionTarget,
-  type SystemChangeKind,
-  type ThreadChangeKind,
-  type ThreadChangeMetadata,
-  type ThreadEventType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { PluginSignal, ThreadOpenSignal } from "@bb/server-contract";
 import type { ZodType } from "zod";
 
@@ -20,28 +8,31 @@ export interface HubSocket {
 }
 
 export type SubscriptionListener = (
-  target: RealtimeSubscriptionTarget,
+  target: domain.RealtimeSubscriptionTarget,
   subscribed: boolean,
 ) => void;
 
-export type ChangeListener = (message: ChangedMessage) => void;
+export type ChangeListener = (message: domain.ChangedMessage) => void;
 
-type ThreadChangedMessage = Extract<ChangedMessage, { entity: "thread" }>;
+type ThreadChangedMessage = Extract<
+  domain.ChangedMessage,
+  { entity: "thread" }
+>;
 
 interface Subscription {
-  target: RealtimeSubscriptionTarget;
+  target: domain.RealtimeSubscriptionTarget;
   sockets: Set<HubSocket>;
 }
 
 interface PendingListEvents {
-  eventTypes: Set<ThreadEventType>;
+  eventTypes: Set<domain.ThreadEventType>;
   merged: boolean;
   timer: ReturnType<typeof setTimeout>;
 }
 
 const LIST_EVENTS_COALESCE_MS = 1_000;
 const INVALID_MESSAGE_CLOSE_CODE = 1008;
-const LIST_RELEVANT_EVENT_TYPES: ReadonlySet<ThreadEventType> = new Set([
+const LIST_RELEVANT_EVENT_TYPES: ReadonlySet<domain.ThreadEventType> = new Set([
   "client/turn/requested",
   "turn/completed",
 ]);
@@ -69,7 +60,7 @@ export function parseFrame<T>(schema: ZodType<T>, raw: string): T | null {
   }
 }
 
-function subscriptionKeys(message: ChangedMessage): string[] {
+function subscriptionKeys(message: domain.ChangedMessage): string[] {
   const { entity } = message;
   if (entity === "system") return ["system"];
   return [`${entity}-list`, `${entity}-detail:${message.id}`];
@@ -84,8 +75,8 @@ export class Hub {
 
   thread(
     id: string,
-    changes: ThreadChangeKind[],
-    metadata?: ThreadChangeMetadata,
+    changes: domain.ThreadChangeKind[],
+    metadata?: domain.ThreadChangeMetadata,
   ): void {
     const message: ThreadChangedMessage = {
       type: "changed",
@@ -114,23 +105,23 @@ export class Hub {
       LIST_EVENTS_COALESCE_MS,
     );
     timer.unref();
-    const eventTypes = new Set<ThreadEventType>();
+    const eventTypes = new Set<domain.ThreadEventType>();
     this.pendingListEvents.set(id, { eventTypes, merged: false, timer });
   }
 
-  project(id: string, changes: ProjectChangeKind[]): void {
+  project(id: string, changes: domain.ProjectChangeKind[]): void {
     this.publish({ type: "changed", entity: "project", id, changes });
   }
 
-  environment(id: string, changes: EnvironmentChangeKind[]): void {
+  environment(id: string, changes: domain.EnvironmentChangeKind[]): void {
     this.publish({ type: "changed", entity: "environment", id, changes });
   }
 
-  host(id: string, changes: HostChangeKind[]): void {
+  host(id: string, changes: domain.HostChangeKind[]): void {
     this.publish({ type: "changed", entity: "host", id, changes });
   }
 
-  system(changes: SystemChangeKind[]): void {
+  system(changes: domain.SystemChangeKind[]): void {
     this.publish({ type: "changed", entity: "system", changes });
   }
 
@@ -167,7 +158,7 @@ export class Hub {
   }
 
   receive(socket: HubSocket, raw: string): void {
-    const message = parseFrame(clientMessageSchema, raw);
+    const message = parseFrame(domain.clientMessageSchema, raw);
     if (message === null) {
       socket.close(INVALID_MESSAGE_CLOSE_CODE, "invalid-message");
     } else if (message.type === "ping") {
@@ -175,7 +166,10 @@ export class Hub {
     } else if (message.type === "subscribe") {
       this.subscribe(socket, message.target);
     } else {
-      this.unsubscribe(socket, targetKey(message.target));
+      this.unsubscribe(
+        socket,
+        domain.realtimeSubscriptionTargetKey(message.target),
+      );
     }
   }
 
@@ -186,8 +180,11 @@ export class Hub {
     this.pendingListEvents.clear();
   }
 
-  private subscribe(socket: HubSocket, target: RealtimeSubscriptionTarget) {
-    const key = targetKey(target);
+  private subscribe(
+    socket: HubSocket,
+    target: domain.RealtimeSubscriptionTarget,
+  ) {
+    const key = domain.realtimeSubscriptionTargetKey(target);
     this.connect(socket);
     this.keysBySocket.get(socket)?.add(key);
     const existing = this.subscriptions.get(key);
@@ -222,12 +219,12 @@ export class Hub {
     );
   }
 
-  private publish(message: ChangedMessage): void {
+  private publish(message: domain.ChangedMessage): void {
     for (const listener of this.changeListeners) listener(message);
     this.route(message);
   }
 
-  private route(message: ChangedMessage): void {
+  private route(message: domain.ChangedMessage): void {
     const sockets = subscriptionKeys(message).flatMap((key) =>
       this.subscribers(key),
     );

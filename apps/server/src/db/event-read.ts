@@ -1,12 +1,4 @@
-import {
-  buildThreadEventRow,
-  parseStoredThreadEvent,
-  type ThreadEvent,
-  type ThreadEventItemType,
-  type ThreadEventRow,
-  type ThreadEventScope,
-  type ThreadEventType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import {
   THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
   type ThreadEventWithMeta,
@@ -20,9 +12,9 @@ export interface StoredEventRow {
   turnId: string | null;
   providerThreadId: string | null;
   sequence: number;
-  type: ThreadEventType;
+  type: domain.ThreadEventType;
   itemId: string | null;
-  itemKind: ThreadEventItemType | null;
+  itemKind: domain.ThreadEventItemType | null;
   parentToolCallId: string | null;
   data: string;
   createdAt: number;
@@ -48,7 +40,7 @@ export interface EventQuery {
 export interface OrderingContextRow {
   sequence: number;
   turnId: string | null;
-  type: ThreadEventType;
+  type: domain.ThreadEventType;
   parentToolCallId: string | null;
   requestId: string | null;
   clientRequestId: string | null;
@@ -426,14 +418,14 @@ export function mergeEventRows(
   );
 }
 
-function eventScope(row: StoredEventRow): ThreadEventScope {
+function eventScope(row: StoredEventRow): domain.ThreadEventScope {
   return row.turnId === null
     ? { kind: "thread" }
     : { kind: "turn", turnId: row.turnId };
 }
 
-export function decodeEvent(row: StoredEventRow): ThreadEvent {
-  return parseStoredThreadEvent({
+export function decodeEvent(row: StoredEventRow): domain.ThreadEvent {
+  return domain.parseStoredThreadEvent({
     type: row.type,
     data: JSON.parse(row.data) as Record<string, unknown>,
     threadId: row.threadId,
@@ -475,9 +467,16 @@ export function decodeEvents(
   });
 }
 
-export function toThreadEventRow(row: StoredEventRow): ThreadEventRow {
+export function toThreadEventRow(row: StoredEventRow): domain.ThreadEventRow {
   const { id, threadId, sequence: seq, createdAt } = row;
   const scope = eventScope(row);
   const event = decodeEvent(row);
-  return buildThreadEventRow({ id, scope, threadId, seq, createdAt, event });
+  return domain.buildThreadEventRow({
+    id,
+    scope,
+    threadId,
+    seq,
+    createdAt,
+    event,
+  });
 }

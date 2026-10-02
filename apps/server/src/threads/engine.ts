@@ -1,10 +1,4 @@
-import {
-  threadScope,
-  type QueuedMessageWaitingOn,
-  type QueuedMessageWaitingOnKind,
-  type ThreadChangeMetadata,
-  type ThreadLifecycleEventType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import type { ThreadResponse } from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
@@ -118,7 +112,7 @@ export class Engine {
     return row;
   }
 
-  statusMetadata(threadId: string): ThreadChangeMetadata {
+  statusMetadata(threadId: string): domain.ThreadChangeMetadata {
     const [entry] = toThreadListEntries(this.ctx, [this.listed(threadId)]);
     const { projectId, status, runtime, activity } = entry;
     const { latestAttentionAt, updatedAt } = entry;
@@ -160,7 +154,7 @@ export class Engine {
   transition(
     out: Outbox,
     threadId: string,
-    type: ThreadLifecycleEventType,
+    type: domain.ThreadLifecycleEventType,
   ): store.LifecycleOutcome {
     const outcome = store.applyLifecycleEvent(this.ctx.db, threadId, type);
     if (!outcome.applied) return outcome;
@@ -176,7 +170,7 @@ export class Engine {
     failure: ThreadFailure,
     failureContext?: string,
   ): void {
-    const scope = threadScope();
+    const scope = domain.threadScope();
     this.append(out, thread, [{ type: "system/error", scope, ...failure }]);
     const stopping = thread.status === "stopping";
     const settlement = stopping ? "stop.settled" : "run.failed";
@@ -189,8 +183,8 @@ export class Engine {
   relabelWaits(
     out: Outbox,
     threadId: string,
-    from: readonly (QueuedMessageWaitingOnKind | null)[],
-    to: QueuedMessageWaitingOn | null,
+    from: readonly (domain.QueuedMessageWaitingOnKind | null)[],
+    to: domain.QueuedMessageWaitingOn | null,
   ): void {
     const { db } = this.ctx;
     const rows = queue

@@ -4,20 +4,8 @@ import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
 import type { ServerContext, ServerRunner } from "../../context.js";
 import { newId, type RowValues } from "../../db/index.js";
-import {
-  destroyHost,
-  findHost,
-  insertHost,
-  listHosts,
-  updateHost,
-} from "../../db/hosts.js";
-import {
-  hashToken,
-  issueJoinToken,
-  joinCommand,
-  redeemJoinToken,
-  type JoinToken,
-} from "../../runners/enrollment.js";
+import * as store from "../../db/hosts.js";
+import * as enrollment from "../../runners/enrollment.js";
 import {
   hostResponse,
   publicServerUrl,
@@ -41,12 +29,12 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.hosts;
   const { db, hub, plugins, runners } = ctx;
-  const pendingJoins = new Map<string, JoinToken>();
+  const pendingJoins = new Map<string, enrollment.JoinToken>();
 
   const commandFor = async (
     c: HostRequest,
     hostId: string,
-    { joinToken, expiresAt }: JoinToken,
+    { joinToken, expiresAt }: enrollment.JoinToken,
   ) => {
     const granting = plugins.machineAccess()?.grant(hostId);
     const access = await granting?.catch((error: unknown) => {
@@ -56,13 +44,18 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     const serverUrl =
       access?.serverUrl ?? publicServerUrl(ctx) ?? new URL(c.req.url).origin;
     const headers = access?.headers;
-    const command = joinCommand({ serverUrl, hostId, joinToken, headers });
+    const command = enrollment.joinCommand({
+      serverUrl,
+      hostId,
+      joinToken,
+      headers,
+    });
     return { command, expiresAt };
   };
 
   const patchHost = (hostId: string, patch: RowValues): Host => {
     const { id } = requireHost(ctx, hostId);
-    updateHost(db, id, patch);
+    store.updateHost(db, id, patch);
     hub.host(id, ["host-connected"]);
     return hostResponse(ctx, requireHost(ctx, id));
   };
@@ -82,24 +75,24 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       );
     }
     const launchKey = payload.key ?? randomUUID();
-    const existing = findHost(db, "launch_key", launchKey);
+    const existing = store.findHost(db, "launch_key", launchKey);
     if (existing !== undefined) return c.json(hostResponse(ctx, existing), 201);
     const id = newId("host");
-    insertHost(db, {
+    store.insertHost(db, {
       id,
       name: `New machine ${id.slice(-6)}`,
       phase: "creating",
       statusMessage: "Waiting for the enrollment command to run",
       launchKey,
     });
-    pendingJoins.set(id, issueJoinToken(db, id));
+    pendingJoins.set(id, enrollment.issueJoinToken(db, id));
     hub.host(id, ["host-connected"]);
     return c.json(hostResponse(ctx, requireHost(ctx, id)), 201);
   });
 
   get(routes.list, (c, query) => {
     const includeCreating = query.includeCreating === "true";
-    const hosts = listHosts(db, { includeCreating, type: query.type });
+    const hosts = store.listHosts(db, { includeCreating, type: query.type });
     return c.json(hosts.map((host) => hostResponse(ctx, host)));
   });
 
@@ -119,7 +112,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     const usable =
       pending !== undefined &&
       host.phase === "creating" &&
-      host.joinTokenHash === hashToken(pending.joinToken) &&
+      host.joinTokenHash === enrollment.hashToken(pending.joinToken) &&
       pending.expiresAt > ctx.now();
     return c.json(usable ? await commandFor(c, host.id, pending) : null);
   });
@@ -140,7 +133,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
         "Machine is connected and doesn't need reconnecting",
       );
     }
-    const token = issueJoinToken(db, host.id);
+    const token = enrollment.issueJoinToken(db, host.id);
     const command = await commandFor(c, host.id, token);
     return c.json({ ...command, hostId: host.id }, 201);
   });
@@ -163,7 +156,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       );
     }
     const wasConnected = runners.isConnected(id);
-    destroyHost(db, id);
+    store.destroyHost(db, id);
     pendingJoins.delete(id);
     runners.disconnect(id);
     if (!wasConnected) hub.host(id, ["host-disconnected"]);
@@ -192,7 +185,7 @@ export function registerRunnerRoutes(app: ApiApp, ctx: ServerContext): void {
     const raw: unknown = await c.req.json().catch(() => ({}));
     const body = joinBodySchema.safeParse(raw);
     if (!body.success) throw invalidRequest("Invalid runner join body");
-    const credential = redeemJoinToken(ctx.db, {
+    const credential = enrollment.redeemJoinToken(ctx.db, {
       authorization: c.req.header("authorization"),
       principal: principalOf(c),
       hostName: body.data.hostName,

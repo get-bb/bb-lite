@@ -1,11 +1,4 @@
-import {
-  clampPermissionModeToCeiling,
-  promptInputHasCommandMention,
-  type CallerExecutionInputSource,
-  type PromptInput,
-  type ResolvedThreadExecutionOptions,
-  type ThreadTurnInitiator,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
@@ -17,14 +10,17 @@ import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import { providerOptionsFor } from "../providers/settings.js";
 
-export type ExecutionTuple = Omit<ResolvedThreadExecutionOptions, "source">;
+export type ExecutionTuple = Omit<
+  domain.ResolvedThreadExecutionOptions,
+  "source"
+>;
 
 type ExecutionField = keyof ExecutionTuple;
 type Stored = { [Field in ExecutionField]?: ExecutionTuple[Field] | null };
 
 export interface ExecutionRequest extends Partial<ExecutionTuple> {
   executionInputSources?: Partial<
-    Record<ExecutionField, CallerExecutionInputSource>
+    Record<ExecutionField, domain.CallerExecutionInputSource>
   >;
 }
 
@@ -37,8 +33,8 @@ interface CreateExecutionArgs {
 
 interface TurnOptionsSource {
   execution: ExecutionTuple;
-  initiator: ThreadTurnInitiator;
-  input: readonly PromptInput[];
+  initiator: domain.ThreadTurnInitiator;
+  input: readonly domain.PromptInput[];
 }
 
 const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
@@ -79,7 +75,7 @@ function resolve(
     model,
     reasoningLevel: pick("reasoningLevel") ?? "medium",
     permissionMode:
-      clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
+      domain.clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
       permissionMode,
     serviceTier: (fast ? pick("serviceTier") : null) ?? "default",
   };
@@ -188,7 +184,7 @@ export async function resolveCreateExecution(
 
 export function recordedExecution(
   execution: ExecutionTuple,
-): ResolvedThreadExecutionOptions {
+): domain.ResolvedThreadExecutionOptions {
   return { ...execution, source: "client/turn/requested" };
 }
 
@@ -201,7 +197,7 @@ export function toRunnerOptions(
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
-    planMode: promptInputHasCommandMention(input, plan),
+    planMode: domain.promptInputHasCommandMention(input, plan),
     providerOptions: providerOptionsFor(db, providerId),
   };
 }

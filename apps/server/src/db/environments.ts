@@ -1,10 +1,4 @@
-import {
-  environmentProviderSelectionSchema,
-  resolveEnvironmentHostLifecycle,
-  type Environment,
-  type EnvironmentStatus,
-  type WorkspaceProvisionType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ListEnvironmentsQuery } from "@bb/server-contract";
 import {
   decodeJson,
@@ -25,7 +19,7 @@ type Derived =
   | "managed"
   | "workspaceProvisionType";
 
-interface EnvironmentRow extends Omit<Environment, Derived> {
+interface EnvironmentRow extends Omit<domain.Environment, Derived> {
   isGitRepo: number;
   isWorktree: number;
   environmentProviderSelection: string | null;
@@ -51,7 +45,7 @@ export type EnvironmentPatch = {
   baseBranch?: string | null;
   defaultBranch?: string | null;
   mergeBaseBranch?: string | null;
-  status?: EnvironmentStatus;
+  status?: domain.EnvironmentStatus;
   statusMessage?: string | null;
   retireAt?: number | null;
   teardownStatus?: EnvironmentRow["teardownStatus"];
@@ -91,13 +85,13 @@ const FILTER_COLUMNS = {
   status: "e.status",
 } as const;
 
-const PROVISION_TYPES: Record<string, WorkspaceProvisionType> = {
+const PROVISION_TYPES: Record<string, domain.WorkspaceProvisionType> = {
   "git-worktree": "managed-worktree",
   "personal-workspace": "personal",
   "project-checkout": "unmanaged",
 };
 
-function lifecycle(row: EnvironmentRow): Environment["lifecycle"] {
+function lifecycle(row: EnvironmentRow): domain.Environment["lifecycle"] {
   const { retireAt, teardownStatus: status, teardownAttempt: attempt } = row;
   const message = row.teardownMessage ?? undefined;
   const teardown = status === null ? null : { status, attempt, message };
@@ -109,7 +103,7 @@ function lifecycle(row: EnvironmentRow): Environment["lifecycle"] {
   return { phase, retireAt, teardown };
 }
 
-function toEnvironment(row: EnvironmentRow): Environment {
+function toEnvironment(row: EnvironmentRow): domain.Environment {
   const { hostPhase: phase, hostDestroyedAt: destroyedAt } = row;
   const selection = row.environmentProviderSelection;
   const providerId = row.environmentProviderId;
@@ -128,7 +122,7 @@ function toEnvironment(row: EnvironmentRow): Environment {
     status: row.status,
     environmentProviderId: providerId,
     lifecycle: lifecycle(row),
-    hostLifecycle: resolveEnvironmentHostLifecycle({
+    hostLifecycle: domain.resolveEnvironmentHostLifecycle({
       destroyedAt,
       phase,
       teardownStatus: null,
@@ -136,7 +130,7 @@ function toEnvironment(row: EnvironmentRow): Environment {
     environmentProviderSelection:
       selection === null
         ? null
-        : decodeJson(environmentProviderSelectionSchema, selection),
+        : decodeJson(domain.environmentProviderSelectionSchema, selection),
     environmentProviderInstanceKey: row.environmentProviderInstanceKey,
     managed: row.providerOwnsPath === 1,
     workspaceProvisionType: PROVISION_TYPES[providerId ?? ""] ?? null,
@@ -149,20 +143,23 @@ export function findEnvironment(
   db: Db,
   where: string,
   ...values: SqlValue[]
-): Environment | undefined {
+): domain.Environment | undefined {
   const sql = `${SELECT_ENVIRONMENTS} WHERE ${where}`;
   const row = db.get<EnvironmentRow>(sql, ...values);
   return row === undefined ? undefined : toEnvironment(row);
 }
 
-export function getEnvironment(db: Db, id: string): Environment | undefined {
+export function getEnvironment(
+  db: Db,
+  id: string,
+): domain.Environment | undefined {
   return findEnvironment(db, "e.id = ?", id);
 }
 
 export function listEnvironments(
   db: Db,
   filter: EnvironmentFilter = {},
-): Environment[] {
+): domain.Environment[] {
   const conditions =
     filter.status === undefined ? ["e.status <> 'destroyed'"] : [];
   const values: SqlValue[] = [];

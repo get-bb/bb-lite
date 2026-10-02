@@ -7,19 +7,7 @@ import {
 } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import { updateRow } from "../../db/index.js";
-import {
-  addProjectSource,
-  deleteProjectSource,
-  findOrCreateProject,
-  getProjectSource,
-  listStandardProjects,
-  reorderProject,
-  requireProject,
-  requireStandardProject,
-  setGitRemoteUrlIfMissing,
-  updateProjectSource,
-  withSources,
-} from "../../db/projects.js";
+import * as store from "../../db/projects.js";
 import {
   branchSearch,
   searchWorkspacePaths,
@@ -63,13 +51,15 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   const { dataDir } = ctx.config;
 
   const projectResponse = (projectId: string): ProjectResponse => {
-    const [response] = withSources(db, [requireProject(db, projectId)]);
+    const [response] = store.withSources(db, [
+      store.requireProject(db, projectId),
+    ]);
     if (response === undefined) throw notFound();
     return response;
   };
 
   const requireSource = (projectId: string, id: string) => {
-    const source = getProjectSource(db, projectId, { id });
+    const source = store.getProjectSource(db, projectId, { id });
     if (source !== undefined) return source;
     throw new ApiError(404, "invalid_request", "Project source not found");
   };
@@ -78,7 +68,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     projectId: string,
     query: ProjectBranchesQuery,
   ): Promise<ProjectBranchesResponse> => {
-    requireStandardProject(db, projectId);
+    store.requireStandardProject(db, projectId);
     const { hostId, path } = requireProjectWorkspace(ctx, projectId, {
       hostId: query.hostId,
     });
@@ -102,7 +92,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   ): Promise<void> => {
     const gitRemoteUrl = await gitRemoteOf(hostId, path);
     if (gitRemoteUrl === null) return;
-    if (setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {
+    if (store.setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {
       hub.project(projectId, ["project-updated"]);
     }
   };
@@ -110,11 +100,11 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.list, (c, query) => {
     const personal =
       query.includePersonal === "true"
-        ? [requireProject(db, PERSONAL_PROJECT_ID)]
+        ? [store.requireProject(db, PERSONAL_PROJECT_ID)]
         : [];
-    const projects = [...personal, ...listStandardProjects(db)];
+    const projects = [...personal, ...store.listStandardProjects(db)];
     if (query.include?.split(",").includes("threads") !== true) {
-      return c.json(withSources(db, projects));
+      return c.json(store.withSources(db, projects));
     }
     return c.json(listProjectsWithThreads(ctx, projects));
   });
@@ -126,7 +116,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     const source = { hostId, path };
     const { name } = payload;
     const input = { name, source, gitRemoteUrl };
-    const { projectId, created } = findOrCreateProject(db, input);
+    const { projectId, created } = store.findOrCreateProject(db, input);
     if (created) {
       hub.project(projectId, ["project-created", "project-sources-changed"]);
     }
@@ -136,7 +126,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.get, (c) => c.json(projectResponse(c.req.param("id"))));
 
   patch(routes.update, (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
     const { name } = payload;
     if (name !== undefined) updateRow(db, "projects", id, { name });
     hub.project(id, ["project-updated"]);
@@ -144,14 +134,14 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   patch(routes.reorder, (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
-    const reordered = reorderProject(db, id, payload);
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
+    const reordered = store.reorderProject(db, id, payload);
     if (reordered) hub.project(id, ["project-order-changed"]);
-    return c.json(withSources(db, listStandardProjects(db)));
+    return c.json(store.withSources(db, store.listStandardProjects(db)));
   });
 
   del(routes.delete, async (c) => {
-    const project = requireProject(db, c.req.param("id"));
+    const project = store.requireProject(db, c.req.param("id"));
     if (project.kind === "personal") {
       throw conflict("The personal project cannot be deleted");
     }
@@ -160,7 +150,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.createSource, async (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
     if (payload.type !== "local_path") {
       throw invalidRequest(
         "Cloning a project onto a machine is not available. Add the path " +
@@ -169,17 +159,20 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     }
     const { hostId, path } = payload;
     requireHost(ctx, hostId);
-    const source = addProjectSource(db, id, { hostId, path });
+    const source = store.addProjectSource(db, id, { hostId, path });
     hub.project(id, ["project-sources-changed"]);
     await recordGitRemote(id, hostId, path);
     return c.json(source, 201);
   });
 
   patch(routes.updateSource, async (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
     const sourceId = c.req.param("sourceId");
     const { path, isDefault } = payload;
-    updateProjectSource(db, requireSource(id, sourceId), { path, isDefault });
+    store.updateProjectSource(db, requireSource(id, sourceId), {
+      path,
+      isDefault,
+    });
     hub.project(id, ["project-sources-changed"]);
     const updated = requireSource(id, sourceId);
     await recordGitRemote(id, updated.hostId, updated.path);
@@ -187,14 +180,14 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   del(routes.deleteSource, (c) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
-    deleteProjectSource(db, requireSource(id, c.req.param("sourceId")));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
+    store.deleteProjectSource(db, requireSource(id, c.req.param("sourceId")));
     hub.project(id, ["project-sources-changed"]);
     return c.json({ ok: true });
   });
 
   post(routes.uploadAttachment, async (c) => {
-    const { id } = requireProject(db, c.req.param("id"));
+    const { id } = store.requireProject(db, c.req.param("id"));
     const form = await c.req.formData();
     const fields = [...form.keys()];
     const file = form.get(ATTACHMENT_FIELD);
@@ -211,14 +204,14 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.copyAttachments, async (c, payload) => {
-    const target = requireProject(db, c.req.param("id"));
-    const source = requireProject(db, payload.sourceProjectId);
+    const target = store.requireProject(db, c.req.param("id"));
+    const source = store.requireProject(db, payload.sourceProjectId);
     await copyAttachments(ctx, source.id, target.id, payload.paths);
     return c.json({ ok: true });
   });
 
   get(routes.attachmentContent, async (c, query) => {
-    const { id } = requireProject(db, c.req.param("id"));
+    const { id } = store.requireProject(db, c.req.param("id"));
     const path = resolveAttachmentPath(dataDir, id, query.path);
     const response = await fileResponse(path, {
       range: c.req.header("range"),

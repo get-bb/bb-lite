@@ -1,13 +1,4 @@
-import {
-  evaluateThreadLifecycleEvent,
-  type PermissionMode,
-  type ReasoningLevel,
-  type ServiceTier,
-  type Thread,
-  type ThreadLifecycleEventType,
-  type ThreadLifecycleNoopReason,
-  type ThreadStatus,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import { conflict, threadNotFound } from "../http/errors.js";
 import { upsertSearchSegment } from "./events.js";
 import {
@@ -19,15 +10,15 @@ import {
 } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
-export interface ThreadRow extends Thread {
+export interface ThreadRow extends domain.Thread {
   providerThreadId: string | null;
   activeTurnId: string | null;
   model: string | null;
-  reasoningLevel: ReasoningLevel | null;
-  permissionMode: PermissionMode | null;
-  serviceTier: ServiceTier | null;
+  reasoningLevel: domain.ReasoningLevel | null;
+  permissionMode: domain.PermissionMode | null;
+  serviceTier: domain.ServiceTier | null;
   modelOverride: string | null;
-  reasoningLevelOverride: ReasoningLevel | null;
+  reasoningLevelOverride: domain.ReasoningLevel | null;
   startupContext: string | null;
   pinSortKey: string | null;
   storageDeletedAt: number | null;
@@ -56,10 +47,10 @@ export type ThreadPatch = Partial<
 >;
 
 export type LifecycleOutcome =
-  | { applied: true; from: ThreadStatus; thread: ThreadRow }
+  | { applied: true; from: domain.ThreadStatus; thread: ThreadRow }
   | {
       applied: false;
-      reason: "missing" | "cas-conflict" | ThreadLifecycleNoopReason;
+      reason: "missing" | "cas-conflict" | domain.ThreadLifecycleNoopReason;
     };
 
 export const MAX_THREAD_HIERARCHY_DEPTH = 4;
@@ -124,7 +115,7 @@ export function patchThread(
   return thread;
 }
 
-function needsAttention(thread: ThreadRow, to: ThreadStatus): boolean {
+function needsAttention(thread: ThreadRow, to: domain.ThreadStatus): boolean {
   if (to === "error") return true;
   const finished = thread.status === "active" && to === "idle";
   return finished && thread.parentThreadId === null;
@@ -133,11 +124,14 @@ function needsAttention(thread: ThreadRow, to: ThreadStatus): boolean {
 export function applyLifecycleEvent(
   db: Db,
   id: string,
-  type: ThreadLifecycleEventType,
+  type: domain.ThreadLifecycleEventType,
 ): LifecycleOutcome {
   const thread = getThread(db, id);
   if (thread === undefined) return { applied: false, reason: "missing" };
-  const verdict = evaluateThreadLifecycleEvent({ event: { type }, thread });
+  const verdict = domain.evaluateThreadLifecycleEvent({
+    event: { type },
+    thread,
+  });
   if ("noop" in verdict) return { applied: false, reason: verdict.noop };
   const { to } = verdict;
   const now = db.now();
@@ -213,7 +207,7 @@ export function subtreeDepth(db: Db, thread: ThreadRow): number {
 export function listThreadsOnHost(
   db: Db,
   hostId: string,
-  ...statuses: ThreadStatus[]
+  ...statuses: domain.ThreadStatus[]
 ): ThreadRow[] {
   const marks = statuses.map(() => "?").join(", ");
   const onHost = "(SELECT id FROM environments WHERE host_id = ?)";

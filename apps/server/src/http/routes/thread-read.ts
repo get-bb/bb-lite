@@ -1,12 +1,4 @@
-import {
-  DEFAULT_COMPLETED_TURN_DISPLAY,
-  defaultFeatureFlags,
-  PERSONAL_PROJECT_ID,
-  PROMPT_HISTORY_ENTRY_LIMIT,
-  takeVisiblePromptHistoryEntries,
-  threadEventTypeSchema,
-  type PromptHistoryEntry,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import {
   publicApiRoutes,
   THREAD_COUNT_ROOT_PARENT,
@@ -125,7 +117,7 @@ export function registerThreadReadRoutes(
       completedTurnDisplay:
         settings.providerCompletedTurnDisplay[providerId] ??
         provider?.completedTurnDisplay ??
-        DEFAULT_COMPLETED_TURN_DISPLAY,
+        domain.DEFAULT_COMPLETED_TURN_DISPLAY,
       includeDiagnosticOperations: settings.showDiagnosticEvents,
       providerDisplayName: provider?.displayName,
       planCommand: providerPlanCommand(db, providerId),
@@ -146,20 +138,20 @@ export function registerThreadReadRoutes(
   function promptHistory(
     scope: { projectId: string } | { threadId: string },
     limit: string | undefined,
-    queued: PromptHistoryEntry[],
-  ): PromptHistoryEntry[] {
-    const max = PROMPT_HISTORY_ENTRY_LIMIT;
+    queued: domain.PromptHistoryEntry[],
+  ): domain.PromptHistoryEntry[] {
+    const max = domain.PROMPT_HISTORY_ENTRY_LIMIT;
     const wanted = Math.min(positive(limit, "limit", max), max);
     const rowLimit = Math.min(max * 2, wanted + max);
     const accepted = store.listPromptHistoryEntries(db, scope, rowLimit);
     const entries = [...queued, ...accepted].sort(
       (left, right) => right.createdAt - left.createdAt,
     );
-    return takeVisiblePromptHistoryEntries({ entries, limit: wanted });
+    return domain.takeVisiblePromptHistoryEntries({ entries, limit: wanted });
   }
 
   get(projects.sidebarBootstrap, (c) => {
-    const personal = requireProject(db, PERSONAL_PROJECT_ID);
+    const personal = requireProject(db, domain.PERSONAL_PROJECT_ID);
     const listed = [personal, ...listStandardProjects(db)];
     const [personalProject, ...rest] = listProjectsWithThreads(ctx, listed);
     const sections = listThreadSections(db);
@@ -278,7 +270,7 @@ export function registerThreadReadRoutes(
       page,
       includeNestedRows: query.includeNestedRows === "true",
       summaryOnly: query.summaryOnly === "true",
-      eventBudget: defaultFeatureFlags.timelineWindowEventBudget,
+      eventBudget: domain.defaultFeatureFlags.timelineWindowEventBudget,
       afterSequence: integer(query.afterSequence),
     });
     return c.json(response);
@@ -320,7 +312,7 @@ export function registerThreadReadRoutes(
 
   get(threads.eventWait, async (c, query) => {
     const threadId = requireThread(c).id;
-    const type = threadEventTypeSchema.safeParse(query.type);
+    const type = domain.threadEventTypeSchema.safeParse(query.type);
     if (!type.success) throw invalidRequest("Invalid event type");
     const types = [type.data];
     const after = integer(query.afterSeq);

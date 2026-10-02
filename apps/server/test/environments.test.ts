@@ -8,14 +8,7 @@ import type {
 import { expect, it, vi } from "vitest";
 import { getEnvironment, listEnvironments } from "../src/db/environments.js";
 import { getThread } from "../src/db/threads.js";
-import {
-  commitAll,
-  createProject,
-  createTestServer,
-  git,
-  scratch,
-  write,
-} from "./helpers.js";
+import * as helpers from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
 
 type Placement = CreateThreadRequest["environment"];
@@ -28,18 +21,18 @@ const GIT_DIR = '"$(git rev-parse --git-common-dir)"';
 const TITLE = "Build the widget";
 
 async function createWorld(files: Record<string, string> = {}) {
-  const server = await createTestServer({}, "echo");
+  const server = await helpers.createTestServer({}, "echo");
   const { api, ctx } = server;
   const { db } = ctx;
   const { hostId } = ctx.config;
-  const root = scratch();
+  const root = helpers.scratch();
   const repo = join(root, "repo");
-  write(repo, { "README.md": "# demo\n", ...files });
-  commitAll(repo);
-  git(repo, "clone", "--quiet", "--bare", ".", "../origin.git");
-  git(repo, "remote", "add", "origin", "../origin.git");
-  git(repo, "fetch", "--quiet", "origin");
-  const project = await createProject(server, "demo", repo);
+  helpers.write(repo, { "README.md": "# demo\n", ...files });
+  helpers.commitAll(repo);
+  helpers.git(repo, "clone", "--quiet", "--bare", ".", "../origin.git");
+  helpers.git(repo, "remote", "add", "origin", "../origin.git");
+  helpers.git(repo, "fetch", "--quiet", "origin");
+  const project = await helpers.createProject(server, "demo", repo);
   const spawn = async (environment: Placement, projectId = project.id) => {
     const input = text("cmd:pwd go");
     const request = { projectId, title: TITLE, input, environment };
@@ -121,7 +114,7 @@ it("runs a worktree thread, shares, retires and restores its workspace", async (
   await world.say(first, "cmd:pwd again");
   await reaches(first, "idle");
   expect(found()).toMatchObject(ready);
-  expect(git(path, "branch", "--show-current")).toBe(branchName);
+  expect(helpers.git(path, "branch", "--show-current")).toBe(branchName);
   expect(stored(first, "turn/completed")).toHaveLength(2);
   expect(stored(first, "client/thread/start")).toHaveLength(1);
 });
@@ -184,7 +177,11 @@ it("attaches checkouts and switches branch only when clean and unshared", async 
   const { ctx, hostId, repo, reaches, spawn, stored } = world;
   const plain = join(world.root, "plain");
   mkdirSync(plain);
-  const { id: plainProjectId } = await createProject(world, "plain", plain);
+  const { id: plainProjectId } = await helpers.createProject(
+    world,
+    "plain",
+    plain,
+  );
   const loose = await spawn({ type: "project-default" }, plainProjectId);
   await reaches(loose, "idle");
   const unmanaged = { environmentProviderId: "project-checkout" };
@@ -198,7 +195,7 @@ it("attaches checkouts and switches branch only when clean and unshared", async 
   const topic = await checkout({ kind: "new", baseBranch: "main" });
   await reaches(topic, "idle");
   const branchName = `bb/build-the-widget-${topic}`;
-  const current = (): string => git(repo, "branch", "--show-current");
+  const current = (): string => helpers.git(repo, "branch", "--show-current");
   expect(current()).toBe(branchName);
   const switched = { path: repo, branchName, isGitRepo: true };
   expect(world.environmentOf(topic)).toMatchObject(switched);
@@ -209,7 +206,7 @@ it("attaches checkouts and switches branch only when clean and unshared", async 
   const busy = "another thread is using this workspace";
   expect(stored(shared, "system/error").join()).toContain(busy);
   await ctx.threads.archive(topic);
-  write(repo, { "README.md": "# edited\n" });
+  helpers.write(repo, { "README.md": "# edited\n" });
   const dirty = await checkout(main);
   await reaches(dirty, "error");
   expect(stored(dirty, "system/error").join()).toContain("uncommitted changes");
