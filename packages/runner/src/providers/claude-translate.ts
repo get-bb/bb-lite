@@ -389,10 +389,8 @@ export class ClaudeTranslator {
     if (turn === null) return false;
     const envelope = results.length === 1 ? message.tool_use_result : undefined;
     for (const block of results) {
-      const [id, toolName] = [
-        str(block.tool_use_id) ?? "",
-        str(block.tool_name),
-      ];
+      const id = str(block.tool_use_id) ?? "";
+      const toolName = str(block.tool_name);
       const started = this.tools.get(id);
       this.tools.delete(id);
       const base =
@@ -470,9 +468,8 @@ export class ClaudeTranslator {
 
   private system(message: Json, subtype: string): boolean {
     const { events, turn } = this;
-    const [from, to] = [message.original_model, message.fallback_model].map(
-      str,
-    );
+    const from = str(message.original_model);
+    const to = str(message.fallback_model);
     const compaction = { type: "contextCompaction" as const };
     const key = { channel: "compaction" };
     const presentation = ui.labels.compaction;

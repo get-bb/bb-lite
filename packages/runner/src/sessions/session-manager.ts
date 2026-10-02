@@ -55,6 +55,8 @@ interface PendingRequest {
   reject(error: Error): void;
 }
 
+type ExitInfo = Parameters<SessionHost["onExit"]>[0];
+
 interface LiveSession {
   threadId: string;
   adapter: ProviderAdapter;
@@ -154,10 +156,7 @@ export function createSessionApi(
     outbox.threadEvent(live.threadId, event);
   }
 
-  function onProviderExit(
-    live: LiveSession,
-    info: { message: string; stderrTail: string },
-  ) {
+  function onProviderExit(live: LiveSession, info: ExitInfo) {
     if (live.closing) return;
     const turnId = live.events.activeTurnId;
     const wasBusy = isBusy(live);
@@ -243,30 +242,23 @@ export function createSessionApi(
         const enforced = adapter.approvalEnforcedBy === "runner";
         const denied = unattended && enforced && payload.kind === "approval";
         if (denied) return { decision: "deny" };
-        const answer = await request(live, "interaction", turnId, (l, id) => {
-          const ids = {
-            threadId,
-            turnId,
-            requestId: id,
-            providerId: adapter.id,
-          };
-          const providerThreadId = l.provider.providerThreadId;
+        const providerId = adapter.id;
+        const announce = (session: LiveSession, requestId: string) => {
+          const ids = { threadId, turnId, requestId, providerId };
+          const { providerThreadId } = session.provider;
           const kind = "interaction.requested";
           outbox.emit({ kind, ...ids, providerThreadId, payload });
-        });
+        };
+        const answer = await request(live, "interaction", turnId, announce);
         return pendingInteractionResolutionSchema.parse(answer);
       },
       callTool: async ({ callId, tool, arguments: input, turnId }) => {
-        const answer = await request(
-          live,
-          "toolCall",
-          turnId,
-          (_, requestId) => {
-            const ids = { threadId, turnId, requestId, callId };
-            const kind = "toolCall.requested";
-            outbox.emit({ kind, ...ids, tool, arguments: input });
-          },
-        );
+        const announce = (_: LiveSession, requestId: string) => {
+          const ids = { threadId, turnId, requestId, callId };
+          const kind = "toolCall.requested";
+          outbox.emit({ kind, ...ids, tool, arguments: input });
+        };
+        const answer = await request(live, "toolCall", turnId, announce);
         return toolCallResponseSchema.parse(answer);
       },
     };

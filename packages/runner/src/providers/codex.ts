@@ -290,12 +290,8 @@ class CodexSession implements ProviderSession {
       const { tool, turnId } = call.data;
       const callId = events.bbItemId(call.data.callId) ?? call.data.callId;
       const input = call.data.arguments ?? {};
-      const request = {
-        callId,
-        tool,
-        arguments: input,
-        turnId: bbTurnId(turnId),
-      };
+      const turn = bbTurnId(turnId);
+      const request = { callId, tool, arguments: input, turnId: turn };
       const respond = (result: unknown) => this.rpc.respond(id, result);
       this.host.callTool(request).then(respond, fail);
       return;

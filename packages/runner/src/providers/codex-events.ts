@@ -508,12 +508,9 @@ export class CodexTranslator {
     agent.open = status === "pending";
     const { callId, parentRef, turn, agentPath: label } = agent;
     const key = { providerItemId: callId, parentRef };
-    const delegation = {
-      type: "delegation" as const,
-      label,
-      background: false,
-    };
-    const shape = { ...delegation, childRef: agent.agentThreadId };
+    const delegation = { type: "delegation" as const, label };
+    const child = { background: false, childRef: agent.agentThreadId };
+    const shape = { ...delegation, ...child };
     const options = { turn, presentation: ui.labels.agent(label) };
     if (status === "pending") this.events.openItem(key, shape, options);
     else this.events.closeItem(key, shape, { ...options, status });
@@ -576,9 +573,8 @@ export class CodexTranslator {
     if (!parsed.success || channel === undefined) return false;
     const { threadId, turnId: turn, itemId, delta } = parsed.data;
     const parentRef = this.parentRef(threadId, turn);
-    this.events.delta({ providerItemId: itemId, parentRef }, channel, delta, {
-      turn,
-    });
+    const key = { providerItemId: itemId, parentRef };
+    this.events.delta(key, channel, delta, { turn });
     return true;
   }
 

@@ -230,18 +230,10 @@ class EchoSession implements ProviderSession {
     if (tool === undefined) return undefined;
     const encoded = directive(text, "tool_input") ?? "{}";
     const input = toolInputSchema.parse(JSON.parse(encoded));
-    const call = {
-      type: "toolCall" as const,
-      server: "bb",
-      tool,
-      arguments: input,
-    };
-    const { id: callId, close } = this.item(
-      turn,
-      "call",
-      call,
-      ui.labels.tool(tool),
-    );
+    const shape = { type: "toolCall" as const, server: "bb", tool };
+    const call = { ...shape, arguments: input };
+    const item = this.item(turn, "call", call, ui.labels.tool(tool));
+    const { id: callId, close } = item;
     const request = { callId, tool, arguments: input, turnId };
     const { contentItems } = await host.callTool(request);
     const texts = contentItems.flatMap((c) =>
@@ -347,11 +339,8 @@ class EchoSession implements ProviderSession {
 
 export function createEchoAdapter(): ProviderAdapter {
   const ready = { installed: true, auth: "ready" as const, message: null };
-  const status = {
-    providerId: "echo" as const,
-    executablePath: null,
-    ...ready,
-  };
+  const identity = { providerId: "echo" as const, executablePath: null };
+  const status = { ...identity, ...ready };
   return {
     id: "echo",
     approvalEnforcedBy: "runner",
