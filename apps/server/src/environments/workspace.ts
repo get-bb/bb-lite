@@ -6,8 +6,8 @@ import {
 import { RunnerError } from "@bb/runner";
 import type {
   EnvironmentNotReadyErrorDetails,
+  EnvironmentPathsQuery,
   EnvironmentStatusResponse,
-  PathListIncludeQueryValue,
   ThreadEnvironmentUnavailableErrorDetails,
   WorkspacePathListResponse,
 } from "@bb/server-contract";
@@ -29,13 +29,6 @@ export type WorkspaceFailure = Unavailable["failure"];
 export type WorkspaceMetadata = Partial<
   Pick<Environment, (typeof METADATA_KEYS)[number]>
 >;
-
-export interface PathSearchQuery {
-  query?: string;
-  limit?: string;
-  includeFiles: PathListIncludeQueryValue;
-  includeDirectories: PathListIncludeQueryValue;
-}
 
 const METADATA_KEYS = [
   "branchName",
@@ -196,7 +189,7 @@ export function branchSearch(search: {
 export function searchWorkspacePaths(
   ctx: ServerContext,
   workspace: { hostId: string; path: string },
-  query: PathSearchQuery,
+  query: EnvironmentPathsQuery,
 ): Promise<WorkspacePathListResponse> {
   const includeFiles = query.includeFiles === "true";
   const includeDirectories = query.includeDirectories === "true";

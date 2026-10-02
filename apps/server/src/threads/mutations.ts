@@ -212,11 +212,8 @@ export function reorderQueuedMessage(
   request: contract.ReorderQueuedMessageRequest,
 ) {
   engine.requireUnarchived(threadId);
-  const previousId = request.previousQueuedMessageId;
-  const nextId = request.nextQueuedMessageId;
-  const boundaryId = request.groupBoundaryQueuedMessageId;
-  const move = { threadId, id, previousId, nextId, boundaryId };
-  const rows = queue.reorderQueuedMessage(engine.ctx.db, move);
+  const { db } = engine.ctx;
+  const rows = queue.reorderQueuedMessage(db, threadId, id, request);
   queueChanged(engine, threadId);
   return rows.map(queue.toThreadQueuedMessage);
 }

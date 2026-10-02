@@ -2,11 +2,8 @@ import {
   clampPermissionModeToCeiling,
   promptInputHasCommandMention,
   type CallerExecutionInputSource,
-  type PermissionMode,
   type PromptInput,
-  type ReasoningLevel,
   type ResolvedThreadExecutionOptions,
-  type ServiceTier,
   type ThreadTurnInitiator,
 } from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
@@ -20,12 +17,7 @@ import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import { providerOptionsFor } from "../providers/settings.js";
 
-export interface ExecutionTuple {
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
-}
+export type ExecutionTuple = Omit<ResolvedThreadExecutionOptions, "source">;
 
 type ExecutionField = keyof ExecutionTuple;
 type Stored = { [Field in ExecutionField]?: ExecutionTuple[Field] | null };

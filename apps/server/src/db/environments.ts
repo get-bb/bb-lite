@@ -5,6 +5,7 @@ import {
   type EnvironmentStatus,
   type WorkspaceProvisionType,
 } from "@bb/domain";
+import type { ListEnvironmentsQuery } from "@bb/server-contract";
 import {
   decodeJson,
   insertRow,
@@ -37,16 +38,9 @@ interface EnvironmentRow extends Omit<Environment, Derived> {
   hostDestroyedAt: number | null;
 }
 
-export interface EnvironmentFilter {
-  projectId?: string;
-  hostId?: string;
-  environmentProviderId?: string;
-  instanceKey?: string;
-  path?: string;
-  status?: EnvironmentStatus;
-  limit?: number;
-  offset?: number;
-}
+type Page = "limit" | "offset";
+type EnvironmentFilter = Omit<ListEnvironmentsQuery, Page> &
+  Partial<Record<Page, number>>;
 
 export type EnvironmentPatch = {
   name?: string | null;

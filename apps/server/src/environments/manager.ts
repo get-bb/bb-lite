@@ -12,10 +12,9 @@ import {
   type EnvironmentPatch,
   type NewEnvironment,
 } from "../db/environments.js";
-import { getProjectSource } from "../db/projects.js";
+import { getProjectSource, type DeletedProject } from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
-import { onProjectDeleted } from "../projects/remove.js";
 import {
   checkoutInputsSchema,
   worktreeInputsSchema,
@@ -403,7 +402,10 @@ export function createEnvironments(ctx: ServerContext) {
   };
 }
 
-onProjectDeleted.push(async ({ log, runners }, { environments }) => {
+export async function removeProjectWorkspaces(
+  { log, runners }: ServerContext,
+  { environments }: DeletedProject,
+): Promise<void> {
   for (const { hostId, path, providerOwnsPath } of environments) {
     const removable = providerOwnsPath === 1 && runners.isConnected(hostId);
     if (path === null || !removable) continue;
@@ -412,4 +414,4 @@ onProjectDeleted.push(async ({ log, runners }, { environments }) => {
       log.warn("Could not remove a deleted project's workspace", { err, path });
     });
   }
-});
+}

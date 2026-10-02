@@ -15,7 +15,6 @@ import * as queue from "../db/queued-messages.js";
 import { findThreadListRow } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
 import { ApiError, threadNotFound } from "../http/errors.js";
-import { onProjectDeleted } from "../projects/remove.js";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
 import * as dispatching from "./dispatch.js";
@@ -400,7 +399,3 @@ export function createThreadEngine(ctx: ServerContext) {
 }
 
 export type ThreadEngine = ReturnType<typeof createThreadEngine>;
-
-onProjectDeleted.push((ctx, deleted) =>
-  ctx.threads.releaseDeletedProject(deleted),
-);

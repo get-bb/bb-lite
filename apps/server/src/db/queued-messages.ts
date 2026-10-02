@@ -2,53 +2,40 @@ import {
   promptInputSchema,
   queuedMessageSystemNoticeSchema,
   queuedMessageWaitingOnSchema,
-  type PermissionMode,
   type PromptInput,
   type QueuedMessageSystemNotice,
   type QueuedMessageWaitingOn,
   type QueuedMessageWaitingOnKind,
-  type ReasoningLevel,
-  type ServiceTier,
-  type ThreadCreateOrigin,
   type ThreadQueuedMessage,
 } from "@bb/domain";
+import type { ReorderQueuedMessageRequest } from "@bb/server-contract";
 import { z } from "zod";
 import { ApiError, conflict as rejected } from "../http/errors.js";
 import { decodeJson, insertRow, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
-export interface QueuedMessageRow {
-  id: string;
-  threadId: string;
+type Encoded = "content" | "waitingOn" | "groupWithNext";
+type Derived = "initiator" | "payload" | "editable";
+
+export interface QueuedMessageRow extends Omit<
+  ThreadQueuedMessage,
+  Encoded | Derived
+> {
   content: string;
-  senderThreadId: string | null;
-  origin: ThreadCreateOrigin | null;
-  originPluginId: string | null;
   systemNotice: string | null;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
   groupWithNext: number;
-  sendAt: number | null;
   waitingOn: string | null;
-  failureReason: string | null;
   sortKey: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
-export interface NewQueuedMessage {
-  threadId: string;
-  content: PromptInput[];
-  senderThreadId: string | null;
+type Envelope = "threadId" | "senderThreadId" | "sendAt" | "content";
+type Execution = "model" | "reasoningLevel" | "permissionMode" | "serviceTier";
+
+export interface NewQueuedMessage extends Pick<
+  ThreadQueuedMessage,
+  Envelope | Execution | "waitingOn"
+> {
   systemNotice: QueuedMessageSystemNotice | null;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier: ServiceTier;
-  waitingOn: QueuedMessageWaitingOn | null;
-  sendAt: number | null;
 }
 
 export function queuedMessageNotFound(): ApiError {
@@ -233,19 +220,15 @@ export function setQueuedMessageGroupBoundary(
   );
 }
 
-export interface QueueReorder {
-  threadId: string;
-  id: string;
-  previousId: string | null;
-  nextId: string | null;
-  boundaryId: string | undefined;
-}
-
 export function reorderQueuedMessage(
   db: Db,
-  move: QueueReorder,
+  threadId: string,
+  id: string,
+  move: ReorderQueuedMessageRequest,
 ): QueuedMessageRow[] {
-  const { threadId, id, previousId, nextId, boundaryId } = move;
+  const previousId = move.previousQueuedMessageId;
+  const nextId = move.nextQueuedMessageId;
+  const boundaryId = move.groupBoundaryQueuedMessageId;
   return db.transaction(() => {
     const rows = listQueuedMessages(db, threadId);
     const index = rows.findIndex((row) => row.id === id);

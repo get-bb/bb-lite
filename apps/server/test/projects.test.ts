@@ -1,8 +1,7 @@
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { expect, it } from "vitest";
 import { insertHost } from "../src/db/hosts.js";
-import { onProjectDeleted } from "../src/projects/remove.js";
 import {
   createProject,
   createTestServer,
@@ -69,16 +68,11 @@ it("protects the personal project and deletes others entirely", async () => {
   const statuses = refusals.map((response) => response.status).join();
   expect(statuses).toBe("404,404,409,404");
   insertThread(server, "thr_1", id);
-  const hook = vi.fn();
-  onProjectDeleted.push(hook);
-  onTestFinished(() => void onProjectDeleted.pop());
   const deleted = await api.projects[":id"].$delete({ param: { id } });
   expect(await deleted.json()).toEqual({ ok: true });
   await changed("project", "project-deleted");
   const thread = await changed("thread", "thread-deleted");
   expect(thread).toMatchObject({ id: "thr_1" });
-  const facts = { projectId: id, threadIds: ["thr_1"] };
-  expect(hook).toHaveBeenCalledWith(ctx, expect.objectContaining(facts));
   const rows = "SELECT id FROM threads UNION SELECT id FROM project_sources";
   expect(ctx.db.all(rows)).toEqual([]);
 });

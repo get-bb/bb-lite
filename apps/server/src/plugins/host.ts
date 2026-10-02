@@ -5,7 +5,8 @@ import { dataPaths, loopbackUrl, type ServerConfig } from "../config.js";
 import type { Logger } from "../context.js";
 import type { Db } from "../db/index.js";
 import { isPluginEnabled, setPluginEnabled } from "../db/plugins.js";
-import type { StartupStep } from "../server.js";
+import type { ServerContext } from "../context.js";
+import type { Disposer } from "../server.js";
 import type { Hub } from "../ws/hub.js";
 import { builtinPlugins, type BuiltinPlugin } from "./builtin.js";
 import { bundleApp, importServerEntry } from "./bundle.js";
@@ -213,8 +214,8 @@ export class PluginHost extends PluginRegistry {
   }
 }
 
-export const startPlugins: StartupStep = async (ctx) => {
+export async function startPlugins(ctx: ServerContext): Promise<Disposer> {
   ctx.plugins.deps = createPluginHostDeps(ctx);
   await ctx.plugins.reload();
   return () => ctx.plugins.stop();
-};
+}
