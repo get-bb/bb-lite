@@ -28,6 +28,7 @@ import { collectPromptAttachments } from "@/lib/prompt-attachments";
 import { BbHttpError, sdk } from "@/lib/sdk";
 import type { SendThreadMessageMutationRequest } from "./mutation-request-types";
 import { qk } from "../queries/query-keys";
+import { refresh, STREAM } from "../queries/refresh";
 import {
   patchCachedThreads,
   refreshThreadCaches,
@@ -239,14 +240,14 @@ function rollbackTurn(
 }
 
 function refreshRuntime(client: QueryClient, threadId: string): void {
+  refresh(client, qk.timeline(threadId), STREAM);
   for (const queryKey of [
     qk.threadDetail(threadId),
     qk.queue(threadId),
-    qk.timeline(threadId),
     qk.threadPromptHistory(threadId),
     qk.threadExecution(threadId),
   ]) {
-    void client.invalidateQueries({ queryKey }, { cancelRefetch: false });
+    refresh(client, queryKey);
   }
 }
 
@@ -322,12 +323,8 @@ export function useCreateThread() {
         insertCreatedThread(client, thread, request);
       }
       refreshThreadCaches(client, []);
-      for (const queryKey of [
-        qk.projectPromptHistory(request.projectId),
-        qk.projectBranches(request.projectId),
-      ]) {
-        void client.invalidateQueries({ queryKey });
-      }
+      refresh(client, qk.projectPromptHistory(request.projectId));
+      refresh(client, qk.projectBranches(request.projectId));
     },
   });
 }

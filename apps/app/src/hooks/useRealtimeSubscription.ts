@@ -1,103 +1,54 @@
-import { useEffect, useMemo } from "react";
-import type { RealtimeSubscriptionTarget } from "@bb/server-contract";
+import { useEffect } from "react";
 import { wsManager } from "@/lib/ws";
 
 interface RealtimeSubscriptionOptions {
   enabled?: boolean;
 }
 
-const THREAD_LIST_TARGET = {
-  kind: "thread-list",
-} satisfies RealtimeSubscriptionTarget;
-const PROJECT_LIST_TARGET = {
-  kind: "project-list",
-} satisfies RealtimeSubscriptionTarget;
-const ENVIRONMENT_LIST_TARGET = {
-  kind: "environment-list",
-} satisfies RealtimeSubscriptionTarget;
-const HOST_LIST_TARGET = {
-  kind: "host-list",
-} satisfies RealtimeSubscriptionTarget;
-const SYSTEM_TARGET = { kind: "system" } satisfies RealtimeSubscriptionTarget;
-
-function useRealtimeSubscription(
-  target: RealtimeSubscriptionTarget | null,
-  options?: RealtimeSubscriptionOptions,
-): void {
-  const enabled = options?.enabled ?? true;
-
-  useEffect(() => {
-    if (!enabled || !target) {
-      return;
-    }
-
-    wsManager.subscribe(target);
-    return () => {
-      wsManager.unsubscribe(target);
-    };
-  }, [enabled, target]);
-}
-
 export function useThreadDetailRealtimeSubscription(
   threadId: string | null | undefined,
   options?: RealtimeSubscriptionOptions,
 ): void {
-  const target = useMemo<RealtimeSubscriptionTarget | null>(
-    () => (threadId ? { kind: "thread-detail", threadId } : null),
-    [threadId],
+  const id = (options?.enabled ?? true) ? threadId : null;
+  useEffect(
+    () =>
+      id
+        ? wsManager.subscribe({ kind: "thread-detail", threadId: id })
+        : undefined,
+    [id],
   );
-  useRealtimeSubscription(target, options);
 }
 
 export function useEnvironmentDetailRealtimeSubscription(
   environmentId: string | null | undefined,
   options?: RealtimeSubscriptionOptions,
 ): void {
-  const target = useMemo<RealtimeSubscriptionTarget | null>(
+  const id = (options?.enabled ?? true) ? environmentId : null;
+  useEffect(
     () =>
-      environmentId ? { kind: "environment-detail", environmentId } : null,
-    [environmentId],
+      id
+        ? wsManager.subscribe({ kind: "environment-detail", environmentId: id })
+        : undefined,
+    [id],
   );
-  useRealtimeSubscription(target, options);
 }
 
 export function useProjectDetailRealtimeSubscription(
-  projectId: string | null | undefined,
-  options?: RealtimeSubscriptionOptions,
-): void {
-  const target = useMemo<RealtimeSubscriptionTarget | null>(
-    () => (projectId ? { kind: "project-detail", projectId } : null),
-    [projectId],
-  );
-  useRealtimeSubscription(target, options);
-}
-
+  _projectId: string | null | undefined,
+  _options?: RealtimeSubscriptionOptions,
+): void {}
 export function useThreadListRealtimeSubscription(
-  options?: RealtimeSubscriptionOptions,
-): void {
-  useRealtimeSubscription(THREAD_LIST_TARGET, options);
-}
-
+  _options?: RealtimeSubscriptionOptions,
+): void {}
 export function useProjectListRealtimeSubscription(
-  options?: RealtimeSubscriptionOptions,
-): void {
-  useRealtimeSubscription(PROJECT_LIST_TARGET, options);
-}
-
+  _options?: RealtimeSubscriptionOptions,
+): void {}
 export function useEnvironmentListRealtimeSubscription(
-  options?: RealtimeSubscriptionOptions,
-): void {
-  useRealtimeSubscription(ENVIRONMENT_LIST_TARGET, options);
-}
-
+  _options?: RealtimeSubscriptionOptions,
+): void {}
 export function useHostListRealtimeSubscription(
-  options?: RealtimeSubscriptionOptions,
-): void {
-  useRealtimeSubscription(HOST_LIST_TARGET, options);
-}
-
+  _options?: RealtimeSubscriptionOptions,
+): void {}
 export function useSystemRealtimeSubscription(
-  options?: RealtimeSubscriptionOptions,
-): void {
-  useRealtimeSubscription(SYSTEM_TARGET, options);
-}
+  _options?: RealtimeSubscriptionOptions,
+): void {}

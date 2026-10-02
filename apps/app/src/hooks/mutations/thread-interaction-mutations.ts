@@ -6,6 +6,7 @@ import { isHostDisconnectedError } from "@/lib/lifecycle-errors";
 import { useEnvironment } from "../queries/environment-queries";
 import { useHosts } from "../queries/host-queries";
 import { qk } from "../queries/query-keys";
+import { refresh, STREAM } from "../queries/refresh";
 import { useThread } from "../queries/thread-queries";
 
 function useIsThreadHostConnected(threadId: string): boolean {
@@ -42,13 +43,8 @@ export function useResolveThreadPendingInteraction(threadId: string) {
             return open ? [interaction] : [];
           }),
       );
-      for (const queryKey of [
-        qk.interactions(threadId),
-        qk.timeline(threadId),
-        qk.threadDetail(threadId),
-      ]) {
-        void client.invalidateQueries({ queryKey }, { cancelRefetch: false });
-      }
+      refresh(client, qk.interactions(threadId));
+      refresh(client, qk.timeline(threadId), STREAM);
     },
   });
   const isStaleHostError =

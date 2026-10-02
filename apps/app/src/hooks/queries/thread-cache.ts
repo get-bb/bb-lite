@@ -10,6 +10,7 @@ import type {
   ThreadResponse,
 } from "@bb/server-contract";
 import { qk } from "./query-keys";
+import { refresh } from "./refresh";
 
 type ThreadListData = ThreadListEntry[] | InfiniteData<ThreadListEntry[]>;
 type ThreadListMapper = (
@@ -130,13 +131,10 @@ export function refreshThreadCaches(
   client: QueryClient,
   threadIds: readonly string[],
 ): void {
-  void client.invalidateQueries({ queryKey: qk.sidebar() });
-  void client.invalidateQueries({ queryKey: qk.threadLists() });
-  void client.invalidateQueries({ queryKey: qk.threadSearch() });
-  for (const threadId of threadIds) {
-    void client.invalidateQueries({
-      queryKey: qk.threadDetail(threadId),
-      exact: true,
-    });
+  for (const queryKey of [
+    ...qk.threadListState(),
+    ...threadIds.map((id) => qk.threadDetail(id)),
+  ]) {
+    refresh(client, queryKey);
   }
 }
