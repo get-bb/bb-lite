@@ -257,7 +257,7 @@ export function EnvironmentPicker({
         align="start"
         aria-label="Environment"
         autoFocusRef={isLoading ? undefined : searchInputRef}
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
+        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
       >
         {isLoading ? (
           <PickerLoadingRows

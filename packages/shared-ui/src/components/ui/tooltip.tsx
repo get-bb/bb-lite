@@ -4,6 +4,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
 import {
+  consumeEscape,
   isLastInputKeyboard,
   popper,
   slot,
@@ -57,7 +58,7 @@ function Tooltip({
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      event.preventDefault();
+      consumeEscape(event);
       setTrigger(null);
     };
     window.addEventListener("scroll", onScroll, true);
