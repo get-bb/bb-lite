@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import type { Host } from "@bb/domain";
 import type { ProjectWithThreadsResponse } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
-import "@bb/shared-ui/icon-extended";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {

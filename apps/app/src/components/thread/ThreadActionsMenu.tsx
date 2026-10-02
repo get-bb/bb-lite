@@ -14,7 +14,6 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { isThreadRead } from "@bb/client-core";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
@@ -97,17 +96,13 @@ export function ThreadActionsMenu({
             event.stopPropagation();
           }}
         >
-          <Icon
-            name="MoreHorizontal"
-            className={COARSE_POINTER_ICON_SIZE_CLASS}
-          />
+          <Icon name="MoreHorizontal" className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {responsiveActions.map((action) => (
           <ActionMenuItem
             key={action.label}
-            surface="dropdown"
             icon={action.icon}
             onSelect={() => {
               void action.onSelect();
@@ -116,11 +111,8 @@ export function ThreadActionsMenu({
             {action.label}
           </ActionMenuItem>
         ))}
-        {responsiveActions.length > 0 ? (
-          <ActionMenuSeparator surface="dropdown" />
-        ) : null}
+        {responsiveActions.length > 0 ? <ActionMenuSeparator /> : null}
         <ActionMenuItem
-          surface="dropdown"
           icon="Copy"
           onSelect={() => {
             void copyToClipboardWithToast(
@@ -141,14 +133,12 @@ export function ThreadActionsMenu({
           Copy thread link
         </ActionMenuItem>
         <ActionMenuItem
-          surface="dropdown"
           icon={isRead ? "Mail" : "MailOpen"}
           onSelect={() => actions.toggleRead(thread)}
         >
           {isRead ? "Mark unread" : "Mark read"}
         </ActionMenuItem>
         <ActionMenuItem
-          surface="dropdown"
           icon={isPinned ? "PinOff" : "Pin"}
           onSelect={() => actions.togglePin(thread)}
         >
@@ -156,15 +146,13 @@ export function ThreadActionsMenu({
         </ActionMenuItem>
         <ThreadSectionMoveMenu thread={thread} />
         <ActionMenuItem
-          surface="dropdown"
           icon="Edit"
           onSelect={afterMenuCloses(actions.requestRename)}
         >
           Rename
         </ActionMenuItem>
-        <ActionMenuSeparator surface="dropdown" />
+        <ActionMenuSeparator />
         <ActionMenuItem
-          surface="dropdown"
           icon={isArchived ? "ArchiveRestore" : "Archive"}
           onSelect={
             isArchived
@@ -175,7 +163,6 @@ export function ThreadActionsMenu({
           {isArchived ? "Unarchive" : "Archive"}
         </ActionMenuItem>
         <ActionMenuItem
-          surface="dropdown"
           icon="Trash2"
           variant="destructive"
           onSelect={afterMenuCloses(actions.requestDelete)}

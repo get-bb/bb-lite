@@ -2,7 +2,6 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_ROW_CLASS } from "@/lib/chrome-row";
 import { useRouteStateHistoryNavigation } from "@/lib/app-route-history";
 
@@ -10,7 +9,7 @@ const BROWSER_HEADER_SLOT_START_CLASS =
   "pl-[calc(12px_+_var(--bb-sidebar-control-size)_-_4px)]";
 
 const HISTORY_NAV_BUTTON_CLASS = cn(
-  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
+  "h-[28px] w-[28px] rounded-md p-0 [&_[data-icon-root]]:size-[16px]",
   "text-muted-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2",
 );
 

@@ -1,12 +1,6 @@
 import { useEffect, useRef, type Ref } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
-  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-  COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -66,7 +60,7 @@ function GitDiffSelector({
           disabled={disabled}
           className={cn(
             "h-8 w-full min-w-0 justify-between gap-2 rounded-lg border border-border bg-transparent px-2.5 font-normal",
-            COARSE_POINTER_TEXT_SM_CLASS,
+            "text-xs",
             disabled && "opacity-60",
           )}
         >
@@ -80,10 +74,7 @@ function GitDiffSelector({
           </span>
           <Icon
             name="ChevronDown"
-            className={cn(
-              COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-              "text-muted-foreground",
-            )}
+            className={cn("size-3.5 shrink-0", "text-muted-foreground")}
           />
         </Button>
       </DropdownMenuTrigger>
@@ -118,7 +109,7 @@ function GitDiffSelector({
             <Icon
               name="Check"
               className={cn(
-                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+                "size-3.5",
                 option.value === value ? "opacity-100" : "opacity-0",
               )}
             />
@@ -176,7 +167,7 @@ function GitDiffFileFilterInput({
             inputRef.current?.focus();
           }}
         >
-          <Icon name="X" className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS} />
+          <Icon name="X" className="size-3.5" />
         </button>
       ) : null}
     </div>
@@ -242,7 +233,7 @@ export function GitDiffToolbar({
       variant="ghost"
       size="sm"
       className={cn(
-        COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
+        "h-7 w-7 rounded-md p-0 [&_[data-icon-root]]:size-3.5",
         "text-muted-foreground",
       )}
       onClick={onClick}
@@ -279,7 +270,7 @@ export function GitDiffToolbar({
           <span
             className={cn(
               "min-w-0 shrink truncate pl-2.5 text-muted-foreground",
-              COARSE_POINTER_TEXT_SM_CLASS,
+              "text-xs",
             )}
             data-testid="git-diff-toolbar-summary"
             title={

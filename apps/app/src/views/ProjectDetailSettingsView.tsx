@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import "@bb/shared-ui/icon-extended";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";

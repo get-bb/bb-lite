@@ -35,9 +35,9 @@ import {
 } from "@bb/shared-ui/sidebar-row-classes";
 import {
   reorderCollisionDetection,
+  useSidebarReorderDnd,
   type ReorderDndContextProps,
 } from "@bb/shared-ui/use-reorder-dnd";
-import { useSidebarReorderDnd } from "@bb/shared-ui/use-sidebar-reorder-dnd";
 import type {
   SectionThreadList,
   SidebarThread,
@@ -684,7 +684,6 @@ export function useSectionThreadDnd({
 
   const { consumeClickSuppression, dndContextProps, onClickCapture } =
     useSidebarReorderDnd({
-      axis: "free",
       collisionDetection,
       measuring: SECTION_THREAD_DROPPABLE_MEASURING,
       onDragEnd: handleDragEnd,

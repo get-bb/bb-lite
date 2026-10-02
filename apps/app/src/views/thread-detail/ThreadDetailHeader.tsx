@@ -7,7 +7,6 @@ import {
 } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { useAtomValue } from "jotai";
-import { COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { Pill } from "@bb/shared-ui/pill";
 import {
@@ -150,7 +149,7 @@ export function ThreadDetailHeader({
                       variant="outline"
                       size="sm"
                       className={cn(
-                        COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
+                        "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground",
                         "border-border/70 bg-transparent font-normal hover:bg-state-hover",
                       )}
                       onClick={() => onOpenThreadGitAction(action.target)}

@@ -1,4 +1,3 @@
-import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 
 export function resolveRightPanelFileIconName(path: string): IconName {
@@ -18,7 +17,7 @@ export function RightPanelFileTabIcon({ path }: { path: string }) {
   return (
     <Icon
       name={resolveRightPanelFileIconName(path)}
-      className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
+      className="size-3.5"
       aria-hidden
     />
   );

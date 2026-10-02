@@ -18,10 +18,6 @@ import {
 } from "react-resizable-panels";
 import { Button } from "@bb/shared-ui/button";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
-import {
-  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   PANEL_COLLAPSE_TRANSITION_CLASS,
@@ -274,7 +270,7 @@ export function ThreadSecondaryPanel({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  `${COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
+                  `h-7 w-7 rounded-md p-0 [&_[data-icon-root]]:size-3.5 shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
                   "text-muted-foreground/70 hover:text-foreground focus:ring-1 focus:ring-ring",
                 )}
                 onClick={onOpenNewTab}
@@ -304,7 +300,7 @@ export function ThreadSecondaryPanel({
               variant="ghost"
               size="icon"
               className={cn(
-                `${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
+                `h-[28px] w-[28px] rounded-md p-0 [&_[data-icon-root]]:size-[16px] shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
                 CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
                 "relative",
               )}

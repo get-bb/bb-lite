@@ -33,14 +33,6 @@ const ACTIVITY_TEXT_CLASS: Record<ActivityRowState, string> = {
   muted: "text-subtle-foreground",
 };
 
-const ACTIVITY_META_CLASS: Record<ActivityRowState, string> = {
-  active: "text-muted-foreground",
-  pending: "text-subtle-foreground",
-  completed: "text-subtle-foreground",
-  failed: "text-destructive-text",
-  muted: "text-subtle-foreground",
-};
-
 export function activityRowClass(
   state: ActivityRowState,
   className?: string,
@@ -60,11 +52,4 @@ export function activityTextClass(
   className?: string,
 ): string {
   return cn(ACTIVITY_TEXT_CLASS[state], className);
-}
-
-export function activityMetaClass(
-  state: ActivityRowState,
-  className?: string,
-): string {
-  return cn(ACTIVITY_META_CLASS[state], className);
 }

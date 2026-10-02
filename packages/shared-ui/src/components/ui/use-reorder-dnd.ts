@@ -15,11 +15,7 @@ import {
   type CollisionDetection,
   type DndContextProps,
   type DragEndEvent,
-  type DragMoveEvent,
-  type DragOverEvent,
   type DragStartEvent,
-  type MeasuringConfiguration,
-  type Modifier,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import {
@@ -31,24 +27,6 @@ export const reorderCollisionDetection: CollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
 };
-
-const restrictDragToVerticalAxis: Modifier = ({ transform }) => ({
-  ...transform,
-  x: 0,
-});
-
-const REORDER_MODIFIERS: Modifier[] = [restrictDragToVerticalAxis];
-
-export interface UseReorderDndArgs {
-  onDragEnd: (event: DragEndEvent) => void;
-  onDragStart?: (event: DragStartEvent) => void;
-  onDragMove?: (event: DragMoveEvent) => void;
-  onDragOver?: (event: DragOverEvent) => void;
-  onDragCancel?: () => void;
-  collisionDetection?: CollisionDetection;
-  axis?: "vertical" | "free";
-  measuring?: MeasuringConfiguration;
-}
 
 export type ReorderDndContextProps = Pick<
   DndContextProps,
@@ -63,22 +41,34 @@ export type ReorderDndContextProps = Pick<
   | "measuring"
 >;
 
-export interface UseReorderDndResult {
-  dndContextProps: ReorderDndContextProps;
-  consumeClickSuppression: ConsumeDragClickSuppression;
-  onClickCapture: MouseEventHandler<HTMLElement>;
+function setSidebarDraggingCursor(active: boolean): void {
+  if (active) {
+    document.body.dataset.sidebarDragging = "true";
+    return;
+  }
+  delete document.body.dataset.sidebarDragging;
 }
 
-export function useReorderDnd({
+export function useSidebarReorderDnd({
   onDragEnd,
   onDragStart,
   onDragMove,
   onDragOver,
   onDragCancel,
-  collisionDetection = reorderCollisionDetection,
-  axis = "vertical",
+  collisionDetection,
   measuring,
-}: UseReorderDndArgs): UseReorderDndResult {
+}: Pick<
+  ReorderDndContextProps,
+  "onDragMove" | "onDragOver" | "collisionDetection" | "measuring"
+> & {
+  onDragEnd: (event: DragEndEvent) => void;
+  onDragStart?: (event: DragStartEvent) => void;
+  onDragCancel?: () => void;
+}): {
+  dndContextProps: ReorderDndContextProps;
+  consumeClickSuppression: ConsumeDragClickSuppression;
+  onClickCapture: MouseEventHandler<HTMLElement>;
+} {
   const {
     beginDragClickSuppression,
     clearDragClickSuppressionSoon,
@@ -95,6 +85,7 @@ export function useReorderDnd({
     (event: DragStartEvent) => {
       isDraggingRef.current = true;
       beginDragClickSuppression();
+      setSidebarDraggingCursor(true);
       onDragStart?.(event);
     },
     [beginDragClickSuppression, onDragStart],
@@ -105,12 +96,14 @@ export function useReorderDnd({
     }
     isDraggingRef.current = false;
     clearDragClickSuppressionSoon();
+    setSidebarDraggingCursor(false);
     onDragCancel?.();
   }, [clearDragClickSuppressionSoon, onDragCancel]);
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       isDraggingRef.current = false;
       clearDragClickSuppressionSoon();
+      setSidebarDraggingCursor(false);
       onDragEnd(event);
     },
     [clearDragClickSuppressionSoon, onDragEnd],
@@ -128,6 +121,7 @@ export function useReorderDnd({
       isDraggingRef.current = false;
     };
   }, [handleDragCancel]);
+  useEffect(() => () => setSidebarDraggingCursor(false), []);
   const onClickCapture = useCallback<MouseEventHandler<HTMLElement>>(
     (event) => {
       if (!consumeDragClickSuppression()) {
@@ -143,7 +137,7 @@ export function useReorderDnd({
       sensors,
       collisionDetection,
       measuring,
-      modifiers: axis === "vertical" ? REORDER_MODIFIERS : [],
+      modifiers: [],
       onDragStart: handleDragStart,
       onDragMove,
       onDragOver,
@@ -151,7 +145,6 @@ export function useReorderDnd({
       onDragEnd: handleDragEnd,
     }),
     [
-      axis,
       collisionDetection,
       handleDragCancel,
       handleDragEnd,

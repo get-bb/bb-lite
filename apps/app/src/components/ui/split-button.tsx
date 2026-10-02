@@ -1,7 +1,6 @@
 import { Fragment, type ReactElement, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { buttonVariants } from "@bb/shared-ui/button";
-import { COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   DropdownMenu,
@@ -12,8 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
-
-const SPLIT_BUTTON_TOOLBAR_CLASS = COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS;
 
 function OptionalTooltip({
   children,
@@ -41,7 +38,7 @@ function OptionalTooltip({
   );
 }
 
-interface SplitButtonAction {
+export interface SplitButtonAction {
   ariaKeyshortcuts?: string;
   groupLabel?: string;
   label: string;
@@ -49,19 +46,7 @@ interface SplitButtonAction {
   content?: ReactNode;
 }
 
-interface SplitButtonProps {
-  primaryAction: SplitButtonAction;
-  secondaryActions: SplitButtonAction[];
-  disabled?: boolean;
-  className?: string;
-  triggerLabel?: string;
-  primaryTooltip?: string;
-  triggerTooltip?: string;
-  defaultOpen?: boolean;
-  modal?: boolean;
-}
-
-function SplitButton({
+export function SplitButton({
   primaryAction,
   secondaryActions,
   disabled = false,
@@ -69,12 +54,18 @@ function SplitButton({
   triggerLabel = "More actions",
   primaryTooltip,
   triggerTooltip,
-  defaultOpen,
-  modal,
-}: SplitButtonProps) {
+}: {
+  primaryAction: SplitButtonAction;
+  secondaryActions: SplitButtonAction[];
+  disabled?: boolean;
+  className?: string;
+  triggerLabel?: string;
+  primaryTooltip?: string;
+  triggerTooltip?: string;
+}) {
   const base = cn(
     buttonVariants({ variant: "outline", size: "sm" }),
-    SPLIT_BUTTON_TOOLBAR_CLASS,
+    "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground",
     className,
   );
   const primaryButton = (
@@ -111,7 +102,7 @@ function SplitButton({
       <OptionalTooltip content={primaryTooltip}>
         {primaryButton}
       </OptionalTooltip>
-      <DropdownMenu defaultOpen={defaultOpen} modal={modal}>
+      <DropdownMenu>
         <OptionalTooltip content={triggerTooltip} wrapTrigger>
           {menuTrigger}
         </OptionalTooltip>
@@ -144,6 +135,3 @@ function SplitButton({
     </div>
   );
 }
-
-export { SplitButton };
-export type { SplitButtonAction };

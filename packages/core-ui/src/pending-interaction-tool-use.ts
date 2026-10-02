@@ -5,7 +5,7 @@ import type {
   ThreadEventItemPresentationTint,
 } from "@bb/domain";
 
-export interface PendingInteractionToolUseAsk {
+interface PendingInteractionToolUseAsk {
   title: string;
   tool: string;
   headline: string | null;
@@ -14,7 +14,7 @@ export interface PendingInteractionToolUseAsk {
   tint: ThreadEventItemPresentationTint | null;
 }
 
-export interface ToolUseApprovalPendingInteractionPayload extends ApprovalPendingInteractionPayload {
+interface ToolUseApprovalPendingInteractionPayload extends ApprovalPendingInteractionPayload {
   subject: PendingInteractionToolUseApprovalSubject;
 }
 
@@ -34,14 +34,4 @@ export function describePendingInteractionToolUse(
 
 function presentAsText(value: string | undefined): string | null {
   return value === undefined || value.trim().length === 0 ? null : value;
-}
-
-export function formatPendingInteractionToolUseDetailLines(
-  ask: PendingInteractionToolUseAsk,
-): string[] {
-  return [
-    `Tool: ${ask.tool}`,
-    ...(ask.headline !== null ? [ask.headline] : []),
-    ...(ask.detail !== null ? [ask.detail] : []),
-  ];
 }

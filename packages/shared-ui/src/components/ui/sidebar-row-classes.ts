@@ -1,9 +1,4 @@
 import { LIST_HOVER_TRANSITION } from "./motion.js";
-import {
-  COARSE_POINTER_CHILD_ICON_BUTTON_CLASS,
-  COARSE_POINTER_ROW_HEIGHT_CLASS,
-  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "./coarse-pointer-sizing.js";
 import { cn } from "../../lib/utils";
 
 export const SIDEBAR_HOVER_ACTIONS_ROW_CLASS = "bb-sidebar-hover-actions-row";
@@ -23,14 +18,7 @@ export const SIDEBAR_ROW_BASE_CLASS =
 export const SIDEBAR_ROW_GLYPH_SLOT_CLASS =
   "inline-flex shrink-0 items-center justify-center text-subtle-foreground";
 
-export const SIDEBAR_STATUS_ICON_CLASS = "size-4";
-
 export const SIDEBAR_STATUS_GLYPH_BOX_CLASS = "h-4 w-4";
-
-export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-muted-foreground/50";
-
-export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60";
 
 const SIDEBAR_THREAD_ROW_BASE_PADDING_PX = 8;
 const SIDEBAR_THREAD_ROW_DEPTH_STEP_PX = 24;
@@ -49,7 +37,7 @@ export const SIDEBAR_CONTROL_STATE_CLASS = `${SIDEBAR_CONTROL_TONE_CLASS} hover:
 
 const SIDEBAR_CONTROL_BUTTON_BASE_CLASS = `${SIDEBAR_CONTROL_STATE_CLASS} relative m-0 shrink-0 cursor-pointer rounded-md p-0 outline-none`;
 
-export const SIDEBAR_CONTROL_BUTTON_CLASS = `${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
+export const SIDEBAR_CONTROL_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
 export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
@@ -86,8 +74,8 @@ export const SIDEBAR_SECTION_DROP_TARGET_CLASS = `${SIDEBAR_SECTION_DROP_TARGET_
 export const SIDEBAR_SECTION_DROP_TARGET_UNCHANGED_CLASS = `${SIDEBAR_SECTION_DROP_TARGET_BASE_CLASS} bg-sidebar-accent/25 ring-muted-foreground/40`;
 
 export const SIDEBAR_FOOTER_ACTION_CLASS = cn(
-  COARSE_POINTER_ROW_HEIGHT_CLASS,
-  COARSE_POINTER_CHILD_ICON_BUTTON_CLASS,
+  "h-[var(--bb-sidebar-row-height)]",
+  "h-8 w-8 justify-center p-0 [&>[data-icon-root]]:size-4",
   "text-muted-foreground hover:text-sidebar-foreground [&>[data-icon-root]]:opacity-80",
 );
 
@@ -99,6 +87,6 @@ export const PROJECT_LIST_ACTION_BUTTON_CLASS = cn(
   LIST_HOVER_TRANSITION,
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
-  COARSE_POINTER_ROW_HEIGHT_CLASS,
+  "h-[var(--bb-sidebar-row-height)]",
   "min-w-0 cursor-pointer justify-start overflow-hidden font-normal ring-sidebar-ring focus-visible:ring-2 disabled:cursor-default disabled:opacity-70",
 );

@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsRouteNavigationPending } from "./app-route-anchor";
 
-export const ROUTE_NAVIGATION_INDICATOR_REVEAL_DELAY_MS = 120;
-export const ROUTE_NAVIGATION_INDICATOR_MIN_VISIBLE_MS = 320;
-
-export function useDelayedBusyIndicator(busy: boolean): boolean {
+function useDelayedBusyIndicator(busy: boolean): boolean {
   const [visible, setVisible] = useState(false);
   const shownAtRef = useRef<number | null>(null);
 
@@ -14,7 +11,7 @@ export function useDelayedBusyIndicator(busy: boolean): boolean {
       const revealTimeout = window.setTimeout(() => {
         shownAtRef.current = Date.now();
         setVisible(true);
-      }, ROUTE_NAVIGATION_INDICATOR_REVEAL_DELAY_MS);
+      }, 120);
       return () => window.clearTimeout(revealTimeout);
     }
 
@@ -24,8 +21,7 @@ export function useDelayedBusyIndicator(busy: boolean): boolean {
       return;
     }
 
-    const remainingMs =
-      ROUTE_NAVIGATION_INDICATOR_MIN_VISIBLE_MS - (Date.now() - shownAt);
+    const remainingMs = 320 - (Date.now() - shownAt);
     if (remainingMs <= 0) {
       shownAtRef.current = null;
       setVisible(false);
@@ -43,10 +39,7 @@ export function useDelayedBusyIndicator(busy: boolean): boolean {
 }
 
 export function RouteNavigationIndicator() {
-  const isPending = useIsRouteNavigationPending();
-  const visible = useDelayedBusyIndicator(isPending);
-
-  if (!visible) return null;
+  if (!useDelayedBusyIndicator(useIsRouteNavigationPending())) return null;
 
   return (
     <div

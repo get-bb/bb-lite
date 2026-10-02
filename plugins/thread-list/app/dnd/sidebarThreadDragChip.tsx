@@ -1,4 +1,3 @@
-import { COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { ClientRect, Modifier } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
@@ -11,7 +10,7 @@ import {
 
 const SIDEBAR_THREAD_DRAG_CHIP_CLASS = cn(
   SIDEBAR_ROW_BASE_CLASS,
-  COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
+  "h-7",
   "pointer-events-none w-fit max-w-56 bg-sidebar-accent pr-2 text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border",
 );
 

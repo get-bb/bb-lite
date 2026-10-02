@@ -57,7 +57,7 @@ export function ThreadGitActionDialog({
               }}
             >
               {branchName || gitStatusDisplay || changedFiles ? (
-                <DetailCard appearance="flat">
+                <DetailCard>
                   {branchName ? (
                     <DetailRow
                       label={

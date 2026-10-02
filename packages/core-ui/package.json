@@ -12,8 +12,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "clean": "rimraf dist tsconfig.tsbuildinfo",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@bb/domain": "workspace:*"
