@@ -1,19 +1,42 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type UserConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig, type Plugin, type UserConfig } from "vite";
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { fontPreload } from "./vite-font-preload.js";
-import { sharedUiEnvSeam } from "./vite-shared-ui-seam.js";
-import { cachedReactCompiler } from "./vite-react-compiler.js";
 
 const appDir = dirname(fileURLToPath(import.meta.url));
 
+function fontPreload(): Plugin {
+  return {
+    name: "bb:font-preload",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler: (_html, ctx) =>
+        Object.keys(ctx.bundle ?? {})
+          .filter((name) =>
+            /\/inter-latin-wght-normal-[\w-]+\.woff2$/.test(name),
+          )
+          .map((name) => ({
+            tag: "link",
+            attrs: {
+              rel: "preload",
+              as: "font",
+              type: "font/woff2",
+              crossorigin: true,
+              href: `/${name}`,
+            },
+            injectTo: "head",
+          })),
+    },
+  };
+}
+
 export const sharedViteConfig = {
   plugins: [
-    sharedUiEnvSeam(),
     react(),
-    cachedReactCompiler(),
+    babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
     fontPreload(),
   ],
@@ -47,9 +70,13 @@ export const sharedViteConfig = {
   },
   resolve: {
     conditions: ["source"],
-    alias: {
-      "@": resolve(appDir, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: resolve(appDir, "./src") },
+      {
+        find: /^\.\.\/\.\.\/lib\/portal-scope$/,
+        replacement: resolve(appDir, "./src/lib/portal-scope.ts"),
+      },
+    ],
   },
 } satisfies UserConfig;
 

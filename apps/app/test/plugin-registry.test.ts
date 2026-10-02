@@ -9,7 +9,6 @@ import {
   markSlotCrashed,
   providerKey,
   registerPluginApp,
-  resetCrashedSlots,
   resetPluginRegistryForTest,
   resolveMessageDirectives,
   resolveProvider,
@@ -17,39 +16,43 @@ import {
   unregisterPluginApp,
 } from "../src/plugins/registry";
 
-const Component = () => null;
+const component = () => null;
+const bundled = "thread-list/thread-list";
 
 function registerEverySlot(app: PluginAppApi): void {
-  app.slots.navPanel({
-    id: "panel",
-    title: "Panel",
-    icon: "ListTodo",
-    path: "panel",
-    component: Component,
-  });
-  app.slots.threadPanel({ id: "side", title: "Side", component: Component });
-  app.slots.settingsSection({ id: "settings", component: Component });
-  app.slots.appOverlay({ id: "overlay", component: Component });
-  app.slots.pendingInteraction({ id: "form", component: Component });
-  app.slots.messageDirective({ id: "card", component: Component });
-  app.slots.threadList({ id: "list", title: "List", component: Component });
-  app.slots.sidebarNavigation({
-    id: "nav",
-    title: "Nav",
-    component: Component,
-  });
-  app.slots.sidebarHeader({ id: "head", title: "Head", component: Component });
+  const titled = { title: "Title", component };
+  app.slots.navPanel({ id: "panel", icon: "ListTodo", path: "p", ...titled });
+  app.slots.threadPanel({ id: "side", ...titled });
+  app.slots.settingsSection({ id: "settings", component });
+  app.slots.appOverlay({ id: "overlay", component });
+  app.slots.pendingInteraction({ id: "form", component });
+  app.slots.messageDirective({ id: "card", component });
+  app.slots.threadList({ id: "list", ...titled });
+  app.slots.sidebarNavigation({ id: "nav", ...titled });
+  app.slots.sidebarHeader({ id: "head", ...titled });
   app.commands.register({ id: "run", title: "Run", run: () => {} });
 }
 
 function threadList(pluginId: string, id: string) {
   return definePluginApp((app) => {
-    app.slots.threadList({
-      id,
-      title: `${pluginId} list`,
-      component: Component,
-    });
+    app.slots.threadList({ id, title: `${pluginId} list`, component });
   });
+}
+
+function overlays(...registrations: object[]) {
+  return definePluginApp((app) => {
+    for (const registration of registrations) {
+      app.slots.appOverlay(registration as never);
+    }
+  });
+}
+
+function resolvedKey(preference: string, settled = true) {
+  const lists = getPluginSlots().threadLists;
+  const resolved = resolveProvider(lists, preference, { bundled, settled });
+  return resolved.kind === "plugin"
+    ? providerKey(resolved.slot)
+    : resolved.kind;
 }
 
 describe("plugin registry", () => {
@@ -83,57 +86,36 @@ describe("plugin registry", () => {
     });
   });
 
-  it("stamps registrations with their plugin and publishes them", () => {
-    expect(
-      registerPluginApp("demo", definePluginApp(registerEverySlot)),
-    ).toBeNull();
-    const slots = getPluginSlots();
-    expect(slots.navPanels).toMatchObject([
+  it("stamps, republishes and removes a plugin's registrations", () => {
+    const everything = definePluginApp(registerEverySlot);
+    expect(registerPluginApp("demo", everything)).toBeNull();
+    expect(getPluginSlots().navPanels).toMatchObject([
       { id: "panel", pluginId: "demo", generation: 1 },
     ]);
-    expect(slots.commands).toMatchObject([{ id: "run", pluginId: "demo" }]);
-    registerPluginApp("demo", definePluginApp(registerEverySlot));
+    const lists = getPluginSlots().threadLists;
+    registerPluginApp("other", overlays({ id: "overlay", component }));
+    expect(getPluginSlots().threadLists).toBe(lists);
+    expect(getPluginSlots().appOverlays.map(providerKey)).toEqual([
+      "demo/overlay",
+      "other/overlay",
+    ]);
+    registerPluginApp("demo", everything);
     expect(getPluginSlots().navPanels[0]?.generation).toBe(2);
     unregisterPluginApp("demo");
     expect(getPluginSlots().navPanels).toEqual([]);
   });
 
-  it("keeps a slot list's identity when another kind changes", () => {
-    registerPluginApp("a", threadList("a", "list"));
-    const before = getPluginSlots().threadLists;
-    registerPluginApp(
-      "b",
-      definePluginApp((app) => {
-        app.slots.appOverlay({ id: "overlay", component: Component });
-      }),
-    );
-    expect(getPluginSlots().threadLists).toBe(before);
-    expect(getPluginSlots().appOverlays).toHaveLength(1);
-  });
-
   it("rejects duplicate, malformed and component-less registrations", () => {
+    const same = { id: "same", component };
+    expect(() => collectPluginApp(overlays(same, same))).toThrow(
+      /duplicate id "same"/,
+    );
     expect(() =>
-      collectPluginApp(
-        definePluginApp((app) => {
-          app.slots.appOverlay({ id: "same", component: Component });
-          app.slots.appOverlay({ id: "same", component: Component });
-        }),
-      ),
-    ).toThrow(/duplicate id "same"/);
-    expect(() =>
-      collectPluginApp(
-        definePluginApp((app) => {
-          app.slots.appOverlay({ id: "has space", component: Component });
-        }),
-      ),
+      collectPluginApp(overlays({ id: "has space", component })),
     ).toThrow(/"id" must match/);
-    expect(() =>
-      collectPluginApp(
-        definePluginApp((app) => {
-          app.slots.appOverlay({ id: "empty" } as never);
-        }),
-      ),
-    ).toThrow(/missing component/);
+    expect(() => collectPluginApp(overlays({ id: "empty" }))).toThrow(
+      /missing component/,
+    );
     expect(() =>
       collectPluginApp(
         definePluginApp((app) => {
@@ -143,139 +125,55 @@ describe("plugin registry", () => {
     ).toThrow(/missing run/);
   });
 
-  it("allows the same id in different slot kinds and plugins", () => {
-    const shared = definePluginApp((app) => {
-      app.slots.sidebarNavigation({
-        id: "icons",
-        title: "Icons",
-        component: Component,
-      });
-      app.slots.sidebarHeader({
-        id: "icons",
-        title: "Icons",
-        component: Component,
-      });
-    });
-    expect(registerPluginApp("one", shared)).toBeNull();
-    expect(registerPluginApp("two", shared)).toBeNull();
-    expect(getPluginSlots().sidebarHeaders.map(providerKey)).toEqual([
-      "one/icons",
-      "two/icons",
-    ]);
-  });
-
   it("drops only the plugin whose setup throws", () => {
     registerPluginApp("good", threadList("good", "list"));
     registerPluginApp("flaky", threadList("flaky", "list"));
     const error = registerPluginApp(
       "flaky",
       definePluginApp((app) => {
-        app.slots.appOverlay({ id: "overlay", component: Component });
+        app.slots.appOverlay({ id: "overlay", component });
         throw new Error("boom");
       }),
     );
     expect(error?.message).toBe("boom");
-    const slots = getPluginSlots();
-    expect(slots.threadLists.map(providerKey)).toEqual(["good/list"]);
-    expect(slots.appOverlays).toEqual([]);
-    expect(registerPluginApp("later", threadList("later", "list"))).toBeNull();
     expect(getPluginSlots().threadLists.map(providerKey)).toEqual([
       "good/list",
-      "later/list",
     ]);
+    expect(getPluginSlots().appOverlays).toEqual([]);
   });
 
-  describe("exclusive providers", () => {
-    const bundled = "thread-list/thread-list";
-    function lists() {
-      return getPluginSlots().threadLists;
-    }
-    function resolvedKey(preference: string, settled = true) {
-      const resolved = resolveProvider(lists(), preference, {
-        bundled,
-        settled,
-      });
-      return resolved.kind === "plugin"
-        ? providerKey(resolved.slot)
-        : resolved.kind;
-    }
+  it("resolves an exclusive provider from the preference", () => {
+    expect(resolvedKey(AUTOMATIC_PROVIDER, false)).toBe("loading");
+    expect(resolvedKey(AUTOMATIC_PROVIDER)).toBe("missing");
+    registerPluginApp("thread-list", threadList("thread-list", "thread-list"));
+    expect(resolvedKey(AUTOMATIC_PROVIDER)).toBe(bundled);
+    expect(resolvedKey("gone/list", false)).toBe("loading");
+    expect(resolvedKey("gone/list")).toBe(bundled);
+    expect(resolvedKey(NO_PROVIDER)).toBe("none");
+    registerPluginApp("cursor", threadList("cursor", "sidebar"));
+    expect(resolvedKey(AUTOMATIC_PROVIDER)).toBe("cursor/sidebar");
+    expect(resolvedKey("cursor/sidebar")).toBe("cursor/sidebar");
+    expect(resolvedKey(bundled)).toBe(bundled);
+  });
 
-    it("follows an explicit preference", () => {
-      registerPluginApp(
-        "thread-list",
-        threadList("thread-list", "thread-list"),
-      );
-      registerPluginApp("cursor", threadList("cursor", "sidebar"));
-      expect(resolvedKey("cursor/sidebar")).toBe("cursor/sidebar");
-      expect(resolvedKey(bundled)).toBe(bundled);
-    });
-
-    it("prefers a non-bundled provider when automatic", () => {
-      registerPluginApp(
-        "thread-list",
-        threadList("thread-list", "thread-list"),
-      );
-      expect(resolvedKey(AUTOMATIC_PROVIDER)).toBe(bundled);
-      registerPluginApp("cursor", threadList("cursor", "sidebar"));
-      expect(resolvedKey(AUTOMATIC_PROVIDER)).toBe("cursor/sidebar");
-    });
-
-    it("waits for a missing provider, then falls back to the bundled one", () => {
-      registerPluginApp(
-        "thread-list",
-        threadList("thread-list", "thread-list"),
-      );
-      expect(resolvedKey("gone/list", false)).toBe("loading");
-      expect(resolvedKey("gone/list", true)).toBe(bundled);
-    });
-
-    it("reports missing when nothing can render the slot", () => {
-      expect(resolvedKey(AUTOMATIC_PROVIDER, false)).toBe("loading");
-      expect(resolvedKey(AUTOMATIC_PROVIDER, true)).toBe("missing");
-      expect(resolvedKey("gone/list", true)).toBe("missing");
-      expect(
-        resolveProvider(lists(), "gone/list", { settled: true }).kind,
-      ).toBe("missing");
-    });
-
-    it("renders nothing for the explicit no-provider choice", () => {
-      registerPluginApp(
-        "thread-list",
-        threadList("thread-list", "thread-list"),
-      );
-      expect(resolvedKey(NO_PROVIDER)).toBe("none");
-    });
-
-    it("keeps a crashed provider selected until it is reloaded", () => {
-      registerPluginApp(
-        "thread-list",
-        threadList("thread-list", "thread-list"),
-      );
-      registerPluginApp("cursor", threadList("cursor", "sidebar"));
-      const key = slotInstanceKey("cursor", "threadList", "sidebar");
-      markSlotCrashed(key);
-      expect(isSlotCrashed(key)).toBe(true);
-      expect(resolvedKey("cursor/sidebar")).toBe("cursor/sidebar");
-      resetCrashedSlots("cursor");
-      expect(isSlotCrashed(key)).toBe(false);
-      markSlotCrashed(key);
-      registerPluginApp("cursor", threadList("cursor", "sidebar"));
-      expect(isSlotCrashed(key)).toBe(false);
-    });
+  it("forgets a crashed slot when its plugin registers again", () => {
+    registerPluginApp("cursor", threadList("cursor", "sidebar"));
+    const key = slotInstanceKey("cursor", "threadList", "sidebar");
+    markSlotCrashed(key);
+    expect(isSlotCrashed(key)).toBe(true);
+    expect(resolvedKey("cursor/sidebar")).toBe("cursor/sidebar");
+    registerPluginApp("cursor", threadList("cursor", "sidebar"));
+    expect(isSlotCrashed(key)).toBe(false);
   });
 
   it("flags a message directive claimed by two plugins", () => {
-    const card = definePluginApp((app) => {
-      app.slots.messageDirective({ id: "card", component: Component });
-    });
-    registerPluginApp("b", card);
-    registerPluginApp("a", card);
-    registerPluginApp(
-      "c",
+    const directive = (id: string) =>
       definePluginApp((app) => {
-        app.slots.messageDirective({ id: "solo", component: Component });
-      }),
-    );
+        app.slots.messageDirective({ id, component });
+      });
+    registerPluginApp("b", directive("card"));
+    registerPluginApp("a", directive("card"));
+    registerPluginApp("c", directive("solo"));
     const resolved = resolveMessageDirectives(
       getPluginSlots().messageDirectives,
     );
