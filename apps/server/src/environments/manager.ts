@@ -369,7 +369,7 @@ export function createEnvironments(ctx: ServerContext) {
     const file = { path: INSTRUCTIONS_FILE, rootPath: found.path };
     try {
       const read = await runners.get(found.hostId).readFile(file);
-      if ("notModified" in read || read.contentEncoding !== "utf8") return null;
+      if (read.contentEncoding !== "utf8") return null;
       return read.content.trim().slice(0, INSTRUCTIONS_MAX_LENGTH) || null;
     } catch {
       return null;

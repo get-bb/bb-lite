@@ -78,12 +78,9 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json(await runnerOf(c.req.param("id")).pathsExist({ paths })),
   );
 
-  post(files.read, async (c, { hostId, ...location }) => {
-    const file = await runnerOf(hostId).readFile(location);
-    if ("notModified" in file)
-      throw new Error("Unconditional read was skipped");
-    return c.json(file);
-  });
+  post(files.read, async (c, { hostId, ...location }) =>
+    c.json(await runnerOf(hostId).readFile(location)),
+  );
 
   post(files.write, async (c, { hostId, ...write }) =>
     c.json(await runnerOf(hostId).writeFile(write)),

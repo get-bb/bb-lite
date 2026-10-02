@@ -282,7 +282,7 @@ function truncateText(value: string, max: number) {
   return `${value.slice(0, max)}\n…[${dropped}${TRUNCATION_TAIL}`;
 }
 
-export function splitsSurrogatePair(value: string, index: number): boolean {
+function splitsSurrogatePair(value: string, index: number) {
   const high = value.charCodeAt(index - 1) & 0xfc00;
   return high === 0xd800 && (value.charCodeAt(index) & 0xfc00) === 0xdc00;
 }

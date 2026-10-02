@@ -30,7 +30,6 @@ const TERMINAL_ITEM_TYPES: readonly ThreadEventType[] = [
 const ORPHAN_DROPPABLE_TYPES: readonly ThreadEventType[] = [
   "thread/tokenUsage/updated",
   "thread/contextWindowUsage/updated",
-  "provider/unhandled",
 ];
 
 function itemFields(event: RunnerThreadEvent) {
