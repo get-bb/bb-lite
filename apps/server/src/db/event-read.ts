@@ -66,7 +66,7 @@ export interface BackgroundTaskCounts {
 
 export const MAX_INLINE_OUTPUT_CHARS = 32_000;
 export const UNBOUNDED = Number.MAX_SAFE_INTEGER;
-const DIAGNOSTIC_TYPES = ["provider.env-resolved", "provider/unhandled"];
+const DIAGNOSTIC_TYPES = ["provider.env-resolved"];
 const DECODED_EVENT_CACHE_LIMIT = 20_000;
 const decodedEvents = new WeakMap<Db, Map<string, ThreadEventWithMeta>>();
 const META =
@@ -160,6 +160,7 @@ function eventSource(query: EventQuery): { from: string; params: SqlValue[] } {
     const { excludeDiagnostics, horizon = before } = query.timeline;
     const excluded = [
       ...THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
+      "provider/unhandled",
       ...(excludeDiagnostics ? DIAGNOSTIC_TYPES : []),
     ];
     where.push(`type NOT IN (${quoted(excluded)})`, NOT_SUPERSEDED_PROGRESS);

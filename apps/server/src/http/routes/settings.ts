@@ -156,15 +156,9 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   put(routes.generalSettings, (c, payload) => {
-    const { showUnhandledProviderEvents, ...settings } = payload;
-    const updated = appSettingsSchema.parse({
-      ...getAppSettings(db),
-      ...settings,
-      showDiagnosticEvents:
-        "showDiagnosticEvents" in settings
-          ? settings.showDiagnosticEvents
-          : showUnhandledProviderEvents,
-    });
+    const { showUnhandledProviderEvents: _legacy, ...settings } = payload;
+    const stored = getAppSettings(db);
+    const updated = appSettingsSchema.parse({ ...stored, ...settings });
     setAppSettings(db, updated);
     hub.system(["config-changed"]);
     return c.json(updated);

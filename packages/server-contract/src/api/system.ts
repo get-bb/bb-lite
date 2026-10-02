@@ -163,9 +163,7 @@ export type ServerAccessStatus = z.infer<typeof serverAccessStatusSchema>;
 
 export const systemConfigResponseSchema = z.object({
   serverAccess: serverAccessStatusSchema,
-  generalSettings: appSettingsSchema.extend({
-    showUnhandledProviderEvents: z.boolean().optional(),
-  }),
+  generalSettings: appSettingsSchema,
   keybindings: appKeybindingsSchema,
   defaultKeybindings: appDefaultKeybindingsSchema,
   keybindingOverrides: appKeybindingOverridesSchema,

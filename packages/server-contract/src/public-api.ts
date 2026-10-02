@@ -1232,9 +1232,7 @@ export const publicApiRoutes = {
       request: jsonRequest<EmptyInput, AppSettingsUpdate>(
         appSettingsUpdateSchema,
       ),
-      response: jsonResponse<
-        AppSettings & { showUnhandledProviderEvents?: boolean }
-      >(),
+      response: jsonResponse<AppSettings>(),
     }),
     keyboardSettings: defineRoute({
       path: "/settings/keyboard",

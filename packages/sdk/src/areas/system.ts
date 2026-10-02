@@ -34,9 +34,7 @@ export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery 
 
 export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
-export type SystemUpdateGeneralSettingsResult = AppSettings & {
-  showUnhandledProviderEvents?: boolean;
-};
+export type SystemUpdateGeneralSettingsResult = AppSettings;
 export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
 export interface SystemProviderStatesArgs extends SystemProvidersQuery {
   signal?: AbortSignal;
