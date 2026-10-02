@@ -200,7 +200,6 @@ function ProjectPathForm({
             key={selectedHostId}
             hostId={selectedHostId}
             initialPath={target.kind === "update" ? target.currentPath : null}
-            allowCreateFolder={target.kind === "create"}
             onDirectoryChange={setDirectory}
             disabled={pending}
           />

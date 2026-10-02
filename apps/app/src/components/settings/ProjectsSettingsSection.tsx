@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { arrayMove } from "@dnd-kit/sortable";
 import type { Host } from "@bb/domain";
 import type { ProjectWithThreadsResponse } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
@@ -15,17 +13,13 @@ import { useProjectActions } from "@/components/project/ProjectActionsProvider";
 import {
   SettingsBadge,
   SettingsRow,
+  SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import { useReorderProject } from "@/hooks/mutations/project-mutations";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { getSettingsProjectRoutePath } from "@/lib/route-paths";
-import {
-  SortableSettingsRowList,
-  useSortableSettingsRow,
-} from "./sortable-settings-rows";
 
 export function formatGitRemote(url: string): string {
   const sshMatch = /^[^@]+@([^:]+):(.+?)(?:\.git)?$/.exec(url);
@@ -42,21 +36,14 @@ export function pluralize(count: number, singular: string): string {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
 }
 
-function SortableProjectRow({
+function ProjectRow({
   project,
   hosts,
-  dragDisabled,
 }: {
   project: ProjectWithThreadsResponse;
   hosts: readonly Host[];
-  dragDisabled: boolean;
 }) {
   const { requestRename, requestDelete } = useProjectActions();
-  const { setNodeRef, style, isDragging, handle } = useSortableSettingsRow({
-    id: project.id,
-    disabled: dragDisabled,
-    label: project.name,
-  });
   const configured = hosts.filter((host) =>
     project.sources.some((source) => source.hostId === host.id),
   );
@@ -64,15 +51,7 @@ function SortableProjectRow({
   const allOffline =
     !needsSetup && configured.every((host) => host.status !== "connected");
   return (
-    <SettingsRow
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "items-start",
-        isDragging && "relative z-10 rounded-md bg-card opacity-90 shadow-lift",
-      )}
-    >
-      {handle}
+    <SettingsRow className="items-start">
       <div
         data-project-row
         className="group -mx-2 flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-state-hover focus-within:bg-state-hover"
@@ -146,23 +125,12 @@ function SortableProjectRow({
 export function ProjectsSettingsSection() {
   const navigation = useSidebarNavigation();
   const hosts = selectHosts(useHosts().data, "persistent");
-  const reorderProject = useReorderProject();
   const quickCreateProject = useQuickCreateProjectController();
-  const [order, setOrder] = useState<string[] | null>(null);
-  const serverProjects = navigation.data?.projects;
-  useEffect(() => setOrder(null), [serverProjects]);
-  const projects =
-    serverProjects === undefined || order === null
-      ? serverProjects
-      : [...serverProjects].sort(
-          (left, right) => order.indexOf(left.id) - order.indexOf(right.id),
-        );
-  const ids = projects?.map((project) => project.id) ?? [];
-  const dragDisabled = reorderProject.isPending || ids.length < 2;
+  const projects = navigation.data?.projects;
   return (
     <SettingsSection
       title="Projects"
-      description="Repositories bb can work in. Drag to change the order projects appear in the sidebar."
+      description="Repositories bb can work in."
       action={
         <Button
           variant="outline"
@@ -189,34 +157,11 @@ export function ProjectsSettingsSection() {
           repository.
         </p>
       ) : (
-        <SortableSettingsRowList
-          ids={ids}
-          disabled={dragDisabled}
-          onReorder={(activeId, overId) => {
-            const from = ids.indexOf(activeId);
-            const to = ids.indexOf(overId);
-            if (from === -1 || to === -1 || from === to) return;
-            const next = arrayMove(ids, from, to);
-            setOrder(next);
-            reorderProject.mutate(
-              {
-                id: activeId,
-                previousProjectId: next[to - 1] ?? null,
-                nextProjectId: next[to + 1] ?? null,
-              },
-              { onError: () => setOrder(null) },
-            );
-          }}
-        >
+        <SettingsRowList>
           {projects.map((project) => (
-            <SortableProjectRow
-              key={project.id}
-              project={project}
-              hosts={hosts}
-              dragDisabled={dragDisabled}
-            />
+            <ProjectRow key={project.id} project={project} hosts={hosts} />
           ))}
-        </SortableSettingsRowList>
+        </SettingsRowList>
       )}
     </SettingsSection>
   );

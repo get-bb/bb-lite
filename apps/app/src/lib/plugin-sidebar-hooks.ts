@@ -155,7 +155,7 @@ export function useSidebarThreads(
   const lifecycles = options?.lifecycles;
   const active = !lifecycles?.length || lifecycles.includes("active");
   const includeArchived = lifecycles?.includes("archived") ?? false;
-  const archived = useArchivedThreads({}, { enabled: includeArchived });
+  const archived = useArchivedThreads({ enabled: includeArchived });
   const { fetchNextPage } = archived;
   const archivedStatus =
     archived.data !== undefined
@@ -252,7 +252,7 @@ const entriesByData = new WeakMap<
 
 function useThreadEntryMap(): Entries {
   const { data } = useSidebarNavigationQuery();
-  const archived = useArchivedThreads({}, { enabled: false }).data;
+  const archived = useArchivedThreads({ enabled: false }).data;
   if (data === undefined) return NO_ENTRIES;
   const cached = entriesByData.get(data);
   if (cached && cached.archived === archived) return cached.entries;

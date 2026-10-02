@@ -10,7 +10,6 @@ import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { OptionPicker } from "@/components/pickers/OptionPicker";
-import { MachineEnvironmentImportDialog } from "@/components/settings/MachineEnvironmentImportDialog";
 import { getSettingsSectionRoutePath } from "@/components/settings/settings-sections";
 import { SettingsSection } from "@/components/ui/settings-section";
 import {
@@ -19,7 +18,6 @@ import {
 } from "@/hooks/cache-owners/system-cache-effects";
 import { machineEnvironmentQueryKey } from "@/hooks/queries/query-keys";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import type { ParsedEnvEntry } from "@/lib/parse-env-file";
 import { sdk } from "@/lib/sdk";
 
 const GLOBAL_SCOPE = "global";
@@ -106,7 +104,6 @@ export function ScopedMachineEnvironmentSettings({
   const [visible, setVisible] = useState<readonly string[]>([]);
   const [touched, setTouched] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
   const saved = environment?.variables ?? [];
   const rows =
     draft ?? saved.map((row) => ({ ...row, id: row.name, nameLocked: true }));
@@ -164,24 +161,14 @@ export function ScopedMachineEnvironmentSettings({
     setDraft(next);
     setError(null);
   };
-  const newRow = (name: string, value: string): DraftRow => ({
+  const newRow = (): DraftRow => ({
     id: nanoid(),
     nameLocked: false,
-    name,
-    value,
+    name: "",
+    value: "",
     secret: true,
     note: null,
   });
-  const importRows = (entries: readonly ParsedEnvEntry[]) => {
-    const next = [...rows];
-    for (const entry of entries) {
-      const index = next.findIndex((row) => row.name === entry.name);
-      const existing = next[index];
-      if (existing) next[index] = { ...existing, value: entry.value };
-      else next.push(newRow(entry.name, entry.value));
-    }
-    edit(next);
-  };
   const inherited = environment?.inheritedVariables ?? [];
   const inheritedNames = inherited.map((variable) => variable.name);
   const renderRow = (row: DraftRow, overridesGlobal: boolean) => {
@@ -345,18 +332,9 @@ export function ScopedMachineEnvironmentSettings({
             variant="outline"
             className="flex-1 sm:flex-none"
             disabled={disabled}
-            onClick={() => setDraft([...rows, newRow("", "")])}
+            onClick={() => setDraft([...rows, newRow()])}
           >
             Add variable
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 sm:flex-none"
-            disabled={disabled}
-            onClick={() => setImporting(true)}
-          >
-            Import from .env
           </Button>
           <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
             {isDirty && (
@@ -379,11 +357,6 @@ export function ScopedMachineEnvironmentSettings({
           </div>
         </div>
       )}
-      <MachineEnvironmentImportDialog
-        open={importing}
-        onOpenChange={setImporting}
-        onImport={importRows}
-      />
     </SettingsSection>
   );
 }

@@ -81,7 +81,6 @@ export function ProjectMachineSetupDialog({
               <RemotePathBrowser
                 key={`${target.projectId}:${target.hostId}`}
                 hostId={target.hostId}
-                allowCreateFolder={false}
                 onDirectoryChange={setFolder}
                 disabled={pending}
               />

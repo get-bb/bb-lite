@@ -87,7 +87,6 @@ export function SettingsDropdown<Value extends string | boolean>({
   onOpenChange,
   onPreview,
   contentClassName,
-  footer,
 }: {
   label: string;
   description?: ReactNode;
@@ -99,7 +98,6 @@ export function SettingsDropdown<Value extends string | boolean>({
   onOpenChange?: (open: boolean) => void;
   onPreview?: (value: Value | null) => void;
   contentClassName?: string;
-  footer?: ReactNode;
 }) {
   return (
     <SettingsWithControl label={label} description={description}>
@@ -145,7 +143,6 @@ export function SettingsDropdown<Value extends string | boolean>({
               />
             </DropdownMenuItem>
           ))}
-          {footer}
         </DropdownMenuContent>
       </DropdownMenu>
     </SettingsWithControl>

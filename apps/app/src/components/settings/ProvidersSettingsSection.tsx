@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { arrayMove } from "@dnd-kit/sortable";
 import type { AppSettings, ProviderInfo } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import {
@@ -10,10 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
 import {
   SettingsBadge,
   SettingsRow,
+  SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
@@ -22,10 +20,6 @@ import {
   useSystemProviderCatalog,
   useSystemProviders,
 } from "@/hooks/queries/system-queries";
-import {
-  SortableSettingsRowList,
-  useSortableSettingsRow,
-} from "./sortable-settings-rows";
 
 function ProviderRowIcon({
   provider,
@@ -91,7 +85,7 @@ function ProviderActionsMenu({
   );
 }
 
-function SortableProviderRow({
+function ProviderRow({
   disabled,
   isDefault,
   provider,
@@ -104,21 +98,8 @@ function SortableProviderRow({
   onDisable: () => void;
   onMakeDefault: () => void;
 }) {
-  const { setNodeRef, style, isDragging, handle } = useSortableSettingsRow({
-    id: provider.id,
-    disabled,
-    label: provider.displayName,
-  });
   return (
-    <SettingsRow
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "group/provider-row",
-        isDragging && "relative z-10 rounded-md bg-card opacity-90 shadow-lift",
-      )}
-    >
-      {handle}
+    <SettingsRow>
       <ProviderRowIcon provider={provider} />
       <span className="min-w-0 flex-1 truncate font-medium">
         {provider.displayName}
@@ -147,10 +128,7 @@ export function ProvidersSettingsSection({
 }: {
   disabled: boolean;
   settings: AppSettings;
-  update: (
-    patch: Partial<AppSettings>,
-    options?: { onSettled?: () => void },
-  ) => void;
+  update: (patch: Partial<AppSettings>) => void;
 }) {
   const providersQuery = useSystemProviders();
   const setEnabled = useSetProviderEnabled();
@@ -158,19 +136,11 @@ export function ProvidersSettingsSection({
     (provider) => !provider.enabled || !provider.pluginEnabled,
   );
   const controlsDisabled = disabled || setEnabled.isPending;
-  const [order, setOrder] = useState<string[] | null>(null);
-  const serverProviders = providersQuery.data ?? [];
-  const providers =
-    order === null
-      ? serverProviders
-      : [...serverProviders].sort(
-          (left, right) => order.indexOf(left.id) - order.indexOf(right.id),
-        );
-  const ids = providers.map((provider) => provider.id);
+  const providers = providersQuery.data ?? [];
   return (
     <SettingsSection
       title="Providers"
-      description="Choose which agents you use in BB. Drag to reorder them in provider pickers."
+      description="Choose which agents you use in BB."
     >
       {providersQuery.isPending ? (
         <p className="text-sm text-muted-foreground">Loading providers…</p>
@@ -180,20 +150,9 @@ export function ProvidersSettingsSection({
           Plugins.
         </p>
       ) : (
-        <SortableSettingsRowList
-          ids={ids}
-          disabled={disabled}
-          onReorder={(activeId, overId) => {
-            const from = ids.indexOf(activeId);
-            const to = ids.indexOf(overId);
-            if (from === -1 || to === -1 || from === to) return;
-            const providerOrder = arrayMove(ids, from, to);
-            setOrder(providerOrder);
-            update({ providerOrder }, { onSettled: () => setOrder(null) });
-          }}
-        >
+        <SettingsRowList>
           {providers.map((provider, index) => (
-            <SortableProviderRow
+            <ProviderRow
               key={provider.id}
               disabled={controlsDisabled}
               isDefault={
@@ -209,7 +168,6 @@ export function ProvidersSettingsSection({
           ))}
           {disabledProviders.map((provider) => (
             <SettingsRow key={provider.id} className="text-muted-foreground">
-              <span className="-ml-2 w-7 shrink-0" aria-hidden="true" />
               <span className="shrink-0 opacity-60 grayscale">
                 <ProviderRowIcon provider={provider.info ?? provider} />
               </span>
@@ -229,7 +187,7 @@ export function ProvidersSettingsSection({
               />
             </SettingsRow>
           ))}
-        </SortableSettingsRowList>
+        </SettingsRowList>
       )}
     </SettingsSection>
   );

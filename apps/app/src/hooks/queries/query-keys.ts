@@ -13,7 +13,6 @@ import {
 const HOSTS_QUERY_KEY = "hosts";
 const HOST_QUERY_KEY = "host";
 const HOST_DIRECTORY_QUERY_KEY = "hostDirectory";
-const HOST_CLONE_DEFAULT_PATH_QUERY_KEY = "hostCloneDefaultPath";
 const PROJECTS_QUERY_KEY = "projects";
 const PROJECT_PATHS_QUERY_KEY = "projectPaths";
 const PROJECT_FILE_PREVIEW_QUERY_KEY = "projectFilePreview";
@@ -98,11 +97,6 @@ type HostQueryKey = readonly [typeof HOST_QUERY_KEY, HostQueryId];
 type AllHostQueryKeyPrefix = readonly [typeof HOST_QUERY_KEY];
 type HostDirectoryQueryKey = readonly [
   typeof HOST_DIRECTORY_QUERY_KEY,
-  HostQueryId,
-  string | null,
-];
-type HostCloneDefaultPathQueryKey = readonly [
-  typeof HOST_CLONE_DEFAULT_PATH_QUERY_KEY,
   HostQueryId,
   string | null,
 ];
@@ -486,13 +480,6 @@ export function hostDirectoryQueryKey(
   path: string | null,
 ): HostDirectoryQueryKey {
   return [HOST_DIRECTORY_QUERY_KEY, hostId, path];
-}
-
-export function hostCloneDefaultPathQueryKey(
-  hostId: HostQueryId,
-  projectId: string | null,
-): HostCloneDefaultPathQueryKey {
-  return [HOST_CLONE_DEFAULT_PATH_QUERY_KEY, hostId, projectId];
 }
 
 export function projectsQueryKey(): ProjectsQueryKey {

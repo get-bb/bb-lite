@@ -20,10 +20,8 @@ import {
   useRemoveHost,
   useRenameHost,
 } from "@/hooks/mutations/host-mutations";
-import { useMachineThreadPreview } from "@/hooks/queries/thread-queries";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { getThreadDisplayTitle } from "@/lib/thread-title";
 
 export const SERVER_MACHINE_REMOVE_DISABLED_REASON =
   "The server machine can't be removed.";
@@ -81,31 +79,6 @@ function MachineRenameDialog({
   );
 }
 
-function MachineThreadPreviewList({ hostId }: { hostId: string }) {
-  const preview = useMachineThreadPreview({ hostId, limit: 5 }).data;
-  if (preview === undefined || preview.total === 0) return null;
-  const hiddenCount = preview.total - preview.threads.length;
-  return (
-    <div className="space-y-1 text-sm text-muted-foreground">
-      <p>
-        {preview.total === 1
-          ? "1 unarchived thread on this machine:"
-          : `${preview.total} unarchived threads on this machine:`}
-      </p>
-      <ul className="list-disc space-y-0.5 pl-5 text-foreground marker:text-subtle-foreground">
-        {preview.threads.map((thread) => (
-          <li key={thread.id}>
-            <span className="block truncate">
-              {getThreadDisplayTitle(thread)}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {hiddenCount > 0 ? <p>and {hiddenCount} more</p> : null}
-    </div>
-  );
-}
-
 function MachineRemoveDialog({
   target,
   onClose,
@@ -134,7 +107,6 @@ function MachineRemoveDialog({
               {machineRemovalConsequences(target)}
             </DialogDescription>
           </DialogHeader>
-          <MachineThreadPreviewList hostId={target.id} />
           {removeHost.isError ? (
             <p className="text-sm text-destructive" role="alert">
               {getMutationErrorMessage({

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useAtom, type WritableAtom } from "jotai";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import "@bb/shared-ui/icon-extended";
 import {
   builtInThemes,
@@ -12,11 +12,6 @@ import {
   type AppTheme,
   type FaviconColorPreference,
 } from "@bb/domain";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -68,10 +63,7 @@ import { localhostLinkRewriteDescription } from "@/lib/localhost-link-rewrite-de
 import { useRewriteLocalhostLinksPreference } from "@/lib/localhost-link-rewrite-preference";
 import { useRichTextEditingPreference } from "@/lib/rich-text-editing-preference";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
-import {
-  SETTINGS_ROUTE_PATH,
-  getRootComposeRoutePath,
-} from "@/lib/route-paths";
+import { SETTINGS_ROUTE_PATH } from "@/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";
 import {
   AUTOMATIC_PROVIDER,
@@ -86,8 +78,6 @@ const THEME_PREFERENCES: readonly ThemePreference[] = [
   "light",
   "dark",
 ];
-const CREATE_CUSTOM_PALETTE_PROMPT =
-  "Create a custom bb palette. First run `bb theme dir` to find the custom theme directory. Ask me for the palette name and visual direction, then create `<theme-dir>/<name>/theme.css` with light and dark theme variables compatible with bb's theme tokens.";
 const FOLLOW_UP_OPTIONS = [
   {
     value: false,
@@ -105,7 +95,7 @@ const FOLLOW_UP_OPTIONS = [
 
 type UpdateSettings = (
   patch: Partial<AppSettings>,
-  options?: { onError?: () => void; onSettled?: () => void },
+  options?: { onError?: () => void },
 ) => void;
 
 function capitalize(value: string): string {
@@ -237,14 +227,11 @@ function ProviderChoice({
 
 function AppearanceSettingsSection({
   appearance,
-  customThemes,
   disabled,
 }: {
   appearance: AppTheme;
-  customThemes: readonly string[];
   disabled: boolean;
 }) {
-  const navigate = useNavigate();
   const themePreference = useThemePreference();
   const updateAppearance = useUpdateAppearance();
   const preview = useAppThemePreview();
@@ -253,10 +240,10 @@ function AppearanceSettingsSection({
   );
   const slots = usePluginSlots();
   const paletteSelectedRef = useRef(false);
-  const palettes = [
-    ...builtInThemes.map((entry) => ({ value: entry.id, content: entry.name })),
-    ...customThemes.map((name) => ({ value: name, content: name })),
-  ];
+  const palettes = builtInThemes.map((entry) => ({
+    value: entry.id,
+    content: entry.name,
+  }));
   const providerChoices: ProviderChoiceProps[] = [
     {
       label: "Sidebar",
@@ -299,7 +286,7 @@ function AppearanceSettingsSection({
           />
           <SettingsDropdown
             label="Palette"
-            description="Palettes change bb's colors, including syntax colors in diffs and file previews. Choose a built-in palette or create one from a prompt."
+            description="Palettes change bb's colors, including syntax colors in diffs and file previews."
             disabled={pending}
             trigger={
               <span className="min-w-0 truncate">
@@ -328,24 +315,6 @@ function AppearanceSettingsSection({
                 { onError: () => preview.previewTheme(null) },
               );
             }}
-            footer={
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() =>
-                    navigate(getRootComposeRoutePath(), {
-                      state: {
-                        focusPrompt: true,
-                        initialPrompt: CREATE_CUSTOM_PALETTE_PROMPT,
-                      },
-                    })
-                  }
-                >
-                  <Icon name="Plus" className="size-4" />
-                  Create
-                </DropdownMenuItem>
-              </>
-            }
           />
           <SettingsDropdown
             label="Favicon color"
@@ -539,7 +508,6 @@ export function SettingsView() {
         ) : activeSection === "appearance" ? (
           <AppearanceSettingsSection
             appearance={config?.appearance ?? defaultAppTheme}
-            customThemes={config?.customThemes ?? []}
             disabled={config === undefined}
           />
         ) : activeSection === "keyboard" ? (

@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
-import { ProjectSelector } from "@/components/pickers/ProjectSelector";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
@@ -18,10 +11,8 @@ import {
   hasThreadSearchableQuery,
   useArchivedThreads,
   useThreadSearch,
-  type UseArchivedThreadsFilters,
 } from "@/hooks/queries/thread-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import type { ArchivedThreadsKindFilter } from "@/hooks/queries/query-keys";
 import { getThreadRoutePath } from "@/lib/route-paths";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
@@ -30,72 +21,15 @@ import {
   useResolveThreadTitle,
 } from "@/components/thread/ThreadTitleMentions";
 
-const ALL_PROJECTS = "all";
 const ARCHIVED_THREAD_SEARCH_LIMIT = 50;
-
-const KIND_OPTIONS: ReadonlyArray<{
-  label: string;
-  value: ArchivedThreadsKindFilter;
-}> = [
-  { label: "All threads", value: "all" },
-  { label: "Root threads", value: "root" },
-  { label: "Child threads", value: "child" },
-];
-
-function KindFilterMenu({
-  onChange,
-  value,
-}: {
-  onChange: (value: ArchivedThreadsKindFilter) => void;
-  value: ArchivedThreadsKindFilter;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-8 min-w-36 justify-between gap-2 px-3 text-xs font-normal"
-        >
-          <span className="flex min-w-0 items-center gap-2">
-            <Icon name="SlidersHorizontal" className="size-3.5 shrink-0" />
-            <span className="truncate">
-              {KIND_OPTIONS.find((option) => option.value === value)?.label}
-            </span>
-          </span>
-          <Icon name="ChevronDown" className="size-3.5 shrink-0" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        {KIND_OPTIONS.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onSelect={() => onChange(option.value)}
-          >
-            <span className="min-w-0 flex-1 truncate">{option.label}</span>
-            {option.value === value ? (
-              <Icon name="Check" className="size-3.5" />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 export function ArchivedThreadsSettingsSection() {
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<ArchivedThreadsKindFilter>("all");
-  const [projectId, setProjectId] = useState(ALL_PROJECTS);
   const sidebarNavigation = useSidebarNavigation();
   const searchIsActive = hasThreadSearchableQuery(search);
-  const archivedThreadsQuery = useArchivedThreads(
-    {
-      ...(projectId === ALL_PROJECTS ? {} : { projectId }),
-      kind,
-    } satisfies UseArchivedThreadsFilters,
-    { enabled: !searchIsActive },
-  );
+  const archivedThreadsQuery = useArchivedThreads({
+    enabled: !searchIsActive,
+  });
   const threadSearch = useThreadSearch({
     active: searchIsActive,
     limitPerGroup: ARCHIVED_THREAD_SEARCH_LIMIT,
@@ -118,9 +52,6 @@ export function ArchivedThreadsSettingsSection() {
     const title = getThreadDisplayTitle(thread);
     return (
       thread.archivedAt !== null &&
-      (projectId === ALL_PROJECTS || thread.projectId === projectId) &&
-      (kind === "all" ||
-        (thread.parentThreadId !== null) === (kind === "child")) &&
       (searchIsActive ||
         [title, resolveTitle(title)].some((text) =>
           text.toLocaleLowerCase().includes(needle),
@@ -163,16 +94,6 @@ export function ArchivedThreadsSettingsSection() {
             value={search}
           />
         </div>
-        <KindFilterMenu onChange={setKind} value={kind} />
-        <ProjectSelector
-          projects={projects}
-          value={projectId}
-          onChange={(value) => setProjectId(value ?? ALL_PROJECTS)}
-          allProjectsValue={ALL_PROJECTS}
-          variant="outline"
-          modal={false}
-          className="min-w-36 justify-between gap-2 px-3 font-normal"
-        />
       </div>
 
       {isInitialLoading ? (
@@ -183,7 +104,7 @@ export function ArchivedThreadsSettingsSection() {
         <EmptyStatePanel className="py-8">
           {search.trim().length > 0
             ? "No archived threads match your search."
-            : "No archived threads match these filters."}
+            : "No archived threads."}
         </EmptyStatePanel>
       ) : (
         <div className="space-y-6">
