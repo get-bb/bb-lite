@@ -45,10 +45,8 @@ function realOrResolved(target: string): Promise<string> {
 }
 
 async function isStrictlyInside(root: string, target: string) {
-  const [realRoot, realTarget] = await Promise.all([
-    realOrResolved(root),
-    realOrResolved(target),
-  ]);
+  const realRoot = await realOrResolved(root);
+  const realTarget = await realOrResolved(target);
   return realRoot !== realTarget && isInside(realRoot, realTarget);
 }
 
@@ -106,10 +104,8 @@ async function removeManagedPath(ctx: Ctx, target: string): Promise<void> {
   await fs.rm(`${target}.completed`, { force: true });
   if (await pathExists(target)) {
     await killProcessesWithCwdUnder(target);
-    const relativeCommonDir = await openRepo(ctx, target).line(
-      "rev-parse",
-      "--git-common-dir",
-    );
+    const repo = openRepo(ctx, target);
+    const relativeCommonDir = await repo.line("rev-parse", "--git-common-dir");
     if (relativeCommonDir !== null) {
       const commonDir = path.resolve(target, relativeCommonDir);
       const flags = ["worktree", "remove", target, "--force"];
@@ -224,16 +220,12 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     }
     await removeManagedPath(ctx, target);
     if ((await git.repoKind(source)) === "none") {
-      fail(
-        "not_git_repo",
-        `Cannot create a worktree because the source is not a Git repository: ${source.cwd}. Initialize it and create at least one commit, then try again.`,
-      );
+      const message = `Cannot create a worktree because the source is not a Git repository: ${source.cwd}. Initialize it and create at least one commit, then try again.`;
+      fail("not_git_repo", message);
     }
     if ((await git.revision(source, "HEAD")) === null) {
-      fail(
-        "failed",
-        `Cannot create a worktree because the repository has no commits: ${source.cwd}. Create an initial commit, then try again.`,
-      );
+      const message = `Cannot create a worktree because the repository has no commits: ${source.cwd}. Create an initial commit, then try again.`;
+      fail("failed", message);
     }
     const baseBranch =
       args.baseBranch === null
@@ -247,10 +239,8 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     const holder = await worktreeHoldingBranch(source, branchName);
     if (holder !== null && (await isStrictlyInside(root, holder))) {
       if (await git.isDirty(openRepo(ctx, holder))) {
-        fail(
-          "conflict",
-          `Branch ${branchName} is still checked out at ${holder} by an earlier attempt, and that worktree has uncommitted changes, so it was left alone. Remove it to retry.`,
-        );
+        const message = `Branch ${branchName} is still checked out at ${holder} by an earlier attempt, and that worktree has uncommitted changes, so it was left alone. Remove it to retry.`;
+        fail("conflict", message);
       }
       await removeManagedPath(ctx, holder);
     }

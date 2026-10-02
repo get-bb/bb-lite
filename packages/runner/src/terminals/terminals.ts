@@ -128,10 +128,8 @@ export function createTerminals(ctx: Ctx): Terminals {
     terminal.pending = [];
     for (let at = 0; at < output.byteLength; at += OUTPUT_CHUNK_MAX_BYTES) {
       const bytes = output.subarray(at, at + OUTPUT_CHUNK_MAX_BYTES);
-      const chunk = {
-        seq: terminal.nextSeq,
-        dataBase64: bytes.toString("base64"),
-      };
+      const dataBase64 = bytes.toString("base64");
+      const chunk = { seq: terminal.nextSeq, dataBase64 };
       terminal.nextSeq += 1;
       terminal.scrollback.push({ chunk, byteLength: bytes.byteLength });
       terminal.scrollbackBytes += bytes.byteLength;
@@ -144,13 +142,10 @@ export function createTerminals(ctx: Ctx): Terminals {
   const receive = (terminal: Terminal, data: string): void => {
     if (terminal.exited !== null) return;
     const input = terminal.partialQuery + data;
-    terminal.partialQuery =
-      DEVICE_ATTRIBUTES_PARTIALS.find((partial) => input.endsWith(partial)) ??
-      "";
-    const complete = input.slice(
-      0,
-      input.length - terminal.partialQuery.length,
-    );
+    const partials = DEVICE_ATTRIBUTES_PARTIALS;
+    const held = partials.find((partial) => input.endsWith(partial)) ?? "";
+    terminal.partialQuery = held;
+    const complete = input.slice(0, input.length - held.length);
     const output = complete.replace(DEVICE_ATTRIBUTES_QUERY, "");
     const queries = complete.match(DEVICE_ATTRIBUTES_QUERY)?.length ?? 0;
     if (queries > 0) {
@@ -223,13 +218,8 @@ export function createTerminals(ctx: Ctx): Terminals {
     terminals.set(terminal.id, terminal);
     pty.onData((data) => receive(terminal, data));
     pty.onExit(({ exitCode }) => finish(terminal, exitCode));
-    return {
-      shell,
-      title: titleFor(start, shell),
-      initialCwd: cwd,
-      cols,
-      rows,
-    };
+    const title = titleFor(start, shell);
+    return { shell, title, initialCwd: cwd, cols, rows };
   };
 
   return {
@@ -242,13 +232,10 @@ export function createTerminals(ctx: Ctx): Terminals {
       );
       const bytesOf = (entries: typeof window): number =>
         entries.reduce((total, entry) => total + entry.byteLength, 0);
-      while (window.length > 1 && bytesOf(window) > tailBytes) {
-        window.shift();
-      }
+      while (window.length > 1 && bytesOf(window) > tailBytes) window.shift();
       const page = [...window];
-      while (page.length > 1 && bytesOf(page) > TERMINAL_REPLAY_MAX_BYTES) {
-        page.pop();
-      }
+      const limit = TERMINAL_REPLAY_MAX_BYTES;
+      while (page.length > 1 && bytesOf(page) > limit) page.pop();
       return {
         chunks: page.map((entry) => entry.chunk),
         replayStartSeq: page[0]?.chunk.seq ?? terminal.nextSeq,
@@ -268,17 +255,12 @@ export function createTerminals(ctx: Ctx): Terminals {
     },
     async close({ terminalId }) {
       const terminal = terminals.get(terminalId);
-      if (
-        terminal &&
-        terminal.exited === null &&
-        terminal.closeTimer === null
-      ) {
-        terminal.closeTimer = setTimeout(() => {
-          kill(terminal, "SIGKILL");
-          finish(terminal, null);
-        }, CLOSE_GRACE_MS);
-        kill(terminal, "SIGHUP");
-      }
+      if (!terminal || terminal.exited || terminal.closeTimer) return;
+      terminal.closeTimer = setTimeout(() => {
+        kill(terminal, "SIGKILL");
+        finish(terminal, null);
+      }, CLOSE_GRACE_MS);
+      kill(terminal, "SIGHUP");
     },
     liveIds: () =>
       [...terminals.values()]

@@ -159,18 +159,13 @@ function requireUnchanged(expected: string | null, revision: string): void {
 
 export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
   const { offset } = args;
-  const wanted = [offset, args.length];
-  if (
-    wanted.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    args.length > FILE_PAYLOAD_MAX_BYTES
-  ) {
+  const natural = (value: number) => Number.isSafeInteger(value) && value >= 0;
+  const valid = natural(offset) && natural(args.length);
+  if (!valid || args.length > FILE_PAYLOAD_MAX_BYTES) {
     fail("failed", `A chunk is at most ${FILE_PAYLOAD_MAX_BYTES} bytes`);
   }
-  const chunk = {
-    path: args.path,
-    mimeType: mimeTypeOf(args.path) ?? null,
-    offset,
-  };
+  const mimeType = mimeTypeOf(args.path) ?? null;
+  const chunk = { path: args.path, mimeType, offset };
   if (args.gitRef !== undefined) {
     const limit = BLOB_CHUNK_SOURCE_MAX_BYTES;
     const blob = await readBlob(ctx, args, args.gitRef, limit);

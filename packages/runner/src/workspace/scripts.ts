@@ -18,9 +18,11 @@ const OUTPUT_DRAIN_MS = 250;
 const OUTPUT_EVENT_MAX_LENGTH = 64 * 1024;
 const GROUP_EXIT_POLL_MS = 25;
 const GROUP_EXIT_POLLS = 200;
+const OUTPUT = { lane: "reliable", kind: "script.output" } as const;
 
 type ScriptArgs = Parameters<WorkspaceApi["runLifecycleScript"]>[0];
 type FailureReason = NonNullable<LifecycleScriptResult["failure"]>["reason"];
+type Exit = { code: number | null; signal: NodeJS.Signals | null };
 
 interface Operation {
   controller: AbortController;
@@ -70,13 +72,11 @@ async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
   });
   let timedOut = false;
   const killGroup = (): boolean => signalGroup(child.pid, "SIGKILL");
-  const timer = setTimeout(
-    () => {
-      timedOut = true;
-      killGroup();
-    },
-    Math.min(args.timeoutMs, MAX_TIMER_MS),
-  );
+  const expire = () => {
+    timedOut = true;
+    killGroup();
+  };
+  const timer = setTimeout(expire, Math.min(args.timeoutMs, MAX_TIMER_MS));
   signal.addEventListener("abort", killGroup, { once: true });
   if (signal.aborted) killGroup();
   const flushes = [child.stdout, child.stderr].map((stream) => {
@@ -86,12 +86,7 @@ async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
       const { operationId } = args;
       for (let at = 0; at < output.length; at += OUTPUT_EVENT_MAX_LENGTH) {
         const text = output.slice(at, at + OUTPUT_EVENT_MAX_LENGTH);
-        ctx.sink({
-          lane: "reliable",
-          kind: "script.output",
-          operationId,
-          text,
-        });
+        ctx.sink({ ...OUTPUT, operationId, text });
       }
     };
     stream.setEncoding("utf8");
@@ -99,10 +94,7 @@ async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
     return () => emit(reader.flush());
   });
   try {
-    const exit = await new Promise<{
-      code: number | null;
-      signal: NodeJS.Signals | null;
-    }>((resolve, reject) => {
+    const exit = await new Promise<Exit>((resolve, reject) => {
       child.once("error", reject);
       child.once("exit", (code, by) => resolve({ code, signal: by }));
     });
@@ -115,20 +107,16 @@ async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
     }
     flushes.forEach((flush) => flush());
     const label = `${setup ? "Setup" : "Teardown"} script`;
+    const report = (reason: FailureReason, how: string, code?: number) =>
+      failed(reason, `${label} ${how}: ${scriptPath}`, code);
     if (signal.aborted) return failed("cancelled", `${scriptName} cancelled`);
-    if (timedOut) {
-      const after = `timed out after ${args.timeoutMs}ms`;
-      return failed("timeout", `${label} ${after}: ${scriptPath}`);
-    }
-    if (exit.signal !== null) {
-      const by = `exited via signal ${exit.signal}`;
-      return failed("signal", `${label} ${by}: ${scriptPath}`);
-    }
-    if (exit.code !== 0) {
-      const code = exit.code ?? 1;
-      const reason = `failed with exit code ${code}`;
-      return failed("exit", `${label} ${reason}: ${scriptPath}`, code);
-    }
+    if (timedOut)
+      return report("timeout", `timed out after ${args.timeoutMs}ms`);
+    const by = exit.signal;
+    if (by !== null) return report("signal", `exited via signal ${by}`);
+    const code = exit.code ?? 1;
+    if (code !== 0)
+      return report("exit", `failed with exit code ${code}`, code);
     return { ran: true, exitCode: 0, failure: null };
   } finally {
     clearTimeout(timer);

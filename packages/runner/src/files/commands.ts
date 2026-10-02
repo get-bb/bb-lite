@@ -116,13 +116,8 @@ async function describe(
     const fields = parseFrontmatter(head.subarray(0, bytesRead).toString());
     const description = fields.description?.slice(0, MAX_DESCRIPTION_LENGTH);
     const argumentHint = fields["argument-hint"] || null;
-    return {
-      name,
-      source,
-      origin,
-      description: description || null,
-      argumentHint,
-    };
+    const about = { description: description || null, argumentHint };
+    return { name, source, origin, ...about };
   } finally {
     await handle.close();
   }
