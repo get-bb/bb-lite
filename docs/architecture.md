@@ -336,8 +336,9 @@ materialised by the CLI before the request.
   `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
   mints one getbb.app machine credential per machine and revokes it on removal.
 - **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
-  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
-  `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
+  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `generateTitle`, `skillDirs`). Mention
+  resolution and plugin-contributed environments are accepted by the plugin API but nothing in the
+  server reads them yet. The calls a plugin makes outward (`threads`, `projects`,
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 - **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,
