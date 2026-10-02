@@ -60,7 +60,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
       BB_THREAD_ID: threadId,
       BB_PROJECT_ID: "proj_1",
       BB_ENVIRONMENT_ID: row.environmentId,
-      POOL_URL: "http://127.0.0.1:0/pool",
+      POOL_URL: "{BB_SERVER_URL}/pool",
     },
   });
   expect(session.instructions).toContain("You are working inside bb");

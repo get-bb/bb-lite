@@ -16,6 +16,7 @@ import type {
 } from "../providers/provider.js";
 import {
   RunnerError,
+  SERVER_URL_PLACEHOLDER,
   type ExecutionOptions,
   type ProviderId,
   type RunnerThreadEvent,
@@ -422,7 +423,14 @@ export function createSessionApi(
     listProviders: () => Promise.all(options.adapters.map((a) => a.status())),
     listModels: async (args) =>
       adapterFor(args.providerId).listModels(args.cwd),
-    submitTurn: (args) => remember(args),
+    submitTurn: (args) => {
+      const env = Object.entries(args.session.env).map(([name, value]) => [
+        name,
+        value.replaceAll(SERVER_URL_PLACEHOLDER, options.serverUrl),
+      ]);
+      const session = { ...args.session, env: Object.fromEntries(env) };
+      return remember({ ...args, session });
+    },
     interruptTurn: ({ threadId }) =>
       serialize(threadId, () => interrupt(threadId)),
     releaseSession: ({ threadId }) =>

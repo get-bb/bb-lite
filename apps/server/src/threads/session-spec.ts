@@ -1,14 +1,13 @@
 import { readFile } from "node:fs/promises";
 import type { DynamicTool } from "@bb/domain";
 import type { ThreadContext } from "@bb/plugin";
-import type { SessionSpec } from "@bb/runner";
-import { dataPaths, loopbackUrl } from "../config.js";
+import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
+import { dataPaths } from "../config.js";
 import type { ServerContext } from "../context.js";
 import type { Db } from "../db/index.js";
 import type { ThreadRow } from "../db/threads.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
 import { findProviderDefinition } from "../providers/catalog.js";
-import { publicServerUrl } from "../runners/hosts.js";
 import { requireProviderId } from "./execution.js";
 
 export interface SessionEnvironment {
@@ -76,11 +75,6 @@ export function pluginContext(
   return { threadId, projectId, hostId, providerId, providerCapabilities };
 }
 
-function serverUrlFor(ctx: ServerContext, hostId: string): string {
-  const local = hostId === ctx.config.hostId;
-  return (local ? null : publicServerUrl(ctx)) ?? loopbackUrl(ctx.config);
-}
-
 export async function buildSessionSpec(
   ctx: ServerContext,
   thread: ThreadRow,
@@ -109,12 +103,12 @@ export async function buildSessionSpec(
     sections.push(`The following workspace instructions come from ${origin}:`);
     sections.push(workspace);
   }
-  const serverUrl = serverUrlFor(ctx, hostId);
-  const contributed = pluginEnv.map(({ name, value }) => {
-    const expanded =
-      typeof value === "string" ? value : serverUrl + value.serverPath;
-    return [name, expanded];
-  });
+  const contributed = pluginEnv.map(({ name, value }) => [
+    name,
+    typeof value === "string"
+      ? value
+      : SERVER_URL_PLACEHOLDER + value.serverPath,
+  ]);
   return {
     threadId: thread.id,
     providerId,

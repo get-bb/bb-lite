@@ -14,6 +14,8 @@ import type {
 
 export type ProviderId = "codex" | "claude-code" | "echo";
 
+export const SERVER_URL_PLACEHOLDER = "{BB_SERVER_URL}";
+
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
