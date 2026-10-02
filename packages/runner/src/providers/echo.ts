@@ -36,6 +36,7 @@ const answer = z.object({
 const answerSchema = z.object({
   answers: z.record(z.string(), answer.partial()),
 });
+const toolInputSchema = z.record(z.string(), z.unknown());
 const CONTEXT_WINDOW = 200_000;
 const MODELS: AvailableModel[] = ["echo-1", "echo-2"].map((id, index) => ({
   id,
@@ -227,11 +228,13 @@ class EchoSession implements ProviderSession {
     }
     const tool = directive(text, "call_tool");
     if (tool === undefined) return undefined;
+    const encoded = directive(text, "tool_input") ?? "{}";
+    const input = toolInputSchema.parse(JSON.parse(encoded));
     const call = {
       type: "toolCall" as const,
       server: "bb",
       tool,
-      arguments: {},
+      arguments: input,
     };
     const { id: callId, close } = this.item(
       turn,
@@ -239,7 +242,7 @@ class EchoSession implements ProviderSession {
       call,
       ui.labels.tool(tool),
     );
-    const request = { callId, tool, arguments: {}, turnId };
+    const request = { callId, tool, arguments: input, turnId };
     const { contentItems } = await host.callTool(request);
     const texts = contentItems.flatMap((c) =>
       c.type === "inputText" ? [c.text] : [],

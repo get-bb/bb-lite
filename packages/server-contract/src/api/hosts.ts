@@ -4,12 +4,6 @@ import {
   jsonValueSchema,
   permissionModeSchema,
 } from "@bb/domain";
-import {
-  pathsExistRequestSchema,
-  type PathsExistRequest,
-  type PathsExistResponse,
-  type PickFolderResponse,
-} from "@bb/host-daemon-contract/local";
 
 export const hostDirectoryQuerySchema = z.object({
   path: z.string().min(1).optional(),
@@ -101,19 +95,45 @@ export type UpdateHostPermissionCeilingRequest = z.infer<
   typeof updateHostPermissionCeilingRequestSchema
 >;
 
-export const hostPathsExistRequestSchema = pathsExistRequestSchema;
-export type HostPathsExistRequest = PathsExistRequest;
+export const hostPathsExistRequestSchema = z.object({
+  paths: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(200)
+    .transform((paths) => Array.from(new Set(paths))),
+});
+export type HostPathsExistRequest = z.infer<typeof hostPathsExistRequestSchema>;
 
-export type HostPathsExistResponse = PathsExistResponse;
+export interface HostPathsExistResponse {
+  existence: Record<string, boolean>;
+}
 
-export const hostPickFolderRequestSchema = z
+export const hostOpenTargetSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  kind: z.enum(["editor", "file-manager", "terminal"]),
+  capabilities: z.object({
+    openDirectory: z.boolean(),
+    openFile: z.boolean(),
+    openFileAtLine: z.boolean(),
+    openFileAtColumn: z.boolean(),
+  }),
+});
+export type HostOpenTarget = z.infer<typeof hostOpenTargetSchema>;
+
+export interface HostOpenTargetsResponse {
+  targets: HostOpenTarget[];
+}
+
+export const hostOpenRequestSchema = z
   .object({
-    clientHostId: z.string().min(1),
+    targetId: z.string().min(1),
+    path: z.string().min(1),
+    line: z.number().int().positive().optional(),
+    column: z.number().int().positive().optional(),
   })
   .strict();
-export type HostPickFolderRequest = z.infer<typeof hostPickFolderRequestSchema>;
-
-export type HostPickFolderResponse = PickFolderResponse;
+export type HostOpenRequest = z.infer<typeof hostOpenRequestSchema>;
 
 export const hostListQuerySchema = z.object({
   includeCreating: z.enum(["true", "false"]).optional(),

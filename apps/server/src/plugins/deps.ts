@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import {
   PERSONAL_PROJECT_ID,
   threadEventItemPresentationSchema,
@@ -27,8 +28,9 @@ export type PluginHostDeps = (pluginId: string) => PluginOutwardApi;
 
 export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
   const { db, hub, runners, threads } = ctx;
-  const workspace = (threadId: string) => {
-    const { hostId, path: rootPath } = threads.workspaceOf(threadId);
+  const workspace = (threadId: string, path: string) => {
+    const { hostId, path: workspacePath } = threads.workspaceOf(threadId);
+    const rootPath = isAbsolute(path) ? undefined : workspacePath;
     return { runner: runners.get(hostId), rootPath };
   };
   return (pluginId) => ({
@@ -69,7 +71,7 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
     },
     files: {
       async read({ threadId, path, encoding = "utf8" }) {
-        const { runner, rootPath } = workspace(threadId);
+        const { runner, rootPath } = workspace(threadId, path);
         const missing = (error: unknown) => {
           const absent = error instanceof RunnerError;
           if (absent && error.code === "path_not_found") return null;
@@ -81,7 +83,7 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
         return { content: bytes.toString(encoding), sha256: file.sha256 };
       },
       async write({ threadId, encoding: contentEncoding, ...file }) {
-        const { runner, rootPath } = workspace(threadId);
+        const { runner, rootPath } = workspace(threadId, file.path);
         const options = { rootPath, contentEncoding, createParents: true };
         const result = await runner.writeFile({ ...file, ...options });
         if (result.outcome === "conflict") return { outcome: "conflict" };
@@ -99,8 +101,10 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
       const presentation = threadEventItemPresentationSchema.safeParse(
         request.presentation,
       ).data;
+      const { describeSubmission } = request;
       const form = { threadId, rendererId, title, payload, presentation };
-      return threads.requestInput({ ...form, pluginId, signal });
+      const origin = { pluginId, signal, describeSubmission };
+      return threads.requestInput({ ...form, ...origin });
     },
   });
 }

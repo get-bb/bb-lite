@@ -4,7 +4,10 @@ import {
   FILE_LIST_EXCLUDE_NAMES_MAX,
   FILE_LIST_LIMIT_MAX,
 } from "@bb/domain";
-import type { HostDaemonOnlineRpcResultByType } from "@bb/host-daemon-contract";
+import type {
+  WorkspaceFileListResponse,
+  WorkspacePathListResponse,
+} from "./shared.js";
 
 export const hostFileReadRequestSchema = z
   .object({
@@ -105,18 +108,23 @@ export interface CreateFilePreviewResponse {
   expiresAtMs: number;
 }
 
-export type HostFileReadResponse = Exclude<
-  HostDaemonOnlineRpcResultByType["host.read_file"],
-  { notModified: true }
->;
+export interface HostFileReadResponse {
+  path: string;
+  content: string;
+  contentEncoding: "base64" | "utf8";
+  mimeType?: string;
+  sizeBytes: number;
+  modifiedAtMs?: number;
+  sha256: string;
+}
 export type HostFileWriteResponse =
-  HostDaemonOnlineRpcResultByType["host.write_file"];
-export type HostFileListResponse =
-  HostDaemonOnlineRpcResultByType["host.list_files"];
-export type HostPathListResponse =
-  HostDaemonOnlineRpcResultByType["host.list_paths"];
-export type HostMkdirResponse = HostDaemonOnlineRpcResultByType["host.mkdir"];
-export type HostMovePathResponse =
-  HostDaemonOnlineRpcResultByType["host.move_path"];
-export type HostRemovePathResponse =
-  HostDaemonOnlineRpcResultByType["host.remove_path"];
+  | { outcome: "written"; sha256: string; sizeBytes: number }
+  | { outcome: "conflict"; currentSha256: string | null };
+export type HostFileListResponse = WorkspaceFileListResponse;
+export type HostPathListResponse = WorkspacePathListResponse;
+interface HostPathMutationResponse {
+  ok: true;
+}
+export type HostMkdirResponse = HostPathMutationResponse;
+export type HostMovePathResponse = HostPathMutationResponse;
+export type HostRemovePathResponse = HostPathMutationResponse;

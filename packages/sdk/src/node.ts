@@ -1,8 +1,3 @@
-import { loadCliConfig, type CliConfig } from "@bb/config/cli";
-import {
-  createHostDaemonLocalClient,
-  DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST,
-} from "@bb/host-daemon-contract";
 import { createBbSdk, type BbSdk, type BbSdkAreas } from "./core.js";
 import { createNodeWebsocketFactory } from "./node-websocket.js";
 import {
@@ -19,7 +14,6 @@ import type {
 
 export interface CreateNodeTransportArgs {
   baseUrl?: string;
-  cliConfig?: CliConfig;
   fetch?: FetchImplementation;
   realtimeUrl?: string;
   timeoutMs?: number;
@@ -30,25 +24,13 @@ export interface CreateNodeBbSdkArgs extends CreateNodeTransportArgs {
   context?: BbSdkContext;
 }
 
-export interface FetchLocalHostIdArgs {
-  cliConfig?: CliConfig;
-  hostDaemonUrl?: string;
-}
-
-function resolveCliConfig(cliConfig?: CliConfig): CliConfig {
-  return cliConfig ?? loadCliConfig();
-}
-
-function resolveHostDaemonUrl(cliConfig?: CliConfig): string {
-  const config = resolveCliConfig(cliConfig);
-  return `http://${DEFAULT_HOST_DAEMON_LOCAL_BIND_HOST}:${config.BB_HOST_DAEMON_PORT}`;
-}
+const DEFAULT_BB_SERVER_URL = "http://127.0.0.1:48886";
 
 export function createNodeTransport(
   args: CreateNodeTransportArgs = {},
 ): BbSdkTransport {
   return createHttpTransport({
-    baseUrl: args.baseUrl ?? resolveCliConfig(args.cliConfig).BB_SERVER_URL,
+    baseUrl: args.baseUrl ?? process.env.BB_SERVER_URL ?? DEFAULT_BB_SERVER_URL,
     fetch:
       args.fetch ??
       createRequestTimeoutFetch({
@@ -65,24 +47,6 @@ export function createNodeBbSdk(args: CreateNodeBbSdkArgs = {}): BbSdk {
     context: args.context,
     transport: createNodeTransport(args),
   });
-}
-
-export async function fetchLocalHostId(
-  args: FetchLocalHostIdArgs = {},
-): Promise<string | null> {
-  try {
-    const client = createHostDaemonLocalClient(
-      args.hostDaemonUrl ?? resolveHostDaemonUrl(args.cliConfig),
-    );
-    const response = await client.status.$get();
-    if (!response.ok) {
-      return null;
-    }
-    const body = await response.json();
-    return body.hostId;
-  } catch {
-    return null;
-  }
 }
 
 export {

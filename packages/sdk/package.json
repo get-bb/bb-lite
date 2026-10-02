@@ -44,10 +44,8 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@bb/config": "workspace:*",
     "@bb/core-ui": "workspace:*",
     "@bb/domain": "workspace:*",
-    "@bb/host-daemon-contract": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "ws": "^8.19.0",
     "zod": "^4.3.6"

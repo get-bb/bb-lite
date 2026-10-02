@@ -1,6 +1,5 @@
 import { assertNever } from "@bb/core-ui";
-import type { WorkspaceStatus } from "@bb/domain";
-import type { WorkspaceResolutionFailure } from "@bb/host-daemon-contract";
+import type { WorkspaceResolutionFailure, WorkspaceStatus } from "@bb/domain";
 import { BbHttpError } from "@bb/sdk/browser";
 import { describeLifecycleError } from "@/lib/lifecycle-errors";
 

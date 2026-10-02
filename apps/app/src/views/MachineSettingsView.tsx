@@ -1,8 +1,7 @@
 import { MachineLifecycleNoticeContent } from "@/components/machines/MachineLifecycleNotice";
 import { useMemo, useState, type ComponentProps } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { Host, PermissionMode } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
+import type { Host, HostPlatform, PermissionMode } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -36,8 +35,7 @@ import {
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
-import { formatHostUpdateStatus } from "@/lib/host-update-status";
+import { useLocalHostId } from "@/hooks/useOpenTargets";
 import {
   getMutationErrorMessage,
   showMutationErrorToast,
@@ -211,7 +209,7 @@ export function MachineSettingsView() {
   const navigate = useNavigate();
   const hostsQuery = useHosts();
   const systemConfig = useSystemConfig();
-  const { localDaemonHostId, platform: localDaemonPlatform } = useHostDaemon();
+  const localHostId = useLocalHostId();
   const sidebarNavigationQuery = useSidebarNavigation();
   const renameHost = useRenameHost();
   const updatePermissionCeiling = useUpdateHostPermissionCeiling();
@@ -229,7 +227,7 @@ export function MachineSettingsView() {
     (hosts?.filter((candidate) => candidate.type === "persistent").length ??
       0) > 1;
   const isThisMachine =
-    showThisMachineBadge && host !== null && host.id === localDaemonHostId;
+    showThisMachineBadge && host !== null && host.id === localHostId;
 
   const projects: MachineProject[] = useMemo(() => {
     const navigation = sidebarNavigationQuery.data?.projects ?? [];
@@ -242,13 +240,9 @@ export function MachineSettingsView() {
 
   const now = Date.now();
   const platformLabel =
-    host !== null &&
-    host.id === localDaemonHostId &&
-    localDaemonPlatform !== null
-      ? PLATFORM_LABELS[localDaemonPlatform]
-      : isPrimary && systemConfig.data?.primaryHostPlatform
-        ? PLATFORM_LABELS[systemConfig.data.primaryHostPlatform]
-        : null;
+    isPrimary && systemConfig.data?.primaryHostPlatform
+      ? PLATFORM_LABELS[systemConfig.data.primaryHostPlatform]
+      : null;
 
   if (hosts === undefined) {
     return (
@@ -278,8 +272,6 @@ export function MachineSettingsView() {
       </PageShell>
     );
   }
-
-  const updateStatus = formatHostUpdateStatus(host);
 
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
@@ -342,9 +334,6 @@ export function MachineSettingsView() {
                   ))}
                 </span>
               )}
-            </SettingsDetailRow>
-            <SettingsDetailRow label="Updates">
-              <span>{updateStatus ?? "Up to date"}</span>
             </SettingsDetailRow>
           </SettingsRowList>
         </SettingsSection>

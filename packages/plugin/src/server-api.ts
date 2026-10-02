@@ -60,6 +60,7 @@ export interface ThreadContext {
   projectId: string;
   hostId: string | null;
   providerId: string;
+  providerCapabilities?: Domain.ProviderCapabilities;
 }
 
 export type AgentToolResult = string | { text: string; isError: boolean };
@@ -86,7 +87,7 @@ export interface InputRequest {
   presentation?: Partial<Presentation>;
   describeSubmission?(
     value: Domain.JsonValue,
-  ): MaybePromise<Domain.PluginInteractionDescription>;
+  ): Domain.PluginInteractionDescription;
 }
 export type InputResult =
   | { outcome: "submitted"; value: Domain.JsonValue }

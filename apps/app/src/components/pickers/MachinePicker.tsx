@@ -20,7 +20,6 @@ import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { selectHosts, selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { formatHostUpdateStatus } from "@/lib/host-update-status";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import {
   OPTION_BASE_CLASS_NAME,
@@ -39,18 +38,17 @@ export const MACHINE_BADGE_CLASS_NAME =
 
 export function orderLocalHostFirst(
   hosts: readonly Host[],
-  localDaemonHostId: string | null,
+  localHostId: string | null,
 ): Host[] {
   return [...hosts].sort(
     (left, right) =>
-      Number(left.id !== localDaemonHostId) -
-      Number(right.id !== localDaemonHostId),
+      Number(left.id !== localHostId) - Number(right.id !== localHostId),
   );
 }
 
 interface MachinePickerUIProps {
   hosts: readonly Host[];
-  localDaemonHostId: string | null;
+  localHostId: string | null;
   primaryHostId: string | null;
   selectedHostId: string | null;
   onChange: (hostId: string) => void;
@@ -62,7 +60,7 @@ interface MachinePickerUIProps {
 
 export function MachinePickerUI({
   hosts,
-  localDaemonHostId,
+  localHostId,
   primaryHostId,
   selectedHostId,
   onChange,
@@ -84,8 +82,8 @@ export function MachinePickerUI({
     [availableHosts, primaryHostId, selectedHostId],
   );
   const orderedHosts = useMemo(
-    () => orderLocalHostFirst(availableHosts, localDaemonHostId),
-    [availableHosts, localDaemonHostId],
+    () => orderLocalHostFirst(availableHosts, localHostId),
+    [availableHosts, localHostId],
   );
   const showSearch = availableHosts.length > MACHINE_SEARCH_MIN_OPTIONS;
   const filteredHosts = useMemo(
@@ -195,17 +193,13 @@ export function MachinePickerUI({
                         iconClassName="size-3"
                         nameClassName="text-xs"
                       />
-                      {host.id === localDaemonHostId ? (
+                      {host.id === localHostId ? (
                         <span className={MACHINE_BADGE_CLASS_NAME}>
                           this machine
                         </span>
                       ) : null}
                     </span>
-                    {formatHostUpdateStatus(host) !== null ? (
-                      <span className="shrink-0 text-2xs text-warning-foreground">
-                        {formatHostUpdateStatus(host)}
-                      </span>
-                    ) : !connected && host.lastSeenAt !== null ? (
+                    {!connected && host.lastSeenAt !== null ? (
                       <span className="shrink-0 text-2xs text-muted-foreground">
                         last seen{" "}
                         {formatRelativeTime({

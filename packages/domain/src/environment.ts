@@ -131,6 +131,24 @@ export const environmentSchema = z.object({
 });
 export type Environment = z.infer<typeof environmentSchema>;
 
+export const workspaceResolutionFailureSchema = z
+  .object({
+    code: z.enum([
+      "path_not_found",
+      "not_git_repo",
+      "workspace_type_mismatch",
+      "permission_denied",
+      "unknown_environment",
+      "unknown",
+    ]),
+    workspacePath: z.string().min(1),
+    message: z.string().min(1),
+  })
+  .strict();
+export type WorkspaceResolutionFailure = z.infer<
+  typeof workspaceResolutionFailureSchema
+>;
+
 type EnvironmentMergeBaseBranchSource = Pick<
   Environment,
   "baseBranch" | "defaultBranch" | "mergeBaseBranch"

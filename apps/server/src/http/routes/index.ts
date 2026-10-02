@@ -6,6 +6,7 @@ import { registerEnvironmentRoutes } from "./environments.js";
 import { registerFileRoutes } from "./files.js";
 import { registerHostRoutes, registerRunnerRoutes } from "./hosts.js";
 import { registerMachineEnvironmentRoutes } from "./machine-environment.js";
+import { registerOpenTargetRoutes } from "./open-targets.js";
 import { registerProjectWorkspaceRoutes } from "./project-workspace.js";
 import { registerProjectRoutes } from "./projects.js";
 import { registerProviderRoutes } from "./providers.js";
@@ -26,6 +27,7 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerThreadSectionRoutes,
   registerThreadTabRoutes,
   registerHostRoutes,
+  registerOpenTargetRoutes,
   registerProviderRoutes,
   registerPluginRoutes,
   registerEnvironmentRoutes,

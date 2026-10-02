@@ -2,7 +2,7 @@ import {
   buildTerminalWebSocketPath,
   type BuildTerminalWebSocketPathArgs,
 } from "@bb/client-core";
-import { buildBrowserWebSocketUrl } from "@/lib/dev-websocket-url";
+import { buildBrowserWebSocketUrl } from "@/lib/browser-websocket-url";
 
 type BuildTerminalWebSocketUrlArgs = BuildTerminalWebSocketPathArgs;
 
