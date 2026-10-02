@@ -1,19 +1,5 @@
-import type {
-  ThreadContextWindowUsage,
-  TimelineActivityIntent,
-  TimelineConversationAttachments,
-  TimelineFileChange,
-  TimelineParentChange,
-  TimelineRow,
-  TimelineRowBase,
-  TimelineRowStatus,
-  TimelineSourceRow,
-  TimelineSystemOperationKind,
-  TimelineSystemRow,
-  TimelineUserConversationRow,
-  TimelineWorkflowWorkRow,
-} from "@bb/server-contract";
 import {
+  type ProviderErrorCategory,
   isBackgroundAgentTaskType,
   readTerminalOutputLines,
   type ActiveThinking,
@@ -25,21 +11,35 @@ import {
   type ThreadTimelineModelFallback,
   type ThreadTimelinePendingTodos,
 } from "@bb/domain";
-import type {
-  EventProjectionFileEditChange,
-  EventProjectionMessage,
-  EventProjection,
-  EventProjectionProvisioningTranscriptEntry,
-  EventProjectionToolParsedIntent,
-  EventProjectionUserMessage,
-} from "./event-projection-types.js";
-import { assertNever } from "./assert-never.js";
 import {
+  type EventProjectionErrorMessage,
+  type EventProjectionFileEditChange,
+  type EventProjectionMessage,
+  type EventProjection,
+  type EventProjectionToolParsedIntent,
+  type EventProjectionUserMessage,
+  type EventProjectionWorkflowMessage,
+  getEventProjectionMessageScopeTurnId,
+} from "./event-projection-types.js";
+import type {
+  ThreadContextWindowUsage,
+  TimelineActivityIntent,
+  TimelineConversationAttachments,
+  TimelineFileChange,
+  TimelineParentChange,
+  TimelineRow,
+  TimelineRowBase,
+  TimelineRowStatus,
+  TimelineSourceRow,
+  TimelineUserConversationRow,
+  TimelineWorkflowWorkRow,
+} from "@bb/server-contract";
+import {
+  assertNever,
   durationToCompactString,
   getMessageStartedAt,
-} from "./format-helpers.js";
-import { getFileChangeDiffStats } from "./file-change-summary.js";
-import { getEventProjectionMessageScopeTurnId } from "./message-scope.js";
+  getFileChangeDiffStats,
+} from "./timeline-format.js";
 import {
   buildEventProjection,
   buildEventProjectionEntries,
@@ -49,26 +49,116 @@ import {
   buildAcceptedClientRequestById,
   buildRejectedClientRequestById,
   type AcceptedClientRequestContext,
-} from "./accepted-client-request-context.js";
-import {
   parsePendingSteersFromClientRequest,
   parseRejectedUsersFromClientRequest,
 } from "./user-message-parsing.js";
-import { getOrderedThreadEvents } from "./group-event-projection-turns.js";
-import { planTimelineRows, type TimelineRowPlan } from "./timeline-row-plan.js";
-import { extractThreadContextWindowUsage } from "./thread-context-window-usage.js";
 import {
+  getOrderedThreadEvents,
+  planTimelineRows,
+  type TimelineRowPlan,
+} from "./group-event-projection-turns.js";
+import {
+  extractThreadContextWindowUsage,
   extractThreadTimelineActivePromptMode,
   type PlanCommand,
-} from "./active-prompt-mode-extraction.js";
-import { extractThreadTimelineGoal } from "./goal-snapshot-extraction.js";
-import { extractThreadTimelineModelFallback } from "./model-fallback-extraction.js";
-import { extractThreadTimelinePendingTodos } from "./todo-snapshot-extraction.js";
-import { buildTimelineErrorDisplay } from "./error-display.js";
+  extractThreadTimelineGoal,
+  extractThreadTimelineModelFallback,
+  extractThreadTimelinePendingTodos,
+} from "./thread-state-extraction.js";
 
-interface ThreadTimelineFromEventsBaseOptions {
+type TimelineErrorDisplay = { title: string; detail: string | null };
+
+const providerErrorCategoryTitles = {
+  "active-turn-not-steerable": "Turn is not steerable",
+  "bad-request": "Provider rejected request",
+  billing: "Provider billing issue",
+  "budget-exceeded": "Provider budget exceeded",
+  "connection-failed": "Provider connection failed",
+  "context-window-exceeded": "Context window exceeded",
+  internal: "Provider internal error",
+  "max-output-tokens": "Provider output token limit reached",
+  "max-turns": "Maximum turns reached",
+  overloaded: "Provider overloaded",
+  policy: "Provider policy blocked request",
+  "rate-limit": "Provider rate limit reached",
+  sandbox: "Provider sandbox error",
+  "stream-disconnected": "Provider stream disconnected",
+  "structured-output-retries": "Structured output retries exhausted",
+  "thread-rollback-failed": "Thread rollback failed",
+  "too-many-failed-attempts": "Provider failed after too many attempts",
+  unauthorized: "Provider authorization failed",
+  unknown: "Provider error",
+} satisfies Record<ProviderErrorCategory, string>;
+
+const MAX_ERROR_TITLE_LENGTH = 80;
+
+const reconnectProgressPattern = /^Reconnecting\.\.\.\s+\d+\/\d+$/u;
+
+function reconnectDisplay(
+  message: EventProjectionErrorMessage,
+): { progress: string; cause: string | null } | null {
+  if (message.detail === null) return null;
+  const [first, ...rest] = message.detail.split("\n");
+  if (first === undefined || !reconnectProgressPattern.test(first.trim())) {
+    return null;
+  }
+  return { progress: first.trim(), cause: nonEmpty(rest.join("\n")) };
+}
+
+export function buildTimelineErrorDisplay(
+  message: EventProjectionErrorMessage,
+): TimelineErrorDisplay {
+  const reconnect = reconnectDisplay(message);
+  if (reconnect) return { title: reconnect.progress, detail: reconnect.cause };
+  const { title, detail } = resolveErrorTitleDetail(message);
+  if (title.length <= MAX_ERROR_TITLE_LENGTH) return { title, detail };
+  return { title: genericErrorTitle(message.rawType), detail: detail ?? title };
+}
+
+function resolveErrorTitleDetail(
+  message: EventProjectionErrorMessage,
+): TimelineErrorDisplay {
+  if (
+    message.rawType === "provider/error" &&
+    message.providerErrorInfo &&
+    message.providerErrorInfo.category !== "unknown"
+  ) {
+    const title =
+      providerErrorCategoryTitles[message.providerErrorInfo.category];
+    return { title, detail: detailBeyondTitle(message.detail, title) };
+  }
+  if (message.rawType === "provider/error") {
+    const content = message.detail ?? message.message;
+    return { title: content, detail: null };
+  }
+  return {
+    title: message.message,
+    detail: detailBeyondTitle(message.detail, message.message),
+  };
+}
+
+function genericErrorTitle(rawType: string): string {
+  return rawType === "provider/error" ? "Provider error" : "System error";
+}
+
+function detailBeyondTitle(
+  detail: string | null,
+  title: string,
+): string | null {
+  if (detail === null || detail.trim() === title.trim()) return null;
+  return detail;
+}
+
+function nonEmpty(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+interface ThreadTimelineFromEventsOptions {
   completedTurnDisplay: CompletedTurnDisplay;
   includeDiagnosticOperations: boolean;
+  includeNestedRows: boolean;
   isLatestPage: boolean;
   providerId?: string;
   providerDisplayName?: string;
@@ -76,18 +166,6 @@ interface ThreadTimelineFromEventsBaseOptions {
   threadStatus: Thread["status"];
   threadName: string;
   workspaceRoot: string | null;
-}
-
-interface ThreadTimelineFromEventsOptions extends ThreadTimelineFromEventsBaseOptions {
-  includeNestedRows: boolean;
-}
-
-interface BuildThreadTimelineFromEventsArgs {
-  acceptedClientRequestContext: AcceptedClientRequestContext;
-  contextWindowEvents: ThreadEventWithMeta[];
-  headStateEvents?: ThreadEventWithMeta[];
-  events: ThreadEventWithMeta[];
-  options: ThreadTimelineFromEventsOptions;
 }
 
 export interface ThreadTimelineFromEventsResult {
@@ -102,53 +180,10 @@ export interface ThreadTimelineFromEventsResult {
   rows: TimelineRow[];
 }
 
-interface BuildThreadTimelineTurnDetailsFromEventsOptions {
-  completedTurnDisplay: CompletedTurnDisplay;
-  includeDiagnosticOperations: boolean;
-  sourceSeqStart: number;
-  turnId: string;
-  providerDisplayName?: string;
-  threadStatus: Thread["status"];
-  threadName: string;
-  workspaceRoot: string | null;
-}
-
-interface BuildThreadTimelineTurnDetailsFromEventsArgs {
-  events: ThreadEventWithMeta[];
-  options: BuildThreadTimelineTurnDetailsFromEventsOptions;
-}
-
-type ThreadTimelineTurnDetailsFromEventsResult =
-  | {
-      kind: "matched";
-      rows: TimelineRow[];
-    }
-  | {
-      kind: "missing-match";
-    }
-  | {
-      kind: "ungrouped";
-      rows: TimelineRow[];
-    };
-
-interface BuildTimelineRowsOptions {
-  completedTurnDisplay: CompletedTurnDisplay;
-  includeNestedRows: boolean;
-  rowIdPrefix: string;
-  workspaceRoot: string | null;
-}
-
-interface BuildGenericOperationSystemRowArgs {
-  base: TimelineRowBase;
-  message: TimelineOperationMessage;
-  operationKind: TimelineGenericSystemOperationKind;
-}
-
-interface BuildParentChangeSystemRowArgs {
-  base: TimelineRowBase;
-  parentChange: TimelineParentChange;
-  message: TimelineOperationMessage;
-}
+type BuildTimelineRowsOptions = Pick<
+  ThreadTimelineFromEventsOptions,
+  "completedTurnDisplay" | "includeNestedRows" | "workspaceRoot"
+> & { rowIdPrefix: string };
 
 const ROOT_TIMELINE_ROW_ID_PREFIX = "";
 
@@ -156,37 +191,6 @@ type TimelineOperationMessage = Extract<
   EventProjectionMessage,
   { kind: "operation" }
 >;
-type TimelineWorkflowMessage = Extract<
-  EventProjectionMessage,
-  { kind: "workflow" }
->;
-type TimelineGenericSystemOperationKind = Exclude<
-  TimelineSystemOperationKind,
-  "parent-change"
->;
-
-function operationKindForMessage(
-  message: TimelineOperationMessage,
-  parentChange: TimelineParentChange | null,
-): TimelineSystemOperationKind {
-  switch (message.opType) {
-    case "reasoning":
-    case "compaction":
-    case "context-clear":
-    case "thread-provisioning":
-    case "thread-interrupted":
-    case "provider-unhandled":
-    case "warning":
-    case "deprecation":
-      return message.opType;
-    case "provider-environment":
-      return "generic";
-    case "operation":
-      return parentChange !== null ? "parent-change" : "generic";
-    default:
-      return assertNever(message.opType);
-  }
-}
 
 function parentChangeForMessage(
   message: TimelineOperationMessage,
@@ -197,65 +201,14 @@ function parentChangeForMessage(
   ) {
     return null;
   }
-
   const metadata = message.threadOperation.metadata;
-  if (metadata === null) {
-    return null;
-  }
-  const action = metadata.action;
-  switch (action) {
-    case "assign":
-    case "release":
-    case "transfer":
-      return {
-        action,
-        previousParentThreadId: metadata.previousParentThreadId,
-        previousParentThreadTitle: metadata.previousParentThreadTitle,
-        nextParentThreadId: metadata.nextParentThreadId,
-        nextParentThreadTitle: metadata.nextParentThreadTitle,
-      };
-    default:
-      return assertNever(action);
-  }
-}
-
-function buildGenericOperationSystemRow({
-  base,
-  message,
-  operationKind,
-}: BuildGenericOperationSystemRowArgs): TimelineSystemRow {
+  if (metadata === null) return null;
   return {
-    ...base,
-    kind: "system",
-    systemKind: "operation",
-    operationKind,
-    ...(operationKind === "reasoning" ? { reasoningId: message.id } : {}),
-    title: message.title,
-    detail: buildTimelineOperationDetail(message),
-    status: message.status ?? null,
-    completedAt: message.completedAt,
-  };
-}
-
-function buildParentChangeSystemRow({
-  base,
-  parentChange,
-  message,
-}: BuildParentChangeSystemRowArgs): TimelineSystemRow {
-  if (message.status === undefined) {
-    throw new Error("Parent change operation message requires a status");
-  }
-  const status: TimelineRowStatus = message.status;
-  return {
-    ...base,
-    kind: "system",
-    systemKind: "operation",
-    operationKind: "parent-change",
-    parentChange,
-    title: message.title,
-    detail: buildTimelineOperationDetail(message),
-    status,
-    completedAt: message.completedAt,
+    action: metadata.action,
+    previousParentThreadId: metadata.previousParentThreadId,
+    previousParentThreadTitle: metadata.previousParentThreadTitle,
+    nextParentThreadId: metadata.nextParentThreadId,
+    nextParentThreadTitle: metadata.nextParentThreadTitle,
   };
 }
 
@@ -274,51 +227,36 @@ function buildTimelineRowBase(
   };
 }
 
-function buildWorkflowWorkRow(
-  message: TimelineWorkflowMessage,
+function buildWorkflowWorkRows(
+  messages: readonly EventProjectionWorkflowMessage[],
   rowIdPrefix: string,
-): TimelineWorkflowWorkRow | null {
-  if (message.skipTranscript) {
-    return null;
-  }
-  return {
-    ...buildTimelineRowBase(message, rowIdPrefix),
-    kind: "work",
-    workKind: "workflow",
-    status: message.status,
-    itemId: message.itemId,
-    taskType: message.taskType,
-    workflowName: message.workflowName,
-    description: message.description,
-    model: message.model,
-    taskStatus: message.taskStatus,
-    workflow: message.workflow,
-    usage: message.usage,
-    summary: message.summary,
-    error: message.error,
-    completedAt: message.completedAt,
-    ...rowPresentation(message),
-  };
-}
-
-function isDelegationLifecycleChildRow(row: TimelineRow): boolean {
-  return (
-    row.kind === "work" &&
-    row.workKind === "workflow" &&
-    isBackgroundAgentTaskType(row.taskType)
-  );
-}
-
-function filterDelegationChildRows(childRows: TimelineRow[]): TimelineRow[] {
-  return childRows.filter((row) => !isDelegationLifecycleChildRow(row));
+): TimelineWorkflowWorkRow[] {
+  return messages
+    .filter((message) => !message.skipTranscript)
+    .map((message) => ({
+      ...buildTimelineRowBase(message, rowIdPrefix),
+      kind: "work",
+      workKind: "workflow",
+      status: message.status,
+      itemId: message.itemId,
+      taskType: message.taskType,
+      workflowName: message.workflowName,
+      description: message.description,
+      model: message.model,
+      taskStatus: message.taskStatus,
+      workflow: message.workflow,
+      usage: message.usage,
+      summary: message.summary,
+      error: message.error,
+      completedAt: message.completedAt,
+      ...rowPresentation(message),
+    }));
 }
 
 function toConversationAttachments(
-  attachments: Extract<EventProjectionMessage, { kind: "user" }>["attachments"],
+  attachments: EventProjectionUserMessage["attachments"],
 ): TimelineConversationAttachments | null {
-  if (!attachments) {
-    return null;
-  }
+  if (!attachments) return null;
   return {
     webImages: attachments.webImages,
     localImages: attachments.localImages,
@@ -347,11 +285,7 @@ function convertActivityIntent(
         path: intent.path,
       };
     case "list_files":
-      return {
-        type: "list_files",
-        command: intent.cmd,
-        path: intent.path,
-      };
+      return { type: "list_files", command: intent.cmd, path: intent.path };
     case "search":
       return {
         type: "search",
@@ -360,10 +294,7 @@ function convertActivityIntent(
         path: intent.path,
       };
     case "unknown":
-      return {
-        type: "unknown",
-        command: intent.cmd,
-      };
+      return { type: "unknown", command: intent.cmd };
     default:
       return assertNever(intent);
   }
@@ -398,28 +329,6 @@ function toTimelineFileChange(
   };
 }
 
-function formatProvisioningTranscriptEntryText(
-  entry: EventProjectionProvisioningTranscriptEntry,
-): string {
-  const durationMs =
-    typeof entry.metadata?.durationMs === "number"
-      ? entry.metadata.durationMs
-      : null;
-  if (
-    durationMs !== null &&
-    (entry.status === "completed" || entry.status === "failed")
-  ) {
-    return `${entry.text} (${durationToCompactString(durationMs)})`;
-  }
-  return entry.text;
-}
-
-function formatProvisioningTranscriptEntryLines(
-  entry: EventProjectionProvisioningTranscriptEntry,
-): string[] {
-  return readTerminalOutputLines(formatProvisioningTranscriptEntryText(entry));
-}
-
 function provisioningTerminalDetailLine(
   message: TimelineOperationMessage,
 ): string | null {
@@ -432,12 +341,8 @@ function provisioningTerminalDetailLine(
   ) {
     return null;
   }
-
   const elapsedMs = message.createdAt - message.startedAt;
-  if (elapsedMs <= 1_000) {
-    return null;
-  }
-
+  if (elapsedMs <= 1_000) return null;
   const label =
     message.status === "completed"
       ? "Provisioned thread"
@@ -450,57 +355,82 @@ function provisioningTerminalDetailLine(
 function buildTimelineOperationDetail(
   message: TimelineOperationMessage,
 ): string | null {
-  if (message.opType !== "thread-provisioning") {
-    return message.detail ?? null;
-  }
-
-  const transcriptLines =
-    message.provisioning?.transcript?.flatMap(
-      formatProvisioningTranscriptEntryLines,
-    ) ?? [];
+  if (message.opType !== "thread-provisioning") return message.detail ?? null;
+  const lines =
+    message.provisioning?.transcript?.flatMap((entry) => {
+      const durationMs = entry.metadata?.durationMs;
+      return readTerminalOutputLines(
+        typeof durationMs === "number" &&
+          (entry.status === "completed" || entry.status === "failed")
+          ? `${entry.text} (${durationToCompactString(durationMs)})`
+          : entry.text,
+      );
+    }) ?? [];
   const terminalLine = provisioningTerminalDetailLine(message);
-  const detailLines = (message.detail ?? "")
-    .split(/\n|•/u)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const lines = [...transcriptLines];
-  if (terminalLine) {
-    lines.push(terminalLine);
-  }
-  for (const line of detailLines) {
-    if (!lines.includes(line)) {
-      lines.push(line);
-    }
+  if (terminalLine) lines.push(terminalLine);
+  for (const part of (message.detail ?? "").split(/\n|•/u)) {
+    const line = part.trim();
+    if (line.length > 0 && !lines.includes(line)) lines.push(line);
   }
   return lines.length > 0 ? lines.join("\n") : null;
+}
+
+function userConversationRow(
+  message: EventProjectionUserMessage,
+  rowIdPrefix: string,
+): TimelineUserConversationRow {
+  return {
+    ...buildTimelineRowBase(message, rowIdPrefix),
+    kind: "conversation",
+    role: "user",
+    text: message.text,
+    mentions: message.mentions,
+    attachments: toConversationAttachments(message.attachments),
+    initiator: message.initiator,
+    senderThreadId: message.senderThreadId,
+    systemMessageKind: message.systemMessageKind,
+    systemMessageSubject: message.systemMessageSubject,
+    turnRequest: message.turnRequest,
+  };
+}
+
+function itemActivityRow<TWorkKind extends string, TFields extends object>(
+  message: EventProjectionMessage & {
+    callId: string;
+    completedAt: number | null;
+    presentation?: ThreadEventItemPresentation;
+    status: TimelineRowStatus;
+  },
+  rowIdPrefix: string,
+  workKind: TWorkKind,
+  fields: TFields,
+) {
+  return {
+    ...buildTimelineRowBase(message, rowIdPrefix),
+    kind: "work" as const,
+    workKind,
+    status: message.status,
+    callId: message.callId,
+    ...fields,
+    completedAt: message.completedAt,
+    ...rowPresentation(message),
+  };
 }
 
 function convertMessage(
   message: EventProjectionMessage,
   options: BuildTimelineRowsOptions,
 ): TimelineSourceRow[] {
+  const base = buildTimelineRowBase(message, options.rowIdPrefix);
   switch (message.kind) {
     case "user":
-      if (isSuppressedSystemMessage(message)) return [];
-      return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "conversation",
-          role: "user",
-          text: message.text,
-          mentions: message.mentions,
-          attachments: toConversationAttachments(message.attachments),
-          initiator: message.initiator,
-          senderThreadId: message.senderThreadId,
-          systemMessageKind: message.systemMessageKind,
-          systemMessageSubject: message.systemMessageSubject,
-          turnRequest: message.turnRequest,
-        },
-      ];
+      return isSuppressedSystemMessage(message)
+        ? []
+        : [userConversationRow(message, options.rowIdPrefix)];
     case "assistant-text":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "conversation",
           role: "assistant",
           text: message.text,
@@ -511,7 +441,7 @@ function convertMessage(
     case "command":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "command",
           status: message.status,
@@ -530,7 +460,7 @@ function convertMessage(
     case "tool-call":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "tool",
           status: message.status,
@@ -547,7 +477,7 @@ function convertMessage(
       if (message.changes.length === 0 && message.approvalStatus !== null) {
         return [
           {
-            ...buildTimelineRowBase(message, options.rowIdPrefix),
+            ...base,
             kind: "work",
             workKind: "approval",
             status: message.status,
@@ -555,134 +485,79 @@ function convertMessage(
             approvalKind: "file-edit",
             lifecycle:
               message.approvalStatus === "denied" ? "denied" : "waiting",
-            target: {
-              itemId: message.callId,
-              toolName: null,
-            },
+            target: { itemId: message.callId, toolName: null },
           },
         ];
       }
-      return message.changes.map((change, index) => {
-        const base = buildTimelineRowBase(message, options.rowIdPrefix);
-        return {
-          ...base,
-          id: `${base.id}:file-change:${index}`,
-          kind: "work",
-          workKind: "file-change",
-          status: message.status,
-          callId: message.callId,
-          change: toTimelineFileChange(change, options.workspaceRoot),
-          stdout: message.stdout ?? null,
-          stderr: message.stderr ?? null,
-          approvalStatus: message.approvalStatus,
-          ...rowPresentation(message),
-        };
-      });
+      return message.changes.map((change, index) => ({
+        ...base,
+        id: `${base.id}:file-change:${index}`,
+        kind: "work",
+        workKind: "file-change",
+        status: message.status,
+        callId: message.callId,
+        change: toTimelineFileChange(change, options.workspaceRoot),
+        stdout: message.stdout ?? null,
+        stderr: message.stderr ?? null,
+        approvalStatus: message.approvalStatus,
+        ...rowPresentation(message),
+      }));
     case "web-search":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "web-search",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "web-search", {
           queries: message.queries,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "web-fetch":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "web-fetch",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "web-fetch", {
           url: message.url,
           prompt: message.prompt,
           pattern: message.pattern,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "image-view":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "image-view",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "image-view", {
           path: message.path,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "image-generation":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "image-generation",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "image-generation", {
           prompt: message.prompt,
           path: message.path,
           error: message.error,
           transparentBackground: message.transparentBackground,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "file-read":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "file-read",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "file-read", {
           path: message.path,
           cmd: message.cmd,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "search":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "search",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "search", {
           mode: message.mode,
           query: message.query,
           path: message.path,
           cmd: message.cmd,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "plan-steps":
       return [
-        {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
-          kind: "work",
-          workKind: "plan-steps",
-          status: message.status,
-          callId: message.callId,
+        itemActivityRow(message, options.rowIdPrefix, "plan-steps", {
           steps: message.steps,
           explanation: message.explanation,
-          completedAt: message.completedAt,
-          ...rowPresentation(message),
-        },
+        }),
       ];
     case "extension":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "extension",
           status: message.status,
@@ -693,8 +568,7 @@ function convertMessage(
           presentation: message.presentation,
         },
       ];
-    case "delegation": {
-      const base = buildTimelineRowBase(message, options.rowIdPrefix);
+    case "delegation":
       return [
         {
           ...base,
@@ -709,26 +583,27 @@ function convertMessage(
           description: message.description ?? null,
           output: message.output,
           completedAt: message.completedAt,
-          childRows: filterDelegationChildRows(
-            buildTimelineRows(message.childProjection, {
-              completedTurnDisplay: options.completedTurnDisplay,
-              includeNestedRows: true,
-              rowIdPrefix: `${base.id}:child:`,
-              workspaceRoot: options.workspaceRoot,
-            }),
+          childRows: buildTimelineRows(message.childProjection, {
+            ...options,
+            includeNestedRows: true,
+            rowIdPrefix: `${base.id}:child:`,
+          }).filter(
+            (row) =>
+              !(
+                row.kind === "work" &&
+                row.workKind === "workflow" &&
+                isBackgroundAgentTaskType(row.taskType)
+              ),
           ),
           ...rowPresentation(message),
         },
       ];
-    }
-    case "workflow": {
-      const row = buildWorkflowWorkRow(message, options.rowIdPrefix);
-      return row ? [row] : [];
-    }
+    case "workflow":
+      return buildWorkflowWorkRows([message], options.rowIdPrefix);
     case "permission-grant-lifecycle":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "approval",
           status: message.status,
@@ -743,7 +618,7 @@ function convertMessage(
     case "user-question-lifecycle":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "question",
           status: message.status,
@@ -757,7 +632,7 @@ function convertMessage(
     case "plugin-form-lifecycle":
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "work",
           workKind: "form",
           status: message.status,
@@ -773,31 +648,42 @@ function convertMessage(
       ];
     case "operation": {
       const parentChange = parentChangeForMessage(message);
-      const operationKind = operationKindForMessage(message, parentChange);
-      const base = buildTimelineRowBase(message, options.rowIdPrefix);
-      if (operationKind === "parent-change") {
-        return parentChange !== null
-          ? [
-              buildParentChangeSystemRow({
-                base,
-                parentChange,
-                message,
-              }),
-            ]
-          : [
-              buildGenericOperationSystemRow({
-                base,
-                message,
-                operationKind: "generic",
-              }),
-            ];
+      const detail = buildTimelineOperationDetail(message);
+      if (parentChange !== null) {
+        if (message.status === undefined) {
+          throw new Error("Parent change operation message requires a status");
+        }
+        return [
+          {
+            ...base,
+            kind: "system",
+            systemKind: "operation",
+            operationKind: "parent-change",
+            parentChange,
+            title: message.title,
+            detail,
+            status: message.status,
+            completedAt: message.completedAt,
+          },
+        ];
       }
+      const operationKind =
+        message.opType === "provider-environment" ||
+        message.opType === "operation"
+          ? "generic"
+          : message.opType;
       return [
-        buildGenericOperationSystemRow({
-          base,
-          message,
+        {
+          ...base,
+          kind: "system",
+          systemKind: "operation",
           operationKind,
-        }),
+          ...(operationKind === "reasoning" ? { reasoningId: message.id } : {}),
+          title: message.title,
+          detail,
+          status: message.status ?? null,
+          completedAt: message.completedAt,
+        },
       ];
     }
     case "error": {
@@ -805,7 +691,7 @@ function convertMessage(
       const isReconnect = message.willRetry === true;
       return [
         {
-          ...buildTimelineRowBase(message, options.rowIdPrefix),
+          ...base,
           kind: "system",
           systemKind: isReconnect ? "reconnect" : "error",
           title: errorDisplay.title,
@@ -829,32 +715,10 @@ function isSuppressedSystemMessage(
   );
 }
 
-function convertSteerMessage(
-  message: EventProjectionMessage,
-  rowIdPrefix: string,
-): TimelineUserConversationRow {
-  if (message.kind !== "user" || message.turnRequest.kind !== "steer") {
-    throw new Error(`Expected steer message, received ${message.kind}`);
-  }
-  return {
-    ...buildTimelineRowBase(message, rowIdPrefix),
-    kind: "conversation",
-    role: "user",
-    text: message.text,
-    mentions: message.mentions,
-    attachments: toConversationAttachments(message.attachments),
-    initiator: message.initiator,
-    senderThreadId: message.senderThreadId,
-    systemMessageKind: message.systemMessageKind,
-    systemMessageSubject: message.systemMessageSubject,
-    turnRequest: message.turnRequest,
-  };
-}
-
 function buildPendingSteerRowsFromEvents(
   acceptedClientRequestContext: AcceptedClientRequestContext,
   events: ThreadEventWithMeta[],
-  options: ThreadTimelineFromEventsBaseOptions,
+  options: ThreadTimelineFromEventsOptions,
 ): TimelineUserConversationRow[] {
   const orderedEvents = getOrderedThreadEvents(events);
   const acceptedClientRequestById = buildAcceptedClientRequestById({
@@ -870,143 +734,42 @@ function buildPendingSteerRowsFromEvents(
       event.type === "client/turn/rejected" ? [event.requestId] : [],
     ),
   );
-  const legacyRejectedRequestMetaById = new Map<
-    string,
-    ThreadEventWithMeta["meta"]
-  >();
-  const unresolvedSteerRequestIds = new Set<string>();
-  const unresolvedSteerRequestOrder: string[] = [];
-  let explicitRejectionNeedsCompanionError = false;
-  for (const { event, meta } of orderedEvents) {
-    if (
-      event.type === "client/turn/requested" &&
-      (event.target.kind === "auto" || event.target.kind === "steer") &&
-      event.target.expectedTurnId !== null
-    ) {
-      unresolvedSteerRequestIds.add(event.requestId);
-      unresolvedSteerRequestOrder.push(event.requestId);
-      explicitRejectionNeedsCompanionError = false;
-      continue;
-    }
-    if (event.type === "turn/input/accepted") {
-      unresolvedSteerRequestIds.delete(event.clientRequestId);
-      explicitRejectionNeedsCompanionError = false;
-      continue;
-    }
-    if (event.type === "client/turn/rejected") {
-      unresolvedSteerRequestIds.delete(event.requestId);
-      explicitRejectionNeedsCompanionError = true;
-      continue;
-    }
-    if (
-      event.type === "system/error" &&
-      event.code === "thread_command_failed"
-    ) {
-      if (explicitRejectionNeedsCompanionError) {
-        explicitRejectionNeedsCompanionError = false;
-        continue;
-      }
-      let requestId = unresolvedSteerRequestOrder.pop();
-      while (requestId && !unresolvedSteerRequestIds.delete(requestId)) {
-        requestId = unresolvedSteerRequestOrder.pop();
-      }
-      if (requestId) legacyRejectedRequestMetaById.set(requestId, meta);
-      continue;
-    }
-    explicitRejectionNeedsCompanionError = false;
-  }
   const pendingSteerRows: TimelineUserConversationRow[] = [];
-
   for (const { event, meta } of orderedEvents) {
     if (
-      event.type === "client/turn/requested" &&
+      event.type !== "client/turn/requested" ||
       inWindowRejectedClientRequestIds.has(event.requestId)
     ) {
       continue;
     }
-    const acceptedClientRequest =
-      event.type === "client/turn/requested"
-        ? acceptedClientRequestById.get(event.requestId)
-        : undefined;
-    const legacyRejectedMeta =
-      event.type === "client/turn/requested"
-        ? legacyRejectedRequestMetaById.get(event.requestId)
-        : undefined;
-    const rejectedMeta =
-      event.type === "client/turn/requested"
-        ? rejectedClientRequestById.get(event.requestId)
-        : undefined;
-    if (
-      event.type === "client/turn/requested" &&
-      acceptedClientRequest === undefined &&
-      rejectedMeta
-    ) {
-      pendingSteerRows.push(
-        ...parseRejectedUsersFromClientRequest({
-          decoded: event,
-          meta: rejectedMeta,
-          options,
-        })
-          .filter((rejectedSteer) => !isSuppressedSystemMessage(rejectedSteer))
-          .map((rejectedSteer) =>
-            convertSteerMessage(rejectedSteer, ROOT_TIMELINE_ROW_ID_PREFIX),
-          ),
-      );
-      continue;
-    }
-    if (
-      event.type === "client/turn/requested" &&
-      acceptedClientRequest === undefined &&
-      legacyRejectedMeta
-    ) {
-      pendingSteerRows.push(
-        ...parseRejectedUsersFromClientRequest({
-          decoded: event,
-          meta: legacyRejectedMeta,
-          options,
-        })
-          .filter((rejectedSteer) => !isSuppressedSystemMessage(rejectedSteer))
-          .map((rejectedSteer) =>
-            convertSteerMessage(rejectedSteer, ROOT_TIMELINE_ROW_ID_PREFIX),
-          ),
-      );
-      continue;
-    }
-    const pendingSteers = parsePendingSteersFromClientRequest({
-      acceptedClientRequest,
-      decoded: event,
-      meta,
-      options,
-    });
-    if (pendingSteers.length === 0) {
-      continue;
-    }
-    pendingSteerRows.push(
-      ...pendingSteers
-        .filter((pendingSteer) => !isSuppressedSystemMessage(pendingSteer))
-        .map((pendingSteer) =>
-          convertSteerMessage(pendingSteer, ROOT_TIMELINE_ROW_ID_PREFIX),
-        ),
+    const acceptedClientRequest = acceptedClientRequestById.get(
+      event.requestId,
     );
+    const rejectedMeta = rejectedClientRequestById.get(event.requestId);
+    const steers =
+      acceptedClientRequest === undefined && rejectedMeta
+        ? parseRejectedUsersFromClientRequest({
+            decoded: event,
+            meta: rejectedMeta,
+            options,
+          })
+        : parsePendingSteersFromClientRequest({
+            acceptedClientRequest,
+            decoded: event,
+            meta,
+            options,
+          });
+    for (const steer of steers) {
+      if (isSuppressedSystemMessage(steer)) continue;
+      if (steer.turnRequest.kind !== "steer") {
+        throw new Error(`Expected steer message, received ${steer.kind}`);
+      }
+      pendingSteerRows.push(
+        userConversationRow(steer, ROOT_TIMELINE_ROW_ID_PREFIX),
+      );
+    }
   }
-
   return pendingSteerRows;
-}
-
-function isReconnectSystemRow(row: TimelineRow): boolean {
-  return row.kind === "system" && row.systemKind === "reconnect";
-}
-
-function isErrorSystemRow(row: TimelineRow): boolean {
-  return row.kind === "system" && row.systemKind === "error";
-}
-
-function isThreadInterruptedOperationRow(row: TimelineRow): boolean {
-  return (
-    row.kind === "system" &&
-    row.systemKind === "operation" &&
-    row.operationKind === "thread-interrupted"
-  );
 }
 
 function isCompanionThreadInterruptedRow(
@@ -1014,8 +777,11 @@ function isCompanionThreadInterruptedRow(
   row: TimelineRow,
 ): boolean {
   return (
-    isErrorSystemRow(previous) &&
-    isThreadInterruptedOperationRow(row) &&
+    previous.kind === "system" &&
+    previous.systemKind === "error" &&
+    row.kind === "system" &&
+    row.systemKind === "operation" &&
+    row.operationKind === "thread-interrupted" &&
     previous.threadId === row.threadId &&
     previous.createdAt === row.createdAt &&
     previous.startedAt === row.startedAt &&
@@ -1023,104 +789,48 @@ function isCompanionThreadInterruptedRow(
   );
 }
 
+function isReconnectSystemRow(row: TimelineRow | undefined): boolean {
+  return row?.kind === "system" && row.systemKind === "reconnect";
+}
+
 function appendRows(target: TimelineRow[], rows: readonly TimelineRow[]): void {
   for (const row of rows) {
     const previous = target[target.length - 1];
-    if (
-      previous &&
-      isReconnectSystemRow(previous) &&
-      isReconnectSystemRow(row)
-    ) {
+    if (isReconnectSystemRow(previous) && isReconnectSystemRow(row)) {
       target[target.length - 1] = row;
-      continue;
-    }
-    if (previous && isCompanionThreadInterruptedRow(previous, row)) {
-      continue;
-    }
-    target.push(row);
-  }
-}
-
-function isRootOwnedHumanSteerRow(row: TimelineRow): boolean {
-  return (
-    row.kind === "conversation" &&
-    row.role === "user" &&
-    row.initiator === "user" &&
-    row.turnRequest?.kind === "steer"
-  );
-}
-
-function collectExternalUserBoundarySeqs(
-  projection: EventProjection,
-): number[] {
-  const boundarySeqs = new Set<number>();
-  for (const entry of projection.entries) {
-    if (entry.kind !== "turn") {
-      continue;
-    }
-    for (const seq of entry.turn.externalUserBoundarySeqs ?? []) {
-      boundarySeqs.add(seq);
+    } else if (!previous || !isCompanionThreadInterruptedRow(previous, row)) {
+      target.push(row);
     }
   }
-  return [...boundarySeqs].sort((left, right) => left - right);
-}
-
-function compareTimelineRowsBySource(
-  left: TimelineRow,
-  right: TimelineRow,
-): number {
-  if (left.sourceSeqStart !== right.sourceSeqStart) {
-    return left.sourceSeqStart - right.sourceSeqStart;
-  }
-  if (left.sourceSeqEnd !== right.sourceSeqEnd) {
-    return left.sourceSeqEnd - right.sourceSeqEnd;
-  }
-  return 0;
 }
 
 function orderRowsAfterExternalUserBoundary(
   rows: TimelineRow[],
-  boundarySeqs: readonly number[],
+  projection: EventProjection,
 ): TimelineRow[] {
-  const firstBoundarySeq = boundarySeqs[0];
-  if (firstBoundarySeq === undefined) {
-    return rows;
-  }
-
-  const suffixStartIndex = rows.findIndex(
-    (row) => row.sourceSeqStart >= firstBoundarySeq,
+  const boundarySeqs = projection.entries.flatMap((entry) =>
+    entry.kind === "turn" ? (entry.turn.externalUserBoundarySeqs ?? []) : [],
   );
-  if (suffixStartIndex === -1) {
-    return rows;
-  }
-
-  const suffix = rows.slice(suffixStartIndex);
-  const orderedSuffix = suffix
+  const firstBoundarySeq = boundarySeqs.reduce(
+    (first, seq) => Math.min(first, seq),
+    Infinity,
+  );
+  const suffixStartIndex =
+    boundarySeqs.length === 0
+      ? -1
+      : rows.findIndex((row) => row.sourceSeqStart >= firstBoundarySeq);
+  if (suffixStartIndex === -1) return rows;
+  const orderedSuffix = rows
+    .slice(suffixStartIndex)
     .map((row, index) => ({ index, row }))
-    .sort((left, right) => {
-      const sourceOrder = compareTimelineRowsBySource(left.row, right.row);
-      return sourceOrder === 0 ? left.index - right.index : sourceOrder;
-    })
+    .sort(
+      (left, right) =>
+        left.row.sourceSeqStart - right.row.sourceSeqStart ||
+        left.row.sourceSeqEnd - right.row.sourceSeqEnd ||
+        left.index - right.index,
+    )
     .map(({ row }) => row);
-
   return [...rows.slice(0, suffixStartIndex), ...orderedSuffix];
-}
-
-function materializeTimelinePlan(
-  item: TimelineRowPlan,
-  options: BuildTimelineRowsOptions,
-): TimelineRow[] {
-  if (item.kind === "message") return convertMessage(item.message, options);
-  return [
-    options.includeNestedRows
-      ? {
-          ...item.row,
-          children: item.messages.flatMap((message) =>
-            convertMessage(message, options),
-          ),
-        }
-      : item.row,
-  ];
 }
 
 function buildTimelineRows(
@@ -1133,80 +843,79 @@ function buildTimelineRows(
     options.completedTurnDisplay,
     options.rowIdPrefix,
   )) {
-    appendRows(rows, materializeTimelinePlan(item, options));
+    if (item.kind === "message") {
+      appendRows(rows, convertMessage(item.message, options));
+    } else if (options.includeNestedRows) {
+      const children = item.messages.flatMap((message) =>
+        convertMessage(message, options),
+      );
+      appendRows(rows, [{ ...item.row, children }]);
+    } else {
+      appendRows(rows, [item.row]);
+    }
   }
-
-  return orderRowsAfterExternalUserBoundary(
-    rows,
-    collectExternalUserBoundarySeqs(projection),
-  );
+  return orderRowsAfterExternalUserBoundary(rows, projection);
 }
 
-export function buildThreadTimelineFromEvents(
-  args: BuildThreadTimelineFromEventsArgs,
-): ThreadTimelineFromEventsResult {
+export function buildThreadTimelineFromEvents(args: {
+  acceptedClientRequestContext: AcceptedClientRequestContext;
+  contextWindowEvents: ThreadEventWithMeta[];
+  headStateEvents?: ThreadEventWithMeta[];
+  events: ThreadEventWithMeta[];
+  options: ThreadTimelineFromEventsOptions;
+}): ThreadTimelineFromEventsResult {
+  const { events, options } = args;
   const stateEvents = args.headStateEvents?.length
-    ? getOrderedThreadEvents([...args.events, ...args.headStateEvents])
-    : args.events;
-  const projectionOptions = {
+    ? getOrderedThreadEvents([...events, ...args.headStateEvents])
+    : events;
+  const projection = buildEventProjection(events, {
     acceptedClientRequestContext: args.acceptedClientRequestContext,
-    includeDiagnosticOperations: args.options.includeDiagnosticOperations,
-    providerDisplayName: args.options.providerDisplayName,
-    threadStatus: args.options.threadStatus,
-    threadName: args.options.threadName,
+    includeDiagnosticOperations: options.includeDiagnosticOperations,
+    providerDisplayName: options.providerDisplayName,
+    threadStatus: options.threadStatus,
+    threadName: options.threadName,
     turnMessageDetail: "full",
-  } satisfies Parameters<typeof buildEventProjection>[1];
-  const projection = buildEventProjection(args.events, projectionOptions);
-
+  });
   const rows = [
     ...buildTimelineRows(projection, {
-      completedTurnDisplay: args.options.completedTurnDisplay,
-      includeNestedRows: args.options.includeNestedRows,
+      completedTurnDisplay: options.completedTurnDisplay,
+      includeNestedRows: options.includeNestedRows,
       rowIdPrefix: ROOT_TIMELINE_ROW_ID_PREFIX,
-      workspaceRoot: args.options.workspaceRoot,
+      workspaceRoot: options.workspaceRoot,
     }),
     ...buildPendingSteerRowsFromEvents(
       args.acceptedClientRequestContext,
-      args.events,
-      args.options,
+      events,
+      options,
     ),
   ];
-
+  const latest = options.isLatestPage;
   return {
-    activePromptMode: !args.options.isLatestPage
-      ? null
-      : extractThreadTimelineActivePromptMode({
-          events: args.events,
-          planCommand: args.options.planCommand,
-          providerId: args.options.providerId,
-          threadStatus: args.options.threadStatus,
-        }),
+    activePromptMode: latest
+      ? extractThreadTimelineActivePromptMode({
+          events,
+          planCommand: options.planCommand,
+          providerId: options.providerId,
+          threadStatus: options.threadStatus,
+        })
+      : null,
     activeThinking: projection.state.activeThinking,
-    activeWorkflows: projection.state.activeWorkflows.flatMap((message) => {
-      const row = buildWorkflowWorkRow(message, ROOT_TIMELINE_ROW_ID_PREFIX);
-      return row ? [row] : [];
-    }),
-    activeBackgroundCommands: projection.state.activeBackgroundCommands.flatMap(
-      (message) => {
-        const row = buildWorkflowWorkRow(message, ROOT_TIMELINE_ROW_ID_PREFIX);
-        return row ? [row] : [];
-      },
+    activeWorkflows: buildWorkflowWorkRows(
+      projection.state.activeWorkflows,
+      ROOT_TIMELINE_ROW_ID_PREFIX,
+    ),
+    activeBackgroundCommands: buildWorkflowWorkRows(
+      projection.state.activeBackgroundCommands,
+      ROOT_TIMELINE_ROW_ID_PREFIX,
     ),
     contextWindowUsage: extractThreadContextWindowUsage(
       args.contextWindowEvents,
     ),
-    goal: !args.options.isLatestPage
-      ? null
-      : extractThreadTimelineGoal(stateEvents),
-    modelFallback: !args.options.isLatestPage
-      ? null
-      : extractThreadTimelineModelFallback(args.events),
-    pendingTodos: !args.options.isLatestPage
-      ? null
-      : extractThreadTimelinePendingTodos(
-          args.options.threadStatus,
-          stateEvents,
-        ),
+    goal: latest ? extractThreadTimelineGoal(stateEvents) : null,
+    modelFallback: latest ? extractThreadTimelineModelFallback(events) : null,
+    pendingTodos: latest
+      ? extractThreadTimelinePendingTodos(options.threadStatus, stateEvents)
+      : null,
     rows,
   };
 }
@@ -1233,9 +942,21 @@ function findTurnSummaryStartingAt(
   return match;
 }
 
-export function buildThreadTimelineTurnDetailsFromEvents(
-  args: BuildThreadTimelineTurnDetailsFromEventsArgs,
-): ThreadTimelineTurnDetailsFromEventsResult {
+export function buildThreadTimelineTurnDetailsFromEvents(args: {
+  events: ThreadEventWithMeta[];
+  options: Pick<
+    ThreadTimelineFromEventsOptions,
+    | "completedTurnDisplay"
+    | "includeDiagnosticOperations"
+    | "providerDisplayName"
+    | "threadStatus"
+    | "threadName"
+    | "workspaceRoot"
+  > & { sourceSeqStart: number; turnId: string };
+}):
+  | { kind: "matched"; rows: TimelineRow[] }
+  | { kind: "missing-match" }
+  | { kind: "ungrouped"; rows: TimelineRow[] } {
   const projection = buildEventProjectionEntries(args.events, {
     includeDiagnosticOperations: args.options.includeDiagnosticOperations,
     providerDisplayName: args.options.providerDisplayName,
@@ -1273,7 +994,13 @@ export function buildThreadTimelineTurnDetailsFromEvents(
   return {
     kind: "ungrouped",
     rows: buildTimelineRows(projection, options).filter(
-      (row) => !isRootOwnedHumanSteerRow(row),
+      (row) =>
+        !(
+          row.kind === "conversation" &&
+          row.role === "user" &&
+          row.initiator === "user" &&
+          row.turnRequest?.kind === "steer"
+        ),
     ),
   };
 }

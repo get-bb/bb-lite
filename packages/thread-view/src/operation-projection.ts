@@ -1,39 +1,35 @@
-import type {
-  EventProjectionApprovalLifecycleStatus,
-  EventProjectionFileEditChange,
-  EventProjectionFileEditMessage,
-  EventProjectionMessage,
-  EventProjectionOperationMessage,
-  EventProjectionPermissionGrantLifecycleMessage,
-  EventProjectionUserQuestionLifecycleMessage,
-  EventProjectionPluginFormLifecycleMessage,
+import {
+  type EventProjectionFileEditChange,
+  type EventProjectionFileEditMessage,
+  type EventProjectionMessage,
+  type EventProjectionOperationMessage,
+  type EventProjectionPermissionGrantLifecycleMessage,
+  type EventProjectionUserQuestionLifecycleMessage,
+  type EventProjectionPluginFormLifecycleMessage,
+  type EventMeta,
+  extendMessageBounds,
+  haveCompatibleEventProjectionMessageScope,
+  eventProjectionMessageThreadScopeFields,
+  eventProjectionMessageTurnScopeFields,
 } from "./event-projection-types.js";
-import type { CompactionLifecycleEvent } from "./compaction-lifecycle.js";
-import type { EventMeta } from "./event-decode.js";
-import type { FileEditPartial } from "./file-edit-parsing.js";
-import { messageId } from "./format-helpers.js";
+import type {
+  CompactionLifecycleEvent,
+  FileEditPartial,
+} from "./item-lifecycle.js";
+import { messageId } from "./timeline-format.js";
 import {
   mergeProvisioningMetadata,
   provisioningKey,
   provisioningTitleForStatus,
-} from "./provisioning-helpers.js";
-import {
-  applyApprovalStatusDelta,
-  buildApprovalStatusDelta,
-} from "./tool-activity-projection.js";
-import {
-  haveCompatibleEventProjectionMessageScope,
-  eventProjectionMessageThreadScopeFields,
-  eventProjectionMessageTurnScopeFields,
-} from "./message-scope.js";
+} from "./parse-operation-message.js";
+import { mergeApprovalStatus } from "./tool-activity-projection.js";
 import {
   appendVisibleTextBuffer,
   createVisibleTextBuffer,
   flushVisibleTextBuffer,
   getVisibleTextBufferText,
-  setVisibleTextBuffer,
   type VisibleTextBuffer,
-} from "./visible-text-buffer.js";
+} from "./text-projection.js";
 
 export interface OperationProjectionState {
   messages: EventProjectionMessage[];
@@ -74,110 +70,122 @@ export function createOperationProjectionState(
   };
 }
 
-export type CompactionTurnFinalizationStatus = Extract<
-  EventProjectionOperationMessage["status"],
-  "completed" | "error" | "interrupted"
+export type CompactionTurnFinalizationStatus = Exclude<
+  LifecycleStatus,
+  "pending"
 >;
 
-interface FinalizeOpenCompactionsForTurnArgs {
-  state: OperationProjectionState;
-  meta: EventMeta;
-  threadId: string;
-  turnId: string | undefined;
-  status: CompactionTurnFinalizationStatus;
-  detail: string | undefined;
-}
-
-interface InterruptOpenCompactionsArgs {
-  state: OperationProjectionState;
-  meta: EventMeta;
-  threadId: string;
-}
-
-type LifecycleStatus = Extract<
-  EventProjectionOperationMessage["status"],
-  "pending" | "completed" | "error" | "interrupted"
->;
+type LifecycleStatus = NonNullable<EventProjectionOperationMessage["status"]>;
 
 type LifecycleEventProjectionMessage =
   | EventProjectionOperationMessage
   | EventProjectionPermissionGrantLifecycleMessage
   | EventProjectionUserQuestionLifecycleMessage
   | EventProjectionPluginFormLifecycleMessage;
-type EventProjectionMessageScopeFields = ReturnType<
-  | typeof eventProjectionMessageThreadScopeFields
-  | typeof eventProjectionMessageTurnScopeFields
->;
 
-interface OperationDetailMergeArgs {
-  existing: string | undefined;
-  incoming: string | undefined;
-}
-
-interface UpsertKeyedLifecycleMessageArgs<
-  TMessage extends LifecycleEventProjectionMessage,
-> {
-  index: Map<string, TMessage>;
-  incoming: TMessage;
-  key: string | null | undefined;
-  mergeExisting: (existing: TMessage, incoming: TMessage) => void;
-  state: OperationProjectionState;
-}
-
-function isTerminalLifecycleStatus(status: LifecycleStatus): boolean {
-  return status !== "pending";
-}
+type EventProjectionMessageScopeFields = Pick<EventProjectionMessage, "scope">;
 
 function mergeLifecycleStatus(
   existing: LifecycleStatus,
   incoming: LifecycleStatus,
 ): LifecycleStatus {
-  if (isTerminalLifecycleStatus(existing)) {
-    return existing;
-  }
-  return incoming;
+  return existing !== "pending" ? existing : incoming;
 }
 
 function mergeOperationDetail(
-  args: OperationDetailMergeArgs,
+  existing: string | undefined,
+  incoming: string | undefined,
 ): string | undefined {
-  const details = [args.existing, args.incoming].filter(
-    (value): value is string => Boolean(value),
+  const details = [existing, incoming].filter((value): value is string =>
+    Boolean(value),
   );
-  if (details.length === 0) {
-    return undefined;
-  }
+  if (details.length === 0) return undefined;
   return [...new Set(details)].join("\n");
 }
 
 function upsertKeyedLifecycleMessage<
   TMessage extends LifecycleEventProjectionMessage,
->(args: UpsertKeyedLifecycleMessageArgs<TMessage>): void {
-  if (!args.key) {
-    args.state.messages.push(args.incoming);
-    return;
-  }
-
-  const scopedKey = lifecycleMessageKey(args.key, args.incoming);
-  const existing = args.index.get(scopedKey);
+>(
+  state: OperationProjectionState,
+  index: Map<string, TMessage>,
+  key: string | null | undefined,
+  incoming: TMessage,
+  mergeExisting: (existing: TMessage, incoming: TMessage) => void,
+): void {
+  const scopedKey =
+    incoming.scope.kind === "thread"
+      ? `thread:${key}`
+      : `turn:${incoming.scope.turnId}:${key}`;
+  const existing = key ? index.get(scopedKey) : undefined;
   if (!existing) {
-    args.index.set(scopedKey, args.incoming);
-    args.state.messages.push(args.incoming);
+    if (key) index.set(scopedKey, incoming);
+    state.messages.push(incoming);
     return;
   }
-
-  updateMessageBounds(existing, args.incoming);
-  args.mergeExisting(existing, args.incoming);
+  if (!haveCompatibleEventProjectionMessageScope(existing, incoming)) {
+    throw new Error(
+      `Cannot merge ${existing.kind} messages with different scopes`,
+    );
+  }
+  existing.sourceSeqStart = Math.min(
+    existing.sourceSeqStart,
+    incoming.sourceSeqStart,
+  );
+  extendMessageBounds(existing, incoming.sourceSeqEnd, incoming.createdAt);
+  existing.startedAt = Math.min(
+    existing.startedAt ?? existing.createdAt,
+    incoming.startedAt ?? incoming.createdAt,
+  );
+  mergeExisting(existing, incoming);
 }
 
-function lifecycleMessageKey(
-  key: string,
-  message: LifecycleEventProjectionMessage,
-): string {
-  if (message.scope.kind === "thread") {
-    return `thread:${key}`;
+export function upsertLifecycleMessage(
+  state: OperationProjectionState,
+  incoming: LifecycleEventProjectionMessage,
+): void {
+  if (incoming.kind === "permission-grant-lifecycle") {
+    upsertKeyedLifecycleMessage(
+      state,
+      state.permissionGrantsByInteractionId,
+      incoming.interactionId,
+      incoming,
+      mergePermissionGrantLifecycleMessage,
+    );
+  } else if (incoming.kind === "user-question-lifecycle") {
+    upsertKeyedLifecycleMessage(
+      state,
+      state.userQuestionsByInteractionId,
+      incoming.interactionId,
+      incoming,
+      mergeUserQuestionLifecycleMessage,
+    );
+  } else if (incoming.kind === "plugin-form-lifecycle") {
+    upsertKeyedLifecycleMessage(
+      state,
+      state.pluginFormsByInteractionId,
+      incoming.interactionId,
+      incoming,
+      mergePluginFormLifecycleMessage,
+    );
+  } else if (incoming.opType === "thread-provisioning") {
+    upsertKeyedLifecycleMessage(
+      state,
+      state.provisioningOperationsByKey,
+      provisioningKey(incoming),
+      incoming,
+      mergeProvisioningOperation,
+    );
+  } else if (incoming.opType === "operation") {
+    upsertKeyedLifecycleMessage(
+      state,
+      state.threadOperationsById,
+      incoming.threadOperation?.operationId,
+      incoming,
+      mergeThreadOperationMessage,
+    );
+  } else {
+    state.messages.push(incoming);
   }
-  return `turn:${message.scope.turnId}:${key}`;
 }
 
 function mergeProvisioningOperation(
@@ -197,60 +205,7 @@ function mergeProvisioningOperation(
     existing.provisioning,
     incoming.provisioning,
   );
-  existing.detail = mergeOperationDetail({
-    existing: existing.detail,
-    incoming: incoming.detail,
-  });
-}
-
-export function upsertProvisioningOperation(
-  state: OperationProjectionState,
-  incoming: EventProjectionOperationMessage,
-): void {
-  upsertKeyedLifecycleMessage({
-    index: state.provisioningOperationsByKey,
-    incoming,
-    key: provisioningKey(incoming),
-    mergeExisting: mergeProvisioningOperation,
-    state,
-  });
-}
-
-function updateMessageBounds(
-  existing: LifecycleEventProjectionMessage,
-  incoming: LifecycleEventProjectionMessage,
-): void {
-  if (!haveCompatibleEventProjectionMessageScope(existing, incoming)) {
-    throw new Error(
-      `Cannot merge ${existing.kind} messages with different scopes`,
-    );
-  }
-  existing.sourceSeqStart = Math.min(
-    existing.sourceSeqStart,
-    incoming.sourceSeqStart,
-  );
-  existing.sourceSeqEnd = Math.max(
-    existing.sourceSeqEnd,
-    incoming.sourceSeqEnd,
-  );
-  existing.createdAt = Math.max(existing.createdAt, incoming.createdAt);
-  existing.startedAt = Math.min(
-    existing.startedAt ?? existing.createdAt,
-    incoming.startedAt ?? incoming.createdAt,
-  );
-}
-
-export function upsertThreadOperationMessage(
-  state: OperationProjectionState,
-  incoming: EventProjectionOperationMessage,
-): void {
-  upsertKeyedLifecycleMessage({
-    index: state.threadOperationsById,
-    incoming,
-    key: incoming.threadOperation?.operationId,
-    mergeExisting: mergeThreadOperationMessage,
-    state,
-  });
+  existing.detail = mergeOperationDetail(existing.detail, incoming.detail);
 }
 
 function mergeThreadOperationMessage(
@@ -270,60 +225,15 @@ function mergeThreadOperationMessage(
       existing.completedAt = incoming.completedAt ?? incoming.createdAt;
     }
   }
-  existing.detail = mergeOperationDetail({
-    existing: existing.detail,
-    incoming: incoming.detail,
-  });
-}
-
-export function upsertPermissionGrantLifecycleMessage(
-  state: OperationProjectionState,
-  incoming: EventProjectionPermissionGrantLifecycleMessage,
-): void {
-  upsertKeyedLifecycleMessage({
-    index: state.permissionGrantsByInteractionId,
-    incoming,
-    key: incoming.interactionId,
-    mergeExisting: mergePermissionGrantLifecycleMessage,
-    state,
-  });
-}
-
-export function upsertUserQuestionLifecycleMessage(
-  state: OperationProjectionState,
-  incoming: EventProjectionUserQuestionLifecycleMessage,
-): void {
-  upsertKeyedLifecycleMessage({
-    index: state.userQuestionsByInteractionId,
-    incoming,
-    key: incoming.interactionId,
-    mergeExisting: mergeUserQuestionLifecycleMessage,
-    state,
-  });
-}
-
-export function upsertPluginFormLifecycleMessage(
-  state: OperationProjectionState,
-  incoming: EventProjectionPluginFormLifecycleMessage,
-): void {
-  upsertKeyedLifecycleMessage({
-    index: state.pluginFormsByInteractionId,
-    incoming,
-    key: incoming.interactionId,
-    mergeExisting: mergePluginFormLifecycleMessage,
-    state,
-  });
+  existing.detail = mergeOperationDetail(existing.detail, incoming.detail);
 }
 
 function mergePluginFormLifecycleMessage(
   existing: EventProjectionPluginFormLifecycleMessage,
   incoming: EventProjectionPluginFormLifecycleMessage,
 ): void {
-  const wasTerminal = isTerminalLifecycleStatus(existing.status);
-  existing.status = mergeLifecycleStatus(existing.status, incoming.status);
-  if (wasTerminal) {
-    return;
-  }
+  if (existing.status !== "pending") return;
+  existing.status = incoming.status;
   existing.lifecycle = incoming.lifecycle;
   existing.title = incoming.title;
   existing.statusReason = incoming.statusReason;
@@ -335,13 +245,8 @@ function mergeUserQuestionLifecycleMessage(
   existing: EventProjectionUserQuestionLifecycleMessage,
   incoming: EventProjectionUserQuestionLifecycleMessage,
 ): void {
-  const wasTerminal = isTerminalLifecycleStatus(existing.status);
-  const mergedStatus = mergeLifecycleStatus(existing.status, incoming.status);
-  existing.status = mergedStatus;
-  if (wasTerminal) {
-    return;
-  }
-
+  if (existing.status !== "pending") return;
+  existing.status = incoming.status;
   existing.lifecycle = incoming.lifecycle;
   existing.questions = incoming.questions;
   existing.answers = incoming.answers;
@@ -352,55 +257,11 @@ function mergePermissionGrantLifecycleMessage(
   existing: EventProjectionPermissionGrantLifecycleMessage,
   incoming: EventProjectionPermissionGrantLifecycleMessage,
 ): void {
-  const wasTerminal = isTerminalLifecycleStatus(existing.status);
-  const mergedStatus = mergeLifecycleStatus(existing.status, incoming.status);
-  existing.status = mergedStatus;
-  if (!wasTerminal) {
+  if (existing.status === "pending") {
+    existing.status = incoming.status;
     existing.lifecycle = incoming.lifecycle;
   }
   existing.approvalTarget = incoming.approvalTarget;
-}
-
-function mergeFileChange(
-  existing: EventProjectionFileEditChange | undefined,
-  incoming: EventProjectionFileEditChange,
-): EventProjectionFileEditChange {
-  if (!existing) {
-    return { ...incoming };
-  }
-
-  return {
-    path: incoming.path,
-    kind: incoming.kind ?? existing.kind,
-    movePath: incoming.movePath ?? existing.movePath,
-    diff: incoming.diff ?? existing.diff,
-  };
-}
-
-function fileEditPartialApprovalStatus(
-  partial: FileEditPartial,
-): EventProjectionApprovalLifecycleStatus | null | undefined {
-  return "approvalStatus" in partial ? partial.approvalStatus : undefined;
-}
-
-function fileEditPartialChanges(
-  partial: FileEditPartial,
-): EventProjectionFileEditChange[] | undefined {
-  return "changes" in partial ? partial.changes : undefined;
-}
-
-function fileEditPartialHasAppendedStdout(partial: FileEditPartial): boolean {
-  return "appendStdout" in partial;
-}
-
-function fileEditPartialStdout(partial: FileEditPartial): string | undefined {
-  return "stdout" in partial ? partial.stdout : undefined;
-}
-
-function isTerminalFileEditStatus(
-  status: EventProjectionFileEditMessage["status"] | undefined,
-): boolean {
-  return status !== undefined && status !== "pending";
 }
 
 export function flushPendingFileEditOutput(
@@ -428,61 +289,6 @@ export function flushPendingFileEditOutput(
   }
 }
 
-interface CreateFileEditMessageArgs {
-  callId: string;
-  change: EventProjectionFileEditChange | null;
-  messageKey: string;
-  meta: EventMeta;
-  partial: FileEditPartial;
-  scopeFields: EventProjectionMessageScopeFields;
-  stdout: string | undefined;
-  threadId: string;
-}
-
-function createFileEditMessage({
-  callId,
-  change,
-  messageKey,
-  meta,
-  partial,
-  scopeFields,
-  stdout,
-  threadId,
-}: CreateFileEditMessageArgs): EventProjectionFileEditMessage {
-  return {
-    kind: "file-edit",
-    id: messageId(threadId, "file-edit", messageKey),
-    threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    ...scopeFields,
-    ...(partial.parentToolCallId
-      ? { parentToolCallId: partial.parentToolCallId }
-      : {}),
-    ...("presentation" in partial && partial.presentation
-      ? { presentation: partial.presentation }
-      : {}),
-    callId,
-    changes: change ? [{ ...change }] : [],
-    stdout,
-    approvalStatus: fileEditPartialApprovalStatus(partial) ?? null,
-    status: partial.status,
-  };
-}
-
-interface FileEditChangeEntry {
-  change: EventProjectionFileEditChange;
-  identity: string;
-  matchKeys: string[];
-  messageKey: string;
-}
-
-function fileEditChangeIdentity(change: EventProjectionFileEditChange): string {
-  return change.movePath ?? change.path;
-}
-
 function fileEditChangeMatchKeys(
   change: EventProjectionFileEditChange,
 ): string[] {
@@ -490,17 +296,6 @@ function fileEditChangeMatchKeys(
     return [change.path, change.movePath];
   }
   return [change.path];
-}
-
-function fileEditMessageKey(
-  callId: string,
-  change: EventProjectionFileEditChange | null,
-  changeIndex: number,
-): string {
-  if (!change) {
-    return `${callId}:${changeIndex}`;
-  }
-  return `${callId}:${fileEditChangeIdentity(change)}`;
 }
 
 function fileEditScopeDiscriminator(
@@ -517,57 +312,13 @@ function scopedFileEditCallKey(
   return `${fileEditScopeDiscriminator(scopeFields)}:${callId}`;
 }
 
-interface ResolveScopedFileEditMessageKeyArgs {
-  baseKey: string;
-  foreignMessageIds: ReadonlySet<string>;
-  scopeFields: EventProjectionMessageScopeFields;
-  threadId: string;
-}
-
-function resolveScopedFileEditMessageKey(
-  args: ResolveScopedFileEditMessageKeyArgs,
-): string {
-  if (
-    args.foreignMessageIds.size === 0 ||
-    !args.foreignMessageIds.has(
-      messageId(args.threadId, "file-edit", args.baseKey),
-    )
-  ) {
-    return args.baseKey;
-  }
-  return `${fileEditScopeDiscriminator(args.scopeFields)}:${args.baseKey}`;
-}
-
-function buildFileEditChangeEntries(
-  callId: string,
-  changes: readonly EventProjectionFileEditChange[],
-): FileEditChangeEntry[] {
-  const seenIdentityCounts = new Map<string, number>();
-  return changes.map((change) => {
-    const identity = fileEditChangeIdentity(change);
-    const seenCount = seenIdentityCounts.get(identity) ?? 0;
-    seenIdentityCounts.set(identity, seenCount + 1);
-    return {
-      change,
-      identity,
-      matchKeys: fileEditChangeMatchKeys(change),
-      messageKey:
-        seenCount === 0
-          ? `${callId}:${identity}`
-          : `${callId}:${identity}:${seenCount}`,
-    };
-  });
-}
-
 function groupFileEditRowsByChangeMatchKey(
   rows: readonly EventProjectionFileEditMessage[],
 ): Map<string, EventProjectionFileEditMessage[]> {
   const grouped = new Map<string, EventProjectionFileEditMessage[]>();
   for (const row of rows) {
     const change = row.changes[0];
-    if (!change) {
-      continue;
-    }
+    if (!change) continue;
     for (const matchKey of fileEditChangeMatchKeys(change)) {
       const rowsForIdentity = grouped.get(matchKey) ?? [];
       rowsForIdentity.push(row);
@@ -577,76 +328,21 @@ function groupFileEditRowsByChangeMatchKey(
   return grouped;
 }
 
-interface TakeFileEditRowForChangeEntryArgs {
-  entry: FileEditChangeEntry;
-  groupedRows: Map<string, EventProjectionFileEditMessage[]>;
-  usedRowIds: Set<string>;
-}
-
-function takeFileEditRowForChangeEntry({
-  entry,
-  groupedRows,
-  usedRowIds,
-}: TakeFileEditRowForChangeEntryArgs):
-  | EventProjectionFileEditMessage
-  | undefined {
-  for (const matchKey of entry.matchKeys) {
-    const row = takeUnusedFileEditRowForMatchKey(
-      groupedRows,
-      matchKey,
-      usedRowIds,
-    );
-    if (row) {
-      return row;
-    }
-  }
-  return undefined;
-}
-
 function takeUnusedFileEditRowForMatchKey(
   groupedRows: Map<string, EventProjectionFileEditMessage[]>,
   matchKey: string,
   usedRowIds: Set<string>,
 ): EventProjectionFileEditMessage | undefined {
   const rows = groupedRows.get(matchKey);
-  if (!rows || rows.length === 0) {
-    return undefined;
-  }
-
+  if (!rows || rows.length === 0) return undefined;
   let row: EventProjectionFileEditMessage | undefined;
   while (!row && rows.length > 0) {
     const candidate = rows.shift();
-    if (candidate && !usedRowIds.has(candidate.id)) {
-      row = candidate;
-    }
+    if (candidate && !usedRowIds.has(candidate.id)) row = candidate;
   }
-
-  if (rows.length === 0) {
-    groupedRows.delete(matchKey);
-  }
-  if (row) {
-    usedRowIds.add(row.id);
-  }
+  if (rows.length === 0) groupedRows.delete(matchKey);
+  if (row) usedRowIds.add(row.id);
   return row;
-}
-
-function replaceFileEditMessagesForCall(
-  state: OperationProjectionState,
-  callId: string,
-  nextRows: readonly EventProjectionFileEditMessage[],
-): void {
-  const insertionIndex = state.messages.findIndex(
-    (message) => message.kind === "file-edit" && message.callId === callId,
-  );
-  const messagesWithoutCallRows = state.messages.filter(
-    (message) => message.kind !== "file-edit" || message.callId !== callId,
-  );
-  if (insertionIndex === -1) {
-    messagesWithoutCallRows.push(...nextRows);
-  } else {
-    messagesWithoutCallRows.splice(insertionIndex, 0, ...nextRows);
-  }
-  state.messages = messagesWithoutCallRows;
 }
 
 function updateFileEditMessage(
@@ -664,28 +360,31 @@ function updateFileEditMessage(
   }
   existing.sourceSeqEnd = meta.seq;
   existing.createdAt = meta.createdAt;
-
   if (!existing.parentToolCallId && partial.parentToolCallId) {
     existing.parentToolCallId = partial.parentToolCallId;
   }
   if ("presentation" in partial && partial.presentation) {
     existing.presentation = partial.presentation;
   }
-
   if (change) {
-    existing.changes = [mergeFileChange(existing.changes[0], change)];
+    const previous = existing.changes[0];
+    existing.changes = [
+      previous
+        ? {
+            path: change.path,
+            kind: change.kind ?? previous.kind,
+            movePath: change.movePath ?? previous.movePath,
+            diff: change.diff ?? previous.diff,
+          }
+        : { ...change },
+    ];
   }
-
   existing.stdout = stdout;
-
-  existing.approvalStatus = applyApprovalStatusDelta(
+  existing.approvalStatus = mergeApprovalStatus(
     existing.approvalStatus,
-    buildApprovalStatusDelta(
-      fileEditPartialApprovalStatus(partial),
-      partial.status,
-    ),
+    "approvalStatus" in partial ? partial.approvalStatus : undefined,
+    partial.status,
   );
-
   if (partial.status === "error") {
     existing.status = "error";
   } else if (
@@ -724,82 +423,70 @@ export function upsertFileEdit(
     state.fileEditStdoutBuffersByScopedCallKey.get(scopedCallKey) ??
     createVisibleTextBuffer();
   state.fileEditStdoutBuffersByScopedCallKey.set(scopedCallKey, stdoutBuffer);
-
-  const partialStdout = fileEditPartialStdout(partial);
-  if (partialStdout) {
-    if (fileEditPartialHasAppendedStdout(partial)) {
-      appendVisibleTextBuffer(stdoutBuffer, partialStdout);
-    } else {
-      setVisibleTextBuffer(
-        stdoutBuffer,
-        partialStdout,
-        isTerminalFileEditStatus(partial.status),
-      );
-    }
-  } else if (isTerminalFileEditStatus(partial.status)) {
+  if ("stdout" in partial) {
+    if (partial.stdout) appendVisibleTextBuffer(stdoutBuffer, partial.stdout);
+  } else if (partial.status !== "pending") {
     flushVisibleTextBuffer(stdoutBuffer);
   }
-
   const stdout = getVisibleTextBufferText(stdoutBuffer);
-  const partialChanges = fileEditPartialChanges(partial);
-  if (partialChanges && partialChanges.length > 0) {
+  const createMessage = (
+    change: EventProjectionFileEditChange | null,
+    baseKey: string,
+  ): EventProjectionFileEditMessage => {
+    const messageKey = foreignMessageIds.has(
+      messageId(threadId, "file-edit", baseKey),
+    )
+      ? `${fileEditScopeDiscriminator(scopeFields)}:${baseKey}`
+      : baseKey;
+    return {
+      kind: "file-edit",
+      id: messageId(threadId, "file-edit", messageKey),
+      threadId,
+      sourceSeqStart: meta.seq,
+      sourceSeqEnd: meta.seq,
+      createdAt: meta.createdAt,
+      startedAt: meta.createdAt,
+      ...scopeFields,
+      ...(partial.parentToolCallId
+        ? { parentToolCallId: partial.parentToolCallId }
+        : {}),
+      ...("presentation" in partial && partial.presentation
+        ? { presentation: partial.presentation }
+        : {}),
+      callId: partial.callId,
+      changes: change ? [{ ...change }] : [],
+      stdout,
+      approvalStatus:
+        ("approvalStatus" in partial ? partial.approvalStatus : undefined) ??
+        null,
+      status: partial.status,
+    };
+  };
+  if ("changes" in partial && partial.changes.length > 0) {
     const existingRowsByMatchKey =
       groupFileEditRowsByChangeMatchKey(compatibleRows);
     const usedRowIds = new Set<string>();
-    const nextRows: EventProjectionFileEditMessage[] = [];
-    for (const entry of buildFileEditChangeEntries(
-      partial.callId,
-      partialChanges,
-    )) {
-      const existing = takeFileEditRowForChangeEntry({
-        entry,
-        groupedRows: existingRowsByMatchKey,
-        usedRowIds,
-      });
-      if (existing) {
-        updateFileEditMessage(
-          existing,
-          meta,
-          partial,
-          scopeFields,
-          entry.change,
-          stdout,
+    const seenIdentityCounts = new Map<string, number>();
+    const nextRows = partial.changes.map((change) => {
+      const identity = change.movePath ?? change.path;
+      const seenCount = seenIdentityCounts.get(identity) ?? 0;
+      seenIdentityCounts.set(identity, seenCount + 1);
+      let existing: EventProjectionFileEditMessage | undefined;
+      for (const matchKey of fileEditChangeMatchKeys(change)) {
+        existing ??= takeUnusedFileEditRowForMatchKey(
+          existingRowsByMatchKey,
+          matchKey,
+          usedRowIds,
         );
-        nextRows.push(existing);
-        continue;
       }
-
-      nextRows.push(
-        createFileEditMessage({
-          callId: partial.callId,
-          change: entry.change,
-          messageKey: resolveScopedFileEditMessageKey({
-            baseKey: entry.messageKey,
-            foreignMessageIds,
-            scopeFields,
-            threadId,
-          }),
-          meta,
-          partial,
-          scopeFields,
-          stdout,
-          threadId,
-        }),
-      );
-    }
-
-    const allRows = [...foreignRows, ...nextRows];
-    replaceFileEditMessagesForCall(state, partial.callId, allRows);
-    state.fileEditsByCallId.set(partial.callId, allRows);
-    return;
-  }
-
-  const changes =
-    compatibleRows.length > 0 ? compatibleRows.map(() => null) : [null];
-
-  for (const [changeIndex, change] of changes.entries()) {
-    const existing = compatibleRows[changeIndex];
-    if (existing) {
+      if (!existing) {
+        return createMessage(
+          change,
+          seenCount === 0
+            ? `${partial.callId}:${identity}`
+            : `${partial.callId}:${identity}:${seenCount}`,
+        );
+      }
       updateFileEditMessage(
         existing,
         meta,
@@ -808,32 +495,83 @@ export function upsertFileEdit(
         change,
         stdout,
       );
-      continue;
-    }
-
-    const message = createFileEditMessage({
-      callId: partial.callId,
-      change,
-      messageKey: resolveScopedFileEditMessageKey({
-        baseKey: fileEditMessageKey(partial.callId, change, changeIndex),
-        foreignMessageIds,
-        scopeFields,
-        threadId,
-      }),
-      meta,
-      partial,
-      scopeFields,
-      stdout,
-      threadId,
+      return existing;
     });
+    const allRows = [...foreignRows, ...nextRows];
+    const insertionIndex = state.messages.findIndex(
+      (message) =>
+        message.kind === "file-edit" && message.callId === partial.callId,
+    );
+    const messagesWithoutCallRows = state.messages.filter(
+      (message) =>
+        message.kind !== "file-edit" || message.callId !== partial.callId,
+    );
+    if (insertionIndex === -1) {
+      messagesWithoutCallRows.push(...allRows);
+    } else {
+      messagesWithoutCallRows.splice(insertionIndex, 0, ...allRows);
+    }
+    state.messages = messagesWithoutCallRows;
+    state.fileEditsByCallId.set(partial.callId, allRows);
+    return;
+  }
+  if (compatibleRows.length === 0) {
+    const message = createMessage(null, `${partial.callId}:0`);
     compatibleRows.push(message);
     state.messages.push(message);
+  } else {
+    for (const existing of compatibleRows) {
+      updateFileEditMessage(existing, meta, partial, scopeFields, null, stdout);
+    }
   }
-
   state.fileEditsByCallId.set(partial.callId, [
     ...foreignRows,
     ...compatibleRows,
   ]);
+}
+
+function buildCompactionMessage(
+  meta: EventMeta,
+  threadId: string,
+  turnId: string | undefined,
+  payload: CompactionLifecycleEvent,
+  completed: boolean,
+): EventProjectionOperationMessage {
+  return {
+    kind: "operation",
+    id: messageId(threadId, "op", `compaction:${payload.key}`),
+    threadId,
+    sourceSeqStart: meta.seq,
+    sourceSeqEnd: meta.seq,
+    createdAt: meta.createdAt,
+    startedAt: meta.createdAt,
+    completedAt: completed ? meta.createdAt : null,
+    ...(turnId
+      ? eventProjectionMessageTurnScopeFields(turnId)
+      : eventProjectionMessageThreadScopeFields()),
+    opType: "compaction",
+    title: completed ? "Context compacted" : "Compacting context",
+    detail: payload.detail,
+    ...(payload.parentToolCallId
+      ? { parentToolCallId: payload.parentToolCallId }
+      : {}),
+    status: completed ? "completed" : "pending",
+  };
+}
+
+function touchCompactionMessage(
+  existing: EventProjectionOperationMessage,
+  meta: EventMeta,
+  payload: CompactionLifecycleEvent,
+  completed: boolean,
+): void {
+  extendMessageBounds(existing, meta.seq, meta.createdAt);
+  if (completed) existing.completedAt = meta.createdAt;
+  existing.status = completed ? "completed" : "pending";
+  existing.title = completed ? "Context compacted" : "Compacting context";
+  existing.detail = payload.detail ?? existing.detail;
+  existing.parentToolCallId =
+    payload.parentToolCallId ?? existing.parentToolCallId;
 }
 
 export function onCompactionBegin(
@@ -843,42 +581,19 @@ export function onCompactionBegin(
   turnId: string | undefined,
   payload: CompactionLifecycleEvent,
 ): void {
-  if (state.finalizedCompactionKeys.has(payload.key)) {
-    return;
-  }
-
+  if (state.finalizedCompactionKeys.has(payload.key)) return;
   const existing = state.openCompactionsByKey.get(payload.key);
   if (existing) {
-    existing.sourceSeqEnd = Math.max(existing.sourceSeqEnd, meta.seq);
-    existing.createdAt = Math.max(existing.createdAt, meta.createdAt);
-    existing.status = "pending";
-    existing.title = "Compacting context";
-    existing.detail = payload.detail ?? existing.detail;
-    existing.parentToolCallId =
-      payload.parentToolCallId ?? existing.parentToolCallId;
+    touchCompactionMessage(existing, meta, payload, false);
     return;
   }
-
-  const message: EventProjectionOperationMessage = {
-    kind: "operation",
-    id: messageId(threadId, "op", `compaction:${payload.key}`),
+  const message = buildCompactionMessage(
+    meta,
     threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    completedAt: null,
-    ...(turnId
-      ? eventProjectionMessageTurnScopeFields(turnId)
-      : eventProjectionMessageThreadScopeFields()),
-    opType: "compaction",
-    title: "Compacting context",
-    detail: payload.detail,
-    ...(payload.parentToolCallId
-      ? { parentToolCallId: payload.parentToolCallId }
-      : {}),
-    status: "pending",
-  };
+    turnId,
+    payload,
+    false,
+  );
   state.openCompactionsByKey.set(payload.key, message);
   state.messages.push(message);
 }
@@ -892,43 +607,13 @@ export function onCompactionEnd(
 ): void {
   const existing = state.openCompactionsByKey.get(payload.key);
   if (existing) {
-    existing.sourceSeqEnd = Math.max(existing.sourceSeqEnd, meta.seq);
-    existing.createdAt = Math.max(existing.createdAt, meta.createdAt);
-    existing.completedAt = meta.createdAt;
-    existing.status = "completed";
-    existing.title = "Context compacted";
-    existing.detail = payload.detail ?? existing.detail;
-    existing.parentToolCallId =
-      payload.parentToolCallId ?? existing.parentToolCallId;
+    touchCompactionMessage(existing, meta, payload, true);
     state.openCompactionsByKey.delete(payload.key);
-    state.finalizedCompactionKeys.add(payload.key);
-    return;
+  } else if (!state.finalizedCompactionKeys.has(payload.key)) {
+    state.messages.push(
+      buildCompactionMessage(meta, threadId, turnId, payload, true),
+    );
   }
-
-  if (state.finalizedCompactionKeys.has(payload.key)) {
-    return;
-  }
-
-  state.messages.push({
-    kind: "operation",
-    id: messageId(threadId, "op", `compaction:${payload.key}`),
-    threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    completedAt: meta.createdAt,
-    ...(turnId
-      ? eventProjectionMessageTurnScopeFields(turnId)
-      : eventProjectionMessageThreadScopeFields()),
-    opType: "compaction",
-    title: "Context compacted",
-    detail: payload.detail,
-    ...(payload.parentToolCallId
-      ? { parentToolCallId: payload.parentToolCallId }
-      : {}),
-    status: "completed",
-  });
   state.finalizedCompactionKeys.add(payload.key);
 }
 
@@ -938,8 +623,7 @@ function finalizeOpenCompaction(
   status: CompactionTurnFinalizationStatus,
   detail: string | undefined,
 ): void {
-  message.sourceSeqEnd = Math.max(message.sourceSeqEnd, meta.seq);
-  message.createdAt = Math.max(message.createdAt, meta.createdAt);
+  extendMessageBounds(message, meta.seq, meta.createdAt);
   message.completedAt = meta.createdAt;
   message.status = status;
   message.title =
@@ -951,11 +635,15 @@ function finalizeOpenCompaction(
   message.detail = detail ?? message.detail;
 }
 
-export function finalizeOpenCompactionsForTurn(
-  args: FinalizeOpenCompactionsForTurnArgs,
-): boolean {
+export function finalizeOpenCompactionsForTurn(args: {
+  state: OperationProjectionState;
+  meta: EventMeta;
+  threadId: string;
+  turnId: string | undefined;
+  status: CompactionTurnFinalizationStatus;
+  detail: string | undefined;
+}): boolean {
   if (!args.turnId) return false;
-
   let settledPending = false;
   for (const message of args.state.openCompactionsByKey.values()) {
     if (
@@ -965,18 +653,17 @@ export function finalizeOpenCompactionsForTurn(
     ) {
       continue;
     }
-
-    if (message.status === "pending") {
-      settledPending = true;
-    }
+    if (message.status === "pending") settledPending = true;
     finalizeOpenCompaction(message, args.meta, args.status, args.detail);
   }
   return settledPending;
 }
 
-export function interruptOpenCompactions(
-  args: InterruptOpenCompactionsArgs,
-): void {
+export function interruptOpenCompactions(args: {
+  state: OperationProjectionState;
+  meta: EventMeta;
+  threadId: string;
+}): void {
   for (const message of args.state.openCompactionsByKey.values()) {
     if (
       message.threadId !== args.threadId ||
@@ -985,7 +672,6 @@ export function interruptOpenCompactions(
     ) {
       continue;
     }
-
     finalizeOpenCompaction(message, args.meta, "interrupted", undefined);
   }
 }

@@ -12,7 +12,6 @@ function unwrapQuotedShellArg(value: string): string {
   }
   const inner = value.slice(1, -1);
   if (quote === "'") return inner;
-
   let result = "";
   for (let i = 0; i < inner.length; i += 1) {
     const ch = inner[i];
@@ -45,25 +44,19 @@ export function extractShellCommandFromString(
 ): string | undefined {
   const trimmed = value.trim();
   if (trimmed.length === 0) return undefined;
-
   const match = /^(\S+)\s+(-lc|-c)\s+([\s\S]+)$/.exec(trimmed);
   if (!match) return trimmed;
-
   const shellProgram = match[1];
   const commandArg = match[3];
   if (!shellProgram || !commandArg || !isKnownShellWrapper(shellProgram)) {
     return trimmed;
   }
-
   return unwrapQuotedShellArg(commandArg.trim());
 }
 
 const DOUBLE_QUOTE_ESCAPABLE = new Set(["$", "`", '"', "\\", "\n"]);
 
-interface ShellToken {
-  readonly value: string;
-  readonly quoted: boolean;
-}
+type ShellToken = { readonly value: string; readonly quoted: boolean };
 
 function tokenizeShellWords(command: string): ShellToken[] {
   const tokens: ShellToken[] = [];
@@ -72,14 +65,12 @@ function tokenizeShellWords(command: string): ShellToken[] {
   let currentHasUnquoted = false;
   let quote: "'" | '"' | null = null;
   let escaping = false;
-
   const recordQuoted = (): void => {
     currentHasQuoted = true;
   };
   const recordUnquoted = (): void => {
     currentHasUnquoted = true;
   };
-
   const flushCurrent = (): void => {
     const fullyQuoted = currentHasQuoted && !currentHasUnquoted;
     const hasContent = current.length > 0;
@@ -93,11 +84,9 @@ function tokenizeShellWords(command: string): ShellToken[] {
     currentHasQuoted = false;
     currentHasUnquoted = false;
   };
-
   for (let index = 0; index < command.length; index += 1) {
     const character = command[index];
     if (!character) continue;
-
     if (escaping) {
       current += character;
       if (quote !== null) recordQuoted();
@@ -105,7 +94,6 @@ function tokenizeShellWords(command: string): ShellToken[] {
       escaping = false;
       continue;
     }
-
     if (character === "\\") {
       if (quote === "'") {
         current += character;
@@ -123,7 +111,6 @@ function tokenizeShellWords(command: string): ShellToken[] {
       escaping = true;
       continue;
     }
-
     if (quote) {
       if (character === quote) {
         quote = null;
@@ -134,23 +121,19 @@ function tokenizeShellWords(command: string): ShellToken[] {
       recordQuoted();
       continue;
     }
-
     if (character === "'" || character === '"') {
       quote = character;
       continue;
     }
-
     if (character === "\n") {
       flushCurrent();
       tokens.push({ value: "\n", quoted: false });
       continue;
     }
-
     if (/\s/u.test(character)) {
       flushCurrent();
       continue;
     }
-
     if (character === "|" || character === "&" || character === ";") {
       if (character === "&" && command[index + 1] === ">") {
         flushCurrent();
@@ -163,9 +146,7 @@ function tokenizeShellWords(command: string): ShellToken[] {
         }
         continue;
       }
-
       flushCurrent();
-
       const nextCharacter = command[index + 1];
       if (
         nextCharacter &&
@@ -176,11 +157,9 @@ function tokenizeShellWords(command: string): ShellToken[] {
         index += 1;
         continue;
       }
-
       tokens.push({ value: character, quoted: false });
       continue;
     }
-
     if (character === "<" || character === ">") {
       let prefix = "";
       const currentIsUnquoted = currentHasUnquoted && !currentHasQuoted;
@@ -191,13 +170,10 @@ function tokenizeShellWords(command: string): ShellToken[] {
       } else if (current.length > 0 || currentHasQuoted) {
         flushCurrent();
       }
-
       const next1 = command[index + 1];
       const next2 = command[index + 2];
-
       let op = character;
       let consumed = 1;
-
       if (character === ">") {
         if (next1 === ">") {
           op = ">>";
@@ -230,22 +206,18 @@ function tokenizeShellWords(command: string): ShellToken[] {
           consumed = 2;
         }
       }
-
       tokens.push({ value: `${prefix}${op}`, quoted: false });
       index += consumed - 1;
       continue;
     }
-
     current += character;
     recordUnquoted();
   }
-
   if (escaping) {
     current += "\\";
     recordUnquoted();
   }
   flushCurrent();
-
   return tokens;
 }
 
@@ -287,17 +259,13 @@ const FIND_FLAGS_WITH_VALUE: ReadonlySet<string> = new Set([
 ]);
 
 const HEAD_TAIL_FLAGS_WITH_VALUE: ReadonlySet<string> = new Set(["-n", "-c"]);
+
 const NO_FLAGS_WITH_VALUE: ReadonlySet<string> = new Set();
 
 type SegmentClassification =
   | { kind: "write" }
   | { kind: "intent"; intent: EventProjectionToolParsedIntent }
   | { kind: "none" };
-
-interface RedirectScan {
-  isWrite: boolean;
-  consumedExtra: number;
-}
 
 function baseExecutableName(token: string): string {
   const slash = token.lastIndexOf("/");
@@ -331,22 +299,18 @@ function splitShellCommandSegments(command: string): ShellToken[][] {
 function scanRedirectAt(
   tokens: readonly ShellToken[],
   index: number,
-): RedirectScan | null {
+): { isWrite: boolean; consumedExtra: number } | null {
   const token = tokens[index];
   if (token === undefined) return null;
   if (token.quoted) return null;
-
   const value = token.value;
   const nextValue = tokens[index + 1]?.value;
-
   if (/^(?:\d+|&)?<<-?$/u.test(value)) {
     return { isWrite: true, consumedExtra: 1 };
   }
-
   if (/^(?:\d+|&)?<<<$/u.test(value)) {
     return { isWrite: false, consumedExtra: 1 };
   }
-
   if (value === "<(" || value === ">(") {
     let extra = 0;
     for (let j = index + 1; j < tokens.length; j += 1) {
@@ -355,37 +319,24 @@ function scanRedirectAt(
     }
     return { isWrite: false, consumedExtra: extra };
   }
-
-  if (/^(?:\d+|&)?<>$/u.test(value)) {
-    return { isWrite: true, consumedExtra: 1 };
-  }
-
-  if (/^(?:\d+|&)?<$/u.test(value)) {
-    return { isWrite: false, consumedExtra: 1 };
-  }
-
+  if (/^(?:\d+|&)?<>$/u.test(value)) return { isWrite: true, consumedExtra: 1 };
+  if (/^(?:\d+|&)?<$/u.test(value)) return { isWrite: false, consumedExtra: 1 };
   if (/^(?:\d+|&)?>\|$/u.test(value)) {
     if (nextValue === "/dev/null") return { isWrite: false, consumedExtra: 1 };
     return { isWrite: true, consumedExtra: 1 };
   }
-
   if (/^(\d*|&)>>?&$/u.test(value)) {
     if (nextValue === undefined) return { isWrite: false, consumedExtra: 0 };
     return { isWrite: false, consumedExtra: 1 };
   }
-
   const opMatch = /^(\d+|&)?>>?$/u.exec(value);
   if (opMatch) {
     const prefix = opMatch[1] ?? "";
     if (nextValue === undefined) return { isWrite: false, consumedExtra: 0 };
-
     if (/^[2-9]/u.test(prefix)) return { isWrite: false, consumedExtra: 1 };
-
     if (nextValue === "/dev/null") return { isWrite: false, consumedExtra: 1 };
-
     return { isWrite: true, consumedExtra: 1 };
   }
-
   return null;
 }
 
@@ -422,13 +373,11 @@ function collectPositionals(
   let i = 0;
   while (i < argTokens.length) {
     const token = argTokens[i]!;
-
     const redir = scanRedirectAt(argTokens, i);
     if (redir) {
       i += 1 + redir.consumedExtra;
       continue;
     }
-
     if (!token.quoted && token.value.startsWith("-") && token.value !== "-") {
       if (flagsWithValue.has(token.value)) {
         i += 2;
@@ -437,7 +386,6 @@ function collectPositionals(
       i += 1;
       continue;
     }
-
     positionals.push(token.value);
     i += 1;
   }
@@ -451,10 +399,8 @@ function classifyShellSegment(
   const commandIndex = getCommandTokenIndex(tokens);
   const commandToken = tokens[commandIndex];
   if (commandToken === undefined) return { kind: "none" };
-
   const argTokens = tokens.slice(commandIndex + 1);
   const commandName = baseExecutableName(commandToken.value);
-
   if (commandName === "tee") return { kind: "write" };
   if (
     commandName === "sed" &&
@@ -463,7 +409,13 @@ function classifyShellSegment(
     return { kind: "write" };
   }
   if (segmentHasWriteShape(argTokens)) return { kind: "write" };
-
+  const readIntent = (path: string | undefined): SegmentClassification =>
+    path
+      ? {
+          kind: "intent",
+          intent: { type: "read", cmd: fullCommand, name: commandName, path },
+        }
+      : { kind: "none" };
   switch (commandName) {
     case "rg":
     case "grep": {
@@ -502,40 +454,17 @@ function classifyShellSegment(
       };
     }
     case "cat":
-    case "nl": {
-      const positionals = collectPositionals(argTokens, NO_FLAGS_WITH_VALUE);
-      const path = positionals[0];
-      if (!path) return { kind: "none" };
-      return {
-        kind: "intent",
-        intent: { type: "read", cmd: fullCommand, name: commandName, path },
-      };
-    }
+    case "nl":
+      return readIntent(collectPositionals(argTokens, NO_FLAGS_WITH_VALUE)[0]);
     case "head":
-    case "tail": {
-      const positionals = collectPositionals(
-        argTokens,
-        HEAD_TAIL_FLAGS_WITH_VALUE,
+    case "tail":
+      return readIntent(
+        collectPositionals(argTokens, HEAD_TAIL_FLAGS_WITH_VALUE)[0],
       );
-      const path = positionals[0];
-      if (!path) return { kind: "none" };
-      return {
-        kind: "intent",
-        intent: { type: "read", cmd: fullCommand, name: commandName, path },
-      };
-    }
-    case "sed": {
-      if (!argTokens.some((t) => !t.quoted && t.value === "-n")) {
-        return { kind: "none" };
-      }
-      const positionals = collectPositionals(argTokens, NO_FLAGS_WITH_VALUE);
-      const path = positionals[1];
-      if (!path) return { kind: "none" };
-      return {
-        kind: "intent",
-        intent: { type: "read", cmd: fullCommand, name: "sed", path },
-      };
-    }
+    case "sed":
+      return argTokens.some((t) => !t.quoted && t.value === "-n")
+        ? readIntent(collectPositionals(argTokens, NO_FLAGS_WITH_VALUE)[1])
+        : { kind: "none" };
     default:
       return { kind: "none" };
   }
@@ -545,14 +474,11 @@ export function parseShellCommandIntents(
   command: string | undefined,
 ): EventProjectionToolParsedIntent[] {
   if (!command) return [];
-
   const segments = splitShellCommandSegments(command);
   const classifications = segments.map((segment) =>
     classifyShellSegment(segment, command),
   );
-
   if (classifications.some((c) => c.kind === "write")) return [];
-
   for (const classification of classifications) {
     if (classification.kind === "intent") return [classification.intent];
   }

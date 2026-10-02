@@ -1,9 +1,7 @@
 import type {
   TimelineActivityIntent,
-  TimelineCommandWorkRow,
   TimelineConversationRow,
   TimelineDelegationWorkRow,
-  TimelineFileChangeWorkRow,
   TimelineRow,
   TimelineRowBase,
   TimelineRowStatus,
@@ -11,18 +9,18 @@ import type {
   TimelineTurnRow,
   TimelineWorkRow,
 } from "@bb/server-contract";
-import { assertNever } from "./assert-never.js";
 import {
+  assertNever,
+  FILE_CHANGE_VERBS,
   getFileChangeAction,
   type FileChangeAction,
-} from "./file-change-summary.js";
-import { plural } from "./format-helpers.js";
-import {
+  plural,
   getTimelineActivityIntentDetailDedupeKey,
   hasTimelineExplorationIntent,
+  itemActivityIntent,
   timelineRowActivityIntents,
   type TimelineExplorationWorkRow,
-} from "./timeline-activity-intents.js";
+} from "./timeline-format.js";
 
 export interface TimelineViewDelegationWorkRow extends Omit<
   TimelineDelegationWorkRow,
@@ -35,9 +33,7 @@ export interface TimelineViewDelegationWorkRow extends Omit<
 type TimelineViewLeafWorkRow = Exclude<
   TimelineWorkRow,
   TimelineDelegationWorkRow
-> & {
-  inClosedStep?: boolean;
-};
+> & { inClosedStep?: boolean };
 
 export type TimelineViewWorkRow =
   | TimelineViewLeafWorkRow
@@ -47,6 +43,7 @@ export type TimelineQuestionViewWorkRow = Extract<
   TimelineViewWorkRow,
   { workKind: "question" }
 >;
+
 export type TimelineViewWorkflowWorkRow = Extract<
   TimelineViewWorkRow,
   { workKind: "workflow" }
@@ -60,10 +57,7 @@ type TimelineViewSourceRow =
 type TimelineReasoningSummaryChild = Extract<
   TimelineSystemRow,
   { systemKind: "operation" }
-> & {
-  operationKind: "reasoning";
-  status: "completed";
-};
+> & { operationKind: "reasoning"; status: "completed" };
 
 export type TimelineWorkSummaryChild =
   | TimelineViewWorkRow
@@ -98,23 +92,20 @@ type TimelineExplorationKind = "files" | "searches" | "lists";
 
 interface TimelineWorkSummaryCounts {
   commands: number;
-  createdFiles: number;
-  deletedFiles: number;
   delegations: number;
-  editedFiles: number;
   extensions: number;
-  fileChanges: number;
-  files: number;
   lists: number;
   planUpdates: number;
-  renamedFiles: number;
   searches: number;
   tools: number;
   webFetches: number;
   webSearches: number;
   imageGenerations: number;
   imageViews: number;
-  explorationKindOrder: readonly TimelineExplorationKind[];
+  categories: Set<TimelineWorkSummaryCategory>;
+  changedFiles: Record<FileChangeAction, Set<string>>;
+  exploredFiles: Set<string>;
+  explorationKinds: Set<TimelineExplorationKind>;
 }
 
 type TimelineWorkSummaryCategory =
@@ -129,8 +120,6 @@ type TimelineWorkSummaryCategory =
   | "tools"
   | "webResearch";
 
-type TimelineWorkSummaryPhraseList = readonly string[];
-
 interface TimelineWorkSummaryRange extends TimelineRowBase {
   status: TimelineRowStatus;
 }
@@ -141,269 +130,133 @@ function lowerFirst(value: string): string {
     : `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
 }
 
-function getExploredFileIdentity(
-  intent: TimelineCommandWorkRow["activityIntents"][number],
-): string | null {
-  switch (intent.type) {
-    case "read":
-      return intent.path ?? intent.name;
-    case "list_files":
-    case "search":
-    case "unknown":
-      return null;
-    default:
-      return assertNever(intent);
-  }
-}
-
 function countExplorationIntents(
   row: TimelineExplorationWorkRow,
   counts: TimelineWorkSummaryCounts,
-  exploredFileIdentities: Set<string>,
-  noteExplorationKind: (kind: TimelineExplorationKind) => void,
 ): void {
   for (const intent of timelineRowActivityIntents(row)) {
-    switch (intent.type) {
-      case "read": {
-        const identity = getExploredFileIdentity(intent);
-        if (identity) {
-          exploredFileIdentities.add(identity);
-          noteExplorationKind("files");
-        }
-        break;
+    if (intent.type === "read") {
+      const identity = intent.path ?? intent.name;
+      if (identity) {
+        counts.exploredFiles.add(identity);
+        counts.explorationKinds.add("files");
       }
-      case "list_files":
-        counts.lists += 1;
-        noteExplorationKind("lists");
-        break;
-      case "search":
-        counts.searches += 1;
-        noteExplorationKind("searches");
-        break;
-      case "unknown":
-        break;
-      default:
-        assertNever(intent);
+    } else if (intent.type === "list_files") {
+      counts.lists += 1;
+      counts.explorationKinds.add("lists");
+    } else if (intent.type === "search") {
+      counts.searches += 1;
+      counts.explorationKinds.add("searches");
     }
   }
-}
-
-function getFileChangeIdentity(row: TimelineFileChangeWorkRow): string {
-  return row.change.movePath ?? row.change.path;
 }
 
 function summarizeTimelineWork(
   rows: readonly TimelineViewWorkRow[],
 ): TimelineWorkSummaryCounts {
-  const explorationKindOrder: TimelineExplorationKind[] = [];
-  const seenExplorationKinds = new Set<TimelineExplorationKind>();
-  const noteExplorationKind = (kind: TimelineExplorationKind) => {
-    if (!seenExplorationKinds.has(kind)) {
-      seenExplorationKinds.add(kind);
-      explorationKindOrder.push(kind);
-    }
-  };
-
   const counts: TimelineWorkSummaryCounts = {
     commands: 0,
-    createdFiles: 0,
-    deletedFiles: 0,
     delegations: 0,
-    editedFiles: 0,
     extensions: 0,
-    fileChanges: 0,
-    files: 0,
     lists: 0,
     planUpdates: 0,
-    renamedFiles: 0,
     searches: 0,
     tools: 0,
     webFetches: 0,
     webSearches: 0,
     imageGenerations: 0,
     imageViews: 0,
-    explorationKindOrder,
+    categories: new Set(),
+    changedFiles: {
+      created: new Set(),
+      deleted: new Set(),
+      edited: new Set(),
+      renamed: new Set(),
+    },
+    exploredFiles: new Set(),
+    explorationKinds: new Set(),
   };
-  const exploredFileIdentities = new Set<string>();
-  const createdFileIdentities = new Set<string>();
-  const deletedFileIdentities = new Set<string>();
-  const editedFileIdentities = new Set<string>();
-  const renamedFileIdentities = new Set<string>();
-
   for (const row of rows) {
+    const category = getTimelineWorkSummaryCategory(row);
+    if (category) counts.categories.add(category);
     switch (row.workKind) {
       case "command":
-        if (hasTimelineExplorationIntent(row)) {
-          countExplorationIntents(
-            row,
-            counts,
-            exploredFileIdentities,
-            noteExplorationKind,
-          );
-        } else {
-          counts.commands += 1;
-        }
-        break;
-      case "tool":
-        counts.tools += 1;
+        if (category === "exploration") countExplorationIntents(row, counts);
+        else counts.commands += 1;
         break;
       case "file-read":
       case "search":
-        countExplorationIntents(
-          row,
-          counts,
-          exploredFileIdentities,
-          noteExplorationKind,
-        );
-        break;
-      case "plan-steps":
-        counts.planUpdates += 1;
-        break;
-      case "extension":
-        counts.extensions += 1;
+        countExplorationIntents(row, counts);
         break;
       case "file-change":
-        switch (getFileChangeAction(row.change)) {
-          case "created":
-            createdFileIdentities.add(getFileChangeIdentity(row));
-            break;
-          case "deleted":
-            deletedFileIdentities.add(getFileChangeIdentity(row));
-            break;
-          case "edited":
-            editedFileIdentities.add(getFileChangeIdentity(row));
-            break;
-          case "renamed":
-            renamedFileIdentities.add(getFileChangeIdentity(row));
-            break;
-        }
-        break;
-      case "web-fetch":
-        counts.webFetches += 1;
+        counts.changedFiles[getFileChangeAction(row.change)].add(
+          row.change.movePath ?? row.change.path,
+        );
         break;
       case "web-search":
         counts.webSearches += Math.max(1, row.queries.length);
         break;
-      case "image-generation":
-        counts.imageGenerations += 1;
-        break;
-      case "image-view":
-        counts.imageViews += 1;
-        break;
-      case "delegation":
-        counts.delegations += 1;
-        break;
-      case "question":
-      case "form":
-      case "approval":
-      case "workflow":
-        break;
-      default:
-        assertNever(row);
+      default: {
+        const counter = SIMPLE_WORK_COUNTERS[row.workKind];
+        if (counter) counts[counter] += 1;
+      }
     }
   }
-
-  counts.files = exploredFileIdentities.size;
-  counts.createdFiles = createdFileIdentities.size;
-  counts.deletedFiles = deletedFileIdentities.size;
-  counts.editedFiles = editedFileIdentities.size;
-  counts.renamedFiles = renamedFileIdentities.size;
-  counts.fileChanges =
-    counts.createdFiles +
-    counts.deletedFiles +
-    counts.editedFiles +
-    counts.renamedFiles;
   return counts;
 }
 
-function explorationDetail(counts: TimelineWorkSummaryCounts): string | null {
-  const parts = counts.explorationKindOrder
-    .map((kind): string | null => {
-      switch (kind) {
-        case "files":
-          return counts.files > 0 ? plural(counts.files, "file") : null;
-        case "searches":
-          return counts.searches > 0
-            ? plural(counts.searches, "search", "searches")
-            : null;
-        case "lists":
-          return counts.lists > 0 ? plural(counts.lists, "list") : null;
-        default:
-          return assertNever(kind);
-      }
-    })
-    .filter((part): part is string => part !== null);
-  return parts.length === 0 ? null : parts.join(", ");
-}
+const SIMPLE_WORK_COUNTERS: Partial<
+  Record<
+    TimelineViewWorkRow["workKind"],
+    | "delegations"
+    | "extensions"
+    | "imageGenerations"
+    | "imageViews"
+    | "planUpdates"
+    | "tools"
+    | "webFetches"
+  >
+> = {
+  delegation: "delegations",
+  extension: "extensions",
+  "image-generation": "imageGenerations",
+  "image-view": "imageViews",
+  "plan-steps": "planUpdates",
+  tool: "tools",
+  "web-fetch": "webFetches",
+};
 
 function approvalStatusSummaryLabel(
   rows: readonly TimelineViewWorkRow[],
 ): string | null {
   let status: "waiting_for_approval" | "denied" | null = null;
-  let commands = 0;
-  let fileChanges = 0;
-  let tools = 0;
-
+  const counts = { command: 0, "file-change": 0, tool: 0 };
   for (const row of rows) {
-    let rowApprovalStatus: "waiting_for_approval" | "denied";
-    switch (row.workKind) {
-      case "command":
-        if (row.approvalStatus === null) {
-          return null;
-        }
-        rowApprovalStatus = row.approvalStatus;
-        commands += 1;
-        break;
-      case "file-change":
-        if (row.approvalStatus === null) {
-          return null;
-        }
-        rowApprovalStatus = row.approvalStatus;
-        fileChanges += 1;
-        break;
-      case "tool":
-        if (row.approvalStatus === null) {
-          return null;
-        }
-        rowApprovalStatus = row.approvalStatus;
-        tools += 1;
-        break;
-      case "approval":
-      case "question":
-      case "form":
-      case "delegation":
-      case "extension":
-      case "file-read":
-      case "image-generation":
-      case "image-view":
-      case "plan-steps":
-      case "search":
-      case "web-fetch":
-      case "web-search":
-      case "workflow":
-        return null;
-      default:
-        assertNever(row);
+    if (
+      (row.workKind !== "command" &&
+        row.workKind !== "file-change" &&
+        row.workKind !== "tool") ||
+      row.approvalStatus === null
+    ) {
+      return null;
     }
-
+    counts[row.workKind] += 1;
     if (status === null) {
-      status = rowApprovalStatus;
-    } else if (status !== rowApprovalStatus) {
+      status = row.approvalStatus;
+    } else if (status !== row.approvalStatus) {
       return null;
     }
   }
-
-  if (status === null) {
-    return null;
-  }
-
-  const details = [
-    commands > 0 ? plural(commands, "command") : null,
-    fileChanges > 0 ? plural(fileChanges, "file change") : null,
-    tools > 0 ? plural(tools, "tool") : null,
-  ].filter((detail): detail is string => detail !== null);
-  const detail = details.join(", ");
-
+  if (status === null) return null;
+  const detail = [
+    counts.command > 0 ? plural(counts.command, "command") : null,
+    counts["file-change"] > 0
+      ? plural(counts["file-change"], "file change")
+      : null,
+    counts.tool > 0 ? plural(counts.tool, "tool") : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(", ");
   return status === "denied"
     ? `Denied ${detail}`
     : `Waiting for approval on ${detail}`;
@@ -445,185 +298,105 @@ function getTimelineWorkSummaryCategory(
   }
 }
 
-function getOrderedSummaryCategories(
-  rows: readonly TimelineViewWorkRow[],
-): TimelineWorkSummaryCategory[] {
-  const categories: TimelineWorkSummaryCategory[] = [];
-  for (const row of rows) {
-    const category = getTimelineWorkSummaryCategory(row);
-    if (category && !categories.includes(category)) {
-      categories.push(category);
-    }
-  }
-  return categories;
-}
-
-const FILE_CHANGE_VERBS_PRESENT: Record<FileChangeAction, string> = {
-  created: "Creating",
-  deleted: "Deleting",
-  edited: "Editing",
-  renamed: "Renaming",
-};
-
-const FILE_CHANGE_VERBS_PAST: Record<FileChangeAction, string> = {
-  created: "Created",
-  deleted: "Deleted",
-  edited: "Edited",
-  renamed: "Renamed",
-};
+const FILE_CHANGE_ACTIONS = [
+  "created",
+  "deleted",
+  "edited",
+  "renamed",
+] as const;
 
 function fileChangeSummaryPhrase(
   counts: TimelineWorkSummaryCounts,
   active: boolean,
 ): string | null {
-  const present: { action: FileChangeAction; count: number }[] = (
-    [
-      ["created", counts.createdFiles],
-      ["deleted", counts.deletedFiles],
-      ["edited", counts.editedFiles],
-      ["renamed", counts.renamedFiles],
-    ] as const
-  )
-    .filter(([, count]) => count > 0)
-    .map(([action, count]) => ({ action, count }));
-
-  if (present.length === 0) return null;
-
-  if (present.length === 1) {
-    const { action, count } = present[0]!;
-    const verb = active
-      ? FILE_CHANGE_VERBS_PRESENT[action]
-      : FILE_CHANGE_VERBS_PAST[action];
-    return `${verb} ${plural(count, "file")}`;
-  }
-
-  const total = present.reduce((sum, p) => sum + p.count, 0);
-  const verb = active ? "Editing" : "Edited";
-  return `${verb} ${plural(total, "file")}`;
+  const present = FILE_CHANGE_ACTIONS.filter(
+    (action) => counts.changedFiles[action].size > 0,
+  );
+  const [only] = present;
+  if (!only) return null;
+  const total = present.reduce(
+    (sum, action) => sum + counts.changedFiles[action].size,
+    0,
+  );
+  const verbs = FILE_CHANGE_VERBS[present.length === 1 ? only : "edited"];
+  return `${active ? verbs.present : verbs.past} ${plural(total, "file")}`;
 }
 
-function completedSummaryPhrase(
+function countedPhrase(
+  count: number,
+  verb: string,
+  noun: string,
+): string | null {
+  return count > 0 ? `${verb} ${plural(count, noun)}` : null;
+}
+
+function summaryPhrase(
   category: TimelineWorkSummaryCategory,
   counts: TimelineWorkSummaryCounts,
-  exploration: string | null,
+  active: boolean,
 ): string | null {
+  const ran = active ? "Running" : "Ran";
   switch (category) {
-    case "exploration":
-      return exploration ? `Explored ${exploration}` : null;
+    case "exploration": {
+      const parts = [...counts.explorationKinds].map((kind) =>
+        kind === "files"
+          ? plural(counts.exploredFiles.size, "file")
+          : kind === "searches"
+            ? plural(counts.searches, "search", "searches")
+            : plural(counts.lists, "list"),
+      );
+      return parts.length === 0
+        ? null
+        : `${active ? "Exploring" : "Explored"} ${parts.join(", ")}`;
+    }
     case "commands":
-      return counts.commands > 0
-        ? `Ran ${plural(counts.commands, "command")}`
-        : null;
+      return countedPhrase(counts.commands, ran, "command");
     case "fileChanges":
-      return fileChangeSummaryPhrase(counts, false);
-    case "webResearch":
-      return webResearchSummaryPhrase(counts, false);
+      return fileChangeSummaryPhrase(counts, active);
+    case "webResearch": {
+      const parts: string[] = [];
+      if (counts.webSearches > 0) {
+        parts.push(
+          plural(counts.webSearches, "search query", "search queries"),
+        );
+      }
+      if (counts.webFetches > 0) {
+        parts.push(plural(counts.webFetches, "web page"));
+      }
+      return parts.length === 0
+        ? null
+        : `${active ? "Researching" : "Researched"} ${parts.join(", ")}`;
+    }
     case "imageGenerations":
-      return imageGenerationSummaryPhrase(counts, false);
+      return countedPhrase(
+        counts.imageGenerations,
+        active ? "Generating" : "Generated",
+        "image",
+      );
     case "imageViews":
-      return imageViewSummaryPhrase(counts, false);
+      return countedPhrase(
+        counts.imageViews,
+        active ? "Viewing" : "Viewed",
+        "image",
+      );
     case "delegations":
-      return counts.delegations > 0
-        ? `Ran ${plural(counts.delegations, "subagent")}`
-        : null;
+      return countedPhrase(counts.delegations, ran, "subagent");
     case "tools":
-      return counts.tools > 0 ? `Ran ${plural(counts.tools, "tool")}` : null;
+      return countedPhrase(counts.tools, ran, "tool");
     case "planUpdates":
-      return counts.planUpdates > 0
-        ? `Updated plan ${plural(counts.planUpdates, "time")}`
-        : null;
+      return active
+        ? counts.planUpdates > 0
+          ? "Updating plan"
+          : null
+        : countedPhrase(counts.planUpdates, "Updated plan", "time");
     case "extensions":
-      return counts.extensions > 0
-        ? `Ran ${plural(counts.extensions, "plugin step")}`
-        : null;
+      return countedPhrase(counts.extensions, ran, "plugin step");
     default:
       return assertNever(category);
   }
 }
 
-function activeSummaryPhrase(
-  category: TimelineWorkSummaryCategory,
-  counts: TimelineWorkSummaryCounts,
-  exploration: string | null,
-): string | null {
-  switch (category) {
-    case "exploration":
-      return exploration ? `Exploring ${exploration}` : null;
-    case "commands":
-      return counts.commands > 0
-        ? `Running ${plural(counts.commands, "command")}`
-        : null;
-    case "fileChanges":
-      return fileChangeSummaryPhrase(counts, true);
-    case "webResearch":
-      return webResearchSummaryPhrase(counts, true);
-    case "imageGenerations":
-      return imageGenerationSummaryPhrase(counts, true);
-    case "imageViews":
-      return imageViewSummaryPhrase(counts, true);
-    case "delegations":
-      return counts.delegations > 0
-        ? `Running ${plural(counts.delegations, "subagent")}`
-        : null;
-    case "tools":
-      return counts.tools > 0
-        ? `Running ${plural(counts.tools, "tool")}`
-        : null;
-    case "planUpdates":
-      return counts.planUpdates > 0 ? "Updating plan" : null;
-    case "extensions":
-      return counts.extensions > 0
-        ? `Running ${plural(counts.extensions, "plugin step")}`
-        : null;
-    default:
-      return assertNever(category);
-  }
-}
-
-function joinSummaryPhrases(phrases: TimelineWorkSummaryPhraseList): string {
-  return phrases
-    .map((phrase, index) => (index === 0 ? phrase : lowerFirst(phrase)))
-    .join(", ");
-}
-
-function webResearchSummaryPhrase(
-  counts: TimelineWorkSummaryCounts,
-  active: boolean,
-): string | null {
-  const parts: string[] = [];
-  if (counts.webSearches > 0) {
-    parts.push(plural(counts.webSearches, "search query", "search queries"));
-  }
-  if (counts.webFetches > 0) {
-    parts.push(plural(counts.webFetches, "web page"));
-  }
-  if (parts.length === 0) return null;
-  const verb = active ? "Researching" : "Researched";
-  return `${verb} ${parts.join(", ")}`;
-}
-
-function imageViewSummaryPhrase(
-  counts: TimelineWorkSummaryCounts,
-  active: boolean,
-): string | null {
-  if (counts.imageViews === 0) return null;
-  const verb = active ? "Viewing" : "Viewed";
-  return `${verb} ${plural(counts.imageViews, "image")}`;
-}
-
-function imageGenerationSummaryPhrase(
-  counts: TimelineWorkSummaryCounts,
-  active: boolean,
-): string | null {
-  if (counts.imageGenerations === 0) return null;
-  const verb = active ? "Generating" : "Generated";
-  return `${verb} ${plural(counts.imageGenerations, "image")}`;
-}
-
-interface TimelineWorkSummaryLabelParts {
-  verb: string;
-  rest: string;
-}
+type TimelineWorkSummaryLabelParts = { verb: string; rest: string };
 
 export function buildTimelineWorkSummaryLabelParts(
   row: TimelineWorkSummaryRow,
@@ -634,39 +407,24 @@ export function buildTimelineWorkSummaryLabelParts(
   if (approvalSummaryLabel !== null) {
     return splitVerbAndRest(approvalSummaryLabel);
   }
-
   const counts = summarizeTimelineWork(work);
   const active = options.active;
-  const exploration = explorationDetail(counts);
-
-  const phrases = getOrderedSummaryCategories(work)
-    .map((category) =>
-      active
-        ? activeSummaryPhrase(category, counts, exploration)
-        : completedSummaryPhrase(category, counts, exploration),
-    )
+  const phrases = [...counts.categories]
+    .map((category) => summaryPhrase(category, counts, active))
     .filter((phrase): phrase is string => phrase !== null);
-
   if (phrases.length === 0) {
     return { verb: active ? "Working" : "Worked", rest: "" };
   }
-
-  return splitVerbAndRest(joinSummaryPhrases(phrases));
-}
-
-export function buildTimelineWorkSummaryLabel(
-  row: TimelineWorkSummaryRow,
-  options: { active: boolean } = { active: false },
-): string {
-  const { verb, rest } = buildTimelineWorkSummaryLabelParts(row, options);
-  return rest.length === 0 ? verb : `${verb} ${rest}`;
+  return splitVerbAndRest(
+    phrases
+      .map((phrase, index) => (index === 0 ? phrase : lowerFirst(phrase)))
+      .join(", "),
+  );
 }
 
 function splitVerbAndRest(label: string): TimelineWorkSummaryLabelParts {
   const spaceIndex = label.indexOf(" ");
-  if (spaceIndex === -1) {
-    return { verb: label, rest: "" };
-  }
+  if (spaceIndex === -1) return { verb: label, rest: "" };
   return {
     verb: label.slice(0, spaceIndex),
     rest: label.slice(spaceIndex + 1),
@@ -677,15 +435,9 @@ function mergeTimelineStatus(
   left: TimelineRowStatus,
   right: TimelineRowStatus,
 ): TimelineRowStatus {
-  if (left === "error" || right === "error") {
-    return "error";
-  }
-  if (left === "pending" || right === "pending") {
-    return "pending";
-  }
-  if (left === "interrupted" || right === "interrupted") {
-    return "interrupted";
-  }
+  if (left === "error" || right === "error") return "error";
+  if (left === "pending" || right === "pending") return "pending";
+  if (left === "interrupted" || right === "interrupted") return "interrupted";
   return "completed";
 }
 
@@ -696,25 +448,20 @@ function summarizeRange(
   if (!first) {
     throw new Error("Cannot summarize an empty timeline activity run");
   }
-
   let sourceSeqStart = first.sourceSeqStart;
   let sourceSeqEnd = first.sourceSeqEnd;
   let startedAt = first.startedAt;
   let createdAt = first.createdAt;
   let turnId = first.turnId;
   let status = first.status;
-
   for (const child of children) {
     sourceSeqStart = Math.min(sourceSeqStart, child.sourceSeqStart);
     sourceSeqEnd = Math.max(sourceSeqEnd, child.sourceSeqEnd);
     startedAt = Math.min(startedAt, child.startedAt);
     createdAt = Math.max(createdAt, child.createdAt);
     status = mergeTimelineStatus(status, child.status);
-    if (turnId !== child.turnId) {
-      turnId = null;
-    }
+    if (turnId !== child.turnId) turnId = null;
   }
-
   return {
     id: [first.threadId, turnId ?? "thread", "work-summary", first.id].join(
       ":",
@@ -750,44 +497,8 @@ function isSummarizableActivityRow(
 
 function isTimelineStepBoundary(row: ThreadTimelineViewRow): boolean {
   if (row.kind !== "conversation") return false;
-  if (row.role === "user" && row.turnRequest.status === "pending") {
-    return false;
-  }
+  if (row.role === "user" && row.turnRequest.status === "pending") return false;
   return true;
-}
-
-function rowConcept(row: TimelineViewWorkRow): TimelineWorkSummaryCategory {
-  switch (row.workKind) {
-    case "command":
-      return hasTimelineExplorationIntent(row) ? "exploration" : "commands";
-    case "tool":
-      return "tools";
-    case "file-read":
-    case "search":
-      return "exploration";
-    case "plan-steps":
-      return "planUpdates";
-    case "extension":
-      return "extensions";
-    case "file-change":
-      return "fileChanges";
-    case "delegation":
-      return "delegations";
-    case "web-search":
-    case "web-fetch":
-      return "webResearch";
-    case "image-generation":
-      return "imageGenerations";
-    case "image-view":
-      return "imageViews";
-    case "approval":
-    case "question":
-    case "form":
-    case "workflow":
-      return "tools";
-    default:
-      return assertNever(row);
-  }
 }
 
 function dedupeBundleChildIntents(
@@ -802,13 +513,10 @@ function dedupeBundleChildIntents(
       continue;
     }
     if (child.workKind === "file-read" || child.workKind === "search") {
-      const [intent] = timelineRowActivityIntents(child);
-      const key = intent
-        ? getTimelineActivityIntentDetailDedupeKey(intent)
-        : null;
-      if (key !== null && key === lastEmittedKey) {
-        continue;
-      }
+      const key = getTimelineActivityIntentDetailDedupeKey(
+        itemActivityIntent(child),
+      );
+      if (key !== null && key === lastEmittedKey) continue;
       lastEmittedKey = key;
       out.push(child);
       continue;
@@ -826,9 +534,7 @@ function dedupeBundleChildIntents(
         continue;
       }
       const key = getTimelineActivityIntentDetailDedupeKey(intent);
-      if (key !== null && key === lastEmittedKey) {
-        continue;
-      }
+      if (key !== null && key === lastEmittedKey) continue;
       filtered.push(intent);
       lastEmittedKey = key;
     }
@@ -847,24 +553,14 @@ function dedupeBundleChildIntents(
   return out;
 }
 
-function buildStepSummaryRow(
+function buildSummaryRow(
+  kind: TimelineWorkSummaryRow["kind"],
   children: TimelineWorkSummaryChild[],
-): TimelineStepSummaryRow {
+): TimelineWorkSummaryRow {
   const dedupedChildren = dedupeBundleChildIntents(children);
   return {
     ...summarizeRange(dedupedChildren),
-    kind: "step-summary",
-    children: dedupedChildren,
-  };
-}
-
-function buildBundleSummaryRow(
-  children: TimelineWorkSummaryChild[],
-): TimelineBundleSummaryRow {
-  const dedupedChildren = dedupeBundleChildIntents(children);
-  return {
-    ...summarizeRange(dedupedChildren),
-    kind: "bundle-summary",
+    kind,
     children: dedupedChildren,
   };
 }
@@ -879,19 +575,17 @@ function closeOpenStepAtBoundary(
       row.kind === "work" ? { ...row, inClosedStep: true } : row,
     );
   }
-  return [buildStepSummaryRow(work)];
+  return [buildSummaryRow("step-summary", work)];
 }
 
 function flushOpenStepAsBundles(
   work: TimelineWorkSummaryChild[],
 ): ThreadTimelineViewRow[] {
   if (work.length === 0) return [];
-
   interface Group {
     concept: TimelineWorkSummaryCategory;
     rows: TimelineWorkSummaryChild[];
   }
-
   const groups: Group[] = [];
   const leadingThoughts: TimelineWorkSummaryChild[] = [];
   for (const row of work) {
@@ -901,7 +595,7 @@ function flushOpenStepAsBundles(
       else leadingThoughts.push(row);
       continue;
     }
-    const concept = rowConcept(row);
+    const concept = getTimelineWorkSummaryCategory(row) ?? "tools";
     const last = groups[groups.length - 1];
     if (last && last.concept === concept) {
       last.rows.push(row);
@@ -909,13 +603,12 @@ function flushOpenStepAsBundles(
       groups.push({ concept, rows: [...leadingThoughts.splice(0), row] });
     }
   }
-
   const out: ThreadTimelineViewRow[] = [...leadingThoughts];
   for (const group of groups) {
     if (group.rows.length === 1) {
       out.push(group.rows[0]!);
     } else {
-      out.push(buildBundleSummaryRow(group.rows));
+      out.push(buildSummaryRow("bundle-summary", group.rows));
     }
   }
   return out;
@@ -934,10 +627,7 @@ function toTimelineViewWorkRow(
   row: TimelineWorkRow,
   cache: TimelineViewRowsCache,
 ): TimelineViewWorkRow {
-  if (row.workKind !== "delegation") {
-    return row;
-  }
-
+  if (row.workKind !== "delegation") return row;
   const closedScope = row.status !== "pending";
   return {
     ...row,
@@ -959,10 +649,7 @@ function toTimelineViewRow(
       return {
         ...row,
         children: row.children
-          ? buildTimelineViewRows(row.children, {
-              cache,
-              closedScope: true,
-            })
+          ? buildTimelineViewRows(row.children, { cache, closedScope: true })
           : null,
       };
     default:
@@ -988,7 +675,6 @@ export function buildTimelineViewRows(
   const viewRows = rows.map((row) => toTimelineViewRow(row, childCache));
   const result: ThreadTimelineViewRow[] = [];
   let openStep: TimelineWorkSummaryChild[] = [];
-
   for (const row of viewRows) {
     if (isSummarizableActivityRow(row)) {
       openStep.push(row);
@@ -1009,8 +695,6 @@ export function buildTimelineViewRows(
   } else {
     result.push(...flushOpenStepAsBundles(openStep));
   }
-  if (cache) {
-    cache.set(rows, result);
-  }
+  if (cache) cache.set(rows, result);
   return result;
 }

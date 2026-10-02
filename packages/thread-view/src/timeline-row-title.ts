@@ -3,50 +3,41 @@ import {
   isBackgroundAgentTaskType,
   isBackgroundCommandTaskType,
   isSettledWorkflowAgentState,
+  isNamespacedGlyph,
 } from "@bb/domain";
 import type {
   TimelineActivityIntent,
   TimelineApprovalStatus,
   TimelineCommandWorkRow,
-  TimelineExtensionWorkRow,
   TimelineFileChange,
   TimelineFileChangeWorkRow,
   TimelineFileReadWorkRow,
   TimelineImageGenerationWorkRow,
-  TimelineImageViewWorkRow,
   TimelineParentChangeSystemRow,
   TimelinePlanStepsWorkRow,
   TimelineRowPresentation,
   TimelineRowStatus,
   TimelineSearchWorkRow,
   TimelineToolWorkRow,
-  TimelineWebFetchWorkRow,
-  TimelineWebSearchWorkRow,
 } from "@bb/server-contract";
-import { assertNever } from "./assert-never.js";
-import { OWNERSHIP_CHANGE_VERBS } from "./family-a-verbs.js";
 import {
+  assertNever,
+  OWNERSHIP_CHANGE_VERBS,
+  FILE_CHANGE_VERBS,
   formatFileChangePath,
   getFileChangeAction,
-  getFileChangeActionInfinitive,
-  getFileChangeActionPastTense,
-  getFileChangeActionPresentTense,
-} from "./file-change-summary.js";
-import {
   durationToCompactString,
   formatDiffStatsText,
-} from "./format-helpers.js";
-import {
   formatTimelineActivityIntentDetailParts,
   getTimelineActivityIntentDetailDedupeKey,
-  hasTimelineExplorationIntent,
+  itemActivityIntent,
   timelineRowActivityIntents,
   type TimelineExplorationWorkRow,
-} from "./timeline-activity-intents.js";
-import {
   fileNameFromPath,
   formatTimelinePath,
-} from "./timeline-path-display.js";
+  type TimelinePathDisplayMode,
+  primaryTimelineActivityIntent,
+} from "./timeline-format.js";
 import {
   buildTimelineWorkSummaryLabelParts,
   type ThreadTimelineViewRow,
@@ -59,7 +50,12 @@ import {
 } from "./timeline-view.js";
 
 export type TimelineTitleTone = "default" | "summary";
+
 type TimelineStatusDecorationStatus = "denied" | "error" | "interrupted";
+
+type DisplayStatus = "waiting" | "denied" | TimelineRowStatus;
+
+type StatusVerbs = Record<TimelineRowStatus, string>;
 
 export type TimelineTitleLink = { kind: "thread"; threadId: string };
 
@@ -88,11 +84,7 @@ export type TimelineTitleDecoration =
       durationMs: number | null;
       emphasis: boolean;
     }
-  | {
-      kind: "summary-status";
-      errorCount: number;
-      interruptedCount: number;
-    }
+  | { kind: "summary-status"; errorCount: number; interruptedCount: number }
   | { kind: "diff-stats"; added: number; removed: number }
   | {
       kind: "badge";
@@ -103,14 +95,8 @@ export type TimelineTitleDecoration =
     };
 
 export type TimelineTitleAction =
-  | {
-      kind: "open-file-diff";
-      path: string;
-    }
-  | {
-      kind: "open-plugin-side-chat";
-      threadId: string;
-    };
+  | { kind: "open-file-diff"; path: string }
+  | { kind: "open-plugin-side-chat"; threadId: string };
 
 export interface TimelineTitle {
   segments: TimelineTitleSegment[];
@@ -133,49 +119,14 @@ export interface TimelineActivityIntentTitle {
   intentType: "read" | "list_files" | "search";
 }
 
-interface BuildTimelineActivityIntentTitleArgs {
-  intent: TimelineActivityIntent;
-  pending: boolean;
-  failureStatus?: "error" | "interrupted";
-  badges: readonly TimelineTitleDecoration[];
-}
+type TimedRow = { startedAt: number; completedAt: number | null };
 
-interface DisplayStatusArgs {
-  approvalStatus: TimelineApprovalStatus;
-  status: TimelineRowStatus;
-}
-
-type TimelineExecutionWorkRow = TimelineCommandWorkRow | TimelineToolWorkRow;
 type TimelineApprovalWorkRow = Extract<
   TimelineViewWorkRow,
   { workKind: "approval" }
 >;
-type TimelineFormViewWorkRow = Extract<
-  TimelineViewWorkRow,
-  { workKind: "form" }
->;
-type TimelineFileEditApprovalWorkRow = Extract<
-  TimelineApprovalWorkRow,
-  { approvalKind: "file-edit" }
->;
-type TimelinePermissionGrantApprovalWorkRow = Extract<
-  TimelineApprovalWorkRow,
-  { approvalKind: "permission-grant" }
->;
-type TimelineSystemViewRow = Extract<ThreadTimelineViewRow, { kind: "system" }>;
-type TimelineConversationViewRow = Extract<
-  ThreadTimelineViewRow,
-  { kind: "conversation" }
->;
 
-interface SegmentOptions {
-  em?: boolean;
-  shimmer?: boolean;
-  truncate?: boolean;
-  plainText?: string;
-  link?: TimelineTitleLink;
-  accent?: TimelineTitleSegmentAccent;
-}
+type TimelineSystemViewRow = Extract<ThreadTimelineViewRow, { kind: "system" }>;
 
 function collapseTitleNewlines(text: string): string {
   return text.replace(/[\r\n]+/gu, " ");
@@ -183,7 +134,14 @@ function collapseTitleNewlines(text: string): string {
 
 function segment(
   text: string,
-  opts: SegmentOptions = {},
+  opts: {
+    em?: boolean;
+    shimmer?: boolean;
+    truncate?: boolean;
+    plainText?: string;
+    link?: TimelineTitleLink;
+    accent?: TimelineTitleSegmentAccent;
+  } = {},
 ): TimelineTitleSegment {
   return {
     text: collapseTitleNewlines(text),
@@ -198,6 +156,17 @@ function segment(
   };
 }
 
+function emphasized(text: string): TimelineTitleSegment {
+  return segment(text, { em: true, truncate: true });
+}
+
+function verbSegment(
+  verbs: StatusVerbs,
+  status: TimelineRowStatus,
+): TimelineTitleSegment {
+  return segment(verbs[status], { shimmer: status === "pending" });
+}
+
 function filterNull<T>(values: (T | null)[]): T[] {
   return values.filter((v): v is T => v !== null);
 }
@@ -206,65 +175,57 @@ function visibleDurationMs(durationMs: number | null): number | null {
   return durationMs !== null && durationMs > 1_000 ? durationMs : null;
 }
 
-function durationDecoration(
-  startedAt: number,
-  completedAt: number | null,
-  options: { em?: boolean } = {},
-): TimelineTitleDecoration | null {
-  if (completedAt !== null) {
-    const finalMs = completedAt - startedAt;
-    if (visibleDurationMs(finalMs) === null) return null;
-  }
-  return {
-    kind: "duration",
-    startedAt,
-    completedAt,
-    em: options.em ?? false,
-  };
+function elapsedMs(row: TimedRow): number | null {
+  return row.completedAt !== null ? row.completedAt - row.startedAt : null;
 }
 
-function completedTurnDurationDecoration(
-  startedAt: number,
-  completedAt: number | null,
-): TimelineTitleDecoration | null {
-  if (completedAt === null) return null;
-  return {
-    kind: "duration",
-    startedAt,
-    completedAt,
-    em: false,
-  };
+function durationDecorations(
+  row: TimedRow,
+  em = false,
+): TimelineTitleDecoration[] {
+  const { startedAt, completedAt } = row;
+  return visibleDurationMs(elapsedMs(row)) === null && completedAt !== null
+    ? []
+    : [{ kind: "duration", startedAt, completedAt, em }];
 }
 
 function badgeDecorations(row: {
   presentation?: TimelineRowPresentation;
 }): TimelineTitleDecoration[] {
   const badge = row.presentation?.badge;
-  if (badge === undefined) {
-    return [];
-  }
-  return [
-    {
-      kind: "badge",
-      glyph: badge.glyph,
-      label: badge.label,
-      hint: badge.hint,
-      tone: badge.tone,
-    },
-  ];
+  return badge === undefined
+    ? []
+    : [
+        {
+          kind: "badge",
+          glyph: badge.glyph,
+          label: badge.label,
+          hint: badge.hint,
+          tone: badge.tone,
+        },
+      ];
 }
 
 function statusDecoration(
   status: TimelineStatusDecorationStatus,
   durationMs: number | null,
-  options: { emphasis?: boolean } = {},
+  emphasis = false,
 ): TimelineTitleDecoration {
   return {
     kind: "status",
     status,
     durationMs: visibleDurationMs(durationMs),
-    emphasis: options.emphasis ?? false,
+    emphasis,
   };
+}
+
+function settledDecorations(
+  status: DisplayStatus,
+  row: TimedRow,
+): TimelineTitleDecoration[] {
+  return status === "error" || status === "interrupted"
+    ? [statusDecoration(status, elapsedMs(row))]
+    : durationDecorations(row);
 }
 
 function summaryStatusDecoration(
@@ -276,20 +237,17 @@ function summaryStatusDecoration(
     if (child.status === "error") errorCount += 1;
     if (child.status === "interrupted") interruptedCount += 1;
   }
-  if (errorCount === 0 && interruptedCount === 0) {
-    return null;
-  }
+  if (errorCount === 0 && interruptedCount === 0) return null;
   return { kind: "summary-status", errorCount, interruptedCount };
 }
 
-function diffStatsDecoration(
+function diffStatsDecorations(
   change: TimelineFileChange,
-): TimelineTitleDecoration | null {
+): TimelineTitleDecoration[] {
   const { added, removed } = change.diffStats;
-  if (added === 0 && removed === 0) {
-    return null;
-  }
-  return { kind: "diff-stats", added, removed };
+  return added === 0 && removed === 0
+    ? []
+    : [{ kind: "diff-stats", added, removed }];
 }
 
 export function formatTimelineDecorationText(
@@ -344,19 +302,12 @@ function renderTitlePlain(
   return `${segmentsText} ${decorationsText}`;
 }
 
-interface MakeTitleArgs {
-  segments: TimelineTitleSegment[];
-  decorations?: TimelineTitleDecoration[];
-  tone?: TimelineTitleTone;
-  action?: TimelineTitleAction | null;
-}
-
-function makeTitle({
-  segments,
-  decorations = [],
-  tone = "default",
-  action = null,
-}: MakeTitleArgs): TimelineTitle {
+function makeTitle(
+  segments: TimelineTitleSegment[],
+  decorations: TimelineTitleDecoration[] = [],
+  action: TimelineTitleAction | null = null,
+  tone: TimelineTitleTone = "default",
+): TimelineTitle {
   return {
     segments,
     decorations,
@@ -366,80 +317,53 @@ function makeTitle({
   };
 }
 
-function displayStatus({
-  approvalStatus,
-  status,
-}: DisplayStatusArgs): "waiting" | "denied" | TimelineRowStatus {
-  if (approvalStatus === "waiting_for_approval") {
-    return "waiting";
-  }
-  if (approvalStatus === "denied") {
-    return "denied";
-  }
-  return status;
-}
-
-function presentationLabel(
-  presentation: TimelineRowPresentation,
+function displayStatus(
+  approvalStatus: TimelineApprovalStatus,
   status: TimelineRowStatus,
-): string {
-  return status === "pending"
-    ? presentation.label.pending
-    : presentation.label.completed;
+): DisplayStatus {
+  if (approvalStatus === "waiting_for_approval") return "waiting";
+  return approvalStatus === "denied" ? "denied" : status;
 }
 
-interface PresentedTitleArgs {
-  presentation: TimelineRowPresentation;
-  status: TimelineRowStatus;
-  startedAt: number;
-  completedAt: number | null;
-  content?: string | null;
-  plainContent?: string;
-  em?: boolean;
-}
-
-function presentedTitle({
-  presentation,
-  status,
-  startedAt,
-  completedAt,
-  content,
-  plainContent,
-  em = true,
-}: PresentedTitleArgs): TimelineTitle {
-  const resolvedContent = content === undefined ? presentation.title : content;
-  const segments: TimelineTitleSegment[] = [
-    segment(presentationLabel(presentation, status), {
-      shimmer: status === "pending",
-      truncate: resolvedContent ? false : true,
-    }),
+function presentedTitle(
+  presentation: TimelineRowPresentation,
+  row: TimedRow & { status: TimelineRowStatus },
+  options: {
+    content?: string | null;
+    plainContent?: string;
+    em?: boolean;
+  } = {},
+): TimelineTitle {
+  const pending = row.status === "pending";
+  const content =
+    options.content === undefined ? presentation.title : options.content;
+  const segments = [
+    segment(
+      pending ? presentation.label.pending : presentation.label.completed,
+      { shimmer: pending, truncate: !content },
+    ),
   ];
-  if (resolvedContent) {
+  if (content) {
     segments.push(
-      segment(resolvedContent, {
-        em,
+      segment(content, {
+        em: options.em ?? true,
         truncate: true,
-        ...(plainContent === undefined ? {} : { plainText: plainContent }),
+        ...(options.plainContent === undefined
+          ? {}
+          : { plainText: options.plainContent }),
       }),
     );
   }
-  const durationMs = completedAt !== null ? completedAt - startedAt : null;
-  const decorations: TimelineTitleDecoration[] = [
+  return makeTitle(segments, [
     ...badgeDecorations({ presentation }),
-    ...(status === "error"
-      ? [statusDecoration("error", durationMs)]
-      : status === "interrupted"
-        ? [statusDecoration("interrupted", durationMs)]
-        : filterNull([durationDecoration(startedAt, completedAt)])),
-  ];
-  return makeTitle({ segments, decorations });
+    ...settledDecorations(row.status, row),
+  ]);
 }
 
-function mapExecutionTitle(row: TimelineExecutionWorkRow): TimelineTitle {
-  const status = displayStatus({
-    approvalStatus: row.approvalStatus,
-    status: row.status,
-  });
+function mapExecutionTitle(
+  row: TimelineCommandWorkRow | TimelineToolWorkRow,
+): TimelineTitle {
+  const status = displayStatus(row.approvalStatus, row.status);
   const isCommand = row.workKind === "command";
   if (
     row.presentation &&
@@ -447,119 +371,55 @@ function mapExecutionTitle(row: TimelineExecutionWorkRow): TimelineTitle {
     status !== "denied" &&
     !isCommand
   ) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-    });
+    return presentedTitle(row.presentation, row);
   }
-  const content = isCommand
-    ? row.command
-    : formatToolCallCommand(row.toolName, row.toolArgs);
   const explorationTitle =
     row.workKind === "command" ? mapSingleExplorationIntentTitle(row) : null;
-  if (explorationTitle !== null) {
-    return explorationTitle;
-  }
+  if (explorationTitle !== null) return explorationTitle;
+  const content = emphasized(
+    isCommand ? row.command : formatToolCallCommand(row.toolName, row.toolArgs),
+  );
   const badges = badgeDecorations(row);
-  switch (status) {
-    case "waiting":
-      return makeTitle({
-        segments: [
-          segment("Waiting for approval", { shimmer: true }),
-          segment(isCommand ? "to run" : "to use"),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: badges,
-      });
-    case "denied":
-      return makeTitle({
-        segments: [
-          segment("Permission denied:"),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: [
-          ...badges,
-          ...filterNull([durationDecoration(row.startedAt, row.completedAt)]),
-        ],
-      });
-    case "pending":
-      return makeTitle({
-        segments: [
-          segment(isCommand ? "Running" : "Running tool:", { shimmer: true }),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: [
-          ...badges,
-          ...filterNull([durationDecoration(row.startedAt, row.completedAt)]),
-        ],
-      });
-    case "completed":
-      return makeTitle({
-        segments: [
-          segment(isCommand ? "Ran" : "Ran tool"),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: [
-          ...badges,
-          ...filterNull([durationDecoration(row.startedAt, row.completedAt)]),
-        ],
-      });
-    case "error":
-      return makeTitle({
-        segments: [
-          segment(isCommand ? "Ran" : "Ran tool"),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: [
-          ...badges,
-          statusDecoration(
-            "error",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: [
-          segment(isCommand ? "Ran" : "Ran tool"),
-          segment(content, { em: true, truncate: true }),
-        ],
-        decorations: [
-          ...badges,
-          statusDecoration(
-            "interrupted",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    default:
-      return assertNever(status);
+  if (status === "waiting") {
+    return makeTitle(
+      [
+        segment("Waiting for approval", { shimmer: true }),
+        segment(isCommand ? "to run" : "to use"),
+        content,
+      ],
+      badges,
+    );
   }
+  const lead =
+    status === "denied"
+      ? segment("Permission denied:")
+      : status === "pending"
+        ? segment(isCommand ? "Running" : "Running tool:", { shimmer: true })
+        : segment(isCommand ? "Ran" : "Ran tool");
+  return makeTitle(
+    [lead, content],
+    [...badges, ...settledDecorations(status, row)],
+  );
 }
 
-function mapSingleExplorationIntentTitle(
-  row: TimelineExplorationWorkRow,
-): TimelineTitle | null {
-  if (!hasTimelineExplorationIntent(row)) {
-    return null;
-  }
-  const knownIntents = timelineRowActivityIntents(row).filter(
-    (intent) => intent.type !== "unknown",
-  );
-  if (knownIntents.length !== 1) {
-    return null;
-  }
-  const intent = knownIntents[0];
-  if (!intent) {
-    return null;
-  }
-  const status = displayStatus({
-    approvalStatus: row.workKind === "command" ? row.approvalStatus : null,
-    status: row.status,
+function joinedIntentDetail(
+  intent: TimelineActivityIntent,
+  pathMode: TimelinePathDisplayMode,
+): string {
+  const { prefix, content } = formatTimelineActivityIntentDetailParts({
+    intent,
+    pathMode,
+    pending: false,
   });
-  const pending = status === "pending";
+  return prefix ? `${prefix} ${content}` : content;
+}
+
+function mapTimelineActivityIntentTitle(
+  intent: TimelineActivityIntent,
+  pending: boolean,
+  failureStatus: "error" | "interrupted" | undefined,
+  badges: readonly TimelineTitleDecoration[],
+): TimelineTitle {
   const detail = formatTimelineActivityIntentDetailParts({
     intent,
     pathMode: "compact",
@@ -570,48 +430,6 @@ function mapSingleExplorationIntentTitle(
     pathMode: "full",
     pending,
   });
-
-  const badges = badgeDecorations(row);
-  if (status === "denied") {
-    const verbContent = detail.prefix
-      ? `${detail.prefix} ${detail.content}`
-      : detail.content;
-    const plainVerbContent = plainDetail.prefix
-      ? `${plainDetail.prefix} ${plainDetail.content}`
-      : plainDetail.content;
-    return makeTitle({
-      segments: [
-        segment("Permission denied:"),
-        segment(verbContent, {
-          em: true,
-          truncate: true,
-          plainText: plainVerbContent,
-        }),
-      ],
-      decorations: badges,
-    });
-  }
-  if (status === "waiting") {
-    const verbContent = detail.prefix
-      ? `${detail.prefix} ${detail.content}`
-      : detail.content;
-    const plainVerbContent = plainDetail.prefix
-      ? `${plainDetail.prefix} ${plainDetail.content}`
-      : plainDetail.content;
-    return makeTitle({
-      segments: [
-        segment("Waiting for approval", { shimmer: true }),
-        segment("to use"),
-        segment(verbContent, {
-          em: true,
-          truncate: true,
-          plainText: plainVerbContent,
-        }),
-      ],
-      decorations: badges,
-    });
-  }
-
   const segments: TimelineTitleSegment[] = [];
   if (detail.prefix) {
     segments.push(segment(detail.prefix, { shimmer: pending }));
@@ -623,587 +441,289 @@ function mapSingleExplorationIntentTitle(
       plainText: plainDetail.content,
     }),
   );
-
-  const decorations: TimelineTitleDecoration[] = [
+  return makeTitle(segments, [
     ...badges,
-    ...(status === "error"
-      ? [statusDecoration("error", null)]
-      : status === "interrupted"
-        ? [statusDecoration("interrupted", null)]
-        : []),
-  ];
+    ...(failureStatus ? [statusDecoration(failureStatus, null)] : []),
+  ]);
+}
 
-  return makeTitle({ segments, decorations });
+function explorationIntentTitle(
+  row: TimelineExplorationWorkRow,
+  intent: TimelineActivityIntent,
+): TimelineTitle {
+  const status = displayStatus(
+    row.workKind === "command" ? row.approvalStatus : null,
+    row.status,
+  );
+  const badges = badgeDecorations(row);
+  if (status === "denied" || status === "waiting") {
+    const subject = segment(joinedIntentDetail(intent, "compact"), {
+      em: true,
+      truncate: true,
+      plainText: joinedIntentDetail(intent, "full"),
+    });
+    return makeTitle(
+      status === "denied"
+        ? [segment("Permission denied:"), subject]
+        : [
+            segment("Waiting for approval", { shimmer: true }),
+            segment("to use"),
+            subject,
+          ],
+      badges,
+    );
+  }
+  return mapTimelineActivityIntentTitle(
+    intent,
+    status === "pending",
+    status === "error" || status === "interrupted" ? status : undefined,
+    badges,
+  );
+}
+
+function mapSingleExplorationIntentTitle(
+  row: TimelineCommandWorkRow,
+): TimelineTitle | null {
+  const [intent, ...others] = row.activityIntents.filter(
+    (candidate) => candidate.type !== "unknown",
+  );
+  return intent && others.length === 0
+    ? explorationIntentTitle(row, intent)
+    : null;
+}
+
+function fileChangeLeadSegments(
+  row: TimelineFileChangeWorkRow,
+  status: DisplayStatus,
+): TimelineTitleSegment[] {
+  const verbs = FILE_CHANGE_VERBS[getFileChangeAction(row.change)];
+  switch (status) {
+    case "waiting":
+      return [
+        segment("Waiting for approval", { shimmer: true }),
+        segment("to edit"),
+      ];
+    case "denied":
+      return [segment("Permission denied:")];
+    case "pending":
+      return [segment(verbs.present, { shimmer: true })];
+    case "completed":
+      return [segment(verbs.past)];
+    case "error":
+      return [segment(`Failed to ${verbs.infinitive}`)];
+    case "interrupted":
+      return [segment(`Interrupted while ${verbs.present.toLowerCase()}`)];
+  }
 }
 
 function mapFileChangeTitle(row: TimelineFileChangeWorkRow): TimelineTitle {
-  const status = displayStatus({
-    approvalStatus: row.approvalStatus,
-    status: row.status,
-  });
-  const action = getFileChangeAction(row.change);
-  const compactPath = formatFileChangePath({
-    change: row.change,
-    mode: "compact",
-  });
-  const fullPath = formatFileChangePath({ change: row.change, mode: "full" });
-  const titleAction: TimelineTitleAction = {
-    kind: "open-file-diff",
-    path: row.change.movePath ?? row.change.path,
-  };
-  const pathSegment = segment(compactPath, {
-    em: true,
-    truncate: true,
-    plainText: fullPath,
-    accent: "file",
-  });
-
-  switch (status) {
-    case "waiting":
-      return makeTitle({
-        segments: [
-          segment("Waiting for approval", { shimmer: true }),
-          segment("to edit"),
-          pathSegment,
-        ],
-        decorations: filterNull([diffStatsDecoration(row.change)]),
-        action: titleAction,
-      });
-    case "denied":
-      return makeTitle({
-        segments: [segment("Permission denied:"), pathSegment],
-        decorations: filterNull([diffStatsDecoration(row.change)]),
-        action: titleAction,
-      });
-    case "pending":
-      return makeTitle({
-        segments: [
-          segment(getFileChangeActionPresentTense(action), { shimmer: true }),
-          pathSegment,
-        ],
-        decorations: filterNull([diffStatsDecoration(row.change)]),
-        action: titleAction,
-      });
-    case "completed":
-      return makeTitle({
-        segments: [segment(getFileChangeActionPastTense(action)), pathSegment],
-        decorations: filterNull([diffStatsDecoration(row.change)]),
-        action: titleAction,
-      });
-    case "error":
-      return makeTitle({
-        segments: [
-          segment(`Failed to ${getFileChangeActionInfinitive(action)}`),
-          pathSegment,
-        ],
-        decorations: [statusDecoration("error", null)],
-        action: titleAction,
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: [
-          segment(
-            `Interrupted while ${getFileChangeActionPresentTense(action).toLowerCase()}`,
-          ),
-          pathSegment,
-        ],
-        action: titleAction,
-      });
-    default:
-      return assertNever(status);
-  }
+  const status = displayStatus(row.approvalStatus, row.status);
+  const pathSegment = segment(
+    formatFileChangePath({ change: row.change, mode: "compact" }),
+    {
+      em: true,
+      truncate: true,
+      plainText: formatFileChangePath({ change: row.change, mode: "full" }),
+      accent: "file",
+    },
+  );
+  return makeTitle(
+    [...fileChangeLeadSegments(row, status), pathSegment],
+    status === "error"
+      ? [statusDecoration("error", null)]
+      : status === "interrupted"
+        ? []
+        : diffStatsDecorations(row.change),
+    { kind: "open-file-diff", path: row.change.movePath ?? row.change.path },
+  );
 }
 
-function mapWebSearchTitle(row: TimelineWebSearchWorkRow): TimelineTitle {
-  if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      content: row.queries.join(", "),
-      em: false,
-    });
-  }
-  const query = row.queries.join(", ") || "web search";
-  const querySegment = segment(query, {
-    em: false,
-    truncate: true,
-  });
-  switch (row.status) {
-    case "pending":
-      return makeTitle({
-        segments: [
-          segment("Running web search:", { shimmer: true }),
-          querySegment,
-        ],
-      });
-    case "completed":
-      return makeTitle({
-        segments: [segment("Ran web search:"), querySegment],
-        decorations: filterNull([
-          durationDecoration(row.startedAt, row.completedAt),
-        ]),
-      });
-    case "error":
-      return makeTitle({
-        segments: [segment("Ran web search:"), querySegment],
-        decorations: [
-          statusDecoration(
-            "error",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: [segment("Interrupted web search:"), querySegment],
-        decorations: [
-          statusDecoration(
-            "interrupted",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    default:
-      return assertNever(row.status);
-  }
-}
+const WEB_SEARCH_VERBS: StatusVerbs = {
+  pending: "Running web search:",
+  completed: "Ran web search:",
+  error: "Ran web search:",
+  interrupted: "Interrupted web search:",
+};
 
-function mapWebFetchTitle(row: TimelineWebFetchWorkRow): TimelineTitle {
-  if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      content: row.url,
-      em: false,
-    });
-  }
-  const urlSegment = segment(row.url, { em: false, truncate: true });
-  switch (row.status) {
-    case "pending":
-      return makeTitle({
-        segments: [segment("Fetching:", { shimmer: true }), urlSegment],
-      });
-    case "completed":
-      return makeTitle({
-        segments: [segment("Fetched:"), urlSegment],
-        decorations: filterNull([
-          durationDecoration(row.startedAt, row.completedAt),
-        ]),
-      });
-    case "error":
-      return makeTitle({
-        segments: [segment("Fetched:"), urlSegment],
-        decorations: [
-          statusDecoration(
-            "error",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: [segment("Interrupted fetch:"), urlSegment],
-        decorations: [
-          statusDecoration(
-            "interrupted",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    default:
-      return assertNever(row.status);
-  }
-}
+const WEB_FETCH_VERBS: StatusVerbs = {
+  pending: "Fetching:",
+  completed: "Fetched:",
+  error: "Fetched:",
+  interrupted: "Interrupted fetch:",
+};
 
-function mapImageViewTitle(row: TimelineImageViewWorkRow): TimelineTitle {
-  if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      content: fileNameFromPath(row.path),
-      plainContent: row.path,
-    });
-  }
-  const pathSegment = segment(fileNameFromPath(row.path), {
-    em: false,
-    plainText: row.path,
-    truncate: true,
-  });
-  switch (row.status) {
-    case "pending":
-      return makeTitle({
-        segments: [segment("Viewing image:", { shimmer: true }), pathSegment],
-      });
-    case "completed":
-      return makeTitle({
-        segments: [segment("Viewed image:"), pathSegment],
-        decorations: filterNull([
-          durationDecoration(row.startedAt, row.completedAt),
-        ]),
-      });
-    case "error":
-      return makeTitle({
-        segments: [segment("Viewed image:"), pathSegment],
-        decorations: [
-          statusDecoration(
-            "error",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: [segment("Interrupted image view:"), pathSegment],
-        decorations: [
-          statusDecoration(
-            "interrupted",
-            row.completedAt !== null ? row.completedAt - row.startedAt : null,
-          ),
-        ],
-      });
-    default:
-      return assertNever(row.status);
-  }
+const IMAGE_VIEW_VERBS: StatusVerbs = {
+  pending: "Viewing image:",
+  completed: "Viewed image:",
+  error: "Viewed image:",
+  interrupted: "Interrupted image view:",
+};
+
+const IMAGE_GENERATION_LABELS: StatusVerbs = {
+  pending: "Generating image",
+  completed: "Generated image",
+  error: "Image generation failed",
+  interrupted: "Interrupted image generation",
+};
+
+const DELEGATION_VERBS: StatusVerbs = {
+  pending: "Running subagent:",
+  completed: "Ran subagent:",
+  error: "Failed subagent:",
+  interrupted: "Interrupted subagent:",
+};
+
+const WORKFLOW_VERBS: StatusVerbs = {
+  pending: "Running workflow:",
+  completed: "Ran workflow:",
+  error: "Failed workflow:",
+  interrupted: "Interrupted workflow:",
+};
+
+const BACKGROUND_COMMAND_VERBS: StatusVerbs = {
+  pending: "Running background command:",
+  completed: "Ran background command:",
+  error: "Background command failed:",
+  interrupted: "Background command interrupted:",
+};
+
+const BACKGROUND_AGENT_VERBS: StatusVerbs = {
+  pending: "Running background agent:",
+  completed: "Ran background agent:",
+  error: "Background agent failed:",
+  interrupted: "Background agent interrupted:",
+};
+
+function mapWebActivityTitle(
+  row: TimedRow & { status: TimelineRowStatus },
+  verbs: StatusVerbs,
+  subject: string,
+  plainText?: string,
+): TimelineTitle {
+  return makeTitle(
+    [
+      verbSegment(verbs, row.status),
+      segment(subject, {
+        em: false,
+        ...(plainText === undefined ? {} : { plainText }),
+        truncate: true,
+      }),
+    ],
+    row.status === "pending" ? [] : settledDecorations(row.status, row),
+  );
 }
 
 function mapImageGenerationTitle(
   row: TimelineImageGenerationWorkRow,
 ): TimelineTitle {
-  if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-    });
-  }
-  const label = (() => {
-    switch (row.status) {
-      case "pending":
-        return "Generating image";
-      case "completed":
-        return "Generated image";
-      case "error":
-        return "Image generation failed";
-      case "interrupted":
-        return "Interrupted image generation";
-      default:
-        return assertNever(row.status);
-    }
-  })();
-  return makeTitle({
-    segments: [segment(label, { shimmer: row.status === "pending" })],
-    decorations:
-      row.status === "error"
-        ? [statusDecoration("error", null)]
-        : row.status === "interrupted"
-          ? [statusDecoration("interrupted", null)]
-          : filterNull([durationDecoration(row.startedAt, row.completedAt)]),
-  });
-}
-
-function delegationVerbForStatus(status: TimelineRowStatus): {
-  text: string;
-  shimmer: boolean;
-} {
-  switch (status) {
-    case "pending":
-      return { text: "Running subagent:", shimmer: true };
-    case "completed":
-      return { text: "Ran subagent:", shimmer: false };
-    case "error":
-      return { text: "Failed subagent:", shimmer: false };
-    case "interrupted":
-      return { text: "Interrupted subagent:", shimmer: false };
-    default:
-      return assertNever(status);
-  }
+  if (row.presentation) return presentedTitle(row.presentation, row);
+  return makeTitle(
+    [verbSegment(IMAGE_GENERATION_LABELS, row.status)],
+    row.status === "error" || row.status === "interrupted"
+      ? [statusDecoration(row.status, null)]
+      : durationDecorations(row),
+  );
 }
 
 function mapDelegationTitle(row: TimelineViewDelegationWorkRow): TimelineTitle {
   const description = row.description ?? (row.output.trim() || row.toolName);
   if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      content: description,
-    });
+    return presentedTitle(row.presentation, row, { content: description });
   }
-  const verb = delegationVerbForStatus(row.status);
-  const segments: TimelineTitleSegment[] = [
-    segment(verb.text, { shimmer: verb.shimmer }),
-    segment(description, { em: true, truncate: true }),
+  const segments = [
+    verbSegment(DELEGATION_VERBS, row.status),
+    emphasized(description),
   ];
   if (row.subagentType) {
     segments.push(
       segment(`(${row.subagentType})`, { em: false, truncate: true }),
     );
   }
-  return makeTitle({
-    segments,
-    decorations: filterNull([
-      durationDecoration(row.startedAt, row.completedAt),
-    ]),
-  });
-}
-
-function workflowVerbForStatus(status: TimelineRowStatus): {
-  text: string;
-  shimmer: boolean;
-} {
-  switch (status) {
-    case "pending":
-      return { text: "Running workflow:", shimmer: true };
-    case "completed":
-      return { text: "Ran workflow:", shimmer: false };
-    case "error":
-      return { text: "Failed workflow:", shimmer: false };
-    case "interrupted":
-      return { text: "Interrupted workflow:", shimmer: false };
-    default:
-      return assertNever(status);
-  }
-}
-
-function formatWorkflowAgentProgress(
-  row: TimelineViewWorkflowWorkRow,
-): string | null {
-  const agents = row.workflow?.agents ?? [];
-  if (agents.length === 0) {
-    return null;
-  }
-  const done = agents.filter((agent) =>
-    isSettledWorkflowAgentState(agent.state),
-  ).length;
-  return `(${done}/${agents.length} agents)`;
-}
-
-function backgroundCommandVerbForStatus(status: TimelineRowStatus): {
-  text: string;
-  shimmer: boolean;
-} {
-  switch (status) {
-    case "pending":
-      return { text: "Running background command:", shimmer: true };
-    case "completed":
-      return { text: "Ran background command:", shimmer: false };
-    case "error":
-      return { text: "Background command failed:", shimmer: false };
-    case "interrupted":
-      return { text: "Background command interrupted:", shimmer: false };
-    default:
-      return assertNever(status);
-  }
-}
-
-function backgroundAgentVerbForStatus(status: TimelineRowStatus): {
-  text: string;
-  shimmer: boolean;
-} {
-  switch (status) {
-    case "pending":
-      return { text: "Running background agent:", shimmer: true };
-    case "completed":
-      return { text: "Ran background agent:", shimmer: false };
-    case "error":
-      return { text: "Background agent failed:", shimmer: false };
-    case "interrupted":
-      return { text: "Background agent interrupted:", shimmer: false };
-    default:
-      return assertNever(status);
-  }
-}
-
-function mapBackgroundCommandTitle(
-  row: TimelineViewWorkflowWorkRow,
-): TimelineTitle {
-  const verb = backgroundCommandVerbForStatus(row.status);
-  return makeTitle({
-    segments: [
-      segment(verb.text, { shimmer: verb.shimmer }),
-      segment(row.description, { em: true, truncate: true }),
-    ],
-    decorations: filterNull([
-      durationDecoration(row.startedAt, row.completedAt),
-    ]),
-  });
-}
-
-function mapBackgroundAgentTitle(
-  row: TimelineViewWorkflowWorkRow,
-): TimelineTitle {
-  const verb = backgroundAgentVerbForStatus(row.status);
-  return makeTitle({
-    segments: [
-      segment(verb.text, { shimmer: verb.shimmer }),
-      segment(row.description, { em: true, truncate: true }),
-    ],
-    decorations: filterNull([
-      durationDecoration(row.startedAt, row.completedAt),
-    ]),
-  });
+  return makeTitle(segments, durationDecorations(row));
 }
 
 function mapWorkflowTitle(row: TimelineViewWorkflowWorkRow): TimelineTitle {
-  if (isBackgroundCommandTaskType(row.taskType)) {
-    return mapBackgroundCommandTitle(row);
-  }
-  if (isBackgroundAgentTaskType(row.taskType)) {
-    return mapBackgroundAgentTitle(row);
-  }
-  const verb = workflowVerbForStatus(row.status);
-  const name = row.workflowName ?? row.description;
-  const segments: TimelineTitleSegment[] = [
-    segment(verb.text, { shimmer: verb.shimmer }),
-    segment(name, { em: true, truncate: true }),
+  const verbs = isBackgroundCommandTaskType(row.taskType)
+    ? BACKGROUND_COMMAND_VERBS
+    : isBackgroundAgentTaskType(row.taskType)
+      ? BACKGROUND_AGENT_VERBS
+      : WORKFLOW_VERBS;
+  const isWorkflow = verbs === WORKFLOW_VERBS;
+  const segments = [
+    verbSegment(verbs, row.status),
+    emphasized(
+      isWorkflow ? (row.workflowName ?? row.description) : row.description,
+    ),
   ];
-  const agentProgress = formatWorkflowAgentProgress(row);
-  if (agentProgress) {
-    segments.push(segment(agentProgress, { em: false }));
+  const agents = isWorkflow ? (row.workflow?.agents ?? []) : [];
+  if (agents.length > 0) {
+    const done = agents.filter((agent) =>
+      isSettledWorkflowAgentState(agent.state),
+    ).length;
+    segments.push(segment(`(${done}/${agents.length} agents)`, { em: false }));
   }
-  return makeTitle({
-    segments,
-    decorations: filterNull([
-      durationDecoration(row.startedAt, row.completedAt),
-    ]),
-  });
-}
-
-function mapFileEditApprovalTitle(
-  row: TimelineFileEditApprovalWorkRow,
-): TimelineTitle {
-  switch (row.lifecycle) {
-    case "waiting":
-      return makeTitle({
-        segments: [
-          segment("Waiting for approval to edit", { shimmer: true }),
-          segment("files", { em: true, truncate: true }),
-        ],
-      });
-    case "denied":
-      return makeTitle({
-        segments: [
-          segment("Permission denied:"),
-          segment("file changes", { em: true, truncate: true }),
-        ],
-      });
-    default:
-      return assertNever(row.lifecycle);
-  }
-}
-
-function mapPermissionGrantApprovalTitle(
-  row: TimelinePermissionGrantApprovalWorkRow,
-): TimelineTitle {
-  const toolName = row.target.toolName;
-  const reason =
-    row.statusReason !== null && row.statusReason.trim().length > 0
-      ? row.statusReason.trim()
-      : null;
-  const reasonSegment =
-    reason !== null ? segment(`(${reason})`, { truncate: true }) : null;
-  switch (row.lifecycle) {
-    case "pending": {
-      const segments =
-        toolName !== null
-          ? [
-              segment("Waiting for permission", { shimmer: true }),
-              segment("to use"),
-              segment(toolName, { em: true, truncate: true }),
-            ]
-          : [segment("Waiting for permissions", { shimmer: true })];
-      return makeTitle({
-        segments,
-      });
-    }
-    case "resolving": {
-      const segments =
-        toolName !== null
-          ? [
-              segment("Delivering permission", { shimmer: true }),
-              segment("to use"),
-              segment(toolName, { em: true, truncate: true }),
-            ]
-          : [segment("Delivering permissions", { shimmer: true })];
-      return makeTitle({
-        segments,
-      });
-    }
-    case "granted": {
-      const scopeText =
-        row.grantScope === "turn"
-          ? "for this turn"
-          : row.grantScope === "session"
-            ? "for this session"
-            : null;
-      const prefix =
-        scopeText !== null
-          ? `Permission granted ${scopeText}:`
-          : "Permission granted:";
-      const segments =
-        toolName !== null
-          ? [segment(prefix), segment(toolName, { em: true, truncate: true })]
-          : [
-              segment(
-                scopeText !== null
-                  ? `Permission granted ${scopeText}`
-                  : "Permission granted",
-              ),
-            ];
-      return makeTitle({
-        segments,
-      });
-    }
-    case "denied":
-      return makeTitle({
-        segments:
-          toolName !== null
-            ? [
-                segment("Permission denied:"),
-                segment(toolName, { em: true, truncate: true }),
-              ]
-            : [segment("Permission denied")],
-      });
-    case "interrupted":
-      return makeTitle({
-        segments: filterNull([
-          toolName !== null
-            ? segment("Permission grant interrupted:")
-            : segment("Permission grant interrupted"),
-          toolName !== null
-            ? segment(toolName, { em: true, truncate: true })
-            : null,
-          reasonSegment,
-        ]),
-      });
-    default:
-      return assertNever(row.lifecycle);
-  }
+  return makeTitle(segments, durationDecorations(row));
 }
 
 function mapApprovalTitle(row: TimelineApprovalWorkRow): TimelineTitle {
-  switch (row.approvalKind) {
-    case "file-edit":
-      return mapFileEditApprovalTitle(row);
-    case "permission-grant":
-      return mapPermissionGrantApprovalTitle(row);
-    default:
-      return assertNever(row);
+  if (row.approvalKind === "file-edit") {
+    return makeTitle(
+      row.lifecycle === "waiting"
+        ? [
+            segment("Waiting for approval to edit", { shimmer: true }),
+            emphasized("files"),
+          ]
+        : [segment("Permission denied:"), emphasized("file changes")],
+    );
   }
-}
-
-function singleQuestion(
-  row: TimelineQuestionViewWorkRow,
-): TimelineQuestionViewWorkRow["questions"][number] | null {
-  return row.questions.length === 1 ? (row.questions[0] ?? null) : null;
+  const toolName = row.target.toolName;
+  const tool = toolName !== null ? emphasized(toolName) : null;
+  switch (row.lifecycle) {
+    case "pending":
+    case "resolving": {
+      const verb = row.lifecycle === "pending" ? "Waiting for" : "Delivering";
+      return makeTitle(
+        tool
+          ? [
+              segment(`${verb} permission`, { shimmer: true }),
+              segment("to use"),
+              tool,
+            ]
+          : [segment(`${verb} permissions`, { shimmer: true })],
+      );
+    }
+    case "granted": {
+      const granted =
+        row.grantScope === "turn"
+          ? "Permission granted for this turn"
+          : row.grantScope === "session"
+            ? "Permission granted for this session"
+            : "Permission granted";
+      return makeTitle(
+        tool ? [segment(`${granted}:`), tool] : [segment(granted)],
+      );
+    }
+    case "denied":
+      return makeTitle(
+        tool
+          ? [segment("Permission denied:"), tool]
+          : [segment("Permission denied")],
+      );
+    case "interrupted": {
+      const reason = row.statusReason?.trim() || null;
+      return makeTitle(
+        filterNull([
+          segment(
+            tool
+              ? "Permission grant interrupted:"
+              : "Permission grant interrupted",
+          ),
+          tool,
+          reason !== null ? segment(`(${reason})`, { truncate: true }) : null,
+        ]),
+      );
+    }
+  }
 }
 
 function singleQuestionAnswerSummary(
@@ -1211,118 +731,88 @@ function singleQuestionAnswerSummary(
   question: TimelineQuestionViewWorkRow["questions"][number],
 ): string | null {
   const answer = row.answers?.[question.id];
-  if (!answer) {
-    return null;
-  }
+  if (!answer) return null;
   const parts = answer.selected.map((value) => {
     const option = question.options?.find(
       (candidate) => candidate.value === value,
     );
     return option?.label ?? value;
   });
-  if (answer.freeText) {
-    parts.push(answer.freeText);
-  }
+  if (answer.freeText) parts.push(answer.freeText);
   const text = parts.join(", ");
   return text.length > 0 ? text : null;
 }
 
 function mapQuestionTitle(row: TimelineQuestionViewWorkRow): TimelineTitle {
-  const question = singleQuestion(row);
+  const question =
+    row.questions.length === 1 ? (row.questions[0] ?? null) : null;
   const subject = question
-    ? segment(question.prompt, { em: true, truncate: true })
+    ? emphasized(question.prompt)
     : segment(`${row.questions.length} questions`, { em: true });
-
   switch (row.lifecycle) {
     case "pending":
-      return makeTitle({
-        segments: [
-          segment(question ? "Waiting for answer" : "Waiting for answers to", {
-            shimmer: true,
-          }),
-          subject,
-        ],
-      });
-    case "resolving":
-      return makeTitle({
-        segments: [
-          segment(question ? "Delivering answer" : "Delivering answers to", {
-            shimmer: true,
-          }),
-          subject,
-        ],
-      });
+    case "resolving": {
+      const verb = row.lifecycle === "pending" ? "Waiting for" : "Delivering";
+      return makeTitle([
+        segment(question ? `${verb} answer` : `${verb} answers to`, {
+          shimmer: true,
+        }),
+        subject,
+      ]);
+    }
     case "answered": {
       const answerSummary = question
         ? singleQuestionAnswerSummary(row, question)
         : null;
-      return makeTitle({
-        segments: filterNull([
+      return makeTitle(
+        filterNull([
           segment("Answered"),
           subject,
           answerSummary
             ? segment(`— ${answerSummary}`, { truncate: true })
             : null,
         ]),
-      });
+      );
     }
     case "interrupted":
-      return makeTitle({
-        segments: [segment("Asked"), subject],
-        decorations: [statusDecoration("interrupted", null)],
-      });
-    default:
-      return assertNever(row.lifecycle);
+      return makeTitle(
+        [segment("Asked"), subject],
+        [statusDecoration("interrupted", null)],
+      );
   }
 }
 
-function mapFormTitle(row: TimelineFormViewWorkRow): TimelineTitle {
+function mapFormTitle(
+  row: Extract<TimelineViewWorkRow, { workKind: "form" }>,
+): TimelineTitle {
   const { presentation } = row;
   switch (row.lifecycle) {
     case "pending":
-      return makeTitle({
-        segments: [segment(presentation.label.pending, { shimmer: true })],
-      });
+      return makeTitle([
+        segment(presentation.label.pending, { shimmer: true }),
+      ]);
     case "submitted":
-      return makeTitle({
-        segments: [
-          segment(presentation.title ?? presentation.label.completed, {
-            truncate: true,
-          }),
-        ],
-      });
+      return makeTitle([
+        segment(presentation.title ?? presentation.label.completed, {
+          truncate: true,
+        }),
+      ]);
     case "cancelled":
-      return makeTitle({
-        segments: [segment(presentation.label.completed, { truncate: true })],
-        decorations: [statusDecoration("interrupted", null)],
-      });
-    default:
-      return assertNever(row.lifecycle);
+      return makeTitle(
+        [segment(presentation.label.completed, { truncate: true })],
+        [statusDecoration("interrupted", null)],
+      );
   }
 }
 
 function mapFileReadTitle(row: TimelineFileReadWorkRow): TimelineTitle {
   if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
+    return presentedTitle(row.presentation, row, {
       content: formatTimelinePath({ path: row.path, mode: "compact" }),
       plainContent: row.path,
     });
   }
-  return (
-    mapSingleExplorationIntentTitle(row) ??
-    makeTitle({
-      segments: [
-        segment(row.status === "pending" ? "Reading" : "Read", {
-          shimmer: row.status === "pending",
-        }),
-        segment(row.path, { em: true, truncate: true }),
-      ],
-    })
-  );
+  return explorationIntentTitle(row, itemActivityIntent(row));
 }
 
 function searchContent(row: TimelineSearchWorkRow): string {
@@ -1338,48 +828,14 @@ function searchContent(row: TimelineSearchWorkRow): string {
         : row.query.length > 0
           ? `in ${row.query}`
           : "";
-    default:
-      return assertNever(row.mode);
   }
-}
-
-function mapSearchTitle(row: TimelineSearchWorkRow): TimelineTitle {
-  if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      content: searchContent(row),
-      em: false,
-    });
-  }
-  return (
-    mapSingleExplorationIntentTitle(row) ??
-    makeTitle({
-      segments: [
-        segment(row.status === "pending" ? "Searching" : "Searched", {
-          shimmer: row.status === "pending",
-        }),
-        segment(searchContent(row), { truncate: true }),
-      ],
-    })
-  );
-}
-
-function activePlanStep(row: TimelinePlanStepsWorkRow): string | null {
-  const active = row.steps.find((step) => step.status === "active");
-  return active?.step ?? row.explanation;
 }
 
 function mapPlanStepsTitle(row: TimelinePlanStepsWorkRow): TimelineTitle {
-  const content = activePlanStep(row);
+  const content =
+    row.steps.find((step) => step.status === "active")?.step ?? row.explanation;
   if (row.presentation) {
-    return presentedTitle({
-      presentation: row.presentation,
-      status: row.status,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
+    return presentedTitle(row.presentation, row, {
       content: row.presentation.title ?? content,
       em: false,
     });
@@ -1387,8 +843,8 @@ function mapPlanStepsTitle(row: TimelinePlanStepsWorkRow): TimelineTitle {
   const completedSteps = row.steps.filter(
     (step) => step.status === "completed",
   ).length;
-  return makeTitle({
-    segments: [
+  return makeTitle(
+    [
       segment(row.status === "pending" ? "Updating plan" : "Updated plan", {
         shimmer: row.status === "pending",
       }),
@@ -1396,70 +852,72 @@ function mapPlanStepsTitle(row: TimelinePlanStepsWorkRow): TimelineTitle {
         truncate: true,
       }),
     ],
-    decorations: filterNull([
-      durationDecoration(row.startedAt, row.completedAt),
-    ]),
-  });
+    durationDecorations(row),
+  );
 }
 
-function mapExtensionTitle(row: TimelineExtensionWorkRow): TimelineTitle {
-  return presentedTitle({
-    presentation: row.presentation,
-    status: row.status,
-    startedAt: row.startedAt,
-    completedAt: row.completedAt,
-    em: false,
-  });
-}
-
-function mapWorkTitle(
-  row: TimelineViewWorkRow,
-  options: BuildTimelineRowTitleOptions,
-): TimelineTitle {
-  const title = (() => {
-    switch (row.workKind) {
-      case "command":
-      case "tool":
-        return mapExecutionTitle(row);
-      case "file-read":
-        return mapFileReadTitle(row);
-      case "search":
-        return mapSearchTitle(row);
-      case "plan-steps":
-        return mapPlanStepsTitle(row);
-      case "extension":
-        return mapExtensionTitle(row);
-      case "file-change":
-        return mapFileChangeTitle(row);
-      case "web-search":
-        return mapWebSearchTitle(row);
-      case "web-fetch":
-        return mapWebFetchTitle(row);
-      case "image-generation":
-        return mapImageGenerationTitle(row);
-      case "image-view":
-        return mapImageViewTitle(row);
-      case "delegation":
-        return mapDelegationTitle(row);
-      case "workflow":
-        return mapWorkflowTitle(row);
-      case "approval":
-        return mapApprovalTitle(row);
-      case "question":
-        return mapQuestionTitle(row);
-      case "form":
-        return mapFormTitle(row);
-      default:
-        return assertNever(row);
-    }
-  })();
-  if (options.workStyle === "default") {
-    return title;
+function mapWorkTitle(row: TimelineViewWorkRow): TimelineTitle {
+  switch (row.workKind) {
+    case "command":
+    case "tool":
+      return mapExecutionTitle(row);
+    case "file-read":
+      return mapFileReadTitle(row);
+    case "search":
+      return row.presentation
+        ? presentedTitle(row.presentation, row, {
+            content: searchContent(row),
+            em: false,
+          })
+        : explorationIntentTitle(row, itemActivityIntent(row));
+    case "plan-steps":
+      return mapPlanStepsTitle(row);
+    case "extension":
+      return presentedTitle(row.presentation, row, { em: false });
+    case "file-change":
+      return mapFileChangeTitle(row);
+    case "web-search":
+      return row.presentation
+        ? presentedTitle(row.presentation, row, {
+            content: row.queries.join(", "),
+            em: false,
+          })
+        : mapWebActivityTitle(
+            row,
+            WEB_SEARCH_VERBS,
+            row.queries.join(", ") || "web search",
+          );
+    case "web-fetch":
+      return row.presentation
+        ? presentedTitle(row.presentation, row, { content: row.url, em: false })
+        : mapWebActivityTitle(row, WEB_FETCH_VERBS, row.url);
+    case "image-generation":
+      return mapImageGenerationTitle(row);
+    case "image-view":
+      return row.presentation
+        ? presentedTitle(row.presentation, row, {
+            content: fileNameFromPath(row.path),
+            plainContent: row.path,
+          })
+        : mapWebActivityTitle(
+            row,
+            IMAGE_VIEW_VERBS,
+            fileNameFromPath(row.path),
+            row.path,
+          );
+    case "delegation":
+      return mapDelegationTitle(row);
+    case "workflow":
+      return mapWorkflowTitle(row);
+    case "approval":
+      return mapApprovalTitle(row);
+    case "question":
+      return mapQuestionTitle(row);
+    case "form":
+      return mapFormTitle(row);
+    default:
+      return assertNever(row);
   }
-  return {
-    ...title,
-    tone: "summary",
-  };
 }
 
 function mapWorkSummaryTitle(
@@ -1474,80 +932,51 @@ function mapWorkSummaryTitle(
   const decorations = filterNull([summaryStatusDecoration(row)]);
   if (options.summaryStyle === "background") {
     const labelText = rest.length === 0 ? verb : `${verb} ${rest}`;
-    return makeTitle({
-      segments: [segment(labelText, { em: false, truncate: true })],
+    return makeTitle(
+      [segment(labelText, { em: false, truncate: true })],
       decorations,
-      tone: "summary",
-    });
+      null,
+      "summary",
+    );
   }
   const settledAccent: TimelineTitleSegmentAccent | undefined = isActive
     ? undefined
     : "subtle";
-  const verbSegment = segment(verb, {
-    shimmer: isActive,
-    accent: settledAccent,
-  });
+  const lead = segment(verb, { shimmer: isActive, accent: settledAccent });
   if (rest.length === 0) {
-    return makeTitle({
-      segments: [{ ...verbSegment, truncate: true }],
-      decorations,
-    });
+    return makeTitle([{ ...lead, truncate: true }], decorations);
   }
-  return makeTitle({
-    segments: [
-      verbSegment,
-      segment(rest, { em: true, truncate: true, accent: settledAccent }),
-    ],
+  return makeTitle(
+    [lead, segment(rest, { em: true, truncate: true, accent: settledAccent })],
     decorations,
-  });
+  );
 }
 
 function mapTurnTitle(row: TimelineViewTurnRow): TimelineTitle {
-  const isPending = row.status === "pending";
-  const durationDeco = isPending
-    ? durationDecoration(row.startedAt, row.completedAt, { em: true })
-    : completedTurnDurationDecoration(row.startedAt, row.completedAt);
-  const hasCapturedDuration =
-    !isPending && row.completedAt !== null && durationDeco !== null;
-  if (hasCapturedDuration) {
-    return makeTitle({
-      segments: [segment("Worked for", { shimmer: false, accent: "subtle" })],
-      decorations: [durationDeco],
-    });
+  if (row.status === "pending") {
+    return makeTitle(
+      [segment("Working", { shimmer: true })],
+      durationDecorations(row, true),
+    );
   }
-  return makeTitle({
-    segments: [
-      segment(isPending ? "Working" : "Worked", {
-        shimmer: isPending,
-        accent: isPending ? undefined : "subtle",
+  const { startedAt, completedAt } = row;
+  return makeTitle(
+    [
+      segment(completedAt === null ? "Worked" : "Worked for", {
+        accent: "subtle",
       }),
     ],
-    decorations: isPending && durationDeco !== null ? [durationDeco] : [],
-  });
-}
-
-function parentChangeThreadSegment(
-  row: TimelineParentChangeSystemRow,
-  name: string,
-  shimmer: boolean,
-): TimelineTitleSegment {
-  return segment(name, {
-    em: true,
-    truncate: true,
-    shimmer,
-    ...(row.threadId.length > 0
-      ? { link: { kind: "thread", threadId: row.threadId } }
-      : {}),
-  });
+    completedAt === null
+      ? []
+      : [{ kind: "duration", startedAt, completedAt, em: false }],
+  );
 }
 
 function parentChangeParentSegment(
   threadId: string | null,
   title: string | null,
 ): TimelineTitleSegment {
-  if (threadId === null) {
-    return segment("parent");
-  }
+  if (threadId === null) return segment("parent");
   return segment(title ?? threadId, {
     em: true,
     truncate: true,
@@ -1577,47 +1006,36 @@ function mapParentChangeSystemTitle(
 ): TimelineTitle {
   const assignment = row.parentChange;
   const shimmer = row.status === "pending";
-  const verb = OWNERSHIP_CHANGE_VERBS[assignment.action];
-  const threadSegment = parentChangeThreadSegment(
-    row,
-    parentChangeThreadName(row),
-    shimmer,
+  const released = assignment.action === "release";
+  return makeTitle(
+    [
+      segment(parentChangeThreadName(row), {
+        em: true,
+        truncate: true,
+        shimmer,
+        ...(row.threadId.length > 0
+          ? { link: { kind: "thread", threadId: row.threadId } }
+          : {}),
+      }),
+      segment(OWNERSHIP_CHANGE_VERBS[assignment.action], {
+        shimmer,
+        accent: "muted",
+      }),
+      parentChangeParentSegment(
+        released
+          ? assignment.previousParentThreadId
+          : assignment.nextParentThreadId,
+        released
+          ? assignment.previousParentThreadTitle
+          : assignment.nextParentThreadTitle,
+      ),
+    ],
+    row.status === "error"
+      ? [statusDecoration("error", null, true)]
+      : row.status === "interrupted"
+        ? [statusDecoration("interrupted", null)]
+        : [],
   );
-  const parentSegment =
-    assignment.action === "release"
-      ? parentChangeParentSegment(
-          assignment.previousParentThreadId,
-          assignment.previousParentThreadTitle,
-        )
-      : parentChangeParentSegment(
-          assignment.nextParentThreadId,
-          assignment.nextParentThreadTitle,
-        );
-
-  const segments: TimelineTitleSegment[] = [
-    threadSegment,
-    segment(verb, { shimmer, accent: "muted" }),
-    parentSegment,
-  ];
-
-  const decorations: TimelineTitleDecoration[] = (() => {
-    switch (row.status) {
-      case "error":
-        return [statusDecoration("error", null, { emphasis: true })];
-      case "interrupted":
-        return [statusDecoration("interrupted", null)];
-      case "pending":
-      case "completed":
-        return [];
-      default:
-        return assertNever(row.status);
-    }
-  })();
-
-  return makeTitle({
-    segments,
-    decorations,
-  });
 }
 
 function mapSystemTitle(row: TimelineSystemViewRow): TimelineTitle {
@@ -1637,105 +1055,46 @@ function mapSystemTitle(row: TimelineSystemViewRow): TimelineTitle {
       ? `${row.title}…`
       : row.title;
   const decorations: TimelineTitleDecoration[] = hasError
-    ? [statusDecoration("error", null, { emphasis: true })]
+    ? [statusDecoration("error", null, true)]
     : isReasoning ||
         (isCompaction &&
           (row.status === "pending" || row.status === "completed"))
-      ? filterNull([durationDecoration(row.startedAt, row.completedAt)])
+      ? durationDecorations(row)
       : [];
-  const shimmer = row.status === "pending";
-  return makeTitle({
-    segments: [segment(titleText, { shimmer, truncate: true })],
+  return makeTitle(
+    [segment(titleText, { shimmer: row.status === "pending", truncate: true })],
     decorations,
-  });
-}
-
-function mapConversationTitle(row: TimelineConversationViewRow): TimelineTitle {
-  return makeTitle({
-    segments: [
-      segment(row.role === "user" ? "User" : "Assistant", { em: false }),
-    ],
-  });
-}
-
-function mapTimelineActivityIntentTitle({
-  intent,
-  pending,
-  failureStatus,
-  badges,
-}: BuildTimelineActivityIntentTitleArgs): TimelineTitle {
-  const detail = formatTimelineActivityIntentDetailParts({
-    intent,
-    pathMode: "compact",
-    pending,
-  });
-  const plainDetail = formatTimelineActivityIntentDetailParts({
-    intent,
-    pathMode: "full",
-    pending,
-  });
-  const segments: TimelineTitleSegment[] = [];
-  if (detail.prefix) {
-    segments.push(segment(detail.prefix, { shimmer: pending }));
-  }
-  segments.push(
-    segment(detail.content, {
-      em: false,
-      truncate: true,
-      plainText: plainDetail.content,
-    }),
   );
-  const decorations = [
-    ...badges,
-    ...(failureStatus ? [statusDecoration(failureStatus, null)] : []),
-  ];
-  return makeTitle({ segments, decorations });
 }
 
 export function buildTimelineActivityIntentTitles(
   row: TimelineExplorationWorkRow,
 ): TimelineActivityIntentTitle[] {
-  if (!hasTimelineExplorationIntent(row)) {
-    return [];
-  }
-
   let lastEmittedKey: string | null = null;
   const titles: TimelineActivityIntentTitle[] = [];
   const badges = badgeDecorations(row);
   const failureStatus =
-    row.status === "error"
-      ? "error"
-      : row.status === "interrupted"
-        ? "interrupted"
-        : undefined;
-
+    row.status === "error" || row.status === "interrupted"
+      ? row.status
+      : undefined;
   timelineRowActivityIntents(row).forEach((intent, index) => {
-    if (intent.type === "unknown") {
-      return;
-    }
+    if (intent.type === "unknown") return;
     const dedupeKey = getTimelineActivityIntentDetailDedupeKey(intent);
-    if (dedupeKey !== null && dedupeKey === lastEmittedKey) {
-      return;
-    }
+    if (dedupeKey !== null && dedupeKey === lastEmittedKey) return;
     titles.push({
       id: `${row.id}:activity-intent:${index}`,
       intent,
       intentType: intent.type,
-      title: mapTimelineActivityIntentTitle({
+      title: mapTimelineActivityIntentTitle(
         intent,
-        pending: row.status === "pending",
-        badges: titles.length === 0 ? badges : [],
-        ...(failureStatus ? { failureStatus } : {}),
-      }),
+        row.status === "pending",
+        failureStatus,
+        titles.length === 0 ? badges : [],
+      ),
     });
     lastEmittedKey = dedupeKey;
   });
-
   return titles;
-}
-
-function isUserConversationRow(row: ThreadTimelineViewRow): boolean {
-  return row.kind === "conversation" && row.role === "user";
 }
 
 export function findTimelineFrontierRow(
@@ -1744,7 +1103,7 @@ export function findTimelineFrontierRow(
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const row = rows[i];
     if (!row) continue;
-    if (isUserConversationRow(row)) continue;
+    if (row.kind === "conversation" && row.role === "user") continue;
     return row;
   }
   return null;
@@ -1763,11 +1122,17 @@ export function buildTimelineRowTitle(
 ): TimelineTitle {
   switch (row.kind) {
     case "conversation":
-      return mapConversationTitle(row);
+      return makeTitle([
+        segment(row.role === "user" ? "User" : "Assistant", { em: false }),
+      ]);
     case "system":
       return mapSystemTitle(row);
-    case "work":
-      return mapWorkTitle(row, options);
+    case "work": {
+      const title = mapWorkTitle(row);
+      return options.workStyle === "default"
+        ? title
+        : { ...title, tone: "summary" };
+    }
     case "bundle-summary":
     case "step-summary":
       return mapWorkSummaryTitle(row, options);
@@ -1776,4 +1141,116 @@ export function buildTimelineRowTitle(
     default:
       return assertNever(row);
   }
+}
+
+export type TimelineWorkRowGlyph =
+  | "CircleQuestion"
+  | "EditFile"
+  | "File"
+  | "FileText"
+  | "Folder"
+  | "Globe"
+  | "ListTodo"
+  | "Lock"
+  | "Palette"
+  | "Puzzle"
+  | "Search"
+  | "Terminal"
+  | "UserRoundPlus"
+  | "Zap";
+
+const SKILL_FILE_NAME = "SKILL.md";
+
+function isSkillReadIntent(intent: TimelineActivityIntent): boolean {
+  if (intent.type !== "read") return false;
+  const target = (intent.path ?? intent.name).replaceAll("\\", "/");
+  return target.split("/").pop() === SKILL_FILE_NAME;
+}
+
+const EXPLORATION_INTENT_GLYPHS = {
+  search: "Search",
+  read: "FileText",
+  list_files: "Folder",
+} as const;
+
+const WORK_KIND_GLYPHS: Record<
+  Exclude<TimelineViewWorkRow["workKind"], "workflow">,
+  TimelineWorkRowGlyph
+> = {
+  "file-change": "EditFile",
+  command: "Terminal",
+  tool: "Terminal",
+  "file-read": "FileText",
+  search: "Search",
+  "plan-steps": "ListTodo",
+  extension: "Puzzle",
+  "web-search": "Search",
+  "web-fetch": "Globe",
+  "image-generation": "Palette",
+  "image-view": "File",
+  delegation: "UserRoundPlus",
+  approval: "Lock",
+  question: "CircleQuestion",
+  form: "Puzzle",
+};
+
+export function activityIntentTitleGlyph(
+  entry: TimelineActivityIntentTitle,
+): TimelineWorkRowGlyph {
+  return isSkillReadIntent(entry.intent)
+    ? "Zap"
+    : EXPLORATION_INTENT_GLYPHS[entry.intentType];
+}
+
+export function workRowPresentation(
+  row: TimelineViewWorkRow,
+): TimelineRowPresentation | undefined {
+  if (row.workKind === "approval" || row.workKind === "question") {
+    return undefined;
+  }
+  return row.presentation;
+}
+
+function fallbackGlyphForWorkRow(
+  row: TimelineViewWorkRow,
+): TimelineWorkRowGlyph {
+  if (
+    row.workKind === "command" ||
+    row.workKind === "file-read" ||
+    row.workKind === "search"
+  ) {
+    const intent = primaryTimelineActivityIntent(row);
+    if (intent !== null && intent.type !== "unknown") {
+      return EXPLORATION_INTENT_GLYPHS[intent.type];
+    }
+  }
+  if (row.workKind !== "workflow") return WORK_KIND_GLYPHS[row.workKind];
+  if (isBackgroundCommandTaskType(row.taskType)) return "Terminal";
+  return isBackgroundAgentTaskType(row.taskType) ? "UserRoundPlus" : "ListTodo";
+}
+
+export function workRowGlyph<HostGlyph extends string>(
+  row: TimelineViewWorkRow,
+  isHostGlyph: (glyph: string) => glyph is HostGlyph,
+): HostGlyph | TimelineWorkRowGlyph {
+  if (isSkillReadCommandRow(row)) return "Zap";
+  const presented = workRowPresentation(row)?.icon.glyph;
+  if (presented !== undefined && isHostGlyph(presented)) return presented;
+  return fallbackGlyphForWorkRow(row);
+}
+
+export function workRowPluginGlyph(
+  row: TimelineViewWorkRow,
+): string | undefined {
+  if (isSkillReadCommandRow(row)) return undefined;
+  const presented = workRowPresentation(row)?.icon.glyph;
+  return presented !== undefined && isNamespacedGlyph(presented)
+    ? presented
+    : undefined;
+}
+
+function isSkillReadCommandRow(row: TimelineViewWorkRow): boolean {
+  return (
+    row.workKind === "command" && row.activityIntents.some(isSkillReadIntent)
+  );
 }

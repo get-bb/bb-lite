@@ -1,46 +1,190 @@
-import type {
-  ApprovalInteractionLifecycle,
-  PendingInteractionPermissionGrantApprovalSubject,
-  ThreadEvent,
-  SystemThreadProvisioningStatus,
-  SystemThreadInterruptedReason,
-  PluginInteractionLifecycle,
-  ThreadEventItemPresentation,
-  UserQuestionInteractionLifecycle,
-} from "@bb/domain";
 import {
+  type ProviderUnhandledEvent,
+  type ProvisioningTranscriptEntry,
+  type ApprovalInteractionLifecycle,
+  type PendingInteractionPermissionGrantApprovalSubject,
+  type ThreadEvent,
+  type SystemThreadInterruptedReason,
+  type PluginInteractionLifecycle,
+  type ThreadEventItemPresentation,
+  type UserQuestionInteractionLifecycle,
   THREAD_CONTEXT_CLEAR_OPERATION,
   isApprovalInteractionLifecycle,
   isPluginInteractionLifecycle,
   isUserQuestionInteractionLifecycle,
   ownershipChangeOperationMetadataSchema,
 } from "@bb/domain";
-import { assertNever } from "./assert-never.js";
-import { getCompactionKey } from "./compaction-lifecycle.js";
-import { OWNERSHIP_CHANGE_VERBS } from "./family-a-verbs.js";
-import type { EventMeta } from "./event-decode.js";
-import { capitalize, messageId } from "./format-helpers.js";
-import { buildProviderUnhandledDetail } from "./provider-unhandled-detail.js";
-import {
-  provisioningTitleForStatus,
-  readProvisioningTranscript,
-} from "./provisioning-helpers.js";
 import type {
-  BuildEventProjectionMessagesOptions,
-  EventProjectionPermissionGrantGrantScope,
-  EventProjectionPermissionGrantLifecycleMessage,
-  EventProjectionPermissionGrantLifecycle,
-  EventProjectionUserQuestionLifecycle,
-  EventProjectionUserQuestionLifecycleMessage,
   EventProjectionOperationMessage,
+  EventProjectionProvisioningMetadata,
+  EventProjectionProvisioningTranscriptEntry,
+  EventMeta,
+  BuildEventProjectionMessagesOptions,
+  EventProjectionPermissionGrantLifecycleMessage,
+  EventProjectionUserQuestionLifecycleMessage,
   EventProjectionOwnershipChangeThreadOperationMetadata,
   EventProjectionThreadOperationMetadata,
   EventProjectionThreadOperationKind,
   EventProjectionThreadOperationStatus,
-  EventProjectionPluginFormLifecycle,
   EventProjectionPluginFormLifecycleMessage,
+  EventProjectionErrorMessage,
 } from "./event-projection-types.js";
-import { getProviderModelFallbackData } from "./model-fallback-extraction.js";
+import {
+  assertNever,
+  OWNERSHIP_CHANGE_VERBS,
+  capitalize,
+  messageId,
+} from "./timeline-format.js";
+import { getCompactionKey } from "./item-lifecycle.js";
+import { getProviderModelFallbackData } from "./thread-state-extraction.js";
+
+const HUMANIZED_EVENT_TOKEN_MAP: Record<string, string> = {
+  api: "API",
+  chatgpt: "ChatGPT",
+  id: "ID",
+  mcp: "MCP",
+  oauth: "OAuth",
+  sdk: "SDK",
+  ui: "UI",
+  url: "URL",
+};
+
+function splitCamelCaseToken(token: string): string[] {
+  return token
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(" ")
+    .filter((part) => part.length > 0);
+}
+
+function humanizeEventToken(token: string): string {
+  const normalized = token.toLowerCase();
+  const mapped = HUMANIZED_EVENT_TOKEN_MAP[normalized];
+  if (mapped) return mapped;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function humanizeRawType(rawType: string): string {
+  const tokens = rawType
+    .split(/[:/._-]+/u)
+    .flatMap((token) => splitCamelCaseToken(token))
+    .filter((token) => token.length > 0);
+  return tokens.map((token) => humanizeEventToken(token)).join(" ");
+}
+
+export function buildProviderUnhandledDetail(
+  event: ProviderUnhandledEvent,
+): string {
+  return [
+    humanizeRawType(event.rawType),
+    `Raw event: ${event.rawType}`,
+    "Payload:",
+    JSON.stringify(event.rawEvent, null, 2),
+  ].join("\n");
+}
+
+export function readProvisioningTranscript(
+  entries: ProvisioningTranscriptEntry[] | undefined,
+): EventProjectionProvisioningTranscriptEntry[] | undefined {
+  if (!Array.isArray(entries) || entries.length === 0) return undefined;
+  const result: EventProjectionProvisioningTranscriptEntry[] = [];
+  for (const entry of entries) {
+    const key = entry.key.trim();
+    if (!key) continue;
+    const text = entry.text.trim();
+    if (!text) continue;
+    if (entry.type === "step") {
+      result.push({
+        type: "step",
+        key,
+        text,
+        status: entry.status ?? "started",
+        ...(entry.startedAt !== undefined
+          ? { startedAt: entry.startedAt }
+          : {}),
+        ...(entry.metadata ? { metadata: entry.metadata } : {}),
+      });
+    } else if (entry.type === "output") {
+      result.push({
+        type: "output",
+        key,
+        text,
+        ...(entry.startedAt !== undefined
+          ? { startedAt: entry.startedAt }
+          : {}),
+        ...(entry.metadata ? { metadata: entry.metadata } : {}),
+      });
+    }
+  }
+  return result.length > 0 ? result : undefined;
+}
+
+export function provisioningKey(
+  message: EventProjectionOperationMessage,
+): string {
+  return message.provisioning?.provisioningId ?? message.id;
+}
+
+export function provisioningTitleForStatus(
+  status: EventProjectionOperationMessage["status"],
+): string {
+  switch (status) {
+    case "completed":
+      return "Provisioned thread";
+    case "error":
+      return "Provisioning thread failed";
+    case "interrupted":
+      return "Provisioning thread interrupted";
+    case "pending":
+    case undefined:
+      return "Provisioning thread";
+  }
+}
+
+function mergeTranscriptEntries(
+  existing: EventProjectionProvisioningTranscriptEntry[] | undefined,
+  incoming: EventProjectionProvisioningTranscriptEntry[] | undefined,
+): EventProjectionProvisioningTranscriptEntry[] | undefined {
+  const result = existing?.map((entry) => ({ ...entry })) ?? [];
+  for (const entry of incoming ?? []) {
+    const existingStepIndex =
+      entry.type === "step"
+        ? result.findIndex(
+            (candidate) =>
+              candidate.type === "step" && candidate.key === entry.key,
+          )
+        : -1;
+    if (existingStepIndex === -1) {
+      result.push({ ...entry });
+    } else {
+      result[existingStepIndex] = { ...entry };
+    }
+  }
+  return result.length > 0 ? result : undefined;
+}
+
+export function mergeProvisioningMetadata(
+  existing: EventProjectionProvisioningMetadata | undefined,
+  incoming: EventProjectionProvisioningMetadata | undefined,
+): EventProjectionProvisioningMetadata | undefined {
+  if (!incoming) return existing ? { ...existing } : undefined;
+  if (!existing) {
+    return {
+      ...incoming,
+      ...(incoming.transcript
+        ? { transcript: mergeTranscriptEntries(undefined, incoming.transcript) }
+        : {}),
+    };
+  }
+  const transcript = mergeTranscriptEntries(
+    existing.transcript,
+    incoming.transcript,
+  );
+  return {
+    environmentId: incoming.environmentId ?? existing.environmentId,
+    provisioningId: incoming.provisioningId,
+    ...(transcript ? { transcript } : {}),
+  };
+}
 
 type ParseOperationMessageOptions = Pick<
   BuildEventProjectionMessagesOptions,
@@ -152,39 +296,17 @@ function ownershipChangeOperationTitle(
   meta: EventProjectionOwnershipChangeThreadOperationMetadata,
   threadName: string,
 ): string {
-  switch (meta.status) {
-    case "completed": {
-      const action = meta.metadata?.action;
-      switch (action) {
-        case "assign":
-          return ownershipTitleWithParent(
-            threadName,
-            OWNERSHIP_CHANGE_VERBS.assign,
-            meta.metadata?.nextParentThreadTitle ?? null,
-          );
-        case "release":
-          return ownershipTitleWithParent(
-            threadName,
-            OWNERSHIP_CHANGE_VERBS.release,
-            meta.metadata?.previousParentThreadTitle ?? null,
-          );
-        case "transfer":
-          return ownershipTitleWithParent(
-            threadName,
-            OWNERSHIP_CHANGE_VERBS.transfer,
-            meta.metadata?.nextParentThreadTitle ?? null,
-          );
-        case undefined:
-          return "Ownership change completed";
-        default:
-          return assertNever(action);
-      }
-    }
-    case "failed":
-      return "Ownership change failed";
-    default:
-      return `Ownership change ${meta.rawStatus}`;
-  }
+  if (meta.status === "failed") return "Ownership change failed";
+  if (meta.status !== "completed") return `Ownership change ${meta.rawStatus}`;
+  if (!meta.metadata) return "Ownership change completed";
+  const { action } = meta.metadata;
+  return ownershipTitleWithParent(
+    threadName,
+    OWNERSHIP_CHANGE_VERBS[action],
+    action === "release"
+      ? meta.metadata.previousParentThreadTitle
+      : meta.metadata.nextParentThreadTitle,
+  );
 }
 
 function threadOperationTitle(
@@ -192,7 +314,6 @@ function threadOperationTitle(
   threadName: string,
 ): string {
   if (!meta) return "Operation update";
-
   switch (meta.operation) {
     case "ownership_change":
       return ownershipChangeOperationTitle(meta, threadName);
@@ -211,90 +332,33 @@ function threadOperationTitle(
   }
 }
 
-function threadOperationStatus(
-  meta: EventProjectionThreadOperationMetadata | null,
-): EventProjectionOperationMessage["status"] {
-  if (!meta) return undefined;
-  switch (meta.status) {
-    case "requested":
-    case "queued":
-    case "running":
-    case "started":
-      return "pending";
-    case "completed":
-    case "noop":
-      return "completed";
-    case "failed":
-      return "error";
-    case "other":
-      return "pending";
-  }
-}
+const PROVISIONING_OPERATION_STATUSES = {
+  active: "pending",
+  completed: "completed",
+  failed: "error",
+  cancelled: "interrupted",
+} as const;
 
-function provisioningOperationStatus(
-  status: SystemThreadProvisioningStatus,
-): EventProjectionOperationMessage["status"] {
-  switch (status) {
-    case "active":
-      return "pending";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "error";
-    case "cancelled":
-      return "interrupted";
-  }
-}
-
-function permissionGrantLifecycle(
-  interaction: ApprovalInteractionLifecycle,
-): EventProjectionPermissionGrantLifecycle {
-  switch (interaction.status) {
-    case "pending":
-      return "pending";
-    case "resolving":
-      return "resolving";
-    case "resolved":
-      return interaction.resolution?.decision === "deny" ? "denied" : "granted";
-    case "interrupted":
-      return "interrupted";
-    default:
-      return assertNever(interaction.status);
-  }
-}
-
-function permissionGrantLifecycleStatus(
-  lifecycle: EventProjectionPermissionGrantLifecycle,
-): EventProjectionPermissionGrantLifecycleMessage["status"] {
-  switch (lifecycle) {
-    case "pending":
-    case "resolving":
-      return "pending";
-    case "granted":
-    case "denied":
-      return "completed";
-    case "interrupted":
-      return "interrupted";
-    default:
-      return assertNever(lifecycle);
-  }
-}
-
-function permissionGrantScope(
-  interaction: ApprovalInteractionLifecycle,
-): EventProjectionPermissionGrantGrantScope | null {
-  const decision = interaction.resolution?.decision;
-  switch (decision) {
-    case "allow_once":
-      return "turn";
-    case "allow_for_session":
-      return "session";
-    case "deny":
-    case undefined:
-      return null;
-    default:
-      return assertNever(decision);
-  }
+function interactionMessageBase(
+  decoded: InteractionLifecycleEvent,
+  meta: EventMeta,
+) {
+  const { status } = decoded.interaction;
+  return {
+    threadId: decoded.threadId,
+    sourceSeqStart: meta.seq,
+    sourceSeqEnd: meta.seq,
+    createdAt: meta.createdAt,
+    startedAt: meta.createdAt,
+    scope: decoded.scope,
+    interactionId: decoded.interaction.id,
+    status:
+      status === "resolved"
+        ? ("completed" as const)
+        : status === "interrupted"
+          ? ("interrupted" as const)
+          : ("pending" as const),
+  };
 }
 
 function buildPermissionGrantLifecycleMessage(
@@ -303,59 +367,28 @@ function buildPermissionGrantLifecycleMessage(
   subject: PendingInteractionPermissionGrantApprovalSubject,
   meta: EventMeta,
 ): EventProjectionPermissionGrantLifecycleMessage {
-  const lifecycle = permissionGrantLifecycle(interaction);
+  const decision = interaction.resolution?.decision;
+  const { status, ...base } = interactionMessageBase(decoded, meta);
   return {
     kind: "permission-grant-lifecycle",
     id: messageId(decoded.threadId, "approval", interaction.id),
-    threadId: decoded.threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    scope: decoded.scope,
-    interactionId: interaction.id,
-    lifecycle,
-    status: permissionGrantLifecycleStatus(lifecycle),
-    approvalTarget: {
-      itemId: subject.itemId,
-      toolName: subject.toolName,
-    },
-    grantScope: permissionGrantScope(interaction),
+    ...base,
+    lifecycle:
+      interaction.status !== "resolved"
+        ? interaction.status
+        : decision === "deny"
+          ? "denied"
+          : "granted",
+    status,
+    approvalTarget: { itemId: subject.itemId, toolName: subject.toolName },
+    grantScope:
+      decision === "allow_once"
+        ? "turn"
+        : decision === "allow_for_session"
+          ? "session"
+          : null,
     statusReason: interaction.statusReason,
   };
-}
-
-function userQuestionLifecycle(
-  interaction: UserQuestionInteractionLifecycle,
-): EventProjectionUserQuestionLifecycle {
-  switch (interaction.status) {
-    case "pending":
-      return "pending";
-    case "resolving":
-      return "resolving";
-    case "resolved":
-      return "answered";
-    case "interrupted":
-      return "interrupted";
-    default:
-      return assertNever(interaction.status);
-  }
-}
-
-function userQuestionLifecycleStatus(
-  lifecycle: EventProjectionUserQuestionLifecycle,
-): EventProjectionUserQuestionLifecycleMessage["status"] {
-  switch (lifecycle) {
-    case "pending":
-    case "resolving":
-      return "pending";
-    case "answered":
-      return "completed";
-    case "interrupted":
-      return "interrupted";
-    default:
-      return assertNever(lifecycle);
-  }
 }
 
 function buildUserQuestionLifecycleMessage(
@@ -363,54 +396,18 @@ function buildUserQuestionLifecycleMessage(
   interaction: UserQuestionInteractionLifecycle,
   meta: EventMeta,
 ): EventProjectionUserQuestionLifecycleMessage {
-  const lifecycle = userQuestionLifecycle(interaction);
+  const { status, ...base } = interactionMessageBase(decoded, meta);
   return {
     kind: "user-question-lifecycle",
     id: messageId(decoded.threadId, "question", interaction.id),
-    threadId: decoded.threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    scope: decoded.scope,
-    interactionId: interaction.id,
-    lifecycle,
-    status: userQuestionLifecycleStatus(lifecycle),
+    ...base,
+    lifecycle:
+      interaction.status === "resolved" ? "answered" : interaction.status,
+    status,
     questions: interaction.payload.questions,
     answers: interaction.resolution?.answers ?? null,
     statusReason: interaction.statusReason,
   };
-}
-
-function pluginFormLifecycle(
-  interaction: PluginInteractionLifecycle,
-): EventProjectionPluginFormLifecycle {
-  switch (interaction.status) {
-    case "pending":
-    case "resolving":
-      return "pending";
-    case "resolved":
-      return "submitted";
-    case "interrupted":
-      return "cancelled";
-    default:
-      return assertNever(interaction.status);
-  }
-}
-
-function pluginFormLifecycleStatus(
-  lifecycle: EventProjectionPluginFormLifecycle,
-): EventProjectionPluginFormLifecycleMessage["status"] {
-  switch (lifecycle) {
-    case "pending":
-      return "pending";
-    case "submitted":
-      return "completed";
-    case "cancelled":
-      return "interrupted";
-    default:
-      return assertNever(lifecycle);
-  }
 }
 
 function pluginFormPresentation(
@@ -438,19 +435,18 @@ function buildPluginFormLifecycleMessage(
   interaction: PluginInteractionLifecycle,
   meta: EventMeta,
 ): EventProjectionPluginFormLifecycleMessage {
-  const lifecycle = pluginFormLifecycle(interaction);
+  const { status, ...base } = interactionMessageBase(decoded, meta);
   return {
     kind: "plugin-form-lifecycle",
     id: messageId(decoded.threadId, "form", interaction.id),
-    threadId: decoded.threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    scope: decoded.scope,
-    interactionId: interaction.id,
-    lifecycle,
-    status: pluginFormLifecycleStatus(lifecycle),
+    ...base,
+    lifecycle:
+      interaction.status === "resolved"
+        ? "submitted"
+        : interaction.status === "interrupted"
+          ? "cancelled"
+          : "pending",
+    status,
     pluginId: interaction.origin.pluginId,
     rendererId: interaction.origin.rendererId,
     title: interaction.payload.title,
@@ -475,9 +471,7 @@ function buildInteractionLifecycleMessage(
   if (isPluginInteractionLifecycle(interaction)) {
     return buildPluginFormLifecycleMessage(decoded, interaction, meta);
   }
-  if (!isApprovalInteractionLifecycle(interaction)) {
-    return null;
-  }
+  if (!isApprovalInteractionLifecycle(interaction)) return null;
   const subject = interaction.payload.subject;
   return subject.kind === "permission_grant"
     ? buildPermissionGrantLifecycleMessage(decoded, interaction, subject, meta)
@@ -549,12 +543,8 @@ export function parseOperationMessage(
       status: "completed",
     });
   }
-
   if (decoded.type === "provider/unhandled") {
-    if (options?.includeDiagnosticOperations !== true) {
-      return null;
-    }
-
+    if (options?.includeDiagnosticOperations !== true) return null;
     return op(decoded, meta, "provider-unhandled", {
       opType: "provider-unhandled",
       title: `Unhandled ${providerDisplayName(
@@ -565,12 +555,8 @@ export function parseOperationMessage(
       status: "completed",
     });
   }
-
   if (decoded.type === "provider.env-resolved") {
-    if (options?.includeDiagnosticOperations !== true) {
-      return null;
-    }
-
+    if (options?.includeDiagnosticOperations !== true) return null;
     const detail = decoded.entries
       .map((entry) => {
         const source =
@@ -591,7 +577,6 @@ export function parseOperationMessage(
       status: "completed",
     });
   }
-
   if (decoded.type === "provider/warning") {
     const category = decoded.category;
     const isDeprecation = category === "deprecation";
@@ -615,7 +600,6 @@ export function parseOperationMessage(
       status: "completed",
     });
   }
-
   if (decoded.type === "system/thread/interrupted") {
     return op(decoded, meta, "thread-interrupted", {
       opType: "thread-interrupted",
@@ -623,25 +607,11 @@ export function parseOperationMessage(
       status: "interrupted",
     });
   }
-
-  if (decoded.type === "system/provider-turn-watchdog") {
-    return op(decoded, meta, "provider-turn-watchdog", {
-      opType: "operation",
-      title: "Provider turn stopped responding",
-      detail: `No provider activity for ${Math.round(
-        decoded.elapsedMs / 1_000,
-      )}s after ${decoded.lastActivityEventType}`,
-      status: "error",
-    });
-  }
-
   if (decoded.type === "system/thread-provisioning") {
     const { status, environmentId, provisioningId } = decoded;
-    if (provisioningId.startsWith("thread-start:")) {
-      return null;
-    }
+    if (provisioningId.startsWith("thread-start:")) return null;
     const transcript = readProvisioningTranscript(decoded.entries);
-    const operationStatus = provisioningOperationStatus(status);
+    const operationStatus = PROVISIONING_OPERATION_STATUSES[status];
     return op(decoded, meta, "thread-provisioning", {
       opType: "thread-provisioning",
       title: provisioningTitleForStatus(operationStatus),
@@ -653,11 +623,7 @@ export function parseOperationMessage(
       },
     });
   }
-
-  if (decoded.type === "thread/name/updated") {
-    return null;
-  }
-
+  if (decoded.type === "thread/name/updated") return null;
   if (decoded.type === "system/operation") {
     if (
       decoded.operation === "plugin_interaction" ||
@@ -665,10 +631,8 @@ export function parseOperationMessage(
     ) {
       return null;
     }
-
     const threadOperation = createThreadOperationMetadata(decoded);
     const title = threadOperationTitle(threadOperation, threadName);
-
     const branch =
       typeof decoded.metadata?.branch === "string"
         ? decoded.metadata.branch
@@ -680,20 +644,23 @@ export function parseOperationMessage(
         : undefined,
       branch ? `Branch: ${branch}` : undefined,
     ].filter((value): value is string => Boolean(value));
-
     return op(decoded, meta, "operation", {
       opType: "operation",
       title,
       detail: detailParts.length > 0 ? detailParts.join(" • ") : undefined,
-      status: threadOperationStatus(threadOperation),
+      status:
+        threadOperation.status === "completed" ||
+        threadOperation.status === "noop"
+          ? "completed"
+          : threadOperation.status === "failed"
+            ? "error"
+            : "pending",
       threadOperation,
     });
   }
-
   if (decoded.type === "system/interaction/lifecycle") {
     return buildInteractionLifecycleMessage(decoded, meta);
   }
-
   if (decoded.type === "thread/compacted") {
     return {
       ...op(decoded, meta, `compaction`, {
@@ -708,7 +675,6 @@ export function parseOperationMessage(
       ),
     };
   }
-
   if (decoded.type === "thread/context/cleared") {
     return op(decoded, meta, "context-clear", {
       opType: "context-clear",
@@ -716,7 +682,6 @@ export function parseOperationMessage(
       status: "completed",
     });
   }
-
   return null;
 }
 
@@ -726,7 +691,6 @@ export function interruptOperationMessage(
   if (message.status !== "pending") return;
   message.status = "interrupted";
   message.completedAt = message.createdAt;
-
   switch (message.opType) {
     case "operation":
       message.title = "Operation interrupted";
@@ -750,7 +714,6 @@ export function finalizeOperationMessage(
   options: BuildEventProjectionMessagesOptions | undefined,
 ): void {
   if (message.status !== "pending") return;
-
   if (options?.threadStatus === "error") {
     switch (message.opType) {
       case "thread-provisioning":
@@ -762,6 +725,32 @@ export function finalizeOperationMessage(
         break;
     }
   }
-
   interruptOperationMessage(message);
+}
+
+export function parseErrorMessage(
+  decoded: ThreadEvent,
+  meta: EventMeta,
+): EventProjectionErrorMessage | null {
+  if (decoded.type !== "provider/error" && decoded.type !== "system/error")
+    return null;
+  const { message, detail } = decoded;
+  return {
+    kind: "error",
+    id: messageId(decoded.threadId, "error", `${meta.seq}`),
+    threadId: decoded.threadId,
+    sourceSeqStart: meta.seq,
+    sourceSeqEnd: meta.seq,
+    createdAt: meta.createdAt,
+    scope: decoded.scope,
+    rawType: decoded.type,
+    message: message || "Error event",
+    detail: detail && detail !== message ? detail : null,
+    ...(decoded.type === "provider/error" && decoded.errorInfo
+      ? { providerErrorInfo: decoded.errorInfo }
+      : {}),
+    ...(decoded.type === "provider/error" && decoded.willRetry !== undefined
+      ? { willRetry: decoded.willRetry }
+      : {}),
+  };
 }
