@@ -129,17 +129,16 @@ export class RunnerError extends Error {
   }
 }
 
+type Reliable<Body> = { lane: "reliable"; seq: number } & Body;
+type Live<Body> = { lane: "live" } & Body;
+
 export type RunnerEvent =
-  | {
-      lane: "reliable";
-      seq: number;
+  | Reliable<{
       kind: "thread.events";
       threadId: string;
       events: RunnerThreadEvent[];
-    }
-  | {
-      lane: "reliable";
-      seq: number;
+    }>
+  | Reliable<{
       kind: "interaction.requested";
       threadId: string;
       turnId: string | null;
@@ -147,18 +146,14 @@ export type RunnerEvent =
       providerId: ProviderId;
       providerThreadId: string;
       payload: PendingInteractionPayload;
-    }
-  | {
-      lane: "reliable";
-      seq: number;
+    }>
+  | Reliable<{
       kind: "interaction.cancelled";
       threadId: string;
       requestId: string;
       reason: string;
-    }
-  | {
-      lane: "reliable";
-      seq: number;
+    }>
+  | Reliable<{
       kind: "toolCall.requested";
       threadId: string;
       turnId: string | null;
@@ -166,40 +161,33 @@ export type RunnerEvent =
       callId: string;
       tool: string;
       arguments: unknown;
-    }
-  | {
-      lane: "reliable";
-      seq: number;
+    }>
+  | Reliable<{
       kind: "toolCall.cancelled";
       threadId: string;
       requestId: string;
-    }
-  | {
-      lane: "reliable";
-      seq: number;
+    }>
+  | Reliable<{
       kind: "script.output";
       operationId: string;
       text: string;
-    }
-  | {
-      lane: "live";
+    }>
+  | Live<{
       kind: "terminal.output";
       terminalId: string;
       seq: number;
       dataBase64: string;
-    }
-  | {
-      lane: "live";
+    }>
+  | Live<{
       kind: "terminal.exited";
       terminalId: string;
       exitCode: number | null;
-    }
-  | {
-      lane: "live";
+    }>
+  | Live<{
       kind: "workspace.changed";
       path: string;
       change: "status" | "refs" | "files";
-    };
+    }>;
 
 export type RunnerEventSink = (event: RunnerEvent) => void;
 
