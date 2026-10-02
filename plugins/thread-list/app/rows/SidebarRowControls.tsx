@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import {
   SIDEBAR_CONTROL_PAIR_GAP_CLASS,
   SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS,
-} from "./sidebarRowClasses.js";
+} from "@bb/shared-ui/sidebar-row-classes";
 
 export function SidebarRowControls({
   primaryAction,

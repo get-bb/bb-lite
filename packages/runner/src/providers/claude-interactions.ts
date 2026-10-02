@@ -266,17 +266,11 @@ export class ClaudePermissions {
     if (!plan && unattended) return deny(decisionReason ?? WORKSPACE_DENIAL);
     const prompt = options.title ?? options.description ?? null;
     const reason = plan ? null : (decisionReason ?? prompt);
-    const permissions = plan
+    const profile = plan
       ? { network: null, fileSystem: null }
       : permissionProfile(toolName, options);
     const itemId = this.host.itemId(toolUseID);
-    const payload = approvalPayload(
-      toolName,
-      itemId,
-      input,
-      reason,
-      permissions,
-    );
+    const payload = approvalPayload(toolName, itemId, input, reason, profile);
     const cancelled = "Interactive request cancelled";
     const resolution = await this.request(payload, signal, cancelled);
     if ("behavior" in resolution) return resolution;

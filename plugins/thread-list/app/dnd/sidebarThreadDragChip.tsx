@@ -7,15 +7,15 @@ import type { CSSProperties } from "react";
 import {
   getSidebarThreadRowPaddingLeft,
   SIDEBAR_ROW_BASE_CLASS,
-} from "../rows/sidebarRowClasses.js";
+} from "@bb/shared-ui/sidebar-row-classes";
 
-export const SIDEBAR_THREAD_DRAG_CHIP_CLASS = cn(
+const SIDEBAR_THREAD_DRAG_CHIP_CLASS = cn(
   SIDEBAR_ROW_BASE_CLASS,
   COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
   "pointer-events-none w-fit max-w-56 bg-sidebar-accent pr-2 text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border",
 );
 
-export const SIDEBAR_THREAD_DRAG_CHIP_STYLE = {
+const SIDEBAR_THREAD_DRAG_CHIP_STYLE = {
   paddingLeft: `${getSidebarThreadRowPaddingLeft(0)}px`,
 } satisfies CSSProperties;
 
@@ -32,7 +32,7 @@ export function SidebarThreadDragChip({ title }: { title: string }) {
   );
 }
 
-export function createSnapSidebarThreadDragChipToCursor(): Modifier {
+function createSnapSidebarThreadDragChipToCursor(): Modifier {
   let overlayOriginRect: ClientRect | null = null;
   return ({
     activatorEvent,

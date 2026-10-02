@@ -20,15 +20,12 @@ For task dispatch and execution presets, read
    ```
 
    The detail includes the description, status, priority, labels, subtasks,
-   comments, attachments, attached worker threads, and the GitHub pull
-   requests those threads produced (from environment metadata, with state
-   open/draft/merged/closed). Use
+   comments, attachments, and attached worker threads. Use
    `bb tasks show ABC-12 --json` when the result will drive commands or code.
 
    For project-wide discovery, `bb tasks list` returns at most 100 rows by
-   default. Pass `--limit 1-500`; in JSON, continue with `nextCursor` via the
-   same filters/sort and `--cursor <value>`. A task-list mutation makes an old
-   cursor stale, so restart without it.
+   default; narrow it with `--status`, `--priority`, `--label`, `--active`,
+   or `--search`, or raise `--limit`. There is no paging.
 
 2. Fetch every relevant attachment before making assumptions about it:
 
@@ -59,8 +56,8 @@ For task dispatch and execution presets, read
    bb tasks attachment add ABC-12 --file ./screenshot.png
    ```
 
-   Read `references/attachments.md` for comment attachments, initial files,
-   removal rules, and machine selection.
+   Read `references/attachments.md` for comment attachments and the path
+   and size limits.
 
 5. Set the status to match the completion criteria. Use `done` when they are
    met, or `in_review` when required review remains:
@@ -73,10 +70,6 @@ For task dispatch and execution presets, read
    either a task key or ID for the parent. Promote a subtask to the top level
    with `bb tasks update ABC-12 --no-parent`; the two parent flags cannot be
    combined.
-
-   Move a task and its sub-tasks to another tracker project with
-   `bb tasks move ABC-12 --project XYZ`. The task gets a new key in that
-   project; the old key keeps resolving, so use the new key from then on.
 
    If the work cannot proceed, leave the status accurate and comment with the
    specific blocker, what you tried, and what would unblock it. Do not mark a
@@ -124,6 +117,9 @@ each renders its own card.
   `bb tasks update ABC-12 --status <status>`.
 - Repeatable options (`--label`, `--status`, `--priority`, `--add-label`,
   `--remove-label`) accept a repeated flag or one comma-separated list.
+  Labels must already exist; they are created in the Tasks app.
+- For long or multi-line text, pipe it in: `--description-stdin` on `create`
+  and `update`, `--body-stdin` on `comment`.
 - Unknown options and stray arguments are errors, never ignored, and every
   missing required value is reported in one error. A failing command run with
   `--json` prints `{"ok":false,"error":{"code","message","hint"?}}` on stdout.

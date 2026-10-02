@@ -151,6 +151,17 @@ export class PluginRegistry {
     return groups;
   }
 
+  async resolveMention(pluginId: string, itemId: string): Promise<string> {
+    const [providerId, ...rest] = itemId.split(":");
+    const provider = this.running(pluginId).mentionProviders.find(
+      (candidate) => candidate.id === providerId,
+    );
+    if (provider === undefined) {
+      throw notFound(`Unknown mention provider "${providerId}"`);
+    }
+    return (await provider.resolve(rest.join(":"))).context;
+  }
+
   async generateTitle(
     prompt: string,
     signal: AbortSignal,

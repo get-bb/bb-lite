@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "jsPlugins": ["./scripts/oxlint-plugin.mjs"],
+  "categories": { "correctness": "off" },
+  "env": { "builtin": true },
+  "rules": { "bb/no-comments": "error" },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.tmp/**",
+    ".claude/**",
+    "**/routeTree.gen.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.{ts,tsx}"],
+      "plugins": ["react"],
+      "rules": {
+        "react/rules-of-hooks": "error",
+        "react/exhaustive-deps": "error"
+      }
+    },
+    {
+      "files": ["apps/*/src/**/*.ts", "packages/*/src/**/*.ts", "plugins/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use async child_process APIs instead of blocking sync variants."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

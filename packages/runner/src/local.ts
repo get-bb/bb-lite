@@ -3,9 +3,9 @@ import { createClaudeAdapter } from "./providers/claude.js";
 import { createCodexAdapter } from "./providers/codex.js";
 import { createEchoAdapter } from "./providers/echo.js";
 import type { ProviderAdapter } from "./providers/provider.js";
+import { loginShellEnv } from "./sessions/agent-env.js";
 import { Outbox } from "./sessions/outbox.js";
 import { createSessionApi } from "./sessions/session-manager.js";
-import { createLoginShellChildEnv } from "./terminals/shell-env.js";
 import type { RunnerEventSink, SessionApi } from "./types.js";
 import { createWorkspaceApi } from "./workspace/index.js";
 import type { WorkspaceApi } from "./workspace-types.js";
@@ -33,7 +33,7 @@ export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
   const outbox = new Outbox(options.sink);
   const workspace = createWorkspaceApi({
     dataDir: options.dataDir,
-    env: createLoginShellChildEnv(
+    env: loginShellEnv(
       { BB_CLI: options.bbCliPath, BB_SERVER_URL: options.serverUrl },
       dirname(options.bbCliPath),
     ),

@@ -1,8 +1,10 @@
 import { Icon } from "@bb/shared-ui/icon";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { SIDEBAR_HOVER_ACTIONS_CLASS } from "../ui/sidebar-hover-actions.js";
-import { SIDEBAR_CONTROL_STATE_CLASS } from "./sidebarRowClasses.js";
+import {
+  SIDEBAR_CONTROL_STATE_CLASS,
+  SIDEBAR_HOVER_ACTIONS_CLASS,
+} from "@bb/shared-ui/sidebar-row-classes";
 
 interface SidebarChildToggleChevronProps {
   disabled?: boolean;

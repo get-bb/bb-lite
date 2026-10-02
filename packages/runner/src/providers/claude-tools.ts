@@ -157,10 +157,8 @@ function delegation(tool: string, id: string, args: Args): ClassifiedTool {
     : ["Running subagent", "Subagent finished"];
   const base = ui.presentation(pending, completed, "UserRound", label);
   const parts = [type && `${type} agent`, model && `model ${model}`];
-  const detail = ui.ellipsize(
-    parts.filter(Boolean).join(" · "),
-    DETAIL_MAX_LENGTH,
-  );
+  const stated = parts.filter(Boolean).join(" · ");
+  const detail = ui.ellipsize(stated, DETAIL_MAX_LENGTH);
   const shape = { type: "delegation" as const, childRef: id, label };
   return made({ ...shape, background }, detail ? { ...base, detail } : base);
 }
@@ -228,10 +226,8 @@ export function classifyTool(
   }
   if (tool === "Agent" || tool === "Task") return delegation(tool, id, args);
   if (tool === "TodoWrite") {
-    return {
-      ...genericTool(tool, input),
-      planSteps: todoPlanSteps(args.todos),
-    };
+    const planSteps = todoPlanSteps(args.todos);
+    return { ...genericTool(tool, input), planSteps };
   }
   if (!server || !mcpTool) return genericTool(tool, input);
   const fromBb = server === BB_MCP_SERVER;

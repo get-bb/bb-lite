@@ -71,7 +71,7 @@ it("loads the builtin table and the directories named in config.json", async () 
     "thread-list",
     "running",
     "builtin",
-    "thread-list",
+    undefined,
     "ListView",
   ]);
   expect(summary.at(-1)).toEqual(["echo", "running", "external", "echo", icon]);
@@ -83,7 +83,7 @@ it("loads the builtin table and the directories named in config.json", async () 
   const contributed = (await request("/contributions")).body as Contributions;
   const say = { pluginId: "echo", commands: [{ name: "say" }] };
   expect(contributed.cliCommands.at(-1)).toMatchObject(say);
-  const skills = expect.stringMatching(/thread-list\/skills$/u);
+  const skills = expect.stringMatching(/tasks\/skills$/u);
   expect(ctx.plugins.skillDirs()).toContainEqual(skills);
 });
 
@@ -241,6 +241,27 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   sandbox.module.exports.default?.setup({ slots });
   const props = { className: "echo-panel flex", children: 2 };
   expect(panels[0]?.component()).toEqual({ type: "div", props });
+});
+
+it("round-trips thread-list preferences over rpc", async () => {
+  const { rpc, socket } = await serverWithEcho();
+  const client = await socket();
+  const list = async (): Promise<unknown> =>
+    (await rpc("thread-list/rpc/listPreferences", null))[1];
+  const sorted = (chronologicalSort: string) => ({
+    preferences: { chronologicalSort, collapsedSections: [] },
+  });
+  const change = { key: "chronologicalSort", value: "alpha" };
+  const set = (input: object) => rpc("thread-list/rpc/setPreference", input);
+  expect(await list()).toMatchObject(sorted("updated"));
+  expect(await set(change)).toEqual([200, change]);
+  const signal = { type: "plugin-signal", pluginId: "thread-list" };
+  expect(await client.next()).toMatchObject({ ...signal, payload: change });
+  expect(await set({ ...change, value: "sideways" })).toEqual([
+    500,
+    "handler_error",
+  ]);
+  expect(await list()).toMatchObject(sorted("alpha"));
 });
 
 it("answers the thread engine's queries from plugin registrations", async () => {

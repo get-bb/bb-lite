@@ -22,7 +22,7 @@ import {
 import {
   ThreadStatusGlyph,
   resolveThreadStatus,
-} from "@/components/thread/ThreadStatusGlyph";
+} from "@bb/shared-ui/thread-status-glyph";
 import {
   ThreadLifecycleFilter,
   THREAD_LIFECYCLE_OPTIONS,
@@ -42,7 +42,7 @@ import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 import {
   NO_THREADS_MESSAGE,
   ThreadListEmptyState,
-} from "@/components/thread/ThreadListEmptyState";
+} from "@bb/shared-ui/thread-list-empty-state";
 import { getThreadRoutePath } from "@/lib/route-paths";
 import { openThreadInSplit } from "@/lib/split-layout/openThreadInSplit";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";

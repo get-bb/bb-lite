@@ -1,695 +1,212 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-  type Task,
-  type TaskPriority,
-  type TaskStatus,
+import { useState } from "react";
+import type {
+  Project,
+  TaskPriority,
+  TaskStatus,
 } from "../../shared/contract.js";
-import { errorMessage } from "../../shared/errors.js";
-import {
-  AttachmentChip,
-  settleStagedUploads,
-  stageFiles,
-  uploadStagedAttachments,
-  useStagedAttachmentRetry,
-  type StagedAttachment,
-} from "../../components/staged-attachments.js";
-import { useProjects, useTasksQuery, useTasksRpc } from "../../shell/data.js";
+import { errorMessage, useLabels, useTasksRpc } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
-import { TasksEditor } from "../../editor/tasks-editor.js";
+import { MarkdownEditor } from "../../editor/markdown.js";
+import { LabelPicker } from "../detail/rail.js";
+import {
+  PriorityEditor,
+  PropertyEditor,
+  StatusEditor,
+} from "../list/property-menus.js";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import { cn } from "@/lib/utils";
-import { CheckboxField, DEFAULT_COLOR } from "./shared.js";
-import {
-  clearNewTaskDraft,
-  hasDraftContent,
-  loadNewTaskDraft,
-  storeNewTaskDraft,
-  type NewTaskDraft,
-} from "./new-task-draft.js";
-import { PRIORITY_LABELS, STATUS_LABELS } from "../list/lib.js";
+} from "@bb/shared-ui/dialog";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
 
 const CHIP_TRIGGER =
-  "h-7 w-auto gap-1.5 rounded-md px-2 text-xs text-muted-foreground";
+  "inline-flex h-7 max-w-44 items-center gap-1.5 rounded-md border border-input px-2 text-xs text-muted-foreground hover:text-foreground";
+const BLANK = {
+  title: "",
+  description: "",
+  status: "todo" as TaskStatus,
+  priority: "none" as TaskPriority,
+  labelIds: [] as string[],
+};
 
-function TaskFieldPicker<Value extends string>({
-  dialogOpen,
-  label,
-  value,
-  options,
-  onValueChange,
-}: {
-  dialogOpen: boolean;
-  label: string;
-  value: Value | null;
-  options: ReadonlyArray<{
-    value: Value;
-    label: string;
-    color?: string;
-    keywords?: string[];
-  }>;
-  onValueChange: (value: Value) => void;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  useEffect(() => {
-    if (!dialogOpen) setPickerOpen(false);
-  }, [dialogOpen]);
-  const selected = options.find((option) => option.value === value);
+function Swatch({ color }: { color: string | undefined }) {
   return (
-    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          aria-label={label}
-          variant="outline"
-          size="sm"
-          className={cn(CHIP_TRIGGER, "max-w-44 border-input font-normal")}
-        >
-          <span className="truncate">{selected?.label ?? label}</span>
-          <Icon name="ChevronDown" className="size-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" align="start">
-        <Command>
-          <CommandInput placeholder={`Choose ${label.toLowerCase()}…`} />
-          <CommandList>
-            <CommandEmpty>No matching options.</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  keywords={[option.label, ...(option.keywords ?? [])]}
-                  onSelect={() => {
-                    if (option.value !== value) onValueChange(option.value);
-                    setPickerOpen(false);
-                  }}
-                >
-                  {option.color ? (
-                    <span
-                      aria-hidden
-                      className="size-2.5 rounded-sm"
-                      style={{ backgroundColor: option.color }}
-                    />
-                  ) : null}
-                  <span className="flex-1 truncate">{option.label}</span>
-                  {option.value === value ? (
-                    <Icon name="Check" className="size-3.5" />
-                  ) : null}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <span
+      aria-hidden
+      className="size-3 shrink-0 rounded-sm"
+      style={{ backgroundColor: color }}
+    />
   );
-}
-
-function blankDraft(
-  projectId: string | null,
-  defaultStatus: TaskStatus | undefined,
-): NewTaskDraft {
-  return {
-    projectId,
-    title: "",
-    description: "",
-    status: defaultStatus ?? "todo",
-    priority: "none",
-    labelIds: [],
-    dueDate: "",
-  };
-}
-
-interface NewTaskDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectId: string | null;
-  defaultStatus?: TaskStatus;
 }
 
 export function NewTaskDialog({
-  open,
-  onOpenChange,
+  onClose,
+  projects,
   projectId,
-  defaultStatus,
-}: NewTaskDialogProps) {
+}: {
+  onClose: () => void;
+  projects: Project[];
+  projectId: string | null;
+}) {
   const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
-  const projects = useProjects();
-
-  const [draft, setDraft] = useState(() =>
-    blankDraft(projectId, defaultStatus),
-  );
-  const [createMore, setCreateMore] = useState(false);
+  const [chosenProjectId, setChosenProjectId] = useState(projectId);
+  const [draft, setDraft] = useState(BLANK);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [labelQuery, setLabelQuery] = useState("");
-  const [creatingLabel, setCreatingLabel] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<StagedAttachment[]>([]);
-  const [createdTask, setCreatedTask] = useState<Task | null>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const set = (change: Partial<typeof BLANK>) =>
+    setDraft((current) => ({ ...current, ...change }));
 
-  const updateDraft = (
-    change: (current: NewTaskDraft) => Partial<NewTaskDraft>,
-  ) =>
-    setDraft((current) => {
-      const resolved = {
-        ...current,
-        projectId: effectiveProjectId,
-        labelIds: labels.data
-          ? current.labelIds.filter((id) =>
-              labels.data?.some((label) => label.id === id),
-            )
-          : current.labelIds,
-      };
-      const next = { ...resolved, ...change(resolved) };
-      storeNewTaskDraft(next);
-      return next;
-    });
-
-  useEffect(() => {
-    if (!open) return;
-    const restored = loadNewTaskDraft();
-    setDraft(restored ?? blankDraft(projectId, defaultStatus));
-    setLabelQuery("");
-    setPendingFiles([]);
-    setCreatedTask(null);
-    setError(null);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [open]);
-
-  const { title, description, status, priority, dueDate } = draft;
-  const projectList = projects.data ?? [];
   const project =
-    projectList.find((entry) => entry.id === draft.projectId) ??
-    projectList.find((entry) => entry.id === projectId) ??
-    projectList[0] ??
-    null;
-  const effectiveProjectId = project?.id ?? null;
-
-  useEffect(() => {
-    if (!open || draft.projectId !== null || effectiveProjectId === null)
-      return;
-    setDraft((current) => {
-      if (current.projectId !== null) return current;
-      const next = { ...current, projectId: effectiveProjectId };
-      storeNewTaskDraft(next);
-      return next;
-    });
-  }, [open, draft.projectId, effectiveProjectId]);
-
-  const labelsQuery = useTasksQuery(
-    async (rpc) => ({
-      projectId: effectiveProjectId,
-      labels: effectiveProjectId
-        ? (await rpc.call("listLabels", { projectId: effectiveProjectId }))
-            .labels
-        : [],
-    }),
-    ["projects:changed"],
-    [effectiveProjectId],
+    projects.find((entry) => entry.id === chosenProjectId) ?? projects[0];
+  const labels = useLabels(project?.id);
+  const selectedLabels = (labels.data ?? []).filter((label) =>
+    draft.labelIds.includes(label.id),
   );
-  const labels = {
-    ...labelsQuery,
-    data:
-      labelsQuery.data?.projectId === effectiveProjectId
-        ? labelsQuery.data.labels
-        : undefined,
-  };
-  const labelIds = draft.labelIds.filter((id) =>
-    labels.data?.some((label) => label.id === id),
-  );
+  const canSubmit = project && draft.title.trim() !== "" && !submitting;
 
-  const changeProject = (id: string) =>
-    updateDraft(() => ({ projectId: id, labelIds: [] }));
-
-  const toggleLabel = (labelId: string) =>
-    updateDraft((current) => ({
-      labelIds: current.labelIds.includes(labelId)
-        ? current.labelIds.filter((id) => id !== labelId)
-        : [...current.labelIds, labelId],
-    }));
-
-  const discardDraft = () => {
-    clearNewTaskDraft();
-    setDraft(blankDraft(projectId, defaultStatus));
-    setPendingFiles([]);
-    setError(null);
-    titleRef.current?.focus();
-  };
-
-  const createLabelFromQuery = async () => {
-    const name = labelQuery.trim();
-    if (!name || effectiveProjectId === null || creatingLabel) return;
-    setCreatingLabel(true);
-    try {
-      const { label } = await rpc.call("createLabel", {
-        projectId: effectiveProjectId,
-        name,
-        color: DEFAULT_COLOR,
-      });
-      labels.refresh();
-      updateDraft((current) => ({
-        labelIds: [...current.labelIds, label.id],
-      }));
-      setLabelQuery("");
-    } catch (createError) {
-      setError(errorMessage(createError));
-    } finally {
-      setCreatingLabel(false);
-    }
-  };
-
-  const stageMore = (files: File[]) => {
-    if (files.length === 0 || submitting || createdTask !== null) return;
-    setPendingFiles((current) => [...current, ...stageFiles(files)]);
-  };
-
-  const removeFile = (id: number) => {
-    if (submitting) return;
-    setPendingFiles((files) => files.filter((entry) => entry.id !== id));
-  };
-
-  const retryUpload = useStagedAttachmentRetry(setPendingFiles);
-
-  const finish = (task: Task) => {
-    onOpenChange(false);
-    navigation.go({ kind: "task", taskKey: task.key });
-  };
-
-  const requestClose = (next: boolean) => {
-    if (!next && createdTask !== null && pendingFiles.length > 0) return;
-    onOpenChange(next);
-  };
-
-  useEffect(() => {
-    if (createdTask && pendingFiles.length === 0) finish(createdTask);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [createdTask, pendingFiles.length]);
-
-  const hasOversized = pendingFiles.some(
-    (entry) => entry.status === "oversized",
-  );
-  const canSubmit =
-    effectiveProjectId !== null &&
-    title.trim().length > 0 &&
-    !submitting &&
-    !labels.isLoading &&
-    labels.data !== undefined &&
-    labels.error === null &&
-    !hasOversized &&
-    createdTask === null;
-
-  const submit = async () => {
-    if (!canSubmit || effectiveProjectId === null) return;
+  const submit = () => {
+    if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
-    try {
-      const result = await rpc.call("createTask", {
-        projectId: effectiveProjectId,
-        title: title.trim(),
-        description,
-        status,
-        priority,
-        dueDate: dueDate === "" ? null : dueDate,
-        parentTaskId: null,
-        labelIds,
-      });
-      if (!result.ok) {
-        setError(result.error.message);
-        return;
-      }
-      clearNewTaskDraft();
-      const staged = pendingFiles.filter((entry) => entry.status === "staged");
-      const failed = await uploadStagedAttachments(staged, {
-        taskId: result.task.id,
-      });
-      if (failed.length > 0) {
-        setPendingFiles((files) => settleStagedUploads(files, staged, failed));
-        setCreatedTask(result.task);
-        return;
-      }
-      if (createMore) {
-        setDraft((current) => ({
-          ...current,
-          title: "",
-          description: "",
-          labelIds: [],
-          dueDate: "",
-        }));
-        setPendingFiles([]);
-        titleRef.current?.focus();
-      } else {
-        finish(result.task);
-      }
-    } catch (submitError) {
-      setError(errorMessage(submitError));
-    } finally {
-      setSubmitting(false);
-    }
+    const input = { ...draft, title: draft.title.trim() };
+    rpc
+      .call("createTask", { projectId: project.id, ...input })
+      .then(({ task }) => {
+        onClose();
+        navigation.go({ kind: "task", taskKey: task.key });
+      })
+      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .finally(() => setSubmitting(false));
   };
 
-  const selectedLabels = useMemo(
-    () => (labels.data ?? []).filter((label) => labelIds.includes(label.id)),
-    [labels.data, labelIds],
-  );
-  const failedCount = pendingFiles.filter(
-    (entry) => entry.status === "failed",
-  ).length;
-
   return (
-    <Dialog open={open} onOpenChange={requestClose}>
+    <Dialog open onOpenChange={(open) => open || onClose()}>
       <DialogContent
         className="flex max-h-[85dvh] min-h-0 max-w-xl flex-col gap-0 p-0"
         onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            void submit();
-          }
-        }}
-        onPaste={(event) => {
-          if (event.defaultPrevented || submitting || createdTask !== null)
+          if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey))
             return;
-          const files = [...(event.clipboardData?.files ?? [])];
-          if (files.length === 0) return;
           event.preventDefault();
-          stageMore(files);
+          submit();
         }}
       >
         <DialogTitle className="flex shrink-0 items-center gap-2 px-4 pt-4 text-xs font-normal text-muted-foreground">
-          {project ? (
-            <span
-              aria-hidden
-              className="size-3 shrink-0 rounded-sm"
-              style={{ backgroundColor: project.color }}
-            />
-          ) : null}
+          {project ? <Swatch color={project.color} /> : null}
           New task
           {project ? ` · ${project.name}` : ""}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          Create a task with a title, description, attributes, and attachments.
+          Create a task with a title, description and attributes.
         </DialogDescription>
-        {createdTask ? (
-          <div className="min-h-0 flex-auto overflow-y-auto px-4 pt-2">
-            <p role="alert" className="text-sm">
-              Task <span className="font-medium">{createdTask.key}</span> was
-              created, but {failedCount} attachment
-              {failedCount === 1 ? "" : "s"} failed to upload.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Retry the uploads below, remove a file to skip it, or skip them
-              all and open the task.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {pendingFiles.map((entry) => (
-                <AttachmentChip
-                  key={entry.id}
-                  entry={entry}
-                  onRemove={() => removeFile(entry.id)}
-                  onRetry={
-                    entry.status === "failed"
-                      ? () => void retryUpload(entry)
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <div
-          className={cn(
-            "flex min-h-0 flex-auto flex-col px-4 pt-2",
-            createdTask && "hidden",
-          )}
-        >
+        <div className="flex min-h-0 flex-auto flex-col px-4 pt-2">
           <input
-            ref={titleRef}
             autoFocus
-            value={title}
-            onChange={(event) => {
-              const next = event.target.value;
-              updateDraft(() => ({ title: next }));
-            }}
+            value={draft.title}
+            onChange={(event) => set({ title: event.target.value })}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                event.stopPropagation();
-                void submit();
-              }
+              if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                return;
+              event.preventDefault();
+              event.stopPropagation();
+              submit();
             }}
             placeholder="Task title"
             aria-label="Task title"
             className="w-full shrink-0 bg-transparent text-base font-semibold text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <TasksEditor
+          <MarkdownEditor
             variant="comment"
-            value={description}
-            onChange={(markdown) =>
-              updateDraft(() => ({ description: markdown }))
-            }
-            placeholder="Description — rich text, round-trips as markdown for agents"
+            value={draft.description}
+            onChange={(description) => set({ description })}
+            placeholder="Description — markdown, as agents read it"
             className="mt-2 min-h-16 flex-auto overflow-y-auto"
-            onAttachFiles={stageMore}
-          />
-          {pendingFiles.length > 0 ? (
-            <div className="mt-2 flex max-h-24 shrink-0 flex-wrap gap-1.5 overflow-y-auto">
-              {pendingFiles.map((entry) => (
-                <AttachmentChip
-                  key={entry.id}
-                  entry={entry}
-                  disabled={submitting}
-                  onRemove={() => removeFile(entry.id)}
-                />
-              ))}
-            </div>
-          ) : null}
-          {hasOversized ? (
-            <p className="mt-2 shrink-0 text-xs text-destructive">
-              Remove attachments over the 25 MB limit before creating the task.
-            </p>
-          ) : null}
-        </div>
-        <div
-          className={cn(
-            "flex shrink-0 flex-wrap items-center gap-1.5 px-4 pt-3",
-            createdTask && "hidden",
-          )}
-        >
-          <TaskFieldPicker
-            dialogOpen={open}
-            label="Project"
-            value={effectiveProjectId}
-            options={projectList.map((entry) => ({
-              value: entry.id,
-              label: entry.name,
-              color: entry.color,
-              keywords: [entry.prefix],
-            }))}
-            onValueChange={changeProject}
-          />
-          <TaskFieldPicker<TaskStatus>
-            dialogOpen={open}
-            label="Status"
-            value={status}
-            options={TASK_STATUSES.map((value) => ({
-              value,
-              label: STATUS_LABELS[value],
-            }))}
-            onValueChange={(status) => updateDraft(() => ({ status }))}
-          />
-          <TaskFieldPicker<TaskPriority>
-            dialogOpen={open}
-            label="Priority"
-            value={priority}
-            options={TASK_PRIORITIES.map((value) => ({
-              value,
-              label: PRIORITY_LABELS[value],
-            }))}
-            onValueChange={(priority) => updateDraft(() => ({ priority }))}
-          />
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={cn(CHIP_TRIGGER, "border-input font-normal")}
-              >
-                {selectedLabels.length === 0 ? (
-                  <>
-                    <Icon name="Plus" className="size-3" />
-                    Labels
-                  </>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-0.5">
-                      {selectedLabels.slice(0, 3).map((label) => (
-                        <span
-                          key={label.id}
-                          aria-hidden
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: label.color }}
-                        />
-                      ))}
-                    </span>
-                    {selectedLabels.length === 1
-                      ? selectedLabels[0]!.name
-                      : `${selectedLabels.length} labels`}
-                  </>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-0" align="start">
-              <Command>
-                <CommandInput
-                  placeholder="Add labels…"
-                  value={labelQuery}
-                  onValueChange={setLabelQuery}
-                />
-                <CommandList>
-                  <CommandEmpty
-                    className={
-                      labelQuery.trim() !== "" ? "p-1 text-left" : undefined
-                    }
-                  >
-                    {labelQuery.trim() !== "" ? (
-                      <button
-                        type="button"
-                        disabled={creatingLabel}
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                        onClick={() => void createLabelFromQuery()}
-                      >
-                        <Icon name="Plus" className="size-3.5" />
-                        Create “{labelQuery.trim()}”
-                      </button>
-                    ) : (
-                      "No labels in this project."
-                    )}
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {(labels.data ?? []).map((label) => (
-                      <CommandItem
-                        key={label.id}
-                        value={label.name}
-                        onSelect={() => toggleLabel(label.id)}
-                      >
-                        <span
-                          aria-hidden
-                          className="size-2.5 rounded-full"
-                          style={{ backgroundColor: label.color }}
-                        />
-                        <span className="flex-1">{label.name}</span>
-                        {labelIds.includes(label.id) ? (
-                          <Icon name="Check" className="size-3.5" />
-                        ) : null}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(event) => {
-              const next = event.target.value;
-              updateDraft(() => ({ dueDate: next }));
-            }}
-            aria-label="Due date"
-            className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
-        {error || labels.error ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pt-3">
+          {project ? (
+            <PropertyEditor
+              labelled
+              value={project.id}
+              className={CHIP_TRIGGER}
+              onSelect={(id) => {
+                setChosenProjectId(id);
+                set({ labelIds: [] });
+              }}
+              kind={{
+                values: projects.map((entry) => entry.id),
+                labels: Object.fromEntries(
+                  projects.map((entry) => [entry.id, entry.name]),
+                ),
+                icon: (id) => (
+                  <Swatch
+                    color={projects.find((entry) => entry.id === id)?.color}
+                  />
+                ),
+                heading: "Project…",
+                letter: "",
+                firstShortcut: 1,
+                width: "min-w-52",
+              }}
+            />
+          ) : null}
+          <StatusEditor
+            labelled
+            value={draft.status}
+            onSelect={(status) => set({ status })}
+            className={CHIP_TRIGGER}
+          />
+          <PriorityEditor
+            labelled
+            value={draft.priority}
+            onSelect={(priority) => set({ priority })}
+            className={CHIP_TRIGGER}
+          />
+          <LabelPicker
+            projectId={project?.id}
+            labels={labels.data}
+            selectedIds={draft.labelIds}
+            onChange={(labelIds) => set({ labelIds })}
+          >
+            <button type="button" className={CHIP_TRIGGER}>
+              {selectedLabels.length === 0 ? (
+                <Icon name="Plus" className="size-3" />
+              ) : (
+                <span className="flex items-center gap-0.5">
+                  {selectedLabels.slice(0, 3).map((label) => (
+                    <span
+                      key={label.id}
+                      aria-hidden
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: label.color }}
+                    />
+                  ))}
+                </span>
+              )}
+              {selectedLabels.length === 0
+                ? "Labels"
+                : selectedLabels.length === 1
+                  ? selectedLabels[0]?.name
+                  : `${selectedLabels.length} labels`}
+            </button>
+          </LabelPicker>
+        </div>
+        {error ? (
           <p
             role="alert"
             className="shrink-0 px-4 pt-2 text-xs text-destructive"
           >
-            {error ?? labels.error}
+            {error}
           </p>
         ) : null}
-        <DialogFooter className="mt-4 shrink-0 flex-row items-center border-t border-border-hairline px-4 py-3 sm:justify-between">
-          {createdTask ? (
-            <>
-              <span />
-              <Button size="sm" onClick={() => finish(createdTask)}>
-                Skip attachments and open task
-              </Button>
-            </>
-          ) : (
-            <>
-              <CheckboxField
-                checked={createMore}
-                onCheckedChange={setCreateMore}
-                label="Create more"
-              />
-              <div className="flex items-center gap-1.5">
-                {hasDraftContent(draft) ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={submitting}
-                    className="text-muted-foreground"
-                    onClick={discardDraft}
-                  >
-                    Discard draft
-                  </Button>
-                ) : null}
-                <button
-                  type="button"
-                  title="Attach files"
-                  aria-label="Attach files"
-                  disabled={submitting}
-                  className="flex size-6.5 items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground disabled:opacity-50"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Icon name="Paperclip" className="size-4" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  aria-hidden
-                  tabIndex={-1}
-                  className="hidden"
-                  onChange={(event) => {
-                    stageMore([...(event.target.files ?? [])]);
-                    event.target.value = "";
-                  }}
-                />
-                <Button
-                  size="sm"
-                  disabled={!canSubmit}
-                  onClick={() => void submit()}
-                >
-                  Create task
-                </Button>
-              </div>
-            </>
-          )}
+        <DialogFooter className="mt-4 shrink-0 flex-row items-center justify-end border-t border-border-hairline px-4 py-3">
+          <Button size="sm" disabled={!canSubmit} onClick={submit}>
+            Create task
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

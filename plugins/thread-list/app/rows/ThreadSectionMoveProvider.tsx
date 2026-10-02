@@ -1,19 +1,16 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useAtomValue } from "jotai";
 import { toast } from "sonner";
-import type { SidebarSectionDefinition } from "../model/project-thread-groups.js";
 import {
   buildSidebarEntitySectionId,
   normalizeSidebarSectionOrder,
-} from "../model/sidebar-section-order.js";
+  type SidebarSectionDefinition,
+} from "@bb/client-core";
 import { useSdk } from "@bb/plugin/app";
-import {
-  sidebarManualSectionOrderAtom,
-  sidebarOrganizationModeAtom,
-} from "../preferences/atoms.js";
-import type { SidebarThread } from "../model/sidebar-thread.js";
+import type { SidebarThread } from "../model/thread-tree.js";
+import { sidebarManualSectionOrderAtom } from "../preferences.js";
 
-export interface ThreadSectionMoveDestination {
+interface ThreadSectionMoveDestination {
   label: string;
   sectionId: string | null;
 }
@@ -32,14 +29,31 @@ export function useThreadSectionMove(): ThreadSectionMoveContextValue | null {
 
 export function ThreadSectionMoveProvider({
   children,
-  destinations,
-  enabled = true,
+  sections,
 }: {
   children: ReactNode;
-  destinations: readonly ThreadSectionMoveDestination[];
-  enabled?: boolean;
+  sections: readonly SidebarSectionDefinition[];
 }) {
   const sdk = useSdk();
+  const storedOrder = useAtomValue(sidebarManualSectionOrderAtom);
+  const destinations = useMemo<ThreadSectionMoveDestination[]>(() => {
+    const byId = new Map(
+      sections.map((section) => [
+        buildSidebarEntitySectionId("section", section.id),
+        { label: section.name, sectionId: section.id },
+      ]),
+    );
+    return normalizeSidebarSectionOrder({
+      storedOrder,
+      entitySectionIds: [...byId.keys()],
+      legacyEntityAnchor: "sections",
+      hasPinnedSection: true,
+    }).flatMap<ThreadSectionMoveDestination>((id) => {
+      if (id === "threads") return [{ label: "Threads", sectionId: null }];
+      const destination = byId.get(id);
+      return destination ? [destination] : [];
+    });
+  }, [sections, storedOrder]);
   const value = useMemo<ThreadSectionMoveContextValue>(
     () => ({
       destinations,
@@ -70,58 +84,8 @@ export function ThreadSectionMoveProvider({
   );
 
   return (
-    <ThreadSectionMoveContext.Provider value={enabled ? value : null}>
+    <ThreadSectionMoveContext.Provider value={value}>
       {children}
     </ThreadSectionMoveContext.Provider>
-  );
-}
-
-export function AppThreadSectionMoveProvider({
-  children,
-  sections,
-}: {
-  children: ReactNode;
-  sections: readonly SidebarSectionDefinition[];
-}) {
-  const mode = useAtomValue(sidebarOrganizationModeAtom);
-  const storedOrder = useAtomValue(sidebarManualSectionOrderAtom);
-  const entitySectionIds = useMemo(
-    () =>
-      sections.map((section) =>
-        buildSidebarEntitySectionId("section", section.id),
-      ),
-    [sections],
-  );
-  const order = useMemo(
-    () =>
-      normalizeSidebarSectionOrder({
-        storedOrder,
-        entitySectionIds,
-        legacyEntityAnchor: "sections",
-        hasPinnedSection: true,
-      }),
-    [entitySectionIds, storedOrder],
-  );
-  const destinations = useMemo<ThreadSectionMoveDestination[]>(() => {
-    const byId = new Map(
-      sections.map((section) => [
-        buildSidebarEntitySectionId("section", section.id),
-        { label: section.name, sectionId: section.id },
-      ]),
-    );
-    return order.flatMap<ThreadSectionMoveDestination>((id) => {
-      if (id === "threads") return [{ label: "Threads", sectionId: null }];
-      const destination = byId.get(id);
-      return destination ? [destination] : [];
-    });
-  }, [order, sections]);
-
-  return (
-    <ThreadSectionMoveProvider
-      destinations={destinations}
-      enabled={mode === "chronological"}
-    >
-      {children}
-    </ThreadSectionMoveProvider>
   );
 }

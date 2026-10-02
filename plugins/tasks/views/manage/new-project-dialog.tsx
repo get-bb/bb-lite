@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  useFolders,
-  useProjects,
+  errorMessage,
+  useOverview,
   useTasksQuery,
   useTasksRpc,
 } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
 import { PROJECT_PREFIX_PATTERN } from "../../shared/contract.js";
-import { errorMessage } from "../../shared/errors.js";
 import {
   Dialog,
   DialogContent,
@@ -15,143 +14,67 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@bb/shared-ui/dialog";
+import { Button } from "@bb/shared-ui/button";
+import { Input } from "@bb/shared-ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Icon } from "@/components/ui/icon";
-import {
+  BbProjectLinkPicker,
   ColorSwatchPicker,
   DEFAULT_COLOR,
-  describeCreateProjectError,
   derivePrefix,
   Field,
 } from "./shared.js";
-import { BbProjectLinkPicker } from "./bb-project-link.js";
 
-const NO_FOLDER = "__none__";
-const NEW_FOLDER = "__new__";
-
-interface NewProjectDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function NewProjectDialog({
-  open,
-  onOpenChange,
-}: NewProjectDialogProps) {
+export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
-  const projects = useProjects();
-  const folders = useFolders();
-
+  const projects = useOverview().data?.projects ?? [];
+  const bbProjects = useTasksQuery(
+    async (client) => (await client.call("listBbProjects")).bbProjects,
+  );
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [newFolderMode, setNewFolderMode] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
   const [linkedBbProjectId, setLinkedBbProjectId] = useState<string | null>(
     null,
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const bbProjects = useTasksQuery(
-    async (rpc) => (await rpc.call("listBbProjects")).bbProjects,
-    [],
-  );
-  const bbProjectList = bbProjects.data ?? [];
-
-  useEffect(() => {
-    if (!open) return;
-    setName("");
-    setPrefix("");
-    setPrefixTouched(false);
-    setColor(DEFAULT_COLOR);
-    setFolderId(null);
-    setNewFolderMode(false);
-    setNewFolderName("");
-    setLinkedBbProjectId(null);
-    setError(null);
-  }, [open]);
-
-  const prefixError = useMemo(() => {
-    if (prefix === "") return null;
-    if (!PROJECT_PREFIX_PATTERN.test(prefix)) {
-      return "Use 1–10 uppercase letters and digits, starting with a letter.";
-    }
-    const clash = (projects.data ?? []).find(
-      (project) => project.prefix.toUpperCase() === prefix.toUpperCase(),
-    );
-    return clash ? `Already used by ${clash.name}.` : null;
-  }, [prefix, projects.data]);
-
+  const clash = projects.find((project) => project.prefix === prefix);
+  const prefixError =
+    prefix === ""
+      ? null
+      : !PROJECT_PREFIX_PATTERN.test(prefix)
+        ? "Use 1–10 uppercase letters and digits, starting with a letter."
+        : clash
+          ? `Already used by ${clash.name}.`
+          : null;
   const canSubmit =
     name.trim().length > 0 &&
     prefix.length > 0 &&
     prefixError === null &&
     !submitting;
 
-  const folderList = folders.data ?? [];
-  const folderName = (id: string) => {
-    const folder = folderList.find((entry) => entry.id === id);
-    if (!folder) return "Folder";
-    const parent = folder.parentFolderId
-      ? folderList.find((entry) => entry.id === folder.parentFolderId)
-      : null;
-    return parent ? `${parent.name} / ${folder.name}` : folder.name;
-  };
-
-  const createFolderInline = async () => {
-    const trimmed = newFolderName.trim();
-    if (trimmed === "") return;
-    setError(null);
-    try {
-      const { folder } = await rpc.call("createFolder", {
-        name: trimmed,
-        parentFolderId: null,
-      });
-      setFolderId(folder.id);
-      setNewFolderMode(false);
-      setNewFolderName("");
-    } catch (folderError) {
-      setError(errorMessage(folderError));
-    }
-  };
-
   const submit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
-      const { project } = await rpc.call("createProject", {
-        name: name.trim(),
-        prefix,
-        color,
-        folderId,
-        linkedBbProjectId,
-      });
-      onOpenChange(false);
-      navigation.go({ kind: "project", projectId: project.id, view: null });
+      const input = { name: name.trim(), prefix, color, linkedBbProjectId };
+      const { project } = await rpc.call("createProject", input);
+      onClose();
+      navigation.go({ kind: "project", projectId: project.id });
     } catch (submitError) {
-      setError(describeCreateProjectError(submitError));
+      setError(errorMessage(submitError));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={(open) => open || onClose()}>
       <DialogContent
         className="max-w-md"
         onKeyDown={(event) => {
@@ -205,66 +128,6 @@ export function NewProjectDialog({
           <Field label="Color">
             <ColorSwatchPicker value={color} onChange={setColor} />
           </Field>
-          <Field label="Folder">
-            <Select
-              value={newFolderMode ? NEW_FOLDER : (folderId ?? NO_FOLDER)}
-              onValueChange={(value) => {
-                if (value === NEW_FOLDER) {
-                  setNewFolderMode(true);
-                  return;
-                }
-                setNewFolderMode(false);
-                setFolderId(value === NO_FOLDER ? null : value);
-              }}
-            >
-              <SelectTrigger aria-label="Folder" className="h-8">
-                <SelectValue>
-                  {newFolderMode
-                    ? "New folder…"
-                    : folderId
-                      ? folderName(folderId)
-                      : "No folder"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_FOLDER}>No folder</SelectItem>
-                {folderList.map((folder) => (
-                  <SelectItem key={folder.id} value={folder.id}>
-                    {folderName(folder.id)}
-                  </SelectItem>
-                ))}
-                <SelectSeparator />
-                <SelectItem value={NEW_FOLDER}>New folder…</SelectItem>
-              </SelectContent>
-            </Select>
-            {newFolderMode ? (
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <Input
-                  autoFocus
-                  value={newFolderName}
-                  placeholder="Folder name"
-                  onChange={(event) => setNewFolderName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void createFolderInline();
-                    }
-                  }}
-                  className="h-7 text-xs"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7"
-                  disabled={newFolderName.trim() === ""}
-                  onClick={() => void createFolderInline()}
-                >
-                  <Icon name="FolderPlus" className="size-3.5" />
-                  Create
-                </Button>
-              </div>
-            ) : null}
-          </Field>
           <Field
             label="Linked bb project"
             hint="Optional. Linking a bb project enables dispatching to agents."
@@ -272,7 +135,7 @@ export function NewProjectDialog({
             <BbProjectLinkPicker
               value={linkedBbProjectId}
               onChange={setLinkedBbProjectId}
-              bbProjects={bbProjectList}
+              bbProjects={bbProjects.data ?? []}
             />
           </Field>
         </div>
@@ -282,7 +145,7 @@ export function NewProjectDialog({
           </p>
         ) : null}
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
           <Button size="sm" disabled={!canSubmit} onClick={() => void submit()}>

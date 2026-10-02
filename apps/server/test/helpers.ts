@@ -149,6 +149,7 @@ function localRunner(kind: RunnerKind, config: ServerConfig, fake: FakeRunner) {
 export async function createTestServer(
   overrides: Partial<ServerConfig> = {},
   kind: RunnerKind = "fake",
+  databasePath = ":memory:",
 ) {
   const dataDir = scratch();
   const env = { BB_DATA_DIR: dataDir, BB_SERVER_PORT: "0" };
@@ -157,7 +158,7 @@ export async function createTestServer(
   const clock = { now: 1_700_000_000_000 };
   const now = (): number => clock.now;
   const runner = new FakeRunner();
-  const db = openDatabase({ path: ":memory:", now });
+  const db = openDatabase({ path: databasePath, now });
   const connect = localRunner(kind, config, runner);
   const server = createServer({ config, now, db, localRunner: connect });
   const { url } = await server.listen();
