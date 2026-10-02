@@ -1,5 +1,4 @@
 import {
-  queryOptions,
   useQuery,
   useQueryClient,
   type QueryClient,
@@ -32,14 +31,6 @@ export function useSystemConfig(options?: QueryOptions) {
     queryKey: qk.systemConfig(),
     queryFn: ({ signal }) => sdk.system.config({ signal }),
     enabled: options?.enabled ?? true,
-    staleTime: 60_000,
-  });
-}
-
-export function systemThemeQueryOptions(themeId: string) {
-  return queryOptions({
-    queryKey: qk.systemTheme(themeId),
-    queryFn: ({ signal }) => sdk.theme.resolve({ signal, themeId }),
     staleTime: 60_000,
   });
 }

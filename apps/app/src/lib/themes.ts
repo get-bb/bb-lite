@@ -242,7 +242,7 @@ function cssFor(themeId: string): string {
 export function applyAppTheme(themeId: string): void {
   committedCss = cssFor(themeId);
   previewedCss = null;
-  applyResolvedCodeTheme(resolveCodeTheme(null, themeId));
+  applyResolvedCodeTheme(resolveCodeTheme(themeId));
   render();
   try {
     if (committedCss) localStorage.setItem(CSS_STORAGE_KEY, committedCss);
@@ -252,9 +252,7 @@ export function applyAppTheme(themeId: string): void {
 
 export function previewAppTheme(themeId: string | null): void {
   previewedCss = themeId === null ? null : cssFor(themeId);
-  previewResolvedCodeTheme(
-    themeId === null ? null : resolveCodeTheme(null, themeId),
-  );
+  previewResolvedCodeTheme(themeId === null ? null : resolveCodeTheme(themeId));
   render();
 }
 

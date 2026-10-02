@@ -24,9 +24,9 @@ export const keybindingOverridesSetting: Setting<domain.AppKeybindingOverrides> 
     fallback: [],
   };
 
-export const appearanceSetting: Setting<domain.AppThemeSelection> = {
+export const appearanceSetting: Setting<domain.AppTheme> = {
   key: "appearance",
-  schema: domain.appThemeSelectionSchema,
+  schema: domain.appThemeSchema,
   fallback: { themeId: "default", faviconColor: "default" },
 };
 

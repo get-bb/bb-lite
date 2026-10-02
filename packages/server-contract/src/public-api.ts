@@ -864,9 +864,7 @@ export const publicApiRoutes = {
     appearance: defineRoute({
       path: "/settings/appearance",
       method: "put",
-      request: jsonRequest<EmptyInput, domain.AppThemeSelection>(
-        domain.appThemeSelectionSchema,
-      ),
+      request: jsonRequest<EmptyInput, domain.AppTheme>(domain.appThemeSchema),
       response: jsonResponse<domain.AppTheme>(),
     }),
     uiPreferences: defineRoute({
@@ -889,12 +887,6 @@ export const publicApiRoutes = {
       method: "delete",
       request: noRequest<api.PathUiPreferenceKey>(),
       response: jsonResponse<api.UiPreferenceResponse>(),
-    }),
-    resolveTheme: defineRoute({
-      path: "/settings/themes/:id",
-      method: "get",
-      request: noRequest<Path<"id">>(),
-      response: jsonResponse<domain.AppTheme>(),
     }),
     executionOptions: defineRoute({
       path: "/system/execution-options",

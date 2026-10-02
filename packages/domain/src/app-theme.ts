@@ -1,8 +1,4 @@
 import { z } from "zod";
-import {
-  defaultResolvedCodeTheme,
-  resolvedCodeThemeSchema,
-} from "./code-theme.js";
 
 const builtInThemeIdSchema = z.enum([
   "default",
@@ -47,8 +43,6 @@ export function isBuiltInThemeId(id: string): id is BuiltInThemeId {
   return (BUILTIN_THEME_IDS as readonly string[]).includes(id);
 }
 
-export const CUSTOM_THEME_CSS_MAX_LENGTH = 256_000;
-
 export const FAVICON_COLORS = [
   "red",
   "orange",
@@ -73,29 +67,11 @@ export const defaultFaviconColor: FaviconColorPreference = "default";
 
 export const appThemeSchema = z.object({
   themeId: z.string().min(1),
-  customCss: z.string().max(CUSTOM_THEME_CSS_MAX_LENGTH).nullable(),
   faviconColor: faviconColorPreferenceSchema,
-  resolvedCodeTheme: resolvedCodeThemeSchema.default(defaultResolvedCodeTheme),
 });
 export type AppTheme = z.infer<typeof appThemeSchema>;
 
-export const pluginThemeMetaSchema = z.object({
-  id: z.string().min(1),
-  pluginId: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().nullable(),
-});
-export type PluginThemeMeta = z.infer<typeof pluginThemeMetaSchema>;
-
-export const appThemeSelectionSchema = z.object({
-  themeId: z.string().min(1),
-  faviconColor: faviconColorPreferenceSchema,
-});
-export type AppThemeSelection = z.infer<typeof appThemeSelectionSchema>;
-
 export const defaultAppTheme: AppTheme = {
   themeId: "default",
-  customCss: null,
   faviconColor: defaultFaviconColor,
-  resolvedCodeTheme: defaultResolvedCodeTheme,
 };
