@@ -3,7 +3,6 @@ import { getCachedProjectThreadListInvalidationQueryKeys } from "./query-cache";
 import {
   allProjectPathsQueryKeyPrefix,
   allProjectSourceBranchesQueryKeyPrefix,
-  allThreadConversationOutlineQueryKeyPrefix,
   allThreadPendingInteractionsQueryKeyPrefix,
   allThreadQueuedMessagesQueryKeyPrefix,
   allThreadQueryKeyPrefix,
@@ -21,7 +20,6 @@ import {
   threadPromptHistoryQueryKey,
   threadPromptHistoryQueryKeyPrefix,
   threadQueryKey,
-  threadConversationOutlineQueryKeyPrefix,
   threadSearchQueryKeyPrefix,
   threadsQueryKey,
   threadTimelineQueryKeyPrefix,
@@ -107,22 +105,12 @@ export function getThreadTimelineInvalidationQueryKeys({
   return threadId
     ? [
         threadTimelineQueryKeyPrefix(threadId),
-        threadConversationOutlineQueryKeyPrefix(threadId),
         threadTimelineTurnSummaryDetailsQueryKeyPrefix(threadId),
       ]
     : [
         allThreadTimelineQueryKeyPrefix(),
-        allThreadConversationOutlineQueryKeyPrefix(),
         allThreadTimelineTurnSummaryDetailsQueryKeyPrefix(),
       ];
-}
-
-export function getThreadConversationOutlineInvalidationQueryKeys({
-  threadId,
-}: ThreadScopedInvalidationArgs): QueryKey[] {
-  return threadId
-    ? [threadConversationOutlineQueryKeyPrefix(threadId)]
-    : [allThreadConversationOutlineQueryKeyPrefix()];
 }
 
 export function getThreadTimelineWindowInvalidationQueryKeys({

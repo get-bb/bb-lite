@@ -6,21 +6,28 @@
   "bin": {
     "bb": "./bin/bb"
   },
+  "exports": {
+    ".": {
+      "source": "./src/paths.ts",
+      "types": "./src/paths.ts",
+      "default": "./src/paths.ts"
+    }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bb/core-ui": "workspace:*",
     "@bb/domain": "workspace:*",
     "@bb/runner": "workspace:*",
     "@bb/sdk": "workspace:*",
     "@bb/server": "workspace:*",
     "@bb/server-contract": "workspace:*",
-    "ws": "^8.19.0",
+    "@bb/thread-view": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1"
+    "@types/node": "^22.0.0"
   }
 }

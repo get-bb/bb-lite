@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { arrayMove } from "@dnd-kit/sortable";
 import type { Host } from "@bb/domain";
 import type { ProjectWithThreadsResponse } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
@@ -11,36 +9,17 @@ import {
   ResourceOverflowMenu,
   ResourceRowDetailChevron,
 } from "@bb/shared-ui/resource-list";
-import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
-import {
-  ProjectDeleteDialog,
-  type ProjectDeleteDialogTarget,
-} from "@/components/dialogs/ProjectDeleteDialog";
-import {
-  ProjectRenameDialog,
-  type ProjectRenameDialogTarget,
-} from "@/components/dialogs/ProjectRenameDialog";
+import { useProjectActions } from "@/components/project/ProjectActionsProvider";
 import {
   SettingsBadge,
   SettingsRow,
+  SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import {
-  useDeleteProject,
-  useReorderProject,
-  useUpdateProject,
-} from "@/hooks/mutations/project-mutations";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { useQuickCreateProject } from "@/hooks/useQuickCreateProject";
+import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { getSettingsProjectRoutePath } from "@/lib/route-paths";
-import {
-  SortableSettingsRowList,
-  useSortableSettingsRow,
-} from "./sortable-settings-rows";
-
-const PROJECTS_SECTION_DESCRIPTION =
-  "Repositories bb can work in. Drag to change the order projects appear in the sidebar.";
 
 export function formatGitRemote(url: string): string {
   const sshMatch = /^[^@]+@([^:]+):(.+?)(?:\.git)?$/.exec(url);
@@ -53,111 +32,32 @@ export function formatGitRemote(url: string): string {
   }
 }
 
-export interface ProjectReorderRequest {
-  order: string[];
-  previousProjectId: string | null;
-  nextProjectId: string | null;
-}
-
-export function buildProjectReorderRequest(
-  ids: readonly string[],
-  activeId: string,
-  overId: string,
-): ProjectReorderRequest | null {
-  if (activeId === overId) return null;
-  const from = ids.indexOf(activeId);
-  const to = ids.indexOf(overId);
-  if (from === -1 || to === -1) return null;
-  const order = arrayMove([...ids], from, to);
-  return {
-    order,
-    previousProjectId: order[to - 1] ?? null,
-    nextProjectId: order[to + 1] ?? null,
-  };
-}
-
 export function pluralize(count: number, singular: string): string {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
 }
 
-interface ProjectSummary {
-  configuredMachineCount: number;
-  onlineMachineCount: number;
-  totalMachineCount: number;
-}
-
-function summarizeMachines(
-  project: ProjectWithThreadsResponse,
-  hostById: ReadonlyMap<string, Host>,
-): ProjectSummary {
-  let configuredMachineCount = 0;
-  let onlineMachineCount = 0;
-  for (const hostId of new Set(
-    project.sources.map((source) => source.hostId),
-  )) {
-    const host = hostById.get(hostId);
-    if (!host) continue;
-    configuredMachineCount += 1;
-    if (host.status === "connected") onlineMachineCount += 1;
-  }
-  return {
-    configuredMachineCount,
-    onlineMachineCount,
-    totalMachineCount: hostById.size,
-  };
-}
-
-function machineLabel(summary: ProjectSummary): string {
-  if (summary.configuredMachineCount === 0) return "Not set up on any machine";
-  if (summary.totalMachineCount <= 1) return "1 machine";
-  return `${summary.configuredMachineCount} of ${summary.totalMachineCount} machines`;
-}
-
-interface SortableProjectRowProps {
-  project: ProjectWithThreadsResponse;
-  summary: ProjectSummary;
-  dragDisabled: boolean;
-  onRename: () => void;
-  onDelete: () => void;
-}
-
-function SortableProjectRow({
+function ProjectRow({
   project,
-  summary,
-  dragDisabled,
-  onRename,
-  onDelete,
-}: SortableProjectRowProps) {
-  const { setNodeRef, style, isDragging, handle } = useSortableSettingsRow({
-    id: project.id,
-    disabled: dragDisabled,
-    label: project.name,
-  });
-  const detailPath = getSettingsProjectRoutePath(project.id);
-  const remoteLabel =
-    project.gitRemoteUrl === null
-      ? null
-      : formatGitRemote(project.gitRemoteUrl);
-  const needsSetup = summary.configuredMachineCount === 0;
+  hosts,
+}: {
+  project: ProjectWithThreadsResponse;
+  hosts: readonly Host[];
+}) {
+  const { requestRename, requestDelete } = useProjectActions();
+  const configured = hosts.filter((host) =>
+    project.sources.some((source) => source.hostId === host.id),
+  );
+  const needsSetup = configured.length === 0;
   const allOffline =
-    summary.configuredMachineCount > 0 && summary.onlineMachineCount === 0;
-
+    !needsSetup && configured.every((host) => host.status !== "connected");
   return (
-    <SettingsRow
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "items-start",
-        isDragging && "relative z-10 rounded-md bg-card opacity-90 shadow-lift",
-      )}
-    >
-      {handle}
+    <SettingsRow className="items-start">
       <div
         data-project-row
         className="group -mx-2 flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-state-hover focus-within:bg-state-hover"
       >
         <Link
-          to={detailPath}
+          to={getSettingsProjectRoutePath(project.id)}
           aria-label={`Open ${project.name} settings`}
           className="min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -174,16 +74,22 @@ function SortableProjectRow({
               {allOffline ? <SettingsBadge>offline</SettingsBadge> : null}
             </div>
             <div className="min-w-0 space-y-0.5 text-xs text-subtle-foreground/75">
-              {remoteLabel === null ? (
+              {project.gitRemoteUrl === null ? (
                 <div className="italic">No git remote</div>
               ) : (
-                <div className="truncate">{remoteLabel}</div>
+                <div className="truncate">
+                  {formatGitRemote(project.gitRemoteUrl)}
+                </div>
               )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                 <span
                   className={cn("shrink-0", needsSetup && "text-warning-text")}
                 >
-                  {machineLabel(summary)}
+                  {needsSetup
+                    ? "Not set up on any machine"
+                    : hosts.length <= 1
+                      ? "1 machine"
+                      : `${configured.length} of ${hosts.length} machines`}
                 </span>
                 <span className="shrink-0">
                   {pluralize(project.threads.length, "thread")}
@@ -196,12 +102,16 @@ function SortableProjectRow({
           <ResourceOverflowMenu
             label={`${project.name} actions`}
             items={[
-              { label: "Rename", icon: "Edit", onSelect: onRename },
+              {
+                label: "Rename",
+                icon: "Edit",
+                onSelect: () => requestRename(project),
+              },
               {
                 label: "Delete project",
                 icon: "Trash2",
                 tone: "destructive",
-                onSelect: onDelete,
+                onSelect: () => requestDelete(project),
               },
             ]}
           />
@@ -213,157 +123,46 @@ function SortableProjectRow({
 }
 
 export function ProjectsSettingsSection() {
-  const sidebarNavigationQuery = useSidebarNavigation();
-  const hostsQuery = useHosts();
-  const updateProject = useUpdateProject();
-  const deleteProject = useDeleteProject();
-  const reorderProject = useReorderProject();
-  const quickCreateProject = useQuickCreateProject();
-  const [renameTarget, setRenameTarget] =
-    useState<ProjectRenameDialogTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] =
-    useState<ProjectDeleteDialogTarget | null>(null);
-  const [optimisticOrder, setOptimisticOrder] = useState<string[] | null>(null);
-
-  const serverProjects = sidebarNavigationQuery.data?.projects;
-  useEffect(() => {
-    setOptimisticOrder(null);
-  }, [serverProjects]);
-  const projects = useMemo(() => {
-    if (!serverProjects) return undefined;
-    if (!optimisticOrder) return serverProjects;
-    const byId = new Map(serverProjects.map((entry) => [entry.id, entry]));
-    const ordered = optimisticOrder.flatMap((id) => byId.get(id) ?? []);
-    const seen = new Set(optimisticOrder);
-    return [
-      ...ordered,
-      ...serverProjects.filter((entry) => !seen.has(entry.id)),
-    ];
-  }, [optimisticOrder, serverProjects]);
-  const projectIds = useMemo(
-    () => projects?.map((project) => project.id) ?? [],
-    [projects],
-  );
-  const hosts = useMemo(
-    () => selectHosts(hostsQuery.data, "persistent"),
-    [hostsQuery.data],
-  );
-  const hostById = useMemo(
-    () => new Map<string, Host>(hosts.map((host) => [host.id, host])),
-    [hosts],
-  );
-
-  const dragDisabled = reorderProject.isPending || projectIds.length < 2;
-
-  const handleReorder = (activeId: string, overId: string): void => {
-    const request = buildProjectReorderRequest(projectIds, activeId, overId);
-    if (request === null) return;
-    setOptimisticOrder(request.order);
-    reorderProject.mutate(
-      {
-        id: activeId,
-        previousProjectId: request.previousProjectId,
-        nextProjectId: request.nextProjectId,
-      },
-      { onError: () => setOptimisticOrder(null) },
-    );
-  };
-
+  const navigation = useSidebarNavigation();
+  const hosts = selectHosts(useHosts().data, "persistent");
+  const quickCreateProject = useQuickCreateProjectController();
+  const projects = navigation.data?.projects;
   return (
-    <>
-      <SettingsSection
-        title="Projects"
-        description={PROJECTS_SECTION_DESCRIPTION}
-        action={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={
-              !quickCreateProject.isAvailable || quickCreateProject.isCreating
-            }
-            onClick={quickCreateProject.openCreateDialog}
-          >
-            <Icon name="Plus" className="size-3.5" />
-            Add a project
-          </Button>
-        }
-      >
-        {sidebarNavigationQuery.isError ? (
-          <p className="text-sm text-destructive" role="alert">
-            Couldn't load projects.
-          </p>
-        ) : projects === undefined ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : projects.length === 0 ? (
-          <p className="text-sm text-subtle-foreground">
-            No projects yet. Add a project to start running threads in a
-            repository.
-          </p>
-        ) : (
-          <SortableSettingsRowList
-            ids={projectIds}
-            disabled={dragDisabled}
-            onReorder={handleReorder}
-          >
-            {projects.map((project) => (
-              <SortableProjectRow
-                key={project.id}
-                project={project}
-                summary={summarizeMachines(project, hostById)}
-                dragDisabled={dragDisabled}
-                onRename={() => {
-                  updateProject.reset();
-                  setRenameTarget({
-                    id: project.id,
-                    currentName: project.name,
-                  });
-                }}
-                onDelete={() => {
-                  deleteProject.reset();
-                  setDeleteTarget({ id: project.id, name: project.name });
-                }}
-              />
-            ))}
-          </SortableSettingsRowList>
-        )}
-      </SettingsSection>
-
-      <ProjectPathDialog
-        target={quickCreateProject.projectPathDialog.target}
-        pending={quickCreateProject.isCreating}
-        hostId={quickCreateProject.hostId}
-        hostName={quickCreateProject.hostName}
-        hosts={quickCreateProject.hosts}
-        onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
-        onSubmit={quickCreateProject.submitProjectPath}
-      />
-
-      <ProjectRenameDialog
-        target={renameTarget}
-        pending={updateProject.isPending}
-        onOpenChange={(open) => {
-          if (!open && !updateProject.isPending) setRenameTarget(null);
-        }}
-        onRename={(projectId, name) =>
-          updateProject.mutate(
-            { id: projectId, name },
-            { onSuccess: () => setRenameTarget(null) },
-          )
-        }
-      />
-
-      <ProjectDeleteDialog
-        target={deleteTarget}
-        pending={deleteProject.isPending}
-        onOpenChange={(open) => {
-          if (!open && !deleteProject.isPending) setDeleteTarget(null);
-        }}
-        onDelete={(projectId) =>
-          deleteProject.mutate(projectId, {
-            onSuccess: () => setDeleteTarget(null),
-          })
-        }
-      />
-    </>
+    <SettingsSection
+      title="Projects"
+      description="Repositories bb can work in."
+      action={
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={
+            !quickCreateProject.isAvailable || quickCreateProject.isCreating
+          }
+          onClick={quickCreateProject.openCreateDialog}
+        >
+          <Icon name="Plus" className="size-3.5" />
+          Add a project
+        </Button>
+      }
+    >
+      {navigation.isError ? (
+        <p className="text-sm text-destructive" role="alert">
+          Couldn't load projects.
+        </p>
+      ) : projects === undefined ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : projects.length === 0 ? (
+        <p className="text-sm text-subtle-foreground">
+          No projects yet. Add a project to start running threads in a
+          repository.
+        </p>
+      ) : (
+        <SettingsRowList>
+          {projects.map((project) => (
+            <ProjectRow key={project.id} project={project} hosts={hosts} />
+          ))}
+        </SettingsRowList>
+      )}
+    </SettingsSection>
   );
 }

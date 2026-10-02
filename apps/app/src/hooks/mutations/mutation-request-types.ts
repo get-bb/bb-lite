@@ -10,4 +10,3 @@ export type RequestEnvironmentActionMutationRequest = {
 export interface SendThreadMessageMutationRequest extends SendMessageRequest {
   id: string;
 }
-

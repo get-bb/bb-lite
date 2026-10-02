@@ -1,14 +1,6 @@
-import {
-  appKeybindingOverridesSchema,
-  appSettingsSchema,
-  appThemeSelectionSchema,
-  defaultAppSettings,
-  type AppKeybindingOverrides,
-  type AppSettings,
-  type AppThemeSelection,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ZodType } from "zod";
-import { encodeJson, type Db } from "./index.js";
+import { insertRow, type Db } from "./index.js";
 
 export interface Setting<T> {
   key: string;
@@ -16,21 +8,22 @@ export interface Setting<T> {
   fallback: T;
 }
 
-export const keybindingOverridesSetting: Setting<AppKeybindingOverrides> = {
-  key: "keybindingOverrides",
-  schema: appKeybindingOverridesSchema,
-  fallback: [],
-};
+export const keybindingOverridesSetting: Setting<domain.AppKeybindingOverrides> =
+  {
+    key: "keybindingOverrides",
+    schema: domain.appKeybindingOverridesSchema,
+    fallback: [],
+  };
 
-export const appearanceSetting: Setting<AppThemeSelection> = {
+export const appearanceSetting: Setting<domain.AppThemeSelection> = {
   key: "appearance",
-  schema: appThemeSelectionSchema,
+  schema: domain.appThemeSelectionSchema,
   fallback: { themeId: "default", faviconColor: "default" },
 };
 
-const generalSetting: Setting<Partial<AppSettings>> = {
+const generalSetting: Setting<Partial<domain.AppSettings>> = {
   key: "general",
-  schema: appSettingsSchema.partial().strip(),
+  schema: domain.appSettingsSchema.partial().strip(),
   fallback: {},
 };
 
@@ -45,20 +38,15 @@ export function readSetting<T>(db: Db, setting: Setting<T>): T {
 }
 
 export function writeSetting<T>(db: Db, setting: Setting<T>, value: T): void {
-  db.run(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (key) DO UPDATE
-     SET value = excluded.value, updated_at = excluded.updated_at`,
-    setting.key,
-    encodeJson(value),
-    db.now(),
-  );
+  const { key } = setting;
+  const row = { key, value: JSON.stringify(value), updatedAt: db.now() };
+  insertRow(db, "settings", row, ["key"]);
 }
 
-export function getAppSettings(db: Db): AppSettings {
-  return { ...defaultAppSettings, ...readSetting(db, generalSetting) };
+export function getAppSettings(db: Db): domain.AppSettings {
+  return { ...domain.defaultAppSettings, ...readSetting(db, generalSetting) };
 }
 
-export function setAppSettings(db: Db, settings: AppSettings): void {
+export function setAppSettings(db: Db, settings: domain.AppSettings): void {
   writeSetting(db, generalSetting, settings);
 }

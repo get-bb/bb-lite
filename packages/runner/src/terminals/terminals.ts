@@ -66,21 +66,17 @@ export interface Terminals {
   dispose(): void;
 }
 
-async function resolveShell(): Promise<string> {
+async function resolveShell() {
   for (const shell of [process.env.SHELL, "/bin/zsh", "/bin/bash"]) {
-    if (shell && (await pathExists(shell, constants.X_OK))) {
-      return shell;
-    }
+    if (shell && (await pathExists(shell, constants.X_OK))) return shell;
   }
   return "/bin/sh";
 }
 
 let spawnHelperChecked = process.platform !== "darwin";
 
-async function ensureSpawnHelperExecutable(): Promise<void> {
-  if (spawnHelperChecked) {
-    return;
-  }
+async function ensureSpawnHelperExecutable() {
+  if (spawnHelperChecked) return;
   spawnHelperChecked = true;
   const require = createRequire(import.meta.url);
   const packageDir = path.dirname(require.resolve("node-pty/package.json"));
@@ -93,10 +89,8 @@ async function ensureSpawnHelperExecutable(): Promise<void> {
   }
 }
 
-function titleFor(start: TerminalStart, shell: string): string {
-  if (start.mode === "shell") {
-    return path.basename(shell) || "Terminal";
-  }
+function titleFor(start: TerminalStart, shell: string) {
+  if (start.mode === "shell") return path.basename(shell) || "Terminal";
   const command = start.command.trim().replace(/\s+/gu, " ");
   return command.length <= TITLE_MAX_LENGTH
     ? command
@@ -106,20 +100,18 @@ function titleFor(start: TerminalStart, shell: string): string {
 export function createTerminals(ctx: Ctx): Terminals {
   const terminals = new Map<string, Terminal>();
 
-  const find = (terminalId: string, live: boolean): Terminal => {
+  const find = (terminalId: string, live: boolean) => {
     const terminal = terminals.get(terminalId);
     return terminal === undefined || (live && terminal.exited !== null)
       ? fail("terminal_not_found", `Terminal is not open: ${terminalId}`)
       : terminal;
   };
 
-  const forget = (terminal: Terminal): void => {
-    if (terminals.get(terminal.id) === terminal) {
-      terminals.delete(terminal.id);
-    }
+  const forget = (terminal: Terminal) => {
+    if (terminals.get(terminal.id) === terminal) terminals.delete(terminal.id);
   };
 
-  const trimScrollback = (terminal: Terminal, maxBytes: number): void => {
+  const trimScrollback = (terminal: Terminal, maxBytes: number) => {
     while (
       terminal.scrollback.length > 1 &&
       (terminal.scrollbackBytes > maxBytes ||
@@ -129,17 +121,15 @@ export function createTerminals(ctx: Ctx): Terminals {
     }
   };
 
-  const flush = (terminal: Terminal): void => {
+  const flush = (terminal: Terminal) => {
     clearTimeout(terminal.flushTimer ?? undefined);
     terminal.flushTimer = null;
     const output = Buffer.concat(terminal.pending);
     terminal.pending = [];
     for (let at = 0; at < output.byteLength; at += OUTPUT_CHUNK_MAX_BYTES) {
       const bytes = output.subarray(at, at + OUTPUT_CHUNK_MAX_BYTES);
-      const chunk = {
-        seq: terminal.nextSeq,
-        dataBase64: bytes.toString("base64"),
-      };
+      const dataBase64 = bytes.toString("base64");
+      const chunk = { seq: terminal.nextSeq, dataBase64 };
       terminal.nextSeq += 1;
       terminal.scrollback.push({ chunk, byteLength: bytes.byteLength });
       terminal.scrollbackBytes += bytes.byteLength;
@@ -149,18 +139,13 @@ export function createTerminals(ctx: Ctx): Terminals {
     }
   };
 
-  const receive = (terminal: Terminal, data: string): void => {
-    if (terminal.exited !== null) {
-      return;
-    }
+  const receive = (terminal: Terminal, data: string) => {
+    if (terminal.exited !== null) return;
     const input = terminal.partialQuery + data;
-    terminal.partialQuery =
-      DEVICE_ATTRIBUTES_PARTIALS.find((partial) => input.endsWith(partial)) ??
-      "";
-    const complete = input.slice(
-      0,
-      input.length - terminal.partialQuery.length,
-    );
+    const partials = DEVICE_ATTRIBUTES_PARTIALS;
+    const held = partials.find((partial) => input.endsWith(partial)) ?? "";
+    terminal.partialQuery = held;
+    const complete = input.slice(0, input.length - held.length);
     const output = complete.replace(DEVICE_ATTRIBUTES_QUERY, "");
     const queries = complete.match(DEVICE_ATTRIBUTES_QUERY)?.length ?? 0;
     if (queries > 0) {
@@ -180,10 +165,8 @@ export function createTerminals(ctx: Ctx): Terminals {
     }
   };
 
-  const finish = (terminal: Terminal, exitCode: number | null): void => {
-    if (terminal.exited !== null) {
-      return;
-    }
+  const finish = (terminal: Terminal, exitCode: number | null) => {
+    if (terminal.exited !== null) return;
     terminal.pending.push(Buffer.from(terminal.partialQuery, "utf8"));
     flush(terminal);
     clearTimeout(terminal.closeTimer ?? undefined);
@@ -196,7 +179,7 @@ export function createTerminals(ctx: Ctx): Terminals {
     ctx.sink({ lane: "live", kind: "terminal.exited", terminalId, exitCode });
   };
 
-  const kill = (terminal: Terminal, signal: NodeJS.Signals): void => {
+  const kill = (terminal: Terminal, signal: NodeJS.Signals) => {
     try {
       process.kill(-terminal.pty.pid, signal);
     } catch {
@@ -235,13 +218,8 @@ export function createTerminals(ctx: Ctx): Terminals {
     terminals.set(terminal.id, terminal);
     pty.onData((data) => receive(terminal, data));
     pty.onExit(({ exitCode }) => finish(terminal, exitCode));
-    return {
-      shell,
-      title: titleFor(start, shell),
-      initialCwd: cwd,
-      cols,
-      rows,
-    };
+    const title = titleFor(start, shell);
+    return { shell, title, initialCwd: cwd, cols, rows };
   };
 
   return {
@@ -252,15 +230,12 @@ export function createTerminals(ctx: Ctx): Terminals {
       const window = terminal.scrollback.filter(
         (entry) => entry.chunk.seq >= sinceSeq,
       );
-      const bytesOf = (entries: typeof window): number =>
+      const bytesOf = (entries: typeof window) =>
         entries.reduce((total, entry) => total + entry.byteLength, 0);
-      while (window.length > 1 && bytesOf(window) > tailBytes) {
-        window.shift();
-      }
+      while (window.length > 1 && bytesOf(window) > tailBytes) window.shift();
       const page = [...window];
-      while (page.length > 1 && bytesOf(page) > TERMINAL_REPLAY_MAX_BYTES) {
-        page.pop();
-      }
+      const limit = TERMINAL_REPLAY_MAX_BYTES;
+      while (page.length > 1 && bytesOf(page) > limit) page.pop();
       return {
         chunks: page.map((entry) => entry.chunk),
         replayStartSeq: page[0]?.chunk.seq ?? terminal.nextSeq,
@@ -280,17 +255,12 @@ export function createTerminals(ctx: Ctx): Terminals {
     },
     async close({ terminalId }) {
       const terminal = terminals.get(terminalId);
-      if (
-        terminal &&
-        terminal.exited === null &&
-        terminal.closeTimer === null
-      ) {
-        terminal.closeTimer = setTimeout(() => {
-          kill(terminal, "SIGKILL");
-          finish(terminal, null);
-        }, CLOSE_GRACE_MS);
-        kill(terminal, "SIGHUP");
-      }
+      if (!terminal || terminal.exited || terminal.closeTimer) return;
+      terminal.closeTimer = setTimeout(() => {
+        kill(terminal, "SIGKILL");
+        finish(terminal, null);
+      }, CLOSE_GRACE_MS);
+      kill(terminal, "SIGHUP");
     },
     liveIds: () =>
       [...terminals.values()]

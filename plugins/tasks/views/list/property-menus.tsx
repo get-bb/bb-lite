@@ -1,9 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   TASK_STATUSES,
-  type Label,
-  type Project,
-  type Task,
   type TaskPriority,
   type TaskStatus,
 } from "../../shared/contract.js";
@@ -13,56 +10,23 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  ContextMenu,
-  ContextMenuCheckboxItem,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { Icon } from "@/components/ui/icon";
-import { cn } from "@/lib/utils";
-import type { TaskEdit } from "./optimistic.js";
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { PriorityIcon, StatusIcon } from "./icons.js";
-import {
-  DUE_DATE_PRESETS,
-  formatDueDate,
-  localIsoDate,
-  PRIORITY_LABELS,
-  STATUS_LABELS,
-} from "./lib.js";
+import { PRIORITY_LABELS, STATUS_LABELS } from "./lib.js";
 
-export type EditFn = (task: Task, patch: TaskEdit) => void;
-
-export const PRIORITY_MENU_ORDER: readonly TaskPriority[] = [
+const PRIORITY_MENU_ORDER: readonly TaskPriority[] = [
   "none",
   "urgent",
   "high",
   "medium",
   "low",
 ];
-
-export function statusForShortcut(key: string): TaskStatus | null {
-  if (!/^[0-9]$/.test(key)) return null;
-  const index = Number(key) - 1;
-  return index >= 0 && index < TASK_STATUSES.length
-    ? (TASK_STATUSES[index] ?? null)
-    : null;
-}
-
-export function priorityForShortcut(key: string): TaskPriority | null {
-  if (!/^[0-9]$/.test(key)) return null;
-  const index = Number(key);
-  return index >= 0 && index < PRIORITY_MENU_ORDER.length
-    ? (PRIORITY_MENU_ORDER[index] ?? null)
-    : null;
-}
+const TRIGGER_CLASS =
+  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active";
+const SHORTCUT_CLASS =
+  "w-3 text-right text-2xs tabular-nums text-subtle-foreground";
 
 export function isBareKey(event: {
   metaKey: boolean;
@@ -73,106 +37,98 @@ export function isBareKey(event: {
   return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
 }
 
-function MenuHeading({ label, shortcut }: { label: string; shortcut: string }) {
-  return (
-    <DropdownMenuLabel className="flex items-center gap-2">
-      <span className="flex-1">{label}</span>
-      <span className="w-3 text-right text-2xs tabular-nums text-subtle-foreground">
-        {shortcut}
-      </span>
-    </DropdownMenuLabel>
-  );
+interface EditorProps<Value extends string> {
+  value: Value;
+  onSelect: (value: Value) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
+  labelled?: boolean;
 }
 
-function PickerOption({
-  icon,
-  label,
-  active,
-  shortcut,
-}: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  shortcut: number;
-}) {
-  return (
-    <>
-      <span className="flex flex-1 items-center gap-2">
-        {icon}
-        {label}
-        {active ? <span className="sr-only"> (current)</span> : null}
-      </span>
-      <span
-        aria-hidden
-        className="flex w-4 items-center justify-center text-subtle-foreground"
-      >
-        {active ? <Icon name="Check" className="size-3.5" /> : null}
-      </span>
-      <span
-        aria-hidden
-        className="w-3 text-right text-2xs tabular-nums text-subtle-foreground"
-      >
-        {shortcut}
-      </span>
-    </>
-  );
+export interface EditorKind<Value extends string> {
+  values: readonly Value[];
+  labels: Readonly<Record<Value, string>>;
+  icon: (value: Value) => ReactNode;
+  heading: string;
+  letter: string;
+  firstShortcut: number;
+  width: string;
 }
 
-const TRIGGER_CLASS =
-  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active";
-
-export function StatusEditor({
-  task,
-  onEdit,
+export function PropertyEditor<Value extends string>({
+  value,
+  onSelect,
   open,
   onOpenChange,
   className,
-}: {
-  task: Task;
-  onEdit: EditFn;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  className?: string;
-}) {
-  const select = (status: TaskStatus) => {
-    if (status !== task.status) onEdit(task, { status });
+  labelled = false,
+  kind,
+}: EditorProps<Value> & { kind: EditorKind<Value> }) {
+  const [innerOpen, setInnerOpen] = useState(false);
+  const setOpen = onOpenChange ?? setInnerOpen;
+  const select = (next: Value | undefined) => {
+    if (next !== undefined && next !== value) onSelect(next);
   };
+  const current = kind.labels[value];
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+    <DropdownMenu open={open ?? innerOpen} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Change status, currently ${STATUS_LABELS[task.status]}`}
-          className={cn(TRIGGER_CLASS, className)}
-        >
-          <StatusIcon status={task.status} />
-        </button>
+        {labelled ? (
+          <button type="button" className={className}>
+            {kind.icon(value)}
+            {current}
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label={`${kind.heading.replace(/( to)?…$/u, "")}, currently ${current}`}
+            className={cn(TRIGGER_CLASS, className)}
+          >
+            {kind.icon(value)}
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="min-w-56"
+        className={kind.width}
         onKeyDown={(event) => {
-          const status = statusForShortcut(event.key);
-          if (status !== null && isBareKey(event)) {
-            event.preventDefault();
-            select(status);
-            onOpenChange(false);
-          }
+          if (!/^[0-9]$/.test(event.key) || !isBareKey(event)) return;
+          const index = Number(event.key) - kind.firstShortcut;
+          if (kind.values[index] === undefined) return;
+          event.preventDefault();
+          select(kind.values[index]);
+          setOpen(false);
         }}
       >
-        <MenuHeading label="Change status…" shortcut="S" />
-        {TASK_STATUSES.map((status, index) => (
+        <DropdownMenuLabel className="flex items-center gap-2">
+          <span className="flex-1">{kind.heading}</span>
+          <span className={SHORTCUT_CLASS}>{kind.letter}</span>
+        </DropdownMenuLabel>
+        {kind.values.map((option, index) => (
           <DropdownMenuItem
-            key={status}
-            aria-current={status === task.status ? "true" : undefined}
-            onSelect={() => select(status)}
+            key={option}
+            aria-current={option === value ? "true" : undefined}
+            onSelect={() => select(option)}
           >
-            <PickerOption
-              icon={<StatusIcon status={status} />}
-              label={STATUS_LABELS[status]}
-              active={status === task.status}
-              shortcut={index + 1}
-            />
+            <span className="flex flex-1 items-center gap-2">
+              {kind.icon(option)}
+              {kind.labels[option]}
+              {option === value ? (
+                <span className="sr-only"> (current)</span>
+              ) : null}
+            </span>
+            <span
+              aria-hidden
+              className="flex w-4 items-center justify-center text-subtle-foreground"
+            >
+              {option === value ? (
+                <Icon name="Check" className="size-3.5" />
+              ) : null}
+            </span>
+            <span aria-hidden className={SHORTCUT_CLASS}>
+              {index + kind.firstShortcut}
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -180,253 +136,30 @@ export function StatusEditor({
   );
 }
 
-export function PriorityEditor({
-  task,
-  onEdit,
-  open,
-  onOpenChange,
-  className,
-}: {
-  task: Task;
-  onEdit: EditFn;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  className?: string;
-}) {
-  const select = (priority: TaskPriority) => {
-    if (priority !== task.priority) onEdit(task, { priority });
-  };
-  return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Set priority, currently ${PRIORITY_LABELS[task.priority]}`}
-          className={cn(TRIGGER_CLASS, className)}
-        >
-          <PriorityIcon priority={task.priority} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="min-w-52"
-        onKeyDown={(event) => {
-          const priority = priorityForShortcut(event.key);
-          if (priority !== null && isBareKey(event)) {
-            event.preventDefault();
-            select(priority);
-            onOpenChange(false);
-          }
-        }}
-      >
-        <MenuHeading label="Set priority to…" shortcut="P" />
-        {PRIORITY_MENU_ORDER.map((priority, index) => (
-          <DropdownMenuItem
-            key={priority}
-            aria-current={priority === task.priority ? "true" : undefined}
-            onSelect={() => select(priority)}
-          >
-            <PickerOption
-              icon={<PriorityIcon priority={priority} />}
-              label={PRIORITY_LABELS[priority]}
-              active={priority === task.priority}
-              shortcut={index}
-            />
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+const STATUS_KIND: EditorKind<TaskStatus> = {
+  values: TASK_STATUSES,
+  labels: STATUS_LABELS,
+  icon: (status) => <StatusIcon status={status} />,
+  heading: "Change status…",
+  letter: "S",
+  firstShortcut: 1,
+  width: "min-w-56",
+};
+
+const PRIORITY_KIND: EditorKind<TaskPriority> = {
+  values: PRIORITY_MENU_ORDER,
+  labels: PRIORITY_LABELS,
+  icon: (priority) => <PriorityIcon priority={priority} />,
+  heading: "Set priority to…",
+  letter: "P",
+  firstShortcut: 0,
+  width: "min-w-52",
+};
+
+export function StatusEditor(props: EditorProps<TaskStatus>) {
+  return <PropertyEditor {...props} kind={STATUS_KIND} />;
 }
 
-export function TaskContextMenu({
-  task,
-  onEdit,
-  projectLabels,
-  projects,
-  onMoveToProject,
-  children,
-}: {
-  task: Task;
-  onEdit: EditFn;
-  projectLabels: readonly Label[];
-  projects: readonly Project[];
-  onMoveToProject: (task: Task, projectId: string) => void;
-  children: ReactNode;
-}) {
-  const toggleLabel = (labelId: string) => {
-    const labelIds = task.labelIds.includes(labelId)
-      ? task.labelIds.filter((id) => id !== labelId)
-      : [...task.labelIds, labelId];
-    onEdit(task, { labelIds });
-  };
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-44">
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <StatusIcon status={task.status} />
-            <span>Status</span>
-            <ContextMenuShortcut>S</ContextMenuShortcut>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-48">
-            {TASK_STATUSES.map((status) => (
-              <ContextMenuItem
-                key={status}
-                aria-current={status === task.status ? "true" : undefined}
-                onSelect={() => {
-                  if (status !== task.status) onEdit(task, { status });
-                }}
-              >
-                <span className="flex flex-1 items-center gap-2">
-                  <StatusIcon status={status} />
-                  {STATUS_LABELS[status]}
-                  {status === task.status ? (
-                    <span className="sr-only"> (current)</span>
-                  ) : null}
-                </span>
-                {status === task.status ? (
-                  <Icon name="Check" aria-hidden className="size-3.5" />
-                ) : null}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <PriorityIcon priority={task.priority} />
-            <span>Priority</span>
-            <ContextMenuShortcut>P</ContextMenuShortcut>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-44">
-            {PRIORITY_MENU_ORDER.map((priority) => (
-              <ContextMenuItem
-                key={priority}
-                aria-current={priority === task.priority ? "true" : undefined}
-                onSelect={() => {
-                  if (priority !== task.priority) onEdit(task, { priority });
-                }}
-              >
-                <span className="flex flex-1 items-center gap-2">
-                  <PriorityIcon priority={priority} />
-                  {PRIORITY_LABELS[priority]}
-                  {priority === task.priority ? (
-                    <span className="sr-only"> (current)</span>
-                  ) : null}
-                </span>
-                {priority === task.priority ? (
-                  <Icon name="Check" aria-hidden className="size-3.5" />
-                ) : null}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Icon name="Clock" className="size-3.5" />
-            <span>Due date</span>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-44">
-            {DUE_DATE_PRESETS.map(([label, days]) => {
-              const value = localIsoDate(days);
-              return (
-                <ContextMenuItem
-                  key={label}
-                  onSelect={() => onEdit(task, { dueDate: value })}
-                >
-                  <span>{label}</span>
-                  <span className="ml-auto text-2xs text-subtle-foreground">
-                    {formatDueDate(value)}
-                  </span>
-                </ContextMenuItem>
-              );
-            })}
-            {task.dueDate !== null ? (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => onEdit(task, { dueDate: null })}
-                >
-                  <Icon name="X" className="size-3.5" />
-                  <span>No due date</span>
-                </ContextMenuItem>
-              </>
-            ) : null}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        {projectLabels.length > 0 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <Icon name="ListTodo" className="size-3.5" />
-              <span>Labels</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-48">
-              {projectLabels.map((label) => (
-                <ContextMenuCheckboxItem
-                  key={label.id}
-                  checked={task.labelIds.includes(label.id)}
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={() => toggleLabel(label.id)}
-                >
-                  <span
-                    aria-hidden
-                    className="mr-2 size-2 rounded-full"
-                    style={{ backgroundColor: label.color }}
-                  />
-                  {label.name}
-                </ContextMenuCheckboxItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        ) : null}
-
-        {projects.length > 1 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <Icon name="ArrowUpRight" className="size-3.5" />
-              <span>Move to project</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-48">
-              {projects.map((project) => (
-                <ContextMenuItem
-                  key={project.id}
-                  aria-current={
-                    project.id === task.projectId ? "true" : undefined
-                  }
-                  onSelect={() => {
-                    if (project.id !== task.projectId) {
-                      onMoveToProject(task, project.id);
-                    }
-                  }}
-                >
-                  <span className="flex flex-1 items-center gap-2">
-                    <span
-                      aria-hidden
-                      className="size-2.5 shrink-0 rounded-sm"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    {project.name}
-                    {project.id === task.projectId ? (
-                      <span className="sr-only"> (current)</span>
-                    ) : null}
-                  </span>
-                  {project.id === task.projectId ? (
-                    <Icon name="Check" aria-hidden className="size-3.5" />
-                  ) : (
-                    <span className="text-2xs text-subtle-foreground">
-                      {project.prefix}
-                    </span>
-                  )}
-                </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        ) : null}
-      </ContextMenuContent>
-    </ContextMenu>
-  );
+export function PriorityEditor(props: EditorProps<TaskPriority>) {
+  return <PropertyEditor {...props} kind={PRIORITY_KIND} />;
 }

@@ -9,6 +9,7 @@
 @source "../../../../../plugins/thread-list/app";
 @source "../../../../../plugins/thread-list/app.tsx";
 @source "../../../../../plugins/navigation/app";
+@source "../../../../../plugins/tasks";
 @source "../../../../../plugins/secrets/app.tsx";
 @source "../../../../../plugins/connect/app.tsx";
 @source "../../../../../plugins/ask-user-question/app.tsx";

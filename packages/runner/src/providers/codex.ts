@@ -12,7 +12,7 @@ import {
   type PendingInteractionResolution,
 } from "@bb/domain";
 import { z } from "zod";
-import { loginShellPath, scrubEnv } from "../sessions/agent-env.js";
+import { loginShellEnv } from "../sessions/agent-env.js";
 import {
   RunnerError,
   type ExecutionOptions,
@@ -290,12 +290,8 @@ class CodexSession implements ProviderSession {
       const { tool, turnId } = call.data;
       const callId = events.bbItemId(call.data.callId) ?? call.data.callId;
       const input = call.data.arguments ?? {};
-      const request = {
-        callId,
-        tool,
-        arguments: input,
-        turnId: bbTurnId(turnId),
-      };
+      const turn = bbTurnId(turnId);
+      const request = { callId, tool, arguments: input, turnId: turn };
       const respond = (result: unknown) => this.rpc.respond(id, result);
       this.host.callTool(request).then(respond, fail);
       return;
@@ -336,10 +332,7 @@ export function createCodexAdapter(
 ): ProviderAdapter {
   const spawn = options.spawn ?? spawnAppServer;
   const adapter = { spawn, command: options.command ?? "codex" };
-  const baseEnv = async () => {
-    const env = scrubEnv(process.env);
-    return { ...env, PATH: (await loginShellPath()) ?? env.PATH ?? "" };
-  };
+  const baseEnv = loginShellEnv();
   return {
     id: "codex",
     approvalEnforcedBy: "runner",

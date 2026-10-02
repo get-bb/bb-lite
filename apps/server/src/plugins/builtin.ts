@@ -5,6 +5,7 @@ import askUserQuestion from "../../../../plugins/ask-user-question/src/server.js
 import customInstructions from "../../../../plugins/custom-instructions/server.js";
 import secrets from "../../../../plugins/secrets/src/server.js";
 import accountPool from "../../../../plugins/account-pool/src/server.js";
+import tasks from "../../../../plugins/tasks/server.js";
 import threadList from "../../../../plugins/thread-list/server.js";
 
 export interface BuiltinPlugin {
@@ -12,7 +13,7 @@ export interface BuiltinPlugin {
   server: PluginServerEntry | null;
 }
 
-const pluginDirectory = (name: string): string =>
+const pluginDirectory = (name: string) =>
   fileURLToPath(new URL(`../../../../plugins/${name}`, import.meta.url));
 
 export const builtinPlugins: BuiltinPlugin[] = [
@@ -26,4 +27,5 @@ export const builtinPlugins: BuiltinPlugin[] = [
   },
   { directory: pluginDirectory("connect"), server: connect },
   { directory: pluginDirectory("account-pool"), server: accountPool },
+  { directory: pluginDirectory("tasks"), server: tasks },
 ];

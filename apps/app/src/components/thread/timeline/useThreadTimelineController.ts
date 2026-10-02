@@ -22,21 +22,16 @@ import { BbHttpError, sdk } from "@/lib/sdk";
 type TimelineQueryResultProp =
   keyof QueryObserverResult<ThreadTimelineResponse>;
 
-const TIMELINE_CONTROLLER_PROPS_WITH_ROWS: TimelineQueryResultProp[] = [
+const PROPS_WITH_ROWS: TimelineQueryResultProp[] = [
   "data",
   "error",
   "isLoading",
   "isLoadingError",
 ];
-
-export const TIMELINE_CONTROLLER_PROPS_WITHOUT_ROWS: TimelineQueryResultProp[] =
-  [...TIMELINE_CONTROLLER_PROPS_WITH_ROWS, "isFetching"];
-
-interface UseThreadTimelineControllerArgs {
-  enabled?: boolean;
-  surfaceKey?: string;
-  threadId: string;
-}
+const PROPS_WITHOUT_ROWS: TimelineQueryResultProp[] = [
+  ...PROPS_WITH_ROWS,
+  "isFetching",
+];
 
 export interface UseThreadTimelineControllerResult {
   activePromptMode: ThreadTimelineResponse["activePromptMode"];
@@ -56,28 +51,7 @@ export interface UseThreadTimelineControllerResult {
   timelineRows: TimelineRow[];
 }
 
-interface LoadedTimelineTracker {
-  latestTimeline: ThreadTimelineResponse | undefined;
-  loaded: LoadedTimelineState;
-}
-
-interface ReconcileLoadedTimelineArgs {
-  current: LoadedTimelineState;
-  latestTimeline: ThreadTimelineResponse | undefined;
-  surfaceKey: string;
-}
-
-function isStaleTimelinePaginationCursorError(error: Error): boolean {
-  return (
-    error instanceof BbHttpError &&
-    error.status === 400 &&
-    error.code === "invalid_request"
-  );
-}
-
-function buildEmptyLoadedTimelineState(
-  surfaceKey: string,
-): LoadedTimelineState {
+function emptyLoadedTimeline(surfaceKey: string): LoadedTimelineState {
   return buildLoadedTimelineState({
     latestWindowEndSequence: null,
     latestRows: [],
@@ -86,37 +60,36 @@ function buildEmptyLoadedTimelineState(
   });
 }
 
-function reconcileLoadedTimeline({
-  current,
-  latestTimeline,
-  surfaceKey,
-}: ReconcileLoadedTimelineArgs): LoadedTimelineState {
+function reconcileLoadedTimeline(
+  current: LoadedTimelineState,
+  latestTimeline: ThreadTimelineResponse | undefined,
+  surfaceKey: string,
+): LoadedTimelineState {
   if (!latestTimeline) {
     return current.surfaceKey === surfaceKey
       ? current
-      : buildEmptyLoadedTimelineState(surfaceKey);
+      : emptyLoadedTimeline(surfaceKey);
   }
-
-  return mergeLoadedTimelineWithLatest({
-    current,
-    latestTimeline,
-    surfaceKey,
-  });
+  return mergeLoadedTimelineWithLatest({ current, latestTimeline, surfaceKey });
 }
 
 export function useThreadTimelineController({
   enabled = true,
   surfaceKey: explicitSurfaceKey,
   threadId,
-}: UseThreadTimelineControllerArgs): UseThreadTimelineControllerResult {
+}: {
+  enabled?: boolean;
+  surfaceKey?: string;
+  threadId: string;
+}): UseThreadTimelineControllerResult {
   const queryClient = useQueryClient();
   const notifyOnChangeProps = useCallback((): TimelineQueryResultProp[] => {
     const cachedTimeline = queryClient.getQueryData<ThreadTimelineResponse>(
       threadTimelineQueryKey(threadId),
     );
     return cachedTimeline !== undefined && cachedTimeline.rows.length > 0
-      ? TIMELINE_CONTROLLER_PROPS_WITH_ROWS
-      : TIMELINE_CONTROLLER_PROPS_WITHOUT_ROWS;
+      ? PROPS_WITH_ROWS
+      : PROPS_WITHOUT_ROWS;
   }, [queryClient, threadId]);
   const latestTimelineQuery = useThreadTimeline(threadId, {
     enabled,
@@ -128,25 +101,24 @@ export function useThreadTimelineController({
     explicitSurfaceKey ?? threadId,
     latestTimeline,
   );
-  const [loadedTimelineTracker, setLoadedTimelineTracker] =
-    useState<LoadedTimelineTracker>(() => ({
+  const [loadedTimelineTracker, setLoadedTimelineTracker] = useState(() => ({
+    latestTimeline,
+    loaded: reconcileLoadedTimeline(
+      emptyLoadedTimeline(surfaceKey),
       latestTimeline,
-      loaded: reconcileLoadedTimeline({
-        current: buildEmptyLoadedTimelineState(surfaceKey),
-        latestTimeline,
-        surfaceKey,
-      }),
-    }));
+      surfaceKey,
+    ),
+  }));
   let loadedTimeline = loadedTimelineTracker.loaded;
   if (
     loadedTimelineTracker.latestTimeline !== latestTimeline ||
     loadedTimeline.surfaceKey !== surfaceKey
   ) {
-    loadedTimeline = reconcileLoadedTimeline({
-      current: loadedTimelineTracker.loaded,
+    loadedTimeline = reconcileLoadedTimeline(
+      loadedTimelineTracker.loaded,
       latestTimeline,
       surfaceKey,
-    });
+    );
     setLoadedTimelineTracker({ latestTimeline, loaded: loadedTimeline });
   }
   const updateLoadedTimeline = useCallback(
@@ -206,8 +178,9 @@ export function useThreadTimelineController({
       });
     } catch (error) {
       if (
-        !(error instanceof Error) ||
-        !isStaleTimelinePaginationCursorError(error)
+        !(error instanceof BbHttpError) ||
+        error.status !== 400 ||
+        error.code !== "invalid_request"
       ) {
         throw error;
       }

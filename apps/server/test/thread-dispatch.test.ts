@@ -132,7 +132,7 @@ it("stops a thread that is still provisioning or about to start", async () => {
   runner.script.interruptTurn = async () => ({ interrupted: false });
   await ctx.threads.stop(id);
   expect(thread(id).status).toBe("idle");
-  const interrupts = (): number => server.callsTo("interruptTurn").length;
+  const interrupts = () => server.callsTo("interruptTurn").length;
   const before = interrupts();
   await ingest(id, events.started("t1"));
   expect([thread(id).status, interrupts()]).toEqual(["idle", before + 1]);

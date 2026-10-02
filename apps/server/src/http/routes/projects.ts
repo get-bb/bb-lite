@@ -1,73 +1,97 @@
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { publicApiRoutes, type ProjectResponse } from "@bb/server-contract";
-import type { ServerContext } from "../../context.js";
+import { PERSONAL_PROJECT_ID, type GitSourceInspection } from "@bb/domain";
 import {
-  addProjectSource,
-  deleteProjectSource,
-  findOrCreateProject,
-  getProjectSource,
-  listStandardProjects,
-  renameProject,
-  reorderProject,
-  setGitRemoteUrlIfMissing,
-  updateProjectSource,
-  withSources,
-} from "../../db/projects.js";
+  publicApiRoutes,
+  type ProjectBranchesQuery,
+  type ProjectBranchesResponse,
+} from "@bb/server-contract";
+import type { ServerContext } from "../../context.js";
+import { updateRow } from "../../db/index.js";
+import * as store from "../../db/projects.js";
+import {
+  branchSearch,
+  searchWorkspacePaths,
+} from "../../environments/workspace.js";
 import {
   attachmentMimeType,
   copyAttachments,
   resolveAttachmentPath,
   storeAttachment,
 } from "../../projects/attachments.js";
-import { inspectGitRemoteUrl } from "../../projects/inspect.js";
 import { removeProject } from "../../projects/remove.js";
 import {
-  requireProject,
-  requireStandardProject,
-} from "../../projects/require.js";
+  findProjectWorkspace,
+  inspectProjectPath,
+  requireProjectWorkspace,
+} from "../../projects/workspace.js";
+import { findProviderDefinition } from "../../providers/catalog.js";
 import { requireHost } from "../../runners/hosts.js";
 import { listProjectsWithThreads } from "../../threads/thread-display.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest, notFound } from "../errors.js";
+import { ApiError, conflict, invalidRequest, notFound } from "../errors.js";
 import { fileResponse } from "../range.js";
 
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
 
-function conflict(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
-}
-
-function sourceNotFound(): ApiError {
-  return new ApiError(404, "invalid_request", "Project source not found");
+function defaultWorktreeBaseBranch(source: GitSourceInspection) {
+  const { defaultBranch, originDefaultBranch, defaultBranchRelation } = source;
+  if (originDefaultBranch === null) return defaultBranch;
+  const localIsAhead =
+    defaultBranch !== null &&
+    defaultBranchRelation !== "equal" &&
+    defaultBranchRelation !== "local-behind";
+  return localIsAhead ? defaultBranch : originDefaultBranch;
 }
 
 export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.projects;
-  const { db, hub } = ctx;
+  const { db, hub, runners } = ctx;
   const { dataDir } = ctx.config;
 
-  const projectResponse = (projectId: string): ProjectResponse => {
-    const [response] = withSources(db, [requireProject(db, projectId)]);
+  const projectResponse = (projectId: string) => {
+    const [response] = store.withSources(db, [
+      store.requireProject(db, projectId),
+    ]);
     if (response === undefined) throw notFound();
     return response;
   };
 
   const requireSource = (projectId: string, id: string) => {
-    const source = getProjectSource(db, projectId, { id });
-    if (source === undefined) throw sourceNotFound();
-    return source;
+    const source = store.getProjectSource(db, projectId, { id });
+    if (source !== undefined) return source;
+    throw new ApiError(404, "invalid_request", "Project source not found");
   };
+
+  const readBranches = async (
+    projectId: string,
+    query: ProjectBranchesQuery,
+  ): Promise<ProjectBranchesResponse> => {
+    store.requireStandardProject(db, projectId);
+    const { hostId, path } = requireProjectWorkspace(ctx, projectId, {
+      hostId: query.hostId,
+    });
+    const runner = runners.get(hostId);
+    const search = { path, ...branchSearch(query) };
+    const [source, branches] = await Promise.all([
+      runner.inspectGitSource({ path }),
+      runner.listBranches(search),
+    ]);
+    const defaultBase = defaultWorktreeBaseBranch(source);
+    return { ...source, ...branches, defaultWorktreeBaseBranch: defaultBase };
+  };
+
+  const gitRemoteOf = async (hostId: string, path: string) =>
+    (await inspectProjectPath(ctx, hostId, path))?.remoteUrl ?? null;
 
   const recordGitRemote = async (
     projectId: string,
     hostId: string,
     path: string,
-  ): Promise<void> => {
-    const gitRemoteUrl = await inspectGitRemoteUrl(ctx, hostId, path);
+  ) => {
+    const gitRemoteUrl = await gitRemoteOf(hostId, path);
     if (gitRemoteUrl === null) return;
-    if (setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {
+    if (store.setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {
       hub.project(projectId, ["project-updated"]);
     }
   };
@@ -75,11 +99,11 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.list, (c, query) => {
     const personal =
       query.includePersonal === "true"
-        ? [requireProject(db, PERSONAL_PROJECT_ID)]
+        ? [store.requireProject(db, PERSONAL_PROJECT_ID)]
         : [];
-    const projects = [...personal, ...listStandardProjects(db)];
+    const projects = [...personal, ...store.listStandardProjects(db)];
     if (query.include?.split(",").includes("threads") !== true) {
-      return c.json(withSources(db, projects));
+      return c.json(store.withSources(db, projects));
     }
     return c.json(listProjectsWithThreads(ctx, projects));
   });
@@ -87,11 +111,11 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   post(routes.create, async (c, payload) => {
     const { hostId, path } = payload.source;
     requireHost(ctx, hostId);
-    const gitRemoteUrl = await inspectGitRemoteUrl(ctx, hostId, path);
+    const gitRemoteUrl = await gitRemoteOf(hostId, path);
     const source = { hostId, path };
     const { name } = payload;
     const input = { name, source, gitRemoteUrl };
-    const { projectId, created } = findOrCreateProject(db, input);
+    const { projectId, created } = store.findOrCreateProject(db, input);
     if (created) {
       hub.project(projectId, ["project-created", "project-sources-changed"]);
     }
@@ -101,23 +125,22 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.get, (c) => c.json(projectResponse(c.req.param("id"))));
 
   patch(routes.update, (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
-    if (payload.name !== undefined) renameProject(db, id, payload.name);
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
+    const { name } = payload;
+    if (name !== undefined) updateRow(db, "projects", id, { name });
     hub.project(id, ["project-updated"]);
     return c.json(projectResponse(id));
   });
 
   patch(routes.reorder, (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
-    const outcome = reorderProject(db, id, payload);
-    if (outcome === "stale") throw conflict("Project order changed");
-    if (outcome === "invalid") throw conflict("Project order is invalid");
-    if (outcome === "reordered") hub.project(id, ["project-order-changed"]);
-    return c.json(withSources(db, listStandardProjects(db)));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
+    const reordered = store.reorderProject(db, id, payload);
+    if (reordered) hub.project(id, ["project-order-changed"]);
+    return c.json(store.withSources(db, store.listStandardProjects(db)));
   });
 
   del(routes.delete, async (c) => {
-    const project = requireProject(db, c.req.param("id"));
+    const project = store.requireProject(db, c.req.param("id"));
     if (project.kind === "personal") {
       throw conflict("The personal project cannot be deleted");
     }
@@ -126,7 +149,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.createSource, async (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
     if (payload.type !== "local_path") {
       throw invalidRequest(
         "Cloning a project onto a machine is not available. Add the path " +
@@ -135,24 +158,20 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     }
     const { hostId, path } = payload;
     requireHost(ctx, hostId);
-    const source = addProjectSource(db, id, { hostId, path });
-    if (source === undefined) {
-      throw new ApiError(
-        409,
-        "project_source_host_conflict",
-        "Project already has a source on this host",
-      );
-    }
+    const source = store.addProjectSource(db, id, { hostId, path });
     hub.project(id, ["project-sources-changed"]);
     await recordGitRemote(id, hostId, path);
     return c.json(source, 201);
   });
 
   patch(routes.updateSource, async (c, payload) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
     const sourceId = c.req.param("sourceId");
     const { path, isDefault } = payload;
-    updateProjectSource(db, requireSource(id, sourceId), { path, isDefault });
+    store.updateProjectSource(db, requireSource(id, sourceId), {
+      path,
+      isDefault,
+    });
     hub.project(id, ["project-sources-changed"]);
     const updated = requireSource(id, sourceId);
     await recordGitRemote(id, updated.hostId, updated.path);
@@ -160,17 +179,14 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   del(routes.deleteSource, (c) => {
-    const { id } = requireStandardProject(db, c.req.param("id"));
-    const source = requireSource(id, c.req.param("sourceId"));
-    if (deleteProjectSource(db, source) === "last-source") {
-      throw conflict("Cannot delete the last source of a project");
-    }
+    const { id } = store.requireStandardProject(db, c.req.param("id"));
+    store.deleteProjectSource(db, requireSource(id, c.req.param("sourceId")));
     hub.project(id, ["project-sources-changed"]);
     return c.json({ ok: true });
   });
 
   post(routes.uploadAttachment, async (c) => {
-    const { id } = requireProject(db, c.req.param("id"));
+    const { id } = store.requireProject(db, c.req.param("id"));
     const form = await c.req.formData();
     const fields = [...form.keys()];
     const file = form.get(ATTACHMENT_FIELD);
@@ -187,14 +203,14 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.copyAttachments, async (c, payload) => {
-    const target = requireProject(db, c.req.param("id"));
-    const source = requireProject(db, payload.sourceProjectId);
+    const target = store.requireProject(db, c.req.param("id"));
+    const source = store.requireProject(db, payload.sourceProjectId);
     await copyAttachments(ctx, source.id, target.id, payload.paths);
     return c.json({ ok: true });
   });
 
   get(routes.attachmentContent, async (c, query) => {
-    const { id } = requireProject(db, c.req.param("id"));
+    const { id } = store.requireProject(db, c.req.param("id"));
     const path = resolveAttachmentPath(dataDir, id, query.path);
     const response = await fileResponse(path, {
       range: c.req.header("range"),
@@ -205,4 +221,26 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     if (response === null) throw notFound("Attachment not found");
     return response;
   });
+
+  get(routes.paths, async (c, query) => {
+    const workspace = requireProjectWorkspace(ctx, c.req.param("id"), query);
+    return c.json(await searchWorkspacePaths(ctx, workspace, query));
+  });
+
+  get(routes.commands, async (c, query) => {
+    const projectId = c.req.param("id");
+    const { hostId, path: cwd } = findProjectWorkspace(ctx, projectId, query);
+    const provider = findProviderDefinition(db, query.provider);
+    if (provider === undefined) return c.json({ commands: [] });
+    const providerId = provider.id;
+    return c.json(await runners.get(hostId).listCommands({ providerId, cwd }));
+  });
+
+  get(routes.branches, async (c, query) =>
+    c.json(await readBranches(c.req.param("id"), query)),
+  );
+
+  get(routes.branchOptions, async (c, query) =>
+    c.json(await readBranches(c.req.param("id"), query)),
+  );
 }

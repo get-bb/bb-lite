@@ -46,9 +46,7 @@ export function absoluteTarget(target: string, rootPath?: string): string {
 }
 
 export async function resolveRoot(rootPath?: string): Promise<string | null> {
-  if (rootPath === undefined) {
-    return null;
-  }
+  if (rootPath === undefined) return null;
   const stat = await fs.lstat(rootPath);
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     fail("invalid_path", `Root "${rootPath}" must be a real directory`);
@@ -66,17 +64,17 @@ export function requireInsideRoot(
   }
 }
 
-async function resolveReadablePath(target: ReadTarget): Promise<string> {
-  const absolute = absoluteTarget(target.path, target.rootPath);
-  const [realRoot, realTarget] = await Promise.all([
-    resolveRoot(target.rootPath),
+export async function confinedTarget(location: FileLocation) {
+  const absolute = absoluteTarget(location.path, location.rootPath);
+  const [root, target] = await Promise.all([
+    resolveRoot(location.rootPath),
     fs.realpath(absolute),
   ]);
-  requireInsideRoot(realRoot, realTarget, target.path);
-  return realTarget;
+  requireInsideRoot(root, target, location.path);
+  return { target, root };
 }
 
-function mimeTypeOf(target: string): string | undefined {
+function mimeTypeOf(target: string) {
   return mimeTypes.lookup(target) || undefined;
 }
 
@@ -98,9 +96,7 @@ async function readBlob(
   const repo = openRepo(ctx, rootPath);
   const spec = `${requireSafeRef(gitRef)}:./${relativePath}`;
   const oid = await repo.line("rev-parse", "--verify", "--quiet", spec);
-  if (oid === null) {
-    return null;
-  }
+  if (oid === null) return null;
   const size = Number((await repo.git("cat-file", "-s", oid)).stdout);
   if (size > maxBytes) {
     fail("file_too_large", `${target.path} at ${gitRef} is ${size} bytes`);
@@ -109,10 +105,7 @@ async function readBlob(
   return { oid, contents: await sized.buffer("cat-file", "blob", oid) };
 }
 
-export async function readFileContent(
-  ctx: Ctx,
-  target: ReadTarget,
-): Promise<FileContent> {
+export async function readFileContent(ctx: Ctx, target: ReadTarget) {
   const mimeType = mimeTypeOf(target.path);
   const describe = (contents: Buffer, modifiedAtMs?: number): FileContent => {
     const image =
@@ -134,11 +127,9 @@ export async function readFileContent(
     const blob = await readBlob(ctx, target, target.gitRef, limit);
     return describe(blob?.contents ?? Buffer.alloc(0));
   }
-  const readablePath = await resolveReadablePath(target);
+  const { target: readablePath } = await confinedTarget(target);
   const stat = await fs.stat(readablePath);
-  if (!stat.isFile()) {
-    fail("invalid_path", "Path is not a regular file");
-  }
+  if (!stat.isFile()) fail("invalid_path", "Path is not a regular file");
   const contents =
     stat.size > FILE_PAYLOAD_MAX_BYTES ? null : await fs.readFile(readablePath);
   if (contents === null || contents.byteLength > FILE_PAYLOAD_MAX_BYTES) {
@@ -148,19 +139,14 @@ export async function readFileContent(
   return describe(contents, stat.mtimeMs);
 }
 
-export const readFile: Method<"readFile"> = async (ctx, args) => {
-  const { content, ...metadata } = await readFileContent(ctx, args);
-  return args.ifNoneMatch?.includes(metadata.sha256)
-    ? { ...metadata, notModified: true }
-    : { ...metadata, content };
-};
+export const readFile: Method<"readFile"> = readFileContent;
 
-function fileRevision(stat: BigIntStats): string {
+function fileRevision(stat: BigIntStats) {
   const { dev, ino, size, mtimeNs, ctimeNs } = stat;
   return sha256Hex([dev, ino, size, mtimeNs, ctimeNs].join(":"));
 }
 
-function requireUnchanged(expected: string | null, revision: string): void {
+function requireUnchanged(expected: string | null, revision: string) {
   if (expected !== null && expected !== revision) {
     fail("conflict", "File changed during read", true);
   }
@@ -168,18 +154,13 @@ function requireUnchanged(expected: string | null, revision: string): void {
 
 export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
   const { offset } = args;
-  const wanted = [offset, args.length];
-  if (
-    wanted.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    args.length > FILE_PAYLOAD_MAX_BYTES
-  ) {
+  const natural = (value: number) => Number.isSafeInteger(value) && value >= 0;
+  const valid = natural(offset) && natural(args.length);
+  if (!valid || args.length > FILE_PAYLOAD_MAX_BYTES) {
     fail("failed", `A chunk is at most ${FILE_PAYLOAD_MAX_BYTES} bytes`);
   }
-  const chunk = {
-    path: args.path,
-    mimeType: mimeTypeOf(args.path) ?? null,
-    offset,
-  };
+  const mimeType = mimeTypeOf(args.path) ?? null;
+  const chunk = { path: args.path, mimeType, offset };
   if (args.gitRef !== undefined) {
     const limit = BLOB_CHUNK_SOURCE_MAX_BYTES;
     const blob = await readBlob(ctx, args, args.gitRef, limit);
@@ -193,7 +174,7 @@ export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
   }
   const flags =
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
-  const file = await fs.open(await resolveReadablePath(args), flags);
+  const file = await fs.open((await confinedTarget(args)).target, flags);
   try {
     const stat = await file.stat({ bigint: true });
     if (!stat.isFile() || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) {
@@ -208,9 +189,7 @@ export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
     while (filled < length) {
       const position = offset + filled;
       const read = await file.read(bytes, filled, length - filled, position);
-      if (read.bytesRead === 0) {
-        break;
-      }
+      if (read.bytesRead === 0) break;
       filled += read.bytesRead;
     }
     const after = fileRevision(await file.stat({ bigint: true }));

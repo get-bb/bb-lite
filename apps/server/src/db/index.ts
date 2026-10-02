@@ -5,7 +5,8 @@ import Database from "better-sqlite3";
 import type { ZodType } from "zod";
 
 export type SqlValue = string | number | bigint | Buffer | null;
-export type SqlParams = SqlValue[] | [Record<string, SqlValue>];
+export type RowValues = Record<string, SqlValue | undefined>;
+export type SqlParams = SqlValue[] | [RowValues];
 
 export interface Db {
   now(): number;
@@ -16,9 +17,9 @@ export interface Db {
   close(): void;
 }
 
-export interface OpenDatabaseOptions {
-  path: string;
-  now?: () => number;
+export interface RevisionWrite {
+  outcome: "updated" | "conflict";
+  revision: number;
 }
 
 type EntityIdPrefix = "host" | "proj" | "src" | "env" | "thr" | "sec" | "term";
@@ -26,11 +27,10 @@ type RecordIdPrefix =
   | "evt"
   | "phist"
   | "qmsg"
-  | "qclaim"
   | "pint"
   | "creq"
-  | "tpv";
-export type IdPrefix = EntityIdPrefix | RecordIdPrefix | "att";
+  | "tpv"
+  | "att";
 
 export class LegacyDataDirectoryError extends Error {
   constructor(path: string) {
@@ -46,10 +46,6 @@ export class LegacyDataDirectoryError extends Error {
 
 const BUSY_TIMEOUT_MS = 5_000;
 
-function migrationSteps(): string[] {
-  return [readFileSync(new URL("./schema.sql", import.meta.url), "utf8")];
-}
-
 export function refuseLegacyDatabase(path: string): void {
   if (!existsSync(path)) return;
   const sqlite = new Database(path, { readonly: true });
@@ -60,8 +56,9 @@ export function refuseLegacyDatabase(path: string): void {
   if (legacy !== undefined) throw new LegacyDataDirectoryError(path);
 }
 
-function migrate(sqlite: Database.Database): void {
-  const steps = migrationSteps();
+function migrate(sqlite: Database.Database) {
+  const schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
+  const steps = [schema];
   const current = Number(sqlite.pragma("user_version", { simple: true }));
   steps.slice(current).forEach((step, offset) => {
     sqlite
@@ -73,7 +70,7 @@ function migrate(sqlite: Database.Database): void {
   });
 }
 
-function camelCase(column: string): string {
+function camelCase(column: string) {
   return column.replace(/_([a-z0-9])/gu, (_match, letter: string) =>
     letter.toUpperCase(),
   );
@@ -97,14 +94,17 @@ function prepareStatement(
   };
 }
 
-function toRow<Row>(keys: string[], values: unknown): Row {
+function toRow<Row>(keys: string[], values: unknown) {
   const cells = values as unknown[];
   const row: Record<string, unknown> = {};
   keys.forEach((key, index) => (row[key] = cells[index]));
   return row as Row;
 }
 
-export function openDatabase(options: OpenDatabaseOptions): Db {
+export function openDatabase(options: {
+  path: string;
+  now?: () => number;
+}): Db {
   refuseLegacyDatabase(options.path);
   const sqlite = new Database(options.path);
   try {
@@ -154,7 +154,7 @@ export function openDatabase(options: OpenDatabaseOptions): Db {
   };
 }
 
-export function newId(prefix: IdPrefix): string {
+export function newId(prefix: EntityIdPrefix | RecordIdPrefix): string {
   let suffix = "";
   for (const byte of randomBytes(GENERATED_ID_SUFFIX_LENGTH)) {
     suffix += GENERATED_ID_ALPHABET[byte % GENERATED_ID_ALPHABET.length];
@@ -162,8 +162,72 @@ export function newId(prefix: IdPrefix): string {
   return `${prefix}_${suffix}`;
 }
 
-export function encodeJson(value: unknown): string {
-  return JSON.stringify(value);
+function snakeCase(key: string) {
+  return key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`);
+}
+
+function definedKeys(values: RowValues) {
+  return Object.keys(values).filter((key) => values[key] !== undefined);
+}
+
+export function insertRow(
+  db: Db,
+  table: string,
+  values: RowValues,
+  onConflict: "fail" | "ignore" | readonly string[] = "fail",
+): void {
+  const keys = definedKeys(values);
+  const columns = keys.map(snakeCase);
+  const marks = keys.map((key) => `@${key}`).join(", ");
+  let resolution = onConflict === "ignore" ? "ON CONFLICT DO NOTHING" : "";
+  if (typeof onConflict !== "string") {
+    const identity = [...onConflict, "created_at"];
+    const sets = columns
+      .filter((column) => !identity.includes(column))
+      .map((column) => `${column} = excluded.${column}`);
+    const target = onConflict.join(", ");
+    resolution = `ON CONFLICT (${target}) DO UPDATE SET ${sets.join(", ")}`;
+  }
+  const into = `${table} (${columns.join(", ")})`;
+  db.run(`INSERT INTO ${into} VALUES (${marks}) ${resolution}`, values);
+}
+
+export function updateRow(
+  db: Db,
+  table: string,
+  id: string,
+  patch: RowValues,
+  touch = true,
+): boolean {
+  const sets = [...definedKeys(patch), ...(touch ? ["updatedAt"] : [])]
+    .map((key) => `${snakeCase(key)} = @${key}`)
+    .join(", ");
+  const values = { ...patch, updatedAt: db.now(), id };
+  return (
+    db.run(`UPDATE ${table} SET ${sets} WHERE id = @id`, values).changes > 0
+  );
+}
+
+export function writeRevision(
+  db: Db,
+  table: string,
+  keyName: string,
+  row: RowValues,
+  expectedRevision: number | null,
+): RevisionWrite {
+  return db.transaction((): RevisionWrite => {
+    const column = snakeCase(keyName);
+    const sql = `SELECT revision FROM ${table} WHERE ${column} = ?`;
+    const stored = db.get<{ revision: number }>(sql, row[keyName] ?? null);
+    const current = stored?.revision ?? 0;
+    if (expectedRevision !== null && expectedRevision !== current) {
+      return { outcome: "conflict", revision: current };
+    }
+    const revision = current + 1;
+    const next = { ...row, revision, updatedAt: db.now() };
+    insertRow(db, table, next, [column]);
+    return { outcome: "updated", revision };
+  });
 }
 
 export function decodeJson<T>(schema: ZodType<T>, text: string): T {

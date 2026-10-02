@@ -1,12 +1,4 @@
-import {
-  buildThreadEventRow,
-  parseStoredThreadEvent,
-  type ThreadEvent,
-  type ThreadEventItemType,
-  type ThreadEventRow,
-  type ThreadEventScope,
-  type ThreadEventType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import {
   THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
   type ThreadEventWithMeta,
@@ -20,9 +12,9 @@ export interface StoredEventRow {
   turnId: string | null;
   providerThreadId: string | null;
   sequence: number;
-  type: ThreadEventType;
+  type: domain.ThreadEventType;
   itemId: string | null;
-  itemKind: ThreadEventItemType | null;
+  itemKind: domain.ThreadEventItemType | null;
   parentToolCallId: string | null;
   data: string;
   createdAt: number;
@@ -48,7 +40,7 @@ export interface EventQuery {
 export interface OrderingContextRow {
   sequence: number;
   turnId: string | null;
-  type: ThreadEventType;
+  type: domain.ThreadEventType;
   parentToolCallId: string | null;
   requestId: string | null;
   clientRequestId: string | null;
@@ -66,7 +58,7 @@ export interface BackgroundTaskCounts {
 
 export const MAX_INLINE_OUTPUT_CHARS = 32_000;
 export const UNBOUNDED = Number.MAX_SAFE_INTEGER;
-const DIAGNOSTIC_TYPES = ["provider.env-resolved", "provider/unhandled"];
+const DIAGNOSTIC_TYPES = ["provider.env-resolved"];
 const DECODED_EVENT_CACHE_LIMIT = 20_000;
 const decodedEvents = new WeakMap<Db, Map<string, ThreadEventWithMeta>>();
 const META =
@@ -111,17 +103,8 @@ export const ROOT_TURN_EVENT = `turn_id IS NOT NULL
   AND parent_tool_call_id IS NULL AND EXISTS (SELECT 1 FROM events AS root
     WHERE root.thread_id = events.thread_id AND root.turn_id = events.turn_id
       AND root.type = 'turn/started' AND root.parent_tool_call_id IS NULL)`;
-export const OUTLINE_EVENT = `(type IN ('client/turn/requested',
-    'client/turn/rejected', 'turn/input/accepted', 'turn/started',
-    'turn/completed',
-    'system/thread/interrupted', 'system/error', 'provider/error',
-    'item/agentMessage/delta', 'item/plan/delta')
-  OR (type = 'item/completed' AND item_kind IN ('agentMessage', 'plan'))
-  OR (item_kind IN ('backgroundTask', 'toolCall')
-    AND type IN ('item/started', 'item/completed',
-      'item/backgroundTask/progress', 'item/backgroundTask/completed')))`;
 
-function inlineOutputData(): string {
+function inlineOutputData() {
   const max = MAX_INLINE_OUTPUT_CHARS;
   const replacements = ["aggregatedOutput", "result", "resultText"].map(
     (name) => {
@@ -138,11 +121,11 @@ function inlineOutputData(): string {
     ELSE json_replace(data, ${replacements.join(", ")}) END`;
 }
 
-function quoted(values: readonly string[]): string {
+function quoted(values: readonly string[]) {
   return values.map((value) => `'${value}'`).join(", ");
 }
 
-function eventSource(query: EventQuery): { from: string; params: SqlValue[] } {
+function eventSource(query: EventQuery) {
   const before = query.before ?? UNBOUNDED;
   const where = ["thread_id = ?", "sequence > ?", "sequence < ?"];
   const params: SqlValue[] = [query.threadId, query.after ?? -1, before];
@@ -160,6 +143,7 @@ function eventSource(query: EventQuery): { from: string; params: SqlValue[] } {
     const { excludeDiagnostics, horizon = before } = query.timeline;
     const excluded = [
       ...THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
+      "provider/unhandled",
       ...(excludeDiagnostics ? DIAGNOSTIC_TYPES : []),
     ];
     where.push(`type NOT IN (${quoted(excluded)})`, NOT_SUPERSEDED_PROGRESS);
@@ -281,7 +265,7 @@ export function listContextWindowUsageEvents(
   threadId: string,
   sequenceStart: number,
 ): StoredEventRow[] {
-  const latest = (extra: string): StoredEventRow[] =>
+  const latest = (extra: string) =>
     listEvents(db, {
       threadId,
       after: sequenceStart - 1,
@@ -386,7 +370,7 @@ export function activeBackgroundTaskCounts(
   threadIds: readonly string[],
 ): BackgroundTaskCounts[] {
   const taskType = "json_extract(active.data, '$.item.taskType')";
-  const count = (types: string): string =>
+  const count = (types: string) =>
     `SUM(CASE WHEN ${taskType} IN (${types}) THEN 1 ELSE 0 END)`;
   return db.all<BackgroundTaskCounts>(
     `WITH latest AS (
@@ -425,14 +409,14 @@ export function mergeEventRows(
   );
 }
 
-function eventScope(row: StoredEventRow): ThreadEventScope {
+function eventScope(row: StoredEventRow): domain.ThreadEventScope {
   return row.turnId === null
     ? { kind: "thread" }
     : { kind: "turn", turnId: row.turnId };
 }
 
-export function decodeEvent(row: StoredEventRow): ThreadEvent {
-  return parseStoredThreadEvent({
+export function decodeEvent(row: StoredEventRow): domain.ThreadEvent {
+  return domain.parseStoredThreadEvent({
     type: row.type,
     data: JSON.parse(row.data) as Record<string, unknown>,
     threadId: row.threadId,
@@ -446,29 +430,44 @@ function decodeEventWithMeta(row: StoredEventRow): ThreadEventWithMeta {
   return { event: decodeEvent(row), meta: { id, seq, createdAt } };
 }
 
+export function rememberRecent<Value>(
+  cache: Map<string, Value>,
+  key: string,
+  value: Value,
+  limit: number,
+): Value {
+  cache.delete(key);
+  cache.set(key, value);
+  for (const oldest of cache.keys()) {
+    if (cache.size <= limit) break;
+    cache.delete(oldest);
+  }
+  return value;
+}
+
 export function decodeEvents(
   db: Db,
   rows: readonly StoredEventRow[],
 ): ThreadEventWithMeta[] {
   const cache = decodedEvents.get(db) ?? new Map<string, ThreadEventWithMeta>();
   decodedEvents.set(db, cache);
-  const events = rows.map((row) => {
+  return rows.map((row) => {
     const key = `${row.id}:${row.data.length}`;
     const event = cache.get(key) ?? decodeEventWithMeta(row);
-    cache.delete(key);
-    cache.set(key, event);
-    return event;
+    return rememberRecent(cache, key, event, DECODED_EVENT_CACHE_LIMIT);
   });
-  for (const oldest of cache.keys()) {
-    if (cache.size <= DECODED_EVENT_CACHE_LIMIT) break;
-    cache.delete(oldest);
-  }
-  return events;
 }
 
-export function toThreadEventRow(row: StoredEventRow): ThreadEventRow {
+export function toThreadEventRow(row: StoredEventRow): domain.ThreadEventRow {
   const { id, threadId, sequence: seq, createdAt } = row;
   const scope = eventScope(row);
   const event = decodeEvent(row);
-  return buildThreadEventRow({ id, scope, threadId, seq, createdAt, event });
+  return domain.buildThreadEventRow({
+    id,
+    scope,
+    threadId,
+    seq,
+    createdAt,
+    event,
+  });
 }

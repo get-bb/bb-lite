@@ -1,31 +1,10 @@
-import { Component, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { PluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
+import { PluginSlotMount } from "@/plugins/mount";
 import type { PluginSlot } from "@/plugins/registry";
-import { PluginItemIcon } from "./PluginIcon";
-import { PluginContext } from "@/plugins/context";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
+import { PluginItemIcon } from "./PluginIcon";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
-
-class HeaderContentBoundary extends Component<
-  { pluginId: string; children: ReactNode },
-  { crashed: boolean }
-> {
-  override state = { crashed: false };
-
-  static getDerivedStateFromError(): { crashed: boolean } {
-    return { crashed: true };
-  }
-
-  override componentDidCatch(error: Error): void {
-    console.warn(
-      `[plugin:${this.props.pluginId}] navPanel headerContent crashed and is hidden: ${error.message}`,
-    );
-  }
-
-  override render(): ReactNode {
-    return this.state.crashed ? null : this.props.children;
-  }
-}
 
 export function PluginPanelHeaderCenter({
   chrome,
@@ -55,30 +34,29 @@ export function PluginPanelHeaderActions({
 }) {
   const paneContext = useOptionalPaneContext();
   const HeaderContent = panel.headerContent;
-  const panelStateId = getPluginPagePanelStateId({
-    panelPath: panel.path,
-    paneId: paneContext?.paneId,
-    pluginId: panel.pluginId,
-  });
   return (
     <div className="flex shrink-0 items-center gap-2">
       {HeaderContent === undefined ? null : (
-        <HeaderContentBoundary
+        <PluginSlotMount
           key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
           pluginId={panel.pluginId}
+          slotKind="navPanelHeader"
+          slotId={panel.id}
+          crashFallback={null}
         >
-          <PluginContext.Provider value={panel.pluginId}>
-            <div
-              data-bb-plugin={panel.pluginId}
-              className="flex shrink-0 items-center gap-2"
-            >
-              <HeaderContent subPath={subPath} />
-            </div>
-          </PluginContext.Provider>
-        </HeaderContentBoundary>
+          <div className="flex shrink-0 items-center gap-2">
+            <HeaderContent subPath={subPath} />
+          </div>
+        </PluginSlotMount>
       )}
       {paneActions}
-      <div data-plugin-right-panel-toggle-portal={panelStateId} />
+      <div
+        data-plugin-right-panel-toggle-portal={getPluginPagePanelStateId({
+          panelPath: panel.path,
+          paneId: paneContext?.paneId,
+          pluginId: panel.pluginId,
+        })}
+      />
     </div>
   );
 }

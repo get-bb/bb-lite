@@ -1,11 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
+import { useState } from "react";
 import {
   deriveProjectNameFromPath,
   getProjectPathValidationMessage,
@@ -21,27 +14,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@bb/shared-ui/dialog";
-import { Input } from "@bb/shared-ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { RemotePathBrowser } from "@/components/dialogs/RemotePathBrowser";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
-import { selectHosts } from "@/hooks/queries/host-queries";
 
 export type ProjectPathDialogTarget =
-  | {
-      kind: "create";
-    }
+  | { kind: "create" }
   | {
       kind: "update";
       projectId: string;
       projectName: string;
       currentPath: string;
     }
-  | {
-      kind: "add-source";
-      projectId: string;
-      projectName: string;
-    };
+  | { kind: "add-source"; projectId: string; projectName: string };
 
 export type ProjectPathDialogSubmitHandler = (
   target: ProjectPathDialogTarget,
@@ -59,27 +51,22 @@ interface ProjectPathDialogProps {
   onSubmit: ProjectPathDialogSubmitHandler;
 }
 
-export function ProjectPathDialog({
-  target,
-  pending = false,
-  hostId,
-  hostName,
-  hosts,
-  onOpenChange,
-  onSubmit,
-}: ProjectPathDialogProps) {
+const COPY = {
+  create: { title: "Add project", submit: "Add project" },
+  update: { title: "Update project path", submit: "Save path" },
+  "add-source": { title: "Add project source", submit: "Add source" },
+};
+
+export function ProjectPathDialog(props: ProjectPathDialogProps) {
+  const { target } = props;
   return (
-    <Dialog open={target !== null} onOpenChange={onOpenChange}>
+    <Dialog open={target !== null} onOpenChange={props.onOpenChange}>
       <DialogContent>
         {target ? (
-          <ProjectPathDialogContent
+          <ProjectPathForm
             key={target.kind === "create" ? "create" : target.projectId}
+            {...props}
             target={target}
-            pending={pending}
-            hostId={hostId}
-            hostName={hostName}
-            hosts={hosts}
-            onSubmit={onSubmit}
           />
         ) : null}
       </DialogContent>
@@ -87,153 +74,68 @@ export function ProjectPathDialog({
   );
 }
 
-interface ProjectPathDialogContentProps {
-  target: ProjectPathDialogTarget;
-  pending: boolean;
-  hostId: string | null;
-  hostName: string | null;
-  hosts?: readonly Host[];
-  onSubmit: ProjectPathDialogSubmitHandler;
-}
-
-interface PathCopy {
-  description: string;
-  placeholder: string;
-}
-
-function getDialogTitle(kind: ProjectPathDialogTarget["kind"]): string {
-  switch (kind) {
-    case "create":
-      return "Add project";
-    case "update":
-      return "Update project path";
-    case "add-source":
-      return "Add project source";
-  }
-}
-
-function getDialogSubmitLabel(kind: ProjectPathDialogTarget["kind"]): string {
-  switch (kind) {
-    case "create":
-      return "Add project";
-    case "update":
-      return "Save path";
-    case "add-source":
-      return "Add source";
-  }
-}
-
-function getPathCopy(hostName: string | null): PathCopy {
-  const hostSuffix = hostName ? ` on ${hostName}` : "";
-  return {
-    description: `Enter an absolute path${hostSuffix} to the project folder.`,
-    placeholder: "/path/to/project",
-  };
-}
-
-export function ProjectPathDialogContent({
+function ProjectPathForm({
   target,
-  pending,
+  pending = false,
   hostId,
   hostName,
   hosts,
   onSubmit,
-}: ProjectPathDialogContentProps) {
-  const inputId = useId();
-  const machineOptions =
-    target.kind === "create" ? selectHosts(hosts, "all") : undefined;
-  const firstConnectedHostId = machineOptions?.find(
-    (host) => host.status === "connected",
-  )?.id;
-  const [selectedHostIdState, setSelectedHostId] = useState(
-    hostId ?? firstConnectedHostId ?? null,
-  );
+}: ProjectPathDialogProps & { target: ProjectPathDialogTarget }) {
+  const machines = target.kind === "create" ? (hosts ?? []) : [];
+  const firstConnectedId =
+    machines.find((host) => host.status === "connected")?.id ?? null;
+  const [pickedHostId, setPickedHostId] = useState(hostId ?? firstConnectedId);
+  const selectedHost =
+    machines.find(
+      (host) => host.id === pickedHostId && host.status === "connected",
+    ) ?? machines.find((host) => host.id === firstConnectedId);
   const selectedHostId =
-    machineOptions === undefined ||
-    machineOptions.some(
-      (host) => host.id === selectedHostIdState && host.status === "connected",
-    )
-      ? selectedHostIdState
-      : (firstConnectedHostId ?? null);
-  const selectedHost = machineOptions?.find(
-    (host) => host.id === selectedHostId,
-  );
+    target.kind === "create" ? (selectedHost?.id ?? null) : pickedHostId;
   const selectedHostName = selectedHost?.name ?? hostName;
-  const selectedHostConnected =
-    selectedHost === undefined || selectedHost.status === "connected";
-  const showMachinePicker = (machineOptions?.length ?? 0) > 1;
-  const noMachineAvailable =
-    machineOptions !== undefined && selectedHostId === null;
-  const [manualPath, setManualPath] = useState(
-    target.kind === "update" ? target.currentPath : "",
-  );
-  const [browserDirectory, setBrowserDirectory] = useState<string | null>(
+  const [directory, setDirectory] = useState<string | null>(
     target.kind === "update" ? target.currentPath : null,
   );
-  const [validationMessage, setValidationMessage] = useState<string | null>(
-    null,
-  );
-  const copy = getPathCopy(selectedHostName);
-  const placeholder =
-    target.kind === "update"
-      ? target.currentPath || copy.placeholder
-      : copy.placeholder;
-
-  const selectedPath = selectedHostId
-    ? browserDirectory
-    : normalizeProjectPathInput(manualPath) || null;
-  const derivedProjectName = selectedPath
-    ? deriveProjectNameFromPath(selectedPath)
-    : "";
-
-  useEffect(() => {
-    setValidationMessage(null);
-  }, [selectedPath]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (pending) return;
-
-    if (!selectedPath) {
-      setValidationMessage("Choose a project folder.");
-      return;
-    }
-
-    const normalizedPath = normalizeProjectPathInput(selectedPath);
-    const pathValidationMessage =
-      getProjectPathValidationMessage(normalizedPath);
-    if (pathValidationMessage) {
-      setValidationMessage(pathValidationMessage);
-      return;
-    }
-
-    if (
-      target.kind === "create" &&
-      !deriveProjectNameFromPath(normalizedPath)
-    ) {
-      setValidationMessage("Could not derive a project name from that path.");
-      return;
-    }
-
-    void onSubmit(target, normalizedPath, selectedHostId);
-  };
-
+  const [validation, setValidation] = useState<{
+    path: string | null;
+    message: string;
+  } | null>(null);
+  const validationMessage =
+    validation?.path === directory ? validation.message : null;
+  const projectName =
+    target.kind === "create" && directory
+      ? deriveProjectNameFromPath(directory)
+      : "";
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{getDialogTitle(target.kind)}</DialogTitle>
+        <DialogTitle>{COPY[target.kind].title}</DialogTitle>
         <DialogDescription>
           {selectedHostId
             ? `Browse to the project folder${
                 selectedHostName ? ` on ${selectedHostName}` : ""
               }, or edit the path directly.`
-            : noMachineAvailable
-              ? "No machine is online. Start one to choose a project folder."
-              : copy.description}
+            : "No machine is online. Start one to choose a project folder."}
         </DialogDescription>
       </DialogHeader>
-      <form className="min-w-0 space-y-4" onSubmit={handleSubmit}>
-        {showMachinePicker ? (
+      <form
+        className="min-w-0 space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending) return;
+          const path = directory && normalizeProjectPathInput(directory);
+          const message = !path
+            ? "Choose a project folder."
+            : (getProjectPathValidationMessage(path) ??
+              (target.kind === "create" && !deriveProjectNameFromPath(path)
+                ? "Could not derive a project name from that path."
+                : null));
+          if (!path || message) {
+            setValidation({ path: directory, message: message ?? "" });
+          } else void onSubmit(target, path, selectedHostId);
+        }}
+      >
+        {machines.length > 1 ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild disabled={pending}>
               <Button
@@ -244,9 +146,7 @@ export function ProjectPathDialogContent({
                 className="w-full justify-between font-normal"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  {selectedHost ? (
-                    <MachineStatusDot connected={selectedHostConnected} />
-                  ) : null}
+                  {selectedHost ? <MachineStatusDot connected /> : null}
                   <span className="min-w-0 truncate">
                     {selectedHost?.name ?? "Select a machine"}
                   </span>
@@ -261,7 +161,7 @@ export function ProjectPathDialogContent({
               align="start"
               className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
             >
-              {machineOptions?.map((host) => {
+              {machines.map((host) => {
                 const connected = host.status === "connected";
                 return (
                   <DropdownMenuItem
@@ -269,9 +169,8 @@ export function ProjectPathDialogContent({
                     disabled={!connected}
                     className="flex items-center gap-2"
                     onSelect={() => {
-                      if (!connected) return;
-                      setSelectedHostId(host.id);
-                      setBrowserDirectory(null);
+                      setPickedHostId(host.id);
+                      setDirectory(null);
                     }}
                   >
                     <MachineStatusDot connected={connected} />
@@ -301,35 +200,21 @@ export function ProjectPathDialogContent({
             key={selectedHostId}
             hostId={selectedHostId}
             initialPath={target.kind === "update" ? target.currentPath : null}
-            allowCreateFolder={target.kind === "create"}
-            onDirectoryChange={setBrowserDirectory}
-            disabled={pending || !selectedHostConnected}
+            onDirectoryChange={setDirectory}
+            disabled={pending}
           />
-        ) : noMachineAvailable ? (
+        ) : (
           <p className="rounded-md border px-3 py-6 text-center text-sm text-muted-foreground">
             Every machine is offline. Bring one online to browse its folders.
           </p>
-        ) : (
-          <Input
-            id={inputId}
-            aria-label="Project path"
-            value={manualPath}
-            autoFocus
-            disabled={pending}
-            placeholder={placeholder}
-            onChange={(event) => {
-              setManualPath(event.target.value);
-            }}
-          />
         )}
-        {(derivedProjectName && target.kind === "create") ||
-        validationMessage ? (
+        {projectName || validationMessage ? (
           <div className="space-y-1">
-            {target.kind === "create" && derivedProjectName ? (
+            {projectName ? (
               <p className="flex min-w-0 gap-1 text-sm text-muted-foreground">
                 <span className="shrink-0">Project name:</span>
                 <span className="min-w-0 truncate font-medium text-foreground">
-                  {derivedProjectName}
+                  {projectName}
                 </span>
               </p>
             ) : null}
@@ -341,14 +226,9 @@ export function ProjectPathDialogContent({
         <DialogFooter>
           <Button
             type="submit"
-            disabled={
-              pending ||
-              !selectedPath ||
-              !selectedHostConnected ||
-              noMachineAvailable
-            }
+            disabled={pending || !directory || !selectedHostId}
           >
-            {getDialogSubmitLabel(target.kind)}
+            {COPY[target.kind].submit}
           </Button>
         </DialogFooter>
       </form>

@@ -1,19 +1,6 @@
 import type { TerminalSessionCloseReason } from "@bb/domain";
 import { RunnerError, TERMINAL_REPLAY_MAX_BYTES } from "@bb/runner";
-import {
-  terminalClientMessageSchema,
-  type CloseTerminalRequest,
-  type CreateTerminalRequest,
-  type TerminalClientMessage,
-  type TerminalCreateTarget,
-  type TerminalListQuery,
-  type TerminalOutputChunk,
-  type TerminalOutputQuery,
-  type TerminalOutputResponse,
-  type TerminalResizeRequest,
-  type TerminalServerMessage,
-  type TerminalSession,
-} from "@bb/server-contract";
+import * as contract from "@bb/server-contract";
 import type { WebSocket } from "ws";
 import type { ServerContext } from "../context.js";
 import {
@@ -22,24 +9,25 @@ import {
   selectTerminals,
   updateTerminal,
 } from "../db/terminals.js";
-import type { RowPatch } from "../db/update-row.js";
+import type { RowValues } from "../db/index.js";
+import { requireThread } from "../db/threads.js";
 import {
   requireEnvironment,
   requireReadyEnvironment,
   requireThreadEnvironment,
-  threadEnvironmentId,
 } from "../environments/workspace.js";
-import { ApiError, toApiError } from "../http/errors.js";
+import { ApiError, errorMessage, toApiError } from "../http/errors.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
 import { requireHost } from "../runners/hosts.js";
 import type { Disposer } from "../server.js";
+import { parseFrame } from "../ws/hub.js";
 
 interface Client {
-  send(message: TerminalServerMessage): void;
+  send(message: contract.TerminalServerMessage): void;
   fail(code: string, message: string): void;
   nextSeq: number;
   replaying: boolean;
-  backlog: TerminalOutputChunk[];
+  backlog: contract.TerminalOutputChunk[];
 }
 
 interface Live {
@@ -53,7 +41,7 @@ const POLICY_VIOLATION_CLOSE_CODE = 1008;
 const OPEN_ON_RUNNER = "status IN ('starting', 'running')";
 const liveByContext = new WeakMap<ServerContext, Live>();
 
-function liveOf(ctx: ServerContext): Live {
+function liveOf(ctx: ServerContext) {
   const live = liveByContext.get(ctx) ?? {
     clients: new Map<string, Set<Client>>(),
     resizeOwners: new Map<string, Client>(),
@@ -62,17 +50,16 @@ function liveOf(ctx: ServerContext): Live {
   return live;
 }
 
-function clientsOf(ctx: ServerContext, terminalId: string): Client[] {
+function clientsOf(ctx: ServerContext, terminalId: string) {
   return [...(liveOf(ctx).clients.get(terminalId) ?? [])];
 }
 
 function errorFrame(error: unknown): { code: string; message: string } {
-  const known = toApiError(error)?.body;
-  const message = error instanceof Error ? error.message : String(error);
-  return known ?? { code: "terminal_socket_error", message };
+  const message = errorMessage(error);
+  return toApiError(error)?.body ?? { code: "terminal_socket_error", message };
 }
 
-function announce(ctx: ServerContext, session: TerminalSession) {
+function announce(ctx: ServerContext, session: contract.TerminalSession) {
   if (session.threadId !== null) {
     ctx.hub.thread(session.threadId, ["terminals-changed"]);
   }
@@ -83,11 +70,11 @@ function announce(ctx: ServerContext, session: TerminalSession) {
   return session;
 }
 
-function change(
+export function changeTerminal(
   ctx: ServerContext,
-  session: TerminalSession,
-  patch: RowPatch,
-): TerminalSession {
+  session: contract.TerminalSession,
+  patch: RowValues,
+): contract.TerminalSession {
   const current = getTerminal(ctx.db, session.id) ?? session;
   if (current.status === "exited" && "status" in patch) return current;
   const changed = updateTerminal(ctx.db, session.id, patch);
@@ -96,18 +83,19 @@ function change(
 
 function finish(
   ctx: ServerContext,
-  session: TerminalSession,
+  session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
   exitCode: number | null = null,
-): TerminalSession {
-  return change(ctx, session, { status: "exited", closeReason, exitCode });
+): contract.TerminalSession {
+  const exited = { status: "exited", closeReason, exitCode };
+  return changeTerminal(ctx, session, exited);
 }
 
 function endTerminal(
   ctx: ServerContext,
-  session: TerminalSession,
+  session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
-): TerminalSession {
+): contract.TerminalSession {
   const { hostId, id: terminalId } = session;
   if (session.status !== "exited" && ctx.runners.isConnected(hostId)) {
     const closing = ctx.runners.get(hostId).closeTerminal({ terminalId });
@@ -116,7 +104,7 @@ function endTerminal(
   return finish(ctx, session, closeReason);
 }
 
-function deliver(client: Client, chunk: TerminalOutputChunk): void {
+function deliver(client: Client, chunk: contract.TerminalOutputChunk) {
   if (chunk.seq < client.nextSeq) return;
   client.nextSeq = chunk.seq + 1;
   client.send({ type: "output", chunk });
@@ -124,10 +112,10 @@ function deliver(client: Client, chunk: TerminalOutputChunk): void {
 
 async function replay(
   ctx: ServerContext,
-  session: TerminalSession,
+  session: contract.TerminalSession,
   client: Client,
   greeting: boolean,
-): Promise<void> {
+) {
   const { id: terminalId, hostId } = session;
   const tailBytes = TERMINAL_REPLAY_MAX_BYTES;
   client.replaying = true;
@@ -156,13 +144,13 @@ async function replay(
   }
 }
 
-function resume(ctx: ServerContext, session: TerminalSession): void {
+function resume(ctx: ServerContext, session: contract.TerminalSession) {
   for (const client of clientsOf(ctx, session.id)) {
     void replay(ctx, session, client, false);
   }
 }
 
-async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
+async function reconcile(ctx: ServerContext, hostId: string) {
   const { db, runners } = ctx;
   const lost = "host_id = ? AND status = 'disconnected'";
   const stale = selectTerminals(db, lost, hostId);
@@ -174,7 +162,7 @@ async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
   if (snapshot === null) return;
   for (const session of stale) {
     if (snapshot.terminalIds.includes(session.id)) {
-      resume(ctx, change(ctx, session, { status: "running" }));
+      resume(ctx, changeTerminal(ctx, session, { status: "running" }));
     } else {
       finish(ctx, session, "daemon-disconnect");
     }
@@ -183,7 +171,7 @@ async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
 
 export function startTerminalSessions(ctx: ServerContext): Disposer {
   const { db, runners, log } = ctx;
-  const reattach = (hostId: string): void => {
+  const reattach = (hostId: string) => {
     reconcile(ctx, hostId).catch((error: unknown) => {
       log.warn("Terminal reconciliation failed", { err: error, hostId });
     });
@@ -208,7 +196,7 @@ export function startTerminalSessions(ctx: ServerContext): Disposer {
     runners.onDisconnected((hostId) => {
       const open = `host_id = ? AND ${OPEN_ON_RUNNER}`;
       for (const session of selectTerminals(db, open, hostId)) {
-        change(ctx, session, { status: "disconnected" });
+        changeTerminal(ctx, session, { status: "disconnected" });
       }
     }),
     runners.onConnected(reattach),
@@ -220,7 +208,7 @@ export function startTerminalSessions(ctx: ServerContext): Disposer {
 export function requireTerminal(
   ctx: ServerContext,
   terminalId: string,
-): TerminalSession {
+): contract.TerminalSession {
   const session = getTerminal(ctx.db, terminalId);
   if (session === undefined) {
     throw new ApiError(404, "terminal_not_found", "Terminal session not found");
@@ -228,22 +216,26 @@ export function requireTerminal(
   return session;
 }
 
-function requireRunning(ctx: ServerContext, terminalId: string) {
+function notRunning() {
+  const message = "Terminal session is not running";
+  return new ApiError(409, "terminal_not_running", message);
+}
+
+export function requireRunning(ctx: ServerContext, terminalId: string) {
   const session = requireTerminal(ctx, terminalId);
   if (session.status === "running") return session;
-  const message = "Terminal session is not running";
-  throw new ApiError(409, "terminal_not_running", message);
+  throw notRunning();
 }
 
 export function listTerminalSessions(
   ctx: ServerContext,
-  query: TerminalListQuery,
-): TerminalSession[] {
+  query: contract.TerminalListQuery,
+): contract.TerminalSession[] {
   const { db } = ctx;
   const { threadId, environmentId, hostId = "", cwd = null } = query;
   const open = "status <> 'exited'";
   if (threadId !== undefined) {
-    threadEnvironmentId(ctx, threadId);
+    requireThread(db, threadId);
     return selectTerminals(db, `thread_id = ? AND ${open}`, threadId);
   }
   const unowned = `thread_id IS NULL AND ${open}`;
@@ -257,7 +249,10 @@ export function listTerminalSessions(
   return selectTerminals(db, onHost, id, cwd, cwd);
 }
 
-function launchTarget(ctx: ServerContext, target: TerminalCreateTarget) {
+function launchTarget(
+  ctx: ServerContext,
+  target: contract.TerminalCreateTarget,
+) {
   if (target.kind === "host_path") {
     const { id: hostId } = requireHost(ctx, target.hostId);
     const unowned = { threadId: null, environmentId: null, projectId: null };
@@ -276,8 +271,8 @@ function launchTarget(ctx: ServerContext, target: TerminalCreateTarget) {
 
 export async function createTerminal(
   ctx: ServerContext,
-  payload: CreateTerminalRequest,
-): Promise<TerminalSession> {
+  payload: contract.CreateTerminalRequest,
+): Promise<contract.TerminalSession> {
   const { projectId, cwd, ...owner } = launchTarget(ctx, payload.target);
   const runner = ctx.runners.get(owner.hostId);
   const { cols, rows, start = { mode: "shell" } } = payload;
@@ -298,7 +293,7 @@ export async function createTerminal(
       runner.closeTerminal({ terminalId }).catch(() => undefined);
       return current;
     }
-    const running = change(ctx, current, {
+    const running = changeTerminal(ctx, current, {
       status: "running",
       cols: opened.cols,
       rows: opened.rows,
@@ -313,42 +308,15 @@ export async function createTerminal(
   }
 }
 
-export function renameTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-  title: string,
-): TerminalSession {
-  return change(ctx, requireTerminal(ctx, terminalId), { title });
-}
-
 export function closeTerminal(
   ctx: ServerContext,
   terminalId: string,
-  request: CloseTerminalRequest,
-): TerminalSession {
+  request: contract.CloseTerminalRequest,
+): contract.TerminalSession {
   const session = requireTerminal(ctx, terminalId);
   const dirty = session.lastUserInputAt !== null;
   if (request.mode === "if-clean" && dirty) return session;
   return endTerminal(ctx, session, request.reason);
-}
-
-export async function restartTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-): Promise<TerminalSession> {
-  const current = requireTerminal(ctx, terminalId);
-  const { threadId, environmentId, hostId, initialCwd, ...shape } = current;
-  const cwd = initialCwd === HOME_CWD ? null : initialCwd;
-  const target: TerminalCreateTarget =
-    threadId !== null
-      ? { kind: "thread", threadId }
-      : environmentId !== null
-        ? { kind: "environment", environmentId }
-        : { kind: "host_path", hostId, cwd };
-  const { cols, rows, title } = shape;
-  const replacement = await createTerminal(ctx, { cols, rows, title, target });
-  endTerminal(ctx, current, "user");
-  return replacement;
 }
 
 export function closeTerminalsFor(
@@ -363,64 +331,40 @@ export function closeTerminalsFor(
   }
 }
 
-export function closeTerminalsForThread(
+export async function writeTerminalInput(
   ctx: ServerContext,
-  threadId: string,
-  closeReason: "thread-archived" | "thread-deleted" = "thread-archived",
-): void {
-  closeTerminalsFor(ctx, "thread_id", threadId, closeReason);
-}
-
-async function writeInput(
-  ctx: ServerContext,
-  session: TerminalSession,
+  session: contract.TerminalSession,
   dataBase64: string,
-): Promise<TerminalSession> {
+): Promise<contract.TerminalSession> {
   const { id: terminalId, hostId } = session;
   const marked =
     session.lastUserInputAt === null
-      ? change(ctx, session, { lastUserInputAt: ctx.now() })
+      ? changeTerminal(ctx, session, { lastUserInputAt: ctx.now() })
       : session;
   await ctx.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
   return marked;
 }
 
-async function applySize(
+export async function resizeTerminal(
   ctx: ServerContext,
-  session: TerminalSession,
-  { cols, rows }: TerminalResizeRequest,
-): Promise<TerminalSession> {
+  session: contract.TerminalSession,
+  { cols, rows }: contract.TerminalResizeRequest,
+): Promise<contract.TerminalSession> {
   const { id: terminalId, hostId } = session;
   const same = session.cols === cols && session.rows === rows;
-  const resized = same ? session : change(ctx, session, { cols, rows });
+  const resized = same ? session : changeTerminal(ctx, session, { cols, rows });
   await ctx.runners.get(hostId).resizeTerminal({ terminalId, cols, rows });
   return resized;
-}
-
-export function sendTerminalInput(
-  ctx: ServerContext,
-  terminalId: string,
-  dataBase64: string,
-): Promise<TerminalSession> {
-  return writeInput(ctx, requireRunning(ctx, terminalId), dataBase64);
-}
-
-export function resizeTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-  size: TerminalResizeRequest,
-): Promise<TerminalSession> {
-  return applySize(ctx, requireRunning(ctx, terminalId), size);
 }
 
 export async function readTerminalOutput(
   ctx: ServerContext,
   terminalId: string,
-  query: TerminalOutputQuery,
-): Promise<TerminalOutputResponse> {
+  query: contract.TerminalOutputQuery,
+): Promise<contract.TerminalOutputResponse> {
   const session = requireTerminal(ctx, terminalId);
   const { status, exitCode, closeReason, hostId } = session;
-  const unavailable = (reason: string): ApiError =>
+  const unavailable = (reason: string) =>
     new ApiError(409, "terminal_output_unavailable", reason);
   if (status !== "running" && status !== "exited") {
     throw unavailable("Terminal output can only be read once it has started");
@@ -431,7 +375,7 @@ export async function readTerminalOutput(
   const runner = ctx.runners.get(hostId);
   const sinceSeq = query.sinceSeq ?? 0;
   const tailBytes = query.tailBytes ?? OUTPUT_READ_MAX_BYTES;
-  const chunks: TerminalOutputChunk[] = [];
+  const chunks: contract.TerminalOutputChunk[] = [];
   let from = sinceSeq;
   let nextSeq = sinceSeq;
   do {
@@ -451,21 +395,13 @@ export async function readTerminalOutput(
   return { chunks: kept, nextSeq, truncated, status, exitCode, closeReason };
 }
 
-function parseClientMessage(raw: string): TerminalClientMessage | null {
-  try {
-    return terminalClientMessageSchema.parse(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
 function receive(
   ctx: ServerContext,
   terminalId: string,
   client: Client,
   raw: string,
-): void {
-  const message = parseClientMessage(raw);
+) {
+  const message = parseFrame(contract.terminalClientMessageSchema, raw);
   if (message === null) {
     client.fail("invalid_message", "Invalid terminal message");
     return;
@@ -476,12 +412,7 @@ function receive(
   }
   const session = getTerminal(ctx.db, terminalId);
   if (session === undefined || session.status === "exited") {
-    const notRunning = "Terminal session is not running";
-    client.send({
-      type: "error",
-      code: "terminal_not_running",
-      message: notRunning,
-    });
+    client.send({ type: "error", ...notRunning().body });
     return;
   }
   if (session.status !== "running") return;
@@ -489,8 +420,8 @@ function receive(
   if (message.type === "resize" && !owner) return;
   const work =
     message.type === "input"
-      ? writeInput(ctx, session, message.dataBase64)
-      : applySize(ctx, session, message);
+      ? writeTerminalInput(ctx, session, message.dataBase64)
+      : resizeTerminal(ctx, session, message);
   work.catch((error: unknown) => {
     client.send({ type: "error", ...errorFrame(error) });
   });
@@ -502,10 +433,10 @@ export function attachTerminalSocket(
   sinceSeq: number,
   socket: WebSocket,
 ): void {
-  const send = (message: TerminalServerMessage): void => {
+  const send = (message: contract.TerminalServerMessage) => {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
   };
-  const fail = (code: string, message: string): void => {
+  const fail = (code: string, message: string) => {
     send({ type: "error", code, message });
     socket.close(POLICY_VIOLATION_CLOSE_CODE, code);
   };
@@ -520,7 +451,7 @@ export function attachTerminalSocket(
   const attached = clients.get(terminalId) ?? new Set<Client>();
   clients.set(terminalId, attached.add(client));
   resizeOwners.set(terminalId, client);
-  const detach = (): void => {
+  const detach = () => {
     attached.delete(client);
     const emptied = attached.size === 0 && clients.get(terminalId) === attached;
     if (emptied) clients.delete(terminalId);

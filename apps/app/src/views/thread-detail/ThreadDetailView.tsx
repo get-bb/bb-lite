@@ -7,12 +7,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useSystemProviderInfo } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import { useAtom } from "jotai";
 import {
   isRunningThreadRuntimeDisplayStatus,
-  type ThreadTimelineForkMessageHandler,
   type ThreadTimelineLinkHandler,
   type ThreadTimelineLocalFileLink,
   type ThreadTimelineLocalFileLinkHandler,
@@ -31,8 +29,6 @@ import type { TerminalSession } from "@bb/server-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import type { ThreadSecondaryPanel as ThreadSecondaryPanelTab } from "@/lib/thread-secondary-panel";
-import { useForkThreadFromMessage } from "@/hooks/useForkThreadFromMessage";
-import { isThreadForkable } from "@bb/client-core";
 import { useRequestEnvironmentAction } from "../../hooks/mutations/environment-mutations";
 import {
   useMarkThreadRead,
@@ -658,31 +654,6 @@ export function ThreadDetailView(
         ? buildHostConnectionNotice(thread, threadEnvironmentHost?.name ?? null)
         : null,
     [thread, threadEnvironmentHost],
-  );
-  const forkThreadFromMessage = useForkThreadFromMessage({
-    sourceThread: thread ?? null,
-  });
-  const handleForkMessage = useCallback<ThreadTimelineForkMessageHandler>(
-    (target) => {
-      void forkThreadFromMessage(target);
-    },
-    [forkThreadFromMessage],
-  );
-  const threadProviderInfo = useSystemProviderInfo(
-    thread?.environmentId
-      ? {
-          enabled: true,
-          environmentId: thread.environmentId,
-          providerId: thread.providerId,
-        }
-      : {
-          enabled: thread !== undefined,
-          providerId: thread?.providerId,
-        },
-  );
-  const isForkAvailable = isThreadForkable(
-    thread ?? null,
-    threadProviderInfo?.capabilities.supportsFork ?? false,
   );
   const selectionPromptDraftProjectId = thread?.projectId ?? projectId;
   const selectionPromptDraftThreadId = thread?.id ?? "";
@@ -1988,7 +1959,6 @@ export function ThreadDetailView(
         }}
         timeline={{
           activeThinking,
-          canSpawnChild: thread.canSpawnChild,
           contextBoundarySeq,
           threadOriginKind,
           hasOlderTimelineRows,
@@ -1996,9 +1966,7 @@ export function ThreadDetailView(
           isLoadingOlderTimelineRows,
           isThreadTimelinePending,
           timelineError: Boolean(timelineError),
-          onForkMessage: isForkAvailable ? handleForkMessage : undefined,
           onMessageAddToChat: handleSelectionAddToChat,
-          onSelectionAddToChat: handleSelectionAddToChat,
           onLoadOlderRows: loadOlderTimelineRows,
           onOpenLink: handleOpenTimelineLink,
           onOpenLocalFileLink: handleOpenTimelineLocalFileLink,

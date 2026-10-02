@@ -1,18 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  type CSSProperties,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@bb/shared-ui/button";
-import { usePersistentOverlayFocus } from "@bb/shared-ui/responsive-overlay";
 import { usePortalScopeProps } from "@bb/shared-ui/lib/portal-scope";
 import { Icon } from "@bb/shared-ui/icon";
-
-type ImageLightboxKeyAction = "close" | "next" | "previous";
 
 const IMAGE_TRANSPARENCY_CHECKER_BASE =
   "color-mix(in oklch, var(--ink) 5%, var(--canvas))";
@@ -24,20 +15,6 @@ export const IMAGE_TRANSPARENCY_CHECKER_STYLE: CSSProperties = {
   backgroundImage: `conic-gradient(${IMAGE_TRANSPARENCY_CHECKER_MARK} 25%, ${IMAGE_TRANSPARENCY_CHECKER_BASE} 0 50%, ${IMAGE_TRANSPARENCY_CHECKER_MARK} 0 75%, ${IMAGE_TRANSPARENCY_CHECKER_BASE} 0)`,
   backgroundSize: "16px 16px",
 };
-
-interface ImageLightboxKeyActionInput {
-  event: Pick<
-    KeyboardEvent,
-    "altKey" | "ctrlKey" | "defaultPrevented" | "key" | "metaKey"
-  >;
-  hasNavigation: boolean;
-}
-
-interface WrappedImageIndexInput {
-  currentIndex: number;
-  direction: "next" | "previous";
-  itemCount: number;
-}
 
 interface ImageLightboxProps {
   hasMultipleImages?: boolean;
@@ -53,43 +30,18 @@ interface ImageLightboxProps {
   title: string;
 }
 
-export function getImageLightboxKeyAction({
-  event,
-  hasNavigation,
-}: ImageLightboxKeyActionInput): ImageLightboxKeyAction | null {
-  if (
-    event.defaultPrevented ||
-    event.altKey ||
-    event.ctrlKey ||
-    event.metaKey
-  ) {
-    return null;
-  }
-
-  if (event.key === "Escape") {
-    return "close";
-  }
-
-  if (!hasNavigation) {
-    return null;
-  }
-
-  if (event.key === "ArrowLeft") {
-    return "previous";
-  }
-
-  if (event.key === "ArrowRight") {
-    return "next";
-  }
-
-  return null;
-}
+const NAVIGATION_BUTTON_CLASS =
+  "absolute top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto";
 
 export function getWrappedImageIndex({
   currentIndex,
   direction,
   itemCount,
-}: WrappedImageIndexInput): number {
+}: {
+  currentIndex: number;
+  direction: "next" | "previous";
+  itemCount: number;
+}): number {
   if (itemCount <= 0) {
     return currentIndex;
   }
@@ -114,57 +66,50 @@ export function ImageLightbox({
 }: ImageLightboxProps) {
   const isVisible = isOpen ?? imageSrc !== null;
   const panelRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useLayoutEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-  const requestClose = useCallback(() => closeRef.current(), []);
   const titleId = useId();
   const scopeProps = usePortalScopeProps();
-  usePersistentOverlayFocus({
-    open: isVisible,
-    panelRef,
-    requestClose,
-  });
   const hasNavigation =
     hasMultipleImages && onPrevious !== undefined && onNext !== undefined;
+
+  useLayoutEffect(() => {
+    if (!isVisible) return;
+    const previousFocus = document.activeElement;
+    panelRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      }
+    };
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) {
       return;
     }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      const action = getImageLightboxKeyAction({
-        event,
-        hasNavigation,
-      });
-      if (!action) {
+      if (
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
         return;
       }
-
-      switch (action) {
-        case "close":
-          event.preventDefault();
-          onClose();
-          return;
-        case "previous":
-          if (!onPrevious || previousDisabled) {
-            return;
-          }
-          event.preventDefault();
-          onPrevious();
-          return;
-        case "next":
-          if (!onNext || nextDisabled) {
-            return;
-          }
-          event.preventDefault();
-          onNext();
-          return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      } else if (
+        hasNavigation &&
+        event.key === "ArrowLeft" &&
+        !previousDisabled
+      ) {
+        event.preventDefault();
+        onPrevious?.();
+      } else if (hasNavigation && event.key === "ArrowRight" && !nextDisabled) {
+        event.preventDefault();
+        onNext?.();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
@@ -226,7 +171,7 @@ export function ImageLightbox({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute left-2 top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
+            className={`left-2 ${NAVIGATION_BUTTON_CLASS}`}
             onClick={onPrevious}
             disabled={previousDisabled}
             aria-label="Previous image"
@@ -237,7 +182,7 @@ export function ImageLightbox({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-2 top-1/2 size-11 -translate-y-1/2 rounded-full bg-black/45 text-white hover:bg-black/60 hover:text-white disabled:pointer-events-auto"
+            className={`right-2 ${NAVIGATION_BUTTON_CLASS}`}
             onClick={onNext}
             disabled={nextDisabled}
             aria-label="Next image"

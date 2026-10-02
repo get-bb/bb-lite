@@ -1,15 +1,12 @@
 import type {
+  DistributiveOmit,
   RunnerEvent,
   RunnerEventSink,
   RunnerThreadEvent,
 } from "../types.js";
 
 type Reliable = Extract<RunnerEvent, { lane: "reliable" }>;
-type Unsequenced = Reliable extends infer E
-  ? E extends unknown
-    ? Omit<E, "lane" | "seq">
-    : never
-  : never;
+type Unsequenced = DistributiveOmit<Reliable, "lane" | "seq">;
 
 const MAX_UNACKED = 10_000;
 

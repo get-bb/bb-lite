@@ -3,10 +3,7 @@ import * as commands from "../files/commands.js";
 import * as list from "../files/list.js";
 import * as read from "../files/read.js";
 import * as write from "../files/write.js";
-import {
-  createLoginShellChildEnv,
-  type ChildEnv,
-} from "../terminals/shell-env.js";
+import { loginShellEnv, type ChildEnv } from "../sessions/agent-env.js";
 import { createTerminals } from "../terminals/terminals.js";
 import type { WorkspaceApi, WorkspaceEventSink } from "../workspace-types.js";
 import * as diff from "./diff.js";
@@ -45,7 +42,7 @@ export function createWorkspaceApi(deps: WorkspaceDeps): WorkspaceHandle {
   const ctx: Ctx = {
     dataDir: path.resolve(deps.dataDir),
     sink: deps.sink,
-    env: deps.env ?? createLoginShellChildEnv(),
+    env: deps.env ?? loginShellEnv(),
     lock: createKeyedLock(),
   };
   const scripts = createLifecycleScripts(ctx);
@@ -81,7 +78,6 @@ export function createWorkspaceApi(deps: WorkspaceDeps): WorkspaceHandle {
       pathsExist: bind(list.pathsExist),
       mutatePath: bind(write.mutatePath),
       listCommands: bind(commands.listCommands),
-      resolveSkillDirs: bind(commands.resolveSkillDirs),
       openTerminal: guard(terminals.open),
       attachTerminal: guard(terminals.attach),
       writeTerminal: guard(terminals.write),

@@ -4,7 +4,7 @@ import { useRouteAnchorDelegate } from "@/components/ui/app-route-anchor";
 import { PluginContext } from "./context";
 import { isSlotCrashed, markSlotCrashed, slotInstanceKey } from "./registry";
 
-interface PluginSlotBoundaryProps {
+interface BoundaryProps {
   pluginId: string;
   instanceKey: string;
   children: ReactNode;
@@ -13,42 +13,35 @@ interface PluginSlotBoundaryProps {
 }
 
 class PluginSlotBoundary extends Component<
-  PluginSlotBoundaryProps,
+  BoundaryProps,
   { crashed: boolean }
 > {
-  override state = { crashed: isSlotCrashed(this.props.instanceKey) };
+  override state = { crashed: false };
 
   static getDerivedStateFromError(): { crashed: boolean } {
     return { crashed: true };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    markSlotCrashed(this.props.instanceKey);
+    const { pluginId, instanceKey, onCrash } = this.props;
+    markSlotCrashed(instanceKey);
     console.warn(
-      `[plugin:${this.props.pluginId}] slot "${this.props.instanceKey}" crashed and is disabled for this session: ${error.message}`,
+      `[plugin:${pluginId}] slot "${instanceKey}" crashed and is disabled for this session: ${error.message}`,
       info.componentStack,
     );
-    try {
-      this.props.onCrash?.(this.props.pluginId);
-    } catch (notifyError) {
-      console.warn(
-        `[plugin:${this.props.pluginId}] slot crash notifier failed`,
-        notifyError,
-      );
-    }
+    onCrash?.(pluginId);
   }
 
   override render(): ReactNode {
-    if (this.state.crashed || isSlotCrashed(this.props.instanceKey)) {
-      return this.props.fallback === undefined ? (
-        <Pill variant="outline" className="text-muted-foreground">
-          plugin {this.props.pluginId} crashed
-        </Pill>
-      ) : (
-        this.props.fallback
-      );
-    }
-    return this.props.children;
+    const { pluginId, instanceKey, fallback, children } = this.props;
+    if (!this.state.crashed && !isSlotCrashed(instanceKey)) return children;
+    return fallback === undefined ? (
+      <Pill variant="outline" className="text-muted-foreground">
+        plugin {pluginId} crashed
+      </Pill>
+    ) : (
+      fallback
+    );
   }
 }
 
@@ -76,7 +69,7 @@ export function PluginSlotMount({
         pluginId={pluginId}
         instanceKey={slotInstanceKey(pluginId, slotKind, slotId, instanceId)}
         fallback={crashFallback}
-        {...(onCrash ? { onCrash } : {})}
+        onCrash={onCrash}
       >
         <div
           data-bb-plugin={pluginId}

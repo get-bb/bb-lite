@@ -9,7 +9,6 @@ type PageShellScrollBehavior = "bottom-anchor" | "static";
 interface PageShellBaseProps {
   children: ReactNode;
   footer?: ReactNode;
-  scrollOverlay?: ReactNode;
   shellClassName?: string;
   scrollAreaClassName?: string;
   contentClassName?: string;
@@ -19,7 +18,6 @@ interface PageShellBaseProps {
 
 interface PageShellProps extends PageShellBaseProps {
   scrollBehavior?: PageShellScrollBehavior;
-  scrollAnchorThreadId?: string;
 }
 
 interface FooterRenderOptions {
@@ -55,14 +53,12 @@ function renderStaticFooter(
 export function PageShell({
   children,
   footer,
-  scrollOverlay,
   shellClassName,
   scrollAreaClassName,
   contentClassName,
   footerClassName,
   maxWidthClassName = DEFAULT_MAX_WIDTH_CLASS,
   scrollBehavior = "static",
-  scrollAnchorThreadId,
 }: PageShellProps) {
   const staticFooter = renderStaticFooter(footer, {
     maxWidthClassName,
@@ -77,8 +73,6 @@ export function PageShell({
           contentClassName={contentClassName}
           maxWidthClassName={maxWidthClassName}
           footer={staticFooter}
-          scrollOverlay={scrollOverlay}
-          scrollAnchorThreadId={scrollAnchorThreadId}
         >
           {children}
         </BottomAnchoredScrollBody>

@@ -6,32 +6,25 @@ export interface PluginSettingsCandidate {
   name: string;
 }
 
-interface PluginSettingsSectionOwner {
-  pluginId: string;
-}
-
 export interface PluginSettingsEntry {
   icon: string | null;
+  compactIconUrl?: string | null;
   id: string;
   label: string;
 }
 
-interface BuildPluginSettingsEntriesArgs {
+export function buildPluginSettingsEntries(args: {
   installedPlugins: readonly PluginSettingsCandidate[];
-  settingsSections: readonly PluginSettingsSectionOwner[];
-}
-
-export function buildPluginSettingsEntries(
-  args: BuildPluginSettingsEntriesArgs,
-): readonly PluginSettingsEntry[] {
-  const pluginsWithCustomSettings = new Set(
-    args.settingsSections.map((section) => section.pluginId),
-  );
+  settingsSections: readonly { pluginId: string }[];
+}): PluginSettingsEntry[] {
   return args.installedPlugins
     .filter(
       (plugin) =>
         plugin.enabled &&
-        (plugin.hasSettings || pluginsWithCustomSettings.has(plugin.id)),
+        (plugin.hasSettings ||
+          args.settingsSections.some(
+            (section) => section.pluginId === plugin.id,
+          )),
     )
     .map((plugin) => ({
       id: plugin.id,

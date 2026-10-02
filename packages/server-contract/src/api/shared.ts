@@ -39,11 +39,6 @@ export type ThreadContextWindowUsage = z.infer<
   typeof threadContextWindowUsageSchema
 >;
 
-export const threadContextResponseSchema = z.object({
-  usage: threadContextWindowUsageSchema.nullable(),
-});
-export type ThreadContextResponse = z.infer<typeof threadContextResponseSchema>;
-
 export { gitBranchNameSchema };
 
 export const unmanagedBranchSpecSchema = z.discriminatedUnion("kind", [
@@ -156,9 +151,6 @@ export type CreateThreadEnvironmentArgs = z.infer<
 >;
 
 export const pathListIncludeQueryValueSchema = z.enum(["true", "false"]);
-export type PathListIncludeQueryValue = z.infer<
-  typeof pathListIncludeQueryValueSchema
->;
 
 export const branchListQuerySchema = z.object({
   query: z.string().min(1).max(BRANCH_LIST_QUERY_MAX_LENGTH).optional(),

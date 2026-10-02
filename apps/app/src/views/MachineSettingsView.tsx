@@ -1,24 +1,20 @@
-import { MachineLifecycleNoticeContent } from "@/components/machines/MachineLifecycleNotice";
-import { useMemo, useState, type ComponentProps } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { Host, HostPlatform, PermissionMode } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { ResourceOverflowMenu } from "@bb/shared-ui/resource-list";
-import { machineActions } from "@/components/machines/machine-actions";
+import { MachineLabel } from "@/components/machines/MachineLabel";
+import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import {
-  MachineRemoveDialog,
   SERVER_MACHINE_REMOVE_DISABLED_REASON,
   machineRemovalConsequences,
-} from "@/components/machines/MachineRemoveDialog";
-import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
-import { MachineReconnectDialog } from "@/components/machines/MachineReconnectDialog";
-import {
   machineStatusLabel,
-  machineStatusTone,
-} from "@/components/machines/machine-status";
-import { MachineLabel } from "@/components/machines/MachineLabel";
+  useMachineDialogs,
+} from "@/components/machines/machine-dialogs";
+import { PLATFORM_LABELS } from "@/components/settings/MachinesSettingsSection";
+import {
+  SettingsBackLink,
+  SettingsDetailShell,
+} from "@/components/settings/SettingsDropdown";
 import { PageShell } from "@/components/ui/page-shell.js";
 import {
   SettingsBadge,
@@ -27,19 +23,12 @@ import {
   SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import { MachineRenameDialog } from "@/components/settings/MachineRenameDialog";
-import {
-  useRenameHost,
-  useUpdateHostPermissionCeiling,
-} from "@/hooks/mutations/host-mutations";
+import { useUpdateHostPermissionCeiling } from "@/hooks/mutations/host-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useLocalHostId } from "@/hooks/useOpenTargets";
-import {
-  getMutationErrorMessage,
-  showMutationErrorToast,
-} from "@/lib/mutation-errors";
+import { showMutationErrorToast } from "@/lib/mutation-errors";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
@@ -47,271 +36,141 @@ import {
   getSettingsRoutePath,
 } from "@/lib/route-paths";
 
-const PERMISSION_LIMIT_DESCRIPTION =
-  "Highest permission mode any thread on the selected machine may run with. Threads that ask for more resolve down to it, and a provider that supports nothing this low can't run here.";
-
-const PLATFORM_LABELS: Record<HostPlatform, string | null> = {
-  darwin: "macOS",
-  linux: "Linux",
-  wsl: "WSL",
-  unknown: null,
-};
-
-interface MachineProject {
-  id: string;
-  name: string;
-}
-
-function headerMeta({
-  host,
-  platformLabel,
-  now,
-}: {
-  host: Host;
-  platformLabel: string | null;
-  now: number;
-}): string {
-  const parts: string[] = [machineStatusLabel({ host, now })];
-  if (platformLabel !== null) parts.push(platformLabel);
-  parts.push(
-    `paired ${formatRelativeTime({ timestamp: host.createdAt, now })}`,
-  );
-  return parts.join(" · ");
-}
-
-interface PermissionLimitCardProps {
-  disabled: boolean;
-  onSelect: (permissionMode: PermissionMode) => void;
-  value: PermissionMode;
-}
-
-function PermissionLimitCards({
-  disabled,
-  onSelect,
-  value,
-}: PermissionLimitCardProps) {
-  return (
-    <div role="radiogroup" aria-label="Permission limit">
-      <SettingsRowList>
-        {PERMISSION_MODE_OPTIONS.map((option) => {
-          const selected = option.value === value;
-          return (
-            <SettingsRow key={option.value} className="items-start">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={disabled}
-                onClick={() => {
-                  if (!selected) onSelect(option.value);
-                }}
-                className={cn(
-                  "flex w-full items-start gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  disabled && "opacity-70",
-                )}
-              >
-                <span
-                  className={cn(
-                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                    selected ? "border-foreground" : "border-input",
-                  )}
-                >
-                  {selected ? (
-                    <span className="size-2 rounded-full bg-foreground" />
-                  ) : null}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-foreground">
-                    {option.label}
-                  </span>
-                  {option.description ? (
-                    <span className="mt-0.5 block text-xs leading-snug text-subtle-foreground/75">
-                      {option.description}
-                    </span>
-                  ) : null}
-                </span>
-              </button>
-            </SettingsRow>
-          );
-        })}
-      </SettingsRowList>
-    </div>
-  );
-}
-
-export function MachineSettingsHeader({
-  host,
-  platformLabel,
-  now,
-  isPrimary,
-  isThisMachine,
-  showServerBadge,
-  lifecycleNotice,
-  onRename,
-  onReconnect,
-}: {
-  host: Host;
-  platformLabel: string | null;
-  now: number;
-  isPrimary: boolean;
-  isThisMachine: boolean;
-  showServerBadge: boolean;
-  lifecycleNotice: ComponentProps<
-    typeof MachineLifecycleNoticeContent
-  >["notice"];
-  onRename: () => void;
-  onReconnect: () => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <Link
-        to={getSettingsRoutePath("machines")}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <Icon name="ChevronLeft" className="size-3.5" />
-        Machines
-      </Link>
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="min-w-0 text-sm font-semibold text-foreground">
-              <MachineLabel host={host} />
-            </h1>
-            {isThisMachine ? <SettingsBadge>This machine</SettingsBadge> : null}
-            {showServerBadge ? <SettingsBadge>Server</SettingsBadge> : null}
-          </div>
-          <div className="flex min-w-0 items-center gap-2">
-            <MachineStatusDot tone={machineStatusTone(host)} />
-            <p className="min-w-0 text-xs text-subtle-foreground/75">
-              {headerMeta({ host, platformLabel, now })}
-            </p>
-          </div>
-          <MachineLifecycleNoticeContent notice={lifecycleNotice} />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <ResourceOverflowMenu
-            label={`${host.name} actions`}
-            items={machineActions({
-              host,
-              isPrimary,
-              onRename,
-              onReconnect,
-            })}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function MachineSettingsView() {
   const { hostId } = useParams<{ hostId: string }>();
   const navigate = useNavigate();
-  const hostsQuery = useHosts();
-  const systemConfig = useSystemConfig();
+  const hosts = useHosts().data;
+  const systemConfig = useSystemConfig().data;
   const localHostId = useLocalHostId();
-  const sidebarNavigationQuery = useSidebarNavigation();
-  const renameHost = useRenameHost();
+  const navigation = useSidebarNavigation().data;
   const updatePermissionCeiling = useUpdateHostPermissionCeiling();
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [removeOpen, setRemoveOpen] = useState(false);
-  const [reconnectOpen, setReconnectOpen] = useState(false);
-
-  const hosts = hostsQuery.data;
+  const dialogs = useMachineDialogs(hosts, () =>
+    navigate(getSettingsRoutePath("machines")),
+  );
   const host = hosts?.find((candidate) => candidate.id === hostId) ?? null;
-  const lifecycleMessage = host?.lifecycle.message ?? null;
-  const lifecycleNotice = host === null ? null : { message: lifecycleMessage };
-  const primaryHostId = systemConfig.data?.primaryHostId ?? null;
-  const isPrimary = host !== null && host.id === primaryHostId;
-  const showThisMachineBadge =
-    (hosts?.filter((candidate) => candidate.type === "persistent").length ??
-      0) > 1;
-  const isThisMachine =
-    showThisMachineBadge && host !== null && host.id === localHostId;
-
-  const projects: MachineProject[] = useMemo(() => {
-    const navigation = sidebarNavigationQuery.data?.projects ?? [];
-    return navigation
-      .filter((project) =>
-        project.sources.some((source) => source.hostId === hostId),
-      )
-      .map((project) => ({ id: project.id, name: project.name }));
-  }, [hostId, sidebarNavigationQuery.data]);
-
-  const now = Date.now();
-  const platformLabel =
-    isPrimary && systemConfig.data?.primaryHostPlatform
-      ? PLATFORM_LABELS[systemConfig.data.primaryHostPlatform]
-      : null;
 
   if (hosts === undefined) {
     return (
-      <PageShell contentClassName="pt-4 md:pt-5">
-        <div className="mx-auto w-full max-w-3xl">
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        </div>
-      </PageShell>
+      <SettingsDetailShell section="machines" label="Machines">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </SettingsDetailShell>
+    );
+  }
+  if (host === null) {
+    return (
+      <SettingsDetailShell section="machines" label="Machines">
+        <p className="text-sm text-muted-foreground">
+          Machine is no longer paired.
+        </p>
+      </SettingsDetailShell>
     );
   }
 
-  if (host === null) {
-    return (
-      <PageShell contentClassName="pt-4 md:pt-5">
-        <div className="mx-auto w-full max-w-3xl space-y-3">
-          <Link
-            to={getSettingsRoutePath("machines")}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronLeft" className="size-3.5" />
-            Machines
-          </Link>
-          <p className="text-sm text-muted-foreground">
-            Machine is no longer paired.
-          </p>
-        </div>
-      </PageShell>
-    );
-  }
+  const isPrimary = host.id === systemConfig?.primaryHostId;
+  const platform =
+    isPrimary && systemConfig?.primaryHostPlatform
+      ? PLATFORM_LABELS[systemConfig.primaryHostPlatform]
+      : null;
+  const projects = (navigation?.projects ?? []).filter((project) =>
+    project.sources.some((source) => source.hostId === host.id),
+  );
+  const paired = `paired ${formatRelativeTime({ timestamp: host.createdAt, now: Date.now() })}`;
 
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-10">
-        <MachineSettingsHeader
-          host={host}
-          platformLabel={platformLabel}
-          now={now}
-          isPrimary={isPrimary}
-          isThisMachine={isThisMachine}
-          showServerBadge={isPrimary}
-          lifecycleNotice={lifecycleNotice}
-          onRename={() => {
-            renameHost.reset();
-            setRenameOpen(true);
-          }}
-          onReconnect={() => setReconnectOpen(true)}
-        />
+        <div className="space-y-3">
+          <SettingsBackLink section="machines" label="Machines" />
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 className="min-w-0 text-sm font-semibold text-foreground">
+                  <MachineLabel host={host} />
+                </h1>
+                {host.id === localHostId &&
+                hosts.filter((other) => other.type === "persistent").length >
+                  1 ? (
+                  <SettingsBadge>This machine</SettingsBadge>
+                ) : null}
+                {isPrimary ? <SettingsBadge>Server</SettingsBadge> : null}
+              </div>
+              <div className="flex min-w-0 items-center gap-2">
+                <MachineStatusDot connected={host.status === "connected"} />
+                <p className="min-w-0 text-xs text-subtle-foreground/75">
+                  {[machineStatusLabel(host), platform, paired]
+                    .filter((part) => part !== null)
+                    .join(" · ")}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <ResourceOverflowMenu
+                label={`${host.name} actions`}
+                items={dialogs.menuItems(host, isPrimary, false)}
+              />
+            </div>
+          </div>
+        </div>
 
         <SettingsSection
           title="Permission limit"
-          description={PERMISSION_LIMIT_DESCRIPTION}
+          description="Highest permission mode any thread on the selected machine may run with. Threads that ask for more resolve down to it, and a provider that supports nothing this low can't run here."
         >
-          <PermissionLimitCards
-            value={host.maxPermissionMode}
-            disabled={updatePermissionCeiling.isPending}
-            onSelect={(maxPermissionMode) =>
-              updatePermissionCeiling.mutate(
-                { hostId: host.id, maxPermissionMode },
-                {
-                  onError: (error) => {
-                    showMutationErrorToast({
-                      error,
-                      fallbackMessage: `Couldn't change the permission limit for ${host.name}.`,
-                    });
-                  },
-                },
-              )
-            }
-          />
+          <div role="radiogroup" aria-label="Permission limit">
+            <SettingsRowList>
+              {PERMISSION_MODE_OPTIONS.map((option) => {
+                const selected = option.value === host.maxPermissionMode;
+                return (
+                  <SettingsRow key={option.value} className="items-start">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={updatePermissionCeiling.isPending}
+                      onClick={() => {
+                        if (selected) return;
+                        updatePermissionCeiling.mutate(
+                          { hostId: host.id, maxPermissionMode: option.value },
+                          {
+                            onError: (error) =>
+                              showMutationErrorToast({
+                                error,
+                                fallbackMessage: `Couldn't change the permission limit for ${host.name}.`,
+                              }),
+                          },
+                        );
+                      }}
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        updatePermissionCeiling.isPending && "opacity-70",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                          selected ? "border-foreground" : "border-input",
+                        )}
+                      >
+                        {selected ? (
+                          <span className="size-2 rounded-full bg-foreground" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-foreground">
+                          {option.label}
+                        </span>
+                        {option.description ? (
+                          <span className="mt-0.5 block text-xs leading-snug text-subtle-foreground/75">
+                            {option.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  </SettingsRow>
+                );
+              })}
+            </SettingsRowList>
+          </div>
         </SettingsSection>
 
         <SettingsSection title="Machine information">
@@ -353,7 +212,7 @@ export function MachineSettingsView() {
                 variant="destructive"
                 size="sm"
                 disabled={isPrimary}
-                onClick={() => setRemoveOpen(true)}
+                onClick={() => dialogs.openRemove(host)}
               >
                 Remove machine
               </Button>
@@ -361,39 +220,7 @@ export function MachineSettingsView() {
           </SettingsRowList>
         </SettingsSection>
       </div>
-
-      <MachineRenameDialog
-        target={renameOpen ? host : null}
-        pending={renameHost.isPending}
-        errorMessage={
-          renameHost.isError
-            ? getMutationErrorMessage({
-                error: renameHost.error,
-                fallbackMessage: "Couldn't rename the machine.",
-              })
-            : null
-        }
-        onOpenChange={(open) => {
-          if (!open && !renameHost.isPending) setRenameOpen(false);
-        }}
-        onRename={(target, name) =>
-          renameHost.mutate(
-            { hostId: target.id, name },
-            { onSuccess: () => setRenameOpen(false) },
-          )
-        }
-      />
-
-      <MachineRemoveDialog
-        target={removeOpen ? host : null}
-        onOpenChange={setRemoveOpen}
-        onRemoved={() => navigate(getSettingsRoutePath("machines"))}
-      />
-
-      <MachineReconnectDialog
-        target={reconnectOpen ? host : null}
-        onOpenChange={setReconnectOpen}
-      />
+      {dialogs.dialogs}
     </PageShell>
   );
 }

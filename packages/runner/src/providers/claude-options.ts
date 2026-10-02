@@ -130,11 +130,8 @@ async function skillPlugins(skillDirs: string[]) {
       author: { name: "bb" },
       skills: "./skills",
     };
-    const linked = () =>
-      fs.readlink(link).then(
-        (target) => target === dir,
-        () => false,
-      );
+    const linked = async () =>
+      (await fs.readlink(link).catch(() => null)) === dir;
     const assemble = async () => {
       await fs.mkdir(join(path, ".claude-plugin"), { recursive: true });
       const file = join(path, ".claude-plugin", "plugin.json");
@@ -164,9 +161,8 @@ export async function buildQueryOptions(
   delete env.ELECTRON_RUN_AS_NODE;
   const { effortLevel: effort, ...flags } = settings.flags;
   const bypass = settings.baseMode === "bypassPermissions";
-  const roots = [
-    ...new Set([...host.writableRoots, ...settings.writableRoots]),
-  ];
+  const writable = [...host.writableRoots, ...settings.writableRoots];
+  const roots = [...new Set(writable)];
   const sandbox = {
     enabled: true,
     failIfUnavailable: false,
@@ -276,7 +272,7 @@ export function bbToolServer(
   return { type: "sdk", name: BB_MCP_SERVER, instance };
 }
 
-function toModel(info: ModelInfo, model: string, name: string): AvailableModel {
+function toModel(info: ModelInfo, model: string, name: string) {
   const levels = (info.supportedEffortLevels ?? []).flatMap(
     (level): ReasoningLevel[] =>
       level === "xhigh" ? ["xhigh", "ultracode"] : [level],

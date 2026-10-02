@@ -43,7 +43,7 @@ const hostNativeModules: Plugin = {
   },
 };
 
-function sharedModuleSource(specifier: string): string {
+function sharedModuleSource(specifier: string) {
   return [
     `const shared = globalThis.${PLUGIN_RUNTIME_GLOBAL}[${JSON.stringify(specifier)}];`,
     "const main = shared.default;",
@@ -66,7 +66,7 @@ const sharedModules: Plugin = {
   },
 };
 
-function contentHash(text: string): string {
+function contentHash(text: string) {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
@@ -109,7 +109,7 @@ export async function bundleApp(entry: string): Promise<AppBundle> {
     define: { "process.env.NODE_ENV": '"production"' },
     plugins: [sharedModules],
   });
-  const output = (extension: string): string | null =>
+  const output = (extension: string) =>
     result.outputFiles?.find((file) => file.path.endsWith(extension))?.text ??
     null;
   const js = output(".js") ?? "";

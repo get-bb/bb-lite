@@ -11,7 +11,7 @@ import {
 import { SidebarRenameEditor, renameError } from "./SidebarRenameEditor.js";
 
 interface SidebarRenameArgs {
-  kind: "thread" | "project" | "section" | "environment" | "machine";
+  kind: "thread" | "section" | "environment";
   id: string;
   name: string;
   label: string;

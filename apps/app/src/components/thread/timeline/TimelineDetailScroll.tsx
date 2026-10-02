@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -7,21 +7,6 @@ import {
 } from "../../ui/detail-scroll-size.js";
 import { useStickyBottomScroll } from "./useStickyBottomScroll.js";
 import { useScrollOverflowState } from "./useScrollOverflowState.js";
-import {
-  TimelineWindowingScrollRootContext,
-  type TimelineWindowingScrollRoot,
-} from "./TimelineWindowedItemsLoader.js";
-
-interface TimelineDetailScrollProps {
-  size: DetailScrollSize;
-  overflowX?: "auto" | "hidden";
-  streaming?: boolean;
-  contentKey: string;
-  className?: string;
-  scrollClassName?: string;
-  showAboveFade?: boolean;
-  children: ReactNode;
-}
 
 export function TimelineDetailScroll({
   size,
@@ -32,23 +17,23 @@ export function TimelineDetailScroll({
   scrollClassName,
   showAboveFade = true,
   children,
-}: TimelineDetailScrollProps) {
+}: {
+  size: DetailScrollSize;
+  overflowX?: "auto" | "hidden";
+  streaming?: boolean;
+  contentKey: string;
+  className?: string;
+  scrollClassName?: string;
+  showAboveFade?: boolean;
+  children: ReactNode;
+}) {
   const sticky = useStickyBottomScroll<HTMLDivElement>({
     contentKey,
     streaming,
   });
-  const overflow = useScrollOverflowState<HTMLDivElement>();
-  const maxHeightClassName = getDetailScrollMaxHeightClass(size);
-  const { aboveOverflow, belowOverflow } = overflow;
-
-  const refCallback = useComposedRefs<HTMLDivElement>(
-    sticky.ref,
-    overflow.scrollRef,
-  );
-  const windowingScrollRoot = useMemo<TimelineWindowingScrollRoot>(
-    () => ({ getScrollElement: () => sticky.ref.current }),
-    [sticky.ref],
-  );
+  const { aboveOverflow, belowOverflow, scrollRef } =
+    useScrollOverflowState<HTMLDivElement>();
+  const refCallback = useComposedRefs<HTMLDivElement>(sticky.ref, scrollRef);
 
   return (
     <div
@@ -64,27 +49,13 @@ export function TimelineDetailScroll({
         className={cn(
           "min-w-0 overflow-y-auto",
           overflowX === "auto" ? "overflow-x-auto" : "overflow-x-hidden",
-          maxHeightClassName,
+          getDetailScrollMaxHeightClass(size),
           scrollClassName,
         )}
       >
-        <div
-          ref={overflow.topSentinelRef}
-          aria-hidden
-          className="-mb-px h-px w-full"
-        />
-        <div ref={sticky.contentRef}>
-          <TimelineWindowingScrollRootContext.Provider
-            value={windowingScrollRoot}
-          >
-            {children}
-          </TimelineWindowingScrollRootContext.Provider>
-        </div>
-        <div
-          ref={overflow.bottomSentinelRef}
-          aria-hidden
-          className="h-px w-full"
-        />
+        <div aria-hidden className="-mb-px h-px w-full" />
+        <div>{children}</div>
+        <div aria-hidden className="h-px w-full" />
       </div>
       {showAboveFade && aboveOverflow ? (
         <div

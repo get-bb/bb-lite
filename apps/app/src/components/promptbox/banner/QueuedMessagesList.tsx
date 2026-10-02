@@ -579,7 +579,7 @@ function QueuedMessagesListSurface({
     bottomSentinelRef,
     scrollRef,
     topSentinelRef,
-  } = useScrollOverflowState<HTMLDivElement>({ measureOverflow: true });
+  } = useScrollOverflowState<HTMLDivElement>();
   const isEditing = inlineEditor !== undefined;
   const collapsed = collapsedPreference && !isEditing;
   const messageCount = queuedMessages.length;

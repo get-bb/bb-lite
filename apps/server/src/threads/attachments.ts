@@ -20,11 +20,7 @@ function isStored(part: PromptInput): part is FileInput {
   return file && !pathLooksRuntimeReadable(part.path);
 }
 
-async function copyToHost(
-  runner: ServerRunner,
-  source: string,
-  path: string,
-): Promise<void> {
+async function copyToHost(runner: ServerRunner, source: string, path: string) {
   const bytes = await readFile(source);
   let offset = 0;
   do {

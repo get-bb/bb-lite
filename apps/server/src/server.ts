@@ -17,27 +17,11 @@ import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { startTerminalSessions } from "./terminals/sessions.js";
 import { createThreadEngine } from "./threads/engine.js";
-import { registerSockets } from "./ws/endpoints.js";
+import { socketResolver } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
 import { SocketRegistry } from "./ws/sockets.js";
 
 export type Disposer = () => void | Promise<void>;
-export type StartupStep = (
-  ctx: ServerContext,
-) => void | Disposer | Promise<void | Disposer>;
-
-export const startupSteps: StartupStep[] = [
-  ensureLocalHost,
-  (ctx) => ensurePersonalProject(ctx.db),
-  (ctx) => {
-    ctx.threads.start();
-    return () => ctx.threads.close();
-  },
-  (ctx) => ctx.environments.start(),
-  startPlugins,
-  startTerminalSessions,
-  startWorkspaceWatch,
-];
 
 export interface CreateServerOptions {
   config: ServerConfig;
@@ -84,18 +68,19 @@ export function createServer(options: CreateServerOptions): BbServer {
   const environments = createEnvironments(ctx);
   const threads = createThreadEngine(ctx);
   const app = createHttpApp(ctx);
-  const sockets = new SocketRegistry(ctx);
-  registerSockets(sockets, ctx);
+  const sockets = new SocketRegistry(ctx, socketResolver(ctx));
   const disposers: Disposer[] = [];
   let http: ServerType | undefined;
 
   return {
     ctx,
     async listen() {
-      for (const step of startupSteps) {
-        const dispose = await step(ctx);
-        if (dispose !== undefined) disposers.push(dispose);
-      }
+      disposers.push(ensureLocalHost(ctx));
+      ensurePersonalProject(db);
+      threads.start();
+      disposers.push(() => threads.close(), environments.start());
+      disposers.push(await startPlugins(ctx));
+      disposers.push(startTerminalSessions(ctx), startWorkspaceWatch(ctx));
       const { port, bindHost: hostname } = config;
       http = serve({ fetch: app.fetch, port, hostname });
       http.on("upgrade", sockets.handleUpgrade);

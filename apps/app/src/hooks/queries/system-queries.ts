@@ -173,7 +173,7 @@ export function useKnownProviderModelCatalogScope(
     providers: readonly ProviderInfo[] | undefined,
   ): ProviderModelCatalogScope | undefined =>
     providers?.find((provider) => provider.id === providerId)?.capabilities
-      .modelCatalogScope;
+      ?.modelCatalogScope;
   for (const [, options] of queryClient.getQueriesData<{
     providers: ProviderInfo[];
   }>({ queryKey: allSystemExecutionOptionsQueryKeyPrefix() })) {

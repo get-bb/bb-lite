@@ -1,417 +1,56 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { TimelineUserConversationRow } from "@bb/server-contract";
-import type {
-  PromptTextMention,
-  SystemMessageKind,
-  SystemMessageSubject,
-  ThreadOriginKind,
-} from "@bb/domain";
+import type { SystemMessageKind } from "@bb/domain";
 import type { TimelineTitle, TimelineTitleSegment } from "@bb/thread-view";
+import {
+  boundedMarkdownPreview,
+  closeUnterminatedMarkdownCodeSpan,
+  computeMutedPrefixLength,
+  endsInsideExactRawThreadIdCodeSpan,
+  GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP,
+  turnRequestLabel,
+} from "@bb/client-core";
 import { type IconName } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
-import { buildMarkdownMessageLinkRouting } from "@/components/ui/markdown-message-link-routing";
-import { cn } from "@bb/shared-ui/lib/utils";
-import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
+import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions.js";
+import { getThreadRoutePath } from "@/lib/route-paths";
 import {
   ConversationAttachments,
   type ConversationAttachmentItems,
 } from "./ConversationAttachments.js";
-import { computeMutedPrefixLength } from "@bb/client-core";
 import {
   clipMentionTextToVisibleRange,
+  PromptMentionPill,
   shiftMentionsToTextRange,
 } from "./ConversationMessageMentions.js";
 import { ExpandableTimelineRow } from "./ExpandableTimelineRow.js";
 import { NESTED_TIMELINE_GROUP_LINE_CLASS_NAME } from "./timeline-nested-group-line.js";
-import type {
-  TimelineTitleActionResolver,
-  TimelineTitleLinkResolver,
-} from "./TimelineTitleView.js";
-import type {
-  ThreadTimelineLinkHandler,
-  ThreadTimelineLocalFileLinkHandler,
-} from "./types.js";
-import { turnRequestLabel } from "@bb/client-core";
 import { TurnRequestLabel } from "./TurnRequestLabel.js";
 import { useOverflowMeasurement } from "./conversation-message-overflow.js";
-import { PromptMentionPill } from "./ConversationMessageMentions.js";
-import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions.js";
-import { getThreadRoutePath } from "@/lib/route-paths";
-import {
-  boundedMarkdownPreview,
-  closeUnterminatedMarkdownCodeSpan,
-  endsInsideExactRawThreadIdCodeSpan,
-  GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP,
-} from "@bb/client-core";
+import { useTimeline } from "./timeline-context.js";
 
-interface GeneratedConversationMessageProps {
-  attachmentItems: ConversationAttachmentItems;
-  originKind: ThreadOriginKind | null;
-  mentions: readonly PromptTextMention[];
-  onOpenLink?: ThreadTimelineLinkHandler;
-  onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
-  projectId?: string;
-  resolveMentionLink?: PromptMentionLinkResolver;
-  resolveSegmentLinkHref?: TimelineTitleLinkResolver;
-  onTitleAction?: TimelineTitleActionResolver;
-  sourceKind: GeneratedConversationSourceKind;
-  sourceName: string;
-  sourceProjectId: string | null;
-  sourceThreadId: string | null;
-  systemMessageKind: SystemMessageKind;
-  systemMessageSubject: SystemMessageSubject | null;
-  text: string;
-  threadId?: string;
-  turnRequest: TimelineUserConversationRow["turnRequest"];
-  workspaceRootPath?: string;
-}
+const SYSTEM_MESSAGE_VERBS: Partial<Record<SystemMessageKind, string>> = {
+  "ownership-assigned": "assigned to you",
+  "ownership-removed": "unassigned",
+  "child-needs-attention": "needs attention",
+  "child-completed": "finished",
+  "child-failed": "failed",
+  "child-interrupted": "was interrupted",
+};
 
-type GeneratedConversationSourceKind = "agent" | "system";
-
-interface GeneratedConversationBodyTextArgs {
-  initiator: TimelineUserConversationRow["initiator"];
-  text: string;
-}
-
-interface GeneratedConversationBodySlice {
-  startOffset: number;
-  text: string;
-}
-
-interface GeneratedConversationCollapsedPreview {
-  hasAdditionalBodyLines: boolean;
-  parseAsMarkdown: boolean;
-  text: string;
-  wasCapped: boolean;
-}
-
-interface TimelineTitleSegmentArgs {
-  em: boolean;
-  link: TimelineTitleSegment["link"] | null;
-  shimmer: boolean;
-  text: string;
-  truncate: boolean;
-}
-
-interface GeneratedConversationTitleArgs {
-  originKind: ThreadOriginKind | null;
-  sourceKind: GeneratedConversationSourceKind;
-  sourceName: string;
-  sourceThreadId: string | null;
-  systemMessageKind: SystemMessageKind;
-  systemMessageSubject: SystemMessageSubject | null;
-}
-
-export function generatedConversationBodySlice({
-  initiator,
-  text,
-}: GeneratedConversationBodyTextArgs): GeneratedConversationBodySlice {
-  const prefixLength = computeMutedPrefixLength(initiator, text);
-  if (prefixLength <= 0) {
-    return { startOffset: 0, text };
-  }
-
-  const textAfterPrefix = text.slice(prefixLength);
-  const trimStartLength =
-    textAfterPrefix.length - textAfterPrefix.trimStart().length;
-  return {
-    startOffset: prefixLength + trimStartLength,
-    text: textAfterPrefix.slice(trimStartLength),
-  };
-}
-
-export function generatedConversationCollapsedPreview(
-  text: string,
-): GeneratedConversationCollapsedPreview {
-  const previewWindow = text.slice(
-    0,
-    GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP + 1,
-  );
-  const lineBreakMatch = /\r\n|\r|\n/u.exec(previewWindow);
-  if (lineBreakMatch !== null) {
-    const text = previewWindow.slice(0, lineBreakMatch.index);
-    return {
-      hasAdditionalBodyLines: true,
-      parseAsMarkdown: !endsInsideExactRawThreadIdCodeSpan(text),
-      text,
-      wasCapped: false,
-    };
-  }
-
-  const bounded = boundedMarkdownPreview(
-    text,
-    GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP,
-  );
-  return {
-    hasAdditionalBodyLines: false,
-    ...bounded,
-  };
-}
-
-function timelineTitleSegment({
-  em,
-  link,
-  shimmer,
-  text,
-  truncate,
-}: TimelineTitleSegmentArgs): TimelineTitleSegment {
-  const segment: TimelineTitleSegment = {
-    em,
-    shimmer,
-    text,
-    truncate,
-  };
-  if (link !== null) {
-    segment.link = link;
-  }
-  return segment;
-}
-
-function verbSegment(text: string): TimelineTitleSegment {
-  return timelineTitleSegment({
-    em: false,
-    link: null,
-    shimmer: false,
-    text,
-    truncate: false,
-  });
-}
-
-function subjectSegment(
-  text: string,
-  threadId: string | null,
-): TimelineTitleSegment {
-  return timelineTitleSegment({
-    em: true,
-    link: threadId === null ? null : { kind: "thread", threadId },
-    shimmer: false,
-    text,
-    truncate: true,
-  });
-}
-
-const SYSTEM_MESSAGE_FALLBACK_SEGMENTS: TimelineTitleSegment[] = [
-  timelineTitleSegment({
-    em: false,
-    link: null,
-    shimmer: false,
-    text: "System Message",
-    truncate: true,
-  }),
-];
-
-function threadSubjectTitleSegments(
-  subject: SystemMessageSubject | null,
-  verb: string,
-): TimelineTitleSegment[] {
-  if (subject === null || subject.kind !== "thread") {
-    return SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
-  }
-  return [
-    subjectSegment(subject.threadName, subject.threadId),
-    verbSegment(verb),
-  ];
-}
-
-function systemMessageTitleSegments(
-  systemMessageKind: SystemMessageKind,
-  subject: SystemMessageSubject | null,
-): TimelineTitleSegment[] {
-  switch (systemMessageKind) {
-    case "ownership-assigned":
-      return threadSubjectTitleSegments(subject, "assigned to you");
-    case "ownership-removed":
-      return threadSubjectTitleSegments(subject, "unassigned");
-    case "child-needs-attention":
-      return threadSubjectTitleSegments(subject, "needs attention");
-    case "child-completed":
-      return threadSubjectTitleSegments(subject, "finished");
-    case "child-failed":
-      return threadSubjectTitleSegments(subject, "failed");
-    case "child-interrupted":
-      return threadSubjectTitleSegments(subject, "was interrupted");
-    case "child-outcome-batch":
-      return subject !== null && subject.kind === "thread-batch"
-        ? [verbSegment(`${subject.count} threads updated`)]
-        : SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
-    case "tool-result-delivered":
-      return subject !== null && subject.kind === "tool-call"
-        ? [
-            verbSegment("Delivered"),
-            subjectSegment(subject.toolName, null),
-            verbSegment("result"),
-          ]
-        : SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
-    case "unlabeled":
-      return SYSTEM_MESSAGE_FALLBACK_SEGMENTS;
-  }
-}
-
-export function generatedConversationTitle({
-  originKind,
-  sourceKind,
-  sourceName,
-  sourceThreadId,
-  systemMessageKind,
-  systemMessageSubject,
-}: GeneratedConversationTitleArgs): TimelineTitle {
-  const agentLeadIn = originKind === "fork" ? "Forked from" : "Message from";
-  const sourceLink =
-    sourceThreadId === null
-      ? null
-      : ({ kind: "thread", threadId: sourceThreadId } as const);
-  const segments: TimelineTitleSegment[] =
-    sourceKind === "agent"
-      ? [
-          timelineTitleSegment({
-            em: false,
-            link: null,
-            shimmer: false,
-            text: agentLeadIn,
-            truncate: false,
-          }),
-          timelineTitleSegment({
-            em: true,
-            link: sourceLink,
-            shimmer: false,
-            text: sourceName,
-            truncate: true,
-          }),
-        ]
-      : systemMessageTitleSegments(systemMessageKind, systemMessageSubject);
-
-  return {
-    action: null,
-    decorations: [],
-    plain: segments
-      .map((segment) => segment.plainText ?? segment.text)
-      .join(" "),
-    segments,
-    tone: "default",
-  };
-}
-
-function generatedConversationEmptyText(
-  sourceKind: GeneratedConversationSourceKind,
-): string {
-  switch (sourceKind) {
-    case "agent":
-      return "Sent an agent message";
-    case "system":
-      return "Sent a BB system message";
-  }
-}
-
-function systemMessageIconName(systemMessageKind: SystemMessageKind): IconName {
-  switch (systemMessageKind) {
-    case "ownership-assigned":
-      return "UserRoundPlus";
-    case "ownership-removed":
-      return "UserRound";
-    case "child-needs-attention":
-      return "AlertTriangle";
-    case "child-completed":
-      return "CircleCheck";
-    case "child-failed":
-      return "CircleX";
-    case "child-interrupted":
-      return "AlertCircle";
-    case "child-outcome-batch":
-      return "ListTodo";
-    case "tool-result-delivered":
-      return "Toolbox";
-    case "unlabeled":
-      return "Info";
-  }
-}
-
-function generatedConversationIconName(
-  sourceKind: GeneratedConversationSourceKind,
-  originKind: ThreadOriginKind | null,
-  systemMessageKind: SystemMessageKind,
-): IconName {
-  if (originKind === "fork") {
-    return "Fork";
-  }
-  switch (sourceKind) {
-    case "agent":
-      return "MessageSquare";
-    case "system":
-      return systemMessageIconName(systemMessageKind);
-  }
-}
-
-interface GeneratedAgentSourceTitleProps {
-  resolveSegmentLinkHref?: TimelineTitleLinkResolver;
-  sourceName: string;
-  sourceProjectId: string | null;
-  sourceThreadId: string | null;
-  title: TimelineTitle;
-}
-
-function GeneratedAgentSourceTitle({
-  resolveSegmentLinkHref,
-  sourceName,
-  sourceProjectId,
-  sourceThreadId,
-  title,
-}: GeneratedAgentSourceTitleProps) {
-  const sourceDisplayName = useThreadTitleDisplayText(sourceName);
-  const sourceLinkHref =
-    sourceThreadId !== null
-      ? sourceProjectId !== null
-        ? getThreadRoutePath({
-            projectId: sourceProjectId,
-            threadId: sourceThreadId,
-          })
-        : (resolveSegmentLinkHref?.({
-            kind: "thread",
-            threadId: sourceThreadId,
-          }) ?? null)
-      : null;
-  const leadIn = title.segments[0]?.text ?? "Message from";
-
-  return (
-    <span
-      className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden whitespace-nowrap text-sm leading-5"
-      title={`${leadIn} ${sourceDisplayName}`}
-    >
-      <span className="shrink-0 whitespace-pre text-muted-foreground">
-        {leadIn}
-      </span>{" "}
-      {sourceThreadId === null ? (
-        <span className="min-w-0 truncate font-medium text-foreground opacity-70">
-          {sourceDisplayName}
-        </span>
-      ) : (
-        <PromptMentionPill
-          resource={{
-            kind: "thread",
-            threadId: sourceThreadId,
-            ...(sourceProjectId === null ? {} : { projectId: sourceProjectId }),
-            label: sourceDisplayName,
-          }}
-          serializedText={`@thread:${sourceThreadId}`}
-          linkHref={sourceLinkHref ?? undefined}
-        />
-      )}
-    </span>
-  );
-}
-
-function systemMessageIsTitleOnly(
-  sourceKind: GeneratedConversationSourceKind,
-  systemMessageKind: SystemMessageKind,
-): boolean {
-  if (sourceKind !== "system") {
-    return false;
-  }
-  return (
-    systemMessageKind === "ownership-assigned" ||
-    systemMessageKind === "ownership-removed"
-  );
-}
+const SYSTEM_MESSAGE_ICONS: Record<SystemMessageKind, IconName> = {
+  "ownership-assigned": "UserRoundPlus",
+  "ownership-removed": "UserRound",
+  "child-needs-attention": "AlertTriangle",
+  "child-completed": "CircleCheck",
+  "child-failed": "CircleX",
+  "child-interrupted": "AlertCircle",
+  "child-outcome-batch": "ListTodo",
+  "tool-result-delivered": "Toolbox",
+  unlabeled: "Info",
+};
 
 const COLLAPSED_MARKDOWN_PREVIEW_CLASS = cn(
   "[&_p]:!m-0 [&_p]:inline",
@@ -423,200 +62,291 @@ const COLLAPSED_MARKDOWN_PREVIEW_CLASS = cn(
   "[&_blockquote]:!m-0 [&_blockquote]:inline [&_blockquote]:!border-0 [&_blockquote]:!pl-0",
 );
 
-export const GeneratedConversationMessage = memo(
-  function GeneratedConversationMessage({
-    attachmentItems,
-    originKind,
-    mentions,
-    onOpenLink,
-    onOpenLocalFileLink,
-    projectId,
+function verb(text: string, truncate = false): TimelineTitleSegment {
+  return { em: false, shimmer: false, text, truncate };
+}
+
+function subject(text: string, threadId: string | null): TimelineTitleSegment {
+  return {
+    em: true,
+    shimmer: false,
+    text,
+    truncate: true,
+    ...(threadId === null
+      ? {}
+      : { link: { kind: "thread" as const, threadId } }),
+  };
+}
+
+function systemMessageSegments(
+  row: TimelineUserConversationRow,
+): TimelineTitleSegment[] {
+  const { systemMessageKind: kind, systemMessageSubject: about } = row;
+  const threadVerb = SYSTEM_MESSAGE_VERBS[kind];
+  if (threadVerb !== undefined && about?.kind === "thread") {
+    return [subject(about.threadName, about.threadId), verb(threadVerb)];
+  }
+  if (kind === "child-outcome-batch" && about?.kind === "thread-batch") {
+    return [verb(`${about.count} threads updated`)];
+  }
+  if (kind === "tool-result-delivered" && about?.kind === "tool-call") {
+    return [verb("Delivered"), subject(about.toolName, null), verb("result")];
+  }
+  return [verb("System Message", true)];
+}
+
+function collapsedPreviewSource(text: string) {
+  const previewWindow = text.slice(
+    0,
+    GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP + 1,
+  );
+  const lineBreak = /\r\n|\r|\n/u.exec(previewWindow);
+  if (lineBreak === null) {
+    return {
+      hasAdditionalBodyLines: false,
+      ...boundedMarkdownPreview(
+        text,
+        GENERATED_MESSAGE_COLLAPSED_PREVIEW_CHAR_CAP,
+      ),
+    };
+  }
+  const firstLine = previewWindow.slice(0, lineBreak.index);
+  return {
+    hasAdditionalBodyLines: true,
+    parseAsMarkdown: !endsInsideExactRawThreadIdCodeSpan(firstLine),
+    text: firstLine,
+    wasCapped: false,
+  };
+}
+
+function AgentSourceTitle({
+  leadIn,
+  sourceName,
+  sourceProjectId,
+  sourceThreadId,
+}: {
+  leadIn: string;
+  sourceName: string;
+  sourceProjectId: string | null;
+  sourceThreadId: string;
+}) {
+  const { resolveSegmentLinkHref } = useTimeline();
+  const sourceDisplayName = useThreadTitleDisplayText(sourceName);
+  const linkHref =
+    sourceProjectId !== null
+      ? getThreadRoutePath({
+          projectId: sourceProjectId,
+          threadId: sourceThreadId,
+        })
+      : resolveSegmentLinkHref({ kind: "thread", threadId: sourceThreadId });
+  return (
+    <span
+      className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden whitespace-nowrap text-sm leading-5"
+      title={`${leadIn} ${sourceDisplayName}`}
+    >
+      <span className="shrink-0 whitespace-pre text-muted-foreground">
+        {leadIn}
+      </span>{" "}
+      <PromptMentionPill
+        resource={{
+          kind: "thread",
+          threadId: sourceThreadId,
+          ...(sourceProjectId === null ? {} : { projectId: sourceProjectId }),
+          label: sourceDisplayName,
+        }}
+        serializedText={`@thread:${sourceThreadId}`}
+        linkHref={linkHref ?? undefined}
+      />
+    </span>
+  );
+}
+
+export function GeneratedConversationMessage({
+  attachmentItems,
+  linkRouting,
+  row,
+}: {
+  attachmentItems: ConversationAttachmentItems;
+  linkRouting: MarkdownLinkRouting | undefined;
+  row: TimelineUserConversationRow;
+}) {
+  const {
+    onTitleAction,
     resolveMentionLink,
     resolveSegmentLinkHref,
-    onTitleAction,
-    sourceKind,
-    sourceName,
-    sourceProjectId,
-    sourceThreadId,
-    systemMessageKind,
-    systemMessageSubject,
-    text,
-    threadId,
-    turnRequest,
-    workspaceRootPath,
-  }: GeneratedConversationMessageProps) {
-    const trimStartLength = text.length - text.trimStart().length;
-    const messageText = text.trim();
-    const messageMentions = useMemo(
-      () =>
-        shiftMentionsToTextRange({
-          mentions,
-          rangeStart: trimStartLength,
-          rangeEnd: trimStartLength + messageText.length,
-        }),
-      [mentions, messageText.length, trimStartLength],
-    );
-    const requestLabel = turnRequestLabel(turnRequest);
-    const linkRouting = useMemo<MarkdownLinkRouting | undefined>(
-      () =>
-        buildMarkdownMessageLinkRouting({
-          onOpenLink,
-          onOpenLocalFileLink,
-          threadId,
-          workspaceRootPath,
-        }),
-      [onOpenLink, onOpenLocalFileLink, threadId, workspaceRootPath],
-    );
-    const title = useMemo(
-      () =>
-        generatedConversationTitle({
-          originKind,
-          sourceKind,
-          sourceName,
-          sourceThreadId,
-          systemMessageKind,
-          systemMessageSubject,
-        }),
-      [
-        originKind,
-        sourceKind,
-        sourceName,
-        sourceThreadId,
-        systemMessageKind,
-        systemMessageSubject,
-      ],
-    );
-    const sourceTitleContent =
-      sourceKind === "agent" ? (
-        <GeneratedAgentSourceTitle
-          resolveSegmentLinkHref={resolveSegmentLinkHref}
-          sourceName={sourceName}
-          sourceProjectId={sourceProjectId}
-          sourceThreadId={sourceThreadId}
-          title={title}
-        />
-      ) : undefined;
-    const leadingIcon = generatedConversationIconName(
-      sourceKind,
-      originKind,
-      systemMessageKind,
-    );
-    const titleOnly = systemMessageIsTitleOnly(sourceKind, systemMessageKind);
-    const hasExpandedOnlyContent =
-      attachmentItems.filePaths.length > 0 ||
+    senderThreads,
+    threadOriginKind,
+  } = useTimeline();
+  const { senderThreadId, systemMessageKind, turnRequest } = row;
+  const isAgent = row.initiator === "agent" && senderThreadId !== null;
+  const sender = isAgent ? senderThreads.get(senderThreadId) : undefined;
+  const isFork =
+    isAgent && row.turnId === null && (threadOriginKind ?? null) === "fork";
+  const leadIn = isFork ? "Forked from" : "Message from";
+  const sourceName = sender?.title ?? "Agent";
+
+  const prefixLength = Math.max(
+    0,
+    computeMutedPrefixLength(row.initiator, row.text),
+  );
+  const bodyText = row.text.slice(prefixLength);
+  const messageText = bodyText.trim();
+  const bodyStart =
+    prefixLength + bodyText.length - bodyText.trimStart().length;
+  const messageMentions = useMemo(
+    () =>
+      shiftMentionsToTextRange({
+        mentions: row.mentions,
+        rangeStart: bodyStart,
+        rangeEnd: bodyStart + messageText.length,
+      }),
+    [row.mentions, bodyStart, messageText.length],
+  );
+  const title = useMemo<TimelineTitle>(() => {
+    const segments = isAgent
+      ? [verb(leadIn), subject(sourceName, senderThreadId)]
+      : systemMessageSegments(row);
+    return {
+      action: null,
+      decorations: [],
+      plain: segments
+        .map((segment) => segment.plainText ?? segment.text)
+        .join(" "),
+      segments,
+      tone: "default",
+    };
+  }, [isAgent, leadIn, sourceName, senderThreadId, row]);
+
+  const titleOnly =
+    !isAgent &&
+    (systemMessageKind === "ownership-assigned" ||
+      systemMessageKind === "ownership-removed");
+  const requestLabel = turnRequestLabel(turnRequest);
+  const preview = collapsedPreviewSource(messageText);
+  const previewTextRef = useRef<HTMLDivElement>(null);
+  const previewOverflow = useOverflowMeasurement({
+    elementRef: previewTextRef,
+    enabled: !titleOnly && messageText.length > 0,
+    measurementKey: messageText,
+  });
+  const expandable =
+    !titleOnly &&
+    (attachmentItems.filePaths.length > 0 ||
       attachmentItems.imageItems.length > 0 ||
-      requestLabel !== null;
-    const collapsedPreviewSource =
-      generatedConversationCollapsedPreview(messageText);
-    const collapsedPreviewTextRef = useRef<HTMLElement | null>(null);
-    const setCollapsedPreviewTextRef = useCallback(
-      (element: HTMLElement | null) => {
-        collapsedPreviewTextRef.current = element;
-      },
-      [],
-    );
-    const collapsedPreviewOverflowMeasurement = useOverflowMeasurement({
-      elementRef: collapsedPreviewTextRef,
-      enabled: !titleOnly && messageText.length > 0,
-      measurementKey: messageText,
-    });
-    const expandable =
-      !titleOnly &&
-      (hasExpandedOnlyContent ||
-        collapsedPreviewSource.hasAdditionalBodyLines ||
-        collapsedPreviewSource.wasCapped ||
-        collapsedPreviewOverflowMeasurement === "overflowing");
-    const hideManualContinuation =
-      collapsedPreviewOverflowMeasurement === "overflowing";
-    const collapsedPreviewBody = clipMentionTextToVisibleRange({
-      mentions: messageMentions,
-      rangeStart: 0,
-      text: collapsedPreviewSource.text,
-    });
-    const collapsedPreviewMarkdown =
-      collapsedPreviewSource.wasCapped ||
-      collapsedPreviewSource.hasAdditionalBodyLines
-        ? closeUnterminatedMarkdownCodeSpan(collapsedPreviewBody.text)
-        : collapsedPreviewBody.text;
-    const suppressGeneratedAgentImages = sourceKind === "agent";
-    const collapsedPreview =
-      !titleOnly && collapsedPreviewBody.text ? (
-        <div
-          className={`${NESTED_TIMELINE_GROUP_LINE_CLASS_NAME} max-w-full min-w-0`}
-        >
-          <div className="flex min-w-0 items-baseline truncate pl-2 text-sm leading-relaxed text-foreground">
-            <div ref={setCollapsedPreviewTextRef} className="min-w-0 truncate">
-              {collapsedPreviewSource.parseAsMarkdown ? (
-                <MarkdownPreview
-                  allowHtml
-                  content={collapsedPreviewMarkdown}
-                  imagePolicy={
-                    suppressGeneratedAgentImages ? "alt-text" : "render"
-                  }
-                  linkRouting={linkRouting}
-                  promptMentions={{
-                    mentions: collapsedPreviewBody.mentions,
-                    resolveLinkHref: resolveSegmentLinkHref,
-                    resolveMentionLink,
-                  }}
-                  threadMentions={{
-                    mentions: collapsedPreviewBody.mentions,
-                    preserveSoftBreaks: true,
-                    resolveLinkHref: resolveSegmentLinkHref,
-                  }}
-                  className={COLLAPSED_MARKDOWN_PREVIEW_CLASS}
-                />
-              ) : (
-                <span>{collapsedPreviewBody.text}</span>
-              )}
-            </div>
-            {expandable ? (
-              <span
-                className={cn(
-                  "shrink-0 text-muted-foreground",
-                  hideManualContinuation && "invisible",
-                )}
-              >
-                ...
-              </span>
-            ) : null}
+      requestLabel !== null ||
+      preview.hasAdditionalBodyLines ||
+      preview.wasCapped ||
+      previewOverflow === "overflowing");
+  const previewBody = useMemo(
+    () =>
+      clipMentionTextToVisibleRange({
+        mentions: messageMentions,
+        rangeStart: 0,
+        text: preview.text,
+      }),
+    [messageMentions, preview.text],
+  );
+  const imagePolicy = isAgent ? "alt-text" : "render";
+  const [previewMentions, bodyMentions] = useMemo(
+    () =>
+      [previewBody.mentions, messageMentions].map((mentions) => ({
+        mentions,
+        preserveSoftBreaks: true,
+        resolveLinkHref: resolveSegmentLinkHref,
+        resolveMentionLink,
+      })),
+    [
+      previewBody.mentions,
+      messageMentions,
+      resolveSegmentLinkHref,
+      resolveMentionLink,
+    ],
+  );
+
+  const collapsedPreview =
+    !titleOnly && previewBody.text ? (
+      <div
+        className={`${NESTED_TIMELINE_GROUP_LINE_CLASS_NAME} max-w-full min-w-0`}
+      >
+        <div className="flex min-w-0 items-baseline truncate pl-2 text-sm leading-relaxed text-foreground">
+          <div ref={previewTextRef} className="min-w-0 truncate">
+            {preview.parseAsMarkdown ? (
+              <MarkdownPreview
+                allowHtml
+                content={
+                  preview.wasCapped || preview.hasAdditionalBodyLines
+                    ? closeUnterminatedMarkdownCodeSpan(previewBody.text)
+                    : previewBody.text
+                }
+                imagePolicy={imagePolicy}
+                linkRouting={linkRouting}
+                promptMentions={previewMentions}
+                threadMentions={previewMentions}
+                className={COLLAPSED_MARKDOWN_PREVIEW_CLASS}
+              />
+            ) : (
+              <span>{previewBody.text}</span>
+            )}
           </div>
+          {expandable ? (
+            <span
+              className={cn(
+                "shrink-0 text-muted-foreground",
+                previewOverflow === "overflowing" && "invisible",
+              )}
+            >
+              ...
+            </span>
+          ) : null}
         </div>
-      ) : null;
-    const renderBody = useCallback(
-      () => (
+      </div>
+    ) : null;
+
+  return (
+    <ExpandableTimelineRow
+      title={title}
+      titleContent={
+        isAgent ? (
+          <AgentSourceTitle
+            leadIn={leadIn}
+            sourceName={sourceName}
+            sourceProjectId={sender?.projectId ?? null}
+            sourceThreadId={senderThreadId}
+          />
+        ) : undefined
+      }
+      collapsedPreview={collapsedPreview}
+      expandable={expandable}
+      leadingIcon={
+        isFork
+          ? "Fork"
+          : isAgent
+            ? "MessageSquare"
+            : SYSTEM_MESSAGE_ICONS[systemMessageKind]
+      }
+      resolveSegmentLinkHref={resolveSegmentLinkHref}
+      onTitleAction={onTitleAction}
+      renderBody={() => (
         <div className={NESTED_TIMELINE_GROUP_LINE_CLASS_NAME}>
           <div className="pl-2 text-sm leading-relaxed text-foreground">
             {messageText ? (
               <MarkdownPreview
                 allowHtml
                 content={messageText}
-                imagePolicy={
-                  suppressGeneratedAgentImages ? "alt-text" : "render"
-                }
+                imagePolicy={imagePolicy}
                 linkRouting={linkRouting}
-                promptMentions={{
-                  mentions: messageMentions,
-                  resolveLinkHref: resolveSegmentLinkHref,
-                  resolveMentionLink,
-                }}
-                threadMentions={{
-                  mentions: messageMentions,
-                  preserveSoftBreaks: true,
-                  resolveLinkHref: resolveSegmentLinkHref,
-                }}
+                promptMentions={bodyMentions}
+                threadMentions={bodyMentions}
               />
             ) : (
               <p className="text-muted-foreground">
-                {generatedConversationEmptyText(sourceKind)}
+                {isAgent ? "Sent an agent message" : "Sent a BB system message"}
               </p>
             )}
             <ConversationAttachments
               align="start"
               filePaths={attachmentItems.filePaths}
               imageItems={attachmentItems.imageItems}
-              onOpenLocalFileLink={onOpenLocalFileLink}
-              projectId={projectId}
             />
             {requestLabel ? (
               <div className="mt-1 flex items-center justify-start gap-2">
@@ -625,35 +355,7 @@ export const GeneratedConversationMessage = memo(
             ) : null}
           </div>
         </div>
-      ),
-      [
-        attachmentItems.filePaths,
-        attachmentItems.imageItems,
-        linkRouting,
-        messageText,
-        messageMentions,
-        onOpenLocalFileLink,
-        projectId,
-        resolveSegmentLinkHref,
-        resolveMentionLink,
-        sourceKind,
-        suppressGeneratedAgentImages,
-        requestLabel,
-        turnRequest,
-      ],
-    );
-
-    return (
-      <ExpandableTimelineRow
-        title={title}
-        titleContent={sourceTitleContent}
-        collapsedPreview={collapsedPreview}
-        expandable={expandable}
-        leadingIcon={leadingIcon}
-        resolveSegmentLinkHref={resolveSegmentLinkHref}
-        onTitleAction={onTitleAction}
-        renderBody={renderBody}
-      />
-    );
-  },
-);
+      )}
+    />
+  );
+}

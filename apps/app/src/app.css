@@ -267,20 +267,6 @@
     container-name: follow-up-composer;
   }
 
-  [data-scroll-overlay] {
-    container: scroll-overlay / inline-size;
-  }
-
-  [data-thread-toc] {
-    display: none;
-  }
-
-  @container scroll-overlay (min-width: 56rem) {
-    [data-thread-toc] {
-      display: block;
-    }
-  }
-
   [data-promptbox-compact-label] {
     display: none;
     min-inline-size: 0;

@@ -2,13 +2,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { scrubbedProcessEnv } from "../../src/terminals/shell-env.js";
+import { scrubEnv } from "../../src/sessions/agent-env.js";
 import { RunnerError } from "../../src/types.js";
 import { createWorkspaceApi } from "../../src/workspace/index.js";
 import type { WorkspaceEvent } from "../../src/workspace-types.js";
 
 const GIT_ENV = {
-  ...scrubbedProcessEnv(),
+  ...scrubEnv(process.env),
   GIT_CONFIG_GLOBAL: os.devNull,
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "Test",
@@ -50,25 +50,12 @@ export function createHarness() {
     commitAll(repo, "initial");
     return repo;
   };
-  const waitFor = async <T>(
-    probe: () => T | undefined | false,
-    label: string,
-  ) => {
-    for (let attempt = 0; attempt < 400; attempt += 1) {
-      const value = probe();
-      if (value !== undefined && value !== false) {
-        return value;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    throw new Error(`Timed out waiting for ${label}`);
-  };
   const dispose = async (): Promise<void> => {
     await handle.dispose();
     fs.rmSync(root, { recursive: true, force: true });
   };
   const { api, terminalIds } = handle;
-  const tools = { git, write, commitAll, initRepo, waitFor, dispose };
+  const tools = { git, write, commitAll, initRepo, dispose };
   return { root, dataDir, events, api, terminalIds, ...tools };
 }
 

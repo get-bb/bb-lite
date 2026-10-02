@@ -4,7 +4,6 @@ import {
   type Environment,
   type ProvisioningTranscriptEntry,
 } from "@bb/domain";
-import type { LifecycleScriptResult } from "@bb/runner";
 import type { ServerContext } from "../context.js";
 import { ApiError } from "../http/errors.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
@@ -47,7 +46,7 @@ export function createLifecycleScripts(ctx: ServerContext) {
     kind: "setup" | "teardown",
     onLine: (line: string) => void,
     signal?: AbortSignal,
-  ): Promise<LifecycleScriptResult> {
+  ) {
     const { hostId, path, projectId } = workspace;
     const runner = runners.get(hostId);
     const operationId = randomUUID();
@@ -66,7 +65,7 @@ export function createLifecycleScripts(ctx: ServerContext) {
     }
   }
 
-  async function setup(workspace: Workspace, job: Progress): Promise<void> {
+  async function setup(workspace: Workspace, job: Progress) {
     const { onProgress, signal } = job;
     const script = `${workspace.path}/${SETUP_SCRIPT}`;
     const runner = runners.get(workspace.hostId);
@@ -76,7 +75,7 @@ export function createLifecycleScripts(ctx: ServerContext) {
     const running = `Running ${SETUP_SCRIPT}`;
     onProgress([step("setup-started", running, "started", startedAt)]);
     let lines = 0;
-    const report = (text: string): void => {
+    const report = (text: string) => {
       lines += 1;
       const key = `setup-output-${lines}`;
       onProgress([{ type: "output", key, text, startedAt: now() }]);
@@ -90,9 +89,9 @@ export function createLifecycleScripts(ctx: ServerContext) {
     if (failure !== null) throw notReady(failure.message);
   }
 
-  async function teardown(workspace: Workspace): Promise<void> {
+  async function teardown(workspace: Workspace) {
     const environmentId = workspace.id;
-    const report = (text: string): void =>
+    const report = (text: string) =>
       log.info("Environment teardown output", { environmentId, text });
     const { failure } = await run(workspace, "teardown", report);
     if (failure === null) return;
