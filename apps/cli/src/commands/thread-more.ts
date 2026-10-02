@@ -129,12 +129,8 @@ export const threadInteractionsResolve: Run = async (c) => {
 };
 
 export const threadQueueList: Run = async (c) => {
-  const { threads } = c.sdk;
-  const { threadId } = c.args;
-  const queued =
-    threadId === undefined
-      ? await threads.queue.list()
-      : await threads.queuedMessages.list({ threadId });
+  const threadId = threadTarget(c);
+  const queued = await c.sdk.threads.queuedMessages.list({ threadId });
   const rows = queued.map((row) => {
     const texts = row.content.flatMap((block) =>
       block.type === "text" ? [block.text] : [],

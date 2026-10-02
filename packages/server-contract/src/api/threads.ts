@@ -8,9 +8,7 @@ import {
 import {
   createThreadEnvironmentArgsSchema,
   isCommaSeparatedIncludeQueryValue,
-  pathListIncludeQueryValueSchema,
   threadContextWindowUsageSchema,
-  workspacePathListResponseSchema,
 } from "./shared.js";
 
 export const THREAD_EVENT_LIST_PAGE_SIZE = 100;
@@ -314,14 +312,6 @@ export type RespondPluginInteractionRequest = z.infer<
   typeof respondPluginInteractionRequestSchema
 >;
 
-export const queuedMessageListQuerySchema = z.object({
-  threadId: z.string().min(1).optional(),
-  waitHolder: domain.queuedMessageWaitHolderSchema.optional(),
-});
-export type QueuedMessageListQuery = z.infer<
-  typeof queuedMessageListQuerySchema
->;
-
 export const threadQueuedMessageListResponseSchema = z.array(
   domain.threadQueuedMessageSchema,
 );
@@ -559,22 +549,6 @@ export const threadEventWaitQuerySchema = z.object({
 });
 export type ThreadEventWaitQuery = z.infer<typeof threadEventWaitQuerySchema>;
 
-export const threadStorageFilesQuerySchema = z
-  .object({
-    query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH),
-    limit: z.string().regex(/^\d+$/),
-  })
-  .partial();
-
-export const threadStoragePathsQuerySchema =
-  threadStorageFilesQuerySchema.extend({
-    includeFiles: pathListIncludeQueryValueSchema,
-    includeDirectories: pathListIncludeQueryValueSchema,
-  });
-export type ThreadStoragePathsQuery = z.infer<
-  typeof threadStoragePathsQuerySchema
->;
-
 export const timelineTurnSummaryDetailsResponseSchema = z.object({
   olderCursor: z.string().nullable().optional(),
   historySnapshot: z.string().optional(),
@@ -602,12 +576,4 @@ export const threadTimelineResponseSchema = z.object({
 });
 export type ThreadTimelineResponse = z.infer<
   typeof threadTimelineResponseSchema
->;
-
-export const threadStoragePathListResponseSchema =
-  workspacePathListResponseSchema.extend({
-    storageRootPath: z.string(),
-  });
-export type ThreadStoragePathListResponse = z.infer<
-  typeof threadStoragePathListResponseSchema
 >;

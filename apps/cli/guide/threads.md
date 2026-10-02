@@ -51,7 +51,7 @@ bb thread tell <thr> "…" [--mode steer|queue|auto] [--message-file path|-]
 `tell` never fails because the thread is busy: the message joins the queue and
 the answer says why it waits (`delivery: "queued"`, `queuedMessage.waitingOn`).
 Sent from inside a thread, the message is marked as coming from that thread.
-`bb thread queue list|send|delete` inspects and edits the queue.
+`bb thread queue list|send|delete <thr>` inspects and edits a thread's queue.
 
 ## Wait and read
 

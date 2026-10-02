@@ -58,16 +58,6 @@ export const queuedMessageFailureReasonSchema = z
   .min(1)
   .max(QUEUED_MESSAGE_FAILURE_REASON_MAX_LENGTH);
 
-export const QUEUED_MESSAGE_PLUGIN_WAIT_HOLDER_PREFIX = "plugin:";
-
-export const queuedMessageWaitHolderSchema = z.templateLiteral([
-  QUEUED_MESSAGE_PLUGIN_WAIT_HOLDER_PREFIX,
-  pluginIdSchema,
-]);
-export type QueuedMessageWaitHolder = z.infer<
-  typeof queuedMessageWaitHolderSchema
->;
-
 export const queuedMessagePayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("inline") }),
   z.object({

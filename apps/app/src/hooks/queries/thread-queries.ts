@@ -1,6 +1,5 @@
 import { prependOlderTimelineRows, type FilePreview } from "@bb/client-core";
 import {
-  keepPreviousData,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
@@ -14,7 +13,6 @@ import {
   type ThreadTimelineResponse,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
-import type { PathListOptions } from "@/lib/path-list-options";
 import { loadFilePreview } from "@/lib/api";
 import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 import { sdk } from "@/lib/sdk";
@@ -359,29 +357,6 @@ export function isPendingInteractionStateUnknown(
   isFetching: boolean,
 ): boolean {
   return isFetching && !interactions?.length;
-}
-
-export function useThreadStoragePaths(
-  id: string,
-  listOptions: PathListOptions,
-  options?: QueryOptions,
-) {
-  const query = listOptions.query?.trim();
-  return useQuery({
-    queryKey: qk.threadStorage(id, "paths", listOptions),
-    queryFn: ({ signal }) =>
-      sdk.threads.storagePaths({
-        includeDirectories: listOptions.includeDirectories ? "true" : "false",
-        includeFiles: listOptions.includeFiles ? "true" : "false",
-        limit: String(listOptions.limit),
-        ...(query ? { query } : {}),
-        threadId: id,
-        signal,
-      }),
-    enabled: (options?.enabled ?? true) && Boolean(id),
-    refetchOnMount: "always",
-    placeholderData: keepPreviousData,
-  });
 }
 
 export function useThreadHostFilePreview(

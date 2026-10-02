@@ -148,7 +148,8 @@ ${SELF}
   --value <json>  Answer a plugin form with a JSON value
   $ bb thread interactions resolve pint_1 thr_abc --approve
   $ bb thread interactions resolve pint_2 --self --answer staging
-thread queue list [threadId]  List queued messages of one thread, or of all
+thread queue list [id]  List the queued messages of a thread
+${SELF}
 thread queue send <threadId> <messageId>  Send a queued message now
   --mode <mode>  auto (default) or steer
 thread queue delete <threadId> <messageId>  Delete a queued message
