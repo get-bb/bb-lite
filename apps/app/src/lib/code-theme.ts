@@ -1,121 +1,46 @@
-import { useMemo, useSyncExternalStore } from "react";
-import {
-  defaultResolvedCodeTheme,
-  type JsonObject,
-  type ResolvedCodeTheme,
-} from "@bb/domain";
+import { useSyncExternalStore } from "react";
+import { defaultResolvedCodeTheme, type ResolvedCodeTheme } from "@bb/domain";
 
-const CODE_THEME_DARK_DATASET = "bbCodeThemeDark";
-const CODE_THEME_LIGHT_DATASET = "bbCodeThemeLight";
-
-let currentResolvedCodeTheme: ResolvedCodeTheme = defaultResolvedCodeTheme;
+let committed: ResolvedCodeTheme = defaultResolvedCodeTheme;
+let previewed: ResolvedCodeTheme | null = null;
+let current: ResolvedCodeTheme = defaultResolvedCodeTheme;
+let pair = { dark: current.dark, light: current.light };
 const subscribers = new Set<() => void>();
 
 function publish(): void {
+  const next = previewed ?? committed;
+  if (next.dark === current.dark && next.light === current.light) return;
+  current = next;
+  pair = { dark: next.dark, light: next.light };
   for (const subscriber of subscribers) subscriber();
 }
 
-function writeDocumentDataset(resolved: ResolvedCodeTheme): void {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  if (
-    root.dataset[CODE_THEME_DARK_DATASET] === resolved.dark &&
-    root.dataset[CODE_THEME_LIGHT_DATASET] === resolved.light
-  ) {
-    return;
-  }
-  root.dataset[CODE_THEME_DARK_DATASET] = resolved.dark;
-  root.dataset[CODE_THEME_LIGHT_DATASET] = resolved.light;
-}
-
-function fileFingerprint(file: JsonObject): string {
-  const json = JSON.stringify(file);
-  let hash = 2166136261;
-  for (let index = 0; index < json.length; index += 1) {
-    hash ^= json.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
-function versionedThemeName(
-  name: string,
-  file: JsonObject | undefined,
-): string {
-  if (file === undefined) return name;
-  return `${name}:${fileFingerprint(file)}`;
-}
-
-function publishableCodeTheme(resolved: ResolvedCodeTheme): ResolvedCodeTheme {
-  const files: Record<string, JsonObject> = {};
-  for (const [name, file] of Object.entries(resolved.files)) {
-    files[versionedThemeName(name, file)] = file;
-  }
-  return {
-    dark: versionedThemeName(resolved.dark, resolved.files[resolved.dark]),
-    light: versionedThemeName(resolved.light, resolved.files[resolved.light]),
-    files,
-  };
+function subscribe(callback: () => void): () => void {
+  subscribers.add(callback);
+  return () => void subscribers.delete(callback);
 }
 
 export function getResolvedCodeTheme(): ResolvedCodeTheme {
-  return currentResolvedCodeTheme;
-}
-
-function subscribeResolvedCodeTheme(callback: () => void): () => void {
-  subscribers.add(callback);
-  return () => {
-    subscribers.delete(callback);
-  };
-}
-
-let committedResolvedCodeTheme: ResolvedCodeTheme = defaultResolvedCodeTheme;
-let previewedResolvedCodeTheme: ResolvedCodeTheme | null = null;
-
-function renderResolvedCodeTheme(published: ResolvedCodeTheme): void {
-  writeDocumentDataset(published);
-  if (
-    currentResolvedCodeTheme.dark === published.dark &&
-    currentResolvedCodeTheme.light === published.light
-  ) {
-    return;
-  }
-  currentResolvedCodeTheme = published;
-  publish();
+  return current;
 }
 
 export function applyResolvedCodeTheme(resolved: ResolvedCodeTheme): void {
-  committedResolvedCodeTheme = publishableCodeTheme(resolved);
-  previewedResolvedCodeTheme = null;
-  renderResolvedCodeTheme(committedResolvedCodeTheme);
+  committed = resolved;
+  previewed = null;
+  publish();
 }
 
-export function previewResolvedCodeTheme(resolved: ResolvedCodeTheme): void {
-  previewedResolvedCodeTheme = publishableCodeTheme(resolved);
-  renderResolvedCodeTheme(previewedResolvedCodeTheme);
-}
-
-export function clearResolvedCodeThemePreview(): void {
-  if (previewedResolvedCodeTheme === null) return;
-  previewedResolvedCodeTheme = null;
-  renderResolvedCodeTheme(committedResolvedCodeTheme);
+export function previewResolvedCodeTheme(
+  resolved: ResolvedCodeTheme | null,
+): void {
+  previewed = resolved;
+  publish();
 }
 
 export function useResolvedCodeTheme(): ResolvedCodeTheme {
-  return useSyncExternalStore(
-    subscribeResolvedCodeTheme,
-    getResolvedCodeTheme,
-    getResolvedCodeTheme,
-  );
+  return useSyncExternalStore(subscribe, getResolvedCodeTheme);
 }
 
-export function useResolvedCodeThemePair(): {
-  dark: string;
-  light: string;
-} {
-  const resolved = useResolvedCodeTheme();
-  return useMemo(
-    () => ({ dark: resolved.dark, light: resolved.light }),
-    [resolved.dark, resolved.light],
-  );
+export function useResolvedCodeThemePair(): { dark: string; light: string } {
+  return useSyncExternalStore(subscribe, () => pair);
 }
