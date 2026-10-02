@@ -23,7 +23,7 @@ import {
   useMessageDirectiveRegistry,
   type MarkdownMessageDirectives,
 } from "@/components/ui/markdown-message-directives.js";
-import { buildMarkdownMessageLinkRouting } from "@/components/ui/markdown-message-link-routing";
+import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 import type { MarkdownThreadMentions } from "@/components/ui/markdown-thread-mentions.js";
 import {
   ConversationAttachments,
@@ -64,18 +64,34 @@ const STREAMING_TAIL_MARKDOWN_CLASS_NAME =
 
 export function useMessageLinkRouting(
   threadId: string | undefined,
-): MarkdownLinkRouting | undefined {
+): MarkdownLinkRouting {
   const { onOpenLink, onOpenLocalFileLink, workspaceRootPath } = useTimeline();
-  return useMemo(
-    () =>
-      buildMarkdownMessageLinkRouting({
-        onOpenLink,
-        onOpenLocalFileLink,
-        threadId,
-        workspaceRootPath,
-      }),
-    [onOpenLink, onOpenLocalFileLink, threadId, workspaceRootPath],
-  );
+  return useMemo(() => {
+    const relative =
+      workspaceRootPath === undefined
+        ? undefined
+        : { baseDir: workspaceRootPath, rootPath: workspaceRootPath };
+    return {
+      onOpenLink,
+      localImage:
+        threadId === undefined
+          ? undefined
+          : {
+              absolutePaths: { kind: "trusted-host" },
+              relativePaths: relative,
+              resolveSrc: ({ path }) =>
+                buildThreadHostFileContentUrl(threadId, path),
+            },
+      localFile:
+        onOpenLocalFileLink === undefined
+          ? undefined
+          : {
+              absoluteLinks: { kind: "trusted-host" },
+              onOpenLink: onOpenLocalFileLink,
+              relativeLinks: relative,
+            },
+    };
+  }, [onOpenLink, onOpenLocalFileLink, threadId, workspaceRootPath]);
 }
 
 function CollapsibleMessageText({

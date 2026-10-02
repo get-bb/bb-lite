@@ -7,13 +7,6 @@ import {
 } from "./conversation-message-overflow.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 
-interface ToolCallDetailBlockProps {
-  toolName: string;
-  args: TimelineToolArgs;
-  output: string;
-  streaming?: boolean;
-}
-
 function formatArgValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === null) return "null";
@@ -23,12 +16,13 @@ function formatArgValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-interface CollapsibleHeaderProps {
+function CollapsibleHeader({
+  toolName,
+  argEntries,
+}: {
   toolName: string;
   argEntries: [string, unknown][];
-}
-
-function CollapsibleHeader({ toolName, argEntries }: CollapsibleHeaderProps) {
+}) {
   const [expanded, setExpanded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const overflows = useIsOverflowing({
@@ -84,10 +78,12 @@ export function ToolCallDetailBlock({
   args,
   output,
   streaming = false,
-}: ToolCallDetailBlockProps) {
-  const argEntries = args ? Object.entries(args) : [];
-  const hasOutput = output.trim().length > 0;
-
+}: {
+  toolName: string;
+  args: TimelineToolArgs;
+  output: string;
+  streaming?: boolean;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <TimelineDetailScroll
@@ -97,8 +93,11 @@ export function ToolCallDetailBlock({
         contentKey={output}
         scrollClassName="px-4 py-3 font-mono text-xs leading-tight text-foreground opacity-70"
       >
-        <CollapsibleHeader toolName={toolName} argEntries={argEntries} />
-        {hasOutput ? (
+        <CollapsibleHeader
+          toolName={toolName}
+          argEntries={args ? Object.entries(args) : []}
+        />
+        {output.trim().length > 0 ? (
           <div className="mt-2 border-t border-border pt-2">
             <pre className="m-0 min-w-0 overflow-x-auto whitespace-pre">
               {output}

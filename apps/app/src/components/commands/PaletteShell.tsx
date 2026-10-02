@@ -66,9 +66,7 @@ export function PaletteShell({
   value,
 }: PaletteShellProps) {
   const inputDescriptionId = useId();
-  const overflow = useScrollOverflowState<HTMLDivElement>({
-    measureOverflow: true,
-  });
+  const overflow = useScrollOverflowState<HTMLDivElement>();
   const composedListRef = useComposedRefs(listRef, overflow.scrollRef);
   const resultsMask =
     overflow.aboveOverflow && overflow.belowOverflow
