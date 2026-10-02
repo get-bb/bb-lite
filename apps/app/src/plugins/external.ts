@@ -84,12 +84,15 @@ function dropExternal(pluginId: string): void {
 }
 
 async function syncPlugins(refetch: boolean): Promise<void> {
+  const query = {
+    ...pluginListQueryOptions({ enabled: true }),
+    ...(refetch ? { staleTime: 0 } : {}),
+  };
   let plugins;
   try {
-    plugins = await appQueryClient.fetchQuery({
-      ...pluginListQueryOptions({ enabled: true }),
-      ...(refetch ? { staleTime: 0 } : {}),
-    });
+    plugins = await appQueryClient
+      .fetchQuery(query)
+      .catch(() => appQueryClient.fetchQuery(query));
   } catch (error) {
     console.warn("plugin list failed to load", error);
     return;

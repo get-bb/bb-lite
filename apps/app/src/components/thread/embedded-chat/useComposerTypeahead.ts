@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { TypeaheadConfig } from "@/components/promptbox/PromptBoxInternal";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
-import type { PromptBoxAction } from "@/components/promptbox/PromptBoxActionsMenu";
 import type { ProviderComposerAction } from "@bb/domain";
 import { buildProviderPromptActionProps } from "@bb/client-core";
 import { useCommandSuggestions } from "@/hooks/useCommandSuggestions";
@@ -20,11 +19,6 @@ interface UseComposerTypeaheadArgs {
   resolveMentionLink: PromptMentionLinkResolver;
 }
 
-interface UseComposerTypeaheadResult {
-  typeaheadConfig: TypeaheadConfig;
-  promptActions: readonly PromptBoxAction[];
-}
-
 export function useComposerTypeahead({
   projectId,
   mentionsProjectId,
@@ -34,7 +28,7 @@ export function useComposerTypeahead({
   currentThreadId,
   selectedProviderComposerActions,
   resolveMentionLink,
-}: UseComposerTypeaheadArgs): UseComposerTypeaheadResult {
+}: UseComposerTypeaheadArgs) {
   const promptMentions = usePromptMentions(mentionsProjectId ?? projectId, {
     currentThreadId,
     environmentId,

@@ -1136,10 +1136,6 @@ export function allPluginContributionsQueryKeyPrefix() {
   return [PLUGIN_CONTRIBUTIONS_QUERY_KEY] as const;
 }
 
-export function pluginSdkSettingsQueryKey(pluginId: string) {
-  return [PLUGIN_SDK_SETTINGS_QUERY_KEY, pluginId] as const;
-}
-
 export function allPluginSettingsQueryKeyPrefix() {
   return [PLUGIN_SDK_SETTINGS_QUERY_KEY] as const;
 }
