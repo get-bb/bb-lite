@@ -1,158 +1,179 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
-const loadRenameEditor = () => import("./SidebarRenameEditor");
-const SidebarRenameEditor = lazy(loadRenameEditor);
+import { useEffect, useId, useRef, useState } from "react";
+import { BbHttpError } from "@bb/sdk/browser";
+import { cn } from "@bb/shared-ui/lib/utils";
 
-interface SidebarRenameArgs {
-  kind: "thread";
+interface RenameSession {
   id: string;
-  name: string;
-  label: string;
-  onSave: (name: string) => Promise<unknown>;
-  placeholder?: string;
-  ownerKey?: string;
-}
-
-export interface RenameSession extends SidebarRenameArgs {
-  ownerKey: string;
   draft: string;
-  pending: Promise<boolean> | null;
+  pending: boolean;
   error: string | null;
   cannotRetry: boolean;
 }
 
-function useRenameController() {
-  const [session, setSession] = useState<RenameSession | null>(null);
-  const sessionRef = useRef<RenameSession | null>(null);
-  const startRequestRef = useRef(0);
-  const update = useCallback((next: RenameSession | null) => {
-    sessionRef.current = next;
-    setSession(next);
-  }, []);
+function renameError(error: unknown) {
+  const status = error instanceof BbHttpError ? error.status : null;
+  if (status === 404 || status === 410) {
+    return { error: "This item no longer exists.", cannotRetry: true };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      error: "You do not have permission to rename this item.",
+      cannotRetry: true,
+    };
+  }
+  return { error: "Could not save the name. Try again.", cannotRetry: false };
+}
 
-  const save = useCallback((): Promise<boolean> => {
+export function useInlineRename({
+  id,
+  name,
+  label,
+  onSave,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  onSave: (name: string) => Promise<unknown>;
+}) {
+  const [stored, setStored] = useState<RenameSession | null>(null);
+  const sessionRef = useRef<RenameSession | null>(null);
+  const session = stored?.id === id ? stored : null;
+  const isEditing = session !== null;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
+  const openingRef = useRef(false);
+  const errorId = useId();
+
+  useEffect(() => {
+    if (!isEditing) return;
+    openingRef.current = true;
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+      inputRef.current?.select();
+      openingRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isEditing]);
+
+  const update = (next: RenameSession | null) => {
+    sessionRef.current = next;
+    setStored(next);
+  };
+  const submit = () => {
     const current = sessionRef.current;
-    if (!current) return Promise.resolve(false);
-    if (current.pending) return current.pending;
-    if (current.cannotRetry) return Promise.resolve(false);
+    if (current?.id !== id || current.pending || current.cannotRetry) return;
+    const input = inputRef.current;
+    input?.setSelectionRange(input.value.length, input.value.length);
     const value = current.draft.trim();
     if (!value) {
       update({ ...current, error: "Name cannot be empty." });
-      return Promise.resolve(false);
-    }
-    if (value === current.name.trim()) {
+    } else if (value === name.trim()) {
       update(null);
-      return Promise.resolve(true);
+    } else {
+      update({ ...current, pending: true, error: null });
+      void Promise.resolve()
+        .then(() => onSave(value))
+        .then(
+          () => update(null),
+          (error: unknown) =>
+            update({ ...current, pending: false, ...renameError(error) }),
+        );
     }
-    const pending = Promise.resolve()
-      .then(() => current.onSave(value))
-      .then(
-        () => {
-          update(null);
-          return true;
-        },
-        async (error: unknown) => {
-          const { renameError } = await loadRenameEditor();
-          update({
-            ...current,
-            pending: null,
-            ...renameError(error),
-          });
-          return false;
-        },
-      );
-    update({ ...current, pending, error: null });
-    return pending;
-  }, [update]);
+  };
 
-  const start = useCallback(
-    async (args: SidebarRenameArgs & { ownerKey: string }) => {
-      const request = ++startRequestRef.current;
-      const current = sessionRef.current;
-      if (
-        current?.ownerKey === args.ownerKey &&
-        current.kind === args.kind &&
-        current.id === args.id
-      )
-        return;
-      if (current && !(await save())) return;
-      if (request !== startRequestRef.current) return;
+  const editor = session ? (
+    <span
+      data-sidebar-rename-editor=""
+      className="relative z-50 flex min-w-0 flex-1 items-center gap-1"
+      aria-busy={session.pending}
+      onBlur={() => {
+        if (!openingRef.current) submit();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+      onDragStart={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onKeyUp={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.nativeEvent.isComposing || composingRef.current) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          if (!session.pending) update(null);
+        } else if (event.key === "Enter" && event.target === inputRef.current) {
+          event.preventDefault();
+          submit();
+        }
+      }}
+    >
+      <input
+        ref={inputRef}
+        aria-label={label}
+        aria-invalid={Boolean(session.error)}
+        aria-describedby={session.error ? errorId : undefined}
+        autoCapitalize="sentences"
+        autoCorrect="off"
+        className={cn(
+          "min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 py-0 [font:inherit] outline-none field-sizing-content",
+          session.pending && "animate-shine motion-reduce:opacity-60",
+        )}
+        spellCheck={false}
+        value={session.draft}
+        readOnly={session.pending || session.cannotRetry}
+        onChange={(event) => {
+          if (session.pending) return;
+          update({
+            ...session,
+            draft: event.target.value,
+            error: null,
+            cannotRetry: false,
+          });
+        }}
+        onCompositionStart={() => {
+          composingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          composingRef.current = false;
+        }}
+      />
+      {session.pending && (
+        <span role="status" aria-label="Saving name" className="sr-only">
+          Saving name
+        </span>
+      )}
+      {session.error && (
+        <span
+          id={errorId}
+          role="alert"
+          className="absolute left-0 top-full z-50 mt-1 w-full min-w-40 rounded-md border border-border bg-popover px-2 py-1 text-xs text-destructive shadow-md whitespace-normal"
+        >
+          {session.error}
+        </span>
+      )}
+    </span>
+  ) : null;
+
+  return {
+    editor,
+    isEditing,
+    startEditing: () =>
       update({
-        ...args,
-        draft: args.name,
-        pending: null,
+        id,
+        draft: name,
+        pending: false,
         error: null,
         cannotRetry: false,
-      });
-    },
-    [save, update],
-  );
-
-  const cancel = useCallback(() => {
-    if (sessionRef.current?.pending) return;
-    ++startRequestRef.current;
-    update(null);
-  }, [update]);
-
-  return {
-    session,
-    start,
-    save,
-    cancel,
-    change: (draft: string) => {
-      const current = sessionRef.current;
-      if (current && !current.pending) {
-        update({ ...current, draft, error: null, cannotRetry: false });
-      }
-    },
-  };
-}
-
-export type RenameController = ReturnType<typeof useRenameController>;
-
-export function useSidebarRename(args: SidebarRenameArgs) {
-  const controller = useRenameController();
-  const generatedOwnerKey = useId();
-  const ownerKey = args.ownerKey ?? generatedOwnerKey;
-  const { session, start, cancel } = controller;
-  const isEditing =
-    session?.ownerKey === ownerKey &&
-    session.kind === args.kind &&
-    session.id === args.id;
-  const startEditing = useCallback(() => {
-    void start({ ...args, ownerKey });
-  }, [args, start, ownerKey]);
-
-  useEffect(() => {
-    if (session && (session.kind !== args.kind || session.id !== args.id)) {
-      cancel();
-    }
-  }, [args.id, args.kind, cancel, session]);
-
-  return {
-    editor: isEditing ? (
-      <Suspense
-        fallback={
-          <span role="status" className="min-w-0 flex-1 truncate">
-            {session.name}
-          </span>
-        }
-      >
-        <SidebarRenameEditor
-          key={session.ownerKey}
-          session={session}
-          controller={controller}
-        />
-      </Suspense>
-    ) : null,
-    isEditing,
-    startEditing,
+      }),
   };
 }

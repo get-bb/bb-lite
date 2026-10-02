@@ -2,11 +2,10 @@ import { useMemo } from "react";
 import { useAtomValue } from "jotai";
 import type {
   PluginSidebarSplitLayout,
-  PluginSidebarSplitPane,
   PluginSidebarThreadSplit,
 } from "@bb/plugin/app";
-import { usePaneContentSplitIndicator } from "@/components/sidebar/paneContentSplitIndicator";
-import { useThreadRowSplitDrag } from "@/components/sidebar/useThreadRowSplitDrag";
+import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
+import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
 import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions";
 import { getThreadDisplayTitle } from "./thread-title";
 import { useSidebarThreadEntry } from "./plugin-sidebar-hooks";
@@ -47,51 +46,26 @@ export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
   return useMemo(() => toPluginSidebarSplitLayout(layout), [layout]);
 }
 
-const NO_SPLIT: PluginSidebarThreadSplit = {
-  splitProps: {},
-  isAvailable: false,
-  layout: null,
-};
-
 export function useSidebarThreadSplit(
   threadId: string,
 ): PluginSidebarThreadSplit {
   const entry = useSidebarThreadEntry(threadId);
-  const projectId = entry?.projectId ?? "";
-  const title = useThreadTitleDisplayText(
+  const projectId = entry?.projectId ?? null;
+  const label = useThreadTitleDisplayText(
     entry ? getThreadDisplayTitle(entry) : "",
   );
-  const { onPointerDown } = useThreadRowSplitDrag({
-    projectId,
-    threadId,
-    title,
-  });
-  const content = useMemo<PaneContent>(
-    () => ({ kind: "thread", projectId, threadId }),
+  const content = useMemo<PaneContent | null>(
+    () => (projectId === null ? null : { kind: "thread", projectId, threadId }),
     [projectId, threadId],
   );
-  const indicator = usePaneContentSplitIndicator(content, entry !== null);
-
-  return useMemo<PluginSidebarThreadSplit>(() => {
-    if (entry === null) return NO_SPLIT;
-    const panes: PluginSidebarSplitPane[] | null =
-      indicator.miniMap === null
-        ? null
-        : indicator.miniMap.map((slot) => ({
-            paneId: slot.paneId,
-            rect: {
-              x: slot.rect.x,
-              y: slot.rect.y,
-              width: slot.rect.w,
-              height: slot.rect.h,
-            },
-            isMe: slot.isMe,
-            isFocused: slot.isFocused,
-          }));
-    return {
-      splitProps: { onPointerDown },
-      isAvailable: true,
+  const onPointerDown = usePaneContentSplitDrag({ content, label });
+  const panes = usePaneContentSplitPanes(content);
+  return useMemo<PluginSidebarThreadSplit>(
+    () => ({
+      splitProps: onPointerDown ? { onPointerDown } : {},
+      isAvailable: content !== null,
       layout: panes === null ? null : { panes },
-    };
-  }, [entry, indicator.miniMap, onPointerDown]);
+    }),
+    [content, onPointerDown, panes],
+  );
 }

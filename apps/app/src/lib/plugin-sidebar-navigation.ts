@@ -4,51 +4,17 @@ import type {
   PluginSidebarThreadSplit,
   SidebarNavigationSplitOptions,
   SidebarNavigationState,
-  PluginSidebarSplitPane,
 } from "@bb/plugin/app";
-import {
-  useSidebarNavigationModel,
-  useSidebarNavigationRowContent,
-} from "@/components/sidebar/SidebarNavigationModel";
-import { usePaneContentSplitIndicator } from "@/components/sidebar/paneContentSplitIndicator";
+import { useSidebarNavigationModel } from "@/components/sidebar/SidebarNavigationModel";
+import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
 import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
-
-const NOOP_ACTIONS: SidebarNavigationActions = {
-  activate() {},
-  setVisible() {},
-  setOrder() {},
-  openCustomize() {},
-  disablePlugin: () => Promise.resolve(),
-};
 
 const EMPTY_STATE: SidebarNavigationState = {
   items: [],
   activeItemId: null,
   isShortcutModifierHeld: false,
-  actions: NOOP_ACTIONS,
+  actions: { activate() {}, disablePlugin: () => Promise.resolve() },
 };
-
-function guardActions(
-  actions: SidebarNavigationActions,
-  isMounted: () => boolean,
-): SidebarNavigationActions {
-  return {
-    activate: (itemId, options) => {
-      if (isMounted()) actions.activate(itemId, options);
-    },
-    setVisible: (itemId, isVisible) => {
-      if (isMounted()) actions.setVisible(itemId, isVisible);
-    },
-    setOrder: (itemIds) => {
-      if (isMounted()) actions.setOrder(itemIds);
-    },
-    openCustomize: () => {
-      if (isMounted()) actions.openCustomize();
-    },
-    disablePlugin: (itemId) =>
-      isMounted() ? actions.disablePlugin(itemId) : Promise.resolve(),
-  };
-}
 
 export function useSidebarNavigation(): SidebarNavigationState {
   const state = useSidebarNavigationModel()?.state ?? EMPTY_STATE;
@@ -59,8 +25,16 @@ export function useSidebarNavigation(): SidebarNavigationState {
       mountedRef.current = false;
     };
   }, []);
-  const actions = useMemo(
-    () => guardActions(state.actions, () => mountedRef.current),
+  const actions = useMemo<SidebarNavigationActions>(
+    () => ({
+      activate: (itemId, options) => {
+        if (mountedRef.current) state.actions.activate(itemId, options);
+      },
+      disablePlugin: (itemId) =>
+        mountedRef.current
+          ? state.actions.disablePlugin(itemId)
+          : Promise.resolve(),
+    }),
     [state.actions],
   );
   return useMemo(
@@ -74,51 +48,31 @@ export function useSidebarNavigation(): SidebarNavigationState {
   );
 }
 
-const PLACEHOLDER_CONTENT = { kind: "new-thread" } as const;
-
 export function useSidebarNavigationSplit(
   itemId: string,
   splitOptions?: SidebarNavigationSplitOptions,
 ): PluginSidebarThreadSplit {
-  const model = useSidebarNavigationModel();
-  const target = useSidebarNavigationRowContent(itemId);
-  const enabled = target !== null && (model?.splitEnabled ?? false);
-  const activation = splitOptions?.activation ?? "sidebar";
+  const entry = useSidebarNavigationModel()?.entries.find(
+    (candidate) => candidate.item.id === itemId,
+  );
+  const content = entry?.content ?? null;
   const onDragStartRef = useRef(splitOptions?.onDragStart);
   useEffect(() => {
     onDragStartRef.current = splitOptions?.onDragStart;
   });
-  const options = useMemo(
+  const onPointerDown = usePaneContentSplitDrag({
+    content,
+    label: entry?.item.label ?? "",
+    dragActivation: splitOptions?.activation ?? "sidebar",
+    onDragStart: () => onDragStartRef.current?.(),
+  });
+  const panes = usePaneContentSplitPanes(content);
+  return useMemo<PluginSidebarThreadSplit>(
     () => ({
-      content: target?.content ?? PLACEHOLDER_CONTENT,
-      enabled,
-      label: target?.label ?? "",
-      dragActivation: activation,
-      onDragStart: () => onDragStartRef.current?.(),
-    }),
-    [activation, enabled, target],
-  );
-  const { onPointerDown } = usePaneContentSplitDrag(options);
-  const indicator = usePaneContentSplitIndicator(options.content, enabled);
-  return useMemo<PluginSidebarThreadSplit>(() => {
-    const panes: PluginSidebarSplitPane[] | null =
-      indicator.miniMap === null
-        ? null
-        : indicator.miniMap.map((slot) => ({
-            paneId: slot.paneId,
-            rect: {
-              x: slot.rect.x,
-              y: slot.rect.y,
-              width: slot.rect.w,
-              height: slot.rect.h,
-            },
-            isMe: slot.isMe,
-            isFocused: slot.isFocused,
-          }));
-    return {
       splitProps: onPointerDown ? { onPointerDown } : {},
-      isAvailable: onPointerDown !== undefined,
+      isAvailable: content !== null,
       layout: panes === null ? null : { panes },
-    };
-  }, [indicator.miniMap, onPointerDown]);
+    }),
+    [content, onPointerDown, panes],
+  );
 }

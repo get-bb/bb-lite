@@ -1,20 +1,18 @@
 import {
   createContext,
   useContext,
-  useLayoutEffect,
-  useMemo,
-  useRef,
   type ComponentType,
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useStore } from "jotai";
 import type {
   SidebarNavigationActions,
   SidebarNavigationIconProps,
   SidebarNavigationItem,
   SidebarNavigationState,
 } from "@bb/plugin/app";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import {
   useAppCommandRunner,
   useAppCommandShortcut,
@@ -23,52 +21,32 @@ import {
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/plugins/mount";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
-import { getPluginNavPanelKey } from "@/components/plugin/pluginNavSidebarOrder";
 import { appToast } from "@/components/ui/app-toast";
 import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
+import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import type { PluginSlot } from "@/plugins/registry";
-import { getPluginPanelRoutePath } from "@/lib/route-paths";
+import {
+  getPluginPanelRoutePath,
+  getRootComposeRoutePath,
+} from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
-import {
-  createSidebarNavigationRows,
-  getSidebarNavigationRowContent,
-  isSameSidebarNavigationItem,
-  resolveActiveSidebarNavigationItemId,
-  SIDEBAR_NAVIGATION_LEADING_KEYS,
-  toSidebarNavigationItem,
-  type SidebarNavigationRow,
-} from "./sidebarNavigationItems";
-import { usePaneContentSplitActions } from "./usePaneContentSplitDrag";
-import {
-  useSidebarNavigationArrangement,
-  type SidebarNavigationArrangement,
-} from "./useSidebarNavigationArrangement";
+import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
 
-export interface SidebarNavigationHostOptions {
-  onNewChat?: () => void;
-  splitEnabled: boolean;
-  onOpenCustomize: () => void;
+interface SidebarNavigationEntry {
+  item: SidebarNavigationItem;
+  content: PaneContent | null;
+  route: string | null;
 }
 
 export interface SidebarNavigationModel {
   state: SidebarNavigationState;
-  arrangement: SidebarNavigationArrangement<SidebarNavigationRow>;
-  rowsById: ReadonlyMap<string, SidebarNavigationRow>;
-  splitEnabled: boolean;
+  entries: readonly SidebarNavigationEntry[];
 }
 
 const SidebarNavigationModelContext =
   createContext<SidebarNavigationModel | null>(null);
-
-const HOST_ICON_NAMES: Record<
-  Extract<SidebarNavigationIconProps["icon"], { kind: "host" }>["name"],
-  IconName
-> = {
-  "new-thread": "MessageSquarePlus",
-  search: "Search",
-};
 
 export function SidebarNavigationIcon({
   icon,
@@ -77,7 +55,7 @@ export function SidebarNavigationIcon({
   if (icon.kind === "host") {
     return (
       <Icon
-        name={HOST_ICON_NAMES[icon.name]}
+        name={icon.name === "search" ? "Search" : "MessageSquarePlus"}
         className={className}
         aria-hidden="true"
       />
@@ -101,237 +79,164 @@ function wrappedAccessory(
   if (Accessory === undefined) return null;
   const cached = wrappedAccessories.get(Accessory);
   if (cached) return cached;
-  const SidebarNavigationAccessory = () => {
-    return (
-      <PluginSlotMount
-        key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
-        pluginId={panel.pluginId}
-        slotKind="navPanelSidebarAccessory"
-        slotId={panel.id}
-        crashFallback={<></>}
-      >
-        <Accessory />
-      </PluginSlotMount>
-    );
-  };
+  const SidebarNavigationAccessory = () => (
+    <PluginSlotMount
+      key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
+      pluginId={panel.pluginId}
+      slotKind="navPanelSidebarAccessory"
+      slotId={panel.id}
+      crashFallback={<></>}
+    >
+      <Accessory />
+    </PluginSlotMount>
+  );
   wrappedAccessories.set(Accessory, SidebarNavigationAccessory);
   return SidebarNavigationAccessory;
 }
 
-function useStableItems(
-  items: readonly SidebarNavigationItem[],
-): readonly SidebarNavigationItem[] {
-  const previousRef = useRef<{
-    byId: Map<string, SidebarNavigationItem>;
-    list: readonly SidebarNavigationItem[];
-  }>({ byId: new Map(), list: [] });
-  return useMemo(() => {
-    const previous = previousRef.current;
-    const byId = new Map<string, SidebarNavigationItem>();
-    const list = items.map((item) => {
-      const prior = previous.byId.get(item.id);
-      const stable =
-        prior && isSameSidebarNavigationItem(prior, item) ? prior : item;
-      byId.set(item.id, stable);
-      return stable;
+function hostEntry(
+  action: "new-thread" | "search-threads",
+  label: string,
+  shortcut: AppShortcutPresentation | null,
+  isDisabled: boolean,
+): SidebarNavigationEntry {
+  const isNewThread = action === "new-thread";
+  return {
+    item: {
+      id: `__bb__/${action}`,
+      label,
+      icon: { kind: "host", name: isNewThread ? "new-thread" : "search" },
+      action: { kind: action },
+      isDisabled,
+      isVisible: isNewThread,
+      isLoading: false,
+      pluginId: null,
+      shortcut: shortcut && {
+        label: shortcut.label,
+        ariaKeyShortcuts: shortcut.ariaKeyshortcuts,
+      },
+      Accessory: null,
+    },
+    content: isNewThread ? { kind: "new-thread" } : null,
+    route: isNewThread ? getRootComposeRoutePath() : null,
+  };
+}
+
+async function disablePlugin(
+  item: SidebarNavigationItem,
+  setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>,
+): Promise<void> {
+  try {
+    await setPluginEnabled(item.pluginId ?? "", false);
+    appToast.success(`${item.label} disabled`);
+  } catch (error) {
+    appToast.error(`Failed to disable ${item.label}`, {
+      description: error instanceof Error ? error.message : String(error),
     });
-    const unchanged =
-      list.length === previous.list.length &&
-      list.every((item, index) => item === previous.list[index]);
-    const next = unchanged ? previous.list : list;
-    previousRef.current = { byId, list: next };
-    return next;
-  }, [items]);
+    throw error;
+  } finally {
+    await invalidatePluginList({ queryClient: appQueryClient });
+  }
 }
 
 export function SidebarNavigationModelProvider({
   children,
-  ...host
-}: SidebarNavigationHostOptions & { children: ReactNode }) {
+}: {
+  children: ReactNode;
+}) {
   const panelEntries = usePluginNavPanelChrome();
-  const rows = useMemo(
-    () => createSidebarNavigationRows(panelEntries),
-    [panelEntries],
-  );
-  const arrangement = useSidebarNavigationArrangement(
-    rows,
-    SIDEBAR_NAVIGATION_LEADING_KEYS,
-  );
-  const rowsById = useMemo(
-    () => new Map(rows.map((row) => [getPluginNavPanelKey(row), row])),
-    [rows],
-  );
-  const location = useLocation();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
+  const store = useStore();
   const commandRunner = useAppCommandRunner();
-  const splitActions = usePaneContentSplitActions();
   const setPluginEnabled = useSetPluginEnabled();
   const newThreadShortcut = useAppCommandShortcut("thread.new");
   const threadSearchShortcut = useAppCommandShortcut("thread.search");
-  const searchThreadsDisabled = !commandRunner.isCommandAvailable(
+  const isShortcutModifierHeld = useIsAppCommandModifierHeld();
+  const searchDisabled = !commandRunner.isCommandAvailable(
     "thread.search",
     null,
   );
-  const newThreadDisabled = host.onNewChat === undefined;
-
-  const rawItems = useMemo(() => {
-    const visibleSet = new Set(arrangement.visibleKeys);
-    return arrangement.ordered.map((row) => {
-      const key = getPluginNavPanelKey(row);
-      const panel = row.panelEntry?.panel ?? null;
-      return toSidebarNavigationItem(row, {
-        isDisabled:
-          row.action.kind === "new-thread"
-            ? newThreadDisabled
-            : row.action.kind === "search-threads"
-              ? searchThreadsDisabled
-              : false,
-        isVisible: visibleSet.has(key),
-        shortcut:
-          row.action.kind === "new-thread" && newThreadShortcut
-            ? {
-                label: newThreadShortcut.label,
-                ariaKeyShortcuts: newThreadShortcut.ariaKeyshortcuts,
-              }
-            : row.action.kind === "search-threads" && threadSearchShortcut
-              ? {
-                  label: threadSearchShortcut.label,
-                  ariaKeyShortcuts: threadSearchShortcut.ariaKeyshortcuts,
-                }
-              : null,
-        accessory: panel !== null ? wrappedAccessory(panel) : null,
-      });
-    });
-  }, [
-    arrangement.ordered,
-    arrangement.visibleKeys,
-    newThreadDisabled,
-    newThreadShortcut,
-    searchThreadsDisabled,
-    threadSearchShortcut,
-  ]);
-  const items = useStableItems(rawItems);
-  const isShortcutModifierHeld = useIsAppCommandModifierHeld();
-  const activeItemId = resolveActiveSidebarNavigationItemId({
-    rows,
-    pathname: location.pathname,
-  });
-
-  const latest = useRef({
-    arrangement,
-    commandRunner,
-    host,
-    items,
-    navigate,
-    rowsById,
-    setPluginEnabled,
-    splitActions,
-  });
-  useLayoutEffect(() => {
-    latest.current = {
-      arrangement,
-      commandRunner,
-      host,
-      items,
-      navigate,
-      rowsById,
-      setPluginEnabled,
-      splitActions,
-    };
-  });
-
-  const actions = useMemo<SidebarNavigationActions>(() => {
-    const lookup = (itemId: string) => {
-      const current = latest.current;
-      const row = current.rowsById.get(itemId);
-      const item = current.items.find((candidate) => candidate.id === itemId);
-      return row && item ? { current, row, item } : null;
-    };
-    const openInSplit = (
-      current: typeof latest.current,
-      content: PaneContent,
-      label: string,
-    ) =>
-      current.splitActions.openInSplit({
-        content,
-        enabled: current.host.splitEnabled,
-        label,
-      });
-    return {
-      activate(itemId, options) {
-        const found = lookup(itemId);
-        if (!found || found.item.isDisabled || found.item.isLoading) return;
-        const { current, row, item } = found;
-        const content = getSidebarNavigationRowContent(row);
-        switch (row.action.kind) {
-          case "new-thread":
-            if (options.openInSplit && content) {
-              openInSplit(current, content, item.label);
-              return;
-            }
-            current.host.onNewChat?.();
-            return;
-          case "search-threads":
-            current.commandRunner.dispatch("thread.search", null);
-            return;
-          case "open-plugin-panel": {
-            const chrome = row.panelEntry?.chrome;
-            if (!chrome) return;
-            if (options.openInSplit && content) {
-              openInSplit(current, content, item.label);
-              return;
-            }
-            void current.navigate(
-              getPluginPanelRoutePath({
-                pluginId: chrome.pluginId,
-                path: chrome.path,
-              }),
-            );
-          }
-        }
+  const entries: SidebarNavigationEntry[] = [
+    hostEntry("new-thread", "New thread", newThreadShortcut, false),
+    hostEntry(
+      "search-threads",
+      "Search threads",
+      threadSearchShortcut,
+      searchDisabled,
+    ),
+    ...panelEntries.map(({ chrome, panel }): SidebarNavigationEntry => ({
+      item: {
+        id: `${chrome.pluginId}/${chrome.id}`,
+        label: chrome.title,
+        icon: { kind: "plugin", pluginId: chrome.pluginId, icon: chrome.icon },
+        action: {
+          kind: "open-plugin-panel",
+          pluginId: chrome.pluginId,
+          panelId: chrome.id,
+        },
+        isDisabled: false,
+        isVisible: true,
+        isLoading: panel === null,
+        pluginId: chrome.pluginId,
+        shortcut: null,
+        Accessory: panel === null ? null : wrappedAccessory(panel),
       },
-      setVisible(itemId, isVisible) {
-        latest.current.arrangement.setVisible(itemId, isVisible);
+      content: {
+        kind: "plugin-panel",
+        pluginId: chrome.pluginId,
+        panelPath: chrome.path,
+        subPath: "",
       },
-      setOrder(itemIds) {
-        latest.current.arrangement.setOrder(itemIds);
-      },
-      openCustomize() {
-        latest.current.host.onOpenCustomize();
-      },
-      async disablePlugin(itemId) {
-        const found = lookup(itemId);
-        const pluginId = found?.row.ownerPluginId;
-        if (!found || !pluginId) return;
-        const { current, item } = found;
-        try {
-          await current.setPluginEnabled(pluginId, false);
-          appToast.success(`${item.label} disabled`);
-        } catch (error) {
-          appToast.error(`Failed to disable ${item.label}`, {
-            description: error instanceof Error ? error.message : String(error),
-          });
-          throw error;
-        } finally {
-          await invalidatePluginList({ queryClient: appQueryClient });
-        }
-      },
-    };
-  }, []);
-
-  const state = useMemo<SidebarNavigationState>(
-    () => ({ items, activeItemId, isShortcutModifierHeld, actions }),
-    [actions, activeItemId, isShortcutModifierHeld, items],
-  );
-  const model = useMemo<SidebarNavigationModel>(
-    () => ({
-      state,
-      arrangement,
-      rowsById,
-      splitEnabled: host.splitEnabled,
-    }),
-    [arrangement, host.splitEnabled, rowsById, state],
-  );
+      route: getPluginPanelRoutePath({
+        pluginId: chrome.pluginId,
+        path: chrome.path,
+      }),
+    })),
+  ];
+  const find = (itemId: string) =>
+    entries.find((entry) => entry.item.id === itemId);
+  const actions: SidebarNavigationActions = {
+    activate(itemId, options) {
+      const entry = find(itemId);
+      if (!entry || entry.item.isDisabled || entry.item.isLoading) return;
+      const { content, route } = entry;
+      if (content === null || route === null) {
+        commandRunner.dispatch("thread.search", null);
+      } else if (options.openInSplit) {
+        openPaneContentInSplit({
+          store,
+          navigate,
+          content,
+          route,
+          enabled: true,
+        });
+      } else if (content.kind === "new-thread") {
+        void navigate(route, { state: { focusPrompt: true } });
+      } else {
+        void navigate(route);
+      }
+    },
+    async disablePlugin(itemId) {
+      const item = find(itemId)?.item;
+      if (item?.pluginId) await disablePlugin(item, setPluginEnabled);
+    },
+  };
+  const activeItemId =
+    entries.find(({ route, content }) =>
+      content?.kind === "plugin-panel"
+        ? pathname === route || pathname.startsWith(`${route}/`)
+        : pathname === route,
+    )?.item.id ?? null;
+  const model: SidebarNavigationModel = {
+    state: {
+      items: entries.map((entry) => entry.item),
+      activeItemId,
+      isShortcutModifierHeld,
+      actions,
+    },
+    entries,
+  };
   return (
     <SidebarNavigationModelContext.Provider value={model}>
       {children}
@@ -341,15 +246,4 @@ export function SidebarNavigationModelProvider({
 
 export function useSidebarNavigationModel(): SidebarNavigationModel | null {
   return useContext(SidebarNavigationModelContext);
-}
-
-export function useSidebarNavigationRowContent(
-  itemId: string,
-): { content: PaneContent; label: string } | null {
-  const model = useSidebarNavigationModel();
-  const row = model?.rowsById.get(itemId);
-  return useMemo(() => {
-    const content = row ? getSidebarNavigationRowContent(row) : null;
-    return row && content ? { content, label: row.label } : null;
-  }, [row]);
 }

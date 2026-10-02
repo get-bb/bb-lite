@@ -94,9 +94,6 @@ export interface SidebarNavigationItem {
 
 export interface SidebarNavigationActions {
   activate(itemId: string, options: { openInSplit: boolean }): void;
-  setVisible(itemId: string, isVisible: boolean): void;
-  setOrder(itemIds: readonly string[]): void;
-  openCustomize(): void;
   disablePlugin(itemId: string): Promise<void>;
 }
 
