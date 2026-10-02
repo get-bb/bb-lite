@@ -25,13 +25,13 @@ const BASE_FETCH_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 2_000;
 const KILL_ROUNDS = 5;
 
-function requireSegment(value: string, label: string): string {
+function requireSegment(value: string, label: string) {
   return SAFE_SEGMENT.test(value)
     ? value
     : fail("invalid_path", `${label} must be a single safe path segment`);
 }
 
-function repoDirName(sourcePath: string): string {
+function repoDirName(sourcePath: string) {
   const name = path.basename(sourcePath).replace(/\.git$/u, "");
   if (SAFE_SEGMENT.test(name) && !name.endsWith(".") && name.length <= 200) {
     return name;
@@ -40,7 +40,7 @@ function repoDirName(sourcePath: string): string {
   return `repo-${hash}`;
 }
 
-function realOrResolved(target: string): Promise<string> {
+function realOrResolved(target: string) {
   return fs.realpath(target).catch(() => path.resolve(target));
 }
 
@@ -70,7 +70,7 @@ async function processCwds(): Promise<[pid: number, cwd: string][]> {
   ]);
 }
 
-function signalAll(pids: number[], signal: NodeJS.Signals | 0): number[] {
+function signalAll(pids: number[], signal: NodeJS.Signals | 0) {
   return pids.filter((pid) => {
     try {
       return process.kill(pid, signal);
@@ -80,9 +80,9 @@ function signalAll(pids: number[], signal: NodeJS.Signals | 0): number[] {
   });
 }
 
-async function killProcessesWithCwdUnder(directory: string): Promise<void> {
+async function killProcessesWithCwdUnder(directory: string) {
   const root = await realOrResolved(directory);
-  const inside = async (): Promise<number[]> =>
+  const inside = async () =>
     (await processCwds())
       .filter(([pid, cwd]) => pid !== process.pid && cwd && isInside(root, cwd))
       .map(([pid]) => pid);
@@ -99,7 +99,7 @@ async function killProcessesWithCwdUnder(directory: string): Promise<void> {
   }
 }
 
-async function removeManagedPath(ctx: Ctx, target: string): Promise<void> {
+async function removeManagedPath(ctx: Ctx, target: string) {
   const parent = path.dirname(target);
   await fs.rm(`${target}.completed`, { force: true });
   if (await pathExists(target)) {

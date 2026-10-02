@@ -229,7 +229,7 @@ export function createSessionApi(
       if (live === null) outbox.threadEvent(threadId, event);
       else if (!live.detached) onEvent(live, event);
     };
-    const events = new EventBuilder({ providerId: adapter.id, emit });
+    const events = new EventBuilder({ emit });
     const host: SessionHost = {
       events,
       env: env.agent,
@@ -296,7 +296,7 @@ export function createSessionApi(
     return { outcome: "started", providerThreadId };
   }
 
-  async function submit(args: SubmitTurnArgs): Promise<SubmitTurnResult> {
+  async function submit(args: SubmitTurnArgs) {
     const { mode } = args;
     const live = sessions.get(args.session.threadId);
     if (mode.kind === "start") {

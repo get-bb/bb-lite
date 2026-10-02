@@ -79,7 +79,7 @@ async function resolveRange(repo: Repo, target: WorkspaceDiffTarget) {
   return { args, includesUntracked: all, mergeBaseRef: base };
 }
 
-function literal(paths: string[]): string[] {
+function literal(paths: string[]) {
   return paths.map((value) => `:(literal)${value}`);
 }
 
@@ -87,7 +87,7 @@ function rangeArgs(range: DiffRange, flags: string[], paths: string[] = []) {
   return [...range.args, ...flags, "--", ...literal(paths)];
 }
 
-function completeRecords(result: GitResult): string {
+function completeRecords(result: GitResult) {
   return result.truncated
     ? result.stdout.slice(0, result.stdout.lastIndexOf("\0") + 1)
     : result.stdout;
@@ -103,7 +103,7 @@ function truncateUtf8(value: string, maxBytes: number) {
   return { text: buffer.subarray(0, cut).toString("utf8"), truncated: true };
 }
 
-function shortstat(files: DiffFileEntry[]): string {
+function shortstat(files: DiffFileEntry[]) {
   const count = (total: number, noun: string, suffix: string) =>
     total > 0 ? [`${total} ${noun}${total === 1 ? "" : "s"}${suffix}`] : [];
   const sum = (key: "additions" | "deletions") =>
@@ -150,7 +150,7 @@ async function listUntracked(repo: Repo, paths: string[] = []) {
 async function listChangedFiles(
   ctx: Ctx,
   args: { path: string; target: WorkspaceDiffTarget },
-): Promise<ChangedFiles> {
+) {
   const repo = await git.requireRepo(ctx, args.path);
   const range = await resolveRange(repo, args.target);
   const empty = { files: [], nameStatus: [], untracked: [], truncated: false };
@@ -194,9 +194,9 @@ async function listChangedFiles(
 async function mapLimited<T>(
   items: readonly T[],
   work: (item: T) => Promise<void>,
-): Promise<void> {
+) {
   const queue = [...items];
-  const worker = async (): Promise<void> => {
+  const worker = async () => {
     for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
       await work(item);
     }
@@ -297,7 +297,7 @@ export const gitDiff: Method<"gitDiff"> = async (ctx, args) => {
   };
 };
 
-function diffFileRef(file: EnvironmentDiffFileQuery): string | undefined {
+function diffFileRef(file: EnvironmentDiffFileQuery) {
   const old = file.side === "old";
   switch (file.target) {
     case "uncommitted":

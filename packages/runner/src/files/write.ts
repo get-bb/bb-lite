@@ -46,7 +46,7 @@ async function confinedWritePath(location: FileLocation) {
 
 async function writableFile(
   location: FileLocation & { createParents?: boolean },
-): Promise<string> {
+) {
   const { writePath, parentMissing } = await confinedWritePath(location);
   const parent = path.dirname(writePath);
   if (location.createParents === true) {
@@ -57,7 +57,7 @@ async function writableFile(
   return writePath;
 }
 
-function decodePayload(content: string, encoding: BufferEncoding): Buffer {
+function decodePayload(content: string, encoding: BufferEncoding) {
   const contents = Buffer.from(content, encoding);
   if (contents.byteLength > FILE_PAYLOAD_MAX_BYTES) {
     const limit = `${FILE_PAYLOAD_MAX_BYTES} bytes`;
@@ -66,7 +66,7 @@ function decodePayload(content: string, encoding: BufferEncoding): Buffer {
   return contents;
 }
 
-async function currentSha256(target: string): Promise<string | null> {
+async function currentSha256(target: string) {
   const contents = await fs.readFile(target).catch(unlessCode("ENOENT", null));
   return contents === null ? null : sha256Hex(contents);
 }
@@ -76,7 +76,7 @@ async function replaceIfUnchanged(
   contents: Buffer,
   mode: number | undefined,
   expectedSha256: string | null,
-): Promise<FileWriteResult | null> {
+) {
   const temporaryPath = `${target}.bb-write-${randomUUID()}`;
   const conflict = async (): Promise<FileWriteResult> => ({
     outcome: "conflict",

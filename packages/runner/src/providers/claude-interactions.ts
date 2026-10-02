@@ -63,7 +63,7 @@ const suggestionsSchema = z.array(
   z.looseObject({ type: z.string(), directories: z.unknown().optional() }),
 );
 
-function permissionProfile(toolName: string, options: Options): Permissions {
+function permissionProfile(toolName: string, options: Options) {
   const parsed = suggestionsSchema.safeParse(options.suggestions).data ?? [];
   const added = parsed.filter((entry) => entry.type === "addDirectories");
   const paths = z.array(z.string());
@@ -106,7 +106,7 @@ function approvalPayload(
   input: Input,
   reason: string | null,
   permissions: Permissions,
-): ApprovalPayload {
+) {
   const plan = planSchema.safeParse(input).data;
   const bash = parseBashCommand(input);
   const path = input.file_path ?? input.path;
