@@ -6,128 +6,61 @@ import {
   useDocumentVisibilityRevision,
 } from "@/lib/document-visibility";
 
-type ThreadReadTrackingState = ThreadReadState & Pick<Thread, "id">;
-
-interface MarkThreadReadMutation {
-  mutateAsync: (input: {
-    signal?: AbortSignal;
-    threadId: string;
-  }) => Promise<ThreadReadState>;
-}
-
-interface UseThreadReadTrackingParams {
-  markThreadRead: MarkThreadReadMutation;
-  thread?: ThreadReadTrackingState;
-}
-
 interface ReadTrackingSnapshot {
   isVisible: boolean;
-  isRead: boolean | null;
+  isRead: boolean;
   latestAttentionAt: number | null;
-  threadId: string | null;
+  threadId: string;
 }
 
 export function useThreadReadTracking({
   markThreadRead,
   thread,
-}: UseThreadReadTrackingParams) {
-  const failedReadKeysRef = useRef<Set<string>>(new Set());
-  const pendingReadControllersRef = useRef<Map<string, AbortController>>(
-    new Map(),
-  );
-  const suppressedManualUnreadKeysRef = useRef<Set<string>>(new Set());
-  const previousSnapshotRef = useRef<ReadTrackingSnapshot | null>(null);
+}: {
+  markThreadRead: {
+    mutateAsync: (input: { threadId: string }) => Promise<ThreadReadState>;
+  };
+  thread?: ThreadReadState & Pick<Thread, "id">;
+}) {
+  const previousRef = useRef<ReadTrackingSnapshot | null>(null);
+  const manualUnreadMarkerRef = useRef<string | null>(null);
   const visibilityRevision = useDocumentVisibilityRevision();
   const isVisible = isDocumentVisible();
 
   useEffect(() => {
-    const controllers = pendingReadControllersRef.current;
-    return () => {
-      for (const controller of controllers.values()) controller.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    const previousSnapshot = previousSnapshotRef.current;
-    const threadIsRead = thread ? isThreadRead(thread) : null;
-    const currentSnapshot: ReadTrackingSnapshot = {
-      isVisible,
-      isRead: threadIsRead,
-      latestAttentionAt: thread?.latestAttentionAt ?? null,
-      threadId: thread?.id ?? null,
-    };
-    previousSnapshotRef.current = currentSnapshot;
-
-    if (previousSnapshot?.threadId !== currentSnapshot.threadId) {
-      for (const controller of pendingReadControllersRef.current.values()) {
-        controller.abort();
-      }
-    }
-
-    if (!isVisible) {
-      return;
-    }
-    if (!thread) {
-      return;
-    }
+    const last = previousRef.current;
+    const previous = last?.threadId === thread?.id ? last : null;
+    const isRead = thread !== undefined && isThreadRead(thread);
+    previousRef.current = thread
+      ? {
+          isVisible,
+          isRead,
+          latestAttentionAt: thread.latestAttentionAt,
+          threadId: thread.id,
+        }
+      : null;
+    if (!isVisible || !thread) return;
 
     const marker = `${thread.id}:${thread.latestAttentionAt}`;
-    const isOpenedThread =
-      previousSnapshot === null || previousSnapshot.threadId !== thread.id;
-    const hasNewAttention =
-      previousSnapshot?.threadId === thread.id &&
-      previousSnapshot.latestAttentionAt !== thread.latestAttentionAt;
-    if (isOpenedThread || hasNewAttention) {
-      suppressedManualUnreadKeysRef.current.clear();
+    const isOpenedOrHasNewAttention =
+      previous === null ||
+      previous.latestAttentionAt !== thread.latestAttentionAt;
+    if (isOpenedOrHasNewAttention) manualUnreadMarkerRef.current = null;
+    else if (!isRead && previous?.isVisible && previous.isRead) {
+      manualUnreadMarkerRef.current = marker;
     }
-
-    if (threadIsRead) {
-      failedReadKeysRef.current.delete(marker);
-      suppressedManualUnreadKeysRef.current.delete(marker);
+    if (isRead) {
+      if (manualUnreadMarkerRef.current === marker) {
+        manualUnreadMarkerRef.current = null;
+      }
       return;
-    }
-
-    const becameVisible =
-      previousSnapshot?.threadId === thread.id &&
-      previousSnapshot.isVisible === false;
-    const isRetry = failedReadKeysRef.current.has(marker);
-    const becameManuallyUnread =
-      previousSnapshot?.threadId === thread.id &&
-      previousSnapshot.latestAttentionAt === thread.latestAttentionAt &&
-      previousSnapshot.isVisible &&
-      previousSnapshot.isRead === true &&
-      !isRetry;
-
-    if (becameManuallyUnread) {
-      suppressedManualUnreadKeysRef.current.add(marker);
     }
     if (
-      suppressedManualUnreadKeysRef.current.has(marker) &&
-      !isOpenedThread &&
-      !hasNewAttention
+      isOpenedOrHasNewAttention ||
+      (previous?.isVisible === false &&
+        manualUnreadMarkerRef.current !== marker)
     ) {
-      return;
+      void markThreadRead.mutateAsync({ threadId: thread.id }).catch(() => {});
     }
-
-    if (!isOpenedThread && !hasNewAttention && !becameVisible && !isRetry) {
-      return;
-    }
-    if (pendingReadControllersRef.current.has(marker)) {
-      return;
-    }
-
-    failedReadKeysRef.current.delete(marker);
-    const controller = new AbortController();
-    pendingReadControllersRef.current.set(marker, controller);
-    void markThreadRead
-      .mutateAsync({ signal: controller.signal, threadId: thread.id })
-      .catch(() => {
-        failedReadKeysRef.current.add(marker);
-      })
-      .finally(() => {
-        if (pendingReadControllersRef.current.get(marker) === controller) {
-          pendingReadControllersRef.current.delete(marker);
-        }
-      });
   }, [isVisible, markThreadRead, thread, visibilityRevision]);
 }

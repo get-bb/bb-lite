@@ -59,8 +59,10 @@ import {
   FAVICON_COLOR_VALUES,
   getFaviconGlyphHref,
 } from "@/lib/favicon-color-preference";
-import { localhostLinkRewriteDescription } from "@/lib/localhost-link-rewrite-description";
-import { useRewriteLocalhostLinksPreference } from "@/lib/localhost-link-rewrite-preference";
+import {
+  localhostLinkRewriteDescription,
+  useRewriteLocalhostLinksPreference,
+} from "@/lib/localhost-link-rewrite-preference";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
 import { SETTINGS_ROUTE_PATH } from "@/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";

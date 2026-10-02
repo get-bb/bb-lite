@@ -1,22 +1,35 @@
 import type { PermissionMode } from "@bb/domain";
 import type { IconName } from "@bb/shared-ui/icon";
-import {
-  PERMISSION_MODE_OPTIONS as CORE_PERMISSION_MODE_OPTIONS,
-  type PermissionModeOption as CorePermissionModeOption,
-} from "@bb/client-core";
 
-export interface PermissionModeOption extends CorePermissionModeOption {
+export interface PermissionModeOption {
+  value: PermissionMode;
+  label: string;
+  description: string;
+  tone?: "warning";
   iconName: IconName;
 }
 
-const PERMISSION_MODE_ICONS: Record<PermissionMode, IconName> = {
-  "accept-edits": "FolderEdit",
-  auto: "SecurityCheck",
-  full: "SquareUnlock02",
-};
-
-export const PERMISSION_MODE_OPTIONS: PermissionModeOption[] =
-  CORE_PERMISSION_MODE_OPTIONS.map((option) => ({
-    ...option,
-    iconName: PERMISSION_MODE_ICONS[option.value],
-  }));
+export const PERMISSION_MODE_OPTIONS: PermissionModeOption[] = [
+  {
+    value: "accept-edits",
+    label: "Accept Edits",
+    description:
+      "Applies edits inside the workspace automatically. Anything beyond the workspace asks you first.",
+    iconName: "FolderEdit",
+  },
+  {
+    value: "auto",
+    label: "Approve for me",
+    description:
+      "Same workspace sandbox, with requests reviewed automatically. High-risk actions can still come back to you.",
+    iconName: "SecurityCheck",
+  },
+  {
+    value: "full",
+    label: "Full Access",
+    tone: "warning",
+    description:
+      "No sandbox and no approvals — the agent can run anything on your machine.",
+    iconName: "SquareUnlock02",
+  },
+];

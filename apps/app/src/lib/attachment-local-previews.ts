@@ -2,28 +2,13 @@ const MAX_LOCAL_PREVIEWS = 24;
 
 const localPreviewUrlsByPath = new Map<string, string>();
 
-function canCreateObjectUrls(): boolean {
-  return (
-    typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
-  );
-}
-
 export function registerLocalAttachmentPreview(path: string, file: Blob): void {
-  if (!canCreateObjectUrls() || !file.type.startsWith("image/")) {
-    return;
-  }
-  const previous = localPreviewUrlsByPath.get(path);
-  if (previous !== undefined) {
-    URL.revokeObjectURL(previous);
-    localPreviewUrlsByPath.delete(path);
-  }
+  if (!file.type.startsWith("image/")) return;
+  releaseLocalAttachmentPreview(path);
   localPreviewUrlsByPath.set(path, URL.createObjectURL(file));
-  while (localPreviewUrlsByPath.size > MAX_LOCAL_PREVIEWS) {
-    const oldest = localPreviewUrlsByPath.keys().next();
-    if (oldest.done) {
-      break;
-    }
-    releaseLocalAttachmentPreview(oldest.value);
+  for (const oldest of localPreviewUrlsByPath.keys()) {
+    if (localPreviewUrlsByPath.size <= MAX_LOCAL_PREVIEWS) break;
+    releaseLocalAttachmentPreview(oldest);
   }
 }
 
@@ -33,9 +18,7 @@ export function getLocalAttachmentPreviewSrc(path: string): string | null {
 
 export function releaseLocalAttachmentPreview(path: string): void {
   const url = localPreviewUrlsByPath.get(path);
-  if (url === undefined) {
-    return;
-  }
+  if (url === undefined) return;
   localPreviewUrlsByPath.delete(path);
   URL.revokeObjectURL(url);
 }

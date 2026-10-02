@@ -1,50 +1,22 @@
-import type { ComponentType } from "react";
-import { createElement } from "react";
+import { createElement, type ComponentType } from "react";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
 
-interface ProviderIconInfo {
-  icon: ComponentType<{ className?: string }>;
-  ariaLabel: string;
-}
+type IconComponent = ComponentType<{ className?: string }>;
 
-interface ProviderIconSource {
-  logoUrl: string | null;
-  icon?: { glyph: string };
-  family?: string;
-  displayName?: string;
-}
-
-const providerIcons = new Map<string, ComponentType<{ className?: string }>>();
+const providerIcons = new Map<string, IconComponent>();
 
 export function getProviderIconInfo(
   providerId: string,
-  source: ProviderIconSource | null = null,
-): ProviderIconInfo {
-  const cacheKey = JSON.stringify([
-    providerId,
-    source?.logoUrl,
-    source?.icon?.glyph,
-  ]);
+  source: { logoUrl: string | null; icon?: { glyph: string } },
+): { icon: IconComponent } {
+  const { logoUrl, icon: glyphIcon } = source;
+  const cacheKey = JSON.stringify([providerId, logoUrl, glyphIcon?.glyph]);
   let icon = providerIcons.get(cacheKey);
   if (icon === undefined) {
-    const ResolvedProviderIcon: ComponentType<{ className?: string }> = ({
-      className,
-    }) =>
-      createElement(ProviderIcon, {
-        provider: {
-          id: providerId,
-          logoUrl: source?.logoUrl,
-          icon: source?.icon,
-        },
-        className,
-      });
-    icon = ResolvedProviderIcon;
+    const provider = { id: providerId, logoUrl, icon: glyphIcon };
+    icon = ({ className }) =>
+      createElement(ProviderIcon, { provider, className });
     providerIcons.set(cacheKey, icon);
   }
-  return {
-    icon,
-    ariaLabel:
-      source?.displayName ??
-      (source?.family === "acp" ? "ACP provider" : providerId),
-  };
+  return { icon };
 }

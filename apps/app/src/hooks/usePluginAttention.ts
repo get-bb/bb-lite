@@ -3,9 +3,7 @@ import type { PluginListItem } from "@/hooks/queries/plugin-settings-queries";
 function pluginNeedsAttention(
   plugin: Pick<PluginListItem, "enabled" | "status">,
 ): boolean {
-  return (
-    plugin.enabled && plugin.status === "error"
-  );
+  return plugin.enabled && plugin.status === "error";
 }
 
 export function pluginsNeedingAttention(
