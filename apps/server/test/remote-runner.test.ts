@@ -11,8 +11,7 @@ import {
   type SubmitTurnArgs,
 } from "@bb/runner";
 import { expect, it, onTestFinished } from "vitest";
-import { createTestServer } from "./helpers.js";
-import type { TestServer } from "./watch.js";
+import { createTestServer, type TestServer } from "./helpers.js";
 
 let turnCounter = 0;
 

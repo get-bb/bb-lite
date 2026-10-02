@@ -5,14 +5,13 @@ import type {
   SubmitTurnArgs,
 } from "@bb/runner";
 import type { CreateThreadRequest } from "@bb/server-contract";
-import type { SqlValue } from "../src/db/index.js";
+import { insertRow, type SqlValue } from "../src/db/index.js";
 import { insertTerminal } from "../src/db/terminals.js";
 import type { ThreadRow } from "../src/db/threads.js";
 import type { ThreadEnvironment } from "../src/environments/types.js";
-import { createTestServer, type TestSocket } from "./helpers.js";
+import { createTestServer, type Json, type TestSocket } from "./helpers.js";
 
 type TurnStatus = "completed" | "failed" | "interrupted";
-type Json = Record<string, unknown>;
 type Spawn = Partial<
   Omit<CreateThreadRequest, "startedOnBehalfOf" | "originKind">
 >;
@@ -60,16 +59,13 @@ export const events = {
 
 export async function createThreadServer() {
   const server = await createTestServer();
-  const { ctx, runner, api, url } = server;
+  const { ctx, runner, api } = server;
   const { db } = ctx;
   const hostId = ctx.config.hostId;
-  const at = "created_at, updated_at";
-  db.run(`INSERT INTO projects (id, name, ${at}) VALUES ('proj_1', 'P', 1, 1)`);
-  db.run(
-    `INSERT INTO project_sources (id, project_id, host_id, path, ${at})
-     VALUES ('src_1', 'proj_1', ?, '/repo', 1, 1)`,
-    hostId,
-  );
+  const at = { createdAt: 1, updatedAt: 1 };
+  const source = { id: "src_1", projectId: "proj_1", hostId, path: "/repo" };
+  insertRow(db, "projects", { id: "proj_1", name: "P", ...at });
+  insertRow(db, "project_sources", { ...source, ...at });
   let seq = 0;
   const submitted: SubmitTurnArgs[] = [];
   const plainDirectory = { defaultBranch: null, originDefaultBranch: null };
@@ -131,10 +127,10 @@ export async function createThreadServer() {
     path: string,
     json?: unknown,
   ) => {
-    const headers = { "content-type": "application/json" };
-    const body = json === undefined ? undefined : JSON.stringify(json);
-    const init = { method, headers, body };
-    const response = await fetch(`${url}/api/v1${path}`, init);
+    const response =
+      json === undefined
+        ? await server.request(path, { method })
+        : await server.send(path, json, method);
     await settle();
     return { status: response.status, body: (await response.json()) as Body };
   };

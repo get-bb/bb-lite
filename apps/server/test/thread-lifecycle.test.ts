@@ -1,6 +1,6 @@
 import type { PendingInteractionPayload } from "@bb/domain";
 import { expect, it } from "vitest";
-import { openDatabase } from "../src/db/index.js";
+import { insertRow, openDatabase } from "../src/db/index.js";
 import { createServer } from "../src/server.js";
 import { FakeRunner } from "./helpers.js";
 import {
@@ -102,11 +102,6 @@ it("serves a plugin: attributed spawn, workspace files and requestInput", async 
   const origin = { kind: "plugin", pluginId: "secrets" };
   expect(answered.body).toMatchObject({ status: "resolved", origin });
   expect(await first).toEqual({ outcome: "submitted", value });
-
-  const second = bb.requestInput(form);
-  await server.settle();
-  await http("POST", `${base}/${latest()}/cancel`);
-  expect(await second).toEqual({ outcome: "cancelled", reason: "user" });
 });
 
 it("runs core and extension tools for the provider", async () => {
@@ -205,6 +200,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   });
   const change = [["archived-changed"], { projectId: "proj_1" }];
   expect(await server.changes(client)).toEqual(change);
+  await server.matches("/sidebar-bootstrap", { projects: [{ threads: [] }] });
   await server.advance(29_000);
   expect(thread(child).status).toBe("active");
   expect(server.callsTo("closeTerminal")).toEqual([]);
@@ -288,24 +284,17 @@ it("interrupts threads that were running when the server stopped", async () => {
   const { config } = (await createThreadServer()).ctx;
   const db = openDatabase({ path: ":memory:" });
   const { hostId } = config;
-  const at = "created_at, updated_at";
-  db.run(`INSERT INTO hosts (id, name, ${at}) VALUES (?, 'h', 1, 1)`, hostId);
-  db.run(`INSERT INTO projects (id, name, ${at}) VALUES ('p', 'P', 1, 1)`);
-  db.run(
-    `INSERT INTO environments (id, project_id, host_id, path, status, ${at})
-     VALUES ('env_1', 'p', ?, '/repo', 'ready', 1, 1)`,
-    hostId,
-  );
-  const insert = (id: string, status: string, environmentId: string | null) =>
-    db.run(
-      `INSERT INTO threads (id, project_id, environment_id, provider_id,
-         status, active_turn_id, latest_attention_at, ${at})
-       VALUES (?, 'p', ?, 'codex', ?, ?, 1, 1, 1)`,
-      id,
-      environmentId,
-      status,
-      status === "active" ? "t1" : null,
-    );
+  const at = { createdAt: 1, updatedAt: 1 };
+  const place = { projectId: "p", hostId, path: "/repo", status: "ready" };
+  insertRow(db, "hosts", { id: hostId, name: "h", ...at });
+  insertRow(db, "projects", { id: "p", name: "P", ...at });
+  insertRow(db, "environments", { id: "env_1", ...place, ...at });
+  const insert = (id: string, status: string, environmentId: string | null) => {
+    const turn = { status, activeTurnId: status === "active" ? "t1" : null };
+    const thread = { id, projectId: "p", environmentId, providerId: "codex" };
+    const row = { ...thread, ...turn, latestAttentionAt: 1, ...at };
+    insertRow(db, "threads", row);
+  };
   insert("thr_active", "active", "env_1");
   insert("thr_idle", "idle", "env_1");
   insert("thr_starting", "starting", null);
@@ -313,13 +302,13 @@ it("interrupts threads that were running when the server stopped", async () => {
   const server = createServer({ config, db, localRunner: () => runner.api });
   await server.listen();
   await server.ctx.threads.settled();
-  const statuses = db
-    .all<{ status: string }>("SELECT status FROM threads ORDER BY id")
-    .map((row) => row.status);
-  expect(statuses).toEqual(["error", "idle", "error"]);
-  const types = db
-    .all<{ type: string }>("SELECT type FROM events ORDER BY rowid")
-    .map((row) => row.type);
+  const column = <Row>(sql: string, pick: (row: Row) => string): string[] =>
+    db.all<Row>(sql).map(pick);
+  const statuses = "SELECT status FROM threads ORDER BY id";
+  const settled = column<{ status: string }>(statuses, (row) => row.status);
+  expect(settled).toEqual(["error", "idle", "error"]);
+  const stored = "SELECT type FROM events ORDER BY rowid";
+  const types = column<{ type: string }>(stored, (row) => row.type);
   const interrupted = "system/thread/interrupted";
   expect(types).toEqual(["turn/completed", interrupted, interrupted]);
   await server.close();

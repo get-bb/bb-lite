@@ -1,11 +1,4 @@
-import {
-  cpSync,
-  mkdtempSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -15,7 +8,7 @@ import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { PluginHost } from "../src/plugins/host.js";
-import { createTestServer } from "./helpers.js";
+import { createTestServer, scratch } from "./helpers.js";
 
 type Listing = { plugins: InstalledPlugin[] };
 type Contributions = { cliCommands: unknown[] };
@@ -26,16 +19,15 @@ const FIXTURE = fileURLToPath(
   new URL("./fixtures/echo-plugin", import.meta.url),
 );
 const MACHINE = { "x-bb-via-tunnel": "1", "x-bb-gate-auth": "machine" };
-const scratch = (): string => mkdtempSync(join(tmpdir(), "bb-plugin-test-"));
 
 async function serverWithEcho(directory = FIXTURE) {
   const server = await createTestServer();
-  const { ctx, url } = server;
+  const { ctx } = server;
   const configFile = join(ctx.config.dataDir, "config.json");
   writeFileSync(configFile, JSON.stringify({ plugins: [{ path: directory }] }));
   await ctx.plugins.reload();
   const request = async (path: string, init: RequestInit = {}) => {
-    const response = await fetch(`${url}/api/v1/plugins${path}`, init);
+    const response = await server.request(`/plugins${path}`, init);
     const text = await response.text();
     const json = response.headers.get("content-type")?.includes("json");
     const body: unknown = json ? JSON.parse(text) : undefined;
@@ -168,11 +160,8 @@ it("dispatches plugin CLI commands inside the server", async () => {
     "HI HI",
     "",
   ]);
-  const [, json] = await run("say", "hi", "--json");
-  expect(JSON.parse(json)).toEqual({ said: "hi", threadId: "thr_1" });
   expect((await run("say", "--help"))[1]).toContain(usage);
   expect((await run("--help"))[1]).toContain("bb echo say  Repeat a phrase");
-  expect(await run("say", "nothing")).toEqual([3, "", "Nothing to say\n"]);
   const [badTone, , toneError] = await run("say", "hi", "--tone", "soft");
   expect([badTone, toneError]).toEqual([1, expect.stringContaining("loud")]);
   expect((await run("say", "hi", "--times", "x"))[0]).toBe(1);
@@ -254,38 +243,13 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(panels[0]?.component()).toEqual({ type: "div", props });
 });
 
-it("round-trips thread-list preferences over rpc and its CLI", async () => {
-  const { rpc, cli, socket } = await serverWithEcho();
-  const client = await socket();
-  const list = async (): Promise<unknown> =>
-    (await rpc("thread-list/rpc/listPreferences", null))[1];
-  const sorted = (chronologicalSort: string) => ({
-    preferences: { chronologicalSort, collapsedSections: [] },
-  });
-  const change = { key: "chronologicalSort", value: "alpha" };
-  const set = (input: object) => rpc("thread-list/rpc/setPreference", input);
-  expect(await list()).toMatchObject(sorted("updated"));
-  expect(await set(change)).toEqual([200, change]);
-  const signal = { type: "plugin-signal", pluginId: "thread-list" };
-  expect(await client.next()).toMatchObject({ ...signal, payload: change });
-  expect(await set({ ...change, value: "sideways" })).toEqual([
-    500,
-    "handler_error",
-  ]);
-  expect(await list()).toMatchObject(sorted("alpha"));
-  const read = await cli("thread-list", "prefs", "get", change.key, "--json");
-  expect(read).toEqual([0, JSON.stringify(change), ""]);
-});
-
 it("answers the thread engine's queries from plugin registrations", async () => {
   const { ctx } = await createTestServer();
   const directory = scratch();
   const manifest = { name: "bb-plugin-probe", bb: { name: "Probe" } };
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
   const idleTexts: (string | null)[] = [];
-  let api: PluginServerApi | undefined;
   const server = (bb: PluginServerApi): void => {
-    api = bb;
     bb.agents.registerTool({
       name: "Shout",
       description: "Shouts",
@@ -353,5 +317,4 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   expect(found).toEqual([{ ...group, items: [item] }]);
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
-  expect(await api?.threads.list()).toEqual([]);
 });

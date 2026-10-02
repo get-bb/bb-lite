@@ -1,8 +1,14 @@
 import { expect, it } from "vitest";
 import { closeTerminalsFor } from "../src/terminals/sessions.js";
-import { createDemo, git, write } from "./demo.js";
-import type { SocketMessage, TestSocket } from "./helpers.js";
-import { insertThread, watchChanges } from "./watch.js";
+import {
+  createDemo,
+  git,
+  insertThread,
+  watchChanges,
+  write,
+  type SocketMessage,
+  type TestSocket,
+} from "./helpers.js";
 
 type Chunk = { seq: number; dataBase64: string };
 const base64 = (text: string): string => Buffer.from(text).toString("base64");

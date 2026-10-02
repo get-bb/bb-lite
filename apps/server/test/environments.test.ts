@@ -1,28 +1,22 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { createEchoAdapter } from "@bb/runner";
 import type {
   CreateThreadRequest,
   UnmanagedBranchSpec,
 } from "@bb/server-contract";
-import { expect, it, onTestFinished, vi } from "vitest";
-import type { ServerConfig } from "../src/config.js";
+import { expect, it, vi } from "vitest";
 import { getEnvironment, listEnvironments } from "../src/db/environments.js";
 import { getThread } from "../src/db/threads.js";
-import { localRunnerFor } from "../src/runners/local.js";
-import { git, write } from "./demo.js";
-import { createTestServer } from "./helpers.js";
+import {
+  commitAll,
+  createProject,
+  createTestServer,
+  git,
+  scratch,
+  write,
+} from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
-import { createProject } from "./watch.js";
 
 type Placement = CreateThreadRequest["environment"];
 
@@ -34,24 +28,14 @@ const GIT_DIR = '"$(git rev-parse --git-common-dir)"';
 const TITLE = "Build the widget";
 
 async function createWorld(files: Record<string, string> = {}) {
-  const localRunner = (config: ServerConfig) => {
-    const local = localRunnerFor(config, [createEchoAdapter()]);
-    onTestFinished(local.shutdown);
-    return local.connect;
-  };
-  const server = await createTestServer({}, { localRunner });
+  const server = await createTestServer({}, "echo");
   const { api, ctx } = server;
   const { db } = ctx;
   const { hostId } = ctx.config;
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "bb-env-")));
-  onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+  const root = scratch();
   const repo = join(root, "repo");
   write(repo, { "README.md": "# demo\n", ...files });
-  git(repo, "init", "--quiet", "-b", "main");
-  git(repo, "config", "user.name", "Test");
-  git(repo, "config", "user.email", "test@example.com");
-  git(repo, "add", "-A");
-  git(repo, "commit", "--quiet", "-m", "initial");
+  commitAll(repo);
   git(repo, "clone", "--quiet", "--bare", ".", "../origin.git");
   git(repo, "remote", "add", "origin", "../origin.git");
   git(repo, "fetch", "--quiet", "origin");

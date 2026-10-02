@@ -3,8 +3,14 @@ import { dirname, join } from "node:path";
 import { environmentSchema } from "@bb/domain";
 import { expect, it } from "vitest";
 import { insertHost } from "../src/db/hosts.js";
-import { createDemo, git, insertEnvironment, write } from "./demo.js";
-import { insertThread, watchChanges } from "./watch.js";
+import {
+  createDemo,
+  git,
+  insertEnvironment,
+  insertThread,
+  watchChanges,
+  write,
+} from "./helpers.js";
 
 const env = "/environments/env_demo";
 const uncommitted = "target=uncommitted";

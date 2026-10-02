@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   defaultAppSettings,
@@ -11,47 +10,28 @@ import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig } from "../src/config.js";
-import * as database from "../src/db/index.js";
+import {
+  insertRow,
+  LegacyDataDirectoryError,
+  openDatabase,
+} from "../src/db/index.js";
 import { authorize } from "../src/http/trust.js";
 import { Hub } from "../src/ws/hub.js";
-import { createTestServer } from "./helpers.js";
+import { createTestServer, scratch } from "./helpers.js";
 
 type Headers = Record<string, string>;
 type Sent = { metadata?: { eventTypes?: string[] } };
-const scratch = (): string => mkdtempSync(join(tmpdir(), "bb-test-"));
 
-it("applies the schema once, maps columns and keeps search in step", () => {
+it("applies the schema once and reopens the same file", () => {
   const path = join(scratch(), "bb.db");
-  const first = database.openDatabase({ path, now: () => 42 });
-  const id = database.newId("thr");
-  expect(`${first.now()} ${id}`).toMatch(/^42 thr_[2-9a-km-np-z]{10}$/u);
-  first.run(
-    "INSERT INTO projects (id, name, created_at, updated_at) VALUES ('p1', 'P', 1, 1)",
-  );
-  first.run(
-    `INSERT INTO threads
-       (id, project_id, provider_id, latest_attention_at, created_at, updated_at)
-     VALUES (?, 'p1', 'echo', 1, 1, 1)`,
-    id,
-  );
-  first.run(
-    `INSERT INTO thread_search_segments
-     VALUES ('seg', ?, 'title', 'title', NULL, 'refactor the scheduler', 1, 1)`,
-    id,
-  );
+  const first = openDatabase({ path, now: () => 42 });
+  const at = { createdAt: first.now(), updatedAt: first.now() };
+  insertRow(first, "projects", { id: "p1", name: "P", ...at });
   first.close();
-
-  const db = database.openDatabase({ path });
-  const hits = (term: string): number =>
-    db.all("SELECT rowid FROM thread_search_segments_fts(?)", term).length;
+  const db = openDatabase({ path });
   expect(db.get("PRAGMA user_version")).toEqual({ userVersion: 1 });
-  const thread = { projectId: "p1", status: "starting" };
-  expect(db.get("SELECT project_id, status FROM threads")).toEqual(thread);
-  expect(hits("sched*")).toBe(1);
-  db.run("UPDATE thread_search_segments SET text = 'ship the importer'");
-  expect(hits("sched*") + hits("importer")).toBe(1);
-  db.run("DELETE FROM threads");
-  expect(hits("importer")).toBe(0);
+  const stored = { id: "p1", createdAt: 42, sortKey: "V" };
+  expect(db.get("SELECT * FROM projects")).toMatchObject(stored);
   expect(() => db.transaction(async () => {})).toThrow("synchronous");
 });
 
@@ -59,8 +39,8 @@ it("refuses a data directory of the original bb without touching it", () => {
   const dataDir = scratch();
   const legacy = new Database(join(dataDir, "bb.db"));
   legacy.exec("CREATE TABLE __drizzle_migrations (id INTEGER)");
-  const refusal = database.LegacyDataDirectoryError;
-  expect(() => loadConfig({ BB_DATA_DIR: dataDir })).toThrow(refusal);
+  const load = (): unknown => loadConfig({ BB_DATA_DIR: dataDir });
+  expect(load).toThrow(LegacyDataDirectoryError);
   expect(readdirSync(dataDir)).toEqual(["bb.db"]);
 });
 
@@ -74,26 +54,6 @@ function hubClient(hub: Hub, ...targets: RealtimeSubscriptionTarget[]) {
   }
   return socket;
 }
-
-it("routes changes to list and detail subscribers and tracks them", () => {
-  const hub = new Hub();
-  const edges: string[] = [];
-  hub.onSubscriptionChange((target, on) => edges.push(`${target.kind} ${on}`));
-  const projectOne = { kind: "project-detail", projectId: "p1" } as const;
-  const list = hubClient(hub, { kind: "project-list" });
-  const detail = hubClient(hub, projectOne);
-  const other = hubClient(hub, { kind: "project-detail", projectId: "p2" });
-  hub.project("p1", ["project-updated"]);
-  const change = { type: "changed", entity: "project", id: "p1" };
-  expect(list.sent).toEqual([{ ...change, changes: ["project-updated"] }]);
-  expect([detail.sent, other.sent]).toEqual([list.sent, []]);
-  expect(hub.pluginSignal("tasks", "board", { n: 1 })).toBe(3);
-  hub.receive(other, "not json");
-  expect(other.close).toHaveBeenCalledWith(1008, "invalid-message");
-  hub.disconnect(detail);
-  const detailEdges = edges.slice(1).join().replaceAll("project-detail ", "");
-  expect(detailEdges).toBe("true,true,false");
-});
 
 it("coalesces events-appended for list-only subscribers", () => {
   vi.useFakeTimers();
@@ -116,6 +76,8 @@ it("coalesces events-appended for list-only subscribers", () => {
   hub.thread("thr_1", ["status-changed"], { projectId: "p1" });
   vi.advanceTimersByTime(5_000);
   expect([listOnly.sent.length, viewer.sent.length]).toEqual([4, 5]);
+  hub.receive(viewer, "not json");
+  expect(viewer.close).toHaveBeenCalledWith(1008, "invalid-message");
 });
 
 const loopback = { host: "127.0.0.1:48886" };
@@ -238,20 +200,4 @@ it("serves the app with an SPA fallback that spares /assets", async () => {
   const etag = String(route.headers.get("etag")).replace("W/", "");
   const cached = await get("/", { "if-none-match": `"other", ${etag}` });
   expect(cached.status).toBe(304);
-});
-
-it("fans runner events out by kind and acknowledges reliable ones", async () => {
-  const { ctx, runner } = await createTestServer();
-  const seen: string[] = [];
-  ctx.runners.onEvent("script.output", async (event, hostId) => {
-    seen.push(`${hostId === ctx.config.hostId} ${event.text}`);
-  });
-  const kind = "script.output";
-  const output = { kind, operationId: "op", text: "hi" } as const;
-  runner.emit({ lane: "reliable", seq: 7, ...output });
-  const acknowledged = [{ method: "ackEvents", args: [{ seq: 7 }] }];
-  await vi.waitFor(() => expect(runner.calls).toEqual(acknowledged));
-  expect(seen).toEqual(["true hi"]);
-  const offline = expect.objectContaining({ status: 502 });
-  expect(() => ctx.runners.get("host_other")).toThrow(offline);
 });

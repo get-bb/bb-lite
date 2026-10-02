@@ -3,8 +3,12 @@ import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { insertHost } from "../src/db/hosts.js";
 import { onProjectDeleted } from "../src/projects/remove.js";
-import { createTestServer } from "./helpers.js";
-import { createProject, insertThread, watchChanges } from "./watch.js";
+import {
+  createProject,
+  createTestServer,
+  insertThread,
+  watchChanges,
+} from "./helpers.js";
 
 const personal = { id: PERSONAL_PROJECT_ID };
 
