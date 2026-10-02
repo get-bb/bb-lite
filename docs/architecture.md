@@ -295,11 +295,12 @@ this product writes. Facts the code no longer states in comments:
   preference row whose key this build does not define is ignored, a keybinding override for a command
   that no longer exists is dropped without touching the others, unknown general settings are stripped,
   and an appearance naming a theme that is not built in shows the default palette.
-- `code-themes/*.ts` are the light syntax themes shiki does not ship (Nord, Dracula) as rule tables:
-  `[scope, foreground]` or `[scope, {fontStyle, …}]`, expanded into a VS Code theme by `code-theme.ts`.
-  Their `colors` hold only what the highlighter reads (`editor.foreground`/`background`, the three
-  `gitDecoration.*ResourceForeground` and `terminal.ansi*`), not the workbench colors of the upstream
-  themes.
+- `code-themes/*.ts` describe the light syntax themes shiki does not ship (Nord, Dracula) as a recolouring
+  of the bundled dark theme: a `swap` of the few colours that differ and the `colors` the highlighter
+  reads (`editor.foreground`/`background`, `gitDecoration.*ResourceForeground`, `terminal.ansi*`). The
+  app registers each one with a loader that resolves the dark theme and calls `deriveLightCodeTheme`
+  (`apps/app/src/lib/code-theme-registration.ts`); the result equals the hand-expanded themes of the
+  original rule for rule.
 - Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
   `client-preference` (a remembered default) does not.
 - A plugin id is the npm package name without scope and without the `bb-plugin-` prefix, lowercased
