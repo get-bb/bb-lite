@@ -244,9 +244,11 @@ export const settingsShow: Run = async (c) => {
   const all = Object.entries(settings);
   const shown = all.filter(([name]) => key === undefined || name === key);
   if (shown.length === 0) throw usageError(`Unknown setting '${key}'.`);
-  const lines = shown.map(([name, value]) =>
-    key === undefined ? `${name} = ${JSON.stringify(value)}` : `${value}`,
-  );
+  const lines = shown.map(([name, value]) => {
+    const json = JSON.stringify(value);
+    if (key === undefined) return `${name} = ${json}`;
+    return typeof value === "string" ? value : json;
+  });
   c.out(key === undefined ? settings : { key, value: settings[key] }, lines);
 };
 

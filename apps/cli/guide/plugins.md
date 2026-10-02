@@ -16,6 +16,8 @@ bb plugin reload [id]          # after editing a plugin's source
 
 Status is `running`, `needs-configuration`, `error` (with the message) or
 `disabled`. `bb status` mentions enabled plugins that are not running.
+`bb plugin add` and `remove` edit a file in the server's data directory, so run
+them on the server's machine.
 
 ## Plugin commands
 
