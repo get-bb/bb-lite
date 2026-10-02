@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   defaultAppSettings,
   getUiPreferenceDefault,
+  UI_PREFERENCE_KEYS,
   type RealtimeSubscriptionTarget,
   type ThreadEventType,
 } from "@bb/domain";
@@ -124,10 +125,17 @@ it("answers errors in the API envelope", async () => {
 });
 
 it("guards ui preferences with per-key revisions", async () => {
-  const { api } = await createTestServer();
-  const key = "sidebar.organizationMode";
+  const { api, ctx } = await createTestServer();
+  const key = "sidebar.headerProvider";
   const value = getUiPreferenceDefault(key);
+  const imported = { key: "sidebar.organizationMode", valueJson: '"machine"' };
+  insertRow(ctx.db, "ui_preferences", {
+    ...imported,
+    revision: 3,
+    updatedAt: 1,
+  });
   const { preferences } = await (await api.preferences.ui.$get()).json();
+  expect(Object.keys(preferences)).toEqual(UI_PREFERENCE_KEYS);
   expect(preferences[key]).toEqual({ revision: 0, value });
   const write = async (expectedRevision: number, next: unknown) => {
     const json = { expectedRevision, value: next };
@@ -135,11 +143,11 @@ it("guards ui preferences with per-key revisions", async () => {
     const response = await path.$put({ param: { key }, json });
     return { status: response.status, ...(await response.json()) };
   };
-  const saved = { status: 200, key, revision: 1, value: "machine" };
-  expect(await write(0, "machine")).toEqual(saved);
+  const saved = { status: 200, key, revision: 1, value: "nav/header" };
+  expect(await write(0, "nav/header")).toEqual(saved);
   const conflict = { status: 409, code: "ui_preference_conflict" };
   const details = { currentRevision: 1 };
-  expect(await write(0, "project")).toMatchObject({ ...conflict, details });
+  expect(await write(0, "other")).toMatchObject({ ...conflict, details });
   const reset = await api.preferences.ui[":key"].$delete({ param: { key } });
   expect(await reset.json()).toEqual({ key, revision: 2, value });
 });

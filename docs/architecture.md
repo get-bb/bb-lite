@@ -291,6 +291,10 @@ this product writes. Facts the code no longer states in comments:
   scope keeps every turn's sequence range contiguous). Either: context-window usage, provider errors,
   warnings, model fallback and unhandled events, system errors, operations and interaction lifecycle,
   which are turn-scoped inside a turn and thread-scoped outside one.
+- Settings and preferences are read leniently, because an import copies the original's rows: a UI
+  preference row whose key this build does not define is ignored, a keybinding override for a command
+  that no longer exists is dropped without touching the others, unknown general settings are stripped,
+  and an appearance naming a theme that is not built in shows the default palette.
 - Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
   `client-preference` (a remembered default) does not.
 - A plugin id is the npm package name without scope and without the `bb-plugin-` prefix, lowercased
