@@ -15,14 +15,11 @@ type SettingsListener = (next: SettingRecord, previous: SettingRecord) => void;
 
 const SECRET_FILE_MODE = 0o600;
 
-function isSecret(descriptor: SettingDescriptor): boolean {
+function isSecret(descriptor: SettingDescriptor) {
   return descriptor.type === "string" && descriptor.secret === true;
 }
 
-function accepted(
-  descriptor: SettingDescriptor,
-  value: unknown,
-): SettingValue | undefined {
+function accepted(descriptor: SettingDescriptor, value: unknown) {
   const { type } = descriptor;
   const primitive = type === "boolean" || type === "number" ? type : "string";
   const allowed = type !== "select" || descriptor.options.includes(`${value}`);

@@ -27,7 +27,7 @@ const BB_INTRODUCTION = [
   "- Use Markdown links for files, artifacts, and URLs you want the user to open; bb is a visual IDE and renders them as clickable links.",
 ].join("\n");
 
-async function readUserInstructions(dataDir: string): Promise<string | null> {
+async function readUserInstructions(dataDir: string) {
   try {
     const text = await readFile(dataPaths(dataDir).agentsFile, "utf8");
     return text.trim() === "" ? null : text.trim();

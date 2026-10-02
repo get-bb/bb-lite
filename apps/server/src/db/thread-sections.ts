@@ -11,11 +11,7 @@ export interface DeletedSection extends ThreadSectionMutationResponse {
 
 const SECTION_COLUMNS = "id, name, created_at, updated_at";
 
-function findSection(
-  db: Db,
-  column: "id" | "name",
-  value: string,
-): ThreadSectionResponse | undefined {
+function findSection(db: Db, column: "id" | "name", value: string) {
   return db.get<ThreadSectionResponse>(
     `SELECT ${SECTION_COLUMNS} FROM thread_sections WHERE ${column} = ?`,
     value,
@@ -31,7 +27,7 @@ export function requireThreadSection(
   throw new ApiError(404, "section_not_found", "Section not found");
 }
 
-function nameTaken(): ApiError {
+function nameTaken() {
   const message = "Section name already exists";
   return new ApiError(409, "section_name_conflict", message);
 }

@@ -25,7 +25,7 @@ const JOIN_TOKEN_TTL_MS = 15 * 60_000;
 const TOKEN_BYTES = 32;
 const BEARER = /^Bearer (\S+)$/u;
 
-function mintToken(prefix: "bbj" | "bbr"): string {
+function mintToken(prefix: "bbj" | "bbr") {
   return `${prefix}_${randomBytes(TOKEN_BYTES).toString("base64url")}`;
 }
 
@@ -33,16 +33,16 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function sameHash(stored: string | null, presented: string): boolean {
+function sameHash(stored: string | null, presented: string) {
   if (stored === null || stored.length !== presented.length) return false;
   return timingSafeEqual(Buffer.from(stored), Buffer.from(presented));
 }
 
-function rejectCredential(code: string, message: string): ApiError {
+function rejectCredential(code: string, message: string) {
   return new ApiError(401, code, message);
 }
 
-function bearerToken(authorization: string | undefined): string | null {
+function bearerToken(authorization: string | undefined) {
   return BEARER.exec(authorization ?? "")?.[1] ?? null;
 }
 

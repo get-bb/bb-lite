@@ -32,7 +32,7 @@ const SNIPPET_LEAD_CHARS = 40;
 const IS_TITLE = "s.source_kind IN ('title', 'title_fallback')";
 const FTS = "thread_search_segments_fts";
 
-function foldText(value: string): string {
+function foldText(value: string) {
   return value
     .normalize("NFD")
     .replace(/\p{Mark}/gu, "")
@@ -80,7 +80,7 @@ function highlightRanges(text: string, tokens: readonly string[]) {
   return merged.slice(0, HIGHLIGHT_RANGE_LIMIT);
 }
 
-function surrogateAt(text: string, index: number): number {
+function surrogateAt(text: string, index: number) {
   return text.charCodeAt(index) & 0xfc00;
 }
 
@@ -133,7 +133,7 @@ function listMatchRows(
   db: Db,
   tokenQueries: readonly string[],
   limitPerGroup: number,
-): MatchRow[] {
+) {
   const tokenMatches = tokenQueries.map(
     (_query, index) => `SELECT s.thread_id AS thread_id, ${index} AS token,
        MIN(${FTS}.rank) AS token_rank

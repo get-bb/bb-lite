@@ -51,7 +51,7 @@ export function getQueuedMessage(db: Db, threadId: string, id: string) {
   );
 }
 
-function encodeOptional(value: object | null): string | null {
+function encodeOptional(value: object | null) {
   return value === null ? null : JSON.stringify(value);
 }
 
@@ -162,7 +162,7 @@ function setGroupFlags(
   db: Db,
   rows: readonly QueuedMessageRow[],
   groupedCount: number,
-): void {
+) {
   rows.forEach((row, index) => {
     const flag = index < groupedCount - 1 ? 1 : 0;
     if (row.groupWithNext === flag) return;
@@ -181,7 +181,7 @@ function applyGroupBoundary(
   threadId: string,
   boundaryId: string,
   expectedPrefixIds: readonly string[] | null,
-): QueuedMessageRow[] {
+) {
   const rows = listQueuedMessages(db, threadId);
   const boundary = rows.findIndex((row) => row.id === boundaryId);
   if (boundary < 0) throw queuedMessageNotFound();

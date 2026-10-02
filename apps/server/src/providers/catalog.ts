@@ -197,14 +197,14 @@ const ECHO = defineProvider({
   optional: {},
 });
 
-function devProviderEnabled(id: string, env = process.env): boolean {
+function devProviderEnabled(id: string, env = process.env) {
   if (env.VITEST === "true") return true;
   return (env.BB_DEV_PROVIDERS ?? "").split(",").includes(id);
 }
 
 export function listProviderDefinitions(db: Db): ProviderDefinition[] {
   const { providerOrder } = store.getAppSettings(db);
-  const rank = ({ id }: ProviderDefinition): number => {
+  const rank = ({ id }: ProviderDefinition) => {
     const index = providerOrder.indexOf(id);
     return index < 0 ? providerOrder.length : index;
   };

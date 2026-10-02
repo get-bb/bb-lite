@@ -340,7 +340,7 @@ export function createThreadEngine(ctx: ServerContext) {
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,
     ) =>
-    (...args: Args): Result =>
+    (...args: Args) =>
       run(engine, ...args);
   const serialized =
     <Args extends unknown[], Result>(
@@ -350,7 +350,7 @@ export function createThreadEngine(ctx: ServerContext) {
         ...args: Args
       ) => Result | Promise<Result>,
     ) =>
-    (threadId: string, ...args: Args): Promise<Result> =>
+    (threadId: string, ...args: Args) =>
       engine.inThread(threadId, () => run(engine, threadId, ...args));
   return {
     start: () => engine.start(),

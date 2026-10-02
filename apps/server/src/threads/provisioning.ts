@@ -36,7 +36,7 @@ const TITLE_TIMEOUT_MS = 5_000;
 
 type Recorder = (entries: domain.ProvisioningTranscriptEntry[]) => void;
 
-function promptText(input: readonly domain.PromptInput[]): string {
+function promptText(input: readonly domain.PromptInput[]) {
   return input
     .flatMap((part) => (part.type === "text" ? [part.text.trim()] : []))
     .join(" ")
@@ -51,13 +51,13 @@ export function deriveTitleFallback(input: readonly domain.PromptInput[]) {
   return `${text.slice(0, TITLE_FALLBACK_MAX_LENGTH - 3)}...`;
 }
 
-function titlePrompt(input: readonly domain.PromptInput[]): string | null {
+function titlePrompt(input: readonly domain.PromptInput[]) {
   const text = deriveTitleFallback(input);
   const words = text?.split(" ").length ?? 0;
   return words >= TITLE_MIN_WORDS ? text : null;
 }
 
-function sanitizeTitle(generated: string | null): string | null {
+function sanitizeTitle(generated: string | null) {
   const title = generated?.trim().replace(/\s+/gu, " ") ?? "";
   return title.slice(0, GENERATED_TITLE_MAX_LENGTH).trim() || null;
 }
@@ -74,7 +74,7 @@ function appendProvisioning(
   provisioningId: string,
   status: domain.SystemThreadProvisioningStatus,
   entries: domain.ProvisioningTranscriptEntry[],
-): void {
+) {
   const { environmentId } = thread;
   const progress = { provisioningId, status, environmentId, entries };
   const type = "system/thread-provisioning";
@@ -88,7 +88,7 @@ async function generateTitle(
   threadId: string,
   job: ProvisioningJob,
   record: Recorder,
-): Promise<void> {
+) {
   const { plugins, now } = engine.ctx;
   const startedAt = now();
   record([step("metadata-started", "Generating title", "started", startedAt)]);
@@ -113,7 +113,7 @@ async function completeProvisioning(
   threadId: string,
   job: ProvisioningJob,
   environment: ThreadEnvironment,
-): Promise<void> {
+) {
   const { ctx } = engine;
   const { db } = ctx;
   const { environmentId, path } = environment;
@@ -164,7 +164,7 @@ function failProvisioning(
   threadId: string,
   job: ProvisioningJob,
   error: unknown,
-): void {
+) {
   const { db, log, now } = engine.ctx;
   const thread = getThread(db, threadId);
   if (thread === undefined || !isCurrent(engine, thread, job)) return;
@@ -188,7 +188,7 @@ async function runProvisioning(
   engine: Engine,
   threadId: string,
   job: ProvisioningJob,
-): Promise<void> {
+) {
   const { db, environments, now } = engine.ctx;
   const runtime = engine.runtimeOf(threadId);
   const abort = new AbortController();
@@ -267,8 +267,7 @@ export function beginProvisioning(
     ]);
     patchThread(db, thread.id, message.execution, false);
     engine.transition(out, thread.id, "run.preparing");
-    const provisioned = (): Promise<void> =>
-      runProvisioning(engine, thread.id, job);
+    const provisioned = () => runProvisioning(engine, thread.id, job);
     out.after(() => engine.background("provisioning", provisioned()));
   });
 }

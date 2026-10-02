@@ -56,7 +56,7 @@ export function refuseLegacyDatabase(path: string): void {
   if (legacy !== undefined) throw new LegacyDataDirectoryError(path);
 }
 
-function migrate(sqlite: Database.Database): void {
+function migrate(sqlite: Database.Database) {
   const schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
   const steps = [schema];
   const current = Number(sqlite.pragma("user_version", { simple: true }));
@@ -70,7 +70,7 @@ function migrate(sqlite: Database.Database): void {
   });
 }
 
-function camelCase(column: string): string {
+function camelCase(column: string) {
   return column.replace(/_([a-z0-9])/gu, (_match, letter: string) =>
     letter.toUpperCase(),
   );
@@ -94,7 +94,7 @@ function prepareStatement(
   };
 }
 
-function toRow<Row>(keys: string[], values: unknown): Row {
+function toRow<Row>(keys: string[], values: unknown) {
   const cells = values as unknown[];
   const row: Record<string, unknown> = {};
   keys.forEach((key, index) => (row[key] = cells[index]));
@@ -162,11 +162,11 @@ export function newId(prefix: EntityIdPrefix | RecordIdPrefix): string {
   return `${prefix}_${suffix}`;
 }
 
-function snakeCase(key: string): string {
+function snakeCase(key: string) {
   return key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`);
 }
 
-function definedKeys(values: RowValues): string[] {
+function definedKeys(values: RowValues) {
   return Object.keys(values).filter((key) => values[key] !== undefined);
 }
 

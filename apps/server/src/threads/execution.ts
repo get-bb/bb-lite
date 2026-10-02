@@ -48,7 +48,7 @@ export function requireProviderId(value: string): ProviderId {
 
 function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
   const sources = request.executionInputSources;
-  const named = (field: ExecutionField): boolean =>
+  const named = (field: ExecutionField) =>
     sources === undefined || sources[field] !== undefined;
   const { model, reasoningLevel, permissionMode, serviceTier } = request;
   return {
@@ -126,7 +126,7 @@ async function firstInstalledProvider(
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(ctx.db);
-  const rank = (providerId: string): number =>
+  const rank = (providerId: string) =>
     (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
   const [first] = (await ctx.runners.get(hostId).listProviders())
     .filter((provider) => provider.installed)
@@ -145,7 +145,7 @@ async function catalogDefaultModel(
   ctx: ServerContext,
   hostId: string,
   providerId: ProviderId,
-): Promise<string> {
+) {
   const runner = ctx.runners.get(hostId);
   const { models } = await runner.listModels({ providerId, cwd: null });
   const model = models.find((candidate) => candidate.isDefault) ?? models.at(0);

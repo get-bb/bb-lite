@@ -39,7 +39,7 @@ function threadDisplayStatus(
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
-function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
+function hasActivePlanTurn(db: Db, thread: ThreadListRow) {
   const { id: threadId, providerId, status: threadStatus } = thread;
   if (threadStatus !== "active") return false;
   const planCommand = providerPlanCommand(db, providerId);
@@ -65,10 +65,7 @@ function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
   return extractThreadTimelineActivePlanTurn(args) !== null;
 }
 
-function threadActivities(
-  db: Db,
-  threads: readonly ThreadListRow[],
-): Map<string, domain.ThreadActivityState> {
+function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
   const threadIds = threads.map((thread) => thread.id);
   const activities = new Map(
     eventRead

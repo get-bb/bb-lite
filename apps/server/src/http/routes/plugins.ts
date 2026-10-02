@@ -6,7 +6,6 @@ import {
   pluginMentionSearchQuerySchema,
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
-  type PluginCliResponse,
 } from "@bb/server-contract";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -39,7 +38,7 @@ function parseJson(text: string): unknown {
   }
 }
 
-async function jsonBody<T>(c: RouteContext, schema: z.ZodType<T>): Promise<T> {
+async function jsonBody<T>(c: RouteContext, schema: z.ZodType<T>) {
   const parsed = schema.safeParse(parseJson(await c.req.text()) ?? {});
   if (parsed.success) return parsed.data;
   throw invalidRequest(parsed.error.issues[0]?.message ?? "Invalid request");
@@ -92,12 +91,12 @@ async function callRpc(
   return { status: 200, body: { ok: true, result: produced.data } };
 }
 
-function keepAliveJson(result: Promise<unknown>): Response {
+function keepAliveJson(result: Promise<unknown>) {
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setInterval> | undefined;
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (text: string, last: boolean): void => {
+      const send = (text: string, last: boolean) => {
         try {
           controller.enqueue(encoder.encode(text));
           if (last) controller.close();
@@ -120,7 +119,7 @@ function keepAliveJson(result: Promise<unknown>): Response {
 
 export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
   const { plugins, log } = ctx;
-  const requireManager = (c: RouteContext): void =>
+  const requireManager = (c: RouteContext) =>
     requireOwner(c, "Only the owner can manage plugins");
 
   app.get("/plugins", (c) => c.json({ plugins: plugins.list() }));
@@ -181,7 +180,7 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
   app.post("/plugins/:id/cli", async (c) => {
     const id = c.req.param("id");
     const { argv, ...scope } = await jsonBody(c, pluginCliRequestSchema);
-    const run = async (): Promise<PluginCliResponse> => {
+    const run = async () => {
       const { cli } = plugins.running(id);
       if (cli === null) throw new Error(`Plugin "${id}" has no CLI command`);
       const context = { ...scope, signal: c.req.raw.signal };
@@ -189,7 +188,7 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
       const { exitCode, stdout = "", stderr = "" } = result;
       return { exitCode, stdout, stderr };
     };
-    const failed = (error: unknown): PluginCliResponse => {
+    const failed = (error: unknown) => {
       return { exitCode: 1, stdout: "", stderr: `${errorMessage(error)}\n` };
     };
     return keepAliveJson(run().catch(failed));

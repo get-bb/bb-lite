@@ -37,7 +37,7 @@ const SHARED_GOLDENS = [
 
 const CUT_ROUTES = ["/system/attention"];
 
-function readJson<T>(path: string): T {
+function readJson<T>(path: string) {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
@@ -51,7 +51,7 @@ function differences(mine: Json, theirs: Json, path = "$"): string[] {
     (isObject(mine) && isObject(theirs)) ||
     (Array.isArray(mine) && Array.isArray(theirs));
   if (!nested) {
-    const show = (value: Json): string => JSON.stringify(value).slice(0, 120);
+    const show = (value: Json) => JSON.stringify(value).slice(0, 120);
     return [`${path}: ${show(mine)} != ${show(theirs)}`];
   }
   const left = mine as JsonObject;
@@ -81,7 +81,7 @@ function lastExecution(events: ThreadFixture["events"]): SeedRow {
   };
 }
 
-function snakeCased(row: JsonObject): SeedRow {
+function snakeCased(row: JsonObject) {
   const entries = Object.entries(row).map(([key, value]) => [
     key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`),
     typeof value === "boolean" ? Number(value) : value,
@@ -162,7 +162,7 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
         kept.map(([key, inner]) => [key, withoutRetainedOutputPreviews(inner)]),
       );
     };
-    const requestedRowOnly = (path: string, body: Json): Json => {
+    const requestedRowOnly = (path: string, body: Json) => {
       const range = /Start=(\d+)&sourceSeqEnd=(\d+)$/u.exec(path);
       const rows = isObject(body) && Array.isArray(body.rows) ? body.rows : [];
       const requested = rows.flatMap((row) => {

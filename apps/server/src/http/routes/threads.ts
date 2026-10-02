@@ -20,7 +20,7 @@ type WireTab = ThreadTabsWireResponse["tabs"][number];
 const OK = { ok: true } as const;
 const ACKNOWLEDGED = ["stop", "compact", "clearContext", "unarchive"] as const;
 
-function sectionName(name: string): string {
+function sectionName(name: string) {
   const trimmed = name.trim();
   if (trimmed === "") throw invalidRequest("Section name cannot be empty");
   return trimmed;
@@ -55,7 +55,7 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
   const routes = publicApiRoutes.threads;
   const sectionRoutes = publicApiRoutes.threadSections;
   const { db, hub, threads } = ctx;
-  const announceSections = (): void =>
+  const announceSections = () =>
     hub.project(PERSONAL_PROJECT_ID, ["threads-changed"]);
 
   post(routes.create, async (c, payload) =>

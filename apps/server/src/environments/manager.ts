@@ -72,18 +72,18 @@ export function createEnvironments(ctx: ServerContext) {
     return requireEnvironment(ctx, id);
   }
 
-  function discard(id: string): void {
+  function discard(id: string) {
     db.run("DELETE FROM environments WHERE id = ?", id);
     hub.environment(id, ["environment-deleted"]);
   }
 
-  function sourcePathOf(projectId: string, hostId: string): string {
+  function sourcePathOf(projectId: string, hostId: string) {
     const source = getProjectSource(db, projectId, { hostId });
     if (source !== undefined) return source.path;
     throw notReady(NO_CHECKOUT);
   }
 
-  function branchNameFor(thread: ThreadRow): string {
+  function branchNameFor(thread: ThreadRow) {
     return managedBranchName(getAppSettings(db).managedBranchPrefix, thread);
   }
 
@@ -92,7 +92,7 @@ export function createEnvironments(ctx: ServerContext) {
     runner: ServerRunner,
     job: Job,
     base: string | null,
-  ): Promise<string> {
+  ) {
     const { onProgress, thread } = job;
     const sourcePath = sourcePathOf(found.projectId, found.hostId);
     const branchName = found.branchName ?? branchNameFor(thread);
@@ -131,7 +131,7 @@ export function createEnvironments(ctx: ServerContext) {
     runner: ServerRunner,
     job: Job,
     base: string | null,
-  ): Promise<string> {
+  ) {
     const { id, hostId, projectId } = found;
     job.signal.throwIfAborted();
     patch(id, { status: "creating", statusMessage: null, ...IN_USE });
@@ -191,7 +191,7 @@ export function createEnvironments(ctx: ServerContext) {
     hostId: string,
     thread: ThreadRow,
     branch: CheckoutBranch,
-  ): Promise<void> {
+  ) {
     if (store.hasOtherLiveThread(db, environmentId, thread.id)) {
       throw notReady(SHARED_CHECKOUT);
     }
@@ -291,13 +291,13 @@ export function createEnvironments(ctx: ServerContext) {
     return patch(found.id, { retireAt: now() + RETIRE_GRACE_MS });
   }
 
-  function due({ hostId, lifecycle }: Environment): boolean {
+  function due({ hostId, lifecycle }: Environment) {
     const { retireAt } = lifecycle;
     const expired = retireAt !== null && retireAt <= now();
     return expired && runners.isConnected(hostId);
   }
 
-  async function teardown(id: string, forced: boolean): Promise<void> {
+  async function teardown(id: string, forced: boolean) {
     const found = store.getEnvironment(db, id);
     if (found === undefined || found.status === "destroyed") return;
     if (!forced && !due(refresh(found))) return;
@@ -323,7 +323,7 @@ export function createEnvironments(ctx: ServerContext) {
     }
   }
 
-  async function sweep(): Promise<void> {
+  async function sweep() {
     const removals = store.listRetirableEnvironmentIds(db).flatMap((id) => {
       const found = store.getEnvironment(db, id);
       const idle = found !== undefined && !retiring.has(id);
@@ -335,13 +335,13 @@ export function createEnvironments(ctx: ServerContext) {
     await Promise.all(removals);
   }
 
-  function sweepSoon(): void {
+  function sweepSoon() {
     sweep().catch((err: unknown) => {
       log.error("Environment sweep failed", { err });
     });
   }
 
-  function onThreadDetached(threadId: string): void {
+  function onThreadDetached(threadId: string) {
     const thread = getThread(db, threadId);
     const attachedId = thread?.environmentId ?? null;
     const found =
@@ -357,7 +357,7 @@ export function createEnvironments(ctx: ServerContext) {
     setImmediate(sweepSoon);
   }
 
-  async function remove(environmentId: string): Promise<void> {
+  async function remove(environmentId: string) {
     await queue.run(environmentId, () => teardown(environmentId, true));
     const attached = "SELECT 1 FROM threads WHERE environment_id = ?";
     if (db.get(attached, environmentId) === undefined) discard(environmentId);
@@ -376,7 +376,7 @@ export function createEnvironments(ctx: ServerContext) {
     }
   }
 
-  function start(): () => void {
+  function start() {
     const timer = setInterval(sweepSoon, SWEEP_INTERVAL_MS);
     timer.unref();
     const unsubscribe = runners.onConnected(sweepSoon);

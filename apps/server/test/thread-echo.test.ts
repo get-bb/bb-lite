@@ -17,7 +17,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const { api, ctx, directory, project, read: get } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
-  const nextChange = async (): Promise<StatusChange> => {
+  const nextChange = async () => {
     const changed = await client.next(({ changes }) =>
       String(changes).includes("status-changed"),
     );
@@ -49,7 +49,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const running = await nextChange();
   expect(running).toMatchObject({ runtime: { displayStatus: "active" } });
   expect(await listed()).toMatchObject(running);
-  const thread = (): ThreadRow | undefined =>
+  const thread = () =>
     ctx.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
   await vi.waitFor(() => expect(thread()?.activeTurnId).toBeTruthy());
   const wait = `${path}/events/wait?type=turn/completed&afterSeq=0`;
@@ -107,7 +107,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const [hit] = found.active.results;
   expect(hit?.thread.id).toBe(id);
   expect(hit?.matches[0]?.text).toBe("third pineapple");
-  const prompts = async (scope: string): Promise<string[]> => {
+  const prompts = async (scope: string) => {
     const entries = await get<Prompt[]>(`${scope}/prompt-history`);
     return entries.flatMap(({ input }) => input.map((part) => part.text));
   };

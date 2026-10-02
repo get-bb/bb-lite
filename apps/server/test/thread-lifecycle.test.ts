@@ -24,7 +24,7 @@ const approval: PendingInteractionPayload = {
   availableDecisions: ["allow_once", "deny"],
 };
 
-function noticeTexts(server: ThreadServer, threadId: string): string[] {
+function noticeTexts(server: ThreadServer, threadId: string) {
   return server
     .eventData(threadId, "client/turn/requested")
     .filter((request) => request.initiator === "system")
@@ -88,7 +88,7 @@ it("serves a plugin: attributed spawn, workspace files and requestInput", async 
   ]);
   const request = { threadId: id, rendererId: "form" };
   const form = { ...request, title: "Secret", payload: { name: "TOKEN" } };
-  const latest = (): string =>
+  const latest = () =>
     rows<{ id: string }>(
       "SELECT id FROM pending_interactions ORDER BY rowid DESC",
     )[0].id;
@@ -296,7 +296,7 @@ it("interrupts threads that were running when the server stopped", async () => {
   const server = createServer({ config, db, localRunner: () => runner.api });
   await server.listen();
   await server.ctx.threads.settled();
-  const column = <Row>(sql: string, pick: (row: Row) => string): string[] =>
+  const column = <Row>(sql: string, pick: (row: Row) => string) =>
     db.all<Row>(sql).map(pick);
   const statuses = "SELECT status FROM threads ORDER BY id";
   const settled = column<{ status: string }>(statuses, (row) => row.status);

@@ -162,7 +162,7 @@ function boundedLimit(
   value: string | undefined,
   fallback: number,
   max: number,
-): number {
+) {
   const limit = Math.min(Number(value ?? fallback), max);
   if (limit <= 0) throw invalidRequest("limit must be a positive integer");
   return limit;

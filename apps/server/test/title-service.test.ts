@@ -7,7 +7,7 @@ import { expect, onTestFinished, test } from "vitest";
 import { cleanTitle, codexTitle } from "../src/providers/title-service.js";
 import { scratch } from "./helpers.js";
 
-const part = (delta: string): string =>
+const part = (delta: string) =>
   `data: ${JSON.stringify({ type: "response.output_text.delta", delta })}\n\n`;
 const STREAM = `${part('Title: "Fix the flaky')}${part(' test"')}data: [DONE]`;
 
@@ -25,7 +25,7 @@ test("titles come from the Codex login and survive a rate limit", async () => {
   const base = `http://127.0.0.1:${port}`;
   const urls = { chatgpt: `${base}/chatgpt`, apiKey: `${base}/key` };
   const env = { CODEX_HOME: scratch() };
-  const login = (auth: object): void =>
+  const login = (auth: object) =>
     writeFileSync(join(env.CODEX_HOME, "auth.json"), JSON.stringify(auth));
   const signal = AbortSignal.timeout(2_000);
   const title = () => codexTitle("fix it", signal, urls, env);

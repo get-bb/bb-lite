@@ -129,7 +129,7 @@ export function reorderPinned(
   const { previousThreadId, nextThreadId } = request;
   store.reorderPinnedThread(db, threadId, previousThreadId, nextThreadId);
   hub.thread(threadId, ["pin-state-changed"], { projectId });
-  const key = (row: store.ThreadRow): string => row.pinSortKey ?? "";
+  const key = (row: store.ThreadRow) => row.pinSortKey ?? "";
   const pinned = listSidebarThreadRows(db)
     .filter((row) => row.pinnedAt !== null && row.parentThreadId === null)
     .sort((left, right) => (key(left) < key(right) ? -1 : 1));
@@ -152,7 +152,7 @@ function requireQueuedMessage(engine: Engine, threadId: string, id: string) {
   throw queue.queuedMessageNotFound();
 }
 
-function queueChanged(engine: Engine, threadId: string): void {
+function queueChanged(engine: Engine, threadId: string) {
   engine.ctx.hub.thread(threadId, ["queue-changed"]);
 }
 

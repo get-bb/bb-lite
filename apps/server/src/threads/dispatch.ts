@@ -52,7 +52,7 @@ const SENT: Delivery = { delivery: "sent" };
 const MAX_DRAIN_ROUNDS = 20;
 const FAILURE_REASON_MAX_LENGTH = 200;
 
-function senderPrefix(senderThreadId: string): string {
+function senderPrefix(senderThreadId: string) {
   return `[bb message from thread:${senderThreadId}]\n\n`;
 }
 
@@ -147,7 +147,7 @@ export function sessionEnvironmentOf(
   return { id: row.id, hostId: row.hostId, path };
 }
 
-function hasReadyWorkspace(engine: Engine, thread: ThreadRow): boolean {
+function hasReadyWorkspace(engine: Engine, thread: ThreadRow) {
   const { environmentId } = thread;
   if (environmentId === null) return false;
   return getEnvironment(engine.ctx.db, environmentId)?.status === "ready";
@@ -193,7 +193,7 @@ function recordWait(
   thread: ThreadRow,
   args: DispatchArgs,
   waitingOn: domain.QueuedMessageWaitingOn,
-): QueuedMessageRow {
+) {
   const { db } = engine.ctx;
   const { message, rows, sendAt } = args;
   const [lead] = rows;
@@ -223,7 +223,7 @@ function settleRejectedTurn(
   requestId: string,
   kind: TurnKind,
   error: unknown,
-): void {
+) {
   const runtime = engine.runtimeOf(threadId);
   if (runtime.pendingStart === requestId) runtime.pendingStart = null;
   if (runtime.cancelledStart === requestId) runtime.cancelledStart = null;
@@ -282,7 +282,7 @@ async function submitTurn(
   engine: Engine,
   thread: ThreadRow,
   args: DispatchArgs,
-): Promise<void> {
+) {
   const { ctx } = engine;
   const { mode } = args;
   const joins = thread.status === "active";
@@ -353,10 +353,7 @@ export async function dispatchMessage(
   return SENT;
 }
 
-function nextEligibleGroup(
-  engine: Engine,
-  thread: ThreadRow,
-): QueuedMessageRow[] | null {
+function nextEligibleGroup(engine: Engine, thread: ThreadRow) {
   const { db, now, runners } = engine.ctx;
   const rows = queue.listQueuedMessages(db, thread.id);
   if (rows.length === 0) return null;
@@ -364,7 +361,7 @@ function nextEligibleGroup(
   const idle = thread.status === "idle" || thread.status === "pending";
   const joinable = thread.status === "active" && thread.activeTurnId !== null;
   const hostId = engine.hostOf(thread);
-  const eligible = (row: QueuedMessageRow): boolean => {
+  const eligible = (row: QueuedMessageRow) => {
     if (row.failureReason !== null) return false;
     const kind = queue.parseQueuedWait(row)?.kind ?? null;
     const turnBound = kind === null || kind === "thread-busy";
@@ -399,7 +396,7 @@ function dispatchRows(
   rows: QueuedMessageRow[],
   mode: SendMode,
   sendNow: boolean,
-): Promise<Delivery> {
+) {
   const [lead] = rows;
   const groups = rows.map(queue.parseQueuedContent);
   const systemNotice = queue.parseQueuedNotice(lead);
@@ -426,7 +423,7 @@ function recordDrainFailure(
   engine: Engine,
   row: QueuedMessageRow,
   error: unknown,
-): void {
+) {
   const { db, log } = engine.ctx;
   const { threadId } = row;
   log.warn("Queued message dispatch failed", { err: error, threadId });

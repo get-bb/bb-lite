@@ -39,7 +39,7 @@ function emptyWatchSet(): WatchSet {
   return { workspaces: new Map(), directories: new Map() };
 }
 
-function watch(paths: EnvironmentIdsByPath, path: string, id: string): void {
+function watch(paths: EnvironmentIdsByPath, path: string, id: string) {
   paths.set(path, [...(paths.get(path) ?? []), id]);
 }
 
@@ -50,7 +50,7 @@ export function startWorkspaceWatch(ctx: ServerContext): Disposer {
   let generation = 0;
   let timer: NodeJS.Timeout | undefined;
 
-  const wantedByHost = (): Map<string, WatchSet> => {
+  const wantedByHost = () => {
     const wanted = new Map<string, WatchSet>();
     const on = (hostId: string): WatchSet => {
       const set = wanted.get(hostId) ?? emptyWatchSet();
@@ -77,7 +77,7 @@ export function startWorkspaceWatch(ctx: ServerContext): Disposer {
     return wanted;
   };
 
-  const sync = (): void => {
+  const sync = () => {
     timer = undefined;
     const wanted = wantedByHost();
     for (const hostId of new Set([...wanted.keys(), ...sent.keys()])) {
@@ -101,11 +101,11 @@ export function startWorkspaceWatch(ctx: ServerContext): Disposer {
     }
   };
 
-  const schedule = (): void => {
+  const schedule = () => {
     timer ??= setTimeout(sync, SYNC_DELAY_MS).unref();
   };
 
-  const refreshMetadata = (environmentId: string, refs: boolean): void => {
+  const refreshMetadata = (environmentId: string, refs: boolean) => {
     const found = getEnvironment(db, environmentId);
     if (found?.status !== "ready" || !found.path) return;
     if (!refs && found.isGitRepo) return;

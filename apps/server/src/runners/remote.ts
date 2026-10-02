@@ -17,11 +17,7 @@ const INTERNAL_ERROR_CLOSE_CODE = 1011;
 const LAST_SEEN_INTERVAL_MS = 30_000;
 const streams = new WeakMap<ServerContext, Map<string, EventStream>>();
 
-function resumeStream(
-  ctx: ServerContext,
-  hostId: string,
-  hello: Hello,
-): EventStream {
+function resumeStream(ctx: ServerContext, hostId: string, hello: Hello) {
   const byHost = streams.get(ctx) ?? new Map<string, EventStream>();
   streams.set(ctx, byHost);
   const { instanceId } = hello;
@@ -56,7 +52,7 @@ export function attachRemoteRunner(
     updateHost(db, hostId, { lastSeenAt: seenAt });
   });
 
-  const connect = async (): Promise<void> => {
+  const connect = async () => {
     const hello = await Promise.race([remote.hello, remote.closed]);
     if (hello === undefined) return;
     const { platform, threadStorageRoot } = await remote.runner.describe();
@@ -69,8 +65,8 @@ export function attachRemoteRunner(
         await remote.runner.ackEvents({ seq });
       },
     };
-    let offDisconnected = (): void => {};
-    const release = (): void => {
+    let offDisconnected = () => {};
+    const release = () => {
       offDisconnected();
       runners.disconnect(hostId, runner);
     };

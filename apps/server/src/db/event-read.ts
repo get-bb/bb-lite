@@ -113,7 +113,7 @@ export const OUTLINE_EVENT = `(type IN ('client/turn/requested',
     AND type IN ('item/started', 'item/completed',
       'item/backgroundTask/progress', 'item/backgroundTask/completed')))`;
 
-function inlineOutputData(): string {
+function inlineOutputData() {
   const max = MAX_INLINE_OUTPUT_CHARS;
   const replacements = ["aggregatedOutput", "result", "resultText"].map(
     (name) => {
@@ -130,11 +130,11 @@ function inlineOutputData(): string {
     ELSE json_replace(data, ${replacements.join(", ")}) END`;
 }
 
-function quoted(values: readonly string[]): string {
+function quoted(values: readonly string[]) {
   return values.map((value) => `'${value}'`).join(", ");
 }
 
-function eventSource(query: EventQuery): { from: string; params: SqlValue[] } {
+function eventSource(query: EventQuery) {
   const before = query.before ?? UNBOUNDED;
   const where = ["thread_id = ?", "sequence > ?", "sequence < ?"];
   const params: SqlValue[] = [query.threadId, query.after ?? -1, before];
@@ -274,7 +274,7 @@ export function listContextWindowUsageEvents(
   threadId: string,
   sequenceStart: number,
 ): StoredEventRow[] {
-  const latest = (extra: string): StoredEventRow[] =>
+  const latest = (extra: string) =>
     listEvents(db, {
       threadId,
       after: sequenceStart - 1,
@@ -379,7 +379,7 @@ export function activeBackgroundTaskCounts(
   threadIds: readonly string[],
 ): BackgroundTaskCounts[] {
   const taskType = "json_extract(active.data, '$.item.taskType')";
-  const count = (types: string): string =>
+  const count = (types: string) =>
     `SUM(CASE WHEN ${taskType} IN (${types}) THEN 1 ELSE 0 END)`;
   return db.all<BackgroundTaskCounts>(
     `WITH latest AS (

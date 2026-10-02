@@ -19,7 +19,7 @@ function readIfFile(path: string): Promise<Buffer | null> {
   return readFile(path).catch(() => null);
 }
 
-function decodePath(path: string): string | null {
+function decodePath(path: string) {
   try {
     return decodeURIComponent(path);
   } catch {
@@ -31,7 +31,7 @@ function fileResponse(
   urlPath: string,
   content: Buffer,
   ifNoneMatch: string | undefined,
-): Response {
+) {
   const headers = new Headers({
     "cache-control": cacheControl(urlPath),
     "content-type": contentType(extname(urlPath)) || "application/octet-stream",

@@ -30,7 +30,7 @@ function exchange(n: number, status: "completed" | "open" = "completed") {
   return [request, ...agentTurn(`t${n}`, id, `answer ${n}`, status)];
 }
 
-function said(timeline: Pick<Timeline, "rows">): string[] {
+function said(timeline: Pick<Timeline, "rows">) {
   return timeline.rows.flatMap((row) =>
     row.kind === "conversation" ? [row.text] : [],
   );

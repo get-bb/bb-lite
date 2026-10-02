@@ -18,7 +18,7 @@ export type SocketResolver = (request: SocketRequest) => SocketOpen;
 const SHUTDOWN_CLOSE_CODE = 1001;
 const SHUTDOWN_GRACE_MS = 1_000;
 
-async function refuse(socket: Duplex, response: Response): Promise<void> {
+async function refuse(socket: Duplex, response: Response) {
   const body = await response.text();
   socket.end(
     `HTTP/1.1 ${response.status} ${STATUS_CODES[response.status] ?? ""}\r\n` +

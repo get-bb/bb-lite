@@ -43,17 +43,17 @@ function builtInTheme(selection: domain.AppThemeSelection): domain.AppTheme {
   };
 }
 
-function requireBuiltInTheme(themeId: string): void {
+function requireBuiltInTheme(themeId: string) {
   if (domain.isBuiltInThemeId(themeId)) return;
   throw new ApiError(404, "theme_not_found", `Unknown theme '${themeId}'.`);
 }
 
-function serverPlatform(): "darwin" | "linux" | "unknown" {
+function serverPlatform() {
   const { platform } = process;
   return platform === "darwin" || platform === "linux" ? platform : "unknown";
 }
 
-function requireUiPreferenceKey(key: string): domain.UiPreferenceKey {
+function requireUiPreferenceKey(key: string) {
   if (domain.isUiPreferenceKey(key)) return key;
   throw new ApiError(
     404,
@@ -63,7 +63,7 @@ function requireUiPreferenceKey(key: string): domain.UiPreferenceKey {
   );
 }
 
-function readUiPreferences(db: Db): domain.UiPreferenceEntries {
+function readUiPreferences(db: Db) {
   const sql = "SELECT key, value_json, revision FROM ui_preferences";
   const rows = db.all<PreferenceRow>(sql);
   const entries = domain.UI_PREFERENCE_KEYS.map((key) => {
@@ -85,7 +85,7 @@ function writeUiPreference(
   key: domain.UiPreferenceKey,
   value: unknown,
   expectedRevision: number | null,
-): number {
+) {
   const row = { key, valueJson: JSON.stringify(value) };
   const write = writeRevision(
     db,

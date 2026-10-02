@@ -30,7 +30,7 @@ function appendInterrupted(
   out: Outbox,
   thread: ThreadRow,
   interruption: Interruption,
-): void {
+) {
   const type = "system/thread/interrupted";
   engine.append(out, thread, [
     { type, scope: domain.threadScope(), ...interruption },
@@ -46,7 +46,7 @@ function closeActiveTurn(engine: Engine, out: Outbox, thread: ThreadRow) {
   store.patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
 }
 
-function requestStop(engine: Engine, threadId: string): string | null {
+function requestStop(engine: Engine, threadId: string) {
   const thread = engine.requireThread(threadId);
   const runtime = engine.runtimeOf(threadId);
   const hostId = engine.hostOf(thread);
@@ -75,7 +75,7 @@ function requestStop(engine: Engine, threadId: string): string | null {
   return null;
 }
 
-function finalizeStop(engine: Engine, threadId: string): void {
+function finalizeStop(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.status !== "stopping") return;
   engine.commit((out) => {
@@ -108,7 +108,7 @@ function interruptThread(
   engine: Engine,
   threadId: string,
   interruption: Interruption,
-): void {
+) {
   const thread = store.getThread(engine.ctx.db, threadId);
   const running = ["starting", "active", "stopping"];
   if (thread === undefined || !running.includes(thread.status)) return;
@@ -137,7 +137,7 @@ function changeMembership(
   patch: store.ThreadPatch,
   change: domain.ThreadChangeKind,
   event: MembershipEvent,
-): void {
+) {
   const { db, environments, plugins } = engine.ctx;
   const { id, projectId } = thread;
   engine.commit((out) => {
@@ -151,7 +151,7 @@ function changeMembership(
   });
 }
 
-function archiveOne(engine: Engine, threadId: string): boolean {
+function archiveOne(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return false;
   if (thread.archivedAt !== null) return false;
@@ -183,10 +183,7 @@ export function unarchiveThread(engine: Engine, threadId: string): void {
   engine.scheduleDrain(threadId);
 }
 
-async function finalizeDeletion(
-  engine: Engine,
-  threadId: string,
-): Promise<void> {
+async function finalizeDeletion(engine: Engine, threadId: string) {
   const { db, runners } = engine.ctx;
   const thread = store.getThread(db, threadId);
   if (thread === undefined || thread.deletedAt === null) return;
@@ -207,7 +204,7 @@ async function finalizeDeletion(
   });
 }
 
-function retryDeletions(engine: Engine): void {
+function retryDeletions(engine: Engine) {
   for (const { id } of store.listTombstonedThreads(engine.ctx.db)) {
     if (engine.deleting.has(id)) continue;
     engine.deleting.add(id);
@@ -218,7 +215,7 @@ function retryDeletions(engine: Engine): void {
   }
 }
 
-function tombstone(engine: Engine, threadId: string): void {
+function tombstone(engine: Engine, threadId: string) {
   const thread = store.getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const runtime = engine.runtimeOf(threadId);

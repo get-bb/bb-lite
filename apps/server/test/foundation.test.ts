@@ -62,7 +62,7 @@ it("coalesces events-appended for list-only subscribers", () => {
   const threadOne = { kind: "thread-detail", threadId: "thr_1" } as const;
   const listOnly = hubClient(hub, { kind: "thread-list" });
   const viewer = hubClient(hub, { kind: "thread-list" }, threadOne);
-  const append = (type: ThreadEventType): void =>
+  const append = (type: ThreadEventType) =>
     hub.thread("thr_1", ["events-appended"], { eventTypes: [type] });
   const eventTypes = (): unknown[] =>
     listOnly.sent.map((message) => message.metadata?.eventTypes?.join());

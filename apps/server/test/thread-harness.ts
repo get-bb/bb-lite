@@ -91,10 +91,10 @@ export async function createThreadServer() {
     },
     pathsExist: async () => ({ existence: {} }),
   });
-  const settle = (): Promise<void> => ctx.threads.settled();
-  const rows = <Row = Json>(sql: string, ...params: SqlValue[]): Row[] =>
+  const settle = () => ctx.threads.settled();
+  const rows = <Row = Json>(sql: string, ...params: SqlValue[]) =>
     db.all<Row>(sql, ...params);
-  const emit = async (event: Json): Promise<void> => {
+  const emit = async (event: Json) => {
     seq += 1;
     runner.emit({ lane: "reliable", seq, ...event } as RunnerEvent);
     await new Promise((resolve) => setImmediate(resolve));
@@ -102,21 +102,21 @@ export async function createThreadServer() {
   };
   const ingest = (threadId: string, ...batch: RunnerThreadEvent[]) =>
     emit({ kind: "thread.events", threadId, events: batch });
-  const thread = (threadId: string): ThreadRow =>
+  const thread = (threadId: string) =>
     rows<ThreadRow>("SELECT * FROM threads WHERE id = ?", threadId)[0];
-  const eventData = (threadId: string, type: string): Json[] =>
+  const eventData = (threadId: string, type: string) =>
     rows<{ data: string }>(
       `SELECT data FROM events WHERE thread_id = ? AND type LIKE ?
        ORDER BY sequence`,
       threadId,
       type,
     ).map((row) => JSON.parse(row.data) as Json);
-  const eventTypes = (threadId: string): string[] =>
+  const eventTypes = (threadId: string) =>
     rows<{ type: string }>(
       "SELECT type FROM events WHERE thread_id = ? ORDER BY sequence",
       threadId,
     ).map((row) => row.type);
-  const queued = (threadId: string): (string | null)[] =>
+  const queued = (threadId: string) =>
     rows<{ kind: string | null }>(
       `SELECT json_extract(waiting_on, '$.kind') AS kind
        FROM queued_thread_messages WHERE thread_id = ? ORDER BY sort_key`,
@@ -179,29 +179,29 @@ export async function createThreadServer() {
     const request = { threadId, turnId, requestId, ...provider, payload };
     return emit({ kind: "interaction.requested", ...request });
   };
-  const callsTo = (method: string): unknown[] =>
+  const callsTo = (method: string) =>
     runner.calls
       .filter((call) => call.method === method)
       .map((call) => call.args[0]);
-  const openTerminal = (threadId: string): { terminalId: string } => {
+  const openTerminal = (threadId: string) => {
     const owner = { threadId, environmentId: null, hostId, title: "sh" };
     const shape = { initialCwd: "/repo", cols: 80, rows: 24 };
     return { terminalId: insertTerminal(db, { ...owner, ...shape }).id };
   };
-  const advance = async (ms: number): Promise<void> => {
+  const advance = async (ms: number) => {
     server.clock.now += ms;
     ctx.threads.sweep();
     await settle();
   };
-  const reconnect = async (): Promise<void> => {
+  const reconnect = async () => {
     ctx.runners.connect(hostId, (sink) => {
       runner.emit = sink;
       return runner.api;
     });
     await settle();
   };
-  const deferEnvironment = (): (() => void) => {
-    let release = (): void => {};
+  const deferEnvironment = () => {
+    let release = () => {};
     const { ensureForThread } = ctx.environments;
     ctx.environments.ensureForThread = (args) =>
       new Promise<ThreadEnvironment>((resolve, reject) => {

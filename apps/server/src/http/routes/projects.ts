@@ -3,7 +3,6 @@ import {
   publicApiRoutes,
   type ProjectBranchesQuery,
   type ProjectBranchesResponse,
-  type ProjectResponse,
 } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import { updateRow } from "../../db/index.js";
@@ -34,7 +33,7 @@ import { fileResponse } from "../range.js";
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
 
-function defaultWorktreeBaseBranch(source: GitSourceInspection): string | null {
+function defaultWorktreeBaseBranch(source: GitSourceInspection) {
   const { defaultBranch, originDefaultBranch, defaultBranchRelation } = source;
   if (originDefaultBranch === null) return defaultBranch;
   const localIsAhead =
@@ -50,7 +49,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   const { db, hub, runners } = ctx;
   const { dataDir } = ctx.config;
 
-  const projectResponse = (projectId: string): ProjectResponse => {
+  const projectResponse = (projectId: string) => {
     const [response] = store.withSources(db, [
       store.requireProject(db, projectId),
     ]);
@@ -89,7 +88,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     projectId: string,
     hostId: string,
     path: string,
-  ): Promise<void> => {
+  ) => {
     const gitRemoteUrl = await gitRemoteOf(hostId, path);
     if (gitRemoteUrl === null) return;
     if (store.setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {

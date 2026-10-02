@@ -42,7 +42,7 @@ function mount(
   prefix: string,
   groups: RouteGroup[],
   ctx: ServerContext,
-): void {
+) {
   const scoped = new Hono<AppEnv>();
   for (const register of groups) register(scoped, ctx);
   app.route(prefix, scoped);

@@ -55,7 +55,7 @@ const DEFAULT_SEGMENT_LIMIT = 20;
 const MAX_SEGMENT_LIMIT = 100;
 const MAX_EVENT_WAIT_MS = 30_000;
 
-function integer(value: string | undefined): number | undefined {
+function integer(value: string | undefined) {
   return value === undefined ? undefined : Number(value);
 }
 
@@ -65,7 +65,7 @@ function positive(value: string | undefined, name: string, fallback: number) {
   return parsed;
 }
 
-function bounded(value: number, name: string, max: number): number {
+function bounded(value: number, name: string, max: number) {
   if (value <= max) return value;
   throw invalidRequest(`${name} must be less than or equal to ${max}`);
 }
@@ -92,7 +92,7 @@ export function registerThreadReadRoutes(
     return new Promise<void>((resolve) => {
       const waiters = eventWaiters.get(threadId) ?? new Set();
       eventWaiters.set(threadId, waiters);
-      const wake = (): void => {
+      const wake = () => {
         clearTimeout(timer);
         waiters.delete(wake);
         if (waiters.size === 0) eventWaiters.delete(threadId);

@@ -1,5 +1,5 @@
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext, ServerRunner } from "../../context.js";
+import type { ServerContext } from "../../context.js";
 import {
   PATH_LIST_EXCLUDED_NAMES,
   PATH_LIST_LIMIT_DEFAULT,
@@ -30,14 +30,14 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
   const { get, post } = typedApi(app);
   const { environments, files, hosts, projects, threads } = publicApiRoutes;
 
-  const runnerOf = (hostId: string | undefined): ServerRunner =>
+  const runnerOf = (hostId: string | undefined) =>
     ctx.runners.get(requireHost(ctx, hostId ?? ctx.config.hostId).id);
 
   const serve = (
     c: FileRequest,
     root: { hostId: string; path: string },
     gitRef?: string,
-  ): Promise<Response> => {
+  ) => {
     const segments = relativeFileSegments(c.req.param("filePath"));
     const { hostId, path: rootPath } = root;
     const target = { hostId, rootPath, segments, gitRef };

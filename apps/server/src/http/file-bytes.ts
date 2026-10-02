@@ -22,7 +22,7 @@ const FILE_ERROR_STATUS: Partial<
   Record<RunnerErrorCode, ContentfulStatusCode>
 > = { invalid_path: 400, permission_denied: 403, file_too_large: 413 };
 
-function fileChanged(): ApiError {
+function fileChanged() {
   const message = "File changed during read; retry the request";
   return new ApiError(409, "file_changed", message, { retryable: true });
 }
@@ -51,7 +51,7 @@ export function revisionRef(ref: string): string {
   throw new ApiError(400, "invalid_ref", "Invalid revision");
 }
 
-function rawFileHeaders(file: FileChunk): Headers {
+function rawFileHeaders(file: FileChunk) {
   const mimeType = file.mimeType ?? "application/octet-stream";
   const html = mimeType.split(";")[0]?.trim().toLowerCase() === "text/html";
   const headers = new Headers({

@@ -3,8 +3,8 @@ import { closeTerminalsFor } from "../src/terminals/sessions.js";
 import * as helpers from "./helpers.js";
 
 type Chunk = { seq: number; dataBase64: string };
-const base64 = (text: string): string => Buffer.from(text).toString("base64");
-const decode = (chunk?: Chunk): string =>
+const base64 = (text: string) => Buffer.from(text).toString("base64");
+const decode = (chunk?: Chunk) =>
   Buffer.from(chunk?.dataBase64 ?? "", "base64").toString();
 const typing = (text: string) => ({ type: "input", dataBase64: base64(text) });
 const isType = (wanted: string) => (message: helpers.SocketMessage) =>

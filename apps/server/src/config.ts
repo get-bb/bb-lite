@@ -53,7 +53,7 @@ export function dataPaths(dataDir: string) {
   };
 }
 
-function prepareDataDir(dataDir: string): string {
+function prepareDataDir(dataDir: string) {
   const paths = dataPaths(dataDir);
   refuseLegacyDatabase(paths.database);
   for (const directory of [
@@ -71,7 +71,7 @@ function prepareDataDir(dataDir: string): string {
   return z.string().trim().min(1).parse(readFileSync(paths.hostIdFile, "utf8"));
 }
 
-function readVersion(): string {
+function readVersion() {
   try {
     const manifest: unknown = JSON.parse(
       readFileSync(ROOT_PACKAGE_JSON, "utf8"),

@@ -41,7 +41,7 @@ const POLICY_VIOLATION_CLOSE_CODE = 1008;
 const OPEN_ON_RUNNER = "status IN ('starting', 'running')";
 const liveByContext = new WeakMap<ServerContext, Live>();
 
-function liveOf(ctx: ServerContext): Live {
+function liveOf(ctx: ServerContext) {
   const live = liveByContext.get(ctx) ?? {
     clients: new Map<string, Set<Client>>(),
     resizeOwners: new Map<string, Client>(),
@@ -50,7 +50,7 @@ function liveOf(ctx: ServerContext): Live {
   return live;
 }
 
-function clientsOf(ctx: ServerContext, terminalId: string): Client[] {
+function clientsOf(ctx: ServerContext, terminalId: string) {
   return [...(liveOf(ctx).clients.get(terminalId) ?? [])];
 }
 
@@ -104,7 +104,7 @@ function endTerminal(
   return finish(ctx, session, closeReason);
 }
 
-function deliver(client: Client, chunk: contract.TerminalOutputChunk): void {
+function deliver(client: Client, chunk: contract.TerminalOutputChunk) {
   if (chunk.seq < client.nextSeq) return;
   client.nextSeq = chunk.seq + 1;
   client.send({ type: "output", chunk });
@@ -115,7 +115,7 @@ async function replay(
   session: contract.TerminalSession,
   client: Client,
   greeting: boolean,
-): Promise<void> {
+) {
   const { id: terminalId, hostId } = session;
   const tailBytes = TERMINAL_REPLAY_MAX_BYTES;
   client.replaying = true;
@@ -144,13 +144,13 @@ async function replay(
   }
 }
 
-function resume(ctx: ServerContext, session: contract.TerminalSession): void {
+function resume(ctx: ServerContext, session: contract.TerminalSession) {
   for (const client of clientsOf(ctx, session.id)) {
     void replay(ctx, session, client, false);
   }
 }
 
-async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
+async function reconcile(ctx: ServerContext, hostId: string) {
   const { db, runners } = ctx;
   const lost = "host_id = ? AND status = 'disconnected'";
   const stale = selectTerminals(db, lost, hostId);
@@ -171,7 +171,7 @@ async function reconcile(ctx: ServerContext, hostId: string): Promise<void> {
 
 export function startTerminalSessions(ctx: ServerContext): Disposer {
   const { db, runners, log } = ctx;
-  const reattach = (hostId: string): void => {
+  const reattach = (hostId: string) => {
     reconcile(ctx, hostId).catch((error: unknown) => {
       log.warn("Terminal reconciliation failed", { err: error, hostId });
     });
@@ -216,7 +216,7 @@ export function requireTerminal(
   return session;
 }
 
-function notRunning(): ApiError {
+function notRunning() {
   const message = "Terminal session is not running";
   return new ApiError(409, "terminal_not_running", message);
 }
@@ -364,7 +364,7 @@ export async function readTerminalOutput(
 ): Promise<contract.TerminalOutputResponse> {
   const session = requireTerminal(ctx, terminalId);
   const { status, exitCode, closeReason, hostId } = session;
-  const unavailable = (reason: string): ApiError =>
+  const unavailable = (reason: string) =>
     new ApiError(409, "terminal_output_unavailable", reason);
   if (status !== "running" && status !== "exited") {
     throw unavailable("Terminal output can only be read once it has started");
@@ -400,7 +400,7 @@ function receive(
   terminalId: string,
   client: Client,
   raw: string,
-): void {
+) {
   const message = parseFrame(contract.terminalClientMessageSchema, raw);
   if (message === null) {
     client.fail("invalid_message", "Invalid terminal message");
@@ -433,10 +433,10 @@ export function attachTerminalSocket(
   sinceSeq: number,
   socket: WebSocket,
 ): void {
-  const send = (message: contract.TerminalServerMessage): void => {
+  const send = (message: contract.TerminalServerMessage) => {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
   };
-  const fail = (code: string, message: string): void => {
+  const fail = (code: string, message: string) => {
     send({ type: "error", code, message });
     socket.close(POLICY_VIOLATION_CLOSE_CODE, code);
   };
@@ -451,7 +451,7 @@ export function attachTerminalSocket(
   const attached = clients.get(terminalId) ?? new Set<Client>();
   clients.set(terminalId, attached.add(client));
   resizeOwners.set(terminalId, client);
-  const detach = (): void => {
+  const detach = () => {
     attached.delete(client);
     const emptied = attached.size === 0 && clients.get(terminalId) === attached;
     if (emptied) clients.delete(terminalId);

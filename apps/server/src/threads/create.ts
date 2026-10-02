@@ -26,7 +26,7 @@ type ProviderIntent = Extract<EnvironmentIntent, { type: "provider" }>;
 
 const DEFAULT_BRANCH = { branch: { kind: "default" } };
 
-function invalidParent(reason: InvalidReason): ApiError {
+function invalidParent(reason: InvalidReason) {
   const details: ParentThreadInvalidErrorDetails = {
     reason,
     subject: "parent",
@@ -123,7 +123,7 @@ function resolveIntent(
   }
 }
 
-function intentHostId(db: Db, intent: EnvironmentIntent): string {
+function intentHostId(db: Db, intent: EnvironmentIntent) {
   if (intent.type !== "reuse") return intent.hostId;
   const environment = getEnvironment(db, intent.environmentId);
   if (environment === undefined) throw new Error("Environment disappeared");

@@ -14,15 +14,15 @@ async function echoServer() {
   const server = await createEchoServer();
   const { ctx } = server;
   const projectId = server.project.id;
-  const post = async (path: string, json: unknown = {}): Promise<Json> =>
+  const post = async (path: string, json: unknown = {}) =>
     (await server.send(path, json)).json() as Promise<Json>;
-  const spawn = async (prompt: string): Promise<string> => {
+  const spawn = async (prompt: string) => {
     const environment = { type: "project-default" };
     const base = { projectId, providerId: "echo", origin: "app", environment };
     const thread = await post("/threads", { ...base, input: text(prompt) });
     return String(thread.id);
   };
-  const idle = (id: string): Promise<void> =>
+  const idle = (id: string) =>
     vi.waitFor(() => expect(ctx.threads.get(id)?.status).toBe("idle"), 5_000);
   const pending = (id: string) =>
     vi.waitFor(() => {
@@ -31,7 +31,7 @@ async function echoServer() {
       const path = `/threads/${id}/interactions/${row.id}`;
       return { path, interaction: interactions.toPendingInteraction(row) };
     }, 5_000);
-  const events = (id: string, type: string): EventData[] =>
+  const events = (id: string, type: string) =>
     ctx.db
       .all<{ data: string }>(EVENTS, id, type)
       .map(({ data }) => JSON.parse(data) as EventData);

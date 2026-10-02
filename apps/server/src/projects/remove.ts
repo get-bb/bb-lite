@@ -18,7 +18,7 @@ export async function removeProject(
   }
   const attachments = projectAttachmentsDir(ctx.config.dataDir, projectId);
   await rm(attachments, { recursive: true, force: true });
-  const failed = (err: unknown): void =>
+  const failed = (err: unknown) =>
     ctx.log.error("Project deletion cleanup failed", { err, projectId });
   void removeProjectWorkspaces(ctx, deleted)
     .catch(failed)

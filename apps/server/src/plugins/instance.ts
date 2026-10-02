@@ -105,7 +105,7 @@ function collect<T>(list: T[]): (item: T) => void {
   };
 }
 
-function migrate(database: Database.Database, statements: string[]): void {
+function migrate(database: Database.Database, statements: string[]) {
   database.exec(MIGRATIONS_TABLE);
   const applied = database
     .prepare<[], { statement_hash: string | null }>(
@@ -138,10 +138,8 @@ export function createPluginInstance(
   const { db, hub } = host;
   const dataDir = join(host.dataDir, "plugins", pluginId);
   mkdirSync(dataDir, { recursive: true });
-  const at =
-    (level: keyof Logger) =>
-    (message: string): void =>
-      host.log[level](message, { pluginId });
+  const at = (level: keyof Logger) => (message: string) =>
+    host.log[level](message, { pluginId });
   const log = {
     debug: at("debug"),
     info: at("info"),

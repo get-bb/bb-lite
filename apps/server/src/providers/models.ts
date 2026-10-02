@@ -141,7 +141,7 @@ export function modelCatalog(ctx: ServerContext): ModelCatalog {
   return catalog;
 }
 
-async function readCustomModels(ctx: ServerContext): Promise<CustomModel[]> {
+async function readCustomModels(ctx: ServerContext) {
   if (getAppSettings(ctx.db).streamerMode) return [];
   const path = dataPaths(ctx.config.dataDir).configFile;
   const text = await readFile(path, "utf8").catch(() => null);

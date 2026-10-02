@@ -37,7 +37,7 @@ const LIST_RELEVANT_EVENT_TYPES: ReadonlySet<domain.ThreadEventType> = new Set([
   "turn/completed",
 ]);
 
-function isListRelevant(message: ThreadChangedMessage): boolean {
+function isListRelevant(message: ThreadChangedMessage) {
   if (message.changes.some((change) => change !== "events-appended")) {
     return true;
   }
@@ -60,7 +60,7 @@ export function parseFrame<T>(schema: ZodType<T>, raw: string): T | null {
   }
 }
 
-function subscriptionKeys(message: domain.ChangedMessage): string[] {
+function subscriptionKeys(message: domain.ChangedMessage) {
   const { entity } = message;
   if (entity === "system") return ["system"];
   return [`${entity}-list`, `${entity}-detail:${message.id}`];

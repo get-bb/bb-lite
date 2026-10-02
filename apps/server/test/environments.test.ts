@@ -41,11 +41,11 @@ async function createWorld(files: Record<string, string> = {}) {
     const json = { ...request, ...origin, ...unforked };
     return (await (await api.threads.$post({ json })).json()).id;
   };
-  const reaches = (id: string, status: string): Promise<void> =>
+  const reaches = (id: string, status: string) =>
     vi.waitFor(() => expect(getThread(db, id)?.status).toBe(status), WAIT);
   const environmentOf = (threadId: string) =>
     getEnvironment(db, getThread(db, threadId)?.environmentId ?? "");
-  const stored = (threadId: string, type: string): string[] =>
+  const stored = (threadId: string, type: string) =>
     db
       .all<{ data: string }>(
         `SELECT data FROM events WHERE thread_id = ? AND type = ?
@@ -195,7 +195,7 @@ it("attaches checkouts and switches branch only when clean and unshared", async 
   const topic = await checkout({ kind: "new", baseBranch: "main" });
   await reaches(topic, "idle");
   const branchName = `bb/build-the-widget-${topic}`;
-  const current = (): string => helpers.git(repo, "branch", "--show-current");
+  const current = () => helpers.git(repo, "branch", "--show-current");
   expect(current()).toBe(branchName);
   const switched = { path: repo, branchName, isGitRepo: true };
   expect(world.environmentOf(topic)).toMatchObject(switched);

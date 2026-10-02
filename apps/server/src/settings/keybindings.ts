@@ -28,7 +28,7 @@ const composer = when(
   ["modalOpen", "terminalFocus", "browserFocus"],
 );
 
-function parseShortcut(keys: string): domain.AppShortcut {
+function parseShortcut(keys: string) {
   const parts = keys.split("+");
   const held = new Set(parts.slice(0, -1));
   const [mod, meta, control, alt, shift] = MODIFIERS.map((modifier) =>

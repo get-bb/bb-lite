@@ -133,7 +133,7 @@ function insertSource(
   projectId: string,
   source: LocalPathSource,
   isDefault: boolean,
-): string {
+) {
   const id = newId("src");
   const { hostId, path } = source;
   const row = { id, projectId, hostId, path, isDefault: Number(isDefault) };

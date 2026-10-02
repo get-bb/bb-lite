@@ -140,7 +140,7 @@ function localRunner(kind: RunnerKind, config: ServerConfig, fake: FakeRunner) {
     Object.assign(fake.script, workspace.api);
     onTestFinished(() => workspace.dispose());
   }
-  return (sink: RunnerEventSink): ServerRunner => {
+  return (sink: RunnerEventSink) => {
     fake.emit = sink;
     return fake.api;
   };
@@ -156,20 +156,20 @@ export async function createTestServer(
   const logLevel = "silent" as const;
   const config = { ...loadConfig(env), logLevel, ...overrides };
   const clock = { now: 1_700_000_000_000 };
-  const now = (): number => clock.now;
+  const now = () => clock.now;
   const runner = new FakeRunner();
   const db = openDatabase({ path: databasePath, now });
   const connect = localRunner(kind, config, runner);
   const server = createServer({ config, now, db, localRunner: connect });
   const { url } = await server.listen();
   onTestFinished(() => server.close());
-  const request = (path: string, init: RequestInit = {}): Promise<Response> =>
+  const request = (path: string, init: RequestInit = {}) =>
     fetch(`${url}/api/v1${path}`, init);
   const send = (path: string, json: unknown, method = "POST", extra = {}) => {
     const headers = { ...JSON_HEADERS, ...extra };
     return request(path, { method, headers, body: JSON.stringify(json) });
   };
-  const read = async <Body = Json>(path: string): Promise<Body> =>
+  const read = async <Body = Json>(path: string) =>
     (await (await request(path)).json()) as Body;
   return {
     ctx: server.ctx,
@@ -180,7 +180,7 @@ export async function createTestServer(
     request,
     send,
     read,
-    matches: async (path: string, shape: object): Promise<void> =>
+    matches: async (path: string, shape: object) =>
       expect(await read(path), path).toMatchObject(shape),
     socket: (path = "/ws"): Promise<TestSocket> =>
       new Promise((resolve, reject) => {

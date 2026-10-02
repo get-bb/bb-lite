@@ -27,7 +27,7 @@ export type LogFields = Record<string, unknown>;
 type LogMethod = (message: string, fields?: LogFields) => void;
 export type Logger = Record<Exclude<LogLevel, "silent">, LogMethod>;
 
-function serializeLogValue(_key: string, value: unknown): unknown {
+function serializeLogValue(_key: string, value: unknown) {
   if (value instanceof Error) {
     return { name: value.name, message: value.message, stack: value.stack };
   }

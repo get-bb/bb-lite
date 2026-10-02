@@ -36,7 +36,7 @@ export function matchesEntityTag(
   header: string | null | undefined,
   etag: string,
 ): boolean {
-  const opaque = (tag: string): string => tag.trim().replace(/^W\//u, "");
+  const opaque = (tag: string) => tag.trim().replace(/^W\//u, "");
   const wanted = header?.split(",").map(opaque) ?? [];
   return wanted.includes("*") || wanted.includes(opaque(etag));
 }

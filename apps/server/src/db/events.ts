@@ -49,7 +49,7 @@ function itemFields(event: RunnerThreadEvent) {
   };
 }
 
-function providerThreadIdOf(event: RunnerThreadEvent): string | null {
+function providerThreadIdOf(event: RunnerThreadEvent) {
   return "providerThreadId" in event &&
     typeof event.providerThreadId === "string"
     ? event.providerThreadId
@@ -61,7 +61,7 @@ function hasTurnEvent(
   threadId: string,
   turnId: string,
   type: ThreadEventType,
-): boolean {
+) {
   const row = db.get(
     "SELECT 1 FROM events WHERE thread_id = ? AND turn_id = ? AND type = ?",
     threadId,
@@ -71,7 +71,7 @@ function hasTurnEvent(
   return row !== undefined;
 }
 
-function isItemSettled(db: Db, threadId: string, itemId: string): boolean {
+function isItemSettled(db: Db, threadId: string, itemId: string) {
   const latest = db.get<{ type: ThreadEventType }>(
     `SELECT type FROM events
      WHERE thread_id = ? AND item_id = ? AND type IN
@@ -83,11 +83,7 @@ function isItemSettled(db: Db, threadId: string, itemId: string): boolean {
   return latest !== undefined && TERMINAL_ITEM_TYPES.includes(latest.type);
 }
 
-function isRedundant(
-  db: Db,
-  threadId: string,
-  event: RunnerThreadEvent,
-): boolean {
+function isRedundant(db: Db, threadId: string, event: RunnerThreadEvent) {
   const { type, scope } = event;
   if (type === "turn/diff/updated") return true;
   if (scope.kind === "turn") {
@@ -155,7 +151,7 @@ function visiblePromptInput(input: readonly PromptInput[]): PromptInput[] {
   return input.filter((part) => part.visibility !== "agent-only");
 }
 
-function visiblePromptText(input: readonly PromptInput[]): string {
+function visiblePromptText(input: readonly PromptInput[]) {
   return visiblePromptInput(input)
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")
@@ -167,7 +163,7 @@ function recordTurnRequest(
   thread: ThreadRow,
   event: TurnRequestEvent,
   sequence: number,
-): void {
+) {
   const key = `event:${sequence}`;
   const text = visiblePromptText(event.input);
   upsertSearchSegment(db, thread.id, "user_message", key, sequence, text);
@@ -193,7 +189,7 @@ function insertEvent(
   thread: ThreadRow,
   event: RunnerThreadEvent,
   sequence: number,
-): void {
+) {
   const { type, scope, ...data } = event;
   insertRow(db, "events", {
     id: newId("evt"),

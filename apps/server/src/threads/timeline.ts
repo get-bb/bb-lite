@@ -75,7 +75,7 @@ const requestRefSchema = z.object({
   clientRequestId: z.string().optional(),
 });
 
-function requestIds(rows: Rows, ...types: string[]): string[] {
+function requestIds(rows: Rows, ...types: string[]) {
   return rows.flatMap((row) => {
     if (!types.includes(row.type)) return [];
     const ref = requestRefSchema.parse(JSON.parse(row.data));
@@ -83,7 +83,7 @@ function requestIds(rows: Rows, ...types: string[]): string[] {
   });
 }
 
-function threadName(thread: ThreadListRow): string {
+function threadName(thread: ThreadListRow) {
   return thread.title ?? thread.titleFallback ?? "";
 }
 
@@ -93,13 +93,13 @@ function historyQuery(epoch: Epoch) {
   return { threadId, after: start - 1, before: maxSeq + 1, timeline, outputs };
 }
 
-function delegatingItemId(row: events.StoredEventRow): string[] {
+function delegatingItemId(row: events.StoredEventRow) {
   const delegating =
     row.itemKind === "toolCall" || row.itemKind === "delegation";
   return delegating && row.itemId !== null ? [row.itemId] : [];
 }
 
-function withParentedRows(epoch: Epoch, input: Rows): events.StoredEventRow[] {
+function withParentedRows(epoch: Epoch, input: Rows) {
   const { db, threadId, outputs } = epoch;
   let rows = [...input];
   const known = new Set(rows.map((row) => row.id));
@@ -126,7 +126,7 @@ function withParentedRows(epoch: Epoch, input: Rows): events.StoredEventRow[] {
   return events.mergeEventRows([...events.listEvents(db, missing), ...rows]);
 }
 
-function withTurnStarts(epoch: Epoch, rows: Rows): events.StoredEventRow[] {
+function withTurnStarts(epoch: Epoch, rows: Rows) {
   const started = new Set(
     rows.flatMap((row) => (row.type === "turn/started" ? [row.turnId] : [])),
   );
@@ -140,10 +140,7 @@ function withTurnStarts(epoch: Epoch, rows: Rows): events.StoredEventRow[] {
   return events.mergeEventRows([...events.listEvents(db, query), ...rows]);
 }
 
-function withBackgroundTaskStates(
-  epoch: Epoch,
-  rows: Rows,
-): events.StoredEventRow[] {
+function withBackgroundTaskStates(epoch: Epoch, rows: Rows) {
   const itemIds = rows.flatMap((row) => {
     const tracked =
       row.itemKind === "backgroundTask" || row.itemKind === "delegation";
@@ -225,7 +222,7 @@ function loadWindow(
   const history = historyQuery(epoch);
   const window = { ...history, after, before };
   const grouping = groupingContext(epoch);
-  const known = (row: events.StoredEventRow): boolean => row.sequence <= maxSeq;
+  const known = (row: events.StoredEventRow) => row.sequence <= maxSeq;
   let rows = events.listEvents(db, { ...window, where: "turn_id IS NULL" });
   const initialTurnIds = [
     ...events.listTurnIds(db, { ...window, where: events.ROOT_TURN_EVENT }),
@@ -292,7 +289,7 @@ function loadWindow(
     types: [INTERRUPTED],
   });
   const visibleSequences = new Set(visible.map((row) => row.sequence));
-  const unseen = (row: events.StoredEventRow): boolean =>
+  const unseen = (row: events.StoredEventRow) =>
     known(row) && !visibleSequences.has(row.sequence);
   const headState = latest
     ? [
@@ -324,7 +321,7 @@ function windowStart(
   budgetFloor: number | undefined,
   segmentLimit: number,
   epochStart: number,
-): number {
+) {
   if (budgetFloor === undefined && hints.length <= segmentLimit) {
     return epochStart;
   }
@@ -633,7 +630,7 @@ function buildTurnDetails(
   };
 }
 
-function outlinePreview(text: string): string {
+function outlinePreview(text: string) {
   const normalized = text.replace(/\s+/gu, " ").trim();
   if (normalized.length <= OUTLINE_PREVIEW_CHARS) return normalized;
   const split = pages.splitsSurrogatePair(normalized, OUTLINE_PREVIEW_CHARS);
@@ -645,7 +642,7 @@ function buildOutline(
   thread: ThreadListRow,
   display: TimelineDisplay,
   maxSeq: number,
-): contract.ThreadConversationOutlineResponse["items"] {
+) {
   const threadId = thread.id;
   const after = (events.contextClearSequence(db, threadId, maxSeq) ?? 0) - 1;
   const timeline = { excludeDiagnostics: false };

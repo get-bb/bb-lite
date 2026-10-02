@@ -49,10 +49,7 @@ function providerState(
   };
 }
 
-async function listProviderStatuses(
-  ctx: ServerContext,
-  hostId: string,
-): Promise<ProviderStatus[]> {
+async function listProviderStatuses(ctx: ServerContext, hostId: string) {
   try {
     return await ctx.runners.get(hostId).listProviders();
   } catch (error) {

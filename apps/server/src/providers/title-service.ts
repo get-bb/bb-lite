@@ -43,7 +43,7 @@ const authSchema = z.object({
 const claimsSchema = z.object({ exp: z.number().optional() });
 const eventSchema = z.object({ type: text, delta: text.optional() });
 
-function parse<T>(schema: z.ZodType<T>, json: string): T | undefined {
+function parse<T>(schema: z.ZodType<T>, json: string) {
   try {
     return schema.parse(JSON.parse(json));
   } catch {

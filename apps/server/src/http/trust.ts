@@ -34,12 +34,12 @@ export function requestHeader(
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isLoopbackAddress(address: string | undefined): boolean {
+function isLoopbackAddress(address: string | undefined) {
   const ipv4 = address?.replace(/^::ffff:/u, "");
   return ipv4 === "::1" || ipv4?.startsWith("127.") === true;
 }
 
-function isLoopbackAuthority(authority: string): boolean {
+function isLoopbackAuthority(authority: string) {
   try {
     return LOOPBACK_HOSTNAMES.includes(new URL(`http://${authority}`).hostname);
   } catch {
@@ -75,7 +75,7 @@ function identify(request: TrustRequest, lookups: TrustLookups): Principal {
 function assertOwnBrowserRequest(
   request: TrustRequest,
   publicUrl: () => string | null,
-): void {
+) {
   const host = request.headers.host;
   if (host !== undefined && !isLoopbackAuthority(host)) {
     throw new ApiError(

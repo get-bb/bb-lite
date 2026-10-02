@@ -55,7 +55,7 @@ export const worktreeInputsSchema = z
   ])
   .default({ branch: { kind: "default" } });
 
-function inputsJsonSchema(schema: z.ZodType): JsonValue {
+function inputsJsonSchema(schema: z.ZodType) {
   return jsonValueSchema.parse(z.toJSONSchema(schema, { io: "input" }));
 }
 
@@ -102,7 +102,7 @@ async function machineAvailability(
   ctx: ServerContext,
   definition: EnvironmentProviderDefinition,
   query: { projectId: string; hostId?: string },
-): Promise<Record<string, Availability>> {
+) {
   const { db } = ctx;
   const { projectId } = query;
   const { hostId: only } = query;

@@ -48,7 +48,7 @@ async function serverWithEcho(directory = FIXTURE) {
     const { exitCode, stdout, stderr } = body as CliBody;
     return [exitCode, stdout, stderr] as const;
   };
-  const kv = (key: string): string | undefined =>
+  const kv = (key: string) =>
     ctx.db.get<{ value: string }>(
       "SELECT value FROM plugin_kv WHERE plugin_id = 'echo' AND key = ?",
       key,
@@ -109,7 +109,7 @@ it("validates rpc calls, stores data and broadcasts realtime signals", async () 
 
 it("guards plugin http routes by their declared auth mode", async () => {
   const { request, send } = await serverWithEcho();
-  const status = async (path: string, headers = {}): Promise<number> =>
+  const status = async (path: string, headers = {}) =>
     (await request(`/echo/http/${path}`, { headers })).status;
   expect((await request("/echo/http/local")).body).toEqual({ auth: "local" });
   expect(await status("local", MACHINE)).toBe(403);
@@ -195,7 +195,7 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   cpSync(FIXTURE, directory, { recursive: true });
   const { send, rpc, configFile } = await serverWithEcho(directory);
   const source = join(directory, "server.ts");
-  const edit = (from: string, to: string): void =>
+  const edit = (from: string, to: string) =>
     writeFileSync(source, readFileSync(source, "utf8").replace(from, to));
   const reload = async (query = ""): Promise<InstalledPlugin[]> =>
     ((await send(`/reload${query}`, {})).body as Listing).plugins;
@@ -224,8 +224,8 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(await styles.text()).toContain(".echo-panel");
   const { code } = await transform(await script.text(), { format: "cjs" });
   const jsx = (type: unknown, props: unknown): unknown => ({ type, props });
-  const useState = (value: number): number[] => [value];
-  const clsx = (...names: string[]): string => names.join(" ");
+  const useState = (value: number) => [value];
+  const clsx = (...names: string[]) => names.join(" ");
   const sandbox = {
     module: { exports: {} as { default?: { setup(app: unknown): void } } },
     __bbPluginRuntime: {
@@ -270,7 +270,7 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   const manifest = { name: "bb-plugin-probe", bb: { name: "Probe" } };
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
   const idleTexts: (string | null)[] = [];
-  const server = (bb: PluginServerApi): void => {
+  const server = (bb: PluginServerApi) => {
     bb.agents.registerTool({
       name: "Shout",
       description: "Shouts",

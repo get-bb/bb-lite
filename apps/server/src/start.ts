@@ -25,7 +25,7 @@ export async function startServer(
   const { url } = await server.listen();
   const { dataDir, version } = config;
   server.ctx.log.info("bb server listening", { url, dataDir, version });
-  const shutdown = (): void => {
+  const shutdown = () => {
     process.off("SIGINT", shutdown).off("SIGTERM", shutdown);
     const stopped = server.close().then(local.shutdown);
     stopped.then(

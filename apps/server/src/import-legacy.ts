@@ -99,17 +99,17 @@ const THREAD_CONTENT = {
     COALESCE(resolved_at, updated_at) AS resolved_at`,
 };
 
-function rows(legacy: Legacy, sql: string, ...params: SqlValue[]): Row[] {
+function rows(legacy: Legacy, sql: string, ...params: SqlValue[]) {
   return legacy.prepare(sql).all(...params) as Row[];
 }
 
-function eventCount(legacy: Legacy, threads: Row[]): number {
+function eventCount(legacy: Legacy, threads: Row[]) {
   const sql = "SELECT COUNT(*) AS stored FROM events WHERE thread_id = ?";
   const count = (id: SqlValue) => Number(rows(legacy, sql, id)[0]?.stored);
   return threads.reduce((sum, thread) => sum + count(thread.id ?? null), 0);
 }
 
-async function refuseRunningServer(config: ServerConfig): Promise<void> {
+async function refuseRunningServer(config: ServerConfig) {
   const url = `${loopbackUrl(config)}/api/v1/system/config`;
   const signal = AbortSignal.timeout(SERVER_PROBE_MS);
   const answer: unknown = await fetch(url, { signal })
@@ -147,7 +147,7 @@ function importCatalog(
   add: Add,
   chosen: string,
   hostId: (id?: SqlValue) => SqlValue,
-): void {
+) {
   const onHost = (row: Row): Row => ({ ...row, host_id: hostId(row.host_id) });
   const copy = (table: string, sql = `SELECT * FROM ${table}`, edit = onHost) =>
     rows(legacy, sql).forEach((row) => add(table, edit(row)));
@@ -167,12 +167,12 @@ function importCatalog(
   copy("plugin_kv", SIDEBAR_PREFERENCES);
 }
 
-function importThread(legacy: Legacy, db: Db, add: Add, id: SqlValue): number {
+function importThread(legacy: Legacy, db: Db, add: Add, id: SqlValue) {
   const settled = `SELECT item_id FROM events
     WHERE thread_id = ? AND type = 'item/completed'`;
   const completed = new Set(rows(legacy, settled, id).map((e) => e.item_id));
   const kept = new Set<string>();
-  const repeats = (key: string): boolean => kept.size === kept.add(key).size;
+  const repeats = (key: string) => kept.size === kept.add(key).size;
   const stored = legacy
     .prepare("SELECT * FROM events WHERE thread_id = ? ORDER BY sequence")
     .iterate(id) as IterableIterator<Row>;
@@ -205,7 +205,7 @@ export async function importLegacy(options: ImportLegacyOptions) {
   const legacy = new Database(join(from, "bb.db"), readOnly);
   try {
     legacy.pragma("query_only = ON");
-    const select = (among: string): Row[] =>
+    const select = (among: string) =>
       rows(legacy, `SELECT id FROM threads WHERE ${among}`);
     for (const [choice, among] of dryRun ? Object.entries(CHOSEN) : []) {
       const found = select(among);
@@ -221,8 +221,7 @@ export async function importLegacy(options: ImportLegacyOptions) {
     const local = existsSync(hostFile)
       ? readFileSync(hostFile, "utf8").trim()
       : hosts[0]?.id;
-    const hostId = (id: SqlValue = null): SqlValue =>
-      id === local ? config.hostId : id;
+    const hostId = (id: SqlValue = null) => (id === local ? config.hostId : id);
     const db = openDatabase({ path: paths.database });
     try {
       const add = tableWriter(db, counts);
@@ -231,7 +230,7 @@ export async function importLegacy(options: ImportLegacyOptions) {
       const events = (counts.events = { imported: 0, skipped: 0, pruned: 0 });
       for (const thread of select(chosen)) {
         const id = thread.id ?? null;
-        const work = (): number => importThread(legacy, db, add, id);
+        const work = () => importThread(legacy, db, add, id);
         if (db.get(EMPTY_THREAD, id) === undefined) {
           events.skipped += eventCount(legacy, [thread]);
         } else events.pruned += db.transaction(work);
@@ -248,7 +247,7 @@ export async function importLegacy(options: ImportLegacyOptions) {
 export function importSummaryLines(summary: ImportLegacySummary): string[] {
   const { choices, counts, dataDir, from } = summary;
   const seconds = (summary.elapsedMs / 1_000).toFixed(1);
-  const line = ([kind, numbers]: [string, Numbers]): string => {
+  const line = ([kind, numbers]: [string, Numbers]) => {
     const parts = Object.entries(numbers).map(([unit, n]) => `${n} ${unit}`);
     return `  ${kind}: ${parts.join(", ")}`;
   };

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
-import type { ServerContext, ServerRunner } from "../../context.js";
+import type { ServerContext } from "../../context.js";
 import { newId, type RowValues } from "../../db/index.js";
 import * as store from "../../db/hosts.js";
 import * as enrollment from "../../runners/enrollment.js";
@@ -60,7 +60,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     return hostResponse(ctx, requireHost(ctx, id));
   };
 
-  const ownerRunner = (c: HostRequest): ServerRunner => {
+  const ownerRunner = (c: HostRequest) => {
     requireOwner(c, "Only the owner can open paths in local apps");
     return runners.get(requireHost(ctx, c.req.param("id")).id);
   };

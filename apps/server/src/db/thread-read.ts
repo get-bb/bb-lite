@@ -57,7 +57,7 @@ function threadFilter(
   equal: Record<string, SqlValue | undefined>,
   nullness: Record<string, "true" | "false" | undefined>,
   hidden: "true" | "false" | undefined,
-): { where: string; params: SqlValue[] } {
+) {
   const where = ["threads.deleted_at IS NULL"];
   const params: SqlValue[] = [];
   for (const [column, value] of Object.entries(equal)) {

@@ -73,7 +73,7 @@ export function nextPinSortKey(db: Db): string {
   return orderKeyBetween(last?.key ?? null, null);
 }
 
-function syncTitleSearch(db: Db, thread: ThreadRow): void {
+function syncTitleSearch(db: Db, thread: ThreadRow) {
   upsertSearchSegment(db, thread.id, "title", "title", null, thread.title);
   const fallback = thread.titleFallback;
   const kind = "title_fallback";
@@ -115,7 +115,7 @@ export function patchThread(
   return thread;
 }
 
-function needsAttention(thread: ThreadRow, to: domain.ThreadStatus): boolean {
+function needsAttention(thread: ThreadRow, to: domain.ThreadStatus) {
   if (to === "error") return true;
   const finished = thread.status === "active" && to === "idle";
   return finished && thread.parentThreadId === null;
@@ -164,7 +164,7 @@ export function applyLifecycleEvent(
   return { applied: true, from: thread.status, thread: next };
 }
 
-function select(db: Db, where: string, ...params: SqlValue[]): ThreadRow[] {
+function select(db: Db, where: string, ...params: SqlValue[]) {
   return db.all<ThreadRow>(`SELECT * FROM threads WHERE ${where}`, ...params);
 }
 
@@ -175,7 +175,7 @@ export function listChildThreads(db: Db, parentThreadId: string) {
 export function listArchiveTree(db: Db, root: ThreadRow): ThreadRow[] {
   const ordered: ThreadRow[] = [];
   const seen = new Set<string>();
-  const visit = (thread: ThreadRow): void => {
+  const visit = (thread: ThreadRow) => {
     if (seen.has(thread.id)) return;
     seen.add(thread.id);
     select(db, "lifecycle_owner_thread_id = ?", thread.id).forEach(visit);
@@ -242,7 +242,7 @@ export function reorderPinnedThread(
   nextThreadId: string | null,
 ): void {
   const stale = conflict("Pinned order changed");
-  const keyOf = (threadId: string | null): string | null => {
+  const keyOf = (threadId: string | null) => {
     if (threadId === null) return null;
     const key = getThread(db, threadId)?.pinSortKey ?? null;
     if (threadId === id || key === null) throw stale;
