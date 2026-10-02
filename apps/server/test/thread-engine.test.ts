@@ -65,7 +65,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   });
   expect(session.instructions).toContain("You are working inside bb");
   const tools = session.dynamicTools.map((tool) => tool.name);
-  expect(tools).toEqual(["update_environment_directory", "AskUserQuestion"]);
+  expect(tools).toEqual(["AskUserQuestion"]);
   const providerOptions = { memoryEnabled: true };
   const asks = { permissionEscalation: "ask", planMode: false };
   expect(options).toMatchObject({

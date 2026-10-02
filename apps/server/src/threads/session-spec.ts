@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DynamicTool } from "@bb/domain";
 import type { ThreadContext } from "@bb/plugin";
 import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
 import { dataPaths } from "../config.js";
@@ -27,34 +26,6 @@ const BB_INTRODUCTION = [
   "- Reference a BB thread as `@thread:thr_abc123`, substituting its actual ID, so bb renders the correct project-aware link. Do not construct thread URLs manually.",
   "- Use Markdown links for files, artifacts, and URLs you want the user to open; bb is a visual IDE and renders them as clickable links.",
 ].join("\n");
-
-const UPDATE_ENVIRONMENT_DIRECTORY_INSTRUCTIONS =
-  "If the user asks you to move this thread to another checkout, worktree, or directory, make sure the target directory exists, then call `update_environment_directory` with its absolute path. After it succeeds, stop work in the current turn; future turns will run in the updated environment.";
-
-export const UPDATE_ENVIRONMENT_DIRECTORY_TOOL: DynamicTool = {
-  name: "update_environment_directory",
-  description:
-    "Move this bb thread to a different working directory for subsequent turns. Use this when the user asks to switch to a new checkout, worktree, or local directory. The path must be an absolute existing directory on the current host. After a successful switch, stop the current turn because the running provider cwd will not change until the next turn.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: {
-        type: "string",
-        description:
-          "Absolute path to an existing directory on the current host.",
-      },
-    },
-    required: ["path"],
-    additionalProperties: false,
-  },
-  presentation: {
-    label: {
-      pending: "Moving the thread directory",
-      completed: "Moved the thread directory",
-    },
-    icon: { glyph: "FolderOpen" },
-  },
-};
 
 async function readUserInstructions(dataDir: string): Promise<string | null> {
   try {
@@ -91,7 +62,7 @@ export async function buildSessionSpec(
     readUserInstructions(ctx.config.dataDir),
     ctx.environments.workspaceInstructions(environment.id),
   ]);
-  const sections = [BB_INTRODUCTION, UPDATE_ENVIRONMENT_DIRECTORY_INSTRUCTIONS];
+  const sections = [BB_INTRODUCTION];
   if (plugins !== "") {
     sections.push("The following instructions come from BB plugins:", plugins);
   }
@@ -117,10 +88,7 @@ export async function buildSessionSpec(
     providerThreadId: thread.providerThreadId,
     fork: null,
     instructions: sections.join("\n\n"),
-    dynamicTools: [
-      UPDATE_ENVIRONMENT_DIRECTORY_TOOL,
-      ...ctx.plugins.toolsFor(scope),
-    ],
+    dynamicTools: ctx.plugins.toolsFor(scope),
     env: {
       ...machineEnv,
       ...Object.fromEntries(contributed),

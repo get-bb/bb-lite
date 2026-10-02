@@ -104,11 +104,10 @@ it("serves a plugin: attributed spawn, workspace files and requestInput", async 
   expect(await first).toEqual({ outcome: "submitted", value });
 });
 
-it("runs core and extension tools for the provider", async () => {
+it("runs plugin tools for the provider", async () => {
   const server = await createThreadServer();
-  const { ctx, thread } = server;
+  const { ctx } = server;
   const id = await server.spawn();
-  const before = thread(id).environmentId;
   ctx.plugins.callTool = async (name, args, { threadId }) => {
     const reply = `${name} ${JSON.stringify(args)} ${threadId}`;
     const contentItems = [{ type: "inputText" as const, text: reply }];
@@ -129,11 +128,6 @@ it("runs core and extension tools for the provider", async () => {
   const echoed = ["r1", true, `Echo {"a":1} ${id}`];
   expect(await invoke("Echo", { a: 1 }, "r1")).toEqual(echoed);
   expect((await invoke("Nope", {}, "r2")).slice(0, 2)).toEqual(["r2", false]);
-  const move = "update_environment_directory";
-  expect((await invoke(move, { path: "relative" }, "r3"))[1]).toBe(false);
-  const moved = await invoke(move, { path: "/other/checkout/" }, "r4");
-  expect(moved[2]).toContain("updated to /other/checkout.");
-  expect(thread(id).environmentId).not.toBe(before);
 });
 
 it("tells a parent about its children in batches", async () => {
