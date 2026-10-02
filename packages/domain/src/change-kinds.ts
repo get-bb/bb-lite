@@ -44,7 +44,6 @@ export const ENVIRONMENT_CHANGE_KINDS = [
   "status-changed",
   "work-status-changed",
   "git-refs-changed",
-  "thread-storage-changed",
 ] as const;
 export type EnvironmentChangeKind = (typeof ENVIRONMENT_CHANGE_KINDS)[number];
 

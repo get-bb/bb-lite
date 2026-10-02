@@ -53,10 +53,7 @@ import {
   useStopThread,
   useUpdateThreadQueuedMessage,
 } from "@/hooks/mutations/thread-runtime-mutations";
-import {
-  useRestoreThreadEnvironment,
-  useUnarchiveThread,
-} from "@/hooks/mutations/thread-state-mutations";
+import { useUnarchiveThread } from "@/hooks/mutations/thread-state-mutations";
 import {
   getLatestPendingInteraction,
   useThreadQueuedMessages,
@@ -99,7 +96,6 @@ interface InlineQueuedMessageEdit {
 }
 
 interface ThreadDetailPromptAreaProps {
-  canRestoreEnvironment: boolean;
   canUseGitUi: boolean;
   contextWindowUsage?: ThreadTimelineResponse["contextWindowUsage"];
   environmentCheckout?: WorkspaceCheckoutDisplay;
@@ -132,7 +128,6 @@ interface ThreadDetailPromptAreaProps {
 }
 
 export function ThreadDetailPromptArea({
-  canRestoreEnvironment,
   canUseGitUi,
   contextWindowUsage,
   environmentCheckout,
@@ -222,7 +217,6 @@ export function ThreadDetailPromptArea({
   const stopThread = useStopThread();
   const cancelThreadPlan = useCancelThreadPlan();
   const unarchiveThread = useUnarchiveThread();
-  const restoreThreadEnvironment = useRestoreThreadEnvironment();
   const projectName = useProjectDisplayName(
     thread.projectId === PERSONAL_PROJECT_ID ? undefined : thread.projectId,
   );
@@ -323,8 +317,9 @@ export function ThreadDetailPromptArea({
     (stopThread.isPending && stopThread.variables === thread.id);
   const activePendingInteraction =
     getLatestPendingInteraction(pendingInteractions);
-  const shouldHideComposer =
-    environmentGoneStatus !== null || thread.archivedAt !== null;
+  const machineGone =
+    environmentGoneStatus !== null && environmentGoneStatus !== "destroyed";
+  const shouldHideComposer = machineGone || thread.archivedAt !== null;
   const sendQueuedMessageById = (
     messageId: string,
     mode: SendQueuedMessageMode,
@@ -658,18 +653,7 @@ export function ThreadDetailPromptArea({
         environmentGoneSection={
           environmentGoneStatus === null
             ? null
-            : {
-                status: environmentGoneStatus,
-                ...(canRestoreEnvironment
-                  ? {
-                      onRestore: () =>
-                        restoreThreadEnvironment.mutate({ id: thread.id }),
-                      restorePending:
-                        restoreThreadEnvironment.isPending &&
-                        restoreThreadEnvironment.variables?.id === thread.id,
-                    }
-                  : {}),
-              }
+            : { status: environmentGoneStatus }
         }
         parentThreadSection={parentThreadSection}
         childThreadsSection={childThreadsSection}

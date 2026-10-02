@@ -312,16 +312,6 @@ export function useUnarchiveThread() {
   });
 }
 
-export function useRestoreThreadEnvironment() {
-  const client = useQueryClient();
-  return useMutation({
-    meta: { errorMessage: "Failed to restore workspace." },
-    mutationFn: ({ id }: ThreadMutationRequest): Promise<ThreadResponse> =>
-      sdk.threads.restoreEnvironment({ threadId: id }),
-    onSuccess: (thread) => refreshThreadCaches(client, [thread.id]),
-  });
-}
-
 export function dropCachedThread(client: QueryClient, threadId: string): void {
   void client.cancelQueries({ queryKey: qk.threadDetail(threadId) });
   client.setQueryData<ThreadResponse>(

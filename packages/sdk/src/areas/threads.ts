@@ -156,14 +156,6 @@ export interface ThreadsArea {
   get(
     args: ThreadTarget & { include?: api.ThreadGetQuery["include"] },
   ): Promise<ThreadGetResult>;
-  queue: {
-    list(
-      args?: Abortable & {
-        threadId?: string;
-        waitHolder?: domain.QueuedMessageWaitHolder;
-      },
-    ): Promise<api.ThreadQueuedMessageListResponse>;
-  };
   interactions: {
     cancel(args: InteractionTarget): Promise<domain.PendingInteraction>;
     get(
@@ -211,7 +203,6 @@ export interface ThreadsArea {
   resolveMentions(
     args: api.ResolveThreadMentionsRequest & Abortable,
   ): Promise<api.ResolveThreadMentionsResponse>;
-  restoreEnvironment(args: ThreadTarget): Promise<api.ThreadResponse>;
   search(
     args: api.ThreadSearchQuery & Abortable,
   ): Promise<api.ThreadSearchResponse>;
@@ -232,9 +223,6 @@ export interface ThreadsArea {
   timelineTurnSummaryDetails(
     args: ThreadTarget & api.TimelineTurnSummaryDetailsQuery,
   ): Promise<api.TimelineTurnSummaryDetailsResponse>;
-  storagePaths(
-    args: ThreadTarget & api.ThreadStoragePathsQuery,
-  ): Promise<api.ThreadStoragePathListResponse>;
   unarchive(args: ThreadTarget): Promise<Ok>;
   unpin(args: ThreadTarget): Promise<ThreadMutationResult>;
   update(args: ThreadUpdateArgs): Promise<ThreadMutationResult>;
@@ -397,14 +385,6 @@ export function createThreadsArea(http: Http): ThreadsArea {
       },
     },
     get,
-    queue: {
-      list: (args = {}) =>
-        http.json(
-          publicApiRoutes.queue.list,
-          { query: pick(args, ["threadId", "waitHolder"]) },
-          args.signal,
-        ),
-    },
     interactions: {
       cancel: (args) => http.json(routes.cancelInteraction, interaction(args)),
       get: (args) =>
@@ -467,8 +447,6 @@ export function createThreadsArea(http: Http): ThreadsArea {
       }),
     resolveMentions: ({ threadIds, signal }) =>
       http.json(routes.resolveMentions, { json: { threadIds } }, signal),
-    restoreEnvironment: ({ threadId }) =>
-      http.json(routes.restoreEnvironment, at(threadId)),
     search: (args) =>
       http.json(
         routes.search,
@@ -526,16 +504,6 @@ export function createThreadsArea(http: Http): ThreadsArea {
       ]);
       const input = { ...at(args.threadId), query };
       return http.json(routes.timelineTurnSummaryDetails, input, args.signal);
-    },
-    storagePaths(args) {
-      const query = pick(args, [
-        "query",
-        "limit",
-        "includeFiles",
-        "includeDirectories",
-      ]);
-      const input = { ...at(args.threadId), query };
-      return http.json(routes.storagePaths, input, args.signal);
     },
     unarchive: acknowledged(routes.unarchive),
     unpin: ({ threadId }) => http.json(routes.unpin, at(threadId)),

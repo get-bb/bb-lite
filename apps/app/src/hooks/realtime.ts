@@ -67,7 +67,6 @@ const THREAD: Record<ThreadChangeKind, (id: string) => Keys> = {
     ...listed(id),
     qk.threadBootstrap(id),
     qk.threadExecution(id),
-    qk.threadStorage(id),
   ],
   "read-state-changed": listed,
   "tabs-changed": (id) => [threadTabsQueryKey(id)],
@@ -91,11 +90,10 @@ const ENVIRONMENT: Record<EnvironmentChangeKind, (id: string) => Keys> = {
   "status-changed": (id) => [qk.environment(id)],
   "work-status-changed": workspace,
   "git-refs-changed": (id) => [...workspace(id), qk.environmentBranches(id)],
-  "thread-storage-changed": () => [qk.threadStorage(ANY)],
 };
 
 const HOST: Record<HostChangeKind, () => Keys> = {
-  "host-connected": () => [...hostState(), qk.threadStorage(ANY)],
+  "host-connected": hostState,
   "host-disconnected": hostState,
   "provider-model-catalog-changed": () => [qk.executionOptions()],
 };
@@ -154,9 +152,7 @@ export function applyChange(client: QueryClient, message: ChangedMessage) {
   if (message.entity === "host") {
     return refreshAll(message.changes.flatMap((kind) => HOST[kind]()));
   }
-  if (!message.changes.includes("thread-storage-changed")) {
-    bumpDiffPatchFreshnessGeneration(id);
-  }
+  bumpDiffPatchFreshnessGeneration(id);
   refreshAll(
     message.changes.flatMap((kind) => ENVIRONMENT[kind](id)),
     WORKSPACE,

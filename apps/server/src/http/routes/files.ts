@@ -6,7 +6,6 @@ import {
   requireReadyEnvironment,
   requireThreadEnvironment,
 } from "../../environments/workspace.js";
-import { requireProjectWorkspace } from "../../projects/workspace.js";
 import { requireHost } from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
 import {
@@ -28,7 +27,7 @@ const LIST_DEFAULTS = {
 
 export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
   const { get, post } = typedApi(app);
-  const { environments, files, hosts, projects, threads } = publicApiRoutes;
+  const { environments, files, hosts, threads } = publicApiRoutes;
 
   const runnerOf = (hostId: string | undefined) =>
     ctx.runners.get(requireHost(ctx, hostId ?? ctx.config.hostId).id);
@@ -51,18 +50,6 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
   get(environments.revisionFile, (c) => {
     const gitRef = revisionRef(c.req.param("ref"));
     return serve(c, requireReadyEnvironment(ctx, c.req.param("id")), gitRef);
-  });
-
-  get(projects.file, (c) =>
-    serve(c, requireProjectWorkspace(ctx, c.req.param("id"), {})),
-  );
-
-  get(projects.hostFile, (c) => {
-    const hostId = c.req.param("hostId");
-    return serve(
-      c,
-      requireProjectWorkspace(ctx, c.req.param("id"), { hostId }),
-    );
   });
 
   get(threads.hostFile, (c) => {

@@ -43,8 +43,7 @@ it("reports status, diffs and commits for a checkout with mixed changes", async 
 });
 
 it("serves file bytes with ranges, validators and confinement", async () => {
-  const { server, repo, projectId, hostId, request } =
-    await helpers.createDemo();
+  const { server, repo, projectId, request } = await helpers.createDemo();
   const big = Buffer.alloc(1_300_000).map((_, at) => at % 251);
   const size = String(big.length);
   helpers.write(repo, { "big.bin": big, "src/a.ts": "changed\n" });
@@ -88,13 +87,8 @@ it("serves file bytes with ranges, validators and confinement", async () => {
 
   helpers.insertThread(server, "thr_demo", projectId);
   server.ctx.db.run(attach, "env_demo");
-  for (const route of [
-    `/projects/${projectId}/files/README.md`,
-    `/projects/${projectId}/hosts/${hostId}/files/README.md`,
-    `/threads/thr_demo/host-files${repo}/README.md`,
-  ]) {
-    expect(await (await request(route)).text(), route).toBe("# demo\n");
-  }
+  const viaThread = `/threads/thr_demo/host-files${repo}/README.md`;
+  expect(await (await request(viaThread)).text()).toBe("# demo\n");
 });
 
 it("resolves a project to its checkout for paths and branches", async () => {

@@ -225,7 +225,6 @@ function ThreadChatWithComposer({
             pending.data,
             pending.isFetching,
           )}
-          canRestoreEnvironment={false}
           environmentGoneStatus={null}
           environmentHostId={environment?.hostId}
           environmentCheckout={

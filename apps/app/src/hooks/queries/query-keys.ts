@@ -35,8 +35,6 @@ export const qk = {
   interactions: (id: Id) => thread(id, "interactions"),
   threadPromptHistory: (id: Id) => thread(id, "prompt-history"),
   threadExecution: (id: Id) => thread(id, "execution-options"),
-  threadStorage: (id: Id, kind?: string, args?: unknown) =>
-    thread(id, "storage", kind, args),
   threadHostFile: (id: Id, environmentId: Id, path: Id) =>
     thread(id, "host-file", environmentId, path),
 

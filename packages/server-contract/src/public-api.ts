@@ -117,18 +117,6 @@ export const publicApiRoutes = {
       request: noRequest<Path<"id" | "sourceId">>(),
       response: jsonResponse<{ ok: true }>(),
     }),
-    file: defineRoute({
-      path: "/projects/:id/files/:filePath{.+}",
-      method: "get",
-      request: noRequest<Path<"id" | "filePath">>(),
-      response: binaryResponse<Uint8Array>(),
-    }),
-    hostFile: defineRoute({
-      path: "/projects/:id/hosts/:hostId/files/:filePath{.+}",
-      method: "get",
-      request: noRequest<Path<"id" | "hostId" | "filePath">>(),
-      response: binaryResponse<Uint8Array>(),
-    }),
     paths: defineRoute({
       path: "/projects/:id/paths",
       method: "get",
@@ -735,12 +723,6 @@ export const publicApiRoutes = {
       request: noRequest<Path<"id">>(),
       response: jsonResponse<{ ok: true }>(),
     }),
-    restoreEnvironment: defineRoute({
-      path: "/threads/:id/restore-environment",
-      method: "post",
-      request: noRequest<Path<"id">>(),
-      response: jsonResponse<api.ThreadResponse>(),
-    }),
     read: defineRoute({
       path: "/threads/:id/read",
       method: "post",
@@ -802,25 +784,6 @@ export const publicApiRoutes = {
       method: "get",
       request: noRequest<Path<"id" | "filePath">>(),
       response: binaryResponse<Uint8Array>(),
-    }),
-    storagePaths: defineRoute({
-      path: "/threads/:id/thread-storage/paths",
-      method: "get",
-      request: queryRequest<Path<"id">, api.ThreadStoragePathsQuery>(
-        api.threadStoragePathsQuerySchema,
-      ),
-      response: jsonResponse<api.ThreadStoragePathListResponse>(),
-    }),
-  },
-
-  queue: {
-    list: defineRoute({
-      path: "/queued-messages",
-      method: "get",
-      request: optionalQueryRequest<EmptyInput, api.QueuedMessageListQuery>(
-        api.queuedMessageListQuerySchema,
-      ),
-      response: jsonResponse<api.ThreadQueuedMessageListResponse>(),
     }),
   },
 
