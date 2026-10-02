@@ -147,28 +147,19 @@ export function settleInteraction(
 export function toPendingInteraction(
   row: PendingInteractionRow,
 ): PendingInteraction {
-  const base = {
-    id: row.id,
-    threadId: row.threadId,
-    status: row.status,
-    statusReason: row.statusReason,
-    createdAt: row.createdAt,
-    expiresAt: row.expiresAt,
-    resolvedAt: row.resolvedAt,
-    payload: JSON.parse(row.payload) as unknown,
-    resolution:
-      row.resolution === null ? null : (JSON.parse(row.resolution) as unknown),
-  };
-  if (row.originKind === "plugin") {
-    const { pluginId, rendererId, turnId } = row;
-    const origin = { kind: "plugin", pluginId, rendererId };
-    return pendingInteractionSchema.parse({ ...base, turnId, origin });
-  }
+  const { providerId, providerThreadId, providerRequestId } = row;
+  const provider = { providerId, providerThreadId, providerRequestId };
+  const { pluginId, rendererId, resolution } = row;
+  const fromProvider = row.originKind === "provider";
   return pendingInteractionSchema.parse({
-    ...base,
-    turnId: row.turnId ?? UNSCOPED_TURN_ID,
-    providerId: row.providerId,
-    providerThreadId: row.providerThreadId,
-    providerRequestId: row.providerRequestId,
+    ...row,
+    ...(fromProvider
+      ? { turnId: row.turnId ?? UNSCOPED_TURN_ID }
+      : { providerId: undefined }),
+    origin: fromProvider
+      ? { kind: "provider", ...provider }
+      : { kind: "plugin", pluginId, rendererId },
+    payload: JSON.parse(row.payload),
+    resolution: resolution === null ? null : JSON.parse(resolution),
   });
 }

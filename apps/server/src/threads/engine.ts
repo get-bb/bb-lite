@@ -4,14 +4,15 @@ import {
   type QueuedMessageWaitingOnKind,
   type ThreadChangeMetadata,
   type ThreadLifecycleEventType,
-  type ThreadRuntimeState,
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import type { ThreadResponse } from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
+import { lastOutput } from "../db/event-read.js";
 import * as eventLog from "../db/events.js";
 import * as queue from "../db/queued-messages.js";
+import { findThreadListRow } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
 import { ApiError } from "../http/errors.js";
 import { onProjectDeleted } from "../projects/remove.js";
@@ -24,6 +25,7 @@ import * as lifecycle from "./lifecycle.js";
 import * as mutations from "./mutations.js";
 import * as notices from "./parent-notices.js";
 import { beginProvisioning } from "./provisioning.js";
+import { toThreadListEntries, toThreadResponse } from "./thread-display.js";
 import { cancelToolCall, startToolCall } from "./tool-calls.js";
 
 type ThreadRow = store.ThreadRow;
@@ -113,35 +115,28 @@ export class Engine {
     return online ? hostId : null;
   }
 
-  displayState(thread: ThreadRow, hostId: string | null): ThreadRuntimeState {
-    const offline = hostId !== null && !this.ctx.runners.isConnected(hostId);
-    const waiting = thread.status === "active" && offline;
-    return { displayStatus: waiting ? "waiting-for-host" : thread.status };
+  private listed(threadId: string) {
+    const row = findThreadListRow(this.ctx.db, threadId);
+    if (row === undefined) throw core.threadNotFound();
+    return row;
   }
 
-  statusMetadata(thread: ThreadRow): ThreadChangeMetadata {
-    return {
-      projectId: thread.projectId,
-      statusChange: {
-        status: thread.status,
-        runtime: this.displayState(thread, this.hostOf(thread)),
-        activity: store.threadActivity(this.ctx.db, thread.id),
-        latestAttentionAt: thread.latestAttentionAt,
-        updatedAt: thread.updatedAt,
-      },
-    };
+  statusMetadata(threadId: string): ThreadChangeMetadata {
+    const [entry] = toThreadListEntries(this.ctx, [this.listed(threadId)]);
+    const { projectId, status, runtime, activity } = entry;
+    const { latestAttentionAt, updatedAt } = entry;
+    const times = { latestAttentionAt, updatedAt };
+    return { projectId, statusChange: { status, runtime, activity, ...times } };
   }
 
   announceStatus(threadId: string): void {
-    const thread = store.getThread(this.ctx.db, threadId);
-    if (thread === undefined) return;
-    const metadata = this.statusMetadata(thread);
+    if (store.getThread(this.ctx.db, threadId) === undefined) return;
+    const metadata = this.statusMetadata(threadId);
     this.ctx.hub.thread(threadId, ["status-changed"], metadata);
   }
 
-  respond(thread: ThreadRow): ThreadResponse {
-    const runtime = this.displayState(thread, this.hostOf(thread));
-    return store.toThreadResponse(this.ctx.db, thread, runtime);
+  respond(threadId: string): ThreadResponse {
+    return toThreadResponse(this.ctx, this.listed(threadId));
   }
 
   append(out: Outbox, thread: ThreadRow, events: RunnerThreadEvent[]): void {
@@ -152,11 +147,11 @@ export class Engine {
 
   private emitStatus(thread: ThreadRow): void {
     const { db, plugins } = this.ctx;
-    const response = this.respond(thread);
+    const response = this.respond(thread.id);
     if (thread.status === "active") {
       plugins.emit("thread.active", { thread: response });
     } else if (thread.status === "idle") {
-      const text = eventLog.lastAssistantText(db, thread.id);
+      const text = lastOutput(db, thread.id);
       const payload = { thread: response, lastAssistantText: text };
       plugins.emit("thread.idle", payload);
     } else if (thread.status === "error") {
@@ -173,7 +168,7 @@ export class Engine {
     const outcome = store.applyLifecycleEvent(this.ctx.db, threadId, type);
     if (!outcome.applied) return outcome;
     const { thread } = outcome;
-    out.thread(threadId, ["status-changed"], this.statusMetadata(thread));
+    out.thread(threadId, ["status-changed"], this.statusMetadata(threadId));
     out.after(() => this.emitStatus(thread));
     return outcome;
   }
@@ -375,7 +370,7 @@ export function createThreadEngine(ctx: ServerContext) {
     get: (threadId: string) => {
       const thread = store.getThread(ctx.db, threadId);
       const gone = thread === undefined || thread.deletedAt !== null;
-      return gone ? null : engine.respond(thread);
+      return gone ? null : engine.respond(threadId);
     },
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),

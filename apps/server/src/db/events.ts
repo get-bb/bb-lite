@@ -4,19 +4,9 @@ import type {
   ThreadSearchSourceKind,
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
+import { latestSequence } from "./event-read.js";
 import { encodeJson, newId, type Db } from "./index.js";
-
-export interface EventThread {
-  id: string;
-  projectId: string;
-  environmentId: string | null;
-  parentThreadId: string | null;
-}
-
-export interface StoredEvent {
-  sequence: number;
-  event: RunnerThreadEvent;
-}
+import type { ThreadRow } from "./threads.js";
 
 export type EventSource = "server" | "runner";
 type TurnRequestEvent = Extract<
@@ -116,7 +106,11 @@ function isRedundant(
   return isItemSettled(db, threadId, itemId);
 }
 
-function pruneSupersededDeltas(db: Db, threadId: string, itemId: string): void {
+export function pruneSupersededDeltas(
+  db: Db,
+  threadId: string,
+  itemId: string,
+): void {
   db.run(
     `DELETE FROM events
      WHERE thread_id = ? AND item_id = ? AND type IN (${DELTA_TYPE_LIST})
@@ -181,7 +175,7 @@ export function visiblePromptText(input: readonly PromptInput[]): string {
 
 function recordTurnRequest(
   db: Db,
-  thread: EventThread,
+  thread: ThreadRow,
   event: TurnRequestEvent,
   sequence: number,
 ): void {
@@ -210,7 +204,7 @@ function recordTurnRequest(
 
 function insertEvent(
   db: Db,
-  thread: EventThread,
+  thread: ThreadRow,
   event: RunnerThreadEvent,
   sequence: number,
 ): void {
@@ -256,37 +250,21 @@ function insertEvent(
 
 export function appendEvents(
   db: Db,
-  thread: EventThread,
+  thread: ThreadRow,
   events: readonly RunnerThreadEvent[],
   source: EventSource,
-): StoredEvent[] {
+): RunnerThreadEvent[] {
   return db.transaction(() => {
-    const high = db.get<{ sequence: number }>(
-      `SELECT COALESCE(MAX(sequence), 0) AS sequence
-       FROM events WHERE thread_id = ?`,
-      thread.id,
-    );
-    let sequence = high?.sequence ?? 0;
-    const stored: StoredEvent[] = [];
+    let sequence = latestSequence(db, thread.id);
+    const stored: RunnerThreadEvent[] = [];
     for (const event of events) {
       if (source === "runner" && isRedundant(db, thread.id, event)) continue;
       sequence += 1;
       insertEvent(db, thread, event, sequence);
-      stored.push({ sequence, event });
+      stored.push(event);
     }
     return stored;
   });
-}
-
-export function lastAssistantText(db: Db, threadId: string): string | null {
-  const row = db.get<{ text: string | null }>(
-    `SELECT json_extract(data, '$.item.text') AS text FROM events
-     WHERE thread_id = ? AND type = 'item/completed'
-       AND item_kind = 'agentMessage' AND parent_tool_call_id IS NULL
-     ORDER BY sequence DESC LIMIT 1`,
-    threadId,
-  );
-  return row?.text ?? null;
 }
 
 export function lastSystemErrorMessage(

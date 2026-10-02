@@ -1,21 +1,68 @@
 import {
+  type ClientTurnRequestId,
+  type ThreadEvent,
+  requireThreadEventScopeTurnId,
   type PromptInput,
   type PromptTextMention,
-  type ThreadEvent,
 } from "@bb/domain";
-import type { EventMeta } from "./event-decode.js";
-import type { AcceptedClientRequest } from "./accepted-client-request-context.js";
-import type {
-  BuildEventProjectionMessagesOptions,
-  EventProjectionAssistantTextMessage,
-  EventProjectionTurnRequestKind,
-  EventProjectionTurnRequest,
-  EventProjectionUserMessage,
+import {
+  type EventMeta,
+  type BuildEventProjectionMessagesOptions,
+  type EventProjectionTurnRequestKind,
+  type EventProjectionTurnRequest,
+  type EventProjectionUserMessage,
+  eventProjectionMessageTurnScopeFields,
 } from "./event-projection-types.js";
-import { messageId } from "./format-helpers.js";
-import { assertNever } from "./assert-never.js";
-import { eventProjectionMessageTurnScopeFields } from "./message-scope.js";
-import { parseAgentMessageEnvelope } from "./agent-message-envelope.js";
+import { messageId, parseAgentMessageEnvelope } from "./timeline-format.js";
+
+export type ThreadEventWithMetaLike = { event: ThreadEvent; meta: EventMeta };
+
+export type AcceptedClientRequest = { meta: EventMeta; turnId: string };
+
+export interface AcceptedClientRequestContext {
+  acceptedClientRequestEvents: readonly ThreadEventWithMetaLike[];
+  rejectedClientRequestEvents: readonly ThreadEventWithMetaLike[];
+}
+
+export const EMPTY_ACCEPTED_CLIENT_REQUEST_CONTEXT: AcceptedClientRequestContext =
+  { acceptedClientRequestEvents: [], rejectedClientRequestEvents: [] };
+
+export function buildRejectedClientRequestById(
+  context: AcceptedClientRequestContext,
+  events: readonly ThreadEventWithMetaLike[],
+): Map<ClientTurnRequestId, EventMeta> {
+  const rejectedRequestById = new Map<ClientTurnRequestId, EventMeta>();
+  for (const { event, meta } of [
+    ...events,
+    ...context.rejectedClientRequestEvents,
+  ]) {
+    if (
+      event.type === "client/turn/rejected" &&
+      !rejectedRequestById.has(event.requestId)
+    ) {
+      rejectedRequestById.set(event.requestId, meta);
+    }
+  }
+  return rejectedRequestById;
+}
+
+export function buildAcceptedClientRequestById(args: {
+  context: AcceptedClientRequestContext;
+  events: readonly ThreadEventWithMetaLike[];
+}): Map<ClientTurnRequestId, AcceptedClientRequest> {
+  const acceptedById = new Map<ClientTurnRequestId, AcceptedClientRequest>();
+  for (const { event, meta } of [
+    ...args.events,
+    ...args.context.acceptedClientRequestEvents,
+  ]) {
+    if (event.type !== "turn/input/accepted") continue;
+    const turnId = requireThreadEventScopeTurnId(event);
+    if (!acceptedById.has(event.clientRequestId)) {
+      acceptedById.set(event.clientRequestId, { meta, turnId });
+    }
+  }
+  return acceptedById;
+}
 
 export function parsePromptInput(
   input: ReadonlyArray<PromptInput> | undefined,
@@ -30,7 +77,6 @@ export function parsePromptInput(
   mentions: PromptTextMention[];
 } | null {
   if (!Array.isArray(input) || input.length === 0) return null;
-
   const textParts: string[] = [];
   let webImages = 0;
   let localImages = 0;
@@ -40,12 +86,8 @@ export function parsePromptInput(
   const localFilePaths: string[] = [];
   const mentions: PromptTextMention[] = [];
   let textOffset = 0;
-
   for (const part of input) {
-    if (part.visibility === "agent-only") {
-      continue;
-    }
-
+    if (part.visibility === "agent-only") continue;
     switch (part.type) {
       case "text":
         if (part.text.length > 0) {
@@ -68,30 +110,22 @@ export function parsePromptInput(
         break;
       case "image":
         webImages += 1;
-        if (part.url.length > 0) {
-          imageUrls.push(part.url);
-        }
+        if (part.url.length > 0) imageUrls.push(part.url);
         break;
       case "localImage":
         localImages += 1;
-        if (part.path.length > 0) {
-          localImagePaths.push(part.path);
-        }
+        if (part.path.length > 0) localImagePaths.push(part.path);
         break;
       case "localFile":
         localFiles += 1;
-        if (part.path.length > 0) {
-          localFilePaths.push(part.path);
-        }
+        if (part.path.length > 0) localFilePaths.push(part.path);
         break;
     }
   }
-
   const text = textParts.join("");
   if (!text && webImages === 0 && localImages === 0 && localFiles === 0) {
     return null;
   }
-
   return {
     text,
     webImages,
@@ -104,78 +138,18 @@ export function parsePromptInput(
   };
 }
 
-function shouldRenderClientRequestedInput(
-  threadStatus: BuildEventProjectionMessagesOptions["threadStatus"] | undefined,
-): boolean {
-  if (!threadStatus) return false;
-  switch (threadStatus) {
-    case "starting":
-    case "error":
-    case "idle":
-    case "active":
-    case "stopping":
-    // A pending thread's first message is queued and has not been accepted,
-    // so the requested input is the only record of it there is to show.
-    case "pending":
-      return true;
-    default:
-      return assertNever(threadStatus);
-  }
-}
-
 export function shouldPreservePendingMessages(
   threadStatus: BuildEventProjectionMessagesOptions["threadStatus"] | undefined,
 ): boolean {
-  if (!threadStatus) return false;
-  switch (threadStatus) {
-    case "starting":
-    case "active":
-    // The queued first message is exactly what must survive: nothing has been
-    // accepted yet, so dropping it would leave the timeline empty.
-    case "pending":
-      return true;
-    case "error":
-    case "idle":
-    case "stopping":
-      return false;
-    default:
-      return assertNever(threadStatus);
-  }
-}
-
-function buildAttachments(
-  parsed: NonNullable<ReturnType<typeof parsePromptInput>>,
-): EventProjectionUserMessage["attachments"] {
-  return {
-    webImages: parsed.webImages,
-    localImages: parsed.localImages,
-    localFiles: parsed.localFiles,
-    ...(parsed.imageUrls.length > 0 ? { imageUrls: parsed.imageUrls } : {}),
-    ...(parsed.localImagePaths.length > 0
-      ? { localImagePaths: parsed.localImagePaths }
-      : {}),
-    ...(parsed.localFilePaths.length > 0
-      ? { localFilePaths: parsed.localFilePaths }
-      : {}),
-  };
+  return (
+    threadStatus === "starting" ||
+    threadStatus === "active" ||
+    threadStatus === "pending"
+  );
 }
 
 interface ParseUserFromClientRequestArgs {
   acceptedClientRequest?: AcceptedClientRequest;
-  decoded: ThreadEvent;
-  meta: EventMeta;
-  options?: BuildEventProjectionMessagesOptions;
-}
-
-interface ParseAcceptedSteerFromClientRequestArgs extends ParseUserFromClientRequestArgs {
-  acceptedClientRequest: AcceptedClientRequest;
-}
-
-interface ParsePendingSteerFromClientRequestArgs extends ParseUserFromClientRequestArgs {
-  acceptedClientRequest: AcceptedClientRequest | undefined;
-}
-
-interface ParseRejectedUsersFromClientRequestArgs {
   decoded: ThreadEvent;
   meta: EventMeta;
   options?: BuildEventProjectionMessagesOptions;
@@ -186,175 +160,90 @@ type ClientTurnRequestedEvent = Extract<
   { type: "client/turn/requested" }
 >;
 
-interface ResolveTurnRequestKindArgs {
-  acceptedClientRequest: AcceptedClientRequest | undefined;
-  decoded: ClientTurnRequestedEvent;
-}
-
-function expectedSteerTurnId(decoded: ClientTurnRequestedEvent): string | null {
-  switch (decoded.target.kind) {
-    case "auto":
-    case "steer":
-      return decoded.target.expectedTurnId;
-    case "thread-start":
-    case "new-turn":
-      return null;
-    default:
-      return assertNever(decoded.target);
-  }
-}
-
-function resolveTurnRequestKind({
-  acceptedClientRequest,
-  decoded,
-}: ResolveTurnRequestKindArgs): EventProjectionTurnRequestKind {
-  const expectedTurnId = expectedSteerTurnId(decoded);
-  if (expectedTurnId === null) {
-    return "message";
-  }
-  if (
-    acceptedClientRequest !== undefined &&
-    acceptedClientRequest.turnId !== expectedTurnId
-  ) {
-    return "message";
-  }
-  return "steer";
-}
-
-function isSteerRequest(decoded: ClientTurnRequestedEvent): boolean {
-  return (
-    resolveTurnRequestKind({
-      acceptedClientRequest: undefined,
-      decoded,
-    }) === "steer"
-  );
-}
-
-function buildTurnRequest(
-  decoded: ClientTurnRequestedEvent,
-  status: EventProjectionTurnRequest["status"],
-  acceptedClientRequest: AcceptedClientRequest | undefined,
-): EventProjectionTurnRequest {
-  return {
-    isGrouped: decoded.inputGroups !== undefined,
-    kind: resolveTurnRequestKind({
-      acceptedClientRequest,
-      decoded,
-    }),
-    status,
-  };
-}
-
-function resolveClientUserMessageTurnId(
+function resolveTurnRequestKind(
   decoded: ClientTurnRequestedEvent,
   acceptedClientRequest: AcceptedClientRequest | undefined,
-): string | null {
-  if (decoded.target.kind === "thread-start") {
-    return null;
-  }
-  return (
-    acceptedClientRequest?.turnId ??
-    ("expectedTurnId" in decoded.target ? decoded.target.expectedTurnId : null)
-  );
+): EventProjectionTurnRequestKind {
+  const expectedTurnId =
+    "expectedTurnId" in decoded.target ? decoded.target.expectedTurnId : null;
+  return expectedTurnId === null ||
+    (acceptedClientRequest !== undefined &&
+      acceptedClientRequest.turnId !== expectedTurnId)
+    ? "message"
+    : "steer";
 }
 
-interface BuildClientUserMessageArgs {
-  acceptedClientRequest?: AcceptedClientRequest;
-  decoded: ClientTurnRequestedEvent;
-  idSuffix?: string;
-  input: ReadonlyArray<PromptInput>;
-  meta: EventMeta;
-  requestStatus: EventProjectionTurnRequest["status"];
-}
-
-function buildClientUserMessage({
-  acceptedClientRequest,
-  decoded,
-  idSuffix,
-  input,
-  meta,
-  requestStatus,
-}: BuildClientUserMessageArgs): EventProjectionUserMessage {
-  const parsedInput = parsePromptInput(input);
-  if (!parsedInput) {
-    throw new Error("Expected parsed prompt input");
-  }
-  const targetTurnId = resolveClientUserMessageTurnId(
-    decoded,
-    acceptedClientRequest,
-  );
-  const turnRequest = buildTurnRequest(
-    decoded,
-    requestStatus,
-    acceptedClientRequest,
-  );
-  const rowMeta =
-    acceptedClientRequest && turnRequest.kind === "steer"
-      ? acceptedClientRequest.meta
-      : meta;
-  const agentEnvelope = parseAgentMessageEnvelope(parsedInput.text);
-  const initiator =
-    decoded.initiator === "user" && agentEnvelope !== null
-      ? "agent"
-      : decoded.initiator;
-  const senderThreadId =
-    decoded.senderThreadId ??
-    (initiator === "agent" ? (agentEnvelope?.senderThreadId ?? null) : null);
-
-  return {
-    kind: "user",
-    id: messageId(
-      decoded.threadId,
-      "user-seed",
-      idSuffix ? `${meta.seq}-${idSuffix}` : `${meta.seq}`,
-    ),
-    threadId: decoded.threadId,
-    sourceSeqStart: rowMeta.seq,
-    sourceSeqEnd: rowMeta.seq,
-    createdAt: rowMeta.createdAt,
-    ...(targetTurnId
-      ? eventProjectionMessageTurnScopeFields(targetTurnId)
-      : { scope: decoded.scope }),
-    initiator,
-    senderThreadId,
-    systemMessageKind: decoded.systemMessageKind ?? "unlabeled",
-    systemMessageSubject: decoded.systemMessageSubject ?? null,
-    turnRequest,
-    text: parsedInput.text,
-    mentions: parsedInput.mentions,
-    attachments: buildAttachments(parsedInput),
-  };
-}
-
-function clientUserMessageIdSuffix(messageIndex: number): string | undefined {
-  return messageIndex > 0 ? String(messageIndex) : undefined;
-}
-
-function buildClientUserMessagesForInputGroups({
-  acceptedClientRequest,
-  decoded,
-  meta,
-  requestStatus,
-}: {
-  acceptedClientRequest: AcceptedClientRequest | undefined;
-  decoded: ClientTurnRequestedEvent;
-  meta: EventMeta;
-  requestStatus: EventProjectionTurnRequest["status"];
-}): EventProjectionUserMessage[] {
-  const groups = decoded.inputGroups ?? [decoded.input];
+function buildClientUserMessages(
+  decoded: ClientTurnRequestedEvent,
+  meta: EventMeta,
+  requestStatus: EventProjectionTurnRequest["status"],
+  acceptedClientRequest?: AcceptedClientRequest,
+): EventProjectionUserMessage[] {
+  const targetTurnId =
+    decoded.target.kind === "thread-start"
+      ? null
+      : (acceptedClientRequest?.turnId ??
+        ("expectedTurnId" in decoded.target
+          ? decoded.target.expectedTurnId
+          : null));
   const messages: EventProjectionUserMessage[] = [];
-  for (const input of groups) {
-    if (!parsePromptInput(input)) continue;
-    messages.push(
-      buildClientUserMessage({
-        acceptedClientRequest,
-        decoded,
-        idSuffix: clientUserMessageIdSuffix(messages.length),
-        input,
-        meta,
-        requestStatus,
-      }),
-    );
+  for (const input of decoded.inputGroups ?? [decoded.input]) {
+    const parsedInput = parsePromptInput(input);
+    if (!parsedInput) continue;
+    const turnRequest: EventProjectionTurnRequest = {
+      isGrouped: decoded.inputGroups !== undefined,
+      kind: resolveTurnRequestKind(decoded, acceptedClientRequest),
+      status: requestStatus,
+    };
+    const rowMeta =
+      acceptedClientRequest && turnRequest.kind === "steer"
+        ? acceptedClientRequest.meta
+        : meta;
+    const agentEnvelope = parseAgentMessageEnvelope(parsedInput.text);
+    const initiator =
+      decoded.initiator === "user" && agentEnvelope !== null
+        ? "agent"
+        : decoded.initiator;
+    messages.push({
+      kind: "user",
+      id: messageId(
+        decoded.threadId,
+        "user-seed",
+        messages.length > 0 ? `${meta.seq}-${messages.length}` : `${meta.seq}`,
+      ),
+      threadId: decoded.threadId,
+      sourceSeqStart: rowMeta.seq,
+      sourceSeqEnd: rowMeta.seq,
+      createdAt: rowMeta.createdAt,
+      ...(targetTurnId
+        ? eventProjectionMessageTurnScopeFields(targetTurnId)
+        : { scope: decoded.scope }),
+      initiator,
+      senderThreadId:
+        decoded.senderThreadId ??
+        (initiator === "agent"
+          ? (agentEnvelope?.senderThreadId ?? null)
+          : null),
+      systemMessageKind: decoded.systemMessageKind ?? "unlabeled",
+      systemMessageSubject: decoded.systemMessageSubject ?? null,
+      turnRequest,
+      text: parsedInput.text,
+      mentions: parsedInput.mentions,
+      attachments: {
+        webImages: parsedInput.webImages,
+        localImages: parsedInput.localImages,
+        localFiles: parsedInput.localFiles,
+        ...(parsedInput.imageUrls.length > 0
+          ? { imageUrls: parsedInput.imageUrls }
+          : {}),
+        ...(parsedInput.localImagePaths.length > 0
+          ? { localImagePaths: parsedInput.localImagePaths }
+          : {}),
+        ...(parsedInput.localFilePaths.length > 0
+          ? { localFilePaths: parsedInput.localFilePaths }
+          : {}),
+      },
+    });
   }
   return messages;
 }
@@ -363,95 +252,65 @@ export function parseUsersFromClientRequest(
   args: ParseUserFromClientRequestArgs,
 ): EventProjectionUserMessage[] {
   const { acceptedClientRequest, decoded, meta, options } = args;
-  if (decoded.type !== "client/turn/requested") {
-    return [];
-  }
-  if (!shouldRenderClientRequestedInput(options?.threadStatus)) {
-    return [];
-  }
   if (
-    resolveTurnRequestKind({
-      acceptedClientRequest,
-      decoded,
-    }) !== "message"
+    decoded.type !== "client/turn/requested" ||
+    !options?.threadStatus ||
+    resolveTurnRequestKind(decoded, acceptedClientRequest) !== "message"
   ) {
     return [];
   }
-
-  return buildClientUserMessagesForInputGroups({
-    acceptedClientRequest,
+  return buildClientUserMessages(
     decoded,
     meta,
-    requestStatus: acceptedClientRequest ? "accepted" : "pending",
-  });
+    acceptedClientRequest ? "accepted" : "pending",
+    acceptedClientRequest,
+  );
 }
 
 export function parsePendingSteersFromClientRequest(
-  args: ParsePendingSteerFromClientRequestArgs,
+  args: ParseUserFromClientRequestArgs,
 ): EventProjectionUserMessage[] {
   const { acceptedClientRequest, decoded, meta, options } = args;
-  if (acceptedClientRequest || decoded.type !== "client/turn/requested") {
-    return [];
-  }
-  if (!isSteerRequest(decoded)) {
-    return [];
-  }
-  if (!shouldPreservePendingMessages(options?.threadStatus)) {
-    return [];
-  }
-
-  return buildClientUserMessagesForInputGroups({
-    acceptedClientRequest: undefined,
-    decoded,
-    meta,
-    requestStatus: "pending",
-  });
-}
-
-export function parseAcceptedSteersFromClientRequest(
-  args: ParseAcceptedSteerFromClientRequestArgs,
-): EventProjectionUserMessage[] {
-  const { acceptedClientRequest, decoded, meta, options } = args;
-  if (decoded.type !== "client/turn/requested") {
-    return [];
-  }
   if (
-    resolveTurnRequestKind({
-      acceptedClientRequest,
-      decoded,
-    }) !== "steer"
+    acceptedClientRequest ||
+    decoded.type !== "client/turn/requested" ||
+    resolveTurnRequestKind(decoded, undefined) !== "steer" ||
+    !shouldPreservePendingMessages(options?.threadStatus)
   ) {
     return [];
   }
-  if (!shouldRenderClientRequestedInput(options?.threadStatus)) {
+  return buildClientUserMessages(decoded, meta, "pending");
+}
+
+export function parseAcceptedSteersFromClientRequest(
+  args: ParseUserFromClientRequestArgs & {
+    acceptedClientRequest: AcceptedClientRequest;
+  },
+): EventProjectionUserMessage[] {
+  const { acceptedClientRequest, decoded, meta, options } = args;
+  if (
+    decoded.type !== "client/turn/requested" ||
+    resolveTurnRequestKind(decoded, acceptedClientRequest) !== "steer" ||
+    !options?.threadStatus
+  ) {
     return [];
   }
-
-  return buildClientUserMessagesForInputGroups({
-    acceptedClientRequest,
+  return buildClientUserMessages(
     decoded,
     meta,
-    requestStatus: "accepted",
-  });
+    "accepted",
+    acceptedClientRequest,
+  );
 }
 
 export function parseRejectedUsersFromClientRequest(
-  args: ParseRejectedUsersFromClientRequestArgs,
+  args: Omit<ParseUserFromClientRequestArgs, "acceptedClientRequest">,
 ): EventProjectionUserMessage[] {
   const { decoded, meta, options } = args;
-  if (decoded.type !== "client/turn/requested") {
+  if (decoded.type !== "client/turn/requested" || !options?.threadStatus) {
     return [];
   }
-  if (!shouldRenderClientRequestedInput(options?.threadStatus)) {
-    return [];
-  }
-
-  return buildClientUserMessagesForInputGroups({
-    acceptedClientRequest: undefined,
-    decoded,
-    meta,
-    requestStatus: "rejected",
-  });
+  return buildClientUserMessages(decoded, meta, "rejected");
 }
 
 export function parseProviderUserMessage(
@@ -467,9 +326,7 @@ export function parseProviderUserMessage(
   const text = decoded.item.content
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("");
-  if (text.length === 0) {
-    return null;
-  }
+  if (text.length === 0) return null;
   return {
     kind: "user",
     id: messageId(decoded.threadId, "provider-input", decoded.item.id),
@@ -488,32 +345,5 @@ export function parseProviderUserMessage(
     turnRequest: { isGrouped: false, kind: "steer", status: "accepted" },
     text,
     mentions: [],
-  };
-}
-
-export function parseLegacyUserMessage(
-  decoded: ThreadEvent,
-  meta: EventMeta,
-): EventProjectionAssistantTextMessage | null {
-  if (decoded.type !== "system/manager/user_message") {
-    return null;
-  }
-
-  const { text } = decoded;
-  if (!text) {
-    return null;
-  }
-
-  return {
-    kind: "assistant-text",
-    id: messageId(decoded.threadId, "assistant", `legacy:${meta.seq}`),
-    threadId: decoded.threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    scope: decoded.scope,
-    text,
-    status: "completed",
-    isLegacyUserMessage: true,
   };
 }

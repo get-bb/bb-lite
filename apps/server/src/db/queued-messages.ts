@@ -329,7 +329,6 @@ export function queuedInitiator(row: QueuedMessageRow) {
 export function toThreadQueuedMessage(
   row: QueuedMessageRow,
 ): ThreadQueuedMessage {
-  const notice = row.systemNotice !== null;
   return {
     id: row.id,
     origin: row.origin,
@@ -347,7 +346,7 @@ export function toThreadQueuedMessage(
     waitingOn: parseQueuedWait(row),
     failureReason: row.failureReason,
     payload: { kind: "inline" },
-    editable: !notice,
+    editable: true,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

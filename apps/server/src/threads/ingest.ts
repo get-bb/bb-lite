@@ -1,6 +1,6 @@
 import { fromProviderExternalThreadName } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
-import { appendEvents, type StoredEvent } from "../db/events.js";
+import { appendEvents } from "../db/events.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
@@ -27,7 +27,7 @@ function isRunnerAuthored(event: RunnerThreadEvent): boolean {
   return !type.startsWith("client/") && !type.startsWith("system/");
 }
 
-function changesBackgroundActivity({ event }: StoredEvent): boolean {
+function changesBackgroundActivity(event: RunnerThreadEvent): boolean {
   if (!("item" in event) || event.item.type !== "backgroundTask") return false;
   if (event.type !== "item/backgroundTask/progress") return true;
   return event.item.status !== "pending";
@@ -148,13 +148,13 @@ export function ingestThreadEvents(
     const accepted = events.filter(isRunnerAuthored);
     const stored = appendEvents(db, thread, accepted, "runner");
     if (stored.length === 0) return;
-    const eventTypes = [...new Set(stored.map(({ event }) => event.type))];
+    const eventTypes = [...new Set(stored.map((event) => event.type))];
     out.thread(threadId, ["events-appended"], {
       eventTypes,
       ...(stored.some(changesBackgroundActivity)
         ? { backgroundActivityChanged: true }
         : {}),
     });
-    for (const { event } of stored) applyEffect(engine, out, threadId, event);
+    for (const event of stored) applyEffect(engine, out, threadId, event);
   });
 }

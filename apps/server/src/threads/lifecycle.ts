@@ -145,11 +145,11 @@ function changeMembership(
   const { db, environments, plugins } = engine.ctx;
   const { id, projectId } = thread;
   engine.commit((out) => {
-    const changed = store.patchThread(db, id, patch);
+    store.patchThread(db, id, patch);
     out.thread(id, [change], { projectId });
     out.project(projectId, ["threads-changed"]);
     out.after(() => {
-      plugins.emit(event, { thread: engine.respond(changed) });
+      plugins.emit(event, { thread: engine.respond(id) });
       environments.onThreadDetached(id);
     });
   });
@@ -306,7 +306,7 @@ export async function resetContext(
     const type = "system/operation";
     engine.append(out, thread, [{ type, scope: threadScope(), ...operation }]);
     store.patchThread(db, thread.id, { providerThreadId: null }, false);
-    const metadata = engine.statusMetadata(thread);
+    const metadata = engine.statusMetadata(thread.id);
     out.thread(thread.id, ["history-rewritten", "status-changed"], metadata);
     out.after(() => engine.scheduleDrain(thread.id));
   });

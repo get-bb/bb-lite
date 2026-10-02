@@ -6,7 +6,7 @@ import type {
   QueuedMessageSystemNotice,
   ThreadEventTurnStatus,
 } from "@bb/domain";
-import { lastAssistantText } from "../db/events.js";
+import { lastOutput } from "../db/event-read.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
@@ -178,7 +178,7 @@ export function queueChildOutcome(
   if (parentThreadId === null || child.originKind !== null) return;
   const { db, now } = engine.ctx;
   const completed = outcome.status === "completed";
-  const output = completed ? lastAssistantText(db, child.id) : null;
+  const output = completed ? lastOutput(db, child.id) : null;
   const item: OutcomeItem = { ...outcome, child, output };
   const batch = engine.noticeBatches.get(parentThreadId);
   const others = (batch?.items ?? []).filter(

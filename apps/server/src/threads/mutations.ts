@@ -4,12 +4,14 @@ import {
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
 import * as queue from "../db/queued-messages.js";
+import { listSidebarThreadRows } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
 import { conflict } from "./core.js";
 import { requireThreadSection, requireValidParent } from "./create.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
+import { toThreadListEntries } from "./thread-display.js";
 
 function toSendResponse(
   outcome: dispatching.Delivery,
@@ -86,7 +88,7 @@ export function update(
   if (title != null && title !== thread.title) {
     engine.renameSession(updated, title);
   }
-  return engine.respond(updated);
+  return engine.respond(threadId);
 }
 
 function patchAndAnnounce(
@@ -96,11 +98,11 @@ function patchAndAnnounce(
   patch: store.ThreadPatch,
 ) {
   const { projectId } = engine.requireThread(threadId);
-  const updated = engine.commit((out) => {
+  engine.commit((out) => {
     out.thread(threadId, [change], { projectId });
-    return store.patchThread(engine.ctx.db, threadId, patch);
+    store.patchThread(engine.ctx.db, threadId, patch);
   });
-  return engine.respond(updated);
+  return engine.respond(threadId);
 }
 
 export function pin(engine: Engine, threadId: string) {
@@ -126,9 +128,11 @@ export function reorderPinned(
   const { previousThreadId, nextThreadId } = request;
   store.reorderPinnedThread(db, threadId, previousThreadId, nextThreadId);
   hub.thread(threadId, ["pin-state-changed"], { projectId });
-  return store.listPinnedThreadEntries(db, (thread, hostId) =>
-    engine.displayState(thread, hostId),
-  );
+  const key = (row: store.ThreadRow): string => row.pinSortKey ?? "";
+  const pinned = listSidebarThreadRows(db)
+    .filter((row) => row.pinnedAt !== null && row.parentThreadId === null)
+    .sort((left, right) => (key(left) < key(right) ? -1 : 1));
+  return toThreadListEntries(engine.ctx, pinned);
 }
 
 export function markRead(engine: Engine, threadId: string) {

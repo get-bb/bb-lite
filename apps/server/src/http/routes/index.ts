@@ -13,6 +13,7 @@ import { registerProviderRoutes } from "./providers.js";
 import { registerPluginRoutes } from "./plugins.js";
 import { registerSettingsRoutes } from "./settings.js";
 import { registerTerminalRoutes } from "./terminals.js";
+import { registerThreadReadRoutes } from "./thread-read.js";
 import { registerThreadSectionRoutes } from "./thread-sections.js";
 import { registerThreadTabRoutes } from "./thread-tabs.js";
 import { registerThreadRoutes } from "./threads.js";
@@ -34,6 +35,7 @@ const publicApiRouteGroups: RouteGroup[] = [
   registerProjectWorkspaceRoutes,
   registerTerminalRoutes,
   registerThreadRoutes,
+  registerThreadReadRoutes,
 ];
 
 const internalRouteGroups: RouteGroup[] = [registerRunnerRoutes];

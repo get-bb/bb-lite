@@ -162,6 +162,9 @@ CREATE INDEX events_provider_identity_idx
 CREATE INDEX events_parent_tool_call_idx
   ON events (thread_id, parent_tool_call_id, sequence)
   WHERE parent_tool_call_id IS NOT NULL;
+CREATE INDEX events_background_task_idx
+  ON events (thread_id, item_id, type, sequence)
+  WHERE item_kind = 'backgroundTask';
 
 CREATE TABLE queued_thread_messages (
   id TEXT PRIMARY KEY,

@@ -1,11 +1,10 @@
-import { PERSONAL_PROJECT_ID, type ThreadListEntry } from "@bb/domain";
+import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import { publicApiRoutes, type ProjectResponse } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import {
   addProjectSource,
   deleteProjectSource,
   findOrCreateProject,
-  getProjectExecutionDefaults,
   getProjectSource,
   listStandardProjects,
   renameProject,
@@ -27,19 +26,13 @@ import {
   requireStandardProject,
 } from "../../projects/require.js";
 import { requireHost } from "../../runners/hosts.js";
+import { listProjectsWithThreads } from "../../threads/thread-display.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest, notFound } from "../errors.js";
 import { fileResponse } from "../range.js";
 
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
-
-function listThreadEntriesByProject(
-  _ctx: ServerContext,
-  _projectIds: string[],
-): Map<string, ThreadListEntry[]> {
-  return new Map();
-}
 
 function conflict(message: string): ApiError {
   return new ApiError(409, "invalid_request", message);
@@ -84,22 +77,11 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
       query.includePersonal === "true"
         ? [requireProject(db, PERSONAL_PROJECT_ID)]
         : [];
-    const projects = withSources(db, [
-      ...personal,
-      ...listStandardProjects(db),
-    ]);
+    const projects = [...personal, ...listStandardProjects(db)];
     if (query.include?.split(",").includes("threads") !== true) {
-      return c.json(projects);
+      return c.json(withSources(db, projects));
     }
-    const projectIds = projects.map((project) => project.id);
-    const threads = listThreadEntriesByProject(ctx, projectIds);
-    return c.json(
-      projects.map((project) => ({
-        ...project,
-        threads: threads.get(project.id) ?? [],
-        defaultExecutionOptions: getProjectExecutionDefaults(db, project.id),
-      })),
-    );
+    return c.json(listProjectsWithThreads(ctx, projects));
   });
 
   post(routes.create, async (c, payload) => {
