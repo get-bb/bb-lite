@@ -115,16 +115,7 @@ export type ThreadSectionMutationResponse = z.infer<
   typeof threadSectionMutationResponseSchema
 >;
 
-export const reorderProjectRequestSchema = z.object({
-  previousProjectId: z.string().min(1).nullable(),
-  nextProjectId: z.string().min(1).nullable(),
-});
-export type ReorderProjectRequest = z.infer<typeof reorderProjectRequestSchema>;
-
 export const projectListIncludeOptionSchema = z.enum(["threads"]);
-export type ProjectListIncludeOption = z.infer<
-  typeof projectListIncludeOptionSchema
->;
 
 export const projectListQuerySchema = z.object({
   include: z
@@ -150,14 +141,6 @@ const projectWorkspaceRoutingFields = {
     z.string().min(1).optional(),
   ),
 } as const;
-
-export const projectWorkspaceRoutingQuerySchema = z
-  .object(projectWorkspaceRoutingFields)
-  .partial()
-  .superRefine(rejectMultipleWorkspaceSelectors);
-export type ProjectWorkspaceRoutingQuery = z.infer<
-  typeof projectWorkspaceRoutingQuerySchema
->;
 
 export const projectPathsQuerySchema = z
   .object({

@@ -109,12 +109,6 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json(await threads.createQueuedMessage(c.req.param("id"), payload), 201),
   );
 
-  patch(routes.setQueuedMessageGroupBoundary, async (c, payload) =>
-    c.json(
-      await threads.setQueuedMessageGroupBoundary(c.req.param("id"), payload),
-    ),
-  );
-
   patch(routes.updateQueuedMessage, async (c, payload) => {
     const { id, queuedMessageId } = c.req.param();
     return c.json(
@@ -132,13 +126,6 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
     const { id, queuedMessageId } = c.req.param();
     return c.json(
       await threads.sendQueuedMessageNow(id, queuedMessageId, mode),
-    );
-  });
-
-  patch(routes.reorderQueuedMessage, async (c, payload) => {
-    const { id, queuedMessageId } = c.req.param();
-    return c.json(
-      await threads.reorderQueuedMessage(id, queuedMessageId, payload),
     );
   });
 

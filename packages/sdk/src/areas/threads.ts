@@ -22,9 +22,6 @@ import type {
   SendQueuedMessageResponse,
   ThreadArchiveAllResponse,
   ThreadChildSummaryResponse,
-  ThreadCountGroupBy,
-  ThreadCountQuery,
-  ThreadCountResponse,
   ThreadListResponse,
   ThreadOpenResponse,
   ThreadPendingInteractionsResponse,
@@ -87,16 +84,6 @@ export interface ThreadSearchArgs extends ThreadSearchQuery {
   signal?: AbortSignal;
 }
 
-export interface ThreadCountArgs {
-  groupBy?: ThreadCountGroupBy;
-  hostId?: string;
-  parentThreadId?: string;
-  projectId?: string;
-  providerId?: string;
-  signal?: AbortSignal;
-  status?: ThreadStatus;
-}
-
 export interface ThreadResolveMentionsArgs extends ResolveThreadMentionsRequest {
   signal?: AbortSignal;
 }
@@ -108,7 +95,6 @@ export interface ThreadGetArgs {
 }
 
 export type ThreadGetResult = ThreadResponse | ThreadWithIncludesResponse;
-export type ThreadCountResult = ThreadCountResponse;
 export type ThreadListResult = ThreadListResponse;
 export type ThreadSearchResult = ThreadSearchResponse;
 export type ThreadResolveMentionsResult = ResolveThreadMentionsResponse;
@@ -156,7 +142,7 @@ export type ThreadTimelineTurnSummaryDetailsResult =
 
 export interface ThreadSpawnBaseArgs extends Omit<
   CreateThreadRequest,
-  "input" | "origin" | "originKind" | "startedOnBehalfOf"
+  "input" | "origin" | "startedOnBehalfOf"
 > {
   origin?: CreateThreadRequest["origin"];
   startedOnBehalfOf?: CreateThreadRequest["startedOnBehalfOf"];
@@ -416,7 +402,6 @@ export interface ThreadsArea {
   compact(args: ThreadActionArgs): Promise<ThreadCompactResult>;
   cancelPlan(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
   clearContext(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
-  count(args?: ThreadCountArgs): Promise<ThreadCountResult>;
   defaultExecutionOptions(
     args: ThreadStatusArgs,
   ): Promise<ThreadDefaultExecutionOptionsResult>;
@@ -487,19 +472,6 @@ function listQuery(args: ThreadListArgs | undefined): ThreadListQuery {
   };
 }
 
-function countQuery(args: ThreadCountArgs | undefined): ThreadCountQuery {
-  return {
-    ...(args?.status === undefined ? {} : { status: args.status }),
-    ...(args?.hostId === undefined ? {} : { hostId: args.hostId }),
-    ...(args?.providerId === undefined ? {} : { providerId: args.providerId }),
-    ...(args?.projectId === undefined ? {} : { projectId: args.projectId }),
-    ...(args?.parentThreadId === undefined
-      ? {}
-      : { parentThreadId: args.parentThreadId }),
-    ...(args?.groupBy === undefined ? {} : { groupBy: args.groupBy }),
-  };
-}
-
 function updateJson(args: ThreadUpdateArgs): UpdateThreadRequest {
   return {
     title: args.title,
@@ -561,7 +533,6 @@ function spawnJson(args: ThreadSpawnArgs): CreateThreadRequest {
     input: spawnInput(args),
     origin: origin ?? "sdk",
     startedOnBehalfOf: startedOnBehalfOf ?? null,
-    originKind: null,
   };
 }
 
@@ -878,14 +849,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
         transport.api.v1.threads[":id"]["child-summary"].$get(
           { param: { id: input.threadId } },
           ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async count(input) {
-      return transport.readJson(
-        transport.api.v1.threads.count.$get(
-          { query: countQuery(input) },
-          ...signalRequestArgs(input?.signal),
         ),
       );
     },

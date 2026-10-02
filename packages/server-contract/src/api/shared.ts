@@ -3,7 +3,6 @@ import {
   contextSnapshotSchema,
   BRANCH_LIST_QUERY_MAX_LENGTH,
   changedMessageLenientSchema,
-  changedMessageSchema,
   gitBranchNameSchema,
   gitBranchSelectionSchema,
   jsonValueSchema,
@@ -122,23 +121,8 @@ export const providerEnvironmentSchema = z.object({
     .optional(),
   inputs: jsonValueSchema.nullable().default(null),
 });
-export type ProviderEnvironmentArgs = z.infer<typeof providerEnvironmentSchema>;
 
 export const environmentProviderInstanceKeySchema = z.string().min(1).max(128);
-
-export const providerReadyEnvironmentSchema = z.discriminatedUnion("type", [
-  reuseEnvironmentSchema,
-  z.object({
-    type: z.literal("host"),
-    hostId: z.string().min(1),
-    path: z.string().min(1),
-    mergeBaseBranch: gitBranchNameSchema.optional(),
-    ownsPath: z.boolean().default(true),
-  }),
-]);
-export type ProviderReadyEnvironmentInput = z.input<
-  typeof providerReadyEnvironmentSchema
->;
 
 export const createThreadEnvironmentArgsSchema = z.discriminatedUnion("type", [
   reuseEnvironmentSchema,
@@ -156,8 +140,6 @@ export const branchListQuerySchema = z.object({
   query: z.string().min(1).max(BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
 });
-
-export const serverMessageSchema = changedMessageSchema;
 
 export const serverMessageLenientSchema = changedMessageLenientSchema;
 

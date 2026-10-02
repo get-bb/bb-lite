@@ -50,9 +50,6 @@ export const systemExecutionOptionsModelLoadErrorCodeSchema = z.enum([
   "timeout",
   "failed",
 ]);
-export type SystemExecutionOptionsModelLoadErrorCode = z.infer<
-  typeof systemExecutionOptionsModelLoadErrorCodeSchema
->;
 
 export const systemExecutionOptionsModelLoadErrorSchema = z.object({
   providerId: z.string().min(1),
@@ -102,37 +99,6 @@ export type SystemExecutionOptionsQuery = z.infer<
 export { providerInfoSchema as systemProviderInfoSchema } from "@bb/domain";
 export type { ProviderInfo as SystemProviderInfo } from "@bb/domain";
 
-export const systemProviderStateSchema = z
-  .object({
-    status: z.enum([
-      "ready",
-      "not_installed",
-      "unauthenticated",
-      "expired",
-      "unsupported_version",
-      "unknown",
-    ]),
-    statusMessage: z.string().min(1).nullable(),
-    accountEmail: z.string().nullable(),
-    planLabel: z.string().min(1).nullable(),
-    installedVersion: z.string().min(1).nullable(),
-    minimumSupportedVersion: z.string().min(1).nullable(),
-    canInstall: z.boolean(),
-    canUpdate: z.boolean(),
-    loginCommand: z.string().min(1).nullable(),
-    providerId: z.string().min(1),
-    displayName: z.string().min(1),
-  })
-  .passthrough();
-export type SystemProviderState = z.infer<typeof systemProviderStateSchema>;
-
-export const systemProviderStatesResponseSchema = z.object({
-  providers: z.array(systemProviderStateSchema),
-});
-export type SystemProviderStatesResponse = z.infer<
-  typeof systemProviderStatesResponseSchema
->;
-
 export const serverAccessStatusSchema = z.object({
   providers: z.array(
     z.object({
@@ -168,7 +134,6 @@ export const systemConfigResponseSchema = z.object({
   defaultKeybindings: appDefaultKeybindingsSchema,
   keybindingOverrides: appKeybindingOverridesSchema,
   appearance: appThemeSchema,
-  customThemes: z.array(z.string()),
   pluginThemes: z.array(pluginThemeMetaSchema),
   featureFlags: featureFlagsSchema,
   serverUrl: z.string().url(),

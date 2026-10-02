@@ -5,7 +5,6 @@ import type {
   TerminalListResponse,
   TerminalOutputQuery,
   TerminalOutputResponse,
-  TerminalResizeRequest,
   TerminalSession,
   UpdateTerminalRequest,
 } from "@bb/server-contract";
@@ -86,11 +85,6 @@ export interface TerminalInputArgs extends TerminalTargetArgs {
   dataBase64: TerminalInputRequest["dataBase64"];
 }
 
-export interface TerminalResizeArgs extends TerminalTargetArgs {
-  cols: TerminalResizeRequest["cols"];
-  rows: TerminalResizeRequest["rows"];
-}
-
 export interface TerminalOutputArgs extends TerminalTargetArgs {
   limitChunks?: TerminalOutputQuery["limitChunks"];
   signal?: AbortSignal;
@@ -104,7 +98,6 @@ export type TerminalGetResult = TerminalSession;
 export type TerminalRenameResult = TerminalSession;
 export type TerminalCloseResult = TerminalSession;
 export type TerminalInputResult = TerminalSession;
-export type TerminalResizeResult = TerminalSession;
 export type TerminalOutputResult = TerminalOutputResponse;
 
 export interface TerminalsArea {
@@ -115,7 +108,6 @@ export interface TerminalsArea {
   list(args: TerminalListArgs): Promise<TerminalListResult>;
   output(args: TerminalOutputArgs): Promise<TerminalOutputResult>;
   rename(args: TerminalRenameArgs): Promise<TerminalRenameResult>;
-  resize(args: TerminalResizeArgs): Promise<TerminalResizeResult>;
 }
 
 function assertUnambiguousScope(
@@ -259,14 +251,6 @@ export function createTerminalsArea(args: CreateSdkAreaArgs): TerminalsArea {
         transport.api.v1.terminals[":terminalId"].$patch({
           param: { terminalId: input.terminalId },
           json: { title: input.title },
-        }),
-      );
-    },
-    async resize(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].resize.$post({
-          param: { terminalId: input.terminalId },
-          json: { cols: input.cols, rows: input.rows },
         }),
       );
     },

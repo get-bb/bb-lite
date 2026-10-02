@@ -1,9 +1,6 @@
-import type { ProviderInfo } from "@bb/domain";
-import type { ProviderStatus } from "@bb/runner";
 import {
   pluginSettingsUpdateRequestSchema,
   publicApiRoutes,
-  type SystemProviderState,
 } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import {
@@ -19,44 +16,10 @@ import {
   providerSettingsView,
   updateProviderSettings,
 } from "../../providers/settings.js";
-import { resolveLookupHostId } from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 
-const UNCHECKED = "Provider readiness could not be checked.";
 const IMMUTABLE = "public, max-age=31536000, immutable";
-
-function providerState(
-  info: ProviderInfo,
-  status: ProviderStatus | undefined,
-): SystemProviderState {
-  const installed = status?.installed === true;
-  return {
-    providerId: info.id,
-    displayName: info.displayName,
-    status:
-      status === undefined || installed
-        ? (status?.auth ?? "unknown")
-        : "not_installed",
-    statusMessage: status === undefined ? UNCHECKED : status.message || null,
-    accountEmail: null,
-    planLabel: null,
-    installedVersion: status?.version || null,
-    minimumSupportedVersion: null,
-    canInstall: false,
-    canUpdate: false,
-    loginCommand: null,
-  };
-}
-
-async function listProviderStatuses(ctx: ServerContext, hostId: string) {
-  try {
-    return await ctx.runners.get(hostId).listProviders();
-  } catch (error) {
-    ctx.log.debug("Provider readiness check failed", { err: error, hostId });
-    return [];
-  }
-}
 
 export function registerProviderRoutes(app: ApiApp, ctx: ServerContext): void {
   const { get, put } = typedApi(app);
@@ -104,18 +67,6 @@ export function registerProviderRoutes(app: ApiApp, ctx: ServerContext): void {
         "content-type": "image/svg+xml",
       },
     });
-  });
-
-  get(routes.providerStates, async (c, query) => {
-    const hostId = resolveLookupHostId(ctx, query);
-    const statuses = await listProviderStatuses(ctx, hostId);
-    const providers = listEnabledProviders(db).map(({ id, info }) =>
-      providerState(
-        info,
-        statuses.find((status) => status.providerId === id),
-      ),
-    );
-    return c.json({ providers });
   });
 
   get(routes.executionOptions, async (c, query) =>

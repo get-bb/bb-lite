@@ -205,35 +205,6 @@ export function deleteQueuedMessage(
   queueChanged(engine, threadId);
 }
 
-export function reorderQueuedMessage(
-  engine: Engine,
-  threadId: string,
-  id: string,
-  request: contract.ReorderQueuedMessageRequest,
-) {
-  engine.requireUnarchived(threadId);
-  const { db } = engine.ctx;
-  const rows = queue.reorderQueuedMessage(db, threadId, id, request);
-  queueChanged(engine, threadId);
-  return rows.map(queue.toThreadQueuedMessage);
-}
-
-export function setQueueGroupBoundary(
-  engine: Engine,
-  threadId: string,
-  request: contract.SetQueuedMessageGroupBoundaryRequest,
-) {
-  engine.requireUnarchived(threadId);
-  const rows = queue.setQueuedMessageGroupBoundary(
-    engine.ctx.db,
-    threadId,
-    request.groupBoundaryQueuedMessageId,
-    request.expectedGroupedPrefixQueuedMessageIds,
-  );
-  queueChanged(engine, threadId);
-  return rows.map(queue.toThreadQueuedMessage);
-}
-
 export async function sendQueuedMessageNow(
   engine: Engine,
   threadId: string,

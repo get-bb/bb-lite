@@ -2,7 +2,6 @@ import type {
   HostFileListResponse,
   HostFileReadResponse,
   HostFileWriteResponse,
-  HostMkdirResponse,
 } from "@bb/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
@@ -34,23 +33,14 @@ export interface FileListArgs {
   signal?: AbortSignal;
 }
 
-export interface FileMkdirArgs {
-  hostId?: string;
-  path: string;
-  rootPath?: string;
-  recursive?: boolean;
-}
-
 export type FileReadResult = HostFileReadResponse;
 export type FileWriteResult = HostFileWriteResponse;
 export type FileListResult = HostFileListResponse;
-export type FileMkdirResult = HostMkdirResponse;
 
 export interface FilesArea {
   read(args: FileReadArgs): Promise<FileReadResult>;
   write(args: FileWriteArgs): Promise<FileWriteResult>;
   list(args: FileListArgs): Promise<FileListResult>;
-  mkdir(args: FileMkdirArgs): Promise<FileMkdirResult>;
 }
 
 export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
@@ -90,11 +80,6 @@ export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
           },
           ...signalRequestArgs(input.signal),
         ),
-      );
-    },
-    async mkdir(input) {
-      return transport.readJson(
-        transport.api.v1.files.mkdir.$post({ json: input }),
       );
     },
   };
