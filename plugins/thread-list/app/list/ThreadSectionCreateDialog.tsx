@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { Input } from "@bb/shared-ui/input";
-import { RenameDialog, useNameValidation } from "../ui/RenameDialog.js";
+import { RenameDialog, useNameValidation } from "@bb/shared-ui/rename-dialog";
 
 interface ThreadSectionCreateDialogProps {
   errorMessage?: string | null;

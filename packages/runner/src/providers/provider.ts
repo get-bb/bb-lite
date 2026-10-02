@@ -1,3 +1,4 @@
+import { debuglog } from "node:util";
 import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
@@ -64,6 +65,7 @@ export interface SessionHost {
   onExit(info: { message: string; stderrTail: string }): void;
 }
 
+export const debug = debuglog("bb-runner");
 const TITLE_MAX_LENGTH = 160;
 const SHELL_WRAPPER = /^(?:\S*\/)?(?:sh|bash|zsh)\s+(?:-lc|-c)\s+([\s\S]+)$/;
 
@@ -110,13 +112,10 @@ export const labels = {
   reasoning: label("Thinking", "Thought", "Brain"),
   plan: label("Writing plan", "Wrote plan", "ListTodo"),
   compaction: label("Compacting context", "Compacted context", "Archive"),
-  command: (command: string) =>
-    label(
-      "Running command",
-      "Ran command",
-      "Terminal",
-      unwrapShellCommand(command),
-    ),
+  command(command: string) {
+    const title = unwrapShellCommand(command);
+    return label("Running command", "Ran command", "Terminal", title);
+  },
   fileChange(paths: readonly string[]) {
     const names = [...new Set(paths.map(fileName))];
     const noun = names.length > 1 ? "files" : "file";
@@ -206,29 +205,18 @@ export function buildEditDiff(
   return `${[from, to, ...body].join("\n")}\n`;
 }
 
-const REQUIRED_USAGE = {
+export const ZERO_TOKEN_USAGE: TokenUsage = {
   totalTokens: 0,
   inputTokens: 0,
   cachedInputTokens: 0,
   outputTokens: 0,
   reasoningOutputTokens: 0,
 };
-const OPTIONAL_USAGE = [
-  "cacheReadInputTokens",
-  "cacheWriteInputTokens",
-] as const;
-export const ZERO_TOKEN_USAGE: TokenUsage = REQUIRED_USAGE;
 
 export function addTokenUsage(total: TokenUsage, last: TokenUsage): TokenUsage {
   const sum = { ...total };
-  for (const key of Object.keys(
-    REQUIRED_USAGE,
-  ) as (keyof typeof REQUIRED_USAGE)[]) {
-    sum[key] = total[key] + last[key];
-  }
-  for (const key of OPTIONAL_USAGE) {
-    const present = total[key] !== undefined || last[key] !== undefined;
-    if (present) sum[key] = (total[key] ?? 0) + (last[key] ?? 0);
+  for (const key of Object.keys(last) as (keyof TokenUsage)[]) {
+    sum[key] = (total[key] ?? 0) + (last[key] ?? 0);
   }
   return sum;
 }

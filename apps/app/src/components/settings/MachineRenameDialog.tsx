@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { Input } from "@bb/shared-ui/input";
-import { useRenameDialogAutoFocus } from "@/components/dialogs/useRenameDialogAutoFocus.js";
+import { useRenameDialogAutoFocus } from "@bb/shared-ui/rename-dialog";
 
 const HOST_NAME_MAX_LENGTH = 100;
 

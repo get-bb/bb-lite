@@ -1,9 +1,6 @@
 import {
   fromProviderExternalThreadName as threadName,
-  providerRawEventSchema,
   type ProviderErrorCategory,
-  type ProviderRateLimitState,
-  type ProviderRateLimitWindow,
   type ThreadEventItemPresentation as Presentation,
 } from "@bb/domain";
 import { z } from "zod";
@@ -40,20 +37,6 @@ const usageSchema = z.object({
   cacheWriteInputTokens: count.nonnegative().optional(),
   outputTokens: count,
   reasoningOutputTokens: count,
-});
-const windowSchema = z.object({
-  usedPercent: count,
-  windowDurationMins: count.nullish(),
-  resetsAt: count.nullish(),
-});
-const spendSchema = z.object({ remainingPercent: count, resetsAt: count });
-const rateLimitSchema = z.object({
-  primary: windowSchema.nullish(),
-  secondary: windowSchema.nullish(),
-  credits: z.object({ hasCredits: z.boolean() }).nullish(),
-  individualLimit: spendSchema.nullish(),
-  spendControlReached: z.boolean().nullish(),
-  rateLimitReachedType: text.nullish(),
 });
 const contentItem = z.object({
   text: text.optional(),
@@ -160,22 +143,6 @@ const goalSchema = z.object({
   timeUsedSeconds: count,
 });
 
-const NOISE = new Set([
-  "item/autoApprovalReview/completed",
-  "item/autoApprovalReview/started",
-  "mcpServer/startupStatus/updated",
-  "rawResponse/completed",
-  "rawResponseItem/completed",
-  "remoteControl/status/changed",
-  "serverRequest/resolved",
-  "skills/changed",
-  "thread/archived",
-  "thread/unarchived",
-  "thread/settings/updated",
-  "thread/status/changed",
-  "turn/diff/updated",
-  "turn/moderationMetadata",
-]);
 const DELTA_CHANNELS: Record<string, TextChannel | OutputChannel> = {
   "item/agentMessage/delta": "agentMessage",
   "item/reasoning/summaryTextDelta": "reasoningSummary",
@@ -231,66 +198,6 @@ function errorInfo(info: unknown) {
   return { category, providerCode: providerCode ?? null, httpStatusCode };
 }
 
-function rawEvent(method: string, params: unknown) {
-  const base = { jsonrpc: "2.0" as const, method };
-  const event = params ? { ...base, params } : base;
-  const parsed = providerRawEventSchema.safeParse(event);
-  return parsed.success ? parsed.data : base;
-}
-
-function rateLimitState(
-  limits: z.infer<typeof rateLimitSchema>,
-): ProviderRateLimitState {
-  const windows: ProviderRateLimitWindow[] = [];
-  const add = (
-    providerKey: string,
-    label: string,
-    used: number,
-    at: number,
-  ) => {
-    const status = used >= 100 ? "blocked" : used >= 90 ? "warning" : "allowed";
-    const resetsAtMs = Number.isNaN(at) ? null : at * 1_000;
-    windows.push({ providerKey, label, status, resetsAtMs });
-  };
-  for (const key of ["primary", "secondary"] as const) {
-    const window = limits[key];
-    const minutes = window?.windowDurationMins;
-    const weekly =
-      minutes === 10_080 || (minutes !== 300 && key === "secondary");
-    const label = weekly ? "Weekly limit" : "Current session";
-    if (window) add(key, label, window.usedPercent, window.resetsAt ?? NaN);
-  }
-  const spend = limits.individualLimit;
-  const spent = spend ? 100 - spend.remainingPercent : 0;
-  if (spend) add("individual-limit", "Spend control", spent, spend.resetsAt);
-  const reachedReason = limits.rateLimitReachedType ?? null;
-  const windowed = Boolean(limits.primary || limits.secondary);
-  const spendControl = spent >= 100 || (spend && !windowed);
-  const reasonKind = reachedReason?.includes("credits_depleted")
-    ? "credits"
-    : reachedReason?.includes("usage_limit_reached")
-      ? "spend-control"
-      : reachedReason === "rate_limit_reached"
-        ? "subscription-window"
-        : "unknown";
-  const inferred = spendControl ? "spend-control" : "subscription-window";
-  const measured = windowed || spend ? inferred : "unknown";
-  const has = (status: string) => windows.some((w) => w.status === status);
-  const usable = windows.length > 0 || limits.credits?.hasCredits === true;
-  const level = has("warning") ? "warning" : usable ? "allowed" : "unknown";
-  const blocked = reachedReason !== null || has("blocked");
-  const capped = limits.spendControlReached === true;
-  return {
-    providerId: "codex",
-    status: blocked || capped ? "blocked" : level,
-    kind: capped ? "spend-control" : reachedReason ? reasonKind : measured,
-    windows,
-    reachedReason,
-    overageStatus: null,
-    overageReason: null,
-  };
-}
-
 interface Translated {
   shape: ItemShape;
   label: Presentation;
@@ -316,6 +223,10 @@ function translateItem(
   const args = isRecord(input) ? input : undefined;
   const timing = "durationMs" in raw ? raw.durationMs : null;
   const durationMs = timing ?? undefined;
+  const call = (tool: string, server: string | undefined) => {
+    const shape = { type: "toolCall" as const, server, tool };
+    return { ...shape, arguments: args };
+  };
   switch (raw.type) {
     case "userMessage":
     case "subAgentActivity":
@@ -335,9 +246,7 @@ function translateItem(
       const aggregatedOutput = raw.aggregatedOutput ?? undefined;
       const result = { aggregatedOutput, exitCode: raw.exitCode ?? undefined };
       const shape = { type, command: line, cwd, ...result };
-      const duration = raw.durationMs ?? undefined;
-      const label = ui.labels.command(line);
-      return done({ ...shape, durationMs: duration }, label, status);
+      return done({ ...shape, durationMs }, ui.labels.command(line), status);
     }
     case "fileChange": {
       const changes = raw.changes.map(({ path, kind, diff }) => ({
@@ -352,15 +261,9 @@ function translateItem(
     }
     case "mcpToolCall": {
       const { server, tool, status } = raw;
-      const shape = {
-        type: "toolCall" as const,
-        server,
-        tool,
-        arguments: args,
-      };
       const error = raw.error?.message;
       const label = ui.labels.tool(tool, server);
-      return done({ ...shape, error, durationMs }, label, status);
+      return done({ ...call(tool, server), error, durationMs }, label, status);
     }
     case "dynamicToolCall": {
       const parts = (raw.contentItems ?? [])
@@ -370,13 +273,7 @@ function translateItem(
       const failed = raw.success === false;
       const error = failed ? (result ?? "Dynamic tool call failed") : undefined;
       const { tool, status } = raw;
-      const server = injected.has(tool) ? "bb" : undefined;
-      const shape = {
-        type: "toolCall" as const,
-        server,
-        tool,
-        arguments: args,
-      };
+      const shape = call(tool, injected.has(tool) ? "bb" : undefined);
       const label = injected.get(tool) ?? ui.labels.tool(tool);
       return done({ ...shape, result, error, durationMs }, label, status);
     }
@@ -460,9 +357,7 @@ export class CodexTranslator {
   ) {}
 
   handle(method: string, params: unknown) {
-    if (NOISE.has(method) || this.isConditionalNoise(method, params)) return;
-    if (this.dispatch(method, params)) return;
-    this.events.unhandled(method, rawEvent(method, params));
+    if (!this.dispatch(method, params)) ui.debug("dropped codex %s", method);
   }
 
   openTurn(threadId: string, turn: string) {
@@ -492,16 +387,6 @@ export class CodexTranslator {
     return open.length > 0;
   }
 
-  private isConditionalNoise(method: string, params: unknown) {
-    if (!isRecord(params)) return false;
-    if (method === "item/commandExecution/terminalInteraction") {
-      return params.stdin === "";
-    }
-    const hook = method === "hook/started" || method === "hook/completed";
-    const status = isRecord(params.run) ? params.run.status : undefined;
-    return hook && (status === "running" || status === "completed");
-  }
-
   private parentRef(threadId: string, turn: string) {
     return this.parentByTurn.get(turn) ?? this.parentByThread.get(threadId);
   }
@@ -518,12 +403,9 @@ export class CodexTranslator {
     agent.open = status === "pending";
     const { callId, parentRef, turn, agentPath: label } = agent;
     const key = { providerItemId: callId, parentRef };
-    const delegation = {
-      type: "delegation" as const,
-      label,
-      background: false,
-    };
-    const shape = { ...delegation, childRef: agent.agentThreadId };
+    const delegation = { type: "delegation" as const, label };
+    const child = { background: false, childRef: agent.agentThreadId };
+    const shape = { ...delegation, ...child };
     const options = { turn, presentation: ui.labels.agent(label) };
     if (status === "pending") this.events.openItem(key, shape, options);
     else this.events.closeItem(key, shape, { ...options, status });
@@ -564,11 +446,7 @@ export class CodexTranslator {
       ? translateItem(parsed.data, this.injected)
       : "unhandled";
     if (translated === "ignored") return true;
-    if (translated === "unhandled") {
-      const event = rawEvent(method, params);
-      this.events.unhandled(method, event, { turn, parentRef });
-      return true;
-    }
+    if (translated === "unhandled") return false;
     const key = { providerItemId: raw.id, parentRef };
     const { shape, label: presentation, status, denied } = translated;
     if (shape.type === "delegation" && shape.childRef !== threadId) {
@@ -586,9 +464,8 @@ export class CodexTranslator {
     if (!parsed.success || channel === undefined) return false;
     const { threadId, turnId: turn, itemId, delta } = parsed.data;
     const parentRef = this.parentRef(threadId, turn);
-    this.events.delta({ providerItemId: itemId, parentRef }, channel, delta, {
-      turn,
-    });
+    const key = { providerItemId: itemId, parentRef };
+    this.events.delta(key, channel, delta, { turn });
     return true;
   }
 
@@ -625,11 +502,9 @@ export class CodexTranslator {
     const total = withCacheRead(tokenUsage.total);
     const last = withCacheRead(tokenUsage.last);
     const turn = this.awaitingReplayedUsage ? undefined : turnId;
-    const usage = { tokenUsage: { total, last, modelContextWindow } };
-    if (turn) this.events.usage(usage, { turn });
+    if (turn) this.events.usage({ total, last, modelContextWindow }, { turn });
     const window = { usedTokens: last.totalTokens, modelContextWindow };
-    const contextWindowUsage = { ...window, estimated: false };
-    this.events.contextWindow({ contextWindowUsage }, { turn });
+    this.events.contextWindow({ ...window, estimated: false }, { turn });
   }
 
   private plan({ turnId: turn, plan, explanation }: z.infer<typeof planEvent>) {
@@ -704,10 +579,6 @@ export class CodexTranslator {
         return read(usageEvent, (data) => this.usage(data));
       case "turn/plan/updated":
         return read(planEvent, (data) => this.plan(data));
-      case "account/rateLimits/updated":
-        return read(z.object({ rateLimits: rateLimitSchema }), (data) =>
-          events.rateLimits(rateLimitState(data.rateLimits)),
-        );
       case "error":
         return read(failureEvent, (data) => this.failure(data));
       case "deprecationNotice":

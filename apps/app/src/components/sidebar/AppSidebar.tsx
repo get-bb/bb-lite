@@ -14,7 +14,7 @@ import {
 import { PluginThreadList } from "./PluginThreadList";
 import { SidebarPluginAttentionGlyph } from "./SidebarPluginAttentionGlyph";
 import { SidebarResizeHandle, SidebarTopReserveRow } from "./SidebarChrome";
-import { SIDEBAR_FOOTER_ACTION_CLASS } from "./sidebarRowClasses";
+import { SIDEBAR_FOOTER_ACTION_CLASS } from "@bb/shared-ui/sidebar-row-classes";
 import { getThreadRoutePath } from "@/lib/route-paths";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { openUrlInExternalBrowser } from "@/lib/url-open-routing";

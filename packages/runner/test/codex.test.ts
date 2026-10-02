@@ -1,10 +1,7 @@
 import { threadEventSchema } from "@bb/domain";
 import { describe, expect, it } from "vitest";
-import {
-  internIds,
-  readOriginalEvents,
-  replayCodexRecording,
-} from "./codex-replay.js";
+import { readOriginalEvents, replayCodexRecording } from "./codex-replay.js";
+import { internIds, kept } from "./kit.js";
 
 const SCENARIOS = [
   "turn-tools",
@@ -24,9 +21,7 @@ const SCENARIOS = [
 describe("codex adapter against recorded app-server sessions", () => {
   it.each(SCENARIOS)("%s matches the original pipeline", async (scenario) => {
     const { events, mismatches } = await replayCodexRecording(scenario);
-    const original = readOriginalEvents(scenario).filter(
-      (event) => event.type !== "turn/diff/updated",
-    );
+    const original = kept(readOriginalEvents(scenario));
     for (const event of events) {
       threadEventSchema.parse({ ...event, threadId: "thr_replay" });
     }

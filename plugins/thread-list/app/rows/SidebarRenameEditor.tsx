@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { Icon } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebarRowClasses.js";
+import { SIDEBAR_CONTROL_BUTTON_CLASS } from "@bb/shared-ui/sidebar-row-classes";
 import type { RenameSession, RenameController } from "./SidebarInlineRename.js";
 
 interface HttpErrorShape {

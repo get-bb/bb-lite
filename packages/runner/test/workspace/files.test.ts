@@ -30,12 +30,8 @@ describe("files", () => {
     expect(file).toMatchObject({ content: "first\n", sizeBytes: 6, sha256 });
     expect(file).toMatchObject({ path: "notes.txt", ...text });
     const absolute = path.join(root, "notes.txt");
-    const cached = await h.api.readFile({
-      path: absolute,
-      ifNoneMatch: [sha256],
-    });
-    expect(cached).toMatchObject({ notModified: true, sha256 });
-    expect("content" in cached).toBe(false);
+    const direct = await h.api.readFile({ path: absolute });
+    expect(direct).toMatchObject({ path: absolute, sha256 });
 
     const repo = h.initRepo("history", { "src/a.txt": "committed\n" });
     h.write(repo, { "src/a.txt": "working\n" });

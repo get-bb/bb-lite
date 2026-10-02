@@ -10,7 +10,7 @@ import {
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { appToast, iconForTone } from "@/components/ui/app-toast";
-import { copyTextToClipboard } from "@/lib/clipboard";
+import { copyTextToClipboard } from "@bb/shared-ui/lib/clipboard";
 import { formatRelativeTime } from "@/lib/relative-time";
 import {
   clearNotifications,

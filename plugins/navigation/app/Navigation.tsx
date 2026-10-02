@@ -23,22 +23,20 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { AppCommandShortcutPill } from "./ui/AppCommandShortcutPill.js";
-import {
-  SIDEBAR_HOVER_ACTIONS_CLASS,
-  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-  SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-} from "./ui/sidebar-hover-actions.js";
+import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import {
   PROJECT_LIST_ACTION_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
-} from "@/components/sidebar/sidebarRowClasses";
-import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS } from "./ui/sidebarRowClasses.js";
+  SIDEBAR_HOVER_ACTIONS_CLASS,
+  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+  SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
+  SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+} from "@bb/shared-ui/sidebar-row-classes";
 import {
   SidebarMore,
   SidebarOverflowItem,
 } from "./ui/SidebarVisibilityControls.js";
-import { SplitPaneMiniMap } from "./ui/SplitPaneMiniMap.js";
+import { SplitPaneMiniMap } from "@bb/shared-ui/split-pane-mini-map";
 
 type MenuSurface = "context" | "dropdown";
 
