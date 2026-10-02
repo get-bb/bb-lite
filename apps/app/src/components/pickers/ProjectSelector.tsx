@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
   Command,
@@ -17,17 +17,11 @@ import {
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
 } from "@bb/shared-ui/option-display";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
-import { searchPickerOptions } from "./picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
+import { searchPickerOptions, useResetPickerScroll } from "./picker-search";
 
 const PROJECT_SEARCH_MIN_OPTIONS = 5;
 const NO_HIGHLIGHT_VALUE = "__project-picker-idle__";
 const PROJECT_PICKER_ITEM_CLASS_NAME = "py-[0.3125rem] text-xs";
-
-export interface ProjectSelectorOption {
-  id: string;
-  name: string;
-}
 
 export interface ProjectSelectorCreateProjectConfig {
   onCreate: () => void;
@@ -36,7 +30,7 @@ export interface ProjectSelectorCreateProjectConfig {
 }
 
 interface ProjectSelectorProps {
-  projects: readonly ProjectSelectorOption[];
+  projects: readonly { id: string; name: string }[];
   value: string | null;
   onChange: (projectId: string | null) => void;
   allowNoProject?: boolean;
@@ -47,7 +41,6 @@ interface ProjectSelectorProps {
   isLoading?: boolean;
   showChevronWhenDisabled?: boolean;
   className?: string;
-  defaultOpen?: boolean;
   modal?: boolean;
 }
 
@@ -63,36 +56,30 @@ export function ProjectSelector({
   isLoading = false,
   showChevronWhenDisabled = false,
   className,
-  defaultOpen,
   modal = true,
 }: ProjectSelectorProps) {
-  const [open, setOpen] = useState(defaultOpen ?? false);
+  const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedValue, setHighlightedValue] = useState(NO_HIGHLIGHT_VALUE);
   const commandRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
   useLayoutEffect(() => {
-    const items =
-      commandRef.current?.querySelectorAll<HTMLElement>("[cmdk-item]");
-    const highlightedItem = Array.from(items ?? []).find(
-      (item) => item.dataset.value === highlightedValue,
-    );
-    highlightedItem?.scrollIntoView({ block: "nearest" });
+    Array.from(
+      commandRef.current?.querySelectorAll<HTMLElement>("[cmdk-item]") ?? [],
+    )
+      .find((item) => item.dataset.value === highlightedValue)
+      ?.scrollIntoView({ block: "nearest" });
   }, [highlightedValue]);
   const disabled = disabledProp || isLoading;
   const showSearch = projects.length > PROJECT_SEARCH_MIN_OPTIONS;
-  const filteredProjects = useMemo(
-    () =>
-      showSearch
-        ? searchPickerOptions({
-            options: projects,
-            query: searchQuery,
-            getLabel: (project) => project.name,
-          })
-        : projects,
-    [projects, searchQuery, showSearch],
-  );
+  const filteredProjects = showSearch
+    ? searchPickerOptions({
+        options: projects,
+        query: searchQuery,
+        getLabel: (project) => project.name,
+      })
+    : projects;
   const selected = value !== null ? projects.find((p) => p.id === value) : null;
   const allProjectsSelected =
     allProjectsValue !== undefined && value === allProjectsValue;
@@ -116,21 +103,14 @@ export function ProjectSelector({
       : noProjectSelected
         ? "FolderMinus"
         : "FolderPlus";
-  const createProjectAction = createProject;
-  const createProjectLabel = createProjectAction?.isCreating
-    ? "Creating..."
-    : "New project";
-  const showActionSeparator =
-    projects.length > 0 &&
-    (Boolean(createProjectAction) ||
-      allowNoProject ||
-      allProjectsValue !== undefined);
+  const hasActions =
+    createProject !== undefined ||
+    allowNoProject ||
+    allProjectsValue !== undefined;
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     setHighlightedValue(NO_HIGHLIGHT_VALUE);
-    if (!nextOpen) {
-      setSearchQuery("");
-    }
+    if (!nextOpen) setSearchQuery("");
   };
   const selectProject = (projectId: string | null) => {
     onChange(projectId);
@@ -183,11 +163,7 @@ export function ProjectSelector({
         aria-label="Project"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          if (showSearch) {
-            searchInputRef.current?.focus();
-          } else {
-            commandRef.current?.focus();
-          }
+          (showSearch ? searchInputRef : commandRef).current?.focus();
         }}
         className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0"
       >
@@ -254,11 +230,9 @@ export function ProjectSelector({
                 </div>
               </CommandGroup>
             ) : null}
-            {createProjectAction ||
-            allowNoProject ||
-            allProjectsValue !== undefined ? (
+            {hasActions ? (
               <div className="shrink-0">
-                {showActionSeparator ? <CommandSeparator /> : null}
+                {projects.length > 0 ? <CommandSeparator /> : null}
                 <CommandGroup
                   heading={projects.length === 0 ? "Project" : undefined}
                 >
@@ -280,12 +254,12 @@ export function ProjectSelector({
                       ) : null}
                     </CommandItem>
                   ) : null}
-                  {createProjectAction ? (
+                  {createProject ? (
                     <CommandItem
-                      disabled={createProjectAction.disabled}
+                      disabled={createProject.disabled}
                       value="new-project"
                       onSelect={() => {
-                        createProjectAction.onCreate();
+                        createProject.onCreate();
                         handleOpenChange(false);
                       }}
                       className={PROJECT_PICKER_ITEM_CLASS_NAME}
@@ -295,7 +269,7 @@ export function ProjectSelector({
                         className="size-4 text-muted-foreground"
                         aria-hidden
                       />
-                      {createProjectLabel}
+                      {createProject.isCreating ? "Creating..." : "New project"}
                     </CommandItem>
                   ) : null}
                   {allowNoProject ? (

@@ -2,26 +2,14 @@ import type { ReactNode } from "react";
 import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
 import { useUrlAnchorClickHandler } from "@/lib/url-open-routing";
 
-interface ModelLoadErrorMessageProps {
-  error: SystemExecutionOptionsModelLoadError;
-  providerLabel: string;
-  installUrl?: string;
-}
-
 interface FormatModelLoadErrorTextArgs {
   error: SystemExecutionOptionsModelLoadError;
   providerLabel: string;
 }
 
-export function formatModelLoadErrorSummary({
-  providerLabel,
-}: Pick<FormatModelLoadErrorTextArgs, "providerLabel">): string {
-  return `Could not load models for ${providerLabel}.`;
-}
-
-export function formatModelLoadErrorReason({
-  error,
-}: Pick<FormatModelLoadErrorTextArgs, "error">): string | null {
+function modelLoadErrorReason(
+  error: SystemExecutionOptionsModelLoadError,
+): string | null {
   switch (error.code) {
     case "provider_unavailable":
       return "Provider plugin failed to load";
@@ -36,19 +24,21 @@ export function formatModelLoadErrorReason({
   }
 }
 
-export function formatModelLoadErrorText(
-  args: FormatModelLoadErrorTextArgs,
-): string {
-  const summary = formatModelLoadErrorSummary(args);
-  const reason = formatModelLoadErrorReason(args);
+export function formatModelLoadErrorText({
+  error,
+  providerLabel,
+}: FormatModelLoadErrorTextArgs): string {
+  const summary = `Could not load models for ${providerLabel}.`;
+  const reason = modelLoadErrorReason(error);
   return reason === null ? summary : `${summary} ${reason}.`;
 }
 
-export function formatModelLoadErrorTitle(
-  args: FormatModelLoadErrorTextArgs,
-): string {
-  const summary = formatModelLoadErrorSummary(args);
-  const detail = args.error.detail ?? formatModelLoadErrorReason(args);
+export function formatModelLoadErrorTitle({
+  error,
+  providerLabel,
+}: FormatModelLoadErrorTextArgs): string {
+  const summary = `Could not load models for ${providerLabel}.`;
+  const detail = error.detail ?? modelLoadErrorReason(error);
   return detail === null ? summary : `${summary}\n${detail}`;
 }
 
@@ -56,16 +46,15 @@ export function ModelLoadErrorMessage({
   error,
   providerLabel,
   installUrl,
-}: ModelLoadErrorMessageProps): ReactNode {
+}: FormatModelLoadErrorTextArgs & {
+  installUrl: string | undefined;
+}): ReactNode {
   const helpUrl = error.code === "missing_executable" ? installUrl : undefined;
   const handleHelpLinkClick = useUrlAnchorClickHandler(helpUrl);
-  const reason = formatModelLoadErrorReason({ error });
-
+  const reason = modelLoadErrorReason(error);
   return (
     <>
-      <span className="block">
-        {formatModelLoadErrorSummary({ providerLabel })}
-      </span>
+      <span className="block">Could not load models for {providerLabel}.</span>
       {reason === null ? null : (
         <span className="mt-1 line-clamp-3 block break-words opacity-80 [overflow-wrap:anywhere]">
           {helpUrl === undefined ? (

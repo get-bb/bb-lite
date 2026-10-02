@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Host } from "@bb/domain";
 import { Icon } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
@@ -10,14 +10,9 @@ import {
   CommandList,
 } from "@bb/shared-ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
-import {
-  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
-import { selectHosts, selectPrimaryHost } from "@/hooks/queries/host-queries";
+import { selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { MachineLabel } from "@/components/machines/MachineLabel";
@@ -27,11 +22,7 @@ import {
   OPTION_MUTED_CLASS_NAME,
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
 } from "@bb/shared-ui/option-display";
-import {
-  MACHINE_SEARCH_MIN_OPTIONS,
-  searchMachineHosts,
-} from "./machine-picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
+import { searchMachineHosts, useResetPickerScroll } from "./picker-search";
 
 export const MACHINE_BADGE_CLASS_NAME =
   "shrink-0 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-2xs leading-none text-subtle-foreground";
@@ -46,51 +37,32 @@ export function orderLocalHostFirst(
   );
 }
 
-interface MachinePickerUIProps {
-  hosts: readonly Host[];
-  localHostId: string | null;
-  primaryHostId: string | null;
-  selectedHostId: string | null;
-  onChange: (hostId: string) => void;
-  muted?: boolean;
-  disabled?: boolean;
-  className?: string;
-  modal?: boolean;
-}
-
-export function MachinePickerUI({
+export function MachinePicker({
   hosts,
   localHostId,
   primaryHostId,
   selectedHostId,
   onChange,
-  muted,
-  disabled = false,
-  className,
-  modal = true,
-}: MachinePickerUIProps) {
+}: {
+  hosts: readonly Host[];
+  localHostId: string | null;
+  primaryHostId: string | null;
+  selectedHostId: string | null;
+  onChange: (hostId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const commandRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
-  const availableHosts = useMemo(() => selectHosts(hosts, "all"), [hosts]);
-  const selectedHost = useMemo(
-    () =>
-      availableHosts.find((host) => host.id === selectedHostId) ??
-      selectPrimaryHost(availableHosts, primaryHostId),
-    [availableHosts, primaryHostId, selectedHostId],
-  );
-  const orderedHosts = useMemo(
-    () => orderLocalHostFirst(availableHosts, localHostId),
-    [availableHosts, localHostId],
-  );
-  const showSearch = availableHosts.length > MACHINE_SEARCH_MIN_OPTIONS;
-  const filteredHosts = useMemo(
-    () =>
-      showSearch ? searchMachineHosts(orderedHosts, searchQuery) : orderedHosts,
-    [orderedHosts, searchQuery, showSearch],
-  );
+  const selectedHost =
+    hosts.find((host) => host.id === selectedHostId) ??
+    selectPrimaryHost(hosts, primaryHostId);
+  const orderedHosts = orderLocalHostFirst(hosts, localHostId);
+  const showSearch = hosts.length > 5;
+  const filteredHosts = showSearch
+    ? searchMachineHosts(orderedHosts, searchQuery)
+    : orderedHosts;
   const now = Date.now();
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -100,22 +72,20 @@ export function MachinePickerUI({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
-      <PopoverTrigger asChild disabled={disabled}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           aria-label="Machine"
-          disabled={disabled}
           data-promptbox-shrinkable-control=""
           className={cn(
             OPTION_BASE_CLASS_NAME,
-            !disabled && OPTION_INTERACTIVE_CLASS_NAME,
-            !disabled && LIST_HOVER_TRANSITION,
-            muted && OPTION_MUTED_CLASS_NAME,
-            disabled && "cursor-default disabled:opacity-100",
-            className,
+            OPTION_INTERACTIVE_CLASS_NAME,
+            LIST_HOVER_TRANSITION,
+            OPTION_MUTED_CLASS_NAME,
+            "shrink-0",
           )}
         >
           <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
@@ -124,19 +94,14 @@ export function MachinePickerUI({
             ) : (
               <MachineLabel
                 host={selectedHost}
-                iconClassName={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
+                iconClassName="size-3.5 shrink-0"
               />
             )}
           </span>
-          {disabled ? null : (
-            <Icon
-              name="ChevronDown"
-              className={cn(
-                "shrink-0 text-muted-foreground",
-                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-              )}
-            />
-          )}
+          <Icon
+            name="ChevronDown"
+            className="shrink-0 text-muted-foreground size-3.5"
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -211,8 +176,7 @@ export function MachinePickerUI({
                     <Icon
                       name="Check"
                       className={cn(
-                        COARSE_POINTER_ICON_SIZE_CLASS,
-                        "shrink-0",
+                        "size-4 shrink-0",
                         host.id === selectedHost?.id
                           ? "opacity-100"
                           : "opacity-0",

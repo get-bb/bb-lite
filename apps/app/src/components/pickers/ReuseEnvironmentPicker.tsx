@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -12,11 +12,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import {
-  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentLabelIconName,
@@ -41,29 +36,7 @@ import {
 const REUSE_THREAD_PREVIEW_LIMIT = 2;
 const REUSE_SEARCH_MIN_OPTIONS = 7;
 
-function reuseOptionSearchText(
-  option: ReuseThreadOption,
-  providers: readonly SystemEnvironmentProvider[] | undefined,
-  resolveTitle: (title: string) => string,
-): string {
-  const { label, secondaryText } = reuseThreadOptionDisplay(option, providers);
-  return [
-    label,
-    option.name,
-    option.branchName,
-    option.path,
-    secondaryText,
-    ...option.threads.flatMap((thread) => [
-      thread.title,
-      resolveTitle(thread.title),
-    ]),
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(" ")
-    .toLowerCase();
-}
-
-export function filterReuseThreadOptions(
+function filterReuseThreadOptions(
   options: readonly ReuseThreadOption[],
   query: string,
   providers: readonly SystemEnvironmentProvider[] | undefined,
@@ -72,7 +45,24 @@ export function filterReuseThreadOptions(
   const terms = query.trim().toLowerCase().split(/\s+/u).filter(Boolean);
   if (terms.length === 0) return options;
   return options.filter((option) => {
-    const haystack = reuseOptionSearchText(option, providers, resolveTitle);
+    const { label, secondaryText } = reuseThreadOptionDisplay(
+      option,
+      providers,
+    );
+    const haystack = [
+      label,
+      option.name,
+      option.branchName,
+      option.path,
+      secondaryText,
+      ...option.threads.flatMap((thread) => [
+        thread.title,
+        resolveTitle(thread.title),
+      ]),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     return terms.every((term) => haystack.includes(term));
   });
 }
@@ -111,44 +101,25 @@ export function reuseThreadOptionDisplay(
   };
 }
 
-interface ReuseEnvironmentPickerProps {
-  options: readonly ReuseThreadOption[];
-  value: string | null;
-  onChange: (environmentId: string) => void;
-  muted?: boolean;
-  disabled?: boolean;
-  modal?: boolean;
-}
-
 export function ReuseEnvironmentPicker({
   options,
   value,
   onChange,
-  muted,
-  disabled = false,
-  modal,
-}: ReuseEnvironmentPickerProps) {
+}: {
+  options: readonly ReuseThreadOption[];
+  value: string | null;
+  onChange: (environmentId: string) => void;
+}) {
   const { providers } = useSystemEnvironmentProviders();
   const resolveTitle = useResolveThreadTitle();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const activeOption = useMemo(
-    () => options.find((option) => option.environmentId === value) ?? null,
-    [options, value],
-  );
+  const activeOption =
+    options.find((option) => option.environmentId === value) ?? null;
   const showSearch = options.length >= REUSE_SEARCH_MIN_OPTIONS;
-  const visibleOptions = useMemo(
-    () =>
-      showSearch
-        ? filterReuseThreadOptions(
-            options,
-            searchQuery,
-            providers,
-            resolveTitle,
-          )
-        : options,
-    [options, providers, resolveTitle, searchQuery, showSearch],
-  );
+  const visibleOptions = showSearch
+    ? filterReuseThreadOptions(options, searchQuery, providers, resolveTitle)
+    : options;
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) setSearchQuery("");
@@ -158,41 +129,31 @@ export function ReuseEnvironmentPicker({
       ? { label: "Pick an environment", icon: REUSE_ENVIRONMENT_ICON_NAME }
       : reuseThreadOptionDisplay(activeOption, providers);
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
-      <PopoverTrigger asChild disabled={disabled}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           aria-label="Environment"
-          disabled={disabled}
           data-promptbox-icon-only-control=""
           className={cn(
             OPTION_BASE_CLASS_NAME,
-            !disabled && OPTION_INTERACTIVE_CLASS_NAME,
-            !disabled && LIST_HOVER_TRANSITION,
-            muted && OPTION_MUTED_CLASS_NAME,
-            disabled && "cursor-default disabled:opacity-100",
+            OPTION_INTERACTIVE_CLASS_NAME,
+            LIST_HOVER_TRANSITION,
+            OPTION_MUTED_CLASS_NAME,
           )}
         >
           <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
-            <Icon
-              name={trigger.icon}
-              className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
-            />
+            <Icon name={trigger.icon} className="size-3.5 shrink-0" />
             <span className="min-w-0 truncate" data-promptbox-full-label="">
               {trigger.label}
             </span>
           </span>
-          {disabled ? null : (
-            <Icon
-              name="ChevronDown"
-              className={cn(
-                "shrink-0 text-muted-foreground",
-                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-              )}
-            />
-          )}
+          <Icon
+            name="ChevronDown"
+            className="shrink-0 text-muted-foreground size-3.5"
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -246,19 +207,17 @@ export function ReuseEnvironmentPicker({
   );
 }
 
-interface ReuseEnvironmentMenuItemProps {
-  option: ReuseThreadOption;
-  providers: readonly SystemEnvironmentProvider[] | undefined;
-  isSelected: boolean;
-  onSelect: (environmentId: string) => void;
-}
-
 function ReuseEnvironmentMenuItem({
   option,
   providers,
   isSelected,
   onSelect,
-}: ReuseEnvironmentMenuItemProps) {
+}: {
+  option: ReuseThreadOption;
+  providers: readonly SystemEnvironmentProvider[] | undefined;
+  isSelected: boolean;
+  onSelect: (environmentId: string) => void;
+}) {
   const previewThreads = option.threads.slice(0, REUSE_THREAD_PREVIEW_LIMIT);
   const additionalCount = option.threads.length - previewThreads.length;
   const { label, icon, secondaryText } = reuseThreadOptionDisplay(
@@ -277,13 +236,7 @@ function ReuseEnvironmentMenuItem({
       )}
     >
       <span className="flex min-w-0 items-center gap-2">
-        <Icon
-          name={icon}
-          className={cn(
-            "shrink-0 text-muted-foreground",
-            COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-          )}
-        />
+        <Icon name={icon} className="shrink-0 text-muted-foreground size-3.5" />
         <span className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-xs">
           <span className="min-w-0 truncate font-medium">{label}</span>
           {branchDetail ? (
@@ -294,10 +247,7 @@ function ReuseEnvironmentMenuItem({
         </span>
         <Icon
           name="Check"
-          className={cn(
-            COARSE_POINTER_ICON_SIZE_CLASS,
-            isSelected ? "opacity-100" : "opacity-0",
-          )}
+          className={cn("size-4", isSelected ? "opacity-100" : "opacity-0")}
         />
       </span>
       {secondaryText ? (

@@ -1,9 +1,12 @@
 import { EnvironmentProviderIcon } from "@/components/plugin/EnvironmentProviderIcon";
-import { useMemo, useRef, useState } from "react";
-import type { Host, ProjectSource } from "@bb/domain";
+import { useRef, useState } from "react";
+import {
+  findLocalPathProjectSourceForHost,
+  type Host,
+  type ProjectSource,
+} from "@bb/domain";
 import type { SystemEnvironmentProvider } from "@bb/server-contract";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { findLocalPathProjectSourceForHost } from "@bb/domain";
 import { pluginIconName } from "@/components/plugin/PluginIcon";
 import { Button } from "@bb/shared-ui/button";
 import { Skeleton } from "@bb/shared-ui/skeleton";
@@ -16,12 +19,6 @@ import {
   CommandSeparator,
 } from "@bb/shared-ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
-import {
-  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-  COARSE_POINTER_DOT_SIZE_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { REUSE_ENVIRONMENT_ICON_NAME } from "@/lib/environment-workspace-display";
@@ -37,309 +34,158 @@ import {
   encodeProviderValue,
   parseEnvironmentValue,
 } from "./environment-picker-value";
-import { selectHosts } from "@/hooks/queries/host-queries";
+import { selectPrimaryHost } from "@/hooks/queries/host-queries";
 import { MACHINE_BADGE_CLASS_NAME, orderLocalHostFirst } from "./MachinePicker";
-import { PickerLoadingRows } from "./PickerLoadingRows";
+import {
+  PickerLoadingRows,
+  searchMachineHosts,
+  useResetPickerScroll,
+} from "./picker-search";
 import { MachineIcon } from "@/components/machines/MachineLabel";
-import { searchMachineHosts } from "./machine-picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
 
-interface SelectedEnvironment {
-  modeLabel: string;
-  compactModeLabel: string;
-  icon: IconName;
-}
-
-const MACHINE_CONTEXTUAL_MENU_MIN_OPTIONS = 3;
-const MACHINE_TARGET_CONTENT_CLASS_NAME =
-  "grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2";
-
-export interface EnvironmentPickerMachines {
+export interface EnvironmentPickerProps {
+  value: string;
+  sources: readonly ProjectSource[];
   hosts: readonly Host[];
   localHostId: string | null;
   primaryHostId: string | null;
-}
-
-export interface EnvironmentPickerUIProps {
-  value: string;
-  sources: readonly ProjectSource[];
-  host: Host | null;
-  isLocal: boolean;
-  muted?: boolean;
-  disabled?: boolean;
-  isLoading?: boolean;
-  className?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  defaultOpen?: boolean;
-  modal?: boolean;
-  machines?: EnvironmentPickerMachines | null;
-  onRequestMachineSetup?: (host: Host) => void;
-  providers?: readonly SystemEnvironmentProvider[];
-  projectless?: boolean;
-  providersByHostId?: ReadonlyMap<
+  selectedProviderHostId: string | null;
+  providers: readonly SystemEnvironmentProvider[];
+  providersByHostId: ReadonlyMap<
     string,
     readonly SystemEnvironmentProvider[] | undefined
   >;
-  selectedProviderHostId?: string | null;
-  onSelectProvider?: (
+  disabled?: boolean;
+  isLoading?: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRequestMachineSetup?: (host: Host) => void;
+  onSelectProvider: (
     provider: SystemEnvironmentProvider,
-    hostId: string | null,
+    hostId: string,
   ) => void;
-  onSelectHost?: (hostId: string) => void;
-  onSelectReuse?: () => void;
+  onSelectHost: (hostId: string) => void;
+  onSelectReuse: () => void;
 }
 
-function providerValueSelected(
-  value: string,
-  provider: SystemEnvironmentProvider,
-): boolean {
-  return value === encodeProviderValue(provider.id);
-}
-
-function providerDisabledReason(
-  provider: SystemEnvironmentProvider,
-): string | null {
-  if (provider.availability?.status === "unavailable") {
-    return provider.availability.message;
-  }
-  return null;
-}
-
-function providerDescription(
-  provider: SystemEnvironmentProvider,
-): string | undefined {
-  if (provider.availability?.status === "setup-required") {
-    return provider.availability.message;
-  }
-  return providerDisabledReason(provider) ?? undefined;
-}
-
-function scopedProviders(
-  providers: readonly SystemEnvironmentProvider[],
-  providersByHostId: EnvironmentPickerUIProps["providersByHostId"],
-  hostId: string | null,
-  selection: { value: string; selectedProviderHostId: string | null },
-): readonly SystemEnvironmentProvider[] {
-  const hostProviders =
-    hostId === null || providersByHostId === undefined
-      ? providers
-      : mergeHostProviders(providers, providersByHostId.get(hostId) ?? []);
-  return hostProviders.filter(
-    (provider) =>
-      provider.availability?.status !== "unavailable" ||
-      (providerValueSelected(selection.value, provider) &&
-        selection.selectedProviderHostId === hostId),
-  );
-}
-
-function mergeHostProviders(
-  providers: readonly SystemEnvironmentProvider[],
-  resolved: readonly SystemEnvironmentProvider[],
-): readonly SystemEnvironmentProvider[] {
-  const hostProviders = new Map(
-    resolved.map((provider) => [provider.id, provider]),
-  );
-  return providers.flatMap((provider) => {
-    const hostProvider = hostProviders.get(provider.id);
-    return hostProvider === undefined ? [] : [hostProvider];
-  });
-}
-
-function contextualActiveHost({
-  machines,
-  previewHostId,
-  selectedHostId,
-}: {
-  machines: EnvironmentPickerMachines;
-  previewHostId: string | null;
-  selectedHostId: string | null;
-}): Host | undefined {
-  return (
-    machines.hosts.find((machineHost) => machineHost.id === previewHostId) ??
-    machines.hosts.find((machineHost) => machineHost.id === selectedHostId) ??
-    machines.hosts.find(
-      (machineHost) => machineHost.id === machines.localHostId,
-    ) ??
-    machines.hosts.find(
-      (machineHost) => machineHost.id === machines.primaryHostId,
-    ) ??
-    machines.hosts[0]
-  );
-}
-
-export function EnvironmentPickerUI({
+export function EnvironmentPicker({
   value,
   sources,
-  host,
-  isLocal,
-  muted,
+  hosts,
+  localHostId,
+  primaryHostId,
+  selectedProviderHostId,
+  providers,
+  providersByHostId,
   disabled = false,
   isLoading = false,
-  className,
   open,
   onOpenChange,
-  defaultOpen,
-  modal = false,
-  machines,
   onRequestMachineSetup,
-  providers = [],
-  projectless = false,
-  providersByHostId,
-  selectedProviderHostId = null,
   onSelectProvider,
   onSelectHost,
   onSelectReuse,
-}: EnvironmentPickerUIProps) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(
-    defaultOpen ?? false,
-  );
+}: EnvironmentPickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [previewHostId, setPreviewHostId] = useState<string | null>(null);
   const [commandValueOverride, setCommandValueOverride] = useState<
     string | null
   >(null);
-  const commandRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
-  const availableMachines = useMemo(
-    () =>
-      machines === null || machines === undefined
-        ? null
-        : {
-            ...machines,
-            hosts: selectHosts(machines.hosts, "persistent"),
-          },
-    [machines],
-  );
-  const availableHost = host?.type === "ephemeral" ? null : host;
-  const hostId = availableHost?.id ?? null;
-  const hasMultipleMachines = (availableMachines?.hosts.length ?? 0) > 1;
-  const showSearch =
-    hasMultipleMachines &&
-    (availableMachines?.hosts.length ?? 0) >=
-      MACHINE_CONTEXTUAL_MENU_MIN_OPTIONS;
-  const environmentProviders = useMemo(
-    () =>
-      providers.filter(
-        (provider) => provider.requires.projectless === projectless,
-      ),
-    [projectless, providers],
-  );
-  const isMachineMenu = hasMultipleMachines;
-  const hostConnected = availableHost?.status === "connected";
-  const hostUnavailableReason = !availableHost
+  const machineListRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
+  const now = Date.now();
+
+  const parsed = parseEnvironmentValue(value);
+  const selectedProvider =
+    parsed?.type === "provider"
+      ? providers.find(
+          (provider) => provider.id === parsed.environmentProviderId,
+        )
+      : undefined;
+  const primaryHost = selectPrimaryHost(hosts, primaryHostId);
+  const findHost = (hostId: string | null) =>
+    hosts.find((host) => host.id === hostId);
+  const selectedHost =
+    parsed?.type === "provider" && selectedProviderHostId !== null
+      ? (findHost(selectedProviderHostId) ?? primaryHost)
+      : primaryHost;
+  const hostUnavailableReason = !selectedHost
     ? "No host connected"
-    : !hostConnected
+    : selectedHost.status !== "connected"
       ? "Host is offline"
       : null;
-  const parsed = useMemo(() => parseEnvironmentValue(value), [value]);
+  const selectedMachineName =
+    hosts.length > 1 && parsed?.type === "provider"
+      ? (findHost(selectedProviderHostId)?.name ?? null)
+      : null;
+  const withMachine = (label: string) =>
+    selectedMachineName ? `${selectedMachineName} · ${label}` : label;
+  const trigger: { label: string; compactLabel: string; icon: IconName } =
+    hostUnavailableReason !== null
+      ? {
+          label: withMachine(hostUnavailableReason),
+          compactLabel: selectedHost ? "Offline" : "No host",
+          icon: "AlertTriangle",
+        }
+      : selectedProvider !== undefined
+        ? {
+            label: withMachine(selectedProvider.displayName),
+            compactLabel: selectedProvider.displayName,
+            icon: pluginIconName(selectedProvider.icon),
+          }
+        : parsed?.type === "reuse"
+          ? {
+              label: "Reuse",
+              compactLabel: "Reuse",
+              icon: REUSE_ENVIRONMENT_ICON_NAME,
+            }
+          : { label: "Environment", compactLabel: "Env", icon: "Laptop" };
 
-  const selectedMachineName = useMemo(() => {
-    if (!hasMultipleMachines || !availableMachines) return null;
-    const machineHostId =
-      parsed?.type === "provider" ? selectedProviderHostId : null;
-    if (machineHostId === null) return null;
-    return (
-      availableMachines.hosts.find(
-        (machineHost) => machineHost.id === machineHostId,
-      )?.name ?? null
-    );
-  }, [hasMultipleMachines, parsed, availableMachines, selectedProviderHostId]);
-
-  const selectedProvider = useMemo(
-    () =>
+  const orderedHosts = orderLocalHostFirst(hosts, localHostId);
+  const activeHost =
+    findHost(previewHostId) ??
+    findHost(
       parsed?.type === "provider"
-        ? providers.find(
-            (provider) => provider.id === parsed.environmentProviderId,
-          )
-        : undefined,
-    [providers, parsed],
-  );
-  const contextualSelectedHostId =
-    parsed?.type === "provider" ? selectedProviderHostId : hostId;
-  const contextualHost =
-    showSearch && availableMachines
-      ? contextualActiveHost({
-          machines: availableMachines,
-          previewHostId,
-          selectedHostId: contextualSelectedHostId,
-        })
-      : undefined;
-  const selectedCommandValue = contextualHost
-    ? `machine:${contextualHost.id}`
-    : parsed?.type === "reuse"
-      ? "reuse"
-      : selectedProvider !== undefined && selectedProviderHostId !== null
-        ? `provider:${selectedProviderHostId}:${selectedProvider.id}`
-        : "";
-  const selected = useMemo((): SelectedEnvironment => {
-    if (selectedProvider !== undefined && hostUnavailableReason === null) {
-      return {
-        modeLabel:
-          selectedMachineName !== null
-            ? `${selectedMachineName} · ${selectedProvider.displayName}`
-            : selectedProvider.displayName,
-        compactModeLabel: selectedProvider.displayName,
-        icon: pluginIconName(selectedProvider.icon),
-      };
-    }
-    if (hostUnavailableReason !== null) {
-      return {
-        modeLabel: selectedMachineName
-          ? `${selectedMachineName} · ${hostUnavailableReason}`
-          : hostUnavailableReason,
-        compactModeLabel: availableHost ? "Offline" : "No host",
-        icon: "AlertTriangle" as const,
-      };
-    }
-    if (parsed?.type === "reuse") {
-      return {
-        modeLabel: "Reuse",
-        compactModeLabel: "Reuse",
-        icon: REUSE_ENVIRONMENT_ICON_NAME,
-      };
-    }
-    return {
-      modeLabel: "Environment",
-      compactModeLabel: "Env",
-      icon: "Laptop" as const,
-    };
-  }, [
-    parsed,
-    hostUnavailableReason,
-    availableHost,
-    selectedMachineName,
-    selectedProvider,
-  ]);
-  const pickerOpen = open ?? uncontrolledOpen;
-  const handleOpenChange = (nextOpen: boolean) => {
-    setUncontrolledOpen(nextOpen);
-    onOpenChange?.(nextOpen);
+        ? selectedProviderHostId
+        : (selectedHost?.id ?? null),
+    ) ??
+    findHost(localHostId) ??
+    findHost(primaryHostId) ??
+    orderedHosts[0];
+  const activeSource = activeHost
+    ? findLocalPathProjectSourceForHost(sources, activeHost.id)
+    : undefined;
+  const activeConnected = activeHost?.status === "connected";
+  const isSelected = (provider: SystemEnvironmentProvider, hostId: string) =>
+    value === encodeProviderValue(provider.id) &&
+    selectedProviderHostId === hostId;
+  const activeProviders = activeHost
+    ? providers
+        .flatMap(
+          (provider) =>
+            providersByHostId
+              .get(activeHost.id)
+              ?.find((candidate) => candidate.id === provider.id) ?? [],
+        )
+        .filter(
+          (provider) =>
+            provider.availability?.status !== "unavailable" ||
+            isSelected(provider, activeHost.id),
+        )
+    : [];
+  const filteredHosts = searchMachineHosts(orderedHosts, searchQuery);
+
+  const changeOpen = (nextOpen: boolean) => {
+    onOpenChange(nextOpen);
     setCommandValueOverride(null);
     if (!nextOpen) {
       setSearchQuery("");
       setPreviewHostId(null);
     }
   };
-  const selectProvider = (
-    provider: SystemEnvironmentProvider,
-    providerHostId: string | null,
-  ) => {
-    onSelectProvider?.(provider, providerHostId);
-    handleOpenChange(false);
-  };
-  const requestMachineSetup = (machineHost: Host) => {
-    onRequestMachineSetup?.(machineHost);
-    handleOpenChange(false);
-  };
-  const selectReuse = () => {
-    onSelectReuse?.();
-    handleOpenChange(false);
-  };
 
   return (
-    <Popover open={pickerOpen} onOpenChange={handleOpenChange} modal={modal}>
+    <Popover open={open} onOpenChange={changeOpen} modal={false}>
       <PopoverTrigger asChild disabled={disabled}>
         <Button
           type="button"
@@ -353,24 +199,21 @@ export function EnvironmentPickerUI({
             OPTION_BASE_CLASS_NAME,
             !disabled && OPTION_INTERACTIVE_CLASS_NAME,
             !disabled && LIST_HOVER_TRANSITION,
-            muted && OPTION_MUTED_CLASS_NAME,
+            OPTION_MUTED_CLASS_NAME,
             disabled && "cursor-default disabled:opacity-100",
-            className,
+            "shrink-0",
           )}
         >
           <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
             {selectedProvider === undefined ? (
               <Icon
-                name={isLoading ? "Spinner" : selected.icon}
-                className={cn(
-                  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-                  isLoading && "animate-spin",
-                )}
+                name={isLoading ? "Spinner" : trigger.icon}
+                className={cn("size-3.5 shrink-0", isLoading && "animate-spin")}
               />
             ) : (
               <EnvironmentProviderIcon
                 provider={selectedProvider}
-                className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
+                className="size-3.5 shrink-0"
               />
             )}
             {isLoading ? (
@@ -385,14 +228,14 @@ export function EnvironmentPickerUI({
             ) : (
               <>
                 <span className="min-w-0 truncate" data-promptbox-full-label="">
-                  {selected.modeLabel}
+                  {trigger.label}
                 </span>
                 <span
                   className="min-w-0 truncate"
                   data-promptbox-compact-label=""
                   data-promptbox-hide-tiny=""
                 >
-                  {selected.compactModeLabel}
+                  {trigger.compactLabel}
                 </span>
               </>
             )}
@@ -400,10 +243,7 @@ export function EnvironmentPickerUI({
           {disabled ? null : (
             <Icon
               name="ChevronDown"
-              className={cn(
-                "shrink-0 text-muted-foreground",
-                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-              )}
+              className="shrink-0 text-muted-foreground size-3.5"
             />
           )}
         </Button>
@@ -411,9 +251,7 @@ export function EnvironmentPickerUI({
       <PopoverContent
         align="start"
         aria-label="Environment"
-        autoFocusRef={
-          isLoading ? undefined : showSearch ? searchInputRef : commandRef
-        }
+        autoFocusRef={isLoading ? undefined : searchInputRef}
         className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
       >
         {isLoading ? (
@@ -423,93 +261,176 @@ export function EnvironmentPickerUI({
           />
         ) : (
           <Command
-            ref={commandRef}
             label="Search machines"
             shouldFilter={false}
-            value={commandValueOverride ?? selectedCommandValue}
+            value={
+              commandValueOverride ??
+              (activeHost ? `machine:${activeHost.id}` : "")
+            }
             onValueChange={setCommandValueOverride}
             className="min-h-0"
           >
-            {showSearch ? (
-              <CommandInput
-                ref={searchInputRef}
-                aria-label="Search machines"
-                placeholder="Search machines"
-                value={searchQuery}
-                onValueChange={setSearchQuery}
-                className="h-8 text-xs"
-              />
-            ) : null}
-            <CommandList
-              ref={showSearch ? undefined : listRef}
-              className={cn(
-                "min-h-0 max-h-none flex-1 overscroll-contain",
-                showSearch && "flex flex-col overflow-hidden",
-              )}
-            >
-              {isMachineMenu && availableMachines ? (
-                showSearch ? (
-                  <MachineContextualEnvironmentOptions
-                    machines={availableMachines}
-                    sources={sources}
-                    selectedHostId={
-                      parsed?.type === "provider"
-                        ? selectedProviderHostId
-                        : hostId
-                    }
-                    previewHostId={previewHostId}
-                    value={value}
-                    searchQuery={searchQuery}
-                    environmentProviders={environmentProviders}
-                    providersByHostId={providersByHostId}
-                    selectedProviderHostId={selectedProviderHostId}
-                    onPreviewHostChange={setPreviewHostId}
-                    onSelectHost={onSelectHost}
-                    onRequestMachineSetup={
-                      onRequestMachineSetup ? requestMachineSetup : undefined
-                    }
-                    onSelectProvider={
-                      onSelectProvider ? selectProvider : undefined
-                    }
-                  />
-                ) : (
-                  <MachineGroupedEnvironmentOptions
-                    machines={availableMachines}
-                    sources={sources}
-                    value={value}
-                    onRequestMachineSetup={
-                      onRequestMachineSetup ? requestMachineSetup : undefined
-                    }
-                    environmentProviders={environmentProviders}
-                    providersByHostId={providersByHostId}
-                    selectedProviderHostId={selectedProviderHostId}
-                    onSelectProvider={
-                      onSelectProvider ? selectProvider : undefined
-                    }
-                  />
-                )
-              ) : (
-                <EnvironmentOptionsSection
-                  hostId={hostId}
-                  hostName={isLocal ? null : (availableHost?.name ?? null)}
-                  hostUnavailableReason={hostUnavailableReason}
-                  value={value}
-                  environmentProviders={scopedProviders(
-                    environmentProviders,
-                    providersByHostId,
-                    hostId,
-                    { value, selectedProviderHostId },
-                  )}
-                  selectedProviderHostId={selectedProviderHostId}
-                  onSelectProvider={
-                    onSelectProvider ? selectProvider : undefined
-                  }
+            <CommandInput
+              ref={searchInputRef}
+              aria-label="Search machines"
+              placeholder="Search machines"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              className="h-8 text-xs"
+            />
+            <CommandList className="min-h-0 max-h-none flex-1 overscroll-contain flex flex-col overflow-hidden">
+              <div
+                ref={machineListRef}
+                data-machine-picker-list=""
+                className="max-h-48 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+              >
+                <CommandGroup heading="Machines">
+                  {filteredHosts.map((host) => (
+                    <CommandItem
+                      key={host.id}
+                      value={`machine:${host.id}`}
+                      aria-label={host.name}
+                      aria-current={
+                        host.id === activeHost?.id ? "true" : undefined
+                      }
+                      onSelect={() => {
+                        setPreviewHostId(host.id);
+                        onSelectHost(host.id);
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 py-[0.3125rem] text-xs",
+                        LIST_HOVER_TRANSITION,
+                        host.id === activeHost?.id &&
+                          "font-medium text-foreground",
+                      )}
+                    >
+                      <span
+                        data-machine-target-content=""
+                        className="grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2 items-center"
+                      >
+                        <MachineStatusDot
+                          connected={host.status === "connected"}
+                          className="size-1.5"
+                        />
+                        <span
+                          data-machine-target-icon=""
+                          className="size-3.5 shrink-0"
+                        >
+                          <MachineIcon className="!size-full" />
+                        </span>
+                        <span className="min-w-0 truncate text-xs">
+                          {host.name}
+                        </span>
+                      </span>
+                      {host.id === localHostId ? (
+                        <span className={MACHINE_BADGE_CLASS_NAME}>
+                          this machine
+                        </span>
+                      ) : null}
+                      <CheckIcon visible={host.id === activeHost?.id} />
+                    </CommandItem>
+                  ))}
+                  {filteredHosts.length === 0 ? (
+                    <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground">
+                      No machines found
+                    </div>
+                  ) : null}
+                </CommandGroup>
+              </div>
+              {activeHost ? (
+                <>
+                  <CommandSeparator className="mx-0 shrink-0" />
+                  <div className="shrink-0">
+                    <CommandGroup
+                      heading={
+                        <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate">
+                            On {activeHost.name}
+                          </span>
+                          {!activeConnected &&
+                          activeHost.lastSeenAt !== null ? (
+                            <span className="ml-auto shrink-0 pl-2 text-2xs">
+                              last seen{" "}
+                              {formatRelativeTime({
+                                timestamp: activeHost.lastSeenAt,
+                                now,
+                              })}
+                            </span>
+                          ) : null}
+                        </span>
+                      }
+                    >
+                      {activeProviders.map((provider) => (
+                        <EnvironmentMenuItem
+                          key={provider.id}
+                          value={`provider:${activeHost.id}:${provider.id}`}
+                          label={provider.displayName}
+                          description={
+                            activeConnected
+                              ? provider.availability?.status ===
+                                  "setup-required" ||
+                                provider.availability?.status === "unavailable"
+                                ? provider.availability.message
+                                : undefined
+                              : undefined
+                          }
+                          icon={
+                            <EnvironmentProviderIcon
+                              provider={provider}
+                              className="mt-px text-muted-foreground size-3.5 shrink-0"
+                            />
+                          }
+                          selected={isSelected(provider, activeHost.id)}
+                          disabled={
+                            !activeConnected ||
+                            activeHost.lifecycle.phase !== "active" ||
+                            provider.availability?.status === "unavailable"
+                          }
+                          onSelect={() => {
+                            onSelectProvider(provider, activeHost.id);
+                            changeOpen(false);
+                          }}
+                        />
+                      ))}
+                      {activeSource !==
+                      undefined ? null : onRequestMachineSetup &&
+                        activeConnected ? (
+                        <EnvironmentMenuItem
+                          value={`setup:${activeHost.id}`}
+                          label={`Set up on ${activeHost.name}…`}
+                          icon={<MenuIcon name="Plus" />}
+                          selected={false}
+                          onSelect={() => {
+                            onRequestMachineSetup(activeHost);
+                            changeOpen(false);
+                          }}
+                        />
+                      ) : activeProviders.length === 0 ? (
+                        <CommandItem
+                          value={`not-set-up:${activeHost.id}`}
+                          disabled
+                          className="whitespace-normal break-words text-xs text-muted-foreground"
+                        >
+                          Not set up for this project
+                        </CommandItem>
+                      ) : null}
+                    </CommandGroup>
+                  </div>
+                </>
+              ) : null}
+              <CommandSeparator className="mx-0 shrink-0" />
+              <CommandGroup className="shrink-0">
+                <EnvironmentMenuItem
+                  value="reuse"
+                  label="Reuse existing"
+                  icon={<MenuIcon name={REUSE_ENVIRONMENT_ICON_NAME} />}
+                  selected={parsed?.type === "reuse"}
+                  onSelect={() => {
+                    onSelectReuse();
+                    changeOpen(false);
+                  }}
                 />
-              )}
-              <ReuseEnvironmentOption
-                selected={parsed?.type === "reuse"}
-                onSelect={onSelectReuse ? selectReuse : undefined}
-              />
+              </CommandGroup>
             </CommandList>
           </Command>
         )}
@@ -518,448 +439,48 @@ export function EnvironmentPickerUI({
   );
 }
 
-const REUSE_ENVIRONMENT_OPTION_LABEL = "Reuse existing";
-
-interface ReuseEnvironmentOptionProps {
-  selected: boolean;
-  onSelect: (() => void) | undefined;
-}
-
-function ReuseEnvironmentOption({
-  selected,
-  onSelect,
-}: ReuseEnvironmentOptionProps) {
-  if (onSelect === undefined) return null;
-
+function MenuIcon({ name }: { name: IconName }) {
   return (
-    <>
-      <CommandSeparator className="mx-0 shrink-0" />
-      <CommandGroup className="shrink-0">
-        <EnvironmentMenuItem
-          value="reuse"
-          label={REUSE_ENVIRONMENT_OPTION_LABEL}
-          icon={REUSE_ENVIRONMENT_ICON_NAME}
-          selected={selected}
-          onSelect={onSelect}
-        />
-      </CommandGroup>
-    </>
+    <Icon
+      name={name}
+      className="mt-px text-muted-foreground size-3.5 shrink-0"
+    />
   );
 }
 
-interface EnvironmentOptionsSectionProps {
-  hostId: string | null;
-  hostName: string | null;
-  hostUnavailableReason: string | null;
-  value: string;
-  environmentProviders: readonly SystemEnvironmentProvider[];
-  selectedProviderHostId: string | null;
-  onSelectProvider:
-    | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
-    | undefined;
-}
-
-function EnvironmentOptionsSection({
-  hostId,
-  hostName,
-  hostUnavailableReason,
-  value,
-  environmentProviders,
-  selectedProviderHostId,
-  onSelectProvider,
-}: EnvironmentOptionsSectionProps) {
+function CheckIcon({ visible }: { visible: boolean }) {
   return (
-    <CommandGroup heading={hostName ?? undefined}>
-      {hostUnavailableReason !== null ? (
-        <CommandItem
-          value="host-unavailable"
-          disabled
-          className="whitespace-normal break-words text-xs text-muted-foreground"
-        >
-          {hostUnavailableReason}
-        </CommandItem>
-      ) : onSelectProvider !== undefined && hostId !== null ? (
-        environmentProviders.map((provider) => {
-          const disabledReason = providerDisabledReason(provider);
-          return (
-            <EnvironmentMenuItem
-              key={provider.id}
-              value={`provider:${hostId}:${provider.id}`}
-              label={provider.displayName}
-              description={providerDescription(provider)}
-              icon={pluginIconName(provider.icon)}
-              provider={provider}
-              selected={
-                providerValueSelected(value, provider) &&
-                selectedProviderHostId === hostId
-              }
-              disabled={disabledReason !== null}
-              onSelect={() => onSelectProvider(provider, hostId)}
-            />
-          );
-        })
-      ) : null}
-    </CommandGroup>
+    <Icon
+      name="Check"
+      className={cn("size-4 shrink-0", visible ? "opacity-100" : "opacity-0")}
+    />
   );
-}
-
-interface MachineGroupedEnvironmentOptionsProps {
-  machines: EnvironmentPickerMachines;
-  sources: readonly ProjectSource[];
-  value: string;
-  onRequestMachineSetup: ((host: Host) => void) | undefined;
-  environmentProviders: readonly SystemEnvironmentProvider[];
-  providersByHostId?: EnvironmentPickerUIProps["providersByHostId"];
-  selectedProviderHostId: string | null;
-  onSelectProvider:
-    | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
-    | undefined;
-}
-
-function MachineGroupedEnvironmentOptions({
-  machines,
-  sources,
-  value,
-  onRequestMachineSetup,
-  environmentProviders,
-  providersByHostId,
-  selectedProviderHostId,
-  onSelectProvider,
-}: MachineGroupedEnvironmentOptionsProps) {
-  const now = Date.now();
-  const orderedHosts = useMemo(
-    () => orderLocalHostFirst(machines.hosts, machines.localHostId),
-    [machines.hosts, machines.localHostId],
-  );
-  return (
-    <>
-      {orderedHosts.map((machineHost) => (
-        <MachineSection
-          key={machineHost.id}
-          host={machineHost}
-          isThisMachine={machineHost.id === machines.localHostId}
-          source={
-            findLocalPathProjectSourceForHost(sources, machineHost.id) ?? null
-          }
-          now={now}
-          value={value}
-          onRequestMachineSetup={onRequestMachineSetup}
-          environmentProviders={scopedProviders(
-            environmentProviders,
-            providersByHostId,
-            machineHost.id,
-            { value, selectedProviderHostId },
-          )}
-          selectedProviderHostId={selectedProviderHostId}
-          onSelectProvider={onSelectProvider}
-        />
-      ))}
-    </>
-  );
-}
-
-interface MachineContextualEnvironmentOptionsProps extends MachineGroupedEnvironmentOptionsProps {
-  selectedHostId: string | null;
-  previewHostId: string | null;
-  searchQuery: string;
-  onPreviewHostChange: (hostId: string) => void;
-  onSelectHost: ((hostId: string) => void) | undefined;
-}
-
-function MachineContextualEnvironmentOptions({
-  machines,
-  sources,
-  selectedHostId,
-  previewHostId,
-  value,
-  searchQuery,
-  environmentProviders,
-  providersByHostId,
-  selectedProviderHostId,
-  onPreviewHostChange,
-  onSelectHost,
-  onRequestMachineSetup,
-  onSelectProvider,
-}: MachineContextualEnvironmentOptionsProps) {
-  const machineListRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
-  const now = Date.now();
-  const orderedHosts = useMemo(
-    () =>
-      [...machines.hosts].sort(
-        (left, right) =>
-          Number(left.id !== machines.localHostId) -
-          Number(right.id !== machines.localHostId),
-      ),
-    [machines.hosts, machines.localHostId],
-  );
-  const filteredHosts = useMemo(
-    () => searchMachineHosts(orderedHosts, searchQuery),
-    [orderedHosts, searchQuery],
-  );
-  const activeHost = contextualActiveHost({
-    machines: { ...machines, hosts: orderedHosts },
-    previewHostId,
-    selectedHostId,
-  });
-
-  return (
-    <>
-      <div
-        ref={machineListRef}
-        data-machine-picker-list=""
-        className="max-h-48 min-h-0 flex-1 overflow-y-auto overscroll-contain"
-      >
-        <CommandGroup heading="Machines">
-          {filteredHosts.map((machineHost) => (
-            <MachineChoiceItem
-              key={machineHost.id}
-              host={machineHost}
-              isThisMachine={machineHost.id === machines.localHostId}
-              active={machineHost.id === activeHost?.id}
-              onSelect={() => {
-                onPreviewHostChange(machineHost.id);
-                onSelectHost?.(machineHost.id);
-              }}
-            />
-          ))}
-          {filteredHosts.length === 0 ? (
-            <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground">
-              No machines found
-            </div>
-          ) : null}
-        </CommandGroup>
-      </div>
-      {activeHost ? (
-        <>
-          <CommandSeparator className="mx-0 shrink-0" />
-          <div className="shrink-0">
-            <MachineSection
-              host={activeHost}
-              isThisMachine={activeHost.id === machines.localHostId}
-              source={
-                findLocalPathProjectSourceForHost(sources, activeHost.id) ??
-                null
-              }
-              now={now}
-              value={value}
-              contextual
-              onRequestMachineSetup={onRequestMachineSetup}
-              environmentProviders={scopedProviders(
-                environmentProviders,
-                providersByHostId,
-                activeHost.id,
-                { value, selectedProviderHostId },
-              )}
-              selectedProviderHostId={selectedProviderHostId}
-              onSelectProvider={onSelectProvider}
-            />
-          </div>
-        </>
-      ) : null}
-    </>
-  );
-}
-
-interface MachineChoiceItemProps {
-  host: Host;
-  isThisMachine: boolean;
-  active: boolean;
-  onSelect: () => void;
-}
-
-function MachineChoiceItem({
-  host,
-  isThisMachine,
-  active,
-  onSelect,
-}: MachineChoiceItemProps) {
-  return (
-    <CommandItem
-      value={`machine:${host.id}`}
-      aria-label={host.name}
-      aria-current={active ? "true" : undefined}
-      onSelect={onSelect}
-      className={cn(
-        "flex items-center gap-3 py-[0.3125rem] text-xs",
-        LIST_HOVER_TRANSITION,
-        active && "font-medium text-foreground",
-      )}
-    >
-      <span
-        data-machine-target-content=""
-        className={cn(MACHINE_TARGET_CONTENT_CLASS_NAME, "items-center")}
-      >
-        <MachineStatusDot
-          connected={host.status === "connected"}
-          className={COARSE_POINTER_DOT_SIZE_CLASS}
-        />
-        <span
-          data-machine-target-icon=""
-          className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
-        >
-          <MachineIcon className="!size-full" />
-        </span>
-        <span className="min-w-0 truncate text-xs">{host.name}</span>
-      </span>
-      {isThisMachine ? (
-        <span className={MACHINE_BADGE_CLASS_NAME}>this machine</span>
-      ) : null}
-      <Icon
-        name="Check"
-        className={cn(
-          COARSE_POINTER_ICON_SIZE_CLASS,
-          "shrink-0",
-          active ? "opacity-100" : "opacity-0",
-        )}
-      />
-    </CommandItem>
-  );
-}
-
-interface MachineSectionProps {
-  host: Host;
-  isThisMachine: boolean;
-  source: ProjectSource | null;
-  now: number;
-  value: string;
-  onRequestMachineSetup: ((host: Host) => void) | undefined;
-  environmentProviders: readonly SystemEnvironmentProvider[];
-  selectedProviderHostId: string | null;
-  contextual?: boolean;
-  onSelectProvider:
-    | ((provider: SystemEnvironmentProvider, hostId: string | null) => void)
-    | undefined;
-}
-
-function MachineSection({
-  host,
-  isThisMachine,
-  source,
-  now,
-  value,
-  onRequestMachineSetup,
-  environmentProviders,
-  selectedProviderHostId,
-  contextual = false,
-  onSelectProvider,
-}: MachineSectionProps) {
-  const connected = host.status === "connected";
-  const hostProviders = environmentProviders;
-  const selectable = connected && host.lifecycle.phase === "active";
-  const statusLabel =
-    !connected && host.lastSeenAt !== null
-      ? `last seen ${formatRelativeTime({ timestamp: host.lastSeenAt, now })}`
-      : null;
-  return (
-    <CommandGroup
-      heading={
-        <span className="flex items-center gap-1.5">
-          {contextual ? null : <MachineStatusDot connected={connected} />}
-          <span className="min-w-0 truncate">
-            {contextual ? `On ${host.name}` : host.name}
-          </span>
-          {!contextual && isThisMachine ? (
-            <span className={MACHINE_BADGE_CLASS_NAME}>this machine</span>
-          ) : null}
-          {statusLabel ? (
-            <span className="ml-auto shrink-0 pl-2 text-2xs">
-              {statusLabel}
-            </span>
-          ) : null}
-        </span>
-      }
-    >
-      {onSelectProvider !== undefined
-        ? hostProviders.map((provider) => {
-            const disabledReason = providerDisabledReason(provider);
-            return (
-              <EnvironmentMenuItem
-                key={provider.id}
-                value={`provider:${host.id}:${provider.id}`}
-                label={provider.displayName}
-                description={
-                  connected ? providerDescription(provider) : undefined
-                }
-                icon={pluginIconName(provider.icon)}
-                provider={provider}
-                selected={
-                  providerValueSelected(value, provider) &&
-                  selectedProviderHostId === host.id
-                }
-                disabled={!selectable || disabledReason !== null}
-                onSelect={() => onSelectProvider(provider, host.id)}
-              />
-            );
-          })
-        : null}
-      {source === null && onRequestMachineSetup && connected ? (
-        <EnvironmentMenuItem
-          value={`setup:${host.id}`}
-          label={`Set up on ${host.name}…`}
-          icon="Plus"
-          selected={false}
-          onSelect={() => onRequestMachineSetup(host)}
-        />
-      ) : source === null && hostProviders.length === 0 ? (
-        <CommandItem
-          value={`not-set-up:${host.id}`}
-          disabled
-          className="whitespace-normal break-words text-xs text-muted-foreground"
-        >
-          Not set up for this project
-        </CommandItem>
-      ) : null}
-    </CommandGroup>
-  );
-}
-
-interface EnvironmentMenuItemProps {
-  value: string;
-  provider?: SystemEnvironmentProvider;
-  label: string;
-  description?: string;
-  icon: IconName;
-  selected: boolean;
-  onSelect: () => void;
-  disabled?: boolean;
 }
 
 function EnvironmentMenuItem({
   value,
-  provider,
   label,
   description,
   icon,
   selected,
   onSelect,
   disabled,
-}: EnvironmentMenuItemProps) {
-  const menuIcon =
-    provider === undefined ? (
-      <Icon
-        name={icon}
-        className={cn(
-          "mt-px text-muted-foreground",
-          COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-        )}
-      />
-    ) : (
-      <EnvironmentProviderIcon
-        provider={provider}
-        className={cn(
-          "mt-px text-muted-foreground",
-          COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-        )}
-      />
-    );
+}: {
+  value: string;
+  label: string;
+  description?: string;
+  icon: React.ReactNode;
+  selected: boolean;
+  onSelect: () => void;
+  disabled?: boolean;
+}) {
   return (
     <CommandItem
       value={value}
       disabled={disabled}
       aria-current={selected ? "true" : undefined}
       onSelect={() => {
-        if (disabled) return;
-        onSelect();
+        if (!disabled) onSelect();
       }}
       className={cn(
         "flex items-start justify-between gap-3 whitespace-normal",
@@ -968,7 +489,7 @@ function EnvironmentMenuItem({
       )}
     >
       <span className="flex min-w-0 flex-1 gap-2 items-start">
-        {menuIcon}
+        {icon}
         <span className="flex min-w-0 flex-col">
           <span className="whitespace-normal break-words text-xs">{label}</span>
           {description ? (
@@ -978,14 +499,7 @@ function EnvironmentMenuItem({
           ) : null}
         </span>
       </span>
-      <Icon
-        name="Check"
-        className={cn(
-          COARSE_POINTER_ICON_SIZE_CLASS,
-          "shrink-0",
-          selected ? "opacity-100" : "opacity-0",
-        )}
-      />
+      <CheckIcon visible={selected} />
     </CommandItem>
   );
 }
