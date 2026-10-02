@@ -8,10 +8,7 @@ import {
   type FilePreview,
   type FilePreviewTarget,
 } from "@bb/client-core";
-import {
-  buildThreadHostFileContentUrl,
-  buildThreadStorageRawContentUrl,
-} from "./file-content-urls";
+import { buildThreadHostFileContentUrl } from "./file-content-urls";
 
 const HTML_DOCUMENT_PATTERN = /<!doctype html|<html[\s>]/i;
 
@@ -188,20 +185,6 @@ export async function loadFilePreview(
     contentBytes: new Uint8Array(await response.arrayBuffer()),
     mimeType: responseMimeType(response),
   });
-}
-
-export async function getThreadStorageFilePreview(
-  id: string,
-  path: string,
-  signal?: AbortSignal,
-): Promise<FilePreview> {
-  return loadFilePreview(
-    {
-      path,
-      url: buildThreadStorageRawContentUrl(id, path),
-    },
-    signal,
-  );
 }
 
 export async function getThreadHostFilePreview(

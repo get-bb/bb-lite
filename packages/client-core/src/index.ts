@@ -41,8 +41,6 @@ export * from "./terminal/terminal-websocket-transport.js";
 export * from "./terminal/terminal-websocket-path.js";
 
 export * from "./file-preview.js";
-export * from "./panel/fixed-panel-tabs-state.js";
-export * from "./panel/secondaryPanelTabState.js";
 export * from "./panel/array-move.js";
 
 export * from "./localhost-link-rewrite.js";

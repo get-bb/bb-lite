@@ -1,14 +1,6 @@
 import { SourceLoadingSkeleton } from "@/components/code/code-loading-skeletons";
-import {
-  type CSSProperties,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { Button } from "@bb/shared-ui/button";
 import {
   DropdownMenu,
@@ -21,12 +13,16 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import BbSourceCode from "@/components/code/BbSourceCode";
+import { hashSourceContents } from "@/components/code/source-code-budget";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CopyButton } from "@/components/ui/copy-button.js";
 import { Icon } from "@bb/shared-ui/icon";
 import { OpenInEditorButton } from "@/components/ui/open-in-editor-button.js";
-import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
+import {
+  useAppCommandHandler,
+  useAppCommandShortcut,
+} from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
 import { MarkdownPreview } from "@/components/ui/markdown-preview.js";
@@ -40,40 +36,31 @@ import {
 import { TruncateStart } from "@/components/ui/truncate-start.js";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import { formatByteSize } from "@/lib/format-byte-size";
-import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
-import type {
-  FilePreviewLineRange,
-  UnsupportedFilePreviewReason,
-  WorkspaceFilePreviewStatusLabel,
+import { asHttpError, getHttpErrorMessage } from "@/lib/http-error";
+import { extractErrorMessage } from "@bb/core-ui";
+import {
+  isMarkdownFilePreview,
+  type FilePreview as FilePreviewData,
+  type FilePreviewLineRange,
+  type WorkspaceFilePreviewStatusLabel,
 } from "@bb/client-core";
 import {
   DEFAULT_CODE_OVERFLOW_MODE,
   type CodeOverflowMode,
-  type CodeOverflowModeChangeHandler,
 } from "@/lib/code-overflow-mode";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { SecondaryPanelSelectionActions } from "./SecondaryPanelSelectionActions.js";
-import { useImageTabLightbox } from "./ImageTabLightboxContext.js";
 
-export interface FilePreviewFile {
-  cacheKey?: string;
+interface FilePreviewFile {
+  cacheKey: string;
   name: string;
   contents: string;
 }
 
-export interface UnsupportedFilePreviewFile {
+interface UnsupportedFilePreviewFile {
   mimeType: string;
   name: string;
-  reason: UnsupportedFilePreviewReason;
-  sizeBytes: number;
-  url: string;
-}
-
-type IframePreviewSandbox = "allow-scripts";
-
-interface IframeFilePreviewTarget {
-  sandbox: IframePreviewSandbox;
-  title: string;
+  isTooLarge: boolean;
+  sizeBytes: number | null;
   url: string;
 }
 
@@ -84,26 +71,13 @@ export type FilePreviewState =
   | { kind: "error"; message?: string }
   | { kind: "unsupported"; file: UnsupportedFilePreviewFile }
   | { kind: "image"; url: string }
-  | { kind: "video"; url: string }
-  | {
-      kind: "html";
-      file: FilePreviewFile;
-      iframe: IframeFilePreviewTarget;
-      lineRange: FilePreviewLineRange | null;
-    }
-  | {
-      kind: "ready";
-      file: FilePreviewFile;
-      lineRange: FilePreviewLineRange | null;
-      textPreviewKind: TextFilePreviewKind | null;
-    };
+  | { kind: "ready"; file: FilePreviewFile; isMarkdown: boolean };
 
 interface FilePreviewProps {
   state: FilePreviewState;
   path: string;
   copyPath?: string | null;
-  headerMode?: FilePreviewHeaderMode;
-  onSelectionAddToChat?: (text: string) => void;
+  lineRange?: FilePreviewLineRange | null;
   onOpenInEditor?: (path: string) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
@@ -111,1120 +85,432 @@ interface FilePreviewProps {
   statusLabel?: WorkspaceFilePreviewStatusLabel | null;
 }
 
-interface FilePreviewBodyProps {
-  iframePreview: ReactNode;
-  state: FilePreviewState;
-  path: string;
-  lineOverflowMode: CodeOverflowMode;
-  viewMode: FilePreviewViewMode;
-  markdownLinkRouting?: MarkdownLinkRouting;
-  onSelectionAddToChat?: (text: string) => void;
-}
-
-interface HtmlFilePreviewBodyProps {
-  iframePreview: ReactNode;
-  lineOverflowMode: CodeOverflowMode;
-  onSelectionAddToChat?: (text: string) => void;
-  state: Extract<FilePreviewState, { kind: "html" }>;
-  viewMode: FilePreviewViewMode;
-}
-
-interface FilePreviewHeaderProps {
-  previewIcon: ReactNode;
-  path: string;
-  copyPath: string | null;
-  rawContents: string | null;
-  externalUrl: string | null;
-  onOpenInEditor?: (path: string) => void;
-  onRefresh?: () => void;
-  isRefreshing: boolean;
-  statusLabel: WorkspaceFilePreviewStatusLabel | null;
-  toggleKind: FilePreviewToggleKind | null;
-  showLineOverflowToggle: boolean;
-  lineOverflowMode: CodeOverflowMode;
-  onLineOverflowModeChange: CodeOverflowModeChangeHandler;
-  viewMode: FilePreviewViewMode;
-  onViewModeChange: (mode: FilePreviewViewMode) => void;
-}
-
-interface FilePreviewLineWrapButtonProps {
-  showLineOverflowToggle: boolean;
-  lineOverflowMode: CodeOverflowMode;
-  onLineOverflowModeChange: CodeOverflowModeChangeHandler;
-}
-
-interface FilePreviewPathProps {
-  path: string;
-  copyPath: string | null;
-}
-
-interface MarkdownFilePreviewProps {
-  file: FilePreviewFile;
-  onSelectionAddToChat?: (text: string) => void;
-  markdownLinkRouting?: MarkdownLinkRouting;
-}
-
-interface CsvFilePreviewProps {
-  file: FilePreviewFile;
-  onSelectionAddToChat?: (text: string) => void;
-}
-
-interface FilePreviewImageProps {
-  url: string;
-  alt: string;
-}
-
-interface FilePreviewVideoProps {
-  url: string;
-  title: string;
-}
-
-interface UnsupportedFilePreviewProps {
-  file: UnsupportedFilePreviewFile;
-}
-
-interface FilePreviewMessageProps {
-  message: string;
-  role?: "alert";
-}
-
-interface FilePreviewCodeProps {
-  file: FilePreviewFile;
-  lineOverflowMode: CodeOverflowMode;
-  lineRange: FilePreviewLineRange | null;
-  onSelectionAddToChat?: (text: string) => void;
-  path: string;
-}
-
-interface GetInitialFilePreviewViewModeArgs {
-  lineRange: FilePreviewLineRange | null;
-  toggleKind: FilePreviewToggleKind | null;
-}
-
-interface CsvPreviewData {
-  columnCount: number;
-  rows: string[][];
-  truncatedColumns: boolean;
-  truncatedRows: boolean;
-}
-
-type FilePreviewViewMode = "preview" | "source";
-export type TextFilePreviewKind = "csv" | "markdown";
-type FilePreviewToggleKind = "csv" | "html" | "markdown";
-type FilePreviewHeaderMode = "file" | "none";
-type IframeLoadState = "loading" | "loaded" | "error";
-
-const CSV_PREVIEW_MAX_COLUMNS = 100;
-const CSV_PREVIEW_MAX_ROWS = 500;
-const CSV_PREVIEW_ROW_HEIGHT_PX = 29;
-const CSV_PREVIEW_OVERSCAN_ROWS = 8;
-
 const FILE_PREVIEW_WRAPPER_STYLE = {
   "--md-content-w": "100cqi",
 } as CSSProperties;
-
-const HTML_FILE_PREVIEW_IFRAME_STYLE = {
-  width: "100%",
-  height: "100%",
-  border: 0,
-} as CSSProperties;
-const IFRAME_LOADING_INDICATOR_DELAY_MS = 160;
-const FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS =
+const LOADING_INDICATOR_DELAY_MS = 160;
+const HEADER_ICON_BUTTON_CLASS =
   "h-5 w-5 rounded-sm p-0 [&_[data-icon-root]]:size-3";
-const FILE_PREVIEW_VIEW_MODE_BUTTON_CLASS =
-  "h-5 rounded-sm px-2 text-muted-foreground";
+const VIEW_MODE_BUTTON_CLASS = "h-5 rounded-sm px-2 text-muted-foreground";
 
-function getFilePreviewExternalUrl(state: FilePreviewState): string | null {
-  if (state.kind === "html") {
-    return state.iframe.url;
+export function resolveFilePreviewState(
+  query: Pick<UseQueryResult<FilePreviewData>, "data" | "error" | "isLoading">,
+  path: string,
+): FilePreviewState {
+  const { data, error } = query;
+  if (error) {
+    const httpError = asHttpError(error);
+    if (httpError?.status === 404) return { kind: "not-found" };
+    const message =
+      httpError === null
+        ? extractErrorMessage(error.message)
+        : getHttpErrorMessage(httpError);
+    return message === null ? { kind: "error" } : { kind: "error", message };
   }
-  return null;
-}
-
-function toAbsolutePreviewUrl(url: string): string {
-  if (typeof window === "undefined") {
-    return url;
+  if (query.isLoading || !data || data.path !== path) {
+    return { kind: "loading" };
   }
-  return new URL(url, window.location.href).toString();
-}
-
-function getFilePreviewToggleKind(
-  state: FilePreviewState,
-): FilePreviewToggleKind | null {
-  if (state.kind === "html") {
-    return "html";
+  const name = data.name ?? path.split("/").at(-1) ?? path;
+  if (data.kind === "image") return { kind: "image", url: data.url };
+  if (data.kind !== "text") {
+    return {
+      kind: "unsupported",
+      file: {
+        mimeType: data.mimeType,
+        name,
+        isTooLarge: data.kind === "unsupported" && data.reason === "too-large",
+        sizeBytes: data.kind === "unsupported" ? data.sizeBytes : null,
+        url: data.url,
+      },
+    };
   }
-  if (state.kind === "ready") {
-    return state.textPreviewKind;
-  }
-  return null;
-}
-
-function getToggleAriaLabel(kind: FilePreviewToggleKind): string {
-  switch (kind) {
-    case "csv":
-      return "CSV view mode";
-    case "html":
-      return "HTML view mode";
-    case "markdown":
-      return "Markdown view mode";
-  }
-}
-
-function getFileContentsCopyLabel(kind: FilePreviewToggleKind | null): string {
-  if (kind === "csv") {
-    return "Copy CSV";
-  }
-  if (kind === "markdown") {
-    return "Copy markdown";
-  }
-  if (kind === "html") {
-    return "Copy HTML source";
-  }
-  return "Copy file contents";
-}
-
-function getLineWrapToggleLabel(lineOverflowMode: CodeOverflowMode): string {
-  return lineOverflowMode === "wrap" ? "Disable line wrap" : "Wrap lines";
-}
-
-function getFilePreviewLineRange(
-  state: FilePreviewState,
-): FilePreviewLineRange | null {
-  if (state.kind === "html" || state.kind === "ready") {
-    return state.lineRange;
-  }
-  return null;
-}
-
-function getRawFilePreviewContents(state: FilePreviewState): string | null {
-  if (state.kind === "html" || state.kind === "ready") {
-    return state.file.contents;
-  }
-  return null;
-}
-
-function getInitialFilePreviewViewMode({
-  lineRange,
-  toggleKind,
-}: GetInitialFilePreviewViewModeArgs): FilePreviewViewMode {
-  if (
-    toggleKind === "csv" ||
-    toggleKind === "html" ||
-    toggleKind === "markdown"
-  ) {
-    return "preview";
-  }
-  return lineRange === null ? "preview" : "source";
-}
-
-function usesCodeViewLayout(
-  state: FilePreviewState,
-  viewMode: FilePreviewViewMode,
-): boolean {
-  if (state.kind === "html") {
-    return viewMode === "source";
-  }
-
-  if (state.kind !== "ready") {
-    return false;
-  }
-
-  return state.textPreviewKind === null || viewMode === "source";
-}
-
-interface ParsedCsvRows {
-  rows: string[][];
-  truncatedRows: boolean;
-}
-
-function parseCsvRows(contents: string, maxRows: number): ParsedCsvRows {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-  let quotedField = false;
-  let endedWithLineBreak = false;
-
-  for (let index = 0; index < contents.length; index += 1) {
-    const character = contents[index];
-    endedWithLineBreak = false;
-
-    if (inQuotes) {
-      if (character === '"') {
-        if (contents[index + 1] === '"') {
-          field += '"';
-          index += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += character;
-      }
-      continue;
-    }
-
-    if (character === '"' && field.length === 0) {
-      inQuotes = true;
-      quotedField = true;
-      continue;
-    }
-
-    if (character === ",") {
-      row.push(field);
-      field = "";
-      quotedField = false;
-      continue;
-    }
-
-    if (character === "\n" || character === "\r") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      quotedField = false;
-      endedWithLineBreak = true;
-      if (character === "\r" && contents[index + 1] === "\n") {
-        index += 1;
-      }
-      if (rows.length >= maxRows) {
-        return { rows, truncatedRows: index + 1 < contents.length };
-      }
-      continue;
-    }
-
-    field += character;
-  }
-
-  if (
-    field.length > 0 ||
-    row.length > 0 ||
-    quotedField ||
-    !endedWithLineBreak
-  ) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  return { rows, truncatedRows: false };
-}
-
-export function buildCsvPreviewData(contents: string): CsvPreviewData {
-  const { rows, truncatedRows } = parseCsvRows(
-    contents,
-    CSV_PREVIEW_MAX_ROWS + 1,
-  );
-  const columnCount = rows.reduce(
-    (maximum, row) => Math.max(maximum, row.length),
-    0,
-  );
-
+  if (data.content.length === 0) return { kind: "empty" };
   return {
-    columnCount: Math.min(columnCount, CSV_PREVIEW_MAX_COLUMNS),
-    rows,
-    truncatedColumns: columnCount > CSV_PREVIEW_MAX_COLUMNS,
-    truncatedRows,
+    kind: "ready",
+    isMarkdown: isMarkdownFilePreview(data),
+    file: {
+      cacheKey: [
+        "file-preview",
+        data.url,
+        data.path,
+        data.name ?? path,
+        data.mimeType,
+        hashSourceContents(data.content),
+      ].join(":"),
+      name: data.name ?? path,
+      contents: data.content,
+    },
   };
-}
-
-export function getCsvTruncationNote(
-  preview: CsvPreviewData,
-  dataRowCount: number,
-): string | null {
-  const limits: string[] = [];
-  if (preview.truncatedRows) {
-    limits.push(`${dataRowCount.toLocaleString()} rows`);
-  }
-  if (preview.truncatedColumns) {
-    limits.push(`${preview.columnCount.toLocaleString()} columns`);
-  }
-  if (limits.length === 0) {
-    return null;
-  }
-  return `Showing the first ${limits.join(" and ")}.`;
 }
 
 export function FilePreview({
   state,
   path,
   copyPath = null,
-  headerMode = "file",
-  onSelectionAddToChat,
+  lineRange = null,
   onOpenInEditor,
   onRefresh,
   isRefreshing = false,
   markdownLinkRouting,
   statusLabel = null,
 }: FilePreviewProps) {
-  const iframeTarget = state.kind === "html" ? state.iframe : null;
-  const iframeKey = JSON.stringify([
-    state.kind,
-    iframeTarget?.url,
-    state.kind === "html" ? state.file.cacheKey : null,
-  ]);
-  const [iframeLoad, setIframeLoad] = useState<{
-    key: string;
-    status: IframeLoadState;
-  }>({
-    key: iframeKey,
-    status: "loading",
-  });
-  if (iframeLoad.key !== iframeKey) {
-    setIframeLoad({ key: iframeKey, status: "loading" });
-  }
-  const iframeLoadState =
-    iframeLoad.key === iframeKey ? iframeLoad.status : "loading";
-  const iframePreview =
-    iframeTarget === null ? null : (
-      <IframeFilePreview
-        key={iframeKey}
-        {...iframeTarget}
-        loadState={iframeLoadState}
-        onLoadStateChange={(status) =>
-          setIframeLoad((current) =>
-            current.key === iframeKey ? { key: iframeKey, status } : current,
-          )
-        }
-      />
-    );
-  const toggleKind = getFilePreviewToggleKind(state);
-  const filePreviewLineRange = getFilePreviewLineRange(state);
-  const rawContents = getRawFilePreviewContents(state);
-  const externalUrl = getFilePreviewExternalUrl(state);
-  const [viewMode, setViewMode] = useState<FilePreviewViewMode>(
-    getInitialFilePreviewViewMode({
-      lineRange: filePreviewLineRange,
-      toggleKind,
-    }),
-  );
+  const isMarkdown = state.kind === "ready" && state.isMarkdown;
+  const [isRaw, setIsRaw] = useState(false);
   const [lineOverflowMode, setLineOverflowMode] = useState<CodeOverflowMode>(
     DEFAULT_CODE_OVERFLOW_MODE,
   );
   useEffect(() => {
-    setViewMode(
-      getInitialFilePreviewViewMode({
-        lineRange: filePreviewLineRange,
-        toggleKind,
-      }),
-    );
-  }, [filePreviewLineRange, path, toggleKind]);
-
-  const usesIframeLayout = state.kind === "html" && viewMode === "preview";
-  const bodyViewMode: FilePreviewViewMode =
-    toggleKind === null ? "preview" : viewMode;
-  const usesCodeLayout = usesCodeViewLayout(state, bodyViewMode);
-  const showLineOverflowToggle = usesCodeLayout;
-  const usesMarkdownPreviewLayout =
-    state.kind === "ready" &&
-    state.textPreviewKind === "markdown" &&
-    bodyViewMode === "preview";
-  const usesCsvPreviewLayout =
-    state.kind === "ready" &&
-    state.textPreviewKind === "csv" &&
-    bodyViewMode === "preview";
-  const usesFullHeightLayout =
-    usesIframeLayout || usesCsvPreviewLayout || usesCodeLayout;
-  const usesContentHeightLayout = usesMarkdownPreviewLayout;
+    setIsRaw(false);
+  }, [lineRange, path, isMarkdown]);
+  const showsCode = state.kind === "ready" && (!isMarkdown || isRaw);
+  const highlightedLines = useMemo(
+    () =>
+      lineRange === null
+        ? null
+        : { start: lineRange.startLineNumber, end: lineRange.endLineNumber },
+    [lineRange],
+  );
+  useAppCommandHandler(
+    "workspace.openPreferred",
+    () => {
+      onOpenInEditor?.(path);
+      return onOpenInEditor !== undefined;
+    },
+    1,
+  );
 
   return (
     <div
       className={
-        usesFullHeightLayout
+        showsCode
           ? "@container/page flex h-full min-h-0 flex-col"
-          : usesContentHeightLayout
+          : isMarkdown
             ? "@container/page flex min-h-full flex-col"
             : "@container/page min-h-full"
       }
       style={FILE_PREVIEW_WRAPPER_STYLE}
     >
-      {headerMode === "file" ? (
-        <FilePreviewHeader
-          previewIcon={
-            <FilePreviewIcon
-              key={path}
-              loading={
-                state.kind === "loading" ||
-                isRefreshing ||
-                (usesIframeLayout && iframeLoadState === "loading")
-              }
-            />
-          }
-          path={path}
-          copyPath={copyPath}
-          rawContents={rawContents}
-          externalUrl={externalUrl}
-          onOpenInEditor={onOpenInEditor}
-          onRefresh={onRefresh}
-          isRefreshing={isRefreshing}
-          statusLabel={statusLabel}
-          toggleKind={toggleKind}
-          showLineOverflowToggle={showLineOverflowToggle}
-          lineOverflowMode={lineOverflowMode}
-          onLineOverflowModeChange={setLineOverflowMode}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-      ) : null}
-      <FilePreviewBody
-        iframePreview={iframePreview}
-        state={state}
+      <FilePreviewHeader
+        isLoading={state.kind === "loading" || isRefreshing}
         path={path}
+        copyPath={copyPath}
+        rawContents={state.kind === "ready" ? state.file.contents : null}
+        onOpenInEditor={onOpenInEditor}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
+        statusLabel={statusLabel}
+        isMarkdown={isMarkdown}
+        showLineOverflowToggle={showsCode}
         lineOverflowMode={lineOverflowMode}
-        viewMode={bodyViewMode}
-        markdownLinkRouting={markdownLinkRouting}
-        onSelectionAddToChat={onSelectionAddToChat}
+        onLineOverflowModeChange={setLineOverflowMode}
+        isRaw={isRaw}
+        onRawChange={setIsRaw}
       />
+      {state.kind === "loading" ? (
+        <SourceLoadingSkeleton />
+      ) : state.kind === "empty" ? (
+        <FilePreviewMessage message="Empty file." />
+      ) : state.kind === "not-found" ? (
+        <FilePreviewMessage message="File not found." role="alert" />
+      ) : state.kind === "error" ? (
+        <FilePreviewMessage
+          message={state.message ?? "Failed to load file"}
+          role="alert"
+        />
+      ) : state.kind === "unsupported" ? (
+        <UnsupportedFilePreview file={state.file} />
+      ) : state.kind === "image" ? (
+        <FilePreviewImage url={state.url} alt={path} />
+      ) : showsCode ? (
+        <BbSourceCode
+          content={state.file.contents}
+          path={path}
+          cacheKey={state.file.cacheKey}
+          overflow={lineOverflowMode}
+          highlightedLines={highlightedLines}
+        />
+      ) : (
+        <div className="flex-auto bg-background px-4 py-4">
+          <MarkdownPreview
+            allowHtml
+            content={state.file.contents}
+            linkRouting={markdownLinkRouting}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-function FilePreviewBody({
-  iframePreview,
-  state,
-  path,
-  lineOverflowMode,
-  viewMode,
-  markdownLinkRouting,
-  onSelectionAddToChat,
-}: FilePreviewBodyProps) {
-  if (state.kind === "loading") {
-    return <SourceLoadingSkeleton />;
-  }
-  if (state.kind === "empty") {
-    return <FilePreviewMessage message="Empty file." />;
-  }
-  if (state.kind === "not-found") {
-    return <FilePreviewMessage message="File not found." role="alert" />;
-  }
-  if (state.kind === "error") {
-    return (
-      <FilePreviewMessage
-        message={state.message ?? "Failed to load file"}
-        role="alert"
-      />
-    );
-  }
-  if (state.kind === "unsupported") {
-    return <UnsupportedFilePreview file={state.file} />;
-  }
-  if (state.kind === "image") {
-    return <FilePreviewImage url={state.url} alt={path} />;
-  }
-  if (state.kind === "video") {
-    return <FilePreviewVideo url={state.url} title={path} />;
-  }
-  if (state.kind === "html") {
-    return (
-      <HtmlFilePreviewBody
-        iframePreview={iframePreview}
-        lineOverflowMode={lineOverflowMode}
-        onSelectionAddToChat={onSelectionAddToChat}
-        state={state}
-        viewMode={viewMode}
-      />
-    );
-  }
-  if (state.textPreviewKind === "csv" && viewMode === "preview") {
-    return (
-      <CsvFilePreview
-        file={state.file}
-        onSelectionAddToChat={onSelectionAddToChat}
-      />
-    );
-  }
-  if (state.textPreviewKind === "markdown" && viewMode === "preview") {
-    return (
-      <MarkdownFilePreview
-        file={state.file}
-        markdownLinkRouting={markdownLinkRouting}
-        onSelectionAddToChat={onSelectionAddToChat}
-      />
-    );
-  }
-  return (
-    <FilePreviewCode
-      file={state.file}
-      lineOverflowMode={lineOverflowMode}
-      lineRange={state.lineRange ?? null}
-      onSelectionAddToChat={onSelectionAddToChat}
-      path={path}
-    />
-  );
+interface FilePreviewHeaderProps {
+  isLoading: boolean;
+  path: string;
+  copyPath: string | null;
+  rawContents: string | null;
+  onOpenInEditor?: (path: string) => void;
+  onRefresh?: () => void;
+  isRefreshing: boolean;
+  statusLabel: WorkspaceFilePreviewStatusLabel | null;
+  isMarkdown: boolean;
+  showLineOverflowToggle: boolean;
+  lineOverflowMode: CodeOverflowMode;
+  onLineOverflowModeChange: (mode: CodeOverflowMode) => void;
+  isRaw: boolean;
+  onRawChange: (isRaw: boolean) => void;
 }
 
 function FilePreviewHeader({
-  previewIcon,
+  isLoading,
   path,
   copyPath,
   rawContents,
-  externalUrl,
   onOpenInEditor,
   onRefresh,
   isRefreshing,
   statusLabel,
-  toggleKind,
+  isMarkdown,
   showLineOverflowToggle,
   lineOverflowMode,
   onLineOverflowModeChange,
-  viewMode,
-  onViewModeChange,
+  isRaw,
+  onRawChange,
 }: FilePreviewHeaderProps) {
   const openShortcut = useAppCommandShortcut("workspace.openPreferred");
   const { ref: headerRef, width } = useElementWidth();
   const isNarrow = width > 0 && width < 560;
-  const showHeaderControls = showLineOverflowToggle || toggleKind !== null;
-  const copyFileContentsLabel = getFileContentsCopyLabel(toggleKind);
+  const copyContentsLabel = isMarkdown ? "Copy markdown" : "Copy file contents";
+  const refreshLabel = isRefreshing ? "Refreshing file" : "Refresh file";
+  const openLabel = openShortcut
+    ? `Open in editor (${openShortcut.label})`
+    : "Open in editor";
+  const wrapLabel =
+    lineOverflowMode === "wrap" ? "Disable line wrap" : "Wrap lines";
+  const copyPathToClipboard = () => {
+    void copyToClipboardWithToast(copyPath ?? path, {
+      successMessage: "File path copied",
+      errorMessage: "Failed to copy file path",
+    });
+  };
+  const viewModeButton = (label: string, raw: boolean) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(VIEW_MODE_BUTTON_CLASS, COARSE_POINTER_TEXT_SM_CLASS)}
+      onClick={() => onRawChange(raw)}
+      aria-pressed={isRaw === raw}
+    >
+      {label}
+    </Button>
+  );
 
   return (
     <div ref={headerRef} className="sticky top-0 z-10 bg-sidebar">
-      <div
-        className={cn(
-          "flex items-center gap-2 bg-surface-raised",
-          isNarrow ? "h-12 px-3" : "h-9 px-4",
-        )}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {previewIcon}
-          <FilePreviewPath path={path} copyPath={copyPath} />
-          {statusLabel === null ? null : (
-            <span
-              className={cn(
-                "shrink-0 leading-5 text-muted-foreground",
-                COARSE_POINTER_TEXT_SM_CLASS,
-              )}
-            >
-              ({statusLabel})
-            </span>
+      <TooltipProvider delayDuration={300}>
+        <div
+          className={cn(
+            "flex items-center gap-2 bg-surface-raised",
+            isNarrow ? "h-12 px-3" : "h-9 px-4",
           )}
-          {!isNarrow ? (
-            <TooltipProvider delayDuration={300}>
-              {onRefresh ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS,
-                        "shrink-0 text-muted-foreground hover:bg-state-hover hover:text-foreground",
-                      )}
-                      onClick={onRefresh}
-                      disabled={isRefreshing}
-                      aria-label={
-                        isRefreshing ? "Refreshing file" : "Refresh file"
-                      }
-                    >
-                      <Icon name="RotateCcw" aria-hidden />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {isRefreshing ? "Refreshing file" : "Refresh file"}
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-              {rawContents === null ? null : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <CopyButton
-                      text={rawContents}
-                      label={copyFileContentsLabel}
-                      className={cn(
-                        FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS,
-                        "shrink-0 rounded-md hover:bg-state-hover hover:text-foreground",
-                      )}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {copyFileContentsLabel}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {externalUrl === null ? null : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS,
-                        "shrink-0 text-muted-foreground hover:bg-state-hover hover:text-foreground",
-                      )}
-                      onClick={() => {
-                        openUrlInExternalBrowser(
-                          toAbsolutePreviewUrl(externalUrl),
-                        );
-                      }}
-                      aria-label="Open in external browser"
-                    >
-                      <Icon name="Globe" aria-hidden />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Open in external browser
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {onOpenInEditor ? (
-                <>
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <FilePreviewIcon key={path} loading={isLoading} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "min-w-0 font-mono font-medium leading-5 text-file-accent",
+                    COARSE_POINTER_TEXT_SM_CLASS,
+                    "cursor-pointer rounded-sm text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  )}
+                  aria-label="Copy file path"
+                  onClick={copyPathToClipboard}
+                >
+                  <TruncateStart>{path}</TruncateStart>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy file path</TooltipContent>
+            </Tooltip>
+            {statusLabel === null ? null : (
+              <span
+                className={cn(
+                  "shrink-0 leading-5 text-muted-foreground",
+                  COARSE_POINTER_TEXT_SM_CLASS,
+                )}
+              >
+                ({statusLabel})
+              </span>
+            )}
+            {isNarrow ? null : (
+              <>
+                {onRefresh ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <OpenInEditorButton
-                        onClick={() => onOpenInEditor(path)}
-                        className={FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS}
-                        label={
-                          openShortcut
-                            ? `Open in editor (${openShortcut.label})`
-                            : "Open in editor"
-                        }
-                        aria-keyshortcuts={openShortcut?.ariaKeyshortcuts}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          HEADER_ICON_BUTTON_CLASS,
+                          "shrink-0 text-muted-foreground hover:bg-state-hover hover:text-foreground",
+                        )}
+                        onClick={onRefresh}
+                        disabled={isRefreshing}
+                        aria-label={refreshLabel}
+                      >
+                        <Icon name="RotateCcw" aria-hidden />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      {refreshLabel}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+                {rawContents === null ? null : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CopyButton
+                        text={rawContents}
+                        label={copyContentsLabel}
+                        className={cn(
+                          HEADER_ICON_BUTTON_CLASS,
+                          "shrink-0 rounded-md hover:bg-state-hover hover:text-foreground",
+                        )}
                       />
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                      {openShortcut
-                        ? `Open in editor (${openShortcut.label})`
-                        : "Open in editor"}
+                      {copyContentsLabel}
                     </TooltipContent>
                   </Tooltip>
-                  <AppCommandShortcutHint shortcut={openShortcut} />
-                </>
-              ) : null}
-            </TooltipProvider>
-          ) : null}
-        </div>
-        {showHeaderControls || isNarrow ? (
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <FilePreviewLineWrapButton
-              showLineOverflowToggle={showLineOverflowToggle && !isNarrow}
-              lineOverflowMode={lineOverflowMode}
-              onLineOverflowModeChange={onLineOverflowModeChange}
-            />
-            {toggleKind !== null ? (
-              <div
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
-                role="tablist"
-                aria-label={getToggleAriaLabel(toggleKind)}
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    FILE_PREVIEW_VIEW_MODE_BUTTON_CLASS,
-                    COARSE_POINTER_TEXT_SM_CLASS,
-                  )}
-                  onClick={() => onViewModeChange("preview")}
-                  aria-pressed={viewMode === "preview"}
-                >
-                  Preview
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    FILE_PREVIEW_VIEW_MODE_BUTTON_CLASS,
-                    COARSE_POINTER_TEXT_SM_CLASS,
-                  )}
-                  onClick={() => onViewModeChange("source")}
-                  aria-pressed={viewMode === "source"}
-                >
-                  Raw
-                </Button>
-              </div>
-            ) : null}
-            {isNarrow ? (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-10 shrink-0 [&_[data-icon-root]]:size-5"
-                    aria-label="File actions"
-                  >
-                    <Icon name="MoreHorizontal" aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="[&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-sm [&_[role=menuitemcheckbox]]:min-h-11 [&_[role=menuitemcheckbox]]:text-sm"
-                >
-                  <DropdownMenuLabel className="max-w-80 break-all font-mono">
-                    {path}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      void copyToClipboardWithToast(copyPath ?? path, {
-                        successMessage: "File path copied",
-                        errorMessage: "Failed to copy file path",
-                      });
-                    }}
-                  >
-                    <Icon name="Copy" aria-hidden /> Copy file path
-                  </DropdownMenuItem>
-                  {rawContents !== null ? (
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        void copyToClipboardWithToast(rawContents, {
-                          successMessage: "Copied to clipboard",
-                          errorMessage: "Failed to copy file contents",
-                        });
-                      }}
-                    >
-                      <Icon name="Copy" aria-hidden /> {copyFileContentsLabel}
-                    </DropdownMenuItem>
-                  ) : null}
-                  {onRefresh ? (
-                    <DropdownMenuItem
-                      disabled={isRefreshing}
-                      onSelect={onRefresh}
-                    >
-                      <Icon name="RotateCcw" aria-hidden />{" "}
-                      {isRefreshing ? "Refreshing file" : "Refresh file"}
-                    </DropdownMenuItem>
-                  ) : null}
-                  {externalUrl !== null ? (
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        openUrlInExternalBrowser(
-                          toAbsolutePreviewUrl(externalUrl),
+                )}
+                {onOpenInEditor ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <OpenInEditorButton
+                          onClick={() => onOpenInEditor(path)}
+                          className={HEADER_ICON_BUTTON_CLASS}
+                          label={openLabel}
+                          aria-keyshortcuts={openShortcut?.ariaKeyshortcuts}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{openLabel}</TooltipContent>
+                    </Tooltip>
+                    <AppCommandShortcutHint shortcut={openShortcut} />
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
+          {showLineOverflowToggle || isMarkdown || isNarrow ? (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {showLineOverflowToggle && !isNarrow ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        HEADER_ICON_BUTTON_CLASS,
+                        "text-muted-foreground",
+                      )}
+                      aria-label={wrapLabel}
+                      aria-pressed={lineOverflowMode === "wrap"}
+                      onClick={() =>
+                        onLineOverflowModeChange(
+                          lineOverflowMode === "wrap" ? "scroll" : "wrap",
                         )
                       }
                     >
-                      <Icon name="Globe" aria-hidden /> Open in external browser
-                    </DropdownMenuItem>
-                  ) : null}
-                  {onOpenInEditor ? (
-                    <DropdownMenuItem onSelect={() => onOpenInEditor(path)}>
-                      <Icon name="ExternalLink" aria-hidden /> Open in editor
-                    </DropdownMenuItem>
-                  ) : null}
-                  {showLineOverflowToggle ? (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuCheckboxItem
-                        className="gap-2 [&>[data-icon-root]]:size-4 [&>[data-icon-root]]:shrink-0"
-                        checked={lineOverflowMode === "wrap"}
-                        onCheckedChange={(checked) =>
-                          onLineOverflowModeChange(checked ? "wrap" : "scroll")
-                        }
-                      >
-                        <Icon name="TextWrap" aria-hidden /> Wrap lines
-                      </DropdownMenuCheckboxItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function FilePreviewPath({ path, copyPath }: FilePreviewPathProps) {
-  const copyTarget = copyPath ?? path;
-  const label = "Copy file path";
-  const className = cn(
-    "min-w-0 font-mono font-medium leading-5 text-file-accent",
-    COARSE_POINTER_TEXT_SM_CLASS,
-  );
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              className,
-              "cursor-pointer rounded-sm text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-            )}
-            aria-label={label}
-            onClick={() => {
-              void copyToClipboardWithToast(copyTarget, {
-                successMessage: "File path copied",
-                errorMessage: "Failed to copy file path",
-              });
-            }}
-          >
-            <TruncateStart>{path}</TruncateStart>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
-function FilePreviewLineWrapButton({
-  showLineOverflowToggle,
-  lineOverflowMode,
-  onLineOverflowModeChange,
-}: FilePreviewLineWrapButtonProps) {
-  if (!showLineOverflowToggle) {
-    return null;
-  }
-
-  const label = getLineWrapToggleLabel(lineOverflowMode);
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(
-              FILE_PREVIEW_HEADER_ICON_BUTTON_CLASS,
-              "text-muted-foreground",
-            )}
-            aria-label={label}
-            aria-pressed={lineOverflowMode === "wrap"}
-            onClick={() => {
-              onLineOverflowModeChange(
-                lineOverflowMode === "wrap" ? "scroll" : "wrap",
-              );
-            }}
-          >
-            <Icon name="TextWrap" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
-function HtmlFilePreviewBody({
-  iframePreview,
-  lineOverflowMode,
-  onSelectionAddToChat,
-  state,
-  viewMode,
-}: HtmlFilePreviewBodyProps) {
-  const isPreviewVisible = viewMode === "preview";
-  return (
-    <>
-      <div
-        className={isPreviewVisible ? "contents" : "hidden"}
-        aria-hidden={isPreviewVisible ? undefined : true}
-      >
-        {iframePreview}
-      </div>
-      <div
-        className={isPreviewVisible ? "hidden" : "contents"}
-        aria-hidden={isPreviewVisible ? true : undefined}
-      >
-        <FilePreviewCode
-          file={state.file}
-          lineOverflowMode={lineOverflowMode}
-          lineRange={state.lineRange}
-          onSelectionAddToChat={onSelectionAddToChat}
-          path={state.file.name}
-        />
-      </div>
-    </>
-  );
-}
-
-function MarkdownFilePreview({
-  file,
-  onSelectionAddToChat,
-  markdownLinkRouting,
-}: MarkdownFilePreviewProps) {
-  return (
-    <SecondaryPanelSelectionActions onSelectionAddToChat={onSelectionAddToChat}>
-      <div className="flex-auto bg-background px-4 py-4">
-        <MarkdownPreview
-          allowHtml
-          content={file.contents}
-          linkRouting={markdownLinkRouting}
-        />
-      </div>
-    </SecondaryPanelSelectionActions>
-  );
-}
-
-function CsvFilePreview({ file, onSelectionAddToChat }: CsvFilePreviewProps) {
-  const preview = useMemo(
-    () => buildCsvPreviewData(file.contents),
-    [file.contents],
-  );
-  const headerRow = preview.rows[0] ?? [];
-  const bodyRows = preview.rows.slice(1);
-  const columns = Array.from({ length: preview.columnCount }, (_, index) => ({
-    index,
-    label: headerRow[index] ?? "",
-  }));
-  const tableWidth = `max(100%, ${3 + columns.length * 18}rem)`;
-  const truncationNote = getCsvTruncationNote(preview, bodyRows.length);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const rowVirtualizer = useVirtualizer({
-    count: bodyRows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => CSV_PREVIEW_ROW_HEIGHT_PX,
-    overscan: CSV_PREVIEW_OVERSCAN_ROWS,
-  });
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const totalRowsHeight = rowVirtualizer.getTotalSize();
-  const firstVirtualRow = virtualRows[0];
-  const lastVirtualRow = virtualRows[virtualRows.length - 1];
-  const spacerTopHeight = firstVirtualRow?.start ?? 0;
-  const spacerBottomHeight =
-    lastVirtualRow === undefined
-      ? totalRowsHeight
-      : totalRowsHeight - lastVirtualRow.end;
-
-  return (
-    <SecondaryPanelSelectionActions onSelectionAddToChat={onSelectionAddToChat}>
-      <div className="flex min-h-0 flex-auto flex-col bg-surface-raised px-4 py-4">
-        <div
-          ref={scrollRef}
-          className="persistent-scrollbar min-h-0 overflow-auto overscroll-contain rounded-md border border-border bg-background"
-        >
-          <table
-            className="min-w-full table-fixed border-separate border-spacing-0 font-mono text-xs leading-5"
-            aria-label={`${file.name} CSV preview`}
-            style={{ width: tableWidth }}
-          >
-            <colgroup>
-              <col className="w-12" />
-              {columns.map((column) => (
-                <col key={column.index} className="w-72" />
-              ))}
-            </colgroup>
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  className="sticky left-0 top-0 z-30 w-12 min-w-12 border-b border-r border-border bg-surface-recessed-solid px-2 py-1 text-right font-medium text-muted-foreground"
+                      <Icon name="TextWrap" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{wrapLabel}</TooltipContent>
+                </Tooltip>
+              ) : null}
+              {isMarkdown ? (
+                <div
+                  className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
+                  role="tablist"
+                  aria-label="Markdown view mode"
                 >
-                  #
-                </th>
-                {columns.map((column) => (
-                  <th
-                    key={column.index}
-                    scope="col"
-                    className="sticky top-0 z-20 w-72 max-w-72 border-b border-r border-border bg-surface-recessed-solid px-2 py-1 text-left font-medium text-foreground"
-                    title={column.label}
-                  >
-                    <span className="block max-w-full truncate">
-                      {column.label || `Column ${column.index + 1}`}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {spacerTopHeight > 0 ? (
-                <tr aria-hidden style={{ height: spacerTopHeight }}>
-                  <td colSpan={columns.length + 1} className="p-0" />
-                </tr>
+                  {viewModeButton("Preview", false)}
+                  {viewModeButton("Raw", true)}
+                </div>
               ) : null}
-              {virtualRows.map((virtualRow) => {
-                const rowIndex = virtualRow.index;
-                const row = bodyRows[rowIndex] ?? [];
-                return (
-                  <tr
-                    key={virtualRow.key}
-                    data-index={rowIndex}
-                    ref={rowVirtualizer.measureElement}
-                  >
-                    <th
-                      scope="row"
-                      className="sticky left-0 z-10 w-12 min-w-12 border-b border-r border-border bg-surface-recessed-solid px-2 py-1 text-right font-medium text-muted-foreground"
+              {isNarrow ? (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-10 shrink-0 [&_[data-icon-root]]:size-5"
+                      aria-label="File actions"
                     >
-                      {rowIndex + 2}
-                    </th>
-                    {columns.map((column) => {
-                      const cell = row[column.index] ?? "";
-                      return (
-                        <td
-                          key={column.index}
-                          className="w-72 max-w-72 overflow-hidden border-b border-r border-border px-2 py-1 align-top text-foreground"
-                          title={cell}
+                      <Icon name="MoreHorizontal" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="[&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-sm [&_[role=menuitemcheckbox]]:min-h-11 [&_[role=menuitemcheckbox]]:text-sm"
+                  >
+                    <DropdownMenuLabel className="max-w-80 break-all font-mono">
+                      {path}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={copyPathToClipboard}>
+                      <Icon name="Copy" aria-hidden /> Copy file path
+                    </DropdownMenuItem>
+                    {rawContents !== null ? (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          void copyToClipboardWithToast(rawContents, {
+                            successMessage: "Copied to clipboard",
+                            errorMessage: "Failed to copy file contents",
+                          });
+                        }}
+                      >
+                        <Icon name="Copy" aria-hidden /> {copyContentsLabel}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {onRefresh ? (
+                      <DropdownMenuItem
+                        disabled={isRefreshing}
+                        onSelect={onRefresh}
+                      >
+                        <Icon name="RotateCcw" aria-hidden /> {refreshLabel}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {onOpenInEditor ? (
+                      <DropdownMenuItem onSelect={() => onOpenInEditor(path)}>
+                        <Icon name="ExternalLink" aria-hidden /> Open in editor
+                      </DropdownMenuItem>
+                    ) : null}
+                    {showLineOverflowToggle ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuCheckboxItem
+                          className="gap-2 [&>[data-icon-root]]:size-4 [&>[data-icon-root]]:shrink-0"
+                          checked={lineOverflowMode === "wrap"}
+                          onCheckedChange={(checked) =>
+                            onLineOverflowModeChange(
+                              checked ? "wrap" : "scroll",
+                            )
+                          }
                         >
-                          <span className="block max-w-full truncate">
-                            {cell}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-              {spacerBottomHeight > 0 ? (
-                <tr aria-hidden style={{ height: spacerBottomHeight }}>
-                  <td colSpan={columns.length + 1} className="p-0" />
-                </tr>
+                          <Icon name="TextWrap" aria-hidden /> Wrap lines
+                        </DropdownMenuCheckboxItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
-            </tbody>
-          </table>
+            </div>
+          ) : null}
         </div>
-        {truncationNote === null ? null : (
-          <p className="mt-2 shrink-0 text-xs leading-5 text-muted-foreground">
-            {truncationNote}
-          </p>
-        )}
-      </div>
-    </SecondaryPanelSelectionActions>
-  );
-}
-
-function FilePreviewImage({ url, alt }: FilePreviewImageProps) {
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const imageTabLightbox = useImageTabLightbox();
-
-  useLayoutEffect(() => {
-    if (imageTabLightbox?.isOpen) {
-      imageTabLightbox.update({ alt, src: url });
-    }
-  }, [alt, imageTabLightbox, url]);
-
-  return (
-    <div className="pt-4">
-      <button
-        type="button"
-        className="block w-full cursor-zoom-in"
-        aria-label={`Open ${alt} in full screen preview`}
-        onClick={() => {
-          if (imageTabLightbox) {
-            imageTabLightbox.open({ alt, src: url });
-            return;
-          }
-          setIsLightboxOpen(true);
-        }}
-      >
-        <img src={url} alt={alt} className="mx-auto block h-auto max-w-full" />
-      </button>
-      {imageTabLightbox === null ? (
-        <ImageLightbox
-          title={alt}
-          imageSrc={isLightboxOpen ? url : null}
-          imageAlt={alt}
-          onClose={() => setIsLightboxOpen(false)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function FilePreviewVideo({ url, title }: FilePreviewVideoProps) {
-  return (
-    <div className="pt-4">
-      <video
-        src={url}
-        title={title}
-        className="block max-h-[34rem] w-full bg-black"
-        controls
-        preload="metadata"
-      />
+      </TooltipProvider>
     </div>
   );
 }
@@ -1238,7 +524,7 @@ function FilePreviewIcon({ loading }: { loading: boolean }) {
     }
     const timeout = window.setTimeout(
       () => setShowLoading(true),
-      IFRAME_LOADING_INDICATOR_DELAY_MS,
+      LOADING_INDICATOR_DELAY_MS,
     );
     return () => window.clearTimeout(timeout);
   }, [loading]);
@@ -1262,42 +548,33 @@ function FilePreviewIcon({ loading }: { loading: boolean }) {
   );
 }
 
-function IframeFilePreview({
-  sandbox,
-  title,
-  url,
-  loadState,
-  onLoadStateChange,
-}: IframeFilePreviewTarget & {
-  loadState: IframeLoadState;
-  onLoadStateChange: (state: IframeLoadState) => void;
-}) {
-  if (loadState === "error") {
-    return (
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <FilePreviewMessage
-          message="Failed to load HTML preview."
-          role="alert"
-        />
-      </div>
-    );
-  }
-
+function FilePreviewImage({ url, alt }: { url: string; alt: string }) {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   return (
-    <div className="min-h-0 flex-1 overflow-hidden">
-      <iframe
-        title={title}
-        src={url}
-        sandbox={sandbox}
-        style={HTML_FILE_PREVIEW_IFRAME_STYLE}
-        onLoad={() => onLoadStateChange("loaded")}
-        onError={() => onLoadStateChange("error")}
+    <div className="pt-4">
+      <button
+        type="button"
+        className="block w-full cursor-zoom-in"
+        aria-label={`Open ${alt} in full screen preview`}
+        onClick={() => setIsLightboxOpen(true)}
+      >
+        <img src={url} alt={alt} className="mx-auto block h-auto max-w-full" />
+      </button>
+      <ImageLightbox
+        title={alt}
+        imageSrc={isLightboxOpen ? url : null}
+        imageAlt={alt}
+        onClose={() => setIsLightboxOpen(false)}
       />
     </div>
   );
 }
 
-function UnsupportedFilePreview({ file }: UnsupportedFilePreviewProps) {
+function UnsupportedFilePreview({
+  file,
+}: {
+  file: UnsupportedFilePreviewFile;
+}) {
   return (
     <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
       <div className="flex size-12 items-center justify-center rounded-lg bg-surface-raised text-muted-foreground">
@@ -1308,11 +585,13 @@ function UnsupportedFilePreview({ file }: UnsupportedFilePreviewProps) {
           {file.name}
         </p>
         <p className="text-xs text-muted-foreground">
-          {`${file.mimeType} · ${formatByteSize(file.sizeBytes)}`}
+          {file.sizeBytes === null
+            ? file.mimeType
+            : `${file.mimeType} · ${formatByteSize(file.sizeBytes)}`}
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        {file.reason === "too-large"
+        {file.isTooLarge
           ? "This file is too large to preview."
           : "This file type can't be previewed."}
       </p>
@@ -1326,36 +605,16 @@ function UnsupportedFilePreview({ file }: UnsupportedFilePreviewProps) {
   );
 }
 
-function FilePreviewMessage({ message, role }: FilePreviewMessageProps) {
+function FilePreviewMessage({
+  message,
+  role,
+}: {
+  message: string;
+  role?: "alert";
+}) {
   return (
     <EmptyStatePanel role={role} className="mx-4 mt-4 rounded-lg">
       {message}
     </EmptyStatePanel>
-  );
-}
-
-function FilePreviewCode({
-  file,
-  lineOverflowMode,
-  lineRange,
-  onSelectionAddToChat,
-  path,
-}: FilePreviewCodeProps) {
-  const highlightedLines = useMemo(
-    () =>
-      lineRange === null
-        ? null
-        : { start: lineRange.startLineNumber, end: lineRange.endLineNumber },
-    [lineRange],
-  );
-  return (
-    <BbSourceCode
-      content={file.contents}
-      path={path}
-      cacheKey={file.cacheKey ?? file.name}
-      overflow={lineOverflowMode}
-      highlightedLines={highlightedLines}
-      onSelectionAddToChat={onSelectionAddToChat}
-    />
   );
 }

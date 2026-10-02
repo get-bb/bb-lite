@@ -7,8 +7,6 @@ import {
   type ReactNode,
   type UIEvent,
 } from "react";
-import { ThreadStorageBrowser } from "./ThreadStorageBrowser";
-import type { ThreadStorageBrowserController } from "./useThreadStorageBrowser";
 import { Link } from "react-router-dom";
 import type {
   Environment,
@@ -34,10 +32,7 @@ import { useHosts } from "@/hooks/queries/host-queries";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import { Button } from "@bb/shared-ui/button";
-import {
-  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-  COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
+import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CopyableInlineLabel } from "@/components/ui/copy-button.js";
 import { TruncatedList } from "@/components/ui/truncated-list.js";
 import {
@@ -69,24 +64,7 @@ import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { ParentThreadPicker } from "@/components/pickers/ParentThreadPicker";
 
-interface ParentSelectorRowProps {
-  thread: Thread;
-  projectId: string;
-  parentThreadProjectId: string | null;
-  parentThreadDisplayName: string | null;
-  parentThreads: readonly ThreadListEntry[];
-  canAssignToParent: boolean;
-  canTakeOverThread: boolean;
-  isLoadingParentThreads: boolean;
-  isParentThreadsError: boolean;
-  updateThreadPending: boolean;
-  onAssignParent: (parentThreadId: string | null) => void;
-  onParentSelectorOpenChange: (open: boolean) => void;
-  onRetryParentThreads: () => void;
-  defaultOpen?: boolean;
-}
-
-export function ParentSelectorRow({
+function ParentSelectorRow({
   thread,
   projectId,
   parentThreadProjectId,
@@ -100,8 +78,7 @@ export function ParentSelectorRow({
   onAssignParent,
   onParentSelectorOpenChange,
   onRetryParentThreads,
-  defaultOpen,
-}: ParentSelectorRowProps) {
+}: ThreadMetadataContentProps) {
   const parentThreadId = thread.parentThreadId ?? undefined;
   const parentSelectorOptions = useMemo(
     () =>
@@ -175,19 +152,13 @@ export function ParentSelectorRow({
           }}
           onOpenChange={onParentSelectorOpenChange}
           onRetry={onRetryParentThreads}
-          defaultOpen={defaultOpen}
         />
       )}
     </DetailRow>
   );
 }
 
-interface ForksRowProps {
-  thread: Thread;
-  projectId: string;
-}
-
-function ForksRow({ thread, projectId }: ForksRowProps) {
+function ForksRow({ thread, projectId }: ThreadMetadataContentProps) {
   const forksQuery = useThreads({
     projectId: thread.projectId,
     sourceThreadId: thread.id,
@@ -217,17 +188,11 @@ function ForksRow({ thread, projectId }: ForksRowProps) {
   );
 }
 
-interface EnvironmentRowProps {
-  thread: Thread;
-  environment: Environment | null;
-  environmentDisplayHost: EnvironmentDisplayHostContext;
-}
-
-export function EnvironmentRow({
+function EnvironmentRow({
   thread,
   environment,
   environmentDisplayHost,
-}: EnvironmentRowProps) {
+}: ThreadMetadataContentProps) {
   const createThreadInEnvironment = useCreateThreadInEnvironment({
     projectId: thread.projectId,
     environmentId: environment?.id ?? "",
@@ -325,12 +290,10 @@ export function EnvironmentRow({
   );
 }
 
-export function EnvironmentProvisioningFailureRow({
-  failed,
-}: {
-  failed: boolean;
-}) {
-  if (!failed) return null;
+function EnvironmentProvisioningFailureRow({
+  environmentProvisioningFailure,
+}: ThreadMetadataContentProps) {
+  if (!environmentProvisioningFailure) return null;
   return (
     <DetailRow
       label={
@@ -350,15 +313,11 @@ export function EnvironmentProvisioningFailureRow({
   );
 }
 
-interface WorkspacePathRowProps {
-  environment: Environment | null;
-}
-
 function isReusableEnvironment(environment: Environment): boolean {
   return environment.status === "ready" && environment.path !== null;
 }
 
-export function WorkspacePathRow({ environment }: WorkspacePathRowProps) {
+function WorkspacePathRow({ environment }: ThreadMetadataContentProps) {
   if (!environment?.path) return null;
 
   return (
@@ -377,11 +336,7 @@ export function WorkspacePathRow({ environment }: WorkspacePathRowProps) {
   );
 }
 
-interface BranchRowProps {
-  workspaceStatus: WorkspaceStatus | undefined;
-}
-
-export function BranchRow({ workspaceStatus }: BranchRowProps) {
+function BranchRow({ workspaceStatus }: ThreadMetadataContentProps) {
   const checkoutDisplay = workspaceStatus
     ? formatWorkspaceCheckoutDisplay({ checkout: workspaceStatus.checkout })
     : null;
@@ -433,14 +388,7 @@ function shouldShowWorkspaceStatus({
   workspaceStatus,
   workspaceStatusError,
   workspaceUnavailable,
-}: Pick<
-  ThreadMetadataContentProps,
-  | "thread"
-  | "environment"
-  | "workspaceStatus"
-  | "workspaceStatusError"
-  | "workspaceUnavailable"
->): boolean {
+}: ThreadMetadataContentProps): boolean {
   return (
     (Boolean(workspaceStatus) ||
       Boolean(workspaceStatusError) ||
@@ -450,20 +398,7 @@ function shouldShowWorkspaceStatus({
   );
 }
 
-interface MergeBaseRowProps {
-  workspaceStatus: WorkspaceStatus | undefined;
-  selectedMergeBaseBranch: string | undefined;
-  mergeBaseBranchRef?: GitBranchRefClassification | null;
-  mergeBaseBranchOptions: readonly string[] | undefined;
-  mergeBaseRemoteBranchOptions?: readonly string[];
-  isLoadingMergeBaseBranchOptions: boolean;
-  onMergeBaseBranchChange: (branch: string) => void;
-  onMergeBasePickerOpenChange?: (open: boolean) => void;
-  onMergeBaseBranchSearchQueryChange?: (query: string) => void;
-  defaultOpen?: boolean;
-}
-
-export function MergeBaseRow({
+function MergeBaseRow({
   workspaceStatus,
   selectedMergeBaseBranch,
   mergeBaseBranchRef,
@@ -473,8 +408,7 @@ export function MergeBaseRow({
   onMergeBaseBranchChange,
   onMergeBasePickerOpenChange,
   onMergeBaseBranchSearchQueryChange,
-  defaultOpen,
-}: MergeBaseRowProps) {
+}: ThreadMetadataContentProps) {
   const mergeBaseBranch = resolveDisplayedMergeBaseBranch(
     selectedMergeBaseBranch,
     workspaceStatus,
@@ -532,7 +466,6 @@ export function MergeBaseRow({
           onOpenChange={onMergeBasePickerOpenChange}
           onSearchQueryChange={onMergeBaseBranchSearchQueryChange}
           className="max-w-full"
-          defaultOpen={defaultOpen}
         />
       ) : (
         mergeBaseBranch
@@ -541,34 +474,15 @@ export function MergeBaseRow({
   );
 }
 
-interface GitStatusRowProps {
-  thread: Thread;
-  environment: Environment | null;
-  workspaceStatus: WorkspaceStatus | undefined;
-  workspaceStatusError: Error | null;
-  workspaceUnavailable?: WorkspaceResolutionFailure;
-  selectedMergeBaseBranch: string | undefined;
-}
-
-export function GitStatusRow({
-  thread,
-  environment,
-  workspaceStatus,
-  workspaceStatusError,
-  workspaceUnavailable,
-  selectedMergeBaseBranch,
-}: GitStatusRowProps) {
-  if (
-    !shouldShowWorkspaceStatus({
-      thread,
-      environment,
-      workspaceStatus,
-      workspaceStatusError,
-      workspaceUnavailable,
-    })
-  ) {
-    return null;
-  }
+function GitStatusRow(props: ThreadMetadataContentProps) {
+  const {
+    environment,
+    workspaceStatus,
+    workspaceStatusError,
+    workspaceUnavailable,
+    selectedMergeBaseBranch,
+  } = props;
+  if (!shouldShowWorkspaceStatus(props)) return null;
 
   const isWorkspaceDeleted = environment?.status === "destroyed";
   const effectiveMergeBaseBranch = resolveDisplayedMergeBaseBranch(
@@ -611,33 +525,19 @@ export function GitStatusRow({
   );
 }
 
-interface ArchivedRowProps {
-  thread: Thread;
-}
-
-export function ArchivedRow({ thread }: ArchivedRowProps) {
+function ArchivedRow({ thread }: ThreadMetadataContentProps) {
   const unarchiveThread = useUnarchiveThread();
   const isPending =
     unarchiveThread.isPending && unarchiveThread.variables?.id === thread.id;
-  const onUnarchive = useCallback(() => {
-    unarchiveThread.mutate({ id: thread.id });
-  }, [thread.id, unarchiveThread]);
   if (thread.archivedAt == null) return null;
   return (
     <DetailRow label="Archived" valueClassName="min-w-0 truncate">
-      <ThreadUnarchiveButton isPending={isPending} onUnarchive={onUnarchive} />
+      <ThreadUnarchiveButton
+        isPending={isPending}
+        onUnarchive={() => unarchiveThread.mutate({ id: thread.id })}
+      />
     </DetailRow>
   );
-}
-
-interface ThreadCommitsRowProps {
-  workspaceStatus: WorkspaceStatus | undefined;
-  onCommitClick?: (sha: string) => void;
-}
-
-interface ThreadCommitListItemProps {
-  commit: WorkspaceCommitSummary;
-  onCommitClick?: (sha: string) => void;
 }
 
 const COMMIT_SHA_CHIP_CLASS_NAME =
@@ -646,7 +546,10 @@ const COMMIT_SHA_CHIP_CLASS_NAME =
 function ThreadCommitListItem({
   commit,
   onCommitClick,
-}: ThreadCommitListItemProps) {
+}: {
+  commit: WorkspaceCommitSummary;
+  onCommitClick?: (sha: string) => void;
+}) {
   const subject = onCommitClick ? (
     <button
       type="button"
@@ -684,10 +587,10 @@ function ThreadCommitListItem({
   );
 }
 
-export function ThreadCommitsRow({
+function ThreadCommitsRow({
   workspaceStatus,
   onCommitClick,
-}: ThreadCommitsRowProps) {
+}: ThreadMetadataContentProps) {
   const commits = selectWorkspaceAheadCommits(workspaceStatus);
   if (commits.length === 0) return null;
   return (
@@ -714,15 +617,10 @@ export function ThreadCommitsRow({
   );
 }
 
-interface ChangedFilesRowProps {
-  workspaceStatus: WorkspaceStatus | undefined;
-  onChangedFileClick?: (selection: WorkspaceChangedFileSelection) => void;
-}
-
-export function ChangedFilesRow({
+function ChangedFilesRow({
   workspaceStatus,
   onChangedFileClick,
-}: ChangedFilesRowProps) {
+}: ThreadMetadataContentProps) {
   return (
     <ChangedFilesDetailRow
       sections={selectWorkspaceChangedFilesSections(workspaceStatus)}
@@ -731,57 +629,6 @@ export function ChangedFilesRow({
       rowClassName="mt-3"
       limit={5}
     />
-  );
-}
-
-interface ThreadStorageRowProps {
-  controller: ThreadStorageBrowserController;
-  filesError?: Error | null;
-  isFilesLoading: boolean;
-}
-
-export function ThreadStorageRow({
-  controller,
-  filesError,
-  isFilesLoading,
-}: ThreadStorageRowProps) {
-  const { isSearchOpen, openSearch } = controller;
-  if (controller.loadedFiles.length === 0 && filesError == null) {
-    return null;
-  }
-  return (
-    <DetailRow
-      orientation="vertical"
-      className="mt-3 min-h-32 flex-1"
-      valueClassName="min-h-0 flex-1 overflow-hidden"
-      labelClassName="flex items-center justify-between gap-2"
-      label={
-        <>
-          <span>Thread storage</span>
-          {isSearchOpen ? null : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                "shrink-0 text-muted-foreground",
-              )}
-              aria-label="Search files"
-              onClick={openSearch}
-            >
-              <Icon name="Search" />
-            </Button>
-          )}
-        </>
-      }
-    >
-      <ThreadStorageBrowser
-        controller={controller}
-        filesError={filesError}
-        isFilesLoading={isFilesLoading}
-      />
-    </DetailRow>
   );
 }
 
@@ -807,7 +654,6 @@ export interface ThreadMetadataContentProps {
   mergeBaseRemoteBranchOptions?: readonly string[];
   isLoadingMergeBaseBranchOptions: boolean;
   updateThreadPending: boolean;
-  storage?: ThreadStorageRowProps;
   onAssignParent: (parentThreadId: string | null) => void;
   onParentSelectorOpenChange: (open: boolean) => void;
   onRetryParentThreads: () => void;
@@ -819,56 +665,25 @@ export interface ThreadMetadataContentProps {
 }
 
 export function hasAnyThreadMetadata(
-  {
-    thread,
-    environment,
-    environmentProvisioningFailure,
-    workspaceStatus,
-    workspaceStatusError,
-    workspaceUnavailable,
-  }: Pick<
-    ThreadMetadataContentProps,
-    | "thread"
-    | "environment"
-    | "environmentProvisioningFailure"
-    | "workspaceStatus"
-    | "workspaceStatusError"
-    | "workspaceUnavailable"
-  >,
+  props: ThreadMetadataContentProps,
   hasForks: boolean,
 ): boolean {
-  const parentThreadId = thread.parentThreadId ?? undefined;
-  const showWorkspaceStatus = shouldShowWorkspaceStatus({
-    thread,
-    environment,
-    workspaceStatus,
-    workspaceStatusError,
-    workspaceUnavailable,
-  });
-  const branchName = workspaceStatus?.branch.currentBranch ?? null;
-  const workspaceChangedFilesSections =
-    selectWorkspaceChangedFilesSections(workspaceStatus);
-  const showThreadChangedFiles = workspaceChangedFilesSections.length > 0;
-
+  const { thread, environment, workspaceStatus } = props;
   return Boolean(
-    parentThreadId ||
+    thread.parentThreadId ||
     environment ||
-    environmentProvisioningFailure ||
-    branchName ||
-    showWorkspaceStatus ||
-    showThreadChangedFiles ||
+    props.environmentProvisioningFailure ||
+    workspaceStatus?.branch.currentBranch ||
+    shouldShowWorkspaceStatus(props) ||
+    selectWorkspaceChangedFilesSections(workspaceStatus).length > 0 ||
     thread.archivedAt != null ||
     hasForks,
   );
 }
 
-interface DetailCardWrapperProps {
-  children: ReactNode;
-}
-
 const INFO_SCROLLBAR_IDLE_DELAY_MS = 600;
 
-export function ThreadMetadataCard({ children }: DetailCardWrapperProps) {
+export function ThreadMetadataCard({ children }: { children: ReactNode }) {
   const scrollbarIdleTimeoutRef = useRef<number | null>(null);
 
   useEffect(
@@ -906,106 +721,30 @@ export function ThreadMetadataCard({ children }: DetailCardWrapperProps) {
 }
 
 export function ThreadMetadataContent(props: ThreadMetadataContentProps) {
-  const {
-    thread,
-    projectId,
-    parentThreadProjectId,
-    parentThreadDisplayName,
-    parentThreads,
-    canAssignToParent,
-    canTakeOverThread,
-    isLoadingParentThreads,
-    isParentThreadsError,
-    environment,
-    environmentProvisioningFailure,
-    environmentDisplayHost,
-    workspaceStatus,
-    workspaceStatusError,
-    workspaceUnavailable,
-    selectedMergeBaseBranch,
-    mergeBaseBranchRef,
-    mergeBaseBranchOptions,
-    mergeBaseRemoteBranchOptions,
-    isLoadingMergeBaseBranchOptions,
-    updateThreadPending,
-    storage,
-    onAssignParent,
-    onParentSelectorOpenChange,
-    onRetryParentThreads,
-    onMergeBaseBranchChange,
-    onMergeBasePickerOpenChange,
-    onMergeBaseBranchSearchQueryChange,
-    onChangedFileClick,
-    onCommitClick,
-  } = props;
-
+  const { environment } = props;
+  const isHostActive =
+    environment === null || environment.hostLifecycle === "active";
   return (
     <ThreadMetadataCard>
-      <ParentSelectorRow
-        thread={thread}
-        projectId={projectId}
-        parentThreadProjectId={parentThreadProjectId}
-        parentThreadDisplayName={parentThreadDisplayName}
-        parentThreads={parentThreads}
-        canAssignToParent={canAssignToParent}
-        canTakeOverThread={canTakeOverThread}
-        isLoadingParentThreads={isLoadingParentThreads}
-        isParentThreadsError={isParentThreadsError}
-        updateThreadPending={updateThreadPending}
-        onAssignParent={onAssignParent}
-        onParentSelectorOpenChange={onParentSelectorOpenChange}
-        onRetryParentThreads={onRetryParentThreads}
-      />
-      <ForksRow thread={thread} projectId={projectId} />
-      <EnvironmentRow
-        thread={thread}
-        environment={environment}
-        environmentDisplayHost={environmentDisplayHost}
-      />
-      <EnvironmentProvisioningFailureRow
-        failed={environmentProvisioningFailure}
-      />
-      <WorkspacePathRow environment={environment} />
-      {environment !== null && environment.hostLifecycle !== "active" ? null : (
+      <ParentSelectorRow {...props} />
+      <ForksRow {...props} />
+      <EnvironmentRow {...props} />
+      <EnvironmentProvisioningFailureRow {...props} />
+      <WorkspacePathRow {...props} />
+      {isHostActive ? (
         <>
-          <BranchRow workspaceStatus={workspaceStatus} />
-          <MergeBaseRow
-            workspaceStatus={workspaceStatus}
-            selectedMergeBaseBranch={selectedMergeBaseBranch}
-            mergeBaseBranchRef={mergeBaseBranchRef}
-            mergeBaseBranchOptions={mergeBaseBranchOptions}
-            mergeBaseRemoteBranchOptions={mergeBaseRemoteBranchOptions}
-            isLoadingMergeBaseBranchOptions={isLoadingMergeBaseBranchOptions}
-            onMergeBaseBranchChange={onMergeBaseBranchChange}
-            onMergeBasePickerOpenChange={onMergeBasePickerOpenChange}
-            onMergeBaseBranchSearchQueryChange={
-              onMergeBaseBranchSearchQueryChange
-            }
-          />
-          <GitStatusRow
-            thread={thread}
-            environment={environment}
-            workspaceStatus={workspaceStatus}
-            workspaceStatusError={workspaceStatusError}
-            workspaceUnavailable={workspaceUnavailable}
-            selectedMergeBaseBranch={selectedMergeBaseBranch}
-          />
+          <BranchRow {...props} />
+          <MergeBaseRow {...props} />
+          <GitStatusRow {...props} />
         </>
-      )}
-      <ArchivedRow thread={thread} />
-      {environment !== null && environment.hostLifecycle !== "active" ? null : (
+      ) : null}
+      <ArchivedRow {...props} />
+      {isHostActive ? (
         <>
-          <ThreadCommitsRow
-            workspaceStatus={workspaceStatus}
-            onCommitClick={onCommitClick}
-          />
-          <ChangedFilesRow
-            workspaceStatus={workspaceStatus}
-            onChangedFileClick={onChangedFileClick}
-          />
+          <ThreadCommitsRow {...props} />
+          <ChangedFilesRow {...props} />
         </>
-      )}
-      {storage ? <ThreadStorageRow {...storage} /> : null}
+      ) : null}
     </ThreadMetadataCard>
   );
 }

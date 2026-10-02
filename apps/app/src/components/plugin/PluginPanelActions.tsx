@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { PluginPanelOpenOptions } from "@bb/plugin/app";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import type { PluginPanelFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
+import type { PanelTab } from "@/components/secondary-panel/panelTabs";
 import {
   parsePersistedPluginPanelParams,
   serializePluginPanelParams,
@@ -15,6 +15,8 @@ export interface OpenPluginPanelArgs {
   title: string;
   paramsJson: string | null;
 }
+
+type PluginPanelFixedPanelTab = Extract<PanelTab, { kind: "plugin-panel" }>;
 
 export interface PluginPanelActionEntry {
   id: string;

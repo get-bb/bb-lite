@@ -1,12 +1,11 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { useIntersectionObserver } from "usehooks-ts";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { DiffPresentation } from "@/components/code/code-rendering";
-import { GitDiffCardBody, useGitDiffCardBody } from "./GitDiffCardBody";
+import { GitDiffCardBody } from "./GitDiffCardBody";
 import {
   GitDiffCardHeader,
   gitDiffCardHeaderWrapperClass,
-  type GitDiffCardHeaderModel,
 } from "./GitDiffCardHeader";
 import {
   formatGitDiffFileLabel,
@@ -27,20 +26,6 @@ interface GitDiffCardProps {
   showStuckHeaderEdge?: boolean;
 }
 
-function buildGitDiffCardHeaderModel(
-  fileDiff: ParsedGitDiffFile,
-): GitDiffCardHeaderModel {
-  const stats = summarizeGitDiffFile(fileDiff);
-  return {
-    label: formatGitDiffFileLabel(fileDiff),
-    path: normalizeGitDiffPath(fileDiff.name) ?? fileDiff.name,
-    openablePath: getOpenableGitDiffPath(fileDiff),
-    changeKind: getGitDiffFileChangeKind(fileDiff),
-    insertions: stats.insertions,
-    deletions: stats.deletions,
-  };
-}
-
 export const GitDiffCard = memo(function GitDiffCard({
   fileDiff,
   presentation,
@@ -50,23 +35,12 @@ export const GitDiffCard = memo(function GitDiffCard({
   cardClassName,
   showStuckHeaderEdge = true,
 }: GitDiffCardProps) {
-  const headerModel = useMemo(
-    () => buildGitDiffCardHeaderModel(fileDiff),
-    [fileDiff],
-  );
-  const previousPath = normalizeGitDiffPath(fileDiff.prevName) ?? null;
-  const bodyState = useGitDiffCardBody({
-    fileDiff,
-    changeKind: headerModel.changeKind,
-    onRequestFileContents: undefined,
-    patchText,
-  });
+  const changeKind = getGitDiffFileChangeKind(fileDiff);
   const hasChanges = fileDiff.hunks.length > 0;
   const { ref: stickySentinelRef, isIntersecting } = useIntersectionObserver({
     initialIsIntersecting: true,
     threshold: 1,
   });
-  const isHeaderStuck = stickyHeader && !isIntersecting;
 
   return (
     <div
@@ -80,22 +54,29 @@ export const GitDiffCard = memo(function GitDiffCard({
         className={gitDiffCardHeaderWrapperClass({
           stickyHeader,
           isBodyHidden: !hasChanges,
-          isStuck: isHeaderStuck,
+          isStuck: stickyHeader && !isIntersecting,
           showStuckHeaderEdge,
         })}
       >
         <GitDiffCardHeader
-          model={headerModel}
-          previousPath={previousPath}
+          model={{
+            label: formatGitDiffFileLabel(fileDiff),
+            path: normalizeGitDiffPath(fileDiff.name) ?? fileDiff.name,
+            openablePath: getOpenableGitDiffPath(fileDiff),
+            changeKind,
+            ...summarizeGitDiffFile(fileDiff),
+          }}
+          previousPath={normalizeGitDiffPath(fileDiff.prevName) ?? null}
           filePathRoot={filePathRoot}
           hasChanges={hasChanges}
         />
       </div>
       {hasChanges ? (
         <GitDiffCardBody
-          state={bodyState}
+          fileDiff={fileDiff}
+          changeKind={changeKind}
+          patchText={patchText}
           presentation={presentation}
-          svgDisplayMode="preview"
           reservesCollapseGutter={false}
         />
       ) : null}

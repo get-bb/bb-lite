@@ -2,83 +2,9 @@ import type { SplitSide } from "@/lib/split-layout";
 
 export type SplitZone = SplitSide | "center";
 
-export interface Rect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
 export interface ZoneDecision {
   zone: SplitZone;
   label: string;
-}
-
-const EDGE_X_FRACTION = 0.28;
-const EDGE_Y_FRACTION = 0.3;
-const ZONE_MARGIN_PX = 5;
-
-export function pickZone(
-  rect: Rect,
-  clientX: number,
-  clientY: number,
-): SplitZone {
-  const px = rect.width > 0 ? (clientX - rect.left) / rect.width : 0.5;
-  const py = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
-  if (px < EDGE_X_FRACTION) {
-    return "left";
-  }
-  if (px > 1 - EDGE_X_FRACTION) {
-    return "right";
-  }
-  if (py < EDGE_Y_FRACTION) {
-    return "top";
-  }
-  if (py > 1 - EDGE_Y_FRACTION) {
-    return "bottom";
-  }
-  return "center";
-}
-
-export function zoneBox(rect: Rect, zone: SplitZone): Rect {
-  const m = ZONE_MARGIN_PX;
-  switch (zone) {
-    case "left":
-      return {
-        left: rect.left + m,
-        top: rect.top + m,
-        width: rect.width / 2 - m,
-        height: rect.height - 2 * m,
-      };
-    case "right":
-      return {
-        left: rect.left + rect.width / 2,
-        top: rect.top + m,
-        width: rect.width / 2 - m,
-        height: rect.height - 2 * m,
-      };
-    case "top":
-      return {
-        left: rect.left + m,
-        top: rect.top + m,
-        width: rect.width - 2 * m,
-        height: rect.height / 2 - m,
-      };
-    case "bottom":
-      return {
-        left: rect.left + m,
-        top: rect.top + rect.height / 2,
-        width: rect.width - 2 * m,
-        height: rect.height / 2 - m,
-      };
-    case "center":
-      return {
-        left: rect.left + m,
-        top: rect.top + m,
-        width: rect.width - 2 * m,
-        height: rect.height - 2 * m,
-      };
-  }
 }
 
 interface ThreadDropInput {

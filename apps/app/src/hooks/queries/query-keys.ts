@@ -15,7 +15,6 @@ const HOST_QUERY_KEY = "host";
 const HOST_DIRECTORY_QUERY_KEY = "hostDirectory";
 const PROJECTS_QUERY_KEY = "projects";
 const PROJECT_PATHS_QUERY_KEY = "projectPaths";
-const PROJECT_FILE_PREVIEW_QUERY_KEY = "projectFilePreview";
 export const PROJECT_SOURCE_BRANCHES_QUERY_KEY = "projectSourceBranches";
 const PROJECT_DEFAULT_EXECUTION_OPTIONS_QUERY_KEY =
   "projectDefaultExecutionOptions";
@@ -131,13 +130,6 @@ type ProjectPathsQueryKey = readonly [
 type ProjectPathsQueryKeyPrefix = readonly [
   typeof PROJECT_PATHS_QUERY_KEY,
   string,
-];
-type ProjectFilePreviewQueryKey = readonly [
-  typeof PROJECT_FILE_PREVIEW_QUERY_KEY,
-  string | undefined,
-  string | null,
-  string | null,
-  string | null,
 ];
 type ProjectSourceBranchesQueryKey = readonly [
   typeof PROJECT_SOURCE_BRANCHES_QUERY_KEY,
@@ -486,21 +478,6 @@ export function projectPathsQueryKey(
     limit,
     includeFiles,
     includeDirectories,
-  ];
-}
-
-export function projectFilePreviewQueryKey(
-  projectId: string | undefined,
-  environmentId: string | null,
-  hostId: string | null,
-  path: string | null,
-): ProjectFilePreviewQueryKey {
-  return [
-    PROJECT_FILE_PREVIEW_QUERY_KEY,
-    projectId,
-    environmentId,
-    hostId,
-    path,
   ];
 }
 

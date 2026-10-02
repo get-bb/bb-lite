@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { useResizeObserver } from "usehooks-ts";
+import { useEffect, useRef, type Ref } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
   COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
@@ -13,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { DiffStatsTally } from "@/components/ui/diff-stats-tally.js";
 import {
@@ -31,9 +30,6 @@ import type { GitDiffStats } from "../git-diff/git-diff-parsing";
 const GIT_DIFF_SELECTOR_MENU_MIN_WIDTH = "20rem";
 
 export type GitDiffDisplayMode = "unified" | "split";
-export type GitDiffDisplayModeChangeHandler = (
-  mode: GitDiffDisplayMode,
-) => void;
 
 export interface GitDiffSelectionOption {
   value: string;
@@ -188,30 +184,29 @@ function GitDiffFileFilterInput({
 }
 
 interface GitDiffToolbarProps {
+  rootRef: Ref<HTMLDivElement>;
+  panelWidthPx: number;
   selectionValue: string;
   selectionOptions: readonly GitDiffSelectionOption[];
   onSelectionChange: (value: string) => void;
   isSelectorDisabled: boolean;
-
   stats: GitDiffStats;
   totalFilesCount: number;
   isTruncated: boolean;
-
   fileFilter: string | null;
   onFileFilterChange: (value: string | null) => void;
-
   areAllFilesCollapsed: boolean;
   isCollapseAllDisabled: boolean;
   onToggleAllCollapsed: () => void;
-
   displayMode: GitDiffDisplayMode;
-  onDisplayModeChange: GitDiffDisplayModeChangeHandler;
-
+  onDisplayModeChange: (mode: GitDiffDisplayMode) => void;
   lineOverflowMode: CodeOverflowMode;
   onLineOverflowModeChange: CodeOverflowModeChangeHandler;
 }
 
 export function GitDiffToolbar({
+  rootRef,
+  panelWidthPx,
   selectionValue,
   selectionOptions,
   onSelectionChange,
@@ -229,17 +224,35 @@ export function GitDiffToolbar({
   lineOverflowMode,
   onLineOverflowModeChange,
 }: GitDiffToolbarProps) {
-  const rootRef = useRef<HTMLDivElement>(null!);
-  const { width: rootWidth = 0 } = useResizeObserver({
-    ref: rootRef,
-    box: "content-box",
-  });
   const changeTally = { ...stats, lineStatsComplete: true };
   const completeSummary = formatChangeSummary(changeTally);
   const truncatedFilesLabel = `${stats.filesCount}+ file${stats.filesCount === 1 ? "" : "s"}`;
   const hasShownLineChanges = stats.insertions > 0 || stats.deletions > 0;
   const isFiltering = Boolean(fileFilter?.trim());
   const filteredFilesLabel = `${stats.filesCount} of ${totalFilesCount}${isTruncated ? "+" : ""} files`;
+  const iconButton = (
+    icon: IconName,
+    label: string,
+    onClick: () => void,
+    pressed?: boolean,
+    disabled?: boolean,
+  ) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(
+        COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
+        "text-muted-foreground",
+      )}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={pressed}
+    >
+      <Icon name={icon} />
+    </Button>
+  );
 
   return (
     <div ref={rootRef} className="px-4 pb-3 pt-3">
@@ -256,7 +269,7 @@ export function GitDiffToolbar({
             options={selectionOptions}
             onChange={onSelectionChange}
             disabled={isSelectorDisabled}
-            panelWidthPx={rootWidth}
+            panelWidthPx={panelWidthPx}
           />
         </div>
         <div
@@ -311,99 +324,47 @@ export function GitDiffToolbar({
             className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1"
             data-testid="git-diff-toolbar-actions"
           >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                "text-muted-foreground",
-              )}
-              onClick={() =>
-                onFileFilterChange(fileFilter === null ? "" : null)
-              }
-              aria-label={
-                fileFilter === null ? "Filter files" : "Close file filter"
-              }
-              aria-pressed={fileFilter !== null}
-            >
-              <Icon name="Filter" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                "text-muted-foreground",
-              )}
-              onClick={onToggleAllCollapsed}
-              disabled={isCollapseAllDisabled}
-              aria-label={
-                areAllFilesCollapsed ? "Expand all files" : "Collapse all files"
-              }
-            >
-              {areAllFilesCollapsed ? (
-                <Icon name="ChevronsDown" />
-              ) : (
-                <Icon name="ChevronsUp" />
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                "text-muted-foreground",
-              )}
-              onClick={() =>
+            {iconButton(
+              "Filter",
+              fileFilter === null ? "Filter files" : "Close file filter",
+              () => onFileFilterChange(fileFilter === null ? "" : null),
+              fileFilter !== null,
+            )}
+            {iconButton(
+              areAllFilesCollapsed ? "ChevronsDown" : "ChevronsUp",
+              areAllFilesCollapsed ? "Expand all files" : "Collapse all files",
+              onToggleAllCollapsed,
+              undefined,
+              isCollapseAllDisabled,
+            )}
+            {iconButton(
+              "TextWrap",
+              lineOverflowMode === "wrap"
+                ? "Disable diff line wrap"
+                : "Wrap diff lines",
+              () =>
                 onLineOverflowModeChange(
                   getNextCodeOverflowMode(lineOverflowMode),
-                )
-              }
-              aria-label={
-                lineOverflowMode === "wrap"
-                  ? "Disable diff line wrap"
-                  : "Wrap diff lines"
-              }
-              aria-pressed={lineOverflowMode === "wrap"}
-            >
-              <Icon name="TextWrap" />
-            </Button>
+                ),
+              lineOverflowMode === "wrap",
+            )}
             <div
               className="inline-flex items-center gap-1 rounded-lg border border-border p-0.5"
               role="tablist"
               aria-label="Diff view mode"
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                  "text-muted-foreground",
-                )}
-                onClick={() => onDisplayModeChange("unified")}
-                aria-label="Stacked diff view"
-                aria-pressed={displayMode === "unified"}
-              >
-                <Icon name="Rows2" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
-                  "text-muted-foreground",
-                )}
-                onClick={() => onDisplayModeChange("split")}
-                aria-label="Split diff view"
-                aria-pressed={displayMode === "split"}
-              >
-                <Icon name="Columns2" />
-              </Button>
+              {iconButton(
+                "Rows2",
+                "Stacked diff view",
+                () => onDisplayModeChange("unified"),
+                displayMode === "unified",
+              )}
+              {iconButton(
+                "Columns2",
+                "Split diff view",
+                () => onDisplayModeChange("split"),
+                displayMode === "split",
+              )}
             </div>
           </div>
         </div>
