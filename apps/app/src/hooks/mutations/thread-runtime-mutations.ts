@@ -4,32 +4,23 @@ import type {
   CreateQueuedMessageRequest,
   SendQueuedMessageMode,
   SendQueuedMessageResponse,
-  ThreadQueuedMessageListResponse,
   UpdateQueuedMessageRequest,
 } from "@bb/server-contract";
 import type { AppCreateThreadRequest } from "@bb/client-core";
 import { BbHttpError, sdk } from "@/lib/sdk";
 import { wsManager } from "@/lib/ws";
-import type { QueuedMessageReorderRequest } from "@/lib/queued-message-reorder";
-import type {
-  EditMessageMutationRequest,
-  SendThreadMessageMutationRequest,
-} from "./mutation-request-types";
+import type { SendThreadMessageMutationRequest } from "./mutation-request-types";
 import {
   applyCreateThreadResult,
   applyQueuedMessageCreateResult,
   applyQueuedMessageDeleteResult,
-  applyQueuedMessagesResult,
   applyQueuedMessageSendResult,
   applyQueuedMessageUpdateResult,
   applySendThreadMessageSuccess,
-  applyThreadGoalClearResult,
   applyThreadPlanCancellationResult,
   beginCreateQueuedMessageTransaction,
   beginCreateThreadTransaction,
   beginRemoveQueuedMessageTransaction,
-  beginReorderQueuedMessageTransaction,
-  beginSetQueuedMessageGroupBoundaryTransaction,
   beginSendQueuedMessageTransaction,
   beginSendThreadMessageTransaction,
   beginStopThreadTransaction,
@@ -37,22 +28,17 @@ import {
   prefetchThreadQueuedMessages,
   rollbackCreateQueuedMessageTransaction,
   rollbackRemoveQueuedMessageTransaction,
-  rollbackReorderQueuedMessageTransaction,
   rollbackSendThreadMessageTransaction,
   rollbackStopThreadTransaction,
   rollbackUpdateQueuedMessageTransaction,
   settleStopThreadTransaction,
   type CreateQueuedMessageTransaction,
   type RemoveQueuedMessageTransaction,
-  type ReorderQueuedMessageTransaction,
   type SendThreadMessageTransaction,
   type StopThreadTransaction,
   type UpdateQueuedMessageTransaction,
 } from "../cache-owners/thread-runtime-cache-owner";
-import {
-  invalidateThreadBannerQueries,
-  invalidateThreadHistoryRewriteQueries,
-} from "../cache-owners/mutation-cache-effects";
+import { invalidateThreadBannerQueries } from "../cache-owners/mutation-cache-effects";
 
 interface CreateThreadQueuedMessageMutationRequest extends CreateQueuedMessageRequest {
   id: string;
@@ -72,16 +58,6 @@ interface SendThreadQueuedMessageMutationRequest {
 interface DeleteThreadQueuedMessageMutationRequest {
   id: string;
   queuedMessageId: string;
-}
-
-interface ReorderThreadQueuedMessageMutationRequest extends QueuedMessageReorderRequest {
-  id: string;
-}
-
-interface SetThreadQueuedMessageGroupBoundaryMutationRequest {
-  expectedGroupedPrefixQueuedMessageIds: string[];
-  groupBoundaryQueuedMessageId: string;
-  id: string;
 }
 
 function getHttpErrorBodyMessage(error: BbHttpError): string | null {
@@ -208,28 +184,6 @@ export function useSendThreadMessage() {
         request: variables,
         result: data,
         transaction: context,
-      });
-    },
-  });
-}
-
-export function useEditThreadMessage() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to edit the message.",
-      lifecycleOperation: "edit_message",
-      showErrorToast: false,
-    },
-    mutationFn: ({ id, ...request }: EditMessageMutationRequest) =>
-      sdk.threads.editMessage({ threadId: id, ...request }),
-    onSuccess: (_result, variables) => {
-      if (wsManager.getConnectionState() === "connected") {
-        return;
-      }
-      invalidateThreadHistoryRewriteQueries({
-        queryClient,
-        threadId: variables.id,
       });
     },
   });
@@ -368,97 +322,6 @@ export function useSendThreadQueuedMessage() {
   });
 }
 
-export function useReorderThreadQueuedMessage() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to reorder queued message.",
-      lifecycleOperation: "reorder_queued_message",
-      showErrorToast: false,
-    },
-    mutationFn: ({
-      id,
-      nextQueuedMessageId,
-      previousQueuedMessageId,
-      groupBoundaryQueuedMessageId,
-      queuedMessageId,
-    }: ReorderThreadQueuedMessageMutationRequest): Promise<ThreadQueuedMessageListResponse> =>
-      sdk.threads.queuedMessages.reorder({
-        threadId: id,
-        queuedMessageId,
-        previousQueuedMessageId,
-        nextQueuedMessageId,
-        groupBoundaryQueuedMessageId,
-      }),
-    onMutate: async (variables): Promise<ReorderQueuedMessageTransaction> =>
-      beginReorderQueuedMessageTransaction({
-        queryClient,
-        request: variables,
-      }),
-    onError: (_error, variables, context) => {
-      rollbackReorderQueuedMessageTransaction({
-        queryClient,
-        request: variables,
-        transaction: context,
-      });
-    },
-    onSuccess: (queuedMessages, variables) => {
-      applyQueuedMessagesResult({
-        queryClient,
-        queuedMessages,
-        request: variables,
-      });
-    },
-  });
-}
-
-export function useSetThreadQueuedMessageGroupBoundary() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to group queued messages.",
-      lifecycleOperation: "set_queued_message_group_boundary",
-      showErrorToast: false,
-    },
-    mutationFn: ({
-      expectedGroupedPrefixQueuedMessageIds,
-      groupBoundaryQueuedMessageId,
-      id,
-    }: SetThreadQueuedMessageGroupBoundaryMutationRequest): Promise<ThreadQueuedMessageListResponse> =>
-      sdk.threads.queuedMessages.setGroupBoundary({
-        threadId: id,
-        expectedGroupedPrefixQueuedMessageIds,
-        groupBoundaryQueuedMessageId,
-      }),
-    onMutate: async (variables): Promise<ReorderQueuedMessageTransaction> =>
-      beginSetQueuedMessageGroupBoundaryTransaction({
-        queryClient,
-        request: variables,
-      }),
-    onError: (_error, variables, context) => {
-      rollbackReorderQueuedMessageTransaction({
-        queryClient,
-        request: {
-          ...variables,
-          queuedMessageId: variables.groupBoundaryQueuedMessageId,
-          previousQueuedMessageId: null,
-          nextQueuedMessageId: null,
-        },
-        transaction: context,
-      });
-    },
-    onSuccess: (queuedMessages, variables) => {
-      applyQueuedMessagesResult({
-        queryClient,
-        queuedMessages,
-        request: variables,
-      });
-    },
-  });
-}
-
 export function useDeleteThreadQueuedMessage() {
   const queryClient = useQueryClient();
 
@@ -534,17 +397,3 @@ export function useCancelThreadPlan() {
   });
 }
 
-export function useClearThreadGoal() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: { errorMessage: "Failed to clear Goal." },
-    mutationFn: async (threadId: string) => {
-      await sdk.threads.clearGoal({ threadId });
-    },
-    onSuccess: (_data, threadId) => {
-      applyThreadGoalClearResult({ queryClient, threadId });
-      invalidateThreadBannerQueries({ queryClient, threadId });
-    },
-  });
-}

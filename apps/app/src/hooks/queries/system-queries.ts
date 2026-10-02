@@ -1,5 +1,5 @@
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 import type {
   PermissionMode,
   ProviderInfo,
@@ -10,7 +10,6 @@ import { permissionModeValues } from "@bb/domain";
 import type {
   SystemExecutionOptionsResponse,
   SystemProvidersQuery,
-  SystemProviderStatesResponse,
 } from "@bb/server-contract";
 import { BbHttpError, sdk } from "@/lib/sdk";
 import { isAbortLikeError } from "@/lib/mutation-errors";
@@ -35,7 +34,6 @@ import {
   systemExecutionOptionsQueryKey,
   systemProvidersQueryKey,
   systemProviderCatalogQueryKey,
-  systemProviderStatesQueryKey,
   systemThemeQueryKey,
   uiPreferencesQueryKey,
 } from "./query-keys";
@@ -53,12 +51,6 @@ interface SystemExecutionOptionsQueryArgs {
   hostId: string | null;
   providerId: string | null;
   writeLastKnown: boolean;
-}
-
-interface UseSystemProviderStatesOptions extends QueryOptions {
-  environmentId?: string;
-  hostId?: string;
-  poll?: boolean;
 }
 
 type SystemProviderRoutingArgs =
@@ -305,22 +297,6 @@ function systemExecutionOptionsQueryOptions({
   });
 }
 
-export function prefetchSystemExecutionOptions(
-  queryClient: QueryClient,
-  args: { routing: SystemProvidersQuery; providerIds: readonly string[] },
-): void {
-  for (const providerId of args.providerIds) {
-    void queryClient.prefetchQuery(
-      systemExecutionOptionsQueryOptions({
-        environmentId: args.routing.environmentId ?? null,
-        hostId: args.routing.hostId ?? null,
-        providerId,
-        writeLastKnown: false,
-      }),
-    );
-  }
-}
-
 export function useSystemExecutionOptions(
   args: UseSystemExecutionOptionsArgs = {},
 ) {
@@ -398,26 +374,6 @@ export function useSystemConfig(options?: QueryOptions) {
   return useQuery({
     ...systemConfigQueryOptions(),
     enabled,
-  });
-}
-
-export function useSystemProviderStates(
-  options: UseSystemProviderStatesOptions = {},
-) {
-  const environmentId = options.environmentId ?? null;
-  const hostId = options.hostId ?? null;
-  return useQuery<SystemProviderStatesResponse>({
-    queryKey: systemProviderStatesQueryKey({ environmentId, hostId }),
-    queryFn: ({ signal }) =>
-      sdk.system.providerStates({
-        environmentId: options.environmentId,
-        hostId: options.hostId,
-        signal,
-      }),
-    enabled: options.enabled ?? true,
-    ...(options.poll === false
-      ? { staleTime: 60_000 }
-      : { refetchInterval: 15_000 }),
   });
 }
 

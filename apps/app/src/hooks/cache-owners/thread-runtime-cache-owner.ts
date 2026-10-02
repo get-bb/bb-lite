@@ -26,12 +26,6 @@ import type { AppCreateThreadRequest } from "@bb/client-core";
 import { OPTIMISTIC_TIMELINE_ROW_ID_PREFIX } from "@bb/client-core";
 import { collectPromptAttachments } from "@/lib/prompt-attachments";
 import { prependPromptHistoryEntry } from "@/lib/prompt-history";
-import {
-  applyQueuedMessageReorder,
-  collectLeadQueuedMessageGroupIds,
-  preserveLeadQueuedMessageGroupAfterReorder,
-  type QueuedMessageReorderRequest,
-} from "@/lib/queued-message-reorder";
 import type { SendThreadMessageMutationRequest } from "../mutations/mutation-request-types";
 import {
   insertOptimisticTimelineRow,
@@ -179,37 +173,6 @@ interface QueuedMessageSuccessArgs {
   transaction: CreateQueuedMessageTransaction | undefined;
 }
 
-interface ReorderQueuedMessageRequest extends QueuedMessageReorderRequest {
-  id: string;
-}
-
-interface SetQueuedMessageGroupBoundaryRequest {
-  groupBoundaryQueuedMessageId: string;
-  id: string;
-}
-
-interface ReorderQueuedMessageTransactionArgs {
-  queryClient: QueryClient;
-  request: ReorderQueuedMessageRequest;
-}
-
-interface SetQueuedMessageGroupBoundaryTransactionArgs {
-  queryClient: QueryClient;
-  request: SetQueuedMessageGroupBoundaryRequest;
-}
-
-interface RollbackQueuedMessageTransactionArgs {
-  queryClient: QueryClient;
-  request: ReorderQueuedMessageRequest;
-  transaction: ReorderQueuedMessageTransaction | undefined;
-}
-
-interface ApplyQueuedMessagesResultArgs {
-  queryClient: QueryClient;
-  queuedMessages: ThreadQueuedMessageListResponse;
-  request: Pick<ReorderQueuedMessageRequest, "id">;
-}
-
 interface StopThreadTransactionArgs extends ThreadIdCacheArgs {
   requestedAt: number;
 }
@@ -270,10 +233,6 @@ export type SendThreadMessageTransaction =
   | SendThreadMessageAcceptedTurnTransaction
   | SendThreadMessageQueuedTransaction;
 
-export interface ReorderQueuedMessageTransaction {
-  previousQueuedMessages: ThreadQueuedMessageListResponse | undefined;
-}
-
 export interface CreateQueuedMessageTransaction {
   optimisticCreatedAt: number;
   optimisticQueuedMessageId: string;
@@ -317,23 +276,6 @@ function buildQueuedPromptHistoryEntry(
     createdAt: queuedMessage.createdAt,
     input: queuedMessage.content,
   };
-}
-
-function applyQueuedMessageGroupBoundary({
-  groupBoundaryQueuedMessageId,
-  queuedMessages,
-}: {
-  groupBoundaryQueuedMessageId: string;
-  queuedMessages: readonly ThreadQueuedMessage[];
-}): ThreadQueuedMessage[] {
-  const boundaryIndex = queuedMessages.findIndex(
-    (queuedMessage) => queuedMessage.id === groupBoundaryQueuedMessageId,
-  );
-  if (boundaryIndex === -1) return [...queuedMessages];
-  return queuedMessages.map((queuedMessage, index) => ({
-    ...queuedMessage,
-    groupWithNext: index < boundaryIndex,
-  }));
 }
 
 function queuedMessageSendGroup(
@@ -855,10 +797,6 @@ export function applyThreadPlanCancellationResult(
   args: ThreadIdCacheArgs,
 ): void {
   applyAuthoritativeThreadBannerCancellation({ ...args, kind: "plan" });
-}
-
-export function applyThreadGoalClearResult(args: ThreadIdCacheArgs): void {
-  applyAuthoritativeThreadBannerCancellation({ ...args, kind: "goal" });
 }
 
 export async function beginCreateThreadTransaction({
@@ -1442,98 +1380,6 @@ export function applyQueuedMessageSendResult({
     queryClient,
     threadId: request.id,
   });
-}
-
-export async function beginReorderQueuedMessageTransaction({
-  queryClient,
-  request,
-}: ReorderQueuedMessageTransactionArgs): Promise<ReorderQueuedMessageTransaction> {
-  const queryKey = threadQueuedMessagesQueryKey(request.id);
-  const previousQueuedMessages =
-    queryClient.getQueryData<ThreadQueuedMessageListResponse>(queryKey);
-
-  queryClient.setQueryData<ThreadQueuedMessageListResponse>(
-    queryKey,
-    (currentQueuedMessages) => {
-      if (!currentQueuedMessages) return currentQueuedMessages;
-      const originalLeadGroupIds = collectLeadQueuedMessageGroupIds(
-        currentQueuedMessages,
-      );
-      const reordered = applyQueuedMessageReorder({
-        queuedMessages: currentQueuedMessages,
-        request,
-      });
-      return request.groupBoundaryQueuedMessageId !== undefined
-        ? applyQueuedMessageGroupBoundary({
-            queuedMessages: reordered,
-            groupBoundaryQueuedMessageId: request.groupBoundaryQueuedMessageId,
-          })
-        : preserveLeadQueuedMessageGroupAfterReorder({
-            queuedMessages: reordered,
-            originalLeadGroupIds,
-          });
-    },
-  );
-
-  await queryClient.cancelQueries({ queryKey });
-
-  return { previousQueuedMessages };
-}
-
-export function rollbackReorderQueuedMessageTransaction({
-  queryClient,
-  request,
-  transaction,
-}: RollbackQueuedMessageTransactionArgs): void {
-  if (transaction?.previousQueuedMessages !== undefined) {
-    queryClient.setQueryData<ThreadQueuedMessageListResponse>(
-      threadQueuedMessagesQueryKey(request.id),
-      transaction.previousQueuedMessages,
-    );
-  }
-  invalidateThreadQueueQueries({
-    queryClient,
-    threadId: request.id,
-  });
-}
-
-export function applyQueuedMessagesResult({
-  queryClient,
-  queuedMessages,
-  request,
-}: ApplyQueuedMessagesResultArgs): void {
-  queryClient.setQueryData<ThreadQueuedMessageListResponse>(
-    threadQueuedMessagesQueryKey(request.id),
-    queuedMessages,
-  );
-  invalidateThreadQueueQueries({
-    queryClient,
-    threadId: request.id,
-  });
-}
-
-export async function beginSetQueuedMessageGroupBoundaryTransaction({
-  queryClient,
-  request,
-}: SetQueuedMessageGroupBoundaryTransactionArgs): Promise<ReorderQueuedMessageTransaction> {
-  const queryKey = threadQueuedMessagesQueryKey(request.id);
-  const previousQueuedMessages =
-    queryClient.getQueryData<ThreadQueuedMessageListResponse>(queryKey);
-
-  queryClient.setQueryData<ThreadQueuedMessageListResponse>(
-    queryKey,
-    (currentQueuedMessages) =>
-      currentQueuedMessages
-        ? applyQueuedMessageGroupBoundary({
-            queuedMessages: currentQueuedMessages,
-            groupBoundaryQueuedMessageId: request.groupBoundaryQueuedMessageId,
-          })
-        : currentQueuedMessages,
-  );
-
-  await queryClient.cancelQueries({ queryKey });
-
-  return { previousQueuedMessages };
 }
 
 export function applyQueuedMessageDeleteResult({
