@@ -11,7 +11,6 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   reasoningEffortsForLevels,
-  removeCommandMentionsFromPromptInput,
   type AvailableModel,
   type DynamicTool,
   type PromptInput,
@@ -182,6 +181,7 @@ export async function buildQueryOptions(
     systemPrompt: { type: "preset", preset: "claude_code", append },
     ...(unsafe ? { allowDangerouslySkipPermissions: true } : {}),
     includePartialMessages: true,
+    disallowedTools: ["EnterPlanMode", "ExitPlanMode"],
     settingSources: ["user", "project", "local"],
     persistSession: true,
     env,
@@ -196,14 +196,10 @@ export async function buildQueryOptions(
   };
 }
 
-export function promptText(input: readonly PromptInput[], planMode: boolean) {
-  const plan = { trigger: "/" as const, name: "plan" };
-  const items = planMode
-    ? removeCommandMentionsFromPromptInput(input, plan)
-    : input;
+export function promptText(input: readonly PromptInput[]) {
   const onDisk = (path: string) =>
     `It is on disk at ${path} — use the Read tool to view it.]`;
-  const chunks = items.flatMap((item) => {
+  const chunks = input.flatMap((item) => {
     if (item.type === "image") return [`[Attached image: ${item.url}]`];
     if (item.type === "localImage") {
       return [`[Attached image. ${onDisk(item.path)}`];

@@ -522,7 +522,6 @@ export function ThreadDetailView({
         pendingInteractionsQuery.isFetching,
       )}
       pendingTodos={timeline.pendingTodos}
-      activePromptMode={timeline.activePromptMode}
       modelFallback={timeline.modelFallback}
       activeWorkflows={timeline.activeWorkflows}
       activeBackgroundCommands={timeline.activeBackgroundCommands}

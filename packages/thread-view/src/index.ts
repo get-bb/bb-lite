@@ -39,7 +39,6 @@ export { extractShellCommandFromString } from "./tool-call-parsing.js";
 export { buildThreadTimelineFromEvents } from "./build-thread-timeline.js";
 export {
   compactThreadTimelineSummaryEvents,
-  extractThreadTimelineActivePlanTurn,
   extractThreadTimelineGoal,
   THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
 } from "./thread-state-extraction.js";

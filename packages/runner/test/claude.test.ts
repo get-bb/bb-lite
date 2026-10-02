@@ -10,7 +10,7 @@ import { settle } from "./kit.js";
 
 const SCENARIOS = `turn-tools:2 steer-compaction:4 stop-interrupt:4
   approval-allow:4 approval-deny:4 subagent:2 resume:4 web-search:2
-  plan-mode:7 user-question:4 auth-failure:2`.split(/\s+/);
+  user-question:4 auth-failure:2`.split(/\s+/);
 const session_id = "sess-1";
 const reason = { decisionReason: "Needs approval" };
 const once = { decision: "allow_once" as const, grantedPermissions: null };
@@ -195,12 +195,6 @@ describe("claude adapter", () => {
     harness.interactions.shift()?.resolve({ decision: "deny" });
     const denied = { behavior: "deny", message: "Permission request denied" };
     expect(await fetch).toMatchObject(denied);
-    const plan = { plan: "1. Ship", planFilePath: "/plans/p.md" };
-    const rejected = live.decide("ExitPlanMode", plan);
-    await settle();
-    harness.interactions.shift()?.resolve({ decision: "deny" });
-    const rejection = expect.stringContaining("rejected this plan");
-    expect(await rejected).toMatchObject({ message: rejection });
     const pending = live.decide("Bash", command, reason);
     await settle();
     const before = harness.events.length;
@@ -260,6 +254,7 @@ describe("claude adapter", () => {
       resume: "sess-0",
       model: "opus[1m]",
       permissionMode: "acceptEdits",
+      disallowedTools: ["EnterPlanMode", "ExitPlanMode"],
       effort: "xhigh",
       systemPrompt: { preset: "claude_code", append: "Be brief." },
       settings: { ...flags, ultracode: true, fastMode: false },
@@ -271,11 +266,10 @@ describe("claude adapter", () => {
     const manifest = await readFile(join(plugin, "plugin.json"), "utf8");
     expect(JSON.parse(manifest)).toMatchObject({ name: "bb-global-skills" });
     const changes = { model: "sonnet", serviceTier: "fast" as const };
-    await live.turn("think", { ...changes, planMode: true });
+    await live.turn("think", changes);
     const fast = { ...flags, effortLevel: "xhigh", ultracode: true };
     const settings = ["flags", { ...fast, fastMode: true }];
-    const calls = [["model", "sonnet"], settings, ["mode", "plan"]];
-    expect(live.query.calls).toEqual(calls);
+    expect(live.query.calls).toEqual([["model", "sonnet"], settings]);
     const same = { ...claude.SPEC, ...spec };
     const next = { ...claude.OPTIONS, ...start, ...changes };
     expect(live.session.canApply(same, next)).toBe(true);

@@ -359,7 +359,6 @@ export function useThreadCreationOptions({
         label: candidate.displayName,
         icon: getProviderIconInfo(candidate.id, candidate)?.icon,
         brandPrefix: candidate.strings?.brandPrefix,
-        planModeCopy: candidate.strings?.planModeCopy,
         installUrl: candidate.strings?.installUrl,
       })),
       selectedId: providerId,

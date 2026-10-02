@@ -120,7 +120,6 @@ function toOptions(options: Command["options"]) {
   const execution = {
     ...rest,
     permissionEscalation: escalation,
-    planMode: false,
   };
   return { execution, instructions, envVars };
 }

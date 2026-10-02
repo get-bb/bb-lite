@@ -67,7 +67,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   const tools = session.dynamicTools.map((tool) => tool.name);
   expect(tools).toEqual(["AskUserQuestion"]);
   const providerOptions = { memoryEnabled: true };
-  const asks = { permissionEscalation: "ask", planMode: false };
+  const asks = { permissionEscalation: "ask" };
   const chosen = { model: "gpt-test", ...asks, providerOptions };
   expect(options).toMatchObject(chosen);
   const stored = join(ctx.config.dataDir, "attachments/proj_1/shot.png");

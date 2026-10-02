@@ -7,7 +7,6 @@ import {
   query,
   type HookCallback,
   type Options,
-  type PermissionMode,
   type Query,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -33,7 +32,6 @@ import type {
 
 type Controls =
   | "interrupt"
-  | "setPermissionMode"
   | "setModel"
   | "applyFlagSettings"
   | "initializationResult"
@@ -88,7 +86,6 @@ class ClaudeSession implements ProviderSession {
   private done: Promise<void> = Promise.resolve();
   private interrupting: Promise<unknown> | null = null;
   private settings: claude.ClaudeSettings;
-  private mode: PermissionMode;
   private ended = false;
   private closing = false;
   private rebuild = false;
@@ -104,7 +101,6 @@ class ClaudeSession implements ProviderSession {
     const { events } = host;
     this.settings = claude.claudeSettings(options);
     this.signature = this.signatureOf(spec, options);
-    this.mode = options.planMode ? "plan" : this.settings.baseMode;
     const sandboxed = this.settings.baseMode !== "bypassPermissions";
     const labelled = spec.dynamicTools.map(
       (tool) => [tool.name, tool.presentation] as const,
@@ -116,9 +112,8 @@ class ClaudeSession implements ProviderSession {
       requestInteraction: (request) => host.requestInteraction(request),
       itemId: (toolUseId) => events.bbItemId(toolUseId) ?? toolUseId,
       turnId: () => events.activeTurnId,
-      mode: () => this.mode,
+      mode: () => this.settings.baseMode,
       escalation: () => this.options.permissionEscalation,
-      planApproved: () => this.leavePlanMode(),
     });
   }
 
@@ -141,7 +136,7 @@ class ClaudeSession implements ProviderSession {
       const options: Options = {
         ...(await claude.buildQueryOptions(spec, this.settings, host)),
         abortController: this.abort,
-        permissionMode: claude.startMode(this.mode),
+        permissionMode: claude.startMode(this.settings.baseMode),
         canUseTool: this.permissions.canUseTool,
         hooks: { PreToolUse: [{ hooks: [this.denyDisabledTools] }] },
         stderr: (chunk) => {
@@ -235,13 +230,6 @@ class ClaudeSession implements ProviderSession {
     return { continue: true, hookSpecificOutput };
   };
 
-  private leavePlanMode() {
-    const { baseMode } = this.settings;
-    if (this.mode === baseMode) return;
-    this.mode = baseMode;
-    void this.query?.setPermissionMode(baseMode).catch(() => undefined);
-  }
-
   private async applySettings(options: ExecutionOptions) {
     const next = claude.claudeSettings(options);
     const { model, flags } = this.settings;
@@ -253,13 +241,10 @@ class ClaudeSession implements ProviderSession {
       await this.query?.applyFlagSettings(next.flags);
     }
     this.settings = next;
-    if (!options.planMode || this.mode === "plan") return;
-    await this.query?.setPermissionMode("plan");
-    this.mode = "plan";
   }
 
   private async submit({ clientRequestId, input, options }: TurnInput) {
-    const content = claude.promptText(input, options.planMode);
+    const content = claude.promptText(input);
     if (content === undefined) throw new RunnerError("failed", "Missing input");
     if (this.ended || this.closing) throw new RunnerError("failed", CLOSED);
     await this.applySettings(options).catch((error: unknown) => {

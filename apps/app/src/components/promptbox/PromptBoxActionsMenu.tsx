@@ -13,14 +13,13 @@ import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome
 import type { ProviderPromptActionCommand } from "@bb/client-core";
 
 export interface PromptBoxAction {
-  kind: "skills" | "plan" | "goal";
+  kind: "skills" | "goal";
   text: string;
   command?: ProviderPromptActionCommand;
 }
 
 const PROMPT_ACTIONS = [
   { kind: "skills", label: "Skills", icon: "Zap" },
-  { kind: "plan", label: "Plan", icon: "ListTodo" },
 ] as const;
 
 export function PromptBoxActionsMenu({

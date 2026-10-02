@@ -10,7 +10,6 @@ export interface ThreadListIndicatorState {
   isBackgroundAgentActive: boolean;
   isBackgroundCommandActive: boolean;
   isGoalActive: boolean;
-  isPlanModeActive: boolean;
   isRuntimeActive: boolean;
   isWorkflowActive: boolean;
   queuedWork: ThreadQueuedWork;
@@ -23,7 +22,6 @@ const THREAD_LIST_INDICATOR_LABELS = {
   workflow: "Workflow running",
   "background-agent": "Background agent running",
   "background-command": "Background command running",
-  "plan-mode": "Plan mode active",
   goal: "Goal active",
   runtime: "Thread working",
   "queued-failed": "Queued message failed to send",
@@ -50,7 +48,6 @@ export function hasThreadListWorkingActivity(
     state.isWorkflowActive ||
     state.isBackgroundAgentActive ||
     state.isBackgroundCommandActive ||
-    state.isPlanModeActive ||
     state.isGoalActive
   );
 }
@@ -73,7 +70,6 @@ export function threadListIndicatorStateForThread(
     isBackgroundCommandActive: activity.activeBackgroundCommandCount > 0,
     isGoalActive: activity.activeGoalCount > 0,
     queuedWork: thread.queuedWork,
-    isPlanModeActive: activity.activePlanModeCount > 0,
     isRuntimeActive: isRunningThreadRuntimeDisplayStatus(
       thread.runtime.displayStatus,
     ),
@@ -89,7 +85,6 @@ export function resolveThreadListIndicator(
   if (state.hasUnsubmittedDraft && hasThreadListWorkingActivity(state)) {
     return "working-draft";
   }
-  if (state.isPlanModeActive) return "plan-mode";
   if (state.isGoalActive) return "goal";
   if (state.isRuntimeActive) return "runtime";
   if (state.isWorkflowActive) return "workflow";

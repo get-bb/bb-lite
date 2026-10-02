@@ -45,12 +45,6 @@ interface OptionPickerProps<T extends string> {
   defaultOpen?: boolean;
   modal?: boolean;
   align?: "start" | "end" | "center";
-  displayOverride?: {
-    label: string;
-    compactLabel?: string;
-    description?: string;
-    title?: string;
-  };
   disabled?: boolean;
   showChevronWhenDisabled?: boolean;
 }
@@ -67,25 +61,18 @@ export function OptionPicker<T extends string>({
   defaultOpen,
   modal,
   align = "start",
-  displayOverride,
   disabled,
   showChevronWhenDisabled,
 }: OptionPickerProps<T>) {
   const selectedOption = options.find((option) => option.value === value);
-  const selectedTone = displayOverride ? "default" : selectedOption?.tone;
-  const selectedIsWarning = selectedTone === "warning";
+  const selectedIsWarning = selectedOption?.tone === "warning";
   const SelectedIcon = selectedOption?.icon;
-  const selectedLabel =
-    displayOverride?.label ?? selectedOption?.label ?? value;
-  const selectedCompactLabel =
-    displayOverride?.compactLabel ?? selectedOption?.compactLabel;
-  const selectedDescription =
-    displayOverride?.description ?? selectedOption?.description;
-  const selectedTitle = displayOverride?.title
-    ? displayOverride.title
-    : selectedDescription
-      ? `${label}: ${selectedLabel} - ${selectedDescription}`
-      : `${label}: ${selectedLabel}`;
+  const selectedLabel = selectedOption?.label ?? value;
+  const selectedCompactLabel = selectedOption?.compactLabel;
+  const selectedDescription = selectedOption?.description;
+  const selectedTitle = selectedDescription
+    ? `${label}: ${selectedLabel} - ${selectedDescription}`
+    : `${label}: ${selectedLabel}`;
 
   const trigger = (
     <Button

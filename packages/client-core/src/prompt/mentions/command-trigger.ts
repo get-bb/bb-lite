@@ -7,7 +7,7 @@ import type {
 export type ProviderPromptActionCommand = ProviderComposerCommand;
 
 interface ProviderPromptAction {
-  kind: "goal" | "plan" | "skills";
+  kind: "goal" | "skills";
   text: string;
   command?: ProviderPromptActionCommand;
 }

@@ -161,8 +161,9 @@ open items when a session ends, never throwing on unknown provider traffic) are 
 
 - Codex: one `codex app-server` child per thread over JSON-RPC stdio; `thread/start` or `thread/resume`,
   `turn/start`, `turn/steer`, `turn/interrupt`.
-- Claude Code: one streaming-input `query()` per thread; `resume` by session id; approvals, questions and
-  plan exit through `canUseTool`; bb dynamic tools through an in-process SDK MCP server.
+- Claude Code: one streaming-input `query()` per thread; `resume` by session id; approvals and questions
+  through `canUseTool`; `EnterPlanMode` and `ExitPlanMode` are disallowed tools; bb dynamic tools through
+  an in-process SDK MCP server.
 - Echo: a scripted provider for development and tests, driven by directives in the prompt.
 
 ## Thread engine (server)

@@ -26,7 +26,7 @@ interface ProviderSeed extends Pick<
   id: ProviderId;
   logoFile: string | null;
   reasoningLevels: domain.ReasoningLevel[];
-  composerCommands: ("plan" | "goal")[];
+  composerCommands: "goal"[];
   capabilities: Omit<
     domain.ProviderInfo["capabilities"],
     "permissionModes" | "modelCatalogScope"
@@ -81,7 +81,7 @@ function levelDescriptor(
     : { ...descriptor, description };
 }
 
-function slashCommand(name: "plan" | "goal"): domain.ProviderComposerAction {
+function slashCommand(name: "goal"): domain.ProviderComposerAction {
   return { kind: name, command: { trigger: "/", name, trailingText: " " } };
 }
 
@@ -120,7 +120,7 @@ const CODEX = defineProvider({
   logoFile: "codex.svg",
   completedTurnDisplay: "collapse",
   reasoningLevels: ["low", "medium", "high", "xhigh", "max", "ultra"],
-  composerCommands: ["plan", "goal"],
+  composerCommands: ["goal"],
   capabilities: {
     supportsThreadArchive: true,
     supportsThreadRename: true,
@@ -152,7 +152,7 @@ const CLAUDE_CODE = defineProvider({
   logoFile: "claude-code.svg",
   completedTurnDisplay: "flat",
   reasoningLevels: ["low", "medium", "high", "xhigh", "ultracode", "max"],
-  composerCommands: ["plan"],
+  composerCommands: [],
   capabilities: {
     supportsThreadArchive: false,
     supportsThreadRename: false,
@@ -166,8 +166,6 @@ const CLAUDE_CODE = defineProvider({
       expiredHint: "Your Claude session expired. Run `claude`, then reload.",
       installUrl: "https://claude.com/claude-code",
       brandPrefix: "Claude ",
-      planModeCopy:
-        "Claude Code will plan without normal full-access execution.",
       iconTint: { light: "#D97757", dark: "#D97757" },
     },
     serviceTiers: [
@@ -215,15 +213,6 @@ export function findProviderDefinition(
   providerId: string,
 ): ProviderDefinition | undefined {
   return listProviderDefinitions(db).find(({ id }) => id === providerId);
-}
-
-export function providerPlanCommand(
-  db: Db,
-  providerId: string,
-): domain.ProviderComposerCommand | null {
-  const actions = findProviderDefinition(db, providerId)?.info.composerActions;
-  const plan = actions?.find((action) => action.kind === "plan");
-  return plan?.kind === "plan" ? plan.command : null;
 }
 
 export function listEnabledProviders(db: Db): ProviderDefinition[] {

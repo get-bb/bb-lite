@@ -554,7 +554,6 @@ function EnvironmentThreadGroupHeader({
       childActivity.isWorkflowActive ||
       childActivity.isBackgroundAgentActive ||
       childActivity.isBackgroundCommandActive ||
-      childActivity.isPlanModeActive ||
       childActivity.isGoalActive ||
       childActivity.hasUnsubmittedDraft ||
       childActivity.hasUnreadSuccess ||

@@ -265,19 +265,6 @@ export function createStandaloneBuiltinCompactCommandInput(): PromptInput[] {
   ];
 }
 
-export function promptInputHasCommandMention(
-  input: readonly PromptInput[],
-  selector: PromptCommandSelector,
-): boolean {
-  return input.some(
-    (item) =>
-      item.type === "text" &&
-      item.mentions.some((mention) =>
-        isSelectedPromptCommandMention(mention, selector),
-      ),
-  );
-}
-
 function commandRemovalRanges(
   input: TextPromptInput,
   selector: PromptCommandSelector,
@@ -350,7 +337,7 @@ function removeCommandMentionsFromTextInput(
   };
 }
 
-export function removeCommandMentionsFromPromptInput(
+function removeCommandMentionsFromPromptInput(
   input: readonly PromptInput[],
   selector: PromptCommandSelector,
 ): PromptInput[] {

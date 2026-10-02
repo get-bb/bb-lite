@@ -31,7 +31,6 @@ const OPTIONS: ExecutionOptions = {
   serviceTier: "default",
   permissionMode: "accept-edits",
   permissionEscalation: "ask",
-  planMode: false,
   providerOptions: {},
 };
 const SESSION = {

@@ -8,11 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import type {
-  PromptTextMention,
-  ThreadRuntimeDisplayStatus,
-  ThreadTimelineActivePromptMode,
-} from "@bb/domain";
+import type { PromptTextMention, ThreadRuntimeDisplayStatus } from "@bb/domain";
 import {
   useAppCommandContext,
   useAppCommandHandler,
@@ -26,7 +22,6 @@ import {
   type PromptBoxHandle,
   type TypeaheadConfig,
 } from "@/components/promptbox/PromptBoxInternal";
-import { usePromptModePermissionDisplay } from "@/components/promptbox/usePromptModePermissionDisplay";
 import { PermissionModePicker } from "@/components/pickers/PermissionModePicker";
 import {
   ModelReasoningPicker,
@@ -74,7 +69,6 @@ export interface FollowUpPromptBoxProps {
   id?: string;
   attachments: AttachmentsConfig;
   stack: ReactNode | null;
-  activePromptMode?: ThreadTimelineActivePromptMode | null;
   composer: FollowUpComposerProps | null;
   environmentSummary: ReactNode | null;
   contextWindowUsage:
@@ -97,7 +91,6 @@ function FollowUpPromptBoxWithComposer({
   id,
   attachments,
   stack,
-  activePromptMode = null,
   composer,
   environmentSummary,
   contextWindowUsage,
@@ -198,14 +191,6 @@ function FollowUpPromptBoxWithComposer({
     window.addEventListener("pointerup", release, true);
     window.addEventListener("pointercancel", release, true);
   };
-
-  const { permissionDisplayOverride, permissionPickerDisabledByPlanMode } =
-    usePromptModePermissionDisplay({
-      execution,
-      value: composer.message,
-      mentionRanges: composer.mentionRanges,
-      activePromptMode,
-    });
 
   return (
     <>
@@ -324,13 +309,7 @@ function FollowUpPromptBoxWithComposer({
                   options={permission.options}
                   onChange={permission.onChange}
                   supported={permission.supported}
-                  disabled={
-                    permissionReadOnly ||
-                    hasPendingInteraction ||
-                    permissionPickerDisabledByPlanMode
-                  }
-                  showChevronWhenDisabled={permissionPickerDisabledByPlanMode}
-                  displayOverride={permissionDisplayOverride}
+                  disabled={permissionReadOnly || hasPendingInteraction}
                   className="h-6"
                 />
                 {contextWindowUsage ? (

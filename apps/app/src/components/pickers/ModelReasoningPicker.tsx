@@ -62,7 +62,6 @@ import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 
 export interface ProviderPickerOption extends PickerOption<string> {
   brandPrefix?: string;
-  planModeCopy?: string;
   installUrl?: string;
 }
 

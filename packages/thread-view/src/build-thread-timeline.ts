@@ -5,7 +5,6 @@ import {
   type CompletedTurnDisplay,
   type ProviderErrorCategory,
   type Thread,
-  type ThreadTimelineActivePromptMode,
   type ThreadTimelineGoal,
   type ThreadTimelineModelFallback,
   type ThreadTimelinePendingTodos,
@@ -110,15 +109,12 @@ interface ThreadTimelineFromEventsOptions {
   includeDiagnosticOperations: boolean;
   includeNestedRows: boolean;
   isLatestPage: boolean;
-  providerId?: string;
-  planCommand?: extraction.PlanCommand | null;
   threadStatus: Thread["status"];
   threadName: string;
   workspaceRoot: string | null;
 }
 
 interface ThreadTimelineFromEventsResult {
-  activePromptMode: ThreadTimelineActivePromptMode | null;
   activeThinking: ActiveThinking | null;
   activeWorkflows: TimelineWorkflowWorkRow[];
   activeBackgroundCommands: TimelineWorkflowWorkRow[];
@@ -525,7 +521,7 @@ export function buildThreadTimelineFromEvents(args: {
   options: ThreadTimelineFromEventsOptions;
 }): ThreadTimelineFromEventsResult {
   const { events, options } = args;
-  const { threadStatus, providerId, planCommand } = options;
+  const { threadStatus } = options;
   const stateEvents = args.headStateEvents?.length
     ? getOrderedThreadEvents([...events, ...args.headStateEvents])
     : events;
@@ -533,14 +529,6 @@ export function buildThreadTimelineFromEvents(args: {
   const rowOptions = { ...options, rowIdPrefix: "" };
   const latest = options.isLatestPage;
   return {
-    activePromptMode: latest
-      ? (extraction.extractThreadTimelineActivePlanTurn({
-          events,
-          planCommand,
-          providerId,
-          threadStatus,
-        })?.promptMode ?? null)
-      : null,
     activeThinking: projection.activeThinking,
     activeWorkflows: buildWorkflowWorkRows(projection.activeWorkflows, ""),
     activeBackgroundCommands: buildWorkflowWorkRows(

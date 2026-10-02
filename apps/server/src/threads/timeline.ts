@@ -1,8 +1,4 @@
-import type {
-  CompletedTurnDisplay,
-  ProviderComposerCommand,
-  ThreadStatus,
-} from "@bb/domain";
+import type { CompletedTurnDisplay, ThreadStatus } from "@bb/domain";
 import * as contract from "@bb/server-contract";
 import {
   buildThreadTimelineFromEvents,
@@ -21,7 +17,6 @@ export interface TimelineDisplay {
   completedTurnDisplay: CompletedTurnDisplay;
   includeDiagnosticOperations: boolean;
   providerDisplayName: string | undefined;
-  planCommand: ProviderComposerCommand | null;
 }
 
 export interface TimelineRequest extends TimelineDisplay {
@@ -416,7 +411,6 @@ function projectWindow(
       threadStatus,
       threadName: threadName(thread),
       workspaceRoot: thread.environmentPath,
-      providerId: thread.providerId,
     },
   });
   const rows = timeline.rows.filter(
@@ -487,7 +481,7 @@ function buildTimelinePage(
     rows: summaryOnly ? [] : paginated.rows,
     contextBoundarySeq,
     completedTurnDisplay,
-    activePromptMode: latest ? timeline.activePromptMode : null,
+    activePromptMode: null,
     activeThinking: latest ? timeline.activeThinking : null,
     activeWorkflows: latest ? timeline.activeWorkflows : [],
     activeBackgroundCommands: latest ? timeline.activeBackgroundCommands : [],

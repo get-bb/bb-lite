@@ -27,10 +27,7 @@ import {
   listThreadSections,
   requireThreadSection,
 } from "../../db/thread-sections.js";
-import {
-  findProviderDefinition,
-  providerPlanCommand,
-} from "../../providers/catalog.js";
+import { findProviderDefinition } from "../../providers/catalog.js";
 import { hostResponse } from "../../runners/hosts.js";
 
 import {
@@ -119,7 +116,6 @@ export function registerThreadReadRoutes(
         domain.DEFAULT_COMPLETED_TURN_DISPLAY,
       includeDiagnosticOperations: settings.showDiagnosticEvents,
       providerDisplayName: provider?.displayName,
-      planCommand: providerPlanCommand(db, providerId),
     };
   }
 

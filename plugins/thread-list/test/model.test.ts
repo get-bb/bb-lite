@@ -27,7 +27,7 @@ function thread(id: string, patch: object = {}): PluginSidebarThread {
     ...loose,
     pinSortKey: null,
     hasPendingInteraction: false,
-    activity: { ...activity, planMode: 0, goals: 0 },
+    activity: { ...activity, goals: 0 },
     createdAt: clock,
     latestAttentionAt: clock,
   };

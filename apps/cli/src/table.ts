@@ -140,7 +140,7 @@ thread interactions show <interactionId> [id]  Show one interaction in full
 ${SELF}
 thread interactions resolve <interactionId> [id]  Approve, deny or answer one
 ${SELF}
-  --approve  Approve a command, file change, plan or tool use
+  --approve  Approve a command, file change or tool use
   --deny  Deny it
   --grant <scope>  Grant a permission request for the turn or the session
   --answer <question=value>...  Choose an option of a question

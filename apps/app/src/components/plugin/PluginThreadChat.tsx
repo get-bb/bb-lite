@@ -245,7 +245,6 @@ function ThreadChatWithComposer({
           workspaceStatusPending={false}
           contextBannerMergeBase={null}
           pendingTodos={null}
-          activePromptMode={null}
           modelFallback={null}
           activeWorkflows={NOTHING}
           activeBackgroundCommands={NOTHING}

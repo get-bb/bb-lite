@@ -104,7 +104,7 @@ Each line is something the main user can see or reach. Nothing else differed in 
 - The workflow banner, expanded, lists phases and agents flat rather than as a collapsible tree.
 - Switching a checkout to a branch another thread is using is refused after the thread is created
   (shown as a provisioning failure) rather than before.
-- On a Codex thread the plan pill appears but the footer does not switch to "Plan Mode".
+- No plan mode: `/plan` is gone and Claude cannot enter plan mode; plans in old threads still render.
 
 ### Right panel
 

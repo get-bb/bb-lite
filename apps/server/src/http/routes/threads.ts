@@ -12,9 +12,8 @@ import type { ServerContext } from "../../context.js";
 import { writeRevision } from "../../db/index.js";
 import * as sections from "../../db/thread-sections.js";
 import { requireThread } from "../../db/threads.js";
-import { activePlanTurnId } from "../../threads/thread-display.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, conflict, invalidRequest } from "../errors.js";
+import { ApiError, invalidRequest } from "../errors.js";
 
 type WireTab = ThreadTabsWireResponse["tabs"][number];
 
@@ -82,16 +81,6 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
       return c.json(OK);
     });
   }
-
-  post(routes.cancelPlan, async (c) => {
-    const id = c.req.param("id");
-    const planTurnId = () => activePlanTurnId(db, requireThread(db, id));
-    const expected = planTurnId();
-    if (expected === null) throw conflict("Plan mode is not active");
-    if (requireThread(db, id).activeTurnId === expected) await threads.stop(id);
-    if (planTurnId() === null) return c.json(OK);
-    throw conflict("The provider did not confirm that Plan mode exited");
-  });
 
   post(routes.archiveAll, async (c) => {
     const archivedThreadIds = await threads.archive(c.req.param("id"));

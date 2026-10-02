@@ -10,7 +10,6 @@ import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import type {
   PendingInteraction,
   ThreadQueuedMessage,
-  ThreadTimelineActivePromptMode,
   ThreadTimelineModelFallback,
   ThreadTimelinePendingTodos,
   ThreadWithRuntime,
@@ -29,7 +28,6 @@ import {
   type ThreadPromptChildThreadsSection,
 } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import { ThreadTodoCard } from "@/components/promptbox/banner/ThreadTodoCard";
-import { ThreadPromptModeCard } from "@/components/promptbox/banner/ThreadPromptModeCard";
 import { ThreadWorkflowCard } from "@/components/promptbox/banner/ThreadWorkflowCard";
 import { ThreadBackgroundCommandsCard } from "@/components/promptbox/banner/ThreadBackgroundCommandsCard";
 import { ThreadModelFallbackCard } from "@/components/promptbox/banner/ThreadModelFallbackCard";
@@ -53,7 +51,6 @@ import { usePromptTypeahead } from "@/components/promptbox/usePromptTypeahead";
 import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
 import {
   useCreateThreadQueuedMessage,
-  useCancelThreadPlan,
   useDeleteThreadQueuedMessage,
   useSendThreadQueuedMessage,
   useStopThread,
@@ -122,7 +119,6 @@ interface ThreadDetailPromptAreaProps {
   workspaceStatusPending: boolean;
   contextBannerMergeBase: ContextBannerMergeBaseConfig | null;
   pendingTodos: ThreadTimelinePendingTodos | null;
-  activePromptMode: ThreadTimelineActivePromptMode | null;
   modelFallback: ThreadTimelineModelFallback | null;
   activeWorkflows: TimelineWorkflowWorkRow[];
   activeBackgroundCommands: TimelineWorkflowWorkRow[];
@@ -156,7 +152,6 @@ export function ThreadDetailPromptArea({
   workspaceStatusPending,
   contextBannerMergeBase,
   pendingTodos,
-  activePromptMode,
   modelFallback,
   activeWorkflows,
   activeBackgroundCommands,
@@ -225,7 +220,6 @@ export function ThreadDetailPromptArea({
   const sendQueuedMessage = useSendThreadQueuedMessage();
   const deleteQueuedMessage = useDeleteThreadQueuedMessage();
   const stopThread = useStopThread();
-  const cancelThreadPlan = useCancelThreadPlan();
   const unarchiveThread = useUnarchiveThread();
   const projectName = useProjectDisplayName(
     thread.projectId === PERSONAL_PROJECT_ID ? undefined : thread.projectId,
@@ -270,7 +264,6 @@ export function ThreadDetailPromptArea({
   const [expandedBannerSection, setExpandedBannerSection] =
     useState<ThreadPromptContextBannerExpandedSection | null>(null);
   const [isTodoExpanded, setIsTodoExpanded] = useState(false);
-  const [isPromptModeExpanded, setIsPromptModeExpanded] = useState(false);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<
     ReadonlySet<string>
   >(() => new Set());
@@ -539,15 +532,6 @@ export function ThreadDetailPromptArea({
       ? basePermission
       : { ...basePermission, value: undefined, options: [], supported: false };
 
-  const promptModeCard = (
-    <ThreadPromptModeCard
-      activePromptMode={activePromptMode}
-      isExitPending={cancelThreadPlan.isPending}
-      isExpanded={isPromptModeExpanded}
-      onExitPlanMode={() => cancelThreadPlan.mutate(thread.id)}
-      onToggle={() => setIsPromptModeExpanded((value) => !value)}
-    />
-  );
   const inlineEditor: QueuedMessageInlineEditor | undefined = inlineEdit
     ? {
         queuedMessageId: inlineEdit.queuedMessage.id,
@@ -640,10 +624,7 @@ export function ThreadDetailPromptArea({
       />
     ) : null;
   const promptStack = pendingInteractionNode ? (
-    <>
-      {childPendingInteractionBanners}
-      {activePromptMode ? promptModeCard : null}
-    </>
+    childPendingInteractionBanners
   ) : (
     <>
       {childPendingInteractionBanners}
@@ -666,7 +647,6 @@ export function ThreadDetailPromptArea({
         isExpanded={isBackgroundCommandsExpanded}
         onToggle={() => setIsBackgroundCommandsExpanded((value) => !value)}
       />
-      {shouldHideComposer ? null : promptModeCard}
       <ThreadTodoCard
         pendingTodos={shouldHideComposer ? null : pendingTodos}
         isExpanded={isTodoExpanded}
@@ -761,7 +741,6 @@ export function ThreadDetailPromptArea({
       }}
       stack={promptStack}
       pendingInteraction={pendingInteractionNode}
-      activePromptMode={activePromptMode}
       composer={
         shouldHideComposer
           ? null

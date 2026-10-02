@@ -96,9 +96,6 @@ const VISIBLE_REQUEST_INPUT = `EXISTS (
         AND COALESCE(json_extract(part.value, '$.text'), '') <> '')
       OR json_extract(part.value, '$.type')
         IN ('image', 'localImage', 'localFile')))`;
-export const OPEN_TURN = `NOT EXISTS (SELECT 1 FROM events AS done
-  WHERE done.thread_id = events.thread_id AND done.turn_id = events.turn_id
-    AND done.type = 'turn/completed')`;
 export const ROOT_TURN_EVENT = `turn_id IS NOT NULL
   AND parent_tool_call_id IS NULL AND EXISTS (SELECT 1 FROM events AS root
     WHERE root.thread_id = events.thread_id AND root.turn_id = events.turn_id
