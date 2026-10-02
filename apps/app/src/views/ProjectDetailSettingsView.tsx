@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import "@bb/shared-ui/icon-extended";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
@@ -19,6 +19,10 @@ import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { useProjectActions } from "@/components/project/ProjectActionsProvider";
 import { ScopedMachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
+import {
+  SettingsBackLink,
+  SettingsDetailShell,
+} from "@/components/settings/SettingsDropdown";
 import {
   formatGitRemote,
   pluralize,
@@ -51,29 +55,6 @@ import {
   getSettingsMachineRoutePath,
   getSettingsRoutePath,
 } from "@/lib/route-paths";
-
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <PageShell contentClassName="pt-4 md:pt-5">
-      <div className="mx-auto w-full max-w-3xl space-y-3">
-        <BackLink />
-        {children}
-      </div>
-    </PageShell>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      to={getSettingsRoutePath("projects")}
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <Icon name="ChevronLeft" className="size-3.5" />
-      Projects
-    </Link>
-  );
-}
 
 export function ProjectDetailSettingsView() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -126,29 +107,29 @@ export function ProjectDetailSettingsView() {
 
   if (navigation.isError || hostsQuery.isError) {
     return (
-      <Shell>
+      <SettingsDetailShell section="projects" label="Projects">
         <p className="text-sm text-destructive" role="alert">
           Couldn't load this project.
         </p>
-      </Shell>
+      </SettingsDetailShell>
     );
   }
   if (projects === undefined || hostsQuery.data === undefined) {
     return (
-      <Shell>
+      <SettingsDetailShell section="projects" label="Projects">
         <p className="text-sm text-muted-foreground">Loading…</p>
-      </Shell>
+      </SettingsDetailShell>
     );
   }
   if (project === null) {
     return existed ? (
       <Navigate to={getSettingsRoutePath("projects")} replace />
     ) : (
-      <Shell>
+      <SettingsDetailShell section="projects" label="Projects">
         <p className="text-sm text-muted-foreground">
           This project no longer exists.
         </p>
-      </Shell>
+      </SettingsDetailShell>
     );
   }
 
@@ -163,7 +144,7 @@ export function ProjectDetailSettingsView() {
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-10">
         <div className="space-y-3">
-          <BackLink />
+          <SettingsBackLink section="projects" label="Projects" />
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">

@@ -1,7 +1,5 @@
-import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { ResourceOverflowMenu } from "@bb/shared-ui/resource-list";
 import { MachineLabel } from "@/components/machines/MachineLabel";
@@ -13,6 +11,10 @@ import {
   useMachineDialogs,
 } from "@/components/machines/machine-dialogs";
 import { PLATFORM_LABELS } from "@/components/settings/MachinesSettingsSection";
+import {
+  SettingsBackLink,
+  SettingsDetailShell,
+} from "@/components/settings/SettingsDropdown";
 import { PageShell } from "@/components/ui/page-shell.js";
 import {
   SettingsBadge,
@@ -34,26 +36,6 @@ import {
   getSettingsRoutePath,
 } from "@/lib/route-paths";
 
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <PageShell contentClassName="pt-4 md:pt-5">
-      <div className="mx-auto w-full max-w-3xl space-y-3">{children}</div>
-    </PageShell>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      to={getSettingsRoutePath("machines")}
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <Icon name="ChevronLeft" className="size-3.5" />
-      Machines
-    </Link>
-  );
-}
-
 export function MachineSettingsView() {
   const { hostId } = useParams<{ hostId: string }>();
   const navigate = useNavigate();
@@ -69,19 +51,18 @@ export function MachineSettingsView() {
 
   if (hosts === undefined) {
     return (
-      <Shell>
+      <SettingsDetailShell section="machines" label="Machines">
         <p className="text-sm text-muted-foreground">Loading…</p>
-      </Shell>
+      </SettingsDetailShell>
     );
   }
   if (host === null) {
     return (
-      <Shell>
-        <BackLink />
+      <SettingsDetailShell section="machines" label="Machines">
         <p className="text-sm text-muted-foreground">
           Machine is no longer paired.
         </p>
-      </Shell>
+      </SettingsDetailShell>
     );
   }
 
@@ -99,7 +80,7 @@ export function MachineSettingsView() {
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-10">
         <div className="space-y-3">
-          <BackLink />
+          <SettingsBackLink section="machines" label="Machines" />
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex min-w-0 items-center gap-2">
