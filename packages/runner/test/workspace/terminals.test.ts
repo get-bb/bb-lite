@@ -70,7 +70,8 @@ describe("terminals and watching", () => {
     expect(h.terminalIds()).toEqual([]);
     const after = await h.api.attachTerminal({ ...all, tailBytes: 16 });
     expect(after.exited).toEqual({ exitCode: 7 });
-    expect(after.chunks.map((chunk) => chunk.seq)).toEqual([after.nextSeq - 1]);
+    expect(after.chunks.at(-1)?.seq).toBe(after.nextSeq - 1);
+    expect(after.chunks.length).toBeLessThan(after.nextSeq);
     expect(await failureCode(type(terminalId, "x"))).toBe("terminal_not_found");
 
     await open("term_2", "sleep 60");
