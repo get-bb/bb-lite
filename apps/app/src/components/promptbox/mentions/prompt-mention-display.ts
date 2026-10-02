@@ -62,9 +62,6 @@ export function promptCommandIconName(command: PromptCommandLike): IconName {
   if (command.name === "plan") {
     return "ListTodo";
   }
-  if (command.name === "goal") {
-    return "Target";
-  }
   return "Terminal";
 }
 
