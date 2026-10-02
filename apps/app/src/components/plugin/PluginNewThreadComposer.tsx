@@ -79,7 +79,6 @@ export function PluginNewThreadComposer({
         >
           {renderPromptBox({
             placeholder,
-            allowNoProject: true,
             mentionMenuPlacement: layout === "contained" ? "top" : "bottom",
           })}
         </div>

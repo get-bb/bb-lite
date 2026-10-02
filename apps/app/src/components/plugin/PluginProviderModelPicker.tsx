@@ -4,10 +4,7 @@ import type {
   ProviderModelPickerValue,
 } from "@bb/plugin/app";
 import { ModelReasoningPicker } from "@/components/pickers/ModelReasoningPicker";
-import {
-  formatModelLabel,
-  useThreadCreationOptions,
-} from "@/hooks/useThreadCreationOptions";
+import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { resolvePluginExecutionRouting } from "./plugin-execution-routing";
 
 function selectionKey(value: ProviderModelPickerValue): string {
@@ -40,7 +37,7 @@ export function PluginProviderModelPicker({
     initialReasoningLevel: value.reasoningLevel,
     initialServiceTier: value.serviceTier,
     resetKey: controlledKey,
-    resolveProviderRouting: () => resolvedRouting.query,
+    routing: resolvedRouting.query,
   });
 
   const emit = useCallback(
@@ -114,51 +111,35 @@ export function PluginProviderModelPicker({
     },
     [controller, emit],
   );
-  const handleProviderPreviewResolved = useCallback(
-    (selection: {
-      providerId: string;
-      model: string;
-      reasoningLevel: ProviderModelPickerValue["reasoningLevel"];
-      supportsServiceTier: boolean;
-    }) => {
-      emit({
-        providerId: selection.providerId,
-        model: selection.model,
-        reasoningLevel: selection.reasoningLevel,
-        ...(selection.supportsServiceTier && value.serviceTier !== undefined
-          ? { serviceTier: value.serviceTier }
-          : {}),
-      });
-    },
-    [emit, value.serviceTier],
-  );
-
   return (
     <ModelReasoningPicker
-      providerOptions={controller.providerOptions}
-      providerRouting={controller.executionOptionsRouting}
-      selectedProviderId={controller.selectedProviderId}
-      onSelectedProviderChange={allowProviderChange ? () => {} : undefined}
-      onProviderPreviewResolved={
-        allowProviderChange ? handleProviderPreviewResolved : undefined
-      }
-      requireVerifiedProviderPreview={allowProviderChange}
-      hasMultipleProviders={controller.hasMultipleProviders}
-      modelValue={controller.selectedModel}
-      modelOptions={controller.modelOptions}
-      moreModelOptions={controller.moreModelOptions}
-      modelIsLoading={controller.isLoadingModels}
-      modelLoadFailed={controller.modelLoadFailed}
-      modelLoadError={controller.modelLoadError}
-      onModelChange={handleModelChange}
-      formatModelLabel={formatModelLabel}
-      reasoningValue={controller.reasoningLevel}
-      reasoningOptions={controller.reasoningOptions}
-      onReasoningChange={handleReasoningChange}
-      fastModeEnabled={controller.serviceTier === "fast"}
-      onFastModeChange={handleFastModeChange}
-      showFastModeToggle={controller.supportsServiceTier}
-      serviceTierSupportByProvider={controller.serviceTierSupportByProvider}
+      provider={{
+        options: controller.providerOptions,
+        selectedId: controller.selectedProviderId,
+        onChange: allowProviderChange
+          ? controller.setSelectedProviderId
+          : undefined,
+        hasMultiple: controller.hasMultipleProviders,
+      }}
+      model={{
+        selected: controller.selectedModel,
+        options: controller.modelOptions,
+        moreOptions: controller.moreModelOptions,
+        isLoading: controller.isLoadingModels,
+        loadFailed: controller.modelLoadFailed,
+        loadError: controller.modelLoadError,
+        onChange: handleModelChange,
+      }}
+      reasoning={{
+        value: controller.reasoningLevel,
+        options: controller.reasoningOptions,
+        onChange: handleReasoningChange,
+      }}
+      serviceTier={{
+        value: controller.serviceTier,
+        onChange: (tier) => handleFastModeChange(tier === "fast"),
+        supported: controller.supportsServiceTier,
+      }}
       commandShortcutsEnabled={false}
       align={align}
       disabled={disabled}

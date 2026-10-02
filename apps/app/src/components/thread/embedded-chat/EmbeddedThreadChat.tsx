@@ -32,7 +32,7 @@ import {
 import type {
   ExecutionControlsProps,
   ExecutionPermissionConfig,
-} from "@/components/promptbox/ExecutionControls";
+} from "@/components/pickers/ModelReasoningPicker";
 import { OverflowFade } from "@/components/ui/overflow-fade";
 import {
   ThreadTimelinePanelContent,
@@ -228,7 +228,6 @@ function EmbeddedThreadChatWithComposer({
     initialPermissionMode: defaultExecutionOptions?.permissionMode,
   });
   const {
-    executionOptionsRouting,
     selectedProviderId,
     providerOptions,
     hasMultipleProviders,
@@ -250,7 +249,6 @@ function EmbeddedThreadChatWithComposer({
     permissionModeOptions,
     supportsPermissionModeSelection,
     supportsServiceTier,
-    serviceTierSupportByProvider,
     serviceTierFastLabel,
     isLoadingModels,
   } = threadCreationOptions;
@@ -374,8 +372,6 @@ function EmbeddedThreadChatWithComposer({
     sendQueuedMessageById,
     handleSaveInlineQueuedMessage,
     handleDeleteQueuedMessage,
-    handleReorderQueuedMessage,
-    handleSetQueuedMessageGroupBoundary,
   } = useQueuedMessageActions({
     threadId,
     queuedMessages,
@@ -803,7 +799,6 @@ function EmbeddedThreadChatWithComposer({
 
   const bottomExecutionConfig = useMemo<ExecutionControlsProps>(
     () => ({
-      providerRouting: executionOptionsRouting,
       provider: {
         options: providerOptions,
         selectedId: selectedProviderId,
@@ -823,7 +818,6 @@ function EmbeddedThreadChatWithComposer({
         value: serviceTier,
         onChange: setServiceTier,
         supported: supportsServiceTier,
-        supportByProvider: serviceTierSupportByProvider,
         fastLabel: serviceTierFastLabel,
       },
       reasoning: {
@@ -834,7 +828,6 @@ function EmbeddedThreadChatWithComposer({
     }),
     [
       activeModel,
-      executionOptionsRouting,
       hasMultipleProviders,
       isLoadingModels,
       modelLoadFailed,
@@ -847,7 +840,6 @@ function EmbeddedThreadChatWithComposer({
       selectedModel,
       selectedProviderId,
       serviceTier,
-      serviceTierSupportByProvider,
       setReasoningLevel,
       setSelectedModel,
       setServiceTier,
@@ -869,8 +861,7 @@ function EmbeddedThreadChatWithComposer({
               value: inlineEditingQueuedMessage.serviceTier,
               onChange: setServiceTier,
               supported: supportsServiceTier,
-              supportByProvider: serviceTierSupportByProvider,
-              fastLabel: serviceTierFastLabel,
+                    fastLabel: serviceTierFastLabel,
             },
             reasoning: {
               ...bottomExecutionConfig.reasoning,
@@ -881,7 +872,6 @@ function EmbeddedThreadChatWithComposer({
     [
       bottomExecutionConfig,
       inlineEditingQueuedMessage,
-      serviceTierSupportByProvider,
       setServiceTier,
       supportsServiceTier,
       serviceTierFastLabel,
@@ -949,7 +939,6 @@ function EmbeddedThreadChatWithComposer({
           permissionReadOnly
           typeahead={typeaheadConfig}
           promptActions={promptActions}
-          collapseResetKey={`${surfaceKey}:queued-message:${inlineEditingQueuedMessage.queuedMessageId}`}
           preferExpanded
           focusEndKey={`${inlineEditingQueuedMessage.editSessionId}:${inlineComposerFocusNonce}`}
           isPrimaryComposer={false}
@@ -986,8 +975,6 @@ function EmbeddedThreadChatWithComposer({
           processingMessageId={processingQueuedMessage?.id ?? null}
           processingAction={processingQueuedMessage?.action ?? null}
           onSend={handleSendQueuedMessage}
-          onReorder={handleReorderQueuedMessage}
-          onSetGroupBoundary={handleSetQueuedMessageGroupBoundary}
           onEdit={beginEditQueuedMessage}
           onDelete={handleDeleteQueuedMessage}
         />
@@ -995,9 +982,7 @@ function EmbeddedThreadChatWithComposer({
     [
       beginEditQueuedMessage,
       handleDeleteQueuedMessage,
-      handleReorderQueuedMessage,
       handleSendQueuedMessage,
-      handleSetQueuedMessageGroupBoundary,
       inlineEditor,
       isProvisioning,
       processingQueuedMessage?.action,
@@ -1034,7 +1019,6 @@ function EmbeddedThreadChatWithComposer({
           permissionReadOnly={composer.permissionPolicy === "snapshot"}
           typeahead={typeaheadConfig}
           promptActions={promptActions}
-          collapseResetKey={surfaceKey}
           focusEndKey={
             composer.focusRequestKey === undefined
               ? composerFocusNonce

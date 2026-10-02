@@ -23,7 +23,7 @@ export function PluginPermissionModePicker({
     initialProviderId: providerId,
     initialPermissionMode: value,
     resetKey: controlledKey,
-    resolveProviderRouting: () => resolvedRouting.query,
+    routing: resolvedRouting.query,
   });
   const providerMatches =
     providerId.length > 0 && controller.selectedProviderId === providerId;
