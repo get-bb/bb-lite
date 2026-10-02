@@ -68,9 +68,7 @@ export interface Terminals {
 
 async function resolveShell(): Promise<string> {
   for (const shell of [process.env.SHELL, "/bin/zsh", "/bin/bash"]) {
-    if (shell && (await pathExists(shell, constants.X_OK))) {
-      return shell;
-    }
+    if (shell && (await pathExists(shell, constants.X_OK))) return shell;
   }
   return "/bin/sh";
 }
@@ -78,9 +76,7 @@ async function resolveShell(): Promise<string> {
 let spawnHelperChecked = process.platform !== "darwin";
 
 async function ensureSpawnHelperExecutable(): Promise<void> {
-  if (spawnHelperChecked) {
-    return;
-  }
+  if (spawnHelperChecked) return;
   spawnHelperChecked = true;
   const require = createRequire(import.meta.url);
   const packageDir = path.dirname(require.resolve("node-pty/package.json"));
@@ -94,9 +90,7 @@ async function ensureSpawnHelperExecutable(): Promise<void> {
 }
 
 function titleFor(start: TerminalStart, shell: string): string {
-  if (start.mode === "shell") {
-    return path.basename(shell) || "Terminal";
-  }
+  if (start.mode === "shell") return path.basename(shell) || "Terminal";
   const command = start.command.trim().replace(/\s+/gu, " ");
   return command.length <= TITLE_MAX_LENGTH
     ? command
@@ -114,9 +108,7 @@ export function createTerminals(ctx: Ctx): Terminals {
   };
 
   const forget = (terminal: Terminal): void => {
-    if (terminals.get(terminal.id) === terminal) {
-      terminals.delete(terminal.id);
-    }
+    if (terminals.get(terminal.id) === terminal) terminals.delete(terminal.id);
   };
 
   const trimScrollback = (terminal: Terminal, maxBytes: number): void => {
@@ -150,9 +142,7 @@ export function createTerminals(ctx: Ctx): Terminals {
   };
 
   const receive = (terminal: Terminal, data: string): void => {
-    if (terminal.exited !== null) {
-      return;
-    }
+    if (terminal.exited !== null) return;
     const input = terminal.partialQuery + data;
     terminal.partialQuery =
       DEVICE_ATTRIBUTES_PARTIALS.find((partial) => input.endsWith(partial)) ??
@@ -181,9 +171,7 @@ export function createTerminals(ctx: Ctx): Terminals {
   };
 
   const finish = (terminal: Terminal, exitCode: number | null): void => {
-    if (terminal.exited !== null) {
-      return;
-    }
+    if (terminal.exited !== null) return;
     terminal.pending.push(Buffer.from(terminal.partialQuery, "utf8"));
     flush(terminal);
     clearTimeout(terminal.closeTimer ?? undefined);

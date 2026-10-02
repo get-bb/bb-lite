@@ -50,11 +50,7 @@ function failed(
   return { ran: true, exitCode, failure: { reason, message } };
 }
 
-async function runScript(
-  ctx: Ctx,
-  args: ScriptArgs,
-  signal: AbortSignal,
-): Promise<LifecycleScriptResult> {
+async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
   const setup = args.kind === "setup";
   const scriptName = setup
     ? DEFAULT_ENV_SETUP_SCRIPT_NAME
@@ -82,9 +78,7 @@ async function runScript(
     Math.min(args.timeoutMs, MAX_TIMER_MS),
   );
   signal.addEventListener("abort", killGroup, { once: true });
-  if (signal.aborted) {
-    killGroup();
-  }
+  if (signal.aborted) killGroup();
   const flushes = [child.stdout, child.stderr].map((stream) => {
     const reader = createTerminalOutputLineReader();
     const emit = (lines: string[]): void => {
@@ -116,16 +110,12 @@ async function runScript(
     await Promise.race([closed, delay(OUTPUT_DRAIN_MS)]);
     const killed = timedOut || signal.aborted;
     for (let poll = 0; killed && poll < GROUP_EXIT_POLLS; poll += 1) {
-      if (!signalGroup(child.pid, 0)) {
-        break;
-      }
+      if (!signalGroup(child.pid, 0)) break;
       await delay(GROUP_EXIT_POLL_MS);
     }
     flushes.forEach((flush) => flush());
     const label = `${setup ? "Setup" : "Teardown"} script`;
-    if (signal.aborted) {
-      return failed("cancelled", `${scriptName} cancelled`);
-    }
+    if (signal.aborted) return failed("cancelled", `${scriptName} cancelled`);
     if (timedOut) {
       const after = `timed out after ${args.timeoutMs}ms`;
       return failed("timeout", `${label} ${after}: ${scriptPath}`);
@@ -155,9 +145,7 @@ export function createLifecycleScripts(ctx: Ctx): LifecycleScripts {
         const reason = "Operation was cancelled before it started";
         return { ...failed("cancelled", reason), ran: false };
       }
-      if (existing !== undefined) {
-        return existing.done;
-      }
+      if (existing !== undefined) return existing.done;
       const controller = new AbortController();
       const settle = (): void => {
         operation.settled = true;

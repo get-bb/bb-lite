@@ -2,7 +2,6 @@ import path from "node:path";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import type {
   DiffFileEntry,
-  DiffPatchEntry,
   EnvironmentDiffFileQuery,
 } from "@bb/server-contract";
 import { readFileContent } from "../files/read.js";
@@ -61,10 +60,7 @@ interface ChangedFiles {
   truncated: boolean;
 }
 
-async function resolveRange(
-  repo: Repo,
-  target: WorkspaceDiffTarget,
-): Promise<DiffRange | null> {
+async function resolveRange(repo: Repo, target: WorkspaceDiffTarget) {
   const range = (
     args: string[],
     includesUntracked: boolean,
@@ -105,9 +101,7 @@ function truncateUtf8(value: string, maxBytes: number) {
   const encoded = Buffer.byteLength(JSON.stringify(value));
   const inflation = encoded / Math.max(buffer.byteLength, 1) / ESCAPE_ALLOWANCE;
   let cut = Math.floor(Math.max(0, maxBytes) / Math.max(1, inflation));
-  if (buffer.byteLength <= cut) {
-    return { text: value, truncated: false };
-  }
+  if (buffer.byteLength <= cut) return { text: value, truncated: false };
   while (cut > 0 && ((buffer[cut] ?? 0) & 0xc0) === 0x80) {
     cut -= 1;
   }
@@ -177,9 +171,7 @@ async function listChangedFiles(
     untracked: [],
     truncated: false,
   };
-  if (range === null) {
-    return changed;
-  }
+  if (range === null) return changed;
   const listed = repo.with(LISTING);
   const [names, numstat] = await Promise.all([
     listed.git(...rangeArgs(range, ["--name-status", "-M", "-z"])),
@@ -196,9 +188,7 @@ async function listChangedFiles(
     changed.nameStatus.push(fields.filter((part) => part !== null).join("\t"));
   }
   changed.truncated = names.truncated || tracked.length > DIFF_MAX_FILES;
-  if (!range.includesUntracked || changed.truncated) {
-    return changed;
-  }
+  if (!range.includesUntracked || changed.truncated) return changed;
   const others = await listUntracked(repo);
   const room = DIFF_MAX_FILES - changed.files.length;
   changed.untracked = others.paths.slice(0, room);
@@ -232,11 +222,7 @@ async function mapLimited<T>(
   await Promise.all(Array.from({ length: PATCH_CONCURRENCY }, worker));
 }
 
-async function readPatches(
-  repo: Repo,
-  range: DiffRange,
-  requested: string[],
-): Promise<DiffPatchEntry[]> {
+async function readPatches(repo: Repo, range: DiffRange, requested: string[]) {
   const paths = [...new Set(requested)];
   const untracked = range.includesUntracked
     ? (await listUntracked(repo, paths)).paths

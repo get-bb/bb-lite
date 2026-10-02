@@ -14,9 +14,7 @@ import {
   sha256Hex,
 } from "./read.js";
 
-async function resolveWriteTarget(
-  target: string,
-): Promise<{ writePath: string; parentMissing: boolean }> {
+async function resolveWriteTarget(target: string) {
   const missing: string[] = [];
   for (let ancestor = target; ; ancestor = path.dirname(ancestor)) {
     const real = await fs.realpath(ancestor).catch(unlessCode("ENOENT", null));
@@ -31,9 +29,7 @@ async function resolveWriteTarget(
   }
 }
 
-async function confinedWritePath(
-  location: FileLocation,
-): Promise<{ writePath: string; parentMissing: boolean }> {
+async function confinedWritePath(location: FileLocation) {
   const absolute = absoluteTarget(location.path, location.rootPath);
   const [target, realRoot] = await Promise.all([
     resolveWriteTarget(absolute),
@@ -127,9 +123,7 @@ export const writeFile: Method<"writeFile"> = async (ctx, args) => {
         existing === args.expectedSha256
           ? await replaceIfUnchanged(target, contents, mode, existing)
           : { outcome: "conflict", currentSha256: existing };
-      if (conflict !== null) {
-        return conflict;
-      }
+      if (conflict !== null) return conflict;
     }
     const sizeBytes = contents.byteLength;
     return { outcome: "written", sha256: sha256Hex(contents), sizeBytes };
@@ -158,10 +152,7 @@ export const writeFileChunk: Method<"writeFileChunk"> = async (ctx, args) => {
   });
 };
 
-async function existingTarget(location: FileLocation): Promise<{
-  target: string;
-  root: string | null;
-}> {
+async function existingTarget(location: FileLocation) {
   const absolute = absoluteTarget(location.path, location.rootPath);
   if ((await fs.lstat(absolute)).isSymbolicLink()) {
     fail("invalid_path", `Path "${location.path}" must not be a symlink`);

@@ -36,9 +36,7 @@ const recentListings = new Map<
 
 async function gitFiles(ctx: Ctx, root: string): Promise<string[] | null> {
   const repo = openRepo(ctx, root, GIT_LISTING);
-  if ((await repoKind(repo)) !== "work-tree") {
-    return null;
-  }
+  if ((await repoKind(repo)) !== "work-tree") return null;
   const [present, deleted] = await Promise.all([
     repo.git("ls-files", "-z", "--cached", "--others", "--exclude-standard"),
     repo.git("ls-files", "-z", "--deleted"),
@@ -77,9 +75,7 @@ function withDirectories(
   const directories = new Set<string>();
   for (const file of files) {
     const segments = file.split("/");
-    if (isExcluded(file) || segments.some(isExcluded)) {
-      continue;
-    }
+    if (isExcluded(file) || segments.some(isExcluded)) continue;
     segments.forEach((name, index) => {
       const entryPath = segments.slice(0, index + 1).join("/");
       if (index === segments.length - 1) {
@@ -97,9 +93,7 @@ export const listPaths: Method<"listPaths"> = async (ctx, args) => {
   const root = await resolveRoot(requireAbsolute(args.rootPath)).catch(
     unlessCode("ENOENT", null),
   );
-  if (root === null) {
-    return { paths: [], truncated: false };
-  }
+  if (root === null) return { paths: [], truncated: false };
   const excluded = new Set(args.excludeNames);
   const skipHidden = args.includeHidden !== true;
   const key = JSON.stringify([root, skipHidden, [...excluded].sort()]);

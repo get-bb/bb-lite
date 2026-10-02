@@ -71,23 +71,16 @@ export function errorCode(error: unknown): string | undefined {
 
 export function unlessCode<T>(code: string, fallback: T) {
   return (error: unknown): T => {
-    if (errorCode(error) === code) {
-      return fallback;
-    }
+    if (errorCode(error) === code) return fallback;
     throw error;
   };
 }
 
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export function toRunnerError(error: unknown): RunnerError {
-  if (error instanceof RunnerError) {
-    return error;
-  }
+  if (error instanceof RunnerError) return error;
   const code = FS_ERROR_CODES[errorCode(error) ?? ""] ?? "failed";
-  return new RunnerError(code, errorMessage(error));
+  const message = error instanceof Error ? error.message : String(error);
+  return new RunnerError(code, message);
 }
 
 export function isInside(root: string, candidate: string): boolean {
@@ -127,10 +120,8 @@ export function createKeyedLock(): Ctx["lock"] {
   const tails = new Map<string, Promise<void>>();
   return (key, work) => {
     const run = (tails.get(key) ?? Promise.resolve()).then(work);
-    const tail = run.then(
-      () => undefined,
-      () => undefined,
-    );
+    const settled = () => undefined;
+    const tail = run.then(settled, settled);
     tails.set(key, tail);
     void tail.then(() => tails.get(key) === tail && tails.delete(key));
     return run;

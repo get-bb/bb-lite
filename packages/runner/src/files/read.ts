@@ -46,9 +46,7 @@ export function absoluteTarget(target: string, rootPath?: string): string {
 }
 
 export async function resolveRoot(rootPath?: string): Promise<string | null> {
-  if (rootPath === undefined) {
-    return null;
-  }
+  if (rootPath === undefined) return null;
   const stat = await fs.lstat(rootPath);
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     fail("invalid_path", `Root "${rootPath}" must be a real directory`);
@@ -98,9 +96,7 @@ async function readBlob(
   const repo = openRepo(ctx, rootPath);
   const spec = `${requireSafeRef(gitRef)}:./${relativePath}`;
   const oid = await repo.line("rev-parse", "--verify", "--quiet", spec);
-  if (oid === null) {
-    return null;
-  }
+  if (oid === null) return null;
   const size = Number((await repo.git("cat-file", "-s", oid)).stdout);
   if (size > maxBytes) {
     fail("file_too_large", `${target.path} at ${gitRef} is ${size} bytes`);
@@ -109,10 +105,7 @@ async function readBlob(
   return { oid, contents: await sized.buffer("cat-file", "blob", oid) };
 }
 
-export async function readFileContent(
-  ctx: Ctx,
-  target: ReadTarget,
-): Promise<FileContent> {
+export async function readFileContent(ctx: Ctx, target: ReadTarget) {
   const mimeType = mimeTypeOf(target.path);
   const describe = (contents: Buffer, modifiedAtMs?: number): FileContent => {
     const image =
@@ -136,9 +129,7 @@ export async function readFileContent(
   }
   const readablePath = await resolveReadablePath(target);
   const stat = await fs.stat(readablePath);
-  if (!stat.isFile()) {
-    fail("invalid_path", "Path is not a regular file");
-  }
+  if (!stat.isFile()) fail("invalid_path", "Path is not a regular file");
   const contents =
     stat.size > FILE_PAYLOAD_MAX_BYTES ? null : await fs.readFile(readablePath);
   if (contents === null || contents.byteLength > FILE_PAYLOAD_MAX_BYTES) {
@@ -208,9 +199,7 @@ export const readFileChunk: Method<"readFileChunk"> = async (ctx, args) => {
     while (filled < length) {
       const position = offset + filled;
       const read = await file.read(bytes, filled, length - filled, position);
-      if (read.bytesRead === 0) {
-        break;
-      }
+      if (read.bytesRead === 0) break;
       filled += read.bytesRead;
     }
     const after = fileRevision(await file.stat({ bigint: true }));

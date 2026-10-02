@@ -8,7 +8,6 @@ import type {
   WorkspaceFileStatus,
   WorkspaceFileStatusKind,
   WorkspaceGitOperation,
-  WorkspaceStatus,
 } from "@bb/domain";
 import { STATUS_MAX_FILES, type PathInspection } from "../workspace-types.js";
 import {
@@ -123,9 +122,7 @@ export function parseNumstatZ(output: string): NumstatEntry[] {
       ? output.indexOf("\0", secondTab + 2) + 1
       : secondTab + 1;
     const pathEnd = output.indexOf("\0", pathStart);
-    if (firstTab < 0 || secondTab < 0 || pathStart === 0 || pathEnd < 0) {
-      break;
-    }
+    if (firstTab < 0 || secondTab < 0 || pathStart === 0 || pathEnd < 0) break;
     entries.push({
       path: output.slice(pathStart, pathEnd),
       insertions: parseCount(output.slice(cursor, firstTab)),
@@ -136,10 +133,7 @@ export function parseNumstatZ(output: string): NumstatEntry[] {
   return entries;
 }
 
-export function sumLineStats(entries: readonly NumstatEntry[]): {
-  insertions: number;
-  deletions: number;
-} {
+export function sumLineStats(entries: readonly NumstatEntry[]) {
   const sum = (key: "insertions" | "deletions") =>
     entries.reduce((total, entry) => total + (entry[key] ?? 0), 0);
   return { insertions: sum("insertions"), deletions: sum("deletions") };
@@ -147,9 +141,8 @@ export function sumLineStats(entries: readonly NumstatEntry[]): {
 
 export async function repoKind(repo: Repo): Promise<RepoKind> {
   const flags = ["--is-inside-work-tree", "--is-bare-repository"];
-  const [inside, bare] = ((await repo.line("rev-parse", ...flags)) ?? "").split(
-    "\n",
-  );
+  const shown = (await repo.line("rev-parse", ...flags)) ?? "";
+  const [inside, bare] = shown.split("\n");
   return inside === "true" ? "work-tree" : bare === "true" ? "bare" : "none";
 }
 
@@ -161,10 +154,7 @@ export async function requireRepo(ctx: Ctx, cwd: string): Promise<Repo> {
     : openRepo(ctx, topLevel);
 }
 
-async function probe(
-  ctx: Ctx,
-  cwd: string,
-): Promise<{ repo: Repo; kind: RepoKind }> {
+async function probe(ctx: Ctx, cwd: string) {
   const repo = openRepo(ctx, requireAbsolute(cwd), {
     timeoutMs: STATUS_TIMEOUT_MS,
   });
@@ -208,16 +198,12 @@ export async function checkoutRef(repo: Repo): Promise<GitCheckoutRef> {
 }
 
 export async function headOrEmptyTree(repo: Repo): Promise<string> {
-  if ((await revision(repo, "HEAD")) !== null) {
-    return "HEAD";
-  }
+  if ((await revision(repo, "HEAD")) !== null) return "HEAD";
   const tree = await repo.git("hash-object", "-t", "tree", os.devNull);
   return tree.stdout.trim();
 }
 
-export async function gitDirs(
-  repo: Repo,
-): Promise<{ gitDir: string; commonDir: string }> {
+export async function gitDirs(repo: Repo) {
   const flags = ["--absolute-git-dir", "--git-common-dir"];
   const { stdout } = await repo.git("rev-parse", ...flags);
   const [gitDir = "", commonDir = ""] = stdout.trim().split("\n");
@@ -293,9 +279,7 @@ async function defaultBranchRelation(
   const range = `${local}...refs/remotes/${refs.originDefaultBranch}`;
   const counts = await repo.line("rev-list", "--left-right", "--count", range);
   const [ahead, behind] = (counts ?? "").split(/\s+/u).map(Number);
-  if (ahead === undefined || behind === undefined) {
-    return "unknown";
-  }
+  if (ahead === undefined || behind === undefined) return "unknown";
   const whenLevel = behind === 0 ? "equal" : "local-behind";
   const whenAhead = behind === 0 ? "local-ahead" : "diverged";
   return ahead === 0 ? whenLevel : whenAhead;
@@ -313,10 +297,7 @@ export async function defaultWorktreeBase(repo: Repo): Promise<string | null> {
     : refs.defaultBranch;
 }
 
-async function porcelain(
-  repo: Repo,
-  untracked: "all" | "normal",
-): Promise<{ path: string; code: string }[]> {
+async function porcelain(repo: Repo, untracked: "all" | "normal") {
   const flags = ["--porcelain=v1", "-z", `--untracked-files=${untracked}`];
   return parsePorcelainZ((await repo.git("status", ...flags)).stdout);
 }
@@ -362,9 +343,7 @@ export const inspectGitSource: Method<"inspectGitSource"> = async (
   args,
 ) => {
   const { repo, kind } = await probe(ctx, args.path);
-  if (kind === "none") {
-    return NOT_A_SOURCE;
-  }
+  if (kind === "none") return NOT_A_SOURCE;
   const workTree = kind === "work-tree";
   const refs = await branchRefs(repo, kind);
   const [checkout, relation, dirty, operation, isWorktree] = await Promise.all([
@@ -389,15 +368,13 @@ export const listBranches: Method<"listBranches"> = async (ctx, args) => {
   const { repo, kind } = await probe(ctx, args.path);
   const refs = await branchRefs(repo, kind);
   const query = args.query?.trim().toLowerCase() ?? "";
+  const { limit } = args;
   const page = (branches: string[], pinned: string | null) => {
     const first = (name: string): number => Number(name !== pinned);
     const matching = branches
       .filter((branch) => branch.toLowerCase().includes(query))
       .sort((left, right) => first(left) - first(right));
-    return [
-      matching.slice(0, args.limit),
-      matching.length > args.limit,
-    ] as const;
+    return [matching.slice(0, limit), matching.length > limit] as const;
   };
   const [branches, branchesTruncated] = page(refs.local, refs.defaultBranch);
   const [remoteBranches, remoteBranchesTruncated] = page(
@@ -448,10 +425,7 @@ export async function withUntrackedIndex<T>(
   }
 }
 
-async function untrackedLineStats(
-  repo: Repo,
-  paths: string[],
-): Promise<{ entries: NumstatEntry[]; complete: boolean }> {
+async function untrackedLineStats(repo: Repo, paths: string[]) {
   if (paths.length === 0 || paths.length > UNTRACKED_STAT_MAX_FILES) {
     return { entries: [], complete: paths.length === 0 };
   }
@@ -504,10 +478,7 @@ function withLineStats(
   }));
 }
 
-async function mergeBaseStatus(
-  repo: Repo,
-  mergeBaseBranch: string,
-): Promise<NonNullable<WorkspaceStatus["mergeBase"]>> {
+async function mergeBaseStatus(repo: Repo, mergeBaseBranch: string) {
   const range = `${requireBranchName(mergeBaseBranch)}...HEAD`;
   const cherry = ["--cherry-pick", "--right-only", "--reverse"];
   const format = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%at";
@@ -605,9 +576,7 @@ export const gitCommit: Method<"gitCommit"> = async (ctx, args) => {
   return ctx.lock(gitDir, async () => {
     await repo.git("add", "-A");
     const staged = await repo.attempt("diff", "--cached", "--quiet");
-    if (staged.exitCode === 0) {
-      fail("no_changes", "No changes to commit");
-    }
+    if (staged.exitCode === 0) fail("no_changes", "No changes to commit");
     await repo.git("commit", "-m", args.message, "--no-verify");
     const [commitSha, subject] = await Promise.all([
       repo.git("rev-parse", "HEAD"),

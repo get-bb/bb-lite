@@ -34,17 +34,13 @@ export interface Watcher {
   dispose(): Promise<void>;
 }
 
-async function gitLayout(
-  root: string,
-): Promise<{ gitDir: string; commonDir: string } | null> {
+async function gitLayout(root: string) {
   const dotGit = path.join(root, ".git");
   const stat = await fs.lstat(dotGit).catch(() => null);
   const pointer = stat?.isFile()
     ? /^gitdir:\s*(.+)$/mu.exec(await fs.readFile(dotGit, "utf8"))?.[1]
     : ".git";
-  if (stat === null || pointer === undefined) {
-    return null;
-  }
+  if (stat === null || pointer === undefined) return null;
   const gitDir = await fs.realpath(path.resolve(root, pointer.trim()));
   const common = await fs
     .readFile(path.join(gitDir, "commondir"), "utf8")
@@ -93,13 +89,8 @@ async function watchWorkspace(
     ignore: string[],
     onPath: (relativePath: string) => void,
   ): Promise<void> => {
-    const onEvents = (
-      error: Error | null,
-      events: { path: string }[],
-    ): void => {
-      if (error) {
-        note("status", "refs");
-      }
+    const onEvents = (error: Error | null, events: { path: string }[]) => {
+      if (error) note("status", "refs");
       for (const event of error ? [] : events) {
         onPath(path.relative(directory, event.path).split(path.sep).join("/"));
       }
@@ -122,9 +113,7 @@ async function watchWorkspace(
       layout.gitDir,
       sharedGitDir ? COMMON_DIR_IGNORED : [],
       (relativePath) => {
-        if (GIT_DIR_NOISE.test(relativePath)) {
-          return;
-        }
+        if (GIT_DIR_NOISE.test(relativePath)) return;
         const refs =
           relativePath === "HEAD" ||
           (sharedGitDir && SHARED_REF.test(relativePath));
@@ -192,18 +181,14 @@ export function createWatcher(ctx: Ctx): Watcher {
     ).catch(() => null);
     active.set(key, watch);
     void watch.then((started) => {
-      if (started === null && active.get(key) === watch) {
-        active.delete(key);
-      }
+      if (started === null && active.get(key) === watch) active.delete(key);
     });
   };
 
   return {
     setWatchedPaths: (args) =>
       locked(async () => {
-        if (args.generation <= latestGeneration) {
-          return;
-        }
+        if (args.generation <= latestGeneration) return;
         latestGeneration = args.generation;
         const wanted = new Map<string, [WatchKind, string]>();
         for (const target of args.workspaces) {
@@ -215,9 +200,7 @@ export function createWatcher(ctx: Ctx): Watcher {
         const stale = [...active.keys()].filter((key) => !wanted.has(key));
         await Promise.all(stale.map(stop));
         for (const [key, [kind, target]] of wanted) {
-          if (!active.has(key)) {
-            start(key, kind, target);
-          }
+          if (!active.has(key)) start(key, kind, target);
         }
         await Promise.all(active.values());
       }),

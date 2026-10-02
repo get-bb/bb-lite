@@ -4,7 +4,6 @@ import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { WorktreeResult } from "../workspace-types.js";
 import {
   fail,
   isInside,
@@ -45,10 +44,7 @@ function realOrResolved(target: string): Promise<string> {
   return fs.realpath(target).catch(() => path.resolve(target));
 }
 
-async function isStrictlyInside(
-  root: string,
-  target: string,
-): Promise<boolean> {
+async function isStrictlyInside(root: string, target: string) {
   const [realRoot, realTarget] = await Promise.all([
     realOrResolved(root),
     realOrResolved(target),
@@ -64,9 +60,7 @@ async function processCwds(): Promise<[pid: number, cwd: string][]> {
     );
     return pids.map((pid, index) => [pid, cwds[index] ?? ""]);
   }
-  if (process.platform !== "darwin") {
-    return [];
-  }
+  if (process.platform !== "darwin") return [];
   const listing = await new Promise<string>((resolve) => {
     const args = ["-a", "-d", "cwd", "-F", "pn", "-w", "-n"];
     const options = { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 } as const;
@@ -96,9 +90,7 @@ async function killProcessesWithCwdUnder(directory: string): Promise<void> {
       .map(([pid]) => pid);
   for (let round = 0; round < KILL_ROUNDS; round += 1) {
     const targets = await inside();
-    if (targets.length === 0) {
-      return;
-    }
+    if (targets.length === 0) return;
     signalAll(targets, "SIGTERM");
     const deadline = Date.now() + KILL_GRACE_MS;
     while (Date.now() < deadline && signalAll(targets, 0).length > 0) {
@@ -152,16 +144,11 @@ export const ensurePersonalWorkspace: Method<
   return { path: target };
 };
 
-async function copyIncludedFiles(
-  source: Repo,
-  targetPath: string,
-): Promise<WorktreeResult["worktreeInclude"]> {
+async function copyIncludedFiles(source: Repo, targetPath: string) {
   const patterns = await fs
     .readFile(path.join(source.cwd, INCLUDE_FILE_NAME), "utf8")
     .catch(() => "");
-  if (!/^\s*[^#\s]/mu.test(patterns)) {
-    return null;
-  }
+  if (!/^\s*[^#\s]/mu.test(patterns)) return null;
   const exclude = `--exclude-from=${INCLUDE_FILE_NAME}`;
   const matches = await source
     .git("ls-files", "--others", "--ignored", exclude, "-z")
@@ -188,10 +175,7 @@ async function copyIncludedFiles(
   return report;
 }
 
-async function worktreeHoldingBranch(
-  source: Repo,
-  branchName: string,
-): Promise<string | null> {
+async function worktreeHoldingBranch(source: Repo, branchName: string) {
   const list = await source.git("worktree", "list", "--porcelain", "-z");
   const fields = git.splitNul(list.stdout);
   const branchIndex = fields.indexOf(`branch refs/heads/${branchName}`);
@@ -202,17 +186,12 @@ async function worktreeHoldingBranch(
   return holder?.slice("worktree ".length) ?? null;
 }
 
-async function fetchRemoteBase(
-  source: Repo,
-  baseBranch: string,
-): Promise<void> {
+async function fetchRemoteBase(source: Repo, baseBranch: string) {
   const remotes = (await source.git("remote")).stdout.split("\n");
   const remote = remotes
     .filter((name) => name && baseBranch.startsWith(`${name}/`))
     .sort((left, right) => right.length - left.length)[0];
-  if (remote === undefined) {
-    return;
-  }
+  if (remote === undefined) return;
   const branch = baseBranch.slice(remote.length + 1);
   const remoteRef = `refs/remotes/${remote}/${branch}`;
   const fetched = await source
@@ -225,9 +204,7 @@ async function fetchRemoteBase(
       () => null,
       (error: unknown) => error,
     );
-  if (fetched !== null && !(await git.hasRef(source, remoteRef))) {
-    throw fetched;
-  }
+  if (fetched !== null && !(await git.hasRef(source, remoteRef))) throw fetched;
 }
 
 export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
@@ -279,9 +256,7 @@ export const createWorktree: Method<"createWorktree"> = async (ctx, args) => {
     }
     await fs.mkdir(path.dirname(target), { recursive: true });
     const branchExists = await git.hasRef(source, `refs/heads/${branchName}`);
-    if (!branchExists) {
-      await fetchRemoteBase(source, baseBranch);
-    }
+    if (!branchExists) await fetchRemoteBase(source, baseBranch);
     const added = branchExists
       ? [target, branchName]
       : ["-B", branchName, target, baseBranch];
@@ -311,9 +286,7 @@ export const switchBranch: Method<"switchBranch"> = async (ctx, args) => {
     if (ref.kind === "unknown") {
       return refuse(`because the checkout is unreadable: ${ref.reason}`);
     }
-    if (ref.branchName === branchName) {
-      return { branchName };
-    }
+    if (ref.branchName === branchName) return { branchName };
     if (ref.kind === "unborn") {
       return refuse("before the current branch has an initial commit");
     }
