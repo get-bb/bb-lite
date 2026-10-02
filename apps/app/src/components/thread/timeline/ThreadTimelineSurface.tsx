@@ -186,7 +186,7 @@ function LoadOlderMessages({
           aria-live="polite"
           role="status"
         >
-          {isLoadingOlderTimelineRows ? "Loading older messages…" : " "}
+          {isLoadingOlderTimelineRows ? "Loading older messages…" : "\u00a0"}
         </span>
       ) : (
         <Button
