@@ -1,10 +1,8 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
-  useSyncExternalStore,
   type ComponentPropsWithoutRef,
   type ReactNode,
   type Ref,
@@ -16,15 +14,8 @@ import {
   type PromptTextMention,
   type ThreadListEntry,
 } from "@bb/domain";
-import { QueryClientContext, type QueryClient } from "@tanstack/react-query";
-import {
-  THREAD_MENTION_RESOLVE_MAX_IDS,
-  type ThreadResponse,
-} from "@bb/server-contract";
 import { PromptMentionPill } from "@/components/thread/timeline/ConversationMessageMentions";
 import { useThread } from "@/hooks/queries/thread-queries";
-import { threadQueryKey } from "@/hooks/queries/query-keys";
-import { sdk } from "@/lib/sdk";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { cn } from "@bb/shared-ui/lib/utils";
 
@@ -117,49 +108,6 @@ export function useSidebarThreadTitleMentionResources(
   return unchanged ? retained : built;
 }
 
-type ResolvedMentions = ReadonlyMap<string, PromptMentionResource | null>;
-let resolvedMentions: ResolvedMentions = new Map();
-const requestedMentionIds = new Set<string>();
-const pendingMentionIds = new Set<string>();
-const mentionListeners = new Set<() => void>();
-let mentionFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function flushMentionRequests(): void {
-  const threadIds = [...pendingMentionIds].slice(
-    0,
-    THREAD_MENTION_RESOLVE_MAX_IDS,
-  );
-  for (const threadId of threadIds) pendingMentionIds.delete(threadId);
-  mentionFlushTimer =
-    pendingMentionIds.size > 0 ? setTimeout(flushMentionRequests, 25) : null;
-  if (threadIds.length === 0) return;
-  void sdk.threads.resolveMentions({ threadIds }).then(
-    (resolutions) => {
-      const next = new Map(resolvedMentions);
-      for (const threadId of threadIds) next.set(threadId, null);
-      for (const { threadId, projectId, label } of resolutions) {
-        next.set(threadId, { kind: "thread", threadId, projectId, label });
-      }
-      resolvedMentions = next;
-      for (const listener of mentionListeners) listener();
-    },
-    () => {},
-  );
-}
-
-function requestMentionResolution(threadId: string): void {
-  if (requestedMentionIds.has(threadId)) return;
-  requestedMentionIds.add(threadId);
-  pendingMentionIds.add(threadId);
-  if (mentionFlushTimer !== null) clearTimeout(mentionFlushTimer);
-  mentionFlushTimer = setTimeout(flushMentionRequests, 25);
-}
-
-function subscribeResolvedMentions(listener: () => void): () => void {
-  mentionListeners.add(listener);
-  return () => mentionListeners.delete(listener);
-}
-
 function threadResource(
   threadId: string,
   thread: TitleThread | undefined,
@@ -174,18 +122,6 @@ function threadResource(
       };
 }
 
-function knownThreadResource(
-  threadId: string,
-  resources: ThreadTitleMentionResources,
-  queryClient: QueryClient | undefined,
-): PromptMentionResource | null {
-  return threadResource(
-    threadId,
-    resources.threadById.get(threadId) ??
-      queryClient?.getQueryData<ThreadResponse>(threadQueryKey(threadId)),
-  );
-}
-
 export function RawThreadMentionBatchProvider({
   children,
 }: {
@@ -197,34 +133,13 @@ export function RawThreadMentionBatchProvider({
 export function useRawThreadMentionResources(
   threadIds: readonly string[],
 ): ReadonlyMap<string, PromptMentionResource> {
-  const resources = useContext(ResourcesContext);
-  const queryClient = useContext(QueryClientContext);
-  const resolved = useSyncExternalStore(
-    subscribeResolvedMentions,
-    () => resolvedMentions,
-  );
-  useEffect(() => {
-    for (const threadId of threadIds) {
-      if (knownThreadResource(threadId, resources, queryClient) === null) {
-        requestMentionResolution(threadId);
-      }
-    }
-  }, [queryClient, resources, threadIds]);
+  const { threadById } = useContext(ResourcesContext);
   return new Map(
     threadIds.flatMap((threadId) => {
-      const resource =
-        knownThreadResource(threadId, resources, queryClient) ??
-        resolved.get(threadId);
+      const resource = threadResource(threadId, threadById.get(threadId));
       return resource ? [[threadId, resource] as const] : [];
     }),
   );
-}
-
-export function useRawThreadMentionResource(
-  threadId: string,
-): PromptMentionResource | null {
-  const threadIds = useMemo(() => [threadId], [threadId]);
-  return useRawThreadMentionResources(threadIds).get(threadId) ?? null;
 }
 
 export function useSidebarThreadMentionResource(
@@ -233,6 +148,8 @@ export function useSidebarThreadMentionResource(
   const { threadById } = useContext(ResourcesContext);
   return threadResource(threadId, threadById.get(threadId));
 }
+
+export const useRawThreadMentionResource = useSidebarThreadMentionResource;
 
 export function useThreadMentionResource(
   threadId: string,
@@ -434,58 +351,9 @@ export function useResolveThreadTitle(): (title: string) => string {
   return (title) => resolveThreadTitleDisplayText(title, resources);
 }
 
-interface ResolvedTitleSegment extends TitleSegment {
-  offset: number;
-  isUnavailable: boolean;
-}
-
-function useResolvedTitleSegments(title: string): ResolvedTitleSegment[] {
-  const resources = useContext(ResourcesContext);
-  const segments = useMemo(
-    () => titleSegments(title, resources),
-    [resources, title],
-  );
-  const unresolvedThreadIds = useMemo(
-    () => [
-      ...new Set(
-        segments.flatMap((segment) => segment.unresolvedThreadId ?? []),
-      ),
-    ],
-    [segments],
-  );
-  const resolvedById = useRawThreadMentionResources(unresolvedThreadIds);
-  const resolved = useSyncExternalStore(
-    subscribeResolvedMentions,
-    () => resolvedMentions,
-  );
-  const result: ResolvedTitleSegment[] = [];
-  let offset = 0;
-  for (const segment of segments) {
-    const threadId = segment.unresolvedThreadId;
-    const resource =
-      threadId === null ? segment.resource : resolvedById.get(threadId);
-    result.push({
-      ...segment,
-      resource: resource ?? null,
-      text: resource?.label ?? segment.text,
-      offset,
-      isUnavailable: threadId !== null && resolved.get(threadId) === null,
-    });
-    offset += (segment.serializedText ?? segment.text).length;
-  }
-  return result;
-}
-
 export function useThreadTitleDisplayText(title: string): string {
-  return useResolvedTitleSegments(title)
-    .map((segment) =>
-      segment.resource === null &&
-      segment.isUnavailable &&
-      segment.serializedText?.startsWith("@thread:")
-        ? "Unavailable thread"
-        : segment.text,
-    )
-    .join("");
+  const resources = useContext(ResourcesContext);
+  return resolveThreadTitleDisplayText(title, resources);
 }
 
 interface TitleHighlightRange {
@@ -529,40 +397,39 @@ export function ThreadTitleMentions({
   title,
   highlightRanges = [],
 }: ThreadTitleMentionsProps) {
-  return useResolvedTitleSegments(title).map((segment, index) => {
+  const resources = useContext(ResourcesContext);
+  const nodes: ReactNode[] = [];
+  let offset = 0;
+  for (const segment of titleSegments(title, resources)) {
     const { serializedText, unresolvedThreadId: threadId } = segment;
-    if (serializedText === null) {
-      return (
-        <span key={`${index}:text`} className="truncate whitespace-pre">
-          {highlightedText(segment.text, segment.offset, highlightRanges)}
+    const key = `${nodes.length}:${threadId ?? serializedText ?? "text"}`;
+    nodes.push(
+      serializedText === null ? (
+        <span key={key} className="truncate whitespace-pre">
+          {highlightedText(segment.text, offset, highlightRanges)}
         </span>
-      );
-    }
-    const isSerializedThread = serializedText.startsWith("@thread:");
-    if (segment.resource === null && threadId !== null && !isSerializedThread) {
-      return (
-        <span key={`${index}:${threadId}`} className="truncate">
+      ) : threadId !== null && !serializedText.startsWith("@thread:") ? (
+        <span key={key} className="truncate">
           {threadId}
         </span>
-      );
-    }
-    return (
-      <PromptMentionPill
-        key={`${index}:${threadId ?? serializedText}`}
-        interactive={false}
-        resource={
-          segment.resource ?? {
-            kind: "thread",
-            threadId: threadId ?? "",
-            label: segment.isUnavailable
-              ? "Unavailable thread"
-              : UNRESOLVED_THREAD_LABEL,
+      ) : (
+        <PromptMentionPill
+          key={key}
+          interactive={false}
+          resource={
+            segment.resource ?? {
+              kind: "thread",
+              threadId: threadId ?? "",
+              label: UNRESOLVED_THREAD_LABEL,
+            }
           }
-        }
-        serializedText={serializedText}
-      />
+          serializedText={serializedText}
+        />
+      ),
     );
-  });
+    offset += (serializedText ?? segment.text).length;
+  }
+  return nodes;
 }
 
 interface ThreadTitleProps

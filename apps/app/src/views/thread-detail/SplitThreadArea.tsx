@@ -12,7 +12,6 @@ import {
   Suspense,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -112,23 +111,8 @@ function createSplitController(
   const registry = createPaneSecondaryPanelRegistry();
   let workspace: HTMLDivElement | null = null;
   let mounted = false;
-  const scrollPositions = new Map<HTMLElement, { left: number; top: number }>();
-  const setMaximized = (paneId: string | null) => {
-    if (store.get(maximizedPaneIdAtom) === paneId) return;
-    for (const element of workspace?.querySelectorAll<HTMLElement>(
-      `[${PANE_ATTR}]:not([aria-hidden="true"]) *`,
-    ) ?? []) {
-      if (element.scrollLeft === 0 && element.scrollTop === 0) {
-        scrollPositions.delete(element);
-      } else {
-        scrollPositions.set(element, {
-          left: element.scrollLeft,
-          top: element.scrollTop,
-        });
-      }
-    }
+  const setMaximized = (paneId: string | null) =>
     store.set(maximizedPaneIdAtom, paneId);
-  };
   const commit = (next: SplitLayout) => {
     const current = store.get(splitLayoutAtom);
     if (current === null || next === current) return;
@@ -164,19 +148,6 @@ function createSplitController(
       [
         ...(workspace?.querySelectorAll<HTMLElement>(`[${PANE_ATTR}]`) ?? []),
       ].find((element) => element.dataset.splitPaneId === paneId),
-    restoreScrollPositions: () => {
-      let corrected = false;
-      for (const [element, { left, top }] of scrollPositions) {
-        if (!workspace?.contains(element)) {
-          scrollPositions.delete(element);
-        } else if (element.scrollLeft !== left || element.scrollTop !== top) {
-          element.scrollLeft = left;
-          element.scrollTop = top;
-          corrected = true;
-        }
-      }
-      return corrected;
-    },
     focusPane: (paneId: string) =>
       update((current) => focusPaneIn(current, paneId)),
     prunePane: (paneId: string) =>
@@ -301,20 +272,6 @@ export function SplitThreadArea({
     maximizedPaneId,
     storedMaximizedPaneId,
   ]);
-
-  useLayoutEffect(() => {
-    controller.restoreScrollPositions();
-    let framesRemaining = 5;
-    let frame = 0;
-    const settle = () => {
-      framesRemaining -= 1;
-      if (controller.restoreScrollPositions() && framesRemaining > 0) {
-        frame = window.requestAnimationFrame(settle);
-      }
-    };
-    frame = window.requestAnimationFrame(settle);
-    return () => window.cancelAnimationFrame(frame);
-  }, [controller, maximizedPaneId]);
 
   useEffect(() => {
     const paneId = keyboardFocusPaneId;

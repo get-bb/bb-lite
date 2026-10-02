@@ -778,12 +778,11 @@ export function ThreadDetailView({
     environment !== undefined && environment.hostLifecycle !== "active"
       ? (bootstrapQuery.data?.environmentHostName ?? null)
       : null;
+  const isLocalEnvironment =
+    environment !== undefined && environment.hostId === localHostId;
   const environmentDisplayHost = useMemo(
     () => ({
-      locality:
-        environment !== undefined && environment.hostId === localHostId
-          ? ("local" as const)
-          : ("remote" as const),
+      locality: isLocalEnvironment ? ("local" as const) : ("remote" as const),
       identity: ambiguousHost
         ? {
             name: ambiguousHost.name,
@@ -793,7 +792,7 @@ export function ThreadDetailView({
           ? { name: removedHostName, connected: false }
           : null,
     }),
-    [ambiguousHost, environment?.hostId, localHostId, removedHostName],
+    [ambiguousHost, isLocalEnvironment, removedHostName],
   );
   const workspaceRootPath = environment?.path ?? null;
   const openTargets = useOpenTargets(
