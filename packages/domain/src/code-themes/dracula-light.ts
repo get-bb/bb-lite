@@ -1,179 +1,13 @@
-import type { JsonObject } from "../json-value.js";
+import type { CodeThemeSource } from "../code-theme.js";
 
-export const draculaLightCodeTheme = {
+export const draculaLightCodeTheme: CodeThemeSource = {
+  displayName: "Dracula Light",
+  name: "bb:dracula:light",
   colors: {
-    "activityBar.activeBackground": "#644ac910",
-    "activityBar.activeBorder": "#a3144d80",
-    "activityBar.background": "#e4e4de",
-    "activityBar.foreground": "#282a36",
-    "activityBar.inactiveForeground": "#6c664b",
-    "activityBarBadge.background": "#a3144d",
-    "activityBarBadge.foreground": "#282a36",
-    "badge.background": "#cfcfde",
-    "badge.foreground": "#282a36",
-    "breadcrumb.activeSelectionForeground": "#282a36",
-    "breadcrumb.background": "#f8f8f2",
-    "breadcrumb.focusForeground": "#282a36",
-    "breadcrumb.foreground": "#6c664b",
-    "breadcrumbPicker.background": "#e8e8e2",
-    "button.background": "#cfcfde",
-    "button.foreground": "#282a36",
-    "button.secondaryBackground": "#f8f8f2",
-    "button.secondaryForeground": "#282a36",
-    "button.secondaryHoverBackground": "#e4e4de",
-    "debugToolBar.background": "#eeeeea",
-    "diffEditor.insertedTextBackground": "#14710a20",
-    "diffEditor.removedTextBackground": "#cb3a2a50",
-    "dropdown.background": "#e4e4de",
-    "dropdown.border": "#e8e8e2",
-    "dropdown.foreground": "#282a36",
     "editor.background": "#f8f8f2",
-    "editor.findMatchBackground": "#a34d1480",
-    "editor.findMatchHighlightBackground": "#282a3640",
-    "editor.findRangeHighlightBackground": "#cfcfde75",
-    "editor.foldBackground": "#eeeeea80",
     "editor.foreground": "#282a36",
-    "editor.hoverHighlightBackground": "#036a9650",
-    "editor.lineHighlightBorder": "#cfcfde",
-    "editor.rangeHighlightBackground": "#644ac915",
-    "editor.selectionBackground": "#cfcfde",
-    "editor.selectionHighlightBackground": "#c8c8d2",
-    "editor.snippetFinalTabstopHighlightBackground": "#f8f8f2",
-    "editor.snippetFinalTabstopHighlightBorder": "#14710a",
-    "editor.snippetTabstopHighlightBackground": "#f8f8f2",
-    "editor.snippetTabstopHighlightBorder": "#6c664b",
-    "editor.wordHighlightBackground": "#036a9650",
-    "editor.wordHighlightStrongBackground": "#14710a50",
-    "editorBracketHighlight.foreground1": "#282a36",
-    "editorBracketHighlight.foreground2": "#a3144d",
-    "editorBracketHighlight.foreground3": "#036a96",
-    "editorBracketHighlight.foreground4": "#14710a",
-    "editorBracketHighlight.foreground5": "#644ac9",
-    "editorBracketHighlight.foreground6": "#a34d14",
-    "editorBracketHighlight.unexpectedBracket.foreground": "#cb3a2a",
-    "editorCodeLens.foreground": "#6c664b",
-    "editorError.foreground": "#cb3a2a",
-    "editorGroup.border": "#644ac9",
-    "editorGroup.dropBackground": "#cfcfde70",
-    "editorGroupHeader.tabsBackground": "#e8e8e2",
-    "editorGutter.addedBackground": "#14710a80",
-    "editorGutter.deletedBackground": "#cb3a2a80",
-    "editorGutter.modifiedBackground": "#036a9680",
-    "editorHoverWidget.background": "#f8f8f2",
-    "editorHoverWidget.border": "#6c664b",
-    "editorIndentGuide.activeBackground": "#282a3645",
-    "editorIndentGuide.background": "#282a361A",
-    "editorLineNumber.foreground": "#6c664b",
-    "editorLink.activeForeground": "#036a96",
-    "editorMarkerNavigation.background": "#eeeeea",
-    "editorOverviewRuler.addedForeground": "#14710a80",
-    "editorOverviewRuler.border": "#e8e8e2",
-    "editorOverviewRuler.currentContentForeground": "#14710a",
-    "editorOverviewRuler.deletedForeground": "#cb3a2a80",
-    "editorOverviewRuler.errorForeground": "#cb3a2a80",
-    "editorOverviewRuler.incomingContentForeground": "#644ac9",
-    "editorOverviewRuler.infoForeground": "#036a9680",
-    "editorOverviewRuler.modifiedForeground": "#036a9680",
-    "editorOverviewRuler.selectionHighlightForeground": "#a34d14",
-    "editorOverviewRuler.warningForeground": "#a34d1480",
-    "editorOverviewRuler.wordHighlightForeground": "#036a96",
-    "editorOverviewRuler.wordHighlightStrongForeground": "#14710a",
-    "editorRuler.foreground": "#282a361A",
-    "editorSuggestWidget.background": "#eeeeea",
-    "editorSuggestWidget.foreground": "#282a36",
-    "editorSuggestWidget.selectedBackground": "#cfcfde",
-    "editorWarning.foreground": "#036a96",
-    "editorWhitespace.foreground": "#282a361A",
-    "editorWidget.background": "#eeeeea",
-    errorForeground: "#cb3a2a",
-    "extensionButton.prominentBackground": "#14710a90",
-    "extensionButton.prominentForeground": "#282a36",
-    "extensionButton.prominentHoverBackground": "#14710a60",
-    focusBorder: "#6c664b",
-    foreground: "#282a36",
-    "gitDecoration.conflictingResourceForeground": "#a34d14",
     "gitDecoration.deletedResourceForeground": "#cb3a2a",
-    "gitDecoration.ignoredResourceForeground": "#6c664b",
     "gitDecoration.modifiedResourceForeground": "#036a96",
-    "gitDecoration.untrackedResourceForeground": "#14710a",
-    "inlineChat.regionHighlight": "#e4e4de",
-    "input.background": "#f8f8f2",
-    "input.border": "#e8e8e2",
-    "input.foreground": "#282a36",
-    "input.placeholderForeground": "#6c664b",
-    "inputOption.activeBorder": "#644ac9",
-    "inputValidation.errorBorder": "#cb3a2a",
-    "inputValidation.infoBorder": "#a3144d",
-    "inputValidation.warningBorder": "#a34d14",
-    "list.activeSelectionBackground": "#cfcfde",
-    "list.activeSelectionForeground": "#282a36",
-    "list.dropBackground": "#cfcfde",
-    "list.errorForeground": "#cb3a2a",
-    "list.focusBackground": "#cfcfde75",
-    "list.highlightForeground": "#036a96",
-    "list.hoverBackground": "#cfcfde75",
-    "list.inactiveSelectionBackground": "#cfcfde75",
-    "list.warningForeground": "#a34d14",
-    "listFilterWidget.background": "#e4e4de",
-    "listFilterWidget.noMatchesOutline": "#cb3a2a",
-    "listFilterWidget.outline": "#c8c8d2",
-    "merge.currentHeaderBackground": "#14710a90",
-    "merge.incomingHeaderBackground": "#644ac990",
-    "panel.background": "#f8f8f2",
-    "panel.border": "#644ac9",
-    "panelTitle.activeBorder": "#a3144d",
-    "panelTitle.activeForeground": "#282a36",
-    "panelTitle.inactiveForeground": "#6c664b",
-    "peekView.border": "#cfcfde",
-    "peekViewEditor.background": "#f8f8f2",
-    "peekViewEditor.matchHighlightBackground": "#846e1580",
-    "peekViewResult.background": "#eeeeea",
-    "peekViewResult.fileForeground": "#282a36",
-    "peekViewResult.lineForeground": "#282a36",
-    "peekViewResult.matchHighlightBackground": "#846e1580",
-    "peekViewResult.selectionBackground": "#cfcfde",
-    "peekViewResult.selectionForeground": "#282a36",
-    "peekViewTitle.background": "#e8e8e2",
-    "peekViewTitleDescription.foreground": "#6c664b",
-    "peekViewTitleLabel.foreground": "#282a36",
-    "pickerGroup.border": "#644ac9",
-    "pickerGroup.foreground": "#036a96",
-    "progressBar.background": "#a3144d",
-    "selection.background": "#644ac9",
-    "settings.checkboxBackground": "#eeeeea",
-    "settings.checkboxBorder": "#e8e8e2",
-    "settings.checkboxForeground": "#282a36",
-    "settings.dropdownBackground": "#eeeeea",
-    "settings.dropdownBorder": "#e8e8e2",
-    "settings.dropdownForeground": "#282a36",
-    "settings.headerForeground": "#282a36",
-    "settings.modifiedItemIndicator": "#a34d14",
-    "settings.numberInputBackground": "#eeeeea",
-    "settings.numberInputBorder": "#e8e8e2",
-    "settings.numberInputForeground": "#282a36",
-    "settings.textInputBackground": "#eeeeea",
-    "settings.textInputBorder": "#e8e8e2",
-    "settings.textInputForeground": "#282a36",
-    "sideBar.background": "#eeeeea",
-    "sideBarSectionHeader.background": "#f8f8f2",
-    "sideBarSectionHeader.border": "#e8e8e2",
-    "sideBarTitle.foreground": "#282a36",
-    "statusBar.background": "#e8e8e2",
-    "statusBar.debuggingBackground": "#cb3a2a",
-    "statusBar.debuggingForeground": "#e8e8e2",
-    "statusBar.foreground": "#282a36",
-    "statusBar.noFolderBackground": "#e8e8e2",
-    "statusBar.noFolderForeground": "#282a36",
-    "statusBarItem.prominentBackground": "#cb3a2a",
-    "statusBarItem.prominentHoverBackground": "#a34d14",
-    "statusBarItem.remoteBackground": "#644ac9",
-    "statusBarItem.remoteForeground": "#f8f8f2",
-    "tab.activeBackground": "#f8f8f2",
-    "tab.activeBorderTop": "#a3144d80",
-    "tab.activeForeground": "#282a36",
-    "tab.border": "#e8e8e2",
-    "tab.inactiveBackground": "#eeeeea",
-    "tab.inactiveForeground": "#6c664b",
     "terminal.ansiBlack": "#eeeeea",
     "terminal.ansiBlue": "#644ac9",
     "terminal.ansiBrightBlack": "#6c664b",
@@ -190,211 +24,86 @@ export const draculaLightCodeTheme = {
     "terminal.ansiRed": "#cb3a2a",
     "terminal.ansiWhite": "#282a36",
     "terminal.ansiYellow": "#846e15",
-    "terminal.background": "#f8f8f2",
-    "terminal.foreground": "#282a36",
-    "titleBar.activeBackground": "#eeeeea",
-    "titleBar.activeForeground": "#282a36",
-    "titleBar.inactiveBackground": "#e8e8e2",
-    "titleBar.inactiveForeground": "#6c664b",
-    "walkThrough.embeddedEditorBackground": "#eeeeea",
   },
-  displayName: "Dracula Light",
-  name: "bb:dracula:light",
-  semanticHighlighting: true,
-  tokenColors: [
-    {
-      scope: ["emphasis"],
-      settings: {
-        fontStyle: "italic",
-      },
-    },
-    {
-      scope: ["strong"],
-      settings: {
-        fontStyle: "bold",
-      },
-    },
-    {
-      scope: ["header"],
-      settings: {
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["meta.diff", "meta.diff.header"],
-      settings: {
-        foreground: "#6c664b",
-      },
-    },
-    {
-      scope: ["markup.inserted"],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["markup.deleted"],
-      settings: {
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["markup.changed"],
-      settings: {
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: ["invalid"],
-      settings: {
-        fontStyle: "underline italic",
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["invalid.deprecated"],
-      settings: {
-        fontStyle: "underline italic",
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: ["entity.name.filename"],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["markup.error"],
-      settings: {
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["markup.underline"],
-      settings: {
-        fontStyle: "underline",
-      },
-    },
-    {
-      scope: ["markup.bold"],
-      settings: {
-        fontStyle: "bold",
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: ["markup.heading"],
-      settings: {
-        fontStyle: "bold",
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["markup.italic"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: [
+  rules: [
+    [["emphasis"], { fontStyle: "italic" }],
+    [["strong"], { fontStyle: "bold" }],
+    [["header"], "#644ac9"],
+    [["meta.diff", "meta.diff.header"], "#6c664b"],
+    [["markup.inserted"], "#14710a"],
+    [["markup.deleted"], "#cb3a2a"],
+    [["markup.changed"], "#a34d14"],
+    [["invalid"], { fontStyle: "underline italic", foreground: "#cb3a2a" }],
+    [
+      ["invalid.deprecated"],
+      { fontStyle: "underline italic", foreground: "#282a36" },
+    ],
+    [["entity.name.filename"], "#846e15"],
+    [["markup.error"], "#cb3a2a"],
+    [["markup.underline"], { fontStyle: "underline" }],
+    [["markup.bold"], { fontStyle: "bold", foreground: "#a34d14" }],
+    [["markup.heading"], { fontStyle: "bold", foreground: "#644ac9" }],
+    [["markup.italic"], { fontStyle: "italic", foreground: "#846e15" }],
+    [
+      [
         "beginning.punctuation.definition.list.markdown",
         "beginning.punctuation.definition.quote.markdown",
         "punctuation.definition.link.restructuredtext",
       ],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: ["markup.inline.raw", "markup.raw.restructuredtext"],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["markup.underline.link", "markup.underline.link.image"],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      "#036a96",
+    ],
+    [["markup.inline.raw", "markup.raw.restructuredtext"], "#14710a"],
+    [["markup.underline.link", "markup.underline.link.image"], "#036a96"],
+    [
+      [
         "meta.link.reference.def.restructuredtext",
         "punctuation.definition.directive.restructuredtext",
         "string.other.link.description",
         "string.other.link.title",
       ],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["entity.name.directive.restructuredtext", "markup.quote"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["meta.separator.markdown"],
-      settings: {
-        foreground: "#6c664b",
-      },
-    },
-    {
-      scope: [
+      "#a3144d",
+    ],
+    [
+      ["entity.name.directive.restructuredtext", "markup.quote"],
+      { fontStyle: "italic", foreground: "#846e15" },
+    ],
+    [["meta.separator.markdown"], "#6c664b"],
+    [
+      [
         "fenced_code.block.language",
         "markup.raw.inner.restructuredtext",
         "markup.fenced_code.block.markdown punctuation.definition.markdown",
       ],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["punctuation.definition.constant.restructuredtext"],
-      settings: {
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: [
+      "#14710a",
+    ],
+    [["punctuation.definition.constant.restructuredtext"], "#644ac9"],
+    [
+      [
         "markup.heading.markdown punctuation.definition.string.begin",
         "markup.heading.markdown punctuation.definition.string.end",
       ],
-      settings: {
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: [
+      "#644ac9",
+    ],
+    [
+      [
         "meta.paragraph.markdown punctuation.definition.string.begin",
         "meta.paragraph.markdown punctuation.definition.string.end",
       ],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: [
+      "#282a36",
+    ],
+    [
+      [
         "markup.quote.markdown meta.paragraph.markdown punctuation.definition.string.begin",
         "markup.quote.markdown meta.paragraph.markdown punctuation.definition.string.end",
       ],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["entity.name.type.class", "entity.name.class"],
-      settings: {
-        fontStyle: "normal",
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      "#846e15",
+    ],
+    [
+      ["entity.name.type.class", "entity.name.class"],
+      { fontStyle: "normal", foreground: "#036a96" },
+    ],
+    [
+      [
         "keyword.expressions-and-types.swift",
         "keyword.other.this",
         "variable.language",
@@ -402,98 +111,60 @@ export const draculaLightCodeTheme = {
         "variable.other.readwrite.instance.ruby",
         "variable.parameter.function.language.special",
       ],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["entity.other.inherited-class"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "italic", foreground: "#644ac9" },
+    ],
+    [
+      ["entity.other.inherited-class"],
+      { fontStyle: "italic", foreground: "#036a96" },
+    ],
+    [
+      [
         "comment",
         "punctuation.definition.comment",
         "unused.comment",
         "wildcard.comment",
       ],
-      settings: {
-        foreground: "#6c664b",
-      },
-    },
-    {
-      scope: [
+      "#6c664b",
+    ],
+    [
+      [
         "comment keyword.codetag.notation",
         "comment.block.documentation keyword",
         "comment.block.documentation storage.type.class",
       ],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["comment.block.documentation entity.name.type"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      "#a3144d",
+    ],
+    [
+      ["comment.block.documentation entity.name.type"],
+      { fontStyle: "italic", foreground: "#036a96" },
+    ],
+    [
+      [
         "comment.block.documentation entity.name.type punctuation.definition.bracket",
       ],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: ["comment.block.documentation variable"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: ["constant", "variable.other.constant"],
-      settings: {
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: [
+      "#036a96",
+    ],
+    [
+      ["comment.block.documentation variable"],
+      { fontStyle: "italic", foreground: "#a34d14" },
+    ],
+    [["constant", "variable.other.constant"], "#644ac9"],
+    [
+      [
         "constant.character.escape",
         "constant.character.string.escape",
         "constant.regexp",
       ],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["entity.name.tag"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["entity.other.attribute-name.parent-selector"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["entity.other.attribute-name"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: [
+      "#a3144d",
+    ],
+    [["entity.name.tag"], "#a3144d"],
+    [["entity.other.attribute-name.parent-selector"], "#a3144d"],
+    [
+      ["entity.other.attribute-name"],
+      { fontStyle: "italic", foreground: "#14710a" },
+    ],
+    [
+      [
         "entity.name.function",
         "meta.function-call.object",
         "meta.function-call.php",
@@ -503,12 +174,10 @@ export const draculaLightCodeTheme = {
         "support.function.any-method.lua",
         "keyword.operator.function.infix",
       ],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: [
+      "#14710a",
+    ],
+    [
+      [
         "entity.name.variable.parameter",
         "meta.at-rule.function variable",
         "meta.at-rule.mixin variable",
@@ -516,71 +185,34 @@ export const draculaLightCodeTheme = {
         "meta.selectionset.graphql meta.arguments.graphql variable.arguments.graphql",
         "variable.parameter",
       ],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "italic", foreground: "#a34d14" },
+    ],
+    [
+      [
         "meta.decorator variable.other.readwrite",
         "meta.decorator variable.other.property",
       ],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["meta.decorator variable.other.object"],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["keyword", "punctuation.definition.keyword"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["keyword.control.new", "keyword.operator.new"],
-      settings: {
-        fontStyle: "bold",
-      },
-    },
-    {
-      scope: ["meta.selector"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: ["support"],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "italic", foreground: "#14710a" },
+    ],
+    [["meta.decorator variable.other.object"], "#14710a"],
+    [["keyword", "punctuation.definition.keyword"], "#a3144d"],
+    [["keyword.control.new", "keyword.operator.new"], { fontStyle: "bold" }],
+    [["meta.selector"], "#a3144d"],
+    [["support"], { fontStyle: "italic", foreground: "#036a96" }],
+    [
+      [
         "support.function.magic",
         "support.variable",
         "variable.other.predefined",
       ],
-      settings: {
-        fontStyle: "regular",
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["support.function", "support.type.property-name"],
-      settings: {
-        fontStyle: "regular",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "regular", foreground: "#644ac9" },
+    ],
+    [
+      ["support.function", "support.type.property-name"],
+      { fontStyle: "regular" },
+    ],
+    [
+      [
         "constant.other.symbol.hashkey punctuation.definition.constant.ruby",
         "entity.other.attribute-name.placeholder punctuation",
         "entity.other.attribute-name.pseudo-class punctuation",
@@ -606,12 +238,10 @@ export const draculaLightCodeTheme = {
         "support.other.chomping-indicator.yaml",
         "punctuation.separator.annotation",
       ],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: [
+      "#a3144d",
+    ],
+    [
+      [
         "keyword.operator.other.powershell",
         "keyword.other.statement-separator.powershell",
         "meta.brace.round",
@@ -630,12 +260,10 @@ export const draculaLightCodeTheme = {
         "string.template meta.brace",
         "string.template punctuation.accessor",
       ],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: [
+      "#282a36",
+    ],
+    [
+      [
         "meta.string-contents.quoted.double punctuation.definition.variable",
         "punctuation.definition.interpolation.begin",
         "punctuation.definition.interpolation.end",
@@ -648,48 +276,33 @@ export const draculaLightCodeTheme = {
         "punctuation.section.embedded.end source.ruby",
         "punctuation.definition.variable.makefile",
       ],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: [
+      "#a3144d",
+    ],
+    [
+      [
         "entity.name.function.target.makefile",
         "entity.name.section.toml",
         "entity.name.tag.yaml",
         "variable.other.key.toml",
       ],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: ["constant.other.date", "constant.other.timestamp"],
-      settings: {
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: ["variable.other.alias.yaml"],
-      settings: {
-        fontStyle: "italic underline",
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: [
+      "#036a96",
+    ],
+    [["constant.other.date", "constant.other.timestamp"], "#a34d14"],
+    [
+      ["variable.other.alias.yaml"],
+      { fontStyle: "italic underline", foreground: "#14710a" },
+    ],
+    [
+      [
         "storage",
         "meta.implementation storage.type.objc",
         "meta.interface-or-protocol storage.type.objc",
         "source.groovy storage.type.def",
       ],
-      settings: {
-        fontStyle: "regular",
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "regular", foreground: "#a3144d" },
+    ],
+    [
+      [
         "entity.name.type",
         "keyword.primitive-datatypes.swift",
         "keyword.type.cs",
@@ -710,116 +323,69 @@ export const draculaLightCodeTheme = {
         "storage.type.haskell",
         "storage.type.ocaml",
       ],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "italic", foreground: "#036a96" },
+    ],
+    [
+      [
         "entity.name.type.type-parameter",
         "meta.indexer.mappedtype.declaration entity.name.type",
         "meta.type.parameters entity.name.type",
       ],
-      settings: {
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: ["storage.modifier"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: [
+      "#a34d14",
+    ],
+    [["storage.modifier"], "#a3144d"],
+    [
+      [
         "string.regexp",
         "constant.other.character-class.set.regexp",
         "constant.character.escape.backslash.regexp",
       ],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["punctuation.definition.group.capture.regexp"],
-      settings: {
-        foreground: "#a3144d",
-      },
-    },
-    {
-      scope: [
+      "#846e15",
+    ],
+    [["punctuation.definition.group.capture.regexp"], "#a3144d"],
+    [
+      [
         "string.regexp punctuation.definition.string.begin",
         "string.regexp punctuation.definition.string.end",
       ],
-      settings: {
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["punctuation.definition.character-class.regexp"],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: ["punctuation.definition.group.regexp"],
-      settings: {
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: [
+      "#cb3a2a",
+    ],
+    [["punctuation.definition.character-class.regexp"], "#036a96"],
+    [["punctuation.definition.group.regexp"], "#a34d14"],
+    [
+      [
         "punctuation.definition.group.assertion.regexp",
         "keyword.operator.negation.regexp",
       ],
-      settings: {
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["meta.assertion.look-ahead.regexp"],
-      settings: {
-        foreground: "#14710a",
-      },
-    },
-    {
-      scope: ["string"],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: [
+      "#cb3a2a",
+    ],
+    [["meta.assertion.look-ahead.regexp"], "#14710a"],
+    [["string"], "#846e15"],
+    [
+      [
         "punctuation.definition.string.begin",
         "punctuation.definition.string.end",
       ],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: [
+      "#846e15",
+    ],
+    [
+      [
         "punctuation.support.type.property-name.begin",
         "punctuation.support.type.property-name.end",
       ],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      "#036a96",
+    ],
+    [
+      [
         "string.quoted.docstring.multi",
         "string.quoted.docstring.multi.python punctuation.definition.string.begin",
         "string.quoted.docstring.multi.python punctuation.definition.string.end",
         "string.quoted.docstring.multi.python constant.character.escape",
       ],
-      settings: {
-        foreground: "#6c664b",
-      },
-    },
-    {
-      scope: [
+      "#6c664b",
+    ],
+    [
+      [
         "variable",
         "constant.other.key.perl",
         "support.variable.property",
@@ -827,51 +393,28 @@ export const draculaLightCodeTheme = {
         "variable.other.constant.ts",
         "variable.other.constant.tsx",
       ],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: [
+      "#282a36",
+    ],
+    [
+      [
         "meta.import variable.other.readwrite",
         "meta.variable.assignment.destructured.object.coffee variable",
       ],
-      settings: {
-        fontStyle: "italic",
-        foreground: "#a34d14",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "italic", foreground: "#a34d14" },
+    ],
+    [
+      [
         "meta.import variable.other.readwrite.alias",
         "meta.export variable.other.readwrite.alias",
         "meta.variable.assignment.destructured.object.coffee variable variable",
       ],
-      settings: {
-        fontStyle: "normal",
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: ["meta.selectionset.graphql variable"],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["meta.selectionset.graphql meta.arguments variable"],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: ["entity.name.fragment.graphql", "variable.fragment.graphql"],
-      settings: {
-        foreground: "#036a96",
-      },
-    },
-    {
-      scope: [
+      { fontStyle: "normal", foreground: "#282a36" },
+    ],
+    [["meta.selectionset.graphql variable"], "#846e15"],
+    [["meta.selectionset.graphql meta.arguments variable"], "#282a36"],
+    [["entity.name.fragment.graphql", "variable.fragment.graphql"], "#036a96"],
+    [
+      [
         "constant.other.symbol.hashkey.ruby",
         "keyword.operator.dereference.java",
         "keyword.operator.navigation.groovy",
@@ -886,64 +429,21 @@ export const draculaLightCodeTheme = {
         "punctuation.separator.list.comma.css",
         "constant.language.empty-list.haskell",
       ],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: ["source.shell variable.other"],
-      settings: {
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["support.constant"],
-      settings: {
-        fontStyle: "normal",
-        foreground: "#644ac9",
-      },
-    },
-    {
-      scope: ["meta.scope.prerequisites.makefile"],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: ["meta.attribute-selector.scss"],
-      settings: {
-        foreground: "#846e15",
-      },
-    },
-    {
-      scope: [
+      "#282a36",
+    ],
+    [["source.shell variable.other"], "#644ac9"],
+    [["support.constant"], { fontStyle: "normal", foreground: "#644ac9" }],
+    [["meta.scope.prerequisites.makefile"], "#846e15"],
+    [["meta.attribute-selector.scss"], "#846e15"],
+    [
+      [
         "punctuation.definition.attribute-selector.end.bracket.square.scss",
         "punctuation.definition.attribute-selector.begin.bracket.square.scss",
       ],
-      settings: {
-        foreground: "#282a36",
-      },
-    },
-    {
-      scope: ["meta.preprocessor.haskell"],
-      settings: {
-        foreground: "#6c664b",
-      },
-    },
-    {
-      scope: ["log.error"],
-      settings: {
-        fontStyle: "bold",
-        foreground: "#cb3a2a",
-      },
-    },
-    {
-      scope: ["log.warning"],
-      settings: {
-        fontStyle: "bold",
-        foreground: "#846e15",
-      },
-    },
+      "#282a36",
+    ],
+    [["meta.preprocessor.haskell"], "#6c664b"],
+    [["log.error"], { fontStyle: "bold", foreground: "#cb3a2a" }],
+    [["log.warning"], { fontStyle: "bold", foreground: "#846e15" }],
   ],
-  type: "light",
-} as JsonObject;
+};

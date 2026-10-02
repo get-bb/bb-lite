@@ -69,11 +69,34 @@ function paletteCodeThemeFallback(paletteId: string): CodeThemePair {
   return builtInPaletteCodeThemes.default;
 }
 
+type TokenRule = [
+  scope: string | string[] | null,
+  style: string | Record<string, string>,
+];
+
+export interface CodeThemeSource {
+  displayName: string;
+  name: string;
+  colors: Record<string, string>;
+  rules: TokenRule[];
+}
+
+function lightCodeTheme(source: CodeThemeSource): JsonObject {
+  const { colors, displayName, name } = source;
+  const tokenColors = source.rules.map(([scope, style]) => ({
+    ...(scope === null ? {} : { scope }),
+    settings: typeof style === "string" ? { foreground: style } : style,
+  }));
+  const semanticHighlighting = true;
+  const head = { colors, displayName, name, semanticHighlighting };
+  return { ...head, tokenColors, type: "light" };
+}
+
 const builtInPaletteCodeThemeFiles: Partial<
   Record<keyof typeof builtInPaletteCodeThemes, Record<string, JsonObject>>
 > = {
-  nord: { "bb:nord:light": nordLightCodeTheme },
-  dracula: { "bb:dracula:light": draculaLightCodeTheme },
+  nord: { "bb:nord:light": lightCodeTheme(nordLightCodeTheme) },
+  dracula: { "bb:dracula:light": lightCodeTheme(draculaLightCodeTheme) },
 };
 
 export function stampRegisteredThemeName(
