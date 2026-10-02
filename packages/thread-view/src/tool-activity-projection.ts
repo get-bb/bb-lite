@@ -1,8 +1,6 @@
 import type {
-  JsonObject,
   ThreadEvent,
   ThreadEventBackgroundTaskItem,
-  ThreadEventItemPresentation,
   ThreadEventScope,
 } from "@bb/domain";
 import type {
@@ -36,21 +34,14 @@ import { messageId } from "./timeline-format.js";
 
 type ToolActivityCell = ExecMessage | ItemMessage;
 
-interface RunningExecutionBase {
-  callId: string;
-  threadId: string;
-  scope: ThreadEventScope;
-  parentToolCallId?: string;
-  sourceSeqStart: number;
-  sourceSeqEnd: number;
-  createdAt: number;
+type Unnamed<TMessage> = TMessage extends { toolName: string }
+  ? Omit<TMessage, "toolName"> & { toolName: string | null }
+  : TMessage;
+
+type RunningExecCall = Unnamed<ExecMessage> & {
   startedAt: number;
-  output: string;
-  completedAt: number | null;
-  status: TimelineRowStatus;
   outputBuffer: VisibleTextBuffer;
-  presentation?: ThreadEventItemPresentation;
-}
+};
 
 interface PendingExecutionOutput {
   callId: string;
@@ -65,38 +56,6 @@ interface PendingExecutionOutput {
 }
 
 type BufferedExecutionOutput = RunningExecCall | PendingExecutionOutput;
-
-interface RunningCommandExecution extends RunningExecutionBase {
-  workKind: "command";
-  command: string;
-  cwd: string | null;
-  activityIntents: TimelineActivityIntent[];
-  source: string | null;
-  exitCode: number | null;
-  approvalStatus: TimelineApprovalStatus;
-}
-
-interface RunningToolCallExecution extends RunningExecutionBase {
-  workKind: "tool";
-  toolName: string | null;
-  toolArgs: JsonObject | null;
-  approvalStatus: TimelineApprovalStatus;
-}
-
-interface RunningDelegationExecution extends RunningExecutionBase {
-  workKind: "delegation";
-  toolName: string | null;
-  childRef: string | null;
-  background: boolean;
-  subagentType?: string;
-  description?: string;
-  model?: string;
-}
-
-type RunningExecCall =
-  | RunningCommandExecution
-  | RunningToolCallExecution
-  | RunningDelegationExecution;
 
 type FieldsUpdate<TFields> = Partial<TFields> & { status?: TimelineRowStatus };
 
@@ -221,59 +180,79 @@ function createRunningExecCall(
     incoming.output ?? "",
     isTerminalToolCallStatus(incoming.status),
   );
-  const base: RunningExecutionBase = {
-    callId: incoming.callId,
+  const { callId } = incoming;
+  const base = {
+    id: messageId(threadId, incoming.workKind, callId),
     threadId,
-    scope,
-    ...(incoming.parentToolCallId
-      ? { parentToolCallId: incoming.parentToolCallId }
-      : {}),
-    ...(incoming.presentation ? { presentation: incoming.presentation } : {}),
-    output: outputBuffer.visible,
-    completedAt: incoming.completedAt ?? null,
-    status: incoming.status ?? "pending",
     sourceSeqStart: meta.seq,
     sourceSeqEnd: meta.seq,
     createdAt: meta.createdAt,
     startedAt: meta.createdAt,
+    scope,
+    ...(incoming.parentToolCallId
+      ? { parentToolCallId: incoming.parentToolCallId }
+      : {}),
     outputBuffer,
+    kind: "exec" as const,
   };
+  const status = incoming.status ?? "pending";
+  const output = outputBuffer.visible;
+  const completedAt = incoming.completedAt ?? null;
+  const presented = incoming.presentation
+    ? { presentation: incoming.presentation }
+    : {};
   switch (incoming.workKind) {
     case "command":
       return {
         ...base,
         workKind: "command",
+        status,
+        callId,
         command: incoming.command ?? "",
         cwd: incoming.cwd ?? null,
-        activityIntents: incoming.activityIntents ?? [],
         source: incoming.source ?? null,
+        output,
         exitCode: incoming.exitCode ?? null,
+        completedAt,
         approvalStatus: incoming.approvalStatus ?? null,
+        activityIntents: incoming.activityIntents ?? [],
+        ...presented,
       };
     case "tool":
       return {
         ...base,
         workKind: "tool",
+        status,
+        callId,
         toolName: incoming.toolName ?? null,
         toolArgs: incoming.toolArgs ?? null,
+        output,
+        completedAt,
         approvalStatus: incoming.approvalStatus ?? null,
+        ...presented,
       };
     case "delegation":
       return {
         ...base,
         workKind: "delegation",
+        status,
+        callId,
         toolName: incoming.toolName ?? null,
         childRef: incoming.childRef ?? null,
         background: incoming.background ?? false,
         subagentType: incoming.subagentType,
         description: incoming.description,
         model: incoming.model,
+        output,
+        completedAt,
+        children: [],
+        ...presented,
       };
   }
 }
 
 type CommandFields = Pick<
-  RunningCommandExecution,
+  Extract<RunningExecCall, { workKind: "command" }>,
   | "approvalStatus"
   | "command"
   | "cwd"
@@ -306,7 +285,7 @@ function mergeCommandExecutionFields(
 }
 
 type ToolCallFields = Pick<
-  RunningToolCallExecution,
+  Extract<RunningExecCall, { workKind: "tool" }>,
   "approvalStatus" | "toolArgs" | "toolName"
 >;
 
@@ -328,7 +307,7 @@ function mergeToolCallExecutionFields(
 }
 
 type DelegationFields = Pick<
-  RunningDelegationExecution,
+  Extract<RunningExecCall, { workKind: "delegation" }>,
   | "background"
   | "childRef"
   | "description"
@@ -611,71 +590,14 @@ export function interruptPendingToolActivity(
 }
 
 function createExecMessage(call: RunningExecCall): ExecMessage {
-  const { status, callId, output, completedAt } = call;
-  const base = {
-    id: messageId(call.threadId, call.workKind, callId),
-    threadId: call.threadId,
-    sourceSeqStart: call.sourceSeqStart,
-    sourceSeqEnd: call.sourceSeqEnd,
-    createdAt: call.createdAt,
-    startedAt: call.startedAt,
-    scope: call.scope,
-    ...(call.parentToolCallId
-      ? { parentToolCallId: call.parentToolCallId }
-      : {}),
-    kind: "exec" as const,
-  };
-  const presented = call.presentation
-    ? { presentation: call.presentation }
-    : {};
-  switch (call.workKind) {
-    case "command":
-      return {
-        ...base,
-        workKind: "command",
-        status,
-        callId,
-        command: call.command,
-        cwd: call.cwd,
-        source: call.source,
-        output,
-        exitCode: call.exitCode,
-        completedAt,
-        approvalStatus: call.approvalStatus,
-        activityIntents: call.activityIntents,
-        ...presented,
-      };
-    case "tool":
-      return {
-        ...base,
-        workKind: "tool",
-        status,
-        callId,
-        toolName: call.toolName ?? "tool",
-        toolArgs: call.toolArgs,
-        output,
-        completedAt,
-        approvalStatus: call.approvalStatus,
-        ...presented,
-      };
-    case "delegation":
-      return {
-        ...base,
-        workKind: "delegation",
-        status,
-        callId,
-        toolName: call.toolName ?? "delegation",
-        childRef: call.childRef,
-        background: call.background,
-        subagentType: call.subagentType,
-        description: call.description,
-        model: call.model,
-        output,
-        completedAt,
-        children: [],
-        ...presented,
-      };
+  const { outputBuffer, ...draft } = call;
+  const id = messageId(call.threadId, call.workKind, call.callId);
+  if (draft.workKind === "command") return { ...draft, id };
+  if (draft.workKind === "tool") {
+    return { ...draft, id, toolName: draft.toolName ?? "tool" };
   }
+  const toolName = draft.toolName ?? "delegation";
+  return { ...draft, id, toolName, children: [] };
 }
 
 function onExecBegin(
