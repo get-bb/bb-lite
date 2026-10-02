@@ -14,6 +14,7 @@ export const BRANCH_PICKER_CONTENT_CLASS_NAME =
   "flex w-full min-w-0 flex-col overflow-hidden p-0 md:w-max md:max-w-[min(18rem,calc(100vw-2rem))] md:max-h-[calc(100vh-6rem)]";
 
 interface BranchPickerRowProps {
+  disabled?: boolean;
   icon: IconName;
   selected: boolean;
   title: string;
@@ -31,12 +32,18 @@ interface BranchPickerSearchProps {
   placeholder?: string;
 }
 
-export function BranchPickerSectionHeader({ label }: { label: string }) {
+export function BranchPickerSectionHeader({
+  label,
+  sticky = true,
+}: {
+  label: string;
+  sticky?: boolean;
+}) {
   return (
     <div
       className={cn(
         "text-xs font-medium text-muted-foreground",
-        "sticky top-0 z-20 -mx-1 bg-background px-3",
+        sticky ? "sticky top-0 z-20 -mx-1 bg-background px-3" : "px-2",
         "flex h-7 items-center",
       )}
     >
@@ -46,6 +53,7 @@ export function BranchPickerSectionHeader({ label }: { label: string }) {
 }
 
 export function BranchPickerRow({
+  disabled,
   icon,
   selected,
   title,
@@ -60,7 +68,10 @@ export function BranchPickerRow({
         BRANCH_PICKER_ROW_CLASS_NAME,
         LIST_HOVER_TRANSITION,
         MENU_ITEM_LAST_HOVERED_CLASS,
+        disabled &&
+          "cursor-not-allowed text-muted-foreground opacity-60 hover:bg-transparent hover:text-muted-foreground",
       )}
+      disabled={disabled}
       title={title}
       onClick={onSelect}
       {...hoverProps}
