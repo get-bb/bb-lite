@@ -22,7 +22,11 @@
       }
     },
     {
-      "files": ["apps/*/src/**/*.ts", "packages/*/src/**/*.ts", "plugins/**/*.ts"],
+      "files": [
+        "apps/*/src/**/*.ts",
+        "packages/*/src/**/*.ts",
+        "plugins/**/*.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",

@@ -6,17 +6,17 @@ budgets; this file has the shapes.
 
 ## Packages
 
-| Package | Role |
-|---|---|
-| `apps/server` | The only stateful process. SQLite, HTTP API under `/api/v1`, WebSockets, thread engine, plugin host, runner hub, static web app |
-| `packages/runner` | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine |
-| `apps/cli` | `bb`: every user feature, plus `bb server` and `bb runner` |
-| `apps/app` | Web UI |
-| `packages/thread-view` | Events → timeline rows. Projection runs in the server; row helpers run in the browser |
-| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes |
-| `packages/sdk` | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`) |
-| `packages/plugin` | The plugin API (types and helpers) |
-| `plugins/*` | In-repo plugins compiled into the server and the app |
+| Package                                       | Role                                                                                                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/server`                                 | The only stateful process. SQLite, HTTP API under `/api/v1`, WebSockets, thread engine, plugin host, runner hub, static web app                                                                                                                   |
+| `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine |
+| `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                        |
+| `apps/app`                                    | Web UI                                                                                                                                                                                                                                            |
+| `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                             |
+| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                    |
+| `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`)                                                                                                                              |
+| `packages/plugin`                             | The plugin API (types and helpers)                                                                                                                                                                                                                |
+| `plugins/*`                                   | In-repo plugins compiled into the server and the app                                                                                                                                                                                              |
 
 Dependency direction: `domain` ← `server-contract` ← `thread-view`, `sdk`, `runner` ← `server` ← `cli`.
 The runner never imports the server. The server talks to machines only through the `Runner` interface.
@@ -55,7 +55,7 @@ Differences from the original schema, chosen to delete derivation code:
   `last_instance_id`, `last_seen_at`. No sessions table, no `user`, no `apikey`.
 - `projects.execution_defaults` is a JSON column. Theme and keybinding overrides live in `settings`.
 - `events` keeps the original envelope and columns exactly: `(id, thread_id, environment_id, scope_kind,
-  turn_id, provider_thread_id, sequence, type, item_id, item_kind, parent_tool_call_id, data, created_at)`.
+turn_id, provider_thread_id, sequence, type, item_id, item_kind, parent_tool_call_id, data, created_at)`.
 
 Ids keep their prefixes (`thr_`, `proj_`, `env_`, `host_`, `evt_`, `qmsg_`, `pint_`, `term_`, `sec_`,
 `creq_`). The personal project is always `proj_personal`. Timestamps are epoch milliseconds.
@@ -141,7 +141,7 @@ Rules:
 - The server assigns the stored per-thread `sequence`. The runner never does.
 - The runner synthesizes: `provider.env-resolved` when a session is built or its env changes; on provider
   process death during a turn, `turn/completed {status:"failed"}` then `system/error
-  {code:"provider_process_exited"}`; `system/error {code:"provider_turn_start_timeout"}` when an accepted
+{code:"provider_process_exited"}`; `system/error {code:"provider_turn_start_timeout"}` when an accepted
   turn has not opened after 120 s; on interrupt without provider settlement in 5 s, open items closed as
   `interrupted` then `turn/completed {status:"interrupted"}`.
 - Agent environment: a scrubbed base (no `NODE_ENV`, no inherited `BB_*`), the login-shell `PATH` with the
@@ -231,7 +231,7 @@ An environment is the directory a thread runs in. Three kinds, fixed, all in `ap
 (`manager.ts`, `scripts.ts`): **project checkout** (the project's own path on a machine, or any existing
 directory; one row per `(project, machine, path)`, shared, never removed), **managed worktree**
 (`<runner dataDir>/worktrees/<threadId>-1/<repo>` on branch `<managedBranchPrefix><title-slug>-<threadId>`) and
-**personal workspace** (`<runner dataDir>/workspaces/<threadId>`). The last two are *managed*
+**personal workspace** (`<runner dataDir>/workspaces/<threadId>`). The last two are _managed_
 (`provider_owns_path = 1`): bb created the path and removes it.
 
 - Work on one environment is serialized through a per-environment queue, so preparing, switching branch and
@@ -402,7 +402,7 @@ materialised by the CLI before the request.
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 - **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,
-  providerCapabilities}`; a tool's `enabledFor` gates on it (ask-user-question is offered only where
+providerCapabilities}`; a tool's `enabledFor` gates on it (ask-user-question is offered only where
   `supportsNativeUserQuestion` is false).
 - **`ui.requestInput`.** Opens a plugin-origin pending interaction and resolves with
   `submitted` or `cancelled` (`reason`: `user`, `timeout` when `timeoutMs` ran out, `request-aborted`

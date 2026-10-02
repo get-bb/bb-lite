@@ -5,24 +5,12 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
+    "lib": ["ES2022", "DOM"],
     "esModuleInterop": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": [
-      "node",
-      "vitest/globals"
-    ],
-    "customConditions": [
-      "source"
-    ]
+    "types": ["node", "vitest/globals"],
+    "customConditions": ["source"]
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "app.tsx"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "app.tsx"]
 }
