@@ -22,4 +22,8 @@ export const BUILTIN_PLUGINS: readonly BuiltinPlugin[] = [
     id: "ask-user-question",
     load: () => import("../../../../plugins/ask-user-question/app"),
   },
+  {
+    id: "account-pool",
+    load: () => import("../../../../plugins/account-pool/app"),
+  },
 ];

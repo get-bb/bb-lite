@@ -77,19 +77,21 @@ it("loads the builtin table and the directories named in config.json", async () 
   expect(summary).toEqual([
     ["thread-list", "running", "builtin", "thread-list", "ListView"],
     ["navigation", "running", "builtin", undefined, "PanelLeft"],
+    ["account-pool", "needs-configuration", "builtin", "pool", "Layers"],
     ["echo", "running", "external", "echo", icon],
   ]);
-  expect(plugins[2]).toMatchObject({ enabled: true, hasSettings: true });
+  expect(plugins[3]).toMatchObject({ enabled: true, hasSettings: true });
   const served = await request("/echo/assets/icon.svg");
   expect(served.response.headers.get("content-type")).toBe("image/svg+xml");
   expect((await request("/echo/assets/server.ts")).status).toBe(404);
   expect((await request("/echo/assets/..%2F..%2Ficon.svg")).status).toBe(404);
   expect((await request("/contributions")).body).toMatchObject({
-    cliCommands: [{}, { pluginId: "echo", commands: [{ name: "say" }] }],
+    cliCommands: [{}, {}, { pluginId: "echo", commands: [{ name: "say" }] }],
     mentionProviders: [],
   });
   const skills = expect.stringMatching(/thread-list\/skills$/u);
-  expect(ctx.plugins.skillDirs()).toEqual([skills]);
+  const poolSkills = expect.stringMatching(/account-pool\/skills$/u);
+  expect(ctx.plugins.skillDirs()).toEqual([skills, poolSkills]);
 });
 
 it("validates rpc calls, stores data and broadcasts realtime signals", async () => {
@@ -215,17 +217,18 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   expect(await rpc("echo/rpc/echo", { text: "b" })).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
   const statusMessage = expect.stringContaining("Migration 1 changed");
-  expect((await reload())[2]).toMatchObject({ status: "error", statusMessage });
+  expect((await reload())[3]).toMatchObject({ status: "error", statusMessage });
   writeFileSync(configFile, JSON.stringify({ plugins: [] }));
   expect((await reload()).map((plugin) => plugin.id)).toEqual([
     "thread-list",
     "navigation",
+    "account-pool",
   ]);
 });
 
 it("serves an external app bundle whose shared imports resolve at runtime", async () => {
   const { request, url } = await serverWithEcho();
-  const app = ((await request("")).body as Listing).plugins[2]?.app;
+  const app = ((await request("")).body as Listing).plugins[3]?.app;
   if (app?.kind !== "external") throw new Error("echo has no external app");
   const script = await fetch(`${url}${app.jsUrl}`);
   expect(script.headers.get("content-type")).toContain("text/javascript");

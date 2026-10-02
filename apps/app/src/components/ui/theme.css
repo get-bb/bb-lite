@@ -11,6 +11,7 @@
 @source "../../../../../plugins/navigation/app";
 @source "../../../../../plugins/secrets/app.tsx";
 @source "../../../../../plugins/ask-user-question/app.tsx";
+@source "../../../../../plugins/account-pool/app.tsx";
 
 @custom-variant dark (&:is(.dark *));
 
