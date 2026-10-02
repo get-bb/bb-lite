@@ -25,7 +25,7 @@ import { usePluginSettingsView } from "@/hooks/queries/plugin-settings-queries";
 import { useSystemProviders } from "@/hooks/queries/system-queries";
 import { useRouteState } from "@/hooks/useRouteState";
 import { useServerConnectionState } from "@/hooks/useServerConnectionState";
-import { useAppNavigationHost } from "@/lib/app-navigation-host";
+import { useAppNavigationHost } from "@/lib/url-open-routing";
 import { getPluginBoundSdk } from "@/lib/plugin-bound-sdk";
 import {
   useSidebarNavigation,

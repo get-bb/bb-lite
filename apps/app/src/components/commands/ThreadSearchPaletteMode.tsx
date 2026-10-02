@@ -16,14 +16,13 @@ import {
 } from "@/hooks/queries/thread-queries";
 import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 import { getThreadRoutePath } from "@/lib/route-paths";
-import { openThreadInSplit } from "@/lib/split-layout/openThreadInSplit";
-import { splitLayoutAtom } from "@/lib/split-layout/atoms";
+import { openThreadInSplit, splitLayoutAtom } from "@/lib/split-layout/atoms";
 import { countPanes, findPaneByContent, MAX_PANES } from "@/lib/split-layout";
 import {
   buildPaletteThreadSearchRows,
+  windowPaletteThreadSearchText,
   type PaletteThreadSearchRow,
-} from "@/lib/command-palette/palette-thread-search";
-import { windowPaletteThreadSearchText } from "@/lib/command-palette/palette-thread-search-window";
+} from "@/lib/command-palette";
 import {
   PALETTE_SECTION_LABEL_CLASS,
   PaletteShell,

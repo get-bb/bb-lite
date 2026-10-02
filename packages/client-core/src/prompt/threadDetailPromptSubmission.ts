@@ -10,104 +10,36 @@ import type {
   ExistingThreadExecutionInputSources,
   SendMessageRequest,
 } from "@bb/server-contract";
-import type { FollowUpSubmitMode } from "./follow-up-submit-mode.js";
 
-export interface SendMessageMutationRequest extends SendMessageRequest {
-  id: string;
-}
+export type FollowUpSubmitMode =
+  | { kind: "ready" }
+  | { kind: "queue"; onStop: () => void }
+  | { kind: "queue-while-stopping" }
+  | {
+      kind: "blocked";
+      reason:
+        | "loading-execution-options"
+        | "loading-pending-interactions"
+        | "pending-interaction"
+        | "unavailable";
+    };
 
-export interface CreateQueuedFollowUpRequest extends CreateQueuedMessageRequest {
-  id: string;
-}
-
-export interface SendQueuedMessageByIdRequest {
-  id: string;
-  mode: "steer";
-  queuedMessageId: string;
-}
-
-interface ThreadExecutionSelection {
+export type FollowUpExecutionSelection = {
   model: string;
   permissionMode: PermissionMode;
   reasoningLevel: ReasoningLevel;
   serviceTier: ServiceTier | undefined;
   supportsServiceTier: boolean;
   executionInputSources: ExistingThreadExecutionInputSources;
-}
+} | null;
 
-export type FollowUpExecutionSelection = ThreadExecutionSelection | null;
-
-interface SharedThreadExecutionRequestFields {
-  model?: string;
-  permissionMode?: PermissionMode;
-  reasoningLevel?: ReasoningLevel;
-  serviceTier?: ServiceTier;
-  executionInputSources?: ExistingThreadExecutionInputSources;
-}
-
-interface BaseFollowUpRequestArgs {
+interface FollowUpRequestArgs {
+  execution: FollowUpExecutionSelection;
   input: PromptInput[];
   threadId: string;
 }
 
-interface BuildAutoFollowUpRequestArgs extends BaseFollowUpRequestArgs {
-  execution: FollowUpExecutionSelection;
-}
-
-interface BuildCreateQueuedFollowUpRequestArgs extends BaseFollowUpRequestArgs {
-  execution: FollowUpExecutionSelection;
-}
-
-interface BuildSendQueuedMessageByIdRequestArgs {
-  queuedMessageId: string;
-  threadId: string;
-}
-
-interface BuildSteerFollowUpRequestArgs extends BaseFollowUpRequestArgs {
-  execution: FollowUpExecutionSelection;
-}
-
-interface BuildFollowUpShortcutRequestArgs extends BaseFollowUpRequestArgs {
-  execution: FollowUpExecutionSelection;
-  queuedMessages: readonly QueuedMessageForSend[];
-}
-
-interface CanSubmitFollowUpShortcutArgs {
-  hasPromptDraftInput: boolean;
-  isFollowUpSubmitting: boolean;
-  isQueueMutationPending: boolean;
-  queuedMessageCount: number;
-  runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
-  submitModeKind: FollowUpSubmitMode["kind"];
-}
-
-interface BuildFollowUpSubmitModeArgs {
-  hasPendingInteraction: boolean;
-  isDefaultExecutionOptionsLoading: boolean;
-  isPendingInteractionsInitialLoading: boolean;
-  isStopRequested: boolean;
-  onStop: () => void;
-  runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
-}
-
-interface ResolveDefaultExecutionOptionsStateArgs {
-  hasConcreteDefaultExecutionOptions: boolean;
-  hasResolvedDefaultExecutionOptions: boolean;
-  isError: boolean;
-}
-
-export interface QueuedMessageForSend {
-  id: string;
-}
-
-type FollowUpShortcutRequest =
-  | { kind: "draft"; request: SendMessageMutationRequest }
-  | { kind: "queued"; request: SendQueuedMessageByIdRequest };
-
-export type DefaultExecutionOptionsState =
-  | "available"
-  | "loading"
-  | "unavailable";
+type SendMessageMutationRequest = SendMessageRequest & { id: string };
 
 export function shouldQueueFollowUpMessage(
   displayStatus: ThreadRuntimeDisplayStatus,
@@ -121,173 +53,65 @@ export function shouldQueueFollowUpMessage(
   );
 }
 
-export function buildFollowUpSubmitMode({
-  hasPendingInteraction,
-  isDefaultExecutionOptionsLoading,
-  isPendingInteractionsInitialLoading,
-  isStopRequested,
-  onStop,
-  runtimeDisplayStatus,
-}: BuildFollowUpSubmitModeArgs): FollowUpSubmitMode {
-  if (isStopRequested) {
-    return { kind: "queue-while-stopping" };
-  }
-  if (isPendingInteractionsInitialLoading) {
+export function buildFollowUpSubmitMode(args: {
+  hasPendingInteraction: boolean;
+  isDefaultExecutionOptionsLoading: boolean;
+  isPendingInteractionsInitialLoading: boolean;
+  isStopRequested: boolean;
+  onStop: () => void;
+  runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
+}): FollowUpSubmitMode {
+  if (args.isStopRequested) return { kind: "queue-while-stopping" };
+  if (args.isPendingInteractionsInitialLoading) {
     return { kind: "blocked", reason: "loading-pending-interactions" };
   }
-  if (hasPendingInteraction) {
+  if (args.hasPendingInteraction) {
     return { kind: "blocked", reason: "pending-interaction" };
   }
-  if (shouldQueueFollowUpMessage(runtimeDisplayStatus)) {
-    return { kind: "queue", onStop };
+  if (shouldQueueFollowUpMessage(args.runtimeDisplayStatus)) {
+    return { kind: "queue", onStop: args.onStop };
   }
-  if (isDefaultExecutionOptionsLoading) {
-    return { kind: "blocked", reason: "loading-execution-options" };
-  }
-  return { kind: "ready" };
+  return args.isDefaultExecutionOptionsLoading
+    ? { kind: "blocked", reason: "loading-execution-options" }
+    : { kind: "ready" };
 }
 
-export function canSubmitFollowUpShortcut({
-  hasPromptDraftInput,
-  isFollowUpSubmitting,
-  isQueueMutationPending,
-  queuedMessageCount,
-  runtimeDisplayStatus,
-  submitModeKind,
-}: CanSubmitFollowUpShortcutArgs): boolean {
-  if (isFollowUpSubmitting || isQueueMutationPending) {
-    return false;
-  }
+export function canSubmitFollowUpShortcut(args: {
+  hasPromptDraftInput: boolean;
+  isFollowUpSubmitting: boolean;
+  isQueueMutationPending: boolean;
+  queuedMessageCount: number;
+  runtimeDisplayStatus: ThreadRuntimeDisplayStatus;
+  submitModeKind: FollowUpSubmitMode["kind"];
+}): boolean {
+  const { runtimeDisplayStatus: status, submitModeKind } = args;
+  if (args.isFollowUpSubmitting || args.isQueueMutationPending) return false;
   const canSteerActiveWork =
-    (runtimeDisplayStatus === "active" ||
-      runtimeDisplayStatus === "provisioning" ||
-      runtimeDisplayStatus === "starting") &&
+    (status === "active" ||
+      status === "provisioning" ||
+      status === "starting") &&
     submitModeKind === "queue";
-  if (hasPromptDraftInput) {
-    return (
-      canSteerActiveWork ||
-      (runtimeDisplayStatus === "waiting-for-host" &&
-        submitModeKind === "queue")
-    );
-  }
-  return (
-    queuedMessageCount > 0 &&
-    (canSteerActiveWork ||
-      (runtimeDisplayStatus === "idle" && submitModeKind === "ready"))
-  );
+  return args.hasPromptDraftInput
+    ? canSteerActiveWork ||
+        (status === "waiting-for-host" && submitModeKind === "queue")
+    : args.queuedMessageCount > 0 &&
+        (canSteerActiveWork ||
+          (status === "idle" && submitModeKind === "ready"));
 }
 
-export function resolveDefaultExecutionOptionsState({
-  hasConcreteDefaultExecutionOptions,
-  hasResolvedDefaultExecutionOptions,
-  isError,
-}: ResolveDefaultExecutionOptionsStateArgs): DefaultExecutionOptionsState {
-  if (hasConcreteDefaultExecutionOptions) {
-    return "available";
-  }
-  if (hasResolvedDefaultExecutionOptions || isError) {
-    return "unavailable";
-  }
-  return "loading";
+export function resolveDefaultExecutionOptionsState(args: {
+  hasConcreteDefaultExecutionOptions: boolean;
+  hasResolvedDefaultExecutionOptions: boolean;
+  isError: boolean;
+}): "available" | "loading" | "unavailable" {
+  if (args.hasConcreteDefaultExecutionOptions) return "available";
+  return args.hasResolvedDefaultExecutionOptions || args.isError
+    ? "unavailable"
+    : "loading";
 }
 
-export function buildAutoFollowUpRequest({
-  execution,
-  input,
-  threadId,
-}: BuildAutoFollowUpRequestArgs): SendMessageMutationRequest | null {
-  if (input.length === 0) {
-    return null;
-  }
-
-  return {
-    id: threadId,
-    input,
-    mode: "queue-if-active",
-    ...buildSharedThreadExecutionRequestFields(execution),
-  };
-}
-
-function buildSteerFollowUpRequest({
-  execution,
-  input,
-  threadId,
-}: BuildSteerFollowUpRequestArgs): SendMessageMutationRequest | null {
-  if (input.length === 0) {
-    return null;
-  }
-
-  return {
-    id: threadId,
-    input,
-    mode: "steer-if-active",
-    ...buildSharedThreadExecutionRequestFields(execution),
-  };
-}
-
-export function buildCreateQueuedFollowUpRequest({
-  execution,
-  input,
-  threadId,
-}: BuildCreateQueuedFollowUpRequestArgs): CreateQueuedFollowUpRequest | null {
-  if (input.length === 0) {
-    return null;
-  }
-
-  return {
-    id: threadId,
-    input,
-    ...buildSharedThreadExecutionRequestFields(execution),
-  };
-}
-
-function buildSendQueuedMessageByIdRequest({
-  queuedMessageId,
-  threadId,
-}: BuildSendQueuedMessageByIdRequestArgs): SendQueuedMessageByIdRequest {
-  return {
-    id: threadId,
-    mode: "steer",
-    queuedMessageId,
-  };
-}
-
-export function buildFollowUpShortcutRequest({
-  execution,
-  input,
-  queuedMessages,
-  threadId,
-}: BuildFollowUpShortcutRequestArgs): FollowUpShortcutRequest | null {
-  const draftRequest = buildSteerFollowUpRequest({
-    execution,
-    input,
-    threadId,
-  });
-  if (draftRequest) {
-    return { kind: "draft", request: draftRequest };
-  }
-
-  const nextQueuedMessage = queuedMessages[0];
-  if (!nextQueuedMessage) {
-    return null;
-  }
-
-  return {
-    kind: "queued",
-    request: buildSendQueuedMessageByIdRequest({
-      queuedMessageId: nextQueuedMessage.id,
-      threadId,
-    }),
-  };
-}
-
-function buildSharedThreadExecutionRequestFields(
-  execution: FollowUpExecutionSelection,
-): SharedThreadExecutionRequestFields {
-  if (execution === null) {
-    return {};
-  }
-
+function executionRequestFields(execution: FollowUpExecutionSelection) {
+  if (execution === null) return {};
   return {
     model: execution.model,
     ...(execution.supportsServiceTier && execution.serviceTier
@@ -297,4 +121,49 @@ function buildSharedThreadExecutionRequestFields(
     permissionMode: execution.permissionMode,
     executionInputSources: execution.executionInputSources,
   };
+}
+
+function buildSendRequest(
+  { execution, input, threadId }: FollowUpRequestArgs,
+  mode: "queue-if-active" | "steer-if-active",
+): SendMessageMutationRequest | null {
+  return input.length === 0
+    ? null
+    : { id: threadId, input, mode, ...executionRequestFields(execution) };
+}
+
+export function buildAutoFollowUpRequest(
+  args: FollowUpRequestArgs,
+): SendMessageMutationRequest | null {
+  return buildSendRequest(args, "queue-if-active");
+}
+
+export function buildCreateQueuedFollowUpRequest({
+  execution,
+  input,
+  threadId,
+}: FollowUpRequestArgs): (CreateQueuedMessageRequest & { id: string }) | null {
+  return input.length === 0
+    ? null
+    : { id: threadId, input, ...executionRequestFields(execution) };
+}
+
+export function buildFollowUpShortcutRequest(
+  args: FollowUpRequestArgs & { queuedMessages: readonly { id: string }[] },
+):
+  | { kind: "draft"; request: SendMessageMutationRequest }
+  | {
+      kind: "queued";
+      request: { id: string; mode: "steer"; queuedMessageId: string };
+    }
+  | null {
+  const draftRequest = buildSendRequest(args, "steer-if-active");
+  if (draftRequest) return { kind: "draft", request: draftRequest };
+  const queuedMessageId = args.queuedMessages[0]?.id;
+  return queuedMessageId === undefined
+    ? null
+    : {
+        kind: "queued",
+        request: { id: args.threadId, mode: "steer", queuedMessageId },
+      };
 }

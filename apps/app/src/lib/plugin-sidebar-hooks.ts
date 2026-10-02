@@ -58,8 +58,7 @@ import {
   listPanes,
   type PaneContent,
 } from "./split-layout";
-import { splitLayoutAtom } from "./split-layout/atoms";
-import { openThreadInSplit } from "./split-layout/openThreadInSplit";
+import { openThreadInSplit, splitLayoutAtom } from "./split-layout/atoms";
 import { getThreadDisplayTitle } from "./thread-title";
 
 type HostNames = ReadonlyMap<string, string>;

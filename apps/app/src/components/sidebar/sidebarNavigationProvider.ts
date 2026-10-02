@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { createSyncedPreferenceAtom } from "@/lib/ui-preferences/synced-preference-atom";
+import { createSyncedPreferenceAtom } from "@/lib/ui-preferences";
 import {
   resolveProvider,
   usePluginSlots,

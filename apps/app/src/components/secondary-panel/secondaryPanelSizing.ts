@@ -1,6 +1,6 @@
 import { createContext, useMemo } from "react";
 import { useElementWidth } from "@/hooks/useElementWidth";
-import { splitWidthLimits } from "@/lib/split-layout/sizing";
+import { splitWidthLimits } from "@/lib/split-resize-snap";
 
 export const SecondaryPanelMinimumContext = createContext({ min: 0, max: 1 });
 

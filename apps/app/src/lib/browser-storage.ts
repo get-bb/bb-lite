@@ -1,102 +1,67 @@
 import { atomWithStorage } from "jotai/utils";
 
-type StringValueGuard<T extends string> = (value: string) => value is T;
-type StoredValueGuard<T> = (value: unknown) => value is T;
-type StoredValueListener = (storedValue: string | null) => void;
-
-export interface SyncStorage<T> {
+interface SyncStorage<T> {
   getItem: (key: string, initialValue: T) => T;
   setItem: (key: string, newValue: T) => void;
   removeItem: (key: string) => void;
-  subscribe?: (
-    key: string,
-    callback: (value: T) => void,
-    initialValue: T,
-  ) => (() => void) | undefined;
-}
-
-interface SyncStringStorage {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, newValue: string) => void;
-  removeItem: (key: string) => void;
-  subscribe?: (
-    key: string,
-    callback: StoredValueListener,
-  ) => (() => void) | undefined;
 }
 
 interface StoredValueCodec<T> {
   parse: (storedValue: string | null, initialValue: T) => T;
-  serialize: (value: T) => string;
+  serialize: (value: T) => string | null;
 }
 
-export function getLocalStorage(): Storage | null {
-  return withLocalStorage((storage) => storage, null);
-}
+type StorageArea = "localStorage" | "sessionStorage";
 
-export function withLocalStorage<T>(
-  operation: (storage: Storage) => T,
-  fallback: T,
-): T {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
+function read(area: StorageArea, key: string): string | null {
   try {
-    return operation(window.localStorage);
+    return window[area].getItem(key);
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-function withSessionStorage<T>(
-  operation: (storage: Storage) => T,
-  fallback: T,
-): T {
-  if (typeof window === "undefined") return fallback;
+function write(area: StorageArea, key: string, value: string | null): void {
   try {
-    return operation(window.sessionStorage);
-  } catch {
-    return fallback;
-  }
+    if (value === null) window[area].removeItem(key);
+    else window[area].setItem(key, value);
+  } catch {}
 }
 
-function subscribeToLocalStorageKey(
-  key: string,
-  callback: StoredValueListener,
-): () => void {
-  const localStorage = getLocalStorage();
-  if (
-    !localStorage ||
-    typeof window === "undefined" ||
-    typeof window.addEventListener !== "function"
-  ) {
-    return () => {};
-  }
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.storageArea === localStorage && event.key === key) {
-      callback(event.newValue);
-    }
-  };
-
-  window.addEventListener("storage", handleStorage);
-  return () => {
-    window.removeEventListener("storage", handleStorage);
+export function createLocalStorageSyncStorage<T>(
+  codec: StoredValueCodec<T>,
+): SyncStorage<T> {
+  return {
+    getItem: (key, initialValue) =>
+      codec.parse(read("localStorage", key), initialValue),
+    setItem: (key, value) => write("localStorage", key, codec.serialize(value)),
+    removeItem: (key) => write("localStorage", key, null),
   };
 }
 
-const localStorageStringStorage: SyncStringStorage = {
-  getItem: (key: string) =>
-    withLocalStorage((storage) => storage.getItem(key), null),
-  setItem: (key: string, value: string) => {
-    withLocalStorage((storage) => storage.setItem(key, value), undefined);
-  },
-  removeItem: (key: string) => {
-    withLocalStorage((storage) => storage.removeItem(key), undefined);
-  },
-  subscribe: (key: string, callback: StoredValueListener) =>
-    subscribeToLocalStorageKey(key, callback),
-};
+export function createTabScopedStorage<T>(
+  codec: StoredValueCodec<T>,
+  { persistInitialValue = false }: { persistInitialValue?: boolean } = {},
+): SyncStorage<T> {
+  const writeBoth = (key: string, value: string | null) => {
+    write("sessionStorage", key, value);
+    write("localStorage", key, value);
+  };
+  return {
+    getItem: (key, initialValue) => {
+      const value = codec.parse(
+        read("sessionStorage", key) ?? read("localStorage", key),
+        initialValue,
+      );
+      if (persistInitialValue) {
+        write("sessionStorage", key, codec.serialize(value));
+      }
+      return value;
+    },
+    setItem: (key, value) => writeBoth(key, codec.serialize(value)),
+    removeItem: (key) => writeBoth(key, null),
+  };
+}
 
 export const rawStringLocalStorage = createLocalStorageSyncStorage<string>({
   parse: (storedValue, initialValue) => storedValue ?? initialValue,
@@ -104,28 +69,17 @@ export const rawStringLocalStorage = createLocalStorageSyncStorage<string>({
 });
 
 export const booleanLocalStorage = createLocalStorageSyncStorage<boolean>({
-  parse: (storedValue, initialValue) => {
-    if (storedValue === "true") return true;
-    if (storedValue === "false") return false;
-    return initialValue;
-  },
-  serialize: (value) => String(value),
+  parse: (storedValue, initialValue) =>
+    storedValue === "true" || (storedValue !== "false" && initialValue),
+  serialize: String,
 });
 
-export function createJsonLocalStorage<T>(
-  isValue?: StoredValueGuard<T>,
-): SyncStorage<T> {
+export function createJsonLocalStorage<T>(): SyncStorage<T> {
   return createLocalStorageSyncStorage<T>({
     parse: (storedValue, initialValue) => {
-      if (storedValue === null) {
-        return initialValue;
-      }
-
+      if (storedValue === null) return initialValue;
       try {
-        const parsedValue: unknown = JSON.parse(storedValue);
-        return isValue === undefined || isValue(parsedValue)
-          ? (parsedValue as T)
-          : initialValue;
+        return JSON.parse(storedValue) as T;
       } catch {
         return initialValue;
       }
@@ -146,101 +100,18 @@ export function createBooleanPreferenceAtom(
   );
 }
 
-export function createTabScopedStorage<T>(
-  codec: StoredValueCodec<T>,
-  { persistInitialValue = false }: { persistInitialValue?: boolean } = {},
-): SyncStorage<T> {
-  return {
-    getItem: (key: string, initialValue: T) => {
-      const tabValue = withSessionStorage(
-        (storage) => storage.getItem(key),
-        null,
-      );
-      const storedValue = tabValue ?? localStorageStringStorage.getItem(key);
-      const value = codec.parse(storedValue, initialValue);
-      if (persistInitialValue) {
-        withSessionStorage(
-          (storage) => storage.setItem(key, codec.serialize(value)),
-          undefined,
-        );
-      }
-      return value;
-    },
-    setItem: (key: string, value: T) => {
-      const serialized = codec.serialize(value);
-      withSessionStorage(
-        (storage) => storage.setItem(key, serialized),
-        undefined,
-      );
-      localStorageStringStorage.setItem(key, serialized);
-    },
-    removeItem: (key: string) => {
-      withSessionStorage((storage) => storage.removeItem(key), undefined);
-      localStorageStringStorage.removeItem(key);
-    },
-  };
-}
-
-export function createLocalStorageSyncStorage<T>(
-  codec: StoredValueCodec<T>,
-): SyncStorage<T> {
-  return {
-    getItem: (key: string, initialValue: T) =>
-      codec.parse(localStorageStringStorage.getItem(key), initialValue),
-    setItem: (key: string, value: T) => {
-      localStorageStringStorage.setItem(key, codec.serialize(value));
-    },
-    removeItem: (key: string) => {
-      localStorageStringStorage.removeItem(key);
-    },
-    subscribe: (key: string, callback: (value: T) => void, initialValue: T) =>
-      subscribeToLocalStorageKey(key, (storedValue) => {
-        callback(codec.parse(storedValue, initialValue));
-      }),
-  };
-}
-
-export function createLocalStorageEnumStorage<T extends string>(
-  isValue: StringValueGuard<T>,
-): SyncStorage<T> {
-  return createLocalStorageSyncStorage<T>({
+export function createNullableLocalStorageEnumStorage<T extends string>(
+  isValue: (value: string) => value is T,
+): SyncStorage<T | null> {
+  return createLocalStorageSyncStorage<T | null>({
     parse: (storedValue, initialValue) =>
       storedValue !== null && isValue(storedValue) ? storedValue : initialValue,
     serialize: (value) => value,
   });
 }
 
-export function createNullableLocalStorageEnumStorage<T extends string>(
-  isValue: StringValueGuard<T>,
-): SyncStorage<T | null> {
-  return {
-    getItem: (key: string, initialValue: T | null) => {
-      const storedValue = localStorageStringStorage.getItem(key);
-      return storedValue !== null && isValue(storedValue)
-        ? storedValue
-        : initialValue;
-    },
-    setItem: (key: string, value: T | null) => {
-      if (value === null) {
-        localStorageStringStorage.removeItem(key);
-        return;
-      }
-      localStorageStringStorage.setItem(key, value);
-    },
-    removeItem: (key: string) => {
-      localStorageStringStorage.removeItem(key);
-    },
-    subscribe: (
-      key: string,
-      callback: (value: T | null) => void,
-      initialValue: T | null,
-    ) =>
-      subscribeToLocalStorageKey(key, (storedValue) => {
-        callback(
-          storedValue !== null && isValue(storedValue)
-            ? storedValue
-            : initialValue,
-        );
-      }),
-  };
+export function createLocalStorageEnumStorage<T extends string>(
+  isValue: (value: string) => value is T,
+): SyncStorage<T> {
+  return createNullableLocalStorageEnumStorage(isValue) as SyncStorage<T>;
 }

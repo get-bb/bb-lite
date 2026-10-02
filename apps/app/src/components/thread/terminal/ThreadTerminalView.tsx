@@ -13,9 +13,11 @@ import {
 import { useAppThemeEpoch } from "@/hooks/useAppTheme";
 import { usePreferredTheme } from "@/hooks/useTheme";
 import type { MarkdownPreviewLinkHandler } from "@/components/ui/markdown-link";
-import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
+import {
+  openUrlInExternalBrowser,
+  useAppNavigationHost,
+} from "@/lib/url-open-routing";
 import { decodeBase64Bytes } from "@/lib/base64-bytes";
-import { useAppNavigationHost } from "@/lib/app-navigation-host";
 import { buildBrowserWebSocketUrl } from "@/lib/browser-websocket-url";
 
 const TERMINAL_FONT_FAMILY =

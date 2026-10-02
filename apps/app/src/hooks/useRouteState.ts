@@ -1,51 +1,28 @@
 import { useLocation, useMatch } from "react-router-dom";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 
-interface RouteState {
-  projectId: string | undefined;
-  threadId: string | undefined;
-  isThreadView: boolean;
-  isArchivedView: boolean;
-  isRootView: boolean;
-  isProjectlessView: boolean;
-}
-
-export function useRouteState(): RouteState {
-  const location = useLocation();
-  const projectMatch = useMatch("/projects/:projectId/*");
-  const projectThreadMatch = useMatch(
-    "/projects/:projectId/threads/:threadId/*",
-  );
-  const projectlessThreadMatch = useMatch("/threads/:threadId/*");
-  const projectlessArchivedMatch = useMatch("/archived");
-  const isRootView = location.pathname === "/";
+export function useRouteState() {
+  const isRootView = useLocation().pathname === "/";
+  const routeProjectId = useMatch("/projects/:projectId/*")?.params.projectId;
+  const projectThread = useMatch("/projects/:projectId/threads/:threadId/*");
+  const projectlessThreadId = useMatch("/threads/:threadId/*")?.params.threadId;
+  const isArchivedView = useMatch("/archived") !== null;
   const isUnsupportedPersonalProjectThread =
-    projectThreadMatch?.params.projectId === PERSONAL_PROJECT_ID;
-  const projectlessThreadId = projectlessThreadMatch?.params.threadId;
-  const threadId =
-    projectlessThreadId ??
-    (isUnsupportedPersonalProjectThread
-      ? undefined
-      : projectThreadMatch?.params.threadId);
-  const projectRouteProjectId = projectMatch?.params.projectId;
-  const projectId =
-    projectlessThreadId !== undefined || Boolean(projectlessArchivedMatch)
-      ? PERSONAL_PROJECT_ID
-      : isUnsupportedPersonalProjectThread
-        ? undefined
-        : projectRouteProjectId;
-
+    projectThread?.params.projectId === PERSONAL_PROJECT_ID;
+  const projectThreadId = isUnsupportedPersonalProjectThread
+    ? undefined
+    : projectThread?.params.threadId;
   return {
-    projectId,
-    threadId,
+    projectId:
+      projectlessThreadId !== undefined || isArchivedView
+        ? PERSONAL_PROJECT_ID
+        : isUnsupportedPersonalProjectThread
+          ? undefined
+          : routeProjectId,
+    threadId: projectlessThreadId ?? projectThreadId,
     isThreadView:
-      Boolean(projectlessThreadMatch) ||
-      (Boolean(projectThreadMatch) && !isUnsupportedPersonalProjectThread),
-    isArchivedView: Boolean(projectlessArchivedMatch),
-    isRootView,
-    isProjectlessView:
-      isRootView ||
       projectlessThreadId !== undefined ||
-      Boolean(projectlessArchivedMatch),
+      (projectThread !== null && !isUnsupportedPersonalProjectThread),
+    isRootView,
   };
 }
