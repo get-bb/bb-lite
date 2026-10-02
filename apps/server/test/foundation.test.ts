@@ -72,7 +72,9 @@ const evil = { origin: "https://evil.example" };
 const remote = "100.64.0.7";
 const enrolled = { authorization: "Bearer bbr_enrolled" };
 const revoked = { authorization: "Bearer bbr_revoked" };
+const tailnet = { host: "bee.tail0.ts.net:48886" };
 const lookups = {
+  allowedHosts: ["bee.tail0.ts.net"],
   publicUrl: () => "https://bee.example.test",
   runnerMachine: (token: string) =>
     token === "bbr_enrolled" ? { connectMachineId: null } : undefined,
@@ -85,6 +87,9 @@ it.each<[string | number, Headers, string?, string?]>([
   [403, { ...loopback, ...evil }],
   [403, { ...loopback, origin: "http://127.0.0.1:3000" }],
   [403, { host: "evil.example:48886" }],
+  ["owner", { ...tailnet, origin: "https://bee.tail0.ts.net:48886" }],
+  [403, { ...tailnet, ...evil }],
+  [404, tailnet, "GET /api/v1/threads", remote],
   ["owner", session],
   [403, { ...session, ...evil }],
   [404, tunnel],

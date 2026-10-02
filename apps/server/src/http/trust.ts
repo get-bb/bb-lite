@@ -7,6 +7,7 @@ export type Principal =
   | { kind: "anonymous" };
 
 export interface TrustLookups {
+  allowedHosts: readonly string[];
   publicUrl(): string | null;
   runnerMachine(token: string): { connectMachineId: string | null } | undefined;
 }
@@ -39,9 +40,10 @@ function isLoopbackAddress(address: string | undefined) {
   return ipv4 === "::1" || ipv4?.startsWith("127.") === true;
 }
 
-function isLoopbackAuthority(authority: string) {
+function isOwnAuthority(authority: string, allowed: readonly string[]) {
   try {
-    return LOOPBACK_HOSTNAMES.includes(new URL(`http://${authority}`).hostname);
+    const { hostname } = new URL(`http://${authority}`);
+    return LOOPBACK_HOSTNAMES.includes(hostname) || allowed.includes(hostname);
   } catch {
     return false;
   }
@@ -74,14 +76,14 @@ function identify(request: TrustRequest, lookups: TrustLookups): Principal {
 
 function assertOwnBrowserRequest(
   request: TrustRequest,
-  publicUrl: () => string | null,
+  { allowedHosts, publicUrl }: TrustLookups,
 ) {
   const host = request.headers.host;
-  if (host !== undefined && !isLoopbackAuthority(host)) {
+  if (host !== undefined && !isOwnAuthority(host, allowedHosts)) {
     throw new ApiError(
       403,
       "forbidden_host",
-      `host "${host}" is not a loopback address of this bb server`,
+      `host "${host}" is not an address of this bb server`,
     );
   }
   const origin = request.headers.origin;
@@ -105,7 +107,7 @@ export function authorize(
   const principal = identify(request, lookups);
   const { path } = request;
   if (principal.kind === "owner") {
-    assertOwnBrowserRequest(request, lookups.publicUrl);
+    assertOwnBrowserRequest(request, lookups);
   } else if (principal.kind === "anonymous") {
     const direct = requestHeader(request, "x-bb-via-tunnel") !== "1";
     if (!direct || !path.startsWith(RUNNER_PREFIX)) throw notFound();

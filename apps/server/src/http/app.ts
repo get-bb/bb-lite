@@ -32,6 +32,7 @@ const publicApiRouteGroups: RouteGroup[] = [
 
 export function trustLookups(ctx: ServerContext): TrustLookups {
   return {
+    allowedHosts: ctx.config.allowedHosts,
     publicUrl: () => publicServerUrl(ctx),
     runnerMachine: (token) => findRunnerHost(ctx.db, token),
   };

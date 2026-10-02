@@ -10,6 +10,7 @@ export interface ServerConfig {
   dataDir: string;
   port: number;
   bindHost: string;
+  allowedHosts: string[];
   appDir: string;
   cliDir: string;
   version: string;
@@ -29,6 +30,7 @@ const envSchema = z.object({
   BB_DATA_DIR: z.string().min(1).optional(),
   BB_SERVER_PORT: z.coerce.number().int().min(0).max(65_535).optional(),
   BB_SERVER_BIND_HOST: z.string().min(1).optional(),
+  BB_SERVER_ALLOWED_HOSTS: z.string().optional(),
   BB_APP_DIR: z.string().min(1).optional(),
   BB_LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 });
@@ -82,6 +84,11 @@ function readVersion() {
   }
 }
 
+function hostnames(list: string): string[] {
+  const names = list.split(",").map((name) => name.trim().toLowerCase());
+  return names.filter((name) => name !== "");
+}
+
 export function loadConfig(env: ServerEnv = process.env): ServerConfig {
   const parsed = envSchema.parse(env);
   const dataDir = resolve(parsed.BB_DATA_DIR ?? join(homedir(), ".bb-150k"));
@@ -89,6 +96,7 @@ export function loadConfig(env: ServerEnv = process.env): ServerConfig {
     dataDir,
     port: parsed.BB_SERVER_PORT ?? DEFAULT_PORT,
     bindHost: parsed.BB_SERVER_BIND_HOST ?? DEFAULT_BIND_HOST,
+    allowedHosts: hostnames(parsed.BB_SERVER_ALLOWED_HOSTS ?? ""),
     appDir: resolve(parsed.BB_APP_DIR ?? fileURLToPath(DEFAULT_APP_DIR)),
     cliDir: fileURLToPath(DEFAULT_CLI_DIR),
     version: readVersion(),
