@@ -1,542 +1,167 @@
-import { WebSocket as NodeWebSocket } from "ws";
-import {
-  PROTOCOL_VERSION,
-  TUNNEL_PROTOCOL_QUERY_PARAM,
-  TUNNEL_REPLACED_CLOSE_REASON,
-} from "@bb/tunnel-contract";
-import {
-  humanizeTransportError,
-  ReconnectBackoff,
-  TunnelSession,
-  type StreamOriginResult,
-} from "@bb/tunnel-client";
-import type { PluginLogger } from "@get-bb/plugin-sdk";
-import { deriveConnectBaseUrl } from "@bb/connect-client";
-import type { Account, SharedCredential } from "./account-client.js";
-import {
-  ShareRegistry,
-  shareLoopbackHost,
-  shareLoopbackOrigin,
-  sharePublicUrl,
-  type ShareRemoval,
-} from "./shares.js";
-import type { ShareHost } from "./hosts.js";
-import type { ConnectStateName, ConnectStatus, ShareListing } from "./types.js";
+import * as client from "@bb/tunnel-client";
+import * as wire from "@bb/tunnel-contract";
+import { WebSocket } from "ws";
+import { shareUrl, type Link } from "./account.js";
+import type { ConnectStatus } from "./contract.js";
 
-const TUNNEL_HANDSHAKE_TIMEOUT_MS = 10_000;
-const TUNNEL_CLOSE_GRACE_MS = 1_000;
-const TUNNEL_CLEAN_CLOSE_CODE = 1000;
-const TUNNEL_REPLACED_RETRY_MS = 5 * 60_000;
+const CLEAN_CLOSE_CODE = 1000;
+const STABLE_MS = 10_000;
 
-export interface ConnectIdentity {
-  serverId: string;
-  serverUrl: string;
-  handle: string;
-  baseUrl: string;
+export interface TunnelOptions {
+  loopbackUrl: string;
+  isShared(port: number): boolean;
+  confirmRefused(credential: string): Promise<void>;
+  log: { info(message: string): void; warn(message: string): void };
+  onChange(): void;
+  handshakeMs?: number;
+  replacedHoldMs?: number;
+  retryBaseMs?: number;
+  retryMaxMs?: number;
+  heartbeat?: { intervalMs: number; deadlineMs: number };
 }
 
-interface ConnectTunnelOptions {
-  shares: ShareRegistry;
-  readCredential: () => Promise<SharedCredential | null>;
-  confirmRefusedCredential: (credential: string) => Promise<unknown>;
-  defaultBaseUrl: string;
-  enabled: boolean;
-  getLoopbackBaseUrl: () => string;
-  log: PluginLogger;
-  onStatusChange?: (status: ConnectStatus) => void;
-}
-
-function identityOf(account: Account | null): ConnectIdentity | null {
-  if (account === null) return null;
-  return {
-    serverId: account.serverId,
-    serverUrl: account.serverUrl.replace(/\/$/u, ""),
-    handle: account.serverLabel,
-    baseUrl: account.baseUrl,
-  };
-}
-
-function sameIdentity(
-  left: ConnectIdentity | null,
-  right: ConnectIdentity | null,
-): boolean {
-  if (left === null || right === null) return left === right;
-  return (
-    left.serverId === right.serverId &&
-    left.serverUrl === right.serverUrl &&
-    left.handle === right.handle &&
-    left.baseUrl === right.baseUrl
-  );
-}
+type TunnelStatus = Pick<ConnectStatus, "state" | "lastError" | "nextRetryAt">;
 
 export class ConnectTunnel {
-  private identity: ConnectIdentity | null = null;
-  private enabled: boolean;
-  private tunnel: NodeWebSocket | undefined;
-  private session: TunnelSession | undefined;
+  private link: Link | null = null;
+  private socket: WebSocket | undefined;
+  private session: client.TunnelSession | undefined;
+  private timer: NodeJS.Timeout | undefined;
+  private dialId = 0;
   private connected = false;
-  private pairing = false;
   private lastError: string | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly backoff = new ReconnectBackoff();
-  private stopped = true;
-  private dialEpoch = 0;
-  private lastState: ConnectStateName = "disconnected";
-  private stateSince = Date.now();
-  private lastRemoteActivityAt: number | null = null;
-  private remoteClients = 0;
   private nextRetryAt: number | null = null;
-  private shareRetryTimer: ReturnType<typeof setTimeout> | undefined;
-  private shareActivationEpoch = 0;
+  private attempt = 0;
 
-  constructor(private readonly options: ConnectTunnelOptions) {
-    this.enabled = options.enabled;
-  }
+  constructor(private readonly options: TunnelOptions) {}
 
-  getIdentity(): ConnectIdentity | null {
-    return this.identity;
-  }
-
-  async start(): Promise<void> {
-    this.stopped = false;
-    this.openTunnel();
-    this.startShareActivation();
-    this.publish();
-  }
-
-  setAccount(account: Account | null): void {
-    const next = identityOf(account);
-    if (sameIdentity(this.identity, next)) return;
-    const running = !this.stopped;
-    this.teardown();
-    this.options.shares.clearMachineDeclarations();
-    this.identity = next;
-    this.lastError = null;
-    if (running) {
-      this.stopped = false;
-      this.openTunnel();
-      this.startShareActivation();
-    }
-    this.publish();
-  }
-
-  setEnabled(enabled: boolean): void {
-    if (this.enabled === enabled) return;
-    this.enabled = enabled;
-    const running = !this.stopped;
-    this.teardown();
-    if (!enabled) this.options.shares.clearMachineDeclarations();
-    this.lastError = null;
-    if (running) {
-      this.stopped = false;
-      this.openTunnel();
-      this.startShareActivation();
-    }
-    this.publish();
-  }
-
-  async signIn(work: () => Promise<Account | null>): Promise<ConnectStatus> {
-    this.pairing = true;
-    this.publish();
-    try {
-      this.setAccount(await work());
-    } finally {
-      this.pairing = false;
-      this.publish();
-    }
-    return this.status();
-  }
-
-  async expose(port: number, host: ShareHost): Promise<ShareListing> {
-    const listing = await this.options.shares.add(port, host);
-    this.publish();
-    return listing;
-  }
-
-  async unexpose(
-    port: number,
-    hostSelector: string,
-  ): Promise<ShareRemoval & { port: number }> {
-    const result = await this.options.shares.remove(port, hostSelector);
-    this.publish();
-    return { ...result, port };
-  }
-
-  async unexposeAll(hostId: string): Promise<{ removed: number }> {
-    const shares = await this.listShares(hostId);
-    let removed = 0;
-    const failures: string[] = [];
-    for (const share of shares) {
-      try {
-        const result = await this.unexpose(share.port, share.hostId);
-        if (result.removed) removed++;
-      } catch (error) {
-        failures.push(
-          `${share.hostName}:${share.port}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    if (failures.length > 0) {
-      throw new Error(
-        `Revoked ${removed} shared ports; failed to revoke ${failures.length}: ${failures.join("; ")}`,
-      );
-    }
-    return { removed };
-  }
-
-  async listShares(hostId?: string): Promise<ShareListing[]> {
-    return this.options.shares.list(hostId);
-  }
-
-  status(): ConnectStatus {
-    return this.statusWithShares(this.options.shares.snapshot());
-  }
-
-  async refreshStatus(): Promise<ConnectStatus> {
-    return this.statusWithShares(await this.listShares());
-  }
-
-  stop(): void {
-    this.teardown();
-    this.publish();
-  }
-
-  private statusWithShares(shares: ConnectStatus["shares"]): ConnectStatus {
-    const state = this.computeState();
-    return {
-      state,
-      paired: this.identity !== null,
-      enabled: this.enabled,
-      handle: this.identity?.handle ?? null,
-      url: this.identity?.serverUrl ?? null,
-      dashboardUrl: this.dashboardUrl(),
-      lastError: this.lastError,
-      nextRetryAt: state === "reconnecting" ? this.nextRetryAt : null,
-      since: this.stateSince,
-      remoteClients: this.remoteClients,
-      lastRemoteActivityAt: this.lastRemoteActivityAt,
-      shares,
-    };
-  }
-
-  private dashboardUrl(): string {
-    const base = this.identity?.baseUrl ?? this.options.defaultBaseUrl;
-    return `${base.replace(/\/$/u, "")}/dashboard`;
-  }
-
-  private computeState(): ConnectStateName {
-    if (this.pairing) return "pairing";
-    if (this.identity === null || !this.enabled) return "disconnected";
-    return this.connected ? "connected" : "reconnecting";
-  }
-
-  private publish(): void {
-    const state = this.computeState();
-    if (state !== this.lastState) {
-      this.lastState = state;
-      this.stateSince = Date.now();
-    }
-    this.options.onStatusChange?.(this.status());
-  }
-
-  private teardown(): void {
-    this.shareActivationEpoch += 1;
-    this.dialEpoch += 1;
-    this.stopped = true;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = undefined;
-    }
-    if (this.shareRetryTimer) {
-      clearTimeout(this.shareRetryTimer);
-      this.shareRetryTimer = undefined;
-    }
+  set(link: Link | null): void {
+    const same =
+      link?.serverUrl === this.link?.serverUrl &&
+      link?.credential === this.link?.credential;
+    if (same) return;
+    this.dialId += 1;
+    clearTimeout(this.timer);
     this.session?.dispose();
-    this.session = undefined;
-    this.remoteClients = 0;
-    const tunnel = this.tunnel;
-    if (tunnel !== undefined && tunnel.readyState === NodeWebSocket.OPEN) {
-      tunnel.close(TUNNEL_CLEAN_CLOSE_CODE, "tunnel closed by bb");
-      setTimeout(() => tunnel.terminate(), TUNNEL_CLOSE_GRACE_MS).unref?.();
+    const socket = this.socket;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.close(CLEAN_CLOSE_CODE, "tunnel closed by bb");
     } else {
-      tunnel?.terminate();
+      socket?.terminate();
     }
-    this.tunnel = undefined;
+    this.socket = undefined;
     this.connected = false;
-    this.backoff.reset();
+    this.lastError = null;
     this.nextRetryAt = null;
+    this.attempt = 0;
+    this.link = link;
+    this.dial();
   }
 
-  private startShareActivation(): void {
-    const epoch = ++this.shareActivationEpoch;
-    void this.activateShares(epoch);
+  status(): TunnelStatus {
+    const { connected, lastError, nextRetryAt } = this;
+    const live = connected ? "connected" : "reconnecting";
+    const state = this.link === null ? "disconnected" : live;
+    return { state, lastError, nextRetryAt };
   }
 
-  private isShareActivationCurrent(epoch: number): boolean {
-    return !this.stopped && epoch === this.shareActivationEpoch;
-  }
-
-  private async activateShares(epoch: number): Promise<void> {
-    try {
-      await this.options.shares.load();
-      if (!this.isShareActivationCurrent(epoch)) return;
-      if (this.enabled) {
-        await this.options.shares.declareMachineShares(() =>
-          this.isShareActivationCurrent(epoch),
-        );
-        if (!this.isShareActivationCurrent(epoch)) return;
-      }
-      if (this.identity !== null) {
-        await this.options.shares.list();
-        if (!this.isShareActivationCurrent(epoch)) return;
-      }
-      this.publish();
-    } catch (error) {
-      this.options.log.warn(
-        `shared-port activation failed; retrying: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      if (
-        this.identity !== null &&
-        this.isShareActivationCurrent(epoch) &&
-        this.shareRetryTimer === undefined
-      ) {
-        this.shareRetryTimer = setTimeout(() => {
-          this.shareRetryTimer = undefined;
-          this.startShareActivation();
-        }, 5_000);
-      }
-    }
-  }
-
-  private resolveStreamOrigin(target: string | undefined): StreamOriginResult {
+  private resolveOrigin(
+    link: Link,
+    target?: string,
+  ): client.StreamOriginResult {
     if (target === undefined) {
-      return {
-        kind: "ok",
-        resolved: {
-          origin: this.options.getLoopbackBaseUrl().replace(/\/$/, ""),
-          publicOrigin: this.identity
-            ? new URL(this.identity.serverUrl).origin
-            : this.options.getLoopbackBaseUrl(),
-        },
-      };
+      const origin = this.options.loopbackUrl;
+      const publicOrigin = new URL(link.serverUrl).origin;
+      return { kind: "ok", resolved: { origin, publicOrigin } };
     }
-    const port = Number(target);
-    if (!Number.isInteger(port) || !this.options.shares.hasServerPort(port)) {
-      return { kind: "unregistered" };
-    }
-    const identity = this.identity;
-    if (identity === null) {
-      return { kind: "unregistered" };
-    }
-    return {
-      kind: "ok",
-      resolved: {
-        origin: shareLoopbackOrigin(port),
-        publicOrigin: new URL(sharePublicUrl(identity, port)).origin,
-        host: shareLoopbackHost(port),
-      },
-    };
+    const port = /^\d{1,5}$/u.test(target) ? Number(target) : Number.NaN;
+    if (!this.options.isShared(port)) return { kind: "unregistered" };
+    const host = `127.0.0.1:${port}`;
+    const publicOrigin = shareUrl(link, port);
+    const resolved = { origin: `http://${host}`, publicOrigin, host };
+    return { kind: "ok", resolved };
   }
 
-  private isCurrentDial(epoch: number): boolean {
-    return !this.stopped && epoch === this.dialEpoch;
-  }
-
-  private scheduleRetry(
-    epoch: number,
-    detail: string,
-    stableMs: number,
-    delayOverrideMs?: number,
-  ): void {
-    if (!this.isCurrentDial(epoch) || this.reconnectTimer !== undefined) return;
-    this.connected = false;
-    this.session?.dispose();
-    this.session = undefined;
-    this.remoteClients = 0;
-    const backoffDelay = this.backoff.nextDelayAfterClose(stableMs);
-    const delay = delayOverrideMs ?? backoffDelay;
-    this.nextRetryAt = Date.now() + delay;
-    this.options.log.warn(`${detail}; reconnecting in ${delay}ms`);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      if (!this.isCurrentDial(epoch)) return;
-      this.nextRetryAt = null;
-      this.publish();
-      this.openTunnel();
-    }, delay);
-    this.publish();
-  }
-
-  private openTunnel(): void {
-    const identity = this.identity;
-    if (identity === null || this.stopped || !this.enabled) return;
-    const epoch = ++this.dialEpoch;
-    void this.dialWithCredential(identity, epoch);
-  }
-
-  private async dialWithCredential(
-    identity: ConnectIdentity,
-    epoch: number,
-  ): Promise<void> {
-    let shared: SharedCredential | null;
-    try {
-      shared = await this.options.readCredential();
-    } catch (error) {
-      if (!this.isCurrentDial(epoch)) return;
-      this.lastError = `can't read this bb's server credential — ${
-        error instanceof Error ? error.message : String(error)
-      }`;
-      this.scheduleRetry(epoch, this.lastError, 0);
-      return;
-    }
-    if (!this.isCurrentDial(epoch)) return;
-    if (shared === null) {
-      this.signedOut();
-      return;
-    }
-    this.dial(identity, shared.credential, epoch);
-  }
-
-  private confirmRefused(credential: string): void {
-    this.options.confirmRefusedCredential(credential).catch((error) => {
-      this.options.log.warn(
-        `couldn't ask bb account to check the refused credential: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    });
-  }
-
-  private signedOut(): void {
-    this.lastError =
-      "this bb isn't signed in to a bb account — sign in to turn remote access back on";
-    this.options.log.warn(this.lastError);
-    this.publish();
-  }
-
-  private dial(
-    identity: ConnectIdentity,
-    credential: string,
-    epoch: number,
-  ): void {
-    const tunnelUrl = tunnelDialUrl(identity.serverUrl);
-    this.options.log.info(
-      `tunnel connecting to ${tunnelUrl} (origin ${this.options.getLoopbackBaseUrl()})`,
+  private dial(): void {
+    const { link } = this;
+    const { log, handshakeMs = 10_000, heartbeat } = this.options;
+    const { replacedHoldMs = 5 * 60_000 } = this.options;
+    const { retryBaseMs = 1_000, retryMaxMs = 30_000 } = this.options;
+    if (link === null) return;
+    const dialId = ++this.dialId;
+    const url = new URL(`${link.serverUrl.replace(/^http/u, "ws")}/__tunnel`);
+    url.searchParams.set(
+      wire.TUNNEL_PROTOCOL_QUERY_PARAM,
+      String(wire.PROTOCOL_VERSION),
     );
-    let tunnel: NodeWebSocket;
-    try {
-      tunnel = new NodeWebSocket(tunnelUrl, {
-        headers: { authorization: `Bearer ${credential}` },
-        handshakeTimeout: TUNNEL_HANDSHAKE_TIMEOUT_MS,
-      });
-    } catch (error) {
-      this.lastError = `cannot dial ${tunnelUrl}: ${
-        error instanceof Error ? error.message : String(error)
-      }`;
-      this.scheduleRetry(epoch, this.lastError, 0);
-      return;
-    }
-    this.tunnel = tunnel;
-    let connectedAt = 0;
-    let retryScheduled = false;
-    let handshakeDeadline: ReturnType<typeof setTimeout> | undefined;
-    const isCurrent = () =>
-      !retryScheduled && this.isCurrentDial(epoch) && this.tunnel === tunnel;
+    const headers = { authorization: `Bearer ${link.credential}` };
+    const socket = new WebSocket(url, { headers });
+    this.socket = socket;
+    let openedAt = 0;
+    let transportError: string | null = null;
 
-    const retry = (detail: string, delayOverrideMs?: number): void => {
-      if (!isCurrent()) return;
-      retryScheduled = true;
-      clearTimeout(handshakeDeadline);
-      if (this.lastError === null) {
-        this.lastError = `can't reach ${connectApexHost(identity)} — connection closed`;
-      }
-      this.scheduleRetry(
-        epoch,
-        detail,
-        connectedAt ? Date.now() - connectedAt : 0,
-        delayOverrideMs,
-      );
+    const fail = (reason: string, holdMs?: number): void => {
+      if (dialId !== this.dialId) return;
+      this.dialId += 1;
+      clearTimeout(this.timer);
+      this.session?.dispose();
+      socket.terminate();
+      const stable = openedAt !== 0 && Date.now() - openedAt > STABLE_MS;
+      this.attempt = stable ? 0 : this.attempt + 1;
+      const ceiling = Math.min(retryBaseMs * 2 ** this.attempt, retryMaxMs);
+      const backoffMs = Math.round(ceiling * (0.5 + Math.random() / 2));
+      const delay = holdMs ?? backoffMs;
+      this.connected = false;
+      this.lastError = reason;
+      this.nextRetryAt = Date.now() + delay;
+      log.warn(`${reason}; reconnecting in ${delay}ms`);
+      this.timer = setTimeout(() => {
+        this.nextRetryAt = null;
+        this.dial();
+      }, delay);
+      this.options.onChange();
     };
+    this.timer = setTimeout(() => {
+      fail(`can't reach ${url.host}: the handshake timed out`);
+    }, handshakeMs);
 
-    handshakeDeadline = setTimeout(() => {
-      if (!isCurrent()) return;
-      this.lastError = `can't reach ${connectApexHost(identity)} — handshake timed out`;
-      retry(this.lastError);
-      tunnel.terminate();
-    }, TUNNEL_HANDSHAKE_TIMEOUT_MS);
-    handshakeDeadline.unref?.();
-
-    tunnel.on("open", () => {
-      if (!isCurrent()) return;
-      clearTimeout(handshakeDeadline);
-      connectedAt = Date.now();
+    socket.on("open", () => {
+      if (dialId !== this.dialId) return;
+      clearTimeout(this.timer);
+      openedAt = Date.now();
       this.connected = true;
       this.lastError = null;
-      this.nextRetryAt = null;
-      this.options.log.info("tunnel connected");
-      this.session = new TunnelSession({
-        tunnel,
-        log: this.options.log,
-        resolveOrigin: (target) => this.resolveStreamOrigin(target),
-        onRemoteClientsChange: (count) => {
-          this.remoteClients = count;
-          this.publish();
-        },
-        onActivity: (at) => {
-          this.lastRemoteActivityAt = at;
-        },
-      });
+      log.info(`tunnel connected to ${url.host}`);
+      const resolveOrigin = (target?: string): client.StreamOriginResult =>
+        this.resolveOrigin(link, target);
+      const session = { tunnel: socket, log, resolveOrigin, heartbeat };
+      this.session = new client.TunnelSession(session);
       this.session.start();
-      this.publish();
+      this.options.onChange();
     });
-    tunnel.on("unexpected-response", (_req, res) => {
-      if (!isCurrent()) return;
-      res.resume();
-      const statusCode = res.statusCode ?? 0;
-      const refused = statusCode === 401 || statusCode === 403;
-      this.lastError = refused
-        ? `the gate refused this bb's server credential (HTTP ${statusCode})`
-        : `tunnel rejected: HTTP ${statusCode}`;
-      if (refused) this.confirmRefused(credential);
-      retry(this.lastError);
-      tunnel.terminate();
-    });
-    tunnel.on("error", (e: Error) => {
-      if (!isCurrent()) return;
-      this.lastError = humanizeTransportError(e, connectApexHost(identity));
-    });
-    tunnel.on("close", (code: number, reason: Buffer) => {
-      if (
-        code === TUNNEL_CLEAN_CLOSE_CODE &&
-        reason.toString() === TUNNEL_REPLACED_CLOSE_REASON
-      ) {
-        if (!isCurrent()) return;
-        this.lastError =
-          "another bb connected with this server's identity and took over bb connect";
-        retry(this.lastError, TUNNEL_REPLACED_RETRY_MS);
-        return;
+    socket.on("unexpected-response", (_request, response) => {
+      response.resume();
+      const status = response.statusCode ?? 0;
+      const refused = status === 401 || status === 403;
+      if (refused && dialId === this.dialId) {
+        this.options.confirmRefused(link.credential).catch((error: unknown) => {
+          log.warn(`could not check the refused credential: ${String(error)}`);
+        });
       }
-      retry(
-        `tunnel closed (code ${code}${reason.length > 0 ? `, ${reason.toString()}` : ""})`,
-      );
+      fail(`the bb connect gate refused the tunnel (HTTP ${status})`);
+    });
+    socket.on("error", (error) => {
+      transportError = `can't reach ${url.host}: ${error.message}`;
+    });
+    socket.on("close", (code, reason) => {
+      const replaced =
+        code === CLEAN_CLOSE_CODE &&
+        reason.toString() === wire.TUNNEL_REPLACED_CLOSE_REASON;
+      if (replaced) {
+        const taken = "another bb took over this server's bb connect tunnel";
+        return fail(taken, replacedHoldMs);
+      }
+      fail(transportError ?? `tunnel closed (code ${code})`);
     });
   }
-}
-
-function connectApexHost(identity: ConnectIdentity): string {
-  try {
-    return new URL(identity.baseUrl).host;
-  } catch {
-    try {
-      return new URL(deriveConnectBaseUrl(identity.serverUrl)).host;
-    } catch {
-      return "getbb.app";
-    }
-  }
-}
-
-function tunnelDialUrl(serverUrl: string): string {
-  const url = new URL(`${serverUrl.replace(/^http/u, "ws")}/__tunnel`);
-  url.searchParams.set(TUNNEL_PROTOCOL_QUERY_PARAM, String(PROTOCOL_VERSION));
-  return url.toString();
 }

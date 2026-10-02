@@ -77,19 +77,20 @@ it("loads the builtin table and the directories named in config.json", async () 
   expect(summary).toEqual([
     ["thread-list", "running", "builtin", "thread-list", "ListView"],
     ["navigation", "running", "builtin", undefined, "PanelLeft"],
+    ["connect", "running", "builtin", "connect", "ComputerCloud"],
     ["echo", "running", "external", "echo", icon],
   ]);
-  expect(plugins[2]).toMatchObject({ enabled: true, hasSettings: true });
+  expect(plugins.at(-1)).toMatchObject({ enabled: true, hasSettings: true });
   const served = await request("/echo/assets/icon.svg");
   expect(served.response.headers.get("content-type")).toBe("image/svg+xml");
   expect((await request("/echo/assets/server.ts")).status).toBe(404);
   expect((await request("/echo/assets/..%2F..%2Ficon.svg")).status).toBe(404);
   expect((await request("/contributions")).body).toMatchObject({
-    cliCommands: [{}, { pluginId: "echo", commands: [{ name: "say" }] }],
+    cliCommands: [{}, {}, { pluginId: "echo", commands: [{ name: "say" }] }],
     mentionProviders: [],
   });
   const skills = expect.stringMatching(/thread-list\/skills$/u);
-  expect(ctx.plugins.skillDirs()).toEqual([skills]);
+  expect(ctx.plugins.skillDirs()).toContainEqual(skills);
 });
 
 it("validates rpc calls, stores data and broadcasts realtime signals", async () => {
@@ -215,17 +216,19 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   expect(await rpc("echo/rpc/echo", { text: "b" })).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
   const statusMessage = expect.stringContaining("Migration 1 changed");
-  expect((await reload())[2]).toMatchObject({ status: "error", statusMessage });
+  const failed = (await reload()).at(-1);
+  expect(failed).toMatchObject({ status: "error", statusMessage });
   writeFileSync(configFile, JSON.stringify({ plugins: [] }));
   expect((await reload()).map((plugin) => plugin.id)).toEqual([
     "thread-list",
     "navigation",
+    "connect",
   ]);
 });
 
 it("serves an external app bundle whose shared imports resolve at runtime", async () => {
   const { request, url } = await serverWithEcho();
-  const app = ((await request("")).body as Listing).plugins[2]?.app;
+  const app = ((await request("")).body as Listing).plugins.at(-1)?.app;
   if (app?.kind !== "external") throw new Error("echo has no external app");
   const script = await fetch(`${url}${app.jsUrl}`);
   expect(script.headers.get("content-type")).toContain("text/javascript");

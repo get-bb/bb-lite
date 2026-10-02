@@ -10,8 +10,15 @@ import {
   updateHost,
   type HostRow,
 } from "../db/hosts.js";
+import { getAppSettings } from "../db/settings.js";
 import { ApiError } from "../http/errors.js";
 import type { Disposer } from "../server.js";
+
+export function publicServerUrl(ctx: ServerContext): string | null {
+  const { machineServerUrl } = getAppSettings(ctx.db);
+  const url = ctx.plugins.publicUrl() ?? machineServerUrl;
+  return url?.replace(/\/+$/u, "") ?? null;
+}
 
 export function requireHost(ctx: ServerContext, hostId: string): HostRow {
   const host = findHost(ctx.db, "id", hostId);

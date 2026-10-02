@@ -13,6 +13,7 @@ export interface JoinBlob {
   serverUrl: string;
   hostId: string;
   joinToken: string;
+  headers?: Record<string, string>;
 }
 
 export interface RunnerCredential {

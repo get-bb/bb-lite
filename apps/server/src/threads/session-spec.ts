@@ -4,9 +4,9 @@ import type { ThreadContext } from "@bb/plugin";
 import type { SessionSpec } from "@bb/runner";
 import { dataPaths, loopbackUrl } from "../config.js";
 import type { ServerContext } from "../context.js";
-import { getAppSettings } from "../db/settings.js";
 import type { ThreadRow } from "../db/threads.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
+import { publicServerUrl } from "../runners/hosts.js";
 import { requireProviderId } from "./execution.js";
 
 export interface SessionEnvironment {
@@ -73,8 +73,7 @@ export function pluginContext(
 
 function serverUrlFor(ctx: ServerContext, hostId: string): string {
   const local = hostId === ctx.config.hostId;
-  const published = local ? null : getAppSettings(ctx.db).machineServerUrl;
-  return published?.replace(/\/+$/u, "") ?? loopbackUrl(ctx.config);
+  return (local ? null : publicServerUrl(ctx)) ?? loopbackUrl(ctx.config);
 }
 
 export async function buildSessionSpec(

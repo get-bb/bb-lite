@@ -21,6 +21,7 @@ const joinBlobSchema = z.object({
   serverUrl: z.url(),
   hostId: z.string().min(1),
   joinToken: z.string().min(1),
+  headers: headersSchema.optional(),
 });
 const joinReplySchema = z.object({
   hostId: z.string().min(1),
@@ -87,6 +88,7 @@ export async function joinServer(options: JoinOptions) {
   const serverUrl = blob.serverUrl.replace(/\/+$/u, "");
   const legacyPath = options.legacyMachineConfigPath;
   const headers = {
+    ...blob.headers,
     ...(legacyPath === undefined ? {} : await readLegacyHeaders(legacyPath)),
     ...Object.fromEntries((options.headers ?? []).map(parseHeaderPair)),
   };

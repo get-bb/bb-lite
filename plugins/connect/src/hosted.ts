@@ -1,256 +1,134 @@
 import { z } from "zod";
-import {
-  ConnectListError,
-  serverUrlForHandle,
-  type DesktopSession,
-  type ListAccountServersResult,
-} from "@bb/connect-client";
-import {
-  AccountUnavailableError,
-  type AccountClient,
-  type AccountFetchRequest,
-  type AccountFetchResult,
-} from "./account-client.js";
-import { MachineCodeError, type MachineCode } from "./machine-code.js";
 
-export class NotSignedInError extends Error {
-  constructor() {
-    super("this bb isn't signed in to a bb account");
-    this.name = "NotSignedInError";
-  }
-}
+const REQUEST_TIMEOUT_MS = 15_000;
+export const MACHINE_HEADER = "x-bb-connect-machine";
 
-const signedOutBodySchema = z.object({ error: z.literal("signed-out") });
+const POLL_REFUSALS: Record<number, string> = {
+  403: "Sign-in was denied on getbb.app.",
+  404: "getbb.app no longer knows this sign-in.",
+  409: "This sign-in was already completed.",
+  410: "The sign-in code expired.",
+};
+const MACHINE_LIMIT =
+  "this account has reached its machine limit; revoke a device on the " +
+  "getbb.app dashboard, then try again";
 
-const accountServersResponseSchema = z.object({
-  servers: z.array(
-    z.object({
-      handle: z.string().min(1),
-      name: z.string().min(1),
-      live: z.boolean(),
-    }),
-  ),
+const profileSchema = z.object({
+  serverId: z.string().min(1),
+  serverLabel: z.string().min(1),
+  serverUrl: z.url(),
 });
-
-const desktopSessionResponseSchema = z.object({
-  cookie: z.object({
-    domain: z.string().min(1),
-    expiresAt: z.number().int().positive(),
-    name: z.string().min(1),
-    value: z.string().min(1),
+const linkStartSchema = z.object({
+  deviceCode: z.string().min(1),
+  userCode: z.string().min(1),
+  verificationUrl: z.url(),
+  expiresAt: z.number(),
+  intervalMs: z.number().int().positive(),
+});
+const linkPollSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("pending") }),
+  z.object({
+    status: z.literal("approved"),
+    credential: z.string().min(1),
+    serverId: z.string().min(1),
   }),
+]);
+const machineCodeSchema = z.object({ code: z.string().min(1) });
+const machineSchema = z.object({
+  credential: z.string().min(1),
+  machineId: z.string().min(1),
 });
 
-const machineCodeResponseSchema = z.object({
-  code: z.string().min(1),
-  expiresInMs: z.number().int().positive(),
-  serverUrl: z.string().url(),
-});
+export type LinkStart = z.infer<typeof linkStartSchema>;
+export type LinkPoll =
+  | z.infer<typeof linkPollSchema>
+  | { status: "slow-down" }
+  | { status: "refused"; message: string };
 
-const machineCodeLookupSchema = z.object({
-  consumed: z.boolean(),
-  machineId: z.string().nullable(),
-});
-
-const revokeMachineResponseSchema = z.object({ ok: z.literal(true) });
-
-export interface AccountServerIdentity {
-  baseUrl: string;
-  handle: string;
+interface HostedCall {
+  method?: "GET";
+  credential?: string;
+  body?: unknown;
 }
 
-function abortable<T>(work: Promise<T>, signal: AbortSignal | undefined) {
-  if (signal === undefined) return work;
-  signal.throwIfAborted();
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    work.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      },
-    );
-  });
+async function call(origin: string, path: string, request: HostedCall = {}) {
+  const { method = "POST", credential, body } = request;
+  const url = new URL(path, origin);
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (body !== undefined) headers["content-type"] = "application/json";
+  if (credential !== undefined) {
+    headers.authorization = `Bearer ${credential}`;
+    headers[MACHINE_HEADER] = credential;
+  }
+  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const init = { method, headers, redirect: "manual", signal } as const;
+  const sent = body === undefined ? undefined : JSON.stringify(body);
+  const response = await fetch(url, { ...init, body: sent }).catch(
+    (error: unknown) => {
+      throw new Error(`couldn't reach ${url.host}: ${String(error)}`);
+    },
+  );
+  const { status } = response;
+  const json: unknown = await response.json().catch(() => null);
+  const read = <Schema extends z.ZodType>(schema: Schema, what: string) => {
+    const parsed = schema.safeParse(json);
+    if (status >= 200 && status < 300 && parsed.success) return parsed.data;
+    throw new Error(`${url.host} returned HTTP ${status} ${what}`);
+  };
+  return { status, read };
 }
 
-export class HostedConnectApi {
-  constructor(private readonly account: AccountClient) {}
+export async function fetchProfile(origin: string, credential: string) {
+  const request = { method: "GET", credential } as const;
+  const reply = await call(origin, "/api/account/me", request);
+  if (reply.status === 401) return "unauthorized";
+  return reply.read(profileSchema, "for the account profile");
+}
 
-  async listAccountServers(
-    identity: AccountServerIdentity,
-  ): Promise<ListAccountServersResult> {
-    const result = await this.sendListing({
-      target: "gate",
-      method: "GET",
-      path: "/api/connect/servers",
-      body: null,
-    });
-    if (result.status === 401 || result.status === 403) {
-      throw new ConnectListError(
-        "unauthorized",
-        `List servers failed (${result.status}): not authorized`,
-      );
-    }
-    if (result.status < 200 || result.status >= 300) {
-      throw new ConnectListError(
-        "network",
-        `List servers failed (${result.status})`,
-      );
-    }
-    const parsed = accountServersResponseSchema.safeParse(result.body);
-    if (!parsed.success) {
-      throw new ConnectListError(
-        "invalid_response",
-        "List servers response failed schema validation",
-      );
-    }
-    return {
-      servers: parsed.data.servers.map((server) => ({
-        ...server,
-        url: serverUrlForHandle(identity.baseUrl, server.handle),
-      })),
-      selfHandle: identity.handle,
-    };
+export async function startLink(origin: string, clientName: string) {
+  const body = { clientName };
+  const reply = await call(origin, "/api/account/link/start", { body });
+  const started = reply.read(linkStartSchema, "when starting sign-in");
+  if (new URL(started.verificationUrl).origin !== new URL(origin).origin) {
+    throw new Error("the sign-in link points at a different site");
   }
+  return started;
+}
 
-  async createDesktopSession(): Promise<DesktopSession> {
-    const result = await this.sendListing({
-      target: "gate",
-      method: "POST",
-      path: "/api/connect/desktop-session",
-      body: null,
-    });
-    if (result.status === 401 || result.status === 403) {
-      throw new ConnectListError(
-        "unauthorized",
-        "Desktop session not authorized",
-      );
-    }
-    if (result.status < 200 || result.status >= 300) {
-      throw new ConnectListError(
-        "network",
-        `Desktop session failed (${result.status})`,
-      );
-    }
-    const parsed = desktopSessionResponseSchema.safeParse(result.body);
-    if (!parsed.success) {
-      throw new ConnectListError(
-        "invalid_response",
-        "Desktop session response failed schema validation",
-      );
-    }
-    return parsed.data;
-  }
+export async function pollLink(
+  origin: string,
+  deviceCode: string,
+): Promise<LinkPoll> {
+  const body = { deviceCode };
+  const reply = await call(origin, "/api/account/link/poll", { body });
+  if (reply.status === 429) return { status: "slow-down" };
+  const message = POLL_REFUSALS[reply.status];
+  if (message !== undefined) return { status: "refused", message };
+  return reply.read(linkPollSchema, "while waiting for approval");
+}
 
-  async createMachineCode(signal?: AbortSignal): Promise<MachineCode> {
-    let result: AccountFetchResult;
-    try {
-      result = await this.send(
-        {
-          target: "api",
-          method: "POST",
-          path: "/api/connect/machine-code",
-          body: null,
-        },
-        signal,
-      );
-    } catch (error) {
-      signal?.throwIfAborted();
-      if (
-        error instanceof NotSignedInError ||
-        error instanceof AccountUnavailableError
-      ) {
-        throw new MachineCodeError("not_paired");
-      }
-      throw new MachineCodeError("network");
-    }
-    if (result.status === 409) throw new MachineCodeError("machine_limit");
-    if (result.status === 401) throw new MachineCodeError("not_paired");
-    if (result.status < 200 || result.status >= 300) {
-      throw new MachineCodeError("network");
-    }
-    const parsed = machineCodeResponseSchema.safeParse(result.body);
-    if (!parsed.success) throw new MachineCodeError("network");
-    return {
-      code: parsed.data.code,
-      expiresAt: Date.now() + parsed.data.expiresInMs,
-      serverUrl: parsed.data.serverUrl,
-    };
-  }
+export async function disconnectServer(serverUrl: string, credential: string) {
+  const path = "/api/connect/disconnect";
+  const reply = await call(serverUrl, path, { credential });
+  if (reply.status === 401 || reply.status === 403) return;
+  reply.read(z.unknown(), "when signing out");
+}
 
-  async lookupMachineCode(
-    code: string,
-    signal?: AbortSignal,
-  ): Promise<{ consumed: boolean; machineId: string | null }> {
-    const result = await this.send(
-      {
-        target: "api",
-        method: "POST",
-        path: "/api/connect/machine-code-lookup",
-        body: { code },
-      },
-      signal,
-    );
-    if (result.status < 200 || result.status >= 300) {
-      throw new Error(`Machine code lookup failed (${result.status})`);
-    }
-    return machineCodeLookupSchema.parse(result.body);
-  }
+export async function mintMachine(origin: string, credential: string) {
+  const minting = "/api/connect/machine-code";
+  const minted = await call(origin, minting, { credential });
+  if (minted.status === 409) throw new Error(MACHINE_LIMIT);
+  const body = minted.read(machineCodeSchema, "when minting a machine code");
+  const redeemed = await call(origin, "/api/connect/redeem-machine", { body });
+  return redeemed.read(machineSchema, "when redeeming a machine code");
+}
 
-  async revokeMachine(machineId: string, signal?: AbortSignal): Promise<void> {
-    const result = await this.send(
-      {
-        target: "api",
-        method: "POST",
-        path: "/api/connect/revoke-machine",
-        body: { machineId },
-      },
-      signal,
-    );
-    if (result.status < 200 || result.status >= 300) {
-      throw new Error(`machine revoke failed (${result.status})`);
-    }
-    revokeMachineResponseSchema.parse(result.body);
-  }
-
-  private async sendListing(
-    request: AccountFetchRequest,
-  ): Promise<AccountFetchResult> {
-    try {
-      return await this.send(request);
-    } catch (error) {
-      if (
-        error instanceof NotSignedInError ||
-        error instanceof AccountUnavailableError
-      ) {
-        throw new ConnectListError(
-          "not_paired",
-          "this bb isn't signed in to a bb account — run `bb account login`",
-        );
-      }
-      throw new ConnectListError(
-        "network",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }
-
-  private async send(
-    request: AccountFetchRequest,
-    signal?: AbortSignal,
-  ): Promise<AccountFetchResult> {
-    const result = await abortable(this.account.fetch(request), signal);
-    if (
-      result.status === 401 &&
-      signedOutBodySchema.safeParse(result.body).success
-    ) {
-      throw new NotSignedInError();
-    }
-    return result;
-  }
+export async function revokeMachine(
+  origin: string,
+  credential: string,
+  machineId: string,
+): Promise<void> {
+  const request = { credential, body: { machineId } };
+  const reply = await call(origin, "/api/connect/revoke-machine", request);
+  reply.read(z.object({ ok: z.literal(true) }), "when revoking a machine");
 }

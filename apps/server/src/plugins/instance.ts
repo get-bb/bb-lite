@@ -9,6 +9,7 @@ import type {
   HttpAuth,
   HttpHandler,
   InferenceService,
+  MachineAccessProvider,
   MentionProvider,
   PluginEvents,
   PluginServerApi,
@@ -70,6 +71,8 @@ export class PluginInstance {
   readonly disposers: (() => unknown)[] = [];
   readonly stopping = new AbortController();
   needsConfiguration: string | null = null;
+  publicUrl: string | null = null;
+  machineAccess: MachineAccessProvider | null = null;
 
   constructor(
     readonly settings: PluginSettings,
@@ -272,7 +275,18 @@ export function createPluginInstance(
         hub.system(["plugins-changed"]);
       },
     },
-    server: { url: host.serverUrl, dataDir: host.dataDir },
+    machines: {
+      setAccessProvider: (provider) => {
+        instance.machineAccess = provider;
+      },
+    },
+    server: {
+      url: host.serverUrl,
+      dataDir: host.dataDir,
+      setPublicUrl: (url) => {
+        instance.publicUrl = url;
+      },
+    },
     onDispose: collect(instance.disposers),
   };
   return { instance, api };

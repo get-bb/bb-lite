@@ -178,6 +178,15 @@ export interface PluginFiles {
   ): Promise<{ outcome: "written"; sha256: string } | { outcome: "conflict" }>;
 }
 
+export interface MachineAccess {
+  serverUrl: string;
+  headers: Record<string, string>;
+}
+export interface MachineAccessProvider {
+  grant(hostId: string): Promise<MachineAccess | null>;
+  revoke(host: { id: string; connectMachineId: string | null }): Promise<void>;
+}
+
 export interface PluginSections {
   list(): Promise<Contract.ThreadSectionResponse[]>;
   create(name: string): Promise<Contract.ThreadSectionResponse>;
@@ -244,10 +253,17 @@ export interface PluginServerApi {
   readonly threads: PluginThreads;
   readonly projects: { list(): Promise<Domain.Project[]> };
   readonly hosts: { list(): Promise<Domain.Host[]> };
+  readonly machines: {
+    setAccessProvider(provider: MachineAccessProvider | null): void;
+  };
   readonly sections: PluginSections;
   readonly files: PluginFiles;
   readonly status: { needsConfiguration(message: string): void };
-  readonly server: { url: string; dataDir: string };
+  readonly server: {
+    url: string;
+    dataDir: string;
+    setPublicUrl(url: string | null): void;
+  };
   onDispose(dispose: () => MaybePromise<void>): void;
 }
 

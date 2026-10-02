@@ -1,22 +1,24 @@
-Open your bb from a phone or another computer. Once this bb is signed in to your bb account, it answers at `https://<handle>.getbb.app` for anyone signed in to your getbb.app account.
+Open your bb from another computer and let your other machines reach it. Once this bb is signed in to your getbb.app account, it answers at `https://<label>.getbb.app` for anyone signed in to that account.
 
 ## What you get
 
-- Remote access to the full bb app through a tunnel. Your bb makes an outbound connection, so you do not open ports or change your router.
-- Port shares. Publish a local HTTP server, such as a dev server, at a share URL. The link opens from any device with your session.
-- Pairing for the bb mobile app with a QR code or a one-time code.
-- A bb connect section in Settings, with the connection state and the remote URL.
+- Remote access to the full bb app through a tunnel. Your bb makes one outbound connection, so you do not open ports or change your router.
+- Machine access. A machine added while bb connect is signed in and on receives its own getbb.app machine credential inside the `bb runner join` command; removing the machine revokes it.
+- Port shares. Publish a local HTTP server of the server machine, such as a dev server, at `https://<label>--<port>.getbb.app`. The link opens from any device with your session.
+- One card under Settings → Plugins → bb connect: state, URL, sign in and out, the remote-access switch, shared ports.
 
 ## How it works
 
-Remote access uses the bb account plugin. Sign in from Settings → bb connect, Settings → bb account, or `bb account login`. A pairing code from the getbb.app dashboard also works: paste it in Settings or run `bb connect --code <code>`. Remote access starts as soon as the account is signed in, and connects with the server credential bb account holds. The plugin reconnects after a drop, and signs out if getbb.app no longer accepts the credential.
+`bb connect login` (or the Sign in button) shows a code and a getbb.app link; confirm the code there and this bb is linked. The credential lives in `<data dir>/connect.json` (mode 0600). The tunnel reconnects after a drop, waits five minutes when another bb takes over the same label, and signs out only when getbb.app confirms the credential is no longer valid.
 
-`bb connect off`, or the Remote access switch in the plugin settings, turns remote access off and keeps this bb signed in; `bb connect on` turns it back on. `bb account logout` forgets the pairing. Disable the plugin to cut all remote access at once.
+`bb connect off` or the switch closes the tunnel and keeps this bb signed in; `bb connect on` reopens it. `bb connect logout` revokes the credential. `bb connect import-legacy --db <old bb.db> --yes` adopts the credential of an original bb install; stop that install first, because getbb.app allows one tunnel per label.
+
+`BB_CONNECT_BASE_URL` points the plugin at another account site (development).
 
 ## For agents
 
-When you view bb remotely, agents are told to share servers with `bb connect expose <port>`. A localhost link would not open. The `share-server-links` skill explains the flow. Other commands: `bb connect status`, `bb connect unexpose <port>`, `bb connect shares`, `bb connect servers`, and `bb connect machine-code`.
+Threads on the server machine are told to share servers with `bb connect expose <port>`; the `share-server-links` skill explains the flow. Other commands: `bb connect status`, `unexpose <port>`, `unexpose-all`, `shares`. All take `--json`.
 
-## Requirements
+## Limits
 
-A getbb.app account and the bb account plugin. Share links open only for viewers with your getbb.app session; they are not public. Mobile pairing is available under Mobile → Add mobile device.
+Only ports of the server machine can be shared; share links open only with your getbb.app session.

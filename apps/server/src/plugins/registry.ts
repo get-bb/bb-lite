@@ -2,6 +2,7 @@ import type { DynamicTool, ToolCallResponse } from "@bb/domain";
 import type {
   AgentTool,
   EnvironmentDefinition,
+  MachineAccessProvider,
   MentionQuery,
   PluginEvents,
   PluginServerEntry,
@@ -187,6 +188,14 @@ export class PluginRegistry {
     );
   }
 
+  publicUrl(): string | null {
+    return this.firstSet((instance) => instance.publicUrl);
+  }
+
+  machineAccess(): MachineAccessProvider | null {
+    return this.firstSet((instance) => instance.machineAccess);
+  }
+
   skillDirs(): string[] {
     return [...this.records.values()].flatMap((record) =>
       record.instance === null ? [] : record.manifest.skillDirs,
@@ -213,6 +222,14 @@ export class PluginRegistry {
     return [...this.records].flatMap(([id, { instance }]) =>
       instance === null ? [] : [[id, instance]],
     );
+  }
+
+  private firstSet<T>(pick: (instance: PluginInstance) => T | null): T | null {
+    for (const [, instance] of this.active()) {
+      const value = pick(instance);
+      if (value !== null) return value;
+    }
+    return null;
   }
 
   private tools(instance: PluginInstance, context: ThreadContext): AgentTool[] {

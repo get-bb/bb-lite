@@ -10,7 +10,6 @@ import {
   listHosts,
   updateHost,
 } from "../../db/hosts.js";
-import { getAppSettings } from "../../db/settings.js";
 import {
   hashToken,
   issueJoinToken,
@@ -18,7 +17,11 @@ import {
   redeemJoinToken,
   type JoinToken,
 } from "../../runners/enrollment.js";
-import { hostResponse, requireHost } from "../../runners/hosts.js";
+import {
+  hostResponse,
+  publicServerUrl,
+  requireHost,
+} from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 import { principalOf } from "../trust.js";
@@ -36,15 +39,23 @@ const joinBodySchema = z
 export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.hosts;
-  const { db, hub, runners } = ctx;
+  const { db, hub, plugins, runners } = ctx;
   const pendingJoins = new Map<string, JoinToken>();
 
-  const commandFor = (c: RequestUrl, hostId: string, token: JoinToken) => {
-    const publicUrl = getAppSettings(db).machineServerUrl;
+  const commandFor = async (
+    c: RequestUrl,
+    hostId: string,
+    { joinToken, expiresAt }: JoinToken,
+  ) => {
+    const granting = plugins.machineAccess()?.grant(hostId);
+    const access = await granting?.catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ApiError(502, "machine_access_unavailable", message);
+    });
     const serverUrl =
-      publicUrl?.replace(/\/+$/u, "") ?? new URL(c.req.url).origin;
-    const { joinToken, expiresAt } = token;
-    const command = joinCommand({ serverUrl, hostId, joinToken });
+      access?.serverUrl ?? publicServerUrl(ctx) ?? new URL(c.req.url).origin;
+    const headers = access?.headers;
+    const command = joinCommand({ serverUrl, hostId, joinToken, headers });
     return { command, expiresAt };
   };
 
@@ -88,7 +99,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     });
   });
 
-  get(routes.enrollmentCommand, (c) => {
+  get(routes.enrollmentCommand, async (c) => {
     if (principalOf(c).kind !== "owner") {
       throw new ApiError(
         403,
@@ -103,10 +114,10 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       host.phase === "creating" &&
       host.joinTokenHash === hashToken(pending.joinToken) &&
       pending.expiresAt > ctx.now();
-    return c.json(usable ? commandFor(c, host.id, pending) : null);
+    return c.json(usable ? await commandFor(c, host.id, pending) : null);
   });
 
-  post(routes.reconnect, (c) => {
+  post(routes.reconnect, async (c) => {
     const host = requireHost(ctx, c.req.param("id"));
     if (host.id === ctx.config.hostId || host.phase !== "active") {
       throw new ApiError(
@@ -123,7 +134,8 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       );
     }
     const token = issueJoinToken(db, host.id);
-    return c.json({ ...commandFor(c, host.id, token), hostId: host.id }, 201);
+    const command = await commandFor(c, host.id, token);
+    return c.json({ ...command, hostId: host.id }, 201);
   });
 
   patch(routes.update, (c, payload) => {
@@ -140,8 +152,8 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(hostResponse(ctx, requireHost(ctx, id)));
   });
 
-  del(routes.delete, (c) => {
-    const { id } = requireHost(ctx, c.req.param("id"));
+  del(routes.delete, async (c) => {
+    const { id, connectMachineId } = requireHost(ctx, c.req.param("id"));
     if (id === ctx.config.hostId) {
       throw new ApiError(
         400,
@@ -154,6 +166,13 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     pendingJoins.delete(id);
     runners.disconnect(id);
     if (!wasConnected) hub.host(id, ["host-disconnected"]);
+    const revoking = plugins.machineAccess()?.revoke({ id, connectMachineId });
+    await revoking?.catch((error: unknown) => {
+      ctx.log.warn("Machine access was not revoked", {
+        hostId: id,
+        err: error,
+      });
+    });
     return c.json({ ok: true });
   });
 }
