@@ -3,7 +3,6 @@ import {
   useContext,
   useLayoutEffect,
   useSyncExternalStore,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import type { ThreadRoutePathArgs } from "@/lib/route-paths";
@@ -23,7 +22,6 @@ export interface PaneContextValue {
   isTopRow: boolean;
   ownsWindowTopLeft: boolean;
   navigateInPane: (thread: ThreadRoutePathArgs) => void;
-  beginPaneDrag?: (event: ReactPointerEvent, label: string) => void;
 }
 
 export interface PaneSecondaryPanelViewModel {

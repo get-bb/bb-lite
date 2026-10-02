@@ -68,10 +68,9 @@ export function ThreadDetailHeader({
   const panelShortcut = useAppCommandShortcut("panel.toggle");
   const headerRef = useRef<HTMLElement>(null);
   const pane = usePaneContext();
-  const { beginPaneDrag, isFocused } = pane;
+  const { isFocused, isSplitPane: isSplitPaneHeader } = pane;
   const isWindowPanelOpen =
     useContext(SecondaryPanelHostLayoutContext)?.isOpen === true;
-  const isSplitPaneHeader = beginPaneDrag !== undefined;
   const [paneWidth, setPaneWidth] = useState(0);
   const usesActionOverflow =
     isSplitPaneHeader &&
@@ -96,7 +95,7 @@ export function ThreadDetailHeader({
     <AppPageHeader
       headerRef={headerRef}
       ownsWindowTopLeft={pane.ownsWindowTopLeft}
-      className={beginPaneDrag ? "z-[21]" : undefined}
+      className={isSplitPaneHeader ? "z-[21]" : undefined}
       center={
         <>
           <div
@@ -117,19 +116,8 @@ export function ThreadDetailHeader({
                   !isFocused &&
                   dimsInactiveSplits &&
                   CONTEXT_INACTIVE_TEXT_CLASS,
-                beginPaneDrag &&
-                  !isEditing &&
-                  "cursor-grab touch-none select-none",
               )}
               onDoubleClick={isEditing ? undefined : startEditing}
-              onPointerDown={
-                beginPaneDrag &&
-                ((event) => {
-                  if (!isEditing && event.button === 0) {
-                    beginPaneDrag(event, threadTitle);
-                  }
-                })
-              }
             >
               {isEditing ? editor : <ThreadTitle title={threadTitle} />}
             </p>

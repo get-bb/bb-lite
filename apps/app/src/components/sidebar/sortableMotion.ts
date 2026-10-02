@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import type {
   DraggableAttributes,
   DraggableSyntheticListeners,
@@ -6,61 +6,41 @@ import type {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const SIDEBAR_SORTABLE_TRANSITION = {
-  duration: 160,
-  easing: "cubic-bezier(0.2, 0, 0, 1)",
-};
-
-export interface SidebarSortableDragBindings {
+interface SidebarSortableDragBindings {
   attributes: DraggableAttributes;
   disabled: boolean;
   listeners: DraggableSyntheticListeners;
   setActivatorNodeRef: (element: HTMLElement | null) => void;
 }
 
-interface UseSidebarSortableArgs {
+export function useSidebarSortable({
+  id,
+  disabled,
+}: {
   id: string;
   disabled: boolean;
-  displace?: boolean;
-}
-
-interface UseSidebarSortableResult {
+}): {
   dragBindings: SidebarSortableDragBindings;
   isOver: boolean;
   setNodeRef: (element: HTMLElement | null) => void;
   style: CSSProperties;
-}
-
-export function useSidebarSortable({
-  id,
-  disabled,
-  displace = true,
-}: UseSidebarSortableArgs): UseSidebarSortableResult {
-  const {
-    attributes,
-    isDragging,
-    isOver,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id, disabled, transition: SIDEBAR_SORTABLE_TRANSITION });
-  const lifted = displace && isDragging;
-  const style = useMemo<CSSProperties>(
-    () => ({
-      transform: displace ? CSS.Translate.toString(transform) : undefined,
-      transition: displace ? transition : undefined,
-      position: lifted ? "relative" : undefined,
-      zIndex: lifted ? 100 : undefined,
+} {
+  const sortable = useSortable({
+    id,
+    disabled,
+    transition: { duration: 160, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+  });
+  const { attributes, isDragging, listeners, setActivatorNodeRef } = sortable;
+  return {
+    dragBindings: { attributes, disabled, listeners, setActivatorNodeRef },
+    isOver: sortable.isOver,
+    setNodeRef: sortable.setNodeRef,
+    style: {
+      transform: CSS.Translate.toString(sortable.transform),
+      transition: sortable.transition,
+      position: isDragging ? "relative" : undefined,
+      zIndex: isDragging ? 100 : undefined,
       opacity: isDragging ? 0.8 : undefined,
-    }),
-    [displace, isDragging, lifted, transform, transition],
-  );
-  const dragBindings = useMemo<SidebarSortableDragBindings>(
-    () => ({ attributes, disabled, listeners, setActivatorNodeRef }),
-    [attributes, disabled, listeners, setActivatorNodeRef],
-  );
-
-  return { dragBindings, isOver, setNodeRef, style };
+    },
+  };
 }

@@ -39,7 +39,6 @@ import {
   removePane,
   replacePaneContent,
   resizeSplit,
-  swapPanes,
 } from "@/lib/split-layout";
 import {
   createSplitResizeFlexPair,
@@ -53,11 +52,6 @@ import type {
   SplitPath,
   SplitSide,
 } from "@/lib/split-layout";
-import {
-  beginSplitDrag,
-  decidePaneDrop,
-  SPLIT_PANE_DATA_ATTR,
-} from "@/lib/split-drag";
 import {
   useAppCommandContext,
   useAppCommandHandler,
@@ -112,6 +106,7 @@ const LazyPluginPanelRightPanelHost = lazy(() =>
 );
 
 const PANE_SIDES = ["left", "right", "top", "bottom"] as const;
+const PANE_ATTR = "data-split-pane-id";
 
 function createSplitController(
   store: ReturnType<typeof useStore>,
@@ -124,7 +119,7 @@ function createSplitController(
   const setMaximized = (paneId: string | null) => {
     if (store.get(maximizedPaneIdAtom) === paneId) return;
     for (const element of workspace?.querySelectorAll<HTMLElement>(
-      `[${SPLIT_PANE_DATA_ATTR}]:not([aria-hidden="true"]) *`,
+      `[${PANE_ATTR}]:not([aria-hidden="true"]) *`,
     ) ?? []) {
       if (element.scrollLeft === 0 && element.scrollTop === 0) {
         scrollPositions.delete(element);
@@ -170,9 +165,7 @@ function createSplitController(
     },
     findPaneElement: (paneId: string | null) =>
       [
-        ...(workspace?.querySelectorAll<HTMLElement>(
-          `[${SPLIT_PANE_DATA_ATTR}]`,
-        ) ?? []),
+        ...(workspace?.querySelectorAll<HTMLElement>(`[${PANE_ATTR}]`) ?? []),
       ].find((element) => element.dataset.splitPaneId === paneId),
     restoreScrollPositions: () => {
       let corrected = false;
@@ -250,44 +243,6 @@ function createSplitController(
       if (mounted && next.focusedPaneId === paneId) {
         navigate(getThreadRoutePath(thread));
       }
-    },
-    beginPaneDrag: (
-      paneId: string,
-      event: ReactPointerEvent,
-      label: string,
-    ) => {
-      const startLayout = store.get(splitLayoutAtom);
-      if (startLayout === null || listPanes(startLayout.root).length < 2) {
-        return;
-      }
-      const wasMaximized = store.get(maximizedPaneIdAtom) === paneId;
-      const startX = event.clientX;
-      const startY = event.clientY;
-      beginSplitDrag({
-        ghostLabel: label,
-        sourceEl:
-          event.currentTarget instanceof Element
-            ? event.currentTarget.closest<HTMLElement>(
-                `[${SPLIT_PANE_DATA_ATTR}]`,
-              )
-            : null,
-        shouldEngage: (x, y) => Math.hypot(x - startX, y - startY) > 7,
-        onEngage: wasMaximized ? () => setMaximized(null) : undefined,
-        onEnd: wasMaximized
-          ? () => {
-              const current = store.get(splitLayoutAtom);
-              if (current !== null) setMaximized(current.focusedPaneId);
-            }
-          : undefined,
-        decide: (targetPaneId, zone) =>
-          decidePaneDrop({ zone, isSelf: targetPaneId === paneId }),
-        onDrop: (target) =>
-          update((current) =>
-            target.zone === "center"
-              ? swapPanes(current, paneId, target.paneId)
-              : movePane(current, paneId, target.paneId, target.zone),
-          ),
-      });
     },
     applyPaneAction: (signal: ThreadPaneActionSignal) => {
       const current = store.get(splitLayoutAtom);
@@ -684,8 +639,6 @@ function PaneBody({
         ? {
             onToggleMaximize: () => controller.toggleMaximize(paneId),
             onMoveToSide: (side) => controller.movePaneToSide(paneId, side),
-            beginPaneDrag: (event, label) =>
-              controller.beginPaneDrag(paneId, event, label),
           }
         : { onToggleMaximize: null }),
     }),
@@ -729,7 +682,7 @@ function NonThreadPaneContent({
   const dimsInactiveSplits = useAtomValue(dimInactiveSplitsAtom);
   const showsWindowPanelToggle =
     useContext(SecondaryPanelHostLayoutContext)?.pinsCornerToggle === true;
-  const { beginPaneDrag, isBoundedPane, isFocused, onRequestClose } = pane;
+  const { isBoundedPane, isFocused, onRequestClose } = pane;
   const panelEntry =
     content.kind === "plugin-panel"
       ? navPanelChrome.find(
@@ -786,22 +739,7 @@ function NonThreadPaneContent({
                 "relative flex min-w-0 flex-1 items-center",
                 isBoundedPane && "-my-1 -ml-2 rounded-md px-2 py-1",
                 isBoundedPane && isFocused && CONTEXT_SELECTION_SURFACE_CLASS,
-                beginPaneDrag && "cursor-grab touch-none select-none",
               )}
-              onPointerDown={
-                beginPaneDrag &&
-                ((event) => {
-                  if (
-                    event.button === 0 &&
-                    !(
-                      event.target instanceof Element &&
-                      event.target.closest("a, button")
-                    )
-                  ) {
-                    beginPaneDrag(event, panelChrome?.title ?? "New thread");
-                  }
-                })
-              }
             >
               {panelChrome ? (
                 <PluginPanelHeaderCenter chrome={panelChrome} />
