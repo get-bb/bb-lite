@@ -18,6 +18,7 @@ import { ApiError, invalidRequest } from "../errors.js";
 type WireTab = ThreadTabsWireResponse["tabs"][number];
 
 const OK = { ok: true } as const;
+const ACKNOWLEDGED = ["stop", "compact", "clearContext", "unarchive"] as const;
 
 function sectionName(name: string): string {
   const trimmed = name.trim();
@@ -74,29 +75,16 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json(await threads.send(c.req.param("id"), payload)),
   );
 
-  post(routes.stop, async (c) => {
-    await threads.stop(c.req.param("id"));
-    return c.json(OK);
-  });
-
-  post(routes.compact, async (c) => {
-    await threads.compact(c.req.param("id"));
-    return c.json(OK);
-  });
-
-  post(routes.clearContext, async (c) => {
-    await threads.clearContext(c.req.param("id"));
-    return c.json(OK);
-  });
+  for (const action of ACKNOWLEDGED) {
+    post(routes[action], async (c) => {
+      await threads[action](c.req.param("id"));
+      return c.json(OK);
+    });
+  }
 
   post(routes.archiveAll, async (c) => {
     const archivedThreadIds = await threads.archive(c.req.param("id"));
     return c.json({ ...OK, archivedThreadIds });
-  });
-
-  post(routes.unarchive, async (c) => {
-    await threads.unarchive(c.req.param("id"));
-    return c.json(OK);
   });
 
   post(routes.pin, async (c) => c.json(await threads.pin(c.req.param("id"))));

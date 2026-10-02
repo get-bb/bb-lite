@@ -21,6 +21,7 @@ import * as pending from "../../db/pending-interactions.js";
 import {
   getProjectExecutionDefaults,
   listStandardProjects,
+  requireProject,
 } from "../../db/projects.js";
 import * as queue from "../../db/queued-messages.js";
 import { getAppSettings } from "../../db/settings.js";
@@ -35,7 +36,6 @@ import {
   listThreadSections,
   requireThreadSection,
 } from "../../db/thread-sections.js";
-import { requireProject } from "../../projects/require.js";
 import {
   findProviderDefinition,
   providerPlanCommand,

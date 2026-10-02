@@ -6,9 +6,8 @@ import type {
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { listHosts } from "../db/hosts.js";
-import { getProjectSource } from "../db/projects.js";
-import { inspectProjectPath } from "../projects/inspect.js";
-import { requireProject } from "../projects/require.js";
+import { getProjectSource, requireProject } from "../db/projects.js";
+import { inspectProjectPath } from "../projects/workspace.js";
 
 type Availability = SystemEnvironmentProvider["availability"];
 
@@ -92,9 +91,8 @@ async function gitCheckoutAvailability(
   hostId: string,
   path: string,
 ): Promise<Availability> {
-  if (!ctx.runners.isConnected(hostId)) return null;
   const inspection = await inspectProjectPath(ctx, hostId, path);
-  if (inspection === "unknown") return null;
+  if (inspection === null) return null;
   if (inspection.isGitRepo) return { status: "available" };
   const message = "This project checkout has no usable git branch.";
   return { status: "unavailable", message };

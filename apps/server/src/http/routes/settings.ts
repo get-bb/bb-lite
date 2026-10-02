@@ -29,7 +29,7 @@ import {
   projectMachineEnvironmentView,
   replaceMachineEnvironment,
 } from "../../machine-environment.js";
-import { requireProject } from "../../projects/require.js";
+import { requireProject } from "../../db/projects.js";
 import { publicServerUrl } from "../../runners/hosts.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
 import {

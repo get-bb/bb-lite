@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { closeTerminalsForThread } from "../src/terminals/sessions.js";
+import { closeTerminalsFor } from "../src/terminals/sessions.js";
 import { createDemo, git, write } from "./demo.js";
 import type { SocketMessage, TestSocket } from "./helpers.js";
 import { insertThread, watchChanges } from "./watch.js";
@@ -111,7 +111,7 @@ it("runs terminals through attach, replay, exit and a lost machine", async () =>
   expect(await closed.json()).toMatchObject({ closeReason: "user" });
 
   const doomed = await open();
-  closeTerminalsForThread(ctx, "thr_demo");
+  closeTerminalsFor(ctx, "thread_id", "thr_demo", "thread-archived");
   const archived = { status: "exited", closeReason: "thread-archived" };
   await matches(`/terminals/${doomed.id}`, archived);
 });

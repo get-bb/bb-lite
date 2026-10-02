@@ -11,7 +11,7 @@ import type { DeletedProject } from "../db/projects.js";
 import { listThreadIdsWaitingOn } from "../db/queued-messages.js";
 import * as store from "../db/threads.js";
 import { ApiError, conflict } from "../http/errors.js";
-import { closeTerminalsForThread } from "../terminals/sessions.js";
+import { closeTerminalsFor } from "../terminals/sessions.js";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import * as interactions from "./interactions.js";
@@ -205,7 +205,7 @@ async function finalizeDeletion(
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
-    closeTerminalsForThread(engine.ctx, threadId, "thread-deleted");
+    closeTerminalsFor(engine.ctx, "thread_id", threadId, "thread-deleted");
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
@@ -373,7 +373,7 @@ export function sweep(engine: Engine): void {
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
   for (const { id, status } of store.listExpiredArchives(db, expired)) {
-    closeTerminalsForThread(engine.ctx, id);
+    closeTerminalsFor(engine.ctx, "thread_id", id, "thread-archived");
     if (status !== "starting" && status !== "active") continue;
     engine.background("stop archived thread", stopThread(engine, id));
   }

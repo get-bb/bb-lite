@@ -26,7 +26,6 @@ import { ThreadSerial } from "../threads/core.js";
 import { createLifecycleScripts, notReady, step } from "./scripts.js";
 import type {
   EnsureEnvironmentArgs as Job,
-  Environments,
   ThreadEnvironment,
 } from "./types.js";
 import { requireEnvironment } from "./workspace.js";
@@ -63,7 +62,9 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
   return slug === "" ? prefix + thread.id : `${prefix}${slug}-${thread.id}`;
 }
 
-export function createEnvironments(ctx: ServerContext): Environments {
+export type Environments = ReturnType<typeof createEnvironments>;
+
+export function createEnvironments(ctx: ServerContext) {
   const { db, hub, log, now, runners } = ctx;
   const scripts = createLifecycleScripts(ctx);
   const queue = new ThreadSerial();
@@ -393,7 +394,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
 
   return {
     ensureForThread,
-    pathFor: (environmentId) => getEnvironment(db, environmentId)?.path ?? null,
+    pathFor: (id: string) => getEnvironment(db, id)?.path ?? null,
     workspaceInstructions,
     onThreadDetached,
     remove,

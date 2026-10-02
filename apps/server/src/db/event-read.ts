@@ -446,24 +446,32 @@ function decodeEventWithMeta(row: StoredEventRow): ThreadEventWithMeta {
   return { event: decodeEvent(row), meta: { id, seq, createdAt } };
 }
 
+export function rememberRecent<Value>(
+  cache: Map<string, Value>,
+  key: string,
+  value: Value,
+  limit: number,
+): Value {
+  cache.delete(key);
+  cache.set(key, value);
+  for (const oldest of cache.keys()) {
+    if (cache.size <= limit) break;
+    cache.delete(oldest);
+  }
+  return value;
+}
+
 export function decodeEvents(
   db: Db,
   rows: readonly StoredEventRow[],
 ): ThreadEventWithMeta[] {
   const cache = decodedEvents.get(db) ?? new Map<string, ThreadEventWithMeta>();
   decodedEvents.set(db, cache);
-  const events = rows.map((row) => {
+  return rows.map((row) => {
     const key = `${row.id}:${row.data.length}`;
     const event = cache.get(key) ?? decodeEventWithMeta(row);
-    cache.delete(key);
-    cache.set(key, event);
-    return event;
+    return rememberRecent(cache, key, event, DECODED_EVENT_CACHE_LIMIT);
   });
-  for (const oldest of cache.keys()) {
-    if (cache.size <= DECODED_EVENT_CACHE_LIMIT) break;
-    cache.delete(oldest);
-  }
-  return events;
 }
 
 export function toThreadEventRow(row: StoredEventRow): ThreadEventRow {

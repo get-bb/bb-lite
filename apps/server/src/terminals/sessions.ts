@@ -4,7 +4,6 @@ import {
   terminalClientMessageSchema,
   type CloseTerminalRequest,
   type CreateTerminalRequest,
-  type TerminalClientMessage,
   type TerminalCreateTarget,
   type TerminalListQuery,
   type TerminalOutputChunk,
@@ -33,6 +32,7 @@ import { ApiError, errorMessage, toApiError } from "../http/errors.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
 import { requireHost } from "../runners/hosts.js";
 import type { Disposer } from "../server.js";
+import { parseFrame } from "../ws/hub.js";
 
 interface Client {
   send(message: TerminalServerMessage): void;
@@ -227,11 +227,15 @@ export function requireTerminal(
   return session;
 }
 
+function notRunning(): ApiError {
+  const message = "Terminal session is not running";
+  return new ApiError(409, "terminal_not_running", message);
+}
+
 function requireRunning(ctx: ServerContext, terminalId: string) {
   const session = requireTerminal(ctx, terminalId);
   if (session.status === "running") return session;
-  const message = "Terminal session is not running";
-  throw new ApiError(409, "terminal_not_running", message);
+  throw notRunning();
 }
 
 export function listTerminalSessions(
@@ -343,14 +347,6 @@ export function closeTerminalsFor(
   }
 }
 
-export function closeTerminalsForThread(
-  ctx: ServerContext,
-  threadId: string,
-  closeReason: "thread-archived" | "thread-deleted" = "thread-archived",
-): void {
-  closeTerminalsFor(ctx, "thread_id", threadId, closeReason);
-}
-
 async function writeInput(
   ctx: ServerContext,
   session: TerminalSession,
@@ -431,21 +427,13 @@ export async function readTerminalOutput(
   return { chunks: kept, nextSeq, truncated, status, exitCode, closeReason };
 }
 
-function parseClientMessage(raw: string): TerminalClientMessage | null {
-  try {
-    return terminalClientMessageSchema.parse(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
 function receive(
   ctx: ServerContext,
   terminalId: string,
   client: Client,
   raw: string,
 ): void {
-  const message = parseClientMessage(raw);
+  const message = parseFrame(terminalClientMessageSchema, raw);
   if (message === null) {
     client.fail("invalid_message", "Invalid terminal message");
     return;
@@ -456,12 +444,7 @@ function receive(
   }
   const session = getTerminal(ctx.db, terminalId);
   if (session === undefined || session.status === "exited") {
-    const notRunning = "Terminal session is not running";
-    client.send({
-      type: "error",
-      code: "terminal_not_running",
-      message: notRunning,
-    });
+    client.send({ type: "error", ...notRunning().body });
     return;
   }
   if (session.status !== "running") return;

@@ -32,6 +32,7 @@ import {
   MAX_INLINE_OUTPUT_CHARS,
   mergeEventRows,
   OUTLINE_EVENT,
+  rememberRecent,
   ROOT_TURN_EVENT,
   UNBOUNDED,
   type StoredEventRow,
@@ -675,20 +676,6 @@ function buildOutline(
   });
 }
 
-function remember<Value>(
-  cache: Map<string, Value>,
-  key: string,
-  value: Value,
-  limit: number,
-): void {
-  cache.delete(key);
-  cache.set(key, value);
-  for (const oldest of cache.keys()) {
-    if (cache.size <= limit) break;
-    cache.delete(oldest);
-  }
-}
-
 export function createTimelineReader(db: Db) {
   type Served = Pick<ThreadTimelineResponse, "maxSeq" | "rows">;
   const served = new Map<string, Served[]>();
@@ -714,7 +701,7 @@ export function createTimelineReader(db: Db) {
       const { maxSeq, rows } = full;
       const kept = ring.filter((entry) => entry.maxSeq !== maxSeq);
       const next = [...kept, { maxSeq, rows }].slice(-SERVED_RING_SIZE);
-      remember(served, key, next, SERVED_KEY_LIMIT);
+      rememberRecent(served, key, next, SERVED_KEY_LIMIT);
       if (previous === undefined) return full;
       const delta = computeTimelineRowDelta(previous.rows, rows);
       return { ...full, rows: [], delta };
@@ -737,8 +724,7 @@ export function createTimelineReader(db: Db) {
         items: buildOutline(db, thread, display, maxSeq),
         maxSeq,
       };
-      remember(outlines, key, outline, OUTLINE_CACHE_LIMIT);
-      return outline;
+      return rememberRecent(outlines, key, outline, OUTLINE_CACHE_LIMIT);
     },
   };
 }

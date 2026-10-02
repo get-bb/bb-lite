@@ -2,7 +2,6 @@ import {
   clientMessageSchema,
   realtimeSubscriptionTargetKey as targetKey,
   type ChangedMessage,
-  type ClientMessage,
   type EnvironmentChangeKind,
   type HostChangeKind,
   type ProjectChangeKind,
@@ -13,6 +12,7 @@ import {
   type ThreadEventType,
 } from "@bb/domain";
 import type { PluginSignal, ThreadOpenSignal } from "@bb/server-contract";
+import type { ZodType } from "zod";
 
 export interface HubSocket {
   send(data: string): void;
@@ -61,9 +61,9 @@ function isListRelevant(message: ThreadChangedMessage): boolean {
   );
 }
 
-function parseClientMessage(raw: string): ClientMessage | null {
+export function parseFrame<T>(schema: ZodType<T>, raw: string): T | null {
   try {
-    return clientMessageSchema.parse(JSON.parse(raw));
+    return schema.parse(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -167,7 +167,7 @@ export class Hub {
   }
 
   receive(socket: HubSocket, raw: string): void {
-    const message = parseClientMessage(raw);
+    const message = parseFrame(clientMessageSchema, raw);
     if (message === null) {
       socket.close(INVALID_MESSAGE_CLOSE_CODE, "invalid-message");
     } else if (message.type === "ping") {

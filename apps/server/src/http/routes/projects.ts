@@ -14,6 +14,8 @@ import {
   getProjectSource,
   listStandardProjects,
   reorderProject,
+  requireProject,
+  requireStandardProject,
   setGitRemoteUrlIfMissing,
   updateProjectSource,
   withSources,
@@ -28,14 +30,10 @@ import {
   resolveAttachmentPath,
   storeAttachment,
 } from "../../projects/attachments.js";
-import { inspectGitRemoteUrl } from "../../projects/inspect.js";
 import { removeProject } from "../../projects/remove.js";
 import {
-  requireProject,
-  requireStandardProject,
-} from "../../projects/require.js";
-import {
   findProjectWorkspace,
+  inspectProjectPath,
   requireProjectWorkspace,
 } from "../../projects/workspace.js";
 import { findProviderDefinition } from "../../providers/catalog.js";
@@ -94,12 +92,15 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     return { ...source, ...branches, defaultWorktreeBaseBranch: defaultBase };
   };
 
+  const gitRemoteOf = async (hostId: string, path: string) =>
+    (await inspectProjectPath(ctx, hostId, path))?.remoteUrl ?? null;
+
   const recordGitRemote = async (
     projectId: string,
     hostId: string,
     path: string,
   ): Promise<void> => {
-    const gitRemoteUrl = await inspectGitRemoteUrl(ctx, hostId, path);
+    const gitRemoteUrl = await gitRemoteOf(hostId, path);
     if (gitRemoteUrl === null) return;
     if (setGitRemoteUrlIfMissing(db, projectId, gitRemoteUrl)) {
       hub.project(projectId, ["project-updated"]);
@@ -121,7 +122,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   post(routes.create, async (c, payload) => {
     const { hostId, path } = payload.source;
     requireHost(ctx, hostId);
-    const gitRemoteUrl = await inspectGitRemoteUrl(ctx, hostId, path);
+    const gitRemoteUrl = await gitRemoteOf(hostId, path);
     const source = { hostId, path };
     const { name } = payload;
     const input = { name, source, gitRemoteUrl };
@@ -144,10 +145,8 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
 
   patch(routes.reorder, (c, payload) => {
     const { id } = requireStandardProject(db, c.req.param("id"));
-    const outcome = reorderProject(db, id, payload);
-    if (outcome === "stale") throw conflict("Project order changed");
-    if (outcome === "invalid") throw conflict("Project order is invalid");
-    if (outcome === "reordered") hub.project(id, ["project-order-changed"]);
+    const reordered = reorderProject(db, id, payload);
+    if (reordered) hub.project(id, ["project-order-changed"]);
     return c.json(withSources(db, listStandardProjects(db)));
   });
 
@@ -171,13 +170,6 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     const { hostId, path } = payload;
     requireHost(ctx, hostId);
     const source = addProjectSource(db, id, { hostId, path });
-    if (source === undefined) {
-      throw new ApiError(
-        409,
-        "project_source_host_conflict",
-        "Project already has a source on this host",
-      );
-    }
     hub.project(id, ["project-sources-changed"]);
     await recordGitRemote(id, hostId, path);
     return c.json(source, 201);
@@ -196,10 +188,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
 
   del(routes.deleteSource, (c) => {
     const { id } = requireStandardProject(db, c.req.param("id"));
-    const source = requireSource(id, c.req.param("sourceId"));
-    if (deleteProjectSource(db, source) === "last-source") {
-      throw conflict("Cannot delete the last source of a project");
-    }
+    deleteProjectSource(db, requireSource(id, c.req.param("sourceId")));
     hub.project(id, ["project-sources-changed"]);
     return c.json({ ok: true });
   });

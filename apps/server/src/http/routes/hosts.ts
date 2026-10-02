@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
+import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
 import type { ServerContext, ServerRunner } from "../../context.js";
-import { newId } from "../../db/index.js";
+import { newId, type RowValues } from "../../db/index.js";
 import {
   destroyHost,
   findHost,
@@ -57,6 +58,13 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     const headers = access?.headers;
     const command = joinCommand({ serverUrl, hostId, joinToken, headers });
     return { command, expiresAt };
+  };
+
+  const patchHost = (hostId: string, patch: RowValues): Host => {
+    const { id } = requireHost(ctx, hostId);
+    updateHost(db, id, patch);
+    hub.host(id, ["host-connected"]);
+    return hostResponse(ctx, requireHost(ctx, id));
   };
 
   const ownerRunner = (c: HostRequest): ServerRunner => {
@@ -137,19 +145,13 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json({ ...command, hostId: host.id }, 201);
   });
 
-  patch(routes.update, (c, payload) => {
-    const { id } = requireHost(ctx, c.req.param("id"));
-    updateHost(db, id, { name: payload.name });
-    hub.host(id, ["host-connected"]);
-    return c.json(hostResponse(ctx, requireHost(ctx, id)));
-  });
+  patch(routes.update, (c, { name }) =>
+    c.json(patchHost(c.req.param("id"), { name })),
+  );
 
-  patch(routes.updatePermissionCeiling, (c, payload) => {
-    const { id } = requireHost(ctx, c.req.param("id"));
-    updateHost(db, id, { maxPermissionMode: payload.maxPermissionMode });
-    hub.host(id, ["host-connected"]);
-    return c.json(hostResponse(ctx, requireHost(ctx, id)));
-  });
+  patch(routes.updatePermissionCeiling, (c, { maxPermissionMode }) =>
+    c.json(patchHost(c.req.param("id"), { maxPermissionMode })),
+  );
 
   del(routes.delete, async (c) => {
     const { id, connectMachineId } = requireHost(ctx, c.req.param("id"));

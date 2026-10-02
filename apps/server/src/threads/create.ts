@@ -7,7 +7,7 @@ import type { Environment, Project } from "@bb/domain";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import type { Db } from "../db/index.js";
-import { setProjectExecutionDefaults } from "../db/projects.js";
+import { requireProject, setProjectExecutionDefaults } from "../db/projects.js";
 import { requireThreadSection } from "../db/thread-sections.js";
 import {
   ancestry,
@@ -23,7 +23,6 @@ import {
   type EnvironmentIntent,
 } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
-import { requireProject } from "../projects/require.js";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";

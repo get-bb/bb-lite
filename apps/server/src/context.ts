@@ -1,7 +1,7 @@
 import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
-import type { Environments } from "./environments/types.js";
+import type { Environments } from "./environments/manager.js";
 import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
 import type { ThreadEngine } from "./threads/engine.js";
