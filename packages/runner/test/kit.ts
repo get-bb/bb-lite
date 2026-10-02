@@ -11,7 +11,11 @@ export async function until<T>(
   }
 }
 
-const DROPPED = new Set(["turn/diff/updated", "provider/rateLimits/updated"]);
+const DROPPED = new Set([
+  "turn/diff/updated",
+  "provider/rateLimits/updated",
+  "provider/unhandled",
+]);
 
 export function kept<T extends { type: string }>(recorded: T[]) {
   return recorded.filter((event) => !DROPPED.has(event.type));

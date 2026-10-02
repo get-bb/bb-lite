@@ -229,7 +229,7 @@ export function createSessionApi(
       if (live === null) outbox.threadEvent(threadId, event);
       else if (!live.detached) onEvent(live, event);
     };
-    const events = new EventBuilder({ providerId: adapter.id, emit });
+    const events = new EventBuilder({ emit });
     const host: SessionHost = {
       events,
       env: env.agent,

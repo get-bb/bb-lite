@@ -4,7 +4,6 @@ import {
   turnScope,
   type ExtensionKind,
   type JsonValue,
-  type ProviderRawEvent,
   type ThreadEventItem as Item,
   type ThreadEventItemPresentation as Presentation,
   type ThreadEventItemStatus as ItemStatus,
@@ -63,12 +62,7 @@ export interface ErrorOptions extends TurnTarget {
   settlesTurn?: boolean;
   threadScoped?: boolean;
 }
-export interface RawOptions extends TurnTarget {
-  inTurn?: boolean;
-  parentRef?: string;
-}
 export interface EventBuilderOptions {
-  providerId: string;
   emit: (event: RunnerThreadEvent) => void;
   textFlushMs?: number;
   progressThrottleMs?: number;
@@ -438,15 +432,6 @@ export class EventBuilder {
   warning(warning: Partial<Fields<"provider/warning">>) {
     const category = warning.category ?? "general";
     this.send(undefined, { type: "provider/warning", ...warning, category });
-  }
-
-  unhandled(rawType: string, rawEvent: ProviderRawEvent, to: RawOptions = {}) {
-    const scoped = to.turn !== undefined || to.inTurn;
-    const turnId = scoped ? this.target(to) : undefined;
-    const parentToolCallId = this.parentOf(to.parentRef);
-    const { providerId } = this.options;
-    const origin = { providerId, rawType, rawEvent, parentToolCallId };
-    this.send(turnId, { type: "provider/unhandled", ...origin });
   }
 
   settle(status: "interrupted" | "failed", error?: string) {

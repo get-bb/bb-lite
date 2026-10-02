@@ -121,8 +121,7 @@ export function createClaudeHarness() {
       threadEventSchema.parse({ ...event, threadId: SPEC.threadId });
       events.push(event);
     };
-    const providerId = "claude-code";
-    const builder = new EventBuilder({ providerId, emit, textFlushMs: 0 });
+    const builder = new EventBuilder({ emit, textFlushMs: 0 });
     const moved = { type: "inputText" as const, text: "moved" };
     const host: SessionHost = {
       events: builder,

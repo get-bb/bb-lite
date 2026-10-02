@@ -1,6 +1,5 @@
 import {
   fromProviderExternalThreadName as threadName,
-  providerRawEventSchema,
   type ProviderErrorCategory,
   type ThreadEventItemPresentation as Presentation,
 } from "@bb/domain";
@@ -144,23 +143,6 @@ const goalSchema = z.object({
   timeUsedSeconds: count,
 });
 
-const NOISE = new Set([
-  "account/rateLimits/updated",
-  "item/autoApprovalReview/completed",
-  "item/autoApprovalReview/started",
-  "mcpServer/startupStatus/updated",
-  "rawResponse/completed",
-  "rawResponseItem/completed",
-  "remoteControl/status/changed",
-  "serverRequest/resolved",
-  "skills/changed",
-  "thread/archived",
-  "thread/unarchived",
-  "thread/settings/updated",
-  "thread/status/changed",
-  "turn/diff/updated",
-  "turn/moderationMetadata",
-]);
 const DELTA_CHANNELS: Record<string, TextChannel | OutputChannel> = {
   "item/agentMessage/delta": "agentMessage",
   "item/reasoning/summaryTextDelta": "reasoningSummary",
@@ -214,13 +196,6 @@ function errorInfo(info: unknown) {
   const category = ERROR_CATEGORY[providerCode ?? ""] ?? ("unknown" as const);
   const httpStatusCode = typeof status === "number" ? status : null;
   return { category, providerCode: providerCode ?? null, httpStatusCode };
-}
-
-function rawEvent(method: string, params: unknown) {
-  const base = { jsonrpc: "2.0" as const, method };
-  const event = params ? { ...base, params } : base;
-  const parsed = providerRawEventSchema.safeParse(event);
-  return parsed.success ? parsed.data : base;
 }
 
 interface Translated {
@@ -382,9 +357,7 @@ export class CodexTranslator {
   ) {}
 
   handle(method: string, params: unknown) {
-    if (NOISE.has(method) || this.isConditionalNoise(method, params)) return;
-    if (this.dispatch(method, params)) return;
-    this.events.unhandled(method, rawEvent(method, params));
+    if (!this.dispatch(method, params)) ui.debug("dropped codex %s", method);
   }
 
   openTurn(threadId: string, turn: string) {
@@ -412,16 +385,6 @@ export class CodexTranslator {
     );
     for (const agent of open) this.setAgent(agent, "failed");
     return open.length > 0;
-  }
-
-  private isConditionalNoise(method: string, params: unknown) {
-    if (!isRecord(params)) return false;
-    if (method === "item/commandExecution/terminalInteraction") {
-      return params.stdin === "";
-    }
-    const hook = method === "hook/started" || method === "hook/completed";
-    const status = isRecord(params.run) ? params.run.status : undefined;
-    return hook && (status === "running" || status === "completed");
   }
 
   private parentRef(threadId: string, turn: string) {
@@ -483,11 +446,7 @@ export class CodexTranslator {
       ? translateItem(parsed.data, this.injected)
       : "unhandled";
     if (translated === "ignored") return true;
-    if (translated === "unhandled") {
-      const event = rawEvent(method, params);
-      this.events.unhandled(method, event, { turn, parentRef });
-      return true;
-    }
+    if (translated === "unhandled") return false;
     const key = { providerItemId: raw.id, parentRef };
     const { shape, label: presentation, status, denied } = translated;
     if (shape.type === "delegation" && shape.childRef !== threadId) {

@@ -1,3 +1,4 @@
+import { debuglog } from "node:util";
 import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
@@ -64,6 +65,7 @@ export interface SessionHost {
   onExit(info: { message: string; stderrTail: string }): void;
 }
 
+export const debug = debuglog("bb-runner");
 const TITLE_MAX_LENGTH = 160;
 const SHELL_WRAPPER = /^(?:\S*\/)?(?:sh|bash|zsh)\s+(?:-lc|-c)\s+([\s\S]+)$/;
 

@@ -1,7 +1,6 @@
 import {
   backgroundTaskItemStatus as itemStatus,
   isBackgroundAgentTaskType,
-  jsonValueSchema,
   type ProviderErrorCategory as Category,
   type ProviderErrorInfo,
   type ThreadEventPlanStep as PlanStep,
@@ -51,14 +50,6 @@ const ERRORS: Record<string, Category | undefined> = {
   error_max_structured_output_retries: "structured-output-retries",
 };
 const TASK_TYPES = "local_workflow local_bash local_agent local_subagent";
-const QUIET = `assistant stream_event result rate_limit_event tool_progress
-  tool_use_summary command_lifecycle conversation_reset auth_status
-  prompt_suggestion init status notification informational compact_boundary
-  mirror_error commands_changed files_persisted memory_recall plugin_install
-  permission_denied elicitation_complete thinking_tokens local_command_output
-  session_state_changed worker_shutting_down control_request_progress
-  background_tasks_changed`.split(/\s+/);
-
 const count = z.number().optional();
 const usageSchema = z.looseObject({
   input_tokens: count,
@@ -160,7 +151,6 @@ export class ClaudeTranslator {
 
   constructor(
     private readonly events: EventBuilder,
-    private readonly threadId: string,
     private readonly context: tools.ToolContext,
   ) {}
 
@@ -184,7 +174,9 @@ export class ClaudeTranslator {
     const message = fields.safeParse(raw).data;
     if (message === undefined) return;
     this.parentRef = str(message.parent_tool_use_id) || undefined;
-    if (!this.dispatch(message, str(message.type))) this.unhandled(message);
+    const { type, subtype } = message;
+    const translated = this.dispatch(message, str(type));
+    if (!translated) ui.debug("dropped claude %s %s", type, subtype ?? "");
   }
 
   private dispatch(message: Json, type = "unknown"): boolean {
@@ -195,10 +187,8 @@ export class ClaudeTranslator {
     const reset = type === "conversation_reset" && !this.blocked();
     if (reset) this.ensureTurn();
     if (reset) this.events.cleared();
-    const subtype = str(message.subtype) ?? "";
-    if (type !== "system") return QUIET.includes(type);
-    const expected = /^(hook|task|model)_/.test(subtype);
-    return this.system(message, subtype) || expected || QUIET.includes(subtype);
+    if (type !== "system") return type === "conversation_reset";
+    return this.system(message, str(message.subtype) ?? "");
   }
 
   private blocked() {
@@ -226,18 +216,6 @@ export class ClaudeTranslator {
     const blocking = ({ done, item }: Task) =>
       !done && !item.skipTranscript && isBackgroundAgentTaskType(item.taskType);
     return [...this.tasks.values()].some(blocking);
-  }
-
-  private unhandled(message: Json) {
-    const { threadId, parentRef } = this;
-    const params = jsonValueSchema.safeParse({ threadId, message }).data;
-    const frame = { jsonrpc: "2.0" as const, method: "sdk/message" };
-    const rawEvent = { ...frame, params: params ?? { threadId } };
-    const system = message.type === "system" && str(message.subtype);
-    const kind = `sdk/${str(message.type) ?? "unknown"}`;
-    const rawType = system ? `${kind}:${system}` : kind;
-    this.events.unhandled(rawType, rawEvent, { inTurn: true, parentRef });
-    return true;
   }
 
   private say(channel: "thinking" | "assistant", value: string, final = true) {
