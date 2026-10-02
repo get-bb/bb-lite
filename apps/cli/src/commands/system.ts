@@ -316,6 +316,16 @@ export const server: Run = async () => {
   await startServer({ cliDir });
 };
 
+export const importLegacy: Run = async (c) => {
+  const server = await import("@bb/server");
+  const from = c.flag("from");
+  if (from === undefined) throw usageError("Pass --from <old data directory>.");
+  const threads = c.choice("threads", ["active", "all", "none"]) ?? "active";
+  const options = { from: resolve(from), threads, dryRun: c.on("dry-run") };
+  const summary = await server.importLegacy(options);
+  c.out(summary, server.importSummaryLines(summary));
+};
+
 export const serverStatus: Run = async (c) => {
   const url = c.env.serverUrl;
   const config = await c.sdk.system.config().catch((error: unknown) => {

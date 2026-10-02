@@ -300,6 +300,12 @@ ${YES}
 
 server  Run the bb server in the foreground
 server status  Check that the server answers and show its data directory
+import-legacy  Copy projects, sections, settings and threads from an old bb
+  --from <dir>  Data directory of the original install; it is only read
+  --threads <which>  active (unarchived threads and their families), all, none
+  --dry-run  Only count what each --threads choice would import
+  $ bb import-legacy --from ~/.bb --dry-run
+  > {dryRun, dataDir, choices, counts: {<table>: {imported, skipped}}, …}
 runner join <blob>  Enrol this machine with the command bb machine add printed
   --header <name=value>...  Header sent on every request to the server
   --reuse-connect-credential [path]  Reuse an old install's connect credential
