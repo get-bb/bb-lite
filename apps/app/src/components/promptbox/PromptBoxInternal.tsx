@@ -1,6 +1,5 @@
 import { registerPaneComposerFocus } from "@/lib/pane-composer-focus";
 import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
-import { registerThreadMentionDropTarget } from "@/lib/thread-mention-drop";
 import type {
   PromptMentionCommandTrigger,
   PromptMentionResource,
@@ -1264,26 +1263,6 @@ export function PromptBoxInternal({
   useEffect(() => {
     if (pendingCommandSubmit) submitPendingCommand();
   }, [pendingCommandSubmit]);
-
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form || !editor) return;
-    return registerThreadMentionDropTarget(form, {
-      accepts: () => !editor.isDestroyed,
-      insert: (thread, x, y) => {
-        const position =
-          editor.view.posAtCoords({ left: x, top: y })?.pos ??
-          editor.state.selection.to;
-        insertMentionPill(
-          editor,
-          { from: position, to: position },
-          { kind: "thread", threadId: thread.threadId, label: thread.label },
-          `@thread:${thread.threadId}`,
-          null,
-        );
-      },
-    });
-  });
 
   const attachFiles = (files: FileList | null | undefined) => {
     if (onAttachFiles && files && files.length > 0) {
