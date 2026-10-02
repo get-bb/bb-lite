@@ -1,4 +1,9 @@
-import type { PendingInteractionPayload } from "@bb/domain";
+import type {
+  ClientTurnRequestId,
+  PendingInteractionPayload,
+  PromptInput,
+} from "@bb/domain";
+import type { RunnerThreadEvent } from "@bb/runner";
 import { expect, it } from "vitest";
 import { createThreadServer, events, text } from "./thread-harness.js";
 
@@ -138,4 +143,27 @@ it("stops a thread that is still provisioning or about to start", async () => {
   expect([thread(id).status, interrupts()]).toEqual(["idle", before + 1]);
   await ingest(id, events.completed("t1", "interrupted"));
   expect(thread(id)).toMatchObject({ status: "idle", activeTurnId: null });
+});
+
+it("leaves plan mode by stopping the plan turn, and only then", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const builtin = { source: "command", origin: "builtin", argumentHint: null };
+  const plan = { kind: "command", trigger: "/", name: "plan", label: "plan" };
+  const mentions = [{ start: 0, end: 5, resource: { ...plan, ...builtin } }];
+  const prompt = { type: "text", text: "/plan the migration", mentions };
+  const id = await server.spawn({ input: [prompt] as PromptInput[] });
+  const cancel = () => http("POST", `/threads/${id}/plan/cancel`);
+  const idle = { message: "Plan mode is not active" };
+  expect(await cancel()).toMatchObject({ status: 409, body: idle });
+  const [{ requestId }] = server.eventData(id, "client/turn/requested");
+  const turn = { scope: { kind: "turn", turnId: "t1" }, providerThreadId: "p" };
+  const clientRequestId = requestId as ClientTurnRequestId;
+  const input = { type: "turn/input/accepted", ...turn, clientRequestId };
+  const accepted = input as RunnerThreadEvent;
+  await ingest(id, events.identity(), events.started("t1"), accepted);
+  expect(await cancel()).toEqual({ status: 200, body: { ok: true } });
+  expect(server.callsTo("interruptTurn")).toEqual([{ threadId: id }]);
+  expect(server.thread(id).status).toBe("stopping");
+  expect((await cancel()).status).toBe(409);
 });

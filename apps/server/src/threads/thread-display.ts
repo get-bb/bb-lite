@@ -13,7 +13,11 @@ import {
   listSidebarThreadRows,
   type ThreadListRow,
 } from "../db/thread-read.js";
-import { ancestry, MAX_THREAD_HIERARCHY_DEPTH } from "../db/threads.js";
+import {
+  ancestry,
+  MAX_THREAD_HIERARCHY_DEPTH,
+  type ThreadRow,
+} from "../db/threads.js";
 import { providerPlanCommand } from "../providers/catalog.js";
 
 type DisplayContext = Pick<ServerContext, "db" | "runners">;
@@ -39,11 +43,11 @@ function threadDisplayStatus(
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
-function hasActivePlanTurn(db: Db, thread: ThreadListRow) {
+export function activePlanTurnId(db: Db, thread: ThreadRow): string | null {
   const { id: threadId, providerId, status: threadStatus } = thread;
-  if (threadStatus !== "active") return false;
+  if (threadStatus !== "active") return null;
   const planCommand = providerPlanCommand(db, providerId);
-  if (planCommand === null) return false;
+  if (planCommand === null) return null;
   const types = ["turn/input/accepted"];
   const accepted = eventRead.listEvents(db, {
     threadId,
@@ -62,7 +66,7 @@ function hasActivePlanTurn(db: Db, thread: ThreadListRow) {
   ]);
   const events = eventRead.decodeEvents(db, rows);
   const args = { events, planCommand, providerId, threadStatus };
-  return extractThreadTimelineActivePlanTurn(args) !== null;
+  return extractThreadTimelineActivePlanTurn(args)?.turnId ?? null;
 }
 
 function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
@@ -80,7 +84,7 @@ function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
     const states = goals.filter((row) => row.threadId === thread.id);
     const goal = extractThreadTimelineGoal(eventRead.decodeEvents(db, states));
     const activeGoalCount = goal?.status === "active" ? 1 : 0;
-    const activePlanModeCount = hasActivePlanTurn(db, thread) ? 1 : 0;
+    const activePlanModeCount = activePlanTurnId(db, thread) === null ? 0 : 1;
     if (activeGoalCount + activePlanModeCount === 0) continue;
     const activity = activities.get(thread.id) ?? NO_ACTIVITY;
     const merged = { ...activity, activeGoalCount, activePlanModeCount };
