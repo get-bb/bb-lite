@@ -88,27 +88,14 @@ function toPluginSidebarThread(
   const indicator = resolveThreadListIndicator(
     threadListIndicatorStateForThread(entry, false),
   );
-  const { activity, environmentHostId: hostId } = entry;
+  const { activity, environmentHostId: hostId, runtime, ...shared } = entry;
   return {
-    id: entry.id,
-    projectId: entry.projectId,
-    title: entry.title,
-    titleFallback: entry.titleFallback,
+    ...shared,
     displayTitle: resolveThreadTitleDisplayText(
       getThreadDisplayTitle(entry),
       titleResources,
     ),
-    parentThreadId: entry.parentThreadId,
-    lifecycleOwnerThreadId: entry.lifecycleOwnerThreadId,
-    sourceThreadId: entry.sourceThreadId,
-    sectionId: entry.sectionId,
-    originKind: entry.originKind,
-    originPluginId: entry.originPluginId,
-    providerId: entry.providerId,
-    status: entry.status,
-    runtimeStatus: entry.runtime.displayStatus,
-    queuedWork: entry.queuedWork,
-    hasPendingInteraction: entry.hasPendingInteraction,
+    runtimeStatus: runtime.displayStatus,
     activity: {
       workflows: activity.activeWorkflowCount,
       backgroundAgents: activity.activeBackgroundAgentCount,
@@ -120,10 +107,7 @@ function toPluginSidebarThread(
     indicatorLabel: getThreadListIndicatorLabel(indicator),
     isUnread: !isThreadRead(entry),
     isPinned: entry.pinnedAt !== null,
-    pinnedAt: entry.pinnedAt,
-    pinSortKey: entry.pinSortKey,
     isArchived: entry.archivedAt !== null,
-    archivedAt: entry.archivedAt,
     href: getThreadRoutePath({
       projectId: entry.projectId,
       threadId: entry.id,
@@ -145,10 +129,6 @@ function toPluginSidebarThread(
       hostId === null
         ? null
         : { id: hostId, name: hostNames.get(hostId) ?? hostId },
-    createdAt: entry.createdAt,
-    updatedAt: entry.updatedAt,
-    lastReadAt: entry.lastReadAt,
-    latestAttentionAt: entry.latestAttentionAt,
   };
 }
 
