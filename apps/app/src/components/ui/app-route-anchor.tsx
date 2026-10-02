@@ -13,7 +13,7 @@ import {
 import { useNavigate, type NavigateOptions } from "react-router-dom";
 import { useStore } from "jotai";
 import { resolveRouteHref } from "@/lib/route-paths";
-import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
+import { openPaneContentInSplit } from "@/lib/split-layout/atoms";
 import { paneContentForPathname } from "@/views/thread-detail/splitThreadNavigation";
 
 interface RouteNavigationProviderProps {

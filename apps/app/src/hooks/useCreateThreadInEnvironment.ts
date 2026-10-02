@@ -1,24 +1,17 @@
-import { useCallback } from "react";
 import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
 import { useSetRootComposeProjectId } from "@/lib/root-compose-selection";
 
-interface UseCreateThreadInEnvironmentArgs {
+export function useCreateThreadInEnvironment(args: {
   projectId: string;
   environmentId: string;
   sectionId: string | null;
   pinned: boolean;
-}
-
-export function useCreateThreadInEnvironment({
-  projectId,
-  environmentId,
-  sectionId,
-  pinned,
-}: UseCreateThreadInEnvironmentArgs): () => void {
+}): () => void {
   const navigate = useRouteNavigate();
   const setRootComposeProjectId = useSetRootComposeProjectId();
-  return useCallback(() => {
+  const { projectId, environmentId, sectionId, pinned } = args;
+  return () => {
     setRootComposeProjectId(projectId);
     navigate(getRootComposeRoutePath(), {
       state: {
@@ -27,12 +20,5 @@ export function useCreateThreadInEnvironment({
         placement: { sectionId, pinned },
       },
     });
-  }, [
-    environmentId,
-    navigate,
-    projectId,
-    sectionId,
-    pinned,
-    setRootComposeProjectId,
-  ]);
+  };
 }

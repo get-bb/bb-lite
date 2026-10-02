@@ -12,42 +12,25 @@ interface ProviderPromptAction {
   command?: ProviderPromptActionCommand;
 }
 
-interface ProviderPromptActionProps {
-  skillsTriggers: readonly PromptMentionCommandTrigger[];
-  promptActions: readonly ProviderPromptAction[];
-}
-
 export function buildProviderPromptActionProps(
   composerActions: readonly ProviderComposerAction[],
-): ProviderPromptActionProps {
+): {
+  skillsTriggers: readonly PromptMentionCommandTrigger[];
+  promptActions: readonly ProviderPromptAction[];
+} {
   const promptActions: ProviderPromptAction[] = [];
   const skillsTriggers: PromptMentionCommandTrigger[] = [];
-
   for (const action of composerActions) {
-    switch (action.kind) {
-      case "skills":
-        skillsTriggers.push(action.trigger);
-        if (!promptActions.some((candidate) => candidate.kind === "skills")) {
-          promptActions.push({
-            kind: action.kind,
-            text: action.trigger,
-          });
-        }
-        break;
-      case "goal":
-      case "plan":
-        promptActions.push({
-          kind: action.kind,
-          command: action.command,
-          text: serializedProviderCommand(action.command),
-        });
-        break;
+    if (action.kind !== "skills") {
+      const { command } = action;
+      const text = `${command.trigger}${command.name}${command.trailingText}`;
+      promptActions.push({ kind: action.kind, command, text });
+      continue;
+    }
+    skillsTriggers.push(action.trigger);
+    if (!promptActions.some((candidate) => candidate.kind === "skills")) {
+      promptActions.push({ kind: "skills", text: action.trigger });
     }
   }
-
   return { skillsTriggers, promptActions };
-}
-
-function serializedProviderCommand(command: ProviderComposerCommand): string {
-  return `${command.trigger}${command.name}${command.trailingText}`;
 }

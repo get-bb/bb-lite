@@ -4,8 +4,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
 import { RouteNavigationIndicator } from "./components/ui/route-navigation-indicator";
-import { AppNavigationUrlHost } from "./lib/url-open-routing";
-import { UiPreferencesSync } from "@/lib/ui-preferences/UiPreferencesSync";
+import { UiPreferencesSync } from "@/lib/ui-preferences";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
 import { bootPlugins } from "@/plugins/external";
@@ -89,52 +88,42 @@ export function App() {
       <AppCommandProvider>
         <RouteNavigationProvider>
           <RouteNavigationIndicator />
-          <AppNavigationUrlHost>
-            <HashNavigationScroll />
-            <UiPreferencesSync />
-            <AppLayout>
-              <Suspense fallback={null}>
-                <Routes>
-                  <Route path={SETTINGS_ROUTE_PATH} element={settings} />
-                  <Route
-                    path={SETTINGS_SECTION_ROUTE_PATH}
-                    element={settings}
-                  />
-                  <Route
-                    path={SETTINGS_PLUGINS_ROUTE_PATH}
-                    element={settings}
-                  />
-                  <Route path={SETTINGS_PLUGIN_ROUTE_PATH} element={settings} />
-                  <Route
-                    path={SETTINGS_MACHINE_ROUTE_PATH}
-                    element={<MachineSettingsView />}
-                  />
-                  <Route
-                    path={SETTINGS_PROJECT_ROUTE_PATH}
-                    element={<ProjectDetailSettingsView />}
-                  />
-                  <Route
-                    path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
-                    element={
-                      <Navigate to={getSettingsRoutePath("archived")} replace />
-                    }
-                  />
-                  <Route
-                    path="*"
-                    element={
-                      <Suspense
-                        fallback={
-                          <RouteLoadingSkeleton isBoundedPane={false} />
-                        }
-                      >
-                        <SplitWorkspaceRoute />
-                      </Suspense>
-                    }
-                  />
-                </Routes>
-              </Suspense>
-            </AppLayout>
-          </AppNavigationUrlHost>
+          <HashNavigationScroll />
+          <UiPreferencesSync />
+          <AppLayout>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path={SETTINGS_ROUTE_PATH} element={settings} />
+                <Route path={SETTINGS_SECTION_ROUTE_PATH} element={settings} />
+                <Route path={SETTINGS_PLUGINS_ROUTE_PATH} element={settings} />
+                <Route path={SETTINGS_PLUGIN_ROUTE_PATH} element={settings} />
+                <Route
+                  path={SETTINGS_MACHINE_ROUTE_PATH}
+                  element={<MachineSettingsView />}
+                />
+                <Route
+                  path={SETTINGS_PROJECT_ROUTE_PATH}
+                  element={<ProjectDetailSettingsView />}
+                />
+                <Route
+                  path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
+                  element={
+                    <Navigate to={getSettingsRoutePath("archived")} replace />
+                  }
+                />
+                <Route
+                  path="*"
+                  element={
+                    <Suspense
+                      fallback={<RouteLoadingSkeleton isBoundedPane={false} />}
+                    >
+                      <SplitWorkspaceRoute />
+                    </Suspense>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </AppLayout>
         </RouteNavigationProvider>
       </AppCommandProvider>
     </QuickCreateProjectProvider>

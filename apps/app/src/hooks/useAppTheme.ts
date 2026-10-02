@@ -1,35 +1,24 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { refreshThemeColorMeta } from "@/hooks/useTheme";
-import { applyResolvedCodeTheme } from "@/lib/code-theme";
 import {
-  applyAppThemeCss,
+  applyAppTheme,
   getAppThemeEpoch,
-  resolveAppThemeCss,
+  previewAppTheme,
   subscribeAppThemeChange,
 } from "@/lib/themes";
 
 export function useAppTheme(): void {
-  const { data } = useSystemConfig();
-  const appearance = data?.appearance;
-  const css = appearance ? resolveAppThemeCss(appearance) : null;
-
+  const themeId = useSystemConfig().data?.appearance.themeId;
   useLayoutEffect(() => {
-    if (appearance?.resolvedCodeTheme === undefined) return;
-    applyResolvedCodeTheme(appearance.resolvedCodeTheme);
-  }, [appearance?.resolvedCodeTheme]);
-
-  useEffect(() => {
-    if (css === null) return;
-    applyAppThemeCss(css);
-    refreshThemeColorMeta();
-  }, [css]);
+    if (themeId !== undefined) applyAppTheme(themeId);
+  }, [themeId]);
 }
 
 export function useAppThemeEpoch(): number {
-  return useSyncExternalStore(
-    subscribeAppThemeChange,
-    getAppThemeEpoch,
-    getAppThemeEpoch,
-  );
+  return useSyncExternalStore(subscribeAppThemeChange, getAppThemeEpoch);
+}
+
+export function useAppThemePreview(): typeof previewAppTheme {
+  useEffect(() => () => previewAppTheme(null), []);
+  return previewAppTheme;
 }

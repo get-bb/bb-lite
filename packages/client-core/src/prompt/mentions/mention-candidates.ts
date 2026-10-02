@@ -1,180 +1,124 @@
 import type { PromptMentionSuggestion } from "./types.js";
 
-/**
- * One source-normalized mention result. Callers own the resource-specific
- * mapping into visible identity, aliases, supporting text, and a rendered
- * group. Client core owns all relevance decisions after that boundary.
- */
-export interface MentionCandidate {
-  readonly suggestion: PromptMentionSuggestion;
-  readonly visibleTitle: string;
-  /** Additional identities, such as a resource id or provider search alias. */
-  readonly identityTerms: readonly string[];
-  readonly supportingTerms: readonly string[];
-  readonly groupKey: string;
-  readonly groupLabel: string;
-}
-
-/** One intact rendered group after relevance ordering. */
-export interface OrderedMentionSuggestionGroup {
-  readonly key: string;
-  readonly label: string;
-  /** Index of this group's first row in the flattened navigation sequence. */
-  readonly startIndex: number;
-  readonly suggestions: readonly PromptMentionSuggestion[];
-}
-
-/**
- * The exact mention order shared by grouped rendering and flat keyboard
- * navigation. `suggestions` is the concatenation of `groups` in order.
- */
 export interface OrderedMentionSuggestions {
-  readonly groups: readonly OrderedMentionSuggestionGroup[];
+  readonly groups: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly startIndex: number;
+    readonly suggestions: readonly PromptMentionSuggestion[];
+  }[];
   readonly suggestions: readonly PromptMentionSuggestion[];
 }
 
-const MENTION_MATCH_RANK = {
-  exact: 0,
-  prefix: 1,
-  substring: 2,
-  supporting: 3,
-  none: 4,
-};
+const SUPPORTING_MATCH_RANK = 3;
+const NO_MATCH_RANK = 4;
 
-interface RankedMentionCandidate {
-  candidate: MentionCandidate;
-  inputIndex: number;
-  matchRank: number;
-}
-
-interface RankedMentionCandidateGroup {
-  key: string;
-  label: string;
-  inputIndex: number;
-  bestMatchRank: number;
-  candidates: RankedMentionCandidate[];
-}
-
-function normalizeMentionTerm(term: string): string {
-  return term.trim().toLowerCase();
-}
-
-/**
- * How strongly a query hits a candidate's own identities. Sources rank their
- * own rows with this before handing them over so that a source-level result
- * limit keeps the strongest matches, and so that whatever order a source
- * chooses inside one rank survives {@link orderMentionCandidates}.
- */
 export function mentionIdentityMatchRank(
   identities: readonly string[],
   query: string,
 ): number {
-  const normalizedQuery = normalizeMentionTerm(query);
-  if (normalizedQuery.length === 0) return MENTION_MATCH_RANK.exact;
-
-  const normalized = identities.map(normalizeMentionTerm);
-  if (normalized.some((identity) => identity === normalizedQuery)) {
-    return MENTION_MATCH_RANK.exact;
-  }
-  if (normalized.some((identity) => identity.startsWith(normalizedQuery))) {
-    return MENTION_MATCH_RANK.prefix;
-  }
-  if (normalized.some((identity) => identity.includes(normalizedQuery))) {
-    return MENTION_MATCH_RANK.substring;
-  }
-  return MENTION_MATCH_RANK.none;
+  const needle = query.trim().toLowerCase();
+  if (needle.length === 0) return 0;
+  const terms = identities.map((identity) => identity.trim().toLowerCase());
+  if (terms.includes(needle)) return 0;
+  if (terms.some((term) => term.startsWith(needle))) return 1;
+  return terms.some((term) => term.includes(needle)) ? 2 : NO_MATCH_RANK;
 }
 
-function mentionCandidateMatchRank(
-  candidate: MentionCandidate,
-  normalizedQuery: string,
-): number {
-  const identityRank = mentionIdentityMatchRank(
-    [candidate.visibleTitle, ...candidate.identityTerms],
-    normalizedQuery,
-  );
-  if (identityRank !== MENTION_MATCH_RANK.none) {
-    return identityRank;
+interface MentionTerms {
+  identities: readonly string[];
+  supporting?: string | null;
+  key: string;
+  label: string;
+}
+
+function mentionTerms(suggestion: PromptMentionSuggestion): MentionTerms {
+  switch (suggestion.kind) {
+    case "thread":
+      return {
+        identities: [
+          suggestion.title?.trim() || suggestion.threadId,
+          suggestion.threadId,
+        ],
+        supporting: suggestion.projectName,
+        key: "threads",
+        label: "Threads",
+      };
+    case "project":
+      return {
+        identities: [suggestion.name, suggestion.projectId],
+        key: "projects",
+        label: "Projects",
+      };
+    case "section":
+      return {
+        identities: [suggestion.name, suggestion.sectionId],
+        key: "sections",
+        label: "Sections",
+      };
+    case "plugin":
+      return {
+        identities: [suggestion.title],
+        supporting: suggestion.subtitle,
+        key: `plugin:${suggestion.pluginId}:${suggestion.providerId}`,
+        label: suggestion.providerLabel,
+      };
+    case "path":
+      return {
+        identities: [suggestion.name, suggestion.path, suggestion.replacement],
+        key: `path:${suggestion.source}`,
+        label:
+          suggestion.source === "thread-storage"
+            ? "Thread storage"
+            : "Workspace",
+      };
   }
-
-  const hasSupportingMatch = candidate.supportingTerms
-    .map(normalizeMentionTerm)
-    .some((term) => term.includes(normalizedQuery));
-  return hasSupportingMatch
-    ? MENTION_MATCH_RANK.supporting
-    : MENTION_MATCH_RANK.none;
 }
 
-function compareRankedMentionCandidates(
-  left: RankedMentionCandidate,
-  right: RankedMentionCandidate,
-): number {
-  const byMatch = left.matchRank - right.matchRank;
-  return byMatch !== 0 ? byMatch : left.inputIndex - right.inputIndex;
-}
-
-function compareRankedMentionCandidateGroups(
-  left: RankedMentionCandidateGroup,
-  right: RankedMentionCandidateGroup,
-): number {
-  const byBestMatch = left.bestMatchRank - right.bestMatchRank;
-  return byBestMatch !== 0 ? byBestMatch : left.inputIndex - right.inputIndex;
-}
-
-/**
- * Rank intact source groups by their strongest row, and rank rows within each
- * group by exact identity, identity prefix, identity substring, then
- * supporting-text match. Original source order is the final tie-breaker.
- */
-export function orderMentionCandidates(
-  candidates: readonly MentionCandidate[],
+export function orderMentionSuggestions(
+  suggestions: readonly PromptMentionSuggestion[],
   query: string,
 ): OrderedMentionSuggestions {
-  const normalizedQuery = normalizeMentionTerm(query);
-  const groupsByKey = new Map<string, RankedMentionCandidateGroup>();
-
-  for (const [inputIndex, candidate] of candidates.entries()) {
-    const rankedCandidate: RankedMentionCandidate = {
-      candidate,
-      inputIndex,
-      matchRank: mentionCandidateMatchRank(candidate, normalizedQuery),
-    };
-    const existingGroup = groupsByKey.get(candidate.groupKey);
-    if (existingGroup) {
-      existingGroup.bestMatchRank = Math.min(
-        existingGroup.bestMatchRank,
-        rankedCandidate.matchRank,
-      );
-      existingGroup.candidates.push(rankedCandidate);
-      continue;
+  const needle = query.trim().toLowerCase();
+  const byKey = new Map<
+    string,
+    {
+      label: string;
+      best: number;
+      rows: { suggestion: PromptMentionSuggestion; rank: number }[];
     }
-
-    groupsByKey.set(candidate.groupKey, {
-      key: candidate.groupKey,
-      label: candidate.groupLabel,
-      inputIndex,
-      bestMatchRank: rankedCandidate.matchRank,
-      candidates: [rankedCandidate],
-    });
+  >();
+  for (const suggestion of suggestions) {
+    const { identities, supporting, key, label } = mentionTerms(suggestion);
+    const identityRank = mentionIdentityMatchRank(identities, needle);
+    const rank =
+      identityRank === NO_MATCH_RANK &&
+      supporting?.trim().toLowerCase().includes(needle)
+        ? SUPPORTING_MATCH_RANK
+        : identityRank;
+    const group = byKey.get(key) ?? { label, best: rank, rows: [] };
+    group.best = Math.min(group.best, rank);
+    group.rows.push({ suggestion, rank });
+    byKey.set(key, group);
   }
-
-  let nextStartIndex = 0;
-  const groups = [...groupsByKey.values()]
-    .sort(compareRankedMentionCandidateGroups)
-    .map<OrderedMentionSuggestionGroup>((group) => {
-      const suggestions = group.candidates
-        .sort(compareRankedMentionCandidates)
-        .map(({ candidate }) => candidate.suggestion);
-      const orderedGroup: OrderedMentionSuggestionGroup = {
-        key: group.key,
+  let startIndex = 0;
+  const groups = [...byKey]
+    .sort(([, left], [, right]) => left.best - right.best)
+    .map(([key, group]) => {
+      const rows = group.rows
+        .sort((left, right) => left.rank - right.rank)
+        .map((row) => row.suggestion);
+      const ordered = {
+        key,
         label: group.label,
-        startIndex: nextStartIndex,
-        suggestions,
+        startIndex,
+        suggestions: rows,
       };
-      nextStartIndex += suggestions.length;
-      return orderedGroup;
+      startIndex += rows.length;
+      return ordered;
     });
-  const suggestions = groups.flatMap((group) => group.suggestions);
-
-  return { groups, suggestions };
+  return {
+    groups,
+    suggestions: groups.flatMap((group) => group.suggestions),
+  };
 }

@@ -1,57 +1,90 @@
-import {
-  applyNeighborReorder,
-  buildNeighborReorderRequest,
-} from "./neighbor-reorder.js";
-import type { SidebarSectionId } from "./sidebarSectionId.js";
+import type { ThreadListEntry } from "@bb/domain";
+import { arrayMove } from "../stored-order.js";
 
-type SidebarEntitySectionKind = "project" | "section" | "machine";
-export type LegacySidebarEntityAnchor = "projects" | "sections" | "machines";
+export type SidebarSectionId =
+  | "pinned"
+  | "threads"
+  | `project:${string}`
+  | `section:${string}`
+  | `machine:${string}`;
+export type CollapsibleSidebarSectionId = "pinned" | "threads";
+
+export interface SidebarSectionDefinition {
+  id: string;
+  name: string;
+}
+
+export const CHRONOLOGICAL_CONTAINER_ID = "chronological";
+
+export function isSidebarProjectThread(
+  thread: Pick<ThreadListEntry, "visibility">,
+): boolean {
+  return thread.visibility !== "hidden";
+}
+
+export function buildSectionKey(
+  containerId: string,
+  sectionId: string,
+): string {
+  return `${containerId}::${sectionId}`;
+}
 
 export function buildSidebarEntitySectionId(
-  kind: SidebarEntitySectionKind,
+  kind: "project" | "section" | "machine",
   id: string,
 ): SidebarSectionId {
   return `${kind}:${id}`;
 }
 
 function isSidebarSectionId(value: string): value is SidebarSectionId {
-  return (
-    value === "pinned" ||
-    value === "threads" ||
-    value.startsWith("project:") ||
-    value.startsWith("section:") ||
-    value.startsWith("machine:")
-  );
+  return /^(pinned$|threads$|project:|section:|machine:)/u.test(value);
 }
 
-interface ReorderSidebarSectionOrderArgs {
+export interface NeighborReorderRequest {
+  itemId: string;
+  nextItemId: string | null;
+  previousItemId: string | null;
+}
+
+export function buildNeighborReorderRequest(args: {
+  activeId: string;
+  items: readonly { id: string }[];
+  overId: string;
+}): NeighborReorderRequest | null {
+  const ids = args.items.map((item) => item.id);
+  const from = ids.indexOf(args.activeId);
+  const to = ids.indexOf(args.overId);
+  if (args.activeId === args.overId || from === -1 || to === -1) return null;
+  const reordered = arrayMove(ids, from, to);
+  const movedIndex = reordered.indexOf(args.activeId);
+  return {
+    itemId: args.activeId,
+    previousItemId: reordered[movedIndex - 1] ?? null,
+    nextItemId: reordered[movedIndex + 1] ?? null,
+  };
+}
+
+export function reorderSidebarSectionOrder(args: {
   activeId: string;
   overId: string;
   order: readonly SidebarSectionId[];
+}): SidebarSectionId[] | null {
+  const { activeId, overId, order } = args;
+  const from = order.findIndex((id) => id === activeId);
+  const to = order.findIndex((id) => id === overId);
+  return !isSidebarSectionId(activeId) ||
+    !isSidebarSectionId(overId) ||
+    activeId === overId ||
+    from === -1 ||
+    to === -1
+    ? null
+    : arrayMove(order, from, to);
 }
 
-export function reorderSidebarSectionOrder({
-  activeId,
-  overId,
-  order,
-}: ReorderSidebarSectionOrderArgs): SidebarSectionId[] | null {
-  if (!isSidebarSectionId(activeId) || !isSidebarSectionId(overId)) {
-    return null;
-  }
-  const items = order.map((id) => ({ id }));
-  const request = buildNeighborReorderRequest({ activeId, overId, items });
-  if (!request) return null;
-  return applyNeighborReorder({ items, request })
-    .map((item) => item.id)
-    .filter(isSidebarSectionId);
-}
-
-interface NormalizeSidebarSectionOrderArgs {
+interface SectionOrderArgs {
   storedOrder: readonly string[];
   entitySectionIds: readonly SidebarSectionId[];
-  legacyEntityAnchor: LegacySidebarEntityAnchor;
-  hasPinnedSection: boolean;
-  hasThreadsSection?: boolean;
+  legacyEntityAnchor: "projects" | "sections" | "machines";
 }
 
 export function normalizeSidebarSectionOrder({
@@ -60,100 +93,66 @@ export function normalizeSidebarSectionOrder({
   legacyEntityAnchor,
   hasPinnedSection,
   hasThreadsSection = true,
-}: NormalizeSidebarSectionOrderArgs): SidebarSectionId[] {
-  const available = new Set<SidebarSectionId>([
-    ...(hasPinnedSection ? (["pinned"] as const) : []),
+}: SectionOrderArgs & {
+  hasPinnedSection: boolean;
+  hasThreadsSection?: boolean;
+}): SidebarSectionId[] {
+  const available = new Set<string>([
+    ...(hasPinnedSection ? ["pinned"] : []),
     ...entitySectionIds,
-    ...(hasThreadsSection ? (["threads"] as const) : []),
+    ...(hasThreadsSection ? ["threads"] : []),
   ]);
-  const entitySet = new Set(entitySectionIds);
-  const seen = new Set<SidebarSectionId>();
   const normalized: SidebarSectionId[] = [];
-  let expandedLegacyAnchor = false;
-
   const append = (sectionId: SidebarSectionId) => {
-    if (!available.has(sectionId) || seen.has(sectionId)) {
-      return;
+    if (available.has(sectionId) && !normalized.includes(sectionId)) {
+      normalized.push(sectionId);
     }
-    seen.add(sectionId);
-    normalized.push(sectionId);
   };
-
   for (const storedId of storedOrder) {
-    if (storedId === legacyEntityAnchor) {
-      expandedLegacyAnchor = true;
-      for (const entityId of entitySectionIds) {
-        append(entityId);
-      }
-      continue;
-    }
-    if (isSidebarSectionId(storedId)) {
-      append(storedId);
-    }
+    if (storedId === legacyEntityAnchor) entitySectionIds.forEach(append);
+    else if (isSidebarSectionId(storedId)) append(storedId);
   }
-
-  if (hasPinnedSection && !seen.has("pinned")) {
+  if (hasPinnedSection && !normalized.includes("pinned")) {
     normalized.unshift("pinned");
-    seen.add("pinned");
   }
-
   const missingEntities = entitySectionIds.filter(
-    (sectionId) => !seen.has(sectionId),
+    (sectionId) => !normalized.includes(sectionId),
   );
   if (missingEntities.length > 0) {
     const lastEntityIndex = normalized.reduce(
-      (lastIndex, sectionId, index) =>
-        entitySet.has(sectionId) ? index : lastIndex,
+      (last, sectionId, index) =>
+        entitySectionIds.includes(sectionId) ? index : last,
       -1,
     );
     const threadsIndex = normalized.indexOf("threads");
     const insertionIndex =
       lastEntityIndex >= 0
         ? lastEntityIndex + 1
-        : threadsIndex >= 0 || expandedLegacyAnchor
+        : threadsIndex >= 0 || storedOrder.includes(legacyEntityAnchor)
           ? Math.max(threadsIndex, 0)
           : normalized.length;
     normalized.splice(insertionIndex, 0, ...missingEntities);
-    for (const sectionId of missingEntities) {
-      seen.add(sectionId);
-    }
   }
-
-  if (hasThreadsSection && !seen.has("threads")) {
+  if (hasThreadsSection && !normalized.includes("threads")) {
     normalized.push("threads");
   }
-
   return normalized;
 }
 
-interface InsertSidebarSectionAfterArgs {
-  storedOrder: readonly string[];
-  entitySectionIds: readonly SidebarSectionId[];
-  legacyEntityAnchor: LegacySidebarEntityAnchor;
-  anchorSectionId: SidebarSectionId;
-  sectionId: SidebarSectionId;
-}
-
-export function insertSidebarSectionAfter({
-  storedOrder,
-  entitySectionIds,
-  legacyEntityAnchor,
-  anchorSectionId,
-  sectionId,
-}: InsertSidebarSectionAfterArgs): SidebarSectionId[] | null {
-  if (anchorSectionId === sectionId) {
-    return null;
-  }
+export function insertSidebarSectionAfter(
+  args: SectionOrderArgs & {
+    anchorSectionId: SidebarSectionId;
+    sectionId: SidebarSectionId;
+  },
+): SidebarSectionId[] | null {
+  const { anchorSectionId, sectionId } = args;
   const normalized = normalizeSidebarSectionOrder({
-    storedOrder,
-    entitySectionIds: [...entitySectionIds, sectionId],
-    legacyEntityAnchor,
+    ...args,
+    entitySectionIds: [...args.entitySectionIds, sectionId],
     hasPinnedSection: true,
   }).filter((id) => id !== sectionId);
   const anchorIndex = normalized.indexOf(anchorSectionId);
-  if (anchorIndex === -1) {
-    return null;
-  }
+  if (anchorSectionId === sectionId || anchorIndex === -1) return null;
   normalized.splice(anchorIndex + 1, 0, sectionId);
   return normalized;
 }

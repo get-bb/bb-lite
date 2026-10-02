@@ -1,161 +1,76 @@
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
-import type { Location } from "react-router-dom";
+import type { Location, NavigationType } from "react-router-dom";
 
-interface AppRouteHistoryEntry {
-  key: string;
-  url: string;
-}
-
-interface AppRouteHistoryState {
-  entries: AppRouteHistoryEntry[];
+interface RouteHistory {
+  entries: { key: string; url: string }[];
   index: number;
 }
 
-interface AppRouteHistoryNavigation {
-  canGoBack: boolean;
-  canGoForward: boolean;
-  goBack: () => void;
-  goForward: () => void;
-}
-
-type AppRouteNavigationType = "POP" | "PUSH" | "REPLACE";
-
-function getNormalizedUrl(location: Location): string {
-  return `${location.pathname}${location.search}${location.hash}`;
-}
-
-function findBackTargetIndex(state: AppRouteHistoryState): number | null {
-  const currentUrl = state.entries[state.index]?.url;
-  if (currentUrl === undefined) {
-    return null;
-  }
-  for (let candidate = state.index - 1; candidate >= 0; candidate -= 1) {
-    if (state.entries[candidate].url !== currentUrl) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function findForwardTargetIndex(state: AppRouteHistoryState): number | null {
-  const currentUrl = state.entries[state.index]?.url;
-  if (currentUrl === undefined) {
-    return null;
-  }
-  for (
-    let candidate = state.index + 1;
-    candidate < state.entries.length;
-    candidate += 1
-  ) {
-    if (state.entries[candidate].url !== currentUrl) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function reduceHistory(
-  state: AppRouteHistoryState,
-  navigationType: AppRouteNavigationType,
-  entry: AppRouteHistoryEntry,
-): AppRouteHistoryState {
-  switch (navigationType) {
-    case "PUSH": {
-      const entries = state.entries.slice(0, state.index + 1);
-      entries.push(entry);
-      return { entries, index: entries.length - 1 };
-    }
-    case "REPLACE": {
-      const entries = state.entries.slice();
-      entries[state.index] = entry;
-      return { entries, index: state.index };
-    }
-    case "POP": {
-      const matchedIndex = state.entries.findIndex(
-        (candidate) =>
-          candidate.key === entry.key && candidate.url === entry.url,
-      );
-      if (matchedIndex >= 0) {
-        return { entries: state.entries, index: matchedIndex };
-      }
-      return { entries: [entry], index: 0 };
-    }
-  }
-}
-
-const EMPTY_HISTORY_STATE: AppRouteHistoryState = { entries: [], index: 0 };
-let historyState = EMPTY_HISTORY_STATE;
+let history: RouteHistory = { entries: [], index: 0 };
 let lastRecordedLocation: Location | null = null;
-const historyListeners = new Set<() => void>();
+const listeners = new Set<() => void>();
 
-function recordLocation(
-  location: Location,
-  navigationType: AppRouteNavigationType,
-): void {
-  if (lastRecordedLocation === location) {
-    return;
-  }
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+function recordLocation(location: Location, type: NavigationType): void {
+  if (lastRecordedLocation === location) return;
   lastRecordedLocation = location;
-  const entry = { key: location.key, url: getNormalizedUrl(location) };
-  historyState =
-    historyState.entries.length === 0
-      ? { entries: [entry], index: 0 }
-      : reduceHistory(historyState, navigationType, entry);
-  for (const listener of historyListeners) {
-    listener();
+  const { pathname, search, hash, key } = location;
+  const entry = { key, url: `${pathname}${search}${hash}` };
+  const { entries, index } = history;
+  const matchedIndex = entries.findIndex(
+    (candidate) => candidate.key === key && candidate.url === entry.url,
+  );
+  if (entries.length > 0 && type === "PUSH") {
+    history = {
+      entries: [...entries.slice(0, index + 1), entry],
+      index: index + 1,
+    };
+  } else if (entries.length > 0 && type === "REPLACE") {
+    const replaced = entries.map((candidate, candidateIndex) =>
+      candidateIndex === index ? entry : candidate,
+    );
+    history = { entries: replaced, index };
+  } else if (entries.length > 0 && matchedIndex >= 0) {
+    history = { entries, index: matchedIndex };
+  } else {
+    history = { entries: [entry], index: 0 };
   }
+  for (const listener of listeners) listener();
 }
 
-function subscribeToHistory(listener: () => void): () => void {
-  historyListeners.add(listener);
-  return () => {
-    historyListeners.delete(listener);
-  };
+function findTargetIndex(state: RouteHistory, step: -1 | 1): number | null {
+  const currentUrl = state.entries[state.index]?.url;
+  for (
+    let candidate = state.index + step;
+    currentUrl !== undefined && state.entries[candidate] !== undefined;
+    candidate += step
+  ) {
+    if (state.entries[candidate]?.url !== currentUrl) return candidate;
+  }
+  return null;
 }
 
-export function resetAppRouteHistoryForTest(): void {
-  historyState = EMPTY_HISTORY_STATE;
-  lastRecordedLocation = null;
-}
-
-export function useRouteStateHistoryNavigation(): AppRouteHistoryNavigation {
+export function useRouteStateHistoryNavigation() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const navigate = useNavigate();
-
   useEffect(() => {
     recordLocation(location, navigationType);
   }, [location, navigationType]);
-
-  const state = useSyncExternalStore(
-    subscribeToHistory,
-    () => historyState,
-    () => historyState,
-  );
-
-  const goBack = useCallback(() => {
-    const current = historyState;
-    const target = findBackTargetIndex(current);
-    if (target === null) {
-      return;
-    }
-    void navigate(target - current.index);
-  }, [navigate]);
-
-  const goForward = useCallback(() => {
-    const current = historyState;
-    const target = findForwardTargetIndex(current);
-    if (target === null) {
-      return;
-    }
-    void navigate(target - current.index);
-  }, [navigate]);
-
+  const state = useSyncExternalStore(subscribe, () => history);
+  const go = (step: -1 | 1) => () => {
+    const target = findTargetIndex(history, step);
+    if (target !== null) void navigate(target - history.index);
+  };
   return {
-    canGoBack: findBackTargetIndex(state) !== null,
-    canGoForward: findForwardTargetIndex(state) !== null,
-    goBack,
-    goForward,
+    canGoBack: findTargetIndex(state, -1) !== null,
+    canGoForward: findTargetIndex(state, 1) !== null,
+    goBack: go(-1),
+    goForward: go(1),
   };
 }

@@ -1,88 +1,36 @@
-export interface SharedResizePhases<T> {
-  read: (entry: ResizeObserverEntry | undefined) => T;
-  write: (value: T) => void;
-}
+type Read = (entry: ResizeObserverEntry | undefined) => () => void;
 
-interface RegisteredPhases {
-  read: (entry: ResizeObserverEntry | undefined) => () => void;
-}
-
-interface PhaseDispatch {
-  registration: RegisteredPhases;
-  entry: ResizeObserverEntry | undefined;
-}
-
-const phasesByTarget = new Map<Element, Set<RegisteredPhases>>();
+const readsByTarget = new Map<Element, Set<Read>>();
 let sharedResizeObserver: ResizeObserver | null = null;
-
-function collectDispatches(
-  entries: readonly ResizeObserverEntry[],
-): PhaseDispatch[] {
-  if (entries.length === 0) {
-    return [...phasesByTarget.values()].flatMap((registrations) =>
-      [...registrations].map((registration) => ({
-        registration,
-        entry: undefined,
-      })),
-    );
-  }
-  const dispatches: PhaseDispatch[] = [];
-  for (const entry of entries) {
-    for (const registration of phasesByTarget.get(entry.target) ?? []) {
-      dispatches.push({ registration, entry });
-    }
-  }
-  return dispatches;
-}
-
-function dispatchPhased(dispatches: readonly PhaseDispatch[]): void {
-  const writes = dispatches.map(({ registration, entry }) =>
-    registration.read(entry),
-  );
-  for (const write of writes) {
-    write();
-  }
-}
-
-function getSharedResizeObserver(): ResizeObserver {
-  sharedResizeObserver ??= new ResizeObserver((entries) => {
-    dispatchPhased(collectDispatches(entries));
-  });
-  return sharedResizeObserver;
-}
 
 export function observeSharedResize<T>(
   target: Element,
-  phases: SharedResizePhases<T>,
+  phases: {
+    read: (entry: ResizeObserverEntry | undefined) => T;
+    write: (value: T) => void;
+  },
 ): () => void {
-  const registration: RegisteredPhases = {
-    read: (entry) => {
-      const value = phases.read(entry);
-      return () => phases.write(value);
-    },
+  sharedResizeObserver ??= new ResizeObserver((entries) => {
+    const writes = entries.flatMap((entry) =>
+      [...(readsByTarget.get(entry.target) ?? [])].map((read) => read(entry)),
+    );
+    for (const write of writes) write();
+  });
+  const read: Read = (entry) => {
+    const value = phases.read(entry);
+    return () => phases.write(value);
   };
-  let registrations = phasesByTarget.get(target);
-  const isFirstForTarget = registrations === undefined;
-  if (registrations === undefined) {
-    registrations = new Set();
-    phasesByTarget.set(target, registrations);
+  const reads = readsByTarget.get(target) ?? new Set<Read>();
+  if (reads.size === 0) {
+    readsByTarget.set(target, reads);
+    sharedResizeObserver.observe(target);
   }
-  registrations.add(registration);
-  if (isFirstForTarget) {
-    getSharedResizeObserver().observe(target);
-  }
-
+  reads.add(read);
   return () => {
-    const currentRegistrations = phasesByTarget.get(target);
-    currentRegistrations?.delete(registration);
-    if (currentRegistrations?.size === 0) {
-      phasesByTarget.delete(target);
-      sharedResizeObserver?.unobserve?.(target);
-      if (phasesByTarget.size === 0) {
-        sharedResizeObserver?.disconnect?.();
-        sharedResizeObserver = null;
-      }
-    }
+    reads.delete(read);
+    if (reads.size > 0) return;
+    readsByTarget.delete(target);
+    sharedResizeObserver?.unobserve(target);
   };
 }
 

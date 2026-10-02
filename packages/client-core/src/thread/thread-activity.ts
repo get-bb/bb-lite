@@ -1,52 +1,6 @@
-import { assertNever } from "@bb/core-ui";
-import type {
-  Thread,
-  ThreadListEntry,
-  ThreadQueuedWork,
-  ThreadWithRuntime,
-} from "@bb/domain";
-// Imported from the defining leaf module, not the timeline barrel: the sidebar
-// thread list reaches this helper before first paint, and the barrel would pull
-// the whole timeline (and @pierre/diffs, Shiki, KaTeX behind it) onto the boot
-// path for one predicate.
+import type { ThreadListEntry, ThreadQueuedWork } from "@bb/domain";
 import { isRunningThreadRuntimeDisplayStatus } from "../timeline/thread-runtime-status.js";
 import { isThreadRead } from "./thread-read-state.js";
-
-type ThreadStatusShape = Pick<
-  Thread,
-  "status" | "lastReadAt" | "latestAttentionAt" | "parentThreadId"
->;
-
-type ThreadRuntimeShape = Pick<ThreadWithRuntime, "runtime">;
-type ThreadActivityStateShape = Pick<ThreadListEntry, "activity">;
-
-function isRuntimeBusyThread(thread: ThreadRuntimeShape): boolean {
-  return isRunningThreadRuntimeDisplayStatus(thread.runtime.displayStatus);
-}
-
-function hasActiveWorkflowActivity(thread: ThreadActivityStateShape): boolean {
-  return thread.activity.activeWorkflowCount > 0;
-}
-
-function hasActiveBackgroundAgentActivity(
-  thread: ThreadActivityStateShape,
-): boolean {
-  return thread.activity.activeBackgroundAgentCount > 0;
-}
-
-function hasActiveBackgroundCommandActivity(
-  thread: ThreadActivityStateShape,
-): boolean {
-  return thread.activity.activeBackgroundCommandCount > 0;
-}
-
-function hasActivePlanModeActivity(thread: ThreadActivityStateShape): boolean {
-  return thread.activity.activePlanModeCount > 0;
-}
-
-function hasActiveGoalActivity(thread: ThreadActivityStateShape): boolean {
-  return thread.activity.activeGoalCount > 0;
-}
 
 export interface ThreadListIndicatorState {
   hasPendingInteraction: boolean;
@@ -59,35 +13,10 @@ export interface ThreadListIndicatorState {
   isPlanModeActive: boolean;
   isRuntimeActive: boolean;
   isWorkflowActive: boolean;
-  /**
-   * Whether the thread has work waiting on its queue. Read straight off the list
-   * entry rather than inferred from the thread's status: a `pending` thread is
-   * only the most obvious case, and an idle thread with a scheduled send or a
-   * plugin-queued follow-up is waiting just as much.
-   */
   queuedWork: ThreadQueuedWork;
 }
 
-export type ThreadListIndicatorKind =
-  | "unread-error"
-  | "waiting-for-input"
-  | "working-draft"
-  | "workflow"
-  | "background-agent"
-  | "background-command"
-  | "plan-mode"
-  | "goal"
-  | "runtime"
-  | "queued-failed"
-  | "queued-waiting"
-  | "draft"
-  | "unread-success"
-  | "none";
-
-const THREAD_LIST_INDICATOR_LABELS: Record<
-  Exclude<ThreadListIndicatorKind, "none">,
-  string
-> = {
+const THREAD_LIST_INDICATOR_LABELS = {
   "unread-error": "Unread thread failed",
   "waiting-for-input": "Thread needs user input",
   "working-draft": "Thread working with unsubmitted draft",
@@ -102,6 +31,10 @@ const THREAD_LIST_INDICATOR_LABELS: Record<
   draft: "Thread has unsubmitted draft",
   "unread-success": "Unread thread succeeded",
 };
+
+export type ThreadListIndicatorKind =
+  | keyof typeof THREAD_LIST_INDICATOR_LABELS
+  | "none";
 
 export function getThreadListIndicatorLabel(
   kind: ThreadListIndicatorKind,
@@ -126,19 +59,25 @@ export function threadListIndicatorStateForThread(
   thread: ThreadListEntry,
   hasUnsubmittedDraft: boolean,
 ): ThreadListIndicatorState {
-  const unreadDone = isUnreadDoneThread(thread);
+  const { activity, status } = thread;
+  const unreadDone =
+    thread.parentThreadId == null &&
+    (status === "error" || status === "idle") &&
+    !isThreadRead(thread);
   return {
     hasPendingInteraction: thread.hasPendingInteraction,
     hasUnsubmittedDraft,
-    hasUnreadError: unreadDone && thread.status === "error",
-    hasUnreadSuccess: unreadDone && thread.status !== "error",
-    isBackgroundAgentActive: hasActiveBackgroundAgentActivity(thread),
-    isBackgroundCommandActive: hasActiveBackgroundCommandActivity(thread),
-    isGoalActive: hasActiveGoalActivity(thread),
+    hasUnreadError: unreadDone && status === "error",
+    hasUnreadSuccess: unreadDone && status !== "error",
+    isBackgroundAgentActive: activity.activeBackgroundAgentCount > 0,
+    isBackgroundCommandActive: activity.activeBackgroundCommandCount > 0,
+    isGoalActive: activity.activeGoalCount > 0,
     queuedWork: thread.queuedWork,
-    isPlanModeActive: hasActivePlanModeActivity(thread),
-    isRuntimeActive: isRuntimeBusyThread(thread),
-    isWorkflowActive: hasActiveWorkflowActivity(thread),
+    isPlanModeActive: activity.activePlanModeCount > 0,
+    isRuntimeActive: isRunningThreadRuntimeDisplayStatus(
+      thread.runtime.displayStatus,
+    ),
+    isWorkflowActive: activity.activeWorkflowCount > 0,
   };
 }
 
@@ -147,9 +86,9 @@ export function resolveThreadListIndicator(
 ): ThreadListIndicatorKind {
   if (state.hasUnreadError) return "unread-error";
   if (state.hasPendingInteraction) return "waiting-for-input";
-
-  const hasActiveWork = hasThreadListWorkingActivity(state);
-  if (state.hasUnsubmittedDraft && hasActiveWork) return "working-draft";
+  if (state.hasUnsubmittedDraft && hasThreadListWorkingActivity(state)) {
+    return "working-draft";
+  }
   if (state.isPlanModeActive) return "plan-mode";
   if (state.isGoalActive) return "goal";
   if (state.isRuntimeActive) return "runtime";
@@ -161,25 +100,4 @@ export function resolveThreadListIndicator(
   if (state.queuedWork === "waiting") return "queued-waiting";
   if (state.hasUnsubmittedDraft) return "draft";
   return "none";
-}
-
-export function isUnreadDoneThread(thread: ThreadStatusShape): boolean {
-  if (thread.parentThreadId != null) {
-    return false;
-  }
-
-  switch (thread.status) {
-    case "error":
-    case "idle":
-      return !isThreadRead(thread);
-    case "active":
-    case "starting":
-    case "stopping":
-    // A pending thread has never run, so it has no outcome to be unread
-    // about; it is waiting, not done.
-    case "pending":
-      return false;
-    default:
-      return assertNever(thread.status);
-  }
 }

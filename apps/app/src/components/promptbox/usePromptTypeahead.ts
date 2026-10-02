@@ -66,9 +66,6 @@ export function usePromptTypeahead({
       suggestions: commands.suggestions,
       isLoading: commands.isLoading,
       isError: commands.isError,
-      hasMore: commands.hasMore,
-      isLoadingMore: commands.isLoadingMore,
-      loadMore: commands.loadMore,
       onQueryChange: (query, trigger) => setCommandState({ query, trigger }),
     },
   };
