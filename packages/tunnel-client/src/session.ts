@@ -1,106 +1,65 @@
-import {
-  request as httpRequest,
-  type IncomingMessage,
-  type RequestOptions,
-} from "node:http";
-import { request as httpsRequest } from "node:https";
+import * as http from "node:http";
+import * as wire from "@bb/tunnel-contract";
 import { WebSocket as NodeWebSocket } from "ws";
-import {
-  HEARTBEAT_REQUEST,
-  HEARTBEAT_RESPONSE,
-  chunkBody,
-  decodeFrame,
-  encodeFrame,
-  type Frame,
-  type HeaderPair,
-  type OpenHttpFrame,
-  type OpenWsFrame,
-} from "@bb/tunnel-contract";
-import { headersForLoopbackRequest } from "./headers.js";
-import type { TunnelClientLogger } from "./logger.js";
 
-const HEARTBEAT_INTERVAL_MS = 20_000;
-const HEARTBEAT_DEADLINE_MS = 60_000;
-const HEARTBEAT_LATE_TICK_MS = HEARTBEAT_INTERVAL_MS + 5_000;
-
+const DEFAULT_HEARTBEAT = { intervalMs: 20_000, deadlineMs: 60_000 };
+const HEARTBEAT_LATE_TICK_GRACE_MS = 5_000;
 const UNREGISTERED_PORT_BODY = "this port is not shared";
-const textEncoder = new TextEncoder();
-const INITIAL_THREAD_LOAD_PATH =
-  /^\/api\/v1\/threads\/[^/]+\/(?:timeline|conversation-outline)(?:\?|$)/u;
+const VIA_TUNNEL_HEADER = "x-bb-via-tunnel";
+const SKIP_REQUEST_HEADERS = ["host", "content-length", "connection"];
 
-interface OriginHttpRequestArgs {
-  body: Buffer | undefined;
-  headers: Record<string, string>;
-  method: string;
-  signal: AbortSignal;
-  url: URL;
-}
-
-function frameBodyHeaders(
-  headers: Record<string, string>,
-  body: Buffer | undefined,
+function headersForLoopbackRequest(
+  headers: wire.HeaderPair[],
+  target: ResolvedStreamOrigin,
 ): Record<string, string> {
-  if (body === undefined) return headers;
-  return { ...headers, "Content-Length": String(body.byteLength) };
+  const loopbackOrigin = new URL(target.origin).origin;
+  const skipped = [...SKIP_REQUEST_HEADERS, VIA_TUNNEL_HEADER];
+  const forwarded: Record<string, string> = {};
+  for (const [name, value] of headers) {
+    const lowerName = name.toLowerCase();
+    if (skipped.includes(lowerName)) continue;
+    const publicOrigin =
+      lowerName === "origin" && value === target.publicOrigin;
+    forwarded[name] = publicOrigin ? loopbackOrigin : value;
+  }
+  forwarded[VIA_TUNNEL_HEADER] = "1";
+  if (target.host !== undefined) forwarded.Host = target.host;
+  return forwarded;
 }
 
-export function requestOriginHttp(
-  args: OriginHttpRequestArgs,
-): Promise<IncomingMessage> {
-  const request = args.url.protocol === "https:" ? httpsRequest : httpRequest;
-  const options: RequestOptions = {
-    headers: frameBodyHeaders(args.headers, args.body),
-    method: args.method,
-    signal: args.signal,
-  };
-  return new Promise<IncomingMessage>((resolve, reject) => {
-    const originRequest = request(args.url, options, resolve);
+function requestOriginHttp(
+  url: URL,
+  options: http.RequestOptions,
+  body: Buffer | undefined,
+): Promise<http.IncomingMessage> {
+  const length = body && { "Content-Length": String(body.byteLength) };
+  const headers = { ...options.headers, ...length };
+  return new Promise<http.IncomingMessage>((resolve, reject) => {
+    const originRequest = http.request(url, { ...options, headers }, resolve);
     originRequest.once("error", reject);
-    originRequest.end(args.body);
+    originRequest.end(body);
   });
 }
 
-function responseHeaderPairs(response: IncomingMessage): HeaderPair[] {
-  const headers: HeaderPair[] = [];
-  for (let index = 0; index < response.rawHeaders.length; index += 2) {
-    const name = response.rawHeaders[index];
-    const value = response.rawHeaders[index + 1];
-    if (name !== undefined && value !== undefined) {
-      headers.push([name, value]);
-    }
-  }
-  return headers;
-}
-
-function isInitialThreadLoad(path: string): boolean {
-  if (!INITIAL_THREAD_LOAD_PATH.test(path)) {
-    return false;
-  }
-  return !new URL(path, "http://bb.local").searchParams.has("afterSequence");
-}
-
-function roundDurationMs(durationMs: number): number {
-  return Math.round(durationMs * 10) / 10;
-}
-
-export function isBareBbRealtimeWs(
-  path: string,
-  target: string | undefined,
-): boolean {
-  if (target !== undefined) return false;
-  return path === "/ws" || path.startsWith("/ws?") || path.startsWith("/ws/");
+function responseHeaderPairs(
+  response: http.IncomingMessage,
+): wire.HeaderPair[] {
+  const raw = response.rawHeaders;
+  return raw.flatMap((name, index) => {
+    const value = raw[index + 1];
+    return index % 2 === 0 && value !== undefined ? [[name, value]] : [];
+  });
 }
 
 interface HttpStream {
-  meta: OpenHttpFrame;
+  meta: wire.OpenHttpFrame;
   chunks: Buffer[];
   abort: AbortController;
 }
 interface WsStream {
   socket: NodeWebSocket;
-  buffered: Frame[];
+  buffered: wire.Frame[];
   open: boolean;
-  countsAsRemoteClient: boolean;
 }
 
 interface ResolvedStreamOrigin {
@@ -115,11 +74,9 @@ export type StreamOriginResult =
 
 interface TunnelSessionOptions {
   tunnel: NodeWebSocket;
-  log: TunnelClientLogger;
+  log: { info?(message: string): void; warn(message: string): void };
   resolveOrigin: (target: string | undefined) => StreamOriginResult;
-  onRemoteClientsChange?: (remoteClients: number) => void;
-  onActivity?: (at: number) => void;
-  monotonicNow?: () => number;
+  heartbeat?: { intervalMs: number; deadlineMs: number };
 }
 
 export class TunnelSession {
@@ -129,49 +86,40 @@ export class TunnelSession {
   private lastHeartbeatTickAt = 0;
   private stallGraceSinceAck = false;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
-  private remoteClientCount = 0;
-  lastRemoteActivityAt: number | null = null;
 
   constructor(private readonly options: TunnelSessionOptions) {}
 
-  get remoteClients(): number {
-    return this.remoteClientCount;
-  }
-
   start(): void {
     const { tunnel } = this.options;
-    const monotonicNow = this.options.monotonicNow ?? (() => performance.now());
+    const { intervalMs, deadlineMs } =
+      this.options.heartbeat ?? DEFAULT_HEARTBEAT;
+    const lateTickMs = intervalMs + HEARTBEAT_LATE_TICK_GRACE_MS;
     this.lastAck = Date.now();
-    this.lastHeartbeatTickAt = monotonicNow();
+    this.lastHeartbeatTickAt = performance.now();
     this.heartbeat = setInterval(() => {
-      const tickAt = monotonicNow();
-      const tickGapMs = tickAt - this.lastHeartbeatTickAt;
-      this.lastHeartbeatTickAt = tickAt;
-      const now = Date.now();
-      if (tickGapMs > HEARTBEAT_LATE_TICK_MS && !this.stallGraceSinceAck) {
-        this.options.log.warn(
-          `event loop stalled for ${Math.round(tickGapMs / 1000)}s; restarting the tunnel heartbeat deadline`,
-        );
-        this.lastAck = now;
+      const tickGapMs = performance.now() - this.lastHeartbeatTickAt;
+      this.lastHeartbeatTickAt += tickGapMs;
+      if (tickGapMs > lateTickMs && !this.stallGraceSinceAck) {
+        this.options.log.warn("event loop stalled; restarting the deadline");
+        this.lastAck = Date.now();
         this.stallGraceSinceAck = true;
-      } else if (now - this.lastAck > HEARTBEAT_DEADLINE_MS) {
+      } else if (Date.now() - this.lastAck > deadlineMs) {
         this.options.log.warn("tunnel heartbeat missed; reconnecting");
-        tunnel.terminate();
-        return;
+        return tunnel.terminate();
       }
-      tunnel.send(HEARTBEAT_REQUEST);
-    }, HEARTBEAT_INTERVAL_MS);
+      tunnel.send(wire.HEARTBEAT_REQUEST);
+    }, intervalMs);
 
     tunnel.on("message", (data: Buffer, isBinary: boolean) => {
       if (!isBinary) {
-        if (data.toString() === HEARTBEAT_RESPONSE) {
+        if (data.toString() === wire.HEARTBEAT_RESPONSE) {
           this.lastAck = Date.now();
           this.stallGraceSinceAck = false;
         }
         return;
       }
       try {
-        this.onFrame(decodeFrame(data));
+        this.onFrame(wire.decodeFrame(data));
       } catch (e) {
         this.options.log.warn(`tunnel bad frame: ${String(e)}`);
       }
@@ -186,35 +134,19 @@ export class TunnelSession {
       s.socket.close(1001, "tunnel closed");
     this.httpStreams.clear();
     this.wsStreams.clear();
-    this.setRemoteClients(0);
   }
 
-  private noteActivity(): void {
-    const at = Date.now();
-    this.lastRemoteActivityAt = at;
-    this.options.onActivity?.(at);
-  }
-
-  private setRemoteClients(next: number): void {
-    const prev = this.remoteClientCount;
-    this.remoteClientCount = next;
-    if ((prev === 0) !== (next === 0)) {
-      this.options.onRemoteClientsChange?.(next);
-    }
-  }
-
-  private adjustRemoteClients(delta: number): void {
-    this.setRemoteClients(Math.max(0, this.remoteClientCount + delta));
-  }
-
-  private send(frame: Frame): void {
+  private send(frame: wire.Frame): void {
     if (this.options.tunnel.readyState === NodeWebSocket.OPEN) {
-      this.options.tunnel.send(encodeFrame(frame));
+      this.options.tunnel.send(wire.encodeFrame(frame));
     }
   }
 
-  private onFrame(frame: Frame): void {
-    this.noteActivity();
+  private closeStream(streamId: number, code: number, reason: string): void {
+    this.send({ type: "close-stream", streamId, code, reason });
+  }
+
+  private onFrame(frame: wire.Frame): void {
     switch (frame.type) {
       case "open-http": {
         const stream: HttpStream = {
@@ -261,7 +193,7 @@ export class TunnelSession {
         const w = this.wsStreams.get(frame.streamId);
         if (w) {
           w.socket.close(frame.code, frame.reason);
-          this.forgetWsStream(frame.streamId, w);
+          this.wsStreams.delete(frame.streamId);
         }
         return;
       }
@@ -271,23 +203,6 @@ export class TunnelSession {
     }
   }
 
-  private forgetWsStream(streamId: number, stream: WsStream): void {
-    if (!this.wsStreams.delete(streamId)) return;
-    if (stream.countsAsRemoteClient) this.adjustRemoteClients(-1);
-  }
-
-  private rejectUnregisteredHttp(streamId: number): void {
-    const body = textEncoder.encode(UNREGISTERED_PORT_BODY);
-    this.send({
-      type: "resp-head",
-      streamId,
-      status: 404,
-      headers: [["content-type", "text/plain; charset=utf-8"]],
-    });
-    for (const c of chunkBody(streamId, body)) this.send(c);
-    this.send({ type: "body-end", streamId });
-  }
-
   private async executeHttp(
     streamId: number,
     stream: HttpStream,
@@ -295,156 +210,87 @@ export class TunnelSession {
     const { meta } = stream;
     const originResult = this.options.resolveOrigin(meta.target);
     if (originResult.kind === "unregistered") {
-      this.rejectUnregisteredHttp(streamId);
+      const headers: wire.HeaderPair[] = [
+        ["content-type", "text/plain; charset=utf-8"],
+      ];
+      const data = Buffer.from(UNREGISTERED_PORT_BODY);
+      this.send({ type: "resp-head", streamId, status: 404, headers });
+      this.send({ type: "body-chunk", streamId, data });
+      this.send({ type: "body-end", streamId });
       this.httpStreams.delete(streamId);
       return;
     }
     const { resolved } = originResult;
-    const headers = headersForLoopbackRequest(meta.headers, {
-      publicOrigin: resolved.publicOrigin,
-      loopbackOrigin: new URL(resolved.origin).origin,
-      ...(resolved.host !== undefined ? { host: resolved.host } : {}),
-    });
+    const headers = headersForLoopbackRequest(meta.headers, resolved);
+    const { signal } = stream.abort;
     try {
-      const startedAt = performance.now();
       const body = meta.hasBody ? Buffer.concat(stream.chunks) : undefined;
-      const res = await requestOriginHttp({
-        url: new URL(`${resolved.origin.replace(/\/$/u, "")}${meta.path}`),
-        method: meta.method,
-        headers,
-        body,
-        signal: stream.abort.signal,
-      });
-      const originTtfbMs = performance.now() - startedAt;
-      const respHeaders = responseHeaderPairs(res);
-      const initialThreadLoad = isInitialThreadLoad(meta.path);
-      if (initialThreadLoad) {
-        respHeaders.push([
-          "server-timing",
-          `bb_connect_origin;dur=${roundDurationMs(originTtfbMs)}`,
-        ]);
-      }
+      const url = new URL(`${resolved.origin.replace(/\/$/u, "")}${meta.path}`);
+      const options = { method: meta.method, headers, signal };
+      const res = await requestOriginHttp(url, options, body);
       this.send({
         type: "resp-head",
         streamId,
         status: res.statusCode ?? 502,
-        headers: respHeaders,
+        headers: responseHeaderPairs(res),
       });
-      let responseBytes = 0;
       for await (const chunk of res) {
         const value =
           chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk));
-        responseBytes += value.byteLength;
-        for (const frame of chunkBody(streamId, value)) this.send(frame);
+        for (const frame of wire.chunkBody(streamId, value)) this.send(frame);
       }
       this.send({ type: "body-end", streamId });
-      if (initialThreadLoad) {
-        const totalMs = performance.now() - startedAt;
-        this.options.log.info?.(
-          [
-            "bb connect thread load",
-            `path=${meta.path}`,
-            `status=${res.statusCode ?? 502}`,
-            `originTtfbMs=${roundDurationMs(originTtfbMs)}`,
-            `originBodyMs=${roundDurationMs(totalMs - originTtfbMs)}`,
-            `totalMs=${roundDurationMs(totalMs)}`,
-            `responseBytes=${responseBytes}`,
-            `contentEncoding=${res.headers["content-encoding"] ?? "identity"}`,
-          ].join(" "),
-        );
-      }
     } catch (e) {
-      if (!stream.abort.signal.aborted) {
+      if (!signal.aborted) {
         this.options.log.warn(
-          `origin http error on ${meta.method} ${new URL(meta.path, "http://bb.local").pathname}: ${String(e)}`,
+          `origin http error on ${meta.method} ${meta.path.split("?")[0]}: ${String(e)}`,
         );
-        this.send({
-          type: "close-stream",
-          streamId,
-          code: 1011,
-          reason: String(e),
-        });
+        this.closeStream(streamId, 1011, String(e));
       }
     } finally {
       this.httpStreams.delete(streamId);
     }
   }
 
-  private openOriginWs(frame: OpenWsFrame): void {
+  private openOriginWs(frame: wire.OpenWsFrame): void {
     const originResult = this.options.resolveOrigin(frame.target);
+    const { streamId } = frame;
     if (originResult.kind === "unregistered") {
-      this.send({
-        type: "close-stream",
-        streamId: frame.streamId,
-        code: 1008,
-        reason: UNREGISTERED_PORT_BODY,
-      });
-      return;
+      return this.closeStream(streamId, 1008, UNREGISTERED_PORT_BODY);
     }
     const { resolved } = originResult;
-    const wsOrigin = resolved.origin.replace(/^http/, "ws");
-    const headers = headersForLoopbackRequest(frame.headers, {
-      publicOrigin: resolved.publicOrigin,
-      loopbackOrigin: new URL(resolved.origin).origin,
-      ...(resolved.host !== undefined ? { host: resolved.host } : {}),
-    });
-    const countsAsRemoteClient = isBareBbRealtimeWs(frame.path, frame.target);
+    const url = `${resolved.origin.replace(/^http/, "ws")}${frame.path}`;
+    const headers = headersForLoopbackRequest(frame.headers, resolved);
     let socket: NodeWebSocket;
     try {
-      socket = new NodeWebSocket(`${wsOrigin}${frame.path}`, frame.protocols, {
-        headers,
-      });
+      socket = new NodeWebSocket(url, frame.protocols, { headers });
     } catch (e) {
-      this.send({
-        type: "close-stream",
-        streamId: frame.streamId,
-        code: 1011,
-        reason: String(e),
-      });
-      return;
+      return this.closeStream(streamId, 1011, String(e));
     }
-    const stream: WsStream = {
-      socket,
-      buffered: [],
-      open: false,
-      countsAsRemoteClient,
-    };
-    this.wsStreams.set(frame.streamId, stream);
-    if (countsAsRemoteClient) this.adjustRemoteClients(1);
+    const stream: WsStream = { socket, buffered: [], open: false };
+    this.wsStreams.set(streamId, stream);
 
     socket.on("open", () => {
       stream.open = true;
-      this.send({
-        type: "ws-open-ack",
-        streamId: frame.streamId,
-        protocol: socket.protocol || null,
-      });
+      const protocol = socket.protocol || null;
+      this.send({ type: "ws-open-ack", streamId, protocol });
       for (const b of stream.buffered) this.onFrame(b);
       stream.buffered = [];
     });
     socket.on("message", (data: Buffer, isBinary: boolean) => {
-      this.send({
-        type: "ws-data",
-        streamId: frame.streamId,
-        isBinary,
-        data: isBinary
-          ? new Uint8Array(data)
-          : new Uint8Array(Buffer.from(data.toString())),
-      });
+      const bytes = isBinary ? data : Buffer.from(data.toString());
+      const frameData = new Uint8Array(bytes);
+      this.send({ type: "ws-data", streamId, isBinary, data: frameData });
     });
     socket.on("close", (code: number, reason: Buffer) => {
-      if (this.wsStreams.has(frame.streamId)) {
-        this.forgetWsStream(frame.streamId, stream);
-        this.send({
-          type: "close-stream",
-          streamId: frame.streamId,
-          code: code === 1000 || (code >= 3000 && code <= 4999) ? code : 1000,
-          reason: reason.toString(),
-        });
+      const relayed = code === 1000 || (code >= 3000 && code <= 4999);
+      if (this.wsStreams.delete(streamId)) {
+        this.closeStream(streamId, relayed ? code : 1000, reason.toString());
       }
     });
     socket.on("error", (e: Error) => {
-      this.options.log.warn(`origin ws error on ${frame.path}: ${e.message}`);
+      const path = frame.path.split("?")[0];
+      this.options.log.warn(`origin ws error on ${path}: ${e.message}`);
     });
   }
 }

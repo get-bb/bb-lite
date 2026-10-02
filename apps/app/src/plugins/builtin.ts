@@ -15,6 +15,10 @@ export const BUILTIN_PLUGINS: readonly BuiltinPlugin[] = [
     load: () => import("../../../../plugins/navigation/app"),
   },
   {
+    id: "connect",
+    load: () => import("../../../../plugins/connect/app"),
+  },
+  {
     id: "secrets",
     load: () => import("../../../../plugins/secrets/app"),
   },

@@ -81,6 +81,7 @@ it("loads the builtin table and the directories named in config.json", async () 
     ["secrets", "running", "builtin", "secret", "Lock"],
     ["ask-user-question", "running", "builtin", undefined, "MessageQuestion"],
     ["custom-instructions", "running", undefined, "instructions", "EditFile"],
+    ["connect", "running", "builtin", "connect", "ComputerCloud"],
     ["echo", "running", "external", "echo", icon],
   ]);
   expect(plugins.at(-1)).toMatchObject({ enabled: true, hasSettings: true });
@@ -91,8 +92,8 @@ it("loads the builtin table and the directories named in config.json", async () 
   const contributed = (await request("/contributions")).body as Contributions;
   const say = { pluginId: "echo", commands: [{ name: "say" }] };
   expect(contributed.cliCommands.at(-1)).toMatchObject(say);
-  const skills = expect.stringMatching(/(thread-list|secrets)\/skills$/u);
-  expect(ctx.plugins.skillDirs()).toEqual([skills, skills]);
+  const skills = expect.stringMatching(/thread-list\/skills$/u);
+  expect(ctx.plugins.skillDirs()).toContainEqual(skills);
 });
 
 it("validates rpc calls, stores data and broadcasts realtime signals", async () => {

@@ -73,6 +73,9 @@ Principals: `owner`, `runner(hostId)`, `anonymous`.
   gate-authenticated machine (so `/api/v1/*` minus the machine and settings writes), any other is
   anonymous. This is how the runner's loopback CLI proxy reaches the API on a direct connection; through
   the tunnel the gate's verdict stands and the bearer token only authenticates the runner socket.
+- The server's public URL (`publicServerUrl(ctx)`: the `Origin` allow-list above, join commands, the URL
+  handed to remote sessions, the system config) is what a plugin set with `bb.server.setPublicUrl`, else
+  the `machineServerUrl` setting. bb connect sets it to the linked `serverUrl` while remote access is on.
 
 ## The Runner interface
 
@@ -106,8 +109,9 @@ Remote transport rules:
   reliable events are never shed.
 - Close code 4001 means the machine was removed or another runner took its place: that runner process
   stops instead of redialing.
-- `<dataDir>/runner.json` (0600) holds `{serverUrl, hostId, runnerToken, headers}`; `headers` go on the
-  join request, the socket upgrade and everything the CLI proxy forwards. Default directory
+- `<dataDir>/runner.json` (0600) holds `{serverUrl, hostId, runnerToken, headers}`; `headers` (from the
+  join blob, a reused legacy machine config and `--header`, later ones winning) go on the join request,
+  the socket upgrade and everything the CLI proxy forwards. Default directory
   `~/.bb-150k-runner/<server host>`.
 
 Rules:
@@ -284,7 +288,8 @@ Server API (`PluginServerApi` in `packages/plugin/src/server-api.ts`): `settings
 `cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`, `ui.requestInput`,
 `ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
 `inference.register`, `threads` (spawn, send, get, list, stop, update, output, events — direct calls,
-not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`.
+not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`,
+`server.setPublicUrl`, `machines.setAccessProvider`.
 
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
@@ -324,6 +329,12 @@ materialised by the CLI before the request.
   write settings or mint the plugin token. For `http.route`: `local` (default) admits only the owner,
   `token` admits any admitted caller presenting the plugin token (`x-bb-plugin-token` or `?token=`),
   `none` adds no check beyond the guard. Nothing is reachable anonymously.
+- **Remote access seam.** `ctx.plugins.publicUrl()` and `ctx.plugins.machineAccess()` return what a
+  running plugin registered (they vanish with the plugin). The hosts routes ask the machine access
+  provider for `grant(hostId) → {serverUrl, headers} | null` when they build a join command (the
+  headers travel in the join blob and the runner sends them on every request) and call
+  `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
+  mints one getbb.app machine credential per machine and revokes it on removal.
 - **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
   `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
   `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,

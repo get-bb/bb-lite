@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { PluginServerEntry } from "@bb/plugin";
+import connect from "../../../../plugins/connect/src/server.js";
 import askUserQuestion from "../../../../plugins/ask-user-question/src/server.js";
 import customInstructions from "../../../../plugins/custom-instructions/server.js";
 import secrets from "../../../../plugins/secrets/src/server.js";
@@ -22,4 +23,5 @@ export const builtinPlugins: BuiltinPlugin[] = [
     directory: pluginDirectory("custom-instructions"),
     server: customInstructions,
   },
+  { directory: pluginDirectory("connect"), server: connect },
 ];

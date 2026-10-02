@@ -1,17 +1,17 @@
 import { Hono } from "hono";
 import type { ServerContext } from "../context.js";
-import { getAppSettings } from "../db/settings.js";
 import { findRunnerHost } from "../runners/enrollment.js";
+import { publicServerUrl } from "../runners/hosts.js";
 import type { ApiApp, AppEnv } from "./api.js";
 import { errorResponse } from "./errors.js";
 import { registerRoutes } from "./routes/index.js";
 import { registerStaticApp } from "./static.js";
 import { authorize, principals, type TrustLookups } from "./trust.js";
 
-export function trustLookups({ db }: ServerContext): TrustLookups {
+export function trustLookups(ctx: ServerContext): TrustLookups {
   return {
-    publicUrl: () => getAppSettings(db).machineServerUrl,
-    runnerMachine: (token) => findRunnerHost(db, token),
+    publicUrl: () => publicServerUrl(ctx),
+    runnerMachine: (token) => findRunnerHost(ctx.db, token),
   };
 }
 

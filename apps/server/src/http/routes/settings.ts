@@ -15,6 +15,7 @@ import {
   setAppSettings,
   writeSetting,
 } from "../../db/settings.js";
+import { publicServerUrl } from "../../runners/hosts.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
 import {
   customThemeCssPath,
@@ -59,8 +60,7 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.config, async (c) => {
     const generalSettings = getAppSettings(ctx.db);
     const keybindingOverrides = readSetting(ctx.db, keybindingOverridesSetting);
-    const { machineServerUrl } = generalSettings;
-    const publicUrl = machineServerUrl?.replace(/\/+$/u, "") ?? null;
+    const publicUrl = publicServerUrl(ctx);
     return c.json({
       ...CUT_FEATURE_SYSTEM_CONFIG,
       serverAccess: {
