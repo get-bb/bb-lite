@@ -477,7 +477,6 @@ export function ThreadDetailView({
       environmentIcon={environmentChrome?.environmentIcon}
       environmentLabel={environmentChrome?.environmentLabel}
       environmentProviderName={environmentChrome?.environmentProviderName}
-      canRestoreEnvironment={thread.canRestoreEnvironment}
       environmentGoneStatus={
         hostLifecycle ?? (isWorkspaceDeleted ? "destroyed" : null)
       }

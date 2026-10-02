@@ -203,7 +203,6 @@ export interface ThreadsArea {
   resolveMentions(
     args: api.ResolveThreadMentionsRequest & Abortable,
   ): Promise<api.ResolveThreadMentionsResponse>;
-  restoreEnvironment(args: ThreadTarget): Promise<api.ThreadResponse>;
   search(
     args: api.ThreadSearchQuery & Abortable,
   ): Promise<api.ThreadSearchResponse>;
@@ -448,8 +447,6 @@ export function createThreadsArea(http: Http): ThreadsArea {
       }),
     resolveMentions: ({ threadIds, signal }) =>
       http.json(routes.resolveMentions, { json: { threadIds } }, signal),
-    restoreEnvironment: ({ threadId }) =>
-      http.json(routes.restoreEnvironment, at(threadId)),
     search: (args) =>
       http.json(
         routes.search,

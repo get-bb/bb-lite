@@ -105,8 +105,6 @@ interface ThreadPromptContextBannerProps {
   } | null;
   environmentGoneSection: {
     status: Extract<EnvironmentStatus, "destroyed"> | MachineRemovalStatus;
-    onRestore?: () => void;
-    restorePending?: boolean;
   } | null;
   parentThreadSection: ThreadPromptParentThreadSection | null;
   childThreadsSection: ThreadPromptChildThreadsSection | null;
@@ -439,7 +437,7 @@ export function ThreadPromptContextBanner({
       goneStatus === undefined
         ? null
         : goneStatus === "destroyed"
-          ? "Environment unavailable. You can still view this thread’s history."
+          ? "The workspace was removed. Sending a message restores it."
           : machineRemovalDescriptions[goneStatus];
     const statusIcon = goneStatus === undefined ? "Archive" : "CircleX";
     const isStatusExpanded =
@@ -451,14 +449,7 @@ export function ThreadPromptContextBanner({
           pendingLabel: "Unarchiving...",
           onClick: archivedSection.onUnarchive,
         }
-      : environmentGoneSection?.onRestore
-        ? {
-            pending: Boolean(environmentGoneSection.restorePending),
-            label: "Restore workspace",
-            pendingLabel: "Restoring...",
-            onClick: environmentGoneSection.onRestore,
-          }
-        : null;
+      : null;
     return (
       <PromptStackCard
         ariaLabel="Thread history"
