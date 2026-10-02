@@ -9,8 +9,10 @@ import { Skeleton } from "@bb/shared-ui/skeleton";
 import { TimelineReasoningExpansionContext } from "./ExpandableTimelineRow.js";
 import { ThreadTimelineRows } from "./ThreadTimelineRows.js";
 import { useAutoLoadOlderRows } from "./useAutoLoadOlderRows.js";
-import { TimelineStatusIndicator } from "./TimelineStatusIndicator.js";
-import { TimelineWorkingIndicator } from "./TimelineWorkingIndicator.js";
+import {
+  TimelineStatusIndicator,
+  TimelineWorkingIndicator,
+} from "./TimelineWorkingIndicator.js";
 import type {
   ThreadTimelineUnreadDividerPlacement,
   TimelineHandlers,

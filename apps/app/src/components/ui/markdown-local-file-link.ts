@@ -49,9 +49,13 @@ function splitLineSuffix(value: string): MarkdownPreviewLocalFileLink {
   }
   const startLineNumber = Number(match[1] ?? match[3]);
   const endLineNumber = Number(match[2] ?? match[4] ?? startLineNumber);
+  const lineRange = createFilePreviewLineRange({
+    endLineNumber,
+    startLineNumber,
+  });
   return {
-    lineRange: createFilePreviewLineRange({ endLineNumber, startLineNumber }),
-    path: value.slice(0, match.index),
+    lineRange,
+    path: lineRange === null ? "" : value.slice(0, match.index),
   };
 }
 
@@ -64,7 +68,7 @@ function parseAbsoluteLocalFileHref(
   }
   const parsed = splitLineSuffix(safeDecodeURIComponent(href));
   if (
-    parsed.path === "/" ||
+    parsed.path.length < 2 ||
     parsed.path.endsWith("/") ||
     UNSAFE_PATH_PATTERN.test(parsed.path) ||
     (requireFileBasename &&

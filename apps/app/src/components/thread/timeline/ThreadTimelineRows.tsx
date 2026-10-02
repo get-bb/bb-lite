@@ -39,7 +39,7 @@ import {
 } from "./ExpandableTimelineRow.js";
 import { TimelineImageGallery } from "./TimelineImageGallery.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
-import { TimelineReasoningDetail } from "./TimelineReasoningDetail.js";
+import { TimelineReasoningDetail } from "./TimelineWorkingIndicator.js";
 import { WorkRowBody } from "./TimelineRowDetails.js";
 import {
   ExpandableTimelineTitle,

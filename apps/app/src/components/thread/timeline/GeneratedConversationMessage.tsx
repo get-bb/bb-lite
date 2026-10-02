@@ -247,23 +247,20 @@ export function GeneratedConversationMessage({
     [messageMentions, preview.text],
   );
   const imagePolicy = isAgent ? "alt-text" : "render";
-  const previewMentions = useMemo(
-    () => ({
-      mentions: previewBody.mentions,
-      preserveSoftBreaks: true,
-      resolveLinkHref: resolveSegmentLinkHref,
+  const [previewMentions, bodyMentions] = useMemo(
+    () =>
+      [previewBody.mentions, messageMentions].map((mentions) => ({
+        mentions,
+        preserveSoftBreaks: true,
+        resolveLinkHref: resolveSegmentLinkHref,
+        resolveMentionLink,
+      })),
+    [
+      previewBody.mentions,
+      messageMentions,
+      resolveSegmentLinkHref,
       resolveMentionLink,
-    }),
-    [previewBody.mentions, resolveSegmentLinkHref, resolveMentionLink],
-  );
-  const bodyMentions = useMemo(
-    () => ({
-      mentions: messageMentions,
-      preserveSoftBreaks: true,
-      resolveLinkHref: resolveSegmentLinkHref,
-      resolveMentionLink,
-    }),
-    [messageMentions, resolveSegmentLinkHref, resolveMentionLink],
+    ],
   );
 
   const collapsedPreview =

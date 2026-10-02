@@ -686,6 +686,12 @@ function MarkdownSource({
   );
 }
 
+function heading(Tag: `h${1 | 2 | 3 | 4 | 5 | 6}`, className: string) {
+  return ({ children }: { children?: ReactNode }) => (
+    <Tag className={`${className} first:mt-0`}>{children}</Tag>
+  );
+}
+
 const MARKDOWN_COMPONENTS: Components = {
   a: MarkdownAnchor,
   blockquote: ({ children }) => (
@@ -694,35 +700,17 @@ const MARKDOWN_COMPONENTS: Components = {
     </blockquote>
   ),
   code: MarkdownCode,
-  h1: ({ children }) => (
-    <h1 className="mb-2 mt-4 text-lg font-semibold text-foreground first:mt-0">
-      {children}
-    </h1>
+  h1: heading("h1", "mb-2 mt-4 text-lg font-semibold text-foreground"),
+  h2: heading("h2", "mb-2 mt-4 text-base font-semibold text-foreground"),
+  h3: heading("h3", "mb-2 mt-3 text-sm font-semibold text-foreground"),
+  h4: heading("h4", "mb-1 mt-3 text-sm font-medium text-foreground"),
+  h5: heading(
+    "h5",
+    "mb-1 mt-2 text-sm font-semibold uppercase text-muted-foreground",
   ),
-  h2: ({ children }) => (
-    <h2 className="mb-2 mt-4 text-base font-semibold text-foreground first:mt-0">
-      {children}
-    </h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="mb-2 mt-3 text-sm font-semibold text-foreground first:mt-0">
-      {children}
-    </h3>
-  ),
-  h4: ({ children }) => (
-    <h4 className="mb-1 mt-3 text-sm font-medium text-foreground first:mt-0">
-      {children}
-    </h4>
-  ),
-  h5: ({ children }) => (
-    <h5 className="mb-1 mt-2 text-sm font-semibold uppercase text-muted-foreground first:mt-0">
-      {children}
-    </h5>
-  ),
-  h6: ({ children }) => (
-    <h6 className="mb-1 mt-2 text-xs font-semibold uppercase text-muted-foreground first:mt-0">
-      {children}
-    </h6>
+  h6: heading(
+    "h6",
+    "mb-1 mt-2 text-xs font-semibold uppercase text-muted-foreground",
   ),
   hr: () => <hr className="my-4 border-t border-border" />,
   img: MarkdownImage,
