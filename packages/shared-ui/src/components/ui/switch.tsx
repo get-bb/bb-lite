@@ -5,6 +5,7 @@ import { CONTROL_HOVER_TRANSITION } from "./motion.js";
 function Switch({
   checked,
   className,
+  disabled,
   onCheckedChange,
   onClick,
   ...props
@@ -19,6 +20,7 @@ function Switch({
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       data-state={state}
       className={cn(
         `peer inline-flex shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-input shadow-xs ${CONTROL_HOVER_TRANSITION} outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-foreground data-[state=unchecked]:border-input data-[state=unchecked]:bg-muted`,
