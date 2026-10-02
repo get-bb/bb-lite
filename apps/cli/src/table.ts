@@ -192,10 +192,6 @@ ${MACHINE}  Only this machine
 env show|get <id>  Show an environment
 env status <id>  Show the git state of an environment
   --merge-base-branch <branch>  Also compare with this branch
-env diff <id>  Print the diff of an environment
-  --target <target>  uncommitted (default), branch_committed, all or commit
-  --merge-base-branch <branch>  Base for branch_committed and all
-  --sha <sha>  Commit for --target commit
 env commit <id>  Commit every change in an environment
 env update <id>  Rename an environment or set its merge-base branch
   --name <name>  Display name

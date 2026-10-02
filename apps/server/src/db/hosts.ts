@@ -1,14 +1,11 @@
 import type { Host, HostType, PermissionMode } from "@bb/domain";
-import type { Db } from "./index.js";
-import { updateRow, type RowPatch } from "./update-row.js";
-
-export type HostPhase = "creating" | "active" | "removing" | "destroyed";
+import { insertRow, updateRow, type Db, type RowValues } from "./index.js";
 
 export interface HostRow {
   id: string;
   name: string;
   type: HostType;
-  phase: HostPhase;
+  phase: "creating" | "active" | "removing" | "destroyed";
   statusMessage: string | null;
   maxPermissionMode: PermissionMode;
   launchKey: string | null;
@@ -16,6 +13,8 @@ export interface HostRow {
   joinTokenHash: string | null;
   joinExpiresAt: number | null;
   connectMachineId: string | null;
+  lastInstanceId: string | null;
+  lastEventSeq: number;
   lastSeenAt: number | null;
   lastRejectedProtocolVersion: number | null;
   platform: string | null;
@@ -24,48 +23,22 @@ export interface HostRow {
   updatedAt: number;
 }
 
-export interface NewHost {
-  id: string;
-  name: string;
-  phase: HostPhase;
-  statusMessage?: string;
-  launchKey?: string;
-}
-
 type HostLookup = "id" | "launch_key" | "token_hash" | "join_token_hash";
-
-const HOST_COLUMNS = `id, name, type, phase, status_message,
-  max_permission_mode, launch_key, token_hash, join_token_hash,
-  join_expires_at, connect_machine_id, last_seen_at,
-  last_rejected_protocol_version, platform, thread_storage_root, created_at,
-  updated_at`;
+type NewHost = Pick<HostRow, "id" | "name" | "phase"> &
+  Partial<Pick<HostRow, "statusMessage" | "launchKey">>;
 
 export function findHost(
   db: Db,
   column: HostLookup,
   value: string,
 ): HostRow | undefined {
-  return db.get<HostRow>(
-    `SELECT ${HOST_COLUMNS} FROM hosts
-     WHERE ${column} = ? AND destroyed_at IS NULL`,
-    value,
-  );
+  const sql = `SELECT * FROM hosts WHERE ${column} = ? AND destroyed_at IS NULL`;
+  return db.get<HostRow>(sql, value);
 }
 
 export function findHostName(db: Db, id: string): string | null {
   const sql = "SELECT name FROM hosts WHERE id = ?";
   return db.get<{ name: string }>(sql, id)?.name ?? null;
-}
-
-export function findEnvironmentHostId(
-  db: Db,
-  environmentId: string,
-): string | undefined {
-  const environment = db.get<{ hostId: string }>(
-    "SELECT host_id FROM environments WHERE id = ?",
-    environmentId,
-  );
-  return environment?.hostId;
 }
 
 export function listHosts(
@@ -74,7 +47,7 @@ export function listHosts(
 ): HostRow[] {
   return db
     .all<HostRow>(
-      `SELECT ${HOST_COLUMNS} FROM hosts WHERE destroyed_at IS NULL
+      `SELECT * FROM hosts WHERE destroyed_at IS NULL
        ORDER BY created_at, id`,
     )
     .filter((host) => filter.includeCreating || host.phase !== "creating")
@@ -82,38 +55,12 @@ export function listHosts(
 }
 
 export function insertHost(db: Db, host: NewHost): void {
-  db.run(
-    `INSERT INTO hosts
-       (id, name, phase, status_message, launch_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-    host.id,
-    host.name,
-    host.phase,
-    host.statusMessage ?? null,
-    host.launchKey ?? null,
-    db.now(),
-    db.now(),
-  );
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  insertRow(db, "hosts", { ...host, ...at }, "ignore");
 }
 
-export function updateHost(db: Db, id: string, patch: RowPatch): void {
+export function updateHost(db: Db, id: string, patch: RowValues): void {
   updateRow(db, "hosts", id, patch);
-}
-
-export interface HostEventCursor {
-  lastInstanceId: string | null;
-  lastEventSeq: number;
-}
-
-export function findHostEventCursor(
-  db: Db,
-  id: string,
-): HostEventCursor | undefined {
-  return db.get<HostEventCursor>(
-    `SELECT last_instance_id, last_event_seq FROM hosts
-     WHERE id = ? AND destroyed_at IS NULL`,
-    id,
-  );
 }
 
 export function advanceHostEventCursor(

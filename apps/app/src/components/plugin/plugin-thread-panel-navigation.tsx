@@ -1,17 +1,14 @@
 import {
   createContext,
+  useContext,
   useEffect,
-  useLayoutEffect,
   useRef,
   type ReactNode,
-  useContext,
 } from "react";
 import type { BbNavigate } from "@bb/plugin/app";
 
 export type PluginThreadPanelOpenHandler = (
-  options: Parameters<BbNavigate["openThreadPanel"]>[0] & {
-    pluginId: string;
-  },
+  options: Parameters<BbNavigate["openThreadPanel"]>[0] & { pluginId: string },
 ) => boolean;
 
 const PluginThreadPanelNavigationContext =
@@ -35,34 +32,23 @@ export function usePluginThreadPanelOpenHandler(): PluginThreadPanelOpenHandler 
   return useContext(PluginThreadPanelNavigationContext);
 }
 
-const focusedOpeners = new Map<symbol, PluginThreadPanelOpenHandler>();
+const focusedOpeners = new Map<object, PluginThreadPanelOpenHandler>();
 
 export function usePublishThreadPanelOpener(
   openThreadPanel: PluginThreadPanelOpenHandler,
   isActive: boolean,
 ): void {
   const handlerRef = useRef(openThreadPanel);
-  useLayoutEffect(() => {
-    handlerRef.current = openThreadPanel;
-  }, [openThreadPanel]);
-  const tokenRef = useRef<symbol | null>(null);
-  tokenRef.current ??= Symbol("thread-panel-opener");
   useEffect(() => {
-    const token = tokenRef.current;
-    if (token === null || !isActive) return;
-    focusedOpeners.set(token, (options) => handlerRef.current(options));
-    return () => {
-      focusedOpeners.delete(token);
-    };
+    handlerRef.current = openThreadPanel;
+  });
+  useEffect(() => {
+    if (!isActive) return;
+    focusedOpeners.set(handlerRef, (options) => handlerRef.current(options));
+    return () => void focusedOpeners.delete(handlerRef);
   }, [isActive]);
 }
 
 export function getActiveThreadPanelOpener(): PluginThreadPanelOpenHandler | null {
-  let active: PluginThreadPanelOpenHandler | null = null;
-  for (const opener of focusedOpeners.values()) active = opener;
-  return active;
-}
-
-export function resetActiveThreadPanelOpenerForTest(): void {
-  focusedOpeners.clear();
+  return [...focusedOpeners.values()].at(-1) ?? null;
 }

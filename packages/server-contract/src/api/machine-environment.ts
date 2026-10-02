@@ -17,7 +17,6 @@ export const machineEnvironmentSetSchema = z
     note: z.string().max(1024).nullable().default(null),
   })
   .strict();
-export type MachineEnvironmentSet = z.infer<typeof machineEnvironmentSetSchema>;
 export const machineEnvironmentVariableSchema = z
   .object({
     name: machineEnvironmentNameSchema,
@@ -38,13 +37,6 @@ export const machineEnvironmentListSchema = z.object({
 });
 export type MachineEnvironmentList = z.infer<
   typeof machineEnvironmentListSchema
->;
-
-export const machineEnvironmentDeleteSchema = machineEnvironmentSetSchema.pick({
-  name: true,
-});
-export type MachineEnvironmentDelete = z.infer<
-  typeof machineEnvironmentDeleteSchema
 >;
 export const projectMachineEnvironmentListSchema =
   machineEnvironmentListSchema.extend({

@@ -64,7 +64,7 @@ export function PaletteShell({
     scrollRef,
     topSentinelRef,
     bottomSentinelRef,
-  } = useScrollOverflowState<HTMLDivElement>({ measureOverflow: true });
+  } = useScrollOverflowState<HTMLDivElement>();
   const listRef = useRef<HTMLDivElement>(null);
   const composedListRef = useComposedRefs(listRef, scrollRef);
   const scrollToActiveRef = useRef(false);

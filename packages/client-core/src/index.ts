@@ -31,7 +31,6 @@ export * from "./prompt/thread-handoff-request.js";
 
 export * from "./timeline/thread-runtime-status.js";
 export * from "./timeline/timeline-auto-expand.js";
-export * from "./timeline/timelineRowSignatures.js";
 export * from "./timeline/conversation-message-limits.js";
 export * from "./timeline/compute-muted-prefix-length.js";
 export * from "./timeline/conversation-turn-request-label.js";

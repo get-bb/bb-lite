@@ -2,32 +2,22 @@ import {
   appendQuoteAndAttachmentsToDraft,
   getFilePreviewLineRangeStart,
   isSecondaryFileTab,
-  isThreadForkable,
-  promptInputToDraft,
   type PromptDraftAttachment,
-  type PromptDraftState,
   type WorkspaceFileTabState,
 } from "@bb/client-core";
 import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { nanoid } from "nanoid";
-import {
-  useSystemConfig,
-  useSystemProviderInfo,
-} from "@/hooks/queries/system-queries";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import { useAtom } from "jotai";
 import {
   isRunningThreadRuntimeDisplayStatus,
-  type ThreadTimelineEditMessageTarget,
-  type ThreadTimelineInlineMessageEditor,
   type ThreadTimelineLocalFileLink,
   type ThreadTimelineOpenPluginPanelHandler,
   useThreadTimelineController,
@@ -38,11 +28,9 @@ import {
   resolveEnvironmentMergeBaseBranch,
   type ThreadListEntry,
 } from "@bb/domain";
-import type { TimelineRow } from "@bb/server-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import type { ThreadSecondaryPanel as ThreadSecondaryPanelTab } from "@/lib/thread-secondary-panel";
-import { useForkThreadFromMessage } from "@/hooks/useForkThreadFromMessage";
 import {
   useRequestEnvironmentAction,
   useUpdateEnvironment,
@@ -51,11 +39,7 @@ import {
   useMarkThreadRead,
   useUpdateThread,
 } from "../../hooks/mutations/thread-state-mutations";
-import {
-  useCreateThreadQueuedMessage,
-  useEditThreadMessage,
-  useSendThreadMessage,
-} from "../../hooks/mutations/thread-runtime-mutations";
+import { useSendThreadMessage } from "../../hooks/mutations/thread-runtime-mutations";
 import {
   useEnvironment,
   useEnvironmentWorkStatus,
@@ -111,7 +95,6 @@ import {
 } from "@/components/workspace/workspace-change-summary";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { hasThreadProvisioningFailure } from "@/lib/thread-provisioning-failure";
-import { showMutationErrorToast } from "@/lib/mutation-errors";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
@@ -119,10 +102,7 @@ import {
 } from "@/lib/route-paths";
 import { useGitDiffPanel } from "@/components/secondary-panel/git-diff/useGitDiffPanel";
 import { ThreadDetailHeader } from "./ThreadDetailHeader";
-import {
-  ThreadDetailPromptArea,
-  type ThreadDetailSentMessageEdit,
-} from "./ThreadDetailPromptArea";
+import { ThreadDetailPromptArea } from "./ThreadDetailPromptArea";
 import { isThreadDisplayStatusBannerActive } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import { ThreadDetailSecondaryContent } from "./ThreadDetailSecondaryContent";
 import {
@@ -210,26 +190,6 @@ import { usePaneContext } from "./PaneContext";
 type ContentProps = ComponentProps<typeof ThreadDetailSecondaryContent>;
 const NO_THREADS: readonly ThreadListEntry[] = [];
 const NO_FILTERS = {};
-
-interface SentMessageEditSession {
-  draft: PromptDraftState;
-  operationId: string;
-  target: ThreadTimelineEditMessageTarget;
-  threadId: string;
-}
-
-function hasTimelineRowId(
-  rows: readonly TimelineRow[],
-  rowId: string,
-): boolean {
-  return rows.some(
-    (row) =>
-      row.id === rowId ||
-      (row.kind === "turn" &&
-        row.children !== null &&
-        hasTimelineRowId(row.children, rowId)),
-  );
-}
 
 function copyFileText(text: string, what: string): void {
   void copyToClipboardWithToast(text, {
@@ -414,8 +374,6 @@ export function ThreadDetailView({
   const isTimelinePending =
     timeline.timelineLoading && timelineRows.length === 0;
   const sendMessage = useSendThreadMessage();
-  const editMessage = useEditThreadMessage();
-  const createQueuedMessage = useCreateThreadQueuedMessage();
   const requestEnvironmentAction = useRequestEnvironmentAction();
   const markThreadRead = useMarkThreadRead();
   const updateEnvironment = useUpdateEnvironment();
@@ -444,18 +402,6 @@ export function ThreadDetailView({
   )
     ? environmentHost
     : null;
-  const forkThreadFromMessage = useForkThreadFromMessage({
-    sourceThread: thread ?? null,
-  });
-  const providerInfo = useSystemProviderInfo(
-    thread?.environmentId
-      ? {
-          enabled: true,
-          environmentId: thread.environmentId,
-          providerId: thread.providerId,
-        }
-      : { enabled: thread !== undefined, providerId: thread?.providerId },
-  );
   const draftProjectId = thread?.projectId ?? projectId;
   const draftThreadId = thread?.id ?? "";
   const promptDraft = useMemo(
@@ -485,115 +431,6 @@ export function ThreadDetailView({
     );
     setComposerFocusNonce((nonce) => nonce + 1);
   };
-
-  const [storedEdit, setStoredEdit] = useState<SentMessageEditSession | null>(
-    null,
-  );
-  const [editHostElement, setEditHostElement] = useState<HTMLDivElement | null>(
-    null,
-  );
-  const isEditingThisThread =
-    thread !== undefined && storedEdit?.threadId === thread.id;
-  const edit = isEditingThisThread ? storedEdit : null;
-  const canEditSentMessages =
-    thread !== undefined &&
-    (providerInfo?.capabilities.supportsSessionRewind ?? false) &&
-    thread.archivedAt === null &&
-    thread.deletedAt === null &&
-    !hasPendingInteraction &&
-    storedEdit === null &&
-    !sendMessage.isPending &&
-    !createQueuedMessage.isPending &&
-    !editMessage.isPending &&
-    !isTimelinePending &&
-    timeline.activeWorkflows.length === 0 &&
-    thread.activeBackgroundAgentCount === 0 &&
-    timeline.activeBackgroundCommands.length === 0;
-  const editEntryRef = useRef({ canEditSentMessages, thread });
-  useEffect(() => {
-    editEntryRef.current = { canEditSentMessages, thread };
-  });
-  const [startEdit] = useState(
-    () => (target: ThreadTimelineEditMessageTarget) => {
-      const current = editEntryRef.current;
-      if (!current.thread || !current.canEditSentMessages) return;
-      setEditHostElement(null);
-      setStoredEdit({
-        draft: promptInputToDraft(target.input),
-        operationId: nanoid(),
-        target,
-        threadId: current.thread.id,
-      });
-    },
-  );
-  const editIsOrphaned =
-    edit !== null &&
-    !timeline.timelineLoading &&
-    !hasTimelineRowId(timelineRows, edit.target.messageId);
-  useEffect(() => {
-    if (!editIsOrphaned) return;
-    setEditHostElement(null);
-    setStoredEdit(null);
-    appToast.warning("The message being edited is no longer available.");
-  }, [editIsOrphaned]);
-  const closeEdit = (operationId: string) =>
-    setStoredEdit((current) =>
-      current?.operationId === operationId ? null : current,
-    );
-  const editMessageId = edit?.target.messageId ?? null;
-  const inlineMessageEditor = useMemo<
-    ThreadTimelineInlineMessageEditor | undefined
-  >(
-    () =>
-      editMessageId === null
-        ? undefined
-        : { messageId: editMessageId, onHostElementChange: setEditHostElement },
-    [editMessageId],
-  );
-  const sentMessageEdit: ThreadDetailSentMessageEdit | undefined = edit
-    ? {
-        draft: edit.draft,
-        hostElement: editHostElement,
-        isSubmitting: editMessage.isPending,
-        operationId: edit.operationId,
-        onCancel: () => closeEdit(edit.operationId),
-        onSubmit: ({ execution, input }) => {
-          void editMessage
-            .mutateAsync({
-              id: edit.threadId,
-              operationId: edit.operationId,
-              expectedRequestSequence: edit.target.expectedRequestSequence,
-              input,
-              ...(execution
-                ? {
-                    model: execution.model,
-                    permissionMode: execution.permissionMode,
-                    reasoningLevel: execution.reasoningLevel,
-                    executionInputSources: execution.executionInputSources,
-                    ...(execution.supportsServiceTier && execution.serviceTier
-                      ? { serviceTier: execution.serviceTier }
-                      : {}),
-                  }
-                : {}),
-            })
-            .then(
-              () => closeEdit(edit.operationId),
-              (error: unknown) =>
-                showMutationErrorToast({
-                  error,
-                  fallbackMessage: "Failed to edit the message",
-                  lifecycleOperation: "edit_message",
-                }),
-            );
-        },
-        updateDraft: (update) =>
-          setStoredEdit((current) =>
-            current?.operationId === edit.operationId
-              ? { ...current, draft: update(current.draft) }
-              : current,
-          ),
-      }
-    : undefined;
 
   const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
   const canCreateTerminal =
@@ -1336,7 +1173,6 @@ export function ThreadDetailView({
       }
       composerFocusRequestNonce={composerFocusNonce}
       sendMessage={sendMessage}
-      sentMessageEdit={sentMessageEdit}
       steerActiveThreadOnEnter={
         systemConfigQuery.data?.generalSettings.steerActiveThreadOnEnter ??
         defaultAppSettings.steerActiveThreadOnEnter
@@ -1448,7 +1284,6 @@ export function ThreadDetailView({
   };
   const timelineProps: ContentProps["timeline"] = {
     activeThinking: timeline.activeThinking,
-    canSpawnChild: thread.canSpawnChild,
     contextBoundarySeq: timeline.contextBoundarySeq,
     threadOriginKind: originKind,
     hasOlderTimelineRows: timeline.hasOlderTimelineRows,
@@ -1459,18 +1294,7 @@ export function ThreadDetailView({
     isLoadingOlderTimelineRows: timeline.isLoadingOlderTimelineRows,
     isThreadTimelinePending: isTimelinePending,
     timelineError: Boolean(timeline.timelineError),
-    onForkMessage: isThreadForkable(
-      thread,
-      providerInfo?.capabilities.supportsFork ?? false,
-    )
-      ? (target) => {
-          void forkThreadFromMessage(target);
-        }
-      : undefined,
-    onEditMessage: canEditSentMessages ? startEdit : undefined,
-    inlineMessageEditor,
     onMessageAddToChat: addToChat,
-    onSelectionAddToChat: addToChat,
     onLoadOlderRows: timeline.loadOlderTimelineRows,
     onOpenLink: openLink,
     onOpenLocalFileLink: openLocalFileLink,

@@ -163,9 +163,7 @@ export type ServerAccessStatus = z.infer<typeof serverAccessStatusSchema>;
 
 export const systemConfigResponseSchema = z.object({
   serverAccess: serverAccessStatusSchema,
-  generalSettings: appSettingsSchema.extend({
-    showUnhandledProviderEvents: z.boolean().optional(),
-  }),
+  generalSettings: appSettingsSchema,
   keybindings: appKeybindingsSchema,
   defaultKeybindings: appDefaultKeybindingsSchema,
   keybindingOverrides: appKeybindingOverridesSchema,
@@ -179,29 +177,6 @@ export const systemConfigResponseSchema = z.object({
   dataDir: z.string(),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
-
-export const systemAttentionResponseSchema = z.object({
-  hasAttention: z.boolean(),
-});
-export type SystemAttentionResponse = z.infer<
-  typeof systemAttentionResponseSchema
->;
-
-export const themeCatalogResponseSchema = z.object({
-  dir: z.string(),
-  custom: z.array(z.string()),
-  plugins: z.array(pluginThemeMetaSchema),
-  active: appThemeSchema,
-});
-export type ThemeCatalogResponse = z.infer<typeof themeCatalogResponseSchema>;
-
-export const systemConfigReloadResponseSchema = z.object({
-  ok: z.literal(true),
-});
-
-export type SystemConfigReloadResponse = z.infer<
-  typeof systemConfigReloadResponseSchema
->;
 
 const systemEnvironmentProviderAvailabilitySchema = z.discriminatedUnion(
   "status",

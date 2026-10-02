@@ -5,7 +5,7 @@ import type {
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import { latestSequence } from "./event-read.js";
-import { encodeJson, newId, type Db } from "./index.js";
+import { insertRow, newId, type Db } from "./index.js";
 import type { ThreadRow } from "./threads.js";
 
 export type EventSource = "server" | "runner";
@@ -30,7 +30,6 @@ const TERMINAL_ITEM_TYPES: readonly ThreadEventType[] = [
 const ORPHAN_DROPPABLE_TYPES: readonly ThreadEventType[] = [
   "thread/tokenUsage/updated",
   "thread/contextWindowUsage/updated",
-  "provider/unhandled",
 ];
 
 function itemFields(event: RunnerThreadEvent) {
@@ -49,7 +48,7 @@ function itemFields(event: RunnerThreadEvent) {
   };
 }
 
-function providerThreadIdOf(event: RunnerThreadEvent): string | null {
+function providerThreadIdOf(event: RunnerThreadEvent) {
   return "providerThreadId" in event &&
     typeof event.providerThreadId === "string"
     ? event.providerThreadId
@@ -61,7 +60,7 @@ function hasTurnEvent(
   threadId: string,
   turnId: string,
   type: ThreadEventType,
-): boolean {
+) {
   const row = db.get(
     "SELECT 1 FROM events WHERE thread_id = ? AND turn_id = ? AND type = ?",
     threadId,
@@ -71,7 +70,7 @@ function hasTurnEvent(
   return row !== undefined;
 }
 
-function isItemSettled(db: Db, threadId: string, itemId: string): boolean {
+function isItemSettled(db: Db, threadId: string, itemId: string) {
   const latest = db.get<{ type: ThreadEventType }>(
     `SELECT type FROM events
      WHERE thread_id = ? AND item_id = ? AND type IN
@@ -83,11 +82,7 @@ function isItemSettled(db: Db, threadId: string, itemId: string): boolean {
   return latest !== undefined && TERMINAL_ITEM_TYPES.includes(latest.type);
 }
 
-function isRedundant(
-  db: Db,
-  threadId: string,
-  event: RunnerThreadEvent,
-): boolean {
+function isRedundant(db: Db, threadId: string, event: RunnerThreadEvent) {
   const { type, scope } = event;
   if (type === "turn/diff/updated") return true;
   if (scope.kind === "turn") {
@@ -143,30 +138,19 @@ export function upsertSearchSegment(
     );
     return;
   }
-  const now = db.now();
-  db.run(
-    `INSERT INTO thread_search_segments
-       (id, thread_id, source_kind, source_key, source_seq, text,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (thread_id, source_kind, source_key) DO UPDATE
-     SET text = excluded.text, updated_at = excluded.updated_at`,
-    `${threadId}:${kind}:${key}`,
-    threadId,
-    kind,
-    key,
-    sequence,
-    trimmed,
-    now,
-    now,
-  );
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  const id = `${threadId}:${kind}:${key}`;
+  const source = { sourceKind: kind, sourceKey: key, sourceSeq: sequence };
+  const segment = { id, threadId, ...source, text: trimmed, ...at };
+  const identity = ["thread_id", "source_kind", "source_key"];
+  insertRow(db, "thread_search_segments", segment, identity);
 }
 
 function visiblePromptInput(input: readonly PromptInput[]): PromptInput[] {
   return input.filter((part) => part.visibility !== "agent-only");
 }
 
-export function visiblePromptText(input: readonly PromptInput[]): string {
+function visiblePromptText(input: readonly PromptInput[]) {
   return visiblePromptInput(input)
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")
@@ -178,7 +162,7 @@ function recordTurnRequest(
   thread: ThreadRow,
   event: TurnRequestEvent,
   sequence: number,
-): void {
+) {
   const key = `event:${sequence}`;
   const text = visiblePromptText(event.input);
   upsertSearchSegment(db, thread.id, "user_message", key, sequence, text);
@@ -188,18 +172,15 @@ function recordTurnRequest(
   const starts = event.target.kind === "thread-start";
   const input = visiblePromptInput(event.input);
   if (input.length === 0 || (starts && thread.parentThreadId !== null)) return;
-  db.run(
-    `INSERT INTO prompt_history_entries
-       (id, project_id, thread_id, scope, request_sequence, input, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    newId("phist"),
-    thread.projectId,
-    thread.id,
-    starts ? "project" : "thread",
-    sequence,
-    encodeJson(input),
-    now,
-  );
+  insertRow(db, "prompt_history_entries", {
+    id: newId("phist"),
+    projectId: thread.projectId,
+    threadId: thread.id,
+    scope: starts ? "project" : "thread",
+    requestSequence: sequence,
+    input: JSON.stringify(input),
+    createdAt: now,
+  });
 }
 
 function insertEvent(
@@ -207,29 +188,21 @@ function insertEvent(
   thread: ThreadRow,
   event: RunnerThreadEvent,
   sequence: number,
-): void {
+) {
   const { type, scope, ...data } = event;
-  const item = itemFields(event);
-  db.run(
-    `INSERT INTO events
-       (id, thread_id, environment_id, scope_kind, turn_id,
-        provider_thread_id, sequence, type, item_id, item_kind,
-        parent_tool_call_id, data, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    newId("evt"),
-    thread.id,
-    thread.environmentId,
-    scope.kind,
-    scope.kind === "turn" ? scope.turnId : null,
-    providerThreadIdOf(event),
+  insertRow(db, "events", {
+    id: newId("evt"),
+    threadId: thread.id,
+    environmentId: thread.environmentId,
+    scopeKind: scope.kind,
+    turnId: scope.kind === "turn" ? scope.turnId : null,
+    providerThreadId: providerThreadIdOf(event),
     sequence,
     type,
-    item.itemId,
-    item.itemKind,
-    item.parentToolCallId,
-    encodeJson(data),
-    db.now(),
-  );
+    ...itemFields(event),
+    data: JSON.stringify(data),
+    createdAt: db.now(),
+  });
   if (type === "client/turn/requested") {
     recordTurnRequest(db, thread, event, sequence);
   } else if (type === "item/completed") {

@@ -53,12 +53,12 @@ INSERT INTO environments (id, project_id, host_id, created_at, updated_at)
 INSERT INTO pending_interactions (id, thread_id, status, payload, created_at,
   updated_at) VALUES ('pint_1', 'thr_busy', 'pending', '{}', 1, 1);`;
 
-function seedOriginal(file: string): void {
+function seedOriginal(file: string) {
   const sqlite = new Database(file);
   sqlite.pragma("journal_mode = WAL");
   sqlite.exec(ORIGINAL_SQL);
   const call = (method: "get" | "all" | "run") => {
-    return (sql: string, ...params: SqlParams): unknown =>
+    return (sql: string, ...params: SqlParams) =>
       sqlite.prepare(sql)[method](...params);
   };
   const db = { get: call("get"), all: call("all"), run: call("run") } as Db;
@@ -95,8 +95,12 @@ test("moves an original install into a fresh data directory", async () => {
   expect([readFileSync(file), statSync(file).mtimeMs]).toEqual(untouched);
   const { hostId } = loadConfig(env);
   const databasePath = join(dataDir, "bb.db");
-  const server = await createTestServer({ dataDir, hostId }, { databasePath });
-  const get = async (path: string): Promise<Record<string, unknown>[]> => {
+  const server = await createTestServer(
+    { dataDir, hostId },
+    "fake",
+    databasePath,
+  );
+  const get = async (path: string) => {
     const body = await fetch(`${server.url}/api/v1${path}`);
     return [(await body.json()) as Record<string, unknown>[]].flat();
   };

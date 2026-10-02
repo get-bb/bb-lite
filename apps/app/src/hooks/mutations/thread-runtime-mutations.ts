@@ -12,7 +12,6 @@ import { BbHttpError, sdk } from "@/lib/sdk";
 import { wsManager } from "@/lib/ws";
 import type { QueuedMessageReorderRequest } from "@/lib/queued-message-reorder";
 import type {
-  EditMessageMutationRequest,
   SendThreadMessageMutationRequest,
 } from "./mutation-request-types";
 import {
@@ -51,7 +50,6 @@ import {
 } from "../cache-owners/thread-runtime-cache-owner";
 import {
   invalidateThreadBannerQueries,
-  invalidateThreadHistoryRewriteQueries,
 } from "../cache-owners/mutation-cache-effects";
 
 interface CreateThreadQueuedMessageMutationRequest extends CreateQueuedMessageRequest {
@@ -208,28 +206,6 @@ export function useSendThreadMessage() {
         request: variables,
         result: data,
         transaction: context,
-      });
-    },
-  });
-}
-
-export function useEditThreadMessage() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to edit the message.",
-      lifecycleOperation: "edit_message",
-      showErrorToast: false,
-    },
-    mutationFn: ({ id, ...request }: EditMessageMutationRequest) =>
-      sdk.threads.editMessage({ threadId: id, ...request }),
-    onSuccess: (_result, variables) => {
-      if (wsManager.getConnectionState() === "connected") {
-        return;
-      }
-      invalidateThreadHistoryRewriteQueries({
-        queryClient,
-        threadId: variables.id,
       });
     },
   });

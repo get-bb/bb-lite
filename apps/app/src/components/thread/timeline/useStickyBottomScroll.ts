@@ -1,149 +1,87 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type PointerEventHandler,
-  type RefObject,
-  type UIEventHandler,
-  type WheelEventHandler,
-} from "react";
-
-interface StickyBottomScrollBinding<TElement extends HTMLElement> {
-  contentRef: RefObject<HTMLDivElement | null>;
-  onPointerDown: PointerEventHandler<TElement>;
-  onScroll: UIEventHandler<TElement>;
-  onWheel: WheelEventHandler<TElement>;
-  ref: RefObject<TElement | null>;
-}
-
-interface UseStickyBottomScrollArgs {
-  contentKey: string;
-  streaming: boolean;
-}
+import { useEffect, useRef } from "react";
 
 const STICKY_BOTTOM_THRESHOLD_PX = 4;
 const USER_SCROLL_INTENT_MS = 350;
 const SMOOTH_SCROLL_MIN_GAP_MS = 250;
 
-function getMaxScrollOffset(element: HTMLElement): number {
-  return Math.max(0, element.scrollHeight - element.clientHeight);
-}
-
-function scrollToBottom(
-  element: HTMLElement,
-  top: number,
-  smooth: boolean,
-): void {
-  if (smooth) {
-    element.scrollTo({ top, behavior: "smooth" });
-  } else {
-    element.scrollTop = top;
-  }
-}
-
 export function useStickyBottomScroll<TElement extends HTMLElement>({
   contentKey,
   streaming,
-}: UseStickyBottomScrollArgs): StickyBottomScrollBinding<TElement> {
+}: {
+  contentKey: string;
+  streaming: boolean;
+}) {
   const scrollRef = useRef<TElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const pointerScrollIntentRef = useRef(false);
   const userScrollIntentUntilRef = useRef(0);
-  const lastScrollAtRef = useRef(0);
-  const isFirstScrollRef = useRef(true);
+  const lastScrollAtRef = useRef<number | null>(null);
   const wasStreamingRef = useRef(streaming);
-  const maxScrollOffsetRef = useRef(0);
-
-  const refreshMaxScrollOffset = useCallback((element: TElement): number => {
-    const nextOffset = getMaxScrollOffset(element);
-    maxScrollOffsetRef.current = nextOffset;
-    return nextOffset;
-  }, []);
-
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    refreshMaxScrollOffset(element);
-    if (typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(() => {
-      refreshMaxScrollOffset(element);
-    });
-    observer.observe(element);
-    const content = contentRef.current;
-    if (content) {
-      observer.observe(content);
-    }
-    return () => observer.disconnect();
-  }, [refreshMaxScrollOffset]);
 
   useEffect(() => {
     const wasStreaming = wasStreamingRef.current;
     wasStreamingRef.current = streaming;
-    if (!streaming && !wasStreaming) {
-      return;
-    }
     const element = scrollRef.current;
-    if (!element || !shouldStickToBottomRef.current) {
+    if (
+      (!streaming && !wasStreaming) ||
+      !element ||
+      !shouldStickToBottomRef.current
+    ) {
       return;
     }
     const now = window.performance.now();
-    const smooth =
-      !isFirstScrollRef.current &&
-      now - lastScrollAtRef.current >= SMOOTH_SCROLL_MIN_GAP_MS;
-    scrollToBottom(element, refreshMaxScrollOffset(element), smooth);
-    lastScrollAtRef.current = now;
-    isFirstScrollRef.current = false;
-  }, [contentKey, refreshMaxScrollOffset, streaming]);
-
-  const markUserScrollIntent = useCallback(() => {
-    userScrollIntentUntilRef.current =
-      window.performance.now() + USER_SCROLL_INTENT_MS;
-  }, []);
-
-  const onPointerDown = useCallback<PointerEventHandler<TElement>>(() => {
-    pointerScrollIntentRef.current = true;
-  }, []);
-
-  const onPointerEnd = useCallback(() => {
-    pointerScrollIntentRef.current = false;
-  }, []);
-
-  const onScroll = useCallback<UIEventHandler<TElement>>((event) => {
+    const top = Math.max(0, element.scrollHeight - element.clientHeight);
     if (
-      maxScrollOffsetRef.current - event.currentTarget.scrollTop <=
-      STICKY_BOTTOM_THRESHOLD_PX
+      lastScrollAtRef.current !== null &&
+      now - lastScrollAtRef.current >= SMOOTH_SCROLL_MIN_GAP_MS
     ) {
-      shouldStickToBottomRef.current = true;
-      return;
+      element.scrollTo({ top, behavior: "smooth" });
+    } else {
+      element.scrollTop = top;
     }
-
-    const hasUserScrollIntent =
-      pointerScrollIntentRef.current ||
-      window.performance.now() <= userScrollIntentUntilRef.current;
-    if (hasUserScrollIntent) {
-      shouldStickToBottomRef.current = false;
-    }
-  }, []);
+    lastScrollAtRef.current = now;
+  }, [contentKey, streaming]);
 
   useEffect(() => {
     if (!streaming) {
       return;
     }
+    const onPointerEnd = () => {
+      pointerScrollIntentRef.current = false;
+    };
     window.addEventListener("pointerup", onPointerEnd);
     window.addEventListener("pointercancel", onPointerEnd);
     return () => {
       window.removeEventListener("pointerup", onPointerEnd);
       window.removeEventListener("pointercancel", onPointerEnd);
     };
-  }, [onPointerEnd, streaming]);
+  }, [streaming]);
 
   return {
-    contentRef,
-    onPointerDown,
-    onScroll,
-    onWheel: markUserScrollIntent,
     ref: scrollRef,
+    onPointerDown: () => {
+      pointerScrollIntentRef.current = true;
+    },
+    onScroll: () => {
+      const element = scrollRef.current;
+      if (!element) {
+        return;
+      }
+      if (
+        element.scrollHeight - element.clientHeight - element.scrollTop <=
+        STICKY_BOTTOM_THRESHOLD_PX
+      ) {
+        shouldStickToBottomRef.current = true;
+      } else if (
+        pointerScrollIntentRef.current ||
+        window.performance.now() <= userScrollIntentUntilRef.current
+      ) {
+        shouldStickToBottomRef.current = false;
+      }
+    },
+    onWheel: () => {
+      userScrollIntentUntilRef.current =
+        window.performance.now() + USER_SCROLL_INTENT_MS;
+    },
   };
 }

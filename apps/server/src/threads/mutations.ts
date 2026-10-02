@@ -5,9 +5,10 @@ import {
 import type * as contract from "@bb/server-contract";
 import * as queue from "../db/queued-messages.js";
 import { listSidebarThreadRows } from "../db/thread-read.js";
+import { requireThreadSection } from "../db/thread-sections.js";
 import * as store from "../db/threads.js";
-import { conflict } from "./core.js";
-import { requireThreadSection, requireValidParent } from "./create.js";
+import { conflict } from "../http/errors.js";
+import { requireValidParent } from "./create.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
@@ -128,7 +129,7 @@ export function reorderPinned(
   const { previousThreadId, nextThreadId } = request;
   store.reorderPinnedThread(db, threadId, previousThreadId, nextThreadId);
   hub.thread(threadId, ["pin-state-changed"], { projectId });
-  const key = (row: store.ThreadRow): string => row.pinSortKey ?? "";
+  const key = (row: store.ThreadRow) => row.pinSortKey ?? "";
   const pinned = listSidebarThreadRows(db)
     .filter((row) => row.pinnedAt !== null && row.parentThreadId === null)
     .sort((left, right) => (key(left) < key(right) ? -1 : 1));
@@ -151,7 +152,7 @@ function requireQueuedMessage(engine: Engine, threadId: string, id: string) {
   throw queue.queuedMessageNotFound();
 }
 
-function queueChanged(engine: Engine, threadId: string): void {
+function queueChanged(engine: Engine, threadId: string) {
   engine.ctx.hub.thread(threadId, ["queue-changed"]);
 }
 
@@ -167,8 +168,6 @@ export function createQueuedMessage(
     threadId,
     content: request.input,
     senderThreadId: engine.senderOf(thread, request.senderThreadId),
-    origin: null,
-    originPluginId: null,
     systemNotice: null,
     ...resolveTurnExecution(db, thread, request),
     waitingOn: { kind: stopping ? "stopping" : "thread-busy" },
@@ -213,11 +212,8 @@ export function reorderQueuedMessage(
   request: contract.ReorderQueuedMessageRequest,
 ) {
   engine.requireUnarchived(threadId);
-  const previousId = request.previousQueuedMessageId;
-  const nextId = request.nextQueuedMessageId;
-  const boundaryId = request.groupBoundaryQueuedMessageId;
-  const move = { threadId, id, previousId, nextId, boundaryId };
-  const rows = queue.reorderQueuedMessage(engine.ctx.db, move);
+  const { db } = engine.ctx;
+  const rows = queue.reorderQueuedMessage(db, threadId, id, request);
   queueChanged(engine, threadId);
   return rows.map(queue.toThreadQueuedMessage);
 }

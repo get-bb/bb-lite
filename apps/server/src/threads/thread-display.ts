@@ -1,24 +1,11 @@
-import {
-  threadSchema,
-  type Project,
-  type ThreadActivityState,
-  type ThreadListEntry,
-  type ThreadRuntimeDisplayStatus,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { ThreadResponse } from "@bb/server-contract";
 import {
   extractThreadTimelineActivePlanTurn,
   extractThreadTimelineGoal,
 } from "@bb/thread-view";
 import type { ServerContext } from "../context.js";
-import {
-  activeBackgroundTaskCounts,
-  decodeEvents,
-  listEvents,
-  listHeadStateEvents,
-  mergeEventRows,
-  OPEN_TURN,
-} from "../db/event-read.js";
+import * as eventRead from "../db/event-read.js";
 import type { Db } from "../db/index.js";
 import { getProjectExecutionDefaults, withSources } from "../db/projects.js";
 import {
@@ -31,7 +18,7 @@ import { providerPlanCommand } from "../providers/catalog.js";
 
 type DisplayContext = Pick<ServerContext, "db" | "runners">;
 
-const NO_ACTIVITY: ThreadActivityState = {
+const NO_ACTIVITY: domain.ThreadActivityState = {
   activeBackgroundAgentCount: 0,
   activeBackgroundCommandCount: 0,
   activeGoalCount: 0,
@@ -42,7 +29,7 @@ const NO_ACTIVITY: ThreadActivityState = {
 function threadDisplayStatus(
   { runners }: DisplayContext,
   row: ThreadListRow,
-): ThreadRuntimeDisplayStatus {
+): domain.ThreadRuntimeDisplayStatus {
   const { status, environmentHostId, environmentStatus } = row;
   const preparing =
     environmentStatus === "creating" || environmentStatus === "provisioning";
@@ -52,38 +39,46 @@ function threadDisplayStatus(
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
-function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
+function hasActivePlanTurn(db: Db, thread: ThreadListRow) {
   const { id: threadId, providerId, status: threadStatus } = thread;
   if (threadStatus !== "active") return false;
   const planCommand = providerPlanCommand(db, providerId);
   if (planCommand === null) return false;
   const types = ["turn/input/accepted"];
-  const accepted = listEvents(db, { threadId, types, where: OPEN_TURN });
-  const requestIds = decodeEvents(db, accepted).flatMap(({ event }) =>
-    event.type === "turn/input/accepted" ? [event.clientRequestId] : [],
-  );
+  const accepted = eventRead.listEvents(db, {
+    threadId,
+    types,
+    where: eventRead.OPEN_TURN,
+  });
+  const requestIds = eventRead
+    .decodeEvents(db, accepted)
+    .flatMap(({ event }) =>
+      event.type === "turn/input/accepted" ? [event.clientRequestId] : [],
+    );
   const requested = { threadId, requestIds, types: ["client/turn/requested"] };
-  const rows = mergeEventRows([...listEvents(db, requested), ...accepted]);
-  const events = decodeEvents(db, rows);
+  const rows = eventRead.mergeEventRows([
+    ...eventRead.listEvents(db, requested),
+    ...accepted,
+  ]);
+  const events = eventRead.decodeEvents(db, rows);
   const args = { events, planCommand, providerId, threadStatus };
   return extractThreadTimelineActivePlanTurn(args) !== null;
 }
 
-function threadActivities(
-  db: Db,
-  threads: readonly ThreadListRow[],
-): Map<string, ThreadActivityState> {
+function threadActivities(db: Db, threads: readonly ThreadListRow[]) {
   const threadIds = threads.map((thread) => thread.id);
   const activities = new Map(
-    activeBackgroundTaskCounts(db, threadIds).map(({ threadId, ...counts }) => [
-      threadId,
-      { ...NO_ACTIVITY, ...counts },
-    ]),
+    eventRead
+      .activeBackgroundTaskCounts(db, threadIds)
+      .map(({ threadId, ...counts }) => [
+        threadId,
+        { ...NO_ACTIVITY, ...counts },
+      ]),
   );
-  const goals = listHeadStateEvents(db, threadIds, "goal");
+  const goals = eventRead.listHeadStateEvents(db, threadIds, "goal");
   for (const thread of threads) {
     const states = goals.filter((row) => row.threadId === thread.id);
-    const goal = extractThreadTimelineGoal(decodeEvents(db, states));
+    const goal = extractThreadTimelineGoal(eventRead.decodeEvents(db, states));
     const activeGoalCount = goal?.status === "active" ? 1 : 0;
     const activePlanModeCount = hasActivePlanTurn(db, thread) ? 1 : 0;
     if (activeGoalCount + activePlanModeCount === 0) continue;
@@ -97,7 +92,7 @@ function threadActivities(
 export function toThreadListEntries(
   ctx: DisplayContext,
   rows: readonly ThreadListRow[],
-): ThreadListEntry[] {
+): domain.ThreadListEntry[] {
   const threadIds = rows.map((row) => row.id);
   const activities = threadActivities(ctx.db, rows);
   const failedQueues = new Map(
@@ -113,7 +108,7 @@ export function toThreadListEntries(
     const failed = failedQueues.get(row.id);
     const queued = failed === true ? "failed" : "waiting";
     return {
-      ...threadSchema.parse(row),
+      ...domain.threadSchema.parse(row),
       activity: activities.get(row.id) ?? NO_ACTIVITY,
       queuedWork: failed === undefined ? "none" : queued,
       pinSortKey: row.pinSortKey,
@@ -135,10 +130,10 @@ export function toThreadResponse(
   row: ThreadListRow,
 ): ThreadResponse {
   const { db } = ctx;
-  const [counts] = activeBackgroundTaskCounts(db, [row.id]);
+  const [counts] = eventRead.activeBackgroundTaskCounts(db, [row.id]);
   const [queue] = listQueueCounts(db, [row.id]);
   return {
-    ...threadSchema.parse(row),
+    ...domain.threadSchema.parse(row),
     runtime: { displayStatus: threadDisplayStatus(ctx, row) },
     activeBackgroundAgentCount: counts?.activeBackgroundAgentCount ?? 0,
     canRestoreEnvironment: false,
@@ -149,7 +144,7 @@ export function toThreadResponse(
 
 export function listProjectsWithThreads(
   ctx: DisplayContext,
-  projects: Project[],
+  projects: domain.Project[],
 ) {
   const { db } = ctx;
   const entries = toThreadListEntries(ctx, listSidebarThreadRows(db));

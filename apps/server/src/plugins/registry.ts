@@ -1,28 +1,19 @@
 import type { DynamicTool, ToolCallResponse } from "@bb/domain";
-import type {
-  AgentTool,
-  EnvironmentDefinition,
-  MachineAccessProvider,
-  MentionQuery,
-  PluginEvents,
-  PluginServerEntry,
-  ProviderEnvEntry,
-  ThreadContext,
-} from "@bb/plugin";
+import type * as plugin from "@bb/plugin";
 import type {
   PluginContributionsResponse,
   PluginMentionGroup,
 } from "@bb/server-contract";
 import { z } from "zod";
 import type { Logger } from "../context.js";
-import { ApiError, notFound } from "../http/errors.js";
+import { ApiError, errorMessage, notFound } from "../http/errors.js";
 import type { AppBundle } from "./bundle.js";
-import { errorMessage, type PluginInstance } from "./instance.js";
+import type { PluginInstance } from "./instance.js";
 import type { PluginManifest } from "./manifest.js";
 
 export interface PluginRecord {
   manifest: PluginManifest;
-  server: PluginServerEntry | null;
+  server: plugin.PluginServerEntry | null;
   external: boolean;
   configEnabled: boolean;
   instance: PluginInstance | null;
@@ -31,17 +22,18 @@ export interface PluginRecord {
   token: string | null;
 }
 
-export interface ContributedEnvironment {
-  pluginId: string;
-  definition: EnvironmentDefinition;
-}
-
 function toolResponse(text: string, success: boolean): ToolCallResponse {
   return { contentItems: [{ type: "inputText", text }], success };
 }
 
+type TitleFallback = (
+  task: string,
+  signal: AbortSignal,
+) => Promise<string | null>;
+
 export class PluginRegistry {
   protected readonly records = new Map<string, PluginRecord>();
+  titleFallback: TitleFallback | null = null;
 
   constructor(protected readonly log: Logger) {}
 
@@ -59,7 +51,7 @@ export class PluginRegistry {
     throw new ApiError(503, "plugin_unavailable", message);
   }
 
-  async instructionsFor(context: ThreadContext): Promise<string> {
+  async instructionsFor(context: plugin.ThreadContext): Promise<string> {
     const parts: (string | null | undefined)[] = [];
     for (const [id, instance] of this.active()) {
       for (const tool of this.tools(instance, context)) {
@@ -72,7 +64,7 @@ export class PluginRegistry {
     return parts.filter((part) => part?.trim()).join("\n\n");
   }
 
-  toolsFor(context: ThreadContext): DynamicTool[] {
+  toolsFor(context: plugin.ThreadContext): DynamicTool[] {
     return this.active().flatMap(([, instance]) =>
       this.tools(instance, context).map((tool) => {
         const { name, description, presentation, parameters } = tool;
@@ -86,7 +78,7 @@ export class PluginRegistry {
   async callTool(
     name: string,
     input: unknown,
-    context: ThreadContext & { signal: AbortSignal },
+    context: plugin.ThreadContext & { signal: AbortSignal },
   ): Promise<ToolCallResponse> {
     const tool = this.active()
       .flatMap(([, instance]) => this.tools(instance, context))
@@ -110,9 +102,9 @@ export class PluginRegistry {
 
   async contributedEnv(
     providerId: string,
-    context: ThreadContext,
-  ): Promise<ProviderEnvEntry[]> {
-    const entries: ProviderEnvEntry[] = [];
+    context: plugin.ThreadContext,
+  ): Promise<plugin.ProviderEnvEntry[]> {
+    const entries: plugin.ProviderEnvEntry[] = [];
     for (const [id, instance] of this.active()) {
       for (const [contributorProviderId, contribute] of instance.env) {
         if (contributorProviderId !== providerId) continue;
@@ -123,9 +115,9 @@ export class PluginRegistry {
     return entries;
   }
 
-  emit<Name extends keyof PluginEvents>(
+  emit<Name extends keyof plugin.PluginEvents>(
     name: Name,
-    payload: PluginEvents[Name],
+    payload: plugin.PluginEvents[Name],
   ): void {
     for (const [id, instance] of this.active()) {
       for (const [listened, handler] of instance.listeners) {
@@ -135,7 +127,9 @@ export class PluginRegistry {
     }
   }
 
-  async searchMentions(query: MentionQuery): Promise<PluginMentionGroup[]> {
+  async searchMentions(
+    query: plugin.MentionQuery,
+  ): Promise<PluginMentionGroup[]> {
     const groups: PluginMentionGroup[] = [];
     const sources = query.query === "" ? [] : this.active();
     for (const [pluginId, instance] of sources) {
@@ -172,27 +166,25 @@ export class PluginRegistry {
     prompt: string,
     signal: AbortSignal,
   ): Promise<string | null> {
-    for (const [id, instance] of this.active()) {
-      for (const service of instance.inference) {
-        const complete = service.complete.bind(service, prompt, { signal });
-        const text = await this.attempt(id, "inference", complete, undefined);
-        if (text !== undefined && text.trim() !== "") return text.trim();
-      }
-    }
-    return null;
-  }
-
-  environmentProviders(): ContributedEnvironment[] {
-    return this.active().flatMap(([pluginId, instance]) =>
-      instance.environments.map((definition) => ({ pluginId, definition })),
+    const services = this.active().flatMap(([id, instance]) =>
+      instance.inference.map((service) => ({ id, service })),
     );
+    for (const { id, service } of services) {
+      const complete = service.complete.bind(service, prompt, { signal });
+      const text = await this.attempt(id, "inference", complete, undefined);
+      if (text !== undefined && text.trim() !== "") return text.trim();
+    }
+    const fallback = this.titleFallback;
+    if (services.length > 0 || fallback === null) return null;
+    const title = (task: string) => fallback(task, signal);
+    return (await this.attempt("core", "title", title, prompt)) ?? null;
   }
 
   publicUrl(): string | null {
     return this.firstSet((instance) => instance.publicUrl);
   }
 
-  machineAccess(): MachineAccessProvider | null {
+  machineAccess(): plugin.MachineAccessProvider | null {
     return this.firstSet((instance) => instance.machineAccess);
   }
 
@@ -232,7 +224,10 @@ export class PluginRegistry {
     return null;
   }
 
-  private tools(instance: PluginInstance, context: ThreadContext): AgentTool[] {
+  private tools(
+    instance: PluginInstance,
+    context: plugin.ThreadContext,
+  ): plugin.AgentTool[] {
     return instance.tools.filter(
       (tool) => tool.enabledFor?.(context) !== false,
     );

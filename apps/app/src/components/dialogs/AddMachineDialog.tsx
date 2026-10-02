@@ -1,9 +1,6 @@
 import { nanoid } from "nanoid";
-import { MachineAccessControls } from "@/components/settings/MachineAccessSettings";
-import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { machineServerAccessReady } from "@/components/machines/machine-server-access";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Host } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import {
@@ -15,14 +12,16 @@ import {
 } from "@bb/shared-ui/dialog";
 import { Icon } from "@bb/shared-ui/icon";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
+import {
+  MachineAccessControls,
+  machineServerAccessReady,
+} from "@/components/settings/MachineAccessSettings";
 import { useHosts } from "@/hooks/queries/host-queries";
-import { sdk } from "@/lib/sdk";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useClipboardCopy } from "@/lib/clipboard";
-import { Link } from "react-router-dom";
-import { getSettingsMachineRoutePath } from "@/lib/route-paths";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-
-const MANUAL_MACHINE_PROVIDER_ID = "manual";
+import { getSettingsMachineRoutePath } from "@/lib/route-paths";
+import { sdk } from "@/lib/sdk";
 
 export function AddMachineDialog({
   open,
@@ -39,65 +38,27 @@ export function AddMachineDialog({
   return (
     <Dialog open={open} onOpenChange={close} modal={false}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        {open && <AddMachineContent onOpenChange={close} />}
+        {open && <AddMachineContent onClose={() => close(false)} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-export function AddMachineContent({
-  onOpenChange,
-}: {
-  onOpenChange: (open: boolean) => void;
-}) {
+function AddMachineContent({ onClose }: { onClose: () => void }) {
   const config = useSystemConfig();
   const hosts = useHosts();
-  const accessReady = machineServerAccessReady(config.data?.serverAccess);
-  if (!accessReady) {
+  if (machineServerAccessReady(config.data?.serverAccess)) {
     return (
-      <MachineAccessGate
-        state={
-          config.isPending
-            ? { status: "checking" }
-            : config.isError
-              ? { status: "failed", onRetry: () => void config.refetch() }
-              : { status: "blocked" }
+      <MachineSetup
+        serverMachineName={
+          hosts.data?.find((host) => host.id === config.data?.primaryHostId)
+            ?.name ?? null
         }
-      >
-        <MachineAccessControls onNavigate={() => onOpenChange(false)} />
-      </MachineAccessGate>
+        onClose={onClose}
+      />
     );
   }
-  const serverPrimaryHostId = config.data?.primaryHostId ?? null;
-  const serverMachineName =
-    hosts.data?.find((host) => host.id === serverPrimaryHostId)?.name ?? null;
-  return (
-    <ManualMachineSetup
-      serverMachineName={serverMachineName}
-      onOpenChange={onOpenChange}
-    />
-  );
-}
-
-function serverMachineNotice(serverMachineName: string | null): string {
-  return serverMachineName === null
-    ? "The new machine will connect to your bb server. Keep the server machine on so the new machine can keep working."
-    : `The new machine will connect to the bb server on ${serverMachineName}. Keep that computer on so the new machine can keep working.`;
-}
-
-export type MachineAccessGateState =
-  | { status: "checking" }
-  | { status: "failed"; onRetry: () => void }
-  | { status: "blocked" };
-
-export function MachineAccessGate({
-  state,
-  children,
-}: {
-  state: MachineAccessGateState;
-  children: ReactNode;
-}) {
-  if (state.status === "checking") {
+  if (config.isPending) {
     return (
       <>
         <DialogTitle className="sr-only">Add a machine</DialogTitle>
@@ -107,7 +68,7 @@ export function MachineAccessGate({
       </>
     );
   }
-  if (state.status === "failed") {
+  if (config.isError) {
     return (
       <>
         <DialogHeader>
@@ -117,7 +78,11 @@ export function MachineAccessGate({
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={state.onRetry}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void config.refetch()}
+          >
             Try again
           </Button>
         </div>
@@ -133,166 +98,85 @@ export function MachineAccessGate({
           address it should use.
         </DialogDescription>
       </DialogHeader>
-      {children}
+      <MachineAccessControls />
     </>
   );
 }
 
-export interface EnrollmentCommand {
+interface EnrollmentCommand {
   value: string;
   expiresAt: number;
   unavailable: boolean;
 }
 
-export function ManualMachineSetup({
+function MachineSetup({
   serverMachineName,
-  onOpenChange,
+  onClose,
 }: {
   serverMachineName: string | null;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }) {
-  const createController = useRef<AbortController | null>(null);
-  const createKey = useRef<string | null>(null);
-  const pendingHostIds = useRef(new Set<string>());
-  const lifecycleGeneration = useRef(0);
+  const [attempt, setAttempt] = useState(0);
   const [command, setCommand] = useState<EnrollmentCommand | null>(null);
   const [connectedHost, setConnectedHost] = useState<Host | null>(null);
-  useEffect(
-    () => () => {
-      lifecycleGeneration.current += 1;
-      createController.current?.abort();
-      createKey.current = null;
-      for (const hostId of pendingHostIds.current) {
-        void sdk.hosts.delete({ hostId }).catch(() => undefined);
-      }
-      pendingHostIds.current.clear();
-    },
-    [],
-  );
-  const createMachine = useMutation({
-    meta: { showErrorToast: false },
-    mutationFn: async (options: { replaceLaunch: boolean }) => {
-      const generation = lifecycleGeneration.current;
-      if (options.replaceLaunch) {
-        createController.current?.abort();
-        createController.current = null;
-        const ids = [...pendingHostIds.current];
-        pendingHostIds.current.clear();
-        await Promise.all(ids.map((hostId) => sdk.hosts.delete({ hostId })));
-        createKey.current = null;
-      }
-      setCommand(null);
-      const controller = new AbortController();
-      createController.current = controller;
-      createKey.current ??= nanoid();
-      try {
-        let host = await sdk.hosts.experimental_create({
-          key: createKey.current,
-          machineProviderId: MANUAL_MACHINE_PROVIDER_ID,
-          inputs: null,
-          wait: false,
-          signal: controller.signal,
-        });
-        pendingHostIds.current.add(host.id);
-        if (generation !== lifecycleGeneration.current) {
-          pendingHostIds.current.delete(host.id);
-          await sdk.hosts.delete({ hostId: host.id });
-          throw new Error("Machine setup closed");
-        }
-        let enrollment: Awaited<
-          ReturnType<typeof sdk.hosts.experimental_getEnrollmentCommand>
-        > = null;
-        while (host.lifecycle.phase === "creating") {
-          controller.signal.throwIfAborted();
-          const currentEnrollment =
-            await sdk.hosts.experimental_getEnrollmentCommand({
-              hostId: host.id,
-              signal: controller.signal,
-            });
-          if (currentEnrollment !== null) {
-            enrollment = currentEnrollment;
-            setCommand({
-              value: currentEnrollment.command,
-              expiresAt: currentEnrollment.expiresAt,
-              unavailable: false,
-            });
-          } else if (enrollment !== null) {
-            const usedEnrollment = enrollment;
-            setCommand((previous) =>
-              previous?.unavailable
-                ? previous
-                : {
-                    value: usedEnrollment.command,
-                    expiresAt: usedEnrollment.expiresAt,
-                    unavailable: true,
-                  },
-            );
-          }
-          await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
-          controller.signal.throwIfAborted();
-          host = await sdk.hosts.get({
-            hostId: host.id,
-            signal: controller.signal,
-          });
-        }
-        createKey.current = null;
-        pendingHostIds.current.delete(host.id);
-        if (host.lifecycle.phase !== "active") {
-          throw new Error(host.lifecycle.message ?? "Machine setup cancelled");
-        }
-        return host;
-      } finally {
-        if (createController.current === controller)
-          createController.current = null;
-      }
-    },
-    onSuccess: (host: Host) => {
-      createKey.current = null;
-      setConnectedHost(host);
-    },
-  });
-  const start = createMachine.mutate;
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   useEffect(() => {
-    start({ replaceLaunch: false });
-  }, [start]);
-
-  return (
-    <ManualMachineSetupView
-      command={command}
-      connectedHost={connectedHost}
-      serverMachineName={serverMachineName}
-      errorMessage={
-        createMachine.isError
-          ? getMutationErrorMessage({
-              error: createMachine.error,
-              fallbackMessage: "Couldn't prepare an enrollment command.",
-            })
-          : null
+    const controller = new AbortController();
+    const { signal } = controller;
+    let pendingHostId: string | null = null;
+    setCommand(null);
+    setErrorMessage(null);
+    const run = async () => {
+      let host = await sdk.hosts.experimental_create({
+        key: nanoid(),
+        machineProviderId: "manual",
+        inputs: null,
+        wait: false,
+        signal,
+      });
+      pendingHostId = host.id;
+      while (host.lifecycle.phase === "creating") {
+        const hostId = host.id;
+        const enrollment = await sdk.hosts.experimental_getEnrollmentCommand({
+          hostId,
+          signal,
+        });
+        setCommand((previous) =>
+          enrollment === null
+            ? previous && { ...previous, unavailable: true }
+            : {
+                value: enrollment.command,
+                expiresAt: enrollment.expiresAt,
+                unavailable: false,
+              },
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        signal.throwIfAborted();
+        host = await sdk.hosts.get({ hostId, signal });
       }
-      onRetry={() => createMachine.mutate({ replaceLaunch: false })}
-      onRegenerate={() => createMachine.mutate({ replaceLaunch: true })}
-      onOpenMachine={() => onOpenChange(false)}
-    />
-  );
-}
-
-export function ManualMachineSetupView({
-  command,
-  connectedHost,
-  serverMachineName,
-  errorMessage,
-  onRetry,
-  onRegenerate,
-  onOpenMachine,
-}: {
-  command: EnrollmentCommand | null;
-  connectedHost: Host | null;
-  serverMachineName: string | null;
-  errorMessage: string | null;
-  onRetry: () => void;
-  onRegenerate: () => void;
-  onOpenMachine: () => void;
-}) {
+      pendingHostId = null;
+      if (host.lifecycle.phase !== "active") {
+        throw new Error(host.lifecycle.message ?? "Machine setup cancelled");
+      }
+      setConnectedHost(host);
+    };
+    run().catch((error: unknown) => {
+      if (signal.aborted) return;
+      setErrorMessage(
+        getMutationErrorMessage({
+          error,
+          fallbackMessage: "Couldn't prepare an enrollment command.",
+        }),
+      );
+    });
+    return () => {
+      controller.abort();
+      if (pendingHostId !== null) {
+        void sdk.hosts.delete({ hostId: pendingHostId }).catch(() => {});
+      }
+    };
+  }, [attempt]);
+  const retry = () => setAttempt((current) => current + 1);
   return (
     <>
       <DialogHeader>
@@ -308,7 +192,7 @@ export function ManualMachineSetupView({
       </DialogHeader>
       {errorMessage === null ? null : (
         <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={onRetry}>
+          <Button variant="outline" size="sm" onClick={retry}>
             Try again
           </Button>
         </div>
@@ -319,64 +203,59 @@ export function ManualMachineSetupView({
           command={command.value}
           expiresAt={command.expiresAt}
           unavailable={command.unavailable}
-          onRegenerate={onRegenerate}
+          onRegenerate={retry}
         />
       )}
       {errorMessage === null ? (
-        <div className="flex items-center gap-2.5 rounded-md bg-muted/40 px-3 py-2.5">
-          {connectedHost === null ? (
-            <>
-              <Icon
-                name="Spinner"
-                className="size-4 shrink-0 animate-spin text-muted-foreground"
-              />
-              <span role="status" className="text-sm text-muted-foreground">
-                {command === null
-                  ? "Preparing an enrollment command…"
-                  : "Waiting for the machine to connect…"}
-              </span>
-            </>
-          ) : (
-            <>
-              <MachineStatusDot connected />
-              <span
-                role="status"
-                className="min-w-0 flex-1 truncate text-sm text-foreground"
-              >
-                {connectedHost.name} connected
-              </span>
-              <Button
-                asChild
-                size="sm"
-                variant="ghost"
-                className="h-7 shrink-0 px-2 text-xs"
-              >
-                <Link
-                  to={getSettingsMachineRoutePath(connectedHost.id)}
-                  onClick={onOpenMachine}
+        <>
+          <div className="flex items-center gap-2.5 rounded-md bg-muted/40 px-3 py-2.5">
+            {connectedHost === null ? (
+              <>
+                <Icon
+                  name="Spinner"
+                  className="size-4 shrink-0 animate-spin text-muted-foreground"
+                />
+                <span role="status" className="text-sm text-muted-foreground">
+                  {command === null
+                    ? "Preparing an enrollment command…"
+                    : "Waiting for the machine to connect…"}
+                </span>
+              </>
+            ) : (
+              <>
+                <MachineStatusDot connected />
+                <span
+                  role="status"
+                  className="min-w-0 flex-1 truncate text-sm text-foreground"
                 >
-                  Open machine
-                  <Icon name="ArrowRight" />
-                </Link>
-              </Button>
-            </>
-          )}
-        </div>
-      ) : null}
-      {errorMessage === null ? (
-        <p className="text-xs text-subtle-foreground">
-          {serverMachineNotice(serverMachineName)}
-        </p>
+                  {connectedHost.name} connected
+                </span>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 shrink-0 px-2 text-xs"
+                >
+                  <Link
+                    to={getSettingsMachineRoutePath(connectedHost.id)}
+                    onClick={onClose}
+                  >
+                    Open machine
+                    <Icon name="ArrowRight" />
+                  </Link>
+                </Button>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-subtle-foreground">
+            {serverMachineName === null
+              ? "The new machine will connect to your bb server. Keep the server machine on so the new machine can keep working."
+              : `The new machine will connect to the bb server on ${serverMachineName}. Keep that computer on so the new machine can keep working.`}
+          </p>
+        </>
       ) : null}
     </>
   );
-}
-
-function formatCountdown(remainingMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export function MachineLaunchCommand({
@@ -400,6 +279,7 @@ export function MachineLaunchCommand({
     return () => clearInterval(timer);
   }, [expiresAt]);
   const expired = remaining <= 0;
+  const seconds = Math.max(0, Math.floor(remaining / 1000));
   return (
     <div className="overflow-hidden rounded-md border border-border bg-muted/30">
       <pre className="overflow-x-auto whitespace-pre-wrap break-all p-3 font-mono text-xs text-foreground">
@@ -430,7 +310,7 @@ export function MachineLaunchCommand({
             role="status"
             className="text-xs tabular-nums text-subtle-foreground"
           >
-            Command expires in {formatCountdown(remaining)}
+            {`Command expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`}
           </span>
         )}
         <Button

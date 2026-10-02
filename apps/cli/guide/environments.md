@@ -28,7 +28,6 @@ when bb is called from outside a thread.
 bb env list --project <proj> --json
 bb env show <env> --json        # hostId, path, branchName, baseBranch, status
 bb env status <env>             # git state; --merge-base-branch adds ahead/behind
-bb env diff <env> [--target uncommitted|branch_committed|all|commit]
 bb env commit <env>             # commit every change
 bb env update <env> --name "…" | --merge-base-branch <branch>
 bb env delete <env> --yes       # refused while live threads use it

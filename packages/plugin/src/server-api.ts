@@ -12,12 +12,10 @@ type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type SettingDescriptor = Contract.PluginSettingDescriptor;
 export type SettingDescriptors = Record<string, SettingDescriptor>;
-export type SettingValue = string | number | boolean;
+export type SettingValue = string | boolean;
 type ValueOf<Descriptor> = Descriptor extends { type: "boolean" }
   ? boolean
-  : Descriptor extends { type: "number" }
-    ? number
-    : string;
+  : string;
 export type SettingValues<D extends SettingDescriptors> = {
   [Key in keyof D]: D[Key] extends { default: SettingValue }
     ? ValueOf<D[Key]>

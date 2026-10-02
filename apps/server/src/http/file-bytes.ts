@@ -8,7 +8,7 @@ import {
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { ServerContext } from "../context.js";
 import { ApiError } from "./errors.js";
-import { parseSingleRange } from "./range.js";
+import { matchesEntityTag, selectRange } from "./range.js";
 
 export interface FileBytesTarget {
   hostId: string;
@@ -22,7 +22,7 @@ const FILE_ERROR_STATUS: Partial<
   Record<RunnerErrorCode, ContentfulStatusCode>
 > = { invalid_path: 400, permission_denied: 403, file_too_large: 413 };
 
-function fileChanged(): ApiError {
+function fileChanged() {
   const message = "File changed during read; retry the request";
   return new ApiError(409, "file_changed", message, { retryable: true });
 }
@@ -51,7 +51,7 @@ export function revisionRef(ref: string): string {
   throw new ApiError(400, "invalid_ref", "Invalid revision");
 }
 
-function rawFileHeaders(file: FileChunk): Headers {
+function rawFileHeaders(file: FileChunk) {
   const mimeType = file.mimeType ?? "application/octet-stream";
   const html = mimeType.split(";")[0]?.trim().toLowerCase() === "text/html";
   const headers = new Headers({
@@ -66,12 +66,6 @@ function rawFileHeaders(file: FileChunk): Headers {
     headers.set("last-modified", new Date(file.modifiedAtMs).toUTCString());
   }
   return headers;
-}
-
-function matchesEntityTag(ifNoneMatch: string | null, etag: string): boolean {
-  const opaque = (tag: string): string => tag.trim().replace(/^W\//u, "");
-  const wanted = ifNoneMatch?.split(",").map(opaque) ?? [];
-  return wanted.includes("*") || wanted.includes(opaque(etag));
 }
 
 export async function serveFileBytes(
@@ -99,18 +93,12 @@ export async function serveFileBytes(
   }
   const ranged = request.method === "GET" && !request.headers.has("if-range");
   const wanted = request.headers.get("range") ?? undefined;
-  const range = ranged ? parseSingleRange(wanted, size) : null;
-  if (range === "unsatisfiable") {
-    headers.set("content-range", `bytes */${size}`);
+  const selected = selectRange(headers, ranged ? wanted : undefined, size);
+  if (selected === null) {
     headers.set("content-length", "0");
     return new Response(null, { status: 416, headers });
   }
-  const { start, end } = range ?? { start: 0, end: size - 1 };
-  const status = range === null ? 200 : 206;
-  headers.set("content-length", String(end - start + 1));
-  if (range !== null) {
-    headers.set("content-range", `bytes ${start}-${end}/${size}`);
-  }
+  const { start, end, status } = selected;
   if (request.method === "HEAD" || size === 0) {
     return new Response(null, { status, headers });
   }

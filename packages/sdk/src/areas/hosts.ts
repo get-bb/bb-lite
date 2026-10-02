@@ -1,6 +1,5 @@
 import type { Host, HostType } from "@bb/domain";
 import type {
-  CreateHostJoinCodeResponse,
   CreateMachineRequest,
   HostEnrollmentCommandResponse,
   HostReconnectResponse,
@@ -66,8 +65,6 @@ export interface MachineCreateArgs extends CreateMachineRequest {
   wait?: boolean;
   signal?: AbortSignal;
 }
-
-export type HostCreateJoinCodeResult = CreateHostJoinCodeResponse;
 export type HostDeleteResult = { ok: true };
 export type HostDirectoryResult = HostDirectoryListing;
 export type HostGetResult = Host & {
@@ -87,8 +84,6 @@ export interface HostsArea {
     args: HostGetArgs,
   ): Promise<HostEnrollmentCommandResult>;
   experimental_reconnect(args: HostReconnectArgs): Promise<HostReconnectResult>;
-  /** @deprecated Use experimental_create() and experimental_getEnrollmentCommand() for bootstrap enrollment. */
-  createJoinCode(): Promise<HostCreateJoinCodeResult>;
   delete(args: HostDeleteArgs): Promise<HostDeleteResult>;
   directory(args: HostDirectoryArgs): Promise<HostDirectoryResult>;
   get(args: HostGetArgs): Promise<HostGetResult>;
@@ -149,13 +144,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
           { param: { id: input.hostId } },
           ...signalRequestArgs(input.signal),
         ),
-      );
-    },
-    async createJoinCode() {
-      return transport.readJson(
-        transport.api.v1.hosts["join-codes"].$post({
-          json: {},
-        }),
       );
     },
     async delete(input) {

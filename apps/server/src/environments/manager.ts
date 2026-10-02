@@ -1,32 +1,20 @@
 import type { Environment } from "@bb/domain";
 import type { z } from "zod";
 import type { ServerContext, ServerRunner } from "../context.js";
-import {
-  deleteEnvironment,
-  environmentUse,
-  findEnvironment,
-  getEnvironment,
-  hasOtherLiveThread,
-  insertEnvironment,
-  listRetirableEnvironmentIds,
-  updateEnvironment,
-  type EnvironmentPatch,
-  type NewEnvironment,
-} from "../db/environments.js";
-import { getProjectSource } from "../db/projects.js";
+import * as store from "../db/environments.js";
+import { getProjectSource, type DeletedProject } from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
-import { onProjectDeleted } from "../projects/remove.js";
 import {
   checkoutInputsSchema,
   worktreeInputsSchema,
 } from "../providers/environment-providers.js";
 import { closeTerminalsFor } from "../terminals/sessions.js";
-import { errorMessage, ThreadSerial } from "../threads/core.js";
+import { errorMessage } from "../http/errors.js";
+import { ThreadSerial } from "../threads/core.js";
 import { createLifecycleScripts, notReady, step } from "./scripts.js";
 import type {
   EnsureEnvironmentArgs as Job,
-  Environments,
   ThreadEnvironment,
 } from "./types.js";
 import { requireEnvironment } from "./workspace.js";
@@ -63,37 +51,39 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
   return slug === "" ? prefix + thread.id : `${prefix}${slug}-${thread.id}`;
 }
 
-export function createEnvironments(ctx: ServerContext): Environments {
+export type Environments = ReturnType<typeof createEnvironments>;
+
+export function createEnvironments(ctx: ServerContext) {
   const { db, hub, log, now, runners } = ctx;
   const scripts = createLifecycleScripts(ctx);
   const queue = new ThreadSerial();
   const retiring = new Set<string>();
 
-  function patch(id: string, changes: EnvironmentPatch): Environment {
-    updateEnvironment(db, id, changes);
+  function patch(id: string, changes: store.EnvironmentPatch): Environment {
+    store.updateEnvironment(db, id, changes);
     const moved = changes.status !== undefined;
     hub.environment(id, [moved ? "status-changed" : "metadata-changed"]);
     return requireEnvironment(ctx, id);
   }
 
-  function create(input: NewEnvironment): Environment {
-    const id = insertEnvironment(db, input);
+  function create(input: store.NewEnvironment): Environment {
+    const id = store.insertEnvironment(db, input);
     hub.environment(id, ["environment-created"]);
     return requireEnvironment(ctx, id);
   }
 
-  function discard(id: string): void {
-    deleteEnvironment(db, id);
+  function discard(id: string) {
+    db.run("DELETE FROM environments WHERE id = ?", id);
     hub.environment(id, ["environment-deleted"]);
   }
 
-  function sourcePathOf(projectId: string, hostId: string): string {
+  function sourcePathOf(projectId: string, hostId: string) {
     const source = getProjectSource(db, projectId, { hostId });
     if (source !== undefined) return source.path;
     throw notReady(NO_CHECKOUT);
   }
 
-  function branchNameFor(thread: ThreadRow): string {
+  function branchNameFor(thread: ThreadRow) {
     return managedBranchName(getAppSettings(db).managedBranchPrefix, thread);
   }
 
@@ -102,7 +92,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
     runner: ServerRunner,
     job: Job,
     base: string | null,
-  ): Promise<string> {
+  ) {
     const { onProgress, thread } = job;
     const sourcePath = sourcePathOf(found.projectId, found.hostId);
     const branchName = found.branchName ?? branchNameFor(thread);
@@ -141,7 +131,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
     runner: ServerRunner,
     job: Job,
     base: string | null,
-  ): Promise<string> {
+  ) {
     const { id, hostId, projectId } = found;
     job.signal.throwIfAborted();
     patch(id, { status: "creating", statusMessage: null, ...IN_USE });
@@ -201,8 +191,8 @@ export function createEnvironments(ctx: ServerContext): Environments {
     hostId: string,
     thread: ThreadRow,
     branch: CheckoutBranch,
-  ): Promise<void> {
-    if (hasOtherLiveThread(db, environmentId, thread.id)) {
+  ) {
+    if (store.hasOtherLiveThread(db, environmentId, thread.id)) {
       throw notReady(SHARED_CHECKOUT);
     }
     const wanted =
@@ -231,7 +221,13 @@ export function createEnvironments(ctx: ServerContext): Environments {
       environmentProviderId,
       ...unowned,
     };
-    const existing = findEnvironment(db, AT_PATH, projectId, hostId, path);
+    const existing = store.findEnvironment(
+      db,
+      AT_PATH,
+      projectId,
+      hostId,
+      path,
+    );
     const target = existing ?? create(fresh);
     const prepared = await prepare(target, job).catch((error: unknown) => {
       if (existing === undefined) discard(target.id);
@@ -280,14 +276,14 @@ export function createEnvironments(ctx: ServerContext): Environments {
     const owned = { ownerThreadId, instanceKey, path: null };
     const fresh = { projectId, hostId, environmentProviderId, ...owned };
     const target =
-      findEnvironment(db, OWNED_BY, ownerThreadId) ?? create(fresh);
+      store.findEnvironment(db, OWNED_BY, ownerThreadId) ?? create(fresh);
     const branch = worktree?.branch;
     return prepare(target, job, branch?.kind === "named" ? branch.name : null);
   }
 
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
-    if (environmentUse(db, found.id).live > 0) {
+    if (store.environmentUse(db, found.id).live > 0) {
       const unmarked = retireAt === null && teardown === null;
       return unmarked ? found : patch(found.id, IN_USE);
     }
@@ -295,14 +291,14 @@ export function createEnvironments(ctx: ServerContext): Environments {
     return patch(found.id, { retireAt: now() + RETIRE_GRACE_MS });
   }
 
-  function due({ hostId, lifecycle }: Environment): boolean {
+  function due({ hostId, lifecycle }: Environment) {
     const { retireAt } = lifecycle;
     const expired = retireAt !== null && retireAt <= now();
     return expired && runners.isConnected(hostId);
   }
 
-  async function teardown(id: string, forced: boolean): Promise<void> {
-    const found = getEnvironment(db, id);
+  async function teardown(id: string, forced: boolean) {
+    const found = store.getEnvironment(db, id);
     if (found === undefined || found.status === "destroyed") return;
     if (!forced && !due(refresh(found))) return;
     const { hostId, path, projectId } = found;
@@ -327,9 +323,9 @@ export function createEnvironments(ctx: ServerContext): Environments {
     }
   }
 
-  async function sweep(): Promise<void> {
-    const removals = listRetirableEnvironmentIds(db).flatMap((id) => {
-      const found = getEnvironment(db, id);
+  async function sweep() {
+    const removals = store.listRetirableEnvironmentIds(db).flatMap((id) => {
+      const found = store.getEnvironment(db, id);
       const idle = found !== undefined && !retiring.has(id);
       if (!idle || !due(refresh(found))) return [];
       retiring.add(id);
@@ -339,48 +335,48 @@ export function createEnvironments(ctx: ServerContext): Environments {
     await Promise.all(removals);
   }
 
-  function sweepSoon(): void {
+  function sweepSoon() {
     sweep().catch((err: unknown) => {
       log.error("Environment sweep failed", { err });
     });
   }
 
-  function onThreadDetached(threadId: string): void {
+  function onThreadDetached(threadId: string) {
     const thread = getThread(db, threadId);
     const attachedId = thread?.environmentId ?? null;
     const found =
       attachedId === null
-        ? findEnvironment(db, OWNED_BY, threadId)
-        : getEnvironment(db, attachedId);
+        ? store.findEnvironment(db, OWNED_BY, threadId)
+        : store.getEnvironment(db, attachedId);
     const orphaned =
       found?.managed === true &&
       found.status !== "destroyed" &&
       thread?.deletedAt != null &&
-      environmentUse(db, found.id).attached === 0;
+      store.environmentUse(db, found.id).attached === 0;
     if (orphaned) patch(found.id, { retireAt: now() });
     setImmediate(sweepSoon);
   }
 
-  async function remove(environmentId: string): Promise<void> {
+  async function remove(environmentId: string) {
     await queue.run(environmentId, () => teardown(environmentId, true));
     const attached = "SELECT 1 FROM threads WHERE environment_id = ?";
     if (db.get(attached, environmentId) === undefined) discard(environmentId);
   }
 
   async function workspaceInstructions(environmentId: string) {
-    const found = getEnvironment(db, environmentId);
+    const found = store.getEnvironment(db, environmentId);
     if (found === undefined || found.path === null) return null;
     const file = { path: INSTRUCTIONS_FILE, rootPath: found.path };
     try {
       const read = await runners.get(found.hostId).readFile(file);
-      if ("notModified" in read || read.contentEncoding !== "utf8") return null;
+      if (read.contentEncoding !== "utf8") return null;
       return read.content.trim().slice(0, INSTRUCTIONS_MAX_LENGTH) || null;
     } catch {
       return null;
     }
   }
 
-  function start(): () => void {
+  function start() {
     const timer = setInterval(sweepSoon, SWEEP_INTERVAL_MS);
     timer.unref();
     const unsubscribe = runners.onConnected(sweepSoon);
@@ -393,7 +389,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
 
   return {
     ensureForThread,
-    pathFor: (environmentId) => getEnvironment(db, environmentId)?.path ?? null,
+    pathFor: (id: string) => store.getEnvironment(db, id)?.path ?? null,
     workspaceInstructions,
     onThreadDetached,
     remove,
@@ -402,7 +398,10 @@ export function createEnvironments(ctx: ServerContext): Environments {
   };
 }
 
-onProjectDeleted.push(async ({ log, runners }, { environments }) => {
+export async function removeProjectWorkspaces(
+  { log, runners }: ServerContext,
+  { environments }: DeletedProject,
+): Promise<void> {
   for (const { hostId, path, providerOwnsPath } of environments) {
     const removable = providerOwnsPath === 1 && runners.isConnected(hostId);
     if (path === null || !removable) continue;
@@ -411,4 +410,4 @@ onProjectDeleted.push(async ({ log, runners }, { environments }) => {
       log.warn("Could not remove a deleted project's workspace", { err, path });
     });
   }
-});
+}

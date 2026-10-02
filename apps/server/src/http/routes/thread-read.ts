@@ -1,12 +1,4 @@
-import {
-  DEFAULT_COMPLETED_TURN_DISPLAY,
-  defaultFeatureFlags,
-  PERSONAL_PROJECT_ID,
-  PROMPT_HISTORY_ENTRY_LIMIT,
-  takeVisiblePromptHistoryEntries,
-  threadEventTypeSchema,
-  type PromptHistoryEntry,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import {
   publicApiRoutes,
   THREAD_COUNT_ROOT_PARENT,
@@ -21,6 +13,7 @@ import * as pending from "../../db/pending-interactions.js";
 import {
   getProjectExecutionDefaults,
   listStandardProjects,
+  requireProject,
 } from "../../db/projects.js";
 import * as queue from "../../db/queued-messages.js";
 import { getAppSettings } from "../../db/settings.js";
@@ -31,15 +24,16 @@ import {
   searchThreads,
   type ThreadSearchGroup,
 } from "../../db/thread-search.js";
-import { listThreadSections } from "../../db/thread-sections.js";
-import { requireProject } from "../../projects/require.js";
+import {
+  listThreadSections,
+  requireThreadSection,
+} from "../../db/thread-sections.js";
 import {
   findProviderDefinition,
   providerPlanCommand,
 } from "../../providers/catalog.js";
 import { hostResponse } from "../../runners/hosts.js";
-import { threadNotFound } from "../../threads/core.js";
-import { requireThreadSection } from "../../threads/create.js";
+
 import {
   findTurnExecution,
   recordedExecution,
@@ -55,13 +49,13 @@ import {
   type TimelineDisplay,
 } from "../../threads/timeline.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { invalidRequest, notFound } from "../errors.js";
+import { invalidRequest, notFound, threadNotFound } from "../errors.js";
 
 const DEFAULT_SEGMENT_LIMIT = 20;
 const MAX_SEGMENT_LIMIT = 100;
 const MAX_EVENT_WAIT_MS = 30_000;
 
-function integer(value: string | undefined): number | undefined {
+function integer(value: string | undefined) {
   return value === undefined ? undefined : Number(value);
 }
 
@@ -71,7 +65,7 @@ function positive(value: string | undefined, name: string, fallback: number) {
   return parsed;
 }
 
-function bounded(value: number, name: string, max: number): number {
+function bounded(value: number, name: string, max: number) {
   if (value <= max) return value;
   throw invalidRequest(`${name} must be less than or equal to ${max}`);
 }
@@ -82,7 +76,7 @@ export function registerThreadReadRoutes(
 ): void {
   const { get, post } = typedApi(app);
   const { db } = ctx;
-  const { threads, projects, system } = publicApiRoutes;
+  const { threads, projects } = publicApiRoutes;
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
@@ -98,7 +92,7 @@ export function registerThreadReadRoutes(
     return new Promise<void>((resolve) => {
       const waiters = eventWaiters.get(threadId) ?? new Set();
       eventWaiters.set(threadId, waiters);
-      const wake = (): void => {
+      const wake = () => {
         clearTimeout(timer);
         waiters.delete(wake);
         if (waiters.size === 0) eventWaiters.delete(threadId);
@@ -123,7 +117,7 @@ export function registerThreadReadRoutes(
       completedTurnDisplay:
         settings.providerCompletedTurnDisplay[providerId] ??
         provider?.completedTurnDisplay ??
-        DEFAULT_COMPLETED_TURN_DISPLAY,
+        domain.DEFAULT_COMPLETED_TURN_DISPLAY,
       includeDiagnosticOperations: settings.showDiagnosticEvents,
       providerDisplayName: provider?.displayName,
       planCommand: providerPlanCommand(db, providerId),
@@ -144,20 +138,20 @@ export function registerThreadReadRoutes(
   function promptHistory(
     scope: { projectId: string } | { threadId: string },
     limit: string | undefined,
-    queued: PromptHistoryEntry[],
-  ): PromptHistoryEntry[] {
-    const max = PROMPT_HISTORY_ENTRY_LIMIT;
+    queued: domain.PromptHistoryEntry[],
+  ): domain.PromptHistoryEntry[] {
+    const max = domain.PROMPT_HISTORY_ENTRY_LIMIT;
     const wanted = Math.min(positive(limit, "limit", max), max);
     const rowLimit = Math.min(max * 2, wanted + max);
     const accepted = store.listPromptHistoryEntries(db, scope, rowLimit);
     const entries = [...queued, ...accepted].sort(
       (left, right) => right.createdAt - left.createdAt,
     );
-    return takeVisiblePromptHistoryEntries({ entries, limit: wanted });
+    return domain.takeVisiblePromptHistoryEntries({ entries, limit: wanted });
   }
 
   get(projects.sidebarBootstrap, (c) => {
-    const personal = requireProject(db, PERSONAL_PROJECT_ID);
+    const personal = requireProject(db, domain.PERSONAL_PROJECT_ID);
     const listed = [personal, ...listStandardProjects(db)];
     const [personalProject, ...rest] = listProjectsWithThreads(ctx, listed);
     const sections = listThreadSections(db);
@@ -173,10 +167,6 @@ export function registerThreadReadRoutes(
     const { id: projectId } = requireProject(db, c.req.param("id"));
     return c.json(promptHistory({ projectId }, query?.limit, []));
   });
-
-  get(system.attention, (c) =>
-    c.json({ hasAttention: store.hasThreadAttention(db) }),
-  );
 
   get(threads.list, (c, query = {}) => {
     const { sectionId } = query;
@@ -280,7 +270,7 @@ export function registerThreadReadRoutes(
       page,
       includeNestedRows: query.includeNestedRows === "true",
       summaryOnly: query.summaryOnly === "true",
-      eventBudget: defaultFeatureFlags.timelineWindowEventBudget,
+      eventBudget: domain.defaultFeatureFlags.timelineWindowEventBudget,
       afterSequence: integer(query.afterSequence),
     });
     return c.json(response);
@@ -296,11 +286,6 @@ export function registerThreadReadRoutes(
       beforeCursor: query.beforeCursor,
     });
     return c.json(details);
-  });
-
-  get(threads.conversationOutline, (c) => {
-    const thread = requireThread(c);
-    return c.json(timelines.outline(thread, timelineDisplay(thread)));
   });
 
   get(threads.output, (c) =>
@@ -322,7 +307,7 @@ export function registerThreadReadRoutes(
 
   get(threads.eventWait, async (c, query) => {
     const threadId = requireThread(c).id;
-    const type = threadEventTypeSchema.safeParse(query.type);
+    const type = domain.threadEventTypeSchema.safeParse(query.type);
     if (!type.success) throw invalidRequest("Invalid event type");
     const types = [type.data];
     const after = integer(query.afterSeq);

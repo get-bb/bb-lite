@@ -159,16 +159,6 @@ export type ProjectWorkspaceRoutingQuery = z.infer<
   typeof projectWorkspaceRoutingQuerySchema
 >;
 
-export const projectFilesQuerySchema = z
-  .object({
-    ...projectWorkspaceRoutingFields,
-    query: z.string().min(1).max(FILE_LIST_QUERY_MAX_LENGTH).optional(),
-    limit: z.string().regex(/^\d+$/).optional(),
-  })
-  .partial()
-  .superRefine(rejectMultipleWorkspaceSelectors);
-export type ProjectFilesQuery = z.infer<typeof projectFilesQuerySchema>;
-
 export const projectPathsQuerySchema = z
   .object({
     ...projectWorkspaceRoutingFields,

@@ -4,10 +4,7 @@ import {
   FILE_LIST_EXCLUDE_NAMES_MAX,
   FILE_LIST_LIMIT_MAX,
 } from "@bb/domain";
-import type {
-  WorkspaceFileListResponse,
-  WorkspacePathListResponse,
-} from "./shared.js";
+import type { WorkspaceFileListResponse } from "./shared.js";
 
 export const hostFileReadRequestSchema = z
   .object({
@@ -49,20 +46,6 @@ export const hostFileListRequestSchema = z
   .strict();
 export type HostFileListRequest = z.infer<typeof hostFileListRequestSchema>;
 
-export const hostPathListRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    path: z.string().min(1),
-    query: z.string().optional(),
-    limit: z.number().int().positive().max(FILE_LIST_LIMIT_MAX).optional(),
-    includeFiles: z.boolean(),
-    includeDirectories: z.boolean(),
-    includeHidden: z.boolean().optional(),
-    excludeNames: fileListExcludeNamesRequestSchema,
-  })
-  .strict();
-export type HostPathListRequest = z.infer<typeof hostPathListRequestSchema>;
-
 export const hostMkdirRequestSchema = z
   .object({
     hostId: z.string().min(1).optional(),
@@ -72,41 +55,6 @@ export const hostMkdirRequestSchema = z
   })
   .strict();
 export type HostMkdirRequest = z.infer<typeof hostMkdirRequestSchema>;
-
-export const hostMovePathRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    sourcePath: z.string().min(1),
-    destinationPath: z.string().min(1),
-    rootPath: z.string().min(1).optional(),
-  })
-  .strict();
-export type HostMovePathRequest = z.infer<typeof hostMovePathRequestSchema>;
-
-export const hostRemovePathRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    path: z.string().min(1),
-    rootPath: z.string().min(1).optional(),
-    recursive: z.boolean().optional(),
-  })
-  .strict();
-export type HostRemovePathRequest = z.infer<typeof hostRemovePathRequestSchema>;
-
-export const createFilePreviewRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    rootPath: z.string().min(1),
-    ttlMs: z.number().int().min(60_000).max(3_600_000).optional(),
-  })
-  .strict();
-export type CreateFilePreviewRequest = z.infer<
-  typeof createFilePreviewRequestSchema
->;
-export interface CreateFilePreviewResponse {
-  baseUrl: string;
-  expiresAtMs: number;
-}
 
 export interface HostFileReadResponse {
   path: string;
@@ -121,10 +69,6 @@ export type HostFileWriteResponse =
   | { outcome: "written"; sha256: string; sizeBytes: number }
   | { outcome: "conflict"; currentSha256: string | null };
 export type HostFileListResponse = WorkspaceFileListResponse;
-export type HostPathListResponse = WorkspacePathListResponse;
-interface HostPathMutationResponse {
+export interface HostMkdirResponse {
   ok: true;
 }
-export type HostMkdirResponse = HostPathMutationResponse;
-export type HostMovePathResponse = HostPathMutationResponse;
-export type HostRemovePathResponse = HostPathMutationResponse;

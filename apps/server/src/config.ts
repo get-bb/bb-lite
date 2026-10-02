@@ -45,7 +45,6 @@ export function dataPaths(dataDir: string) {
     threadStorage: join(dataDir, "thread-storage"),
     worktrees: join(dataDir, "worktrees"),
     plugins: join(dataDir, "plugins"),
-    themes: join(dataDir, "theme"),
     logs: join(dataDir, "logs"),
     agentsFile: join(dataDir, "AGENTS.md"),
     configFile: join(dataDir, "config.json"),
@@ -54,7 +53,7 @@ export function dataPaths(dataDir: string) {
   };
 }
 
-function prepareDataDir(dataDir: string): string {
+function prepareDataDir(dataDir: string) {
   const paths = dataPaths(dataDir);
   refuseLegacyDatabase(paths.database);
   for (const directory of [
@@ -62,7 +61,6 @@ function prepareDataDir(dataDir: string): string {
     paths.threadStorage,
     paths.worktrees,
     paths.plugins,
-    paths.themes,
     paths.logs,
   ]) {
     mkdirSync(directory, { recursive: true });
@@ -73,7 +71,7 @@ function prepareDataDir(dataDir: string): string {
   return z.string().trim().min(1).parse(readFileSync(paths.hostIdFile, "utf8"));
 }
 
-function readVersion(): string {
+function readVersion() {
   try {
     const manifest: unknown = JSON.parse(
       readFileSync(ROOT_PACKAGE_JSON, "utf8"),

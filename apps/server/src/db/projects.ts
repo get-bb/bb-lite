@@ -6,9 +6,9 @@ import {
   type ProjectSource,
 } from "@bb/domain";
 import type { ProjectResponse } from "@bb/server-contract";
-import { encodeJson, newId, type Db } from "./index.js";
+import { ApiError, conflict } from "../http/errors.js";
+import { insertRow, newId, updateRow, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
-import { updateRow } from "./update-row.js";
 
 interface SourceRow extends Omit<ProjectSource, "isDefault"> {
   isDefault: number;
@@ -18,8 +18,6 @@ export interface LocalPathSource {
   hostId: string;
   path: string;
 }
-
-export type ReorderOutcome = "reordered" | "unchanged" | "stale" | "invalid";
 
 export interface DeletedProject {
   projectId: string;
@@ -42,14 +40,14 @@ function toSource(row: SourceRow): ProjectSource {
   return { ...row, isDefault: row.isDefault === 1 };
 }
 
+function stamps(db: Db) {
+  return { createdAt: db.now(), updatedAt: db.now() };
+}
+
 export function ensurePersonalProject(db: Db): void {
-  db.run(
-    `INSERT INTO projects (id, kind, name, created_at, updated_at)
-     VALUES (?, 'personal', 'Personal', ?, ?) ON CONFLICT DO NOTHING`,
-    PERSONAL_PROJECT_ID,
-    db.now(),
-    db.now(),
-  );
+  const personal = { id: PERSONAL_PROJECT_ID, kind: "personal" };
+  const row = { ...personal, name: "Personal", ...stamps(db) };
+  insertRow(db, "projects", row, "ignore");
 }
 
 export function listStandardProjects(db: Db): Project[] {
@@ -59,12 +57,20 @@ export function listStandardProjects(db: Db): Project[] {
   );
 }
 
-export function getProject(db: Db, id: string): Project | undefined {
-  return db.get<Project>(
+export function requireProject(db: Db, id: string): Project {
+  const project = db.get<Project>(
     `SELECT ${PROJECT_COLUMNS} FROM projects
      WHERE id = ? AND deleted_at IS NULL`,
     id,
   );
+  if (project !== undefined) return project;
+  throw new ApiError(404, "project_not_found", "Project not found");
+}
+
+export function requireStandardProject(db: Db, id: string): Project {
+  const project = requireProject(db, id);
+  if (project.kind === "standard") return project;
+  throw new ApiError(404, "project_not_found", "Project not found");
 }
 
 function listProjectSources(db: Db): ProjectSource[] {
@@ -118,7 +124,7 @@ export function setProjectExecutionDefaults(
   projectId: string,
   defaults: ProjectExecutionDefaults,
 ): void {
-  const executionDefaults = encodeJson(defaults);
+  const executionDefaults = JSON.stringify(defaults);
   updateRow(db, "projects", projectId, { executionDefaults });
 }
 
@@ -127,20 +133,11 @@ function insertSource(
   projectId: string,
   source: LocalPathSource,
   isDefault: boolean,
-): string {
+) {
   const id = newId("src");
-  db.run(
-    `INSERT INTO project_sources
-       (id, project_id, host_id, path, is_default, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    id,
-    projectId,
-    source.hostId,
-    source.path,
-    isDefault ? 1 : 0,
-    db.now(),
-    db.now(),
-  );
+  const { hostId, path } = source;
+  const row = { id, projectId, hostId, path, isDefault: Number(isDefault) };
+  insertRow(db, "project_sources", { ...row, ...stamps(db) });
   return id;
 }
 
@@ -166,24 +163,13 @@ export function findOrCreateProject(
        ORDER BY sort_key DESC, id DESC LIMIT 1`,
     );
     const projectId = newId("proj");
-    db.run(
-      `INSERT INTO projects
-         (id, name, git_remote_url, sort_key, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      projectId,
-      input.name,
-      input.gitRemoteUrl,
-      orderKeyBetween(last?.sortKey ?? null, null),
-      db.now(),
-      db.now(),
-    );
+    const { name, gitRemoteUrl } = input;
+    const sortKey = orderKeyBetween(last?.sortKey ?? null, null);
+    const row = { id: projectId, name, gitRemoteUrl, sortKey };
+    insertRow(db, "projects", { ...row, ...stamps(db) });
     insertSource(db, projectId, input.source, true);
     return { projectId, created: true };
   });
-}
-
-export function renameProject(db: Db, id: string, name: string): void {
-  updateRow(db, "projects", id, { name });
 }
 
 export function setGitRemoteUrlIfMissing(
@@ -208,8 +194,8 @@ export function reorderProject(
     previousProjectId: string | null;
     nextProjectId: string | null;
   },
-): ReorderOutcome {
-  return db.transaction((): ReorderOutcome => {
+): boolean {
+  return db.transaction(() => {
     const ordered = db.all<{ id: string; sortKey: string }>(
       `SELECT id, sort_key FROM projects WHERE ${STANDARD}
        ORDER BY sort_key, id`,
@@ -222,21 +208,20 @@ export function reorderProject(
       (previousProjectId !== null && before === undefined) ||
       (nextProjectId !== null && after === undefined);
     if (missing || previousProjectId === id || nextProjectId === id) {
-      return "stale";
+      throw conflict("Project order changed");
     }
-    if (before && after && before.sortKey >= after.sortKey) return "invalid";
-    if (
+    if (before && after && before.sortKey >= after.sortKey) {
+      throw conflict("Project order is invalid");
+    }
+    const unchanged =
       (ordered[index - 1]?.id ?? null) === previousProjectId &&
-      (ordered[index + 1]?.id ?? null) === nextProjectId
-    ) {
-      return "unchanged";
-    }
+      (ordered[index + 1]?.id ?? null) === nextProjectId;
+    if (unchanged) return false;
     const sortKey = orderKeyBetween(
       before?.sortKey ?? null,
       after?.sortKey ?? null,
     );
-    updateRow(db, "projects", id, { sortKey });
-    return "reordered";
+    return updateRow(db, "projects", id, { sortKey });
   });
 }
 
@@ -261,10 +246,11 @@ export function addProjectSource(
   db: Db,
   projectId: string,
   source: LocalPathSource,
-): ProjectSource | undefined {
+): ProjectSource {
   return db.transaction(() => {
     if (getProjectSource(db, projectId, { hostId: source.hostId })) {
-      return undefined;
+      const message = "Project already has a source on this host";
+      throw new ApiError(409, "project_source_host_conflict", message);
     }
     const first =
       db.get(
@@ -272,7 +258,9 @@ export function addProjectSource(
         projectId,
       ) === undefined;
     const id = insertSource(db, projectId, source, first);
-    return getProjectSource(db, projectId, { id });
+    const added = getProjectSource(db, projectId, { id });
+    if (added === undefined) throw new Error("Source insert was lost");
+    return added;
   });
 }
 
@@ -296,11 +284,8 @@ export function updateProjectSource(
   });
 }
 
-export function deleteProjectSource(
-  db: Db,
-  source: ProjectSource,
-): "deleted" | "last-source" {
-  return db.transaction(() => {
+export function deleteProjectSource(db: Db, source: ProjectSource): void {
+  db.transaction(() => {
     const remaining = db.all<{ id: string }>(
       `SELECT id FROM project_sources WHERE project_id = ? AND id <> ?
        ORDER BY created_at, id`,
@@ -308,11 +293,12 @@ export function deleteProjectSource(
       source.id,
     );
     const [replacement] = remaining;
-    if (replacement === undefined) return "last-source";
+    if (replacement === undefined) {
+      throw conflict("Cannot delete the last source of a project");
+    }
     db.run("DELETE FROM project_sources WHERE id = ?", source.id);
     if (source.isDefault) {
       updateRow(db, "project_sources", replacement.id, { isDefault: 1 });
     }
-    return "deleted";
   });
 }

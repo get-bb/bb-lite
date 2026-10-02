@@ -1,5 +1,5 @@
 import { Fragment, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   assertNever,
   durationToCompactString,
@@ -9,7 +9,6 @@ import {
   type TimelineTitleDecoration,
   type TimelineTitleLink,
   type TimelineTitleSegment,
-  type TimelineTitleSegmentAccent,
   type TimelineTitleTone,
 } from "@bb/thread-view";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -41,64 +40,48 @@ interface TimelineTitleViewProps {
   wrap?: boolean;
 }
 
-function emToneClass(tone: TimelineTitleTone): string {
-  switch (tone) {
-    case "default":
-      return "font-medium text-foreground opacity-70";
-    case "summary":
-      return "text-subtle-foreground";
-    default:
-      return assertNever(tone);
-  }
-}
+const EM_TONE_CLASS: Record<TimelineTitleTone, string> = {
+  default: "font-medium text-foreground opacity-70",
+  summary: "text-subtle-foreground",
+};
+const PLAIN_TONE_CLASS: Record<TimelineTitleTone, string> = {
+  default: "text-muted-foreground",
+  summary: "text-subtle-foreground",
+};
+const STATUS_DECORATION_TONE_CLASS = "text-subtle-foreground";
 
-function accentToneClass(
-  accent: TimelineTitleSegmentAccent,
-  em: boolean,
+function segmentToneClass(
+  segment: TimelineTitleSegment,
+  tone: TimelineTitleTone,
 ): string {
-  switch (accent) {
+  switch (segment.accent) {
+    case undefined:
+      return segment.em ? EM_TONE_CLASS[tone] : PLAIN_TONE_CLASS[tone];
     case "muted":
       return "text-muted-foreground";
     case "subtle":
       return "text-subtle-foreground";
     case "file":
-      return em ? "font-medium text-timeline-accent" : "text-timeline-accent";
+      return segment.em
+        ? "font-medium text-timeline-accent"
+        : "text-timeline-accent";
     default:
-      return assertNever(accent);
+      return assertNever(segment.accent);
   }
 }
 
-function plainToneClass(tone: TimelineTitleTone): string {
-  switch (tone) {
-    case "default":
-      return "text-muted-foreground";
-    case "summary":
-      return "text-subtle-foreground";
-    default:
-      return assertNever(tone);
-  }
-}
-
-function badgeToneClass(tone: "neutral" | "destructive"): string {
-  return tone === "destructive"
-    ? "text-destructive-text"
-    : "text-muted-foreground";
-}
-
-const STATUS_DECORATION_TONE_CLASS = "text-subtle-foreground";
-const STATUS_DECORATION_TEXT_CLASS = cn(
-  "font-mono text-xs font-normal leading-none",
-  STATUS_DECORATION_TONE_CLASS,
-);
-
-function renderStatusDecorationText(
-  text: string,
-  className?: string,
-): ReactNode {
+function StatusDecorationText({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
   return (
     <span
       className={cn(
-        STATUS_DECORATION_TEXT_CLASS,
+        "font-mono text-xs font-normal leading-none",
+        STATUS_DECORATION_TONE_CLASS,
         "ml-px opacity-75",
         className,
       )}
@@ -108,52 +91,38 @@ function renderStatusDecorationText(
   );
 }
 
-function segmentContent(segment: TimelineTitleSegment): ReactNode {
-  return segment.link?.kind === "thread" ? (
-    <ThreadTitleMentions title={segment.text} />
-  ) : (
-    segment.text
-  );
-}
-
 function renderSegment(
   segment: TimelineTitleSegment,
-  index: number,
   tone: TimelineTitleTone,
-  interactive: {
-    onClick: (() => void) | null;
-    linkHref: string | null;
-  },
+  onClick: (() => void) | null,
+  linkHref: string | null,
   wrap: boolean,
 ): ReactNode {
-  const widthClass = wrap
-    ? "whitespace-pre-wrap"
-    : segment.truncate
-      ? "min-w-0 truncate whitespace-pre"
-      : "shrink-0 whitespace-pre";
-  const toneClass =
-    segment.accent !== undefined
-      ? accentToneClass(segment.accent, segment.em)
-      : segment.em
-        ? emToneClass(tone)
-        : plainToneClass(tone);
   const baseClass = cn(
-    widthClass,
-    toneClass,
+    wrap
+      ? "whitespace-pre-wrap"
+      : segment.truncate
+        ? "min-w-0 truncate whitespace-pre"
+        : "shrink-0 whitespace-pre",
+    segmentToneClass(segment, tone),
     segment.shimmer ? "animate-shine" : null,
   );
+  const content =
+    segment.link?.kind === "thread" ? (
+      <ThreadTitleMentions title={segment.text} />
+    ) : (
+      segment.text
+    );
 
-  if (interactive.linkHref !== null) {
-    const href = interactive.linkHref;
+  if (linkHref !== null) {
     return (
       <RouteAnchor
-        key={index}
-        href={href}
+        href={linkHref}
         className={cn(
           baseClass,
           "cursor-pointer text-left underline underline-offset-2 focus-visible:outline-none",
         )}
-        onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        onClick={(event) => {
           event.stopPropagation();
         }}
         onKeyDown={(event: KeyboardEvent<HTMLAnchorElement>) => {
@@ -162,27 +131,25 @@ function renderSegment(
           }
         }}
       >
-        {segmentContent(segment)}
+        {content}
       </RouteAnchor>
     );
   }
 
-  if (segment.em && interactive.onClick) {
-    const onClick = interactive.onClick;
+  if (segment.em && onClick) {
     return (
       <span
-        key={index}
         role="link"
         tabIndex={0}
         className={cn(
           baseClass,
           "cursor-pointer text-left underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none",
         )}
-        onClick={(event: MouseEvent<HTMLSpanElement>) => {
+        onClick={(event) => {
           event.stopPropagation();
           onClick();
         }}
-        onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
+        onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             event.stopPropagation();
@@ -190,32 +157,30 @@ function renderSegment(
           }
         }}
       >
-        {segmentContent(segment)}
+        {content}
       </span>
     );
   }
 
-  return (
-    <span key={index} className={baseClass}>
-      {segmentContent(segment)}
-    </span>
-  );
+  return <span className={baseClass}>{content}</span>;
 }
 
 function renderDecoration(
   decoration: TimelineTitleDecoration,
-  index: number,
   tone: TimelineTitleTone,
 ): ReactNode {
-  const baseClass = cn("shrink-0 whitespace-pre", plainToneClass(tone));
+  const baseClass = cn("shrink-0 whitespace-pre", PLAIN_TONE_CLASS[tone]);
 
   switch (decoration.kind) {
-    case "duration": {
-      const durationClass = decoration.em
-        ? cn("shrink-0 whitespace-pre tabular-nums", emToneClass(tone))
-        : cn(baseClass, "tabular-nums");
+    case "duration":
       return (
-        <span key={index} className={durationClass}>
+        <span
+          className={
+            decoration.em
+              ? cn("shrink-0 whitespace-pre tabular-nums", EM_TONE_CLASS[tone])
+              : cn(baseClass, "tabular-nums")
+          }
+        >
           {decoration.completedAt !== null ? (
             durationToCompactString(
               decoration.completedAt - decoration.startedAt,
@@ -225,95 +190,84 @@ function renderDecoration(
           )}
         </span>
       );
-    }
     case "status":
-    case "summary-status": {
-      if (decoration.kind === "status") {
-        const durationText =
-          decoration.durationMs === null
-            ? null
-            : durationToCompactString(decoration.durationMs);
-        return (
-          <span
-            key={index}
-            className={cn(
-              "shrink-0 whitespace-pre",
-              STATUS_DECORATION_TONE_CLASS,
-              "inline-flex items-baseline gap-1",
-            )}
-          >
-            {durationText ? (
-              <span className="tabular-nums">{durationText}</span>
-            ) : null}
-            {renderStatusDecorationText(
-              decoration.status,
+      return (
+        <span
+          className={cn(
+            "shrink-0 whitespace-pre",
+            STATUS_DECORATION_TONE_CLASS,
+            "inline-flex items-baseline gap-1",
+          )}
+        >
+          {decoration.durationMs !== null ? (
+            <span className="tabular-nums">
+              {durationToCompactString(decoration.durationMs)}
+            </span>
+          ) : null}
+          <StatusDecorationText
+            text={decoration.status}
+            className={
               decoration.status === "error" && decoration.emphasis
                 ? "text-destructive-text"
-                : undefined,
-            )}
-          </span>
-        );
-      }
-
-      const parts: string[] = [];
-      if (decoration.errorCount > 0) {
-        parts.push(
-          `${decoration.errorCount} ${
-            decoration.errorCount === 1 ? "error" : "errors"
-          }`,
-        );
-      }
-      if (decoration.interruptedCount > 0) {
-        parts.push(`${decoration.interruptedCount} interrupted`);
-      }
-      const text = parts.join(", ");
-      if (text.length === 0) return null;
-      return (
-        <span key={index} className="shrink-0 whitespace-pre">
-          {renderStatusDecorationText(text)}
+                : undefined
+            }
+          />
+        </span>
+      );
+    case "summary-status": {
+      const { errorCount, interruptedCount } = decoration;
+      const text = [
+        errorCount > 0
+          ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}`
+          : null,
+        interruptedCount > 0 ? `${interruptedCount} interrupted` : null,
+      ]
+        .filter((part) => part !== null)
+        .join(", ");
+      return text.length === 0 ? null : (
+        <span className="shrink-0 whitespace-pre">
+          <StatusDecorationText text={text} />
         </span>
       );
     }
     case "diff-stats": {
-      if (tone === "summary") {
-        const text = formatDiffStatsText({
-          added: decoration.added,
-          removed: decoration.removed,
-          hideZero: true,
-        });
-        if (text.length === 0) return null;
+      if (tone !== "summary") {
         return (
-          <span key={index} className={baseClass}>
-            {text}
-          </span>
+          <DiffStatsTally
+            insertions={decoration.added}
+            deletions={decoration.removed}
+            hideZero
+            className="shrink-0"
+          />
         );
       }
-      return (
-        <DiffStatsTally
-          key={index}
-          insertions={decoration.added}
-          deletions={decoration.removed}
-          hideZero
-          className="shrink-0"
-        />
+      const text = formatDiffStatsText({
+        added: decoration.added,
+        removed: decoration.removed,
+        hideZero: true,
+      });
+      return text.length === 0 ? null : (
+        <span className={baseClass}>{text}</span>
       );
     }
-    case "badge": {
-      const badgeClass = badgeToneClass(decoration.tone);
+    case "badge":
       return (
         <span
-          key={index}
           className="inline-flex shrink-0 items-center"
           title={decoration.hint}
         >
           <Icon
             name={decoration.glyph}
-            className={cn("size-3.5", badgeClass)}
+            className={cn(
+              "size-3.5",
+              decoration.tone === "destructive"
+                ? "text-destructive-text"
+                : "text-muted-foreground",
+            )}
             aria-label={decoration.hint}
           />
         </span>
       );
-    }
     default:
       return assertNever(decoration);
   }
@@ -342,28 +296,24 @@ export function TimelineTitleView({
       )}
       title={plainTitle}
     >
-      {title.segments.map((segment, index) => {
-        const linkHref =
-          segment.link && resolveSegmentLinkHref
-            ? resolveSegmentLinkHref(segment.link)
-            : null;
-        return (
-          <Fragment key={`segment-${index}`}>
-            {index > 0 ? " " : null}
-            {renderSegment(
-              segment,
-              index,
-              title.tone,
-              { onClick, linkHref },
-              wrap,
-            )}
-          </Fragment>
-        );
-      })}
+      {title.segments.map((segment, index) => (
+        <Fragment key={`segment-${index}`}>
+          {index > 0 ? " " : null}
+          {renderSegment(
+            segment,
+            title.tone,
+            onClick,
+            segment.link && resolveSegmentLinkHref
+              ? resolveSegmentLinkHref(segment.link)
+              : null,
+            wrap,
+          )}
+        </Fragment>
+      ))}
       {title.decorations.map((decoration, index) => (
         <Fragment key={`decoration-${index}`}>
           {" "}
-          {renderDecoration(decoration, index, title.tone)}
+          {renderDecoration(decoration, title.tone)}
         </Fragment>
       ))}
     </span>

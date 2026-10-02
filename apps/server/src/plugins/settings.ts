@@ -23,13 +23,7 @@ function accepted(
   descriptor: SettingDescriptor,
   value: unknown,
 ): SettingValue | undefined {
-  const { type } = descriptor;
-  const primitive = type === "boolean" || type === "number" ? type : "string";
-  const allowed = type !== "select" || descriptor.options.includes(`${value}`);
-  if (typeof value !== primitive || Number.isNaN(value) || !allowed) {
-    return undefined;
-  }
-  return value as SettingValue;
+  return typeof value === descriptor.type ? (value as SettingValue) : undefined;
 }
 
 export class PluginSettings {

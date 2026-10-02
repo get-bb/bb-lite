@@ -27,7 +27,6 @@ import {
 } from "@/components/thread/ThreadTitleMentions";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { CommandPalette } from "@/components/commands/CommandPalette";
-import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { AppPageHeader } from "./AppPageHeader";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { listSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
@@ -45,6 +44,7 @@ import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { PluginAppOverlays } from "@/components/plugin/PluginAppOverlays";
 import { ThreadActionsProvider } from "@/components/thread/ThreadActionsProvider";
+import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import {
   booleanLocalStorage,
@@ -364,7 +364,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   />
                 ) : null}
                 <main className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
-                  {children}
+                  <ProjectActionsProvider>{children}</ProjectActionsProvider>
                 </main>
               </div>
             </SidebarInset>
@@ -378,7 +378,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
             threadId={threadId ?? null}
             projectId={projectId ?? null}
           />
-          <NotificationCenter />
           <ProjectPathDialog
             target={quickCreateProject.projectPathDialog.target}
             pending={quickCreateProject.isCreating}

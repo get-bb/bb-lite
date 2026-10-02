@@ -57,7 +57,7 @@ function threadFilter(
   equal: Record<string, SqlValue | undefined>,
   nullness: Record<string, "true" | "false" | undefined>,
   hidden: "true" | "false" | undefined,
-): { where: string; params: SqlValue[] } {
+) {
   const where = ["threads.deleted_at IS NULL"];
   const params: SqlValue[] = [];
   for (const [column, value] of Object.entries(equal)) {
@@ -201,19 +201,6 @@ export function listThreadMentionRows(
        AND projects.deleted_at IS NULL`,
     JSON.stringify(threadIds),
   );
-}
-
-export function hasThreadAttention(db: Db): boolean {
-  const row = db.get(
-    `SELECT 1 FROM threads
-     WHERE deleted_at IS NULL AND archived_at IS NULL
-       AND visibility = 'visible'
-       AND (last_read_at IS NULL OR last_read_at < latest_attention_at
-         OR EXISTS (SELECT 1 FROM pending_interactions AS p
-           WHERE p.thread_id = threads.id AND p.status = 'pending'))
-     LIMIT 1`,
-  );
-  return row !== undefined;
 }
 
 export function listQueueCounts(db: Db, threadIds: readonly string[]) {

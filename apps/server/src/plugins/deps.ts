@@ -15,7 +15,7 @@ import {
   createThreadSection,
   listThreadSections,
 } from "../db/thread-sections.js";
-import { ApiError } from "../http/errors.js";
+
 import { hostResponse } from "../runners/hosts.js";
 import { toThreadListEntries } from "../threads/thread-display.js";
 
@@ -60,13 +60,9 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
     sections: {
       list: async () => listThreadSections(db),
       create: async (name) => {
-        const write = createThreadSection(db, name.trim());
-        if (write.outcome !== "ok") {
-          const message = "Section name already exists";
-          throw new ApiError(409, "section_name_conflict", message);
-        }
+        const section = createThreadSection(db, name.trim());
         hub.project(PERSONAL_PROJECT_ID, ["threads-changed"]);
-        return write.result;
+        return section;
       },
     },
     files: {

@@ -10,7 +10,7 @@ export function pluginIconName(icon: string | null): IconName {
 export function PluginIcon({
   pluginId,
   icon,
-  compactIconUrl: compactIconUrlProp,
+  compactIconUrl,
   fallbackIcon = "Zap",
   className,
 }: {
@@ -21,18 +21,14 @@ export function PluginIcon({
   className?: string;
 }) {
   const branding = usePluginCompactBranding(pluginId);
-  const compactIconUrl =
-    compactIconUrlProp === undefined
-      ? (branding?.compactIconUrl ?? null)
-      : compactIconUrlProp;
-  if (compactIconUrl !== null) {
-    return <PluginCompactIconMask url={compactIconUrl} className={className} />;
-  }
-  const resolvedIcon = branding?.icon ?? icon ?? fallbackIcon;
-  if (resolvedIcon === null) return null;
-  return (
+  const url =
+    compactIconUrl === undefined ? branding?.compactIconUrl : compactIconUrl;
+  const name = branding?.icon ?? icon ?? fallbackIcon;
+  return url ? (
+    <PluginCompactIconMask url={url} className={className} />
+  ) : name === null ? null : (
     <Icon
-      name={resolvedIcon}
+      name={name}
       className={cn("size-4 shrink-0", className)}
       aria-hidden="true"
     />
@@ -48,15 +44,13 @@ export function PluginItemIcon({
   icon: string | null;
   className?: string;
 }) {
-  const name = icon ?? "";
-  if (isBuiltinIconName(name)) {
-    return (
-      <Icon
-        name={name}
-        className={cn("size-4 shrink-0", className)}
-        aria-hidden
-      />
-    );
-  }
-  return <PluginIcon pluginId={pluginId} icon={null} className={className} />;
+  return icon !== null && isBuiltinIconName(icon) ? (
+    <Icon
+      name={icon}
+      className={cn("size-4 shrink-0", className)}
+      aria-hidden
+    />
+  ) : (
+    <PluginIcon pluginId={pluginId} icon={null} className={className} />
+  );
 }

@@ -219,9 +219,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
     throw usageError(`Unknown setting '${key}'.`, hint);
   }
   const value = raw === undefined ? defaults[key] : settingValue(raw);
-  const { showUnhandledProviderEvents: _legacy, ...general } =
-    config.generalSettings;
-  const changed = { ...general, [key]: value };
+  const changed = { ...config.generalSettings, [key]: value };
   const next = valid(domain.appSettingsSchema, changed, "setting");
   return system.updateGeneralSettings(next);
 }

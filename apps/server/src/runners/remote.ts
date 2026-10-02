@@ -6,11 +6,7 @@ import {
 } from "@bb/runner";
 import type { WebSocket } from "ws";
 import type { ServerContext, ServerRunner } from "../context.js";
-import {
-  advanceHostEventCursor,
-  findHostEventCursor,
-  updateHost,
-} from "../db/hosts.js";
+import { advanceHostEventCursor, findHost, updateHost } from "../db/hosts.js";
 
 interface EventStream {
   instanceId: string;
@@ -21,17 +17,13 @@ const INTERNAL_ERROR_CLOSE_CODE = 1011;
 const LAST_SEEN_INTERVAL_MS = 30_000;
 const streams = new WeakMap<ServerContext, Map<string, EventStream>>();
 
-function resumeStream(
-  ctx: ServerContext,
-  hostId: string,
-  hello: Hello,
-): EventStream {
+function resumeStream(ctx: ServerContext, hostId: string, hello: Hello) {
   const byHost = streams.get(ctx) ?? new Map<string, EventStream>();
   streams.set(ctx, byHost);
   const { instanceId } = hello;
   const live = byHost.get(hostId);
   if (live?.instanceId === instanceId) return live;
-  const stored = findHostEventCursor(ctx.db, hostId);
+  const stored = findHost(ctx.db, "id", hostId);
   if (stored === undefined) throw new Error("Host was removed");
   const known = stored.lastInstanceId === instanceId;
   const deliveredSeq = known ? stored.lastEventSeq : (hello.lastAckedSeq ?? 0);
@@ -60,7 +52,7 @@ export function attachRemoteRunner(
     updateHost(db, hostId, { lastSeenAt: seenAt });
   });
 
-  const connect = async (): Promise<void> => {
+  const connect = async () => {
     const hello = await Promise.race([remote.hello, remote.closed]);
     if (hello === undefined) return;
     const { platform, threadStorageRoot } = await remote.runner.describe();
@@ -73,8 +65,8 @@ export function attachRemoteRunner(
         await remote.runner.ackEvents({ seq });
       },
     };
-    let offDisconnected = (): void => {};
-    const release = (): void => {
+    let offDisconnected = () => {};
+    const release = () => {
       offDisconnected();
       runners.disconnect(hostId, runner);
     };

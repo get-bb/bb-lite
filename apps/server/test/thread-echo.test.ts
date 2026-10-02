@@ -1,39 +1,23 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import type { ThreadListEntry } from "@bb/domain";
-import { createEchoAdapter } from "@bb/runner";
 import type {
   SidebarBootstrapResponse,
   ThreadSearchResponse,
   ThreadTimelineResponse as Timeline,
 } from "@bb/server-contract";
-import { expect, it, onTestFinished, vi } from "vitest";
-import type { ServerConfig } from "../src/config.js";
+import { expect, it, vi } from "vitest";
 import type { ThreadRow } from "../src/db/threads.js";
-import { localRunnerFor } from "../src/runners/local.js";
-import { createTestServer } from "./helpers.js";
+import { createEchoServer } from "./helpers.js";
 import { text } from "./thread-harness.js";
-import { createProject } from "./watch.js";
 
 type StatusChange = { status: string; runtime: object; activity: object };
 type Prompt = { input: { text: string }[] };
 
 it("runs an echo thread on the real local runner and steers it", async () => {
-  const localRunner = (config: ServerConfig) => {
-    const local = localRunnerFor(config, [createEchoAdapter()]);
-    onTestFinished(local.shutdown);
-    return local.connect;
-  };
-  const server = await createTestServer({}, { localRunner });
-  const { api, ctx } = server;
-  const directory = join(ctx.config.dataDir, "repo");
-  mkdirSync(directory);
-  const project = await createProject(server, "echo", directory);
+  const server = await createEchoServer();
+  const { api, ctx, directory, project, read: get } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
-  const get = async <Body>(path: string): Promise<Body> =>
-    (await (await fetch(`${server.url}/api/v1${path}`)).json()) as Body;
-  const nextChange = async (): Promise<StatusChange> => {
+  const nextChange = async () => {
     const changed = await client.next(({ changes }) =>
       String(changes).includes("status-changed"),
     );
@@ -58,16 +42,18 @@ it("runs an echo thread on the real local runner and steers it", async () => {
     const entries = await get<ThreadListEntry[]>("/threads");
     const entry = entries.find((thread) => thread.id === id);
     expect(sidebar.projects[0]?.threads).toEqual([entry]);
+    expect(sidebar.personalProject).toMatchObject({ kind: "personal" });
     return entry;
   };
   expect((await nextChange()).status).toBe("starting");
   const running = await nextChange();
   expect(running).toMatchObject({ runtime: { displayStatus: "active" } });
   expect(await listed()).toMatchObject(running);
-  const thread = (): ThreadRow | undefined =>
+  const thread = () =>
     ctx.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
   await vi.waitFor(() => expect(thread()?.activeTurnId).toBeTruthy());
   const wait = `${path}/events/wait?type=turn/completed&afterSeq=0`;
+  expect((await server.request(`${wait}&waitMs=20`)).status).toBe(204);
   const completed = get<{ type: string; seq: number }>(wait);
 
   const mode = "steer-if-active" as const;
@@ -121,7 +107,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const [hit] = found.active.results;
   expect(hit?.thread.id).toBe(id);
   expect(hit?.matches[0]?.text).toBe("third pineapple");
-  const prompts = async (scope: string): Promise<string[]> => {
+  const prompts = async (scope: string) => {
     const entries = await get<Prompt[]>(`${scope}/prompt-history`);
     return entries.flatMap(({ input }) => input.map((part) => part.text));
   };
