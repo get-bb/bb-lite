@@ -1,148 +1,85 @@
-import { type JsonValue } from "@bb/domain";
+import type { JsonValue } from "@bb/domain";
 import {
   installedPluginSchema,
   pluginContributionsResponseSchema,
+  pluginListResponseSchema,
   pluginSettingsResponseSchema,
   pluginSettingsUpdateRequestSchema,
-  type InstalledPlugin,
-  type PluginContributionsResponse,
-  type PluginListResponse,
-  type PluginSettingsResponse,
 } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
 import { z } from "zod";
-import type { CreateSdkAreaArgs } from "./common.js";
+import type { Http } from "../http.js";
 
-const installedPluginResponseSchema = installedPluginSchema;
-const pluginListResponseSchema = z.object({
-  plugins: z.array(installedPluginResponseSchema),
-});
-const pluginInstallResponseSchema = z.object({
-  ok: z.literal(true),
-  plugin: installedPluginResponseSchema,
-});
-
-export interface PluginIdArgs {
-  pluginId: string;
-}
-
-export interface PluginSettingsUpdateArgs extends PluginIdArgs {
-  values: Record<string, JsonValue>;
-}
-
-export interface PluginGetSettingsArgs extends PluginIdArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginListArgs {
-  signal?: AbortSignal;
-}
-
-export interface PluginReloadArgs {
-  pluginId?: string;
-}
-
-export type PluginDisableResult = InstalledPlugin;
-export type PluginEnableResult = InstalledPlugin;
-export type PluginGetSettingsResult = PluginSettingsResponse;
-export type PluginListResult = PluginListResponse;
-export type PluginUpdateSettingsResult = PluginSettingsResponse;
+type Abortable = { signal?: AbortSignal };
+type PluginTarget = { pluginId: string };
 
 export interface PluginsArea {
-  contributions(args?: PluginListArgs): Promise<PluginContributionsResponse>;
-  reload(args?: PluginReloadArgs): Promise<PluginListResult>;
-  disable(args: PluginIdArgs): Promise<PluginDisableResult>;
-  enable(args: PluginIdArgs): Promise<PluginEnableResult>;
-  getSettings(args: PluginGetSettingsArgs): Promise<PluginGetSettingsResult>;
-  list(args?: PluginListArgs): Promise<PluginListResult>;
+  contributions(args?: Abortable): Promise<api.PluginContributionsResponse>;
+  reload(args?: { pluginId?: string }): Promise<api.PluginListResponse>;
+  disable(args: PluginTarget): Promise<api.InstalledPlugin>;
+  enable(args: PluginTarget): Promise<api.InstalledPlugin>;
+  getSettings(
+    args: PluginTarget & Abortable,
+  ): Promise<api.PluginSettingsResponse>;
+  list(args?: Abortable): Promise<api.PluginListResponse>;
   updateSettings(
-    args: PluginSettingsUpdateArgs,
-  ): Promise<PluginUpdateSettingsResult>;
+    args: PluginTarget & { values: Record<string, JsonValue> },
+  ): Promise<api.PluginSettingsResponse>;
 }
 
-function pluginPath(pluginId: string, suffix = ""): string {
+const PLUGINS_PATH = "/api/v1/plugins";
+const toggledPluginSchema = z.object({
+  ok: z.literal(true),
+  plugin: installedPluginSchema,
+});
+
+function pluginPath(pluginId: string, suffix: string): string {
   const id = z.string().min(1).parse(pluginId);
-  return `/api/v1/plugins/${encodeURIComponent(id)}${suffix}`;
+  return `${PLUGINS_PATH}/${encodeURIComponent(id)}${suffix}`;
 }
 
-export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
-  const { transport } = args;
+function jsonInit(method: "POST" | "PUT", body: unknown): RequestInit {
+  const headers = { "content-type": "application/json" };
+  return { method, headers, body: JSON.stringify(body) };
+}
 
-  async function requestParsed<TOutput>(
+export function createPluginsArea(http: Http): PluginsArea {
+  async function read<Output>(
     path: string,
-    schema: z.ZodType<TOutput>,
-    init?: RequestInit,
-  ): Promise<TOutput> {
-    const url = transport.baseUrl
-      ? `${transport.baseUrl.replace(/\/$/u, "")}${path}`
-      : path;
-    const response = await transport.resolve(transport.fetch(url, init));
-    const json: unknown = await response.json();
-    return schema.parse(json);
+    schema: z.ZodType<Output>,
+    init: RequestInit,
+  ): Promise<Output> {
+    const reply = await http.request(path, init);
+    return schema.parse(await reply.json());
   }
-
-  function jsonInit(method: "POST" | "PUT", body: unknown): RequestInit {
-    return {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    };
+  async function toggle(pluginId: string, action: "enable" | "disable") {
+    const path = pluginPath(pluginId, `/${action}`);
+    const toggled = await read(path, toggledPluginSchema, jsonInit("POST", {}));
+    return toggled.plugin;
   }
+  const settingsSchema = pluginSettingsResponseSchema;
 
   return {
-    async contributions(input = {}) {
-      return requestParsed(
-        "/api/v1/plugins/contributions",
-        pluginContributionsResponseSchema,
-        { signal: input.signal },
-      );
-    },
-    async reload(input = {}) {
-      const { pluginId } = input;
+    contributions: ({ signal } = {}) =>
+      read(`${PLUGINS_PATH}/contributions`, pluginContributionsResponseSchema, {
+        signal,
+      }),
+    reload({ pluginId } = {}) {
       const query =
         pluginId === undefined ? "" : `?id=${encodeURIComponent(pluginId)}`;
-      return requestParsed(
-        `/api/v1/plugins/reload${query}`,
-        pluginListResponseSchema,
-        jsonInit("POST", {}),
-      );
+      const path = `${PLUGINS_PATH}/reload${query}`;
+      return read(path, pluginListResponseSchema, jsonInit("POST", {}));
     },
-    async disable(input) {
-      const response = await requestParsed(
-        pluginPath(input.pluginId, "/disable"),
-        pluginInstallResponseSchema,
-        jsonInit("POST", {}),
-      );
-      return response.plugin;
-    },
-    async enable(input) {
-      const response = await requestParsed(
-        pluginPath(input.pluginId, "/enable"),
-        pluginInstallResponseSchema,
-        jsonInit("POST", {}),
-      );
-      return response.plugin;
-    },
-    async getSettings(input) {
-      return requestParsed(
-        pluginPath(input.pluginId, "/settings"),
-        pluginSettingsResponseSchema,
-        { signal: input.signal },
-      );
-    },
-    async list(input = {}) {
-      return requestParsed("/api/v1/plugins", pluginListResponseSchema, {
-        signal: input.signal,
-      });
-    },
-    async updateSettings(input) {
-      const body = pluginSettingsUpdateRequestSchema.parse({
-        values: input.values,
-      });
-      return requestParsed(
-        pluginPath(input.pluginId, "/settings"),
-        pluginSettingsResponseSchema,
-        jsonInit("PUT", body),
-      );
+    disable: ({ pluginId }) => toggle(pluginId, "disable"),
+    enable: ({ pluginId }) => toggle(pluginId, "enable"),
+    getSettings: ({ pluginId, signal }) =>
+      read(pluginPath(pluginId, "/settings"), settingsSchema, { signal }),
+    list: ({ signal } = {}) =>
+      read(PLUGINS_PATH, pluginListResponseSchema, { signal }),
+    async updateSettings({ pluginId, values }) {
+      const body = pluginSettingsUpdateRequestSchema.parse({ values });
+      const path = pluginPath(pluginId, "/settings");
+      return read(path, settingsSchema, jsonInit("PUT", body));
     },
   };
 }

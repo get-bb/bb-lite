@@ -1,74 +1,53 @@
-import type {
-  SystemExecutionOptionsResponse,
-  SystemProviderInfo,
-  SystemProviderCatalogEntry,
-  SystemProvidersQuery,
-} from "@bb/server-contract";
-import {
-  readExecutionOptions,
-  signalRequestArgs,
-  type CreateSdkAreaArgs,
-} from "./common.js";
+import { publicApiRoutes } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { pick, type Http } from "../http.js";
+
+type Abortable = { signal?: AbortSignal };
 
 export type ProviderHostRoutingArgs =
   | { environmentId: string; hostId?: never }
   | { environmentId?: never; hostId: string }
   | { environmentId?: never; hostId?: never };
 
-export type ProviderListArgs = ProviderHostRoutingArgs & {
-  capability?: SystemProvidersQuery["capability"];
-  signal?: AbortSignal;
-};
-export type ProviderModelsArgs = ProviderHostRoutingArgs & {
-  providerId?: string;
-  signal?: AbortSignal;
-};
-
-export type ProviderListResult = SystemProviderInfo[];
-export type ProviderModelsResult = SystemExecutionOptionsResponse;
+type ExecutionOptionsArgs = api.SystemExecutionOptionsQuery & Abortable;
 
 export interface ProvidersArea {
-  catalog(): Promise<SystemProviderCatalogEntry[]>;
+  catalog(): Promise<api.SystemProviderCatalogEntry[]>;
   setEnabled(args: {
     providerId: string;
     enabled: boolean;
-  }): Promise<SystemProviderCatalogEntry[]>;
-  list(args?: ProviderListArgs): Promise<ProviderListResult>;
-  models(args?: ProviderModelsArgs): Promise<ProviderModelsResult>;
+  }): Promise<api.SystemProviderCatalogEntry[]>;
+  list(
+    args?: ProviderHostRoutingArgs &
+      Abortable & { capability?: api.SystemProvidersQuery["capability"] },
+  ): Promise<api.SystemProviderInfo[]>;
+  models(
+    args?: ProviderHostRoutingArgs & Abortable & { providerId?: string },
+  ): Promise<api.SystemExecutionOptionsResponse>;
 }
 
-export function createProvidersArea(args: CreateSdkAreaArgs): ProvidersArea {
-  const { transport } = args;
+export function readExecutionOptions(
+  http: Http,
+  args: ExecutionOptionsArgs = {},
+): Promise<api.SystemExecutionOptionsResponse> {
+  const query = pick(args, ["environmentId", "hostId", "providerId"]);
+  const route = publicApiRoutes.system.executionOptions;
+  return http.json(route, { query }, args.signal);
+}
+
+export function createProvidersArea(http: Http): ProvidersArea {
+  const routes = publicApiRoutes.system;
   return {
-    async catalog() {
-      return transport.readJson(
-        transport.api.v1.system.providers.catalog.$get(),
-      );
+    catalog: () => http.json(routes.providerCatalog, {}),
+    setEnabled: ({ providerId, enabled }) =>
+      http.json(routes.providerEnabled, {
+        param: { id: providerId },
+        json: { enabled },
+      }),
+    list(args = {}) {
+      const query = pick(args, ["capability", "environmentId", "hostId"]);
+      return http.json(routes.providers, { query }, args.signal);
     },
-    async setEnabled(input) {
-      return transport.readJson(
-        transport.api.v1.system.providers[":id"].enabled.$put({
-          param: { id: input.providerId },
-          json: { enabled: input.enabled },
-        }),
-      );
-    },
-    async list(input = {}) {
-      return transport.readJson(
-        transport.api.v1.system.providers.$get(
-          {
-            query: {
-              capability: input.capability,
-              environmentId: input.environmentId,
-              hostId: input.hostId,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async models(input = {}) {
-      return readExecutionOptions(transport, input);
-    },
+    models: (args) => readExecutionOptions(http, args),
   };
 }

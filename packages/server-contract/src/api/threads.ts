@@ -43,7 +43,6 @@ import {
   isCommaSeparatedIncludeQueryValue,
   pathListIncludeQueryValueSchema,
   threadContextWindowUsageSchema,
-  workspaceFileListResponseSchema,
   workspacePathListResponseSchema,
 } from "./shared.js";
 
@@ -472,7 +471,6 @@ export const threadListQuerySchema = z.object({
   environmentId: z.string().min(1).optional(),
   hostId: z.string().min(1).optional(),
   parentThreadId: z.string().min(1).optional(),
-  sourceThreadId: z.string().min(1).optional(),
   archived: z.enum(["true", "false"]).optional(),
   sectionId: z.string().min(1).optional(),
   unsectioned: z.enum(["true", "false"]).optional(),
@@ -595,9 +593,6 @@ export const threadStorageFilesQuerySchema = z
     limit: z.string().regex(/^\d+$/),
   })
   .partial();
-export type ThreadStorageFilesQuery = z.infer<
-  typeof threadStorageFilesQuerySchema
->;
 
 export const threadStoragePathsQuerySchema =
   threadStorageFilesQuerySchema.extend({
@@ -606,16 +601,6 @@ export const threadStoragePathsQuerySchema =
   });
 export type ThreadStoragePathsQuery = z.infer<
   typeof threadStoragePathsQuerySchema
->;
-
-export const threadStorageLocationResponseSchema = z
-  .object({
-    hostId: z.string().min(1),
-    storageRootPath: z.string().min(1),
-  })
-  .strict();
-export type ThreadStorageLocationResponse = z.infer<
-  typeof threadStorageLocationResponseSchema
 >;
 
 export const timelineTurnSummaryDetailsResponseSchema = z.object({
@@ -645,14 +630,6 @@ export const threadTimelineResponseSchema = z.object({
 });
 export type ThreadTimelineResponse = z.infer<
   typeof threadTimelineResponseSchema
->;
-
-export const threadStorageFileListResponseSchema =
-  workspaceFileListResponseSchema.extend({
-    storageRootPath: z.string(),
-  });
-export type ThreadStorageFileListResponse = z.infer<
-  typeof threadStorageFileListResponseSchema
 >;
 
 export const threadStoragePathListResponseSchema =

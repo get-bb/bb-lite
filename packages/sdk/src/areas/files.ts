@@ -1,16 +1,8 @@
-import type {
-  HostFileListResponse,
-  HostFileReadResponse,
-  HostFileWriteResponse,
-} from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import { publicApiRoutes } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { pick, type Http } from "../http.js";
 
-export interface FileReadArgs {
-  hostId?: string;
-  path: string;
-  rootPath?: string;
-  signal?: AbortSignal;
-}
+type Abortable = { signal?: AbortSignal };
 
 export interface FileWriteArgs {
   hostId?: string;
@@ -23,64 +15,41 @@ export interface FileWriteArgs {
   mode?: number;
 }
 
-export interface FileListArgs {
+export interface FileListArgs extends Abortable {
   hostId?: string;
   path: string;
   query?: string;
   limit?: number;
   includeHidden?: boolean;
   excludeNames?: string[];
-  signal?: AbortSignal;
 }
-
-export type FileReadResult = HostFileReadResponse;
-export type FileWriteResult = HostFileWriteResponse;
-export type FileListResult = HostFileListResponse;
 
 export interface FilesArea {
-  read(args: FileReadArgs): Promise<FileReadResult>;
-  write(args: FileWriteArgs): Promise<FileWriteResult>;
-  list(args: FileListArgs): Promise<FileListResult>;
+  read(
+    args: Abortable & { hostId?: string; path: string; rootPath?: string },
+  ): Promise<api.HostFileReadResponse>;
+  write(args: FileWriteArgs): Promise<api.HostFileWriteResponse>;
+  list(args: FileListArgs): Promise<api.HostFileListResponse>;
 }
 
-export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
-  const { transport } = args;
+export function createFilesArea(http: Http): FilesArea {
+  const routes = publicApiRoutes.files;
   return {
-    async read(input) {
-      return transport.readJson(
-        transport.api.v1.files.read.$post(
-          {
-            json: {
-              hostId: input.hostId,
-              path: input.path,
-              rootPath: input.rootPath,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    read(args) {
+      const json = pick(args, ["hostId", "path", "rootPath"]);
+      return http.json(routes.read, { json }, args.signal);
     },
-    async write(input) {
-      return transport.readJson(
-        transport.api.v1.files.write.$post({ json: input }),
-      );
-    },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.files.list.$post(
-          {
-            json: {
-              excludeNames: input.excludeNames,
-              hostId: input.hostId,
-              includeHidden: input.includeHidden,
-              limit: input.limit,
-              path: input.path,
-              query: input.query,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    write: (json) => http.json(routes.write, { json }),
+    list(args) {
+      const json = pick(args, [
+        "excludeNames",
+        "hostId",
+        "includeHidden",
+        "limit",
+        "path",
+        "query",
+      ]);
+      return http.json(routes.list, { json }, args.signal);
     },
   };
 }

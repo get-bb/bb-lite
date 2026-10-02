@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   contextSnapshotSchema,
   BRANCH_LIST_QUERY_MAX_LENGTH,
-  changedMessageLenientSchema,
   gitBranchNameSchema,
   gitBranchSelectionSchema,
   jsonValueSchema,
@@ -133,8 +132,6 @@ export const branchListQuerySchema = z.object({
   query: z.string().min(1).max(BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
 });
-
-export const serverMessageLenientSchema = changedMessageLenientSchema;
 
 export const pluginSignalSchema = z
   .object({

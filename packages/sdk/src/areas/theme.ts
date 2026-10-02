@@ -1,50 +1,26 @@
 import type { AppTheme, AppThemeSelection } from "@bb/domain";
-
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
-
-export type ThemeSetInput = AppThemeSelection;
-export type ThemeSetResult = AppTheme;
-export type ThemeResolveResult = AppTheme;
-
-export interface ThemeResolveArgs {
-  themeId: string;
-  signal?: AbortSignal;
-}
+import { publicApiRoutes } from "@bb/server-contract";
+import type { Http } from "../http.js";
 
 export interface ThemeArea {
-  resolve(args: ThemeResolveArgs): Promise<ThemeResolveResult>;
-  set(selection: ThemeSetInput): Promise<ThemeSetResult>;
-  set(themeId: string): Promise<ThemeSetResult>;
+  resolve(args: { themeId: string; signal?: AbortSignal }): Promise<AppTheme>;
+  set(selection: AppThemeSelection): Promise<AppTheme>;
+  set(themeId: string): Promise<AppTheme>;
 }
 
-export function createThemeArea(args: CreateSdkAreaArgs): ThemeArea {
-  const { transport } = args;
+export function createThemeArea(http: Http): ThemeArea {
+  const routes = publicApiRoutes.system;
   return {
-    async resolve(input) {
-      return transport.readJson(
-        transport.api.v1.settings.themes[":id"].$get(
-          { param: { id: input.themeId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async set(input) {
-      if (typeof input === "string") {
-        const appearance = (
-          await transport.readJson(transport.api.v1.system.config.$get())
-        ).appearance;
-        return transport.readJson(
-          transport.api.v1.settings.appearance.$put({
-            json: {
-              themeId: input,
-              faviconColor: appearance.faviconColor,
-            },
-          }),
-        );
+    resolve: ({ themeId, signal }) =>
+      http.json(routes.resolveTheme, { param: { id: themeId } }, signal),
+    async set(input: AppThemeSelection | string) {
+      if (typeof input !== "string") {
+        return http.json(routes.appearance, { json: input });
       }
-      return transport.readJson(
-        transport.api.v1.settings.appearance.$put({ json: input }),
-      );
+      const { appearance } = await http.json(routes.config, {});
+      const { faviconColor } = appearance;
+      const json = { themeId: input, faviconColor };
+      return http.json(routes.appearance, { json });
     },
   };
 }

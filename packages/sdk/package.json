@@ -28,12 +28,6 @@
       "types": "./src/node.ts",
       "import": "./dist/node.js",
       "default": "./dist/node.js"
-    },
-    "./node-websocket": {
-      "source": "./src/node-websocket.ts",
-      "types": "./src/node-websocket.ts",
-      "import": "./dist/node-websocket.js",
-      "default": "./dist/node-websocket.js"
     }
   },
   "types": "./src/node.ts",
@@ -47,13 +41,11 @@
     "@bb/core-ui": "workspace:*",
     "@bb/domain": "workspace:*",
     "@bb/server-contract": "workspace:*",
-    "ws": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.1"
   }

@@ -1,16 +1,11 @@
-import type {
-  CreateTerminalRequest,
-  TerminalInputRequest,
-  TerminalListQuery,
-  TerminalListResponse,
-  TerminalOutputQuery,
-  TerminalOutputResponse,
-  TerminalSession,
-  UpdateTerminalRequest,
-} from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import { publicApiRoutes } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import { pick, type Http } from "../http.js";
 
-export interface TerminalThreadScope {
+type Abortable = { signal?: AbortSignal };
+type Session = api.TerminalSession;
+
+interface ThreadScope {
   cwd?: never;
   environmentId?: never;
   hostId?: never;
@@ -18,7 +13,7 @@ export interface TerminalThreadScope {
   threadId: string;
 }
 
-export interface TerminalEnvironmentScope {
+interface EnvironmentScope {
   environmentId: string;
   cwd?: never;
   hostId?: never;
@@ -26,16 +21,8 @@ export interface TerminalEnvironmentScope {
   threadId?: never;
 }
 
-export interface TerminalHostPathListScope {
-  cwd?: string;
-  environmentId?: never;
-  hostId: string;
-  kind: "host_path";
-  threadId?: never;
-}
-
-export interface TerminalHostPathCreateScope {
-  cwd: string | null;
+interface HostPathScope<Cwd> {
+  cwd: Cwd;
   environmentId?: never;
   hostId: string;
   kind: "host_path";
@@ -43,216 +30,112 @@ export interface TerminalHostPathCreateScope {
 }
 
 export type TerminalListScope =
-  | TerminalThreadScope
-  | TerminalEnvironmentScope
-  | TerminalHostPathListScope;
+  | ThreadScope
+  | EnvironmentScope
+  | (Omit<HostPathScope<string>, "cwd"> & { cwd?: string });
 
 export type TerminalCreateScope =
-  | TerminalThreadScope
-  | TerminalEnvironmentScope
-  | TerminalHostPathCreateScope;
+  | ThreadScope
+  | EnvironmentScope
+  | HostPathScope<string | null>;
 
-export interface TerminalListArgs {
-  signal?: AbortSignal;
-  scope: TerminalListScope;
-}
-
-export interface TerminalCreateArgs {
-  cols: number;
-  rows: number;
-  scope: TerminalCreateScope;
-  start?: CreateTerminalRequest["start"];
-  title?: string;
-}
-
-export interface TerminalTargetArgs {
+interface TerminalTarget {
   terminalId: string;
 }
 
-export interface TerminalGetArgs extends TerminalTargetArgs {
-  signal?: AbortSignal;
-}
-
-export interface TerminalRenameArgs extends TerminalTargetArgs {
-  title: UpdateTerminalRequest["title"];
-}
-
-export interface TerminalCloseArgs extends TerminalTargetArgs {
-  mode: "force" | "if-clean";
-}
-
-export interface TerminalInputArgs extends TerminalTargetArgs {
-  dataBase64: TerminalInputRequest["dataBase64"];
-}
-
-export interface TerminalOutputArgs extends TerminalTargetArgs {
-  limitChunks?: TerminalOutputQuery["limitChunks"];
-  signal?: AbortSignal;
-  sinceSeq?: TerminalOutputQuery["sinceSeq"];
-  tailBytes?: TerminalOutputQuery["tailBytes"];
-}
-
-export type TerminalListResult = TerminalListResponse;
-export type TerminalCreateResult = TerminalSession;
-export type TerminalGetResult = TerminalSession;
-export type TerminalRenameResult = TerminalSession;
-export type TerminalCloseResult = TerminalSession;
-export type TerminalInputResult = TerminalSession;
-export type TerminalOutputResult = TerminalOutputResponse;
-
 export interface TerminalsArea {
-  close(args: TerminalCloseArgs): Promise<TerminalCloseResult>;
-  create(args: TerminalCreateArgs): Promise<TerminalCreateResult>;
-  get(args: TerminalGetArgs): Promise<TerminalGetResult>;
-  input(args: TerminalInputArgs): Promise<TerminalInputResult>;
-  list(args: TerminalListArgs): Promise<TerminalListResult>;
-  output(args: TerminalOutputArgs): Promise<TerminalOutputResult>;
-  rename(args: TerminalRenameArgs): Promise<TerminalRenameResult>;
+  close(
+    args: TerminalTarget & { mode: "force" | "if-clean" },
+  ): Promise<Session>;
+  create(args: {
+    cols: number;
+    rows: number;
+    scope: TerminalCreateScope;
+    start?: api.CreateTerminalRequest["start"];
+    title?: string;
+  }): Promise<Session>;
+  get(args: TerminalTarget & Abortable): Promise<Session>;
+  input(
+    args: TerminalTarget & Pick<api.TerminalInputRequest, "dataBase64">,
+  ): Promise<Session>;
+  list(
+    args: Abortable & { scope: TerminalListScope },
+  ): Promise<api.TerminalListResponse>;
+  output(
+    args: TerminalTarget & Abortable & api.TerminalOutputQuery,
+  ): Promise<api.TerminalOutputResponse>;
+  rename(
+    args: TerminalTarget & Pick<api.UpdateTerminalRequest, "title">,
+  ): Promise<Session>;
 }
+
+const FOREIGN_SELECTORS = {
+  thread: ["environmentId", "hostId", "cwd"],
+  environment: ["threadId", "hostId", "cwd"],
+  host_path: ["threadId", "environmentId"],
+} as const;
+
+const AMBIGUOUS_SCOPE = {
+  thread: "Thread terminal scope cannot include environment or host selectors.",
+  environment:
+    "Environment terminal scope cannot include thread or host selectors.",
+  host_path:
+    "Host terminal scope cannot include thread or environment selectors.",
+};
 
 function assertUnambiguousScope(
   scope: TerminalListScope | TerminalCreateScope,
-): void {
-  switch (scope.kind) {
-    case "thread":
-      if ("environmentId" in scope || "hostId" in scope || "cwd" in scope) {
-        throw new Error(
-          "Thread terminal scope cannot include environment or host selectors.",
-        );
-      }
-      return;
-    case "environment":
-      if ("threadId" in scope || "hostId" in scope || "cwd" in scope) {
-        throw new Error(
-          "Environment terminal scope cannot include thread or host selectors.",
-        );
-      }
-      return;
-    case "host_path":
-      if ("threadId" in scope || "environmentId" in scope) {
-        throw new Error(
-          "Host terminal scope cannot include thread or environment selectors.",
-        );
-      }
+) {
+  const foreign = FOREIGN_SELECTORS[scope.kind];
+  if (foreign.some((selector) => selector in scope)) {
+    throw new Error(AMBIGUOUS_SCOPE[scope.kind]);
   }
 }
 
-function terminalListQuery(scope: TerminalListScope): TerminalListQuery {
+function listQuery(scope: TerminalListScope): api.TerminalListQuery {
   assertUnambiguousScope(scope);
-  switch (scope.kind) {
-    case "thread":
-      return { threadId: scope.threadId };
-    case "environment":
-      return { environmentId: scope.environmentId };
-    case "host_path":
-      return {
-        hostId: scope.hostId,
-        ...(scope.cwd === undefined ? {} : { cwd: scope.cwd }),
-      };
-  }
+  if (scope.kind === "thread") return pick(scope, ["threadId"]);
+  if (scope.kind === "environment") return pick(scope, ["environmentId"]);
+  const { hostId, cwd } = scope;
+  return { hostId, ...(cwd === undefined ? {} : { cwd }) };
 }
 
-function terminalCreateTarget(
-  scope: TerminalCreateScope,
-): CreateTerminalRequest["target"] {
+function createTarget(scope: TerminalCreateScope): api.TerminalCreateTarget {
   assertUnambiguousScope(scope);
-  switch (scope.kind) {
-    case "thread":
-      return { kind: "thread", threadId: scope.threadId };
-    case "environment":
-      return { kind: "environment", environmentId: scope.environmentId };
-    case "host_path":
-      return {
-        kind: "host_path",
-        hostId: scope.hostId,
-        cwd: scope.cwd,
-      };
+  if (scope.kind === "thread") return pick(scope, ["kind", "threadId"]);
+  if (scope.kind === "environment") {
+    return pick(scope, ["kind", "environmentId"]);
   }
+  return pick(scope, ["kind", "hostId", "cwd"]);
 }
 
-function terminalOutputQuery(args: TerminalOutputArgs): TerminalOutputQuery {
+export function createTerminalsArea(http: Http): TerminalsArea {
+  const routes = publicApiRoutes.terminals;
+  const at = (terminalId: string) => ({ param: { terminalId } });
   return {
-    ...(args.sinceSeq === undefined ? {} : { sinceSeq: args.sinceSeq }),
-    ...(args.tailBytes === undefined ? {} : { tailBytes: args.tailBytes }),
-    ...(args.limitChunks === undefined
-      ? {}
-      : { limitChunks: args.limitChunks }),
-  };
-}
-
-export function createTerminalsArea(args: CreateSdkAreaArgs): TerminalsArea {
-  const { transport } = args;
-
-  const get = (input: TerminalGetArgs): Promise<TerminalGetResult> =>
-    transport.readJson(
-      transport.api.v1.terminals[":terminalId"].$get(
-        {
-          param: { terminalId: input.terminalId },
-        },
-        ...signalRequestArgs(input.signal),
-      ),
-    );
-
-  const create = (input: TerminalCreateArgs): Promise<TerminalCreateResult> =>
-    transport.readJson(
-      transport.api.v1.terminals.$post({
-        json: {
-          cols: input.cols,
-          rows: input.rows,
-          start: input.start,
-          target: terminalCreateTarget(input.scope),
-          title: input.title,
-        },
+    close: ({ terminalId, mode }) =>
+      http.json(routes.close, {
+        ...at(terminalId),
+        json: { mode, reason: "user" },
       }),
-    );
-
-  return {
-    async close(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].close.$post({
-          param: { terminalId: input.terminalId },
-          json: { mode: input.mode, reason: "user" },
-        }),
-      );
+    create({ scope, ...shape }) {
+      const target = createTarget(scope);
+      const size = pick(shape, ["cols", "rows", "start"]);
+      const json = { ...size, target, title: shape.title };
+      return http.json(routes.create, { json });
     },
-    create,
-    get,
-    async input(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].input.$post({
-          param: { terminalId: input.terminalId },
-          json: { dataBase64: input.dataBase64 },
-        }),
-      );
+    get: ({ terminalId, signal }) =>
+      http.json(routes.get, at(terminalId), signal),
+    input: ({ terminalId, dataBase64 }) =>
+      http.json(routes.input, { ...at(terminalId), json: { dataBase64 } }),
+    list: ({ scope, signal }) =>
+      http.json(routes.list, { query: listQuery(scope) }, signal),
+    output(args) {
+      const query = pick(args, ["sinceSeq", "tailBytes", "limitChunks"]);
+      const input = { ...at(args.terminalId), query };
+      return http.json(routes.output, input, args.signal);
     },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.terminals.$get(
-          {
-            query: terminalListQuery(input.scope),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async output(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].output.$get(
-          {
-            param: { terminalId: input.terminalId },
-            query: terminalOutputQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async rename(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].$patch({
-          param: { terminalId: input.terminalId },
-          json: { title: input.title },
-        }),
-      );
-    },
+    rename: ({ terminalId, title }) =>
+      http.json(routes.update, { ...at(terminalId), json: { title } }),
   };
 }

@@ -7,6 +7,11 @@ export * from "./public-api.js";
 export * from "./thread-timeline.js";
 
 export { typedRoutes } from "@bb/hono-typed-routes";
+export type {
+  RouteDefinition,
+  RouteInput,
+  RouteOutput,
+} from "@bb/hono-typed-routes";
 
 export {
   changedMessageLenientSchema,

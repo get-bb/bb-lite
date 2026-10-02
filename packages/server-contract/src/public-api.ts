@@ -64,7 +64,6 @@ import type {
   CreateThreadRequest,
   DeleteThreadSectionRequest,
   DeleteThreadRequest,
-  EnvironmentActionApiError,
   EnvironmentActionRequest,
   EnvironmentActionResponse,
   EnvironmentArchiveThreadsResponse,
@@ -146,9 +145,6 @@ import type {
   ThreadResponse,
   ThreadSearchQuery,
   ThreadSearchResponse,
-  ThreadStorageFileListResponse,
-  ThreadStorageFilesQuery,
-  ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
   ThreadStoragePathsQuery,
   ThreadTimelineQuery,
@@ -231,7 +227,6 @@ import {
   threadListQuerySchema,
   threadOpenRequestSchema,
   threadSearchQuerySchema,
-  threadStorageFilesQuerySchema,
   threadStoragePathsQuerySchema,
   terminalInputRequestSchema,
   terminalListQuerySchema,
@@ -248,7 +243,6 @@ import {
   updateProjectSourceRequestSchema,
   updateThreadRequestSchema,
 } from "./api-types.js";
-import type { ApiError } from "./errors.js";
 
 type PathProjectSourceId = { param: { id: string; sourceId: string } };
 type PathThreadInteractionId = {
@@ -609,20 +603,13 @@ export const publicApiRoutes = {
       path: "/environments/:id",
       method: "delete",
       request: noRequest<PathId>(),
-      response: [
-        jsonResponse<{ ok: true }>(),
-        jsonResponse<ApiError>({ status: 404 }),
-        jsonResponse<ApiError>({ status: 409 }),
-      ],
+      response: jsonResponse<{ ok: true }>(),
     }),
     get: defineRoute({
       path: "/environments/:id",
       method: "get",
       request: noRequest<PathId>(),
-      response: [
-        jsonResponse<Environment>(),
-        jsonResponse<ApiError>({ status: 404 }),
-      ],
+      response: jsonResponse<Environment>(),
     }),
     update: defineRoute({
       path: "/environments/:id",
@@ -698,11 +685,7 @@ export const publicApiRoutes = {
       request: jsonRequest<PathId, EnvironmentActionRequest>(
         environmentActionRequestSchema,
       ),
-      response: [
-        jsonResponse<EnvironmentActionResponse>(),
-        jsonResponse<EnvironmentActionApiError>({ status: 409 }),
-        jsonResponse<ApiError>({ status: 404 }),
-      ],
+      response: jsonResponse<EnvironmentActionResponse>(),
     }),
     archiveThreads: defineRoute({
       path: "/environments/:id/archive-threads",
@@ -725,10 +708,7 @@ export const publicApiRoutes = {
       request: jsonRequest<EmptyInput, CreateThreadSectionRequest>(
         createThreadSectionRequestSchema,
       ),
-      response: [
-        jsonResponse<ThreadSectionResponse>({ status: 201 }),
-        jsonResponse<ApiError>({ status: 409 }),
-      ],
+      response: jsonResponse<ThreadSectionResponse>({ status: 201 }),
     }),
     update: defineRoute({
       path: "/thread-sections",
@@ -736,11 +716,7 @@ export const publicApiRoutes = {
       request: jsonRequest<EmptyInput, UpdateThreadSectionRequest>(
         updateThreadSectionRequestSchema,
       ),
-      response: [
-        jsonResponse<ThreadSectionMutationResponse>(),
-        jsonResponse<ApiError>({ status: 404 }),
-        jsonResponse<ApiError>({ status: 409 }),
-      ],
+      response: jsonResponse<ThreadSectionMutationResponse>(),
     }),
     delete: defineRoute({
       path: "/thread-sections",
@@ -748,10 +724,7 @@ export const publicApiRoutes = {
       request: jsonRequest<EmptyInput, DeleteThreadSectionRequest>(
         deleteThreadSectionRequestSchema,
       ),
-      response: [
-        jsonResponse<ThreadSectionMutationResponse>(),
-        jsonResponse<ApiError>({ status: 404 }),
-      ],
+      response: jsonResponse<ThreadSectionMutationResponse>(),
     }),
   },
 
@@ -914,10 +887,7 @@ export const publicApiRoutes = {
       request: jsonRequest<PathId, UpdateThreadTabsRequest>(
         updateThreadTabsRequestSchema,
       ),
-      response: [
-        jsonResponse<ThreadTabsWireResponse>(),
-        jsonResponse<ApiError>({ status: 409 }),
-      ],
+      response: jsonResponse<ThreadTabsWireResponse>(),
     }),
     pin: defineRoute({
       path: "/threads/:id/pin",
@@ -1049,26 +1019,6 @@ export const publicApiRoutes = {
       request: noRequest<PathId>(),
       response: jsonResponse<ResolvedThreadExecutionOptions | null>(),
     }),
-    storageFiles: defineRoute({
-      path: "/threads/:id/thread-storage/files",
-      method: "get",
-      request: optionalQueryRequest<PathId, ThreadStorageFilesQuery>(
-        threadStorageFilesQuerySchema,
-      ),
-      response: jsonResponse<ThreadStorageFileListResponse>(),
-    }),
-    storageLocation: defineRoute({
-      path: "/threads/:id/thread-storage/location",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<ThreadStorageLocationResponse>(),
-    }),
-    storageFile: defineRoute({
-      path: "/threads/:id/thread-storage/files/:filePath{.+}",
-      method: "get",
-      request: noRequest<PathIdAndFilePath>(),
-      response: binaryResponse<Uint8Array>(),
-    }),
     hostFile: defineRoute({
       path: "/threads/:id/host-files/:filePath{.+}",
       method: "get",
@@ -1153,20 +1103,13 @@ export const publicApiRoutes = {
       request: jsonRequest<PathUiPreferenceKey, UpdateUiPreferenceRequest>(
         updateUiPreferenceRequestSchema,
       ),
-      response: [
-        jsonResponse<UiPreferenceResponse>(),
-        jsonResponse<ApiError>({ status: 404 }),
-        jsonResponse<ApiError>({ status: 409 }),
-      ],
+      response: jsonResponse<UiPreferenceResponse>(),
     }),
     resetUiPreference: defineRoute({
       path: "/preferences/ui/:key",
       method: "delete",
       request: noRequest<PathUiPreferenceKey>(),
-      response: [
-        jsonResponse<UiPreferenceResponse>(),
-        jsonResponse<ApiError>({ status: 404 }),
-      ],
+      response: jsonResponse<UiPreferenceResponse>(),
     }),
     resolveTheme: defineRoute({
       path: "/settings/themes/:id",

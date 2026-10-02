@@ -1,147 +1,69 @@
-import type {
-  MachineEnvironmentReplace,
-  MachineEnvironmentList,
-} from "@bb/server-contract";
-import type {
-  AppKeybindingOverrides,
-  AppSettings,
-  AppSettingsUpdate,
-  UiPreferenceKey,
-  UiPreferenceValue,
-} from "@bb/domain";
-import type {
-  SystemConfigResponse,
-  SystemExecutionOptionsQuery,
-  SystemExecutionOptionsResponse,
-  UiPreferenceResponse,
-  UiPreferencesResponse,
-} from "@bb/server-contract";
-import {
-  readExecutionOptions,
-  signalRequestArgs,
-  type CreateSdkAreaArgs,
-} from "./common.js";
+import type * as domain from "@bb/domain";
+import { publicApiRoutes } from "@bb/server-contract";
+import type * as api from "@bb/server-contract";
+import type { Http } from "../http.js";
+import { readExecutionOptions } from "./providers.js";
 
-export interface SystemConfigArgs {
-  signal?: AbortSignal;
-}
+type Abortable = { signal?: AbortSignal };
+type Key = domain.UiPreferenceKey;
 
-export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery {
-  signal?: AbortSignal;
-}
-
-export type SystemConfigResult = SystemConfigResponse;
-export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
-export type SystemUpdateGeneralSettingsResult = AppSettings;
-export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
-
-export interface SystemUiPreferencesArgs {
-  signal?: AbortSignal;
-}
-export type SystemUiPreferencesResult = UiPreferencesResponse;
-export interface SystemUpdateUiPreferenceArgs<Key extends UiPreferenceKey> {
+interface UiPreferenceWrite<K extends Key> {
   expectedRevision: number;
-  key: Key;
-  value: UiPreferenceValue<Key>;
-}
-export interface SystemResetUiPreferenceArgs<Key extends UiPreferenceKey> {
-  key: Key;
-}
-export type SystemUiPreferenceResult<Key extends UiPreferenceKey> =
-  UiPreferenceResponse<Key>;
-
-export interface SystemUiPreferencesArea {
-  list(args?: SystemUiPreferencesArgs): Promise<SystemUiPreferencesResult>;
-  set<Key extends UiPreferenceKey>(
-    args: SystemUpdateUiPreferenceArgs<Key>,
-  ): Promise<SystemUiPreferenceResult<Key>>;
-  reset<Key extends UiPreferenceKey>(
-    args: SystemResetUiPreferenceArgs<Key>,
-  ): Promise<SystemUiPreferenceResult<Key>>;
+  key: K;
+  value: domain.UiPreferenceValue<K>;
 }
 
 export interface SystemArea {
-  machineEnvironment(): Promise<MachineEnvironmentList>;
+  machineEnvironment(): Promise<api.MachineEnvironmentList>;
   replaceMachineEnvironment(
-    input: MachineEnvironmentReplace,
-  ): Promise<MachineEnvironmentList>;
-  config(args?: SystemConfigArgs): Promise<SystemConfigResult>;
+    input: api.MachineEnvironmentReplace,
+  ): Promise<api.MachineEnvironmentList>;
+  config(args?: Abortable): Promise<api.SystemConfigResponse>;
   executionOptions(
-    args?: SystemExecutionOptionsArgs,
-  ): Promise<SystemExecutionOptionsResult>;
-  uiPreferences: SystemUiPreferencesArea;
+    args?: api.SystemExecutionOptionsQuery & Abortable,
+  ): Promise<api.SystemExecutionOptionsResponse>;
+  uiPreferences: {
+    list(args?: Abortable): Promise<api.UiPreferencesResponse>;
+    set<K extends Key>(
+      args: UiPreferenceWrite<K>,
+    ): Promise<api.UiPreferenceResponse<K>>;
+    reset<K extends Key>(args: {
+      key: K;
+    }): Promise<api.UiPreferenceResponse<K>>;
+  };
   updateGeneralSettings(
-    args: AppSettingsUpdate,
-  ): Promise<SystemUpdateGeneralSettingsResult>;
+    args: domain.AppSettingsUpdate,
+  ): Promise<domain.AppSettings>;
   updateKeyboardSettings(
-    args: AppKeybindingOverrides,
-  ): Promise<SystemUpdateKeyboardSettingsResult>;
+    args: domain.AppKeybindingOverrides,
+  ): Promise<domain.AppKeybindingOverrides>;
 }
 
-export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
-  const { transport } = args;
-  const uiPreferences: SystemUiPreferencesArea = {
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.preferences.ui.$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-    },
-    async set(input) {
-      const body = await transport.readJson(
-        transport.api.v1.preferences.ui[":key"].$put({
-          json: {
-            expectedRevision: input.expectedRevision,
-            value: input.value,
-          },
-          param: { key: input.key },
-        }),
-      );
-      return body as UiPreferenceResponse<typeof input.key>;
-    },
-    async reset(input) {
-      const body = await transport.readJson(
-        transport.api.v1.preferences.ui[":key"].$delete({
-          param: { key: input.key },
-        }),
-      );
-      return body as UiPreferenceResponse<typeof input.key>;
-    },
-  };
+export function createSystemArea(http: Http): SystemArea {
+  const routes = publicApiRoutes.system;
   return {
-    uiPreferences,
-    async machineEnvironment() {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$get(),
-      );
+    uiPreferences: {
+      list: (args) => http.json(routes.uiPreferences, {}, args?.signal),
+      async set<K extends Key>(args: UiPreferenceWrite<K>) {
+        const { expectedRevision, key, value } = args;
+        const input = { json: { expectedRevision, value }, param: { key } };
+        const body = await http.json(routes.updateUiPreference, input);
+        return body as api.UiPreferenceResponse<K>;
+      },
+      async reset<K extends Key>({ key }: { key: K }) {
+        const input = { param: { key } };
+        const body = await http.json(routes.resetUiPreference, input);
+        return body as api.UiPreferenceResponse<K>;
+      },
     },
-    async replaceMachineEnvironment(input) {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$put({ json: input }),
-      );
-    },
-    async config(input) {
-      return transport.readJson(
-        transport.api.v1.system.config.$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-    },
-    async executionOptions(input = {}) {
-      return readExecutionOptions(transport, input);
-    },
-    async updateGeneralSettings(input) {
-      return transport.readJson(
-        transport.api.v1.settings.general.$put({ json: input }),
-      );
-    },
-    async updateKeyboardSettings(input) {
-      return transport.readJson(
-        transport.api.v1.settings.keyboard.$put({ json: input }),
-      );
-    },
+    machineEnvironment: () => http.json(routes.machineEnvironment, {}),
+    replaceMachineEnvironment: (json) =>
+      http.json(routes.replaceMachineEnvironment, { json }),
+    config: (args) => http.json(routes.config, {}, args?.signal),
+    executionOptions: (args) => readExecutionOptions(http, args),
+    updateGeneralSettings: (json) =>
+      http.json(routes.generalSettings, { json }),
+    updateKeyboardSettings: (json) =>
+      http.json(routes.keyboardSettings, { json }),
   };
 }

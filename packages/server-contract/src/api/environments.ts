@@ -8,7 +8,6 @@ import {
   workspaceResolutionFailureSchema,
   workspaceStatusSchema,
 } from "@bb/domain";
-import { apiErrorSchema } from "../errors.js";
 import {
   branchListQuerySchema,
   environmentProviderInstanceKeySchema,
@@ -170,18 +169,6 @@ export const environmentActionResponseSchema = z.discriminatedUnion("action", [
 ]);
 export type EnvironmentActionResponse = z.infer<
   typeof environmentActionResponseSchema
->;
-
-export const environmentActionFailureDetailsSchema = z.object({
-  kind: z.literal("workspace_unavailable"),
-  failure: workspaceResolutionFailureSchema,
-});
-
-export const environmentActionApiErrorSchema = apiErrorSchema.extend({
-  details: environmentActionFailureDetailsSchema.optional(),
-});
-export type EnvironmentActionApiError = z.infer<
-  typeof environmentActionApiErrorSchema
 >;
 
 export const environmentWorkspaceNotApplicableReasonSchema = z.enum([

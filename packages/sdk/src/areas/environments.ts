@@ -1,114 +1,31 @@
 import { z } from "zod";
-import {
-  environmentSchema,
-  type Environment,
-  type EnvironmentStatus,
-} from "@bb/domain";
+import { environmentSchema } from "@bb/domain";
+import type { Environment, EnvironmentStatus } from "@bb/domain";
 import {
   commitActionResponseSchema,
+  publicApiRoutes,
   updateEnvironmentRequestSchema,
 } from "@bb/server-contract";
-import type {
-  CommitActionResponse,
-  EnvironmentArchiveThreadsResponse,
-  EnvironmentDiffBranchesQuery,
-  EnvironmentDiffBranchesResponse,
-  EnvironmentDiffFileQuery,
-  EnvironmentDiffFileResponse,
-  EnvironmentDiffPatchRequest,
-  EnvironmentDiffPatchResponse,
-  EnvironmentDiffQuery,
-  EnvironmentDiffFilesResponse,
-  EnvironmentPathsQuery,
-  EnvironmentStatusResponse,
-  EnvironmentStatusQuery,
-  UpdateEnvironmentRequest,
-  WorkspacePathListResponse,
-  SystemEnvironmentProvider,
-} from "@bb/server-contract";
-import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
+import type * as api from "@bb/server-contract";
+import { count, pick, type Http } from "../http.js";
 
-export interface EnvironmentActionArgs {
+type Abortable = { signal?: AbortSignal };
+
+interface EnvironmentTarget extends Abortable {
   environmentId: string;
 }
 
-export interface EnvironmentGetArgs extends EnvironmentActionArgs {
-  signal?: AbortSignal;
-}
+type Update = Required<api.UpdateEnvironmentRequest>;
+export type EnvironmentUpdateArgs = { environmentId: string } & (
+  | (Pick<Update, "mergeBaseBranch"> & Partial<Pick<Update, "name">>)
+  | (Pick<Update, "name"> & Partial<Pick<Update, "mergeBaseBranch">>)
+);
 
-type EnvironmentMergeBaseBranchUpdateValue = Exclude<
-  UpdateEnvironmentRequest["mergeBaseBranch"],
-  undefined
->;
+export type EnvironmentDiffArgs = api.EnvironmentDiffQuery & EnvironmentTarget;
+export type EnvironmentDiffFileArgs = api.EnvironmentDiffFileQuery &
+  EnvironmentTarget;
 
-type EnvironmentNameUpdateValue = Exclude<
-  UpdateEnvironmentRequest["name"],
-  undefined
->;
-
-interface EnvironmentMergeBaseBranchUpdate {
-  mergeBaseBranch: EnvironmentMergeBaseBranchUpdateValue;
-  name?: EnvironmentNameUpdateValue;
-}
-
-interface EnvironmentNameUpdate {
-  mergeBaseBranch?: EnvironmentMergeBaseBranchUpdateValue;
-  name: EnvironmentNameUpdateValue;
-}
-
-type EnvironmentUpdateFields =
-  | EnvironmentMergeBaseBranchUpdate
-  | EnvironmentNameUpdate;
-
-export type EnvironmentUpdateArgs = EnvironmentUpdateFields & {
-  environmentId: string;
-};
-
-export interface EnvironmentStatusArgs extends EnvironmentStatusQuery {
-  environmentId: string;
-  signal?: AbortSignal;
-}
-
-export type EnvironmentDiffArgs = EnvironmentDiffQuery & {
-  environmentId: string;
-  signal?: AbortSignal;
-};
-
-export type EnvironmentDiffFileArgs = EnvironmentDiffFileQuery & {
-  environmentId: string;
-  signal?: AbortSignal;
-};
-
-export interface EnvironmentDiffBranchesArgs extends EnvironmentDiffBranchesQuery {
-  environmentId: string;
-  signal?: AbortSignal;
-}
-
-export interface EnvironmentCommitArgs {
-  environmentId: string;
-}
-
-export type EnvironmentDiffPatchArgs = EnvironmentDiffPatchRequest & {
-  environmentId: string;
-  signal?: AbortSignal;
-};
-
-export interface EnvironmentPathsArgs extends EnvironmentPathsQuery {
-  environmentId: string;
-  signal?: AbortSignal;
-}
-
-export type EnvironmentArchiveThreadsResult = EnvironmentArchiveThreadsResponse;
-export type EnvironmentCommitResult = CommitActionResponse;
-export type EnvironmentDiffBranchesResult = EnvironmentDiffBranchesResponse;
-export type EnvironmentDiffFileResult = EnvironmentDiffFileResponse;
-export type EnvironmentDiffFilesResult = EnvironmentDiffFilesResponse;
-export type EnvironmentDiffPatchResult = EnvironmentDiffPatchResponse;
-export type EnvironmentGetResult = Environment;
-export type EnvironmentPathsResult = WorkspacePathListResponse;
-export type EnvironmentStatusResult = EnvironmentStatusResponse;
-export type EnvironmentUpdateResult = Environment;
-export interface EnvironmentListArgs {
+export interface EnvironmentListArgs extends Abortable {
   environmentProviderId?: string;
   hostId?: string;
   instanceKey?: string;
@@ -116,294 +33,142 @@ export interface EnvironmentListArgs {
   offset?: number;
   path?: string;
   projectId?: string;
-  signal?: AbortSignal;
   status?: EnvironmentStatus;
 }
-export type EnvironmentListResult = Environment[];
-export interface EnvironmentDeleteArgs {
-  environmentId: string;
-}
-export type EnvironmentDeleteResult = { ok: true };
-export interface EnvironmentListProvidersArgs {
-  projectId?: string;
-  hostId?: string;
-  signal?: AbortSignal;
-}
-export type EnvironmentListProvidersResult = SystemEnvironmentProvider[];
-
-const okResponseSchema = z.object({ ok: z.literal(true) });
 
 export interface EnvironmentsArea {
   archiveThreads(
-    args: EnvironmentActionArgs,
-  ): Promise<EnvironmentArchiveThreadsResult>;
-  commit(args: EnvironmentCommitArgs): Promise<EnvironmentCommitResult>;
+    args: EnvironmentTarget,
+  ): Promise<api.EnvironmentArchiveThreadsResponse>;
+  commit(args: EnvironmentTarget): Promise<api.CommitActionResponse>;
   diffBranches(
-    args: EnvironmentDiffBranchesArgs,
-  ): Promise<EnvironmentDiffBranchesResult>;
-  diffFile(args: EnvironmentDiffFileArgs): Promise<EnvironmentDiffFileResult>;
-  diffFiles(args: EnvironmentDiffArgs): Promise<EnvironmentDiffFilesResult>;
+    args: EnvironmentTarget & api.EnvironmentDiffBranchesQuery,
+  ): Promise<api.EnvironmentDiffBranchesResponse>;
+  diffFile(
+    args: EnvironmentDiffFileArgs,
+  ): Promise<api.EnvironmentDiffFileResponse>;
+  diffFiles(
+    args: EnvironmentDiffArgs,
+  ): Promise<api.EnvironmentDiffFilesResponse>;
   diffPatch(
-    args: EnvironmentDiffPatchArgs,
-  ): Promise<EnvironmentDiffPatchResult>;
-  get(args: EnvironmentGetArgs): Promise<EnvironmentGetResult>;
-  list(args?: EnvironmentListArgs): Promise<EnvironmentListResult>;
+    args: EnvironmentTarget & api.EnvironmentDiffPatchRequest,
+  ): Promise<api.EnvironmentDiffPatchResponse>;
+  get(args: EnvironmentTarget): Promise<Environment>;
+  list(args?: EnvironmentListArgs): Promise<Environment[]>;
   listProviders(
-    args?: EnvironmentListProvidersArgs,
-  ): Promise<EnvironmentListProvidersResult>;
-  delete(args: EnvironmentDeleteArgs): Promise<EnvironmentDeleteResult>;
-  paths(args: EnvironmentPathsArgs): Promise<EnvironmentPathsResult>;
-  status(args: EnvironmentStatusArgs): Promise<EnvironmentStatusResult>;
-  update(args: EnvironmentUpdateArgs): Promise<EnvironmentUpdateResult>;
+    args?: Abortable & { projectId?: string; hostId?: string },
+  ): Promise<api.SystemEnvironmentProvider[]>;
+  delete(args: EnvironmentTarget): Promise<{ ok: true }>;
+  paths(
+    args: EnvironmentTarget & api.EnvironmentPathsQuery,
+  ): Promise<api.WorkspacePathListResponse>;
+  status(
+    args: EnvironmentTarget & api.EnvironmentStatusQuery,
+  ): Promise<api.EnvironmentStatusResponse>;
+  update(args: EnvironmentUpdateArgs): Promise<Environment>;
 }
 
-function environmentUpdateJson(
-  args: EnvironmentUpdateArgs,
-): UpdateEnvironmentRequest {
-  const request: UpdateEnvironmentRequest = {};
-  if (args.mergeBaseBranch !== undefined) {
-    request.mergeBaseBranch = args.mergeBaseBranch;
-  }
-  if (args.name !== undefined) {
-    request.name = args.name;
-  }
-  return updateEnvironmentRequestSchema.parse(request);
+const okResponseSchema = z.object({ ok: z.literal(true) });
+
+function diffQuery(args: EnvironmentDiffArgs): api.EnvironmentDiffQuery {
+  if (args.target === "uncommitted") return pick(args, ["target"]);
+  if (args.target === "commit") return pick(args, ["target", "sha"]);
+  return pick(args, ["target", "mergeBaseBranch"]);
 }
 
-function environmentStatusQuery(
-  args: EnvironmentStatusArgs,
-): EnvironmentStatusQuery {
-  return {
-    mergeBaseBranch: args.mergeBaseBranch,
-  };
-}
-
-function environmentDiffQuery(args: EnvironmentDiffArgs): EnvironmentDiffQuery {
-  switch (args.target) {
-    case "uncommitted":
-      return { target: args.target };
-    case "branch_committed":
-    case "all":
-      return { target: args.target, mergeBaseBranch: args.mergeBaseBranch };
-    case "commit":
-      return { target: args.target, sha: args.sha };
-  }
-}
-
-function environmentDiffFileQuery(
+function diffFileQuery(
   args: EnvironmentDiffFileArgs,
-): EnvironmentDiffFileQuery {
-  switch (args.target) {
-    case "uncommitted":
-      return {
-        path: args.path,
-        side: args.side,
-        target: args.target,
-      };
-    case "branch_committed":
-    case "all":
-      return {
-        mergeBaseRef: args.mergeBaseRef,
-        path: args.path,
-        side: args.side,
-        target: args.target,
-      };
-    case "commit":
-      return {
-        path: args.path,
-        sha: args.sha,
-        side: args.side,
-        target: args.target,
-      };
+): api.EnvironmentDiffFileQuery {
+  if (args.target === "uncommitted") {
+    return pick(args, ["path", "side", "target"]);
   }
+  if (args.target === "commit") {
+    return pick(args, ["path", "sha", "side", "target"]);
+  }
+  return pick(args, ["mergeBaseRef", "path", "side", "target"]);
 }
 
-function environmentDiffBranchesQuery(
-  args: EnvironmentDiffBranchesArgs,
-): EnvironmentDiffBranchesQuery {
+function listQuery(args: EnvironmentListArgs): api.ListEnvironmentsQuery {
   return {
-    ...(args.query !== undefined ? { query: args.query } : {}),
-    ...(args.limit !== undefined ? { limit: args.limit } : {}),
-    ...(args.selectedBranch !== undefined
-      ? { selectedBranch: args.selectedBranch }
-      : {}),
+    ...pick(args, [
+      "projectId",
+      "hostId",
+      "environmentProviderId",
+      "instanceKey",
+      "status",
+      "path",
+    ]),
+    limit: count(args.limit),
+    offset: count(args.offset),
   };
 }
 
-function environmentPathsQuery(
-  args: EnvironmentPathsArgs,
-): EnvironmentPathsQuery {
+export function createEnvironmentsArea(http: Http): EnvironmentsArea {
+  const routes = publicApiRoutes.environments;
+  const at = (environmentId: string) => ({ param: { id: environmentId } });
   return {
-    includeDirectories: args.includeDirectories,
-    includeFiles: args.includeFiles,
-    limit: args.limit,
-    query: args.query,
-  };
-}
-
-export function createEnvironmentsArea(
-  args: CreateSdkAreaArgs,
-): EnvironmentsArea {
-  const { transport } = args;
-  return {
-    async archiveThreads(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"]["archive-threads"].$post({
-          param: { id: input.environmentId },
-        }),
-      );
-    },
-    async commit(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].actions.$post({
-          param: { id: input.environmentId },
-          json: {
-            action: "commit",
-          },
-        }),
-      );
+    archiveThreads: ({ environmentId }) =>
+      http.json(routes.archiveThreads, at(environmentId)),
+    async commit({ environmentId }) {
+      const json = { action: "commit" as const };
+      const input = { ...at(environmentId), json };
+      const body = await http.json(routes.actions, input);
       return commitActionResponseSchema.parse(body);
     },
-    async diffBranches(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].diff.branches.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentDiffBranchesQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    diffBranches(args) {
+      const query = pick(args, ["query", "limit", "selectedBranch"]);
+      const input = { ...at(args.environmentId), query };
+      return http.json(routes.diffBranches, input, args.signal);
     },
-    async diffFile(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].diff.file.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentDiffFileQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    diffFile(args) {
+      const input = { ...at(args.environmentId), query: diffFileQuery(args) };
+      return http.json(routes.diffFile, input, args.signal);
     },
-    async diffFiles(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].diff.files.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentDiffQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    diffFiles(args) {
+      const input = { ...at(args.environmentId), query: diffQuery(args) };
+      return http.json(routes.diffFiles, input, args.signal);
     },
-    async diffPatch(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].diff.patch.$post(
-          {
-            param: { id: input.environmentId },
-            json: {
-              paths: input.paths,
-              target: input.target,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    diffPatch(args) {
+      const json = pick(args, ["paths", "target"]);
+      const input = { ...at(args.environmentId), json };
+      return http.json(routes.diffPatch, input, args.signal);
     },
-    async list(input) {
-      return transport.readJson(
-        transport.api.v1.environments.$get(
-          {
-            query: {
-              ...(input?.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
-              ...(input?.hostId === undefined ? {} : { hostId: input.hostId }),
-              ...(input?.environmentProviderId === undefined
-                ? {}
-                : { environmentProviderId: input.environmentProviderId }),
-              ...(input?.instanceKey === undefined
-                ? {}
-                : { instanceKey: input.instanceKey }),
-              ...(input?.status === undefined ? {} : { status: input.status }),
-              ...(input?.path === undefined ? {} : { path: input.path }),
-              ...(input?.limit === undefined
-                ? {}
-                : { limit: String(input.limit) }),
-              ...(input?.offset === undefined
-                ? {}
-                : { offset: String(input.offset) }),
-            },
-          },
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
+    list: (args = {}) =>
+      http.json(routes.list, { query: listQuery(args) }, args.signal),
+    async listProviders(args = {}) {
+      const query = pick(args, ["projectId", "hostId"]);
+      const route = publicApiRoutes.system.environmentProviders;
+      const { providers } = await http.json(route, { query }, args.signal);
+      return providers;
     },
-    async listProviders(input) {
-      const response = await transport.readJson(
-        transport.api.v1.system["environment-providers"].$get(
-          {
-            query: {
-              ...(input?.projectId === undefined
-                ? {}
-                : { projectId: input.projectId }),
-              ...(input?.hostId === undefined ? {} : { hostId: input.hostId }),
-            },
-          },
-          ...signalRequestArgs(input?.signal),
-        ),
-      );
-      return response.providers;
-    },
-    async delete(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].$delete({
-          param: { id: input.environmentId },
-        }),
-      );
+    async delete({ environmentId }) {
+      const body = await http.json(routes.delete, at(environmentId));
       return okResponseSchema.parse(body);
     },
-    async get(input) {
-      const body = await transport.readJson(
-        transport.api.v1.environments[":id"].$get(
-          {
-            param: { id: input.environmentId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    async get({ environmentId, signal }) {
+      const body = await http.json(routes.get, at(environmentId), signal);
       return environmentSchema.parse(body);
     },
-    async paths(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].paths.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentPathsQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
+    paths(args) {
+      const query = pick(args, [
+        "includeDirectories",
+        "includeFiles",
+        "limit",
+        "query",
+      ]);
+      const input = { ...at(args.environmentId), query };
+      return http.json(routes.paths, input, args.signal);
     },
-    async status(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].status.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentStatusQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async update(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].$patch({
-          param: { id: input.environmentId },
-          json: environmentUpdateJson(input),
-        }),
-      );
+    status: ({ environmentId, mergeBaseBranch, signal }) =>
+      http.json(
+        routes.status,
+        { ...at(environmentId), query: { mergeBaseBranch } },
+        signal,
+      ),
+    update(args) {
+      const changes = pick(args, ["mergeBaseBranch", "name"]);
+      const json = updateEnvironmentRequestSchema.parse(changes);
+      return http.json(routes.update, { ...at(args.environmentId), json });
     },
   };
 }
