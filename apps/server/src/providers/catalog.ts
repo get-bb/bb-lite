@@ -131,7 +131,7 @@ const CODEX = defineProvider({
     supportsThreadRename: true,
     supportsServiceTier: true,
     supportsNativeUserQuestion: false,
-    supportsFork: true,
+    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
@@ -164,7 +164,7 @@ const CLAUDE_CODE = defineProvider({
     supportsThreadRename: false,
     supportsServiceTier: true,
     supportsNativeUserQuestion: true,
-    supportsFork: true,
+    supportsFork: false,
     supportsSessionRewind: true,
   },
   optional: {
