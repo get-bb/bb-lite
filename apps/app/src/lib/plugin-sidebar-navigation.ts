@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import type {
   SidebarNavigationActions,
   PluginSidebarThreadSplit,
-  SidebarNavigationSplitOptions,
   SidebarNavigationState,
 } from "@bb/plugin/app";
 import { useSidebarNavigationModel } from "@/components/sidebar/SidebarNavigationModel";
 import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
-import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
 
 const EMPTY_STATE: SidebarNavigationState = {
   items: [],
@@ -50,29 +48,18 @@ export function useSidebarNavigation(): SidebarNavigationState {
 
 export function useSidebarNavigationSplit(
   itemId: string,
-  splitOptions?: SidebarNavigationSplitOptions,
 ): PluginSidebarThreadSplit {
   const entry = useSidebarNavigationModel()?.entries.find(
     (candidate) => candidate.item.id === itemId,
   );
   const content = entry?.content ?? null;
-  const onDragStartRef = useRef(splitOptions?.onDragStart);
-  useEffect(() => {
-    onDragStartRef.current = splitOptions?.onDragStart;
-  });
-  const onPointerDown = usePaneContentSplitDrag({
-    content,
-    label: entry?.item.label ?? "",
-    dragActivation: splitOptions?.activation ?? "sidebar",
-    onDragStart: () => onDragStartRef.current?.(),
-  });
   const panes = usePaneContentSplitPanes(content);
   return useMemo<PluginSidebarThreadSplit>(
     () => ({
-      splitProps: onPointerDown ? { onPointerDown } : {},
+      splitProps: {},
       isAvailable: content !== null,
       layout: panes === null ? null : { panes },
     }),
-    [content, onPointerDown, panes],
+    [content, panes],
   );
 }

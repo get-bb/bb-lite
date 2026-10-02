@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useState,
-  type PointerEventHandler,
-  type ReactNode,
-} from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
@@ -121,7 +116,6 @@ export function SidebarOverflowItem({
   item,
   onActivate,
   onClose,
-  onPointerDown,
   testIdPrefix = "sidebar-navigation",
 }: {
   activity?: ReactNode;
@@ -129,7 +123,6 @@ export function SidebarOverflowItem({
   item: SidebarVisibilityItem;
   onActivate?: (event: SidebarActivationModifiers) => void;
   onClose: () => void;
-  onPointerDown?: PointerEventHandler<HTMLButtonElement>;
   testIdPrefix?: string;
 }) {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
@@ -185,7 +178,6 @@ export function SidebarOverflowItem({
           data-sidebar-navigation-more-item={
             testIdPrefix === "sidebar-navigation" ? item.id : undefined
           }
-          onPointerDown={onPointerDown}
           onClick={(event) => {
             if (!onActivate) return;
             onClose();

@@ -5,9 +5,6 @@ import type {
   PluginSidebarThreadSplit,
 } from "@bb/plugin/app";
 import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
-import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSplitDrag";
-import { useThreadTitleDisplayText } from "@/components/thread/ThreadTitleMentions";
-import { getThreadDisplayTitle } from "./thread-title";
 import { useSidebarThreadEntry } from "./plugin-sidebar-hooks";
 import {
   computePaneRects,
@@ -51,21 +48,17 @@ export function useSidebarThreadSplit(
 ): PluginSidebarThreadSplit {
   const entry = useSidebarThreadEntry(threadId);
   const projectId = entry?.projectId ?? null;
-  const label = useThreadTitleDisplayText(
-    entry ? getThreadDisplayTitle(entry) : "",
-  );
   const content = useMemo<PaneContent | null>(
     () => (projectId === null ? null : { kind: "thread", projectId, threadId }),
     [projectId, threadId],
   );
-  const onPointerDown = usePaneContentSplitDrag({ content, label });
   const panes = usePaneContentSplitPanes(content);
   return useMemo<PluginSidebarThreadSplit>(
     () => ({
-      splitProps: onPointerDown ? { onPointerDown } : {},
+      splitProps: {},
       isAvailable: content !== null,
       layout: panes === null ? null : { panes },
     }),
-    [content, onPointerDown, panes],
+    [content, panes],
   );
 }

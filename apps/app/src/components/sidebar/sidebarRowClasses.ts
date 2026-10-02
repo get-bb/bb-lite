@@ -5,13 +5,6 @@ import {
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 
-export const SIDEBAR_STATUS_ICON_CLASS = "size-4";
-
-export const SIDEBAR_WORKING_STATUS_COLOR_CLASS = "text-muted-foreground/50";
-
-export const SIDEBAR_SUCCESS_STATUS_DOT_CLASS =
-  "size-[5px] rounded-full bg-muted-foreground/60";
-
 export const SIDEBAR_STANDARD_ROW_PADDING_CLASS = "pl-2";
 
 export const SIDEBAR_CONTROL_STATE_CLASS =

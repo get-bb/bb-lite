@@ -141,7 +141,6 @@ function NavigationRow({ item }: { item: SidebarNavigationItem }) {
         aria-label={
           item.shortcut ? `${item.label} (${item.shortcut.label})` : undefined
         }
-        {...split.splitProps}
         onClick={(event) =>
           actions.activate(item.id, {
             openInSplit: event.metaKey || event.ctrlKey,
@@ -229,16 +228,10 @@ function OverflowItem({
   onClose: () => void;
 }) {
   const { actions } = useSidebarNavigation();
-  const split = useSidebarNavigationSplit(item.id, {
-    activation: "distance",
-    onDragStart: onClose,
-  });
+  const split = useSidebarNavigationSplit(item.id);
   const canSplit = split.isAvailable && !item.isDisabled;
   return (
     <SidebarOverflowItem
-      {...(canSplit && split.splitProps.onPointerDown
-        ? { onPointerDown: split.splitProps.onPointerDown }
-        : {})}
       item={{
         id: item.id,
         title: item.label,

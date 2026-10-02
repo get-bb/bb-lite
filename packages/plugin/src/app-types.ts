@@ -117,11 +117,6 @@ export interface PluginSidebarThreadSplit {
   layout: { panes: readonly PluginSidebarSplitPane[] } | null;
 }
 
-export interface SidebarNavigationSplitOptions {
-  activation?: "sidebar" | "distance";
-  onDragStart?: () => void;
-}
-
 export interface SidebarNavigationIconProps {
   icon: SidebarNavigationItemIcon;
   className?: string;

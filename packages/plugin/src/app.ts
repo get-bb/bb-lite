@@ -76,10 +76,7 @@ export interface PluginAppHost {
   useProviders(): T.PluginProvidersState;
   useEnvironmentProviders(): T.PluginEnvironmentProvidersState;
   useSidebarNavigation(): T.SidebarNavigationState;
-  useSidebarNavigationSplit(
-    itemId: string,
-    options?: T.SidebarNavigationSplitOptions,
-  ): T.PluginSidebarThreadSplit;
+  useSidebarNavigationSplit(itemId: string): T.PluginSidebarThreadSplit;
   useQuestionFormHost(): T.QuestionFormHost;
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
   ThreadChat: ComponentType<T.ThreadChatProps>;
