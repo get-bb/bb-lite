@@ -1,6 +1,5 @@
 import type {
   BbSdkAreas,
-  ThreadForkArgs,
   ThreadMutationResult,
   ThreadSpawnArgs,
   ThreadUpdateArgs,
@@ -68,10 +67,7 @@ function createThreadUpdateBatcher(queryClient: QueryClient) {
   };
 }
 
-function attributed<Args extends ThreadForkArgs | ThreadSpawnArgs>(
-  args: Args,
-  pluginId: string,
-): Args {
+function attributed(args: ThreadSpawnArgs, pluginId: string): ThreadSpawnArgs {
   if (args.pluginMetadata !== undefined)
     return { ...args, origin: "plugin", originPluginId: pluginId };
   if (args.origin !== undefined && args.origin !== "plugin") return args;
@@ -92,7 +88,6 @@ export function getPluginBoundSdk(
       threads: {
         ...sdk.threads,
         update: createThreadUpdateBatcher(queryClient),
-        fork: (args) => sdk.threads.fork(attributed(args, pluginId)),
         spawn: (args) => sdk.threads.spawn(attributed(args, pluginId)),
       },
     };

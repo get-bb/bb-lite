@@ -1,40 +1,38 @@
 import { registerPaneComposerFocus } from "@/lib/pane-composer-focus";
-import type { PendingAttachmentUpload } from "./usePendingAttachmentUploads";
-import { registerThreadMentionDropTarget } from "@/lib/thread-mention-drop";
+import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
 import type {
   PromptMentionCommandTrigger,
   PromptMentionResource,
   PromptTextMention,
 } from "@bb/domain";
 import type { Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
-import { useEditor, type Editor } from "@tiptap/react";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import {
-  useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
-  type ChangeEvent,
-  type FormEvent,
   type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
 } from "react";
 import {
-  commandPillDismissedRangeEnd,
+  arePromptDraftStatesEqual,
+  DEFAULT_PLUGIN_MENTION_TRIGGER,
   findActiveTrigger,
+  isPromptDraftEmpty,
   orderCommandSuggestions,
   type ActiveTrigger,
-  type CommandMenuState,
-  type MentionMenuState,
   type OrderedMentionSuggestions,
+  type PluginMentionTrigger,
+  type PromptDraftAttachment,
+  type PromptDraftState,
   type ProviderCommandSuggestion,
-  type PromptMentionSuggestion,
   type TypeaheadMenuState,
   type TypeaheadTrigger,
 } from "@bb/client-core";
@@ -43,9 +41,8 @@ import {
   useAppCommandKeyDispatch,
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
-import { canLoadMoreCommandResults } from "@/components/promptbox/mentions/mention-menu-scroll";
 import { Button } from "@bb/shared-ui/button";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import {
   Tooltip,
   TooltipContent,
@@ -53,37 +50,22 @@ import {
   TooltipTrigger,
 } from "@bb/shared-ui/tooltip";
 import {
-  COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
-  COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
-import {
   getMediaQuerySnapshot,
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
-import {
-  DEFAULT_PLUGIN_MENTION_TRIGGER,
-  type PluginMentionTrigger,
-} from "@bb/client-core";
-import { useRichTextEditingPreference } from "@/lib/rich-text-editing-preference";
-import {
-  arePromptDraftStatesEqual,
-  isPromptDraftEmpty,
-  type PromptDraftAttachment,
-  type PromptDraftState,
-} from "@bb/client-core";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS } from "./banner/PromptStackCard";
 import { AttachmentPreview } from "./AttachmentPreview";
 import {
   PromptBoxActionsMenu,
   type PromptBoxAction,
 } from "./PromptBoxActionsMenu";
-import type { PromptMentionLinkResolver } from "./editor/prompt-mention-link";
+import {
+  PromptMentionLinkContext,
+  type PromptMentionLinkResolver,
+} from "./editor/prompt-mention-link";
 import { promptEditorExtensions } from "./editor/prompt-editor-extensions";
 import {
   promptCommandResourceFromSuggestion,
-  promptEditorClipboardTextFromSlice,
   promptEditorContentFromValue,
   promptEditorCopiedSlice,
   promptEditorInlineContentFromValue,
@@ -93,190 +75,60 @@ import {
   type PromptEditorValue,
 } from "./editor/prompt-editor-serialization";
 import {
+  applyPromptParagraphNewline,
   exitTrailingBlockquoteBreak,
   insertParagraphBeforeBlockquote,
   removeEmptyBlockquotes,
-} from "./editor/prompt-editor-blockquote";
-import { exitHeading } from "./editor/prompt-editor-heading";
-import { applyPromptListNewline } from "./editor/prompt-editor-list";
-import { applyPromptParagraphNewline } from "./editor/prompt-editor-paragraph";
+} from "./editor/prompt-editor-blocks";
 import {
   MentionMenu,
   typeaheadSuggestionKey,
   type TypeaheadSuggestion,
 } from "./mentions/MentionMenu";
 import { parsePromptMentionClipboardElement } from "./mentions/prompt-mention-clipboard";
-import {
-  blurPromptEditor,
-  ComposerEditorSlot,
-  type ComposerEditorLayout,
-} from "./ComposerEditorSlot";
 import { QueuedEditorTypeaheadLayoutContext } from "./queued-editor-typeahead-layout";
 import {
   isModifierSubmitKeyEvent,
   modifierSubmitShortcutAria,
 } from "./modifier-submit-shortcut";
-
 import { ComposerSendMenu } from "./ComposerSendMenu";
 
 const PROMPTBOX_MIN_HEIGHT = 68;
-const PROMPTBOX_SELECTION_REVEAL_MARGIN = 12;
-const COMPACT_PROMPT_ACTION_BUTTON_CLASS =
-  "size-8 p-0 transition-all [&_[data-icon-root]]:size-4";
-const RICH_PASTE_BLOCK_TAGS = new Set([
-  "ADDRESS",
-  "ARTICLE",
-  "ASIDE",
-  "BLOCKQUOTE",
-  "DIV",
-  "DD",
-  "DL",
-  "DT",
-  "FIGCAPTION",
-  "FIGURE",
-  "FOOTER",
-  "FORM",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "H5",
-  "H6",
-  "HEADER",
-  "HR",
-  "MAIN",
-  "NAV",
-  "P",
-  "SECTION",
-  "TABLE",
-  "TBODY",
-  "TD",
-  "TFOOT",
-  "TH",
-  "THEAD",
-  "TR",
-]);
-const RICH_PASTE_LIST_MARKER = "- ";
-const RICH_PASTE_IGNORED_TAGS = new Set([
-  "HEAD",
-  "LINK",
-  "META",
-  "NOSCRIPT",
-  "SCRIPT",
-  "STYLE",
-  "TITLE",
-]);
-
-function hasWhitespaceAfterPosition(
-  doc: ProseMirrorNode,
-  position: number,
-): boolean {
-  const nextNode = doc.resolve(position).nodeAfter;
-  if (!nextNode) {
-    return false;
-  }
-  if (nextNode.isText) {
-    return /^\s/u.test(nextNode.text ?? "");
-  }
-  return nextNode.type.name === "hardBreak";
-}
-
-function mentionPillTrailingText(
-  doc: ProseMirrorNode,
-  position: number,
-): string {
-  return hasWhitespaceAfterPosition(doc, position) ? "" : " ";
-}
-
-const COLLAPSING_GRID_CLASS =
-  "grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
+const SELECTION_REVEAL_MARGIN = 12;
+const PASTE_BLOCK_TAGS =
+  /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|DIV|DD|DL|DT|FIGCAPTION|FIGURE|FOOTER|FORM|H[1-6]|HEADER|HR|LI|MAIN|NAV|P|SECTION|TABLE|TBODY|TD|TFOOT|TH|THEAD|TR)$/;
+const PASTE_IGNORED_TAGS = /^(HEAD|LINK|META|NOSCRIPT|SCRIPT|STYLE|TITLE)$/;
+const ACTIONS_TRANSITION_CLASS =
+  "transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none translate-y-0 opacity-100";
+const EDITOR_MAX_HEIGHT = {
+  thread: "calc(50dvh - 3rem)",
+  "root-compose": "calc(70dvh - 3rem)",
+};
+const INTERACTIVE_TARGET_SELECTOR =
+  "a[href],button,input,select,textarea,[contenteditable='true'],[data-prompt-mention='true'],[role='button'],[role='link'],[role='menuitem'],[role='option']";
+const EDITOR_CONTENT_CLASS = cn(
+  "h-full min-h-full",
+  "[&_.ProseMirror]:min-h-full [&_.ProseMirror]:leading-[1.7] [&_.ProseMirror]:outline-none",
+  "[&_.ProseMirror_p]:m-0",
+  "[&_.ProseMirror_blockquote]:my-1 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-surface-selected-border [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_blockquote]:text-muted-foreground",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-subtle-foreground",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:font-light",
+  "[&_.ProseMirror_p.is-editor-empty:first-child::before]:opacity-70",
+);
 
 export interface PromptBoxSubmissionConfig {
   isSubmitting?: boolean;
   disabled?: boolean;
   disabledReason?: string;
-  label?: string;
-  icon?: IconName;
   title?: string;
   isRunning?: boolean;
   onStop?: () => void;
   onModifierSubmit?: () => void;
   swapSubmitActions?: boolean;
   showModifierSubmitAction?: boolean;
-}
-
-interface PromptSubmitButtonProps {
-  canSubmit: boolean;
-  className: string;
-  disabledReason: string | undefined;
-  icon: IconName | undefined;
-  isBusy: boolean;
-  isCompact: boolean;
-  label: string | undefined;
-  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  title: string;
-}
-
-function PromptSubmitButton({
-  canSubmit,
-  className,
-  disabledReason,
-  icon,
-  isBusy,
-  isCompact,
-  label,
-  onPointerDown,
-  title,
-}: PromptSubmitButtonProps) {
-  const button = (
-    <Button
-      data-promptbox-submit-action=""
-      type="submit"
-      size={isCompact ? "icon" : "sm"}
-      variant="default"
-      aria-label={title}
-      aria-busy={isBusy}
-      disabled={!canSubmit}
-      onPointerDown={onPointerDown}
-      onMouseDown={(event) => event.preventDefault()}
-      className={cn(
-        className,
-        label !== undefined && !isCompact && "size-auto h-8 gap-1.5 px-2.5",
-      )}
-    >
-      {isBusy ? (
-        <Icon
-          name="Loading"
-          className="size-4 animate-spin motion-reduce:animate-none"
-        />
-      ) : (
-        <>
-          <Icon name={icon ?? "CornerDownLeft"} className="size-4" />
-          {label !== undefined && !isCompact ? (
-            <span data-promptbox-submit-label="">{label}</span>
-          ) : null}
-        </>
-      )}
-    </Button>
-  );
-
-  if (!disabledReason) return button;
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            data-promptbox-submit-disabled-reason=""
-            className="inline-flex shrink-0"
-          >
-            {button}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top">{disabledReason}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
 }
 
 export interface TypeaheadMentionConfig {
@@ -310,17 +162,6 @@ export interface TypeaheadConfig {
   command: TypeaheadCommandConfig;
 }
 
-export const INERT_TYPEAHEAD_COMMAND_CONFIG: TypeaheadCommandConfig = {
-  triggers: [],
-  suggestions: [],
-  isLoading: false,
-  isError: false,
-  hasMore: false,
-  isLoadingMore: false,
-  loadMore: () => {},
-  onQueryChange: () => {},
-};
-
 export interface AttachmentsConfig {
   items?: PromptDraftAttachment[];
   pendingUploads?: readonly PendingAttachmentUpload[];
@@ -329,11 +170,6 @@ export interface AttachmentsConfig {
   onAttachFiles?: (files: File[]) => void | Promise<void>;
   onRemove?: (path: string) => void;
   projectId?: string;
-}
-
-interface PromptBoxCompactConfig {
-  isCompact: boolean;
-  placeholder?: string;
 }
 
 export interface HistoryConfig {
@@ -361,8 +197,6 @@ interface PromptBoxInternalProps {
   onEscape?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
-  header?: ReactNode;
-  modeHeader?: ReactNode;
   footerStart?: ReactNode;
   submission?: PromptBoxSubmissionConfig;
   minHeight?: number;
@@ -370,9 +204,7 @@ interface PromptBoxInternalProps {
   mentionMenuPlacement: MentionMenuPlacement;
   attachments?: AttachmentsConfig;
   promptActions?: readonly PromptBoxAction[];
-  editorLayout?: ComposerEditorLayout;
-  onCollapse?: () => void;
-  compact?: PromptBoxCompactConfig;
+  editorLayout?: keyof typeof EDITOR_MAX_HEIGHT;
   containerCompactPlaceholder?: string;
   heightAnimationKey?: string | number;
   history?: HistoryConfig;
@@ -391,464 +223,196 @@ interface PromptEditorValueKey {
   mentions: readonly PromptTextMention[];
 }
 
-const DEFAULT_TYPEAHEAD_MENTION_TRIGGERS = [
-  DEFAULT_PLUGIN_MENTION_TRIGGER,
-] as const satisfies readonly PluginMentionTrigger[];
-
-interface PromptEditorSelectionRevealArgs {
-  editor: Editor;
-  scrollContainer: HTMLElement;
+interface HistorySession {
+  index: number;
+  original: PromptDraftState;
+  recalled: PromptDraftState;
+  resetKey: string | number | undefined;
 }
 
-interface ParsedRichClipboardValue {
-  hasMentions: boolean;
-  value: PromptEditorValue;
+interface PromptEditorHandlers {
+  placeholder: string;
+  onKeyDown: (editor: Editor, event: KeyboardEvent) => boolean;
+  onPaste: (editor: Editor, event: ClipboardEvent, slice: Slice) => boolean;
+  onBlur: () => void;
+  onUpdate: (editor: Editor, transaction: Transaction) => void;
+  onSelectionChange: (editor: Editor) => void;
 }
 
-type PromptBoxMouseDownEvent = ReactMouseEvent<HTMLFormElement>;
-
-interface PromptActionInsertionRange {
-  from: number;
-  to: number;
-}
-
-interface PromptActionCommand {
-  serializedText: string;
-  trailingText: string;
-  trigger: PromptMentionCommandTrigger;
-  suggestion: ProviderCommandSuggestion;
-}
-
-const PROMPTBOX_INTERACTIVE_TARGET_SELECTOR = [
-  "a[href]",
-  "button",
-  "input",
-  "select",
-  "textarea",
-  "[contenteditable='true']",
-  "[data-prompt-mention='true']",
-  "[role='button']",
-  "[role='link']",
-  "[role='menuitem']",
-  "[role='option']",
-].join(",");
-
-export function arePromptEditorValuesEqual(
-  left: PromptEditorValueKey | null,
+function arePromptEditorValuesEqual(
+  left: PromptEditorValueKey,
   right: PromptEditorValueKey,
 ): boolean {
-  if (left === null) return false;
-  if (left.text !== right.text) return false;
-  if (left.mentions === right.mentions) return true;
-  if (left.mentions.length !== right.mentions.length) return false;
-  for (let index = 0; index < left.mentions.length; index += 1) {
-    const leftMention = left.mentions[index]!;
-    const rightMention = right.mentions[index]!;
-    if (leftMention === rightMention) continue;
-    if (
-      leftMention.start !== rightMention.start ||
-      leftMention.end !== rightMention.end
-    ) {
-      return false;
-    }
-    if (
-      leftMention.resource !== rightMention.resource &&
-      JSON.stringify(leftMention.resource) !==
-        JSON.stringify(rightMention.resource)
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function normalizePastedPlainText(text: string): string {
-  return text.replace(/\r\n?/gu, "\n");
-}
-
-function promptActionCommandMentionsFromText(
-  text: string,
-  actions: readonly PromptBoxAction[] | undefined,
-): PromptTextMention[] {
-  const mentions: PromptTextMention[] = [];
-
-  for (const action of actions ?? []) {
-    const commandAction = promptActionCommandFromAction(action);
-    if (commandAction === null) {
-      continue;
-    }
-
-    let searchStart = 0;
-    while (searchStart < text.length) {
-      const start = text.indexOf(commandAction.serializedText, searchStart);
-      if (start === -1) {
-        break;
-      }
-
-      const end = start + commandAction.serializedText.length;
-      const before = start === 0 ? "" : text[start - 1]!;
-      const after = end >= text.length ? "" : text[end]!;
-      const hasTokenBoundaryBefore = before === "" || /\s/u.test(before);
-      const hasTokenBoundaryAfter = after === "" || /\s/u.test(after);
-
-      if (hasTokenBoundaryBefore && hasTokenBoundaryAfter) {
-        mentions.push({
-          start,
-          end,
-          resource: promptCommandResourceFromSuggestion({
-            suggestion: commandAction.suggestion,
-            trigger: commandAction.trigger,
-          }),
-        });
-      }
-
-      searchStart = end;
-    }
-  }
-
-  return mentions.sort(
-    (left, right) => left.start - right.start || left.end - right.end,
+  return (
+    left.text === right.text &&
+    (left.mentions === right.mentions ||
+      (left.mentions.length === right.mentions.length &&
+        left.mentions.every((mention, index) => {
+          const other = right.mentions[index]!;
+          return (
+            mention.start === other.start &&
+            mention.end === other.end &&
+            JSON.stringify(mention.resource) === JSON.stringify(other.resource)
+          );
+        })))
   );
 }
 
-function mergePromptTextMentions(
-  baseMentions: readonly PromptTextMention[],
-  additionalMentions: readonly PromptTextMention[],
-): PromptTextMention[] {
-  const merged = [...baseMentions].sort(
-    (left, right) => left.start - right.start || left.end - right.end,
-  );
-
-  for (const additionalMention of additionalMentions) {
-    const overlapsExisting = merged.some(
-      (mention) =>
-        additionalMention.start < mention.end &&
-        additionalMention.end > mention.start,
-    );
-    if (!overlapsExisting) {
-      merged.push(additionalMention);
-    }
-  }
-
-  return merged.sort(
-    (left, right) => left.start - right.start || left.end - right.end,
-  );
+function trailingTextAfter(doc: ProseMirrorNode, position: number): string {
+  const next = doc.resolve(position).nodeAfter;
+  const hasWhitespace = next?.isText
+    ? /^\s/u.test(next.text ?? "")
+    : next?.type.name === "hardBreak";
+  return hasWhitespace ? "" : " ";
 }
 
-function withPromptActionCommandMentions(
-  value: PromptEditorValue,
-  promptActions: readonly PromptBoxAction[] | undefined,
-): PromptEditorValue {
-  const promptActionMentions = promptActionCommandMentionsFromText(
-    value.text,
-    promptActions,
-  );
-  if (promptActionMentions.length === 0) {
-    return value;
-  }
-
-  return {
-    ...value,
-    mentions: mergePromptTextMentions(value.mentions, promptActionMentions),
-  };
-}
-
-function promptEditorValueFromPlainText(
-  text: string,
-  promptActions?: readonly PromptBoxAction[],
-): PromptEditorValue {
-  const normalizedText = normalizePastedPlainText(text);
-  return withPromptActionCommandMentions(
-    {
-      text: normalizedText,
-      mentions: [],
-    },
-    promptActions,
-  );
-}
-
-function promptEditorSliceHasBlockquote(slice: Slice): boolean {
-  let hasBlockquote = false;
-  slice.content.descendants((node) => {
-    if (node.type.name === "blockquote") {
-      hasBlockquote = true;
-      return false;
-    }
-    return true;
-  });
-  return hasBlockquote;
-}
-
-function plainTextHasQuoteLine(text: string): boolean {
-  return normalizePastedPlainText(text)
-    .split("\n")
-    .some((line) => line === ">" || line.startsWith("> "));
-}
-
-function trimTrailingPromptNewlines(
-  value: PromptEditorValue,
-): PromptEditorValue {
+function trimTrailingNewlines(value: PromptEditorValue): PromptEditorValue {
   const text = value.text.replace(/\n+$/u, "");
-  if (text.length === value.text.length) {
-    return value;
-  }
-
   return {
     text,
     mentions: value.mentions.filter((mention) => mention.end <= text.length),
   };
 }
 
-function promptEditorValueFromRichHtml(html: string): ParsedRichClipboardValue {
-  const document = new DOMParser().parseFromString(html, "text/html");
+function promptValueFromHtml(
+  html: string,
+): PromptEditorValue & { hasMentions: boolean } {
   let text = "";
-  let hasMentions = false;
   let listMarkerPending = false;
   const mentions: PromptTextMention[] = [];
-
-  const flushListMarker = () => {
-    if (!listMarkerPending) {
-      return;
-    }
-    listMarkerPending = false;
-    text += RICH_PASTE_LIST_MARKER;
-  };
-
-  const appendText = (appendedText: string) => {
-    if (appendedText.length === 0) {
-      return;
-    }
-    flushListMarker();
-    text += appendedText;
-  };
-
-  const appendNewline = () => {
-    text = text.replace(/[ \t]+$/u, "");
-    if (text.length > 0 && !text.endsWith("\n")) {
-      text += "\n";
-    }
-  };
-
-  const appendCollapsedText = (rawText: string) => {
-    const collapsedText = rawText.replace(/\s+/gu, " ");
-    if (collapsedText.trim().length === 0) {
-      if (listMarkerPending) {
-        return;
-      }
-      if (text.length > 0 && !/[\s]$/u.test(text)) {
-        appendText(" ");
-      }
-      return;
-    }
-    appendText(collapsedText);
-  };
-
-  const appendClipboardMention = (element: Element): boolean => {
-    const payload = parsePromptMentionClipboardElement({ element });
-    if (!payload) {
-      return false;
-    }
-
-    flushListMarker();
-    const start = text.length;
-    appendText(payload.serializedText);
-    mentions.push({
-      start,
-      end: text.length,
-      resource: payload.resource,
-    });
-    hasMentions = true;
-    return true;
-  };
-
-  const visitChildren = (node: Node, preserveWhitespace: boolean) => {
-    for (const childNode of node.childNodes) {
-      visitNode(childNode, preserveWhitespace);
-    }
-  };
-
-  const visitNode = (node: Node, preserveWhitespace: boolean) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const rawText = node.textContent ?? "";
-      if (preserveWhitespace) {
-        appendText(normalizePastedPlainText(rawText));
-        return;
-      }
-      appendCollapsedText(rawText);
-      return;
-    }
-
-    if (!(node instanceof Element)) {
-      visitChildren(node, preserveWhitespace);
-      return;
-    }
-
-    const tagName = node.tagName.toUpperCase();
-    if (RICH_PASTE_IGNORED_TAGS.has(tagName)) {
-      return;
-    }
-    if (appendClipboardMention(node)) {
-      return;
-    }
-    if (tagName === "BR") {
-      appendNewline();
-      return;
-    }
-    if (tagName === "PRE") {
-      appendNewline();
-      appendText(normalizePastedPlainText(node.textContent ?? ""));
-      appendNewline();
-      return;
-    }
-    if (tagName === "LI") {
-      appendNewline();
-      listMarkerPending = true;
-      visitChildren(node, preserveWhitespace);
+  const append = (value: string) => {
+    if (listMarkerPending && value.length > 0) {
       listMarkerPending = false;
-      appendNewline();
-      return;
+      text += "- ";
     }
-    if (RICH_PASTE_BLOCK_TAGS.has(tagName)) {
-      appendNewline();
-      visitChildren(node, preserveWhitespace);
-      appendNewline();
-      return;
-    }
-
-    visitChildren(node, preserveWhitespace);
+    text += value;
   };
-
-  visitChildren(document.body, false);
-
-  if (hasMentions) {
-    const trimmedText = text.replace(/\n+$/u, "");
-    return {
-      hasMentions,
-      value: {
-        text: trimmedText,
-        mentions: mentions.filter(
-          (mention) =>
-            mention.start >= 0 &&
-            mention.end > mention.start &&
-            mention.end <= trimmedText.length,
-        ),
-      },
-    };
+  const newline = () => {
+    text = text.replace(/[ \t]+$/u, "");
+    if (text.length > 0 && !text.endsWith("\n")) text += "\n";
+  };
+  const visit = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const collapsed = (node.textContent ?? "").replace(/\s+/gu, " ");
+      if (collapsed.trim().length > 0) append(collapsed);
+      else if (!listMarkerPending && /\S$/u.test(text)) append(" ");
+      return;
+    }
+    if (!(node instanceof Element)) {
+      node.childNodes.forEach(visit);
+      return;
+    }
+    const tag = node.tagName.toUpperCase();
+    if (PASTE_IGNORED_TAGS.test(tag)) return;
+    const mention = parsePromptMentionClipboardElement({ element: node });
+    if (mention) {
+      append(mention.serializedText);
+      mentions.push({
+        start: text.length - mention.serializedText.length,
+        end: text.length,
+        resource: mention.resource,
+      });
+    } else if (tag === "BR") {
+      newline();
+    } else if (tag === "PRE") {
+      newline();
+      append((node.textContent ?? "").replace(/\r\n?/gu, "\n"));
+      newline();
+    } else {
+      const block = PASTE_BLOCK_TAGS.test(tag);
+      if (block) newline();
+      if (tag === "LI") listMarkerPending = true;
+      node.childNodes.forEach(visit);
+      if (tag === "LI") listMarkerPending = false;
+      if (block) newline();
+    }
+  };
+  new DOMParser()
+    .parseFromString(html, "text/html")
+    .body.childNodes.forEach(visit);
+  if (mentions.length > 0) {
+    return { hasMentions: true, ...trimTrailingNewlines({ text, mentions }) };
   }
-
   return {
-    hasMentions,
-    value: {
-      text: text
-        .replace(/[ \t]+\n/gu, "\n")
-        .replace(/\n{3,}/gu, "\n\n")
-        .replace(/^\n+/u, "")
-        .replace(/\n+$/u, ""),
-      mentions: [],
-    },
+    hasMentions: false,
+    mentions: [],
+    text: text
+      .replace(/[ \t]+\n/gu, "\n")
+      .replace(/\n{3,}/gu, "\n\n")
+      .replace(/^\n+|\n+$/gu, ""),
   };
 }
 
-function promptEditorValueFromClipboardPaste(
+function promptValueFromClipboard(
   clipboardData: DataTransfer | null,
-  promptActions?: readonly PromptBoxAction[],
 ): PromptEditorValue | null {
   const html = clipboardData?.getData("text/html") ?? "";
-  const hasHtml = html.trim().length > 0;
-  if (hasHtml) {
-    const richValue = promptEditorValueFromRichHtml(html);
-    if (richValue.hasMentions) {
-      return withPromptActionCommandMentions(richValue.value, promptActions);
-    }
-  }
-
+  const rich = html.trim().length > 0 ? promptValueFromHtml(html) : null;
+  if (rich?.hasMentions) return rich;
   const plainText = clipboardData?.getData("text/plain") ?? "";
-  if (plainText.length > 0) {
-    return promptEditorValueFromPlainText(plainText, promptActions);
-  }
-
-  if (!hasHtml) {
-    return null;
-  }
-
-  return promptEditorValueFromRichHtml(html).value;
+  return plainText.length > 0
+    ? { text: plainText.replace(/\r\n?/gu, "\n"), mentions: [] }
+    : rich;
 }
 
-function runAfterClipboardCut(callback: () => void): void {
-  if (typeof queueMicrotask === "function") {
-    queueMicrotask(callback);
-    return;
-  }
-
-  setTimeout(callback, 0);
+function sliceHasBlockquote(slice: Slice): boolean {
+  let found = false;
+  slice.content.descendants((node) => {
+    found ||= node.type.name === "blockquote";
+    return !found;
+  });
+  return found;
 }
 
-function revealPromptEditorSelection({
-  editor,
-  scrollContainer,
-}: PromptEditorSelectionRevealArgs): void {
-  const scrollContainerRect = scrollContainer.getBoundingClientRect();
-  if (scrollContainerRect.height <= 0) return;
-
-  let selectionRect: ReturnType<Editor["view"]["coordsAtPos"]>;
-  try {
-    selectionRect = editor.view.coordsAtPos(editor.state.selection.head);
-  } catch {
-    return;
-  }
-
-  const topOverflow =
-    selectionRect.top -
-    scrollContainerRect.top -
-    PROMPTBOX_SELECTION_REVEAL_MARGIN;
-  if (topOverflow < 0) {
-    scrollContainer.scrollTop = Math.max(
-      0,
-      scrollContainer.scrollTop + topOverflow,
-    );
-    return;
-  }
-
-  const bottomOverflow =
-    selectionRect.bottom -
-    scrollContainerRect.bottom +
-    PROMPTBOX_SELECTION_REVEAL_MARGIN;
-  if (bottomOverflow > 0) {
-    scrollContainer.scrollTop += bottomOverflow;
-  }
-}
-
-function isPromptBoxChromeTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-
-  return target.closest(PROMPTBOX_INTERACTIVE_TARGET_SELECTOR) === null;
-}
-
-function promptActionTextImmediatelyBeforeCursor(
-  editor: Editor,
-  actionText: string,
-): boolean {
-  if (!editor.state.selection.empty) {
+function suppressAnchorActivation(event: Event): boolean {
+  if (!(event.target instanceof Element && event.target.closest("a[href]"))) {
     return false;
   }
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
 
-  const before = editor.state.doc.textBetween(
-    0,
-    editor.state.selection.from,
-    "\n",
-    "\n",
+function focusEditorAtEnd(editor: Editor): void {
+  editor.view.dispatch(
+    editor.state.tr
+      .setSelection(TextSelection.atEnd(editor.state.doc))
+      .scrollIntoView(),
   );
-  return before.endsWith(actionText);
+  editor.view.focus();
+}
+
+function blurPromptEditor(editor: Editor | null): void {
+  editor?.view.dom.blur();
+  window.getSelection()?.removeAllRanges();
+}
+
+function commandOfAction(action: PromptBoxAction) {
+  if (action.kind === "skills" || !action.command) return null;
+  const { trigger, name, trailingText } = action.command;
+  return {
+    serializedText: `${trigger}${name}`,
+    trailingText,
+    resource: {
+      kind: "command",
+      trigger,
+      name,
+      source: "command",
+      origin: "user",
+      label: name,
+      argumentHint: null,
+    } satisfies PromptMentionResource,
+  };
 }
 
 function withLeadingCommand(
-  value: { text: string; mentions: readonly PromptTextMention[] },
-  command: PromptActionCommand,
+  value: PromptEditorValueKey,
+  command: NonNullable<ReturnType<typeof commandOfAction>>,
 ): PromptEditorValue {
-  const leadingCommand = value.mentions.find(
+  const leading = value.mentions.find(
     (mention) => mention.resource.kind === "command" && mention.start === 0,
   );
-  const rest = value.text.slice(leadingCommand?.end ?? 0).trimStart();
+  const rest = value.text.slice(leading?.end ?? 0).trimStart();
   const prefix = `${command.serializedText}${command.trailingText}`;
   const shift = prefix.length - (value.text.length - rest.length);
   return {
@@ -857,13 +421,10 @@ function withLeadingCommand(
       {
         start: 0,
         end: command.serializedText.length,
-        resource: promptCommandResourceFromSuggestion({
-          suggestion: command.suggestion,
-          trigger: command.trigger,
-        }),
+        resource: command.resource,
       },
       ...value.mentions
-        .filter((mention) => mention !== leadingCommand)
+        .filter((mention) => mention !== leading)
         .map((mention) => ({
           ...mention,
           start: mention.start + shift,
@@ -873,69 +434,124 @@ function withLeadingCommand(
   };
 }
 
-function skillsTriggerInsertionRange(
-  editor: Editor,
-  action: PromptBoxAction,
-  triggers: readonly TypeaheadTrigger[],
-): PromptActionInsertionRange | null {
-  const selection = editor.state.selection;
-  if (!selection.empty) {
-    return { from: selection.from, to: selection.to };
-  }
-  if (promptActionTextImmediatelyBeforeCursor(editor, action.text)) {
-    return null;
-  }
-  const activeTrigger = findActiveTrigger(editor, triggers);
-  if (
-    activeTrigger !== null &&
-    activeTrigger.kind === "command" &&
-    activeTrigger.char === action.text &&
-    activeTrigger.to === selection.from
-  ) {
-    return null;
-  }
-  return { from: selection.from, to: selection.to };
-}
-
-function promptActionCommandFromAction(
-  action: PromptBoxAction,
-): PromptActionCommand | null {
-  if (action.kind === "skills" || !action.command) {
-    return null;
-  }
-
-  const { trigger, name, trailingText } = action.command;
-  const serializedText = `${trigger}${name}`;
-  return {
-    serializedText,
-    trailingText,
-    trigger,
-    suggestion: {
-      kind: "command",
-      name,
-      source: "command",
-      origin: "user",
-      description: null,
-      argumentHint: null,
+function usePromptEditor(
+  id: string | undefined,
+  initialValue: PromptEditorValueKey,
+  handlers: PromptEditorHandlers,
+): Editor | null {
+  const latest = useRef(handlers);
+  const editorRef = useRef<Editor | null>(null);
+  const [options] = useState(() => ({
+    extensions: promptEditorExtensions(() => latest.current.placeholder),
+    content: promptEditorContentFromValue(initialValue),
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        "aria-label": handlers.placeholder,
+        "data-placeholder": handlers.placeholder,
+        autocomplete: "off",
+        class: cn(
+          "min-h-full whitespace-pre-wrap break-words outline-none",
+          "placeholder:select-none placeholder:text-subtle-foreground",
+        ),
+        enterkeyhint: "send",
+        ...(id ? { id } : {}),
+        role: "textbox",
+      },
+      transformCopied: (slice: Slice, view: EditorView) =>
+        promptEditorCopiedSlice(slice, view.state.selection),
+      clipboardTextSerializer: (slice: Slice, view: EditorView) =>
+        promptEditorValueFromSlice(slice, view.state.schema).text,
+      handleDOMEvents: {
+        auxclick: (_view: EditorView, event: Event) =>
+          suppressAnchorActivation(event),
+        click: (_view: EditorView, event: Event) =>
+          suppressAnchorActivation(event),
+        blur: () => {
+          latest.current.onBlur();
+          return false;
+        },
+      },
+      handleClick: () => {
+        if (editorRef.current) {
+          latest.current.onSelectionChange(editorRef.current);
+        }
+        return false;
+      },
+      handleKeyDown: (_view: EditorView, event: KeyboardEvent) =>
+        editorRef.current !== null &&
+        latest.current.onKeyDown(editorRef.current, event),
+      handlePaste: (_view: EditorView, event: ClipboardEvent, slice: Slice) =>
+        editorRef.current !== null &&
+        latest.current.onPaste(editorRef.current, event, slice),
     },
-  };
+    onSelectionUpdate: (props: {
+      editor: Editor;
+      transaction: Transaction;
+    }) => {
+      if (!props.transaction.docChanged) {
+        latest.current.onSelectionChange(props.editor);
+      }
+    },
+    onUpdate: (props: { editor: Editor; transaction: Transaction }) =>
+      latest.current.onUpdate(props.editor, props.transaction),
+  }));
+  const editor = useEditor(options, [options]);
+  useLayoutEffect(() => {
+    latest.current = handlers;
+    editorRef.current = editor;
+  });
+  return editor;
 }
 
-export function suppressPromptEditorAnchorActivation(event: Event): boolean {
-  if (!(event.target instanceof Element)) return false;
-  if (event.target.closest("a[href]") === null) return false;
-
-  event.preventDefault();
-  event.stopPropagation();
-  return true;
-}
-
-function focusEditorAtEnd(editor: Editor): void {
-  const transaction = editor.state.tr
-    .setSelection(TextSelection.atEnd(editor.state.doc))
-    .scrollIntoView();
-  editor.view.dispatch(transaction);
-  editor.view.focus();
+function PromptSubmitButton({
+  canSubmit,
+  disabledReason,
+  isBusy,
+  title,
+}: {
+  canSubmit: boolean;
+  disabledReason: string | undefined;
+  isBusy: boolean;
+  title: string;
+}) {
+  const button = (
+    <Button
+      data-promptbox-submit-action=""
+      type="submit"
+      size="sm"
+      variant="default"
+      aria-label={title}
+      aria-busy={isBusy}
+      disabled={!canSubmit}
+      onMouseDown={(event) => event.preventDefault()}
+      className="ml-1 h-8 px-2 transition-colors"
+    >
+      <Icon
+        name={isBusy ? "Loading" : "CornerDownLeft"}
+        className={cn(
+          "size-4",
+          isBusy && "animate-spin motion-reduce:animate-none",
+        )}
+      />
+    </Button>
+  );
+  if (!disabledReason) return button;
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            data-promptbox-submit-disabled-reason=""
+            className="inline-flex shrink-0"
+          >
+            {button}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{disabledReason}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function PromptBoxInternal({
@@ -943,12 +559,10 @@ export function PromptBoxInternal({
   value,
   mentionRanges,
   onChange,
-  onSubmit: onDefaultSubmit,
+  onSubmit: onDraftSubmit,
   onEscape,
   placeholder = "Ask anything. @ to mention files, folders, or sections",
   autoFocus = true,
-  header,
-  modeHeader,
   footerStart,
   submission = {},
   minHeight = PROMPTBOX_MIN_HEIGHT,
@@ -957,8 +571,6 @@ export function PromptBoxInternal({
   attachments: attachmentConfig = {},
   promptActions,
   editorLayout = "thread",
-  onCollapse,
-  compact,
   containerCompactPlaceholder,
   heightAnimationKey,
   history,
@@ -966,44 +578,20 @@ export function PromptBoxInternal({
   focusEndKey,
 }: PromptBoxInternalProps) {
   const focusComposerShortcut = useAppCommandShortcut("composer.focus");
+  const dispatchAppCommandKey = useAppCommandKeyDispatch();
+  const reportTypeaheadHeight = useContext(QueuedEditorTypeaheadLayoutContext);
   const {
     isSubmitting = false,
     disabled: submitDisabled = false,
     disabledReason: submitDisabledReason,
-    label: submitLabel,
-    icon: submitIcon,
     title: submitTitle = "Submit (Enter)",
     isRunning = false,
     onStop,
-    onModifierSubmit: onDefaultModifierSubmit,
+    onModifierSubmit: onImmediateSubmit,
     swapSubmitActions = false,
     showModifierSubmitAction = false,
   } = submission;
-  const draftSubmitAction = { onSubmit: onDefaultSubmit, requiresInput: true };
-  const immediateSubmitAction = {
-    onSubmit: onDefaultModifierSubmit,
-    requiresInput: false,
-  };
-  const [primarySubmitAction, modifierSubmitAction] = swapSubmitActions
-    ? [immediateSubmitAction, draftSubmitAction]
-    : [draftSubmitAction, immediateSubmitAction];
-  const { onSubmit } = primarySubmitAction;
-  const { onSubmit: onModifierSubmit } = modifierSubmitAction;
-  const {
-    triggers: mentionTriggerChars = DEFAULT_TYPEAHEAD_MENTION_TRIGGERS,
-    results: mentionResults,
-    isLoading: mentionLoading,
-    isError: mentionError,
-    onQueryChange: onMentionQueryChange,
-    resolveLink: mentionResolveLink,
-  } = typeahead.mention;
-  const {
-    triggers: commandTriggerChars,
-    suggestions: commandSuggestions,
-    isLoading: commandLoading,
-    isError: commandError,
-    onQueryChange: onCommandQueryChange,
-  } = typeahead.command;
+  const { mention, command } = typeahead;
   const {
     items: attachments = [],
     pendingUploads,
@@ -1013,440 +601,584 @@ export function PromptBoxInternal({
     onRemove: onRemoveAttachment,
     projectId: attachmentProjectId,
   } = attachmentConfig;
+
   const formRef = useRef<HTMLFormElement>(null);
   const typeaheadMenuRef = useRef<HTMLDivElement>(null);
-  const reportQueuedEditorTypeaheadLayout = useContext(
-    QueuedEditorTypeaheadLayoutContext,
-  );
-  const heightAnimationFromRef = useRef<number | null>(null);
-  const capturePromptBoxHeight = useCallback(() => {
-    const formElement = formRef.current;
-    heightAnimationFromRef.current =
-      formElement?.getBoundingClientRect().height ?? null;
-  }, []);
-  useLayoutEffect(() => {
-    const formElement = formRef.current;
-    if (!formElement) return;
-    if (containerCompactPlaceholder === undefined) {
-      formElement.style.removeProperty(
-        "--promptbox-container-compact-placeholder",
-      );
-      return;
-    }
-    formElement.style.setProperty(
-      "--promptbox-container-compact-placeholder",
-      JSON.stringify(containerCompactPlaceholder),
-    );
-  }, [containerCompactPlaceholder]);
-  const editorRef = useRef<Editor | null>(null);
-  const editorScrollContainerRef = useRef<HTMLDivElement>(null);
-  const revealSelectionFrameRef = useRef<number | null>(null);
-  const promptActionFocusFrameRef = useRef<number | null>(null);
-  const pendingFocusEndRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const valueRef = useRef(value);
-  const mentionRangesRef = useRef<readonly PromptTextMention[]>(mentionRanges);
-  const placeholderRef = useRef(placeholder);
-  const skipEditorChangeRef = useRef(false);
-  const lastSyncedEditorValueRef = useRef<PromptEditorValueKey | null>(null);
-  const triggerKeyRef = useRef("");
-  const handleEditorKeyDownRef = useRef<(event: KeyboardEvent) => boolean>(
-    () => false,
-  );
-  const dispatchAppCommandKey = useAppCommandKeyDispatch();
-  const syncTriggerStateRef = useRef<(editor: Editor) => void>(() => {});
-  const onAttachFilesRef = useRef(onAttachFiles);
+  const heightAnimationFromRef = useRef<number | null>(null);
+  const revealFrameRef = useRef<number | null>(null);
+  const pendingFocusEndRef = useRef(false);
+  const lastFocusEndKeyRef = useRef(focusEndKey);
+  const stopGestureButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastSyncedRef = useRef<PromptEditorValueKey>({
+    text: value,
+    mentions: mentionRanges,
+  });
   const dismissedTriggerRef = useRef<DismissedTriggerRange | null>(null);
-  const isRestoringAppliedMentionRef = useRef(false);
+  const restoringMentionRef = useRef(false);
   const [activeTrigger, setActiveTrigger] = useState<ActiveTrigger | null>(
     null,
   );
-  const [selectedSuggestionKey, setSelectedSuggestionKey] = useState<
-    string | null
-  >(null);
-  const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(
+  const [selected, setSelected] = useState({ triggerKey: "", key: "" });
+  const [historySession, setHistorySession] = useState<HistorySession | null>(
     null,
   );
-  const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(
-    null,
-  );
-  const [temporaryHistoryDraft, setTemporaryHistoryDraft] =
-    useState<PromptDraftState | null>(null);
-  const [recalledHistoryDraft, setRecalledHistoryDraft] =
-    useState<PromptDraftState | null>(null);
-  const hasActiveHistorySessionRef = useRef(false);
-  const showCompactLayout = compact?.isCompact === true;
-  const effectivePlaceholder = showCompactLayout
-    ? (compact.placeholder ?? placeholder)
-    : placeholder;
-  const focusScopeKey = history?.resetKey;
-  const onChangeRef = useRef(onChange);
+  const [pendingCommandSubmit, setPendingCommandSubmit] = useState(false);
 
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    onAttachFilesRef.current = onAttachFiles;
-  }, [onAttachFiles]);
-
-  const revealEditorSelection = useCallback(() => {
-    const currentEditor = editorRef.current;
-    const scrollContainer = editorScrollContainerRef.current;
-    if (!currentEditor || currentEditor.isDestroyed || !scrollContainer) return;
-
-    revealPromptEditorSelection({
-      editor: currentEditor,
-      scrollContainer,
-    });
-  }, []);
-
-  const scheduleRevealEditorSelection = useCallback(() => {
-    if (typeof requestAnimationFrame !== "function") {
-      revealEditorSelection();
-      return;
-    }
-
-    if (revealSelectionFrameRef.current !== null) {
-      cancelAnimationFrame(revealSelectionFrameRef.current);
-    }
-
-    revealSelectionFrameRef.current = requestAnimationFrame(() => {
-      revealSelectionFrameRef.current = null;
-      revealEditorSelection();
-    });
-  }, [revealEditorSelection]);
-
-  useEffect(() => {
-    return () => {
-      if (revealSelectionFrameRef.current === null) return;
-      cancelAnimationFrame(revealSelectionFrameRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (promptActionFocusFrameRef.current === null) return;
-      cancelAnimationFrame(promptActionFocusFrameRef.current);
-    };
-  }, []);
-
-  const triggers = useMemo<TypeaheadTrigger[]>(() => {
-    const mentionTriggers = mentionTriggerChars.map((char) => ({
+  const triggers: TypeaheadTrigger[] = [
+    ...(mention.triggers ?? [DEFAULT_PLUGIN_MENTION_TRIGGER]).map((char) => ({
       char,
       kind: "mention" as const,
-    }));
-    if (commandTriggerChars.length === 0) {
-      return mentionTriggers;
-    }
-    return [
-      ...mentionTriggers,
-      ...commandTriggerChars.map((char) => ({
-        char,
-        kind: "command" as const,
-      })),
-    ];
-  }, [commandTriggerChars, mentionTriggerChars]);
+    })),
+    ...command.triggers.map((char) => ({ char, kind: "command" as const })),
+  ];
+  const hasSubmittableInput = value.trim().length > 0 || attachments.length > 0;
+  const canRun = !isAttaching && !isSubmitting && !submitDisabled;
+  const onPrimarySubmit = swapSubmitActions ? onImmediateSubmit : onDraftSubmit;
+  const onModifierSubmit = swapSubmitActions
+    ? onDraftSubmit
+    : onImmediateSubmit;
+  const hasModifierSubmit = onModifierSubmit !== undefined;
+  const canPrimarySubmit =
+    canRun &&
+    onPrimarySubmit !== undefined &&
+    (swapSubmitActions || hasSubmittableInput);
+  const canModifierSubmit =
+    canRun && hasModifierSubmit && (!swapSubmitActions || hasSubmittableInput);
+  const canSubmit = hasSubmittableInput && canPrimarySubmit;
+  const showStop = Boolean(isRunning && onStop && !canSubmit && !isAttaching);
+  const submitPrompt = () => {
+    if (canPrimarySubmit) onPrimarySubmit?.();
+  };
+  const submitModifierPrompt = () => {
+    if (canModifierSubmit) onModifierSubmit?.();
+  };
 
-  const dispatchTriggerQuery = useCallback(
-    (active: ActiveTrigger | null) => {
-      if (active?.kind === "mention") {
-        onMentionQueryChange(active.query, active.char);
-        onCommandQueryChange(null, null);
-        return;
-      }
-      if (active?.kind === "command") {
-        onCommandQueryChange(active.query, active.char);
-        onMentionQueryChange(null, null);
-        return;
-      }
-      onMentionQueryChange(null, null);
-      onCommandQueryChange(null, null);
-    },
-    [onCommandQueryChange, onMentionQueryChange],
+  const recalledEntry =
+    historySession === null
+      ? undefined
+      : history?.entries[historySession.index];
+  const activeHistorySession =
+    historySession !== null &&
+    history !== undefined &&
+    recalledEntry !== undefined &&
+    historySession.resetKey === history.resetKey &&
+    arePromptDraftStatesEqual(recalledEntry, historySession.recalled) &&
+    arePromptDraftStatesEqual(history.currentDraft, historySession.recalled)
+      ? historySession
+      : null;
+
+  const triggerKey = activeTrigger
+    ? `${activeTrigger.kind}:${activeTrigger.from}:${activeTrigger.to}:${activeTrigger.query}`
+    : "";
+  const orderedCommands =
+    activeTrigger?.kind === "command"
+      ? orderCommandSuggestions(command.suggestions, activeTrigger.query)
+      : [];
+  const activeSuggestions: readonly TypeaheadSuggestion[] =
+    activeTrigger?.kind === "command"
+      ? orderedCommands
+      : activeTrigger?.kind === "mention"
+        ? mention.results.suggestions
+        : [];
+  const selectedIndex = Math.max(
+    0,
+    selected.triggerKey === triggerKey
+      ? activeSuggestions.findIndex(
+          (suggestion) => typeaheadSuggestionKey(suggestion) === selected.key,
+        )
+      : -1,
   );
-
-  const syncTriggerState = useCallback(
-    (editor: Editor) => {
-      const caretPosition = editor.state.selection.from;
-      let dismissedTrigger = dismissedTriggerRef.current;
-      const isRestoringAppliedMention =
-        isRestoringAppliedMentionRef.current && dismissedTrigger !== null;
-      const detectedTrigger = findActiveTrigger(editor, triggers);
-      if (dismissedTrigger && !isRestoringAppliedMention) {
-        if (
-          !dismissedTrigger.hasLeftRange &&
-          detectedTrigger?.from === dismissedTrigger.start
-        ) {
-          dismissedTrigger = {
-            ...dismissedTrigger,
-            end: Math.max(dismissedTrigger.end, caretPosition),
-          };
-          dismissedTriggerRef.current = dismissedTrigger;
+  const selectSuggestion = (index: number) => {
+    const suggestion = activeSuggestions[index];
+    if (suggestion) {
+      setSelected({ triggerKey, key: typeaheadSuggestionKey(suggestion) });
+    }
+  };
+  const canLoadMoreCommands =
+    activeTrigger?.kind === "command" &&
+    command.hasMore &&
+    !command.isError &&
+    !command.isLoadingMore;
+  const mentionQuery =
+    activeTrigger?.kind === "mention" ? activeTrigger.query.trim() : "";
+  const typeaheadMenuState: TypeaheadMenuState =
+    activeTrigger?.kind === "command"
+      ? {
+          trigger: "command",
+          state: command.isLoading
+            ? { kind: "loading" }
+            : command.isError
+              ? { kind: "error" }
+              : { kind: "results", suggestions: orderedCommands },
         }
-        const isWithinDismissedRange =
-          caretPosition >= dismissedTrigger.start &&
-          caretPosition <= dismissedTrigger.end;
+      : {
+          trigger: "mention",
+          state:
+            mentionQuery.length === 0
+              ? { kind: "hint" }
+              : mention.isLoading
+                ? { kind: "loading" }
+                : mention.isError
+                  ? { kind: "error" }
+                  : { kind: "results", results: mention.results },
+        };
+  const showTypeaheadMenu =
+    activeTrigger !== null &&
+    !(
+      activeTrigger.kind === "command" &&
+      !command.isLoading &&
+      !command.isError &&
+      command.suggestions.length === 0
+    ) &&
+    !(
+      activeTrigger.kind === "mention" &&
+      activeTrigger.char !== DEFAULT_PLUGIN_MENTION_TRIGGER &&
+      mentionQuery.length === 0
+    );
 
-        if (!isWithinDismissedRange) {
+  const revealSelection = (target: Editor) => {
+    if (revealFrameRef.current !== null) {
+      cancelAnimationFrame(revealFrameRef.current);
+    }
+    revealFrameRef.current = requestAnimationFrame(() => {
+      revealFrameRef.current = null;
+      const container = scrollRef.current;
+      const bounds = container?.getBoundingClientRect();
+      if (target.isDestroyed || !container || !bounds?.height) return;
+      let caret: { top: number; bottom: number };
+      try {
+        caret = target.view.coordsAtPos(target.state.selection.head);
+      } catch {
+        return;
+      }
+      const above = caret.top - bounds.top - SELECTION_REVEAL_MARGIN;
+      const below = caret.bottom - bounds.bottom + SELECTION_REVEAL_MARGIN;
+      if (above < 0) {
+        container.scrollTop = Math.max(0, container.scrollTop + above);
+      } else if (below > 0) {
+        container.scrollTop += below;
+      }
+    });
+  };
+  const focusAtEnd = (target: Editor) => {
+    focusEditorAtEnd(target);
+    revealSelection(target);
+  };
+
+  const clearTypeahead = () => {
+    setActiveTrigger(null);
+    mention.onQueryChange(null, null);
+    command.onQueryChange(null, null);
+  };
+
+  const syncTriggerState = (target: Editor) => {
+    const caret = target.state.selection.from;
+    const detected = findActiveTrigger(target, triggers);
+    let dismissed = dismissedTriggerRef.current;
+    const restoring = restoringMentionRef.current && dismissed !== null;
+    if (dismissed && !restoring) {
+      if (!dismissed.hasLeftRange && detected?.from === dismissed.start) {
+        dismissed = { ...dismissed, end: Math.max(dismissed.end, caret) };
+      }
+      const inRange = caret >= dismissed.start && caret <= dismissed.end;
+      dismissed = !inRange
+        ? { ...dismissed, hasLeftRange: true }
+        : dismissed.hasLeftRange
+          ? null
+          : dismissed;
+      dismissedTriggerRef.current = dismissed;
+    }
+    const suppressed =
+      dismissed !== null &&
+      !dismissed.hasLeftRange &&
+      (restoring || (caret >= dismissed.start && caret <= dismissed.end));
+    const next = suppressed ? null : detected;
+    if (next === null) {
+      clearTypeahead();
+      return;
+    }
+    setActiveTrigger(next);
+    if (next.kind === "mention") {
+      mention.onQueryChange(next.query, next.char);
+      command.onQueryChange(null, null);
+    } else {
+      command.onQueryChange(next.query, next.char);
+      mention.onQueryChange(null, null);
+    }
+  };
+
+  const refocusAfterApply = (target: Editor, position?: "end") => {
+    requestAnimationFrame(() => {
+      if (!target.isDestroyed) {
+        target.commands.focus(position);
+        syncTriggerState(target);
+        revealSelection(target);
+      }
+      restoringMentionRef.current = false;
+    });
+  };
+
+  const insertMentionPill = (
+    target: Editor,
+    range: { from: number; to: number },
+    resource: PromptMentionResource,
+    serializedText: string,
+    dismissedEnd: number | null,
+  ) => {
+    const trailingText = trailingTextAfter(target.state.doc, range.to);
+    dismissedTriggerRef.current =
+      dismissedEnd === null
+        ? null
+        : { start: range.from, end: dismissedEnd, hasLeftRange: false };
+    restoringMentionRef.current = true;
+    clearTypeahead();
+    target
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertContent([
+        { type: "mention", attrs: { resource, serializedText } },
+        ...(trailingText ? [{ type: "text", text: trailingText }] : []),
+      ])
+      .run();
+    refocusAfterApply(target);
+  };
+
+  const applySuggestion = (target: Editor, item: TypeaheadSuggestion) => {
+    if (activeTrigger === null) return;
+    const range = { from: activeTrigger.from, to: activeTrigger.to };
+    if (item.kind === "command" && activeTrigger.kind === "command") {
+      insertMentionPill(
+        target,
+        range,
+        promptCommandResourceFromSuggestion(item, activeTrigger.char),
+        `${activeTrigger.char}${item.name}`,
+        range.from + 1 + trailingTextAfter(target.state.doc, range.to).length,
+      );
+    } else if (item.kind !== "command" && activeTrigger.kind === "mention") {
+      const replacement = item.replacement.trim();
+      insertMentionPill(
+        target,
+        range,
+        promptMentionResourceFromSuggestion(item),
+        replacement.startsWith(activeTrigger.char)
+          ? replacement
+          : `${activeTrigger.char}${replacement}`,
+        range.from + 2,
+      );
+    }
+  };
+
+  const applyHistoryDraft = (target: Editor, draft: PromptDraftState) => {
+    history?.onSelectEntry(draft);
+    requestAnimationFrame(() => {
+      if (target.isDestroyed) return;
+      focusAtEnd(target);
+      syncTriggerState(target);
+    });
+  };
+
+  const handleKeyDown = (target: Editor, event: KeyboardEvent): boolean => {
+    if (event.isComposing || event.keyCode === 229) return false;
+    if (dispatchAppCommandKey(event)) return true;
+    const cursor = target.state.selection;
+    const hasModifier =
+      event.shiftKey || event.altKey || event.metaKey || event.ctrlKey;
+    const canNavigateHistory =
+      history !== undefined &&
+      !hasModifier &&
+      cursor.empty &&
+      cursor.from >= target.state.doc.content.size - 1 &&
+      (isPromptDraftEmpty(history.currentDraft) ||
+        activeHistorySession !== null);
+    const count = activeSuggestions.length;
+
+    if (showTypeaheadMenu) {
+      const canNavigate = !hasModifier && !canNavigateHistory && count > 0;
+      if (event.key === "ArrowDown" && canNavigate) {
+        event.preventDefault();
+        if (
+          activeTrigger?.kind === "command" &&
+          !command.isError &&
+          selectedIndex >= count - 1 &&
+          (command.hasMore || command.isLoadingMore)
+        ) {
+          if (canLoadMoreCommands) command.loadMore();
+        } else {
+          selectSuggestion((selectedIndex + 1) % count);
+        }
+        return true;
+      }
+      if (event.key === "ArrowUp" && canNavigate) {
+        event.preventDefault();
+        selectSuggestion((selectedIndex + count - 1) % count);
+        return true;
+      }
+      if ((event.key === "Enter" || event.key === "Tab") && count > 0) {
+        event.preventDefault();
+        const item = activeSuggestions[selectedIndex] ?? activeSuggestions[0]!;
+        applySuggestion(target, item);
+        if (
+          event.key === "Enter" &&
+          item.kind === "command" &&
+          item.origin === "builtin"
+        ) {
+          setPendingCommandSubmit(true);
+        }
+        return true;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (activeTrigger) {
           dismissedTriggerRef.current = {
-            ...dismissedTrigger,
+            start: activeTrigger.from,
+            end: activeTrigger.to,
+            hasLeftRange: false,
+          };
+        }
+        clearTypeahead();
+        return true;
+      }
+    }
+
+    if (event.key === "Escape") {
+      if (onEscape) onEscape();
+      else blurPromptEditor(target);
+      return true;
+    }
+
+    if (history && canNavigateHistory) {
+      if (event.key === "ArrowUp" && history.entries.length > 0) {
+        event.preventDefault();
+        const index = activeHistorySession
+          ? Math.min(activeHistorySession.index + 1, history.entries.length - 1)
+          : 0;
+        const recalled = history.entries[index]!;
+        setHistorySession({
+          index,
+          original: activeHistorySession?.original ?? history.currentDraft,
+          recalled,
+          resetKey: history.resetKey,
+        });
+        applyHistoryDraft(target, recalled);
+        return true;
+      }
+      if (event.key === "ArrowDown" && activeHistorySession) {
+        event.preventDefault();
+        const index = activeHistorySession.index - 1;
+        const recalled = history.entries[index];
+        setHistorySession(
+          recalled ? { ...activeHistorySession, index, recalled } : null,
+        );
+        applyHistoryDraft(target, recalled ?? activeHistorySession.original);
+        return true;
+      }
+    }
+
+    if (isModifierSubmitKeyEvent(event) && hasModifierSubmit) {
+      event.preventDefault();
+      submitModifierPrompt();
+      return true;
+    }
+    if (event.key !== "Enter") return false;
+    if (!event.shiftKey) {
+      event.preventDefault();
+      submitPrompt();
+      return true;
+    }
+    if (
+      !event.metaKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      (insertParagraphBeforeBlockquote(target) ||
+        exitTrailingBlockquoteBreak(target) ||
+        applyPromptParagraphNewline(target))
+    ) {
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  };
+
+  const handlePaste = (
+    target: Editor,
+    event: ClipboardEvent,
+    slice: Slice,
+  ): boolean => {
+    const files = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    const attachesFiles = onAttachFiles !== undefined && files.length > 0;
+    if (attachesFiles) {
+      event.preventDefault();
+      void onAttachFiles(files);
+    }
+    const plainText = (
+      event.clipboardData?.getData("text/plain") ?? ""
+    ).replace(/\r\n?/gu, "\n");
+    const quoteSlice = sliceHasBlockquote(slice);
+    if (quoteSlice || /^>(?: |$)/mu.test(plainText)) {
+      event.preventDefault();
+      const pasted = trimTrailingNewlines(
+        quoteSlice
+          ? promptEditorValueFromSlice(slice, target.state.schema)
+          : { text: plainText, mentions: [] },
+      );
+      if (pasted.text.length === 0) return true;
+      target
+        .chain()
+        .focus()
+        .insertContent(promptEditorContentFromValue(pasted).content ?? [])
+        .setMeta("uiEvent", "paste")
+        .run();
+      const next = trimTrailingNewlines(
+        promptEditorValueFromDoc(target.state.doc),
+      );
+      lastSyncedRef.current = next;
+      onChange(next.text, next.mentions);
+      return true;
+    }
+    const pasted = promptValueFromClipboard(event.clipboardData ?? null);
+    if (pasted === null) return attachesFiles;
+    event.preventDefault();
+    if (pasted.text.length > 0) {
+      target
+        .chain()
+        .focus()
+        .insertContent(promptEditorInlineContentFromValue(pasted))
+        .setMeta("uiEvent", "paste")
+        .run();
+    }
+    return true;
+  };
+
+  const editor = usePromptEditor(
+    id,
+    { text: value, mentions: mentionRanges },
+    {
+      placeholder,
+      onKeyDown: handleKeyDown,
+      onPaste: handlePaste,
+      onBlur: () => {
+        if (dismissedTriggerRef.current) {
+          dismissedTriggerRef.current = {
+            ...dismissedTriggerRef.current,
             hasLeftRange: true,
           };
-        } else if (dismissedTrigger.hasLeftRange) {
-          dismissedTriggerRef.current = null;
         }
-      }
-
-      const shouldSuppressTrigger = Boolean(
-        dismissedTriggerRef.current &&
-        !dismissedTriggerRef.current.hasLeftRange &&
-        (isRestoringAppliedMention ||
-          (caretPosition >= dismissedTriggerRef.current.start &&
-            caretPosition <= dismissedTriggerRef.current.end)),
-      );
-
-      const nextTrigger = shouldSuppressTrigger ? null : detectedTrigger;
-      const nextKey = nextTrigger
-        ? `${nextTrigger.kind}:${nextTrigger.from}:${nextTrigger.to}:${nextTrigger.query}`
-        : "";
-      if (nextKey !== triggerKeyRef.current) {
-        triggerKeyRef.current = nextKey;
-        setSelectedSuggestionKey(null);
-      }
-      setActiveTrigger(nextTrigger);
-
-      dispatchTriggerQuery(nextTrigger);
-    },
-    [dispatchTriggerQuery, triggers],
-  );
-
-  useEffect(() => {
-    syncTriggerStateRef.current = syncTriggerState;
-  }, [syncTriggerState]);
-
-  const [richTextEditing] = useRichTextEditingPreference();
-  const editorExtensions = useMemo(
-    () =>
-      promptEditorExtensions({
-        richTextEditing,
-        getPlaceholder: () => placeholderRef.current,
-      }),
-    [richTextEditing],
-  );
-
-  const initialEditorContent = useMemo(() => {
-    const initialValue: PromptEditorValueKey = {
-      text: value,
-      mentions: mentionRanges,
-    };
-    return {
-      value: initialValue,
-      content: promptEditorContentFromValue(initialValue, {
-        richTextMarkdown: richTextEditing,
-      }),
-    };
-    // oxlint-disable-next-line react/exhaustive-deps -- value/mentionRanges are read once per editor instance on purpose (see above).
-  }, [richTextEditing]);
-
-  const editor = useEditor(
-    {
-      extensions: editorExtensions,
-      content: initialEditorContent.content,
-      immediatelyRender: false,
-      editorProps: {
-        attributes: {
-          "aria-label": effectivePlaceholder,
-          "data-placeholder": effectivePlaceholder,
-          ...(onModifierSubmit
-            ? { "aria-keyshortcuts": modifierSubmitShortcutAria() }
-            : {}),
-          autocomplete: "off",
-          class: cn(
-            "min-h-full whitespace-pre-wrap break-words outline-none",
-            "placeholder:select-none placeholder:text-subtle-foreground",
-          ),
-          enterkeyhint: "send",
-          ...(id ? { id } : {}),
-          role: "textbox",
-        },
-        transformCopied: (slice, view) =>
-          promptEditorCopiedSlice(slice, view.state.selection),
-        clipboardTextSerializer: (slice, view) =>
-          promptEditorClipboardTextFromSlice(slice, view.state.schema),
-        handleDOMEvents: {
-          auxclick: (_view, event) => {
-            return suppressPromptEditorAnchorActivation(event);
-          },
-          blur: () => {
-            triggerKeyRef.current = "";
-            if (dismissedTriggerRef.current) {
-              dismissedTriggerRef.current = {
-                ...dismissedTriggerRef.current,
-                hasLeftRange: true,
-              };
-            }
-            setActiveTrigger(null);
-            onMentionQueryChange(null, null);
-            onCommandQueryChange(null, null);
-            return false;
-          },
-          cut: () => {
-            runAfterClipboardCut(() => {
-              const currentEditor = editorRef.current;
-              if (!currentEditor || currentEditor.isDestroyed) return;
-              removeEmptyBlockquotes(currentEditor);
-            });
-            return false;
-          },
-          click: (_view, event) => {
-            return suppressPromptEditorAnchorActivation(event);
-          },
-        },
-        handleClick: () => {
-          const currentEditor = editorRef.current;
-          if (!currentEditor) return false;
-          syncTriggerStateRef.current(currentEditor);
-          return false;
-        },
-        handleKeyDown: (_view, event) => {
-          return handleEditorKeyDownRef.current(event);
-        },
-        handlePaste: (view, event, slice) => {
-          const attachFiles = onAttachFilesRef.current;
-          const clipboardItems = Array.from(event.clipboardData?.items ?? []);
-          const pastedFiles = clipboardItems
-            .filter((item) => item.kind === "file")
-            .map((item) => item.getAsFile())
-            .filter((file): file is File => file !== null);
-
-          if (attachFiles && pastedFiles.length > 0) {
-            event.preventDefault();
-            void attachFiles(pastedFiles);
-          }
-
-          const plainText = event.clipboardData?.getData("text/plain") ?? "";
-          const sliceHasBlockquote = promptEditorSliceHasBlockquote(slice);
-          if (sliceHasBlockquote || plainTextHasQuoteLine(plainText)) {
-            event.preventDefault();
-            const pastedValue = trimTrailingPromptNewlines(
-              sliceHasBlockquote
-                ? promptEditorValueFromSlice(slice, view.state.schema)
-                : promptEditorValueFromPlainText(plainText, promptActions),
-            );
-            if (pastedValue.text.length === 0) return true;
-
-            const currentEditor = editorRef.current;
-            const pastedContent =
-              promptEditorContentFromValue(pastedValue, {
-                richTextMarkdown: richTextEditing,
-              }).content ?? [];
-            currentEditor
-              ?.chain()
-              .focus()
-              .insertContent(pastedContent)
-              .setMeta("uiEvent", "paste")
-              .run();
-            if (currentEditor && !currentEditor.isDestroyed) {
-              const nextValue = trimTrailingPromptNewlines(
-                promptEditorValueFromDoc(currentEditor.state.doc),
-              );
-              lastSyncedEditorValueRef.current = nextValue;
-              onChangeRef.current(nextValue.text, nextValue.mentions);
-            }
-            return true;
-          }
-
-          const pastedValue = promptEditorValueFromClipboardPaste(
-            event.clipboardData ?? null,
-            promptActions,
-          );
-          if (pastedValue === null) {
-            return attachFiles !== undefined && pastedFiles.length > 0;
-          }
-
-          event.preventDefault();
-          if (pastedValue.text.length === 0) return true;
-
-          editorRef.current
-            ?.chain()
-            .focus()
-            .insertContent(promptEditorInlineContentFromValue(pastedValue))
-            .setMeta("uiEvent", "paste")
-            .run();
-          return true;
-        },
+        clearTypeahead();
       },
-      onCreate({ editor: createdEditor }) {
-        editorRef.current = createdEditor;
-        lastSyncedEditorValueRef.current = initialEditorContent.value;
+      onSelectionChange: (target) => {
+        syncTriggerState(target);
+        revealSelection(target);
       },
-      onSelectionUpdate({ editor: updatedEditor, transaction }) {
-        if (transaction.docChanged) return;
-        syncTriggerStateRef.current(updatedEditor);
-        scheduleRevealEditorSelection();
-      },
-      onUpdate({ editor: updatedEditor, transaction }) {
-        if (skipEditorChangeRef.current) return;
-        const dismissedTrigger = dismissedTriggerRef.current;
-        if (
-          dismissedTrigger !== null &&
-          transaction.docChanged &&
-          !isRestoringAppliedMentionRef.current
-        ) {
-          const mappedStart = transaction.mapping.mapResult(
-            dismissedTrigger.start,
-            1,
-          );
-          dismissedTriggerRef.current = mappedStart.deleted
+      onUpdate: (target, transaction) => {
+        const dismissed = dismissedTriggerRef.current;
+        if (dismissed && !restoringMentionRef.current) {
+          const start = transaction.mapping.mapResult(dismissed.start, 1);
+          dismissedTriggerRef.current = start.deleted
             ? null
             : {
-                ...dismissedTrigger,
-                start: mappedStart.pos,
-                end: transaction.mapping.map(dismissedTrigger.end, -1),
+                ...dismissed,
+                start: start.pos,
+                end: transaction.mapping.map(dismissed.end, -1),
               };
         }
-        const nextValue = promptEditorValueFromDoc(updatedEditor.state.doc);
-        lastSyncedEditorValueRef.current = nextValue;
-        onChangeRef.current(nextValue.text, nextValue.mentions);
-        syncTriggerStateRef.current(updatedEditor);
-        if (transaction.getMeta("uiEvent") !== undefined) {
-          scheduleRevealEditorSelection();
+        const uiEvent: unknown = transaction.getMeta("uiEvent");
+        if (uiEvent === "cut") {
+          queueMicrotask(() => {
+            if (!target.isDestroyed) removeEmptyBlockquotes(target);
+          });
         }
+        const next = promptEditorValueFromDoc(target.state.doc);
+        lastSyncedRef.current = next;
+        onChange(next.text, next.mentions);
+        syncTriggerState(target);
+        if (uiEvent !== undefined) revealSelection(target);
       },
     },
-    [richTextEditing],
   );
 
-  useEffect(() => {
-    editorRef.current = editor;
-  }, [editor]);
+  const applyPromptAction = (action: PromptBoxAction) => {
+    if (action.text.length === 0 || !editor) return;
+    const actionCommand = commandOfAction(action);
+    if (actionCommand) {
+      const next = withLeadingCommand(
+        { text: value, mentions: mentionRanges },
+        actionCommand,
+      );
+      onChange(next.text, next.mentions);
+      refocusAfterApply(editor, "end");
+      return;
+    }
+    const { from, to, empty } = editor.state.selection;
+    const trigger = findActiveTrigger(editor, triggers);
+    const alreadyTyped =
+      empty &&
+      (editor.state.doc
+        .textBetween(0, from, "\n", "\n")
+        .endsWith(action.text) ||
+        (trigger?.kind === "command" &&
+          trigger.char === action.text &&
+          trigger.to === from));
+    if (!alreadyTyped) {
+      dismissedTriggerRef.current = null;
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from, to })
+        .insertContent(action.text)
+        .run();
+    }
+    refocusAfterApply(editor);
+  };
+
+  useImperativeHandle(promptBoxRef, () => ({
+    captureHeightForLayoutChange: () => {
+      heightAnimationFromRef.current =
+        formRef.current?.getBoundingClientRect().height ?? null;
+    },
+    focusEnd: () => {
+      pendingFocusEndRef.current = editor === null;
+      if (editor) focusAtEnd(editor);
+    },
+  }));
 
   useLayoutEffect(() => {
-    if (!editor || editor.isDestroyed) return;
+    formRef.current?.style.setProperty(
+      "--promptbox-container-compact-placeholder",
+      JSON.stringify(containerCompactPlaceholder ?? placeholder),
+    );
+  }, [containerCompactPlaceholder, placeholder]);
+
+  useLayoutEffect(() => {
+    if (!editor) return;
+    if (pendingFocusEndRef.current) {
+      pendingFocusEndRef.current = false;
+      focusAtEnd(editor);
+    }
     return registerPaneComposerFocus(editor.view.dom, () => {
       if (!editor.isDestroyed) editor.view.focus();
     });
   }, [editor]);
 
   useLayoutEffect(() => {
-    if (!pendingFocusEndRef.current) return;
-
     if (!editor) return;
-    pendingFocusEndRef.current = false;
-    focusEditorAtEnd(editor);
-    scheduleRevealEditorSelection();
-  }, [editor, scheduleRevealEditorSelection]);
-
-  useLayoutEffect(() => {
-    placeholderRef.current = effectivePlaceholder;
-    if (!editor) return;
-
-    editor.view.dom.setAttribute("aria-label", effectivePlaceholder);
-    editor.view.dom.setAttribute("data-placeholder", effectivePlaceholder);
+    const dom = editor.view.dom;
+    dom.setAttribute("aria-label", placeholder);
+    dom.setAttribute("data-placeholder", placeholder);
+    if (hasModifierSubmit) {
+      dom.setAttribute("aria-keyshortcuts", modifierSubmitShortcutAria());
+    } else {
+      dom.removeAttribute("aria-keyshortcuts");
+    }
     editor.view.dispatch(editor.state.tr);
-  }, [editor, effectivePlaceholder]);
+  }, [editor, placeholder, hasModifierSubmit]);
 
+  const focusScopeKey = history?.resetKey;
   useEffect(() => {
     if (!editor) return;
     if (!autoFocus) {
@@ -1455,1070 +1187,165 @@ export function PromptBoxInternal({
       }
       return;
     }
+    const handle = requestAnimationFrame(() => {
+      if (
+        !editor.isDestroyed &&
+        !document.activeElement?.closest("[data-sidebar-rename-editor]")
+      ) {
+        focusAtEnd(editor);
+      }
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [autoFocus, editor, focusScopeKey]);
 
-    const focusEditor = () => {
-      if (editor.isDestroyed) return;
-      if (document.activeElement?.closest("[data-sidebar-rename-editor]"))
-        return;
-      focusEditorAtEnd(editor);
-      scheduleRevealEditorSelection();
-    };
-
-    if (typeof window.requestAnimationFrame !== "function") {
-      focusEditor();
-      return;
-    }
-
-    const handle = window.requestAnimationFrame(focusEditor);
-    return () => window.cancelAnimationFrame(handle);
-  }, [autoFocus, editor, focusScopeKey, scheduleRevealEditorSelection]);
-
-  useEffect(() => {
-    mentionRangesRef.current = mentionRanges;
-  }, [mentionRanges]);
-
-  useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
-
+  const syncAfterExternalChange = useEffectEvent((target: Editor) => {
+    syncTriggerState(target);
+    revealSelection(target);
+  });
   useLayoutEffect(() => {
     if (!editor) return;
-    const nextValue = {
-      text: value,
-      mentions: mentionRanges,
-    };
-    if (
-      arePromptEditorValuesEqual(lastSyncedEditorValueRef.current, nextValue)
-    ) {
-      return;
-    }
-
+    const next = { text: value, mentions: mentionRanges };
+    if (arePromptEditorValuesEqual(lastSyncedRef.current, next)) return;
     dismissedTriggerRef.current = null;
-    triggerKeyRef.current = "";
+    lastSyncedRef.current = next;
+    editor.commands.setContent(promptEditorContentFromValue(next), {
+      emitUpdate: false,
+    });
+    syncAfterExternalChange(editor);
+  }, [editor, mentionRanges, value]);
 
-    try {
-      skipEditorChangeRef.current = true;
-      editor.commands.setContent(
-        promptEditorContentFromValue(nextValue, {
-          richTextMarkdown: richTextEditing,
-        }),
-      );
-      lastSyncedEditorValueRef.current = nextValue;
-    } finally {
-      skipEditorChangeRef.current = false;
-    }
-    syncTriggerState(editor);
-    scheduleRevealEditorSelection();
-  }, [
-    editor,
-    mentionRanges,
-    richTextEditing,
-    scheduleRevealEditorSelection,
-    syncTriggerState,
-    value,
-  ]);
-
-  const lastFocusEndKeyRef = useRef(focusEndKey);
   useLayoutEffect(() => {
-    if (focusEndKey === undefined) return;
-    if (focusEndKey === lastFocusEndKeyRef.current) return;
-    if (!editor) return;
+    if (!editor || focusEndKey === lastFocusEndKeyRef.current) return;
     lastFocusEndKeyRef.current = focusEndKey;
-    focusEditorAtEnd(editor);
-    scheduleRevealEditorSelection();
-  }, [editor, focusEndKey, scheduleRevealEditorSelection]);
-
-  useLayoutEffect(() => {
-    scheduleRevealEditorSelection();
-  }, [minHeight, scheduleRevealEditorSelection]);
-
-  const resetHistorySession = useCallback(() => {
-    if (!hasActiveHistorySessionRef.current) return;
-    hasActiveHistorySessionRef.current = false;
-    setActiveHistoryIndex(null);
-    setTemporaryHistoryDraft(null);
-    setRecalledHistoryDraft(null);
-  }, []);
-
-  useEffect(() => {
-    if (!history) {
-      resetHistorySession();
-      return;
-    }
-    if (history.entries.length === 0) {
-      resetHistorySession();
-      return;
-    }
-    if (
-      activeHistoryIndex !== null &&
-      activeHistoryIndex >= history.entries.length
-    ) {
-      resetHistorySession();
-    }
-  }, [activeHistoryIndex, history, resetHistorySession]);
-
-  useEffect(() => {
-    resetHistorySession();
-  }, [history?.resetKey, resetHistorySession]);
-
-  useEffect(() => {
-    if (!history || activeHistoryIndex === null || !recalledHistoryDraft) {
-      return;
-    }
-    const activeHistoryEntry = history.entries[activeHistoryIndex];
-    if (
-      !activeHistoryEntry ||
-      !arePromptDraftStatesEqual(activeHistoryEntry, recalledHistoryDraft)
-    ) {
-      resetHistorySession();
-      return;
-    }
-    if (arePromptDraftStatesEqual(history.currentDraft, recalledHistoryDraft)) {
-      return;
-    }
-    resetHistorySession();
-  }, [activeHistoryIndex, history, recalledHistoryDraft, resetHistorySession]);
+    focusAtEnd(editor);
+  }, [editor, focusEndKey]);
 
   useLayoutEffect(() => {
     const fromHeight = heightAnimationFromRef.current;
-    const formElement = formRef.current;
-    if (fromHeight === null || !formElement) return;
+    const form = formRef.current;
     heightAnimationFromRef.current = null;
+    if (fromHeight === null || !form) return;
     if (getMediaQuerySnapshot(REDUCED_MOTION_QUERY)) return;
-
-    const previousTransition = formElement.style.transition;
-    const previousWillChange = formElement.style.willChange;
-    const previousOverflow = formElement.style.overflow;
-
-    formElement.style.transition = "none";
-    formElement.style.height = "";
-    const toHeight = formElement.getBoundingClientRect().height;
-    if (Math.abs(toHeight - fromHeight) < 0.5) {
-      formElement.style.transition = previousTransition;
-      return;
-    }
-    formElement.style.height = `${fromHeight}px`;
-    formElement.getBoundingClientRect();
-    formElement.style.overflow = "hidden";
-    formElement.style.willChange = "height";
-    formElement.style.transition =
-      "height 240ms cubic-bezier(0.22, 1, 0.36, 1)";
-    formElement.style.height = `${toHeight}px`;
-
-    let isCleanedUp = false;
-    const cleanup = () => {
-      if (isCleanedUp) return;
-      isCleanedUp = true;
-      formElement.style.transition = previousTransition;
-      formElement.style.willChange = previousWillChange;
-      formElement.style.overflow = previousOverflow;
-      formElement.style.height = "";
-      formElement.removeEventListener("transitionend", handleTransitionEnd);
-      window.clearTimeout(fallbackTimeout);
-    };
-    const handleTransitionEnd = (event: TransitionEvent) => {
-      if (event.propertyName !== "height") return;
-      cleanup();
-    };
-    const fallbackTimeout = window.setTimeout(cleanup, 320);
-    formElement.addEventListener("transitionend", handleTransitionEnd);
-
-    return cleanup;
-  }, [heightAnimationKey, showCompactLayout]);
-
-  const trimmedValue = value.trim();
-  const hasAttachments = attachments.length > 0;
-  const hasSubmittableInput = trimmedValue.length > 0 || hasAttachments;
-
-  const activeTriggerKind = activeTrigger?.kind ?? null;
-  const commandHasMore = typeahead.command.hasMore;
-  const commandIsLoadingMore = typeahead.command.isLoadingMore;
-  const loadMoreCommands = typeahead.command.loadMore;
-  const canLoadMoreCommands =
-    activeTriggerKind === "command" &&
-    canLoadMoreCommandResults({
-      hasMore: commandHasMore,
-      isError: commandError,
-      isLoadingMore: commandIsLoadingMore,
-    });
-  const activeCommandQuery =
-    activeTrigger?.kind === "command" ? activeTrigger.query : "";
-  const orderedCommandSuggestions = useMemo(
-    () => orderCommandSuggestions(commandSuggestions, activeCommandQuery),
-    [activeCommandQuery, commandSuggestions],
-  );
-  const activeSuggestions = useMemo<readonly TypeaheadSuggestion[]>(
-    () =>
-      activeTriggerKind === "command"
-        ? orderedCommandSuggestions
-        : activeTriggerKind === "mention"
-          ? mentionResults.suggestions
-          : [],
-    [activeTriggerKind, mentionResults.suggestions, orderedCommandSuggestions],
-  );
-  const selectedSuggestionIndex = useMemo(() => {
-    if (selectedSuggestionKey === null) return -1;
-    return activeSuggestions.findIndex(
-      (suggestion) =>
-        typeaheadSuggestionKey(suggestion) === selectedSuggestionKey,
+    const toHeight = form.getBoundingClientRect().height;
+    if (Math.abs(toHeight - fromHeight) < 0.5) return;
+    const animation = form.animate(
+      [
+        { height: `${fromHeight}px`, overflow: "hidden" },
+        { height: `${toHeight}px`, overflow: "hidden" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
-  }, [activeSuggestions, selectedSuggestionKey]);
-  const selectedIndex = Math.max(0, selectedSuggestionIndex);
-
-  const activeMentionQuery =
-    activeTrigger?.kind === "mention" ? activeTrigger.query.trim() : "";
-  const mentionMenuState: MentionMenuState =
-    activeMentionQuery.length === 0
-      ? { kind: "hint" }
-      : mentionLoading
-        ? { kind: "loading" }
-        : mentionError
-          ? { kind: "error" }
-          : { kind: "results", results: mentionResults };
-
-  const commandMenuState: CommandMenuState = commandLoading
-    ? { kind: "loading" }
-    : commandError
-      ? { kind: "error" }
-      : { kind: "results", suggestions: orderedCommandSuggestions };
-
-  const isCommandTriggerLiteral =
-    activeTriggerKind === "command" &&
-    !commandLoading &&
-    !commandError &&
-    commandSuggestions.length === 0;
-  const isBareNonDefaultMentionTrigger =
-    activeTrigger?.kind === "mention" &&
-    activeTrigger.char !== DEFAULT_PLUGIN_MENTION_TRIGGER &&
-    activeMentionQuery.length === 0;
-  const showTypeaheadMenu =
-    activeTrigger !== null &&
-    !isCommandTriggerLiteral &&
-    !isBareNonDefaultMentionTrigger;
-
-  const typeaheadMenuState: TypeaheadMenuState =
-    activeTriggerKind === "command"
-      ? { trigger: "command", state: commandMenuState }
-      : { trigger: "mention", state: mentionMenuState };
+    return () => animation.cancel();
+  }, [heightAnimationKey]);
 
   useLayoutEffect(() => {
-    if (reportQueuedEditorTypeaheadLayout === null) return;
-    const menu = typeaheadMenuRef.current;
-    if (!showTypeaheadMenu || menu === null) {
-      reportQueuedEditorTypeaheadLayout({ height: 0, isOpen: false });
-      return;
-    }
+    reportTypeaheadHeight?.(
+      showTypeaheadMenu
+        ? (typeaheadMenuRef.current?.getBoundingClientRect().height ?? 0)
+        : 0,
+    );
+  });
+  useEffect(() => () => reportTypeaheadHeight?.(0), [reportTypeaheadHeight]);
 
-    const reportOpenLayout = () => {
-      reportQueuedEditorTypeaheadLayout({
-        height: menu.getBoundingClientRect().height,
-        isOpen: true,
-      });
-    };
-    reportOpenLayout();
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(reportOpenLayout);
-    resizeObserver?.observe(menu);
-    return () => {
-      resizeObserver?.disconnect();
-      reportQueuedEditorTypeaheadLayout({ height: 0, isOpen: false });
-    };
-  }, [reportQueuedEditorTypeaheadLayout, showTypeaheadMenu]);
-
+  const shouldPrefetchCommands =
+    canLoadMoreCommands &&
+    activeSuggestions.length > 0 &&
+    selectedIndex >= Math.max(0, activeSuggestions.length - 3);
+  const loadMoreCommands = useEffectEvent(() => command.loadMore());
   useEffect(() => {
-    if (selectedSuggestionKey !== null && selectedSuggestionIndex === -1) {
-      setSelectedSuggestionKey(null);
-    }
-  }, [selectedSuggestionIndex, selectedSuggestionKey]);
+    if (shouldPrefetchCommands) loadMoreCommands();
+  }, [shouldPrefetchCommands, activeSuggestions.length]);
 
+  const submitPendingCommand = useEffectEvent(() => {
+    setPendingCommandSubmit(false);
+    submitPrompt();
+  });
   useEffect(() => {
+    if (pendingCommandSubmit) submitPendingCommand();
+  }, [pendingCommandSubmit]);
+
+  const attachFiles = (files: FileList | null | undefined) => {
+    if (onAttachFiles && files && files.length > 0) {
+      void onAttachFiles(Array.from(files));
+    }
+  };
+  const handleFormMouseDown = (event: ReactMouseEvent<HTMLFormElement>) => {
     if (
-      activeTriggerKind !== "command" ||
-      !canLoadMoreCommands ||
-      activeSuggestions.length === 0
+      !editor ||
+      !(event.target instanceof Element) ||
+      event.target.closest(INTERACTIVE_TARGET_SELECTOR) !== null
     ) {
       return;
     }
-    const prefetchIndex = Math.max(0, activeSuggestions.length - 3);
-    if (selectedIndex >= prefetchIndex) {
-      loadMoreCommands();
-    }
-  }, [
-    activeSuggestions.length,
-    activeTriggerKind,
-    canLoadMoreCommands,
-    loadMoreCommands,
-    selectedIndex,
-  ]);
-
-  const finishApply = useCallback(
-    (appliedEditor: Editor) => {
-      const nextValue = promptEditorValueFromDoc(appliedEditor.state.doc);
-      lastSyncedEditorValueRef.current = nextValue;
-      onChangeRef.current(nextValue.text, nextValue.mentions);
-
-      requestAnimationFrame(() => {
-        const nextEditor = editorRef.current;
-        if (!nextEditor || nextEditor.isDestroyed) {
-          isRestoringAppliedMentionRef.current = false;
-          return;
-        }
-        nextEditor.commands.focus();
-        syncTriggerState(nextEditor);
-        scheduleRevealEditorSelection();
-        isRestoringAppliedMentionRef.current = false;
-      });
-    },
-    [scheduleRevealEditorSelection, syncTriggerState],
-  );
-
-  const insertPromptMentionPill = useCallback(
-    ({
-      editor: targetEditor,
-      range,
-      resource,
-      serializedText,
-      trailingText,
-      dismissedTrigger,
-      clearQuery,
-    }: {
-      editor: Editor;
-      range: { from: number; to: number };
-      resource: PromptMentionResource;
-      serializedText: string;
-      trailingText: string;
-      dismissedTrigger: DismissedTriggerRange | null;
-      clearQuery: () => void;
-    }) => {
-      triggerKeyRef.current = "";
-      dismissedTriggerRef.current = dismissedTrigger;
-      isRestoringAppliedMentionRef.current = true;
-      setActiveTrigger(null);
-      setSelectedSuggestionKey(null);
-      clearQuery();
-
-      try {
-        skipEditorChangeRef.current = true;
-        targetEditor
-          .chain()
-          .focus()
-          .deleteRange(range)
-          .insertContent([
-            {
-              type: "mention",
-              attrs: {
-                resource,
-                serializedText,
-              },
-            },
-            ...(trailingText ? [{ type: "text", text: trailingText }] : []),
-          ])
-          .run();
-      } finally {
-        skipEditorChangeRef.current = false;
-      }
-      finishApply(targetEditor);
-    },
-    [finishApply],
-  );
-
-  useEffect(() => {
-    const element = formRef.current;
-    if (!element || !editor) return;
-    return registerThreadMentionDropTarget(element, {
-      accepts: () => !editor.isDestroyed,
-      insert: (thread, x, y) => {
-        const position =
-          editor.view.posAtCoords({ left: x, top: y })?.pos ??
-          editor.state.selection.to;
-        insertPromptMentionPill({
-          editor,
-          range: { from: position, to: position },
-          resource: {
-            kind: "thread",
-            threadId: thread.threadId,
-            label: thread.label,
-          },
-          serializedText: `@thread:${thread.threadId}`,
-          trailingText: mentionPillTrailingText(editor.state.doc, position),
-          dismissedTrigger: null,
-          clearQuery: () => onMentionQueryChange(null, null),
-        });
-      },
-    });
-  }, [editor, insertPromptMentionPill, onMentionQueryChange]);
-
-  const applyMentionSuggestion = useCallback(
-    (item: PromptMentionSuggestion) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || activeTrigger?.kind !== "mention") return;
-
-      const replacement = item.replacement.trim();
-      insertPromptMentionPill({
-        editor: currentEditor,
-        range: { from: activeTrigger.from, to: activeTrigger.to },
-        resource: promptMentionResourceFromSuggestion(item),
-        serializedText: replacement.startsWith(activeTrigger.char)
-          ? replacement
-          : `${activeTrigger.char}${replacement}`,
-        trailingText: mentionPillTrailingText(
-          currentEditor.state.doc,
-          activeTrigger.to,
-        ),
-        dismissedTrigger: {
-          start: activeTrigger.from,
-          end: activeTrigger.from + 2,
-          hasLeftRange: false,
-        },
-        clearQuery: () => onMentionQueryChange(null, null),
-      });
-    },
-    [activeTrigger, insertPromptMentionPill, onMentionQueryChange],
-  );
-
-  const applyCommandSuggestion = useCallback(
-    (item: ProviderCommandSuggestion) => {
-      const currentEditor = editorRef.current;
-      if (!currentEditor || activeTrigger === null) return;
-      if (activeTrigger.kind !== "command") return;
-
-      const trailingText = mentionPillTrailingText(
-        currentEditor.state.doc,
-        activeTrigger.to,
-      );
-      insertPromptMentionPill({
-        editor: currentEditor,
-        range: { from: activeTrigger.from, to: activeTrigger.to },
-        resource: promptCommandResourceFromSuggestion({
-          suggestion: item,
-          trigger: activeTrigger.char,
-        }),
-        serializedText: `${activeTrigger.char}${item.name}`,
-        trailingText,
-        dismissedTrigger: {
-          start: activeTrigger.from,
-          end: commandPillDismissedRangeEnd({
-            triggerPosition: activeTrigger.from,
-            trailingText,
-          }),
-          hasLeftRange: false,
-        },
-        clearQuery: () => onCommandQueryChange(null, null),
-      });
-    },
-    [activeTrigger, insertPromptMentionPill, onCommandQueryChange],
-  );
-
-  const applyTrigger = useCallback(
-    (item: TypeaheadSuggestion) => {
-      if (item.kind === "command") {
-        applyCommandSuggestion(item);
-        return;
-      }
-      applyMentionSuggestion(item);
-    },
-    [applyCommandSuggestion, applyMentionSuggestion],
-  );
-
-  const dismissActiveTrigger = useCallback(() => {
-    triggerKeyRef.current = "";
-    if (activeTrigger) {
-      dismissedTriggerRef.current = {
-        start: activeTrigger.from,
-        end: activeTrigger.to,
-        hasLeftRange: false,
-      };
-    }
-    setActiveTrigger(null);
-    onMentionQueryChange(null, null);
-    onCommandQueryChange(null, null);
-  }, [activeTrigger, onCommandQueryChange, onMentionQueryChange]);
-
-  const focusEnd = useCallback(() => {
-    const currentEditor = editorRef.current;
-    if (!currentEditor || currentEditor.isDestroyed) {
-      pendingFocusEndRef.current = true;
-      return;
-    }
-    pendingFocusEndRef.current = false;
-    focusEditorAtEnd(currentEditor);
-    scheduleRevealEditorSelection();
-  }, [scheduleRevealEditorSelection]);
-
-  const focusAfterPromptAction = useCallback(
-    (currentEditor: Editor, position?: "end") => {
-      const focusEditor = () => {
-        promptActionFocusFrameRef.current = null;
-        if (currentEditor.isDestroyed) return;
-        currentEditor.commands.focus(position);
-        syncTriggerState(currentEditor);
-        scheduleRevealEditorSelection();
-      };
-
-      if (typeof requestAnimationFrame !== "function") {
-        focusEditor();
-        return;
-      }
-
-      if (promptActionFocusFrameRef.current !== null) {
-        cancelAnimationFrame(promptActionFocusFrameRef.current);
-      }
-      promptActionFocusFrameRef.current = requestAnimationFrame(focusEditor);
-    },
-    [scheduleRevealEditorSelection, syncTriggerState],
-  );
-
-  const applyPromptAction = useCallback(
-    (action: PromptBoxAction) => {
-      if (action.text.length === 0) return;
-      const currentEditor = editorRef.current;
-      const commandAction = promptActionCommandFromAction(action);
-
-      if (commandAction) {
-        const next = withLeadingCommand(
-          { text: valueRef.current, mentions: mentionRangesRef.current },
-          commandAction,
-        );
-        onChangeRef.current(next.text, next.mentions);
-        if (currentEditor && !currentEditor.isDestroyed) {
-          focusAfterPromptAction(currentEditor, "end");
-        }
-        return;
-      }
-
-      if (!currentEditor || currentEditor.isDestroyed) {
-        const currentValue = valueRef.current;
-        if (currentValue.endsWith(action.text)) return;
-        onChangeRef.current(`${currentValue}${action.text}`, [
-          ...mentionRangesRef.current,
-        ]);
-        return;
-      }
-
-      const insertionRange = skillsTriggerInsertionRange(
-        currentEditor,
-        action,
-        triggers,
-      );
-      if (insertionRange === null) {
-        focusAfterPromptAction(currentEditor);
-        return;
-      }
-
-      triggerKeyRef.current = "";
-      dismissedTriggerRef.current = null;
-      setSelectedSuggestionKey(null);
-      currentEditor
-        .chain()
-        .focus()
-        .deleteRange({ from: insertionRange.from, to: insertionRange.to })
-        .insertContent(action.text)
-        .run();
-      finishApply(currentEditor);
-    },
-    [finishApply, focusAfterPromptAction, triggers],
-  );
-
-  useImperativeHandle(
-    promptBoxRef,
-    () => ({
-      captureHeightForLayoutChange: capturePromptBoxHeight,
-      focusEnd,
-    }),
-    [capturePromptBoxHeight, focusEnd],
-  );
-
-  const canSubmitAction = (action: typeof immediateSubmitAction) =>
-    action.onSubmit !== undefined &&
-    (!action.requiresInput || hasSubmittableInput) &&
-    !isAttaching &&
-    !isSubmitting &&
-    !submitDisabled;
-  const canPrimarySubmit = canSubmitAction(primarySubmitAction);
-  const canSubmit = hasSubmittableInput && canPrimarySubmit;
-  const canModifierSubmit = canSubmitAction(modifierSubmitAction);
-  const showStop = Boolean(isRunning && onStop && !canSubmit && !isAttaching);
-  const stopGestureButtonRef = useRef<HTMLButtonElement | null>(null);
-  const handleStopPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) return;
-      stopGestureButtonRef.current = event.currentTarget;
-    },
-    [],
-  );
-  const handleStopClick = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      const gestureButton = stopGestureButtonRef.current;
-      stopGestureButtonRef.current = null;
-      if (event.detail > 0 && gestureButton !== event.currentTarget) return;
-      onStop?.();
-    },
-    [onStop],
-  );
-  const attachmentUploadTitle = "Uploading attachments...";
-  const effectiveSubmitTitle = isAttaching
-    ? attachmentUploadTitle
-    : !canSubmit && submitDisabledReason
-      ? submitDisabledReason
-      : submitTitle;
-
-  const emitAttachmentFiles = useCallback(
-    (files: File[]) => {
-      if (!onAttachFiles || files.length === 0) return;
-      void onAttachFiles(files);
-    },
-    [onAttachFiles],
-  );
-
-  const submitPrompt = useCallback(() => {
-    if (!canPrimarySubmit) return;
-    onSubmit?.();
-  }, [canPrimarySubmit, onSubmit]);
-
-  const handleSubmitPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) return;
-      const currentEditor = editorRef.current;
-      const editorElement = currentEditor?.view.dom;
-      const activeElement = editorElement?.ownerDocument.activeElement;
-      if (
-        !currentEditor ||
-        currentEditor.isDestroyed ||
-        !editorElement?.contains(activeElement ?? null)
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-    },
-    [],
-  );
-
-  const [pendingCommandSubmit, setPendingCommandSubmit] = useState(false);
-  useEffect(() => {
-    if (!pendingCommandSubmit) return;
-    setPendingCommandSubmit(false);
-    submitPrompt();
-  }, [pendingCommandSubmit, submitPrompt]);
-
-  const submitModifierPrompt = useCallback(() => {
-    if (!canModifierSubmit || !onModifierSubmit) return;
-    onModifierSubmit();
-  }, [canModifierSubmit, onModifierSubmit]);
-
-  const applyHistoryDraft = useCallback(
-    (draft: PromptDraftState) => {
-      if (!history) {
-        return;
-      }
-
-      history.onSelectEntry(draft);
-      requestAnimationFrame(() => {
-        const currentEditor = editorRef.current;
-        if (!currentEditor || currentEditor.isDestroyed) {
-          return;
-        }
-
-        focusEditorAtEnd(currentEditor);
-        syncTriggerState(currentEditor);
-        scheduleRevealEditorSelection();
-      });
-    },
-    [history, scheduleRevealEditorSelection, syncTriggerState],
-  );
-
-  const collapsePromptBox = useCallback(() => {
-    if (!onCollapse) return;
-    capturePromptBoxHeight();
-    blurPromptEditor(editorRef.current);
-    onCollapse();
-  }, [capturePromptBoxHeight, onCollapse]);
-
-  const handleAttachmentInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const fileList = event.target.files;
-      if (!fileList || fileList.length === 0) return;
-      emitAttachmentFiles(Array.from(fileList));
-      event.target.value = "";
-    },
-    [emitAttachmentFiles],
-  );
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    submitPrompt();
+    focusAtEnd(editor);
   };
-
-  const handlePromptBoxMouseDown = useCallback(
-    (event: PromptBoxMouseDownEvent) => {
-      if (!isPromptBoxChromeTarget(event.target)) return;
-
-      const currentEditor = editorRef.current;
-      if (!currentEditor || currentEditor.isDestroyed) return;
-
-      event.preventDefault();
-      focusEditorAtEnd(currentEditor);
-      scheduleRevealEditorSelection();
-    },
-    [scheduleRevealEditorSelection],
-  );
-
-  const handleEditorKeyDown = useCallback(
-    (event: KeyboardEvent): boolean => {
-      if (event.isComposing || event.keyCode === 229) {
-        return false;
-      }
-      if (dispatchAppCommandKey(event)) {
-        return true;
-      }
-      const currentEditor = editorRef.current;
-      const selection = currentEditor?.state.selection;
-      const hasCollapsedSelection = Boolean(selection?.empty);
-      const hasArrowNavigationModifier =
-        event.shiftKey || event.altKey || event.metaKey || event.ctrlKey;
-      const hasCursorAtEnd =
-        hasCollapsedSelection &&
-        currentEditor !== null &&
-        currentEditor !== undefined &&
-        selection !== undefined &&
-        selection.from >= currentEditor.state.doc.content.size - 1;
-      const activeHistoryEntry =
-        history && activeHistoryIndex !== null
-          ? history.entries[activeHistoryIndex]
-          : null;
-      const hasSelectedHistoryEntry = Boolean(
-        history &&
-        activeHistoryEntry !== null &&
-        activeHistoryEntry !== undefined &&
-        arePromptDraftStatesEqual(history.currentDraft, activeHistoryEntry),
-      );
-      const canNavigateHistory =
-        history !== undefined &&
-        !hasArrowNavigationModifier &&
-        hasCursorAtEnd &&
-        (isPromptDraftEmpty(history.currentDraft) || hasSelectedHistoryEntry);
-      const canNavigateTypeahead =
-        showTypeaheadMenu && !hasArrowNavigationModifier && !canNavigateHistory;
-
-      if (showTypeaheadMenu) {
-        if (
-          event.key === "ArrowDown" &&
-          canNavigateTypeahead &&
-          activeSuggestions.length > 0
-        ) {
-          event.preventDefault();
-          if (
-            activeTriggerKind === "command" &&
-            !commandError &&
-            selectedIndex >= activeSuggestions.length - 1 &&
-            (commandHasMore || commandIsLoadingMore)
-          ) {
-            if (canLoadMoreCommands) {
-              loadMoreCommands();
-            }
-            return true;
-          }
-          const nextIndex = (selectedIndex + 1) % activeSuggestions.length;
-          const nextSuggestion = activeSuggestions[nextIndex];
-          if (nextSuggestion) {
-            setSelectedSuggestionKey(typeaheadSuggestionKey(nextSuggestion));
-          }
-          return true;
-        }
-        if (
-          event.key === "ArrowUp" &&
-          canNavigateTypeahead &&
-          activeSuggestions.length > 0
-        ) {
-          event.preventDefault();
-          const nextIndex =
-            (selectedIndex + activeSuggestions.length - 1) %
-            activeSuggestions.length;
-          const nextSuggestion = activeSuggestions[nextIndex];
-          if (nextSuggestion) {
-            setSelectedSuggestionKey(typeaheadSuggestionKey(nextSuggestion));
-          }
-          return true;
-        }
-        if (
-          (event.key === "Enter" || event.key === "Tab") &&
-          activeSuggestions.length > 0
-        ) {
-          event.preventDefault();
-          const selected =
-            activeSuggestions[selectedIndex] ?? activeSuggestions[0];
-          if (selected) {
-            applyTrigger(selected);
-            if (
-              event.key === "Enter" &&
-              selected.kind === "command" &&
-              selected.origin === "builtin"
-            ) {
-              setPendingCommandSubmit(true);
-            }
-          }
-          return true;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          dismissActiveTrigger();
-          return true;
-        }
-      }
-
-      if (event.key === "Escape") {
-        if (onEscape) {
-          onEscape();
-          return true;
-        }
-        blurPromptEditor(currentEditor);
-        return true;
-      }
-
-      if (history) {
-        if (
-          event.key === "ArrowUp" &&
-          canNavigateHistory &&
-          history.entries.length > 0
-        ) {
-          event.preventDefault();
-          const nextHistoryIndex =
-            activeHistoryIndex === null
-              ? 0
-              : Math.min(activeHistoryIndex + 1, history.entries.length - 1);
-          hasActiveHistorySessionRef.current = true;
-          if (activeHistoryIndex === null) {
-            setTemporaryHistoryDraft(history.currentDraft);
-          }
-          setActiveHistoryIndex(nextHistoryIndex);
-          const nextDraft = history.entries[nextHistoryIndex];
-          setRecalledHistoryDraft(nextDraft);
-          applyHistoryDraft(nextDraft);
-          return true;
-        }
-
-        if (
-          event.key === "ArrowDown" &&
-          canNavigateHistory &&
-          activeHistoryIndex !== null
-        ) {
-          event.preventDefault();
-          if (activeHistoryIndex === 0) {
-            if (temporaryHistoryDraft) {
-              applyHistoryDraft(temporaryHistoryDraft);
-            }
-            resetHistorySession();
-            return true;
-          }
-
-          const nextHistoryIndex = activeHistoryIndex - 1;
-          setActiveHistoryIndex(nextHistoryIndex);
-          const nextDraft = history.entries[nextHistoryIndex];
-          setRecalledHistoryDraft(nextDraft);
-          applyHistoryDraft(nextDraft);
-          return true;
-        }
-      }
-
-      if (isModifierSubmitKeyEvent(event) && onModifierSubmit) {
-        event.preventDefault();
-        submitModifierPrompt();
-        return true;
-      }
-
-      const isBlockquoteExitKey =
-        event.key === "Enter" &&
-        event.shiftKey &&
-        !event.metaKey &&
-        !event.altKey &&
-        !event.ctrlKey;
-      if (
-        isBlockquoteExitKey &&
-        currentEditor &&
-        applyPromptListNewline(currentEditor)
-      ) {
-        event.preventDefault();
-        return true;
-      }
-
-      if (
-        isBlockquoteExitKey &&
-        currentEditor &&
-        (insertParagraphBeforeBlockquote(currentEditor) ||
-          exitTrailingBlockquoteBreak(currentEditor))
-      ) {
-        event.preventDefault();
-        return true;
-      }
-
-      const isPromptNewlineKey =
-        event.key === "Enter" &&
-        !event.metaKey &&
-        !event.altKey &&
-        !event.ctrlKey &&
-        event.shiftKey;
-      if (isPromptNewlineKey && currentEditor && exitHeading(currentEditor)) {
-        event.preventDefault();
-        return true;
-      }
-
-      if (
-        isPromptNewlineKey &&
-        currentEditor &&
-        applyPromptParagraphNewline(currentEditor)
-      ) {
-        event.preventDefault();
-        return true;
-      }
-
-      const isSubmitKey = event.key === "Enter" && !event.shiftKey;
-
-      if (!isSubmitKey) return false;
-      event.preventDefault();
-      submitPrompt();
-      return true;
-    },
-    [
-      activeHistoryIndex,
-      activeSuggestions,
-      activeTriggerKind,
-      applyHistoryDraft,
-      applyTrigger,
-      canLoadMoreCommands,
-      commandError,
-      commandHasMore,
-      commandIsLoadingMore,
-      dispatchAppCommandKey,
-      dismissActiveTrigger,
-      history,
-      loadMoreCommands,
-      onEscape,
-      onModifierSubmit,
-      resetHistorySession,
-      selectedIndex,
-      setPendingCommandSubmit,
-      showTypeaheadMenu,
-      submitModifierPrompt,
-      submitPrompt,
-      temporaryHistoryDraft,
-    ],
-  );
-
-  useLayoutEffect(() => {
-    handleEditorKeyDownRef.current = handleEditorKeyDown;
-  }, [handleEditorKeyDown]);
+  const attachmentUploadTitle = "Uploading attachments...";
 
   return (
     <form
       ref={formRef}
       data-promptbox=""
-      data-promptbox-compact={showCompactLayout ? "" : undefined}
-      onSubmit={handleSubmit}
-      onMouseDown={handlePromptBoxMouseDown}
-      onDragOver={(event) => {
-        if (!onAttachFiles) return;
+      onSubmit={(event) => {
         event.preventDefault();
+        submitPrompt();
+      }}
+      onMouseDown={handleFormMouseDown}
+      onDragOver={(event) => {
+        if (onAttachFiles) event.preventDefault();
       }}
       onDrop={(event) => {
         if (!onAttachFiles) return;
         event.preventDefault();
-        if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0)
-          return;
-        emitAttachmentFiles(Array.from(event.dataTransfer.files));
+        attachFiles(event.dataTransfer?.files);
       }}
-      className={cn(
-        "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
-        showCompactLayout && "overflow-hidden",
-      )}
+      className="group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift"
     >
       <input
         ref={attachmentInputRef}
         type="file"
         multiple
         className="hidden"
-        onChange={handleAttachmentInputChange}
+        onChange={(event) => {
+          attachFiles(event.target.files);
+          event.target.value = "";
+        }}
       />
-      {modeHeader ? <div className="px-3 pt-1.5">{modeHeader}</div> : null}
       <div
         data-promptbox-layout=""
-        className={cn(COLLAPSING_GRID_CLASS, showCompactLayout && "relative")}
+        className="grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
         style={{ gridTemplateRows: "1fr" }}
       >
         <div
           data-promptbox-main=""
-          className={cn(
-            "min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none",
-            showCompactLayout && "relative flex h-12 items-center",
-          )}
+          className="min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none"
         >
-          {header && !showCompactLayout ? (
-            <div data-promptbox-expanded-only="" className="pl-4 pr-14 pt-3">
-              {header}
+          <div data-promptbox-input-region="" className="relative">
+            <div data-promptbox-expanded-only="">
+              <AppCommandShortcutHint
+                shortcut={focusComposerShortcut}
+                className="absolute right-2 top-2 z-20 group-focus-within/promptbox:hidden"
+              />
             </div>
-          ) : null}
-          {showCompactLayout ? (
-            <AttachmentPreview
-              compact
-              attachments={attachments}
-              pendingUploads={pendingUploads}
-              attachmentProjectId={attachmentProjectId}
-              expandedImageIndex={expandedImageIndex}
-              onExpandedImageIndexChange={setExpandedImageIndex}
-              onRemoveAttachment={onRemoveAttachment}
-            />
-          ) : null}
-          <div
-            data-promptbox-input-region=""
-            className={cn("relative", showCompactLayout && "min-w-0 flex-1")}
-          >
-            {!showCompactLayout ? (
-              <>
-                <div data-promptbox-expanded-only="">
-                  <AppCommandShortcutHint
-                    shortcut={focusComposerShortcut}
-                    className={cn(
-                      "absolute top-2 z-20 group-focus-within/promptbox:hidden",
-                      onCollapse ? "right-10" : "right-2",
-                    )}
-                  />
-                </div>
-                {onCollapse ? (
-                  <div
-                    data-promptbox-expanded-only=""
-                    data-promptbox-standard-actions=""
-                    className="absolute right-[13px] top-2 z-20 flex items-center"
-                  >
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                      }}
-                      onClick={collapsePromptBox}
-                      aria-label="Collapse prompt box"
-                      className={cn(
-                        CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
-                        COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
-                        PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS,
-                      )}
-                    >
-                      <Icon name="ChevronDown" className="size-3.5" />
-                    </Button>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-            <ComposerEditorSlot
-              editor={editor}
-              scrollContainerRef={editorScrollContainerRef}
-              isCompactLayout={showCompactLayout}
-              minHeight={minHeight}
-              layout={editorLayout}
-              resolveMentionLink={mentionResolveLink}
-            />
+            <div
+              ref={scrollRef}
+              data-promptbox-editor-scroll=""
+              className="w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none text-sm leading-relaxed"
+              style={{
+                minHeight: `${minHeight}px`,
+                maxHeight: EDITOR_MAX_HEIGHT[editorLayout],
+              }}
+            >
+              <PromptMentionLinkContext.Provider
+                value={mention.resolveLink ?? null}
+              >
+                <EditorContent
+                  editor={editor}
+                  data-promptbox-editor-content=""
+                  className={EDITOR_CONTENT_CLASS}
+                />
+              </PromptMentionLinkContext.Provider>
+            </div>
           </div>
 
           {showTypeaheadMenu ? (
@@ -2535,69 +1362,59 @@ export function PromptBoxInternal({
               <MentionMenu
                 state={typeaheadMenuState}
                 selectedIndex={selectedIndex}
-                onApply={applyTrigger}
+                onApply={(item) => {
+                  if (editor) applySuggestion(editor, item);
+                }}
                 onCommandLoadMore={
-                  canLoadMoreCommands ? loadMoreCommands : undefined
+                  canLoadMoreCommands ? command.loadMore : undefined
                 }
               />
             </div>
           ) : null}
 
-          {!showCompactLayout ? (
-            <>
-              <div data-promptbox-expanded-only="">
-                <AttachmentPreview
-                  attachments={attachments}
-                  pendingUploads={pendingUploads}
-                  attachmentProjectId={attachmentProjectId}
-                  expandedImageIndex={expandedImageIndex}
-                  onExpandedImageIndexChange={setExpandedImageIndex}
-                  onRemoveAttachment={onRemoveAttachment}
-                />
-
-                {attachmentError ? (
-                  <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
-                    {attachmentError}
-                  </div>
-                ) : null}
+          <div data-promptbox-expanded-only="">
+            <AttachmentPreview
+              attachments={attachments}
+              pendingUploads={pendingUploads}
+              attachmentProjectId={attachmentProjectId}
+              onRemoveAttachment={onRemoveAttachment}
+            />
+            {attachmentError ? (
+              <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
+                {attachmentError}
               </div>
-            </>
-          ) : null}
+            ) : null}
+          </div>
 
           <div
             data-promptbox-action-row=""
-            className={cn(
-              "relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5",
-              showCompactLayout && "absolute inset-y-0 right-2 gap-0 p-0",
-            )}
+            className="relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5"
           >
-            {!showCompactLayout ? (
-              <div
-                data-promptbox-expanded-only=""
-                data-promptbox-standard-actions=""
-                className={cn(
-                  "flex min-w-0 flex-1 flex-row items-center gap-1 transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
-                  "translate-y-0 opacity-100",
-                )}
-                aria-live="polite"
-              >
-                <PromptBoxActionsMenu
-                  actions={promptActions}
-                  onAttach={
-                    onAttachFiles
-                      ? () => attachmentInputRef.current?.click()
-                      : undefined
-                  }
-                  onAction={applyPromptAction}
-                />
-                {footerStart}
-              </div>
-            ) : null}
+            <div
+              data-promptbox-expanded-only=""
+              data-promptbox-standard-actions=""
+              className={cn(
+                "flex min-w-0 flex-1 flex-row items-center gap-1",
+                ACTIONS_TRANSITION_CLASS,
+              )}
+              aria-live="polite"
+            >
+              <PromptBoxActionsMenu
+                actions={promptActions}
+                onAttach={
+                  onAttachFiles
+                    ? () => attachmentInputRef.current?.click()
+                    : undefined
+                }
+                onAction={applyPromptAction}
+              />
+              {footerStart}
+            </div>
             <div
               data-promptbox-standard-actions=""
               className={cn(
-                "flex shrink-0 flex-row items-center gap-1 transition-[opacity,transform] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
-                "translate-y-0 opacity-100",
+                "flex shrink-0 flex-row items-center gap-1",
+                ACTIONS_TRANSITION_CLASS,
               )}
             >
               <div
@@ -2611,13 +1428,22 @@ export function PromptBoxInternal({
                     size="icon"
                     variant="secondary"
                     aria-label="Stop run"
-                    onPointerDown={handleStopPointerDown}
-                    onClick={handleStopClick}
-                    className={
-                      showCompactLayout
-                        ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
-                        : COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS
-                    }
+                    onPointerDown={(event) => {
+                      if (event.button === 0) {
+                        stopGestureButtonRef.current = event.currentTarget;
+                      }
+                    }}
+                    onClick={(event) => {
+                      const gestureButton = stopGestureButtonRef.current;
+                      stopGestureButtonRef.current = null;
+                      if (
+                        event.detail === 0 ||
+                        gestureButton === event.currentTarget
+                      ) {
+                        onStop?.();
+                      }
+                    }}
+                    className="size-auto h-8 px-2 transition-all"
                   >
                     <Icon
                       name="Square"
@@ -2637,25 +1463,21 @@ export function PromptBoxInternal({
                   >
                     <PromptSubmitButton
                       canSubmit={canSubmit}
-                      icon={submitIcon}
-                      label={submitLabel}
-                      className={cn(
-                        showCompactLayout
-                          ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
-                          : ["ml-1", COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS],
-                        "transition-colors",
-                      )}
                       disabledReason={
-                        !canSubmit
-                          ? isAttaching
+                        canSubmit
+                          ? undefined
+                          : isAttaching
                             ? attachmentUploadTitle
                             : submitDisabledReason
-                          : undefined
                       }
                       isBusy={isSubmitting || isAttaching}
-                      isCompact={showCompactLayout}
-                      onPointerDown={handleSubmitPointerDown}
-                      title={effectiveSubmitTitle}
+                      title={
+                        isAttaching
+                          ? attachmentUploadTitle
+                          : !canSubmit && submitDisabledReason
+                            ? submitDisabledReason
+                            : submitTitle
+                      }
                     />
                   </ComposerSendMenu>
                 )}

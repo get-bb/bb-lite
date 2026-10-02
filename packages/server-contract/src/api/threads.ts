@@ -164,63 +164,6 @@ export const createThreadRequestSchema = z
   });
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 
-const agentOnlyPromptInputSchema = promptInputSchema.and(
-  z.object({ visibility: z.literal("agent-only") }),
-);
-
-export const forkThreadRequestSchema = z
-  .object({
-    sourceThreadId: z.string().min(1),
-    sourceSeqEnd: z.number().int().nonnegative().optional(),
-    input: z.array(promptInputSchema).min(1).optional(),
-    agentContextSeed: z.array(agentOnlyPromptInputSchema).min(1).optional(),
-    title: z.string().min(1).optional(),
-    permissionMode: permissionModeInputSchema.optional(),
-    visibility: threadVisibilitySchema.default("visible"),
-    environment: createThreadEnvironmentArgsSchema.optional(),
-    origin: threadCreateOriginSchema.default("sdk"),
-    originPluginId: z.string().min(1).optional(),
-    pluginMetadata: pluginMetadataSchema.optional(),
-    lifecycleOwnerThreadId: z.string().min(1).optional(),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.origin === "plugin" && value.originPluginId === undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: 'originPluginId is required when origin is "plugin"',
-        path: ["originPluginId"],
-      });
-    }
-    if (value.origin !== "plugin" && value.originPluginId !== undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: 'originPluginId requires origin "plugin"',
-        path: ["originPluginId"],
-      });
-    }
-    if (value.pluginMetadata !== undefined && value.origin !== "plugin") {
-      ctx.addIssue({
-        code: "custom",
-        message: 'pluginMetadata requires origin "plugin"',
-        path: ["pluginMetadata"],
-      });
-    }
-    if (
-      value.pluginMetadata !== undefined &&
-      value.originPluginId !== undefined &&
-      !pluginIdSchema.safeParse(value.originPluginId).success
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "pluginMetadata requires originPluginId to be a valid plugin id",
-        path: ["originPluginId"],
-      });
-    }
-  });
-export type ForkThreadRequest = z.infer<typeof forkThreadRequestSchema>;
-
 const sendMessageRequestFieldsSchema = z.object({
   input: z.array(promptInputSchema).min(1),
   model: z.string().optional(),

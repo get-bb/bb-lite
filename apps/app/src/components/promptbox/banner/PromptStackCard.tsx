@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, type Ref } from "react";
+import { useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 
@@ -14,17 +14,11 @@ export const PROMPT_STACK_CARD_HEADER_BUTTON_CLASS =
 export const PROMPT_STACK_INLAY_INSET_CLASS = CONTEXT_CARD_INSET_CLASS;
 export const PROMPT_STACK_INLAY_SEGMENT_CLASS = CONTEXT_CARD_SEGMENT_CLASS;
 export const PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS = "w-6 px-0";
-const BASE_CHROME = CONTEXT_CARD_CLASS;
-
 export const PROMPT_STACK_TRACK_CLASS = "grid-cols-[minmax(0,1fr)]";
-
-export interface PromptStackCardProps {
-  children: ReactNode;
-  ariaLabel?: string;
-  className?: string;
-  rootRef?: Ref<HTMLElement>;
-  style?: CSSProperties;
-}
+export const PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS =
+  "relative bg-surface-raised-solid before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-4 before:bg-gradient-to-r before:from-transparent before:to-surface-raised-solid before:content-['']";
+export const PROMPT_BANNER_ACTION_BUTTON_CLASS =
+  "inline-flex items-center whitespace-nowrap rounded border border-border px-1.5 py-0.5 text-xs bg-background shadow-xs cursor-pointer text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
 
 export function PromptStackCard({
   children,
@@ -32,27 +26,23 @@ export function PromptStackCard({
   className,
   rootRef,
   style,
-}: PromptStackCardProps) {
-  if (ariaLabel) {
-    return (
-      <section
-        ref={rootRef}
-        aria-label={ariaLabel}
-        className={cn(BASE_CHROME, className)}
-        style={style}
-      >
-        {children}
-      </section>
-    );
-  }
+}: {
+  children: ReactNode;
+  ariaLabel?: string;
+  className?: string;
+  rootRef?: Ref<HTMLElement>;
+  style?: CSSProperties;
+}) {
+  const Root = ariaLabel ? "section" : "div";
   return (
-    <div
+    <Root
       ref={rootRef as Ref<HTMLDivElement>}
-      className={cn(BASE_CHROME, className)}
+      aria-label={ariaLabel}
+      className={cn(CONTEXT_CARD_CLASS, className)}
       style={style}
     >
       {children}
-    </div>
+    </Root>
   );
 }
 
@@ -73,5 +63,64 @@ export function PromptStackCardChevron({
       )}
       aria-hidden="true"
     />
+  );
+}
+
+export function AnimatedBody({
+  id,
+  labelledBy,
+  isExpanded,
+  collapsedBorder,
+  children,
+}: {
+  id: string;
+  labelledBy: string;
+  isExpanded: boolean;
+  collapsedBorder: "reserve" | "none";
+  children: ReactNode;
+}) {
+  const [hasRealizedBody, setHasRealizedBody] = useState(isExpanded);
+  if (isExpanded && !hasRealizedBody) {
+    setHasRealizedBody(true);
+  }
+
+  return (
+    <section
+      id={id}
+      role="region"
+      aria-labelledby={labelledBy}
+      aria-hidden={!isExpanded}
+      className={cn(
+        "grid overflow-hidden transition-[grid-template-rows,opacity,border-color] duration-200 ease-out",
+        isExpanded
+          ? "grid-rows-[1fr] border-t border-border opacity-100"
+          : cn(
+              "pointer-events-none grid-rows-[0fr] opacity-0",
+              collapsedBorder === "reserve" && "border-t border-transparent",
+            ),
+      )}
+    >
+      <div className="overflow-hidden bg-popover">
+        {hasRealizedBody || isExpanded ? children : null}
+      </div>
+    </section>
+  );
+}
+
+export function BannerActionSlot({
+  children,
+  hideInCompact = false,
+}: {
+  children: ReactNode;
+  hideInCompact?: boolean;
+}) {
+  return (
+    <div
+      className="ml-auto flex shrink-0 items-center gap-1.5 pr-2 text-xs text-muted-foreground"
+      data-promptbox-hide-compact={hideInCompact ? "" : undefined}
+      data-promptbox-hide-tiny=""
+    >
+      {children}
+    </div>
   );
 }

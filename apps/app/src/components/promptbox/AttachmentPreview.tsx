@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PendingAttachmentUpload } from "./usePendingAttachmentUploads";
+import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
 import {
   getWrappedImageIndex,
   ImageLightbox,
@@ -12,31 +12,11 @@ import {
   releaseLocalAttachmentPreview,
 } from "@/lib/attachment-local-previews";
 
-function resolveAttachmentPreviewSrc(
-  path: string,
-  attachmentProjectId: string | undefined,
-): string {
-  return (
-    getLocalAttachmentPreviewSrc(path) ??
-    toUserAttachmentImageSrc(path, attachmentProjectId)
-  );
-}
-
 function isImageAttachment(attachment: PromptDraftAttachment): boolean {
   return (
     attachment.type === "localImage" ||
     attachment.mimeType?.toLowerCase().startsWith("image/") === true
   );
-}
-
-interface AttachmentPreviewProps {
-  attachments: PromptDraftAttachment[];
-  pendingUploads?: readonly PendingAttachmentUpload[];
-  compact?: boolean;
-  attachmentProjectId?: string;
-  expandedImageIndex: number | null;
-  onExpandedImageIndexChange: (index: number | null) => void;
-  onRemoveAttachment?: (path: string) => void;
 }
 
 function UploadPreview({ file }: { file: File }) {
@@ -94,169 +74,127 @@ function UploadPreview({ file }: { file: File }) {
 export function AttachmentPreview({
   attachments,
   pendingUploads = [],
-  compact = false,
   attachmentProjectId,
-  expandedImageIndex,
-  onExpandedImageIndexChange,
   onRemoveAttachment,
-}: AttachmentPreviewProps) {
-  const imageAttachments = attachments.filter(isImageAttachment);
-  const nonImageAttachments = attachments.filter(
+}: {
+  attachments: PromptDraftAttachment[];
+  pendingUploads?: readonly PendingAttachmentUpload[];
+  attachmentProjectId?: string;
+  onRemoveAttachment?: (path: string) => void;
+}) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const images = attachments.filter(isImageAttachment).map((attachment) => ({
+    attachment,
+    src:
+      getLocalAttachmentPreviewSrc(attachment.path) ??
+      toUserAttachmentImageSrc(attachment.path, attachmentProjectId),
+  }));
+  const files = attachments.filter(
     (attachment) => !isImageAttachment(attachment),
   );
-  const attachmentImageItems = imageAttachments.map((attachment) => ({
-    alt: attachment.name,
-    src: resolveAttachmentPreviewSrc(attachment.path, attachmentProjectId),
-  }));
-  const hasMultipleAttachmentImages = imageAttachments.length > 1;
-  const currentAttachmentImage =
-    expandedImageIndex !== null
-      ? (attachmentImageItems[expandedImageIndex] ?? null)
-      : null;
+  const expanded = expandedIndex === null ? undefined : images[expandedIndex];
+  const step = (direction: "previous" | "next") => {
+    if (expandedIndex !== null && images.length > 1) {
+      setExpandedIndex(
+        getWrappedImageIndex({
+          currentIndex: expandedIndex,
+          direction,
+          itemCount: images.length,
+        }),
+      );
+    }
+  };
 
-  useEffect(() => {
-    if (expandedImageIndex === null) return;
-    if (expandedImageIndex < imageAttachments.length) return;
-    onExpandedImageIndexChange(null);
-  }, [expandedImageIndex, imageAttachments.length, onExpandedImageIndexChange]);
-
-  const attachmentCount = attachments.length;
-  const uploadingCount = pendingUploads.length;
-  if (attachmentCount + uploadingCount === 0) {
+  if (attachments.length + pendingUploads.length === 0) {
     return null;
   }
 
   return (
     <>
-      {compact ? (
-        <span
-          data-promptbox-attachments=""
-          role={uploadingCount > 0 ? "status" : "img"}
-          aria-label={[
-            attachmentCount > 0
-              ? `${attachmentCount} ${attachmentCount === 1 ? "attachment" : "attachments"}`
-              : null,
-            uploadingCount > 0 ? `${uploadingCount} uploading` : null,
-          ]
-            .filter(Boolean)
-            .join(", ")}
-          className="ml-3 inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md bg-surface-recessed px-1.5 text-xs text-muted-foreground"
-        >
-          <Icon name="Paperclip" className="size-3.5" />
-          <span aria-hidden="true">{attachmentCount + uploadingCount}</span>
-          {uploadingCount > 0 ? (
-            <Icon
-              name="Loading"
-              className="size-3.5 animate-spin motion-reduce:animate-none"
-            />
-          ) : null}
-        </span>
-      ) : (
-        <div className="mx-3 mb-1 mt-1">
-          {imageAttachments.length > 0 || pendingUploads.length > 0 ? (
-            <div className="mb-1.5 flex flex-wrap gap-2">
-              {imageAttachments.map((attachment, index) => (
-                <div key={`${attachment.path}-${index}`} className="relative">
+      <div className="mx-3 mb-1 mt-1">
+        {images.length > 0 || pendingUploads.length > 0 ? (
+          <div className="mb-1.5 flex flex-wrap gap-2">
+            {images.map(({ attachment, src }, index) => (
+              <div key={`${attachment.path}-${index}`} className="relative">
+                <button
+                  type="button"
+                  className="block cursor-zoom-in overflow-hidden rounded-md border border-border bg-surface-recessed"
+                  onClick={() => setExpandedIndex(index)}
+                  title={attachment.name}
+                >
+                  <img
+                    src={src}
+                    alt={attachment.name}
+                    className="h-16 w-24 object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                {onRemoveAttachment ? (
                   <button
                     type="button"
-                    className="block cursor-zoom-in overflow-hidden rounded-md border border-border bg-surface-recessed"
-                    onClick={() => onExpandedImageIndexChange(index)}
-                    title={attachment.name}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                      event.currentTarget.blur();
+                      releaseLocalAttachmentPreview(attachment.path);
+                      onRemoveAttachment(attachment.path);
+                    }}
+                    className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label={`Remove ${attachment.name}`}
                   >
-                    <img
-                      src={attachmentImageItems[index]?.src}
-                      alt={attachment.name}
-                      className="h-16 w-24 object-cover"
-                      loading="lazy"
-                      decoding="async"
-                    />
+                    <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/55 transition-colors group-hover/attachment-remove-image:bg-black/70">
+                      <Icon name="X" className="size-3" />
+                    </span>
                   </button>
-                  {onRemoveAttachment ? (
+                ) : null}
+              </div>
+            ))}
+            {pendingUploads.map((upload) => (
+              <UploadPreview key={upload.id} file={upload.file} />
+            ))}
+          </div>
+        ) : null}
+
+        {files.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {files.map((attachment) => (
+              <span
+                key={attachment.path}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-recessed px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                <span className="truncate">{attachment.name}</span>
+                {onRemoveAttachment ? (
+                  <span className="relative size-4 shrink-0">
                     <button
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={(event) => {
                         event.currentTarget.blur();
-                        releaseLocalAttachmentPreview(attachment.path);
                         onRemoveAttachment(attachment.path);
                       }}
-                      className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       aria-label={`Remove ${attachment.name}`}
                     >
-                      <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/55 transition-colors group-hover/attachment-remove-image:bg-black/70">
+                      <span className="inline-flex size-4 items-center justify-center rounded transition-colors group-hover/attachment-remove-file:bg-state-hover">
                         <Icon name="X" className="size-3" />
                       </span>
                     </button>
-                  ) : null}
-                </div>
-              ))}
-              {pendingUploads.map((upload) => (
-                <UploadPreview key={upload.id} file={upload.file} />
-              ))}
-            </div>
-          ) : null}
-
-          {nonImageAttachments.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {nonImageAttachments.map((attachment) => (
-                <span
-                  key={attachment.path}
-                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-recessed px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  <span className="truncate">{attachment.name}</span>
-                  {onRemoveAttachment ? (
-                    <span className="relative size-4 shrink-0">
-                      <button
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={(event) => {
-                          event.currentTarget.blur();
-                          onRemoveAttachment(attachment.path);
-                        }}
-                        className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        aria-label={`Remove ${attachment.name}`}
-                      >
-                        <span className="inline-flex size-4 items-center justify-center rounded transition-colors group-hover/attachment-remove-file:bg-state-hover">
-                          <Icon name="X" className="size-3" />
-                        </span>
-                      </button>
-                    </span>
-                  ) : null}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      )}
+                  </span>
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <ImageLightbox
-        imageSrc={currentAttachmentImage?.src ?? null}
-        imageAlt={currentAttachmentImage?.alt ?? "Attached image"}
+        imageSrc={expanded?.src ?? null}
+        imageAlt={expanded?.attachment.name ?? "Attached image"}
         title="Attached image preview"
-        hasMultipleImages={hasMultipleAttachmentImages}
-        onPrevious={() => {
-          onExpandedImageIndexChange(
-            expandedImageIndex === null || attachmentImageItems.length <= 1
-              ? expandedImageIndex
-              : getWrappedImageIndex({
-                  currentIndex: expandedImageIndex,
-                  direction: "previous",
-                  itemCount: attachmentImageItems.length,
-                }),
-          );
-        }}
-        onNext={() => {
-          onExpandedImageIndexChange(
-            expandedImageIndex === null || attachmentImageItems.length <= 1
-              ? expandedImageIndex
-              : getWrappedImageIndex({
-                  currentIndex: expandedImageIndex,
-                  direction: "next",
-                  itemCount: attachmentImageItems.length,
-                }),
-          );
-        }}
-        onClose={() => onExpandedImageIndexChange(null)}
+        hasMultipleImages={images.length > 1}
+        onPrevious={() => step("previous")}
+        onNext={() => step("next")}
+        onClose={() => setExpandedIndex(null)}
       />
     </>
   );

@@ -39,9 +39,3 @@ export function releaseLocalAttachmentPreview(path: string): void {
   localPreviewUrlsByPath.delete(path);
   URL.revokeObjectURL(url);
 }
-
-export function clearLocalAttachmentPreviews(): void {
-  for (const path of [...localPreviewUrlsByPath.keys()]) {
-    releaseLocalAttachmentPreview(path);
-  }
-}

@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  type ReactNode,
-  type UIEvent,
-} from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   providerCommandSection,
   type ProviderCommandSection,
@@ -14,7 +7,6 @@ import { directoryFromPath } from "@bb/thread-view";
 import { promptMentionResourceFromSuggestion } from "@/components/promptbox/editor/prompt-editor-serialization";
 import { promptCommandIconName } from "@/components/promptbox/mentions/prompt-mention-display";
 import { PromptMentionIcon } from "@/components/promptbox/mentions/PromptMentionIcon";
-import { shouldLoadMoreCommandResults } from "@/components/promptbox/mentions/mention-menu-scroll";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import { Icon } from "@bb/shared-ui/icon";
 import { Pill } from "@bb/shared-ui/pill";
@@ -24,264 +16,94 @@ import {
   ThreadTitle,
   useThreadTitleDisplayText,
 } from "@/components/thread/ThreadTitleMentions";
-import {
-  EMPTY_ORDERED_MENTION_SUGGESTIONS,
-  type OrderedMentionSuggestions,
-  type PromptMentionSuggestion,
-  type ProviderCommandSuggestion,
-  type ThreadMentionRelation,
-  type TypeaheadMenuState,
+import type {
+  PromptMentionSuggestion,
+  ProviderCommandSuggestion,
+  TypeaheadMenuState,
 } from "@bb/client-core";
 
 export type TypeaheadSuggestion =
   | PromptMentionSuggestion
   | ProviderCommandSuggestion;
 
-interface MentionMenuProps {
-  state: TypeaheadMenuState;
-  selectedIndex: number;
-  onApply: (item: TypeaheadSuggestion) => void;
-  onCommandLoadMore?: () => void;
-}
-
-interface MentionResultsProps {
-  results: OrderedMentionSuggestions;
-  selectedIndex: number;
-  onApply: (item: TypeaheadSuggestion) => void;
-  itemRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-}
-
-interface CommandResultsProps {
-  suggestions: readonly ProviderCommandSuggestion[];
-  selectedIndex: number;
-  onApply: (item: TypeaheadSuggestion) => void;
-  itemRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
-}
-
-interface MenuSectionItem<TItem> {
-  item: TItem;
-  index: number;
-}
-
-interface MenuSection<TKind extends string, TItem> {
-  kind: TKind;
-  label: string;
-  items: MenuSectionItem<TItem>[];
-}
-
-function groupSections<TKind extends string, TItem>(args: {
-  suggestions: readonly TItem[];
-  sectionKind: (item: TItem) => TKind;
-  sectionLabel: (kind: TKind) => string;
-}): MenuSection<TKind, TItem>[] {
-  const sectionsByKind = new Map<TKind, MenuSection<TKind, TItem>>();
-  for (const [index, item] of args.suggestions.entries()) {
-    const kind = args.sectionKind(item);
-    const existing = sectionsByKind.get(kind);
-    if (existing) {
-      existing.items.push({ item, index });
-      continue;
-    }
-
-    sectionsByKind.set(kind, {
-      kind,
-      label: args.sectionLabel(kind),
-      items: [{ item, index }],
-    });
-  }
-
-  return [...sectionsByKind.values()];
-}
-
-type PathMentionSuggestion = Extract<PromptMentionSuggestion, { kind: "path" }>;
-type SecondaryContextKind = "path" | "project";
-
-function getPathSectionLabel(item: PathMentionSuggestion): string {
-  if (item.source === "thread-storage") {
-    return "Thread storage";
-  }
-  return "Workspace";
-}
-
-const THREAD_MENTION_RELATION_LABEL: Record<ThreadMentionRelation, string> = {
-  parent: "parent",
-  child: "child",
-  "same-parent": "same parent",
-  "same-environment": "same environment",
-};
-
-const THREAD_MENTION_RELATION_COMPACT_LABEL: Record<
-  ThreadMentionRelation,
-  string
-> = {
-  parent: "parent",
-  child: "child",
-  "same-parent": "same parent",
-  "same-environment": "same env",
-};
-
-function threadMentionRelationLabel(
-  relation: ThreadMentionRelation | null,
-): string | null {
-  return relation === null ? null : THREAD_MENTION_RELATION_LABEL[relation];
-}
-
-function ThreadRelationPill({ relation }: { relation: ThreadMentionRelation }) {
-  const label = THREAD_MENTION_RELATION_LABEL[relation];
-  const compactLabel = THREAD_MENTION_RELATION_COMPACT_LABEL[relation];
-  return (
-    <Pill variant="secondary" size="sm">
-      {label === compactLabel ? (
-        label
-      ) : (
-        <>
-          <span className="@max-[26rem]/mention-menu:hidden">{label}</span>
-          <span className="hidden @max-[26rem]/mention-menu:inline">
-            {compactLabel}
-          </span>
-        </>
-      )}
-    </Pill>
-  );
-}
-
-function getMentionTitle(item: PromptMentionSuggestion): string {
-  if (item.kind === "thread") {
-    const title = item.title || item.path;
-    const relationLabel = threadMentionRelationLabel(item.relation);
-    return [title, item.projectName, relationLabel]
-      .filter((part): part is string => part !== undefined && part !== null)
-      .join(" · ");
-  }
-
-  if (item.kind === "project") {
-    return `Project: ${item.name}`;
-  }
-
-  if (item.kind === "section") {
-    return `Section: ${item.name}`;
-  }
-
-  if (item.kind === "plugin") {
-    return `${item.providerLabel}: ${item.title}`;
-  }
-
-  return `${getPathSectionLabel(item)}: ${item.path}`;
-}
-
-function getMentionKey(item: PromptMentionSuggestion): string {
-  if (item.kind === "path") {
-    return JSON.stringify([item.kind, item.source, item.entryKind, item.path]);
-  }
-  if (item.kind === "plugin") {
-    return JSON.stringify([
-      item.kind,
-      item.pluginId,
-      item.providerId,
-      item.itemId,
-    ]);
-  }
-  if (item.kind === "thread") {
-    return JSON.stringify([item.kind, item.threadId]);
-  }
-  if (item.kind === "project") {
-    return JSON.stringify([item.kind, item.projectId]);
-  }
-  return JSON.stringify([item.kind, item.sectionId]);
-}
-
-type CommandSectionKind = ProviderCommandSection;
-
-function getCommandSectionLabel(kind: CommandSectionKind): string {
-  if (kind === "agent-command") {
-    return "Commands";
-  }
-  if (kind === "skill") {
-    return "Skills";
-  }
-  return kind === "project-command" ? "Project commands" : "User commands";
-}
+type ApplySuggestion = (item: TypeaheadSuggestion) => void;
 
 const ROW_ICON_CLASS = "size-3.5 shrink-0 text-muted-foreground";
+const MUTED_TRAILING_CLASS = "text-subtle-foreground [flex-shrink:9999]";
+const COMMAND_LOAD_MORE_DISTANCE_PX = 48;
 
-function getCommandIcon(item: ProviderCommandSuggestion): ReactNode {
-  if (item.pluginId !== undefined) {
-    return (
-      <PluginIcon
-        pluginId={item.pluginId}
-        icon={null}
-        className={ROW_ICON_CLASS}
-      />
-    );
+const commandSectionLabel = (kind: ProviderCommandSection) =>
+  kind === "agent-command"
+    ? "Commands"
+    : kind === "skill"
+      ? "Skills"
+      : kind === "project-command"
+        ? "Project commands"
+        : "User commands";
+
+function mentionTitle(item: PromptMentionSuggestion): string {
+  switch (item.kind) {
+    case "thread":
+      return [
+        item.title || item.path,
+        item.projectName,
+        item.relation?.replace("-", " "),
+      ]
+        .filter((part) => part !== undefined && part !== null)
+        .join(" · ");
+    case "project":
+      return `Project: ${item.name}`;
+    case "section":
+      return `Section: ${item.name}`;
+    case "plugin":
+      return `${item.providerLabel}: ${item.title}`;
+    case "path":
+      return `${item.source === "thread-storage" ? "Thread storage" : "Workspace"}: ${item.path}`;
   }
-  return (
-    <Icon
-      name={promptCommandIconName(item)}
-      className={ROW_ICON_CLASS}
-      aria-hidden
-    />
-  );
-}
-
-function getCommandKey(item: ProviderCommandSuggestion): string {
-  return JSON.stringify([
-    item.kind,
-    item.source,
-    item.origin,
-    item.pluginId ?? null,
-    item.name,
-  ]);
 }
 
 export function typeaheadSuggestionKey(item: TypeaheadSuggestion): string {
-  return item.kind === "command" ? getCommandKey(item) : getMentionKey(item);
-}
-
-function MutedTrailing({ children }: { children: string }) {
-  return (
-    <span className="truncate text-subtle-foreground [flex-shrink:9999]">
-      {children}
-    </span>
-  );
-}
-
-function MutedTrailingPath({ children }: { children: string }) {
-  return (
-    <TruncateStart className="text-subtle-foreground [flex-shrink:9999]">
-      {children}
-    </TruncateStart>
+  return JSON.stringify(
+    item.kind === "command"
+      ? [item.kind, item.source, item.origin, item.pluginId ?? null, item.name]
+      : item.kind === "path"
+        ? [item.kind, item.source, item.entryKind, item.path]
+        : item.kind === "plugin"
+          ? [item.kind, item.pluginId, item.providerId, item.itemId]
+          : item.kind === "thread"
+            ? [item.kind, item.threadId]
+            : item.kind === "project"
+              ? [item.kind, item.projectId]
+              : [item.kind, item.sectionId],
   );
 }
 
 interface SuggestionRowProps {
-  index: number;
-  selectedIndex: number;
+  isSelected: boolean;
   icon: ReactNode;
   primary: ReactNode;
   trailing: ReactNode;
   badge?: ReactNode;
   title: string;
   onApply: () => void;
-  itemRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
 }
 
 function SuggestionRow({
-  index,
-  selectedIndex,
+  isSelected,
   icon,
   primary,
   trailing,
   badge,
   title,
   onApply,
-  itemRefs,
 }: SuggestionRowProps) {
-  const isSelected = index === selectedIndex;
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (isSelected) ref.current?.scrollIntoView({ block: "nearest" });
+  }, [isSelected]);
   return (
     <button
-      ref={(element) => {
-        itemRefs.current[index] = element;
-      }}
+      ref={ref}
       type="button"
       onMouseDown={(event) => {
         event.preventDefault();
@@ -301,32 +123,44 @@ function SuggestionRow({
           primary
         )}
         {trailing}
-        {badge === undefined ? null : (
-          <span className="ml-auto shrink-0">{badge}</span>
-        )}
+        {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
       </div>
     </button>
   );
 }
 
-type ThreadMentionSuggestion = Extract<
-  PromptMentionSuggestion,
-  { kind: "thread" }
->;
-
 function ThreadSuggestionRow({
   item,
   ...rowProps
-}: Omit<SuggestionRowProps, "primary" | "title"> & {
-  item: ThreadMentionSuggestion;
+}: Omit<SuggestionRowProps, "primary" | "title" | "badge"> & {
+  item: Extract<PromptMentionSuggestion, { kind: "thread" }>;
 }) {
   const threadTitle = item.title || "Untitled thread";
   const displayTitle = useThreadTitleDisplayText(threadTitle);
+  const relation = item.relation?.replace("-", " ");
   return (
     <SuggestionRow
       {...rowProps}
       primary={<ThreadTitle title={threadTitle} className="text-foreground" />}
-      title={getMentionTitle({ ...item, title: displayTitle })}
+      title={mentionTitle({ ...item, title: displayTitle })}
+      badge={
+        relation === undefined ? undefined : (
+          <Pill variant="secondary" size="sm">
+            {item.relation === "same-environment" ? (
+              <>
+                <span className="@max-[26rem]/mention-menu:hidden">
+                  {relation}
+                </span>
+                <span className="hidden @max-[26rem]/mention-menu:inline">
+                  same env
+                </span>
+              </>
+            ) : (
+              relation
+            )}
+          </Pill>
+        )
+      }
     />
   );
 }
@@ -336,7 +170,7 @@ function MenuStatusRow({
   className,
 }: {
   children: ReactNode;
-  className?: string;
+  className: string;
 }) {
   return (
     <div className={cn("text-xs", "px-3 py-2", className)}>
@@ -345,191 +179,113 @@ function MenuStatusRow({
   );
 }
 
-function MenuSectionHeader({ label }: { label: string }) {
+function MenuSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <div
-      className={cn(
-        "sticky top-0 z-10 bg-background text-xs text-muted-foreground",
-        "px-3 pb-1 pt-1.5",
-      )}
-    >
-      <span>{label}</span>
+    <div>
+      <div className="sticky top-0 z-10 bg-background text-xs text-muted-foreground px-3 pb-1 pt-1.5">
+        <span>{label}</span>
+      </div>
+      <div className="flex flex-col gap-px px-1">{children}</div>
     </div>
   );
 }
 
-function MentionResults({
-  results,
-  selectedIndex,
+function MentionRow({
+  item,
+  isSelected,
   onApply,
-  itemRefs,
-}: MentionResultsProps) {
-  if (results.groups.length === 0) {
-    return (
-      <MenuStatusRow className="text-muted-foreground">
-        No matching mentions
-      </MenuStatusRow>
-    );
-  }
-
-  return (
-    <div className="pb-1">
-      {results.groups.map((group) => (
-        <div key={group.key}>
-          <MenuSectionHeader label={group.label} />
-          <div className="flex flex-col gap-px px-1">
-            {group.suggestions.map((item, itemIndex) => {
-              const index = group.startIndex + itemIndex;
-              let primary: string;
-              let secondaryContext: string | null = null;
-              let secondaryContextKind: SecondaryContextKind | null = null;
-
-              if (item.kind === "thread") {
-                primary = item.title || "Untitled thread";
-                secondaryContext = item.projectName ?? null;
-                secondaryContextKind =
-                  item.projectName === undefined ? null : "project";
-              } else if (item.kind === "project") {
-                primary = item.name;
-              } else if (item.kind === "section") {
-                primary = item.name;
-              } else if (item.kind === "plugin") {
-                primary = item.title;
-                secondaryContext = item.subtitle;
-                secondaryContextKind =
-                  item.subtitle === null ? null : "project";
-              } else {
-                const directory = directoryFromPath(item.path);
-                primary = item.name;
-                secondaryContext = directory || null;
-                secondaryContextKind = directory ? "path" : null;
-              }
-
-              const rowProps = {
-                index,
-                selectedIndex,
-                icon: (
-                  <PromptMentionIcon
-                    resource={promptMentionResourceFromSuggestion(item)}
-                    className={ROW_ICON_CLASS}
-                  />
-                ),
-                trailing:
-                  secondaryContext === null ? null : secondaryContextKind ===
-                    "path" ? (
-                    <MutedTrailingPath>{secondaryContext}</MutedTrailingPath>
-                  ) : (
-                    <MutedTrailing>{secondaryContext}</MutedTrailing>
-                  ),
-                onApply: () => onApply(item),
-                itemRefs,
-              };
-
-              return item.kind === "thread" ? (
-                <ThreadSuggestionRow
-                  key={getMentionKey(item)}
-                  {...rowProps}
-                  item={item}
-                  badge={
-                    item.relation === null ? undefined : (
-                      <ThreadRelationPill relation={item.relation} />
-                    )
-                  }
-                />
-              ) : (
-                <SuggestionRow
-                  key={getMentionKey(item)}
-                  {...rowProps}
-                  primary={primary}
-                  title={getMentionTitle(item)}
-                />
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
+}: {
+  item: PromptMentionSuggestion;
+  isSelected: boolean;
+  onApply: ApplySuggestion;
+}) {
+  const directory = item.kind === "path" ? directoryFromPath(item.path) : "";
+  const secondary =
+    item.kind === "thread"
+      ? item.projectName
+      : item.kind === "plugin"
+        ? item.subtitle
+        : null;
+  const rowProps = {
+    isSelected,
+    icon: (
+      <PromptMentionIcon
+        resource={promptMentionResourceFromSuggestion(item)}
+        className={ROW_ICON_CLASS}
+      />
+    ),
+    trailing: directory ? (
+      <TruncateStart className={MUTED_TRAILING_CLASS}>
+        {directory}
+      </TruncateStart>
+    ) : secondary != null ? (
+      <span className={cn("truncate", MUTED_TRAILING_CLASS)}>{secondary}</span>
+    ) : null,
+    onApply: () => onApply(item),
+  };
+  return item.kind === "thread" ? (
+    <ThreadSuggestionRow {...rowProps} item={item} />
+  ) : (
+    <SuggestionRow
+      {...rowProps}
+      primary={item.kind === "plugin" ? item.title : item.name}
+      title={mentionTitle(item)}
+    />
   );
 }
 
-function CommandResults({
-  suggestions,
-  selectedIndex,
+function CommandRow({
+  item,
+  isSelected,
   onApply,
-  itemRefs,
-}: CommandResultsProps) {
-  const sections = useMemo(
-    () =>
-      groupSections({
-        suggestions,
-        sectionKind: providerCommandSection,
-        sectionLabel: getCommandSectionLabel,
-      }),
-    [suggestions],
-  );
-
-  if (sections.length === 0) {
-    return null;
-  }
-
+}: {
+  item: ProviderCommandSuggestion;
+  isSelected: boolean;
+  onApply: ApplySuggestion;
+}) {
   return (
-    <div className="pb-1">
-      {sections.map((section) => (
-        <div key={section.kind}>
-          <MenuSectionHeader label={section.label} />
-          <div className="flex flex-col gap-px px-1">
-            {section.items.map(({ item, index }) => (
-              <SuggestionRow
-                key={getCommandKey(item)}
-                index={index}
-                selectedIndex={selectedIndex}
-                icon={getCommandIcon(item)}
-                primary={item.name}
-                trailing={
-                  <>
-                    {item.description !== null ? (
-                      <MutedTrailing>{item.description}</MutedTrailing>
-                    ) : null}
-                    {item.kind === "command" && item.argumentHint !== null ? (
-                      <span className="shrink-0 text-subtle-foreground">
-                        {item.argumentHint}
-                      </span>
-                    ) : null}
-                  </>
-                }
-                title={item.description ?? item.name}
-                onApply={() => onApply(item)}
-                itemRefs={itemRefs}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
+    <SuggestionRow
+      isSelected={isSelected}
+      icon={
+        item.pluginId !== undefined ? (
+          <PluginIcon
+            pluginId={item.pluginId}
+            icon={null}
+            className={ROW_ICON_CLASS}
+          />
+        ) : (
+          <Icon
+            name={promptCommandIconName(item)}
+            className={ROW_ICON_CLASS}
+            aria-hidden
+          />
+        )
+      }
+      primary={item.name}
+      trailing={
+        <>
+          {item.description !== null ? (
+            <span className={cn("truncate", MUTED_TRAILING_CLASS)}>
+              {item.description}
+            </span>
+          ) : null}
+          {item.kind === "command" && item.argumentHint !== null ? (
+            <span className="shrink-0 text-subtle-foreground">
+              {item.argumentHint}
+            </span>
+          ) : null}
+        </>
+      }
+      title={item.description ?? item.name}
+      onApply={() => onApply(item)}
+    />
   );
-}
-
-function typeaheadResultsLength(state: TypeaheadMenuState): number {
-  if (state.trigger === "mention") {
-    return state.state.kind === "results"
-      ? state.state.results.suggestions.length
-      : 0;
-  }
-  return state.state.kind === "results" ? state.state.suggestions.length : 0;
-}
-
-function mentionResults(state: TypeaheadMenuState): OrderedMentionSuggestions {
-  return state.trigger === "mention" && state.state.kind === "results"
-    ? state.state.results
-    : EMPTY_ORDERED_MENTION_SUGGESTIONS;
-}
-
-function commandSuggestions(
-  state: TypeaheadMenuState,
-): readonly ProviderCommandSuggestion[] {
-  return state.trigger === "command" && state.state.kind === "results"
-    ? state.state.suggestions
-    : [];
 }
 
 export function MentionMenu({
@@ -537,78 +293,101 @@ export function MentionMenu({
   selectedIndex,
   onApply,
   onCommandLoadMore,
-}: MentionMenuProps) {
-  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const handleScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      if (onCommandLoadMore === undefined) {
-        return;
-      }
-      const target = event.currentTarget;
-      if (
-        shouldLoadMoreCommandResults({
-          trigger: state.trigger,
-          scrollHeight: target.scrollHeight,
-          scrollTop: target.scrollTop,
-          clientHeight: target.clientHeight,
-        })
-      ) {
-        onCommandLoadMore();
-      }
-    },
-    [onCommandLoadMore, state.trigger],
-  );
-
-  const innerState = state.state;
-  const resultsLength = typeaheadResultsLength(state);
-
-  useEffect(() => {
-    itemRefs.current = itemRefs.current.slice(0, resultsLength);
-  }, [resultsLength]);
-
-  useEffect(() => {
-    if (resultsLength === 0) return;
-    const selectedItem = itemRefs.current[selectedIndex];
-    if (!selectedItem) return;
-    selectedItem.scrollIntoView({ block: "nearest" });
-  }, [resultsLength, selectedIndex]);
+}: {
+  state: TypeaheadMenuState;
+  selectedIndex: number;
+  onApply: ApplySuggestion;
+  onCommandLoadMore?: () => void;
+}) {
+  const isCommand = state.trigger === "command";
+  const commands =
+    state.trigger === "command" && state.state.kind === "results"
+      ? state.state.suggestions
+      : [];
+  const commandSections = [
+    ...new Set(commands.map(providerCommandSection)),
+  ].map((kind) => ({
+    kind,
+    items: commands
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => providerCommandSection(item) === kind),
+  }));
+  const mentionGroups =
+    state.trigger === "mention" && state.state.kind === "results"
+      ? state.state.results.groups
+      : [];
 
   return (
     <div className="@container/mention-menu overflow-hidden rounded-md border border-border bg-popover text-popover-foreground">
-      <div className="max-h-48 overflow-y-auto" onScroll={handleScroll}>
-        {innerState.kind === "hint" ? (
+      <div
+        className="max-h-48 overflow-y-auto"
+        onScroll={(event) => {
+          const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+          if (
+            isCommand &&
+            scrollHeight - scrollTop - clientHeight <=
+              COMMAND_LOAD_MORE_DISTANCE_PX
+          ) {
+            onCommandLoadMore?.();
+          }
+        }}
+      >
+        {state.state.kind === "hint" ? (
           <MenuStatusRow className="text-muted-foreground">
             Type to search mentions
           </MenuStatusRow>
-        ) : innerState.kind === "loading" ? (
+        ) : state.state.kind === "loading" ? (
           <MenuStatusRow className="text-muted-foreground">
             <Icon name="Spinner" className="size-3.5 animate-spin" />
             <span>
-              {state.trigger === "command"
-                ? "Searching commands…"
-                : "Searching mentions…"}
+              {isCommand ? "Searching commands…" : "Searching mentions…"}
             </span>
           </MenuStatusRow>
-        ) : innerState.kind === "error" ? (
+        ) : state.state.kind === "error" ? (
           <MenuStatusRow className="text-destructive">
-            {state.trigger === "command"
+            {isCommand
               ? "Failed to load commands"
               : "Failed to load suggestions"}
           </MenuStatusRow>
-        ) : state.trigger === "command" ? (
-          <CommandResults
-            suggestions={commandSuggestions(state)}
-            selectedIndex={selectedIndex}
-            onApply={onApply}
-            itemRefs={itemRefs}
-          />
+        ) : isCommand ? (
+          commandSections.length === 0 ? null : (
+            <div className="pb-1">
+              {commandSections.map((section) => (
+                <MenuSection
+                  key={section.kind}
+                  label={commandSectionLabel(section.kind)}
+                >
+                  {section.items.map(({ item, index }) => (
+                    <CommandRow
+                      key={typeaheadSuggestionKey(item)}
+                      item={item}
+                      isSelected={index === selectedIndex}
+                      onApply={onApply}
+                    />
+                  ))}
+                </MenuSection>
+              ))}
+            </div>
+          )
+        ) : mentionGroups.length === 0 ? (
+          <MenuStatusRow className="text-muted-foreground">
+            No matching mentions
+          </MenuStatusRow>
         ) : (
-          <MentionResults
-            results={mentionResults(state)}
-            selectedIndex={selectedIndex}
-            onApply={onApply}
-            itemRefs={itemRefs}
-          />
+          <div className="pb-1">
+            {mentionGroups.map((group) => (
+              <MenuSection key={group.key} label={group.label}>
+                {group.suggestions.map((item, itemIndex) => (
+                  <MentionRow
+                    key={typeaheadSuggestionKey(item)}
+                    item={item}
+                    isSelected={group.startIndex + itemIndex === selectedIndex}
+                    onApply={onApply}
+                  />
+                ))}
+              </MenuSection>
+            ))}
+          </div>
         )}
       </div>
     </div>
