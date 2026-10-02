@@ -10,7 +10,7 @@ import {
   getPluginNavPanelKey,
   togglePluginNavPanelVisibility,
 } from "@/components/plugin/pluginNavSidebarOrder";
-import { haveSameOrder, reorderStoredOrder } from "@/lib/stored-order";
+import { haveSameOrder, reorderStoredOrder } from "@bb/client-core";
 
 interface ArrangeableRow {
   pluginId: string;

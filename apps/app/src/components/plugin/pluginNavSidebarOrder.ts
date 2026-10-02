@@ -1,4 +1,4 @@
-import { arrangeByStoredOrder } from "@/lib/stored-order";
+import { arrangeByStoredOrder } from "@bb/client-core";
 
 interface PluginNavPanelIdentity {
   pluginId: string;

@@ -28,7 +28,6 @@ interface MeasuredItemHeight {
 
 interface SidebarWindowedItemsProps {
   itemKeys: readonly string[];
-  focusItemKey?: string;
   estimateRows: (index: number) => number;
   alwaysMountedKeys?: ReadonlySet<string>;
   getNavigationEntries?: (
@@ -78,7 +77,6 @@ function mergeRealizedKeys(
 
 export function SidebarWindowedItems({
   itemKeys,
-  focusItemKey,
   estimateRows,
   alwaysMountedKeys = EMPTY_KEY_SET,
   getNavigationEntries,
@@ -104,15 +102,6 @@ export function SidebarWindowedItems({
   const rowsByKeyRef = useRef(new Map<string, number>());
 
   const keySignature = useMemo(() => itemKeys.join("\u0000"), [itemKeys]);
-
-  useLayoutEffect(() => {
-    if (!focusItemKey) return;
-    const wrapper = wrapperByKeyRef.current.get(focusItemKey);
-    const target = wrapper?.querySelector<HTMLElement>(
-      "a[data-sidebar-thread-id], button[aria-expanded]",
-    );
-    target?.focus();
-  }, [focusItemKey]);
 
   const getWrapperRefCallback = useCallback((key: string) => {
     const callbacks = wrapperRefCallbacksRef.current;
@@ -299,8 +288,7 @@ export function SidebarWindowedItems({
         const isRealized =
           !windowingEnabled ||
           realizedKeys.has(key) ||
-          alwaysMountedKeys.has(key) ||
-          focusItemKey === key;
+          alwaysMountedKeys.has(key);
         const rows = Math.max(1, estimateRowsRef.current(index));
         rowsByKeyRef.current.set(key, rows);
         let placeholderHeight: number | undefined;

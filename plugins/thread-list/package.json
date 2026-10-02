@@ -3,20 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "bb's sidebar thread list: pinned threads, custom sections, projects, machines, and nested threads.",
+  "description": "bb's sidebar thread list: pinned threads, custom sections, and nested threads.",
   "engines": {
     "bb": ">=0.0",
     "bbPluginSdk": ">=0.5.16"
   },
   "bb": {
     "name": "Thread list",
-    "description": "bb's sidebar thread list: pinned threads, custom sections, projects, machines, and nested threads.",
+    "description": "bb's sidebar thread list: pinned threads, custom sections, and nested threads.",
     "icon": "ListView",
     "server": "./server.ts",
-    "app": "./app.tsx",
-    "skills": [
-      "skills"
-    ]
+    "app": "./app.tsx"
   },
   "keywords": [
     "bb-plugin"
@@ -27,6 +24,8 @@
     "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
   },
   "dependencies": {
+    "@bb/client-core": "workspace:*",
+    "@bb/core-ui": "workspace:*",
     "@bb/plugin": "workspace:*",
     "@bb/shared-ui": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
