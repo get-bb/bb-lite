@@ -54,17 +54,12 @@ const TARGETS: Target[] = [
   },
 ];
 
-async function findExecutable(
-  names: string[],
-  searchPath: string,
-): Promise<string | null> {
+async function findExecutable(names: string[], searchPath: string) {
   const directories = searchPath.split(path.delimiter).filter(Boolean);
   for (const name of names) {
     for (const directory of directories) {
       const candidate = path.join(directory, name);
-      if (await pathExists(candidate, constants.X_OK)) {
-        return candidate;
-      }
+      if (await pathExists(candidate, constants.X_OK)) return candidate;
     }
   }
   return null;

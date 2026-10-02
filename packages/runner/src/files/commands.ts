@@ -32,12 +32,8 @@ type Root = [
 async function projectAncestors(cwd: string): Promise<string[]> {
   const directories = [cwd];
   for (let directory = cwd; ; directory = path.dirname(directory)) {
-    if (await pathExists(path.join(directory, ".git"))) {
-      return directories;
-    }
-    if (path.dirname(directory) === directory) {
-      return [cwd];
-    }
+    if (await pathExists(path.join(directory, ".git"))) return directories;
+    if (path.dirname(directory) === directory) return [cwd];
     directories.unshift(path.dirname(directory));
   }
 }
@@ -113,22 +109,15 @@ async function describe(
   filePath: string,
 ): Promise<ProviderCommand | null> {
   const handle = await fs.open(filePath, "r").catch(() => null);
-  if (handle === null) {
-    return null;
-  }
+  if (handle === null) return null;
   try {
     const head = Buffer.alloc(FRONTMATTER_READ_BYTES);
     const { bytesRead } = await handle.read(head, 0, head.byteLength, 0);
     const fields = parseFrontmatter(head.subarray(0, bytesRead).toString());
     const description = fields.description?.slice(0, MAX_DESCRIPTION_LENGTH);
     const argumentHint = fields["argument-hint"] || null;
-    return {
-      name,
-      source,
-      origin,
-      description: description || null,
-      argumentHint,
-    };
+    const about = { description: description || null, argumentHint };
+    return { name, source, origin, ...about };
   } finally {
     await handle.close();
   }

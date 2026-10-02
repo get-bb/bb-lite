@@ -22,6 +22,7 @@ import {
   type RunnerThreadEvent,
   type SessionHost,
 } from "@bb/runner";
+import { settle } from "./kit.js";
 
 const record = z.record(z.string(), z.unknown());
 const optionsSchema = z.object({
@@ -79,16 +80,6 @@ export function readOriginalEvents(scenario: string) {
   return events as RunnerThreadEvent[];
 }
 
-export function internIds<T>(events: T[]): T[] {
-  const ids = new Map<string, string>();
-  const intern = (id: string) => {
-    if (!ids.has(id)) ids.set(id, `#${ids.size + 1}`);
-    return ids.get(id) ?? id;
-  };
-  const json = JSON.stringify(events).replace(/da[0-9a-f]{8}-[ti]\d+/g, intern);
-  return JSON.parse(json) as T[];
-}
-
 class FakeAppServer extends EventEmitter {
   readonly stdin = new PassThrough();
   readonly stdout = new PassThrough();
@@ -109,12 +100,6 @@ class FakeAppServer extends EventEmitter {
     this.stdout.end();
     this.emit("exit", 0, null);
     return this.emit("close", 0, null);
-  }
-}
-
-async function settle() {
-  for (let round = 0; round < 3; round += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve));
   }
 }
 
@@ -178,7 +163,7 @@ export async function replayCodexRecording(scenario: string) {
     ) {
       const index = server.written.findIndex(match);
       if (index !== -1) return server.written.splice(index, 1)[0];
-      await (attempt < 20 ? settle() : new Promise((r) => setTimeout(r, 2)));
+      await (attempt < 20 ? settle(3) : new Promise((r) => setTimeout(r, 2)));
     }
     const missing = `${scenario}: the adapter never sent ${describe}`;
     throw failures[0] ?? new Error(missing);
@@ -279,7 +264,7 @@ export async function replayCodexRecording(scenario: string) {
       const original = z.object({ message: record }).parse(raw).message;
       server.stdout.write(`${JSON.stringify({ ...original, id })}\n`);
     }
-    await settle();
+    await settle(3);
   }
   await close();
   if (failures.length > 0) throw failures[0];

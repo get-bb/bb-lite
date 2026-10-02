@@ -12,6 +12,9 @@ import type {
   EnvironmentDiffFileQuery,
   EnvironmentDiffFileResponse,
   HostDirectoryListing,
+  HostFileReadResponse,
+  HostFileWriteResponse,
+  HostOpenTarget,
   TerminalOutputChunk,
   WorkspacePathListResponse,
 } from "@bb/server-contract";
@@ -67,17 +70,8 @@ export interface LifecycleScriptResult {
   } | null;
 }
 
-export type FileContentEncoding = "utf8" | "base64";
-
-export interface FileContent {
-  path: string;
-  content: string;
-  contentEncoding: FileContentEncoding;
-  mimeType?: string;
-  modifiedAtMs?: number;
-  sha256: string;
-  sizeBytes: number;
-}
+export type FileContent = HostFileReadResponse;
+export type FileContentEncoding = FileContent["contentEncoding"];
 
 export type FileNotModified = Omit<FileContent, "content"> & {
   notModified: true;
@@ -93,9 +87,7 @@ export interface FileChunk {
   dataBase64: string;
 }
 
-export type FileWriteResult =
-  | { outcome: "written"; sha256: string; sizeBytes: number }
-  | { outcome: "conflict"; currentSha256: string | null };
+export type FileWriteResult = HostFileWriteResponse;
 
 export interface FileLocation {
   path: string;
@@ -131,17 +123,7 @@ export interface TerminalReplay {
   exited: { exitCode: number | null } | null;
 }
 
-export interface OpenTarget {
-  id: string;
-  label: string;
-  kind: "editor" | "file-manager" | "terminal";
-  capabilities: {
-    openDirectory: boolean;
-    openFile: boolean;
-    openFileAtLine: boolean;
-    openFileAtColumn: boolean;
-  };
-}
+export type OpenTarget = HostOpenTarget;
 
 interface DiffScope {
   path: string;

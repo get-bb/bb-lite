@@ -1,5 +1,6 @@
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { until } from "../kit.js";
 import { createHarness, failureCode } from "./harness.js";
 
 const decode = (chunks: { dataBase64: string }[]): string =>
@@ -27,7 +28,7 @@ describe("terminals and watching", () => {
     return h.api.openTerminal({ terminalId, ...shape, start });
   };
   const exitOf = (terminalId: string) =>
-    h.waitFor(
+    until(
       () =>
         h.events
           .filter((event) => event.kind === "terminal.exited")
@@ -46,7 +47,7 @@ describe("terminals and watching", () => {
     const greet = 'echo "$GREETING from $BB_TERMINAL_SESSION_ID"; stty size\n';
     await type(terminalId, greet);
     const greeted = /hello from term_1\r?\n24 80/u;
-    await h.waitFor(() => greeted.test(output(terminalId)), "echoed output");
+    await until(() => greeted.test(output(terminalId)), "echoed output");
     const all = { terminalId, sinceSeq: 0, tailBytes };
     const before = await h.api.attachTerminal(all);
     const seqs = before.chunks.map((chunk) => chunk.seq);
@@ -58,7 +59,7 @@ describe("terminals and watching", () => {
     const sinceSeq = before.nextSeq;
     const resized = (): boolean =>
       output(terminalId, sinceSeq).includes("30 100");
-    await h.waitFor(resized, "resized output");
+    await until(resized, "resized output");
     const replay = await h.api.attachTerminal({ ...all, sinceSeq });
     expect(replay.replayStartSeq).toBe(sinceSeq);
     expect(decode(replay.chunks)).toContain("30 100");
@@ -91,11 +92,11 @@ describe("terminals and watching", () => {
     await h.api.setWatchedPaths({ generation: 1, ...none });
 
     h.write(repo, { "a.txt": "edited\n" });
-    await h.waitFor(() => changes(repo).includes("status"), "status change");
+    await until(() => changes(repo).includes("status"), "status change");
     expect(changes(repo)).not.toContain("refs");
     h.commitAll(repo, "edit");
-    await h.waitFor(() => changes(repo).includes("refs"), "refs change");
+    await until(() => changes(repo).includes("refs"), "refs change");
     h.write(storage, { "note.md": "saved\n" });
-    await h.waitFor(() => changes(storage).includes("files"), "files change");
+    await until(() => changes(storage).includes("files"), "files change");
   });
 });

@@ -305,8 +305,7 @@ export class ClaudeTranslator {
     openTurnOnly: boolean,
   ) {
     const usage = { usedTokens, modelContextWindow, estimated: true };
-    const report = { contextWindowUsage: usage };
-    this.events.contextWindow(report, undefined, openTurnOnly);
+    this.events.contextWindow(usage, undefined, openTurnOnly);
   }
 
   private assistant(message: Json): boolean {
@@ -390,10 +389,8 @@ export class ClaudeTranslator {
     if (turn === null) return false;
     const envelope = results.length === 1 ? message.tool_use_result : undefined;
     for (const block of results) {
-      const [id, toolName] = [
-        str(block.tool_use_id) ?? "",
-        str(block.tool_name),
-      ];
+      const id = str(block.tool_use_id) ?? "";
+      const toolName = str(block.tool_name);
       const started = this.tools.get(id);
       this.tools.delete(id);
       const base =
@@ -446,10 +443,8 @@ export class ClaudeTranslator {
         reasoningOutputTokens: 0,
       };
       this.total = ui.addTokenUsage(this.total, last);
-      const tokenUsage = { total: this.total, last };
-      this.events.usage({
-        tokenUsage: { ...tokenUsage, modelContextWindow: reported },
-      });
+      const { total } = this;
+      this.events.usage({ total, last, modelContextWindow: reported });
     }
     const failed = message.is_error === true || subtype.startsWith("error");
     if (failed) {
@@ -473,9 +468,8 @@ export class ClaudeTranslator {
 
   private system(message: Json, subtype: string): boolean {
     const { events, turn } = this;
-    const [from, to] = [message.original_model, message.fallback_model].map(
-      str,
-    );
+    const from = str(message.original_model);
+    const to = str(message.fallback_model);
     const compaction = { type: "contextCompaction" as const };
     const key = { channel: "compaction" };
     const presentation = ui.labels.compaction;

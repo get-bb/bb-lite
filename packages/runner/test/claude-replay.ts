@@ -18,6 +18,7 @@ import {
   type SessionHost,
   type SessionSpec,
 } from "@bb/runner";
+import { internIds, settle } from "./kit.js";
 
 type QueryArgs = Parameters<NonNullable<ClaudeAdapterOptions["query"]>>[0];
 type CanUseTool = NonNullable<QueryArgs["options"]["canUseTool"]>;
@@ -98,12 +99,6 @@ class FakeQuery {
   }
 }
 
-export async function settle(rounds = 4) {
-  for (let round = 0; round < rounds; round += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-}
-
 export function createClaudeHarness() {
   const events: RunnerThreadEvent[] = [];
   const interactions: Pending[] = [];
@@ -163,19 +158,6 @@ export function createClaudeHarness() {
     return { session, query, builder, turn, decide };
   }
   return { events, interactions, toolCalls, open };
-}
-
-function normalizeIds(events: unknown): unknown {
-  const ids = new Map<string, string>();
-  const intern = (id: string) => {
-    if (!ids.has(id)) ids.set(id, `#${ids.size + 1}`);
-    return ids.get(id) ?? id;
-  };
-  const session = /("providerThreadId":")([^"]+)/g;
-  const json = JSON.stringify(events)
-    .replace(/da[0-9a-f]{8}-[ti]\d+/g, intern)
-    .replace(session, (_, key: string, id: string) => `${key}${intern(id)}`);
-  return JSON.parse(json);
 }
 
 export async function replayClaudeRecording(scenario: string) {
@@ -259,7 +241,7 @@ export async function replayClaudeRecording(scenario: string) {
   await state.live?.session.close();
   if (failures.length > 0) throw failures[0];
   const expected = readFileSync(`${FIXTURES}${scenario}.events.json`, "utf8");
-  const original = normalizeIds(JSON.parse(expected));
-  const events = normalizeIds(harness.events);
+  const original = internIds<unknown>(JSON.parse(expected), true);
+  const events = internIds<unknown>(harness.events, true);
   return { events, original, mismatches, checked };
 }

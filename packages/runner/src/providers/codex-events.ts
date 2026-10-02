@@ -316,6 +316,10 @@ function translateItem(
   const args = isRecord(input) ? input : undefined;
   const timing = "durationMs" in raw ? raw.durationMs : null;
   const durationMs = timing ?? undefined;
+  const call = (tool: string, server: string | undefined) => {
+    const shape = { type: "toolCall" as const, server, tool };
+    return { ...shape, arguments: args };
+  };
   switch (raw.type) {
     case "userMessage":
     case "subAgentActivity":
@@ -335,9 +339,7 @@ function translateItem(
       const aggregatedOutput = raw.aggregatedOutput ?? undefined;
       const result = { aggregatedOutput, exitCode: raw.exitCode ?? undefined };
       const shape = { type, command: line, cwd, ...result };
-      const duration = raw.durationMs ?? undefined;
-      const label = ui.labels.command(line);
-      return done({ ...shape, durationMs: duration }, label, status);
+      return done({ ...shape, durationMs }, ui.labels.command(line), status);
     }
     case "fileChange": {
       const changes = raw.changes.map(({ path, kind, diff }) => ({
@@ -352,15 +354,9 @@ function translateItem(
     }
     case "mcpToolCall": {
       const { server, tool, status } = raw;
-      const shape = {
-        type: "toolCall" as const,
-        server,
-        tool,
-        arguments: args,
-      };
       const error = raw.error?.message;
       const label = ui.labels.tool(tool, server);
-      return done({ ...shape, error, durationMs }, label, status);
+      return done({ ...call(tool, server), error, durationMs }, label, status);
     }
     case "dynamicToolCall": {
       const parts = (raw.contentItems ?? [])
@@ -370,13 +366,7 @@ function translateItem(
       const failed = raw.success === false;
       const error = failed ? (result ?? "Dynamic tool call failed") : undefined;
       const { tool, status } = raw;
-      const server = injected.has(tool) ? "bb" : undefined;
-      const shape = {
-        type: "toolCall" as const,
-        server,
-        tool,
-        arguments: args,
-      };
+      const shape = call(tool, injected.has(tool) ? "bb" : undefined);
       const label = injected.get(tool) ?? ui.labels.tool(tool);
       return done({ ...shape, result, error, durationMs }, label, status);
     }
@@ -518,12 +508,9 @@ export class CodexTranslator {
     agent.open = status === "pending";
     const { callId, parentRef, turn, agentPath: label } = agent;
     const key = { providerItemId: callId, parentRef };
-    const delegation = {
-      type: "delegation" as const,
-      label,
-      background: false,
-    };
-    const shape = { ...delegation, childRef: agent.agentThreadId };
+    const delegation = { type: "delegation" as const, label };
+    const child = { background: false, childRef: agent.agentThreadId };
+    const shape = { ...delegation, ...child };
     const options = { turn, presentation: ui.labels.agent(label) };
     if (status === "pending") this.events.openItem(key, shape, options);
     else this.events.closeItem(key, shape, { ...options, status });
@@ -586,9 +573,8 @@ export class CodexTranslator {
     if (!parsed.success || channel === undefined) return false;
     const { threadId, turnId: turn, itemId, delta } = parsed.data;
     const parentRef = this.parentRef(threadId, turn);
-    this.events.delta({ providerItemId: itemId, parentRef }, channel, delta, {
-      turn,
-    });
+    const key = { providerItemId: itemId, parentRef };
+    this.events.delta(key, channel, delta, { turn });
     return true;
   }
 
@@ -625,11 +611,9 @@ export class CodexTranslator {
     const total = withCacheRead(tokenUsage.total);
     const last = withCacheRead(tokenUsage.last);
     const turn = this.awaitingReplayedUsage ? undefined : turnId;
-    const usage = { tokenUsage: { total, last, modelContextWindow } };
-    if (turn) this.events.usage(usage, { turn });
+    if (turn) this.events.usage({ total, last, modelContextWindow }, { turn });
     const window = { usedTokens: last.totalTokens, modelContextWindow };
-    const contextWindowUsage = { ...window, estimated: false };
-    this.events.contextWindow({ contextWindowUsage }, { turn });
+    this.events.contextWindow({ ...window, estimated: false }, { turn });
   }
 
   private plan({ turnId: turn, plan, explanation }: z.infer<typeof planEvent>) {
