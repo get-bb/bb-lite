@@ -290,7 +290,7 @@ export function RemotePathBrowser({
         ) : data.entries.length === 0 ? (
           <EmptyState message="This folder is empty." className="px-2 py-3" />
         ) : (
-          <ul>
+          <ul className="grid auto-rows-[27px] items-start">
             {data.entries.map((entry) =>
               entry.kind === "file" ? (
                 <li
