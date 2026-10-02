@@ -29,7 +29,7 @@ type Root = [
   origin: "project" | "user",
 ];
 
-async function projectAncestors(cwd: string): Promise<string[]> {
+async function projectAncestors(cwd: string) {
   const directories = [cwd];
   for (let directory = cwd; ; directory = path.dirname(directory)) {
     if (await pathExists(path.join(directory, ".git"))) return directories;
@@ -38,7 +38,7 @@ async function projectAncestors(cwd: string): Promise<string[]> {
   }
 }
 
-async function scanRoots(ctx: Ctx, scope: Scope): Promise<Root[]> {
+async function scanRoots(ctx: Ctx, scope: Scope) {
   const home = os.homedir();
   const { cwd } = scope;
   const ancestors = cwd === null ? [] : await projectAncestors(cwd);
@@ -58,7 +58,6 @@ async function scanRoots(ctx: Ctx, scope: Scope): Promise<Root[]> {
   const shared = [
     ...nearest(".bb/skills"),
     user(path.join(ctx.dataDir, "skills")),
-    ...(scope.builtinDir === undefined ? [] : [user(scope.builtinDir)]),
   ];
   if (scope.providerId === "claude-code") {
     const claude = process.env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude");
@@ -107,7 +106,7 @@ async function describe(
   [, source, origin]: Root,
   name: string,
   filePath: string,
-): Promise<ProviderCommand | null> {
+) {
   const handle = await fs.open(filePath, "r").catch(() => null);
   if (handle === null) return null;
   try {
@@ -128,7 +127,7 @@ async function scan(
   budget: { remaining: number },
   relative = "",
   depth = 0,
-): Promise<(ProviderCommand | null)[]> {
+) {
   const [rootDirectory, source, origin] = root;
   const directory = path.join(rootDirectory, relative);
   const entries = (
@@ -156,7 +155,7 @@ async function scan(
   return found;
 }
 
-function section(command: ProviderCommand): number {
+function section(command: ProviderCommand) {
   const userCommand = command.origin === "project" ? 2 : 3;
   const discovered = command.source === "skill" ? 1 : userCommand;
   return command.origin === "builtin" ? 0 : discovered;
@@ -185,21 +184,4 @@ export const listCommands: Method<"listCommands"> = async (ctx, args) => {
       section(left) - section(right) || left.name.localeCompare(right.name),
   );
   return { commands };
-};
-
-export const resolveSkillDirs: Method<"resolveSkillDirs"> = async (
-  ctx,
-  args,
-) => {
-  const candidates = [
-    args.builtinDir,
-    path.join(ctx.dataDir, "skills"),
-    args.cwd === null ? null : path.join(args.cwd, ".bb", "skills"),
-  ].filter((directory) => directory !== null);
-  const stats = await Promise.all(
-    candidates.map((directory) => fs.stat(directory).catch(() => null)),
-  );
-  const present = (_directory: string, index: number): boolean =>
-    stats[index]?.isDirectory() === true;
-  return { skillDirs: candidates.filter(present) };
 };

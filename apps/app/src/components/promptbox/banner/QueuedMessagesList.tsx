@@ -1203,9 +1203,7 @@ function QueuedMessagesListSurface({
     bottomSentinelRef,
     scrollRef,
     topSentinelRef,
-  } = useScrollOverflowState<HTMLDivElement>({
-    measureOverflow: true,
-  });
+  } = useScrollOverflowState<HTMLDivElement>();
 
   const scrollInlineEditorNeighborhoodIntoView = useCallback(() => {
     const list = listRef.current;

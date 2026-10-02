@@ -13,7 +13,6 @@ function harness(identified = true) {
   const events: RunnerThreadEvent[] = [];
   let clock = 1_000;
   const builder = new EventBuilder({
-    providerId: "echo",
     emit: (event) => events.push(event),
     now: () => clock,
   });

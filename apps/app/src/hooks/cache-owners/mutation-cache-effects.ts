@@ -28,7 +28,6 @@ import {
   getThreadDetailInvalidationQueryKeys,
   getThreadListInvalidationQueryKeys,
   getThreadPendingInteractionInvalidationQueryKeys,
-  getThreadPromptHistoryInvalidationQueryKeys,
   getThreadQueueContentInvalidationQueryKeys,
   getThreadTimelineInvalidationQueryKeys,
 } from "./cache-invalidation-groups";
@@ -214,26 +213,6 @@ export function invalidateThreadQueuedMessageListQuery({
 }: ThreadArg): void {
   queryClient.invalidateQueries({
     queryKey: threadQueuedMessagesQueryKey(threadId),
-  });
-}
-
-export function invalidateThreadHistoryRewriteQueries({
-  queryClient,
-  threadId,
-}: ThreadArg): void {
-  invalidateThreadAcceptedMessageQueriesWithoutRealtime({
-    queryClient,
-    threadId,
-  });
-  queryClient.invalidateQueries({ queryKey: threadSearchQueryKeyPrefix() });
-  invalidateQueryKeys({
-    queryClient,
-    queryKeys: [
-      ...getThreadPromptHistoryInvalidationQueryKeys({ threadId }),
-      ...getProjectPromptHistoryInvalidationQueryKeys({
-        projectId: undefined,
-      }),
-    ],
   });
 }
 

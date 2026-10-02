@@ -4,8 +4,6 @@ import {
   turnScope,
   type ExtensionKind,
   type JsonValue,
-  type ProviderRateLimitState,
-  type ProviderRawEvent,
   type ThreadEventItem as Item,
   type ThreadEventItemPresentation as Presentation,
   type ThreadEventItemStatus as ItemStatus,
@@ -64,12 +62,7 @@ export interface ErrorOptions extends TurnTarget {
   settlesTurn?: boolean;
   threadScoped?: boolean;
 }
-export interface RawOptions extends TurnTarget {
-  inTurn?: boolean;
-  parentRef?: string;
-}
 export interface EventBuilderOptions {
-  providerId: string;
   emit: (event: RunnerThreadEvent) => void;
   textFlushMs?: number;
   progressThrottleMs?: number;
@@ -118,7 +111,7 @@ function trim<K>(collection: Map<K, unknown> | Set<K>, max: number) {
   }
 }
 
-function withoutUndefined<T extends object>(value: T): T {
+function withoutUndefined<T extends object>(value: T) {
   const entries = Object.entries(value).filter(([, v]) => v !== undefined);
   return Object.fromEntries(entries) as T;
 }
@@ -143,7 +136,7 @@ function buildItem(
   id: string,
   status: ItemStatus,
   extra: { presentation?: Presentation; parent?: string; denied?: boolean },
-): Item {
+) {
   const { presentation, parent: parentToolCallId } = extra;
   const common = withoutUndefined({ id, presentation, parentToolCallId });
   switch (shape.type) {
@@ -233,10 +226,6 @@ export class EventBuilder {
 
   name(threadName: string) {
     this.send(undefined, { type: "thread/name/updated", threadName });
-  }
-
-  rateLimits(rateLimits: ProviderRateLimitState) {
-    this.send(undefined, { type: "provider/rateLimits/updated", rateLimits });
   }
 
   extensionState(kind: ExtensionKind, payload: JsonValue) {
@@ -443,15 +432,6 @@ export class EventBuilder {
   warning(warning: Partial<Fields<"provider/warning">>) {
     const category = warning.category ?? "general";
     this.send(undefined, { type: "provider/warning", ...warning, category });
-  }
-
-  unhandled(rawType: string, rawEvent: ProviderRawEvent, to: RawOptions = {}) {
-    const scoped = to.turn !== undefined || to.inTurn;
-    const turnId = scoped ? this.target(to) : undefined;
-    const parentToolCallId = this.parentOf(to.parentRef);
-    const { providerId } = this.options;
-    const origin = { providerId, rawType, rawEvent, parentToolCallId };
-    this.send(turnId, { type: "provider/unhandled", ...origin });
   }
 
   settle(status: "interrupted" | "failed", error?: string) {

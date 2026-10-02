@@ -11,6 +11,16 @@ export async function until<T>(
   }
 }
 
+const DROPPED = new Set([
+  "turn/diff/updated",
+  "provider/rateLimits/updated",
+  "provider/unhandled",
+]);
+
+export function kept<T extends { type: string }>(recorded: T[]) {
+  return recorded.filter((event) => !DROPPED.has(event.type));
+}
+
 export async function settle(rounds = 4) {
   for (let round = 0; round < rounds; round += 1) {
     await new Promise<void>((resolve) => setImmediate(resolve));

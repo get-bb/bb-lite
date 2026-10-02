@@ -3,10 +3,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import type { ThreadContextWindowUsage } from "@bb/server-contract";
 import { useHoverPopover } from "../../ui/hooks/use-hover-popover.js";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  calculateContextWindowUsagePercent,
-  formatCompactTokenCount,
-} from "./thread-context-window-usage.js";
 
 import {
   ContextWindowReveal,
@@ -24,6 +20,26 @@ interface ThreadContextWindowIndicatorProps {
 }
 
 const CONTEXT_WINDOW_POPOVER_CLOSE_DELAY_MS = 60;
+
+const TOKEN_COMPACT_FORMATTER = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 0,
+});
+
+function calculateContextWindowUsagePercent(
+  usage: ThreadContextWindowUsage,
+): number {
+  if (usage.modelContextWindow <= 0) return 0;
+  const ratio = usage.usedTokens / usage.modelContextWindow;
+  return Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
+}
+
+function formatCompactTokenCount(value: number): string {
+  return TOKEN_COMPACT_FORMATTER.format(
+    Math.max(0, Math.round(value)),
+  ).toLowerCase();
+}
+
 export function ThreadContextWindowCard({
   usage,
 }: ThreadContextWindowCardProps) {

@@ -1,35 +1,86 @@
 import {
+  createContext,
   memo,
-  useCallback,
+  useContext,
   useEffect,
   useState,
   type CSSProperties,
-  type FocusEvent,
-  type KeyboardEvent,
-  type MouseEvent,
+  type HTMLAttributes,
   type ReactNode,
 } from "react";
 import type { TimelineTitle } from "@bb/thread-view";
 import {
   COLLAPSIBLE_HEADER_STATIC_TONE_CLASS,
+  CollapsibleHeader,
   ExpandablePanel,
   getCollapsibleHeaderToneClass,
 } from "../../ui/disclosure.js";
-import type { IconName } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useTimelineReasoningExpansion } from "./TimelineReasoningExpansion.js";
-import {
-  TIMELINE_ROW_HEADER_CONTENT_CLASS_NAME,
-  TimelineLeadingIcon,
-  timelineRowHeaderClassName,
-  timelineRowHorizontalPaddingClassName,
-  type TimelineRowHorizontalPadding,
-} from "./TimelineRowHeader.js";
 import {
   TimelineTitleView,
   type TimelineTitleActionResolver,
   type TimelineTitleLinkResolver,
 } from "./TimelineTitleView.js";
+
+export type TimelineRowHorizontalPadding = "default" | "flush";
+
+const ROW_HEADER_CONTENT_CLASS_NAME = "min-w-0 max-w-full";
+const ROW_HEADER_CONTROL_CLASS_NAME =
+  "flex w-full max-w-full justify-start py-0 leading-5";
+
+export const TimelineReasoningExpansionContext = createContext<Map<
+  string,
+  boolean
+> | null>(null);
+
+function paddingClassName(padding: TimelineRowHorizontalPadding): string {
+  return padding === "flush" ? "px-0" : "px-2";
+}
+
+export function TimelineLeadingIcon({
+  icon,
+  fallback,
+  style,
+}: {
+  icon: IconName | undefined;
+  fallback?: IconName;
+  style: CSSProperties | undefined;
+}) {
+  return icon ? (
+    <Icon
+      name={icon}
+      fallback={fallback}
+      className="size-3.5 shrink-0 text-muted-foreground"
+      style={style}
+      aria-hidden
+    />
+  ) : null;
+}
+
+export function TimelineStaticRowHeader({
+  children,
+  className,
+  horizontalPadding = "default",
+}: {
+  children: ReactNode;
+  className?: string;
+  horizontalPadding?: TimelineRowHorizontalPadding;
+}) {
+  return (
+    <div className={cn("w-full rounded-md text-muted-foreground", className)}>
+      <CollapsibleHeader
+        toneClassName={COLLAPSIBLE_HEADER_STATIC_TONE_CLASS}
+        className={cn(
+          paddingClassName(horizontalPadding),
+          ROW_HEADER_CONTROL_CLASS_NAME,
+        )}
+        summaryClassName={ROW_HEADER_CONTENT_CLASS_NAME}
+        summaryContent={children}
+      />
+    </div>
+  );
+}
 
 interface ExpandableTimelineRowProps {
   reasoningExpansionKey?: string;
@@ -51,33 +102,7 @@ interface ExpandableTimelineRowProps {
   resolveSegmentLinkHref?: TimelineTitleLinkResolver;
 }
 
-type CollapsedPreviewClickEvent = MouseEvent<HTMLDivElement>;
-type CollapsedPreviewFocusEvent = FocusEvent<HTMLDivElement>;
-type CollapsedPreviewKeyboardEvent = KeyboardEvent<HTMLDivElement>;
-
-interface InteractivePreviewTargetArgs {
-  currentTarget: HTMLDivElement;
-  target: EventTarget | null;
-}
-
-function headerToneClass(title: TimelineTitle, isExpanded: boolean): string {
-  if (title.tone === "summary") {
-    return "text-subtle-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground";
-  }
-  return getCollapsibleHeaderToneClass(isExpanded);
-}
-
-function isInteractivePreviewTarget({
-  currentTarget,
-  target,
-}: InteractivePreviewTargetArgs): boolean {
-  if (!(target instanceof Element) || target === currentTarget) {
-    return false;
-  }
-  return target.closest("a,button,input,select,textarea") !== null;
-}
-
-function ExpandableTimelineRowComponent({
+export const ExpandableTimelineRow = memo(function ExpandableTimelineRow({
   autoExpanded = false,
   collapsedPreview,
   expandable = true,
@@ -96,79 +121,83 @@ function ExpandableTimelineRowComponent({
   title,
   titleContent,
 }: ExpandableTimelineRowProps) {
-  const [manualExpansionOverride, setManualExpansionOverride] =
-    useTimelineReasoningExpansion(reasoningExpansionKey);
-  const [terminalAutoExpandedLatch, setTerminalAutoExpandedLatch] =
-    useState(terminalAutoExpanded);
-  const [collapsedPreviewActive, setCollapsedPreviewActive] = useState(false);
+  const reasoningOverrides = useContext(TimelineReasoningExpansionContext);
+  const [manualExpansion, setManualExpansion] = useState<boolean | null>(() =>
+    reasoningExpansionKey === undefined
+      ? null
+      : (reasoningOverrides?.get(reasoningExpansionKey) ?? null),
+  );
+  const [terminalLatch, setTerminalLatch] = useState(terminalAutoExpanded);
+  const [previewActive, setPreviewActive] = useState(false);
   useEffect(() => {
     if (terminalAutoExpanded) {
-      setTerminalAutoExpandedLatch(true);
+      setTerminalLatch(true);
     }
   }, [terminalAutoExpanded]);
   const isExpanded =
     expandable &&
     (forceExpanded ||
-      (manualExpansionOverride ??
-        (autoExpanded || terminalAutoExpanded || terminalAutoExpandedLatch)));
+      (manualExpansion ??
+        (autoExpanded || terminalAutoExpanded || terminalLatch)));
   useEffect(() => {
     if (isExpanded) {
-      setCollapsedPreviewActive(false);
+      setPreviewActive(false);
     }
   }, [isExpanded]);
-  const horizontalPaddingClass =
-    timelineRowHorizontalPaddingClassName(horizontalPadding);
-  const handleToggle = useCallback((): void => {
-    setManualExpansionOverride(!isExpanded);
-  }, [isExpanded, setManualExpansionOverride]);
-  const handleCollapsedPreviewClick = useCallback(
-    (event: CollapsedPreviewClickEvent): void => {
-      if (
-        isInteractivePreviewTarget({
-          currentTarget: event.currentTarget,
-          target: event.target,
-        })
-      ) {
-        return;
+  const handleToggle = (): void => {
+    if (reasoningExpansionKey !== undefined) {
+      reasoningOverrides?.set(reasoningExpansionKey, !isExpanded);
+    }
+    setManualExpansion(!isExpanded);
+  };
+  const horizontalPaddingClass = paddingClassName(horizontalPadding);
+  const previewToggleProps: HTMLAttributes<HTMLDivElement> = expandable
+    ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-expanded": isExpanded,
+        onClick: (event) => {
+          if (
+            event.target === event.currentTarget ||
+            !(event.target instanceof Element) ||
+            !event.target.closest("a,button,input,select,textarea")
+          ) {
+            handleToggle();
+          }
+        },
+        onMouseEnter: () => setPreviewActive(true),
+        onMouseLeave: () => setPreviewActive(false),
+        onFocus: () => setPreviewActive(true),
+        onBlur: (event) => {
+          if (
+            !(event.relatedTarget instanceof Node) ||
+            !event.currentTarget.contains(event.relatedTarget)
+          ) {
+            setPreviewActive(false);
+          }
+        },
+        onKeyDown: (event) => {
+          if (
+            event.target === event.currentTarget &&
+            (event.key === "Enter" || event.key === " ")
+          ) {
+            event.preventDefault();
+            handleToggle();
+          }
+        },
       }
-      handleToggle();
-    },
-    [handleToggle],
-  );
-  const handleCollapsedPreviewKeyDown = useCallback(
-    (event: CollapsedPreviewKeyboardEvent): void => {
-      if (event.target !== event.currentTarget) {
-        return;
-      }
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      event.preventDefault();
-      handleToggle();
-    },
-    [handleToggle],
-  );
-  const handleCollapsedPreviewBlur = useCallback(
-    (event: CollapsedPreviewFocusEvent): void => {
-      if (
-        event.relatedTarget instanceof Node &&
-        event.currentTarget.contains(event.relatedTarget)
-      ) {
-        return;
-      }
-      setCollapsedPreviewActive(false);
-    },
-    [],
-  );
+    : {};
 
   return (
     <ExpandablePanel
       isExpanded={isExpanded}
       onToggle={expandable ? handleToggle : undefined}
       headerToneClass={
-        expandable
-          ? headerToneClass(title, isExpanded)
-          : COLLAPSIBLE_HEADER_STATIC_TONE_CLASS
+        !expandable
+          ? COLLAPSIBLE_HEADER_STATIC_TONE_CLASS
+          : title.tone === "summary"
+            ? "text-subtle-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground"
+            : getCollapsibleHeaderToneClass(isExpanded)
       }
       collapsedContent={
         collapsedPreview ? (
@@ -178,21 +207,7 @@ function ExpandableTimelineRowComponent({
               "pb-1 pt-0.5",
               expandable ? "cursor-pointer focus-visible:outline-none" : null,
             )}
-            role={expandable ? "button" : undefined}
-            tabIndex={expandable ? 0 : undefined}
-            aria-expanded={expandable ? isExpanded : undefined}
-            onClick={expandable ? handleCollapsedPreviewClick : undefined}
-            onMouseEnter={
-              expandable ? () => setCollapsedPreviewActive(true) : undefined
-            }
-            onMouseLeave={
-              expandable ? () => setCollapsedPreviewActive(false) : undefined
-            }
-            onFocus={
-              expandable ? () => setCollapsedPreviewActive(true) : undefined
-            }
-            onBlur={expandable ? handleCollapsedPreviewBlur : undefined}
-            onKeyDown={expandable ? handleCollapsedPreviewKeyDown : undefined}
+            {...previewToggleProps}
           >
             {collapsedPreview}
           </div>
@@ -219,19 +234,16 @@ function ExpandableTimelineRowComponent({
           )}
         </span>
       }
-      summaryContentClassName={TIMELINE_ROW_HEADER_CONTENT_CLASS_NAME}
-      forceHeaderChevronVisible={
-        expandable && !isExpanded && collapsedPreviewActive
-      }
+      summaryContentClassName={ROW_HEADER_CONTENT_CLASS_NAME}
+      forceHeaderChevronVisible={expandable && !isExpanded && previewActive}
       className="w-full"
       headerClassName={cn(
-        timelineRowHeaderClassName(horizontalPadding),
+        horizontalPaddingClass,
+        ROW_HEADER_CONTROL_CLASS_NAME,
         headerClassName,
       )}
       contentClassName={cn(horizontalPaddingClass, "pb-1 pt-0.5")}
       renderBody={renderBody}
     />
   );
-}
-
-export const ExpandableTimelineRow = memo(ExpandableTimelineRowComponent);
+});

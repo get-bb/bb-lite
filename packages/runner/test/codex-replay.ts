@@ -171,7 +171,7 @@ export async function replayCodexRecording(scenario: string) {
 
   function open(command: Command) {
     const emit = (event: RunnerThreadEvent) => events.push(event);
-    builder = new EventBuilder({ providerId: "codex", emit, textFlushMs: 0 });
+    builder = new EventBuilder({ emit, textFlushMs: 0 });
     const { execution, instructions, envVars } = toOptions(command.options);
     const host: SessionHost = {
       events: builder,

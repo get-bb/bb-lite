@@ -51,7 +51,6 @@ const REQUEST_TIMEOUT_MS = {
   pathsExist: QUICK_MS,
   mutatePath: STANDARD_MS,
   listCommands: STANDARD_MS,
-  resolveSkillDirs: STANDARD_MS,
   openTerminal: STANDARD_MS,
   attachTerminal: QUICK_MS,
   writeTerminal: QUICK_MS,
@@ -137,7 +136,7 @@ export function encodeFrame(frame: WholeFrame): string[] {
   return parts;
 }
 
-function parseFrame(text: string): Frame | null {
+function parseFrame(text: string) {
   try {
     return frameSchema.parse(JSON.parse(text));
   } catch {

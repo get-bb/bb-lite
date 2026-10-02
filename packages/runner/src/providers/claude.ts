@@ -113,7 +113,7 @@ class ClaudeSession implements ProviderSession {
       (tool) => [tool.name, tool.presentation] as const,
     );
     const context = { sandboxed, injected: new Map(labelled) };
-    this.translator = new ClaudeTranslator(events, spec.threadId, context);
+    this.translator = new ClaudeTranslator(events, context);
     if (options.model) this.translator.setModel(options.model);
     this.permissions = new ClaudePermissions({
       requestInteraction: (request) => host.requestInteraction(request),

@@ -103,15 +103,6 @@ export const ROOT_TURN_EVENT = `turn_id IS NOT NULL
   AND parent_tool_call_id IS NULL AND EXISTS (SELECT 1 FROM events AS root
     WHERE root.thread_id = events.thread_id AND root.turn_id = events.turn_id
       AND root.type = 'turn/started' AND root.parent_tool_call_id IS NULL)`;
-export const OUTLINE_EVENT = `(type IN ('client/turn/requested',
-    'client/turn/rejected', 'turn/input/accepted', 'turn/started',
-    'turn/completed',
-    'system/thread/interrupted', 'system/error', 'provider/error',
-    'item/agentMessage/delta', 'item/plan/delta')
-  OR (type = 'item/completed' AND item_kind IN ('agentMessage', 'plan'))
-  OR (item_kind IN ('backgroundTask', 'toolCall')
-    AND type IN ('item/started', 'item/completed',
-      'item/backgroundTask/progress', 'item/backgroundTask/completed')))`;
 
 function inlineOutputData() {
   const max = MAX_INLINE_OUTPUT_CHARS;

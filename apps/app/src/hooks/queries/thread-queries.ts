@@ -16,7 +16,6 @@ import type {
   ThreadResponse,
   ThreadSearchResponse,
   ThreadWithIncludesResponse,
-  ThreadConversationOutlineResponse,
   ThreadStorageFileListResponse,
   ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
@@ -78,7 +77,6 @@ import {
   threadStoragePathsQueryKey,
   threadStorageFilePreviewQueryKey,
   threadHostFilePreviewQueryKey,
-  threadConversationOutlineQueryKey,
   threadTimelineQueryKey,
   threadTimelineTurnSummaryDetailsQueryKey,
   threadsQueryKey,
@@ -121,8 +119,6 @@ export function didThreadDetailBootstrapRefreshAfterMount(query: {
 interface ThreadTimelineQueryOptions extends QueryOptions {
   notifyOnChangeProps?: NotifyOnChangeProps;
 }
-
-type ThreadConversationOutlineQueryOptions = QueryOptions;
 
 type ThreadTimelineTurnSummaryDetailsQueryOptions = QueryOptions;
 
@@ -988,27 +984,6 @@ export function useThreadTimeline(
         previousQuery?.queryKey,
         id,
       ),
-  });
-}
-
-export function useThreadConversationOutline(
-  id: string,
-  options?: ThreadConversationOutlineQueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<ThreadConversationOutlineResponse>({
-    queryKey: threadConversationOutlineQueryKey(id),
-    queryFn: async ({ signal }) => {
-      const threadId = requireThreadId(id, "useThreadConversationOutline");
-      return sdk.threads.conversationOutline({ threadId, signal });
-    },
-    enabled,
-    refetchOnMount: options?.refetchOnMount ?? true,
-    ...(options?.staleTime === undefined
-      ? {}
-      : { staleTime: options.staleTime }),
   });
 }
 

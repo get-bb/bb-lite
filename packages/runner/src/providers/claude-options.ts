@@ -272,7 +272,7 @@ export function bbToolServer(
   return { type: "sdk", name: BB_MCP_SERVER, instance };
 }
 
-function toModel(info: ModelInfo, model: string, name: string): AvailableModel {
+function toModel(info: ModelInfo, model: string, name: string) {
   const levels = (info.supportedEffortLevels ?? []).flatMap(
     (level): ReasoningLevel[] =>
       level === "xhigh" ? ["xhigh", "ultracode"] : [level],

@@ -62,8 +62,6 @@ import type {
   CreateQueuedMessageRequest,
   CreateThreadSectionRequest,
   CreateThreadRequest,
-  EditMessageRequest,
-  EditMessageResponse,
   ForkThreadRequest,
   DeleteThreadSectionRequest,
   DeleteThreadRequest,
@@ -152,7 +150,6 @@ import type {
   ThreadCountResponse,
   ThreadListQuery,
   ThreadListResponse,
-  ThreadConversationOutlineResponse,
   ThreadOpenRequest,
   ThreadOpenResponse,
   ThreadPendingInteractionsResponse,
@@ -241,7 +238,6 @@ import {
   resolveThreadMentionsRequestSchema,
   respondPluginInteractionRequestSchema,
   sendMessageRequestSchema,
-  editMessageRequestSchema,
   setQueuedMessageGroupBoundaryRequestSchema,
   sendQueuedMessageRequestSchema,
   systemExecutionOptionsQuerySchema,
@@ -898,14 +894,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<SendMessageResponse>(),
     }),
-    editMessage: defineRoute({
-      path: "/threads/:id/edit-message",
-      method: "post",
-      request: jsonRequest<PathId, EditMessageRequest>(
-        editMessageRequestSchema,
-      ),
-      response: jsonResponse<EditMessageResponse>(),
-    }),
     queuedMessages: defineRoute({
       path: "/threads/:id/queued-messages",
       method: "get",
@@ -1115,12 +1103,6 @@ export const publicApiRoutes = {
         threadTimelineQuerySchema,
       ),
       response: jsonResponse<ThreadTimelineResponse>(),
-    }),
-    conversationOutline: defineRoute({
-      path: "/threads/:id/conversation-outline",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<ThreadConversationOutlineResponse>(),
     }),
     timelineTurnSummaryDetails: defineRoute({
       path: "/threads/:id/timeline/turn-summary-details",

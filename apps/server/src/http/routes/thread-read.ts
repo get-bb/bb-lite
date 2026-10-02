@@ -288,11 +288,6 @@ export function registerThreadReadRoutes(
     return c.json(details);
   });
 
-  get(threads.conversationOutline, (c) => {
-    const thread = requireThread(c);
-    return c.json(timelines.outline(thread, timelineDisplay(thread)));
-  });
-
   get(threads.output, (c) =>
     c.json({ output: events.lastOutput(db, requireThread(c).id) }),
   );

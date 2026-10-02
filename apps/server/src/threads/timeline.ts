@@ -56,8 +56,6 @@ const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
 const DETAIL_LEAF_LIMIT = 1_500;
 const SERVED_KEY_LIMIT = 64;
 const SERVED_RING_SIZE = 4;
-const OUTLINE_CACHE_LIMIT = 128;
-const OUTLINE_PREVIEW_CHARS = 200;
 const REQUESTED = "client/turn/requested";
 const ACCEPTED = "turn/input/accepted";
 const REJECTED = "client/turn/rejected";
@@ -630,53 +628,13 @@ function buildTurnDetails(
   };
 }
 
-function outlinePreview(text: string) {
-  const normalized = text.replace(/\s+/gu, " ").trim();
-  if (normalized.length <= OUTLINE_PREVIEW_CHARS) return normalized;
-  const split = pages.splitsSurrogatePair(normalized, OUTLINE_PREVIEW_CHARS);
-  return normalized.slice(0, OUTLINE_PREVIEW_CHARS - (split ? 1 : 0)).trimEnd();
-}
-
-function buildOutline(
-  db: Db,
-  thread: ThreadListRow,
-  display: TimelineDisplay,
-  maxSeq: number,
-) {
-  const threadId = thread.id;
-  const after = (events.contextClearSequence(db, threadId, maxSeq) ?? 0) - 1;
-  const timeline = { excludeDiagnostics: false };
-  const outline = { threadId, after, where: events.OUTLINE_EVENT, timeline };
-  const loaded = { rows: events.listEvents(db, outline) };
-  const shown = { ...display, includeDiagnosticOperations: false };
-  const shape = { includeNestedRows: false, isLatestPage: true };
-  const { status } = thread;
-  const projected = projectWindow(db, thread, shown, status, loaded, shape);
-  return projected.rows.flatMap((row) => {
-    if (row.kind !== "conversation") return [];
-    const { webImages = 0, localImages = 0 } = row.attachments ?? {};
-    const imageCount = webImages + localImages;
-    const fileCount = row.attachments?.localFiles ?? 0;
-    const attachmentSummary =
-      imageCount + fileCount === 0 ? null : { imageCount, fileCount };
-    const preview = outlinePreview(row.text);
-    return [{ id: row.id, role: row.role, preview, attachmentSummary }];
-  });
-}
-
 export function createTimelineReader(db: Db) {
   type Served = Pick<contract.ThreadTimelineResponse, "maxSeq" | "rows">;
   const served = new Map<string, Served[]>();
-  const outlines = new Map<
-    string,
-    contract.ThreadConversationOutlineResponse
-  >();
   return {
     forgetThread(threadId: string): void {
-      for (const cache of [served, outlines]) {
-        for (const key of cache.keys()) {
-          if (key.startsWith(`${threadId}|`)) cache.delete(key);
-        }
+      for (const key of served.keys()) {
+        if (key.startsWith(`${threadId}|`)) served.delete(key);
       }
     },
     timeline(
@@ -702,20 +660,6 @@ export function createTimelineReader(db: Db) {
       request: TurnDetailsRequest,
     ): contract.TimelineTurnSummaryDetailsResponse {
       return db.transaction(() => buildTurnDetails(db, thread, request));
-    },
-    outline(
-      thread: ThreadListRow,
-      display: TimelineDisplay,
-    ): contract.ThreadConversationOutlineResponse {
-      const maxSeq = events.latestSequence(db, thread.id);
-      const { id, status, title, titleFallback } = thread;
-      const facts = [maxSeq, status, title, titleFallback, display];
-      const key = `${id}|${JSON.stringify(facts)}`;
-      const outline = outlines.get(key) ?? {
-        items: buildOutline(db, thread, display, maxSeq),
-        maxSeq,
-      };
-      return events.rememberRecent(outlines, key, outline, OUTLINE_CACHE_LIMIT);
     },
   };
 }

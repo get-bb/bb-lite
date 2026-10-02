@@ -50,7 +50,7 @@ async function gitLayout(root: string) {
   return { gitDir, commonDir };
 }
 
-async function ignoredDirectories(ctx: Ctx, root: string): Promise<string[]> {
+async function ignoredDirectories(ctx: Ctx, root: string) {
   const flags = ["--porcelain=v1", "-z", "--ignored=matching"];
   const status = await openRepo(ctx, root, IGNORE_DISCOVERY)
     .git("status", ...flags, "--untracked-files=normal")
@@ -64,7 +64,7 @@ async function watchWorkspace(
   ctx: Ctx,
   workspacePath: string,
   emit: (change: Change) => void,
-): Promise<Stop> {
+) {
   const root = await fs.realpath(workspacePath);
   const layout = await gitLayout(root);
   const pending = new Set<Change>();
@@ -76,7 +76,7 @@ async function watchWorkspace(
       changes.forEach(emit);
     },
   });
-  const note = (...changes: Change[]): void => {
+  const note = (...changes: Change[]) => {
     changes.forEach((change) => pending.add(change));
     scheduler.schedule();
   };
@@ -89,7 +89,7 @@ async function watchWorkspace(
     directory: string,
     ignore: string[],
     onPath: (relativePath: string) => void,
-  ): Promise<void> => {
+  ) => {
     const onEvents = (error: Error | null, events: { path: string }[]) => {
       if (error) note("status", "refs");
       for (const event of error ? [] : events) {
@@ -130,7 +130,7 @@ async function watchDirectory(
   ctx: Ctx,
   directory: string,
   emit: (change: Change) => void,
-): Promise<Stop> {
+) {
   if (isInside(ctx.dataDir, path.resolve(directory))) {
     await fs.mkdir(directory, { recursive: true });
   }
@@ -149,18 +149,17 @@ async function watchDirectory(
 export function createWatcher(ctx: Ctx): Watcher {
   const active = new Map<string, Promise<Stop | null>>();
   let latestGeneration = Number.NEGATIVE_INFINITY;
-  const locked = (work: () => Promise<void>): Promise<void> =>
-    ctx.lock("watched-paths", work);
+  const locked = (work: () => Promise<void>) => ctx.lock("watched-paths", work);
 
-  const stop = async (key: string): Promise<void> => {
+  const stop = async (key: string) => {
     const watch = active.get(key);
     active.delete(key);
     const stopWatching = await watch;
     await stopWatching?.();
   };
 
-  const start = (key: string, kind: WatchKind, target: string): void => {
-    const emit = (change: Change): void => {
+  const start = (key: string, kind: WatchKind, target: string) => {
+    const emit = (change: Change) => {
       if (active.has(key)) ctx.sink({ ...CHANGED, path: target, change });
     };
     const watch = (

@@ -252,24 +252,6 @@ export const sendMessageResponseSchema = z.discriminatedUnion("delivery", [
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
-export const editMessageRequestSchema = sendMessageRequestFieldsSchema
-  .omit({ mode: true, sendAt: true, pluginSubmission: true })
-  .extend({
-    operationId: z.string().min(1),
-    expectedRequestSequence: z.number().int().nonnegative().optional(),
-  })
-  .strict();
-export type EditMessageRequest = z.infer<typeof editMessageRequestSchema>;
-
-export const editMessageResponseSchema = z
-  .object({
-    ok: z.literal(true),
-    operationId: z.string().min(1),
-    requestSequence: z.number().int().nonnegative(),
-  })
-  .strict();
-export type EditMessageResponse = z.infer<typeof editMessageResponseSchema>;
-
 export const sendQueuedMessageModeSchema = z.enum(["auto", "steer"]);
 export type SendQueuedMessageMode = z.infer<typeof sendQueuedMessageModeSchema>;
 
@@ -811,39 +793,6 @@ export const threadTimelineResponseSchema = z.object({
 });
 export type ThreadTimelineResponse = z.infer<
   typeof threadTimelineResponseSchema
->;
-
-export const threadConversationOutlineAttachmentSummarySchema = z
-  .object({
-    imageCount: z.number().int().nonnegative(),
-    fileCount: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ThreadConversationOutlineAttachmentSummary = z.infer<
-  typeof threadConversationOutlineAttachmentSummarySchema
->;
-
-export const threadConversationOutlineItemSchema = z
-  .object({
-    id: z.string().min(1),
-    role: z.enum(["user", "assistant"]),
-    preview: z.string(),
-    attachmentSummary:
-      threadConversationOutlineAttachmentSummarySchema.nullable(),
-  })
-  .strict();
-export type ThreadConversationOutlineItem = z.infer<
-  typeof threadConversationOutlineItemSchema
->;
-
-export const threadConversationOutlineResponseSchema = z
-  .object({
-    items: z.array(threadConversationOutlineItemSchema),
-    maxSeq: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ThreadConversationOutlineResponse = z.infer<
-  typeof threadConversationOutlineResponseSchema
 >;
 
 export const threadStorageFileListResponseSchema =

@@ -17,15 +17,12 @@ import type {
   CreateQueuedMessageRequest,
   CreateThreadRequest,
   QueuedMessageListQuery,
-  EditMessageRequest,
-  EditMessageResponse,
   ForkThreadRequest,
   DeleteThreadRequest,
   PromptHistoryResponse,
   SendQueuedMessageResponse,
   ThreadArchiveAllResponse,
   ThreadChildSummaryResponse,
-  ThreadConversationOutlineResponse,
   ThreadCountGroupBy,
   ThreadCountQuery,
   ThreadCountResponse,
@@ -136,7 +133,6 @@ export type ThreadArchiveResult = ThreadArchiveAllResponse;
 export type ThreadOpenResult = ThreadOpenResponse;
 export type ThreadDeleteResult = { ok: true };
 export type ThreadSendResult = SendMessageResponse;
-export type ThreadEditMessageResult = EditMessageResponse;
 export type ThreadStopResult = { ok: true };
 export type ThreadCompactResult = { ok: true };
 export type ThreadBannerActionResult = { ok: true };
@@ -162,7 +158,6 @@ export type ThreadStorageLocationResult = ThreadStorageLocationResponse;
 export type ThreadStoragePathsResult = ThreadStoragePathListResponse;
 export type ThreadChildSummaryResult = ThreadChildSummaryResponse;
 export type ThreadDefaultExecutionOptionsResult = ResolvedThreadExecutionOptions | null;
-export type ThreadConversationOutlineResult = ThreadConversationOutlineResponse;
 export type ThreadTimelineTurnSummaryDetailsResult =
   TimelineTurnSummaryDetailsResponse;
 
@@ -204,10 +199,6 @@ export interface ThreadDeleteArgs extends DeleteThreadRequest {
 }
 
 export interface ThreadSendArgs extends SendMessageRequest {
-  threadId: string;
-}
-
-export interface ThreadEditMessageArgs extends EditMessageRequest {
   threadId: string;
 }
 
@@ -455,15 +446,11 @@ export interface ThreadsArea {
   cancelPlan(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
   clearContext(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
   clearGoal(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
-  conversationOutline(
-    args: ThreadStatusArgs,
-  ): Promise<ThreadConversationOutlineResult>;
   count(args?: ThreadCountArgs): Promise<ThreadCountResult>;
   defaultExecutionOptions(
     args: ThreadStatusArgs,
   ): Promise<ThreadDefaultExecutionOptionsResult>;
   delete(args: ThreadDeleteArgs): Promise<ThreadDeleteResult>;
-  editMessage(args: ThreadEditMessageArgs): Promise<ThreadEditMessageResult>;
   events: ThreadEventsArea;
   fork(args: ThreadForkArgs): Promise<ThreadForkResult>;
   get(args: ThreadGetArgs): Promise<ThreadGetResult>;
@@ -968,14 +955,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
         ),
       );
     },
-    async conversationOutline(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["conversation-outline"].$get(
-          { param: { id: input.threadId } },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
     async count(input) {
       return transport.readJson(
         transport.api.v1.threads.count.$get(
@@ -1002,15 +981,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
         }),
       );
       return { ok: true };
-    },
-    async editMessage(input) {
-      const { threadId, ...json } = input;
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["edit-message"].$post({
-          param: { id: threadId },
-          json,
-        }),
-      );
     },
     events,
     async fork(input) {

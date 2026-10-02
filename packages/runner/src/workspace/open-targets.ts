@@ -14,7 +14,7 @@ interface Target extends Pick<OpenTarget, "id" | "label" | "kind"> {
 
 const mac = process.platform === "darwin";
 
-function position({ path: file, line, column }: OpenRequest): string {
+function position({ path: file, line, column }: OpenRequest) {
   const suffix = column === null ? "" : `:${column}`;
   return line === null ? file : `${file}:${line}${suffix}`;
 }
