@@ -61,19 +61,9 @@ function promptText(input: readonly PromptInput[]) {
     .join(" ");
 }
 
-function approvalPayload(kind: string, itemId: string): Payload {
+function approvalPayload(itemId: string): Payload {
   const availableDecisions = ["allow_once" as const, "deny" as const];
   const base = { kind: "approval" as const, reason: null, availableDecisions };
-  if (kind === "plan") {
-    const plan = "# Fake plan\n\n1. Say hi\n2. Report back";
-    const subject = { kind: "plan" as const, itemId, plan };
-    return { ...base, subject: { ...subject, planFilePath: null } };
-  }
-  if (kind === "file change") {
-    const scope = { writeScope: null, sessionGrant: null };
-    const subject = { kind: "file_change" as const, itemId, ...scope };
-    return { ...base, subject, reason: "Write src/example.ts" };
-  }
   const command = { command: "echo hi", cwd: null, actions: [] };
   const subject = { kind: "command" as const, itemId, ...command };
   return { ...base, subject: { ...subject, sessionGrant: null } };
@@ -205,9 +195,8 @@ class EchoSession implements ProviderSession {
   private async interact(live: Turn) {
     const { host } = this;
     const { key: turn, bbId: turnId, text } = live;
-    const approval = directive(text, "approve");
-    if (approval !== undefined) {
-      const payload = approvalPayload(approval, `approval-${turn}`);
+    if (directive(text, "approve") !== undefined) {
+      const payload = approvalPayload(`approval-${turn}`);
       const resolution = await host.requestInteraction({ payload, turnId });
       const denied =
         !("decision" in resolution) || resolution.decision === "deny";

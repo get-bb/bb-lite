@@ -40,7 +40,6 @@ const NOT_A_REPO: PathInspection = {
   branchName: null,
   defaultBranch: null,
   remoteUrl: null,
-  dirty: false,
 };
 const NOT_A_SOURCE: GitSourceInspection = {
   checkout: { kind: "unknown", reason: "Path is not a git repository" },
@@ -319,17 +318,15 @@ export const inspectPath: Method<"inspectPath"> = async (ctx, args) => {
   if (kind !== "work-tree") {
     return { ...NOT_A_REPO, exists: await pathExists(args.path) };
   }
-  const [branchName, fallback, isWorktree, remoteUrl, dirty] =
-    await Promise.all([
-      currentBranch(repo),
-      defaultBranch(repo),
-      isLinkedWorktree(repo),
-      repo.line("remote", "get-url", "origin"),
-      isDirty(repo),
-    ]);
+  const [branchName, fallback, isWorktree, remoteUrl] = await Promise.all([
+    currentBranch(repo),
+    defaultBranch(repo),
+    isLinkedWorktree(repo),
+    repo.line("remote", "get-url", "origin"),
+  ]);
   const defaultBranchName = fallback ?? branchName;
   const found = { ...NOT_A_REPO, isGitRepo: true, isWorktree, branchName };
-  return { ...found, defaultBranch: defaultBranchName, remoteUrl, dirty };
+  return { ...found, defaultBranch: defaultBranchName, remoteUrl };
 };
 
 export const inspectGitSource: Method<"inspectGitSource"> = async (

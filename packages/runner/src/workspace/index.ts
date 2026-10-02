@@ -78,7 +78,6 @@ export function createWorkspaceApi(deps: WorkspaceDeps): WorkspaceHandle {
       pathsExist: bind(list.pathsExist),
       mutatePath: bind(write.mutatePath),
       listCommands: bind(commands.listCommands),
-      resolveSkillDirs: bind(commands.resolveSkillDirs),
       openTerminal: guard(terminals.open),
       attachTerminal: guard(terminals.attach),
       writeTerminal: guard(terminals.write),

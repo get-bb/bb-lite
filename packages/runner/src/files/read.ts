@@ -139,12 +139,7 @@ export async function readFileContent(ctx: Ctx, target: ReadTarget) {
   return describe(contents, stat.mtimeMs);
 }
 
-export const readFile: Method<"readFile"> = async (ctx, args) => {
-  const { content, ...metadata } = await readFileContent(ctx, args);
-  return args.ifNoneMatch?.includes(metadata.sha256)
-    ? { ...metadata, notModified: true }
-    : { ...metadata, content };
-};
+export const readFile: Method<"readFile"> = readFileContent;
 
 function fileRevision(stat: BigIntStats): string {
   const { dev, ino, size, mtimeNs, ctimeNs } = stat;

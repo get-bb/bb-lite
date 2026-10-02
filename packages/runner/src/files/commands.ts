@@ -58,7 +58,6 @@ async function scanRoots(ctx: Ctx, scope: Scope): Promise<Root[]> {
   const shared = [
     ...nearest(".bb/skills"),
     user(path.join(ctx.dataDir, "skills")),
-    ...(scope.builtinDir === undefined ? [] : [user(scope.builtinDir)]),
   ];
   if (scope.providerId === "claude-code") {
     const claude = process.env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude");
@@ -185,21 +184,4 @@ export const listCommands: Method<"listCommands"> = async (ctx, args) => {
       section(left) - section(right) || left.name.localeCompare(right.name),
   );
   return { commands };
-};
-
-export const resolveSkillDirs: Method<"resolveSkillDirs"> = async (
-  ctx,
-  args,
-) => {
-  const candidates = [
-    args.builtinDir,
-    path.join(ctx.dataDir, "skills"),
-    args.cwd === null ? null : path.join(args.cwd, ".bb", "skills"),
-  ].filter((directory) => directory !== null);
-  const stats = await Promise.all(
-    candidates.map((directory) => fs.stat(directory).catch(() => null)),
-  );
-  const present = (_directory: string, index: number): boolean =>
-    stats[index]?.isDirectory() === true;
-  return { skillDirs: candidates.filter(present) };
 };

@@ -51,7 +51,6 @@ const REQUEST_TIMEOUT_MS = {
   pathsExist: QUICK_MS,
   mutatePath: STANDARD_MS,
   listCommands: STANDARD_MS,
-  resolveSkillDirs: STANDARD_MS,
   openTerminal: STANDARD_MS,
   attachTerminal: QUICK_MS,
   writeTerminal: QUICK_MS,

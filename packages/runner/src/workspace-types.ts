@@ -43,7 +43,6 @@ export interface PathInspection {
   branchName: string | null;
   defaultBranch: string | null;
   remoteUrl: string | null;
-  dirty: boolean;
 }
 
 export interface DiffFiles {
@@ -72,10 +71,6 @@ export interface LifecycleScriptResult {
 
 export type FileContent = HostFileReadResponse;
 export type FileContentEncoding = FileContent["contentEncoding"];
-
-export type FileNotModified = Omit<FileContent, "content"> & {
-  notModified: true;
-};
 
 export interface FileChunk {
   path: string;
@@ -185,9 +180,7 @@ export interface WorkspaceApi {
     operationId: string;
   }): Promise<{ cancelled: boolean }>;
 
-  readFile(
-    args: FileLocation & { gitRef?: string; ifNoneMatch?: string[] },
-  ): Promise<FileContent | FileNotModified>;
+  readFile(args: FileLocation & { gitRef?: string }): Promise<FileContent>;
   readFileChunk(
     args: FileLocation & {
       gitRef?: string;
@@ -231,12 +224,7 @@ export interface WorkspaceApi {
   listCommands(args: {
     providerId: ProviderId;
     cwd: string | null;
-    builtinDir?: string;
   }): Promise<CommandListResponse>;
-  resolveSkillDirs(args: {
-    cwd: string | null;
-    builtinDir: string | null;
-  }): Promise<{ skillDirs: string[] }>;
 
   openTerminal(
     args: TerminalRef & {
