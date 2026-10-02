@@ -18,18 +18,31 @@ export function useThreadReadTracking({
   thread,
 }: {
   markThreadRead: {
-    mutateAsync: (input: { threadId: string }) => Promise<ThreadReadState>;
+    mutateAsync: (input: {
+      signal?: AbortSignal;
+      threadId: string;
+    }) => Promise<ThreadReadState>;
   };
   thread?: ThreadReadState & Pick<Thread, "id">;
 }) {
   const previousRef = useRef<ReadTrackingSnapshot | null>(null);
   const manualUnreadMarkerRef = useRef<string | null>(null);
+  const pendingReadRef = useRef<AbortController | null>(null);
   const visibilityRevision = useDocumentVisibilityRevision();
   const isVisible = isDocumentVisible();
+
+  useEffect(
+    () => () => {
+      pendingReadRef.current?.abort();
+      previousRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const last = previousRef.current;
     const previous = last?.threadId === thread?.id ? last : null;
+    if (previous === null) pendingReadRef.current?.abort();
     const isRead = thread !== undefined && isThreadRead(thread);
     previousRef.current = thread
       ? {
@@ -60,7 +73,11 @@ export function useThreadReadTracking({
       (previous?.isVisible === false &&
         manualUnreadMarkerRef.current !== marker)
     ) {
-      void markThreadRead.mutateAsync({ threadId: thread.id }).catch(() => {});
+      const controller = new AbortController();
+      pendingReadRef.current = controller;
+      void markThreadRead
+        .mutateAsync({ signal: controller.signal, threadId: thread.id })
+        .catch(() => {});
     }
   }, [isVisible, markThreadRead, thread, visibilityRevision]);
 }

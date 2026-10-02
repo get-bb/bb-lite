@@ -25,6 +25,26 @@ const lastOpenTargetIdAtomFamily = atomFamily((hostId: string) =>
   ),
 );
 
+async function openOnHost(
+  hostId: string,
+  target: HostOpenTarget,
+  request: OpenPathRequest,
+): Promise<void> {
+  const line = target.capabilities.openFileAtLine ? request.lineNumber : null;
+  try {
+    await sdk.hosts.open({
+      hostId,
+      targetId: target.id,
+      path: request.path,
+      ...(line === null ? {} : { line }),
+    });
+  } catch (error) {
+    appToast.error("Failed to open file locally", {
+      ...(error instanceof Error ? { description: error.message } : {}),
+    });
+  }
+}
+
 export function useLocalHostId(): string | null {
   const primaryHostId = useSystemConfig().data?.primaryHostId ?? null;
   return isLoopbackHostname(window.location.hostname) ? primaryHostId : null;
@@ -56,19 +76,7 @@ export function useOpenTargets(hostId: string | null) {
   const openPath = async (target: HostOpenTarget, request: OpenPathRequest) => {
     if (openHostId === null) return;
     setLastTargetId(target.id);
-    const line = target.capabilities.openFileAtLine ? request.lineNumber : null;
-    try {
-      await sdk.hosts.open({
-        hostId: openHostId,
-        targetId: target.id,
-        path: request.path,
-        ...(line === null ? {} : { line }),
-      });
-    } catch (error) {
-      appToast.error("Failed to open file locally", {
-        ...(error instanceof Error ? { description: error.message } : {}),
-      });
-    }
+    await openOnHost(openHostId, target, request);
   };
   const fileTarget = preferred("openFileAtLine") ?? preferred("openFile");
   return {
