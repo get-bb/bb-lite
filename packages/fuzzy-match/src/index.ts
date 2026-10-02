@@ -1,9 +1,5 @@
 import { Fzf } from "fzf";
-import type { FzfResultItem, Selector, Tiebreaker } from "fzf";
-
-type FuzzyPathGetter<T> = (item: T) => string;
-type FuzzyTextGetter<T> = (item: T) => string;
-type FuzzyTextAliasesGetter<T> = (item: T) => readonly string[];
+import type { FzfResultItem, Selector } from "fzf";
 
 interface FuzzyMatch<T> {
   item: T;
@@ -11,124 +7,43 @@ interface FuzzyMatch<T> {
   positions: number[];
 }
 
-interface FuzzyMatchPathsArgs<T> {
-  items: readonly T[];
-  query: string;
-  getPath: FuzzyPathGetter<T>;
-  limit: number;
-}
-
-interface FuzzyMatchTextArgs<T> {
-  items: readonly T[];
-  query: string;
-  getText: FuzzyTextGetter<T>;
-  getAliases?: FuzzyTextAliasesGetter<T>;
-  limit: number;
-}
-
-interface RankedPathMatch<T> {
-  item: T;
-  path: string;
-  positions: number[];
-  score: number;
-  start: number;
-}
-
-interface NormalizedPathItem<T> {
-  item: T;
-  path: string;
-}
-
-interface NormalizedTextCandidate<T> {
-  item: T;
-  itemIndex: number;
+interface Ranked<T> extends FuzzyMatch<T> {
   text: string;
+  start: number;
   textIndex: number;
-  isAlias: boolean;
-}
-
-interface RankedTextMatch<T> {
-  item: T;
   itemIndex: number;
-  text: string;
-  textIndex: number;
-  positions: number[];
-  score: number;
-  start: number;
 }
 
-interface PathQueryParts {
-  directoryPrefix: string;
-  leafQuery: string;
+interface PathItem<T> {
+  item: T;
+  text: string;
 }
 
-interface PathSegment {
+interface Segment {
   text: string;
   start: number;
+  index: number;
   isFileName: boolean;
 }
 
-interface PathSegmentCandidate {
-  segment: PathSegment;
-  segmentIndex: number;
-}
-
-interface PathSegmentMatch extends PathSegmentCandidate {
+interface SegmentMatch {
+  segment: Segment;
   positions: number[];
   score: number;
   start: number;
 }
 
-interface ComparableValues {
-  query: string;
-  value: string;
-}
+const QUERY_MAX_LENGTH = 256;
+const RANK_UNIT = 1_000_000;
+const DIRECTORY_SEGMENT_RANK = 1;
+const STRUCTURED_PATH_RANK = 2;
+const EXACT_DIRECTORY_PREFIX_RANK = 3;
 
-export const FUZZY_MATCH_QUERY_MAX_LENGTH = 256;
-
-const STRUCTURED_QUERY_SEGMENT_MAX_COUNT = 8;
-const IMPLICIT_DIRECTORY_QUERY_MIN_LENGTH = 2;
-
-enum PathIntentRank {
-  PlainFzf = 0,
-  DirectorySegmentPrefix = 1,
-  StructuredPath = 2,
-  ExactDirectoryPrefix = 3,
-}
-
-const PATH_INTENT_SCORE = {
-  rankUnit: 1_000_000,
-  directorySegmentExact: 30_000,
-  directorySegmentPrefix: 25_000,
-  rootDirectorySegment: 5_000,
-  consecutiveSegment: 5_000,
-  leafSegment: 50_000,
-};
-
-const PATH_RELEVANCE_SCORE = {
-  baseNameContains: 10_000,
-  baseNameSubsequence: 5_000,
-  pathContains: 1_000,
-  repeatedPathHit: 500,
-};
-
-const TEXT_RELEVANCE_SCORE = {
-  exact: 20_000,
-  prefix: 15_000,
-  contains: 10_000,
-  subsequence: 5_000,
-};
-
-const PRIMARY_TEXT_SCORE = 1_000_000;
-
-function byPathStartAsc<T>(
-  left: FzfResultItem<T>,
-  right: FzfResultItem<T>,
-): number {
+function byStartAsc<T>(left: FzfResultItem<T>, right: FzfResultItem<T>) {
   return left.start - right.start;
 }
 
-function byPathLengthAsc<T>(
+function byLengthAsc<T>(
   left: FzfResultItem<T>,
   right: FzfResultItem<T>,
   selector: Selector<T>,
@@ -136,696 +51,307 @@ function byPathLengthAsc<T>(
   return selector(left.item).length - selector(right.item).length;
 }
 
-function isPresent<T>(value: T | null): value is T {
-  return value !== null;
-}
-
-function getBaseName(path: string): string {
-  const separatorIndex = path.lastIndexOf("/");
-  if (separatorIndex === -1) {
-    return path;
-  }
-  return path.slice(separatorIndex + 1);
-}
-
-function getPathQueryParts(query: string): PathQueryParts {
-  const lastSlashIndex = query.lastIndexOf("/");
-  return {
-    directoryPrefix: query.slice(0, lastSlashIndex + 1),
-    leafQuery: query.slice(lastSlashIndex + 1),
-  };
-}
-
-function getComparableValues(query: string, value: string): ComparableValues {
-  if (query !== query.toLowerCase()) {
-    return { query, value };
-  }
-  return { query, value: value.toLowerCase() };
-}
-
-function getCaseInsensitiveComparableValues(
+function find<T extends { text: string }>(
+  list: readonly T[],
   query: string,
-  value: string,
-): ComparableValues {
-  return {
-    query: query.toLowerCase(),
-    value: value.toLowerCase(),
-  };
+  casing: "smart-case" | "case-insensitive" = "smart-case",
+): FzfResultItem<T>[] {
+  const texts: readonly { text: string }[] = list;
+  const matches = new Fzf(texts, {
+    selector: (entry: { text: string }) => entry.text,
+    casing,
+    forward: true,
+    tiebreakers: [byStartAsc, byLengthAsc],
+  }).find(query);
+  return matches as FzfResultItem<T>[];
 }
 
-function startsWithQueryCase(value: string, query: string): boolean {
-  const comparable = getComparableValues(query, value);
-  return comparable.value.startsWith(comparable.query);
+function sorted(positions: Iterable<number>): number[] {
+  return [...new Set(positions)].sort((left, right) => left - right);
+}
+
+function smartCase(query: string, value: string): string {
+  return query === query.toLowerCase() ? value.toLowerCase() : value;
 }
 
 function isSubsequence(query: string, value: string): boolean {
   let queryIndex = 0;
   for (const char of value) {
-    if (char === query[queryIndex]) {
-      queryIndex += 1;
-    }
-    if (queryIndex === query.length) {
-      return true;
-    }
+    if (char === query[queryIndex]) queryIndex += 1;
+    if (queryIndex === query.length) return true;
   }
   return query.length === 0;
 }
 
-function countOccurrences(value: string, query: string): number {
-  if (!query) {
-    return 0;
-  }
-
-  let count = 0;
-  let startIndex = 0;
-  for (;;) {
-    const foundIndex = value.indexOf(query, startIndex);
-    if (foundIndex === -1) {
-      return count;
-    }
-    count += 1;
-    startIndex = foundIndex + query.length;
-  }
+function pathRelevanceBonus(path: string, query: string): number {
+  const value = smartCase(query, path);
+  const baseName = value.slice(value.lastIndexOf("/") + 1);
+  let bonus = 0;
+  if (baseName.includes(query)) bonus += 10_000;
+  if (isSubsequence(query, baseName)) bonus += 5_000;
+  if (value.includes(query)) bonus += 1_000;
+  return bonus + (query ? value.split(query).length - 1 : 0) * 500;
 }
 
-function getPathRelevanceBonus(path: string, query: string): number {
-  const comparable = getComparableValues(query, path);
-  const baseName = getBaseName(comparable.value);
-
-  let bonus = 0;
-  if (baseName.includes(comparable.query)) {
-    bonus += PATH_RELEVANCE_SCORE.baseNameContains;
-  }
-  if (isSubsequence(comparable.query, baseName)) {
-    bonus += PATH_RELEVANCE_SCORE.baseNameSubsequence;
-  }
-  if (comparable.value.includes(comparable.query)) {
-    bonus += PATH_RELEVANCE_SCORE.pathContains;
-  }
-
+function compareRanked<T>(left: Ranked<T>, right: Ranked<T>): number {
   return (
-    bonus +
-    countOccurrences(comparable.value, comparable.query) *
-      PATH_RELEVANCE_SCORE.repeatedPathHit
+    right.score - left.score ||
+    left.start - right.start ||
+    left.textIndex - right.textIndex ||
+    left.text.length - right.text.length ||
+    (left.text < right.text ? -1 : left.text > right.text ? 1 : 0) ||
+    left.itemIndex - right.itemIndex
   );
 }
 
-function getRankedScore(rank: PathIntentRank, score: number): number {
-  return rank * PATH_INTENT_SCORE.rankUnit + score;
+function mergeRanked<T, K>(
+  matches: readonly Ranked<T>[],
+  keyOf: (match: Ranked<T>) => K,
+): Ranked<T>[] {
+  const best = new Map<K, Ranked<T>>();
+  for (const match of matches) {
+    const existing = best.get(keyOf(match));
+    if (!existing || compareRanked(match, existing) < 0) {
+      best.set(keyOf(match), match);
+    }
+  }
+  return [...best.values()].sort(compareRanked);
 }
 
-function compareRankedMatches<T>(
-  left: RankedPathMatch<T>,
-  right: RankedPathMatch<T>,
-): number {
-  if (left.score !== right.score) {
-    return right.score - left.score;
-  }
-  if (left.start !== right.start) {
-    return left.start - right.start;
-  }
-  if (left.path.length !== right.path.length) {
-    return left.path.length - right.path.length;
-  }
-  if (left.path < right.path) {
-    return -1;
-  }
-  if (left.path > right.path) {
-    return 1;
-  }
-  return 0;
+function rankedPath<T>(
+  item: PathItem<T>,
+  rank: number,
+  match: { positions: number[]; score: number; start: number },
+): Ranked<T> {
+  const score = rank * RANK_UNIT + match.score;
+  return { ...item, ...match, score, textIndex: 0, itemIndex: 0 };
 }
 
-function splitPathSegments(path: string): PathSegment[] {
-  const segmentNames = path.split("/");
+function splitPathSegments(path: string): Segment[] {
+  const names = path.split("/");
   let start = 0;
-  return segmentNames.map((text, index) => {
-    const segment = {
-      text,
-      start,
-      isFileName: index === segmentNames.length - 1,
-    };
+  return names.map((text, index) => {
+    const isFileName = index === names.length - 1;
+    const segment = { text, start, index, isFileName };
     start += text.length + 1;
     return segment;
   });
 }
 
-function getPrefixPositions(length: number): number[] {
-  return Array.from({ length }, (_, index) => index);
-}
-
-function mergePositions(left: number[], right: number[]): number[] {
-  return [...new Set([...left, ...right])].sort((a, b) => a - b);
-}
-
-function getPathSegmentMatch(
+function segmentMatch(
   query: string,
-  pathSegments: readonly PathSegment[],
-  startSegmentIndex: number,
-  skipFileName: boolean,
-): PathSegmentMatch | null {
-  const candidates: PathSegmentCandidate[] = pathSegments
-    .map((segment, segmentIndex) => ({ segment, segmentIndex }))
-    .filter(
-      (candidate) =>
-        candidate.segmentIndex >= startSegmentIndex &&
-        !(skipFileName && candidate.segment.isFileName),
-    );
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  const matcher = new Fzf<readonly PathSegmentCandidate[]>(candidates, {
-    selector: (candidate: PathSegmentCandidate) => candidate.segment.text,
-    casing: "smart-case",
-    forward: true,
-    tiebreakers: [byPathStartAsc, byPathLengthAsc],
-  });
-  const matches: FzfResultItem<PathSegmentCandidate>[] = matcher.find(query);
-  const match = matches[0];
-  if (!match) {
-    return null;
-  }
-
+  segments: readonly Segment[],
+): SegmentMatch | null {
+  const match = find(segments, query)[0];
+  if (!match) return null;
+  const { start } = match.item;
   return {
-    segment: match.item.segment,
-    segmentIndex: match.item.segmentIndex,
-    positions: [...match.positions]
-      .map((position) => match.item.segment.start + position)
-      .sort((left, right) => left - right),
+    segment: match.item,
+    positions: sorted([...match.positions].map((position) => start + position)),
     score: match.score,
-    start: match.item.segment.start + match.start,
+    start: start + match.start,
   };
 }
 
-function getDirectorySegmentPrefixPathMatch<T>(
-  item: NormalizedPathItem<T>,
+function directorySegmentMatch<T>(
+  item: PathItem<T>,
   query: string,
-): RankedPathMatch<T> | null {
-  if (query.length < IMPLICIT_DIRECTORY_QUERY_MIN_LENGTH) {
-    return null;
+): Ranked<T> | null {
+  if (query.length < 2) return null;
+  let best: { positions: number[]; score: number; start: number } | null = null;
+  for (const segment of splitPathSegments(item.text)) {
+    if (segment.isFileName) continue;
+    const value = smartCase(query, segment.text);
+    if (!value.startsWith(query)) continue;
+    const score =
+      (value === query
+        ? 30_000
+        : 25_000 - Math.max(segment.text.length - query.length, 0)) +
+      (segment.start === 0 ? 5_000 : 0);
+    if (best && best.score >= score) continue;
+    const positions = Array.from(
+      { length: query.length },
+      (_, index) => segment.start + index,
+    );
+    best = { positions, score, start: segment.start };
   }
-
-  let bestMatch: PathSegmentMatch | null = null;
-  for (const [segmentIndex, segment] of splitPathSegments(
-    item.path,
-  ).entries()) {
-    if (segment.isFileName) {
-      continue;
-    }
-    const comparable = getComparableValues(query, segment.text);
-    let score: number;
-    if (comparable.value === comparable.query) {
-      score = PATH_INTENT_SCORE.directorySegmentExact;
-    } else if (comparable.value.startsWith(comparable.query)) {
-      score =
-        PATH_INTENT_SCORE.directorySegmentPrefix -
-        Math.max(segment.text.length - query.length, 0);
-    } else {
-      continue;
-    }
-
-    if (segment.start === 0) {
-      score += PATH_INTENT_SCORE.rootDirectorySegment;
-    }
-
-    const match: PathSegmentMatch = {
-      segment,
-      segmentIndex,
-      positions: Array.from(
-        { length: query.length },
-        (_, index) => segment.start + index,
-      ),
-      score,
-      start: segment.start,
-    };
-    if (!bestMatch || comparePathSegmentMatches(match, bestMatch) < 0) {
-      bestMatch = match;
-    }
-  }
-
-  if (!bestMatch) {
-    return null;
-  }
-
-  return {
-    item: item.item,
-    path: item.path,
-    positions: bestMatch.positions,
-    score: getRankedScore(
-      PathIntentRank.DirectorySegmentPrefix,
-      bestMatch.score,
-    ),
-    start: bestMatch.start,
-  };
+  return best && rankedPath(item, DIRECTORY_SEGMENT_RANK, best);
 }
 
-function comparePathSegmentMatches(
-  left: PathSegmentMatch,
-  right: PathSegmentMatch,
-): number {
-  if (left.score !== right.score) {
-    return right.score - left.score;
-  }
-  return left.start - right.start;
-}
-
-function getExactDirectoryPrefixPathMatch<T>(
-  item: NormalizedPathItem<T>,
+function exactDirectoryPrefixMatch<T>(
+  item: PathItem<T>,
   query: string,
-): RankedPathMatch<T> | null {
-  const queryParts = getPathQueryParts(query);
-  if (
-    !queryParts.directoryPrefix ||
-    !startsWithQueryCase(item.path, queryParts.directoryPrefix)
-  ) {
-    return null;
-  }
-
-  const prefixPositions = getPrefixPositions(queryParts.directoryPrefix.length);
-  if (!queryParts.leafQuery) {
-    return {
-      item: item.item,
-      path: item.path,
-      positions: prefixPositions,
-      score: getRankedScore(PathIntentRank.ExactDirectoryPrefix, 0),
-      start: 0,
-    };
-  }
-
-  const tail = item.path.slice(queryParts.directoryPrefix.length);
-  const matcher = new Fzf([tail], {
-    casing: "smart-case",
-    forward: true,
-    tiebreakers: [byPathStartAsc, byPathLengthAsc],
-  });
-  const tailMatches: FzfResultItem<string>[] = matcher.find(
-    queryParts.leafQuery,
+): Ranked<T> | null {
+  const prefix = query.slice(0, query.lastIndexOf("/") + 1);
+  const leafQuery = query.slice(prefix.length);
+  if (!prefix || !smartCase(prefix, item.text).startsWith(prefix)) return null;
+  const prefixPositions = Array.from(
+    { length: prefix.length },
+    (_, index) => index,
   );
-  const tailMatch = tailMatches[0];
-  if (!tailMatch) {
-    return null;
+  if (!leafQuery) {
+    const match = { positions: prefixPositions, score: 0, start: 0 };
+    return rankedPath(item, EXACT_DIRECTORY_PREFIX_RANK, match);
   }
-
-  return {
-    item: item.item,
-    path: item.path,
-    positions: mergePositions(
-      prefixPositions,
-      [...tailMatch.positions].map(
-        (position) => queryParts.directoryPrefix.length + position,
-      ),
-    ),
-    score: getRankedScore(
-      PathIntentRank.ExactDirectoryPrefix,
-      tailMatch.score + getPathRelevanceBonus(tail, queryParts.leafQuery),
-    ),
+  const tail = item.text.slice(prefix.length);
+  const tailMatch = find([{ text: tail }], leafQuery)[0];
+  if (!tailMatch) return null;
+  return rankedPath(item, EXACT_DIRECTORY_PREFIX_RANK, {
+    positions: sorted([
+      ...prefixPositions,
+      ...[...tailMatch.positions].map((position) => prefix.length + position),
+    ]),
+    score: tailMatch.score + pathRelevanceBonus(tail, leafQuery),
     start: 0,
-  };
+  });
 }
 
-function getStructuredPathMatch<T>(
-  item: NormalizedPathItem<T>,
+function structuredPathMatch<T>(
+  item: PathItem<T>,
   query: string,
-): RankedPathMatch<T> | null {
-  const querySegments = query
-    .split("/")
-    .filter((segment) => segment.length > 0);
-  if (
-    querySegments.length === 0 ||
-    querySegments.length > STRUCTURED_QUERY_SEGMENT_MAX_COUNT
-  ) {
-    return null;
-  }
-
-  const trailingSlash = query.endsWith("/");
-  const pathSegments = splitPathSegments(item.path);
+): Ranked<T> | null {
+  const querySegments = query.split("/").filter((segment) => segment);
+  if (querySegments.length === 0 || querySegments.length > 8) return null;
+  const leafQuery = querySegments[querySegments.length - 1];
+  const pathSegments = splitPathSegments(item.text);
   const positions: number[] = [];
   let score = 0;
-  let firstMatchStart: number | null = null;
-  let nextSegmentIndex = 0;
-
-  for (
-    let querySegmentIndex = 0;
-    querySegmentIndex < querySegments.length;
-    querySegmentIndex += 1
-  ) {
-    const segmentMatch = getPathSegmentMatch(
-      querySegments[querySegmentIndex],
-      pathSegments,
-      nextSegmentIndex,
-      trailingSlash && querySegmentIndex === querySegments.length - 1,
+  let firstStart: number | null = null;
+  let nextIndex = 0;
+  for (const [queryIndex, querySegment] of querySegments.entries()) {
+    const skipFileName =
+      query.endsWith("/") && queryIndex === querySegments.length - 1;
+    const match = segmentMatch(
+      querySegment,
+      pathSegments.filter(
+        (segment) =>
+          segment.index >= nextIndex && !(skipFileName && segment.isFileName),
+      ),
     );
-    if (!segmentMatch) {
-      return null;
-    }
-
-    positions.push(...segmentMatch.positions);
-    firstMatchStart =
-      firstMatchStart === null
-        ? segmentMatch.start
-        : Math.min(firstMatchStart, segmentMatch.start);
-    score += segmentMatch.score;
-    if (segmentMatch.segmentIndex === nextSegmentIndex) {
-      score += PATH_INTENT_SCORE.consecutiveSegment;
-    }
-    nextSegmentIndex = segmentMatch.segmentIndex + 1;
+    if (!match) return null;
+    positions.push(...match.positions);
+    firstStart = Math.min(firstStart ?? match.start, match.start);
+    score += match.score + (match.segment.index === nextIndex ? 5_000 : 0);
+    nextIndex = match.segment.index + 1;
   }
-
   const leafSegment = pathSegments[pathSegments.length - 1];
-  const leafMatch = leafSegment
-    ? getPathSegmentMatch(
-        querySegments[querySegments.length - 1],
-        [leafSegment],
-        0,
-        false,
-      )
-    : null;
+  const leafMatch = leafSegment && segmentMatch(leafQuery, [leafSegment]);
   if (leafMatch) {
-    const leafQuery = querySegments[querySegments.length - 1];
     score +=
-      PATH_INTENT_SCORE.leafSegment +
+      50_000 +
       leafMatch.score -
       Math.max(leafSegment.text.length - leafQuery.length, 0);
   }
-
-  return {
-    item: item.item,
-    path: item.path,
-    positions: [...new Set(positions)].sort((left, right) => left - right),
-    score: getRankedScore(PathIntentRank.StructuredPath, score),
-    start: firstMatchStart ?? 0,
-  };
+  const match = { positions: sorted(positions), score, start: firstStart ?? 0 };
+  return rankedPath(item, STRUCTURED_PATH_RANK, match);
 }
 
-function getExactDirectoryPrefixPathMatches<T>(
-  items: readonly NormalizedPathItem<T>[],
+function plainPathMatches<T>(
+  items: readonly PathItem<T>[],
   query: string,
-): RankedPathMatch<T>[] {
-  return items
-    .map((item) => getExactDirectoryPrefixPathMatch(item, query))
-    .filter(isPresent);
+): Ranked<T>[] {
+  return find(items, query)
+    .map((match) =>
+      rankedPath<T>(match.item, 0, {
+        positions: sorted(match.positions),
+        score: match.score + pathRelevanceBonus(match.item.text, query),
+        start: match.start,
+      }),
+    )
+    .sort(compareRanked);
 }
 
-function getStructuredPathMatches<T>(
-  items: readonly NormalizedPathItem<T>[],
+function rankPathMatches<T>(
+  items: readonly PathItem<T>[],
   query: string,
-): RankedPathMatch<T>[] {
-  return items
-    .map((item) => getStructuredPathMatch(item, query))
-    .filter(isPresent);
-}
-
-function getDirectorySegmentPrefixPathMatches<T>(
-  items: readonly NormalizedPathItem<T>[],
-  query: string,
-): RankedPathMatch<T>[] {
-  return items
-    .map((item) => getDirectorySegmentPrefixPathMatch(item, query))
-    .filter(isPresent);
-}
-
-function isOnlyPathSeparators(query: string): boolean {
-  return query.length > 0 && query.split("/").every((segment) => !segment);
-}
-
-function rankPlainQueryMatches<T>(
-  items: readonly NormalizedPathItem<T>[],
-  query: string,
-): RankedPathMatch<T>[] {
-  const tiebreakers: Tiebreaker<NormalizedPathItem<T>>[] = [
-    byPathStartAsc,
-    byPathLengthAsc,
-  ];
-  const matcher = new Fzf<readonly NormalizedPathItem<T>[]>(items, {
-    selector: (item: NormalizedPathItem<T>) => item.path,
-    casing: "smart-case",
-    forward: true,
-    tiebreakers,
-  });
-
-  const matches: FzfResultItem<NormalizedPathItem<T>>[] = matcher.find(query);
-
-  return matches
-    .map((match) => ({
-      item: match.item.item,
-      path: match.item.path,
-      positions: [...match.positions].sort((left, right) => left - right),
-      score:
-        getRankedScore(PathIntentRank.PlainFzf, match.score) +
-        getPathRelevanceBonus(match.item.path, query),
-      start: match.start,
-    }))
-    .sort(compareRankedMatches);
-}
-
-function rankPathQueryMatches<T>(
-  items: readonly NormalizedPathItem<T>[],
-  query: string,
-): RankedPathMatch<T>[] {
-  if (isOnlyPathSeparators(query)) {
-    return [];
-  }
-
-  if (query.includes("/")) {
-    const exactPrefixMatches = getExactDirectoryPrefixPathMatches(items, query);
-    if (exactPrefixMatches.length > 0 && query.endsWith("/")) {
-      return mergeRankedMatches(exactPrefixMatches);
-    }
-
-    const structuredMatches = getStructuredPathMatches(items, query);
-    if (exactPrefixMatches.length > 0) {
-      return mergeRankedMatches(exactPrefixMatches.concat(structuredMatches));
-    }
-
-    return mergeRankedMatches(
-      rankPlainQueryMatches(items, query).concat(structuredMatches),
+): Ranked<T>[] {
+  if (query.split("/").every((segment) => !segment)) return [];
+  const collect = (
+    match: (item: PathItem<T>, query: string) => Ranked<T> | null,
+  ) => items.flatMap((item) => match(item, query) ?? []);
+  if (!query.includes("/")) {
+    return plainPathMatches(items, query).concat(
+      collect(directorySegmentMatch),
     );
   }
-
-  return mergeRankedMatches(
-    rankPlainQueryMatches(items, query).concat(
-      getDirectorySegmentPrefixPathMatches(items, query),
-    ),
-  );
+  const exact = collect(exactDirectoryPrefixMatch);
+  if (exact.length > 0 && query.endsWith("/")) return exact;
+  const structured = collect(structuredPathMatch);
+  const base = exact.length > 0 ? exact : plainPathMatches(items, query);
+  return base.concat(structured);
 }
 
-function mergeRankedMatches<T>(
-  matches: readonly RankedPathMatch<T>[],
-): RankedPathMatch<T>[] {
-  const matchesByPath = new Map<string, RankedPathMatch<T>>();
-
-  for (const match of matches) {
-    const existing = matchesByPath.get(match.path);
-    if (!existing || compareRankedMatches(match, existing) < 0) {
-      matchesByPath.set(match.path, match);
-    }
-  }
-
-  return [...matchesByPath.values()].sort(compareRankedMatches);
+function textRelevanceBonus(text: string, query: string): number {
+  const value = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  if (value === lowerQuery) return 20_000;
+  if (value.startsWith(lowerQuery)) return 15_000;
+  if (value.includes(lowerQuery)) return 10_000;
+  return isSubsequence(lowerQuery, value) ? 5_000 : 0;
 }
 
-function rankedMatchesToFuzzyMatches<T>(
-  matches: readonly FuzzyMatch<T>[],
-  limit: number,
-): FuzzyMatch<T>[] {
-  return matches.slice(0, limit).map((match) => ({
-    item: match.item,
-    score: match.score,
-    positions: match.positions,
-  }));
-}
-
-function getTextRelevanceBonus(text: string, query: string): number {
-  const comparable = getCaseInsensitiveComparableValues(query, text);
-
-  if (comparable.value === comparable.query) {
-    return TEXT_RELEVANCE_SCORE.exact;
-  }
-  if (comparable.value.startsWith(comparable.query)) {
-    return TEXT_RELEVANCE_SCORE.prefix;
-  }
-  if (comparable.value.includes(comparable.query)) {
-    return TEXT_RELEVANCE_SCORE.contains;
-  }
-  if (isSubsequence(comparable.query, comparable.value)) {
-    return TEXT_RELEVANCE_SCORE.subsequence;
-  }
-
-  return 0;
-}
-
-function getTextCandidates<T>(
-  items: readonly T[],
-  getText: FuzzyTextGetter<T>,
-  getAliases: FuzzyTextAliasesGetter<T> | undefined,
-): NormalizedTextCandidate<T>[] {
-  const candidates: NormalizedTextCandidate<T>[] = [];
-  let itemIndex = 0;
-  for (const item of items) {
-    const text = getText(item);
-    if (text.length > 0) {
-      candidates.push({
-        item,
-        itemIndex,
-        text,
-        textIndex: 0,
-        isAlias: false,
-      });
-    }
-    const aliases = getAliases?.(item) ?? [];
-    let aliasIndex = 0;
-    for (const alias of aliases) {
-      if (alias.length > 0) {
-        candidates.push({
-          item,
-          itemIndex,
-          text: alias,
-          textIndex: aliasIndex + 1,
-          isAlias: true,
-        });
-      }
-      aliasIndex += 1;
-    }
-    itemIndex += 1;
-  }
-  return candidates;
-}
-
-function compareRankedTextMatches<T>(
-  left: RankedTextMatch<T>,
-  right: RankedTextMatch<T>,
-): number {
-  if (left.score !== right.score) {
-    return right.score - left.score;
-  }
-  if (left.start !== right.start) {
-    return left.start - right.start;
-  }
-  if (left.textIndex !== right.textIndex) {
-    return left.textIndex - right.textIndex;
-  }
-  if (left.text.length !== right.text.length) {
-    return left.text.length - right.text.length;
-  }
-  if (left.text < right.text) {
-    return -1;
-  }
-  if (left.text > right.text) {
-    return 1;
-  }
-  return left.itemIndex - right.itemIndex;
-}
-
-function rankTextQueryMatches<T>(
-  candidates: readonly NormalizedTextCandidate<T>[],
-  query: string,
-): RankedTextMatch<T>[] {
-  const tiebreakers: Tiebreaker<NormalizedTextCandidate<T>>[] = [
-    byPathStartAsc,
-    byPathLengthAsc,
-  ];
-  const matcher = new Fzf<readonly NormalizedTextCandidate<T>[]>(candidates, {
-    selector: (candidate: NormalizedTextCandidate<T>) => candidate.text,
-    casing: "case-insensitive",
-    forward: true,
-    tiebreakers,
-  });
-
-  const matches: FzfResultItem<NormalizedTextCandidate<T>>[] =
-    matcher.find(query);
-
+function finish<T>(matches: Ranked<T>[], limit: number): FuzzyMatch<T>[] {
   return matches
-    .map((match) => ({
-      item: match.item.item,
-      itemIndex: match.item.itemIndex,
-      text: match.item.text,
-      textIndex: match.item.textIndex,
-      positions: [...match.positions].sort((left, right) => left - right),
-      score:
-        match.score +
-        getTextRelevanceBonus(match.item.text, query) +
-        (match.item.isAlias ? 0 : PRIMARY_TEXT_SCORE),
-      start: match.start,
-    }))
-    .sort(compareRankedTextMatches);
+    .slice(0, limit)
+    .map(({ item, score, positions }) => ({ item, score, positions }));
 }
 
-function mergeRankedTextMatches<T>(
-  matches: readonly RankedTextMatch<T>[],
-): RankedTextMatch<T>[] {
-  const matchesByItemIndex = new Map<number, RankedTextMatch<T>>();
-
-  for (const match of matches) {
-    const existing = matchesByItemIndex.get(match.itemIndex);
-    if (!existing || compareRankedTextMatches(match, existing) < 0) {
-      matchesByItemIndex.set(match.itemIndex, match);
-    }
-  }
-
-  return [...matchesByItemIndex.values()].sort(compareRankedTextMatches);
+function unranked<T>(items: readonly T[], limit: number): FuzzyMatch<T>[] {
+  return items
+    .slice(0, limit)
+    .map((item) => ({ item, score: 0, positions: [] }));
 }
 
-export function fuzzyMatchPaths<T>(
-  args: FuzzyMatchPathsArgs<T>,
-): FuzzyMatch<T>[] {
-  if (args.limit <= 0) {
-    return [];
-  }
-
-  if (!args.query) {
-    return args.items.slice(0, args.limit).map((item) => ({
-      item,
-      score: 0,
-      positions: [],
-    }));
-  }
-
-  const normalizedQuery = args.query.replaceAll("\\", "/");
-  if (normalizedQuery.length > FUZZY_MATCH_QUERY_MAX_LENGTH) {
-    return [];
-  }
-
-  const getNormalizedPath = (item: T) =>
-    args.getPath(item).replaceAll("\\", "/");
-  const normalizedItems = args.items.map((item) => ({
+export function fuzzyMatchPaths<T>(args: {
+  items: readonly T[];
+  query: string;
+  getPath: (item: T) => string;
+  limit: number;
+}): FuzzyMatch<T>[] {
+  if (args.limit <= 0) return [];
+  if (!args.query) return unranked(args.items, args.limit);
+  const query = args.query.replaceAll("\\", "/");
+  if (query.length > QUERY_MAX_LENGTH) return [];
+  const items = args.items.map((item) => ({
     item,
-    path: getNormalizedPath(item),
+    text: args.getPath(item).replaceAll("\\", "/"),
   }));
-
-  return rankedMatchesToFuzzyMatches(
-    rankPathQueryMatches(normalizedItems, normalizedQuery),
+  const matches = rankPathMatches(items, query);
+  return finish(
+    mergeRanked(matches, (match) => match.text),
     args.limit,
   );
 }
 
-export function fuzzyMatchText<T>(
-  args: FuzzyMatchTextArgs<T>,
-): FuzzyMatch<T>[] {
-  if (args.limit <= 0) {
-    return [];
-  }
-
+export function fuzzyMatchText<T>(args: {
+  items: readonly T[];
+  query: string;
+  getText: (item: T) => string;
+  getAliases?: (item: T) => readonly string[];
+  limit: number;
+}): FuzzyMatch<T>[] {
+  if (args.limit <= 0) return [];
   const query = args.query.trim();
-  if (!query) {
-    return args.items.slice(0, args.limit).map((item) => ({
-      item,
-      score: 0,
-      positions: [],
-    }));
-  }
-
-  if (query.length > FUZZY_MATCH_QUERY_MAX_LENGTH) {
-    return [];
-  }
-
-  return rankedMatchesToFuzzyMatches(
-    mergeRankedTextMatches(
-      rankTextQueryMatches(
-        getTextCandidates(args.items, args.getText, args.getAliases),
-        query,
-      ),
-    ),
+  if (!query) return unranked(args.items, args.limit);
+  if (query.length > QUERY_MAX_LENGTH) return [];
+  const candidates = args.items.flatMap((item, itemIndex) =>
+    [args.getText(item), ...(args.getAliases?.(item) ?? [])]
+      .map((text, textIndex) => ({ item, itemIndex, text, textIndex }))
+      .filter((candidate) => candidate.text.length > 0),
+  );
+  const matches = find(candidates, query, "case-insensitive")
+    .map((match) => ({
+      ...match.item,
+      positions: sorted(match.positions),
+      score:
+        match.score +
+        textRelevanceBonus(match.item.text, query) +
+        (match.item.textIndex === 0 ? RANK_UNIT : 0),
+      start: match.start,
+    }))
+    .sort(compareRanked);
+  return finish(
+    mergeRanked(matches, (match) => match.itemIndex),
     args.limit,
   );
 }
