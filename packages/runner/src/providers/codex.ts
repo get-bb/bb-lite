@@ -12,7 +12,7 @@ import {
   type PendingInteractionResolution,
 } from "@bb/domain";
 import { z } from "zod";
-import { loginShellPath, scrubEnv } from "../sessions/agent-env.js";
+import { loginShellEnv } from "../sessions/agent-env.js";
 import {
   RunnerError,
   type ExecutionOptions,
@@ -336,10 +336,7 @@ export function createCodexAdapter(
 ): ProviderAdapter {
   const spawn = options.spawn ?? spawnAppServer;
   const adapter = { spawn, command: options.command ?? "codex" };
-  const baseEnv = async () => {
-    const env = scrubEnv(process.env);
-    return { ...env, PATH: (await loginShellPath()) ?? env.PATH ?? "" };
-  };
+  const baseEnv = loginShellEnv();
   return {
     id: "codex",
     approvalEnforcedBy: "runner",

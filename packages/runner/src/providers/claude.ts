@@ -13,7 +13,7 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { loginShellPath, scrubEnv } from "../sessions/agent-env.js";
+import { loginShellEnv } from "../sessions/agent-env.js";
 import {
   RunnerError,
   type ExecutionOptions,
@@ -164,10 +164,8 @@ class ClaudeSession implements ProviderSession {
       this.query = stream;
       this.providerThreadId = sessionId;
       events.identity(sessionId);
-      const usage = { usedTokens: null, modelContextWindow: null };
-      events.contextWindow({
-        contextWindowUsage: { ...usage, estimated: true },
-      });
+      const unknown = { usedTokens: null, modelContextWindow: null };
+      events.contextWindow({ ...unknown, estimated: true });
       this.done = this.consume(stream);
       return this;
     } catch (error) {
@@ -319,10 +317,7 @@ export function createClaudeAdapter(
   options: ClaudeAdapterOptions = {},
 ): ProviderAdapter {
   const adapter = { query, forkSession, ...options };
-  const baseEnv = async () => {
-    const env = scrubEnv(process.env);
-    return { ...env, PATH: (await loginShellPath()) ?? env.PATH ?? "" };
-  };
+  const baseEnv = loginShellEnv();
   return {
     id: "claude-code",
     approvalEnforcedBy: "provider",

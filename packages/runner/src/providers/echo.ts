@@ -338,10 +338,9 @@ class EchoSession implements ProviderSession {
     };
     const total = { ...last, totalTokens: tokens * this.turns };
     const modelContextWindow = CONTEXT_WINDOW;
-    const tokenUsage = { total, last, modelContextWindow };
-    events.usage({ tokenUsage }, { turn });
+    events.usage({ total, last, modelContextWindow }, { turn });
     const window = { usedTokens: tokens, modelContextWindow, estimated: false };
-    events.contextWindow({ contextWindowUsage: window }, { turn });
+    events.contextWindow(window, { turn });
     this.finish(live);
   }
 }

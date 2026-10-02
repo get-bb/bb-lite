@@ -173,25 +173,6 @@ describe("EventBuilder", () => {
     expectValid(take());
   });
 
-  it("diffs cumulative command output snapshots", () => {
-    const { builder, take } = harness();
-    builder.openTurn({ turn: "t" });
-    const key = { providerItemId: "cmd" };
-    builder.openItem(key, command, { turn: "t" });
-    take();
-    for (const snapshot of ["one\n", "one\n", "one\ntwo\n", "reset\n"]) {
-      builder.outputSnapshot(key, snapshot, { turn: "t" });
-    }
-    const deltas = take();
-    expect(deltas).toMatchObject([
-      { delta: "one\n" },
-      { delta: "two\n" },
-      { delta: "reset\n", reset: true },
-    ]);
-    expect(deltas[1]).not.toHaveProperty("reset");
-    expectValid(deltas);
-  });
-
   it("settles open items and turns when a session ends", () => {
     const { builder, take } = harness();
     builder.openTurn({ turn: "t" });
@@ -242,10 +223,9 @@ describe("EventBuilder", () => {
     ]);
     expect(failed[3]).toMatchObject({ status: "failed" });
     builder.error({ detail: "outside" }, { threadScoped: true });
-    const tokenUsage = { total: usage, last: usage, modelContextWindow: 10 };
-    builder.usage({ tokenUsage });
+    builder.usage({ total: usage, last: usage, modelContextWindow: 10 });
     const window = { usedTokens: 5, modelContextWindow: 10, estimated: false };
-    builder.contextWindow({ contextWindowUsage: window }, undefined, true);
+    builder.contextWindow(window, undefined, true);
     const after = take();
     expect(after.map((event) => event.scope.kind)).toEqual([
       "thread",

@@ -2,13 +2,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { scrubbedProcessEnv } from "../../src/terminals/shell-env.js";
+import { scrubEnv } from "../../src/sessions/agent-env.js";
 import { RunnerError } from "../../src/types.js";
 import { createWorkspaceApi } from "../../src/workspace/index.js";
 import type { WorkspaceEvent } from "../../src/workspace-types.js";
 
 const GIT_ENV = {
-  ...scrubbedProcessEnv(),
+  ...scrubEnv(process.env),
   GIT_CONFIG_GLOBAL: os.devNull,
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "Test",

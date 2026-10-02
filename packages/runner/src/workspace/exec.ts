@@ -2,7 +2,7 @@ import { execFile, type ExecFileException } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isValidGitBranchName } from "@bb/domain";
-import type { ChildEnv } from "../terminals/shell-env.js";
+import type { ChildEnv } from "../sessions/agent-env.js";
 import { RunnerError, type RunnerErrorCode } from "../types.js";
 import type { WorkspaceApi, WorkspaceEventSink } from "../workspace-types.js";
 

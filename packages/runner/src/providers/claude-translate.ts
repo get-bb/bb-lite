@@ -305,8 +305,7 @@ export class ClaudeTranslator {
     openTurnOnly: boolean,
   ) {
     const usage = { usedTokens, modelContextWindow, estimated: true };
-    const report = { contextWindowUsage: usage };
-    this.events.contextWindow(report, undefined, openTurnOnly);
+    this.events.contextWindow(usage, undefined, openTurnOnly);
   }
 
   private assistant(message: Json): boolean {
@@ -446,10 +445,8 @@ export class ClaudeTranslator {
         reasoningOutputTokens: 0,
       };
       this.total = ui.addTokenUsage(this.total, last);
-      const tokenUsage = { total: this.total, last };
-      this.events.usage({
-        tokenUsage: { ...tokenUsage, modelContextWindow: reported },
-      });
+      const { total } = this;
+      this.events.usage({ total, last, modelContextWindow: reported });
     }
     const failed = message.is_error === true || subtype.startsWith("error");
     if (failed) {
