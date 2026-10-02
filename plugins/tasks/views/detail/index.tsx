@@ -1,107 +1,27 @@
-import { useEffect, useRef, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import SmilePlusIcon from "@hugeicons/core-free-icons/SmilePlusIcon";
-import type { Task } from "../../shared/contract.js";
-import { errorMessage } from "../../shared/errors.js";
-import type { DelegationRpcContract } from "../../delegate/contract.js";
-import { useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type {
+  Preset,
+  Task,
+  TaskDetail,
+  UpdateTaskInput,
+} from "../../shared/contract.js";
 import {
-  listAllTasks,
-  useMentionItems,
+  reportError,
+  usePresets,
   useTasksQuery,
   useTasksRpc,
 } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
-import { TasksEditor } from "../../editor/tasks-editor.js";
-import { TaskActivity } from "../activity/task-activity.js";
-import { AttachmentsGrid, uploadAttachment } from "./attachments.js";
-import {
-  createDescriptionSaver,
-  type DescriptionSaver,
-} from "./description-save.js";
-import { StatusIcon } from "./meta.js";
+import { MarkdownField } from "../../editor/markdown.js";
+import { StatusIcon } from "../list/icons.js";
 import { STATUS_LABELS } from "../list/lib.js";
-import {
-  InlineProperties,
-  PropertiesRail,
-  type TaskPropertyUpdate,
-} from "./rail.js";
+import { TaskActivity } from "./activity.js";
+import { AttachmentsGrid, uploadAttachment } from "./attachments.js";
+import { TaskProperties } from "./rail.js";
 import { ThreadsSection } from "./threads.js";
-import { DetailToasts, useDetailToasts } from "./toast.js";
-import { DelayedLoading } from "@/components/ui/delayed-loading";
-import { Icon } from "@/components/ui/icon";
-import { Skeleton } from "@/components/ui/skeleton";
-
-interface DetailViewProps {
-  taskKey: string;
-  onCanonicalKey?: (taskKey: string) => void;
-}
+import { Icon } from "@bb/shared-ui/icon";
 
 const DESCRIPTION_SAVE_DELAY_MS = 800;
-
-function SubTaskDonut({
-  subtasks,
-  onClick,
-}: {
-  subtasks: Task[];
-  onClick: () => void;
-}) {
-  if (subtasks.length === 0) return null;
-  const done = subtasks.filter((subtask) => subtask.status === "done").length;
-  const degrees = (done / subtasks.length) * 360;
-  return (
-    <button
-      type="button"
-      title="Sub-tasks completed"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs text-muted-foreground shadow-2xs hover:border-input hover:text-foreground"
-    >
-      <span
-        aria-hidden
-        className="inline-block size-3 rounded-full"
-        style={{
-          background: `conic-gradient(var(--primary) ${degrees}deg, var(--muted) 0)`,
-        }}
-      />
-      {done}/{subtasks.length} sub-tasks
-    </button>
-  );
-}
-
-function EditableTitle({
-  task,
-  onSave,
-}: {
-  task: Task;
-  onSave: (title: string) => void;
-}) {
-  return (
-    <h1
-      key={`${task.id}:${task.title}`}
-      contentEditable
-      suppressContentEditableWarning
-      role="textbox"
-      aria-label="Task title"
-      className="mb-2.5 mt-1 text-2xl font-semibold leading-tight outline-none"
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          event.currentTarget.blur();
-        }
-      }}
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent?.trim() ?? "";
-        if (!next) {
-          event.currentTarget.textContent = task.title;
-          return;
-        }
-        if (next !== task.title) onSave(next);
-      }}
-    >
-      {task.title}
-    </h1>
-  );
-}
 
 function SubTasksSection({
   ref,
@@ -112,20 +32,19 @@ function SubTasksSection({
   ref: React.Ref<HTMLElement>;
   task: Task;
   subtasks: Task[];
-  onCreate: (title: string) => Promise<boolean>;
+  onCreate: (title: string) => Promise<unknown>;
 }) {
   const navigation = useTasksNavigation();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
-    const trimmed = title.trim();
-    if (!trimmed || busy) return;
+  const submit = () => {
+    if (!title.trim() || busy) return;
     setBusy(true);
-    const created = await onCreate(trimmed);
-    setBusy(false);
-    if (created) setTitle("");
+    onCreate(title.trim())
+      .then(() => setTitle(""), reportError)
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -155,11 +74,10 @@ function SubTasksSection({
             className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") void submit();
-              if (event.key === "Escape") {
-                setAdding(false);
-                setTitle("");
-              }
+              if (event.key === "Enter") submit();
+              if (event.key !== "Escape") return;
+              setAdding(false);
+              setTitle("");
             }}
             onBlur={() => {
               if (!title.trim()) setAdding(false);
@@ -179,251 +97,134 @@ function SubTasksSection({
   );
 }
 
-function DetailSkeleton() {
-  return (
-    <DelayedLoading>
-      <div className="mx-auto w-full max-w-3xl px-8 py-12">
-        <Skeleton className="mb-4 h-7 w-2/3" />
-        <Skeleton className="mb-2 h-4 w-full" />
-        <Skeleton className="mb-2 h-4 w-5/6" />
-        <Skeleton className="h-4 w-1/2" />
-      </div>
-    </DelayedLoading>
-  );
-}
-
-function TaskDetail({ task }: { task: Task }) {
+function TaskDetailPage({
+  detail,
+  presets,
+}: {
+  detail: TaskDetail;
+  presets: Preset[] | undefined;
+}) {
+  const { task, project, parent, subtasks, labels, threads } = detail;
   const rpc = useTasksRpc();
-  const delegationRpc = useRpc<DelegationRpcContract>();
   const navigation = useTasksNavigation();
-  const { toasts, push, dismiss } = useDetailToasts();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const subtasksRef = useRef<HTMLElement>(null);
 
-  const [draft, setDraft] = useState<{ taskId: string; markdown: string }>();
-  const rpcRef = useRef(rpc);
-  rpcRef.current = rpc;
-  const pushRef = useRef(push);
-  pushRef.current = push;
-  const saverRef = useRef<DescriptionSaver | null>(null);
-  saverRef.current ??= createDescriptionSaver({
-    save: async (taskId, markdown) => {
-      const result = await rpcRef.current.call("updateTask", {
-        taskId,
-        description: markdown,
-      });
-      return result.ok
-        ? { ok: true }
-        : { ok: false, errorMessage: result.error.message };
-    },
-    onError: (message) => pushRef.current(message),
-    delayMs: DESCRIPTION_SAVE_DELAY_MS,
-  });
-
-  const projects = useTasksQuery(
-    async (query) => (await query.call("listProjects", {})).projects,
-    ["projects:changed"],
-  );
-  const project = projects.data?.find((entry) => entry.id === task.projectId);
-
-  const parent = useTasksQuery(
-    async (query) =>
-      task.parentTaskId
-        ? (await query.call("getTask", { taskId: task.parentTaskId })).task
-        : null,
-    ["tasks:changed"],
-    [task.parentTaskId],
-    { relevantTaskIds: task.parentTaskId ? [task.parentTaskId] : [] },
-  );
-  const subtasks = useTasksQuery(
-    async (query) => listAllTasks(query, { parentTaskId: task.id }),
-    ["tasks:changed"],
-    [task.id],
-  );
-  const labels = useTasksQuery(
-    async (query) =>
-      (await query.call("listLabels", { projectId: task.projectId })).labels,
-    ["projects:changed"],
-    [task.projectId],
-  );
-  const attachments = useTasksQuery(
-    async (query) =>
-      (await query.call("listAttachments", { taskId: task.id })).attachments,
-    ["tasks:changed"],
-    [task.id],
-    { relevantTaskIds: [task.id] },
-  );
-  const threads = useTasksQuery(
-    async (query) =>
-      (await query.call("listTaskThreads", { taskId: task.id })).taskThreads,
-    ["threads:changed"],
-    [task.id],
-    { relevantTaskIds: [task.id] },
-  );
-  const presets = useTasksQuery(
-    async (query) => (await query.call("listPresets")).presets,
-    ["projects:changed"],
+  const update = useCallback(
+    (input: Omit<UpdateTaskInput, "taskId">) =>
+      rpc.call("updateTask", { taskId: task.id, ...input }).catch(reportError),
+    [rpc, task.id],
   );
 
-  const updateTask = async (
-    input: TaskPropertyUpdate & { title?: string; description?: string },
-  ) => {
-    try {
-      const result = await rpc.call("updateTask", {
-        taskId: task.id,
-        ...input,
-      });
-      if (!result.ok) push(result.error.message);
-    } catch (error) {
-      push(errorMessage(error));
-    }
-  };
-
-  const moveToProject = async (projectId: string) => {
-    saverRef.current?.flush(task.id);
-    try {
-      const result = await rpc.call("moveTaskToProject", {
-        taskId: task.id,
-        projectId,
-      });
-      if (!result.ok) {
-        push(result.error.message);
-        return;
-      }
-      navigation.go(
-        { kind: "task", taskKey: result.task.key },
-        { replace: true },
-      );
-    } catch (error) {
-      push(errorMessage(error));
-    }
-  };
-
-  const onDescriptionChange = (markdown: string) => {
-    setDraft({ taskId: task.id, markdown });
-    saverRef.current?.onChange(task.id, markdown);
-  };
-
+  const [draft, setDraft] = useState<string | null>(null);
+  const unsaved = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const saveDescription = useCallback(() => {
+    clearTimeout(timer.current);
+    const description = unsaved.current;
+    unsaved.current = null;
+    if (description !== null) void update({ description });
+  }, [update]);
+  useEffect(() => saveDescription, [saveDescription]);
   useEffect(() => {
-    return () => saverRef.current?.flush(task.id);
-  }, [task.id]);
-
-  const uploadForTask = async (file: File) => {
-    const result = await uploadAttachment(file, { taskId: task.id });
-    attachments.refresh();
-    return result;
+    if (unsaved.current === null && draft === task.description) setDraft(null);
+  }, [draft, task.description]);
+  const onDescriptionChange = (markdown: string) => {
+    setDraft(markdown);
+    unsaved.current = markdown;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(saveDescription, DESCRIPTION_SAVE_DELAY_MS);
   };
 
-  const onPickFiles = async (files: FileList | null) => {
-    for (const file of files ?? []) {
-      try {
-        await uploadAttachment(file, { taskId: task.id });
-      } catch (error) {
-        push(errorMessage(error));
-      }
-    }
-    attachments.refresh();
-  };
-
-  const createSubtask = async (title: string): Promise<boolean> => {
-    try {
-      const result = await rpc.call("createTask", {
-        projectId: task.projectId,
-        title,
-        parentTaskId: task.id,
-        status: "todo",
-      });
-      if (!result.ok) {
-        push(result.error.message);
-        return false;
-      }
-      subtasks.refresh();
-      return true;
-    } catch (error) {
-      push(errorMessage(error));
-      return false;
-    }
-  };
-
-  const mentionItems = useMentionItems();
-  const navigate = useBbNavigate();
-
-  const descriptionValue =
-    draft && draft.taskId === task.id ? draft.markdown : task.description;
-  const parentTask = parent.data ?? null;
+  const upload = (file: File) => uploadAttachment(file, task.id);
+  const done = subtasks.filter((subtask) => subtask.status === "done").length;
+  const properties = { task, project, labels, threads, presets };
 
   return (
     <div className="@container flex min-h-full flex-col bg-surface-recessed-solid p-3">
       <div className="flex flex-1 items-stretch rounded-lg border border-border bg-card shadow-2xs">
         <div className="mx-auto w-full min-w-0 max-w-[55rem] flex-1 px-7 pb-16 pt-8 @3xl:px-13 @3xl:pt-11">
-          {parentTask || subtasks.data?.length ? (
+          {parent || subtasks.length > 0 ? (
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              {parentTask ? (
+              {parent ? (
                 <button
                   type="button"
                   className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs text-muted-foreground shadow-2xs hover:border-input"
                   onClick={() =>
-                    navigation.go({ kind: "task", taskKey: parentTask.key })
+                    navigation.go({ kind: "task", taskKey: parent.key })
                   }
                 >
                   Sub-task of
-                  <StatusIcon status={parentTask.status} className="size-3" />
+                  <StatusIcon status={parent.status} className="size-3" />
                   <span className="font-medium text-foreground">
-                    {parentTask.key}
+                    {parent.key}
                   </span>
-                  <span className="min-w-0 truncate">{parentTask.title}</span>
+                  <span className="min-w-0 truncate">{parent.title}</span>
                 </button>
               ) : null}
-              <SubTaskDonut
-                subtasks={subtasks.data ?? []}
-                onClick={() =>
-                  subtasksRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  })
-                }
-              />
+              {subtasks.length > 0 ? (
+                <button
+                  type="button"
+                  title="Sub-tasks completed"
+                  onClick={() =>
+                    subtasksRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs text-muted-foreground shadow-2xs hover:border-input hover:text-foreground"
+                >
+                  <span
+                    aria-hidden
+                    className="inline-block size-3 rounded-full"
+                    style={{
+                      background: `conic-gradient(var(--primary) ${(done / subtasks.length) * 360}deg, var(--muted) 0)`,
+                    }}
+                  />
+                  {done}/{subtasks.length} sub-tasks
+                </button>
+              ) : null}
             </div>
           ) : null}
 
-          <EditableTitle
-            task={task}
-            onSave={(title) => void updateTask({ title })}
-          />
+          <h1
+            key={`${task.id}:${task.title}`}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-label="Task title"
+            className="mb-2.5 mt-1 text-2xl font-semibold leading-tight outline-none"
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              event.currentTarget.blur();
+            }}
+            onBlur={(event) => {
+              const title = event.currentTarget.textContent?.trim() ?? "";
+              if (!title) event.currentTarget.textContent = task.title;
+              else if (title !== task.title) void update({ title });
+            }}
+          >
+            {task.title}
+          </h1>
 
-          <InlineProperties
-            task={task}
-            project={project}
-            projects={projects.data}
-            labels={labels.data}
-            presets={presets.data}
-            onUpdate={(update) => void updateTask(update)}
-            onMoveToProject={(projectId) => void moveToProject(projectId)}
-            onError={(message) => push(message)}
+          <TaskProperties
+            variant="inline"
+            {...properties}
+            onUpdate={(change) => void update(change)}
             className="mb-4 @[45rem]:hidden"
           />
 
-          <TasksEditor
-            value={descriptionValue}
+          <MarkdownField
+            value={draft ?? task.description}
             onChange={onDescriptionChange}
-            variant="doc"
+            onBlur={saveDescription}
             className="min-h-24"
-            placeholder="Add a description… rich text: headings, lists, code, checkboxes, @mentions"
-            onUploadImage={uploadForTask}
-            mentionItems={mentionItems}
-            onOpenThread={(threadId) => navigate.toThread(threadId)}
+            placeholder="Add a description… markdown: headings, lists, code, tables"
+            onUploadFile={upload}
           />
 
           <div className="mb-1 mt-3 flex items-center gap-1">
-            <button
-              type="button"
-              title="Reactions coming soon"
-              aria-label="Add reaction"
-              disabled
-              className="flex size-6.5 items-center justify-center rounded-md text-muted-foreground opacity-50"
-            >
-              <HugeiconsIcon icon={SmilePlusIcon} className="size-4" />
-            </button>
             <button
               type="button"
               title="Attach file"
@@ -439,98 +240,92 @@ function TaskDetail({ task }: { task: Task }) {
               multiple
               className="hidden"
               onChange={(event) => {
-                void onPickFiles(event.target.files);
+                for (const file of event.target.files ?? []) {
+                  upload(file).catch(reportError);
+                }
                 event.target.value = "";
               }}
             />
           </div>
 
           <AttachmentsGrid
-            attachments={attachments.data ?? []}
-            onRemove={async (attachment) => {
-              const result = await rpc.call("deleteAttachment", {
-                attachmentId: attachment.id,
-                removeDescriptionReferences: true,
-              });
-              if (!result.ok) throw new Error(result.error.message);
-              attachments.refresh();
-            }}
-            onError={(message) => push(message)}
+            attachments={detail.attachments}
+            onRemove={({ id: attachmentId }) =>
+              rpc.call("deleteAttachment", { attachmentId })
+            }
           />
 
           <SubTasksSection
             ref={subtasksRef}
             task={task}
-            subtasks={subtasks.data ?? []}
-            onCreate={createSubtask}
+            subtasks={subtasks}
+            onCreate={(title) =>
+              rpc.call("createTask", {
+                projectId: task.projectId,
+                title,
+                parentTaskId: task.id,
+                status: "todo",
+              })
+            }
           />
 
-          {(threads.data ?? []).length > 0 ? (
+          {threads.length > 0 ? (
             <div className="mt-6">
-              <ThreadsSection
-                threads={threads.data ?? []}
-                onDetach={async (thread) => {
-                  await delegationRpc.call("taskThreadsDetach", {
-                    taskId: task.id,
-                    threadId: thread.threadId,
-                  });
-                  threads.refresh();
-                }}
-                onError={(message) => push(message)}
-              />
+              <ThreadsSection taskId={task.id} threads={threads} />
             </div>
           ) : null}
 
           <div className="mt-1">
-            <TaskActivity taskId={task.id} />
+            <TaskActivity
+              taskId={task.id}
+              comments={detail.comments}
+              attachments={detail.commentAttachments}
+            />
           </div>
         </div>
 
-        <PropertiesRail
-          task={task}
-          project={project}
-          projects={projects.data}
-          labels={labels.data}
-          threads={threads.data ?? []}
-          presets={presets.data}
-          onUpdate={(update) => void updateTask(update)}
-          onMoveToProject={(projectId) => void moveToProject(projectId)}
-          onError={(message) => push(message)}
+        <TaskProperties
+          variant="rail"
+          {...properties}
+          onUpdate={(change) => void update(change)}
           className="hidden @[45rem]:block"
         />
       </div>
-      <DetailToasts toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
 
-export function DetailView({ taskKey, onCanonicalKey }: DetailViewProps) {
+export function DetailView({
+  taskKey,
+  onCanonicalKey,
+}: {
+  taskKey: string;
+  onCanonicalKey?: (taskKey: string) => void;
+}) {
   const query = useTasksQuery(
-    async (rpc) => (await rpc.call("getTaskByKey", { taskKey })).task,
-    ["tasks:changed"],
+    async (rpc) => (await rpc.call("taskDetail", { taskKey })).detail,
     [taskKey],
   );
-  const canonicalKey = query.data?.key;
+  const presets = usePresets();
+  const canonicalKey = query.data?.task.key;
   useEffect(() => {
     if (canonicalKey) onCanonicalKey?.(canonicalKey);
   }, [canonicalKey, onCanonicalKey]);
 
+  if (query.data) {
+    return <TaskDetailPage detail={query.data} presets={presets.data} />;
+  }
   if (query.data === undefined) {
-    return query.error ? (
+    return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-destructive">
         {query.error}
       </div>
-    ) : (
-      <DetailSkeleton />
     );
   }
-  if (query.data === null) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-        <Icon name="FileQuestion" className="size-5" />
-        Task {taskKey} was not found.
-      </div>
-    );
-  }
-  return <TaskDetail task={query.data} />;
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+      <Icon name="FileQuestion" className="size-5" />
+      Task {taskKey} was not found.
+    </div>
+  );
 }

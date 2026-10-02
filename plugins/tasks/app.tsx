@@ -1,7 +1,9 @@
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import { definePluginApp } from "@bb/plugin/app";
 import { TasksAppShell } from "./shell/app-shell.js";
-import { TasksSidebarAccessory } from "./shell/sidebar-accessory.js";
-import { TasksNavigationPanel } from "./shell/navigation-panel.js";
+import {
+  TasksNavigationPanel,
+  TasksSidebarAccessory,
+} from "./shell/sidebar.js";
 import { TaskDirectiveCard, TaskEmbedPanel } from "./views/embed/index.js";
 
 export default definePluginApp((app) => {
@@ -11,7 +13,7 @@ export default definePluginApp((app) => {
     icon: "ListTodo",
     path: "tasks",
     component: TasksAppShell,
-    experimental_sidebarAccessory: TasksSidebarAccessory,
+    sidebarAccessory: TasksSidebarAccessory,
     fixedTabs: [
       {
         panelId: "tasks",
@@ -23,7 +25,7 @@ export default definePluginApp((app) => {
       },
     ],
   });
-  app.slots.threadPanelAction({
+  app.slots.threadPanel({
     id: "task",
     title: "Task",
     icon: "ListTodo",

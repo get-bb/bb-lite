@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { PluginServerEntry } from "@bb/plugin";
+import tasks from "../../../../plugins/tasks/server.js";
 import threadList from "../../../../plugins/thread-list/server.js";
 
 export interface BuiltinPlugin {
@@ -13,4 +14,5 @@ const pluginDirectory = (name: string): string =>
 export const builtinPlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("thread-list"), server: threadList },
   { directory: pluginDirectory("navigation"), server: null },
+  { directory: pluginDirectory("tasks"), server: tasks },
 ];

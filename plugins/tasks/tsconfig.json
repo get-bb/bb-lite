@@ -5,33 +5,16 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "noEmit": true,
+    "noUnusedLocals": true,
     "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
+    "customConditions": ["source"],
     "paths": {
-      "@/components/ui/icon": [
-        "../../packages/shared-ui/src/components/ui/icon.tsx"
-      ],
-      "@/*": [
-        "../../packages/shared-ui/src/*"
-      ]
-    },
-    "customConditions": [
-      "source"
-    ]
+      "@/*": ["../../apps/app/src/*"]
+    }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", "../../apps/app/src/vite-env.d.ts"],
+  "exclude": ["node_modules", "dist", ".tmp"]
 }

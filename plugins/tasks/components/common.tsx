@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@bb/shared-ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,35 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@bb/shared-ui/dialog";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: IconName;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="flex size-10 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+        <Icon name={icon} className="size-5" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{title}</p>
+        {description ? (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {action}
+    </div>
+  );
+}
 
 export function ConfirmDialog({
   open,
@@ -15,7 +43,6 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  confirmDisabled = false,
   onConfirm,
 }: {
   open: boolean;
@@ -23,7 +50,6 @@ export function ConfirmDialog({
   title: string;
   description: ReactNode;
   confirmLabel: string;
-  confirmDisabled?: boolean;
   onConfirm: () => void;
 }) {
   return (
@@ -44,7 +70,6 @@ export function ConfirmDialog({
           <Button
             variant="destructive"
             size="sm"
-            disabled={confirmDisabled}
             onClick={() => {
               onOpenChange(false);
               onConfirm();

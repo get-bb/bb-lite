@@ -1,253 +1,143 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   PluginMessageDirectiveProps,
   PluginThreadPanelProps,
-} from "@get-bb/plugin-sdk";
-import { useBbNavigate, useRealtime } from "@get-bb/plugin-sdk/app";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Task } from "../../shared/contract.js";
-import { useTasksRpc } from "../../shell/data.js";
-import { TasksRefreshProvider } from "../../shell/refresh.js";
-import { PANEL_PATH, tasksRouteToSubPath } from "../../shell/routes.js";
+} from "@bb/plugin/app";
+import { useBbNavigate } from "@bb/plugin/app";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
+import { Skeleton } from "@bb/shared-ui/skeleton";
+import { useTasksQuery } from "../../shell/data.js";
+import { PANEL_PATH } from "../../shell/routes.js";
 import { DetailView } from "../detail/index.js";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../list/lib.js";
 import { PriorityIcon, StatusIcon } from "../list/icons.js";
 
 const TASK_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,9}-\d+$/;
-
-type TaskEmbedState =
-  | { kind: "loading" }
-  | { kind: "found"; task: Task }
-  | { kind: "not_found" }
-  | { kind: "error" };
-
-function useTaskEmbed(taskKey: string): {
-  state: TaskEmbedState;
-  retry: () => void;
-} {
-  const rpc = useTasksRpc();
-  const [state, setState] = useState<TaskEmbedState>({ kind: "loading" });
-  const seqRef = useRef(0);
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  const refresh = useCallback(() => {
-    if (taskKey === "") return;
-    const seq = ++seqRef.current;
-    rpc.call("getTaskByKey", { taskKey }).then(
-      ({ task }) => {
-        if (seq !== seqRef.current) return;
-        setState(task ? { kind: "found", task } : { kind: "not_found" });
-      },
-      () => {
-        if (seq !== seqRef.current) return;
-        setState({ kind: "error" });
-      },
-    );
-  }, [rpc, taskKey]);
-
-  useEffect(() => {
-    setState({ kind: "loading" });
-    refresh();
-  }, [refresh]);
-
-  const onEvent = useCallback(
-    (matches: (task: Task) => boolean) => {
-      const current = stateRef.current;
-      if (current.kind !== "found" || matches(current.task)) refresh();
-    },
-    [refresh],
-  );
-  useRealtime("tasks:changed", (payload) => {
-    const taskId = isRecord(payload) ? payload.taskId : undefined;
-    onEvent((task) => typeof taskId !== "string" || taskId === task.id);
-  });
-  useRealtime("projects:changed", (payload) => {
-    const projectId = isRecord(payload) ? payload.projectId : undefined;
-    onEvent(
-      (task) => typeof projectId !== "string" || projectId === task.projectId,
-    );
-  });
-
-  return { state, retry: refresh };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function taskDetailSubPath(taskKey: string): string {
-  return tasksRouteToSubPath({ kind: "task", taskKey });
-}
+const KEY_CLASS = "shrink-0 font-mono text-xs text-muted-foreground";
+const ROW_CLASS = "flex min-w-0 flex-1 items-center gap-2 px-1";
+const NOTE_CLASS = "min-w-0 flex-1 truncate text-sm text-muted-foreground";
+const SOLID_CARD_CLASS =
+  "my-3 flex h-11 items-center gap-1 rounded-lg border border-border bg-card px-2 shadow-sm transition-colors hover:bg-state-hover";
+const DASHED_CARD_CLASS =
+  "my-3 flex h-11 items-center gap-1 rounded-lg border border-dashed border-border bg-surface-recessed-solid px-2";
 
 function OpenInTasksButton({
   label,
-  subPath,
+  taskKey,
 }: {
   label: string;
-  subPath?: string;
+  taskKey?: string;
 }) {
   const navigate = useBbNavigate();
+  const target = taskKey === undefined ? {} : { subPath: `task/${taskKey}` };
   return (
     <Button
       className="size-8 shrink-0"
       size="icon"
       variant="ghost"
       aria-label={label}
-      onClick={() =>
-        navigate.toPluginPanel(
-          PANEL_PATH,
-          subPath === undefined ? {} : { subPath },
-        )
-      }
+      onClick={() => navigate.toPluginPanel(PANEL_PATH, target)}
     >
       <Icon name="ArrowUpRight" className="size-4" />
     </Button>
   );
 }
 
-function CardShell({
-  dashed = false,
-  children,
+function TaskCard({
+  taskKey,
+  title,
 }: {
-  dashed?: boolean;
-  children: React.ReactNode;
+  taskKey: string;
+  title: string | null;
 }) {
-  return (
-    <div
-      className={
-        dashed
-          ? "my-3 flex h-11 items-center gap-1 rounded-lg border border-dashed border-border bg-surface-recessed-solid px-2"
-          : "my-3 flex h-11 items-center gap-1 rounded-lg border border-border bg-card px-2 shadow-sm transition-colors hover:bg-state-hover"
-      }
-    >
-      {children}
-    </div>
-  );
-}
-
-function embedAriaLabel(task: Task): string {
-  const parts = [
-    `${task.key} — ${task.title}`,
-    STATUS_LABELS[task.status].toLowerCase(),
-  ];
-  if (task.priority !== "none") {
-    parts.push(`${PRIORITY_LABELS[task.priority].toLowerCase()} priority`);
-  }
-  return `${parts.join(", ")} — open in side panel`;
-}
-
-export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
   const navigate = useBbNavigate();
-  const taskKey = attributes.key?.trim() ?? "";
-  const fallbackTitle = attributes.title?.trim() || null;
-  const validKey = TASK_KEY_PATTERN.test(taskKey);
-  const { state, retry } = useTaskEmbed(validKey ? taskKey : "");
+  const query = useTasksQuery(
+    async (rpc) => (await rpc.call("getTaskByKey", { taskKey })).task,
+    [taskKey],
+  );
+  const task = query.data;
 
-  if (!validKey) {
+  if (task === undefined && query.error === null) {
     return (
-      <div className="my-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-        Invalid task link. Expected a task key like TSK-4.
-      </div>
-    );
-  }
-
-  if (state.kind === "loading") {
-    return (
-      <CardShell>
+      <div className={SOLID_CARD_CLASS}>
         <div
           role="status"
           aria-label={`Loading task ${taskKey}`}
-          className="flex min-w-0 flex-1 items-center gap-2 px-1"
+          className={ROW_CLASS}
         >
           <Skeleton className="size-3.5 shrink-0 rounded-full" />
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {taskKey}
-          </span>
-          {fallbackTitle ? (
+          <span className={KEY_CLASS}>{taskKey}</span>
+          {title ? (
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
-              {fallbackTitle}
+              {title}
             </span>
           ) : (
             <Skeleton className="h-3.5 w-1/2" />
           )}
         </div>
-      </CardShell>
+      </div>
     );
   }
-
-  if (state.kind === "not_found") {
+  if (!task) {
+    const missing = title
+      ? `${title} · not found`
+      : "Task not found — deleted, or its key changed";
     return (
-      <CardShell dashed>
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
-          <StatusIcon status="backlog" />
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {taskKey}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            {fallbackTitle
-              ? `${fallbackTitle} · not found`
-              : "Task not found — deleted, or its key changed"}
+      <div className={DASHED_CARD_CLASS}>
+        <div className={ROW_CLASS}>
+          {task === null ? (
+            <StatusIcon status="backlog" />
+          ) : (
+            <Icon
+              name="AlertCircle"
+              className="size-3.5 shrink-0 text-muted-foreground"
+            />
+          )}
+          <span className={KEY_CLASS}>{taskKey}</span>
+          <span className={NOTE_CLASS}>
+            {task === null ? missing : "Couldn't load this task"}
           </span>
         </div>
-        <OpenInTasksButton label="Open Tasks" />
-      </CardShell>
+        {task === null ? (
+          <OpenInTasksButton label="Open Tasks" />
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            onClick={query.refresh}
+          >
+            Retry
+          </Button>
+        )}
+      </div>
     );
   }
 
-  if (state.kind === "error") {
-    return (
-      <CardShell dashed>
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
-          <Icon
-            name="AlertCircle"
-            className="size-3.5 shrink-0 text-muted-foreground"
-          />
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {taskKey}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            Couldn't load this task
-          </span>
-        </div>
-        <Button variant="ghost" size="sm" className="shrink-0" onClick={retry}>
-          Retry
-        </Button>
-      </CardShell>
-    );
-  }
-
-  const { task } = state;
+  const priority = PRIORITY_LABELS[task.priority].toLowerCase();
+  const summary = [
+    `${task.key} — ${task.title}`,
+    STATUS_LABELS[task.status].toLowerCase(),
+    ...(task.priority === "none" ? [] : [`${priority} priority`]),
+  ];
   const openInSidePanel = () => {
-    const opened = navigate.openThreadPanel({
-      actionId: "task",
-      title: task.key,
-      params: { taskKey: task.key },
-    });
-    if (!opened) {
-      navigate.toPluginPanel(PANEL_PATH, {
-        subPath: taskDetailSubPath(task.key),
-      });
-    }
+    const panel = { actionId: "task", title: task.key };
+    const params = { taskKey: task.key };
+    if (navigate.openThreadPanel({ ...panel, params })) return;
+    navigate.toPluginPanel(PANEL_PATH, { subPath: `task/${task.key}` });
   };
-
   return (
-    <CardShell>
+    <div className={SOLID_CARD_CLASS}>
       <button
         type="button"
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        aria-label={embedAriaLabel(task)}
+        aria-label={`${summary.join(", ")} — open in side panel`}
         onClick={openInSidePanel}
       >
         <span aria-hidden>
           <StatusIcon status={task.status} />
         </span>
-        <span
-          aria-hidden
-          className="shrink-0 font-mono text-xs text-muted-foreground"
-        >
+        <span aria-hidden className={KEY_CLASS}>
           {task.key}
         </span>
         <span
@@ -264,18 +154,32 @@ export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
       </button>
       <OpenInTasksButton
         label={`Open ${task.key} in Tasks`}
-        subPath={taskDetailSubPath(task.key)}
+        taskKey={task.key}
       />
-    </CardShell>
+    </div>
   );
 }
 
-function TaskEmbedPanelContent({ params }: PluginThreadPanelProps) {
-  const taskKey =
-    isRecord(params) && typeof params.taskKey === "string"
-      ? params.taskKey
+export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
+  const taskKey = attributes.key?.trim() ?? "";
+  const title = attributes.title?.trim() || null;
+  if (TASK_KEY_PATTERN.test(taskKey)) {
+    return <TaskCard taskKey={taskKey} title={title} />;
+  }
+  return (
+    <div className="my-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+      Invalid task link. Expected a task key like TSK-4.
+    </div>
+  );
+}
+
+export function TaskEmbedPanel({ params }: PluginThreadPanelProps) {
+  const given: unknown =
+    typeof params === "object" && params !== null
+      ? Reflect.get(params, "taskKey")
       : null;
-  if (taskKey === null || !TASK_KEY_PATTERN.test(taskKey.trim())) {
+  const taskKey = typeof given === "string" ? given.trim() : "";
+  if (!TASK_KEY_PATTERN.test(taskKey)) {
     return (
       <div className="p-3 text-sm text-muted-foreground">
         Open a task card from a message to view it here.
@@ -286,24 +190,16 @@ function TaskEmbedPanelContent({ params }: PluginThreadPanelProps) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pb-2">
         <div className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-          {taskKey.trim()}
+          {taskKey}
         </div>
         <OpenInTasksButton
-          label={`Open ${taskKey.trim()} in Tasks`}
-          subPath={taskDetailSubPath(taskKey.trim())}
+          label={`Open ${taskKey} in Tasks`}
+          taskKey={taskKey}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <DetailView taskKey={taskKey.trim()} />
+        <DetailView taskKey={taskKey} />
       </div>
     </div>
-  );
-}
-
-export function TaskEmbedPanel(props: PluginThreadPanelProps) {
-  return (
-    <TasksRefreshProvider>
-      <TaskEmbedPanelContent {...props} />
-    </TasksRefreshProvider>
   );
 }
