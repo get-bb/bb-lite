@@ -1,10 +1,6 @@
 import { z } from "zod";
 import type { ThreadEventType } from "./provider-event.js";
 
-const threadEventScopeKindValues = ["thread", "turn"] as const;
-const threadEventScopeKindSchema = z.enum(threadEventScopeKindValues);
-export type ThreadEventScopeKind = z.infer<typeof threadEventScopeKindSchema>;
-
 export const threadEventScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("thread") }),
   z.object({ kind: z.literal("turn"), turnId: z.string().min(1) }),

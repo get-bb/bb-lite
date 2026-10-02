@@ -9,17 +9,11 @@ export const environmentMachineSelectionSchema = z.discriminatedUnion("type", [
     inputs: jsonValueSchema.nullable(),
   }),
 ]);
-export type EnvironmentMachineSelection = z.infer<
-  typeof environmentMachineSelectionSchema
->;
 
 export const environmentProviderSelectionSchema = z.object({
   machine: environmentMachineSelectionSchema,
   inputs: jsonValueSchema.nullable(),
 });
-export type EnvironmentProviderSelection = z.infer<
-  typeof environmentProviderSelectionSchema
->;
 export const environmentStatusValues = [
   "creating",
   "provisioning",
@@ -81,17 +75,6 @@ export const environmentWorkspaceDisplayKindSchema = z.enum(
 );
 export type EnvironmentWorkspaceDisplayKind = z.infer<
   typeof environmentWorkspaceDisplayKindSchema
->;
-
-export const discoveredWorkspacePropertiesSchema = z.object({
-  path: z.string().min(1),
-  isGitRepo: z.boolean(),
-  isWorktree: z.boolean(),
-  branchName: z.string().nullable(),
-  defaultBranch: z.string().nullable(),
-});
-export type DiscoveredWorkspaceProperties = z.infer<
-  typeof discoveredWorkspacePropertiesSchema
 >;
 
 export const environmentLifecycleSchema = z.object({

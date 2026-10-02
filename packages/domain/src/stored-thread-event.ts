@@ -51,15 +51,6 @@ interface StoredThreadEventParseArgs {
   type: ThreadEventType;
 }
 
-type StoredThreadEventDataByType = {
-  [TType in ThreadEventType]: StoredThreadEventDataFromEvent<
-    ThreadEventForType<TType>
-  >;
-};
-
-export type StoredThreadEventDataForType<TType extends ThreadEventType> =
-  StoredThreadEventDataByType[TType];
-
 type ThreadEventRowFromEvent<TEvent extends ThreadEvent> =
   ThreadEventRowBase & {
     type: TEvent["type"];
@@ -158,17 +149,6 @@ export function buildThreadEventRow<TEvent extends ThreadEvent>(
   };
 }
 
-export function buildThreadEvent(row: ThreadEventRow): ThreadEvent {
-  return parseStoredThreadEvent({
-    data: row.data,
-    providerThreadId:
-      "providerThreadId" in row.data ? row.data.providerThreadId : undefined,
-    scope: row.scope,
-    threadId: row.threadId,
-    type: row.type,
-  });
-}
-
 function parseThreadEventRowInput(row: ThreadEventRowInput): ThreadEventRow {
   return buildThreadEventRow({
     id: row.id,
@@ -189,8 +169,3 @@ export function parseThreadEventRow(value: unknown): ThreadEventRow {
   const row = threadEventRowInputSchema.parse(value);
   return parseThreadEventRowInput(row);
 }
-
-export const threadEventRowSchema =
-  threadEventRowInputSchema.transform<ThreadEventRow>((row) =>
-    parseThreadEventRowInput(row),
-  );

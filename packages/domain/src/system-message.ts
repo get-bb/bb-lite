@@ -33,9 +33,6 @@ export const systemThreadInterruptedReasonSchema = z.enum([
   "host-removed",
   "provider-turn-idle",
 ]);
-export type SystemThreadInterruptedReason = z.infer<
-  typeof systemThreadInterruptedReasonSchema
->;
 
 export const childThreadOutcomeSchema = z.object({
   threadId: z.string(),
@@ -67,4 +64,3 @@ export const systemMessageSubjectSchema = z.discriminatedUnion("kind", [
     suppress: z.boolean(),
   }),
 ]);
-export type SystemMessageSubject = z.infer<typeof systemMessageSubjectSchema>;

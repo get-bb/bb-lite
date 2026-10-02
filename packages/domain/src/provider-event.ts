@@ -41,9 +41,6 @@ export type ThreadEventItemStatus = z.infer<typeof threadEventItemStatusSchema>;
 const threadEventItemApprovalStatusSchema = z
   .enum(["waiting_for_approval", "denied"])
   .nullable();
-export type ThreadEventItemApprovalStatus = z.infer<
-  typeof threadEventItemApprovalStatusSchema
->;
 
 export const threadEventTurnStatusSchema = z.enum([
   "completed",
@@ -89,9 +86,6 @@ const providerRateLimitStatusSchema = z.enum([
   "blocked",
   "unknown",
 ]);
-export type ProviderRateLimitStatus = z.infer<
-  typeof providerRateLimitStatusSchema
->;
 
 const providerRateLimitWindowSchema = z.object({
   providerKey: z.string().min(1).nullable(),
@@ -99,9 +93,6 @@ const providerRateLimitWindowSchema = z.object({
   status: providerRateLimitStatusSchema,
   resetsAtMs: z.number().int().nonnegative().nullable(),
 });
-export type ProviderRateLimitWindow = z.infer<
-  typeof providerRateLimitWindowSchema
->;
 
 export const providerRateLimitStateSchema = z.object({
   providerId: z.string().min(1),
@@ -114,9 +105,6 @@ export const providerRateLimitStateSchema = z.object({
     .nullable(),
   overageReason: z.string().min(1).nullable(),
 });
-export type ProviderRateLimitState = z.infer<
-  typeof providerRateLimitStateSchema
->;
 
 const threadEventFileChangeKindSchema = z.enum(["add", "delete", "update"]);
 
@@ -126,7 +114,6 @@ const threadEventFileChangeSchema = z.object({
   movePath: z.string().optional(),
   diff: z.string().optional(),
 });
-export type ThreadEventFileChange = z.infer<typeof threadEventFileChangeSchema>;
 
 const threadEventPlanStepStatusSchema = z.enum([
   "pending",
@@ -153,9 +140,6 @@ const threadEventWebSearchItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventWebSearchItem = z.infer<
-  typeof threadEventWebSearchItemSchema
->;
 
 const threadEventWebFetchItemSchema = z.object({
   type: z.literal("webFetch"),
@@ -167,9 +151,6 @@ const threadEventWebFetchItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventWebFetchItem = z.infer<
-  typeof threadEventWebFetchItemSchema
->;
 
 const threadEventImageViewItemSchema = z.object({
   type: z.literal("imageView"),
@@ -188,12 +169,8 @@ export const threadEventFileReadItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventFileReadItem = z.infer<
-  typeof threadEventFileReadItemSchema
->;
 
 export const threadEventSearchModeSchema = z.enum(["content", "path", "list"]);
-export type ThreadEventSearchMode = z.infer<typeof threadEventSearchModeSchema>;
 
 export const threadEventSearchItemSchema = z.object({
   type: z.literal("search"),
@@ -206,7 +183,6 @@ export const threadEventSearchItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventSearchItem = z.infer<typeof threadEventSearchItemSchema>;
 
 export const threadEventDelegationItemSchema = z.object({
   type: z.literal("delegation"),
@@ -219,9 +195,6 @@ export const threadEventDelegationItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventDelegationItem = z.infer<
-  typeof threadEventDelegationItemSchema
->;
 
 export const threadEventPlanStepsItemSchema = z.object({
   type: z.literal("planSteps"),
@@ -232,9 +205,6 @@ export const threadEventPlanStepsItemSchema = z.object({
   ...itemPresentationField,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventPlanStepsItem = z.infer<
-  typeof threadEventPlanStepsItemSchema
->;
 
 export const threadEventExtensionItemSchema = z.object({
   type: z.literal("extension"),
@@ -245,9 +215,6 @@ export const threadEventExtensionItemSchema = z.object({
   presentation: threadEventItemPresentationSchema,
   parentToolCallId: z.string().optional(),
 });
-export type ThreadEventExtensionItem = z.infer<
-  typeof threadEventExtensionItemSchema
->;
 
 const threadEventTextTruncationSchema = z.object({
   originalLength: z.number(),
@@ -282,9 +249,6 @@ const threadEventUserContentSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("localImage"), path: z.string() }),
   z.object({ type: z.literal("localFile"), path: z.string() }),
 ]);
-export type ThreadEventUserContent = z.infer<
-  typeof threadEventUserContentSchema
->;
 
 export const threadEventTokenUsageBreakdownSchema = z.object({
   totalTokens: z.number(),
@@ -305,9 +269,6 @@ const threadEventContextWindowUsageSchema = z.object({
   modelContextWindow: z.number().nullable(),
   estimated: z.boolean(),
 });
-export type ThreadEventContextWindowUsage = z.infer<
-  typeof threadEventContextWindowUsageSchema
->;
 
 const threadEventTokenUsageSchema = z.object({
   total: threadEventTokenUsageBreakdownSchema,
@@ -321,9 +282,6 @@ export const threadEventWarningCategorySchema = z.enum([
   "general",
   "compaction-skipped",
 ]);
-export type ThreadEventWarningCategory = z.infer<
-  typeof threadEventWarningCategorySchema
->;
 
 export const providerRawEventSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -331,7 +289,6 @@ export const providerRawEventSchema = z.object({
   method: z.string(),
   params: jsonValueSchema.optional(),
 });
-export type ProviderRawEvent = z.infer<typeof providerRawEventSchema>;
 
 const providerUnhandledEventSchema = z.object({
   type: z.literal("provider/unhandled"),
@@ -699,11 +656,6 @@ const scopedEventDataSchema = z.object({
 const providerEventSchema = unscopedProviderEventSchema.and(
   scopedEventDataSchema,
 );
-type ProviderEvent = z.infer<typeof providerEventSchema>;
-export type ProviderUnhandledEvent = Extract<
-  ProviderEvent,
-  { type: "provider/unhandled" }
->;
 const providerEventTypeValues = unscopedProviderEventSchema.options.map(
   (option) => option.shape.type.value,
 );
@@ -809,34 +761,6 @@ export const threadEventSchema = z
 export type ThreadEvent = z.infer<typeof threadEventSchema>;
 export type ThreadEventType = ThreadEvent["type"];
 
-export type ThreadEventWithItem = Extract<
-  ThreadEvent,
-  {
-    type:
-      | "item/started"
-      | "item/completed"
-      | "item/delegation/progress"
-      | "item/delegation/completed"
-      | "item/backgroundTask/progress"
-      | "item/backgroundTask/completed";
-  }
->;
-
-export function isThreadEventWithItem(
-  event: ThreadEvent,
-): event is ThreadEventWithItem {
-  switch (event.type) {
-    case "item/started":
-    case "item/completed":
-    case "item/delegation/progress":
-    case "item/delegation/completed":
-    case "item/backgroundTask/progress":
-    case "item/backgroundTask/completed":
-      return true;
-    default:
-      return false;
-  }
-}
 export const threadEventTypeValues = [
   ...providerEventTypeValues,
   ...systemEventTypeValues,

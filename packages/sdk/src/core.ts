@@ -20,7 +20,6 @@ import {
 } from "./areas/thread-sections.js";
 
 export type * from "./public-types.js";
-export { createBuiltinPlanCommandTextInput } from "@bb/domain";
 
 export interface CreateBbSdkArgs {
   context?: BbSdkContext;

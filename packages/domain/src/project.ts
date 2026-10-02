@@ -4,7 +4,6 @@ export const PERSONAL_PROJECT_ID = "proj_personal";
 
 const projectKindValues = ["standard", "personal"] as const;
 const projectKindSchema = z.enum(projectKindValues);
-export type ProjectKind = z.infer<typeof projectKindSchema>;
 
 export const projectSchema = z.object({
   id: z.string(),
@@ -15,10 +14,6 @@ export const projectSchema = z.object({
   updatedAt: z.number(),
 });
 export type Project = z.infer<typeof projectSchema>;
-
-const projectSourceTypeValues = ["local_path"] as const;
-const projectSourceTypeSchema = z.enum(projectSourceTypeValues);
-export type ProjectSourceType = z.infer<typeof projectSourceTypeSchema>;
 
 const baseProjectSourceSchema = z.object({
   id: z.string(),
@@ -39,12 +34,6 @@ export type LocalPathProjectSource = z.infer<
 
 export const projectSourceSchema = localPathProjectSourceSchema;
 export type ProjectSource = z.infer<typeof projectSourceSchema>;
-
-export function isLocalPathProjectSource(
-  source: ProjectSource,
-): source is LocalPathProjectSource {
-  return source.type === "local_path";
-}
 
 export function findLocalPathProjectSourceForHost(
   sources: readonly ProjectSource[],

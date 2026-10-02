@@ -7,7 +7,6 @@ export const contextEntrySchema = z.object({
   label: z.string().min(1),
   tokens: tokenCountSchema,
 });
-export type ContextEntry = z.infer<typeof contextEntrySchema>;
 
 export const contextCategorySchema = z.object({
   id: z.string().min(1),

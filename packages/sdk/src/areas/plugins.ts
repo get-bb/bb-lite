@@ -21,16 +21,6 @@ const pluginInstallResponseSchema = z.object({
   plugin: installedPluginResponseSchema,
 });
 
-export const pluginMutationResponseSchema = z.object({
-  ok: z.boolean(),
-  error: z.string().optional(),
-  plugin: installedPluginResponseSchema.optional(),
-  plugins: z.array(installedPluginResponseSchema).optional(),
-});
-export type PluginMutationResponse = z.infer<
-  typeof pluginMutationResponseSchema
->;
-
 export interface PluginIdArgs {
   pluginId: string;
 }

@@ -9,10 +9,6 @@ interface FormatClientTurnRequestIdSuffixArgs {
   suffix: string;
 }
 
-interface EncodeClientTurnRequestIdAlphabetIndexesArgs {
-  indexes: readonly number[];
-}
-
 interface EncodeClientTurnRequestIdNumberArgs {
   value: number;
 }
@@ -28,30 +24,6 @@ export function formatClientTurnRequestIdSuffix(
   return clientTurnRequestIdSchema.parse(
     `${CLIENT_TURN_REQUEST_ID_PREFIX}${args.suffix}`,
   );
-}
-
-export function encodeClientTurnRequestIdAlphabetIndexes(
-  args: EncodeClientTurnRequestIdAlphabetIndexesArgs,
-): ClientTurnRequestId {
-  if (args.indexes.length !== CLIENT_TURN_REQUEST_ID_SUFFIX_LENGTH) {
-    throw new Error(
-      `Client turn request id requires ${CLIENT_TURN_REQUEST_ID_SUFFIX_LENGTH} alphabet indexes`,
-    );
-  }
-
-  let suffix = "";
-  for (const index of args.indexes) {
-    if (
-      !Number.isInteger(index) ||
-      index < 0 ||
-      index >= CLIENT_TURN_REQUEST_ID_ALPHABET.length
-    ) {
-      throw new Error(`Invalid client turn request id alphabet index ${index}`);
-    }
-    suffix += CLIENT_TURN_REQUEST_ID_ALPHABET.charAt(index);
-  }
-
-  return formatClientTurnRequestIdSuffix({ suffix });
 }
 
 export function encodeClientTurnRequestIdNumber(

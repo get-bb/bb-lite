@@ -47,20 +47,6 @@ export function isBuiltInThemeId(id: string): id is BuiltInThemeId {
   return (BUILTIN_THEME_IDS as readonly string[]).includes(id);
 }
 
-export const customThemeNameSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(
-    /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
-    "Custom theme names may use letters, digits, '.', '_', and '-' and cannot start with '.'",
-  )
-  .refine((name) => name !== "." && name !== "..", "Invalid custom theme name")
-  .refine(
-    (name) => !isBuiltInThemeId(name),
-    "Custom theme name collides with a built-in palette id",
-  );
-
 export const CUSTOM_THEME_CSS_MAX_LENGTH = 256_000;
 
 export const FAVICON_COLORS = [
@@ -100,12 +86,6 @@ export const pluginThemeMetaSchema = z.object({
   description: z.string().nullable(),
 });
 export type PluginThemeMeta = z.infer<typeof pluginThemeMetaSchema>;
-
-const PLUGIN_THEME_ID_PREFIX = "plugin:";
-
-export function formatPluginThemeId(pluginId: string, themeId: string): string {
-  return `${PLUGIN_THEME_ID_PREFIX}${pluginId}:${themeId}`;
-}
 
 export const appThemeSelectionSchema = z.object({
   themeId: z.string().min(1),

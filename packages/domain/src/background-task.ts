@@ -74,29 +74,23 @@ const workflowAgentSnapshotSchema = z.object({
   toolCalls: z.number().optional(),
   durationMs: z.number().optional(),
 });
-export type WorkflowAgentSnapshot = z.infer<typeof workflowAgentSnapshotSchema>;
 
 const workflowPhaseSnapshotSchema = z.object({
   index: z.number().int().positive(),
   title: z.string(),
   kind: z.string().optional(),
 });
-export type WorkflowPhaseSnapshot = z.infer<typeof workflowPhaseSnapshotSchema>;
 
 export const workflowProgressSnapshotSchema = z.object({
   phases: z.array(workflowPhaseSnapshotSchema),
   agents: z.array(workflowAgentSnapshotSchema),
 });
-export type WorkflowProgressSnapshot = z.infer<
-  typeof workflowProgressSnapshotSchema
->;
 
 export const backgroundTaskUsageSchema = z.object({
   totalTokens: z.number(),
   toolUses: z.number(),
   durationMs: z.number(),
 });
-export type BackgroundTaskUsage = z.infer<typeof backgroundTaskUsageSchema>;
 
 export function backgroundTaskItemStatus(
   taskStatus: BackgroundTaskStatus,
@@ -114,10 +108,4 @@ export function backgroundTaskItemStatus(
     case "stopped":
       return "interrupted";
   }
-}
-
-export function isSettledBackgroundTaskStatus(
-  taskStatus: BackgroundTaskStatus,
-): boolean {
-  return backgroundTaskItemStatus(taskStatus) !== "pending";
 }

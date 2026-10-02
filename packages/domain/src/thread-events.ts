@@ -71,9 +71,6 @@ export const clientTurnLifecycleEventDataSchema = z.object({
     params: z.record(z.string(), z.unknown()),
   }),
 });
-export type ClientTurnLifecycleEventData = z.infer<
-  typeof clientTurnLifecycleEventDataSchema
->;
 
 export const turnRequestEventDataSchema = z.object({
   direction: z.literal("outbound"),
@@ -137,7 +134,6 @@ export const systemErrorEventDataSchema = z.object({
   message: z.string(),
   detail: z.string().optional(),
 });
-export type SystemErrorEventData = z.infer<typeof systemErrorEventDataSchema>;
 
 const ownershipChangeOperationActionValues = [
   "assign",
@@ -147,9 +143,6 @@ const ownershipChangeOperationActionValues = [
 const ownershipChangeOperationActionSchema = z.enum(
   ownershipChangeOperationActionValues,
 );
-export type OwnershipChangeOperationAction = z.infer<
-  typeof ownershipChangeOperationActionSchema
->;
 
 export const ownershipChangeOperationMetadataSchema = z.object({
   action: ownershipChangeOperationActionSchema,

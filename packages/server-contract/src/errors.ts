@@ -85,9 +85,6 @@ export const projectUnavailableErrorDetailsSchema = z.object({
   reason: projectUnavailableReasonSchema,
   deletedAt: z.number().int().nonnegative().nullable(),
 });
-export type ProjectUnavailableErrorDetails = z.infer<
-  typeof projectUnavailableErrorDetailsSchema
->;
 
 export const parentThreadInvalidReasonSchema = z.enum([
   "not_found",
@@ -97,14 +94,8 @@ export const parentThreadInvalidReasonSchema = z.enum([
   "cycle",
   "too_deep",
 ]);
-export type ParentThreadInvalidReason = z.infer<
-  typeof parentThreadInvalidReasonSchema
->;
 
 export const parentThreadInvalidSubjectSchema = z.enum(["parent", "sender"]);
-export type ParentThreadInvalidSubject = z.infer<
-  typeof parentThreadInvalidSubjectSchema
->;
 
 export const parentThreadInvalidErrorDetailsSchema = z.object({
   reason: parentThreadInvalidReasonSchema,

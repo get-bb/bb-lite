@@ -168,12 +168,6 @@ const LEGACY_AGENT_RESULT_TOOL_NAMES: ReadonlySet<string> = new Set([
   "Agent",
   "Task",
 ]);
-const LEGACY_DELEGATION_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "Agent",
-  "Task",
-  "spawnAgent",
-  "resumeAgent",
-]);
 
 function legacyBaseToolName(tool: string): string {
   const segments = tool.split(":");
@@ -254,16 +248,6 @@ function sharedLegacyItemFields(item: LegacyToolItem): Record<string, unknown> {
       ? {}
       : { parentToolCallId: item.parentToolCallId }),
   };
-}
-
-export function isLegacyDelegationToolCall(call: {
-  tool: string;
-  presentation?: ThreadEventItemPresentation | undefined;
-}): boolean {
-  return (
-    call.presentation === undefined &&
-    LEGACY_DELEGATION_TOOL_NAMES.has(legacyBaseToolName(call.tool))
-  );
 }
 
 export function upgradeLegacyToolItem(item: unknown): unknown {

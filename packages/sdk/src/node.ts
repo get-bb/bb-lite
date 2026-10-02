@@ -57,11 +57,6 @@ export {
 };
 export { BbHttpError, BbRequestTimeoutError } from "./response.js";
 export {
-  pluginMutationResponseSchema,
-  type PluginMutationResponse,
-} from "./areas/plugins.js";
-export { createBuiltinPlanCommandTextInput } from "./core.js";
-export {
   DEFAULT_THREAD_WAIT_POLL_INTERVAL_MS,
   DEFAULT_THREAD_WAIT_TIMEOUT_MS,
   ThreadWaitTimeoutError,

@@ -46,7 +46,6 @@ export type ThreadRuntimeDisplayStatus = z.infer<
 export const threadRuntimeStateSchema = z.object({
   displayStatus: threadRuntimeDisplayStatusSchema,
 });
-export type ThreadRuntimeState = z.infer<typeof threadRuntimeStateSchema>;
 
 export const threadActivityStateSchema = z.object({
   activeWorkflowCount: z.number().int().nonnegative(),
@@ -111,7 +110,6 @@ const workspaceWorkingTreeSchema = workspaceChangeStatsSchema.extend({
   hasUncommittedChanges: z.boolean(),
   state: workspaceStateSchema,
 });
-export type WorkspaceWorkingTree = z.infer<typeof workspaceWorkingTreeSchema>;
 
 const workspaceBranchSchema = z.object({
   currentBranch: z.string().nullable(),
@@ -126,7 +124,6 @@ const workspaceMergeBaseSchema = workspaceChangeStatsSchema.extend({
   hasCommittedUnmergedChanges: z.boolean(),
   commits: z.array(workspaceCommitSummarySchema),
 });
-export type WorkspaceMergeBase = z.infer<typeof workspaceMergeBaseSchema>;
 
 export const workspaceStatusSchema = z.object({
   workingTree: workspaceWorkingTreeSchema,
@@ -135,98 +132,6 @@ export const workspaceStatusSchema = z.object({
   mergeBase: workspaceMergeBaseSchema.nullable(),
 });
 export type WorkspaceStatus = z.infer<typeof workspaceStatusSchema>;
-
-const gitHostPullRequestCheckStatusSchema = z.enum([
-  "queued",
-  "in_progress",
-  "completed",
-  "unknown",
-]);
-export type GitHostPullRequestCheckStatus = z.infer<
-  typeof gitHostPullRequestCheckStatusSchema
->;
-
-const gitHostPullRequestCheckConclusionSchema = z.enum([
-  "success",
-  "failure",
-  "cancelled",
-  "skipped",
-  "neutral",
-  "timed_out",
-  "action_required",
-  "startup_failure",
-  "stale",
-  "unknown",
-]);
-export type GitHostPullRequestCheckConclusion = z.infer<
-  typeof gitHostPullRequestCheckConclusionSchema
->;
-
-const gitHostPullRequestCheckSchema = z
-  .object({
-    name: z.string().min(1),
-    status: gitHostPullRequestCheckStatusSchema,
-    conclusion: gitHostPullRequestCheckConclusionSchema.nullable(),
-    url: z.string().url().nullable(),
-    startedAt: z.string().datetime().nullable(),
-  })
-  .strict();
-export type GitHostPullRequestCheck = z.infer<
-  typeof gitHostPullRequestCheckSchema
->;
-
-const gitHostPullRequestReviewDecisionSchema = z.enum([
-  "APPROVED",
-  "CHANGES_REQUESTED",
-  "REVIEW_REQUIRED",
-]);
-export type GitHostPullRequestReviewDecision = z.infer<
-  typeof gitHostPullRequestReviewDecisionSchema
->;
-
-const gitHostPullRequestMergeStateStatusSchema = z.enum([
-  "BEHIND",
-  "BLOCKED",
-  "CLEAN",
-  "DIRTY",
-  "DRAFT",
-  "HAS_HOOKS",
-  "UNKNOWN",
-  "UNSTABLE",
-]);
-export type GitHostPullRequestMergeStateStatus = z.infer<
-  typeof gitHostPullRequestMergeStateStatusSchema
->;
-
-const gitHostPullRequestMergeableSchema = z.enum([
-  "CONFLICTING",
-  "MERGEABLE",
-  "UNKNOWN",
-]);
-export type GitHostPullRequestMergeable = z.infer<
-  typeof gitHostPullRequestMergeableSchema
->;
-
-export const gitHostPullRequestSchema = z
-  .object({
-    number: z.number().int().positive(),
-    title: z.string(),
-    state: z.enum(["OPEN", "CLOSED", "MERGED"]),
-    url: z.string().url(),
-    isDraft: z.boolean(),
-    autoMerge: z.boolean(),
-    inMergeQueue: z.boolean().nullable(),
-    baseRefName: z.string(),
-    headRefName: z.string(),
-    updatedAt: z.string().datetime(),
-    checks: z.array(gitHostPullRequestCheckSchema),
-    reviewDecision: gitHostPullRequestReviewDecisionSchema.nullable(),
-    reviewRequestCount: z.number().int().nonnegative(),
-    mergeStateStatus: gitHostPullRequestMergeStateStatusSchema.nullable(),
-    mergeable: gitHostPullRequestMergeableSchema.nullable(),
-  })
-  .strict();
-export type GitHostPullRequest = z.infer<typeof gitHostPullRequestSchema>;
 
 export const threadQueuedMessageSchema = z.object({
   id: z.string(),

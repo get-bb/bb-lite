@@ -2,8 +2,6 @@ export type {
   CallerExecutionInputSource,
   ContextSnapshot,
   ContextCategory,
-  ContextEntry,
-  GitBranchSelection,
   JsonValue,
   PermissionMode,
   PromptInput,
@@ -14,10 +12,8 @@ export type {
 } from "@bb/domain";
 export type {
   CreateExecutionInputSources,
-  EnvironmentArgs,
   ExistingThreadExecutionInputSources,
   UnmanagedBranchSpec,
-  WorkspaceArgs,
 } from "@bb/server-contract";
 
 export type * from "./realtime.js";

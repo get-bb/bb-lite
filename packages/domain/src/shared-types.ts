@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { jsonObjectSchema } from "./json-value.js";
 
 export const reasoningLevelValues = [
   "none",
@@ -16,10 +15,6 @@ export type ReasoningLevel = z.infer<typeof reasoningLevelSchema>;
 
 export const serviceTierSchema = z.enum(["fast", "default"]);
 export type ServiceTier = z.infer<typeof serviceTierSchema>;
-
-export const instructionModeValues = ["append", "replace"] as const;
-export const instructionModeSchema = z.enum(instructionModeValues);
-export type InstructionMode = z.infer<typeof instructionModeSchema>;
 
 export const permissionModeValues = ["accept-edits", "auto", "full"] as const;
 export const permissionModeSchema = z.enum(permissionModeValues);
@@ -61,9 +56,6 @@ const recordedPermissionModeSchema = z.enum([
   ...permissionModeValues,
   ...legacyRecordedPermissionModeValues,
 ]);
-export type RecordedPermissionMode = z.infer<
-  typeof recordedPermissionModeSchema
->;
 
 export const permissionEscalationValues = ["ask", "deny"] as const;
 const permissionEscalationSchema = z.enum(permissionEscalationValues);
@@ -105,9 +97,6 @@ const promptMentionCommandOriginValues = [
 const promptMentionCommandOriginSchema = z.enum(
   promptMentionCommandOriginValues,
 );
-export type PromptMentionCommandOrigin = z.infer<
-  typeof promptMentionCommandOriginSchema
->;
 
 const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -206,16 +195,6 @@ export const promptInputSchema = z.discriminatedUnion("type", [
 ]);
 export type PromptInput = z.infer<typeof promptInputSchema>;
 
-export function flattenPromptInputGroups(
-  inputGroups: readonly PromptInput[][],
-): PromptInput[] {
-  return inputGroups.flatMap((group, index) =>
-    index === 0
-      ? group
-      : [{ type: "text" as const, text: "\n\n", mentions: [] }, ...group],
-  );
-}
-
 interface PromptCommandSelector {
   trigger: PromptMentionCommandTrigger;
   name: string;
@@ -309,35 +288,6 @@ export function createStandaloneBuiltinCompactCommandInput(): PromptInput[] {
       ],
     },
   ];
-}
-
-const BUILTIN_PLAN_COMMAND_TEXT = "/plan";
-
-export function createBuiltinPlanCommandTextInput(
-  text: string,
-): TextPromptInput {
-  return {
-    type: "text",
-    text:
-      text.length > 0
-        ? `${BUILTIN_PLAN_COMMAND_TEXT} ${text}`
-        : BUILTIN_PLAN_COMMAND_TEXT,
-    mentions: [
-      {
-        start: 0,
-        end: BUILTIN_PLAN_COMMAND_TEXT.length,
-        resource: {
-          kind: "command",
-          trigger: "/",
-          name: "plan",
-          source: "command",
-          origin: "builtin",
-          label: "plan",
-          argumentHint: null,
-        },
-      },
-    ],
-  };
 }
 
 export function promptInputHasCommandMention(
@@ -441,7 +391,6 @@ const threadExecutionSourceSchema = z.enum([
   "client/turn/requested",
   "client/turn/start",
 ]);
-export type ThreadExecutionSource = z.infer<typeof threadExecutionSourceSchema>;
 
 /**
  * Where a caller-supplied execution value came from. `explicit` is a user
@@ -468,9 +417,6 @@ const threadExecutionOptionsSchema = z.object({
   source: threadExecutionSourceSchema.optional(),
   seq: z.number().int().optional(),
 });
-export type ThreadExecutionOptions = z.infer<
-  typeof threadExecutionOptionsSchema
->;
 
 export const resolvedThreadExecutionOptionsSchema =
   threadExecutionOptionsSchema.extend({
@@ -488,59 +434,6 @@ export const recordedThreadExecutionOptionsSchema =
   resolvedThreadExecutionOptionsSchema.extend({
     permissionMode: recordedPermissionModeSchema,
   });
-export type RecordedThreadExecutionOptions = z.infer<
-  typeof recordedThreadExecutionOptionsSchema
->;
-
-export const runtimePermissionScopeValues = ["workspace", "full"] as const;
-const runtimePermissionScopeSchema = z.enum(runtimePermissionScopeValues);
-export type RuntimePermissionScope = z.infer<
-  typeof runtimePermissionScopeSchema
->;
-
-export const runtimePermissionPolicySchema = z.discriminatedUnion(
-  "permissionMode",
-  [
-    z.object({
-      permissionMode: z.literal("accept-edits"),
-      permissionScope: z.literal("workspace"),
-      approvalReviewer: z.literal("user"),
-      permissionEscalation: permissionEscalationSchema,
-    }),
-    z.object({
-      permissionMode: z.literal("auto"),
-      permissionScope: z.literal("workspace"),
-      approvalReviewer: z.literal("automatic"),
-      permissionEscalation: permissionEscalationSchema,
-    }),
-    z.object({
-      permissionMode: z.literal("full"),
-      permissionScope: z.literal("full"),
-      approvalReviewer: z.null(),
-      permissionEscalation: z.null(),
-    }),
-  ],
-);
-export type RuntimePermissionPolicy = z.infer<
-  typeof runtimePermissionPolicySchema
->;
-
-export const promptModeSchema = z.literal("plan");
-export type PromptMode = z.infer<typeof promptModeSchema>;
-
-const runtimeThreadExecutionBaseOptionsSchema = z.object({
-  model: z.string().min(1),
-  serviceTier: serviceTierSchema,
-  reasoningLevel: reasoningLevelSchema,
-  promptMode: promptModeSchema.optional(),
-  providerOptions: jsonObjectSchema,
-});
-
-export const runtimeThreadExecutionOptionsSchema =
-  runtimeThreadExecutionBaseOptionsSchema.and(runtimePermissionPolicySchema);
-export type RuntimeThreadExecutionOptions = z.infer<
-  typeof runtimeThreadExecutionOptionsSchema
->;
 
 export const projectExecutionDefaultsSchema = z.object({
   providerId: z.string().min(1),

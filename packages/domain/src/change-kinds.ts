@@ -148,17 +148,6 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-export const pongMessageSchema = z
-  .object({
-    type: z.literal("pong"),
-  })
-  .strict();
-export type PongMessage = z.infer<typeof pongMessageSchema>;
-
-export const pongMessageLenientSchema = z.object({
-  type: z.literal("pong"),
-});
-
 function assertUnhandledRealtimeSubscriptionTarget(target: never): never {
   throw new Error(`Unhandled realtime subscription target: ${target}`);
 }
@@ -199,9 +188,6 @@ export const threadStatusChangeMetadataSchema = z
     updatedAt: z.number(),
   })
   .strict();
-export type ThreadStatusChangeMetadata = z.infer<
-  typeof threadStatusChangeMetadataSchema
->;
 
 export const threadChangeMetadataSchema = z
   .object({
@@ -223,7 +209,6 @@ export const threadChangedMessageSchema = z
     changes: z.array(threadChangeKindSchema).readonly(),
   })
   .strict();
-export type ThreadChangedMessage = z.infer<typeof threadChangedMessageSchema>;
 
 export const projectChangedMessageSchema = z
   .object({
@@ -233,7 +218,6 @@ export const projectChangedMessageSchema = z
     changes: z.array(projectChangeKindSchema).readonly(),
   })
   .strict();
-export type ProjectChangedMessage = z.infer<typeof projectChangedMessageSchema>;
 
 export const environmentChangedMessageSchema = z
   .object({

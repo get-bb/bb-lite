@@ -155,9 +155,6 @@ export const timelineSystemOperationKindValues = [
 export const timelineSystemOperationKindSchema = z.enum(
   timelineSystemOperationKindValues,
 );
-export type TimelineSystemOperationKind = z.infer<
-  typeof timelineSystemOperationKindSchema
->;
 const timelineGenericSystemOperationKindSchema =
   timelineSystemOperationKindSchema.exclude(["parent-change"]);
 
@@ -190,9 +187,6 @@ export const timelineNonOperationSystemRowSchema =
   timelineSystemRowBaseSchema.extend({
     systemKind: z.enum(["debug", "error", "reconnect"]),
   });
-export type TimelineNonOperationSystemRow = z.infer<
-  typeof timelineNonOperationSystemRowSchema
->;
 
 export const timelineGenericOperationSystemRowSchema =
   timelineSystemRowBaseSchema.extend({
@@ -232,7 +226,6 @@ export const timelineDiffStatsSchema = z.object({
   added: z.number().int().nonnegative(),
   removed: z.number().int().nonnegative(),
 });
-export type TimelineDiffStats = z.infer<typeof timelineDiffStatsSchema>;
 
 export const timelineFileChangeSchema = z.object({
   path: z.string(),
@@ -268,7 +261,6 @@ export const timelineOutputPreviewSchema = z.object({
   ]),
   totalChars: z.number().int().nonnegative(),
 });
-export type TimelineOutputPreview = z.infer<typeof timelineOutputPreviewSchema>;
 
 export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
   workKind: z.literal("command"),
@@ -438,9 +430,6 @@ export const timelinePermissionGrantApprovalGrantScopeValues = [
 export const timelinePermissionGrantApprovalGrantScopeSchema = z.enum(
   timelinePermissionGrantApprovalGrantScopeValues,
 );
-export type TimelinePermissionGrantApprovalGrantScope = z.infer<
-  typeof timelinePermissionGrantApprovalGrantScopeSchema
->;
 
 const timelineApprovalTargetSchema = z.object({
   itemId: z.string(),

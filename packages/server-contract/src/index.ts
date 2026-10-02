@@ -10,8 +10,6 @@ export { typedRoutes } from "@bb/hono-typed-routes";
 
 export {
   changedMessageLenientSchema,
-  pingMessageSchema,
-  pongMessageLenientSchema,
   realtimeSubscriptionTargetKey,
 } from "@bb/domain";
 

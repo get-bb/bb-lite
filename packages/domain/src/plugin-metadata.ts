@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "./json-value.js";
+import type { JsonObject } from "./json-value.js";
 import { jsonObjectSchema } from "./json-value.js";
 
 export const PLUGIN_METADATA_MAX_BYTES = 256 * 1024;
@@ -44,28 +44,4 @@ export function validatePluginMetadata(value: unknown): JsonObject {
   }
   assertPlainJsonData(value, new Set<object>());
   return pluginMetadataSchema.parse(value);
-}
-
-export function parsePersistedPluginMetadata(
-  metadataJson: string,
-): JsonObject | undefined {
-  try {
-    const value: unknown = JSON.parse(metadataJson);
-    return value !== null && typeof value === "object" && !Array.isArray(value)
-      ? (value as JsonObject)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function deepFreezeJsonValue(value: JsonValue): void {
-  if (value === null || typeof value !== "object") return;
-  for (const child of Object.values(value)) deepFreezeJsonValue(child);
-  Object.freeze(value);
-}
-
-export function deepFreezePluginMetadata(metadata: JsonObject): JsonObject {
-  deepFreezeJsonValue(metadata);
-  return metadata;
 }

@@ -23,12 +23,6 @@ const codeThemePairSchema = z
   .strict();
 export type CodeThemePair = z.infer<typeof codeThemePairSchema>;
 
-const vscodeThemeJsonSchema = jsonObjectSchema.refine(
-  (value) => typeof value.name === "string" && value.name.length > 0,
-  { message: "Code theme JSON must include a non-empty name" },
-);
-type VscodeThemeJson = JsonObject & { name: string };
-
 export const resolvedCodeThemeSchema = z
   .object({
     dark: codeThemeNameSchema,
@@ -43,16 +37,6 @@ export const defaultResolvedCodeTheme: ResolvedCodeTheme = {
   light: DEFAULT_CODE_THEME_LIGHT,
   files: {},
 };
-
-export const uiCodeThemeDeclarationSchema = z
-  .object({
-    dark: z.string().min(1).max(256).optional(),
-    light: z.string().min(1).max(256).optional(),
-  })
-  .strict();
-export type UiCodeThemeDeclaration = z.infer<
-  typeof uiCodeThemeDeclarationSchema
->;
 
 export const builtInPaletteCodeThemes = {
   default: {
@@ -74,44 +58,6 @@ export interface DeclaredCodeThemeSlot {
 export interface DeclaredCodeTheme {
   dark?: DeclaredCodeThemeSlot;
   light?: DeclaredCodeThemeSlot;
-}
-
-export const CUSTOM_CODE_THEME_JSON_MAX_LENGTH = 256_000;
-
-export function isCodeThemeFilePath(value: string): boolean {
-  return value.includes("/") || value.toLowerCase().endsWith(".json");
-}
-
-export function formatRegisteredCodeThemeName(
-  sourceId: string,
-  side: "dark" | "light",
-): string {
-  return `bb:${sourceId}:${side}`;
-}
-
-const VSCODE_THEME_JSON_MAX_DEPTH = 32;
-
-function jsonDepthExceeds(value: unknown, maxDepth: number): boolean {
-  const visit = (node: unknown, depth: number): boolean => {
-    if (depth > maxDepth) return true;
-    if (node === null || typeof node !== "object") return false;
-    if (Array.isArray(node)) {
-      return node.some((entry) => visit(entry, depth + 1));
-    }
-    return Object.values(node).some((entry) => visit(entry, depth + 1));
-  };
-  return visit(value, 0);
-}
-
-export function parseVscodeThemeJson(value: unknown): VscodeThemeJson | null {
-  try {
-    if (jsonDepthExceeds(value, VSCODE_THEME_JSON_MAX_DEPTH)) return null;
-    const parsed = vscodeThemeJsonSchema.safeParse(value);
-    if (!parsed.success) return null;
-    return parsed.data as VscodeThemeJson;
-  } catch {
-    return null;
-  }
 }
 
 function paletteCodeThemeFallback(paletteId: string): CodeThemePair {

@@ -8,9 +8,6 @@ const sidebarOrganizationModeSchema = z.enum([
   "chronological",
   "machine",
 ]);
-export type SidebarOrganizationMode = z.infer<
-  typeof sidebarOrganizationModeSchema
->;
 
 const sidebarChronologicalSortSchema = z.enum([
   "updated",
@@ -198,19 +195,12 @@ export const uiPreferenceDefinitions = {
 export type UiPreferenceValue<Key extends UiPreferenceKey> = z.infer<
   (typeof uiPreferenceDefinitions)[Key]["schema"]
 >;
-export type UiPreferenceValues = {
-  [Key in UiPreferenceKey]: UiPreferenceValue<Key>;
-};
 
 export function getUiPreferenceDefault<Key extends UiPreferenceKey>(
   key: Key,
 ): UiPreferenceValue<Key> {
   return uiPreferenceDefinitions[key].defaultValue as UiPreferenceValue<Key>;
 }
-
-export const defaultUiPreferences: UiPreferenceValues = Object.fromEntries(
-  UI_PREFERENCE_KEYS.map((key) => [key, getUiPreferenceDefault(key)]),
-) as UiPreferenceValues;
 
 export type UiPreferenceParseResult<Key extends UiPreferenceKey> =
   | { success: true; value: UiPreferenceValue<Key> }
@@ -229,10 +219,6 @@ export function parseUiPreferenceValue<Key extends UiPreferenceKey>(
     success: false,
     message: parsed.error.issues.map((issue) => issue.message).join("; "),
   };
-}
-
-export function describeUiPreference(key: UiPreferenceKey): string {
-  return uiPreferenceDefinitions[key].description;
 }
 
 export interface UiPreferenceEntry<

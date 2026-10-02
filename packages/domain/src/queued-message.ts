@@ -145,25 +145,6 @@ export type QueuedMessageWaitHolder = z.infer<
   typeof queuedMessageWaitHolderSchema
 >;
 
-/**
- * What a queued row dispatches when its waits clear.
- *
- * `inline` carries its own message in the row's columns — the prompt blocks
- * the sender wrote and the execution tuple frozen at queue time. It is a draft
- * that has not run, so it is editable while it waits.
- *
- * `retry` only references a failed turn's original request. Nothing about it
- * is editable: the point of a retry is to re-submit the original faithfully,
- * with no duplicated user message.
- */
-export const queuedMessagePayloadKindValues = ["inline", "retry"] as const;
-export const queuedMessagePayloadKindSchema = z.enum(
-  queuedMessagePayloadKindValues,
-);
-export type QueuedMessagePayloadKind = z.infer<
-  typeof queuedMessagePayloadKindSchema
->;
-
 export const queuedMessagePayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("inline") }),
   z.object({
@@ -188,7 +169,6 @@ export const queuedMessagePayloadSchema = z.discriminatedUnion("kind", [
     reason: queuedMessageWaitReasonSchema,
   }),
 ]);
-export type QueuedMessagePayload = z.infer<typeof queuedMessagePayloadSchema>;
 
 /**
  * Core's own taxonomy for a queued row that is a SYSTEM notice rather than

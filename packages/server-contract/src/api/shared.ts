@@ -73,7 +73,6 @@ export const workspaceArgsSchema = z.discriminatedUnion("type", [
   managedWorktreeWorkspaceSchema,
   personalWorkspaceSchema,
 ]);
-export type WorkspaceArgs = z.infer<typeof workspaceArgsSchema>;
 
 export const reuseEnvironmentSchema = z.object({
   type: z.literal("reuse"),
@@ -95,12 +94,6 @@ export const hostEnvironmentSchema = z
       });
     }
   });
-
-export const environmentArgsSchema = z.discriminatedUnion("type", [
-  reuseEnvironmentSchema,
-  hostEnvironmentSchema,
-]);
-export type EnvironmentArgs = z.infer<typeof environmentArgsSchema>;
 
 export const projectDefaultEnvironmentSchema = z.object({
   type: z.literal("project-default"),
@@ -164,7 +157,6 @@ export const workspaceFileSchema = z.object({
   path: z.string(),
   name: z.string(),
 });
-export type WorkspaceFile = z.infer<typeof workspaceFileSchema>;
 
 export const workspacePathEntryKindSchema = z.enum(["file", "directory"]);
 
