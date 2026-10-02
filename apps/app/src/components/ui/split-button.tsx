@@ -38,7 +38,7 @@ function OptionalTooltip({
   );
 }
 
-interface SplitButtonAction {
+export interface SplitButtonAction {
   ariaKeyshortcuts?: string;
   groupLabel?: string;
   label: string;
@@ -46,17 +46,7 @@ interface SplitButtonAction {
   content?: ReactNode;
 }
 
-interface SplitButtonProps {
-  primaryAction: SplitButtonAction;
-  secondaryActions: SplitButtonAction[];
-  disabled?: boolean;
-  className?: string;
-  triggerLabel?: string;
-  primaryTooltip?: string;
-  triggerTooltip?: string;
-}
-
-function SplitButton({
+export function SplitButton({
   primaryAction,
   secondaryActions,
   disabled = false,
@@ -64,7 +54,15 @@ function SplitButton({
   triggerLabel = "More actions",
   primaryTooltip,
   triggerTooltip,
-}: SplitButtonProps) {
+}: {
+  primaryAction: SplitButtonAction;
+  secondaryActions: SplitButtonAction[];
+  disabled?: boolean;
+  className?: string;
+  triggerLabel?: string;
+  primaryTooltip?: string;
+  triggerTooltip?: string;
+}) {
   const base = cn(
     buttonVariants({ variant: "outline", size: "sm" }),
     "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground",
@@ -137,6 +135,3 @@ function SplitButton({
     </div>
   );
 }
-
-export { SplitButton };
-export type { SplitButtonAction };

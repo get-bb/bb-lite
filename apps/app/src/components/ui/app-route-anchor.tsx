@@ -16,24 +16,10 @@ import { resolveRouteHref } from "@/lib/route-paths";
 import { openPaneContentInSplit } from "@/lib/split-layout/atoms";
 import { paneContentForPathname } from "@/views/thread-detail/splitThreadNavigation";
 
-interface RouteNavigationProviderProps {
-  children: ReactNode;
-}
-
-interface RouteAnchorProps extends Omit<ComponentPropsWithoutRef<"a">, "href"> {
-  href: string | undefined;
-}
-
-interface ShouldHandleRouteAnchorClickArgs {
-  event: ReactMouseEvent<HTMLAnchorElement>;
-}
-
-interface RouteNavigateOptions {
-  replace?: boolean;
-  state?: NavigateOptions["state"];
-}
-
-type RouteNavigate = (path: string, options?: RouteNavigateOptions) => void;
+type RouteNavigate = (
+  path: string,
+  options?: { replace?: boolean; state?: NavigateOptions["state"] },
+) => void;
 
 interface RouteNavigation {
   navigate: RouteNavigate;
@@ -68,13 +54,9 @@ function navigateWithoutProvider(path: string): void {
   );
 }
 
-function currentOrigin(): string | null {
-  return typeof window === "undefined" ? null : window.location.origin;
-}
-
-function shouldHandleRouteAnchorClick({
-  event,
-}: ShouldHandleRouteAnchorClickArgs): boolean {
+function shouldHandleRouteAnchorClick(
+  event: ReactMouseEvent<HTMLAnchorElement>,
+): boolean {
   if (
     event.defaultPrevented ||
     event.button !== 0 ||
@@ -90,9 +72,7 @@ function shouldHandleRouteAnchorClick({
   return target === null || target === "" || target === "_self";
 }
 
-export function RouteNavigationProvider({
-  children,
-}: RouteNavigationProviderProps) {
+export function RouteNavigationProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const store = useStore();
   const navigateRef = useRef(navigate);
@@ -169,10 +149,8 @@ export function useRouteAnchorDelegate(): (
       const target = anchor.getAttribute("target");
       if (target !== null && target !== "" && target !== "_self") return;
       if (event.button !== 0 || event.altKey || event.shiftKey) return;
-      const origin = currentOrigin();
-      if (origin === null) return;
       const route = resolveRouteHref({
-        currentOrigin: origin,
+        currentOrigin: window.location.origin,
         href: anchor.getAttribute("href") ?? "",
       });
       if (route === null) return;
@@ -193,21 +171,22 @@ export function RouteAnchor({
   rel,
   target,
   ...anchorProps
-}: RouteAnchorProps) {
+}: Omit<ComponentPropsWithoutRef<"a">, "href"> & { href: string | undefined }) {
   const navigation = useContext(RouteNavigationContext);
-  const route = useMemo(() => {
-    const origin = currentOrigin();
-    return origin === null || href === undefined
-      ? null
-      : resolveRouteHref({ currentOrigin: origin, href });
-  }, [href]);
+  const route = useMemo(
+    () =>
+      href === undefined
+        ? null
+        : resolveRouteHref({ currentOrigin: window.location.origin, href }),
+    [href],
+  );
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLAnchorElement>): void => {
       onClick?.(event);
       if (
         route === null ||
         navigation === null ||
-        !shouldHandleRouteAnchorClick({ event })
+        !shouldHandleRouteAnchorClick(event)
       ) {
         return;
       }

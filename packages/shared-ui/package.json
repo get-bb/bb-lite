@@ -184,11 +184,6 @@
       "types": "./src/components/ui/use-reorder-dnd.ts",
       "default": "./src/components/ui/use-reorder-dnd.ts"
     },
-    "./use-sidebar-reorder-dnd": {
-      "source": "./src/components/ui/use-sidebar-reorder-dnd.ts",
-      "types": "./src/components/ui/use-sidebar-reorder-dnd.ts",
-      "default": "./src/components/ui/use-sidebar-reorder-dnd.ts"
-    },
     "./hooks/use-media-query": {
       "source": "./src/components/ui/hooks/use-media-query.ts",
       "types": "./src/components/ui/hooks/use-media-query.ts",

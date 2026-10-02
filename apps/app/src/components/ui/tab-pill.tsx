@@ -5,10 +5,8 @@ import type { ReactNode } from "react";
 import { CONTEXT_SELECTION_SURFACE_CLASS } from "./context-selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 
-const TAB_PILL_DEFAULT_LABEL_MAX_WIDTH_CLASS = "max-w-[180px]";
 const TAB_PILL_AFFORDANCE_BUTTON_BASE_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted-foreground/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none";
-const TAB_PILL_AFFORDANCE_ICON_CLASS = "size-3.5";
 const TAB_PILL_CLOSE_BUTTON_CLASS = `pointer-events-none absolute left-1.5 top-1/2 z-10 -translate-y-1/2 ${TAB_PILL_AFFORDANCE_BUTTON_BASE_CLASS} opacity-0 hover:opacity-100 group-hover/tab-pill:pointer-events-auto group-hover/tab-pill:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 disabled:opacity-30`;
 const TAB_PILL_LEADING_VISUAL_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center [&_[data-icon-root]]:size-3.5";
@@ -17,20 +15,6 @@ interface TabPillCloseAction {
   onClose: () => void;
   closeLabel: string;
   tooltip?: string;
-}
-
-interface TabPillProps {
-  label: string;
-  ariaLabel?: string;
-  ariaKeyshortcuts?: string;
-  iconOnly?: boolean;
-  leadingVisual?: ReactNode;
-  secondaryLabel?: string | null;
-  title: string;
-  isActive: boolean;
-  onSelect: () => void;
-  labelMaxWidthClass?: string;
-  closeAction: TabPillCloseAction | null;
 }
 
 export function TabPill({
@@ -43,9 +27,21 @@ export function TabPill({
   title,
   isActive,
   onSelect,
-  labelMaxWidthClass = TAB_PILL_DEFAULT_LABEL_MAX_WIDTH_CLASS,
+  labelMaxWidthClass = "max-w-[180px]",
   closeAction,
-}: TabPillProps) {
+}: {
+  label: string;
+  ariaLabel?: string;
+  ariaKeyshortcuts?: string;
+  iconOnly?: boolean;
+  leadingVisual?: ReactNode;
+  secondaryLabel?: string | null;
+  title: string;
+  isActive: boolean;
+  onSelect: () => void;
+  labelMaxWidthClass?: string;
+  closeAction: TabPillCloseAction | null;
+}) {
   return (
     <div
       onAuxClick={(event) => {
@@ -121,7 +117,7 @@ function TabPillCloseButton({
       data-tab-pill-close
       className={cn(TAB_PILL_CLOSE_BUTTON_CLASS)}
     >
-      <Icon name="X" className={TAB_PILL_AFFORDANCE_ICON_CLASS} />
+      <Icon name="X" className="size-3.5" />
     </button>
   );
   return closeAction.tooltip === undefined ? (
