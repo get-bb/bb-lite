@@ -39,6 +39,7 @@ import { ThreadListEmptyState } from "@bb/shared-ui/thread-list-empty-state";
 import { PINNED_THREAD_PARENT_KEY } from "../dnd/dropDecision.js";
 import {
   SectionThreadDndProvider,
+  useNestDropPreview,
   useSectionThreadDnd,
   type PinnedThreadReorderHandler,
 } from "../dnd/useSectionThreadDnd.js";
@@ -46,16 +47,18 @@ import { rollupThreadActivity } from "../model/thread-activity.js";
 import {
   buildPinnedThreadState,
   buildSectionThreadList,
-  flattenThreadNodes,
+  flattenThreadItems,
   getThreadComparator,
   type SidebarThread,
-  type ThreadNode,
+  type ThreadItem,
 } from "../model/thread-tree.js";
 import { useSidebarData } from "../model/use-sidebar-data.js";
 import {
+  collapsedEnvironmentIdsAtom,
   collapsedSidebarSectionIdsAtom,
   collapsedThreadIdsAtom,
   sidebarChronologicalSortAtom,
+  sidebarGroupThreadsByEnvironmentAtom,
   sidebarManualSectionOrderAtom,
   sidebarSortDirectionAtom,
   usePreferencesReady,
@@ -78,6 +81,7 @@ import {
   SidebarHeaderActionsProvider,
   SidebarHeaderControls,
 } from "./SidebarHeaderControls.js";
+import { ThreadCreationPlacementScope } from "./ThreadCreationPlacement.js";
 import { ThreadSectionCreateDialog } from "./ThreadSectionCreateDialog.js";
 import {
   LooseThreadTree,
@@ -187,23 +191,25 @@ const BuiltInSection = memo(function BuiltInSection({
       sectionRef={setNodeRef}
       sectionStyle={style}
     >
-      {children}
+      <ThreadCreationPlacementScope group={id}>
+        {children}
+      </ThreadCreationPlacementScope>
     </TopLevelSidebarSection>
   );
 });
 
 function LooseThreads({
-  nodes,
+  items,
   unavailable,
 }: {
-  nodes: readonly ThreadNode[];
+  items: readonly ThreadItem[];
   unavailable: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: CHRONOLOGICAL_CONTAINER_ID });
   return (
     <div ref={setNodeRef}>
-      {nodes.length > 0 ? (
-        <LooseThreadTree nodes={nodes} />
+      {items.length > 0 ? (
+        <LooseThreadTree items={items} />
       ) : (
         <ThreadListEmptyState
           message={unavailable ? "Threads unavailable" : undefined}
@@ -283,8 +289,14 @@ function ThreadSections({
   const [collapsedThreadIdList, setCollapsedThreadIdList] = useAtom(
     collapsedThreadIdsAtom,
   );
+  const [collapsedEnvironmentIdList, setCollapsedEnvironmentIdList] = useAtom(
+    collapsedEnvironmentIdsAtom,
+  );
   const [collapsedSectionIdList, setCollapsedSectionIdList] = useAtom(
     collapsedSidebarSectionIdsAtom,
+  );
+  const groupThreadsByEnvironment = useAtomValue(
+    sidebarGroupThreadsByEnvironmentAtom,
   );
   const [openMenu, setOpenMenu] = useState<CollapsibleSidebarSectionId | null>(
     null,
@@ -315,6 +327,10 @@ function ThreadSections({
     () => new Set(collapsedThreadIdList),
     [collapsedThreadIdList],
   );
+  const collapsedEnvironmentIds = useMemo(
+    () => new Set(collapsedEnvironmentIdList),
+    [collapsedEnvironmentIdList],
+  );
   const collapsedSectionIds = useMemo(
     () => new Set(collapsedSectionIdList),
     [collapsedSectionIdList],
@@ -335,6 +351,20 @@ function ThreadSections({
     },
     [setCollapsedThreadIdList],
   );
+  const toggleEnvironmentCollapsed = useCallback(
+    (environmentId: string) => {
+      setCollapsedEnvironmentIdList((current) =>
+        toggleId(current, environmentId),
+      );
+    },
+    [setCollapsedEnvironmentIdList],
+  );
+  const expandThread = useCallback(
+    (threadId: string) => {
+      if (collapsedThreadIds.has(threadId)) toggleThreadCollapsed(threadId);
+    },
+    [collapsedThreadIds, toggleThreadCollapsed],
+  );
   const toggleSectionCollapsed = useCallback(
     (sectionId: CollapsibleSidebarSectionId) => {
       setCollapsedSectionIdList((current) => toggleId(current, sectionId));
@@ -342,8 +372,13 @@ function ThreadSections({
     [setCollapsedSectionIdList],
   );
   const pinned = useMemo(
-    () => buildPinnedThreadState(threads, draftThreadIds),
-    [draftThreadIds, threads],
+    () =>
+      buildPinnedThreadState(
+        threads,
+        draftThreadIds,
+        groupThreadsByEnvironment,
+      ),
+    [draftThreadIds, groupThreadsByEnvironment, threads],
   );
   const pinnedThreads = useMemo(
     () =>
@@ -353,22 +388,34 @@ function ThreadSections({
       ),
     [pinned, threads],
   );
+  const listThreads = useMemo(
+    () =>
+      unavailable
+        ? []
+        : threads.filter(
+            (thread) => !pinned.effectivePinnedThreadIds.has(thread.id),
+          ),
+    [pinned, threads, unavailable],
+  );
   const list = useMemo(
     () =>
       buildSectionThreadList(
-        unavailable
-          ? []
-          : threads.filter(
-              (thread) => !pinned.effectivePinnedThreadIds.has(thread.id),
-            ),
+        listThreads,
         compareThreads,
         sections,
         draftThreadIds,
+        groupThreadsByEnvironment,
       ),
-    [compareThreads, draftThreadIds, pinned, sections, threads, unavailable],
+    [
+      compareThreads,
+      draftThreadIds,
+      groupThreadsByEnvironment,
+      listThreads,
+      sections,
+    ],
   );
   const looseThreads = useMemo(
-    () => flattenThreadNodes(list.loose),
+    () => flattenThreadItems(list.loose),
     [list.loose],
   );
   const entitySectionIds = useMemo(
@@ -382,21 +429,39 @@ function ThreadSections({
     entitySectionIds,
     pinned.rootNodes.length > 0,
   );
-  const sectionDnd = useSectionThreadDnd({
+  const dragState = useSectionThreadDnd({
     list,
-    pinnedNodes: pinned.rootNodes,
     topLevelSectionOrder: order,
     onTopLevelSectionOrderChange: onOrderChange,
+    onExpandThread: expandThread,
     pinnedReorderPending: isPinnedReorderPending,
+    pinnedRootItems: pinned.rootItems,
+    pinnedRootNodes: pinned.rootNodes,
     onReorderPinnedThread: handleReorderPinnedRoot,
+  });
+  const sectionDnd = useNestDropPreview({
+    compareThreads,
+    draftThreadIds,
+    pinnedRootNodes: pinned.rootNodes,
+    sectionDnd: dragState,
+    sections,
+    threads: listThreads,
   });
   const threadTree = useMemo(
     () => ({
       selectedThreadId,
       collapsedThreadIds,
+      collapsedEnvironmentIds,
       onToggleThreadCollapsed: toggleThreadCollapsed,
+      onToggleEnvironmentCollapsed: toggleEnvironmentCollapsed,
     }),
-    [collapsedThreadIds, selectedThreadId, toggleThreadCollapsed],
+    [
+      collapsedEnvironmentIds,
+      collapsedThreadIds,
+      selectedThreadId,
+      toggleEnvironmentCollapsed,
+      toggleThreadCollapsed,
+    ],
   );
   const builtInSection = (
     id: CollapsibleSidebarSectionId,
@@ -428,7 +493,7 @@ function ThreadSections({
             "pinned",
             "Pinned",
             pinnedThreads,
-            <PinnedThreadTree rootNodes={pinned.rootNodes} />,
+            <PinnedThreadTree rootItems={pinned.rootItems} />,
           )}
         </div>
       );
@@ -440,7 +505,7 @@ function ThreadSections({
             "threads",
             "Threads",
             looseThreads,
-            <LooseThreads nodes={list.loose} unavailable={unavailable} />,
+            <LooseThreads items={list.loose} unavailable={unavailable} />,
           )}
         </div>
       );
@@ -462,7 +527,7 @@ function ThreadSections({
 
   return (
     <div tabIndex={-1} className="min-w-0 outline-none">
-      <DndContext {...sectionDnd.dndContextProps}>
+      <DndContext {...dragState.dndContextProps}>
         <SectionThreadDndProvider value={sectionDnd}>
           <ThreadTreeProvider value={threadTree}>
             <SortableContext
@@ -473,7 +538,7 @@ function ThreadSections({
             </SortableContext>
           </ThreadTreeProvider>
           <SectionThreadDragOverlayPortal
-            activeThread={sectionDnd.activeThread}
+            activeThread={dragState.activeThread}
           />
         </SectionThreadDndProvider>
       </DndContext>

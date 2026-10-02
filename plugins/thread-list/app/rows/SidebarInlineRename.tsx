@@ -11,11 +11,14 @@ import {
 import { SidebarRenameEditor, renameError } from "./SidebarRenameEditor.js";
 
 interface SidebarRenameArgs {
-  kind: "thread" | "section";
+  kind: "thread" | "section" | "environment";
   id: string;
   name: string;
   label: string;
   onSave: (name: string) => Promise<unknown>;
+  maxLength?: number;
+  placeholder?: string;
+  onClear?: () => Promise<unknown>;
   ownerKey?: string;
 }
 
@@ -36,39 +39,54 @@ function useRenameController() {
     setSession(next);
   }, []);
 
-  const save = useCallback((): Promise<boolean> => {
-    const current = sessionRef.current;
-    if (!current) return Promise.resolve(false);
-    if (current.pending) return current.pending;
-    if (current.cannotRetry) return Promise.resolve(false);
-    const value = current.draft.trim();
-    if (!value) {
-      update({ ...current, error: "Name cannot be empty." });
-      return Promise.resolve(false);
-    }
-    if (value === current.name.trim()) {
-      update(null);
-      return Promise.resolve(true);
-    }
-    const pending = Promise.resolve()
-      .then(() => current.onSave(value))
-      .then(
-        () => {
-          update(null);
-          return true;
-        },
-        (error: unknown) => {
-          update({
-            ...current,
-            pending: null,
-            ...renameError(error, current.kind),
-          });
-          return false;
-        },
-      );
-    update({ ...current, pending, error: null });
-    return pending;
-  }, [update]);
+  const save = useCallback(
+    (clear = false): Promise<boolean> => {
+      const current = sessionRef.current;
+      if (!current) return Promise.resolve(false);
+      if (current.pending) return current.pending;
+      if (current.cannotRetry) return Promise.resolve(false);
+      const value = current.draft.trim();
+      const shouldClear = clear || (!value && Boolean(current.onClear));
+      const error = shouldClear
+        ? null
+        : !value
+          ? "Name cannot be empty."
+          : current.maxLength && value.length > current.maxLength
+            ? `Name must be ${current.maxLength} characters or fewer.`
+            : null;
+      if (error) {
+        update({ ...current, error });
+        return Promise.resolve(false);
+      }
+      if (
+        (!shouldClear && value === current.name.trim()) ||
+        (shouldClear && !current.name)
+      ) {
+        update(null);
+        return Promise.resolve(true);
+      }
+      if (shouldClear && !current.onClear) return Promise.resolve(false);
+      const pending = Promise.resolve()
+        .then(() => (shouldClear ? current.onClear?.() : current.onSave(value)))
+        .then(
+          () => {
+            update(null);
+            return true;
+          },
+          (error: unknown) => {
+            update({
+              ...current,
+              pending: null,
+              ...renameError(error, current.kind),
+            });
+            return false;
+          },
+        );
+      update({ ...current, pending, error: null });
+      return pending;
+    },
+    [update],
+  );
 
   const start = useCallback(
     async (args: SidebarRenameArgs & { ownerKey: string }) => {

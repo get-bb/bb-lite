@@ -174,6 +174,15 @@ function syncedPreferenceAtom<Key extends PreferenceKey>(
 }
 
 export const collapsedThreadIdsAtom = syncedPreferenceAtom("collapsedThreads");
+export const collapsedEnvironmentIdsAtom = syncedPreferenceAtom(
+  "collapsedEnvironments",
+);
+export const sidebarEnvironmentGroupingAtom = syncedPreferenceAtom(
+  "environmentGrouping",
+);
+export const sidebarGroupThreadsByEnvironmentAtom = atom(
+  (get) => get(sidebarEnvironmentGroupingAtom) === true,
+);
 export const collapsedSidebarSectionIdsAtom =
   syncedPreferenceAtom("collapsedSections");
 export const sidebarManualSectionOrderAtom =

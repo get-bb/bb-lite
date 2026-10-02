@@ -12,6 +12,7 @@ export const preferenceSchemas = {
     .min(1)
     .max(2)
     .refine((value) => new Set(value).size === value.length),
+  environmentGrouping: z.union([z.literal("auto"), z.boolean()]),
   chronologicalSort: z.enum(["updated", "created", "alpha", "none"]),
   sortDirection: z.enum(["default", "ascending", "descending"]),
   manualSectionOrder: stringListSchema,
@@ -19,6 +20,7 @@ export const preferenceSchemas = {
     .array(z.enum(["pinned", "threads"]))
     .max(LIST_MAX_LENGTH),
   collapsedThreads: stringListSchema,
+  collapsedEnvironments: stringListSchema,
   collapsedThreadSections: stringListSchema,
 } as const;
 
@@ -38,11 +40,13 @@ export const preferenceKeySchema = z.enum(
 export const PREFERENCE_DEFAULTS: PreferenceValues = {
   showProviderIcons: false,
   threadLifecycles: ["active"],
+  environmentGrouping: "auto",
   chronologicalSort: "updated",
   sortDirection: "default",
   manualSectionOrder: ["pinned", "sections", "threads"],
   collapsedSections: [],
   collapsedThreads: [],
+  collapsedEnvironments: [],
   collapsedThreadSections: [],
 };
 

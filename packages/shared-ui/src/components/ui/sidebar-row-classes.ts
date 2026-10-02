@@ -55,6 +55,8 @@ export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_B
 
 export const SIDEBAR_CONTROL_PAIR_GAP_CLASS = SIDEBAR_HOVER_ACTIONS_GAP_CLASS;
 
+export const SIDEBAR_CONTROL_PAIR_SIZE_CLASS = "h-7 w-[3.625rem]";
+
 export function getSidebarThreadRowPaddingLeft(depth: number): number {
   return (
     SIDEBAR_THREAD_ROW_BASE_PADDING_PX +

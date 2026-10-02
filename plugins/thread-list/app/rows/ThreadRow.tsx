@@ -6,7 +6,6 @@ import {
   useState,
   type CSSProperties,
   type MouseEventHandler,
-  type RefCallback,
 } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { useAtomValue } from "jotai";
@@ -57,7 +56,11 @@ import {
   useSidebarThreadShortcut,
   type PluginSidebarSplitPane,
 } from "@bb/plugin/app";
-import type { SidebarReorderPlacement } from "../dnd/dropDecision.js";
+import type {
+  SidebarNestTargetState,
+  SidebarReorderPlacement,
+  ThreadRowNestDrop,
+} from "../dnd/dropDecision.js";
 import {
   mergeThreadActivity,
   threadIndicatorState,
@@ -102,12 +105,19 @@ interface ThreadRowProps {
   crossProjectId: string | null;
   isActive: boolean;
   depth: number;
+  isCompact: boolean;
   parent: ThreadRowParentOptions | null;
   consumeClickSuppression?: ConsumeDragClickSuppression;
   dragBindings?: SidebarSortableDragBindings;
-  rowRef?: RefCallback<HTMLDivElement>;
-  reorderPlacement: SidebarReorderPlacement | null;
+  nestDrop: ThreadRowNestDrop;
 }
+
+const NEST_TARGET_STATE_CLASS: Record<SidebarNestTargetState, string> = {
+  valid:
+    "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-inset ring-sidebar-ring",
+  blocked: "ring-1 ring-inset ring-destructive/60",
+  unchanged: "ring-1 ring-inset ring-sidebar-border",
+};
 
 export const REORDER_PLACEMENT_CLASS: Record<SidebarReorderPlacement, string> =
   {
@@ -142,11 +152,11 @@ function ThreadRowComponent({
   crossProjectId,
   isActive,
   depth,
+  isCompact,
   parent,
   consumeClickSuppression,
   dragBindings,
-  rowRef,
-  reorderPlacement,
+  nestDrop,
 }: ThreadRowProps) {
   const [isDropdownActionsOpen, setIsDropdownActionsOpen] = useState(false);
   const [isContextActionsOpen, setIsContextActionsOpen] = useState(false);
@@ -205,9 +215,11 @@ function ThreadRowComponent({
     ? `Open ${labelTitle} (unsubmitted draft)`
     : `Open ${labelTitle}`;
   const rowDragBindings = isEditing ? undefined : dragBindings;
+  const nestTargetState = nestDrop.state;
+  const reorderPlacement = nestDrop.reorderPlacement;
   const containerRef = useComposedRefs<HTMLDivElement>(
     rowDragBindings?.setActivatorNodeRef,
-    rowRef,
+    nestDrop.setNodeRef,
   );
   const isActionsOpen = isDropdownActionsOpen || isContextActionsOpen;
   const handleRowClickCapture = useCallback<MouseEventHandler<HTMLDivElement>>(
@@ -494,7 +506,7 @@ function ThreadRowComponent({
       SIDEBAR_ROW_BASE_CLASS,
       LIST_HOVER_TRANSITION,
       parent?.stickyLevel === undefined && "relative",
-      depth > 0
+      isCompact
         ? COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS
         : COARSE_POINTER_ROW_HEIGHT_CLASS,
       isActive
@@ -504,9 +516,11 @@ function ThreadRowComponent({
       !isActive &&
         "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
       rowDragBindings && !rowDragBindings.disabled && "select-none",
+      nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
       reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
     ),
     style: { paddingLeft: getSidebarThreadRowPaddingLeft(depth) },
+    "data-sidebar-nest-target": nestTargetState ?? undefined,
     "data-sidebar-reorder-placement": reorderPlacement ?? undefined,
     ...rowDragBindings?.attributes,
     ...(rowDragBindings?.listeners ?? {}),

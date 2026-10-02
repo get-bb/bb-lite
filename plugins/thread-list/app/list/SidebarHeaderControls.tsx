@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { SidebarSectionId } from "@bb/client-core";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
@@ -20,6 +20,8 @@ import {
 import { SIDEBAR_CONTROL_BUTTON_CLASS } from "@bb/shared-ui/sidebar-row-classes";
 import {
   sidebarChronologicalSortAtom,
+  sidebarEnvironmentGroupingAtom,
+  sidebarGroupThreadsByEnvironmentAtom,
   sidebarShowProviderIconsAtom,
   sidebarSortDirectionAtom,
   sidebarThreadLifecyclesAtom,
@@ -55,6 +57,8 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   const [lifecycles, setLifecycles] = useAtom(sidebarThreadLifecyclesAtom);
   const [sort, setSort] = useAtom(sidebarChronologicalSortAtom);
   const [savedDirection, setDirection] = useAtom(sidebarSortDirectionAtom);
+  const setEnvironmentGrouping = useSetAtom(sidebarEnvironmentGroupingAtom);
+  const groupByEnvironment = useAtomValue(sidebarGroupThreadsByEnvironmentAtom);
   const [showProviderIcons, setShowProviderIcons] = useAtom(
     sidebarShowProviderIconsAtom,
   );
@@ -93,22 +97,41 @@ function SidebarViewItems({ page }: { page: SidebarViewPage }) {
   }
   if (page === "organize") {
     return (
-      <DropdownMenuGroup aria-label="Rows">
-        <DropdownMenuLabel>Rows</DropdownMenuLabel>
-        <DropdownMenuItem
-          role="menuitemcheckbox"
-          aria-checked={showProviderIcons}
-          onSelect={(event) => {
-            event.preventDefault();
-            setShowProviderIcons(!showProviderIcons);
-          }}
-        >
-          Provider icons
-          <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
-            {showProviderIcons && <Icon name="Check" className="size-4" />}
-          </span>
-        </DropdownMenuItem>
-      </DropdownMenuGroup>
+      <>
+        <DropdownMenuGroup aria-label="Groups">
+          <DropdownMenuLabel>Groups</DropdownMenuLabel>
+          <DropdownMenuItem
+            role="menuitemcheckbox"
+            aria-checked={groupByEnvironment}
+            onSelect={(event) => {
+              event.preventDefault();
+              setEnvironmentGrouping(!groupByEnvironment);
+            }}
+          >
+            By environment
+            <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+              {groupByEnvironment && <Icon name="Check" className="size-4" />}
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup aria-label="Rows">
+          <DropdownMenuLabel>Rows</DropdownMenuLabel>
+          <DropdownMenuItem
+            role="menuitemcheckbox"
+            aria-checked={showProviderIcons}
+            onSelect={(event) => {
+              event.preventDefault();
+              setShowProviderIcons(!showProviderIcons);
+            }}
+          >
+            Provider icons
+            <span className="ml-auto inline-flex size-4 shrink-0 items-center justify-center">
+              {showProviderIcons && <Icon name="Check" className="size-4" />}
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </>
     );
   }
   return (

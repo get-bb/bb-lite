@@ -5,6 +5,7 @@ import { useBbContext } from "@bb/plugin/app";
 import { collectEffectivePinnedThreadIds } from "../model/thread-tree.js";
 import { useSidebarData } from "../model/use-sidebar-data.js";
 import {
+  collapsedEnvironmentIdsAtom,
   collapsedSidebarSectionIdsAtom,
   collapsedThreadIdsAtom,
   sidebarCollapsedThreadSectionsAtom,
@@ -25,6 +26,7 @@ export function useSidebarThreadReveal(): void {
   const threadsReady = status === "ready";
   const preferencesReady = usePreferencesReady();
   const setCollapsedThreadIdList = useSetAtom(collapsedThreadIdsAtom);
+  const setCollapsedEnvironmentIdList = useSetAtom(collapsedEnvironmentIdsAtom);
   const setCollapsedSectionList = useSetAtom(
     sidebarCollapsedThreadSectionsAtom,
   );
@@ -80,19 +82,25 @@ export function useSidebarThreadReveal(): void {
         continue;
       }
       const threadIdsToExpand = new Set<string>();
-      let parent =
-        thread.parentThreadId === null
-          ? undefined
-          : threadById.get(thread.parentThreadId);
-      while (parent && !threadIdsToExpand.has(parent.id)) {
-        threadIdsToExpand.add(parent.id);
-        parent =
-          parent.parentThreadId === null
+      const environmentIdsToExpand = new Set<string>();
+      let current: typeof thread | undefined = thread;
+      let remainingHops = threadById.size;
+      while (current && remainingHops > 0) {
+        const environmentId = current.environment?.id ?? null;
+        if (environmentId !== null) environmentIdsToExpand.add(environmentId);
+        const parent: typeof thread | undefined =
+          current.parentThreadId === null
             ? undefined
-            : threadById.get(parent.parentThreadId);
+            : threadById.get(current.parentThreadId);
+        if (parent) threadIdsToExpand.add(parent.id);
+        current = parent;
+        remainingHops -= 1;
       }
-      setCollapsedThreadIdList((current) =>
-        removeCollapsedIds(current, threadIdsToExpand),
+      setCollapsedThreadIdList((collapsed) =>
+        removeCollapsedIds(collapsed, threadIdsToExpand),
+      );
+      setCollapsedEnvironmentIdList((collapsed) =>
+        removeCollapsedIds(collapsed, environmentIdsToExpand),
       );
       if (effectivePinnedThreadIds.has(thread.id)) {
         setCollapsedSidebarSectionIdList((current) =>
@@ -120,6 +128,7 @@ export function useSidebarThreadReveal(): void {
     threadById,
     effectivePinnedThreadIds,
     setCollapsedThreadIdList,
+    setCollapsedEnvironmentIdList,
     setCollapsedSectionList,
     setCollapsedSidebarSectionIdList,
   ]);

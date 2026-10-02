@@ -12,32 +12,58 @@ export type SidebarThread = PluginSidebarThread;
 
 export interface ThreadNode {
   thread: SidebarThread;
-  children: ThreadNode[];
+  children: ThreadItem[];
   depth: number;
   childCount: number;
   childActivity: ThreadListIndicatorState;
 }
 
+export interface EnvironmentThreadGroup {
+  environmentId: string;
+  environmentProviderId: string | null;
+  nodes: [ThreadNode, ThreadNode, ...ThreadNode[]];
+  childActivity: ThreadListIndicatorState;
+}
+
+export type ThreadItem =
+  | { kind: "thread"; node: ThreadNode }
+  | { kind: "environment"; group: EnvironmentThreadGroup };
+
 export interface SectionGroup {
   id: string;
   key: string;
   name: string;
-  nodes: ThreadNode[];
+  items: ThreadItem[];
   threads: SidebarThread[];
   activity: ThreadListIndicatorState;
 }
 
 export interface SectionThreadList {
   sections: SectionGroup[];
-  loose: ThreadNode[];
+  loose: ThreadItem[];
 }
 
 interface PinnedThreadState {
   effectivePinnedThreadIds: Set<string>;
+  rootItems: ThreadItem[];
   rootNodes: ThreadNode[];
 }
 
-type ThreadComparator = (left: SidebarThread, right: SidebarThread) => number;
+export type ThreadComparator = (
+  left: SidebarThread,
+  right: SidebarThread,
+) => number;
+
+interface ThreadTreeOptions {
+  compareThreads: ThreadComparator;
+  draftThreadIds: ReadonlySet<string>;
+  groupEnvironmentThreads: boolean;
+}
+
+export interface CollapsedTreeState {
+  collapsedThreadIds: ReadonlySet<string>;
+  collapsedEnvironmentIds: ReadonlySet<string>;
+}
 
 function compareByCreatedAtDescending(
   left: SidebarThread,
@@ -75,13 +101,90 @@ function comparePinnedRoots(left: SidebarThread, right: SidebarThread): number {
     : compareByCreatedAtDescending(left, right);
 }
 
-export function flattenThreadNodes(
-  nodes: readonly ThreadNode[],
+export function threadItemNodes(item: ThreadItem): readonly ThreadNode[] {
+  return item.kind === "thread" ? [item.node] : item.group.nodes;
+}
+
+export function threadItemThread(item: ThreadItem): SidebarThread {
+  return item.kind === "thread" ? item.node.thread : item.group.nodes[0].thread;
+}
+
+export function getThreadItemKey(item: ThreadItem): string {
+  return item.kind === "thread"
+    ? `thread:${item.node.thread.id}`
+    : `env:${item.group.environmentId}`;
+}
+
+export function getThreadItemDndId(item: ThreadItem): string {
+  return item.kind === "thread"
+    ? item.node.thread.id
+    : `environment:${item.group.nodes[0].thread.id}`;
+}
+
+export function flattenThreadItems(
+  items: readonly ThreadItem[],
 ): SidebarThread[] {
-  return nodes.flatMap((node) => [
-    node.thread,
-    ...flattenThreadNodes(node.children),
-  ]);
+  return items.flatMap((item) =>
+    threadItemNodes(item).flatMap((node) => [
+      node.thread,
+      ...flattenThreadItems(node.children),
+    ]),
+  );
+}
+
+function buildSortedItems(
+  nodes: ThreadNode[],
+  {
+    compareThreads,
+    draftThreadIds,
+    groupEnvironmentThreads,
+  }: ThreadTreeOptions,
+): ThreadItem[] {
+  const compareNodes = (left: ThreadNode, right: ThreadNode) =>
+    compareThreads(left.thread, right.thread);
+  if (!groupEnvironmentThreads) {
+    return nodes.sort(compareNodes).map((node) => ({ kind: "thread", node }));
+  }
+  const nodesByEnvironmentId = new Map<string, ThreadNode[]>();
+  const providerIdByEnvironmentId = new Map<string, string | null>();
+  for (const node of nodes) {
+    const environment = node.thread.environment;
+    if (environment?.id == null || environment.isWorktree !== true) continue;
+    providerIdByEnvironmentId.set(environment.id, environment.providerId);
+    const bucket = nodesByEnvironmentId.get(environment.id);
+    if (bucket) {
+      bucket.push(node);
+    } else {
+      nodesByEnvironmentId.set(environment.id, [node]);
+    }
+  }
+  const items: ThreadItem[] = [];
+  const groupedEnvironmentIds = new Set<string>();
+  for (const [environmentId, bucket] of nodesByEnvironmentId) {
+    const [first, second, ...rest] = bucket.sort(compareNodes);
+    if (first === undefined || second === undefined) continue;
+    groupedEnvironmentIds.add(environmentId);
+    const group: EnvironmentThreadGroup = {
+      environmentId,
+      environmentProviderId:
+        providerIdByEnvironmentId.get(environmentId) ?? null,
+      nodes: [first, second, ...rest],
+      childActivity: rollupThreadActivity(
+        flattenThreadItems(bucket.map((node) => ({ kind: "thread", node }))),
+        draftThreadIds,
+      ),
+    };
+    items.push({ kind: "environment", group });
+  }
+  for (const node of nodes) {
+    const environmentId = node.thread.environment?.id ?? null;
+    if (environmentId === null || !groupedEnvironmentIds.has(environmentId)) {
+      items.push({ kind: "thread", node });
+    }
+  }
+  return items.sort((left, right) =>
+    compareThreads(threadItemThread(left), threadItemThread(right)),
+  );
 }
 
 function groupByParentId(
@@ -102,10 +205,9 @@ function groupByParentId(
   return childrenByParentId;
 }
 
-function buildThreadTree(
+function buildRootNodes(
   allThreads: readonly SidebarThread[],
-  compareThreads: ThreadComparator = compareStandardThreads,
-  draftThreadIds: ReadonlySet<string> = new Set(),
+  options: ThreadTreeOptions,
 ): ThreadNode[] {
   const threads = allThreads.filter((thread) => !thread.isHidden);
   const threadIds = new Set(threads.map((thread) => thread.id));
@@ -121,19 +223,22 @@ function buildThreadTree(
   ): ThreadNode => {
     visitedThreadIds.add(thread.id);
     const lineage = new Set(ancestorThreadIds).add(thread.id);
-    const children: ThreadNode[] = [];
+    const childNodes: ThreadNode[] = [];
     for (const child of childrenByParentId.get(thread.id) ?? []) {
       if (lineage.has(child.id) || visitedThreadIds.has(child.id)) continue;
-      children.push(buildNode(child, depth + 1, lineage));
+      childNodes.push(buildNode(child, depth + 1, lineage));
     }
-    children.sort((left, right) => compareThreads(left.thread, right.thread));
-    const hiddenThreads = flattenThreadNodes(children);
+    const children = buildSortedItems(childNodes, options);
+    const hiddenThreads = flattenThreadItems(children);
     return {
       thread,
       children,
       depth,
       childCount: hiddenThreads.length,
-      childActivity: rollupThreadActivity(hiddenThreads, draftThreadIds),
+      childActivity: rollupThreadActivity(
+        hiddenThreads,
+        options.draftThreadIds,
+      ),
     };
   };
 
@@ -150,9 +255,7 @@ function buildThreadTree(
       rootNodes.push(buildNode(thread, 0, new Set()));
     }
   }
-  return rootNodes.sort((left, right) =>
-    compareThreads(left.thread, right.thread),
-  );
+  return rootNodes;
 }
 
 export function buildSectionThreadList(
@@ -160,33 +263,36 @@ export function buildSectionThreadList(
   compareThreads: ThreadComparator,
   sections: readonly SidebarSectionDefinition[],
   draftThreadIds: ReadonlySet<string> = new Set(),
+  groupEnvironmentThreads = false,
 ): SectionThreadList {
+  const options = { compareThreads, draftThreadIds, groupEnvironmentThreads };
   const nodesBySectionId = new Map<string, ThreadNode[]>(
     sections.map((section) => [section.id, []]),
   );
-  const loose: ThreadNode[] = [];
-  for (const node of buildThreadTree(threads, compareThreads, draftThreadIds)) {
+  const looseNodes: ThreadNode[] = [];
+  for (const node of buildRootNodes(threads, options)) {
     const sectionId = node.thread.sectionId;
-    (sectionId ? nodesBySectionId.get(sectionId) : loose)?.push(node);
+    (sectionId ? nodesBySectionId.get(sectionId) : looseNodes)?.push(node);
   }
   return {
     sections: sections.flatMap((section) => {
       const nodes = nodesBySectionId.get(section.id);
       if (nodes === undefined) return [];
       nodesBySectionId.delete(section.id);
-      const sectionThreads = flattenThreadNodes(nodes);
+      const items = buildSortedItems(nodes, options);
+      const sectionThreads = flattenThreadItems(items);
       return [
         {
           id: section.id,
           key: buildSectionKey(CHRONOLOGICAL_CONTAINER_ID, section.id),
           name: section.name,
-          nodes,
+          items,
           threads: sectionThreads,
           activity: rollupThreadActivity(sectionThreads, draftThreadIds),
         },
       ];
     }),
-    loose,
+    loose: buildSortedItems(looseNodes, options),
   };
 }
 
@@ -210,14 +316,34 @@ export function collectEffectivePinnedThreadIds(
 export function buildPinnedThreadState(
   threads: readonly SidebarThread[],
   draftThreadIds: ReadonlySet<string> = new Set(),
+  groupEnvironmentThreads = false,
 ): PinnedThreadState {
   const effectivePinnedThreadIds = collectEffectivePinnedThreadIds(threads);
-  const rootNodes = buildThreadTree(
-    threads.filter((thread) => effectivePinnedThreadIds.has(thread.id)),
-    compareStandardThreads,
+  const options = {
+    compareThreads: compareStandardThreads,
     draftThreadIds,
-  ).sort((left, right) => comparePinnedRoots(left.thread, right.thread));
-  return { effectivePinnedThreadIds, rootNodes };
+    groupEnvironmentThreads,
+  };
+  const comparePinnedNodes = (left: ThreadNode, right: ThreadNode) =>
+    comparePinnedRoots(left.thread, right.thread);
+  const rootItems = buildSortedItems(
+    buildRootNodes(
+      threads.filter((thread) => effectivePinnedThreadIds.has(thread.id)),
+      options,
+    ),
+    options,
+  );
+  for (const item of rootItems) {
+    if (item.kind === "environment") item.group.nodes.sort(comparePinnedNodes);
+  }
+  rootItems.sort((left, right) =>
+    comparePinnedRoots(threadItemThread(left), threadItemThread(right)),
+  );
+  return {
+    effectivePinnedThreadIds,
+    rootItems,
+    rootNodes: rootItems.flatMap(threadItemNodes).sort(comparePinnedNodes),
+  };
 }
 
 export function getThreadComparator(
@@ -250,37 +376,59 @@ export function getThreadComparator(
   };
 }
 
-export function countThreadNodeRows(
+function isItemCollapsed(item: ThreadItem, state: CollapsedTreeState): boolean {
+  return (
+    item.kind === "environment" &&
+    state.collapsedEnvironmentIds.has(item.group.environmentId)
+  );
+}
+
+function visibleChildren(
   node: ThreadNode,
-  collapsedThreadIds: ReadonlySet<string>,
+  state: CollapsedTreeState,
+): readonly ThreadItem[] {
+  return state.collapsedThreadIds.has(node.thread.id) ? [] : node.children;
+}
+
+export function countThreadItemRows(
+  item: ThreadItem,
+  state: CollapsedTreeState,
 ): number {
-  return collapsedThreadIds.has(node.thread.id)
-    ? 1
-    : node.children.reduce(
-        (total, child) =>
-          total + countThreadNodeRows(child, collapsedThreadIds),
-        1,
-      );
+  if (isItemCollapsed(item, state)) return 1;
+  return threadItemNodes(item).reduce(
+    (total, node) =>
+      visibleChildren(node, state).reduce(
+        (rows, child) => rows + countThreadItemRows(child, state),
+        total + 1,
+      ),
+    item.kind === "environment" ? 1 : 0,
+  );
 }
 
 export function collectThreadNavigationEntries(
-  nodes: readonly ThreadNode[],
-  collapsedThreadIds: ReadonlySet<string>,
+  items: readonly ThreadItem[],
+  state: CollapsedTreeState,
 ): { threadId: string; projectId: string }[] {
-  return nodes.flatMap((node) => [
-    { threadId: node.thread.id, projectId: node.thread.projectId },
-    ...(collapsedThreadIds.has(node.thread.id)
+  return items.flatMap((item) =>
+    isItemCollapsed(item, state)
       ? []
-      : collectThreadNavigationEntries(node.children, collapsedThreadIds)),
-  ]);
+      : threadItemNodes(item).flatMap((node) => [
+          { threadId: node.thread.id, projectId: node.thread.projectId },
+          ...collectThreadNavigationEntries(
+            visibleChildren(node, state),
+            state,
+          ),
+        ]),
+  );
 }
 
-export function threadNodeContains(
-  node: ThreadNode,
+export function threadItemContains(
+  item: ThreadItem,
   threadId: string,
 ): boolean {
-  return (
-    node.thread.id === threadId ||
-    node.children.some((child) => threadNodeContains(child, threadId))
+  return threadItemNodes(item).some(
+    (node) =>
+      node.thread.id === threadId ||
+      node.children.some((child) => threadItemContains(child, threadId)),
   );
 }
