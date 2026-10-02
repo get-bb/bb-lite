@@ -1,298 +1,79 @@
-import { atom, useAtom, useStore } from "jotai";
+import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { atomFamily } from "jotai-family";
-import { useCallback } from "react";
-import type { PermissionMode, ReasoningLevel, ServiceTier } from "@bb/domain";
+import {
+  permissionModeSchema,
+  reasoningLevelSchema,
+  serviceTierSchema,
+  type PermissionMode,
+  type ReasoningLevel,
+  type ServiceTier,
+} from "@bb/domain";
+import type { z } from "zod";
 import { createTabScopedStorage } from "@/lib/browser-storage";
 import { getProjectScopedStorageKey } from "@/lib/project-scoped-storage";
 
-const MODEL_STORAGE_KEY = "bb.promptbox.model";
-const SERVICE_TIER_STORAGE_KEY = "bb.promptbox.service-tier";
-const REASONING_STORAGE_KEY = "bb.promptbox.reasoning";
-const PERMISSION_MODE_STORAGE_KEY = "bb.promptbox.permission-mode";
-const ENVIRONMENT_STORAGE_KEY = "bb.promptbox.environment";
-const MACHINE_STORAGE_KEY = "bb.promptbox.machine";
-const PROVIDER_STORAGE_KEY = "bb.promptbox.provider";
-const PROVIDER_SELECTION_STORAGE_VERSION = "1";
-
-export type StoredServiceTier = "" | ServiceTier;
-export type StoredReasoningLevel = "" | ReasoningLevel;
-export type StoredPermissionMode = "" | PermissionMode;
-
-type StringSelectionSetter = (value: string) => void;
-type StoredServiceTierSetter = (value: StoredServiceTier) => void;
-type StoredReasoningLevelSetter = (value: StoredReasoningLevel) => void;
-type StoredPermissionModeSetter = (value: StoredPermissionMode) => void;
-
-interface PersistedStringSelectionField {
-  setValue: StringSelectionSetter;
-  value: string;
-}
-
-interface PersistedServiceTierSelectionField {
-  setValue: StoredServiceTierSetter;
-  value: StoredServiceTier;
-}
-
-interface PersistedReasoningLevelSelectionField {
-  setValue: StoredReasoningLevelSetter;
-  value: StoredReasoningLevel;
-}
-
-interface PersistedPermissionModeSelectionField {
-  setValue: StoredPermissionModeSetter;
-  value: StoredPermissionMode;
-}
-
-interface PromptBoxProviderModelReasoningPreference {
-  providerId: string;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-}
-
-function isReasoningLevel(value: string): value is ReasoningLevel {
-  return (
-    value === "none" ||
-    value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "xhigh" ||
-    value === "ultracode" ||
-    value === "max" ||
-    value === "ultra"
+function storedChoice<T extends string>(key: string, schema?: z.ZodType<T>) {
+  return atomWithStorage<T | "">(
+    key,
+    "",
+    createTabScopedStorage<T | "">(
+      {
+        parse: (value, initialValue) => {
+          if (value === null) return initialValue;
+          if (schema === undefined) return value as T;
+          const parsed = schema.safeParse(value);
+          return parsed.success ? parsed.data : initialValue;
+        },
+        serialize: (value) => value,
+      },
+      { persistInitialValue: true },
+    ),
+    { getOnInit: true },
   );
 }
 
-function isPermissionMode(value: string): value is PermissionMode {
-  return value === "accept-edits" || value === "auto" || value === "full";
-}
-
-function isServiceTier(value: string): value is ServiceTier {
-  return value === "fast" || value === "default";
-}
-
-function isStoredServiceTier(value: string): value is StoredServiceTier {
-  return value === "" || isServiceTier(value);
-}
-
-function isStoredReasoningLevel(value: string): value is StoredReasoningLevel {
-  return value === "" || isReasoningLevel(value);
-}
-
-function isStoredPermissionMode(value: string): value is StoredPermissionMode {
-  return value === "" || isPermissionMode(value);
-}
-
-const stringSelectionStorage = createTabScopedStorage<string>(
-  {
-    parse: (value, initialValue) => value ?? initialValue,
-    serialize: (value) => value,
-  },
-  { persistInitialValue: true },
-);
-
-const providerIdAtom = atomWithStorage<string>(
-  PROVIDER_STORAGE_KEY,
-  "",
-  stringSelectionStorage,
-  { getOnInit: true },
-);
-const emptyModelAtom = atom("");
-const emptyReasoningLevelAtom = atom<StoredReasoningLevel>("");
-
-function getProviderSelectionStorageKey(
+function providerChoice<T extends string>(
   storageKey: string,
   providerId: string,
-): string {
-  return `${storageKey}-${encodeURIComponent(providerId.trim())}-${PROVIDER_SELECTION_STORAGE_VERSION}`;
+  schema?: z.ZodType<T>,
+): ReturnType<typeof storedChoice<T>> {
+  return providerId.length === 0
+    ? (atom<T | "">("") as unknown as ReturnType<typeof storedChoice<T>>)
+    : storedChoice(
+        `${storageKey}-${encodeURIComponent(providerId.trim())}-1`,
+        schema,
+      );
 }
 
-const providerReasoningStorage = createTabScopedStorage<StoredReasoningLevel>(
-  {
-    parse: (value, initialValue) =>
-      value !== null && isStoredReasoningLevel(value) ? value : initialValue,
-    serialize: (value) => value,
-  },
-  { persistInitialValue: true },
+export const storedProviderIdAtom = storedChoice<string>(
+  "bb.promptbox.provider",
 );
-
-const modelAtomFamily = atomFamily((providerId: string) =>
-  atomWithStorage<string>(
-    getProviderSelectionStorageKey(MODEL_STORAGE_KEY, providerId),
-    "",
-    stringSelectionStorage,
-    { getOnInit: true },
+export const storedModelAtomFamily = atomFamily((providerId: string) =>
+  providerChoice<string>("bb.promptbox.model", providerId),
+);
+export const storedReasoningLevelAtomFamily = atomFamily((providerId: string) =>
+  providerChoice<ReasoningLevel>(
+    "bb.promptbox.reasoning",
+    providerId,
+    reasoningLevelSchema,
   ),
 );
-const serviceTierAtom = atomWithStorage<StoredServiceTier>(
-  SERVICE_TIER_STORAGE_KEY,
-  "",
-  createTabScopedStorage<StoredServiceTier>(
-    {
-      parse: (value, initialValue) =>
-        value !== null && isStoredServiceTier(value) ? value : initialValue,
-      serialize: (value) => value,
-    },
-    { persistInitialValue: true },
-  ),
-  { getOnInit: true },
+export const storedServiceTierAtom = storedChoice<ServiceTier>(
+  "bb.promptbox.service-tier",
+  serviceTierSchema,
 );
-const reasoningLevelAtomFamily = atomFamily((providerId: string) =>
-  atomWithStorage<StoredReasoningLevel>(
-    getProviderSelectionStorageKey(REASONING_STORAGE_KEY, providerId),
-    "",
-    providerReasoningStorage,
-    { getOnInit: true },
+export const storedPermissionModeAtom = storedChoice<PermissionMode>(
+  "bb.promptbox.permission-mode",
+  permissionModeSchema,
+);
+export const storedEnvironmentAtomFamily = atomFamily((projectId: string) =>
+  storedChoice<string>(
+    getProjectScopedStorageKey("bb.promptbox.environment", projectId),
   ),
 );
-const permissionModePreferenceStorage =
-  createTabScopedStorage<StoredPermissionMode>(
-    {
-      parse: (storedValue, initialValue) => {
-        if (storedValue === "workspace-write") {
-          return "accept-edits";
-        }
-        return storedValue !== null && isStoredPermissionMode(storedValue)
-          ? storedValue
-          : initialValue;
-      },
-      serialize: (value) => value,
-    },
-    { persistInitialValue: true },
-  );
-
-const permissionModeAtom = atomWithStorage<StoredPermissionMode>(
-  PERMISSION_MODE_STORAGE_KEY,
-  "",
-  permissionModePreferenceStorage,
-  { getOnInit: true },
-);
-const environmentSelectionAtom = atomWithStorage<string>(
-  ENVIRONMENT_STORAGE_KEY,
-  "",
-  stringSelectionStorage,
-  { getOnInit: true },
-);
-const projectEnvironmentSelectionAtomFamily = atomFamily((projectId: string) =>
-  atomWithStorage<string>(
-    getProjectScopedStorageKey(ENVIRONMENT_STORAGE_KEY, projectId),
-    "",
-    stringSelectionStorage,
-    { getOnInit: true },
+export const storedMachineAtomFamily = atomFamily((projectId: string) =>
+  storedChoice<string>(
+    getProjectScopedStorageKey("bb.promptbox.machine", projectId),
   ),
 );
-
-const machineSelectionAtomFamily = atomFamily((projectId: string) =>
-  atomWithStorage<string>(
-    getProjectScopedStorageKey(MACHINE_STORAGE_KEY, projectId),
-    "",
-    stringSelectionStorage,
-    { getOnInit: true },
-  ),
-);
-
-export function usePromptBoxMachinePreference(
-  projectId: string,
-): PersistedStringSelectionField {
-  const [value, setAtomValue] = useAtom(machineSelectionAtomFamily(projectId));
-  const setValue = useCallback(
-    (nextValue: string) => setAtomValue(nextValue),
-    [setAtomValue],
-  );
-  return { value, setValue };
-}
-
-export function usePromptBoxProviderPreference(): PersistedStringSelectionField {
-  const [value, setAtomValue] = useAtom(providerIdAtom);
-  const setValue = useCallback(
-    (nextValue: string) => setAtomValue(nextValue),
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
-
-export function usePromptBoxModelPreference(
-  providerId: string,
-): PersistedStringSelectionField {
-  const selectionAtom = providerId
-    ? modelAtomFamily(providerId)
-    : emptyModelAtom;
-  const [value, setAtomValue] = useAtom(selectionAtom);
-  const setValue = useCallback(
-    (nextValue: string) => {
-      setAtomValue(nextValue);
-    },
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
-
-export function usePromptBoxServiceTierPreference(): PersistedServiceTierSelectionField {
-  const [value, setAtomValue] = useAtom(serviceTierAtom);
-  const setValue = useCallback(
-    (nextValue: StoredServiceTier) => {
-      setAtomValue(nextValue);
-    },
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
-
-export function usePromptBoxReasoningLevelPreference(
-  providerId: string,
-): PersistedReasoningLevelSelectionField {
-  const selectionAtom = providerId
-    ? reasoningLevelAtomFamily(providerId)
-    : emptyReasoningLevelAtom;
-  const [value, setAtomValue] = useAtom(selectionAtom);
-  const setValue = useCallback(
-    (nextValue: StoredReasoningLevel) => {
-      setAtomValue(nextValue);
-    },
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
-
-export function useSetPromptBoxProviderModelReasoningPreference(): (
-  preference: PromptBoxProviderModelReasoningPreference,
-) => void {
-  const store = useStore();
-  return useCallback(
-    ({ providerId, model, reasoningLevel }) => {
-      if (providerId.length === 0) return;
-      store.set(modelAtomFamily(providerId), model);
-      store.set(reasoningLevelAtomFamily(providerId), reasoningLevel);
-    },
-    [store],
-  );
-}
-
-export function usePromptBoxPermissionModePreference(): PersistedPermissionModeSelectionField {
-  const [value, setAtomValue] = useAtom(permissionModeAtom);
-  const setValue = useCallback(
-    (nextValue: StoredPermissionMode) => {
-      setAtomValue(nextValue);
-    },
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
-
-export function usePromptBoxEnvironmentPreference(
-  projectId?: string | null,
-): PersistedStringSelectionField {
-  const normalizedProjectId = projectId?.trim();
-  const atom =
-    normalizedProjectId && normalizedProjectId.length > 0
-      ? projectEnvironmentSelectionAtomFamily(normalizedProjectId)
-      : environmentSelectionAtom;
-  const [value, setAtomValue] = useAtom(atom);
-  const setValue = useCallback(
-    (nextValue: string) => {
-      setAtomValue(nextValue);
-    },
-    [setAtomValue],
-  );
-  return { setValue, value };
-}
