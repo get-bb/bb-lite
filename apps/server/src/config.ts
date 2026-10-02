@@ -45,7 +45,6 @@ export function dataPaths(dataDir: string) {
     threadStorage: join(dataDir, "thread-storage"),
     worktrees: join(dataDir, "worktrees"),
     plugins: join(dataDir, "plugins"),
-    themes: join(dataDir, "theme"),
     logs: join(dataDir, "logs"),
     agentsFile: join(dataDir, "AGENTS.md"),
     configFile: join(dataDir, "config.json"),
@@ -62,7 +61,6 @@ function prepareDataDir(dataDir: string): string {
     paths.threadStorage,
     paths.worktrees,
     paths.plugins,
-    paths.themes,
     paths.logs,
   ]) {
     mkdirSync(directory, { recursive: true });

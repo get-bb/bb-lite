@@ -34,7 +34,7 @@ The runner never imports the server. The server talks to machines only through t
   (the runner only removes paths under its own data directory, and the original may still be using
   them). `apps/cli/guide/migrating.md` lists what is and is not copied.
 - `<dataDir>/bb.db` (WAL), `attachments/<projectId>/`, `thread-storage/<threadId>/`, `worktrees/`,
-  `plugins/<id>/` (plugin `data.db`, secrets, files), `theme/<name>/theme.css`, `AGENTS.md`,
+  `plugins/<id>/` (plugin `data.db`, secrets, files), `AGENTS.md`,
   `config.json`, `connect.json` (0600), `host-id`, `logs/`.
 - One schema file, `apps/server/src/db/schema.sql`, applied through `PRAGMA user_version` steps. No ORM:
   `better-sqlite3` prepared statements behind small typed query modules. Never mock the database in tests;

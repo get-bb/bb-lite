@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { appSettingsSchema } from "@bb/domain";
 import Database from "better-sqlite3";
@@ -191,16 +191,6 @@ function importThread(legacy: Legacy, db: Db, add: Add, id: SqlValue): number {
   return pruned;
 }
 
-function copyThemes(from: string, themesDir: string): Numbers {
-  const source = join(from, "theme");
-  const names = existsSync(source) ? readdirSync(source) : [];
-  const fresh = names.filter((name) => !existsSync(join(themesDir, name)));
-  for (const name of fresh) {
-    cpSync(join(source, name), join(themesDir, name), { recursive: true });
-  }
-  return { imported: fresh.length, skipped: names.length - fresh.length };
-}
-
 export async function importLegacy(options: ImportLegacyOptions) {
   const startedAt = Date.now();
   const { from, dryRun, threads } = options;
@@ -246,7 +236,6 @@ export async function importLegacy(options: ImportLegacyOptions) {
           events.skipped += eventCount(legacy, [thread]);
         } else events.pruned += db.transaction(work);
       }
-      counts.themes = copyThemes(from, paths.themes);
     } finally {
       db.close();
     }

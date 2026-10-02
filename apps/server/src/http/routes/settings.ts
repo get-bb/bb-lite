@@ -1,19 +1,21 @@
 import {
   applyAppKeybindingOverrides,
   appSettingsSchema,
-  customThemeNameSchema,
+  defaultAppTheme,
   defaultFeatureFlags,
   getUiPreferenceDefault,
   isBuiltInThemeId,
   isUiPreferenceKey,
   parseUiPreferenceValue,
+  resolveCodeTheme,
   UI_PREFERENCE_KEYS,
+  type AppTheme,
+  type AppThemeSelection,
   type PluginThemeMeta,
   type UiPreferenceEntries,
   type UiPreferenceKey,
 } from "@bb/domain";
 import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
-import { dataPaths } from "../../config.js";
 import type { ServerContext } from "../../context.js";
 import { writeRevision, type Db } from "../../db/index.js";
 import {
@@ -32,12 +34,6 @@ import {
 import { requireProject } from "../../db/projects.js";
 import { publicServerUrl } from "../../runners/hosts.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
-import {
-  customThemeCssPath,
-  listCustomThemes,
-  readCustomThemeCss,
-  resolveTheme,
-} from "../../settings/themes.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 
@@ -55,6 +51,25 @@ const DIRECT_ACCESS: ServerAccessStatus["providers"][number] = {
   pluginId: null,
   availability: null,
 };
+
+function builtInTheme(selection: AppThemeSelection): AppTheme {
+  const { themeId, faviconColor } = selection;
+  const paletteId = isBuiltInThemeId(themeId)
+    ? themeId
+    : defaultAppTheme.themeId;
+  const resolvedCodeTheme = resolveCodeTheme(null, paletteId);
+  return {
+    themeId: paletteId,
+    customCss: null,
+    faviconColor,
+    resolvedCodeTheme,
+  };
+}
+
+function requireBuiltInTheme(themeId: string): void {
+  if (isBuiltInThemeId(themeId)) return;
+  throw new ApiError(404, "theme_not_found", `Unknown theme '${themeId}'.`);
+}
 
 function serverPlatform(): "darwin" | "linux" | "unknown" {
   const { platform } = process;
@@ -109,26 +124,9 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, put } = typedApi(app);
   const { system: routes, projects } = publicApiRoutes;
   const { db, hub } = ctx;
-  const themesDir = dataPaths(ctx.config.dataDir).themes;
   const appearance = () => readSetting(db, appearanceSetting);
-  const activeTheme = () => resolveTheme(themesDir, appearance());
 
-  async function requireKnownTheme(themeId: string): Promise<void> {
-    if (isBuiltInThemeId(themeId)) return;
-    if (!customThemeNameSchema.safeParse(themeId).success) {
-      throw invalidRequest(`Invalid theme id '${themeId}'.`);
-    }
-    if ((await readCustomThemeCss(themesDir, themeId)) === null) {
-      const path = customThemeCssPath(themesDir, themeId);
-      throw new ApiError(
-        404,
-        "theme_not_found",
-        `Custom theme '${themeId}' not found. Create ${path} first.`,
-      );
-    }
-  }
-
-  get(routes.config, async (c) => {
+  get(routes.config, (c) => {
     const generalSettings = getAppSettings(db);
     const keybindingOverrides = readSetting(db, keybindingOverridesSetting);
     const publicUrl = publicServerUrl(ctx);
@@ -148,8 +146,8 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
       ),
       defaultKeybindings: DEFAULT_APP_KEYBINDINGS,
       keybindingOverrides,
-      appearance: await activeTheme(),
-      customThemes: await listCustomThemes(themesDir),
+      appearance: builtInTheme(appearance()),
+      customThemes: [],
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
       primaryHostId: ctx.config.hostId,
       primaryHostPlatform: serverPlatform(),
@@ -178,18 +176,17 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(overrides);
   });
 
-  put(routes.appearance, async (c, selection) => {
-    await requireKnownTheme(selection.themeId);
+  put(routes.appearance, (c, selection) => {
+    requireBuiltInTheme(selection.themeId);
     writeSetting(db, appearanceSetting, selection);
     hub.system(["config-changed"]);
-    return c.json(await activeTheme());
+    return c.json(builtInTheme(selection));
   });
 
-  get(routes.resolveTheme, async (c) => {
+  get(routes.resolveTheme, (c) => {
     const themeId = c.req.param("id");
-    await requireKnownTheme(themeId);
-    const { faviconColor } = appearance();
-    return c.json(await resolveTheme(themesDir, { themeId, faviconColor }));
+    requireBuiltInTheme(themeId);
+    return c.json(builtInTheme({ ...appearance(), themeId }));
   });
 
   get(routes.uiPreferences, (c) =>

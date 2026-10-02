@@ -35,7 +35,8 @@ configured port for the same data directory), import, then start it again.
 - Environments used by the copied threads, at their existing paths. A directory
   that is gone shows as missing.
 - General settings, theme and favicon colour, keybinding overrides, disabled
-  providers, UI preferences, and custom themes under `<old>/theme`.
+  providers and UI preferences. Custom theme directories are not carried over:
+  a custom theme selection falls back to the default palette.
 
 Not copied: plugin data (tasks, account pool accounts, secrets), automations,
 attachments, terminals, right-panel tabs, machine credentials, provider logins.
