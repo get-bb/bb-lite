@@ -33,25 +33,25 @@ import type {
 } from "@/components/workspace/workspace-change-summary";
 import {
   QueuedMessagesList,
+  type QueuedMessageEditRequest,
   type QueuedMessageInlineEditor,
+  type QueuedMessageProcessingAction,
 } from "@/components/promptbox/banner/QueuedMessagesList";
 import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
 import type { MachineLabelHost } from "@/components/machines/MachineLabel";
 import type { WorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
-import { useLatestRef } from "@/hooks/useLatestRef";
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { useProjectDisplayName } from "@/hooks/queries/sidebar-navigation-query";
-import {
-  useActiveComposerDraft,
-  useComposerAttachmentUploads,
-  useComposerTypeahead,
-  useInlineQueuedMessageEditing,
-  useQueuedMessageActions,
-} from "@/components/thread/embedded-chat";
+import { useDraftAttachmentUploads } from "@/components/promptbox/useDraftAttachmentUploads";
+import { usePromptTypeahead } from "@/components/promptbox/usePromptTypeahead";
+import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
 import {
   useCreateThreadQueuedMessage,
   useCancelThreadPlan,
+  useDeleteThreadQueuedMessage,
+  useSendThreadQueuedMessage,
   useStopThread,
+  useUpdateThreadQueuedMessage,
 } from "@/hooks/mutations/thread-runtime-mutations";
 import {
   useRestoreThreadEnvironment,
@@ -64,6 +64,7 @@ import {
 } from "@/hooks/queries/thread-queries";
 import { useThreadDefaultExecutionOptions } from "@/hooks/queries/thread-default-execution-options-query";
 import { showMutationErrorToast } from "@/lib/mutation-errors";
+import { BbHttpError } from "@/lib/sdk";
 import { promptHistoryEntriesToDrafts } from "@/lib/prompt-history";
 import {
   FollowUpPromptBox,
@@ -76,14 +77,26 @@ import {
   buildFollowUpSubmitMode,
   buildFollowUpShortcutRequest,
   canSubmitFollowUpShortcut,
+  promptDraftToInput,
+  queuedInputToDraft,
   resolveDefaultExecutionOptionsState,
   shouldQueueFollowUpMessage,
   type FollowUpExecutionSelection,
+  type PromptDraftState,
 } from "@bb/client-core";
+import type { SendQueuedMessageMode } from "@bb/server-contract";
 
 const ignorePromptBannerFileClick = () => {};
 const THREAD_DETAIL_COMPOSER_TEXTAREA_ID = "thread-detail-follow-up-composer";
 const EMPTY_QUEUED_MESSAGES: readonly ThreadQueuedMessage[] = [];
+
+interface InlineQueuedMessageEdit {
+  threadId: string;
+  sessionId: number;
+  queuedMessage: ThreadQueuedMessage;
+  queuedMessageIndex: number;
+  draft: PromptDraftState;
+}
 
 interface ThreadDetailPromptAreaProps {
   canRestoreEnvironment: boolean;
@@ -172,18 +185,40 @@ export function ThreadDetailPromptArea({
   const queuedMessages =
     useThreadQueuedMessages(thread.id, { enabled: true }).data ??
     EMPTY_QUEUED_MESSAGES;
-  const {
-    inlineEditingQueuedMessage,
-    dismissInlineQueuedMessageEditor,
-    beginEditQueuedMessage,
-    queuedMessageDraftSession,
-  } = useInlineQueuedMessageEditing({
-    ownerThreadId: thread.id,
-    queuedMessages,
-  });
-  const inlineDraftSessionRef = useLatestRef(queuedMessageDraftSession);
+  const [inlineEditState, setInlineEdit] =
+    useState<InlineQueuedMessageEdit | null>(null);
+  const inlineEdit =
+    inlineEditState?.threadId === thread.id &&
+    queuedMessages.some(
+      (message) => message.id === inlineEditState.queuedMessage.id,
+    )
+      ? inlineEditState
+      : null;
+  const inlineInput = inlineEdit ? promptDraftToInput(inlineEdit.draft) : [];
+  const updateInlineDraft = (
+    update: (draft: PromptDraftState) => PromptDraftState,
+  ) =>
+    setInlineEdit(
+      (current) => current && { ...current, draft: update(current.draft) },
+    );
+  const beginEditQueuedMessage = (request: QueuedMessageEditRequest) => {
+    const queuedMessage = queuedMessages.find(
+      (message) => message.id === request.queuedMessageId,
+    );
+    if (!queuedMessage) return;
+    setInlineEdit({
+      threadId: thread.id,
+      sessionId: (inlineEditState?.sessionId ?? 0) + 1,
+      queuedMessage,
+      queuedMessageIndex: request.queuedMessageIndex,
+      draft: queuedInputToDraft(queuedMessage.content),
+    });
+  };
   const { data: promptHistoryEntries = [] } = useThreadPromptHistory(thread.id);
   const createQueuedMessage = useCreateThreadQueuedMessage();
+  const updateQueuedMessage = useUpdateThreadQueuedMessage();
+  const sendQueuedMessage = useSendThreadQueuedMessage();
+  const deleteQueuedMessage = useDeleteThreadQueuedMessage();
   const stopThread = useStopThread();
   const cancelThreadPlan = useCancelThreadPlan();
   const unarchiveThread = useUnarchiveThread();
@@ -191,25 +226,43 @@ export function ThreadDetailPromptArea({
   const projectName = useProjectDisplayName(
     thread.projectId === PERSONAL_PROJECT_ID ? undefined : thread.projectId,
   );
-  const {
-    promptDraft,
-    currentPromptDraft,
-    currentPromptDraftInput,
-    activeComposerDraft,
-    activeComposerDraftInput,
-    handleChangeMessage,
-    removeActiveComposerAttachment,
-  } = useActiveComposerDraft({
-    draftScope: { kind: "thread", projectId, threadId: thread.id },
-    inlineDraft: inlineEditingQueuedMessage?.draft ?? null,
-    inlineSessionRef: inlineDraftSessionRef,
-  });
-  const uploads = useComposerAttachmentUploads({
+  const promptDraft = usePromptDraftStorage({
+    kind: "thread",
     projectId,
-    addDraftAttachment: promptDraft.addAttachment,
-    inlineEditSessionId: queuedMessageDraftSession?.editSessionId ?? null,
-    inlineSessionRef: inlineDraftSessionRef,
+    threadId: thread.id,
   });
+  const currentPromptDraft = {
+    text: promptDraft.text,
+    mentions: promptDraft.mentions,
+    attachments: promptDraft.attachments,
+  };
+  const currentPromptDraftInput = promptDraftToInput(currentPromptDraft);
+  const uploads = useDraftAttachmentUploads(projectId, {
+    key: "bottom",
+    addAttachment: promptDraft.addAttachment,
+  });
+  const inlineUploads = useDraftAttachmentUploads(
+    projectId,
+    inlineEdit && {
+      key: String(inlineEdit.sessionId),
+      addAttachment: (attachment) =>
+        updateInlineDraft((draft) =>
+          draft.attachments.some((item) => item.path === attachment.path)
+            ? draft
+            : { ...draft, attachments: [...draft.attachments, attachment] },
+        ),
+    },
+  );
+  const [processing, setProcessing] = useState<{
+    id: string;
+    action: QueuedMessageProcessingAction;
+  } | null>(null);
+  const processingQueuedMessage =
+    processing && queuedMessages.some((message) => message.id === processing.id)
+      ? processing
+      : null;
+  const clearProcessing = (id: string) =>
+    setProcessing((current) => (current?.id === id ? null : current));
   const [expandedBannerSection, setExpandedBannerSection] =
     useState<ThreadPromptContextBannerExpandedSection | null>(null);
   const [isTodoExpanded, setIsTodoExpanded] = useState(false);
@@ -253,14 +306,14 @@ export function ThreadDetailPromptArea({
     projectId: thread.projectId,
     mentionsProjectId: projectId,
     providerId: thread.providerId,
+    commandScope: "thread" as const,
     environmentId: thread.environmentId,
     currentThreadId: thread.id,
-    selectedProviderComposerActions,
+    composerActions: selectedProviderComposerActions,
     resolveMentionLink,
   };
-  const { typeaheadConfig, promptActions } =
-    useComposerTypeahead(typeaheadArgs);
-  const inlineTypeahead = useComposerTypeahead(typeaheadArgs);
+  const { typeahead, promptActions } = usePromptTypeahead(typeaheadArgs);
+  const inlineTypeahead = usePromptTypeahead(typeaheadArgs);
   const runtimeDisplayStatus = thread.runtime.displayStatus;
   const shouldSteerWhenReady =
     runtimeDisplayStatus === "provisioning" ||
@@ -272,24 +325,82 @@ export function ThreadDetailPromptArea({
     getLatestPendingInteraction(pendingInteractions);
   const shouldHideComposer =
     environmentGoneStatus !== null || thread.archivedAt !== null;
-  const {
-    processingQueuedMessage,
-    queuedMessageActionPending,
-    isUpdateQueuedMessagePending,
-    sendQueuedMessageById,
-    handleSaveInlineQueuedMessage,
-    handleDeleteQueuedMessage,
-  } = useQueuedMessageActions({
-    threadId: thread.id,
-    queuedMessages,
-    sendProcessingPersistence: "until-left-queue",
-    inlineEditingQueuedMessage,
-    dismissInlineQueuedMessageEditor,
-    activeComposerDraftInput,
-  });
+  const sendQueuedMessageById = (
+    messageId: string,
+    mode: SendQueuedMessageMode,
+    headOnly: boolean,
+  ) => {
+    const index = queuedMessages.findIndex(
+      (message) => message.id === messageId,
+    );
+    if (index < 0 || (headOnly && index > 0)) return Promise.resolve();
+    setProcessing({ id: messageId, action: "send" });
+    return sendQueuedMessage
+      .mutateAsync({ id: thread.id, mode, queuedMessageId: messageId })
+      .then(
+        () => {
+          if (mode === "steer") clearProcessing(messageId);
+        },
+        (error: unknown) => {
+          showMutationErrorToast({
+            error,
+            fallbackMessage: "Failed to send queued message",
+            lifecycleOperation: "send_queued_message",
+          });
+          clearProcessing(messageId);
+        },
+      );
+  };
+  const saveInlineEdit = () => {
+    if (
+      !inlineEdit ||
+      inlineInput.length === 0 ||
+      updateQueuedMessage.isPending
+    ) {
+      return;
+    }
+    const { id: queuedMessageId, updatedAt } = inlineEdit.queuedMessage;
+    setProcessing({ id: queuedMessageId, action: "edit" });
+    void updateQueuedMessage
+      .mutateAsync({
+        expectedUpdatedAt: updatedAt,
+        id: thread.id,
+        input: inlineInput,
+        queuedMessageId,
+      })
+      .then(
+        () => setInlineEdit(null),
+        (error: unknown) => {
+          if (error instanceof BbHttpError && error.status === 404) {
+            setInlineEdit(null);
+          }
+          showMutationErrorToast({
+            error,
+            fallbackMessage: "Failed to update queued message",
+            lifecycleOperation: "update_queued_message",
+          });
+        },
+      )
+      .then(() => clearProcessing(queuedMessageId));
+  };
+  const handleDeleteQueuedMessage = (queuedMessageId: string) => {
+    setProcessing({ id: queuedMessageId, action: "delete" });
+    void deleteQueuedMessage
+      .mutateAsync({ id: thread.id, queuedMessageId })
+      .catch((error: unknown) =>
+        showMutationErrorToast({
+          error,
+          fallbackMessage: "Failed to delete queued message",
+          lifecycleOperation: "queue_message",
+        }),
+      )
+      .then(() => clearProcessing(queuedMessageId));
+  };
   const isQueueMutationPending =
     createQueuedMessage.isPending ||
-    queuedMessageActionPending ||
+    deleteQueuedMessage.isPending ||
+    sendQueuedMessage.isPending ||
+    updateQueuedMessage.isPending ||
     isFollowUpShortcutSending;
   const isFollowUpSubmitting =
     sendMessage.isPending ||
@@ -361,7 +472,7 @@ export function ThreadDetailPromptArea({
       ? null
       : buildAutoFollowUpRequest(request);
     promptDraft.clearIfCurrentMatches(currentPromptDraft);
-    uploads.setBottomAttachmentError(null);
+    uploads.setAttachmentError(null);
     const pending = queuedRequest
       ? createQueuedMessage.mutateAsync(queuedRequest)
       : sendRequest
@@ -382,18 +493,18 @@ export function ThreadDetailPromptArea({
     setIsFollowUpShortcutSending(true);
     if (shortcutRequest.kind === "draft") {
       promptDraft.clearIfCurrentMatches(currentPromptDraft);
-      uploads.setBottomAttachmentError(null);
+      uploads.setAttachmentError(null);
     }
     void (
       shortcutRequest.kind === "draft"
         ? sendMessage
             .mutateAsync(shortcutRequest.request)
             .catch(restoreFailedDraft(currentPromptDraft, false))
-        : sendQueuedMessageById({
-            guard: "current-head",
-            messageId: shortcutRequest.request.queuedMessageId,
-            mode: shortcutRequest.request.mode,
-          })
+        : sendQueuedMessageById(
+            shortcutRequest.request.queuedMessageId,
+            shortcutRequest.request.mode,
+            true,
+          )
     ).then(() => setIsFollowUpShortcutSending(false));
   };
 
@@ -427,75 +538,80 @@ export function ThreadDetailPromptArea({
       onToggle={() => setIsPromptModeExpanded((value) => !value)}
     />
   );
-  const inlineEditor: QueuedMessageInlineEditor | undefined =
-    inlineEditingQueuedMessage
-      ? {
-          queuedMessageId: inlineEditingQueuedMessage.queuedMessageId,
-          queuedMessageIndex: inlineEditingQueuedMessage.queuedMessageIndex,
-          onDismiss: dismissInlineQueuedMessageEditor,
-          content: (
-            <FollowUpPromptBox
-              id={`${THREAD_DETAIL_COMPOSER_TEXTAREA_ID}-queued-${inlineEditingQueuedMessage.queuedMessageId}`}
-              attachments={{
-                items: activeComposerDraft.attachments,
-                projectId,
-                isAttaching: uploads.isAttachingInlineFiles,
-                pendingUploads: uploads.inlinePendingUploads,
-                error: uploads.inlineAttachmentError,
-                onAttachFiles: uploads.handleAttachInlineFiles,
-                onRemove: removeActiveComposerAttachment,
-              }}
-              stack={null}
-              composer={{
-                isFollowUpSubmitting: isUpdateQueuedMessagePending,
-                message: activeComposerDraft.text,
-                mentionRanges: activeComposerDraft.mentions,
-                onChangeMessage: handleChangeMessage,
-                onModifierSubmit: () => void handleSaveInlineQueuedMessage(),
-                onSubmit: () => void handleSaveInlineQueuedMessage(),
-                compactPromptPlaceholder,
-                promptPlaceholder,
-                canModifierSubmit:
-                  activeComposerDraftInput.length > 0 &&
-                  !isUpdateQueuedMessagePending,
-                steerActiveThreadOnEnter: false,
-                submitMode: { kind: "ready" },
-                threadRuntimeDisplayStatus: runtimeDisplayStatus,
-              }}
-              environmentSummary={null}
-              contextWindowUsage={null}
-              execution={{
-                ...execution,
-                model: {
-                  ...execution.model,
-                  active: { model: inlineEditingQueuedMessage.model },
-                  selected: inlineEditingQueuedMessage.model,
-                },
-                serviceTier: baseExecution.serviceTier && {
-                  ...baseExecution.serviceTier,
-                  value: inlineEditingQueuedMessage.serviceTier,
-                },
-                reasoning: {
-                  ...execution.reasoning,
-                  value: inlineEditingQueuedMessage.reasoningLevel,
-                },
-              }}
-              executionReadOnly
-              permission={{
-                ...permission,
-                value: inlineEditingQueuedMessage.permissionMode,
-              }}
-              permissionReadOnly
-              typeahead={inlineTypeahead.typeaheadConfig}
-              promptActions={inlineTypeahead.promptActions}
-              preferExpanded
-              focusEndKey={inlineEditingQueuedMessage.editSessionId}
-              isPrimaryComposer={false}
-              showScrollToBottomButton={false}
-            />
-          ),
-        }
-      : undefined;
+  const inlineEditor: QueuedMessageInlineEditor | undefined = inlineEdit
+    ? {
+        queuedMessageId: inlineEdit.queuedMessage.id,
+        queuedMessageIndex: inlineEdit.queuedMessageIndex,
+        onDismiss: () => setInlineEdit(null),
+        content: (
+          <FollowUpPromptBox
+            id={`${THREAD_DETAIL_COMPOSER_TEXTAREA_ID}-queued-${inlineEdit.queuedMessage.id}`}
+            attachments={{
+              items: inlineEdit.draft.attachments,
+              projectId,
+              isAttaching: inlineUploads.isAttachingFiles,
+              pendingUploads: inlineUploads.pendingUploads,
+              error: inlineUploads.attachmentError,
+              onAttachFiles: inlineUploads.handleAttachFiles,
+              onRemove: (path) =>
+                updateInlineDraft((draft) => ({
+                  ...draft,
+                  attachments: draft.attachments.filter(
+                    (attachment) => attachment.path !== path,
+                  ),
+                })),
+            }}
+            stack={null}
+            composer={{
+              isFollowUpSubmitting: updateQueuedMessage.isPending,
+              message: inlineEdit.draft.text,
+              mentionRanges: inlineEdit.draft.mentions,
+              onChangeMessage: (text, mentions) =>
+                updateInlineDraft((draft) => ({ ...draft, text, mentions })),
+              onModifierSubmit: saveInlineEdit,
+              onSubmit: saveInlineEdit,
+              compactPromptPlaceholder,
+              promptPlaceholder,
+              canModifierSubmit:
+                inlineInput.length > 0 && !updateQueuedMessage.isPending,
+              steerActiveThreadOnEnter: false,
+              submitMode: { kind: "ready" },
+              threadRuntimeDisplayStatus: runtimeDisplayStatus,
+            }}
+            environmentSummary={null}
+            contextWindowUsage={null}
+            execution={{
+              ...execution,
+              model: {
+                ...execution.model,
+                active: { model: inlineEdit.queuedMessage.model },
+                selected: inlineEdit.queuedMessage.model,
+              },
+              serviceTier: baseExecution.serviceTier && {
+                ...baseExecution.serviceTier,
+                value: inlineEdit.queuedMessage.serviceTier,
+              },
+              reasoning: {
+                ...execution.reasoning,
+                value: inlineEdit.queuedMessage.reasoningLevel,
+              },
+            }}
+            executionReadOnly
+            permission={{
+              ...permission,
+              value: inlineEdit.queuedMessage.permissionMode,
+            }}
+            permissionReadOnly
+            typeahead={inlineTypeahead.typeahead}
+            promptActions={inlineTypeahead.promptActions}
+            preferExpanded
+            focusEndKey={inlineEdit.sessionId}
+            isPrimaryComposer={false}
+            showScrollToBottomButton={false}
+          />
+        ),
+      }
+    : undefined;
   const childPendingInteractionBanners = childPendingInteractions.map(
     (item) => (
       <ThreadPendingInteractionBanner
@@ -593,11 +709,11 @@ export function ThreadDetailPromptArea({
           processingMessageId={processingQueuedMessage?.id ?? null}
           processingAction={processingQueuedMessage?.action ?? null}
           onSend={(messageId) =>
-            void sendQueuedMessageById({
-              guard: "exists",
+            void sendQueuedMessageById(
               messageId,
-              mode: shouldSteerWhenReady ? "steer" : "auto",
-            })
+              shouldSteerWhenReady ? "steer" : "auto",
+              false,
+            )
           }
           onEdit={beginEditQueuedMessage}
           onDelete={handleDeleteQueuedMessage}
@@ -612,10 +728,10 @@ export function ThreadDetailPromptArea({
       attachments={{
         items: currentPromptDraft.attachments,
         projectId,
-        isAttaching: uploads.isAttachingBottomFiles,
-        pendingUploads: uploads.bottomPendingUploads,
-        error: uploads.bottomAttachmentError,
-        onAttachFiles: uploads.handleAttachBottomFiles,
+        isAttaching: uploads.isAttachingFiles,
+        pendingUploads: uploads.pendingUploads,
+        error: uploads.attachmentError,
+        onAttachFiles: uploads.handleAttachFiles,
         onRemove: promptDraft.removeAttachment,
       }}
       stack={promptStack}
@@ -663,7 +779,7 @@ export function ThreadDetailPromptArea({
       contextWindowUsage={contextWindowUsage ?? null}
       execution={execution}
       permission={permission}
-      typeahead={typeaheadConfig}
+      typeahead={typeahead}
       promptActions={promptActions}
     />
   );

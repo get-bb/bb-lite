@@ -1,5 +1,5 @@
 import { registerPaneComposerFocus } from "@/lib/pane-composer-focus";
-import type { PendingAttachmentUpload } from "./usePendingAttachmentUploads";
+import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
 import { registerThreadMentionDropTarget } from "@/lib/thread-mention-drop";
 import type {
   PromptMentionCommandTrigger,
@@ -13,6 +13,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import {
   useContext,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -1198,6 +1199,10 @@ export function PromptBoxInternal({
     return () => cancelAnimationFrame(handle);
   }, [autoFocus, editor, focusScopeKey]);
 
+  const syncAfterExternalChange = useEffectEvent((target: Editor) => {
+    syncTriggerState(target);
+    revealSelection(target);
+  });
   useLayoutEffect(() => {
     if (!editor) return;
     const next = { text: value, mentions: mentionRanges };
@@ -1207,8 +1212,7 @@ export function PromptBoxInternal({
     editor.commands.setContent(promptEditorContentFromValue(next), {
       emitUpdate: false,
     });
-    syncTriggerState(editor);
-    revealSelection(editor);
+    syncAfterExternalChange(editor);
   }, [editor, mentionRanges, value]);
 
   useLayoutEffect(() => {
@@ -1248,14 +1252,17 @@ export function PromptBoxInternal({
     canLoadMoreCommands &&
     activeSuggestions.length > 0 &&
     selectedIndex >= Math.max(0, activeSuggestions.length - 3);
+  const loadMoreCommands = useEffectEvent(() => command.loadMore());
   useEffect(() => {
-    if (shouldPrefetchCommands) command.loadMore();
+    if (shouldPrefetchCommands) loadMoreCommands();
   }, [shouldPrefetchCommands, activeSuggestions.length]);
 
-  useEffect(() => {
-    if (!pendingCommandSubmit) return;
+  const submitPendingCommand = useEffectEvent(() => {
     setPendingCommandSubmit(false);
     submitPrompt();
+  });
+  useEffect(() => {
+    if (pendingCommandSubmit) submitPendingCommand();
   }, [pendingCommandSubmit]);
 
   useEffect(() => {

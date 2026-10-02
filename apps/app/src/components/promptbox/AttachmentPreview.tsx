@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PendingAttachmentUpload } from "./usePendingAttachmentUploads";
+import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
 import {
   getWrappedImageIndex,
   ImageLightbox,
