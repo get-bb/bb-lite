@@ -14,7 +14,7 @@ budgets; this file has the shapes.
 | `apps/app` | Web UI |
 | `packages/thread-view` | Events → timeline rows. Projection runs in the server; row helpers run in the browser |
 | `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes |
-| `packages/sdk` | Typed HTTP + WebSocket client used by the app, the CLI and plugins |
+| `packages/sdk` | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`) |
 | `packages/plugin` | The plugin API (types and helpers) |
 | `plugins/*` | In-repo plugins compiled into the server and the app |
 
@@ -300,7 +300,10 @@ this product writes. Facts the code no longer states in comments:
 ## HTTP and WebSocket surface
 
 Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
-`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. Errors are
+`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. The SDK sends
+every request through the same descriptors (`packages/sdk/src/http.ts`: path parameters, query and JSON
+body typed by the route, one place for timeouts and error bodies). A descriptor types the success
+response only. Errors are
 `{code, message, details?, retryable?}` with the HTTP status. Research note 01 lists every kept route, its
 callers, the response shapes and the change notifications each mutation must emit.
 
