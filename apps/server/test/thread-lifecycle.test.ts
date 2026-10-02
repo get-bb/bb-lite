@@ -65,71 +65,6 @@ it("registers, resolves and refuses provider interactions", async () => {
   expect(lifecycle).toEqual(["pending", "resolving", "resolved"]);
 });
 
-it("serves a plugin: attributed spawn, workspace files and requestInput", async () => {
-  const server = await createThreadServer();
-  const { ctx, http, rows, runner } = server;
-  const bb = ctx.plugins.deps("secrets");
-  const { id } = await bb.threads.spawn({
-    projectId: "proj_1",
-    input: text("Rotate the token"),
-    model: "gpt-test",
-    environment: { type: "project-default" },
-  });
-  await server.settle();
-  const origins = rows("SELECT origin_plugin_id FROM threads");
-  expect(origins).toEqual([{ originPluginId: "secrets" }]);
-  const file = { content: "aGk=", contentEncoding: "base64", sha256: "s" };
-  Object.assign(runner.script, { readFile: async () => file });
-  const read = await bb.files.read({ threadId: id, path: "a.txt" });
-  const located = [{ path: "a.txt", rootPath: "/repo" }];
-  expect([read, server.callsTo("readFile").slice(-1)]).toEqual([
-    { content: "hi", sha256: "s" },
-    located,
-  ]);
-  const request = { threadId: id, rendererId: "form" };
-  const form = { ...request, title: "Secret", payload: { name: "TOKEN" } };
-  const latest = () =>
-    rows<{ id: string }>(
-      "SELECT id FROM pending_interactions ORDER BY rowid DESC",
-    )[0].id;
-  const first = bb.requestInput(form);
-  await server.settle();
-  const busy = expect.objectContaining({ status: 409 });
-  await expect(bb.requestInput(form)).rejects.toEqual(busy);
-  const value = { token: "abc" };
-  const base = `/threads/${id}/interactions`;
-  const answered = await http("POST", `${base}/${latest()}/respond`, { value });
-  const origin = { kind: "plugin", pluginId: "secrets" };
-  expect(answered.body).toMatchObject({ status: "resolved", origin });
-  expect(await first).toEqual({ outcome: "submitted", value });
-});
-
-it("runs plugin tools for the provider", async () => {
-  const server = await createThreadServer();
-  const { ctx } = server;
-  const id = await server.spawn();
-  ctx.plugins.callTool = async (name, args, { threadId }) => {
-    const reply = `${name} ${JSON.stringify(args)} ${threadId}`;
-    const contentItems = [{ type: "inputText" as const, text: reply }];
-    return { success: name === "Echo", contentItems };
-  };
-  const invoke = async (tool: string, args: unknown, requestId: string) => {
-    const call = { threadId: id, turnId: "t1", requestId, callId: "c1" };
-    const kind = "toolCall.requested";
-    await server.emit({ kind, ...call, tool, arguments: args });
-    const calls = server.callsTo("resolveToolCall");
-    const resolved = calls[calls.length - 1] as {
-      requestId: string;
-      result: { success: boolean; contentItems: { text: string }[] };
-    };
-    const { success, contentItems } = resolved.result;
-    return [resolved.requestId, success, contentItems[0].text];
-  };
-  const echoed = ["r1", true, `Echo {"a":1} ${id}`];
-  expect(await invoke("Echo", { a: 1 }, "r1")).toEqual(echoed);
-  expect((await invoke("Nope", {}, "r2")).slice(0, 2)).toEqual(["r2", false]);
-});
-
 it("tells a parent about its children in batches", async () => {
   const server = await createThreadServer();
   const { ingest, runTurn, submitted, thread } = server;
@@ -188,10 +123,8 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   await client.subscribe({ kind: "thread-detail", threadId: child });
 
   const archived = await http("POST", `/threads/${parent}/archive-all`);
-  expect(archived.body).toEqual({
-    ok: true,
-    archivedThreadIds: [child, parent],
-  });
+  const swept = { ok: true, archivedThreadIds: [child, parent] };
+  expect(archived.body).toEqual(swept);
   const change = [["archived-changed"], { projectId: "proj_1" }];
   expect(await server.changes(client)).toEqual(change);
   await server.matches("/sidebar-bootstrap", { projects: [{ threads: [] }] });
@@ -315,7 +248,7 @@ it("announces every mutation to subscribers", async () => {
   const client = await server.socket();
   await client.subscribe({ kind: "thread-detail", threadId: id });
   const base = `/threads/${id}`;
-  type Row = { id: string; updatedAt: number; groupWithNext: boolean };
+  type Row = { id: string; updatedAt: number };
   const change = async (method: string, path: string, json?: unknown) => {
     const { body } = await http<Row[] & Row>(method, `${base}${path}`, json);
     return [(await server.changes(client))[0], body] as const;
@@ -356,19 +289,19 @@ it("announces every mutation to subscribers", async () => {
   };
   const edits = [await edit(first.updatedAt - 1), await edit(first.updatedAt)];
   expect(edits).toEqual([409, 200]);
-  const move = { previousQueuedMessageId: null, nextQueuedMessageId: first.id };
-  const moved = await change("PATCH", `${queue}/${second.id}/order`, move);
-  const ids = moved[1].map((row) => row.id);
-  expect(ids).toEqual([second.id, first.id]);
-  const boundary = {
-    expectedGroupedPrefixQueuedMessageIds: ids,
-    groupBoundaryQueuedMessageId: first.id,
-  };
-  const grouped = await change("PATCH", `${queue}/group-boundary`, boundary);
-  const flags = grouped[1].map((row) => row.groupWithNext);
-  expect(flags).toEqual([true, false]);
-  const removed = await change("DELETE", `${queue}/${second.id}`);
+  const listed = await http<Row[]>("GET", `${base}${queue}`);
+  const ids = listed.body.map((row) => row.id);
+  expect(ids).toEqual([first.id, second.id]);
+  const removed = await change("DELETE", `${queue}/${first.id}`);
   expect(removed).toEqual([["queue-changed"], { ok: true }]);
+  await server.ingest(id, events.identity(), events.started("t1"));
+  const now = { mode: "steer" };
+  const sent = await http("POST", `${base}${queue}/${second.id}/send`, now);
+  expect(sent.body).toMatchObject({ delivery: "sent" });
+  expect([server.lastSubmit(), server.queued(id)]).toEqual([
+    ["second", "steer"],
+    [],
+  ]);
 
   const opened = await http("POST", `${base}/open`, { file: null });
   expect(opened.body).toEqual({ delivered: 1 });

@@ -66,9 +66,6 @@ export const threadTabFileOpenerOwnerSchema = z.discriminatedUnion("kind", [
       { message: "hostId or threadId/environmentId is required" },
     ),
 ]);
-export type ThreadTabFileOpenerOwner = z.infer<
-  typeof threadTabFileOpenerOwnerSchema
->;
 
 export const threadTabSchema = z.discriminatedUnion("kind", [
   z.object({ id: threadTabIdSchema, kind: z.literal("thread-info") }).strict(),

@@ -9,13 +9,11 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { Link } from "../src/account.js";
 
 type Admission = { auth?: "session" | "machine"; machineId?: string };
-type Reply = [status: number, body?: unknown];
 
 const MACHINE_HEADER = "x-bb-connect-machine";
 const GATE_HEADERS = ["x-bb-gate-auth", "x-bb-gate-machine-id", MACHINE_HEADER];
 const HOP_HEADERS =
   /^(connection|keep-alive|transfer-encoding|upgrade|expect|host|sec-websocket-(key|version|extensions)|x-bb-tunnel-target)$/iu;
-const ACCOUNT_PATH = /^\/api\/(account|connect)\//u;
 const PUBLIC_PATHS = ["/install.sh", "/install/version", "/install/bb-app.tgz"];
 const MACHINE_PATH = /^\/(internal|api\/v1(\/|$))/u;
 
@@ -25,19 +23,13 @@ export async function startFakeGate() {
   const visitors = new Map<number, WebSocket>();
   let tunnel: WebSocket | null = null;
   let streamId = 0;
-  let minted = 0;
   const gate = {
     apexUrl: "",
     gateUrl: "",
     credential: "bbcred_first",
-    calls: [] as string[],
-    pollReplies: [] as Reply[],
-    dialStatus: 0,
-    profileStatus: 200,
     ackHeartbeats: true,
     tunnelsAccepted: 0,
     machines: new Map<string, string>(),
-    revoked: [] as string[],
     link: (): Link => ({
       baseUrl: gate.apexUrl,
       serverUrl: gate.gateUrl,
@@ -47,64 +39,15 @@ export async function startFakeGate() {
     }),
   };
   const send = (frame: wire.Frame) => tunnel?.send(wire.encodeFrame(frame));
-  const owned = ({ headers }: IncomingMessage) =>
-    headers[MACHINE_HEADER] === gate.credential &&
-    headers.authorization === `Bearer ${gate.credential}`;
-
-  async function account(request: IncomingMessage): Promise<Reply | null> {
-    const { gateUrl: serverUrl, apexUrl } = gate;
-    const path = request.url ?? "";
-    if (!ACCOUNT_PATH.test(path)) return null;
-    const input = (await buffer(request)).toString();
-    const body = JSON.parse(input || "{}") as Record<string, string>;
-    switch (path) {
-      case "/api/account/link/start": {
-        const verificationUrl = `${apexUrl}/link?code=ABCD-1234`;
-        const codes = { deviceCode: "bbdev_1", userCode: "ABCD-1234" };
-        const expiresAt = Date.now() + 600_000;
-        return [200, { ...codes, verificationUrl, expiresAt, intervalMs: 1 }];
-      }
-      case "/api/account/link/poll":
-        return gate.pollReplies.shift() ?? [200, { status: "pending" }];
-      case "/api/account/me": {
-        const profile = { serverId: "srv_1", serverLabel: "bee", serverUrl };
-        if (!owned(request) || gate.profileStatus === 401) return [401];
-        return [gate.profileStatus, profile];
-      }
-      case "/api/connect/disconnect":
-        if (request.headers[MACHINE_HEADER] !== gate.credential) return [401];
-        gate.credential = "bbcred_revoked";
-        tunnel?.close(1000, "revoked by owner");
-        return [200, { ok: true }];
-      case "/api/connect/machine-code":
-        if (!owned(request)) return [401, { error: "signed-out" }];
-        return [200, { code: "mc_1", expiresInMs: 600_000, serverUrl }];
-      case "/api/connect/redeem-machine": {
-        if (body.code !== "mc_1") return [404];
-        minted += 1;
-        const [credential, machineId] = [`bbcm_${minted}`, `machine_${minted}`];
-        gate.machines.set(credential, machineId);
-        return [200, { credential, machineId, serverUrl }];
-      }
-      case "/api/connect/revoke-machine":
-        if (!owned(request)) return [401];
-        gate.revoked.push(String(body.machineId));
-        return [200, { ok: true }];
-      default:
-        return [404];
-    }
-  }
 
   function admit(request: IncomingMessage): Admission | number {
     const { method = "", headers, url = "/" } = request;
     const [path = "/"] = url.split("?");
-    const shared = /^[a-z0-9-]+--\d+\./u.test(headers.host ?? "");
     const presented = headers[MACHINE_HEADER];
     if (method === "GET" && PUBLIC_PATHS.includes(path)) return {};
     if (MACHINE_PATH.test(path) && typeof presented === "string") {
       const machineId = gate.machines.get(presented);
-      if (shared || machineId === undefined) return 403;
-      return { auth: "machine", machineId };
+      return machineId === undefined ? 403 : { auth: "machine", machineId };
     }
     if (path.startsWith("/internal")) return 403;
     return headers.cookie === "session=owner" ? { auth: "session" } : 401;
@@ -121,21 +64,15 @@ export async function startFakeGate() {
     const { auth, machineId } = admission;
     if (auth !== undefined) headers.push(["x-bb-gate-auth", auth]);
     if (machineId) headers.push(["x-bb-gate-machine-id", machineId]);
-    const target = /--(\d+)\./u.exec(request.headers.host ?? "")?.[1];
     streamId += 1;
-    return { streamId, path, headers, ...(target ? { target } : {}) };
+    return { streamId, path, headers };
   }
 
   async function onRequest(request: IncomingMessage, response: ServerResponse) {
-    const side = request.headers.host?.startsWith("localhost")
-      ? "apex"
-      : "gate";
-    gate.calls.push(`${side} ${request.method} ${request.url}`);
-    const answer = (await account(request)) ?? admit(request);
-    if (typeof answer === "number" || Array.isArray(answer)) {
-      const [status, body] = Array.isArray(answer) ? answer : [answer];
-      response.writeHead(status, { "content-type": "application/json" });
-      return void response.end(JSON.stringify(body ?? {}));
+    const answer = admit(request);
+    if (typeof answer === "number") {
+      response.writeHead(answer, { "content-type": "application/json" });
+      return void response.end("{}");
     }
     if (tunnel === null) return void response.writeHead(503).end();
     const { method = "GET" } = request;
@@ -178,8 +115,7 @@ export async function startFakeGate() {
     head: Buffer,
   ) {
     const bearer = `Bearer ${gate.credential}`;
-    const refusal =
-      gate.dialStatus || (request.headers.authorization === bearer ? 0 : 401);
+    const refusal = request.headers.authorization === bearer ? 0 : 401;
     if (refusal !== 0 || !request.url?.endsWith("?v=1")) {
       return void socket.end(`HTTP/1.1 ${refusal || 400} Refused\r\n\r\n`);
     }

@@ -12,9 +12,7 @@ import type { ThreadEnvironment } from "../src/environments/types.js";
 import { createTestServer, type Json, type TestSocket } from "./helpers.js";
 
 type TurnStatus = "completed" | "failed" | "interrupted";
-type Spawn = Partial<
-  Omit<CreateThreadRequest, "startedOnBehalfOf" | "originKind">
->;
+type Spawn = Partial<Omit<CreateThreadRequest, "startedOnBehalfOf">>;
 export type ThreadServer = Awaited<ReturnType<typeof createThreadServer>>;
 
 const providerThreadId = "prov-1";
@@ -143,7 +141,6 @@ export async function createThreadServer() {
         model: "gpt-test",
         environment: { type: "project-default" },
         startedOnBehalfOf: null,
-        originKind: null,
         ...overrides,
       },
     });

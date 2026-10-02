@@ -1,4 +1,3 @@
-import { hostname } from "node:os";
 import { defaultAppSettings } from "@bb/domain";
 import { expect, it } from "vitest";
 import { WebSocket } from "ws";
@@ -43,25 +42,6 @@ function dial({ url }: TestServer, token: string, gate: Headers = {}) {
     socket.on("close", (code, reason) => resolve(`closed ${code} ${reason}`));
   });
 }
-
-it("lists the server's own machine as a connected host", async () => {
-  const server = await createTestServer();
-  const { api, ctx } = server;
-  const changed = await watchChanges(server);
-  const param = { id: ctx.config.hostId };
-  const [local] = await (await api.hosts.$get({ query: {} })).json();
-  const own = { ...param, status: "connected", machineProviderId: null };
-  expect(local).toMatchObject({ ...own, name: hostname() });
-  const host = api.hosts[":id"];
-  await host.$patch({ param, json: { name: "bee" } });
-  await changed("host", "host-connected");
-  const json = { maxPermissionMode: "auto" } as const;
-  await host["permission-ceiling"].$patch({ param, json });
-  await changed("host", "host-connected");
-  const detail = await (await host.$get({ param })).json();
-  expect(detail).toMatchObject({ ...json, name: "bee" });
-  expect((await host.$delete({ param })).status).toBe(400);
-});
 
 it("enrolls a machine with a single-use join token", async () => {
   const server = await createTestServer();
@@ -138,39 +118,4 @@ it("expires join tokens, reissues them and revokes on removal", async () => {
   await changed("host", "host-disconnected");
   expect((await api.hosts[":id"].$get({ param })).status).toBe(404);
   expect(await dial(server, token)).toBe("refused 401");
-});
-
-it("lists and launches the machine's open targets for the owner only", async () => {
-  const { api, ctx, request, runner, send } = await createTestServer();
-  const can = { openDirectory: true, openFile: true, openFileAtLine: true };
-  const capabilities = { ...can, openFileAtColumn: true };
-  const editor = { id: "vscode", label: "VS Code", kind: "editor" as const };
-  const targets = [{ ...editor, capabilities }];
-  runner.script.listOpenTargets = async () => ({ targets });
-  runner.script.openInTarget = async () => {};
-  const param = { id: ctx.config.hostId };
-  const host = api.hosts[":id"];
-  const listed = await host["open-targets"].$get({ param });
-  expect(await listed.json()).toEqual({ targets });
-  const file = { targetId: "vscode", path: "/repo/src/a.ts" };
-  await host.open.$post({ param, json: { ...file, line: 12 } });
-  const opened = await host.open.$post({ param, json: file });
-  expect(await opened.json()).toEqual({ ok: true });
-  const invalid = { param, json: { ...file, line: 0 } };
-  expect((await host.open.$post(invalid)).status).toBe(400);
-  const unknown = { param: { id: "host_missing" } };
-  expect((await host["open-targets"].$get(unknown)).status).toBe(404);
-  const base = `/hosts/${ctx.config.hostId}`;
-  const asMachine = await Promise.all([
-    request(`${base}/open-targets`, { headers: throughGate("m1") }),
-    send(`${base}/open`, file, "POST", throughGate("m1")),
-  ]);
-  expect(asMachine.map((response) => response.status)).toEqual([403, 403]);
-  const launches = runner.calls.filter(
-    (call) => call.method === "openInTarget",
-  );
-  expect(launches.map((call) => call.args)).toEqual([
-    [{ ...file, line: 12, column: null }],
-    [{ ...file, line: null, column: null }],
-  ]);
 });

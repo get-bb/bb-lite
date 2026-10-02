@@ -4,11 +4,7 @@ import {
   type PromptHistoryEntry,
   type Thread,
 } from "@bb/domain";
-import type {
-  ThreadCountQuery,
-  ThreadCountResponse,
-  ThreadListQuery,
-} from "@bb/server-contract";
+import type { ThreadListQuery } from "@bb/server-contract";
 import { z } from "zod";
 import type { Db, SqlValue } from "./index.js";
 import type { ThreadRow } from "./threads.js";
@@ -126,43 +122,6 @@ export function listSidebarThreadRows(db: Db): ThreadListRow[] {
        AND threads.visibility = 'visible'
      ORDER BY ${ACTIVE_THREAD_ORDER}`,
   );
-}
-
-export function countThreads(
-  db: Db,
-  query: ThreadCountQuery,
-  rootsOnly: boolean,
-): ThreadCountResponse {
-  const { where, params } = threadFilter(
-    {
-      "threads.status": query.status,
-      "threads.provider_id": query.providerId,
-      "threads.project_id": query.projectId,
-      "e.host_id": query.hostId,
-      "threads.parent_thread_id": rootsOnly ? undefined : query.parentThreadId,
-    },
-    {
-      "threads.archived_at":
-        query.includeArchived === "true" ? undefined : "false",
-      "threads.parent_thread_id": rootsOnly ? "false" : undefined,
-    },
-    query.includeHidden,
-  );
-  const { groupBy } = query;
-  const groupColumn = {
-    host: "e.host_id",
-    provider: "threads.provider_id",
-    project: "threads.project_id",
-  }[groupBy ?? "host"];
-  const groups = db.all<{ key: string | null; count: number }>(
-    `SELECT ${groupBy === undefined ? "NULL" : groupColumn} AS key,
-       COUNT(*) AS count
-     FROM threads LEFT JOIN environments AS e ON e.id = threads.environment_id
-     WHERE ${where} GROUP BY 1`,
-    ...params,
-  );
-  const total = groups.reduce((sum, group) => sum + group.count, 0);
-  return groupBy === undefined ? { total } : { total, groups };
 }
 
 export function threadChildSummary(db: Db, threadId: string) {

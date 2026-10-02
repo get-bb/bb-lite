@@ -93,8 +93,4 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     const listed = paths.map(({ path, name }) => ({ path, name }));
     return c.json({ files: listed, truncated });
   });
-
-  post(files.mkdir, async (c, { hostId, ...target }) =>
-    c.json(await runnerOf(hostId).mutatePath({ op: "mkdir", ...target })),
-  );
 }

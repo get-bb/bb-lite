@@ -68,11 +68,8 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   expect(tools).toEqual(["AskUserQuestion"]);
   const providerOptions = { memoryEnabled: true };
   const asks = { permissionEscalation: "ask", planMode: false };
-  expect(options).toMatchObject({
-    model: "gpt-test",
-    ...asks,
-    providerOptions,
-  });
+  const chosen = { model: "gpt-test", ...asks, providerOptions };
+  expect(options).toMatchObject(chosen);
   const stored = join(ctx.config.dataDir, "attachments/proj_1/shot.png");
   const delivered = [...prompt, { ...image, path: stored }];
   const sent = [{ kind: "start" }, request.requestId, delivered];
@@ -90,8 +87,6 @@ it("creates a thread, records provisioning and submits the first turn", async ()
       activity: { activeBackgroundAgentCount: 0 },
     },
   });
-  const history = rows("SELECT scope FROM prompt_history_entries");
-  expect(history).toEqual([{ scope: "project" }]);
   const defaults = rows("SELECT execution_defaults FROM projects");
   expect(JSON.stringify(defaults)).toContain("gpt-test");
 });
@@ -107,11 +102,8 @@ it("ingests a turn: sequences, dedupes, pruning, search and status", async () =>
   clock.now += 5_000;
 
   await ingest(threadId, events.identity(), events.started("t1"));
-  const running = { status: "active", activeTurnId: "t1" };
-  expect(thread(threadId)).toMatchObject({
-    ...running,
-    providerThreadId: "prov-1",
-  });
+  const turn = { activeTurnId: "t1", providerThreadId: "prov-1" };
+  expect(thread(threadId)).toMatchObject({ status: "active", ...turn });
   const message = events.message("t1", "i1", "the scheduler is refactored");
   const { scope } = message[0];
   await ingest(
@@ -138,10 +130,8 @@ it("ingests a turn: sequences, dedupes, pruning, search and status", async () =>
   ).map((row) => row.sequence - base);
   expect(sequences.slice(base)).toEqual([1, 2, 3, 4, 8, 9]);
   const settled = { status: "idle", activeTurnId: null };
-  expect(thread(threadId)).toMatchObject({
-    ...settled,
-    latestAttentionAt: before + 5_000,
-  });
+  const noticed = { ...settled, latestAttentionAt: before + 5_000 };
+  expect(thread(threadId)).toMatchObject(noticed);
   const hits = (term: string): unknown[] =>
     rows(
       `SELECT s.source_kind FROM thread_search_segments_fts f

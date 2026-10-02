@@ -2,15 +2,9 @@ import type { AppTheme, AppThemeSelection } from "@bb/domain";
 
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
-export type ThemeGetResult = AppTheme;
-
 export type ThemeSetInput = AppThemeSelection;
 export type ThemeSetResult = AppTheme;
 export type ThemeResolveResult = AppTheme;
-
-export interface ThemeGetArgs {
-  signal?: AbortSignal;
-}
 
 export interface ThemeResolveArgs {
   themeId: string;
@@ -18,7 +12,6 @@ export interface ThemeResolveArgs {
 }
 
 export interface ThemeArea {
-  get(args?: ThemeGetArgs): Promise<ThemeGetResult>;
   resolve(args: ThemeResolveArgs): Promise<ThemeResolveResult>;
   set(selection: ThemeSetInput): Promise<ThemeSetResult>;
   set(themeId: string): Promise<ThemeSetResult>;
@@ -27,15 +20,6 @@ export interface ThemeArea {
 export function createThemeArea(args: CreateSdkAreaArgs): ThemeArea {
   const { transport } = args;
   return {
-    async get(input = {}) {
-      const config = await transport.readJson(
-        transport.api.v1.system.config.$get(
-          {},
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-      return config.appearance;
-    },
     async resolve(input) {
       return transport.readJson(
         transport.api.v1.settings.themes[":id"].$get(

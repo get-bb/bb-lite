@@ -187,44 +187,6 @@ export function setGitRemoteUrlIfMissing(
   return changes > 0;
 }
 
-export function reorderProject(
-  db: Db,
-  id: string,
-  neighbours: {
-    previousProjectId: string | null;
-    nextProjectId: string | null;
-  },
-): boolean {
-  return db.transaction(() => {
-    const ordered = db.all<{ id: string; sortKey: string }>(
-      `SELECT id, sort_key FROM projects WHERE ${STANDARD}
-       ORDER BY sort_key, id`,
-    );
-    const { previousProjectId, nextProjectId } = neighbours;
-    const index = ordered.findIndex((project) => project.id === id);
-    const before = ordered.find((project) => project.id === previousProjectId);
-    const after = ordered.find((project) => project.id === nextProjectId);
-    const missing =
-      (previousProjectId !== null && before === undefined) ||
-      (nextProjectId !== null && after === undefined);
-    if (missing || previousProjectId === id || nextProjectId === id) {
-      throw conflict("Project order changed");
-    }
-    if (before && after && before.sortKey >= after.sortKey) {
-      throw conflict("Project order is invalid");
-    }
-    const unchanged =
-      (ordered[index - 1]?.id ?? null) === previousProjectId &&
-      (ordered[index + 1]?.id ?? null) === nextProjectId;
-    if (unchanged) return false;
-    const sortKey = orderKeyBetween(
-      before?.sortKey ?? null,
-      after?.sortKey ?? null,
-    );
-    return updateRow(db, "projects", id, { sortKey });
-  });
-}
-
 export function deleteProject(db: Db, projectId: string): DeletedProject {
   return db.transaction(() => {
     const threads = db.all<{ id: string }>(
