@@ -711,7 +711,6 @@ export function ThreadMetadataCard({ children }: { children: ReactNode }) {
 
   return (
     <DetailCard
-      appearance="flat"
       className="transient-scrollbar min-h-0 flex-1 gap-1.5 overflow-x-hidden overflow-y-auto px-4 py-3"
       onScroll={handleScroll}
     >
