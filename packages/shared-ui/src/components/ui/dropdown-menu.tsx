@@ -1,18 +1,12 @@
 import * as React from "react";
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import * as Menu from "@radix-ui/react-dropdown-menu";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
-import { COARSE_POINTER_CHECK_SLOT_CLASS } from "./coarse-pointer-sizing.js";
 import {
-  type ResponsiveOverlayContextValue,
-  useResponsiveRoot,
-} from "./responsive-overlay.js";
-import {
-  blurActiveKeyboardInputBeforeOverlayOpen,
-  getOverlayTriggerClassName,
   isLastInputKeyboard,
-  preventOverlayTriggerSelection,
+  overlayTriggerProps,
+  useOverlayOpen,
 } from "./overlay-trigger.js";
 import {
   MENU_ITEM_LAST_HOVERED_CLASS,
@@ -22,426 +16,191 @@ import {
 import { LIST_HOVER_TRANSITION } from "./motion.js";
 import { Icon } from "../../components/ui/icon.js";
 
-const MENU_ITEM_NEUTRAL_STATE_CLASS =
-  "focus:bg-state-hover focus:text-foreground data-[last-hovered]:bg-state-hover data-[last-hovered]:text-foreground";
-const MENU_ITEM_DESTRUCTIVE_STATE_CLASS =
-  "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15";
+const CONTENT_CLASS =
+  "z-50 min-w-28 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2";
 
-const ResponsiveMenuContext =
-  React.createContext<ResponsiveOverlayContextValue>({
-    open: false,
-    onOpenChange: () => {},
-  });
-
-function useResponsiveMenu() {
-  return React.useContext(ResponsiveMenuContext);
-}
+const MenuOpenContext = React.createContext(false);
 
 function DropdownMenu({
   children,
-  open: controlledOpen,
-  onOpenChange: controlledOnChange,
+  open,
+  onOpenChange,
   defaultOpen,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  const ctx = useResponsiveRoot(
-    controlledOpen,
-    controlledOnChange,
-    defaultOpen,
-  );
-
+}: React.ComponentProps<typeof Menu.Root>) {
+  const state = useOverlayOpen(open, onOpenChange, defaultOpen);
   return (
-    <DropdownMenuPrimitive.Root
-      open={ctx.open}
-      onOpenChange={ctx.onOpenChange}
-      {...props}
-    >
-      <ResponsiveMenuContext.Provider value={ctx}>
+    <Menu.Root {...state} {...props}>
+      <MenuOpenContext.Provider value={state.open}>
         {children}
-      </ResponsiveMenuContext.Provider>
-    </DropdownMenuPrimitive.Root>
+      </MenuOpenContext.Provider>
+    </Menu.Root>
   );
 }
 
-const DropdownMenuTrigger = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
->(({ asChild, children, className, ...props }, ref) => {
-  const { open } = useResponsiveMenu();
+function DropdownMenuTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof Menu.Trigger>) {
+  const open = React.useContext(MenuOpenContext);
+  return <Menu.Trigger {...overlayTriggerProps(open, className)} {...props} />;
+}
 
+function DropdownMenuContent({
+  className,
+  sideOffset = 4,
+  children,
+  onCloseAutoFocus,
+  ...props
+}: React.ComponentProps<typeof Menu.Content>) {
   return (
-    <DropdownMenuPrimitive.Trigger
-      ref={ref}
-      asChild={asChild}
-      className={getOverlayTriggerClassName(className)}
-      onMouseDown={(event) => {
-        if (!open) {
-          blurActiveKeyboardInputBeforeOverlayOpen();
-        }
-        preventOverlayTriggerSelection(event);
-      }}
-      {...props}
-    >
-      {children}
-    </DropdownMenuPrimitive.Trigger>
+    <Menu.Portal>
+      <Menu.Content
+        {...usePortalScopeProps()}
+        sideOffset={sideOffset}
+        onCloseAutoFocus={(event) => {
+          const focusTaken =
+            document.activeElement !== null &&
+            document.activeElement !== document.body;
+          if (!isLastInputKeyboard() || focusTaken) {
+            event.preventDefault();
+          }
+          onCloseAutoFocus?.(event);
+        }}
+        className={cn(CONTENT_CLASS, className)}
+        {...props}
+      >
+        <MenuHoverProvider>{children}</MenuHoverProvider>
+      </Menu.Content>
+    </Menu.Portal>
   );
-});
-DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
+}
 
-const DropdownMenuContent = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(
-  (
-    { className, sideOffset = 4, children, onCloseAutoFocus, ...props },
-    ref,
-  ) => {
-    const scopeProps = usePortalScopeProps();
-
-    return (
-      <DropdownMenuPrimitive.Portal>
-        <DropdownMenuPrimitive.Content
-          ref={ref}
-          {...scopeProps}
-          sideOffset={sideOffset}
-          onCloseAutoFocus={(event) => {
-            const focusTaken =
-              document.activeElement !== null &&
-              document.activeElement !== document.body;
-            if (!isLastInputKeyboard() || focusTaken) {
-              event.preventDefault();
-            }
-            onCloseAutoFocus?.(event);
-          }}
-          className={cn(
-            "z-50 min-w-28 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-            className,
-          )}
-          {...props}
-        >
-          <MenuHoverProvider>{children}</MenuHoverProvider>
-        </DropdownMenuPrimitive.Content>
-      </DropdownMenuPrimitive.Portal>
-    );
-  },
-);
-DropdownMenuContent.displayName = "DropdownMenuContent";
-
-type DropdownMenuItemProps = Omit<
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>,
-  "onBlur" | "onFocus"
-> & {
-  inset?: boolean;
+function DropdownMenuItem({
+  className,
+  variant,
+  onPointerMove,
+  onPointerLeave,
+  ...props
+}: React.ComponentProps<typeof Menu.Item> & {
   variant?: "default" | "destructive";
-  onBlur?: React.FocusEventHandler<HTMLElement>;
-  onFocus?: React.FocusEventHandler<HTMLElement>;
-};
+}) {
+  const open = React.useContext(MenuOpenContext);
+  const keepFocusWhileClosing =
+    (handler: React.PointerEventHandler<HTMLDivElement> | undefined) =>
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      handler?.(event);
+      if (!open) event.preventDefault();
+    };
+  return (
+    <Menu.Item
+      className={cn(
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>[data-icon-root]]:size-4 [&>[data-icon-root]]:shrink-0",
+        LIST_HOVER_TRANSITION,
+        variant === "destructive"
+          ? "text-destructive focus:bg-destructive/15 focus:text-destructive data-[last-hovered]:bg-destructive/15"
+          : `focus:bg-state-hover focus:text-foreground ${MENU_ITEM_LAST_HOVERED_CLASS}`,
+        className,
+      )}
+      onPointerMove={keepFocusWhileClosing(onPointerMove)}
+      onPointerLeave={keepFocusWhileClosing(onPointerLeave)}
+      {...props}
+      {...useMenuItemHover(props).hoverProps}
+    />
+  );
+}
 
-const DropdownMenuItem = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.Item>,
-  DropdownMenuItemProps
->(
-  (
-    {
-      className,
-      inset,
-      variant = "default",
-      onSelect,
-      disabled,
-      role = "menuitem",
-      "aria-checked": ariaChecked,
-      textValue: _textValue,
-      children,
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-      onFocus: callerFocus,
-      onBlur: callerBlur,
-      onPointerMove: callerPointerMove,
-      onPointerLeave: callerPointerLeave,
-      ...domProps
-    },
-    ref,
-  ) => {
-    const { open } = useResponsiveMenu();
-    const { hoverProps } = useMenuItemHover({
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-    });
-    const keepFocusWhileClosing =
-      (handler: React.PointerEventHandler<HTMLDivElement> | undefined) =>
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        handler?.(event);
-        if (!open) event.preventDefault();
-      };
-
-    return (
-      <DropdownMenuPrimitive.Item
-        ref={ref}
-        className={cn(
-          "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>[data-icon-root]]:size-4 [&>[data-icon-root]]:shrink-0",
-          LIST_HOVER_TRANSITION,
-          variant === "destructive"
-            ? MENU_ITEM_DESTRUCTIVE_STATE_CLASS
-            : MENU_ITEM_NEUTRAL_STATE_CLASS,
-          inset && "pl-8",
-          className,
-        )}
-        disabled={disabled}
-        role={role}
-        aria-checked={ariaChecked}
-        onSelect={onSelect}
-        textValue={_textValue}
-        onFocus={callerFocus}
-        onBlur={callerBlur}
-        onPointerMove={keepFocusWhileClosing(callerPointerMove)}
-        onPointerLeave={keepFocusWhileClosing(callerPointerLeave)}
-        {...domProps}
-        {...hoverProps}
-      >
-        {children}
-      </DropdownMenuPrimitive.Item>
-    );
-  },
-);
-DropdownMenuItem.displayName = "DropdownMenuItem";
-
-const DropdownMenuCheckboxItem = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
->(
-  (
-    {
-      className,
-      children,
-      checked,
-      onSelect,
-      onCheckedChange,
-      disabled,
-      textValue: _textValue,
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-      ...domProps
-    },
-    ref,
-  ) => {
-    const { hoverProps } = useMenuItemHover({
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-    });
-
-    return (
-      <DropdownMenuPrimitive.CheckboxItem
-        ref={ref}
-        className={cn(
-          "relative flex cursor-default select-none items-center rounded-sm py-[0.3125rem] pl-2 pr-8 text-xs outline-none focus:bg-state-hover focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-          LIST_HOVER_TRANSITION,
-          MENU_ITEM_LAST_HOVERED_CLASS,
-          className,
-        )}
-        checked={checked}
-        onSelect={onSelect}
-        onCheckedChange={onCheckedChange}
-        disabled={disabled}
-        textValue={_textValue}
-        {...domProps}
-        {...hoverProps}
-      >
-        <span
-          className={cn(
-            "absolute right-2 flex items-center justify-center",
-            COARSE_POINTER_CHECK_SLOT_CLASS,
-          )}
-        >
-          <DropdownMenuPrimitive.ItemIndicator>
-            <Icon name="Check" className={COARSE_POINTER_CHECK_SLOT_CLASS} />
-          </DropdownMenuPrimitive.ItemIndicator>
-        </span>
-        {children}
-      </DropdownMenuPrimitive.CheckboxItem>
-    );
-  },
-);
-DropdownMenuCheckboxItem.displayName = "DropdownMenuCheckboxItem";
-
-function DropdownMenuRadioGroup({
+function DropdownMenuCheckboxItem({
+  className,
   children,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+}: React.ComponentProps<typeof Menu.CheckboxItem>) {
   return (
-    <DropdownMenuPrimitive.RadioGroup {...props}>
-      {children}
-    </DropdownMenuPrimitive.RadioGroup>
-  );
-}
-
-const DropdownMenuRadioItem = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.RadioItem>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
->(
-  (
-    {
-      className,
-      children,
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-      ...props
-    },
-    ref,
-  ) => {
-    const { hoverProps } = useMenuItemHover({
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-    });
-
-    return (
-      <DropdownMenuPrimitive.RadioItem
-        ref={ref}
-        className={cn(
-          "relative flex cursor-default select-none items-center rounded-sm py-[0.3125rem] pl-8 pr-2 text-xs outline-none focus:bg-state-hover focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-          LIST_HOVER_TRANSITION,
-          MENU_ITEM_LAST_HOVERED_CLASS,
-          className,
-        )}
-        {...props}
-        {...hoverProps}
-      >
-        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-          <DropdownMenuPrimitive.ItemIndicator>
-            <Icon name="Circle" className="h-2 w-2 fill-current" />
-          </DropdownMenuPrimitive.ItemIndicator>
-        </span>
-        {children}
-      </DropdownMenuPrimitive.RadioItem>
-    );
-  },
-);
-DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
-
-const DropdownMenuLabel = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & {
-    inset?: boolean;
-  }
->(({ className, inset, children, ...props }, ref) => {
-  return (
-    <DropdownMenuPrimitive.Label
-      ref={ref}
+    <Menu.CheckboxItem
       className={cn(
-        "px-2 py-[0.3125rem] text-xs font-medium text-muted-foreground",
-        inset && "pl-8",
+        "relative flex cursor-default select-none items-center rounded-sm py-[0.3125rem] pl-2 pr-8 text-xs outline-none focus:bg-state-hover focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
         className,
       )}
       {...props}
+      {...useMenuItemHover(props).hoverProps}
     >
+      <span className="absolute right-2 flex items-center justify-center h-3.5 w-3.5">
+        <Menu.ItemIndicator>
+          <Icon name="Check" className="h-3.5 w-3.5" />
+        </Menu.ItemIndicator>
+      </span>
       {children}
-    </DropdownMenuPrimitive.Label>
+    </Menu.CheckboxItem>
   );
-});
-DropdownMenuLabel.displayName = "DropdownMenuLabel";
+}
 
-const DropdownMenuSeparator = React.forwardRef<
-  HTMLHRElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
->(({ className, ...props }, ref) => {
+function DropdownMenuLabel({
+  className,
+  ...props
+}: React.ComponentProps<typeof Menu.Label>) {
   return (
-    <DropdownMenuPrimitive.Separator
-      ref={ref}
+    <Menu.Label
+      className={cn(
+        "px-2 py-[0.3125rem] text-xs font-medium text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function DropdownMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof Menu.Separator>) {
+  return (
+    <Menu.Separator
       className={cn("-mx-1 my-1 h-px bg-muted", className)}
       {...props}
     />
   );
-});
-DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
+}
 
-const DropdownMenuGroup = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Group>
->(({ children, ...props }, ref) => {
+function DropdownMenuSubTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof Menu.SubTrigger>) {
   return (
-    <DropdownMenuPrimitive.Group ref={ref} {...props}>
+    <Menu.SubTrigger
+      className={cn(
+        "flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-[0.3125rem] text-xs outline-none focus:bg-state-hover focus:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [&_[data-icon-root]]:pointer-events-none [&_[data-icon-root]]:size-4 [&_[data-icon-root]]:shrink-0",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
+        className,
+      )}
+      {...props}
+      {...useMenuItemHover(props).hoverProps}
+    >
       {children}
-    </DropdownMenuPrimitive.Group>
+      <Icon name="ChevronRight" className="ml-auto" />
+    </Menu.SubTrigger>
   );
-});
-DropdownMenuGroup.displayName = "DropdownMenuGroup";
+}
 
-const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
-
-const DropdownMenuSub = DropdownMenuPrimitive.Sub;
-
-const DropdownMenuSubTrigger = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.SubTrigger>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
-    inset?: boolean;
-  }
->(
-  (
-    {
-      className,
-      inset,
-      children,
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-      ...props
-    },
-    ref,
-  ) => {
-    const { hoverProps } = useMenuItemHover({
-      onPointerEnter: callerPointerEnter,
-      onKeyDown: callerKeyDown,
-    });
-
-    return (
-      <DropdownMenuPrimitive.SubTrigger
-        ref={ref}
-        className={cn(
-          "flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-[0.3125rem] text-xs outline-none focus:bg-state-hover focus:text-foreground data-[state=open]:bg-state-active data-[state=open]:text-foreground [&_[data-icon-root]]:pointer-events-none [&_[data-icon-root]]:size-4 [&_[data-icon-root]]:shrink-0",
-          LIST_HOVER_TRANSITION,
-          MENU_ITEM_LAST_HOVERED_CLASS,
-          inset && "pl-8",
-          className,
-        )}
-        {...props}
-        {...hoverProps}
-      >
-        {children}
-        <Icon name="ChevronRight" className="ml-auto" />
-      </DropdownMenuPrimitive.SubTrigger>
-    );
-  },
-);
-DropdownMenuSubTrigger.displayName =
-  DropdownMenuPrimitive.SubTrigger.displayName;
-
-const DropdownMenuSubContent = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuPrimitive.SubContent>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
-    ref={ref}
-    {...usePortalScopeProps()}
-    className={cn(
-      "z-50 min-w-28 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-      className,
-    )}
-    {...props}
-  />
-));
-DropdownMenuSubContent.displayName =
-  DropdownMenuPrimitive.SubContent.displayName;
-
-const DropdownMenuShortcut = ({
+function DropdownMenuSubContent({
   className,
   ...props
-}: React.HTMLAttributes<HTMLSpanElement>) => {
+}: React.ComponentProps<typeof Menu.SubContent>) {
   return (
-    <span
-      className={cn("ml-auto text-xs tracking-widest opacity-60", className)}
+    <Menu.SubContent
+      {...usePortalScopeProps()}
+      className={cn(CONTENT_CLASS, className)}
       {...props}
     />
   );
-};
-DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
+}
+
+const DropdownMenuGroup = Menu.Group;
+const DropdownMenuPortal = Menu.Portal;
+const DropdownMenuSub = Menu.Sub;
 
 export {
   DropdownMenu,
@@ -449,14 +208,11 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
-  DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuGroup,
   DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuRadioGroup,
 };

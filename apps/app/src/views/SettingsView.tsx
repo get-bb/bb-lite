@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useAtom, type WritableAtom } from "jotai";
 import { Navigate } from "react-router-dom";
-import "@bb/shared-ui/icon-extended";
 import {
   builtInThemes,
   defaultAppSettings,

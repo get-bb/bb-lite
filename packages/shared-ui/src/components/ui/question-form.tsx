@@ -1,65 +1,116 @@
-import type {
-  Question,
-  QuestionOption,
-  QuestionAnswer,
-} from "./question-form-state";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   useQuestionFormHost,
   type QuestionShortcut,
 } from "./question-form-host";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type RefObject,
-} from "react";
 import { Button } from "./button";
 import { Icon } from "./icon";
 import { cn } from "../../lib/utils";
-import {
-  answerStateFor,
-  buildQuestionAnswers,
-  createInitialFormState,
-  isQuestionAnswered,
-  resolveQuestionShortcutChoice,
-  type QuestionAnswerState,
-  type QuestionFormState,
-} from "./question-form-state";
 
-const OTHER_OPTION_LABEL = "Other…";
 const FREE_TEXT_MIN_HEIGHT = 84;
 const FREE_TEXT_MAX_HEIGHT = 158;
-const PREVIEW_MAX_HEIGHT = 220;
 
-interface QuestionOptionRowProps {
-  checked: boolean;
-  label: string;
-  description?: string;
+interface Question {
+  id: string;
+  prompt: string;
+  shortLabel: string;
   multiSelect: boolean;
-  onSelect: () => void;
-  shortcut?: QuestionShortcut;
+  allowFreeText: boolean;
+  options: readonly {
+    value: string;
+    label: string;
+    description?: string;
+    preview?: string;
+  }[];
 }
 
-function useAutoGrow(
-  ref: RefObject<HTMLTextAreaElement | null>,
-  { minHeight, maxHeight }: { minHeight: number; maxHeight: number },
-) {
-  return useCallback(
-    (textarea?: HTMLTextAreaElement | null) => {
-      const element = textarea ?? ref.current;
-      if (!element) return;
-      element.style.height = "auto";
-      element.style.height = `${Math.min(
-        Math.max(element.scrollHeight, minHeight),
-        maxHeight,
-      )}px`;
-    },
-    [maxHeight, minHeight, ref],
+type QuestionAnswer = { selected: string[]; freeText?: string };
+
+interface AnswerState {
+  selected: string[];
+  otherSelected: boolean;
+  otherText: string;
+}
+
+type FormState = Record<string, AnswerState>;
+
+function answerStateFor(formState: FormState, question: Question) {
+  return (
+    formState[question.id] ?? {
+      selected: [],
+      otherSelected: question.options.length === 0,
+      otherText: "",
+    }
   );
+}
+
+function validSelected(question: Question, state: AnswerState): string[] {
+  const optionValues = new Set(question.options.map((option) => option.value));
+  return state.selected.filter((value) => optionValues.has(value));
+}
+
+function isAnswered(question: Question, state: AnswerState): boolean {
+  if (validSelected(question, state).length > 0) return true;
+  return state.otherSelected && state.otherText.trim().length > 0;
+}
+
+function buildAnswer(question: Question, state: AnswerState): QuestionAnswer {
+  const freeText = state.otherText.trim();
+  const includeFreeText = state.otherSelected && freeText.length > 0;
+  if (question.multiSelect) {
+    const selected = validSelected(question, state);
+    return includeFreeText ? { selected, freeText } : { selected };
+  }
+  if (state.otherSelected) {
+    return includeFreeText ? { selected: [], freeText } : { selected: [] };
+  }
+  return { selected: validSelected(question, state) };
+}
+
+function updateAnswer(
+  setFormState: Dispatch<SetStateAction<FormState>>,
+  question: Question,
+  change: (state: AnswerState) => AnswerState,
+): void {
+  setFormState((current) => ({
+    ...current,
+    [question.id]: change(answerStateFor(current, question)),
+  }));
+}
+
+function toggleOption(question: Question, value: string) {
+  return (state: AnswerState): AnswerState =>
+    question.multiSelect
+      ? {
+          ...state,
+          selected: state.selected.includes(value)
+            ? state.selected.filter((selected) => selected !== value)
+            : [...state.selected, value],
+        }
+      : { ...state, selected: [value], otherSelected: false };
+}
+
+function selectOther(question: Question) {
+  return (state: AnswerState): AnswerState =>
+    question.multiSelect
+      ? { ...state, otherSelected: !state.otherSelected }
+      : { ...state, selected: [], otherSelected: true };
+}
+
+function autoGrow(element: HTMLTextAreaElement | null): void {
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${Math.min(
+    Math.max(element.scrollHeight, FREE_TEXT_MIN_HEIGHT),
+    FREE_TEXT_MAX_HEIGHT,
+  )}px`;
 }
 
 function QuestionOptionRow({
@@ -69,7 +120,14 @@ function QuestionOptionRow({
   multiSelect,
   onSelect,
   shortcut,
-}: QuestionOptionRowProps) {
+}: {
+  checked: boolean;
+  label: string;
+  description?: string;
+  multiSelect: boolean;
+  onSelect: () => void;
+  shortcut?: QuestionShortcut;
+}) {
   return (
     <button
       type="button"
@@ -114,300 +172,79 @@ function QuestionOptionRow({
   );
 }
 
-function QuestionOptionPreview({ preview }: { preview: string }) {
-  return (
-    <pre
-      className="mx-2.5 mb-1 mt-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-raised px-2.5 py-2 font-mono text-xs leading-relaxed text-foreground"
-      style={{ maxHeight: `${PREVIEW_MAX_HEIGHT}px` }}
-    >
-      {preview}
-    </pre>
-  );
-}
-
-interface QuestionTabsProps {
-  currentIndex: number;
-  formState: QuestionFormState;
-  onSelect: (index: number) => void;
-  questions: readonly Question[];
-}
-
-function QuestionTabs({
-  currentIndex,
-  formState,
-  onSelect,
-  questions,
-}: QuestionTabsProps) {
-  return (
-    <div className="mb-2 flex shrink-0 items-center gap-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-        {questions.map((question, index) => {
-          const answered = isQuestionAnswered(
-            question,
-            answerStateFor(formState, question),
-          );
-          const isActive = index === currentIndex;
-          return (
-            <div
-              key={question.id}
-              className={cn(
-                "relative inline-flex h-7 shrink-0 items-center rounded-md",
-                isActive
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-state-hover",
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => onSelect(index)}
-                aria-pressed={isActive}
-                title={question.prompt}
-                className="flex h-full min-w-0 items-center rounded-md px-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <span
-                  className={cn(
-                    "truncate text-xs",
-                    answered ? "line-through" : undefined,
-                  )}
-                  style={{ maxWidth: "180px" }}
-                >
-                  {question.shortLabel}
-                </span>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {currentIndex + 1} of {questions.length}
-      </span>
-    </div>
-  );
-}
-
-interface QuestionInputBlockProps {
-  disabled: boolean;
-  question: Question;
-  state: QuestionAnswerState;
-  onToggleOption: (optionValue: string) => void;
-  onSelectOther: () => void;
-  onFreeTextChange: (value: string) => void;
-  onShortcutSubmit: () => void;
-  shortcuts: ReadonlyMap<string, QuestionShortcut>;
-}
-
-function QuestionInputBlock({
-  disabled,
-  question,
-  state,
-  onToggleOption,
-  onSelectOther,
-  onFreeTextChange,
-  onShortcutSubmit,
-  shortcuts,
-}: QuestionInputBlockProps) {
-  const freeTextRef = useRef<HTMLTextAreaElement>(null);
-  const resizeFreeTextArea = useAutoGrow(freeTextRef, {
-    minHeight: FREE_TEXT_MIN_HEIGHT,
-    maxHeight: FREE_TEXT_MAX_HEIGHT,
-  });
-  const options = question.options;
-  const freeTextLabel = `${question.shortLabel} answer`;
-
-  useLayoutEffect(() => {
-    if (!state.otherSelected) return;
-    resizeFreeTextArea();
-  }, [question.id, resizeFreeTextArea, state.otherSelected, state.otherText]);
-
-  const handleFreeTextKeyDown = (
-    event: KeyboardEvent<HTMLTextAreaElement>,
-  ): void => {
-    if (
-      event.nativeEvent.isComposing ||
-      event.key !== "Enter" ||
-      (!event.metaKey && !event.ctrlKey)
-    ) {
-      return;
-    }
-    event.preventDefault();
-    onShortcutSubmit();
-  };
-
-  return (
-    <fieldset disabled={disabled} className="min-w-0">
-      <legend className="sr-only">{question.prompt}</legend>
-      {question.prompt ? (
-        <div className="text-sm font-semibold text-foreground">
-          {question.prompt}
-        </div>
-      ) : null}
-      <div className="mt-2 space-y-0.5">
-        {options.map((option: QuestionOption, index) => {
-          const checked = state.selected.includes(option.value);
-          return (
-            <div key={option.value}>
-              <QuestionOptionRow
-                checked={checked}
-                label={option.label}
-                description={option.description}
-                multiSelect={question.multiSelect}
-                onSelect={() => onToggleOption(option.value)}
-                shortcut={shortcuts.get(String(index))}
-              />
-              {checked && option.preview ? (
-                <QuestionOptionPreview preview={option.preview} />
-              ) : null}
-            </div>
-          );
-        })}
-        {question.allowFreeText && options.length > 0 ? (
-          <QuestionOptionRow
-            checked={state.otherSelected}
-            label={OTHER_OPTION_LABEL}
-            multiSelect={question.multiSelect}
-            onSelect={onSelectOther}
-            shortcut={shortcuts.get(String(options.length))}
-          />
-        ) : null}
-      </div>
-      {state.otherSelected ? (
-        <textarea
-          ref={freeTextRef}
-          aria-label={freeTextLabel}
-          value={state.otherText}
-          rows={1}
-          autoFocus
-          autoComplete="off"
-          onChange={(event) => {
-            onFreeTextChange(event.target.value);
-            resizeFreeTextArea(event.target);
-          }}
-          onKeyDown={handleFreeTextKeyDown}
-          placeholder="Type your own answer…"
-          className="mt-2 w-full resize-none overflow-y-auto rounded-md border border-border bg-surface-raised px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40"
-          style={{
-            minHeight: `${FREE_TEXT_MIN_HEIGHT}px`,
-            maxHeight: `${FREE_TEXT_MAX_HEIGHT}px`,
-          }}
-        />
-      ) : null}
-    </fieldset>
-  );
-}
-
-export interface QuestionFormProps {
-  questions: readonly Question[];
-  disabled: boolean;
-  cancelDisabled: boolean;
-  onSubmit: (answers: Record<string, QuestionAnswer>) => void;
-  onCancel: () => void;
-}
-
 export function QuestionForm({
   questions,
   disabled,
   cancelDisabled,
   onSubmit,
   onCancel,
-}: QuestionFormProps) {
-  const [formState, setFormState] = useState<QuestionFormState>(() =>
-    createInitialFormState(questions),
-  );
+}: {
+  questions: readonly Question[];
+  disabled: boolean;
+  cancelDisabled: boolean;
+  onSubmit: (answers: Record<string, QuestionAnswer>) => void;
+  onCancel: () => void;
+}) {
+  const [formState, setFormState] = useState<FormState>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const formRef = useRef<HTMLDivElement>(null);
+  const freeTextRef = useRef<HTMLTextAreaElement>(null);
   const { shortcuts, registerChoiceHandler } = useQuestionFormHost();
 
-  const totalQuestions = questions.length;
-  const currentQuestion = questions[currentIndex] ?? null;
-  const isFirst = currentIndex === 0;
-  const isLast = currentIndex === totalQuestions - 1;
-  const allAnswered = useMemo(
-    () =>
-      totalQuestions > 0 &&
-      questions.every((question) =>
-        isQuestionAnswered(question, answerStateFor(formState, question)),
-      ),
-    [formState, questions, totalQuestions],
-  );
-
-  const updateQuestionState = useCallback(
-    (
-      question: Question,
-      update: (state: QuestionAnswerState) => QuestionAnswerState,
-    ): void => {
-      setFormState((current) => ({
-        ...current,
-        [question.id]: update(answerStateFor(current, question)),
-      }));
-    },
-    [],
-  );
-
-  const handleToggleOption = useCallback(
-    (question: Question, optionValue: string): void => {
-      updateQuestionState(question, (state) => {
-        if (question.multiSelect) {
-          const selected = state.selected.includes(optionValue)
-            ? state.selected.filter((value) => value !== optionValue)
-            : [...state.selected, optionValue];
-          return { ...state, selected };
-        }
-        return { ...state, selected: [optionValue], otherSelected: false };
-      });
-    },
-    [updateQuestionState],
-  );
-
-  const handleSelectOther = useCallback(
-    (question: Question): void => {
-      updateQuestionState(question, (state) =>
-        question.multiSelect
-          ? { ...state, otherSelected: !state.otherSelected }
-          : { ...state, selected: [], otherSelected: true },
-      );
-    },
-    [updateQuestionState],
-  );
-
-  const handleFreeTextChange = (question: Question, value: string): void => {
-    updateQuestionState(question, (state) => ({ ...state, otherText: value }));
-  };
-
-  const submitAnswer = (): void => {
-    if (disabled || !allAnswered) return;
-    onSubmit(buildQuestionAnswers(questions, formState));
-  };
+  const question = questions[currentIndex] ?? null;
+  const state = question ? answerStateFor(formState, question) : null;
+  const isLast = currentIndex === questions.length - 1;
+  const allAnswered =
+    questions.length > 0 &&
+    questions.every((each) =>
+      isAnswered(each, answerStateFor(formState, each)),
+    );
 
   const handleAdvance = (): void => {
-    if (isLast) {
-      submitAnswer();
-      return;
+    if (!isLast) {
+      setCurrentIndex((index) => Math.min(index + 1, questions.length - 1));
+    } else if (!disabled && allAnswered) {
+      onSubmit(
+        Object.fromEntries(
+          questions.map((each) => [
+            each.id,
+            buildAnswer(each, answerStateFor(formState, each)),
+          ]),
+        ),
+      );
     }
-    setCurrentIndex((index) => Math.min(index + 1, totalQuestions - 1));
   };
 
+  useLayoutEffect(() => {
+    if (state?.otherSelected) autoGrow(freeTextRef.current);
+  }, [question?.id, state?.otherSelected, state?.otherText]);
+
   useEffect(() => {
-    if (disabled || currentQuestion === null) return;
+    if (disabled || question === null) return;
     return registerChoiceHandler((index) => {
-      const choice = resolveQuestionShortcutChoice(currentQuestion, index);
-      if (!choice) return false;
-      if (choice.kind === "option") {
-        handleToggleOption(currentQuestion, choice.value);
+      const option = question.options[index];
+      if (option) {
+        updateAnswer(
+          setFormState,
+          question,
+          toggleOption(question, option.value),
+        );
         formRef.current?.focus();
-      } else handleSelectOther(currentQuestion);
+        return true;
+      }
+      if (
+        index !== question.options.length ||
+        question.options.length === 0 ||
+        !question.allowFreeText
+      ) {
+        return false;
+      }
+      updateAnswer(setFormState, question, selectOther(question));
       return true;
     });
-  }, [
-    disabled,
-    currentQuestion,
-    registerChoiceHandler,
-    handleToggleOption,
-    handleSelectOther,
-  ]);
+  }, [disabled, question, registerChoiceHandler]);
 
-  if (!currentQuestion) return null;
-
-  const currentState = answerStateFor(formState, currentQuestion);
+  if (!question || !state) return null;
 
   return (
     <div
@@ -431,29 +268,132 @@ export function QuestionForm({
       }}
       className="flex max-h-[calc(100dvh-6rem)] min-h-0 flex-col text-xs text-muted-foreground"
     >
-      {totalQuestions > 1 ? (
-        <QuestionTabs
-          currentIndex={currentIndex}
-          formState={formState}
-          onSelect={setCurrentIndex}
-          questions={questions}
-        />
+      {questions.length > 1 ? (
+        <div className="mb-2 flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+            {questions.map((each, index) => (
+              <div
+                key={each.id}
+                className={cn(
+                  "relative inline-flex h-7 shrink-0 items-center rounded-md",
+                  index === currentIndex
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-state-hover",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex(index)}
+                  aria-pressed={index === currentIndex}
+                  title={each.prompt}
+                  className="flex h-full min-w-0 items-center rounded-md px-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <span
+                    className={cn(
+                      "truncate text-xs",
+                      isAnswered(each, answerStateFor(formState, each))
+                        ? "line-through"
+                        : undefined,
+                    )}
+                    style={{ maxWidth: "180px" }}
+                  >
+                    {each.shortLabel}
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {currentIndex + 1} of {questions.length}
+          </span>
+        </div>
       ) : null}
       <div className="min-h-0 touch-pan-y overflow-y-auto overscroll-contain">
-        <QuestionInputBlock
-          disabled={disabled}
-          question={currentQuestion}
-          state={currentState}
-          onToggleOption={(optionValue) =>
-            handleToggleOption(currentQuestion, optionValue)
-          }
-          onSelectOther={() => handleSelectOther(currentQuestion)}
-          onFreeTextChange={(value) =>
-            handleFreeTextChange(currentQuestion, value)
-          }
-          onShortcutSubmit={handleAdvance}
-          shortcuts={shortcuts}
-        />
+        <fieldset disabled={disabled} className="min-w-0">
+          <legend className="sr-only">{question.prompt}</legend>
+          {question.prompt ? (
+            <div className="text-sm font-semibold text-foreground">
+              {question.prompt}
+            </div>
+          ) : null}
+          <div className="mt-2 space-y-0.5">
+            {question.options.map((option, index) => {
+              const checked = state.selected.includes(option.value);
+              return (
+                <div key={option.value}>
+                  <QuestionOptionRow
+                    checked={checked}
+                    label={option.label}
+                    description={option.description}
+                    multiSelect={question.multiSelect}
+                    onSelect={() =>
+                      updateAnswer(
+                        setFormState,
+                        question,
+                        toggleOption(question, option.value),
+                      )
+                    }
+                    shortcut={shortcuts.get(String(index))}
+                  />
+                  {checked && option.preview ? (
+                    <pre
+                      className="mx-2.5 mb-1 mt-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-raised px-2.5 py-2 font-mono text-xs leading-relaxed text-foreground"
+                      style={{ maxHeight: "220px" }}
+                    >
+                      {option.preview}
+                    </pre>
+                  ) : null}
+                </div>
+              );
+            })}
+            {question.allowFreeText && question.options.length > 0 ? (
+              <QuestionOptionRow
+                checked={state.otherSelected}
+                label="Other…"
+                multiSelect={question.multiSelect}
+                onSelect={() =>
+                  updateAnswer(setFormState, question, selectOther(question))
+                }
+                shortcut={shortcuts.get(String(question.options.length))}
+              />
+            ) : null}
+          </div>
+          {state.otherSelected ? (
+            <textarea
+              ref={freeTextRef}
+              aria-label={`${question.shortLabel} answer`}
+              value={state.otherText}
+              rows={1}
+              autoFocus
+              autoComplete="off"
+              onChange={(event) => {
+                const otherText = event.target.value;
+                updateAnswer(setFormState, question, (current) => ({
+                  ...current,
+                  otherText,
+                }));
+                autoGrow(event.target);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.nativeEvent.isComposing ||
+                  event.key !== "Enter" ||
+                  (!event.metaKey && !event.ctrlKey)
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                handleAdvance();
+              }}
+              placeholder="Type your own answer…"
+              className="mt-2 w-full resize-none overflow-y-auto rounded-md border border-border bg-surface-raised px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40"
+              style={{
+                minHeight: `${FREE_TEXT_MIN_HEIGHT}px`,
+                maxHeight: `${FREE_TEXT_MAX_HEIGHT}px`,
+              }}
+            />
+          ) : null}
+        </fieldset>
       </div>
       <div className="mt-3 flex shrink-0 items-center justify-between gap-2">
         <Button
@@ -466,7 +406,7 @@ export function QuestionForm({
           Cancel
         </Button>
         <div className="flex items-center gap-2">
-          {!isFirst ? (
+          {currentIndex > 0 ? (
             <Button
               type="button"
               size="sm"

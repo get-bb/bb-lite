@@ -1,9 +1,5 @@
-import type { MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { cn } from "../../lib/utils";
-
-const OVERLAY_TRIGGER_CLASS_NAME = "select-none";
-
-type OverlayTriggerClassNameResolver = (className?: string) => string;
 
 const NON_TEXT_INPUT_TYPES = new Set([
   "button",
@@ -16,10 +12,6 @@ const NON_TEXT_INPUT_TYPES = new Set([
   "reset",
   "submit",
 ]);
-
-export const getOverlayTriggerClassName: OverlayTriggerClassNameResolver = (
-  className,
-) => cn(OVERLAY_TRIGGER_CLASS_NAME, className);
 
 function isKeyboardInputElement(element: Element): element is HTMLElement {
   if (element instanceof HTMLTextAreaElement) return true;
@@ -39,8 +31,6 @@ function isKeyboardInputElement(element: Element): element is HTMLElement {
 }
 
 export function blurActiveKeyboardInputWithin(container: Element | null): void {
-  if (typeof document === "undefined") return;
-
   const activeElement = document.activeElement;
   if (!activeElement || !isKeyboardInputElement(activeElement)) return;
   if (container !== null && !container.contains(activeElement)) return;
@@ -48,12 +38,29 @@ export function blurActiveKeyboardInputWithin(container: Element | null): void {
   activeElement.blur();
 }
 
-export function blurActiveKeyboardInputBeforeOverlayOpen(): void {
-  blurActiveKeyboardInputWithin(null);
+export function useOverlayOpen(
+  controlledOpen: boolean | undefined,
+  controlledOnChange: ((open: boolean) => void) | undefined,
+  defaultOpen = false,
+) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  return {
+    open: controlledOpen ?? internalOpen,
+    onOpenChange: (next: boolean) => {
+      if (controlledOpen === undefined) setInternalOpen(next);
+      controlledOnChange?.(next);
+    },
+  };
 }
 
-export function preventOverlayTriggerSelection(event: MouseEvent): void {
-  event.preventDefault();
+export function overlayTriggerProps(open: boolean, className?: string) {
+  return {
+    className: cn("select-none", className),
+    onMouseDown: (event: MouseEvent) => {
+      if (!open) blurActiveKeyboardInputWithin(null);
+      event.preventDefault();
+    },
+  };
 }
 
 let lastInputModality: "pointer" | "keyboard" = "pointer";
