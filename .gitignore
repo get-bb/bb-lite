@@ -12,3 +12,4 @@ coverage
 /qa-output/
 bundle-stats.json
 .claude/
+/.qa/
