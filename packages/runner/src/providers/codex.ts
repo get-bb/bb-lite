@@ -84,7 +84,7 @@ class CodexSession implements ProviderSession {
     this.signature = this.signatureOf(spec, options);
     const toEntry = (t: DynamicTool) => [t.name, t.presentation] as const;
     const tools = spec.dynamicTools.map(toEntry);
-    const resumed = spec.providerThreadId !== null || spec.fork !== null;
+    const resumed = spec.providerThreadId !== null;
     const rootThreadId = () => this.providerThreadId || null;
     const onTerminalError = (category: string, detail: string) => {
       const account = category === "unauthorized" || category === "rate-limit";
@@ -125,12 +125,7 @@ class CodexSession implements ProviderSession {
           const params = { threadId: resumeId, excludeTurns: true, ...shared };
           return rpc.request("thread/resume", params);
         }
-        if (spec.fork === null) {
-          return rpc.request("thread/start", { ...shared, ephemeral: false });
-        }
-        const { sourceProviderThreadId: threadId, checkpointId } = spec.fork;
-        const lastTurnId = checkpointId ?? undefined;
-        return rpc.request("thread/fork", { threadId, lastTurnId, ...shared });
+        return rpc.request("thread/start", { ...shared, ephemeral: false });
       };
       const result = await construct().catch(async (error: unknown) => {
         if (resumeId === null || !ARCHIVED.test(describe(error))) throw error;

@@ -39,8 +39,6 @@ const commandSchema = z.object({
   threadId: z.string(),
   cwd: z.string().default(""),
   providerThreadId: z.string().nullish(),
-  sourceProviderThreadId: z.string().optional(),
-  sourceProviderCheckpointId: z.string().optional(),
   options: optionsSchema.optional(),
   dynamicTools: z.array(dynamicToolSchema).default([]),
   clientRequestId: z.string().default(""),
@@ -184,15 +182,12 @@ export async function replayCodexRecording(scenario: string) {
         ask((value) => pendingInteractionResolutionSchema.parse(value)),
       onExit: () => undefined,
     };
-    const source = command.sourceProviderThreadId;
-    const checkpointId = command.sourceProviderCheckpointId ?? null;
     const { threadId, cwd, dynamicTools } = command;
     const spec = {
       threadId,
       providerId: "codex" as const,
       cwd,
       providerThreadId: command.providerThreadId ?? null,
-      fork: source ? { sourceProviderThreadId: source, checkpointId } : null,
       instructions,
       dynamicTools,
       env: {},
@@ -208,7 +203,7 @@ export async function replayCodexRecording(scenario: string) {
       return;
     }
     const command = commandSchema.parse(params);
-    if (/^thread\/(start|resume|fork)$/.test(method)) {
+    if (/^thread\/(start|resume)$/.test(method)) {
       await close();
       open(command);
       return;

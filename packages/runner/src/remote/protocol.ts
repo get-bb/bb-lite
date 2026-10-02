@@ -31,7 +31,6 @@ const REQUEST_TIMEOUT_MS = {
   inspectGitSource: STANDARD_MS,
   listBranches: STANDARD_MS,
   gitStatus: STANDARD_MS,
-  gitDiff: STANDARD_MS,
   gitDiffFiles: STANDARD_MS,
   gitDiffPatch: STANDARD_MS,
   gitDiffFile: STANDARD_MS,
