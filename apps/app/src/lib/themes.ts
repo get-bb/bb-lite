@@ -214,14 +214,7 @@ function styleElement(): HTMLStyleElement {
   return document.head.appendChild(style);
 }
 
-function render(): void {
-  const style = styleElement();
-  const css = previewedCss ?? committedCss ?? style.textContent;
-  if (style.textContent !== css) {
-    style.textContent = css;
-    epoch += 1;
-    for (const callback of subscribers) callback();
-  }
+export function refreshThemeColorMeta(): void {
   const meta = document.querySelector<HTMLMetaElement>(
     'meta[name="theme-color"]',
   );
@@ -231,7 +224,16 @@ function render(): void {
   }
 }
 
-export { render as refreshThemeColorMeta };
+function render(): void {
+  const style = styleElement();
+  const css = previewedCss ?? committedCss ?? style.textContent;
+  if (style.textContent !== css) {
+    style.textContent = css;
+    epoch += 1;
+    for (const callback of subscribers) callback();
+  }
+  refreshThemeColorMeta();
+}
 
 function cssFor(themeId: string): string {
   return isBuiltInThemeId(themeId) ? paletteCss[themeId] : "";
