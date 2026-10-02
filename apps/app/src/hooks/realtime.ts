@@ -82,7 +82,6 @@ const PROJECT: Record<ProjectChangeKind, (id: string) => Keys> = {
   "project-deleted": projectState,
   "project-sources-changed": projectState,
   "threads-changed": projectState,
-  "project-order-changed": projectState,
 };
 
 const ENVIRONMENT: Record<EnvironmentChangeKind, (id: string) => Keys> = {
@@ -109,9 +108,7 @@ const SYSTEM: Record<SystemChangeKind, () => Keys> = {
     qk.environmentProviders(),
     qk.project(ANY, "commands"),
   ],
-  "provider-registrations-changed": () => [qk.system()],
   "ui-preferences-changed": () => [qk.uiPreferences()],
-  "environment-availability-changed": () => [qk.environmentProviders()],
 };
 
 function threadChanged(

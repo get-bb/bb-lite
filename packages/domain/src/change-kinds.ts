@@ -34,7 +34,6 @@ export const PROJECT_CHANGE_KINDS = [
   "project-deleted",
   "project-sources-changed",
   "threads-changed",
-  "project-order-changed",
 ] as const;
 export type ProjectChangeKind = (typeof PROJECT_CHANGE_KINDS)[number];
 
@@ -59,9 +58,7 @@ export type HostChangeKind = (typeof HOST_CHANGE_KINDS)[number];
 export const SYSTEM_CHANGE_KINDS = [
   "config-changed",
   "plugins-changed",
-  "provider-registrations-changed",
   "ui-preferences-changed",
-  "environment-availability-changed",
 ] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
