@@ -1,129 +1,69 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
 
 const AUTO_LOAD_OLDER_ROWS_PREFETCH_MARGIN_PX = 600;
-
-interface UseAutoLoadOlderRowsArgs {
-  hasOlderTimelineRows: boolean;
-  isLoadingOlderTimelineRows: boolean;
-  onLoadOlderRows: (() => Promise<void> | void) | undefined;
-}
-
-interface AutoLoadOlderRows {
-  sentinelRef: (node: HTMLElement | null) => void;
-  isAutoLoadEnabled: boolean;
-  loadOlderRows: () => void;
-}
-
-function isSentinelWithinPrefetchRange({
-  scrollElement,
-  sentinel,
-}: {
-  scrollElement: HTMLElement;
-  sentinel: HTMLElement;
-}): boolean {
-  const scrollRect = scrollElement.getBoundingClientRect();
-  const sentinelRect = sentinel.getBoundingClientRect();
-  return (
-    sentinelRect.bottom >=
-      scrollRect.top - AUTO_LOAD_OLDER_ROWS_PREFETCH_MARGIN_PX &&
-    sentinelRect.top <= scrollRect.bottom
-  );
-}
 
 export function useAutoLoadOlderRows({
   hasOlderTimelineRows,
   isLoadingOlderTimelineRows,
   onLoadOlderRows,
-}: UseAutoLoadOlderRowsArgs): AutoLoadOlderRows {
+}: {
+  hasOlderTimelineRows: boolean;
+  isLoadingOlderTimelineRows: boolean;
+  onLoadOlderRows: (() => Promise<void> | void) | undefined;
+}) {
   const bottomAnchor = useBottomAnchoredScroll();
-  const sentinelNodeRef = useRef<HTMLElement | null>(null);
-  const isIntersectingRef = useRef(false);
-  const [sentinelVersion, setSentinelVersion] = useState(0);
-  const [intersectionTick, setIntersectionTick] = useState(0);
+  const captureScrollAnchor = bottomAnchor?.captureScrollAnchor;
+  const getScrollElement = bottomAnchor?.getScrollElement;
+  const [sentinel, setSentinel] = useState<HTMLElement | null>(null);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
-
-  const sentinelRef = useCallback((node: HTMLElement | null) => {
-    sentinelNodeRef.current = node;
-    setSentinelVersion((version) => version + 1);
-  }, []);
-
   const isAutoLoadEnabled =
     bottomAnchor !== null &&
     hasOlderTimelineRows &&
     onLoadOlderRows !== undefined &&
     !autoLoadFailed;
 
-  const startLoad = useCallback(() => {
-    if (!onLoadOlderRows) {
-      return;
-    }
-    bottomAnchor?.captureScrollAnchor();
-    void (async () => {
-      try {
-        await onLoadOlderRows();
-      } catch {
-        setAutoLoadFailed(true);
-      }
-    })();
-  }, [bottomAnchor, onLoadOlderRows]);
-
-  const loadOlderRows = useCallback(() => {
+  const loadOlderRows = () => {
     setAutoLoadFailed(false);
-    startLoad();
-  }, [startLoad]);
-
-  useEffect(() => {
-    if (!isAutoLoadEnabled) {
-      isIntersectingRef.current = false;
-      return;
-    }
-    const sentinel = sentinelNodeRef.current;
-    if (!sentinel) {
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries.at(-1);
-        isIntersectingRef.current = entry?.isIntersecting ?? false;
-        if (isIntersectingRef.current) {
-          setIntersectionTick((tick) => tick + 1);
-        }
-      },
-      {
-        root: bottomAnchor?.getScrollElement() ?? null,
-        rootMargin: `${AUTO_LOAD_OLDER_ROWS_PREFETCH_MARGIN_PX}px 0px 0px 0px`,
-      },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [bottomAnchor, isAutoLoadEnabled, sentinelVersion]);
+    captureScrollAnchor?.();
+    void Promise.resolve(onLoadOlderRows?.()).catch(() => {
+      setAutoLoadFailed(true);
+    });
+  };
 
   useEffect(() => {
     if (
       !isAutoLoadEnabled ||
       isLoadingOlderTimelineRows ||
-      !isIntersectingRef.current
+      !sentinel ||
+      !onLoadOlderRows
     ) {
       return;
     }
-    const sentinel = sentinelNodeRef.current;
-    const scrollElement = bottomAnchor?.getScrollElement();
-    if (!sentinel || !scrollElement) {
-      return;
-    }
-    if (!isSentinelWithinPrefetchRange({ scrollElement, sentinel })) {
-      isIntersectingRef.current = false;
-      return;
-    }
-    startLoad();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.at(-1)?.isIntersecting) return;
+        observer.disconnect();
+        captureScrollAnchor?.();
+        void Promise.resolve(onLoadOlderRows()).catch(() => {
+          setAutoLoadFailed(true);
+        });
+      },
+      {
+        root: getScrollElement?.() ?? null,
+        rootMargin: `${AUTO_LOAD_OLDER_ROWS_PREFETCH_MARGIN_PX}px 0px 0px 0px`,
+      },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [
-    bottomAnchor,
-    intersectionTick,
+    captureScrollAnchor,
+    getScrollElement,
     isAutoLoadEnabled,
     isLoadingOlderTimelineRows,
-    startLoad,
+    onLoadOlderRows,
+    sentinel,
   ]);
 
-  return { sentinelRef, isAutoLoadEnabled, loadOlderRows };
+  return { sentinelRef: setSentinel, isAutoLoadEnabled, loadOlderRows };
 }

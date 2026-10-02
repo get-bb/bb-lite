@@ -1,43 +1,28 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type {
-  ActiveThinking,
-  ThreadOriginKind,
-  ThreadRuntimeDisplayStatus,
-} from "@bb/domain";
+import type { ActiveThinking, ThreadRuntimeDisplayStatus } from "@bb/domain";
 import type { TimelineRow } from "@bb/server-contract";
-import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { Button } from "@bb/shared-ui/button";
 import { ConversationTimeline } from "@/components/ui/conversation.js";
 import { HeightTransition } from "@/components/ui/height-transition.js";
 import { Icon } from "@bb/shared-ui/icon";
 import { Skeleton } from "@bb/shared-ui/skeleton";
-import { toUserAttachmentImageSrc } from "@/lib/user-attachment-images";
+import { TimelineReasoningExpansionContext } from "./ExpandableTimelineRow.js";
 import { ThreadTimelineRows } from "./ThreadTimelineRows.js";
 import { useAutoLoadOlderRows } from "./useAutoLoadOlderRows.js";
 import { TimelineStatusIndicator } from "./TimelineStatusIndicator.js";
-import type { TimelineTitleActionResolver } from "./TimelineTitleView.js";
-import { TimelineReasoningExpansionProvider } from "./TimelineReasoningExpansion.js";
 import { TimelineWorkingIndicator } from "./TimelineWorkingIndicator.js";
 import type {
-  ThreadTimelineForkMessageHandler,
-  ThreadTimelineEditMessageHandler,
-  ThreadTimelineInlineMessageEditor,
-  ThreadTimelineAddToChatHandler,
-  ThreadTimelineLinkHandler,
-  ThreadTimelineLocalFileLinkHandler,
-  ThreadTimelineOpenPluginPanelHandler,
   ThreadTimelineUnreadDividerPlacement,
-} from "./types.js";
+  TimelineHandlers,
+} from "./timeline-context.js";
 
 export interface HostConnectionNotice {
   label: string;
 }
 
-export interface ThreadTimelineSurfaceProps {
+export interface ThreadTimelineSurfaceProps extends TimelineHandlers {
   activeThinking: ActiveThinking | null;
-  canSpawnChild?: boolean;
   contextBoundarySeq: number | null;
-  threadOriginKind?: ThreadOriginKind | null;
   hasOlderTimelineRows?: boolean;
   hostConnectionNotice?: HostConnectionNotice | null;
   isLoadingOlderTimelineRows?: boolean;
@@ -45,98 +30,32 @@ export interface ThreadTimelineSurfaceProps {
   timelineError: boolean;
   loadingContent?: ReactNode;
   leadingContent?: ReactNode;
-  onForkMessage?: ThreadTimelineForkMessageHandler;
-  onEditMessage?: ThreadTimelineEditMessageHandler;
-  inlineMessageEditor?: ThreadTimelineInlineMessageEditor;
-  onMessageAddToChat?: ThreadTimelineAddToChatHandler;
-  onSelectionAddToChat?: ThreadTimelineAddToChatHandler;
   onLoadOlderRows?: () => Promise<void> | void;
-  onOpenLink?: ThreadTimelineLinkHandler;
-  onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
-  onOpenPluginPanel?: ThreadTimelineOpenPluginPanelHandler;
-  onTitleAction?: TimelineTitleActionResolver;
-  projectId?: string;
-  resolveMentionLink?: PromptMentionLinkResolver;
   showOngoingIndicator: boolean;
   ongoingIndicatorLabel?: string;
   isStopping?: boolean;
   stoppingAnchorAt?: number;
   timelineErrorClassName?: string;
   timelineRows: TimelineRow[];
-  timelineNavigationTargetRowId?: string | null;
   threadId: string;
   threadRuntimeDisplayStatus: ThreadRuntimeDisplayStatus;
   unreadDividerAutoScroll?: boolean;
   unreadDividerPlacement?: ThreadTimelineUnreadDividerPlacement | null;
-  workspaceRootPath: string | undefined;
 }
 
-interface BuildStopRequestedTimelineRowArgs {
-  stoppingAnchorAt: number;
-  threadId: string;
-}
+const LOADING_INDICATOR_REVEAL_DELAY_MS = 200;
 
-interface UseTimelineRowsWithPendingStopArgs {
-  rows: TimelineRow[];
-  isStopping: boolean;
-  stoppingAnchorAt: number;
-  threadId: string;
-}
-
-function buildStopRequestedTimelineRow({
-  stoppingAnchorAt,
-  threadId,
-}: BuildStopRequestedTimelineRowArgs): TimelineRow {
-  return {
-    id: `${threadId}:pending-stop`,
-    threadId,
-    turnId: null,
-    sourceSeqStart: 0,
-    sourceSeqEnd: 0,
-    startedAt: stoppingAnchorAt,
-    createdAt: stoppingAnchorAt,
-    kind: "system",
-    systemKind: "operation",
-    operationKind: "thread-interrupted",
-    title: "Stop requested",
-    detail: null,
-    status: "pending",
-    completedAt: null,
-  };
-}
-
-function hasConfirmedStopRow(rows: readonly TimelineRow[]): boolean {
-  return rows.some(
-    (row) =>
-      row.kind === "system" &&
-      row.systemKind === "operation" &&
-      row.operationKind === "thread-interrupted",
+function isStopRow(row: TimelineRow): boolean {
+  return (
+    row.kind === "system" &&
+    row.systemKind === "operation" &&
+    row.operationKind === "thread-interrupted"
   );
-}
-
-function useTimelineRowsWithPendingStop({
-  rows,
-  isStopping,
-  stoppingAnchorAt,
-  threadId,
-}: UseTimelineRowsWithPendingStopArgs): TimelineRow[] {
-  return useMemo(() => {
-    if (!isStopping || hasConfirmedStopRow(rows)) {
-      return rows;
-    }
-
-    return [
-      ...rows,
-      buildStopRequestedTimelineRow({ stoppingAnchorAt, threadId }),
-    ];
-  }, [rows, isStopping, stoppingAnchorAt, threadId]);
 }
 
 export function ThreadTimelineSurface({
   activeThinking,
-  canSpawnChild,
   contextBoundarySeq,
-  threadOriginKind = null,
   hasOlderTimelineRows = false,
   hostConnectionNotice,
   isLoadingOlderTimelineRows = false,
@@ -144,62 +63,58 @@ export function ThreadTimelineSurface({
   timelineError,
   loadingContent,
   leadingContent,
-  onForkMessage,
-  onEditMessage,
-  inlineMessageEditor,
-  onMessageAddToChat,
-  onSelectionAddToChat,
   onLoadOlderRows,
-  onOpenLink,
-  onOpenLocalFileLink,
-  onOpenPluginPanel,
-  onTitleAction,
-  projectId,
-  resolveMentionLink,
   showOngoingIndicator,
   ongoingIndicatorLabel,
   isStopping = false,
   stoppingAnchorAt = 0,
   timelineErrorClassName = "mt-6 text-destructive",
   timelineRows,
-  timelineNavigationTargetRowId,
   threadId,
-  threadRuntimeDisplayStatus,
-  unreadDividerAutoScroll,
-  unreadDividerPlacement,
-  workspaceRootPath,
+  ...rowsProps
 }: ThreadTimelineSurfaceProps) {
+  const [reasoningOverrides] = useState(() => new Map<string, boolean>());
   const showActiveThinking =
     activeThinking !== null && ongoingIndicatorLabel === undefined;
-  const activeThinkingText = activeThinking?.text.trim() ?? "";
-  const activeThinkingDetails =
-    showActiveThinking && activeThinkingText.length > 0
-      ? activeThinking?.text
-      : undefined;
-  const ongoingIndicatorKey =
-    showActiveThinking && activeThinking
-      ? activeThinking.id
-      : (ongoingIndicatorLabel ?? "working");
-  const timelineRowsWithPendingStop = useTimelineRowsWithPendingStop({
-    rows: timelineRows,
-    isStopping,
-    stoppingAnchorAt,
-    threadId,
-  });
-  const showLoadOlderRows =
-    hasOlderTimelineRows &&
-    onLoadOlderRows !== undefined &&
-    !isThreadTimelinePending &&
-    !timelineError;
+  const rows = useMemo<TimelineRow[]>(
+    () =>
+      !isStopping || timelineRows.some(isStopRow)
+        ? timelineRows
+        : [
+            ...timelineRows,
+            {
+              id: `${threadId}:pending-stop`,
+              threadId,
+              turnId: null,
+              sourceSeqStart: 0,
+              sourceSeqEnd: 0,
+              startedAt: stoppingAnchorAt,
+              createdAt: stoppingAnchorAt,
+              kind: "system",
+              systemKind: "operation",
+              operationKind: "thread-interrupted",
+              title: "Stop requested",
+              detail: null,
+              status: "pending",
+              completedAt: null,
+            },
+          ],
+    [timelineRows, isStopping, stoppingAnchorAt, threadId],
+  );
 
   return (
-    <TimelineReasoningExpansionProvider key={threadId}>
+    <TimelineReasoningExpansionContext.Provider
+      key={threadId}
+      value={reasoningOverrides}
+    >
       <ConversationTimeline className="flex-1">
         {leadingContent}
-        {showLoadOlderRows ? (
+        {hasOlderTimelineRows &&
+        onLoadOlderRows !== undefined &&
+        !isThreadTimelinePending &&
+        !timelineError ? (
           <LoadOlderMessages
             key={`context-boundary:${contextBoundarySeq}`}
-            hasOlderTimelineRows={hasOlderTimelineRows}
             isLoadingOlderTimelineRows={isLoadingOlderTimelineRows}
             onLoadOlderRows={onLoadOlderRows}
           />
@@ -211,32 +126,14 @@ export function ThreadTimelineSurface({
             label="Failed to load timeline"
             className={timelineErrorClassName}
           />
-        ) : timelineRowsWithPendingStop.length > 0 ? (
+        ) : rows.length > 0 ? (
           <ThreadTimelineRows
-            canSpawnChild={canSpawnChild}
-            threadOriginKind={threadOriginKind}
-            onForkMessage={onForkMessage}
-            onEditMessage={onEditMessage}
-            inlineMessageEditor={inlineMessageEditor}
-            onMessageAddToChat={onMessageAddToChat}
-            onSelectionAddToChat={onSelectionAddToChat}
-            onOpenLink={onOpenLink}
-            onOpenLocalFileLink={onOpenLocalFileLink}
-            onOpenPluginPanel={onOpenPluginPanel}
-            onTitleAction={onTitleAction}
-            projectId={projectId}
-            resolveMentionLink={resolveMentionLink}
-            resolveUserAttachmentImageSrc={toUserAttachmentImageSrc}
+            {...rowsProps}
             hasOlderTimelineRows={hasOlderTimelineRows}
             isLoadingOlderTimelineRows={isLoadingOlderTimelineRows}
             onLoadOlderRows={onLoadOlderRows}
-            timelineRows={timelineRowsWithPendingStop}
-            timelineNavigationTargetRowId={timelineNavigationTargetRowId}
+            timelineRows={rows}
             threadId={threadId}
-            threadRuntimeDisplayStatus={threadRuntimeDisplayStatus}
-            unreadDividerAutoScroll={unreadDividerAutoScroll}
-            unreadDividerPlacement={unreadDividerPlacement}
-            workspaceRootPath={workspaceRootPath}
           />
         ) : null}
         {hostConnectionNotice ? (
@@ -247,30 +144,36 @@ export function ThreadTimelineSurface({
         ) : null}
         <HeightTransition visible={showOngoingIndicator}>
           <TimelineWorkingIndicator
-            key={ongoingIndicatorKey}
-            details={activeThinkingDetails}
+            key={
+              showActiveThinking
+                ? activeThinking.id
+                : (ongoingIndicatorLabel ?? "working")
+            }
+            details={
+              showActiveThinking && activeThinking.text.trim().length > 0
+                ? activeThinking.text
+                : undefined
+            }
             reasoningId={activeThinking?.id}
             isThinking={showActiveThinking}
             label={ongoingIndicatorLabel}
           />
         </HeightTransition>
       </ConversationTimeline>
-    </TimelineReasoningExpansionProvider>
+    </TimelineReasoningExpansionContext.Provider>
   );
 }
 
 function LoadOlderMessages({
-  hasOlderTimelineRows,
   isLoadingOlderTimelineRows,
   onLoadOlderRows,
 }: {
-  hasOlderTimelineRows: boolean;
   isLoadingOlderTimelineRows: boolean;
   onLoadOlderRows: () => Promise<void> | void;
 }) {
   const { sentinelRef, isAutoLoadEnabled, loadOlderRows } =
     useAutoLoadOlderRows({
-      hasOlderTimelineRows,
+      hasOlderTimelineRows: true,
       isLoadingOlderTimelineRows,
       onLoadOlderRows,
     });
@@ -283,7 +186,7 @@ function LoadOlderMessages({
           aria-live="polite"
           role="status"
         >
-          {isLoadingOlderTimelineRows ? "Loading older messages…" : " "}
+          {isLoadingOlderTimelineRows ? "Loading older messages…" : " "}
         </span>
       ) : (
         <Button
@@ -303,8 +206,6 @@ function LoadOlderMessages({
   );
 }
 
-const LOADING_INDICATOR_REVEAL_DELAY_MS = 200;
-
 function DelayedThreadLoadingIndicator() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -319,10 +220,6 @@ function DelayedThreadLoadingIndicator() {
     return null;
   }
 
-  return <ThreadTimelineLoadingSkeleton />;
-}
-
-function ThreadTimelineLoadingSkeleton() {
   return (
     <div className="mt-6 space-y-5" role="status" aria-label="Loading thread">
       <div className="flex justify-end px-2">
@@ -334,18 +231,12 @@ function ThreadTimelineLoadingSkeleton() {
         <Skeleton className="h-3.5 w-3/4" />
       </div>
       <div className="space-y-2.5 px-2">
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-3.5 shrink-0 rounded" />
-          <Skeleton className="h-3 w-2/5" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-3.5 shrink-0 rounded" />
-          <Skeleton className="h-3 w-1/2" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-3.5 shrink-0 rounded" />
-          <Skeleton className="h-3 w-1/3" />
-        </div>
+        {["w-2/5", "w-1/2", "w-1/3"].map((width) => (
+          <div key={width} className="flex items-center gap-2">
+            <Skeleton className="size-3.5 shrink-0 rounded" />
+            <Skeleton className={`h-3 ${width}`} />
+          </div>
+        ))}
       </div>
       <div className="space-y-2 px-2">
         <Skeleton className="h-3.5 w-5/6" />

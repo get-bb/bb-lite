@@ -1,88 +1,89 @@
 import { useEffect, useState } from "react";
+import type { ThreadEventPlanStep } from "@bb/domain";
+import type { TimelineRowPresentation } from "@bb/server-contract";
 import {
   assertNever,
   fileNameFromPath,
   type TimelineViewWorkRow,
 } from "@bb/thread-view";
+import { formatPendingInteractionUserQuestionOptionLabel } from "@bb/core-ui";
+import {
+  activityIconClass,
+  activityRowClass,
+  activityTextClass,
+  type ActivityRowState,
+} from "@bb/shared-ui/activity-row-styles";
 import { Button } from "@bb/shared-ui/button";
-import { Icon } from "@bb/shared-ui/icon";
+import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { EventCodeBlock } from "../../ui/event-code-block.js";
 import { ImageLightbox } from "../../ui/image-lightbox.js";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
+import { MarkdownPreview } from "../../ui/markdown-preview.js";
+import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 import { TerminalOutputBlock } from "./TerminalOutputBlock.js";
 import { TimelineDetailScroll } from "./TimelineDetailScroll.js";
 import { TimelineFileDiffBlock } from "./TimelineFileDiffBlock.js";
 import { ToolCallDetailBlock } from "./ToolCallDetailBlock.js";
-import { QuestionWorkRowBody } from "./QuestionWorkRowBody.js";
 import { WorkflowWorkRowBody } from "./WorkflowWorkRowBody.js";
-import {
-  PlanStepsWorkRowBody,
-  PresentationDetail,
-} from "./PresentationWorkRowBodies.js";
+import { useTimeline } from "./timeline-context.js";
 import {
   useTimelineWorkRowFullOutput,
   type TimelinePreviewableWorkRow,
   type TimelineWorkRowFullOutput,
-  type TimelineWorkRowFullOutputState,
 } from "./useTimelineWorkRowFullOutput.js";
-import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
-import type { ThreadTimelineImageViewSrcResolver } from "./types.js";
 
-interface WorkRowBodyProps {
-  resolveImageViewSrc?: ThreadTimelineImageViewSrcResolver;
-  row: TimelineViewWorkRow;
-  workspaceRootPath: string | undefined;
-}
-
-type ImageWorkRow = Extract<
+type WorkRow<Kind extends TimelineViewWorkRow["workKind"]> = Extract<
   TimelineViewWorkRow,
-  { workKind: "image-view" | "image-generation" }
+  { workKind: Kind }
 >;
+type PlanStepStatus = NonNullable<ThreadEventPlanStep["status"]>;
 
-interface ImageWorkRowBodyProps {
-  resolveImageViewSrc?: ThreadTimelineImageViewSrcResolver;
-  row: ImageWorkRow;
-}
+const PLAN_STEP_ACTIVITY_STATE: Record<PlanStepStatus, ActivityRowState> = {
+  pending: "pending",
+  active: "active",
+  completed: "completed",
+  failed: "completed",
+};
 
-interface CommandWorkRowBodyProps {
-  row: Extract<TimelineViewWorkRow, { workKind: "command" }>;
-}
+const PLAN_STEP_ICON: Record<PlanStepStatus, IconName> = {
+  pending: "Square",
+  active: "Square",
+  completed: "Check",
+  failed: "X",
+};
 
-interface ToolWorkRowBodyProps {
-  row: Extract<TimelineViewWorkRow, { workKind: "tool" }>;
-}
-
-interface OutputPreviewNoteProps {
-  fullOutput: TimelineWorkRowFullOutput;
-  row: TimelinePreviewableWorkRow;
-}
-
-interface OutputPreviewNoteArgs {
-  state: TimelineWorkRowFullOutputState;
-  totalChars: number;
-}
-
-interface ResolveImageViewSourceArgs {
-  resolveImageViewSrc: ThreadTimelineImageViewSrcResolver | undefined;
-  row: ImageWorkRow;
-}
-
-function resolveImageViewSource({
-  resolveImageViewSrc,
-  row,
-}: ResolveImageViewSourceArgs): string | null {
-  if (!row.path || (row.workKind === "image-generation" && row.error)) {
+function PresentationDetail({
+  presentation,
+}: {
+  presentation: TimelineRowPresentation | undefined;
+}) {
+  const detail = presentation?.detail;
+  if (detail === undefined || detail.trim().length === 0) {
     return null;
   }
-  return resolveImageViewSrc
-    ? resolveImageViewSrc({ path: row.path, threadId: row.threadId })
-    : buildThreadHostFileContentUrl(row.threadId, row.path);
+  return (
+    <MarkdownPreview
+      content={detail}
+      className="text-xs text-muted-foreground"
+      imagePolicy="alt-text"
+    />
+  );
 }
 
-function ImageWorkRowBody({ resolveImageViewSrc, row }: ImageWorkRowBodyProps) {
+function ImageWorkRowBody({
+  row,
+}: {
+  row: WorkRow<"image-view" | "image-generation">;
+}) {
   const [loadError, setLoadError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const imageSrc = resolveImageViewSource({ resolveImageViewSrc, row });
+  const generationError =
+    row.workKind === "image-generation" ? row.error : null;
+  const imageSrc =
+    !row.path || generationError
+      ? null
+      : buildThreadHostFileContentUrl(row.threadId, row.path);
   const imageName = row.path ? fileNameFromPath(row.path) : "";
   const imageAlt = `${row.workKind === "image-generation" ? "Generated" : "Viewed"} image: ${imageName}`;
 
@@ -95,9 +96,7 @@ function ImageWorkRowBody({ resolveImageViewSrc, row }: ImageWorkRowBodyProps) {
     return (
       <EmptyStatePanel className="rounded-lg">
         <div className="whitespace-pre-wrap break-words">
-          {row.workKind === "image-generation" && row.error
-            ? row.error
-            : "Image preview unavailable."}
+          {generationError || "Image preview unavailable."}
         </div>
         <div className="mt-1 break-all font-mono text-xs">{row.path}</div>
       </EmptyStatePanel>
@@ -131,38 +130,26 @@ function ImageWorkRowBody({ resolveImageViewSrc, row }: ImageWorkRowBodyProps) {
   );
 }
 
-function outputPreviewNoteText({
-  state,
-  totalChars,
-}: OutputPreviewNoteArgs): string | null {
-  const total = `${totalChars.toLocaleString()} characters`;
-  switch (state) {
-    case "streaming-preview":
-      return `Preview of ${total}. The full output loads when this finishes.`;
-    case "limited-preview":
-      return `Preview of ${total}. The full output exceeds the detail response limit.`;
-    case "expired-preview":
-      return `Preview of ${total}. The full output is no longer available because its retention period ended.`;
-    case "loading":
-      return `Loading the full output (${total})…`;
-    case "error":
-      return `Failed to load the full output (${total}).`;
-    case "complete":
-    case "loaded":
-      return null;
-    default:
-      return assertNever(state);
-  }
-}
-
-function OutputPreviewNote({ fullOutput, row }: OutputPreviewNoteProps) {
+function OutputPreviewNote({
+  fullOutput,
+  row,
+}: {
+  fullOutput: TimelineWorkRowFullOutput;
+  row: TimelinePreviewableWorkRow;
+}) {
   if (row.outputPreview === undefined) {
     return null;
   }
-  const text = outputPreviewNoteText({
-    state: fullOutput.state,
-    totalChars: row.outputPreview.totalChars,
-  });
+  const total = `${row.outputPreview.totalChars.toLocaleString()} characters`;
+  const text = {
+    "streaming-preview": `Preview of ${total}. The full output loads when this finishes.`,
+    "limited-preview": `Preview of ${total}. The full output exceeds the detail response limit.`,
+    "expired-preview": `Preview of ${total}. The full output is no longer available because its retention period ended.`,
+    loading: `Loading the full output (${total})…`,
+    error: `Failed to load the full output (${total}).`,
+    complete: null,
+    loaded: null,
+  }[fullOutput.state];
   if (text === null) {
     return null;
   }
@@ -188,7 +175,7 @@ function OutputPreviewNote({ fullOutput, row }: OutputPreviewNoteProps) {
   );
 }
 
-function CommandWorkRowBody({ row }: CommandWorkRowBodyProps) {
+function CommandWorkRowBody({ row }: { row: WorkRow<"command"> }) {
   const fullOutput = useTimelineWorkRowFullOutput(row);
   return (
     <div className="space-y-1">
@@ -204,7 +191,7 @@ function CommandWorkRowBody({ row }: CommandWorkRowBodyProps) {
   );
 }
 
-function ToolWorkRowBody({ row }: ToolWorkRowBodyProps) {
+function ToolWorkRowBody({ row }: { row: WorkRow<"tool"> }) {
   const fullOutput = useTimelineWorkRowFullOutput(row);
   return (
     <div className="space-y-1">
@@ -220,11 +207,93 @@ function ToolWorkRowBody({ row }: ToolWorkRowBodyProps) {
   );
 }
 
-export function WorkRowBody({
-  resolveImageViewSrc,
-  row,
-  workspaceRootPath,
-}: WorkRowBodyProps) {
+function PlanStepsWorkRowBody({ row }: { row: WorkRow<"plan-steps"> }) {
+  return (
+    <div className="space-y-2">
+      <PresentationDetail presentation={row.presentation} />
+      {row.explanation ? (
+        <p className="text-xs text-muted-foreground">{row.explanation}</p>
+      ) : null}
+      <ul className="space-y-1" data-testid="plan-steps-body">
+        {row.steps.map((step, index) => {
+          const status = step.status ?? "pending";
+          const activityState = PLAN_STEP_ACTIVITY_STATE[status];
+          return (
+            <li
+              key={`${index}:${step.step}`}
+              className={activityRowClass(
+                activityState,
+                "flex min-w-0 items-center gap-2 text-xs",
+              )}
+              data-plan-step-status={status}
+            >
+              <Icon
+                name={PLAN_STEP_ICON[status]}
+                className={cn(
+                  "size-3.5 shrink-0",
+                  status === "active"
+                    ? "text-foreground"
+                    : activityIconClass(activityState),
+                )}
+                aria-hidden="true"
+              />
+              <span
+                className={activityTextClass(
+                  activityState,
+                  "min-w-0 flex-1 truncate",
+                )}
+                title={step.step}
+              >
+                {step.step}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function QuestionWorkRowBody({ row }: { row: WorkRow<"question"> }) {
+  if (row.lifecycle !== "answered" && row.lifecycle !== "resolving") {
+    return null;
+  }
+  return (
+    <div className="space-y-3 text-xs leading-snug">
+      {row.questions.map((question) => {
+        const answer = row.answers?.[question.id] ?? null;
+        const selectedLabels =
+          answer?.selected.map((value) =>
+            formatPendingInteractionUserQuestionOptionLabel({
+              question,
+              value,
+            }),
+          ) ?? [];
+        const freeText = answer?.freeText ?? null;
+        return (
+          <div key={question.id}>
+            <div className="text-subtle-foreground">{question.prompt}</div>
+            {selectedLabels.length > 0 || freeText !== null ? (
+              <div className="mt-0.5 text-foreground">
+                {selectedLabels.length > 0 ? (
+                  <div>{selectedLabels.join(", ")}</div>
+                ) : null}
+                {freeText ? (
+                  <div className="whitespace-pre-wrap">{freeText}</div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-0.5 text-subtle-foreground">No answer</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function WorkRowBody({ row }: { row: TimelineViewWorkRow }) {
+  const { workspaceRootPath } = useTimeline();
   switch (row.workKind) {
     case "command":
       return <CommandWorkRowBody row={row} />;
@@ -253,11 +322,10 @@ export function WorkRowBody({
           ) : null}
         </div>
       );
-    case "delegation":
-      return null;
     case "question":
       return <QuestionWorkRowBody row={row} />;
     case "form":
+    case "extension":
       return <PresentationDetail presentation={row.presentation} />;
     case "workflow":
       return (
@@ -268,13 +336,10 @@ export function WorkRowBody({
       );
     case "plan-steps":
       return <PlanStepsWorkRowBody row={row} />;
-    case "extension":
-      return <PresentationDetail presentation={row.presentation} />;
     case "image-generation":
     case "image-view":
-      return (
-        <ImageWorkRowBody row={row} resolveImageViewSrc={resolveImageViewSrc} />
-      );
+      return <ImageWorkRowBody row={row} />;
+    case "delegation":
     case "approval":
     case "web-search":
     case "web-fetch":

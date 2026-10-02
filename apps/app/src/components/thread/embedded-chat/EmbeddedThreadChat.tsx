@@ -126,7 +126,6 @@ interface EmbeddedThreadChatComposerModeProps extends EmbeddedThreadChatSharedPr
 interface EmbeddedThreadChatHostedFooterProps {
   variant: "hosted-footer";
   footer: ReactNode;
-  scrollOverlay?: ReactNode;
   surface: ThreadTimelineSurfaceProps;
   composer?: never;
 }
@@ -144,7 +143,6 @@ export function EmbeddedThreadChat(props: EmbeddedThreadChatProps) {
 
 function EmbeddedThreadChatHostedFooter({
   footer,
-  scrollOverlay,
   surface,
 }: EmbeddedThreadChatHostedFooterProps) {
   return (
@@ -155,12 +153,10 @@ function EmbeddedThreadChatHostedFooter({
       <PageShell
         key={surface.threadId}
         scrollBehavior="bottom-anchor"
-        scrollAnchorThreadId={surface.threadId}
         shellClassName="!mx-0 !mt-0 md:!mx-0 md:!mt-0"
         contentClassName="gap-2 pt-4"
         footerClassName="chat-prompt-box"
         footer={footer}
-        scrollOverlay={scrollOverlay}
       >
         <ThreadTimelineSurface {...surface} />
       </PageShell>
@@ -1054,7 +1050,6 @@ function EmbeddedThreadChatWithComposer({
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}
       onMessageAddToChat={handleAddToChat}
-      onSelectionAddToChat={handleAddToChat}
       projectId={projectId}
       resolveMentionLink={resolveMentionLink}
       threadId={threadId}
@@ -1098,7 +1093,6 @@ function EmbeddedThreadChatWithComposer({
         }
         maxWidthClassName={maxWidthClassName}
         footer={footer}
-        scrollAnchorThreadId={threadId}
       >
         {timelineBody}
       </BottomAnchoredScrollBody>

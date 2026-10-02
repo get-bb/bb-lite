@@ -19,7 +19,6 @@ interface ThreadTimelinePanelContentProps {
   isTurnSubmitting?: boolean;
   leadingContent?: ReactNode;
   onMessageAddToChat?: ThreadTimelineSurfaceProps["onMessageAddToChat"];
-  onSelectionAddToChat?: ThreadTimelineSurfaceProps["onSelectionAddToChat"];
   onOpenLink?: ThreadTimelineSurfaceProps["onOpenLink"];
   onOpenLocalFileLink?: ThreadTimelineSurfaceProps["onOpenLocalFileLink"];
   projectId?: string;
@@ -34,7 +33,6 @@ export function ThreadTimelinePanelContent({
   isTurnSubmitting = false,
   leadingContent,
   onMessageAddToChat,
-  onSelectionAddToChat,
   onOpenLink,
   onOpenLocalFileLink,
   projectId,
@@ -105,7 +103,6 @@ export function ThreadTimelinePanelContent({
       loadingContent={<ThreadTimelinePanelLoadingSkeleton />}
       leadingContent={leadingContent}
       onMessageAddToChat={onMessageAddToChat}
-      onSelectionAddToChat={onSelectionAddToChat}
       onLoadOlderRows={resolvedTimeline.loadOlderTimelineRows}
       onOpenLink={onOpenLink}
       onOpenLocalFileLink={onOpenLocalFileLink}

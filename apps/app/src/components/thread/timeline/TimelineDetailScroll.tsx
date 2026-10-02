@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -7,10 +7,6 @@ import {
 } from "../../ui/detail-scroll-size.js";
 import { useStickyBottomScroll } from "./useStickyBottomScroll.js";
 import { useScrollOverflowState } from "./useScrollOverflowState.js";
-import {
-  TimelineWindowingScrollRootContext,
-  type TimelineWindowingScrollRoot,
-} from "./TimelineWindowedItemsLoader.js";
 
 interface TimelineDetailScrollProps {
   size: DetailScrollSize;
@@ -45,10 +41,6 @@ export function TimelineDetailScroll({
     sticky.ref,
     overflow.scrollRef,
   );
-  const windowingScrollRoot = useMemo<TimelineWindowingScrollRoot>(
-    () => ({ getScrollElement: () => sticky.ref.current }),
-    [sticky.ref],
-  );
 
   return (
     <div
@@ -73,13 +65,7 @@ export function TimelineDetailScroll({
           aria-hidden
           className="-mb-px h-px w-full"
         />
-        <div ref={sticky.contentRef}>
-          <TimelineWindowingScrollRootContext.Provider
-            value={windowingScrollRoot}
-          >
-            {children}
-          </TimelineWindowingScrollRootContext.Provider>
-        </div>
+        <div ref={sticky.contentRef}>{children}</div>
         <div
           ref={overflow.bottomSentinelRef}
           aria-hidden
