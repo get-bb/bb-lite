@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Button } from "@bb/shared-ui/button";
@@ -6,12 +7,10 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { createLastKnownCache } from "@/lib/last-known-cache";
 import { SETTINGS_PLUGINS_ROUTE_PATH } from "@/lib/route-paths";
 
-export type SidebarNavigationPlaceholderState =
-  | { kind: "loading"; height: number | null }
+type UnavailableState =
   | { kind: "missing" }
   | { kind: "crashed"; pluginTitle: string; onReload: () => void };
 
-const DEFAULT_LOADING_ROWS = 4;
 const LOADING_ROW_PITCH = 30;
 const LOADING_ROW_WIDTHS = ["w-1/2", "w-2/5", "w-1/3", "w-2/5", "w-1/2"];
 
@@ -33,13 +32,21 @@ export function rememberNavigationHeight(
   height: number,
 ): void {
   const key = heightCache.key(providerKey);
-  if (heightCache.read(key) === height) return;
-  heightCache.write(key, height);
+  if (heightCache.read(key) !== height) heightCache.write(key, height);
 }
 
-function LoadingRow({ widthClassName }: { widthClassName: string }) {
+function LoadingRow({
+  widthClassName,
+  inset,
+}: {
+  widthClassName: string;
+  inset: boolean;
+}) {
   return (
-    <div className="flex h-7 items-center rounded-md px-2">
+    <div
+      data-sidebar={inset ? undefined : "navigation-loading-row"}
+      className={cn("flex h-7 items-center rounded-md", inset && "px-2")}
+    >
       <Skeleton
         className={cn("h-3 rounded-sm bg-sidebar-border/50", widthClassName)}
       />
@@ -47,17 +54,55 @@ function LoadingRow({ widthClassName }: { widthClassName: string }) {
   );
 }
 
+function Unavailable({
+  attribute,
+  state,
+  missingText,
+  missingAction,
+}: {
+  attribute: string;
+  state: UnavailableState;
+  missingText: string;
+  missingAction?: ReactNode;
+}) {
+  const isMissing = state.kind === "missing";
+  return (
+    <div
+      role={isMissing ? "status" : "alert"}
+      {...{ [attribute]: state.kind }}
+      className="flex flex-col gap-2 px-3 py-2 text-sm text-muted-foreground"
+    >
+      <span>
+        {isMissing ? missingText : `${state.pluginTitle} stopped working.`}
+      </span>
+      {isMissing ? (
+        missingAction
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={state.onReload}
+        >
+          Reload
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function SidebarNavigationPlaceholder({
   state,
 }: {
-  state: SidebarNavigationPlaceholderState;
+  state: { kind: "loading"; height: number | null } | UnavailableState;
 }) {
   const navigate = useNavigate();
   if (state.kind === "loading") {
     if (state.height === 0) return null;
     const rows =
       state.height === null
-        ? DEFAULT_LOADING_ROWS
+        ? 4
         : Math.max(1, Math.floor(state.height / LOADING_ROW_PITCH));
     return (
       <div
@@ -69,6 +114,7 @@ export function SidebarNavigationPlaceholder({
         {Array.from({ length: rows }, (_, index) => (
           <LoadingRow
             key={index}
+            inset
             widthClassName={
               LOADING_ROW_WIDTHS[index % LOADING_ROW_WIDTHS.length] ?? "w-1/2"
             }
@@ -77,14 +123,12 @@ export function SidebarNavigationPlaceholder({
       </div>
     );
   }
-  if (state.kind === "missing") {
-    return (
-      <div
-        role="status"
-        data-sidebar-navigation-placeholder="missing"
-        className="flex flex-col gap-2 px-3 py-2 text-sm text-muted-foreground"
-      >
-        <span>No navigation plugin is enabled.</span>
+  return (
+    <Unavailable
+      attribute="data-sidebar-navigation-placeholder"
+      state={state}
+      missingText="No navigation plugin is enabled."
+      missingAction={
         <Button
           type="button"
           variant="outline"
@@ -96,25 +140,33 @@ export function SidebarNavigationPlaceholder({
         >
           Open Plugins
         </Button>
+      }
+    />
+  );
+}
+
+export function ThreadListPlaceholder({
+  state,
+}: {
+  state: { kind: "loading" } | UnavailableState;
+}) {
+  if (state.kind === "loading") {
+    return (
+      <div
+        aria-label="Loading sidebar navigation"
+        data-thread-list-placeholder="loading"
+        className="space-y-1.5 px-2 pt-1"
+      >
+        <LoadingRow inset={false} widthClassName="w-2/3" />
+        <LoadingRow inset={false} widthClassName="w-1/2" />
       </div>
     );
   }
   return (
-    <div
-      role="alert"
-      data-sidebar-navigation-placeholder="crashed"
-      className="flex flex-col gap-2 px-3 py-2 text-sm text-muted-foreground"
-    >
-      <span>{state.pluginTitle} stopped working.</span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={state.onReload}
-      >
-        Reload
-      </Button>
-    </div>
+    <Unavailable
+      attribute="data-thread-list-placeholder"
+      state={state}
+      missingText="No thread list plugin is enabled."
+    />
   );
 }

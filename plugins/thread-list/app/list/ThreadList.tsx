@@ -66,7 +66,7 @@ import {
 import {
   SidebarRenameProvider,
   useSidebarRenameState,
-} from "../rows/SidebarInlineRename.js";
+} from "@bb/shared-ui/sidebar-inline-rename";
 import { ThreadSectionMoveProvider } from "../rows/ThreadSectionMoveProvider.js";
 import {
   getErrorCode,

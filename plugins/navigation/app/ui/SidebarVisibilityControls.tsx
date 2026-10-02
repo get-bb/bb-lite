@@ -1,22 +1,10 @@
-import {
-  useCallback,
-  useState,
-  type PointerEventHandler,
-  type ReactNode,
-} from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@bb/shared-ui/context-menu";
-import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import {
@@ -47,45 +35,17 @@ export interface SidebarActivationModifiers {
   ctrlKey: boolean;
 }
 
-export function SidebarCustomizeActionContent({ label }: { label: string }) {
-  return (
-    <>
-      <Icon name="FilterHorizontal" aria-hidden="true" />
-      {label}
-    </>
-  );
-}
-
-export function SidebarVisibilityActionContent({
-  visible,
-  label,
-}: {
-  visible: boolean;
-  label?: string;
-}) {
-  return (
-    <>
-      <Icon name={visible ? "EyeOff" : "Eye"} aria-hidden="true" />
-      {label ?? (visible ? "Hide from sidebar" : "Add to sidebar")}
-    </>
-  );
-}
-
 export function SidebarMore({
   activity,
   ariaLabel,
   children,
-  customizeLabel,
   listLabel,
-  onCustomize,
   testIdPrefix = "sidebar-navigation",
 }: {
   activity?: ReactNode;
   ariaLabel: string;
   children: (close: () => void) => ReactNode;
-  customizeLabel: string;
   listLabel: string;
-  onCustomize: () => void;
   testIdPrefix?: string;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -94,45 +54,36 @@ export function SidebarMore({
   return (
     <div data-testid={`${testIdPrefix}-more-row`}>
       <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <div>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-label={ariaLabel}
+        <div>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={ariaLabel}
+              className={cn(
+                PROJECT_LIST_ACTION_BUTTON_CLASS,
+                SIDEBAR_DISCLOSURE_ACTION_CLASS,
+                "w-full hover:text-sidebar-foreground focus-visible:text-sidebar-foreground data-[state=open]:text-sidebar-foreground",
+                isMenuOpen && "bg-sidebar-accent",
+              )}
+              data-testid={`${testIdPrefix}-more-trigger`}
+            >
+              <Icon name="MoreHorizontal" aria-hidden="true" />
+              <span className="min-w-0 truncate text-left">More</span>
+              {activity ? (
+                <span
                   className={cn(
-                    PROJECT_LIST_ACTION_BUTTON_CLASS,
-                    SIDEBAR_DISCLOSURE_ACTION_CLASS,
-                    "w-full hover:text-sidebar-foreground focus-visible:text-sidebar-foreground data-[state=open]:text-sidebar-foreground",
-                    isMenuOpen && "bg-sidebar-accent",
+                    "ml-auto inline-flex shrink-0 items-center justify-center",
+                    COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
                   )}
-                  data-testid={`${testIdPrefix}-more-trigger`}
                 >
-                  <Icon name="MoreHorizontal" aria-hidden="true" />
-                  <span className="min-w-0 truncate text-left">More</span>
-                  {activity ? (
-                    <span
-                      className={cn(
-                        "ml-auto inline-flex shrink-0 items-center justify-center",
-                        COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-                      )}
-                    >
-                      {activity}
-                    </span>
-                  ) : null}
-                </Button>
-              </PopoverTrigger>
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent aria-label={`${ariaLabel} options`}>
-            <ContextMenuItem onSelect={onCustomize}>
-              <SidebarCustomizeActionContent label={customizeLabel} />
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+                  {activity}
+                </span>
+              ) : null}
+            </Button>
+          </PopoverTrigger>
+        </div>
         <PopoverContent
           side="right"
           align="start"
@@ -153,27 +104,6 @@ export function SidebarMore({
           >
             {children(close)}
           </div>
-          <div
-            role="separator"
-            className="-mx-1 my-1 h-px shrink-0 bg-border"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={cn(
-              OVERFLOW_ROW_BUTTON_CLASS,
-              COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-              "shrink-0",
-            )}
-            data-testid={`${testIdPrefix}-customize-trigger`}
-            onClick={() => {
-              close();
-              onCustomize();
-            }}
-          >
-            <SidebarCustomizeActionContent label={customizeLabel} />
-          </Button>
         </PopoverContent>
       </Popover>
     </div>
@@ -185,18 +115,14 @@ export function SidebarOverflowItem({
   additionalActions,
   item,
   onActivate,
-  onAddToSidebar,
   onClose,
-  onPointerDown,
   testIdPrefix = "sidebar-navigation",
 }: {
   activity?: ReactNode;
   additionalActions?: ReactNode;
   item: SidebarVisibilityItem;
   onActivate?: (event: SidebarActivationModifiers) => void;
-  onAddToSidebar: (id: string) => void;
   onClose: () => void;
-  onPointerDown?: PointerEventHandler<HTMLButtonElement>;
   testIdPrefix?: string;
 }) {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
@@ -231,15 +157,6 @@ export function SidebarOverflowItem({
         aria-label={`${item.title} options`}
       >
         {additionalActions}
-        <DropdownMenuItem
-          className="cursor-pointer"
-          onSelect={() => {
-            onClose();
-            onAddToSidebar(item.id);
-          }}
-        >
-          <SidebarVisibilityActionContent visible={false} />
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -261,7 +178,6 @@ export function SidebarOverflowItem({
           data-sidebar-navigation-more-item={
             testIdPrefix === "sidebar-navigation" ? item.id : undefined
           }
-          onPointerDown={onPointerDown}
           onClick={(event) => {
             if (!onActivate) return;
             onClose();

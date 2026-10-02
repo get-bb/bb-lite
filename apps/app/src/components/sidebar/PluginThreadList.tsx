@@ -1,69 +1,51 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { PluginSlotMount } from "@/plugins/mount";
 import { useRouteState } from "@/hooks/useRouteState";
-import {
-  resetCrashedSlots,
-  type PluginSlot,
-  type ResolvedProvider,
-} from "@/plugins/registry";
+import { resetCrashedSlots } from "@/plugins/registry";
 import { appToast } from "@/components/ui/app-toast";
-import { ThreadListPlaceholder } from "./ThreadListPlaceholder";
+import { ThreadListPlaceholder } from "./SidebarNavigationPlaceholder";
+import { useThreadListReplacement } from "./threadListProvider";
 
-const THREAD_LIST_SLOT_KIND = "threadList";
-interface PluginThreadListProps {
-  replacement: ResolvedProvider<PluginSlot<"threadLists">>;
-}
-
-export function PluginThreadList({ replacement }: PluginThreadListProps) {
+export function PluginThreadList() {
+  const replacement = useThreadListReplacement();
   const { projectId, threadId } = useRouteState();
   const [attempt, setAttempt] = useState(0);
-  const registration = replacement.kind === "plugin" ? replacement.slot : null;
-  const pluginId = registration?.pluginId ?? null;
-  const title = registration?.title ?? "Thread list";
 
-  const handleCrash = useCallback(
-    (crashedPluginId: string) => {
-      appToast.error("Thread list plugin crashed", {
-        description: `${title} (${crashedPluginId}) stopped working.`,
-      });
-    },
-    [title],
-  );
-  const handleReload = useCallback(() => {
-    if (pluginId !== null) resetCrashedSlots(pluginId);
-    setAttempt((current) => current + 1);
-  }, [pluginId]);
-
-  if (registration === null) {
+  if (replacement.kind !== "plugin") {
     return (
       <ThreadListPlaceholder
-        state={
-          replacement.kind === "loading"
-            ? { kind: "loading" }
-            : { kind: "missing" }
-        }
+        state={{
+          kind: replacement.kind === "loading" ? "loading" : "missing",
+        }}
       />
     );
   }
-  const List = registration.component;
+  const slot = replacement.slot;
   return (
     <PluginSlotMount
-      key={`${registration.pluginId}/${registration.id}/${registration.generation}/${attempt}`}
-      pluginId={registration.pluginId}
-      slotKind={THREAD_LIST_SLOT_KIND}
-      slotId={registration.id}
+      key={`${slot.pluginId}/${slot.id}/${slot.generation}/${attempt}`}
+      pluginId={slot.pluginId}
+      slotKind="threadList"
+      slotId={slot.id}
       crashFallback={
         <ThreadListPlaceholder
           state={{
             kind: "crashed",
-            pluginTitle: title,
-            onReload: handleReload,
+            pluginTitle: slot.title,
+            onReload: () => {
+              resetCrashedSlots(slot.pluginId);
+              setAttempt((current) => current + 1);
+            },
           }}
         />
       }
-      onCrash={handleCrash}
+      onCrash={(crashedPluginId) => {
+        appToast.error("Thread list plugin crashed", {
+          description: `${slot.title} (${crashedPluginId}) stopped working.`,
+        });
+      }}
     >
-      <List
+      <slot.component
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
         searchQuery=""

@@ -1,25 +1,11 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import type { HostOpenTarget } from "@bb/server-contract";
-import {
-  SplitButton,
-  type SplitButtonAction,
-} from "@/components/ui/split-button.js";
+import { SplitButton } from "@/components/ui/split-button.js";
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { Icon, type BuiltinIconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-
-interface ThreadWorkspaceOpenButtonProps {
-  onOpenTarget: (target: HostOpenTarget) => Promise<void>;
-  preferredTarget: HostOpenTarget;
-  targets: HostOpenTarget[];
-}
-
-interface OpenTargetGlyphProps {
-  className: string;
-  kind: HostOpenTarget["kind"];
-}
 
 const OPEN_TARGET_KIND_ICONS: Record<HostOpenTarget["kind"], BuiltinIconName> =
   {
@@ -28,7 +14,13 @@ const OPEN_TARGET_KIND_ICONS: Record<HostOpenTarget["kind"], BuiltinIconName> =
     terminal: "Terminal",
   };
 
-function OpenTargetGlyph({ className, kind }: OpenTargetGlyphProps) {
+function OpenTargetGlyph({
+  className,
+  kind,
+}: {
+  className: string;
+  kind: HostOpenTarget["kind"];
+}) {
   return (
     <span
       className={cn(
@@ -49,54 +41,19 @@ export function ThreadWorkspaceOpenButton({
   onOpenTarget,
   preferredTarget,
   targets,
-}: ThreadWorkspaceOpenButtonProps) {
+}: {
+  onOpenTarget: (target: HostOpenTarget) => Promise<void>;
+  preferredTarget: HostOpenTarget;
+  targets: HostOpenTarget[];
+}) {
   const [isPending, setIsPending] = useState(false);
   const shortcut = useAppCommandShortcut("workspace.openPreferred");
-
-  const openTarget = useCallback(
-    async (target: HostOpenTarget) => {
-      if (isPending) {
-        return;
-      }
-
-      setIsPending(true);
-      try {
-        await onOpenTarget(target);
-      } finally {
-        setIsPending(false);
-      }
-    },
-    [isPending, onOpenTarget],
-  );
-
-  const primaryAction: SplitButtonAction = {
-    ariaKeyshortcuts: shortcut?.ariaKeyshortcuts,
-    label: shortcut
-      ? `Open workspace in ${preferredTarget.label} (${shortcut.label})`
-      : `Open workspace in ${preferredTarget.label}`,
-    onSelect: () => {
-      void openTarget(preferredTarget);
-    },
-    content: (
-      <OpenTargetGlyph
-        kind={preferredTarget.kind}
-        className={cn("size-4", isPending && "animate-shine-icon")}
-      />
-    ),
+  const open = (target: HostOpenTarget) => () => {
+    if (isPending) return;
+    setIsPending(true);
+    void onOpenTarget(target).finally(() => setIsPending(false));
   };
-  const secondaryActions: SplitButtonAction[] = targets.map((target) => ({
-    label: target.label,
-    onSelect: () => {
-      void openTarget(target);
-    },
-    content: (
-      <>
-        <OpenTargetGlyph kind={target.kind} className="size-5" />
-        <span className="min-w-0 flex-1">{target.label}</span>
-      </>
-    ),
-  }));
-
+  const label = `Open workspace in ${preferredTarget.label}`;
   return (
     <span className="inline-flex items-center gap-1.5">
       <AppCommandShortcutHint shortcut={shortcut} />
@@ -106,9 +63,28 @@ export function ThreadWorkspaceOpenButton({
           "border-border/70 bg-transparent px-1 shadow-none",
           CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
         )}
-        primaryAction={primaryAction}
+        primaryAction={{
+          ariaKeyshortcuts: shortcut?.ariaKeyshortcuts,
+          label: shortcut ? `${label} (${shortcut.label})` : label,
+          onSelect: open(preferredTarget),
+          content: (
+            <OpenTargetGlyph
+              kind={preferredTarget.kind}
+              className={cn("size-4", isPending && "animate-shine-icon")}
+            />
+          ),
+        }}
         primaryTooltip={`Open in ${preferredTarget.label}`}
-        secondaryActions={secondaryActions}
+        secondaryActions={targets.map((target) => ({
+          label: target.label,
+          onSelect: open(target),
+          content: (
+            <>
+              <OpenTargetGlyph kind={target.kind} className="size-5" />
+              <span className="min-w-0 flex-1">{target.label}</span>
+            </>
+          ),
+        }))}
         triggerLabel="Choose another app to open workspace"
         triggerTooltip="Choose another app"
       />

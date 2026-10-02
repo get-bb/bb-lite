@@ -1,12 +1,10 @@
 import { useCallback } from "react";
-import { useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import type {
   ChangedMessage,
   ProjectChangedMessage,
   ThreadChangedMessage,
 } from "@bb/domain";
-import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
 import { useRouteState } from "../useRouteState";
 
@@ -34,18 +32,13 @@ function isDeletedThreadMessage(
 
 export function useDeletedResourceRouteOwner(): DeletedResourceRouteChangeHandler {
   const navigate = useNavigate();
-  const setCollapsedProjectIdList = useSetAtom(collapsedProjectIdsAtom);
   const { projectId: routeProjectId, threadId: routeThreadId } =
     useRouteState();
 
   return useCallback(
     (message: ChangedMessage) => {
       if (isDeletedProjectMessage(message)) {
-        const deletedProjectId = message.id;
-        setCollapsedProjectIdList((current) =>
-          current.filter((projectId) => projectId !== deletedProjectId),
-        );
-        if (routeProjectId === deletedProjectId) {
+        if (routeProjectId === message.id) {
           navigate(getRootComposeRoutePath(), { replace: true });
         }
         return;
@@ -61,6 +54,6 @@ export function useDeletedResourceRouteOwner(): DeletedResourceRouteChangeHandle
 
       navigate(getRootComposeRoutePath());
     },
-    [navigate, routeProjectId, routeThreadId, setCollapsedProjectIdList],
+    [navigate, routeProjectId, routeThreadId],
   );
 }

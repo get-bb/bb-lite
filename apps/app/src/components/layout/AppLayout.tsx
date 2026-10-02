@@ -1,19 +1,20 @@
-import { type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import { flushSync } from "react-dom";
 import { atom, useAtom, useAtomValue, useStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
-  Link,
   matchPath,
   Navigate,
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import type { ProjectResponse } from "@bb/server-contract";
-import { Icon } from "@bb/shared-ui/icon";
 import { TooltipProvider } from "@bb/shared-ui/tooltip";
-import { RESOURCE_ROUTE_LABEL_EVENT } from "@bb/shared-ui/resource-route-label";
 import {
   SidebarInset,
   SidebarProvider,
@@ -26,12 +27,9 @@ import {
 } from "@/components/thread/ThreadTitleMentions";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { CommandPalette } from "@/components/commands/CommandPalette";
-import { resolveAutomationBreadcrumbs } from "@/components/tools/tools-navigation";
-import { AppBreadcrumbs } from "./AppBreadcrumbs";
-import { resourceRouteLabelAtom } from "./resourceRouteLabelAtom";
-import { AppPageHeader, HEADER_ICON_BUTTON_CLASS } from "./AppPageHeader";
-import { stripProjectThreads } from "@/hooks/queries/project-queries";
+import { AppPageHeader } from "./AppPageHeader";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
+import { listSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
 import {
   didThreadDetailBootstrapRefreshAfterMount,
   getLatestPendingInteraction,
@@ -44,20 +42,10 @@ import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
-import { ProjectActionsMenu } from "@/components/project/ProjectActionsMenu";
-import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
-import {
-  PluginPanelHeaderActions,
-  PluginPanelHeaderCenter,
-} from "@/components/plugin/PluginPanelHeader";
 import { PluginAppOverlays } from "@/components/plugin/PluginAppOverlays";
-import { AppThreadSectionMoveProvider } from "@/components/thread/ThreadSectionMoveProvider";
 import { ThreadActionsProvider } from "@/components/thread/ThreadActionsProvider";
-import {
-  usePluginNavPanelChrome,
-  type PluginNavPanelChrome,
-} from "@/lib/plugin-nav-panel-chrome";
-import type { PluginSlot } from "@/plugins/registry";
+import { ProjectActionsProvider } from "@/components/project/ProjectActionsProvider";
+import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import {
   booleanLocalStorage,
   createLocalStorageSyncStorage,
@@ -67,11 +55,8 @@ import {
   CHROME_ROW_CLASS,
 } from "@/lib/chrome-row";
 import {
-  getLegacyProjectComposeRoutePath,
-  getSettingsProjectRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
-  isProjectlessProjectId,
   PLUGIN_PANEL_ROUTE_PATH,
   SETTINGS_ROUTE_PATH,
 } from "@/lib/route-paths";
@@ -79,7 +64,8 @@ import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
 import { useFaviconBadge } from "@/lib/favicon-color-preference";
 import { shouldShowFaviconAttentionDot } from "./faviconAttentionDot";
-import { AppLayoutSidebar } from "./AppLayoutSidebar";
+import { AppSidebar } from "@/components/sidebar/AppSidebar";
+import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
 import {
   useAppCommandHandler,
   useAppCommandShortcut,
@@ -90,65 +76,40 @@ import { findPaneByThread } from "@/lib/split-layout";
 import { applyThreadOpenToLayout } from "@/views/thread-detail/splitThreadNavigation";
 import { useAppSettingsRouteMemory } from "@/hooks/useAppSettingsRouteMemory";
 import { useSetRootComposeProjectId } from "@/lib/root-compose-selection";
-import { BackToAppCommandHandler } from "./BackToAppCommandHandler";
-
-const SIDEBAR_WIDTH_KEY = "bb.sidebar.width";
-const SIDEBAR_OPEN_KEY = "bb.sidebar.open";
-const SIDEBAR_MIN_WIDTH = 240;
-const SIDEBAR_MAX_WIDTH = 460;
-const SIDEBAR_DEFAULT_WIDTH = 320;
 
 function clampSidebarWidth(value: number) {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, value));
+  return Math.min(460, Math.max(240, value));
 }
 
-const sidebarWidthStorage = createLocalStorageSyncStorage<number>({
-  parse: (storedValue, initialValue) => {
-    if (storedValue === null) {
-      return initialValue;
-    }
-    const parsedValue = Number(storedValue);
-    if (!Number.isFinite(parsedValue)) {
-      return initialValue;
-    }
-    return clampSidebarWidth(parsedValue);
-  },
-  serialize: (value) => String(clampSidebarWidth(value)),
-});
 const sidebarWidthAtom = atomWithStorage<number>(
-  SIDEBAR_WIDTH_KEY,
-  SIDEBAR_DEFAULT_WIDTH,
-  sidebarWidthStorage,
+  "bb.sidebar.width",
+  320,
+  createLocalStorageSyncStorage<number>({
+    parse: (storedValue, initialValue) => {
+      const parsedValue = Number(storedValue);
+      return storedValue === null || !Number.isFinite(parsedValue)
+        ? initialValue
+        : clampSidebarWidth(parsedValue);
+    },
+    serialize: (value) => String(clampSidebarWidth(value)),
+  }),
   { getOnInit: true },
 );
 const sidebarLiveWidthAtom = atom<number | null>(null);
-
 const sidebarOpenAtom = atomWithStorage<boolean>(
-  SIDEBAR_OPEN_KEY,
+  "bb.sidebar.open",
   true,
   booleanLocalStorage,
   { getOnInit: true },
 );
 
-interface SidebarStateBridgeProps {
-  children: ReactNode;
-}
-
-type SidebarResizeMouseEvent = ReactMouseEvent<HTMLDivElement>;
-type SidebarOpenChangeHandler = (open: boolean) => void;
-
-function SidebarStateBridge({ children }: SidebarStateBridgeProps) {
+function SidebarStateBridge({ children }: { children: ReactNode }) {
   const [open, setOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const sidebarLiveWidth = useAtomValue(sidebarLiveWidthAtom);
-  const handleOpenChange = useCallback<SidebarOpenChangeHandler>(
-    (nextOpen) => {
-      setOpen(nextOpen);
-    },
-    [setOpen],
-  );
+  const shortcut = useAppCommandShortcut("sidebar.toggle");
   useAppCommandHandler("sidebar.toggle", () => {
-    handleOpenChange(!open);
+    setOpen(!open);
     return true;
   });
   return (
@@ -156,203 +117,112 @@ function SidebarStateBridge({ children }: SidebarStateBridgeProps) {
       width={`${sidebarLiveWidth ?? sidebarWidth}px`}
       data-testid="app-layout-root"
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={setOpen}
     >
       {children}
+      <div
+        data-testid="app-sidebar-trigger-overlay"
+        style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
+        className={cn(
+          "fixed top-0 left-0",
+          CHROME_ROW_CLASS,
+          BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
+        )}
+      >
+        <SidebarTrigger
+          aria-label={
+            shortcut ? `Toggle sidebar (${shortcut.label})` : "Toggle sidebar"
+          }
+          aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
+        />
+        <AppCommandShortcutHint
+          shortcut={shortcut}
+          className="absolute left-full ml-1"
+        />
+      </div>
     </SidebarProvider>
   );
 }
 
-function resetSidebarResizeDocumentState(): void {
-  document.body.classList.remove("sidebar-resizing");
-}
-
-function SidebarTriggerOverlay() {
-  const shortcut = useAppCommandShortcut("sidebar.toggle");
-  const triggerProps = {
-    "aria-label": shortcut
-      ? `Toggle sidebar (${shortcut.label})`
-      : "Toggle sidebar",
-    "aria-keyshortcuts": shortcut?.ariaKeyshortcuts,
+function useSidebarResize() {
+  const store = useStore();
+  const [isResizing, setIsResizing] = useState(false);
+  const finishRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => finishRef.current?.(), []);
+  const onMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = store.get(sidebarWidthAtom);
+    let width = startWidth;
+    let frame: number | null = null;
+    const onMove = (moveEvent: MouseEvent) => {
+      width = clampSidebarWidth(startWidth + moveEvent.clientX - startX);
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        flushSync(() => store.set(sidebarLiveWidthAtom, width));
+      });
+    };
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === "Escape") finish();
+    };
+    const finish = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", finish);
+      window.removeEventListener("blur", finish);
+      window.removeEventListener("keydown", onKeyDown);
+      finishRef.current = null;
+      flushSync(() => {
+        store.set(sidebarWidthAtom, width);
+        store.set(sidebarLiveWidthAtom, null);
+      });
+      setIsResizing(false);
+      document.body.classList.remove("sidebar-resizing");
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", finish);
+    window.addEventListener("blur", finish);
+    window.addEventListener("keydown", onKeyDown);
+    finishRef.current = finish;
+    setIsResizing(true);
+    document.body.classList.add("sidebar-resizing");
   };
-  return (
-    <div
-      data-testid="app-sidebar-trigger-overlay"
-      style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
-      className={cn(
-        "fixed top-0 left-0",
-        CHROME_ROW_CLASS,
-        BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
-      )}
-    >
-      <SidebarTrigger {...triggerProps} />
-      <AppCommandShortcutHint
-        shortcut={shortcut}
-        className="absolute left-full ml-1"
-      />
-    </div>
-  );
+  return { isResizing, onMouseDown };
 }
 
-const routeTitles: Record<string, { title: string }> = {
-  "/": { title: "bb" },
-  "/settings": { title: "Settings" },
-};
-
-function resolveRouteTitle(pathname: string): { title: string } | undefined {
-  if (matchPath(`${SETTINGS_ROUTE_PATH}/*`, pathname)) {
-    return routeTitles[SETTINGS_ROUTE_PATH];
-  }
-  return routeTitles[pathname];
-}
-
-interface AppHeaderProps {
-  usesProjectChromeStyle: boolean;
-  projectId?: string;
-  project?: ProjectResponse;
-  pluginPanel?: PluginSlot<"navPanels">;
-  pluginPanelChrome?: PluginNavPanelChrome;
-  pluginPanelSubPath?: string;
-  meta: {
-    title: string;
-    breadcrumbs?: Array<{ label: string; to?: string }>;
-  };
-}
-
-function AppHeader({
-  usesProjectChromeStyle,
-  projectId,
-  project,
-  pluginPanel,
-  pluginPanelChrome,
-  pluginPanelSubPath,
-  meta,
-}: AppHeaderProps) {
-  const headerBreadcrumbs = meta.breadcrumbs;
-  const headerTitle =
-    headerBreadcrumbs || usesProjectChromeStyle ? undefined : meta.title;
-
-  const hasCenterContent = Boolean(headerBreadcrumbs) || Boolean(headerTitle);
-
-  const center = headerBreadcrumbs ? (
-    <div className="min-w-0 flex-1">
-      <AppBreadcrumbs breadcrumbs={headerBreadcrumbs} />
-    </div>
-  ) : pluginPanelChrome ? (
-    <PluginPanelHeaderCenter chrome={pluginPanelChrome} />
-  ) : hasCenterContent ? (
-    <div className="min-w-0 flex-1">
-      {headerTitle ? (
-        <p className="truncate text-sm font-semibold">{headerTitle}</p>
-      ) : null}
-    </div>
-  ) : null;
-
-  const actions = pluginPanel ? (
-    <PluginPanelHeaderActions
-      panel={pluginPanel}
-      subPath={pluginPanelSubPath ?? ""}
-    />
-  ) : usesProjectChromeStyle &&
-    projectId &&
-    !isProjectlessProjectId(projectId) ? (
-    <>
-      <Link
-        to={getSettingsProjectRoutePath(projectId)}
-        className={cn(
-          HEADER_ICON_BUTTON_CLASS,
-          "inline-flex items-center justify-center transition-colors",
-          "text-muted-foreground hover:bg-state-hover hover:text-foreground",
-        )}
-        aria-label="Project settings"
-      >
-        <Icon name="Settings" />
-      </Link>
-      {project ? (
-        <ProjectActionsMenu
-          project={project}
-          triggerClassName={HEADER_ICON_BUTTON_CLASS}
-        />
-      ) : null}
-    </>
-  ) : null;
-
-  return <AppPageHeader center={center} actions={actions} />;
-}
-
-interface AppLayoutProps {
-  children: ReactNode;
-}
-
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children }: { children: ReactNode }) {
   const quickCreateProject = useQuickCreateProjectController();
   const store = useStore();
   const location = useLocation();
-  const { projectId, threadId, isThreadView, isArchivedView, isRootView } =
-    useRouteState();
-  const [resourceRouteLabel, setResourceRouteLabel] = useAtom(
-    resourceRouteLabelAtom,
-  );
-  useEffect(() => {
-    setResourceRouteLabel(null);
-    function handleResourceRouteLabel(event: Event) {
-      if (!(event instanceof CustomEvent)) return;
-      const detail = event.detail;
-      if (
-        typeof detail !== "object" ||
-        detail === null ||
-        !("label" in detail) ||
-        (typeof detail.label !== "string" && detail.label !== null)
-      ) {
-        return;
-      }
-      setResourceRouteLabel(detail.label);
-    }
-    window.addEventListener(
-      RESOURCE_ROUTE_LABEL_EVENT,
-      handleResourceRouteLabel,
-    );
-    return () => {
-      window.removeEventListener(
-        RESOURCE_ROUTE_LABEL_EVENT,
-        handleResourceRouteLabel,
-      );
-    };
-  }, [location.pathname, setResourceRouteLabel]);
+  const { projectId, threadId, isThreadView, isRootView } = useRouteState();
   const navigate = useNavigate();
   const { appRoutePath, settingsRoutePath } = useAppSettingsRouteMemory();
   const setRootComposeProjectId = useSetRootComposeProjectId();
+  const resize = useSidebarResize();
   useEffect(
     () =>
-      wsManager.onThreadOpen((signal) => {
-        const route = getThreadRoutePath({
-          projectId: signal.projectId,
-          threadId: signal.threadId,
-        });
+      wsManager.onThreadOpen(({ projectId, threadId, split }) => {
         const current = store.get(splitLayoutAtom);
         const alreadyOpen =
           current !== null &&
-          findPaneByThread(current.root, signal.projectId, signal.threadId) !==
-            null;
+          findPaneByThread(current.root, projectId, threadId) !== null;
         const next = applyThreadOpenToLayout(
           current,
-          { projectId: signal.projectId, threadId: signal.threadId },
-          signal.split,
+          { projectId, threadId },
+          split,
         );
-        if (next !== current) {
-          store.set(splitLayoutAtom, next);
-        }
-        void navigate(route, alreadyOpen ? { replace: true } : undefined);
+        if (next !== current) store.set(splitLayoutAtom, next);
+        void navigate(
+          getThreadRoutePath({ projectId, threadId }),
+          alreadyOpen ? { replace: true } : undefined,
+        );
       }),
     [navigate, store],
   );
   useAppCommandHandler("thread.new", () => {
-    if (projectId !== undefined) {
-      setRootComposeProjectId(projectId);
-    }
-    void navigate(getRootComposeRoutePath(), {
-      state: { focusPrompt: true },
-    });
+    if (projectId !== undefined) setRootComposeProjectId(projectId);
+    void navigate(getRootComposeRoutePath(), { state: { focusPrompt: true } });
     return true;
   });
   useAppCommandHandler("settings.open", () => {
@@ -363,255 +233,92 @@ export function AppLayout({ children }: AppLayoutProps) {
     void navigate(`${SETTINGS_ROUTE_PATH}/servers`);
     return true;
   });
-  const archivedSectionId = isArchivedView
-    ? new URLSearchParams(location.search).get("sectionId")
-    : null;
-  const navPanelChrome = usePluginNavPanelChrome();
-  const isGlobalSettingsView =
+  const isSettingsView =
     matchPath(`${SETTINGS_ROUTE_PATH}/*`, location.pathname) !== null;
-  const backToAppRoutePath = isGlobalSettingsView ? appRoutePath : null;
+  useAppCommandHandler(
+    "app.back",
+    () => {
+      void navigate(appRoutePath);
+      return true;
+    },
+    0,
+    isSettingsView && !resize.isResizing,
+  );
+  const navPanelChrome = usePluginNavPanelChrome();
   const pluginPanelMatch = matchPath(
     PLUGIN_PANEL_ROUTE_PATH,
     location.pathname,
   );
-  const pluginPanelEntry = pluginPanelMatch
+  const pluginPanel = pluginPanelMatch
     ? navPanelChrome.find(
-        (candidate) =>
-          candidate.chrome.pluginId === pluginPanelMatch.params.pluginId &&
-          candidate.chrome.path === pluginPanelMatch.params.panelPath,
-      )
+        ({ chrome }) =>
+          chrome.pluginId === pluginPanelMatch.params.pluginId &&
+          chrome.path === pluginPanelMatch.params.panelPath,
+      )?.panel
     : undefined;
-  const pluginPanel = pluginPanelEntry?.panel ?? undefined;
-  const pluginPanelChrome = pluginPanelEntry?.chrome;
-  const pluginPanelSubPath = pluginPanelMatch?.params["*"] ?? "";
-  const sidebarNavigationQuery = useSidebarNavigation();
-  const projects = useMemo(
-    () => sidebarNavigationQuery.data?.projects.map(stripProjectThreads),
-    [sidebarNavigationQuery.data],
-  );
-  const sidebarThreads = useMemo(() => {
-    const sidebarNavigation = sidebarNavigationQuery.data;
-    if (!sidebarNavigation) {
-      return [];
-    }
-    return [
-      ...sidebarNavigation.projects.flatMap((project) => project.threads),
-      ...sidebarNavigation.personalProject.threads,
-    ];
-  }, [sidebarNavigationQuery.data]);
-  const titleMentionResources = useSidebarThreadTitleMentionResources(
-    sidebarNavigationQuery.data,
-  );
-  const threadDetailBootstrapQuery = useThreadDetailBootstrap(threadId ?? "", {
-    enabled: isThreadView && Boolean(threadId),
-    timelinePrefetch: isThreadView && Boolean(threadId),
+  const sidebarNavigation = useSidebarNavigation().data;
+  const sidebarThreads = sidebarNavigation
+    ? listSidebarNavigationThreads(sidebarNavigation)
+    : [];
+  const titleMentionResources =
+    useSidebarThreadTitleMentionResources(sidebarNavigation);
+  const bootstrapQuery = useThreadDetailBootstrap(threadId ?? "", {
+    enabled: threadId !== undefined,
+    timelinePrefetch: threadId !== undefined,
   });
-  const hasThreadDetailBootstrapSettled =
-    threadDetailBootstrapQuery.isSuccess || threadDetailBootstrapQuery.isError;
-  const resolvedThreadProjectId = threadDetailBootstrapQuery.data?.projectId;
-  const canonicalThreadRoutePath =
-    isThreadView &&
-    projectId !== undefined &&
-    threadId !== undefined &&
-    resolvedThreadProjectId !== undefined &&
-    resolvedThreadProjectId !== projectId
-      ? getThreadRoutePath({
-          projectId: resolvedThreadProjectId,
-          threadId,
-        })
-      : null;
-  const [isSidebarResizing, setIsSidebarResizing] = useState(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
-  const liveWidthRef = useRef(0);
-  const animationFrameRef = useRef<number | null>(null);
-  const showHeader = !isThreadView && !isRootView && pluginPanelMatch === null;
-  const project = projectId
-    ? projects?.find((candidate) => candidate.id === projectId)
-    : undefined;
-  const archivedSectionName = archivedSectionId
-    ? (sidebarNavigationQuery.data?.sections.find(
-        (section) => section.id === archivedSectionId,
-      )?.name ?? archivedSectionId)
-    : null;
-  const projectName = projectId ? project?.name : undefined;
-  const projectLabel = projectName ?? (projectId ? projectId : undefined);
   const { data: thread } = useThread(threadId ?? "", {
     enabled:
-      Boolean(threadId) && (!isThreadView || hasThreadDetailBootstrapSettled),
-    refetchOnMount:
-      isThreadView &&
-      didThreadDetailBootstrapRefreshAfterMount(threadDetailBootstrapQuery)
-        ? false
-        : "always",
+      threadId !== undefined &&
+      (bootstrapQuery.isSuccess || bootstrapQuery.isError),
+    refetchOnMount: didThreadDetailBootstrapRefreshAfterMount(bootstrapQuery)
+      ? false
+      : "always",
   });
-  const threadDisplayTitle = thread
-    ? resolveThreadTitleDisplayText(
-        getThreadDisplayTitle(thread),
-        titleMentionResources,
-      )
-    : threadId
-      ? `Thread ${threadId.slice(0, 8)}`
-      : "Thread";
-  const automationBreadcrumbs = resolveAutomationBreadcrumbs(
-    location.pathname,
-    resourceRouteLabel,
-  );
-  const meta =
-    automationBreadcrumbs !== null
-      ? { title: "", breadcrumbs: automationBreadcrumbs }
-      : isArchivedView && projectId
-        ? isProjectlessProjectId(projectId)
-          ? {
-              title: "",
-              breadcrumbs: [
-                { label: "Threads", to: getRootComposeRoutePath() },
-                ...(archivedSectionName
-                  ? [{ label: archivedSectionName }]
-                  : []),
-                { label: "Archived" },
-              ],
-            }
-          : {
-              title: "",
-              breadcrumbs: [
-                {
-                  label: projectLabel ?? projectId,
-                  to: getLegacyProjectComposeRoutePath(projectId),
-                },
-                { label: "Archived" },
-              ],
-            }
-        : projectId
-          ? {
-              title: projectLabel ?? projectId,
-            }
-          : (resolveRouteTitle(location.pathname) ?? { title: "" });
-
-  const documentTitle = (() => {
-    if (isThreadView) {
-      return threadDisplayTitle;
-    }
-    if (pluginPanel) {
-      return pluginPanel.title;
-    }
-    if (automationBreadcrumbs) {
-      const sectionLabel = automationBreadcrumbs[0]?.label ?? "BB";
-      const pageLabel = automationBreadcrumbs.at(-1)?.label ?? sectionLabel;
-      return pageLabel === sectionLabel
-        ? sectionLabel
-        : `${pageLabel} · ${sectionLabel}`;
-    }
-    if (isArchivedView && projectId) {
-      if (isProjectlessProjectId(projectId)) {
-        return archivedSectionName
-          ? `${archivedSectionName} · Archived`
-          : "Threads · Archived";
-      }
-      return `${projectLabel ?? projectId} · Archived`;
-    }
-    if (projectId) {
-      return projectLabel ?? projectId;
-    }
-    const routeTitle = resolveRouteTitle(location.pathname)?.title;
-    return routeTitle && routeTitle.length > 0 ? routeTitle : "BB";
-  })();
-  const currentThreadPendingInteractionsQuery = useThreadPendingInteractions(
+  const threadProjectId = bootstrapQuery.data?.projectId;
+  const pendingInteractionsQuery = useThreadPendingInteractions(
     threadId ?? "",
-    { enabled: isThreadView && Boolean(threadId) },
+    { enabled: threadId !== undefined },
   );
-  const currentThreadHasPendingInteraction =
-    getLatestPendingInteraction(currentThreadPendingInteractionsQuery.data) !==
-    null;
-  const faviconBadge = shouldShowFaviconAttentionDot({
-    currentThreadHasPendingInteraction,
-    currentThreadId: threadId,
-    isThreadView,
-    sidebarThreads,
-    thread,
-  })
-    ? "unread"
-    : "none";
-  useFaviconBadge(faviconBadge);
-
-  const handleResizeMouseDown = useCallback(
-    (event: SidebarResizeMouseEvent) => {
-      event.preventDefault();
-      setIsSidebarResizing(true);
-      startXRef.current = event.clientX;
-      startWidthRef.current = store.get(sidebarWidthAtom);
-      liveWidthRef.current = startWidthRef.current;
-      document.body.classList.add("sidebar-resizing");
-    },
-    [store],
+  useFaviconBadge(
+    shouldShowFaviconAttentionDot({
+      currentThreadHasPendingInteraction:
+        getLatestPendingInteraction(pendingInteractionsQuery.data) !== null,
+      currentThreadId: threadId,
+      isThreadView,
+      sidebarThreads,
+      thread,
+    })
+      ? "unread"
+      : "none",
   );
-
-  const finishSidebarResize = useCallback(() => {
-    if (animationFrameRef.current !== null) {
-      window.cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    flushSync(() => {
-      store.set(sidebarWidthAtom, liveWidthRef.current);
-      store.set(sidebarLiveWidthAtom, null);
-    });
-    setIsSidebarResizing(false);
-    resetSidebarResizeDocumentState();
-  }, [store]);
-
+  const routeTitle = isSettingsView ? "Settings" : isRootView ? "bb" : "";
+  const documentTitle = isThreadView
+    ? thread
+      ? resolveThreadTitleDisplayText(
+          getThreadDisplayTitle(thread),
+          titleMentionResources,
+        )
+      : threadId
+        ? `Thread ${threadId.slice(0, 8)}`
+        : "Thread"
+    : (pluginPanel?.title ?? (routeTitle || "BB"));
   useEffect(() => {
-    if (!isSidebarResizing) return;
-
-    const applyLiveWidth = () => {
-      animationFrameRef.current = null;
-      flushSync(() => {
-        store.set(sidebarLiveWidthAtom, liveWidthRef.current);
-      });
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const delta = event.clientX - startXRef.current;
-      liveWidthRef.current = clampSidebarWidth(startWidthRef.current + delta);
-      if (animationFrameRef.current === null) {
-        animationFrameRef.current =
-          window.requestAnimationFrame(applyLiveWidth);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        finishSidebarResize();
-      }
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", finishSidebarResize);
-    window.addEventListener("blur", finishSidebarResize);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", finishSidebarResize);
-      window.removeEventListener("blur", finishSidebarResize);
-      window.removeEventListener("keydown", handleKeyDown);
-      if (animationFrameRef.current !== null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      store.set(sidebarLiveWidthAtom, null);
-      resetSidebarResizeDocumentState();
-    };
-  }, [finishSidebarResize, isSidebarResizing, store]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
     document.title = documentTitle;
   }, [documentTitle]);
 
-  if (canonicalThreadRoutePath !== null) {
+  if (
+    threadId !== undefined &&
+    projectId !== undefined &&
+    threadProjectId !== undefined &&
+    threadProjectId !== projectId
+  ) {
     return (
       <Navigate
         to={{
-          pathname: canonicalThreadRoutePath,
+          pathname: getThreadRoutePath({
+            projectId: threadProjectId,
+            threadId,
+          }),
           search: location.search,
           hash: location.hash,
         }}
@@ -622,68 +329,66 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <TooltipProvider delayDuration={300} disableHoverableContent>
-      <ProjectActionsProvider>
-        <ThreadTitleMentionResourcesProvider {...titleMentionResources}>
-          <AppThreadSectionMoveProvider
-            sections={sidebarNavigationQuery.data?.sections ?? []}
-          >
-            <ThreadActionsProvider>
-              <SidebarStateBridge>
-                {backToAppRoutePath !== null && !isSidebarResizing ? (
-                  <BackToAppCommandHandler routePath={backToAppRoutePath} />
+      <ThreadTitleMentionResourcesProvider value={titleMentionResources}>
+        <ThreadActionsProvider sections={sidebarNavigation?.sections ?? []}>
+          <SidebarStateBridge>
+            {isSettingsView ? (
+              <SettingsSidebar
+                onResizeMouseDown={resize.onMouseDown}
+                isResizing={resize.isResizing}
+                appRoutePath={appRoutePath}
+              />
+            ) : (
+              <AppSidebar
+                onResizeMouseDown={resize.onMouseDown}
+                isResizing={resize.isResizing}
+                settingsRoutePath={settingsRoutePath}
+              />
+            )}
+            <SidebarInset>
+              <div
+                data-testid="app-layout-content-shell"
+                className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
+              >
+                {!isThreadView && !isRootView && pluginPanelMatch === null ? (
+                  <AppPageHeader
+                    center={
+                      routeTitle ? (
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">
+                            {routeTitle}
+                          </p>
+                        </div>
+                      ) : null
+                    }
+                  />
                 ) : null}
-                <AppLayoutSidebar
-                  mode={isGlobalSettingsView ? "settings" : "app"}
-                  onResizeMouseDown={handleResizeMouseDown}
-                  isResizing={isSidebarResizing}
-                  appRoutePath={appRoutePath}
-                  settingsRoutePath={settingsRoutePath}
-                />
-                <SidebarInset>
-                  <div
-                    data-testid="app-layout-content-shell"
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
-                  >
-                    {showHeader ? (
-                      <AppHeader
-                        usesProjectChromeStyle={isRootView || isArchivedView}
-                        projectId={projectId}
-                        project={project}
-                        pluginPanel={pluginPanel}
-                        pluginPanelChrome={pluginPanelChrome}
-                        pluginPanelSubPath={pluginPanelSubPath}
-                        meta={meta}
-                      />
-                    ) : null}
-                    <main className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
-                      {children}
-                    </main>
-                  </div>
-                </SidebarInset>
-                <SidebarTriggerOverlay />
-              </SidebarStateBridge>
-              <PluginAppOverlays />
-              <IframeDragGuardOverlay
-                active={isSidebarResizing}
-                cursor="col-resize"
-              />
-              <CommandPalette
-                threadId={threadId ?? null}
-                projectId={projectId ?? null}
-              />
-              <ProjectPathDialog
-                target={quickCreateProject.projectPathDialog.target}
-                pending={quickCreateProject.isCreating}
-                hostId={quickCreateProject.hostId}
-                hostName={quickCreateProject.hostName}
-                hosts={quickCreateProject.hosts}
-                onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
-                onSubmit={quickCreateProject.submitProjectPath}
-              />
-            </ThreadActionsProvider>
-          </AppThreadSectionMoveProvider>
-        </ThreadTitleMentionResourcesProvider>
-      </ProjectActionsProvider>
+                <main className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
+                  <ProjectActionsProvider>{children}</ProjectActionsProvider>
+                </main>
+              </div>
+            </SidebarInset>
+          </SidebarStateBridge>
+          <PluginAppOverlays />
+          <IframeDragGuardOverlay
+            active={resize.isResizing}
+            cursor="col-resize"
+          />
+          <CommandPalette
+            threadId={threadId ?? null}
+            projectId={projectId ?? null}
+          />
+          <ProjectPathDialog
+            target={quickCreateProject.projectPathDialog.target}
+            pending={quickCreateProject.isCreating}
+            hostId={quickCreateProject.hostId}
+            hostName={quickCreateProject.hostName}
+            hosts={quickCreateProject.hosts}
+            onOpenChange={quickCreateProject.projectPathDialog.onOpenChange}
+            onSubmit={quickCreateProject.submitProjectPath}
+          />
+        </ThreadActionsProvider>
+      </ThreadTitleMentionResourcesProvider>
     </TooltipProvider>
   );
 }
