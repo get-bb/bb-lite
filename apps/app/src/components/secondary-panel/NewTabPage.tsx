@@ -24,12 +24,10 @@ interface NewTabPageProps {
   autoFocus: boolean;
   projectId: string | undefined;
   environmentId: string | null;
-  hostId?: string | null;
   onAutoFocusHandled: () => void;
   onSelect: (path: string) => void;
   onStartTerminal?: () => void;
   pluginActions?: readonly PluginPanelActionEntry[];
-  showFileSearch?: boolean;
 }
 
 const FILE_SEARCH_LIMIT = 20;
@@ -77,12 +75,10 @@ export function NewTabPage({
   autoFocus,
   projectId,
   environmentId,
-  hostId,
   onAutoFocusHandled,
   onSelect,
   onStartTerminal,
   pluginActions = [],
-  showFileSearch = true,
 }: NewTabPageProps) {
   const quickOpenShortcut = useAppCommandShortcut("file.quickOpen");
   const terminalShortcut = useAppCommandShortcut("terminal.open");
@@ -96,7 +92,6 @@ export function NewTabPage({
     query,
     limit: FILE_SEARCH_LIMIT,
     environmentId,
-    hostId,
     includeDirectories: false,
   });
   const suggestions = hasQuery
@@ -201,77 +196,72 @@ export function NewTabPage({
       className="flex min-h-full flex-col gap-3 bg-sidebar px-4 pb-3 pt-1"
     >
       <div className="flex min-w-0 flex-col gap-3">
-        {showFileSearch ? (
-          <div className="relative min-w-0">
+        <div className="relative min-w-0">
+          <Icon
+            name="Search"
+            className={cn(
+              "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground",
+              COARSE_POINTER_ICON_SIZE_CLASS,
+            )}
+          />
+          <Input
+            ref={inputRef}
+            data-panel-new-tab-item=""
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (suggestions.length === 0) return;
+              const step =
+                event.key === "ArrowDown"
+                  ? 1
+                  : event.key === "ArrowUp"
+                    ? -1
+                    : 0;
+              if (step !== 0) {
+                event.preventDefault();
+                setActiveIndex(
+                  (current) =>
+                    (current + step + suggestions.length) % suggestions.length,
+                );
+              } else if (event.key === "Enter" && activeSuggestion) {
+                event.preventDefault();
+                onSelect(activeSuggestion.path);
+              }
+            }}
+            disabled={isUnavailable}
+            role="combobox"
+            aria-label={
+              quickOpenShortcut
+                ? `Search files (${quickOpenShortcut.label})`
+                : "Search files"
+            }
+            aria-keyshortcuts={quickOpenShortcut?.ariaKeyshortcuts}
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
+            aria-controls={suggestions.length > 0 ? listboxId : undefined}
+            aria-activedescendant={
+              activeSuggestion ? suggestionId(activeSuggestion.path) : undefined
+            }
+            placeholder={
+              isUnavailable ? "No searchable source" : "Search files"
+            }
+            className={cn(
+              "h-8 pl-8 pr-8 focus-visible:ring-0",
+              COARSE_POINTER_TEXT_SM_CLASS,
+            )}
+          />
+          {search.isDebouncing ? (
             <Icon
-              name="Search"
+              name="Spinner"
               className={cn(
-                "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground",
-                COARSE_POINTER_ICON_SIZE_CLASS,
+                "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground",
+                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
               )}
             />
-            <Input
-              ref={inputRef}
-              data-panel-new-tab-item=""
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (suggestions.length === 0) return;
-                const step =
-                  event.key === "ArrowDown"
-                    ? 1
-                    : event.key === "ArrowUp"
-                      ? -1
-                      : 0;
-                if (step !== 0) {
-                  event.preventDefault();
-                  setActiveIndex(
-                    (current) =>
-                      (current + step + suggestions.length) %
-                      suggestions.length,
-                  );
-                } else if (event.key === "Enter" && activeSuggestion) {
-                  event.preventDefault();
-                  onSelect(activeSuggestion.path);
-                }
-              }}
-              disabled={isUnavailable}
-              role="combobox"
-              aria-label={
-                quickOpenShortcut
-                  ? `Search files (${quickOpenShortcut.label})`
-                  : "Search files"
-              }
-              aria-keyshortcuts={quickOpenShortcut?.ariaKeyshortcuts}
-              aria-autocomplete="list"
-              aria-expanded={suggestions.length > 0}
-              aria-controls={suggestions.length > 0 ? listboxId : undefined}
-              aria-activedescendant={
-                activeSuggestion
-                  ? suggestionId(activeSuggestion.path)
-                  : undefined
-              }
-              placeholder={
-                isUnavailable ? "No searchable source" : "Search files"
-              }
-              className={cn(
-                "h-8 pl-8 pr-8 focus-visible:ring-0",
-                COARSE_POINTER_TEXT_SM_CLASS,
-              )}
-            />
-            {search.isDebouncing ? (
-              <Icon
-                name="Spinner"
-                className={cn(
-                  "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground",
-                  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
-                )}
-              />
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
+        </div>
         {hasQuery ? null : idleActions}
-        {!showFileSearch ? null : isUnavailable ? (
+        {isUnavailable ? (
           <SearchMessage
             iconName="FileQuestion"
             message="No searchable source is available."

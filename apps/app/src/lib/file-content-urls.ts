@@ -23,30 +23,6 @@ export function buildProjectAttachmentContentUrl(
   );
 }
 
-export function buildProjectFileContentUrl(
-  projectId: string,
-  path: string,
-  routing: { environmentId: string | null; hostId: string | null },
-): string {
-  if (routing.environmentId !== null) {
-    return buildEnvironmentFileContentUrl(
-      routing.environmentId,
-      { kind: "working-tree" },
-      path,
-    );
-  }
-  const filePath = encodePathSegments(path);
-  return toRelativeUrl(
-    routing.hostId === null
-      ? apiClient.projects[":id"].files[":filePath{.+}"].$url({
-          param: { id: projectId, filePath },
-        })
-      : apiClient.projects[":id"].hosts[":hostId"].files[":filePath{.+}"].$url({
-          param: { id: projectId, hostId: routing.hostId, filePath },
-        }),
-  );
-}
-
 export function buildEnvironmentFileContentUrl(
   environmentId: string,
   source: EnvironmentFilePreviewSource,

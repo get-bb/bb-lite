@@ -7,15 +7,11 @@ import type {
   PromptHistoryResponse,
   WorkspacePathListResponse,
 } from "@bb/server-contract";
-import type { FilePreview } from "@bb/client-core";
-import { loadFilePreview } from "@/lib/api";
-import { buildProjectFileContentUrl } from "@/lib/file-content-urls";
 import { readProjectBranchOptions } from "@/lib/project-branch-options";
 import { sdk } from "@/lib/sdk";
 import { useProjectDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import {
   projectCommandsQueryKey,
-  projectFilePreviewQueryKey,
   projectPathsQueryKey,
   projectPromptHistoryQueryKey,
   projectSourceBranchesQueryKey,
@@ -29,8 +25,6 @@ import {
   type QueryOptions,
 } from "./query-helpers";
 import {
-  EXPENSIVE_MANUAL_QUERY_POLICY,
-  HEAVY_PAYLOAD_QUERY_POLICY,
   REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
   TYPEAHEAD_QUERY_POLICY,
 } from "./query-policies";
@@ -223,57 +217,6 @@ export function useProjectPathSuggestions(args: UseProjectPathSuggestionsArgs) {
     enabled,
     ...TYPEAHEAD_QUERY_POLICY,
     placeholderData: (previousData) => previousData,
-  });
-}
-
-interface ProjectFileRouting {
-  environmentId: string | null;
-  hostId: string | null;
-}
-
-export function useProjectFilePreview(
-  projectId: string | undefined,
-  path: string | null,
-  routing: ProjectFileRouting,
-  options?: QueryOptions,
-) {
-  const enabled =
-    (options?.enabled ?? true) && Boolean(projectId) && Boolean(path);
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-
-  return useQuery<FilePreview>({
-    queryKey: projectFilePreviewQueryKey(
-      projectId,
-      routing.environmentId,
-      routing.hostId,
-      path,
-    ),
-    queryFn: async ({ signal }) => {
-      const requiredProjectId = requireProjectId(
-        projectId,
-        "useProjectFilePreview",
-      );
-      const requiredPath = requireEnabledQueryArg({
-        value: path,
-        hookName: "useProjectFilePreview",
-        argName: "path",
-      });
-      return loadFilePreview(
-        {
-          name: requiredPath.split("/").at(-1),
-          path: requiredPath,
-          url: buildProjectFileContentUrl(
-            requiredProjectId,
-            requiredPath,
-            routing,
-          ),
-        },
-        signal,
-      );
-    },
-    enabled,
-    ...EXPENSIVE_MANUAL_QUERY_POLICY,
-    ...HEAVY_PAYLOAD_QUERY_POLICY,
   });
 }
 

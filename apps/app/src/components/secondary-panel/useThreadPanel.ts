@@ -148,7 +148,7 @@ export function useThreadPanel({
   const openWorkspaceFile = useCallback(
     (file: WorkspaceFileTabState, replaceNewTab = false) => {
       if (environmentId === null) return;
-      open(workspaceFileTab(file, environmentId, null), replaceNewTab);
+      open(workspaceFileTab(file, environmentId), replaceNewTab);
     },
     [environmentId, open],
   );

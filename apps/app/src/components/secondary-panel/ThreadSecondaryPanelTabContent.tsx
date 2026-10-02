@@ -4,11 +4,9 @@ import {
   useEnvironment,
   useEnvironmentFilePreview,
 } from "@/hooks/queries/environment-queries";
-import { useProjectFilePreview } from "@/hooks/queries/project-queries";
 import { useThreadHostFilePreview } from "@/hooks/queries/thread-queries";
 import {
   buildEnvironmentFileContentUrl,
-  buildProjectFileContentUrl,
   buildThreadHostFileContentUrl,
 } from "@/lib/file-content-urls";
 import type {
@@ -95,49 +93,6 @@ export function WorkspaceFilePreviewTabContent({
         linkRouting: markdownLinkRouting,
         resolveRelativeSrc: (path) =>
           buildEnvironmentFileContentUrl(environmentId, source, path),
-      })}
-    />
-  );
-}
-
-interface ProjectFilePreviewTabContentProps extends FilePreviewTabProps {
-  environmentId: string | null;
-  hostId: string | null;
-  projectId: string;
-  rootPath?: string | null;
-  threadId?: string | null;
-}
-
-export function ProjectFilePreviewTabContent({
-  environmentId,
-  hostId,
-  isPanelOpen,
-  projectId,
-  rootPath = null,
-  threadId = null,
-  ...props
-}: ProjectFilePreviewTabContentProps) {
-  const { activePath, markdownLinkRouting } = props;
-  const query = useProjectFilePreview(
-    projectId,
-    activePath,
-    { environmentId, hostId },
-    { enabled: isPanelOpen },
-  );
-  return (
-    <QueryFilePreview
-      {...props}
-      query={query}
-      markdownLinkRouting={buildMarkdownFileImageRouting({
-        path: activePath,
-        rootPath,
-        threadId,
-        linkRouting: markdownLinkRouting,
-        resolveRelativeSrc: (path) =>
-          buildProjectFileContentUrl(projectId, path, {
-            environmentId,
-            hostId,
-          }),
       })}
     />
   );

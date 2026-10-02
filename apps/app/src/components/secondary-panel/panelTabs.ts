@@ -71,19 +71,14 @@ export function panelTabId(
 
 export function workspaceFileTab(
   file: WorkspaceFileTabState,
-  environmentId: string | null,
-  projectId: string | null,
+  environmentId: string,
 ): PanelTab {
   return {
     ...file,
     kind: "workspace-file-preview",
     environmentId,
-    projectId,
-    id: panelTabId(
-      "workspace-file-preview",
-      file.path,
-      environmentId ?? (projectId === null ? null : `project:${projectId}`),
-    ),
+    projectId: null,
+    id: panelTabId("workspace-file-preview", file.path, environmentId),
   };
 }
 

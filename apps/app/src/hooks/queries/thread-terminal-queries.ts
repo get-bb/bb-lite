@@ -15,12 +15,6 @@ import { terminalsQueryKey, type TerminalQueryScope } from "./query-keys";
 import { requireEnabledQueryArg, type QueryOptions } from "./query-helpers";
 import { REALTIME_OWNED_NO_FOCUS_QUERY_POLICY } from "./query-policies";
 
-type ScopedCreateTerminalRequest = Omit<CreateTerminalRequest, "target">;
-
-interface CreateEnvironmentTerminalMutationRequest extends ScopedCreateTerminalRequest {
-  environmentId: string;
-}
-
 interface RenameTerminalMutationRequest extends UpdateTerminalRequest {
   terminalId: string;
 }
@@ -28,10 +22,6 @@ interface RenameTerminalMutationRequest extends UpdateTerminalRequest {
 interface CloseTerminalMutationRequest {
   mode: CloseTerminalRequest["mode"];
   terminalId: string;
-}
-
-interface CloseEnvironmentTerminalMutationRequest extends CloseTerminalMutationRequest {
-  environmentId: string;
 }
 
 export function useTerminals(
@@ -57,13 +47,6 @@ export function useTerminals(
   });
 }
 
-export function useEnvironmentTerminals(id: string, options?: QueryOptions) {
-  return useTerminals(
-    id ? { kind: "environment", environmentId: id } : null,
-    options,
-  );
-}
-
 export function useCreateTerminal() {
   const queryClient = useQueryClient();
 
@@ -78,33 +61,6 @@ export function useCreateTerminal() {
       applyTerminalSessionUpsert({ queryClient, session });
     },
   });
-}
-
-export function useCreateEnvironmentTerminal() {
-  const createTerminal = useCreateTerminal();
-
-  return {
-    ...createTerminal,
-    mutate: (
-      { environmentId, ...request }: CreateEnvironmentTerminalMutationRequest,
-      options?: Parameters<typeof createTerminal.mutate>[1],
-    ) =>
-      createTerminal.mutate(
-        {
-          ...request,
-          target: { kind: "environment", environmentId },
-        },
-        options,
-      ),
-    mutateAsync: ({
-      environmentId,
-      ...request
-    }: CreateEnvironmentTerminalMutationRequest) =>
-      createTerminal.mutateAsync({
-        ...request,
-        target: { kind: "environment", environmentId },
-      }),
-  };
 }
 
 export function useRenameTerminal() {
@@ -139,24 +95,4 @@ export function useCloseTerminal() {
       });
     },
   });
-}
-
-export function useCloseEnvironmentTerminal() {
-  const closeTerminal = useCloseTerminal();
-
-  return {
-    ...closeTerminal,
-    mutate: (
-      {
-        environmentId: _environmentId,
-        ...request
-      }: CloseEnvironmentTerminalMutationRequest,
-      options?: Parameters<typeof closeTerminal.mutate>[1],
-    ) => closeTerminal.mutate(request, options),
-    mutateAsync: ({
-      environmentId: _environmentId,
-      ...request
-    }: CloseEnvironmentTerminalMutationRequest) =>
-      closeTerminal.mutateAsync(request),
-  };
 }
