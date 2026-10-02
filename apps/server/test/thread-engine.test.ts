@@ -7,7 +7,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   const { ctx, eventData, hostId, rows, submitted, thread } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
-  ctx.plugins.generateTitle = async () => "  Refactor the  scheduler ";
+  ctx.plugins.titleFallback = async () => "  Refactor the  scheduler ";
   const pool = { name: "POOL_URL", value: { serverPath: "/pool" } };
   ctx.plugins.contributedEnv = async () => [pool];
   const prompt = text("Please refactor the scheduler module today");

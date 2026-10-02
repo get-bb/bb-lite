@@ -337,5 +337,6 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   const found = await plugins.searchMentions({ trigger: "@", ...query });
   expect(found).toEqual([{ ...group, items: [item] }]);
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
+  plugins.titleFallback = async () => "Unused";
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
 });

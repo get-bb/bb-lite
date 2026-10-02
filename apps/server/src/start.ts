@@ -1,5 +1,6 @@
 import { defaultAdapters } from "@bb/runner";
 import { loadConfig, type ServerEnv } from "./config.js";
+import { codexTitle } from "./providers/title-service.js";
 import { localRunnerFor } from "./runners/local.js";
 import { createServer, type BbServer } from "./server.js";
 
@@ -20,6 +21,7 @@ export async function startServer(
   );
   const local = localRunnerFor(config, adapters);
   const server = createServer({ config, localRunner: local.connect });
+  server.ctx.plugins.titleFallback = codexTitle;
   const { url } = await server.listen();
   const { dataDir, version } = config;
   server.ctx.log.info("bb server listening", { url, dataDir, version });

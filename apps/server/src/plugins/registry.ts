@@ -34,8 +34,14 @@ function toolResponse(text: string, success: boolean): ToolCallResponse {
   return { contentItems: [{ type: "inputText", text }], success };
 }
 
+type TitleFallback = (
+  task: string,
+  signal: AbortSignal,
+) => Promise<string | null>;
+
 export class PluginRegistry {
   protected readonly records = new Map<string, PluginRecord>();
+  titleFallback: TitleFallback | null = null;
 
   constructor(protected readonly log: Logger) {}
 
@@ -166,14 +172,18 @@ export class PluginRegistry {
     prompt: string,
     signal: AbortSignal,
   ): Promise<string | null> {
-    for (const [id, instance] of this.active()) {
-      for (const service of instance.inference) {
-        const complete = service.complete.bind(service, prompt, { signal });
-        const text = await this.attempt(id, "inference", complete, undefined);
-        if (text !== undefined && text.trim() !== "") return text.trim();
-      }
+    const services = this.active().flatMap(([id, instance]) =>
+      instance.inference.map((service) => ({ id, service })),
+    );
+    for (const { id, service } of services) {
+      const complete = service.complete.bind(service, prompt, { signal });
+      const text = await this.attempt(id, "inference", complete, undefined);
+      if (text !== undefined && text.trim() !== "") return text.trim();
     }
-    return null;
+    const fallback = this.titleFallback;
+    if (services.length > 0 || fallback === null) return null;
+    const title = (task: string) => fallback(task, signal);
+    return (await this.attempt("core", "title", title, prompt)) ?? null;
   }
 
   publicUrl(): string | null {
