@@ -1,60 +1,35 @@
 import {
-  type ClientTurnRequestId,
-  type ThreadEvent,
   requireThreadEventScopeTurnId,
+  turnScope,
+  type ClientTurnRequestId,
   type PromptInput,
   type PromptTextMention,
+  type Thread,
+  type ThreadEvent,
 } from "@bb/domain";
-import {
-  type EventMeta,
-  type BuildEventProjectionMessagesOptions,
-  type EventProjectionTurnRequestKind,
-  type EventProjectionTurnRequest,
-  type EventProjectionUserMessage,
-  eventProjectionMessageTurnScopeFields,
+import type {
+  TimelineConversationAttachments,
+  TimelineConversationTurnRequest,
+} from "@bb/server-contract";
+import type {
+  EventMeta,
+  ThreadEventWithMeta,
+  UserMessage,
 } from "./event-projection-types.js";
 import { messageId, parseAgentMessageEnvelope } from "./timeline-format.js";
 
-export type ThreadEventWithMetaLike = { event: ThreadEvent; meta: EventMeta };
-
 export type AcceptedClientRequest = { meta: EventMeta; turnId: string };
 
-export interface AcceptedClientRequestContext {
-  acceptedClientRequestEvents: readonly ThreadEventWithMetaLike[];
-  rejectedClientRequestEvents: readonly ThreadEventWithMetaLike[];
-}
+export type ClientTurnRequestedEvent = Extract<
+  ThreadEvent,
+  { type: "client/turn/requested" }
+>;
 
-export const EMPTY_ACCEPTED_CLIENT_REQUEST_CONTEXT: AcceptedClientRequestContext =
-  { acceptedClientRequestEvents: [], rejectedClientRequestEvents: [] };
-
-export function buildRejectedClientRequestById(
-  context: AcceptedClientRequestContext,
-  events: readonly ThreadEventWithMetaLike[],
-): Map<ClientTurnRequestId, EventMeta> {
-  const rejectedRequestById = new Map<ClientTurnRequestId, EventMeta>();
-  for (const { event, meta } of [
-    ...events,
-    ...context.rejectedClientRequestEvents,
-  ]) {
-    if (
-      event.type === "client/turn/rejected" &&
-      !rejectedRequestById.has(event.requestId)
-    ) {
-      rejectedRequestById.set(event.requestId, meta);
-    }
-  }
-  return rejectedRequestById;
-}
-
-export function buildAcceptedClientRequestById(args: {
-  context: AcceptedClientRequestContext;
-  events: readonly ThreadEventWithMetaLike[];
-}): Map<ClientTurnRequestId, AcceptedClientRequest> {
+export function buildAcceptedClientRequestById(
+  events: readonly ThreadEventWithMeta[],
+): Map<ClientTurnRequestId, AcceptedClientRequest> {
   const acceptedById = new Map<ClientTurnRequestId, AcceptedClientRequest>();
-  for (const { event, meta } of [
-    ...args.events,
-    ...args.context.acceptedClientRequestEvents,
-  ]) {
+  for (const { event, meta } of events) {
     if (event.type !== "turn/input/accepted") continue;
     const turnId = requireThreadEventScopeTurnId(event);
     if (!acceptedById.has(event.clientRequestId)) {
@@ -64,82 +39,61 @@ export function buildAcceptedClientRequestById(args: {
   return acceptedById;
 }
 
-export function parsePromptInput(
-  input: ReadonlyArray<PromptInput> | undefined,
-): {
+export function parsePromptInput(input: readonly PromptInput[]): {
   text: string;
-  webImages: number;
-  localImages: number;
-  localFiles: number;
-  imageUrls: string[];
-  localImagePaths: string[];
-  localFilePaths: string[];
   mentions: PromptTextMention[];
+  attachments: TimelineConversationAttachments;
 } | null {
-  if (!Array.isArray(input) || input.length === 0) return null;
-  const textParts: string[] = [];
-  let webImages = 0;
-  let localImages = 0;
-  let localFiles = 0;
+  let text = "";
+  const mentions: PromptTextMention[] = [];
   const imageUrls: string[] = [];
   const localImagePaths: string[] = [];
   const localFilePaths: string[] = [];
-  const mentions: PromptTextMention[] = [];
-  let textOffset = 0;
+  const counts = { webImages: 0, localImages: 0, localFiles: 0 };
   for (const part of input) {
     if (part.visibility === "agent-only") continue;
     switch (part.type) {
       case "text":
-        if (part.text.length > 0) {
-          for (const mention of part.mentions) {
-            if (
-              mention.start >= 0 &&
-              mention.end > mention.start &&
-              mention.end <= part.text.length
-            ) {
-              mentions.push({
-                ...mention,
-                start: textOffset + mention.start,
-                end: textOffset + mention.end,
-              });
-            }
+        for (const mention of part.mentions) {
+          if (
+            mention.start >= 0 &&
+            mention.end > mention.start &&
+            mention.end <= part.text.length
+          ) {
+            mentions.push({
+              ...mention,
+              start: text.length + mention.start,
+              end: text.length + mention.end,
+            });
           }
-          textParts.push(part.text);
-          textOffset += part.text.length;
         }
+        text += part.text;
         break;
       case "image":
-        webImages += 1;
+        counts.webImages += 1;
         if (part.url.length > 0) imageUrls.push(part.url);
         break;
       case "localImage":
-        localImages += 1;
+        counts.localImages += 1;
         if (part.path.length > 0) localImagePaths.push(part.path);
         break;
       case "localFile":
-        localFiles += 1;
+        counts.localFiles += 1;
         if (part.path.length > 0) localFilePaths.push(part.path);
         break;
     }
   }
-  const text = textParts.join("");
-  if (!text && webImages === 0 && localImages === 0 && localFiles === 0) {
-    return null;
-  }
+  const attached = counts.webImages + counts.localImages + counts.localFiles;
+  if (!text && attached === 0) return null;
   return {
     text,
-    webImages,
-    localImages,
-    localFiles,
-    imageUrls,
-    localImagePaths,
-    localFilePaths,
     mentions,
+    attachments: { ...counts, imageUrls, localImagePaths, localFilePaths },
   };
 }
 
 export function shouldPreservePendingMessages(
-  threadStatus: BuildEventProjectionMessagesOptions["threadStatus"] | undefined,
+  threadStatus: Thread["status"],
 ): boolean {
   return (
     threadStatus === "starting" ||
@@ -148,22 +102,10 @@ export function shouldPreservePendingMessages(
   );
 }
 
-interface ParseUserFromClientRequestArgs {
-  acceptedClientRequest?: AcceptedClientRequest;
-  decoded: ThreadEvent;
-  meta: EventMeta;
-  options?: BuildEventProjectionMessagesOptions;
-}
-
-type ClientTurnRequestedEvent = Extract<
-  ThreadEvent,
-  { type: "client/turn/requested" }
->;
-
-function resolveTurnRequestKind(
+export function turnRequestKind(
   decoded: ClientTurnRequestedEvent,
   acceptedClientRequest: AcceptedClientRequest | undefined,
-): EventProjectionTurnRequestKind {
+): TimelineConversationTurnRequest["kind"] {
   const expectedTurnId =
     "expectedTurnId" in decoded.target ? decoded.target.expectedTurnId : null;
   return expectedTurnId === null ||
@@ -173,51 +115,43 @@ function resolveTurnRequestKind(
     : "steer";
 }
 
-function buildClientUserMessages(
+export function clientRequestUserMessages(
   decoded: ClientTurnRequestedEvent,
   meta: EventMeta,
-  requestStatus: EventProjectionTurnRequest["status"],
+  status: TimelineConversationTurnRequest["status"],
   acceptedClientRequest?: AcceptedClientRequest,
-): EventProjectionUserMessage[] {
+): UserMessage[] {
+  const { target } = decoded;
   const targetTurnId =
-    decoded.target.kind === "thread-start"
+    target.kind === "thread-start"
       ? null
       : (acceptedClientRequest?.turnId ??
-        ("expectedTurnId" in decoded.target
-          ? decoded.target.expectedTurnId
-          : null));
-  const messages: EventProjectionUserMessage[] = [];
+        ("expectedTurnId" in target ? target.expectedTurnId : null));
+  const kind = turnRequestKind(decoded, acceptedClientRequest);
+  const rowMeta =
+    acceptedClientRequest && kind === "steer"
+      ? acceptedClientRequest.meta
+      : meta;
+  const messages: UserMessage[] = [];
   for (const input of decoded.inputGroups ?? [decoded.input]) {
     const parsedInput = parsePromptInput(input);
     if (!parsedInput) continue;
-    const turnRequest: EventProjectionTurnRequest = {
-      isGrouped: decoded.inputGroups !== undefined,
-      kind: resolveTurnRequestKind(decoded, acceptedClientRequest),
-      status: requestStatus,
-    };
-    const rowMeta =
-      acceptedClientRequest && turnRequest.kind === "steer"
-        ? acceptedClientRequest.meta
-        : meta;
     const agentEnvelope = parseAgentMessageEnvelope(parsedInput.text);
     const initiator =
       decoded.initiator === "user" && agentEnvelope !== null
         ? "agent"
         : decoded.initiator;
+    const suffix = messages.length > 0 ? `-${messages.length}` : "";
     messages.push({
       kind: "user",
-      id: messageId(
-        decoded.threadId,
-        "user-seed",
-        messages.length > 0 ? `${meta.seq}-${messages.length}` : `${meta.seq}`,
-      ),
+      id: messageId(decoded.threadId, "user-seed", `${meta.seq}${suffix}`),
       threadId: decoded.threadId,
       sourceSeqStart: rowMeta.seq,
       sourceSeqEnd: rowMeta.seq,
       createdAt: rowMeta.createdAt,
-      ...(targetTurnId
-        ? eventProjectionMessageTurnScopeFields(targetTurnId)
-        : { scope: decoded.scope }),
+      scope: targetTurnId ? turnScope(targetTurnId) : decoded.scope,
+      role: "user",
+      ...parsedInput,
       initiator,
       senderThreadId:
         decoded.senderThreadId ??
@@ -226,97 +160,20 @@ function buildClientUserMessages(
           : null),
       systemMessageKind: decoded.systemMessageKind ?? "unlabeled",
       systemMessageSubject: decoded.systemMessageSubject ?? null,
-      turnRequest,
-      text: parsedInput.text,
-      mentions: parsedInput.mentions,
-      attachments: {
-        webImages: parsedInput.webImages,
-        localImages: parsedInput.localImages,
-        localFiles: parsedInput.localFiles,
-        ...(parsedInput.imageUrls.length > 0
-          ? { imageUrls: parsedInput.imageUrls }
-          : {}),
-        ...(parsedInput.localImagePaths.length > 0
-          ? { localImagePaths: parsedInput.localImagePaths }
-          : {}),
-        ...(parsedInput.localFilePaths.length > 0
-          ? { localFilePaths: parsedInput.localFilePaths }
-          : {}),
+      turnRequest: {
+        isGrouped: decoded.inputGroups !== undefined,
+        kind,
+        status,
       },
     });
   }
   return messages;
 }
 
-export function parseUsersFromClientRequest(
-  args: ParseUserFromClientRequestArgs,
-): EventProjectionUserMessage[] {
-  const { acceptedClientRequest, decoded, meta, options } = args;
-  if (
-    decoded.type !== "client/turn/requested" ||
-    !options?.threadStatus ||
-    resolveTurnRequestKind(decoded, acceptedClientRequest) !== "message"
-  ) {
-    return [];
-  }
-  return buildClientUserMessages(
-    decoded,
-    meta,
-    acceptedClientRequest ? "accepted" : "pending",
-    acceptedClientRequest,
-  );
-}
-
-export function parsePendingSteersFromClientRequest(
-  args: ParseUserFromClientRequestArgs,
-): EventProjectionUserMessage[] {
-  const { acceptedClientRequest, decoded, meta, options } = args;
-  if (
-    acceptedClientRequest ||
-    decoded.type !== "client/turn/requested" ||
-    resolveTurnRequestKind(decoded, undefined) !== "steer" ||
-    !shouldPreservePendingMessages(options?.threadStatus)
-  ) {
-    return [];
-  }
-  return buildClientUserMessages(decoded, meta, "pending");
-}
-
-export function parseAcceptedSteersFromClientRequest(
-  args: ParseUserFromClientRequestArgs & {
-    acceptedClientRequest: AcceptedClientRequest;
-  },
-): EventProjectionUserMessage[] {
-  const { acceptedClientRequest, decoded, meta, options } = args;
-  if (
-    decoded.type !== "client/turn/requested" ||
-    resolveTurnRequestKind(decoded, acceptedClientRequest) !== "steer" ||
-    !options?.threadStatus
-  ) {
-    return [];
-  }
-  return buildClientUserMessages(
-    decoded,
-    meta,
-    "accepted",
-    acceptedClientRequest,
-  );
-}
-
-export function parseRejectedUsersFromClientRequest(
-  args: Omit<ParseUserFromClientRequestArgs, "acceptedClientRequest">,
-): EventProjectionUserMessage[] {
-  const { decoded, meta, options } = args;
-  if (decoded.type !== "client/turn/requested" || !options?.threadStatus) {
-    return [];
-  }
-  return buildClientUserMessages(decoded, meta, "rejected");
-}
-
 export function parseProviderUserMessage(
   decoded: ThreadEvent,
   meta: EventMeta,
-): EventProjectionUserMessage | null {
+): UserMessage | null {
   if (
     decoded.type !== "item/completed" ||
     decoded.item.type !== "userMessage"
@@ -338,12 +195,14 @@ export function parseProviderUserMessage(
     ...(decoded.item.parentToolCallId
       ? { parentToolCallId: decoded.item.parentToolCallId }
       : {}),
+    role: "user",
+    text,
+    mentions: [],
+    attachments: null,
     initiator: "system",
     senderThreadId: null,
     systemMessageKind: "unlabeled",
     systemMessageSubject: null,
     turnRequest: { isGrouped: false, kind: "steer", status: "accepted" },
-    text,
-    mentions: [],
   };
 }
