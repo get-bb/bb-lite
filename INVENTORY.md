@@ -50,53 +50,66 @@ app-server protocol. It is bb's own `ThreadEvent` dialect (bb item types, bb-min
 
 ## Keep / shrink / cut, with budgets
 
-"Now" is non-test lines in the original. Budgets include that area's own tests unless a test line is shown.
+"Now" is non-test lines in the original. Budgets include that area's own tests. The first plan (kept in
+git history) gave the server side more room than it needed and the UI less; these are the budgets the
+work is being held to after the first full integration.
 
-### Web UI (copied, then cut)
+### Web UI (copied, then cut, then its plumbing rewritten smaller)
 
 | Area | Now | Decision | Budget |
 |---|---:|---|---:|
-| `apps/app` | 183,931 | Shrink hard. Keep the visible components of the thread screen, composer, right panel, sidebar shell, split panes, command palette, settings the user has touched. Rewrite the data layer, tab model and plugin host smaller. Cut mobile, desktop shell, marketplace, updates, server-move, in-app browser, voice, PR UI, skills pages, cloud machines, stories | 54,000 |
-| `plugins/thread-list` | 17,642 | Shrink. Keep "Custom" sections mode, pinned, drag and drop, row actions; cut by-project and by-machine modes, touch code, forked helper copies | 9,000 |
-| `packages/thread-view` | 16,497 | Shrink. Timeline projection runs on the server and the view helpers in the browser; drop legacy converters | 11,500 |
-| `packages/shared-ui` | 12,254 | Shrink to the components still imported | 4,500 |
-| `packages/client-core`, `core-ui`, `text-utils`, `fuzzy-match` | 8,402 | Shrink | 5,000 |
-| `plugins/navigation` | 1,313 | Replace with an in-repo port of the user's `compact-nav` (what they actually see) | 300 |
+| `apps/app` | 183,931 | Shrink hard, in two passes. Pass A (done, 130K): delete whole features — mobile, desktop shell, marketplace, updates, server-move, in-app browser, voice, PR UI, skills pages, cloud machines, stories, tests. Pass B: per area, keep the visible components and rewrite the containers and data plumbing smaller, dropping second-order behaviours from a written list | 58,000 |
+| — conversation timeline and markdown | | Keep every row kind, streaming, approvals and questions. Drop table-of-contents rail, mermaid and math rendering, selection toolbar, fork/edit-message/retry actions, windowing | 10,000 |
+| — composer and pickers | | Keep editor, mentions, slash commands, attachments, model/reasoning/permission pickers, project/environment/branch/machine pickers, queue, steer. Drop rich-text mode, queue grouping and reordering, provider hand-off, the home-screen right panel, goal mode | 11,500 |
+| — right panel | | Keep thread info, git diff, file preview, terminal, new-tab file search. Drop panel splitting, thread-storage browser, CSV/HTML/media previews, image diffs, tab reordering | 9,000 |
+| — settings, dialogs, machines, plugin host UI, embedded chat | | Keep the sections the user has touched. Drop sidebar customisation settings, notification centre, settings for removed features | 7,500 |
+| — shell: layout, sidebar chrome, thread page, split panes, palette, thread actions | | Keep. Drop sidebar customisation UI | 6,500 |
+| — data layer (`hooks`, `lib`) | | Rewrite: queries, plain invalidation from WebSocket signals, optimistic paths only for send/queue/archive/rename/pin | 8,000 |
+| — UI kit, styles, entry | | Keep the components still imported | 5,500 |
+| `plugins/thread-list` | 17,642 | Shrink. Keep sections, pinned, drag and drop, row actions, organise/sort/filter; cut by-project and by-machine modes, touch code, forked helper copies | 9,000 |
+| `plugins/navigation` | 1,313 | Keep the stock navigation as the bundled one (porting the user's own `compact-nav` into this repo was declined by the permission system; it can be ported as an external plugin) | 850 |
+| `packages/thread-view` | 16,497 | Shrink. Timeline projection runs on the server and the view helpers in the browser; drop legacy converters | 10,500 |
+| `packages/shared-ui` | 12,254 | Shrink to the components still imported | 4,300 |
+| `packages/client-core`, `core-ui`, `text-utils`, `fuzzy-match` | 8,402 | Shrink | 5,500 |
 
 ### Shared contracts
 
 | Area | Now | Decision | Budget |
 |---|---:|---|---:|
-| `packages/domain` | 11,182 | Shrink to kept features; the event and row schemas stay as they are (UI contract) | 6,500 |
-| `packages/server-contract`, `hono-typed-routes` | 8,010 | Shrink to about 110 routes; free to change shape where that deletes client code | 4,800 |
-| `packages/sdk` | 7,176 | Rewrite as one small typed client for app, CLI and plugins | 2,200 |
+| `packages/domain` | 11,182 | Shrink to kept features; the event and row schemas stay as they are (UI contract) | 6,000 |
+| `packages/server-contract`, `hono-typed-routes` | 8,010 | Shrink to the routes that have a caller | 5,000 |
+| `packages/sdk` | 7,176 | One small typed client for app, CLI and plugins | 2,500 |
 
 ### Server, runtime, CLI (redesigned)
 
 | Area | Now | Decision | Budget |
 |---|---:|---|---:|
-| `apps/server` + `packages/db` + `server-archive` + `logger` + `config` + `secret-storage` | 117,527 | Rewrite: one process, about 18 tables in one schema file, thread engine, queue, interactions, timeline glue, environments, runner hub, files, terminals, settings, search, plugin host | 15,500 |
-| `apps/host-daemon`, `agent-runtime`, `provider-bridge-protocol`, `provider-codex`, `provider-claude-code`, `host-daemon-contract`, `host-workspace`, `host-watcher`, `local-open-targets`, `process-utils`, the three environment plugins | 82,807 | Rewrite as `packages/runner`: one `Runner` interface, in-process on the server machine and over one WebSocket for other machines. Two in-process provider adapters plus a scripted echo provider; no bridge process | 9,000 |
-| `apps/cli` + `packages/bb-app` | 26,113 | Rewrite: about 70 commands from one declarative table; plugin commands dispatched by the server | 3,300 |
-| `packages/plugin-sdk`, `plugin-build`, `plugin-registry`, `bundled-plugins`, `templates`, server plugin services | 49,000 | Redesign as `packages/plugin` plus about 1,500 lines of host code inside the server and app budgets | 900 |
+| `apps/server` + `packages/db` + `server-archive` + `logger` + `config` + `secret-storage` | 117,527 | Rewritten: one process, one schema file, thread engine, queue, interactions, timeline glue, environments, runner hub, files, terminals, settings, search, plugin host, legacy import | 18,100 |
+| `apps/host-daemon`, `agent-runtime`, `provider-bridge-protocol`, `provider-codex`, `provider-claude-code`, `host-daemon-contract`, `host-workspace`, `host-watcher`, `local-open-targets`, `process-utils`, the three environment plugins | 82,807 | Rewritten as `packages/runner`: one `Runner` interface, in-process on the server machine and over one WebSocket for other machines. Two in-process provider adapters plus a scripted echo provider; no bridge process | 10,700 |
+| `apps/cli` + `packages/bb-app` | 26,113 | Rewritten: 84 commands from one table; plugin commands dispatched by the server | 3,400 |
+| `packages/plugin-sdk`, `plugin-build`, `plugin-registry`, `bundled-plugins`, `templates`, server plugin services | 49,000 | Redesigned as `packages/plugin`; host code sits inside the server and app budgets | 1,350 |
 
 ### Kept plugins
 
 | Area | Now | Decision | Budget |
 |---|---:|---|---:|
-| `plugins/tasks` | 21,109 | Shrink: list, detail, comments, attachments, thread links, dispatch, `bb tasks` | 7,000 |
+| `plugins/tasks` | 21,109 | Shrink: list, detail, comments, attachments, thread links, dispatch, `bb tasks`. Cut board, folders, due dates, the rich-text editor | 7,000 |
 | `plugins/account-pool` | 9,269 | Shrink: proxy hub, token refresh, threshold switching, `bb pool`, one settings card | 3,600 |
-| `plugins/connect` + `bb-account` + `tunnel-client` + `tunnel-contract` + `connect-client` + daemon share tunnel | 10,100 | Shrink: tunnel (wire format verbatim), account link, machine credentials, port shares | 2,100 |
-| `plugins/secrets`, `plugins/ask-user-question` | 1,324 | Keep, ported | 700 |
+| `plugins/connect` + `bb-account` + `tunnel-client` + `tunnel-contract` + `connect-client` + daemon share tunnel | 10,100 | Shrink: tunnel (wire format verbatim), account link, machine credentials, port shares on the server machine | 2,200 |
+| `plugins/secrets`, `plugins/ask-user-question`, `plugins/custom-instructions` | 1,400 | Keep, ported | 800 |
 
-### Tests, scripts
+### Scripts
 
 | Area | Now | Decision | Budget |
 |---|---:|---|---:|
-| Tests (all packages) | 710,944 | A small suite per layer: server engine against the echo provider, provider adapters against recorded wire sessions, projection, tunnel codec, CLI, a few pure UI modules | 6,500 |
-| `scripts/`, root config | 5,701 | Line counter, build, QA drivers | 600 |
+| `scripts/`, root config | 5,701 | Line counter, native-module check, CLI bundle, lint rule | 350 |
 
-**Planned total: 147,000**, leaving about 3,000 in reserve.
+Tests are inside the budgets above (about 6,700 lines in total: server engine against the echo provider,
+provider adapters replayed against recorded wire sessions, projection equivalence with the original
+server, tunnel codec, CLI recipes, plugin host).
+
+**Planned total: 149,150.** There is no reserve left in this plan; any area that lands over its budget
+has to be paid for by a named cut elsewhere.
 
 ### Cut entirely
 
@@ -116,8 +129,9 @@ app-server protocol. It is bb's own `ThreadEvent` dialect (bb item types, bb-min
 
 ## What the main user will notice
 
-- Their thirteen path plugins need porting to the new plugin API. `compact-nav` is ported in this repo.
-  Plugins built on composer customization (magic-compose) or file openers (better-notes) lose that surface.
+- Their thirteen path plugins need porting to the new plugin API, `compact-nav` included (the stock
+  navigation is bundled instead). Plugins built on composer customization (magic-compose) or file
+  openers (better-notes) lose that surface.
 - No automations, workflows, browser automation, GitHub PR status, voice input, mobile app.
 - Existing data is not migrated in place. `bb import-legacy` copies projects, sections, settings and
   chosen threads from an old data directory.
