@@ -105,7 +105,6 @@ import {
   replaceOriginPaneContent,
   threadPaneContent,
 } from "./splitThreadNavigation";
-import { ThreadDetailWorkerPoolProvider } from "./ThreadDetailWorkerPoolProvider";
 import { SplitWorkspaceSecondaryPanelHost } from "./SplitWorkspaceSecondaryPanelHost";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
 import {
@@ -241,15 +240,7 @@ function usePreservedSplitScrollPositions(maximizedPaneId: string | null) {
   return { captureVisibleScrollPositions, workspaceRef };
 }
 
-export function SplitThreadArea(props: SplitThreadAreaProps = {}) {
-  return (
-    <ThreadDetailWorkerPoolProvider>
-      <SplitThreadAreaContent {...props} />
-    </ThreadDetailWorkerPoolProvider>
-  );
-}
-
-function SplitThreadAreaContent({ routeContent }: SplitThreadAreaProps) {
+export function SplitThreadArea({ routeContent }: SplitThreadAreaProps = {}) {
   const { projectId, threadId } = useRouteState();
   const navigate = useImmediateRouteNavigate();
   const store = useStore();
