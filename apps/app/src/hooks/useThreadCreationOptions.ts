@@ -441,7 +441,6 @@ export function useThreadCreationOptions({
   return {
     execution,
     permission,
-    executionOptionsRouting,
     selectedProviderId: providerId,
     setSelectedProviderId: execution.provider.onChange,
     providerOptions: execution.provider.options,

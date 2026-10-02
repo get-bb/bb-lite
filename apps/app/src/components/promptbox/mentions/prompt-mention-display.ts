@@ -1,74 +1,59 @@
 import type { PromptMentionResource } from "@bb/domain";
 import type { IconName } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
 
-type PromptCommandLike = Pick<
-  Extract<PromptMentionResource, { kind: "command" }>,
-  "name" | "source"
->;
+export const PROMPT_MENTION_PILL_CLASS =
+  "prompt-mention-pill inline-flex max-w-full items-baseline gap-0.5 rounded-full border py-0.5 pl-1 pr-1.5 text-xs leading-4 align-baseline";
 
-export const PROMPT_MENTION_PILL_CLASS = cn(
-  "prompt-mention-pill inline-flex max-w-full items-baseline gap-0.5 rounded-full border py-0.5 pl-1 pr-1.5 text-xs leading-4",
-  "align-baseline",
-);
-
-function promptMentionIconLabel(resource: PromptMentionResource): string {
-  if (resource.kind === "thread") {
-    return "Thread";
+function describeMention(resource: PromptMentionResource): [string, IconName] {
+  switch (resource.kind) {
+    case "thread":
+      return ["Thread", "UserRound"];
+    case "project":
+      return ["Project", "Folder"];
+    case "section":
+      return ["Section", "SectionAdd"];
+    case "command":
+      return [
+        resource.source === "skill" ? "Skill" : "Command",
+        promptCommandIconName(resource),
+      ];
+    case "plugin":
+      return ["Plugin", "Zap"];
+    case "path": {
+      const isDirectory = resource.entryKind === "directory";
+      return [
+        resource.source === "thread-storage"
+          ? "Storage"
+          : isDirectory
+            ? "Folder"
+            : "File",
+        isDirectory ? "Folder" : "File",
+      ];
+    }
   }
-  if (resource.kind === "project") {
-    return "Project";
-  }
-  if (resource.kind === "section") {
-    return "Section";
-  }
-  if (resource.kind === "command") {
-    return resource.source === "skill" ? "Skill" : "Command";
-  }
-  if (resource.kind === "plugin") {
-    return "Plugin";
-  }
-  if (resource.source === "thread-storage") {
-    return "Storage";
-  }
-  return resource.entryKind === "directory" ? "Folder" : "File";
 }
 
 export function promptMentionIconName(
   resource: PromptMentionResource,
 ): IconName {
-  if (resource.kind === "thread") {
-    return "UserRound";
-  }
-  if (resource.kind === "project") {
-    return "Folder";
-  }
-  if (resource.kind === "section") {
-    return "SectionAdd";
-  }
-  if (resource.kind === "command") {
-    return promptCommandIconName(resource);
-  }
-  if (resource.kind === "plugin") {
-    return "Zap";
-  }
-  return resource.entryKind === "directory" ? "Folder" : "File";
+  return describeMention(resource)[1];
 }
 
-export function promptCommandIconName(command: PromptCommandLike): IconName {
-  if (command.source === "skill") {
-    return "Zap";
-  }
-  if (command.name === "plan") {
-    return "ListTodo";
-  }
-  return "Terminal";
+export function promptCommandIconName(command: {
+  name: string;
+  source: Extract<PromptMentionResource, { kind: "command" }>["source"];
+}): IconName {
+  return command.source === "skill"
+    ? "Zap"
+    : command.name === "plan"
+      ? "ListTodo"
+      : "Terminal";
 }
 
 export function promptMentionDisplayLabel(
   resource: PromptMentionResource,
 ): string {
-  return `${promptMentionIconLabel(resource)}: ${resource.label}`;
+  return `${describeMention(resource)[0]}: ${resource.label}`;
 }
 
 export function promptMentionTooltipLabel(
@@ -82,6 +67,5 @@ export function promptMentionTooltipLabel(
   if (resource.kind === "command") {
     return `${resource.trigger}${resource.name}${resource.argumentHint ? ` ${resource.argumentHint}` : ""}`;
   }
-
   return promptMentionDisplayLabel(resource);
 }

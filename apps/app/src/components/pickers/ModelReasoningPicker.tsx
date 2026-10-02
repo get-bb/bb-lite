@@ -394,31 +394,6 @@ export function ModelReasoningPicker({
     commandShortcutsEnabled,
   );
 
-  const handleReasoningArrowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (
-      event.defaultPrevented ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      disabled ||
-      !showReasoningSection ||
-      (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
-      (isEditableKeyboardTarget(event.target) &&
-        (event.target !== searchInputRef.current || searchQuery.length > 0))
-    ) {
-      return;
-    }
-    const index = reasoningOptions.findIndex(
-      (option) => option.value === reasoningValue,
-    );
-    if (index < 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next =
-      reasoningOptions[index + (event.key === "ArrowRight" ? 1 : -1)];
-    if (next) selectReasoning(next.value);
-  };
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const total = visibleModelOptions.length;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -479,7 +454,6 @@ export function ModelReasoningPicker({
       }
       aria-keyshortcuts={toggleShortcut?.ariaKeyshortcuts}
       disabled={disabled}
-      onKeyDown={handleReasoningArrowKeyDown}
       className={cn(
         OPTION_BASE_CLASS_NAME,
         OPTION_INTERACTIVE_CLASS_NAME,
@@ -571,7 +545,6 @@ export function ModelReasoningPicker({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align={align}
-        onKeyDown={handleReasoningArrowKeyDown}
         autoFocusRef={showSearchInput ? searchInputRef : undefined}
         className={cn(
           "flex min-h-0 flex-col p-0",
