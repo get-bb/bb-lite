@@ -1,79 +1,85 @@
-import { useMemo } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import type { Host } from "@bb/domain";
-import type { HostDirectoryListing } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
-import { useHostListRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import {
-  hostDirectoryQueryKey,
-  hostsQueryKey,
-} from "./query-keys";
 import type { QueryOptions } from "./query-helpers";
+import { qk } from "./query-keys";
 
 export function useHosts(
   options?: QueryOptions & { includeCreating?: boolean },
 ) {
-  const enabled = options?.enabled ?? true;
   const includeCreating = options?.includeCreating ?? false;
-  useHostListRealtimeSubscription({ enabled });
-
-  return useQuery<Host[]>({
-    queryKey: hostsQueryKey(includeCreating),
+  return useQuery({
+    queryKey: qk.hosts(includeCreating),
     queryFn: ({ signal }) => sdk.hosts.list({ signal, includeCreating }),
-    enabled,
+    enabled: options?.enabled ?? true,
     staleTime: 60_000,
   });
 }
 
-export type HostScope = "persistent" | "all";
-
 export function selectHosts(
   hosts: readonly Host[] | undefined,
-  scope: HostScope,
+  scope: "persistent" | "all",
 ): Host[] {
-  const everyHost = hosts ? [...hosts] : [];
-  return scope === "all"
-    ? everyHost
-    : everyHost.filter((host) => host.type !== "ephemeral");
+  return (hosts ?? []).filter(
+    (host) => scope === "all" || host.type !== "ephemeral",
+  );
 }
 
 export function selectPrimaryHost(
   hosts: readonly Host[] | undefined,
   primaryHostId: string | null,
 ): Host | null {
-  const availableHosts = selectHosts(hosts, "persistent");
-  if (availableHosts.length === 0) return null;
+  const available = selectHosts(hosts, "persistent");
   if (primaryHostId !== null) {
-    return availableHosts.find((host) => host.id === primaryHostId) ?? null;
+    return available.find((host) => host.id === primaryHostId) ?? null;
   }
-  return (
-    availableHosts.find((host) => host.status === "connected") ??
-    availableHosts[0] ??
-    null
-  );
+  const connected = available.find((host) => host.status === "connected");
+  return connected ?? available[0] ?? null;
 }
 
 export function usePrimaryHost(options?: QueryOptions): Host | null {
   const { data: hosts } = useHosts(options);
   const primaryHostId = useSystemConfig(options).data?.primaryHostId ?? null;
-  return useMemo(
-    () => selectPrimaryHost(hosts, primaryHostId),
-    [hosts, primaryHostId],
-  );
+  return selectPrimaryHost(hosts, primaryHostId);
 }
 
 export function useHostDirectory(hostId: string | null, path: string | null) {
-  return useQuery<HostDirectoryListing>({
-    queryKey: hostDirectoryQueryKey(hostId, path),
-    queryFn: ({ signal }) =>
-      sdk.hosts.directory({
-        hostId: hostId as string,
-        ...(path ? { path } : {}),
-        signal,
-      }),
-    enabled: hostId != null,
+  return useQuery({
+    queryKey: qk.hostDirectory(hostId, path),
+    queryFn: hostId
+      ? ({ signal }) =>
+          sdk.hosts.directory({ hostId, ...(path ? { path } : {}), signal })
+      : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
+}
+
+type HostPathExistence = Record<string, boolean>;
+
+export function useHostPathExistence(
+  hostId: string | null,
+  paths: readonly string[],
+): HostPathExistence {
+  const sortedPaths = [...new Set(paths)].sort();
+  const query = useQuery({
+    queryKey: qk.hostPaths(hostId, sortedPaths),
+    queryFn:
+      hostId !== null && sortedPaths.length > 0
+        ? async ({ signal }) => {
+            const request = { hostId, paths: sortedPaths, signal };
+            return (await sdk.hosts.pathsExist(request)).existence;
+          }
+        : skipToken,
+    staleTime: 10_000,
+  });
+  return query.data ?? {};
+}
+
+export function isHostPathMissing(
+  existence: HostPathExistence,
+  path: string | null | undefined,
+): boolean {
+  return path != null && existence[path] === false;
 }

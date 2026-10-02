@@ -9,7 +9,7 @@ import {
   useThreadTitleDisplayText,
 } from "@/components/thread/ThreadTitleMentions";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { listSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
+import { listSidebarNavigationThreads } from "@/hooks/queries/thread-cache";
 import {
   hasThreadSearchableQuery,
   useThreadSearch,

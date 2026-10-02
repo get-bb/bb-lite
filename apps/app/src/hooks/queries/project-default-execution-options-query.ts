@@ -1,36 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
-import type { ProjectExecutionDefaults } from "@bb/domain";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { sdk } from "@/lib/sdk";
-import { useProjectDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
-import { requireProjectId, type QueryOptions } from "./query-helpers";
-import { projectDefaultExecutionOptionsQueryKey } from "./query-keys";
-
-interface UseProjectDefaultExecutionOptionsArgs {
-  projectId: string | undefined;
-}
+import type { QueryOptions } from "./query-helpers";
+import { qk } from "./query-keys";
 
 export function useProjectDefaultExecutionOptions(
-  args: UseProjectDefaultExecutionOptionsArgs,
+  args: { projectId: string | undefined },
   options?: QueryOptions,
 ) {
-  const { projectId } = args;
-  const enabled = (options?.enabled ?? true) && Boolean(projectId);
-  useProjectDetailRealtimeSubscription(projectId, { enabled });
-
-  return useQuery<ProjectExecutionDefaults | null>({
-    queryKey: projectDefaultExecutionOptionsQueryKey({
-      projectId: projectId ?? "",
-    }),
+  const projectId = args.projectId ?? "";
+  return useQuery({
+    queryKey: qk.projectExecution(projectId),
     queryFn: ({ signal }) =>
-      sdk.projects.defaultExecutionOptions({
-        projectId: requireProjectId(
-          projectId,
-          "useProjectDefaultExecutionOptions",
-        ),
-        signal,
-      }),
-    enabled,
+      sdk.projects.defaultExecutionOptions({ projectId, signal }),
+    enabled: (options?.enabled ?? true) && projectId.length > 0,
     staleTime: 10_000,
-    placeholderData: (previousData) => (projectId ? previousData : undefined),
+    placeholderData: projectId ? keepPreviousData : undefined,
   });
 }

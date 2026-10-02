@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import {
+  matchQuery,
   notifyManager,
   QueryClientContext,
   type QueryCacheNotifyEvent,
@@ -10,18 +11,16 @@ import type {
   ThreadVisibility,
   ThreadWithRuntime,
 } from "@bb/domain";
-import {
-  allThreadQueryKeyPrefix,
-  SIDEBAR_NAVIGATION_QUERY_KEY,
-  THREAD_QUERY_KEY,
-  THREADS_QUERY_KEY,
-  threadsQueryKey,
-} from "@/hooks/queries/query-keys";
-import { getCachedSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
-import {
-  getCachedThreadLists,
-  iterateThreadListCacheEntries,
-} from "@/hooks/cache-owners/thread-list-cache-data";
+import { qk } from "@/hooks/queries/query-keys";
+import { ANY, filterFor } from "@/hooks/queries/refresh";
+import { cachedThreads } from "@/hooks/queries/thread-cache";
+
+const THREAD_DETAILS = filterFor(qk.threadDetail(ANY));
+const THREAD_SOURCES = [
+  THREAD_DETAILS,
+  filterFor(qk.sidebar()),
+  filterFor(qk.archivedThreads()),
+];
 
 export interface SenderThreadMetadata {
   projectId: string;
@@ -79,24 +78,13 @@ function buildSenderThreadMetadataById(
     return metadataById;
   }
 
-  for (const thread of getCachedSidebarNavigationThreads(queryClient)) {
+  for (const thread of cachedThreads(queryClient)) {
     addSenderThreadMetadata(metadataById, thread);
   }
 
-  for (const [, thread] of queryClient.getQueriesData<ThreadWithRuntime>({
-    queryKey: allThreadQueryKeyPrefix(),
-  })) {
-    if (thread) {
-      addSenderThreadMetadata(metadataById, thread);
-    }
-  }
-
-  for (const cachedList of getCachedThreadLists(queryClient, {
-    queryKey: threadsQueryKey(),
-  })) {
-    for (const thread of iterateThreadListCacheEntries(cachedList.data)) {
-      addSenderThreadMetadata(metadataById, thread);
-    }
+  const details = queryClient.getQueriesData<ThreadWithRuntime>(THREAD_DETAILS);
+  for (const [, thread] of details) {
+    if (thread) addSenderThreadMetadata(metadataById, thread);
   }
 
   return metadataById;
@@ -105,9 +93,7 @@ function buildSenderThreadMetadataById(
 function shouldSyncSenderThreadMetadata(event: QueryCacheNotifyEvent): boolean {
   return (
     event.type === "updated" &&
-    (event.query.queryKey[0] === SIDEBAR_NAVIGATION_QUERY_KEY ||
-      event.query.queryKey[0] === THREADS_QUERY_KEY ||
-      event.query.queryKey[0] === THREAD_QUERY_KEY)
+    THREAD_SOURCES.some((filter) => matchQuery(filter, event.query))
   );
 }
 

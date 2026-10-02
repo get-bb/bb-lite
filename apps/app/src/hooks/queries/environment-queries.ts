@@ -1,11 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Environment, WorkspaceDiffTarget } from "@bb/domain";
-import type {
-  EnvironmentDiffBranchesResponse,
-  EnvironmentDiffFilesResponse,
-  EnvironmentStatusResponse,
-  WorkspacePathListResponse,
-} from "@bb/server-contract";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { WorkspaceDiffTarget } from "@bb/domain";
 import type { EnvironmentDiffArgs } from "@bb/sdk/browser";
 import type {
   EnvironmentFilePreviewSource,
@@ -15,131 +9,66 @@ import { loadFilePreview } from "@/lib/api";
 import { buildEnvironmentFileContentUrl } from "@/lib/file-content-urls";
 import { sdk } from "@/lib/sdk";
 import { useEnvironmentDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
-import {
-  environmentDiffFilesQueryKey,
-  environmentDiffTargetKey,
-  environmentFilePreviewQueryKey,
-  environmentMergeBaseBranchesQueryKey,
-  environmentPathsQueryKey,
-  environmentQueryKey,
-  environmentWorkStatusQueryKey,
-} from "./query-keys";
-import { useDebouncedBranchSearchQuery } from "./branch-search-debounce";
-import {
-  resolveEnvironmentDiffFilesPlaceholder,
-  resolveEnvironmentMergeBaseBranchesPlaceholder,
-  resolveEnvironmentWorkStatusPlaceholder,
-} from "./query-placeholders";
-import { requireEnabledQueryArg, type QueryOptions } from "./query-helpers";
-import {
-  EXPENSIVE_MANUAL_QUERY_POLICY,
-  HEAVY_PAYLOAD_QUERY_POLICY,
-  REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
-  REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
-  TYPEAHEAD_QUERY_POLICY,
-} from "./query-policies";
+import { useDebouncedValue } from "../useDebouncedValue";
+import type { QueryOptions } from "./query-helpers";
+import { qk } from "./query-keys";
 
-interface EnvironmentQueryOptions extends QueryOptions {
-  staleTime?: number;
-}
+type EnvironmentId = string | null | undefined;
 
-interface BranchQueryOptions extends QueryOptions {
-  limit?: number;
-  query?: string;
-  selectedBranch?: string;
-}
-
-interface UseEnvironmentDiffFilesOptions extends QueryOptions {
-  target?: WorkspaceDiffTarget;
-}
-
-const MERGE_BASE_BRANCHES_STALE_MS = 30_000;
-const MERGE_BASE_BRANCHES_LIMIT = 50;
-const ENVIRONMENT_DIFF_STALE_MS = 5_000;
-
-function requireEnvironmentId(
-  environmentId: string | null | undefined,
-  hookName: string,
-): string {
-  return requireEnabledQueryArg({
-    value: environmentId,
-    hookName,
-    argName: "environmentId",
-  });
-}
+const HEAVY_GC_TIME_MS = 60_000;
 
 export function useEnvironment(
-  environmentId: string | null | undefined,
-  options?: EnvironmentQueryOptions,
+  environmentId: EnvironmentId,
+  options?: QueryOptions & { staleTime?: number },
 ) {
   const enabled = (options?.enabled ?? true) && Boolean(environmentId);
   useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
-  return useQuery<Environment>({
-    queryKey: environmentQueryKey(environmentId),
+  return useQuery({
+    queryKey: qk.environmentRecord(environmentId),
     queryFn: ({ signal }) =>
-      sdk.environments.get({
-        environmentId: requireEnvironmentId(environmentId, "useEnvironment"),
-        signal,
-      }),
+      sdk.environments.get({ environmentId: environmentId ?? "", signal }),
     enabled,
     staleTime: options?.staleTime,
   });
 }
 
 export function useEnvironmentWorkStatus(
-  environmentId: string | null | undefined,
+  environmentId: EnvironmentId,
   mergeBaseBranch?: string,
   options?: QueryOptions,
 ) {
-  const normalizedMergeBaseBranch = mergeBaseBranch ?? null;
   const enabled = (options?.enabled ?? true) && Boolean(environmentId);
   useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
-  return useQuery<EnvironmentStatusResponse>({
-    queryKey: environmentWorkStatusQueryKey(
-      environmentId,
-      normalizedMergeBaseBranch,
-    ),
+  return useQuery({
+    queryKey: qk.environmentStatus(environmentId, mergeBaseBranch),
     queryFn: ({ signal }) =>
       sdk.environments.status({
-        environmentId: requireEnvironmentId(
-          environmentId,
-          "useEnvironmentWorkStatus",
-        ),
+        environmentId: environmentId ?? "",
         mergeBaseBranch,
         signal,
       }),
     enabled,
-    ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
+    refetchOnMount: "always",
     staleTime: 0,
-    placeholderData: (previousData, previousQuery) =>
-      environmentId
-        ? resolveEnvironmentWorkStatusPlaceholder(
-            previousData,
-            previousQuery?.queryKey,
-            environmentId,
-          )
-        : undefined,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === environmentId ? previous : undefined,
   });
 }
 
 export function useEnvironmentMergeBaseBranches(
   environmentId: string,
-  options?: BranchQueryOptions,
+  options?: QueryOptions & {
+    limit?: number;
+    query?: string;
+    selectedBranch?: string;
+  },
 ) {
-  const query = useDebouncedBranchSearchQuery(options?.query?.trim() ?? "");
-  const selectedBranch = options?.selectedBranch?.trim();
-  const limit = options?.limit ?? MERGE_BASE_BRANCHES_LIMIT;
-  const enabled = (options?.enabled ?? true) && Boolean(environmentId);
-  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-  return useQuery<EnvironmentDiffBranchesResponse>({
-    queryKey: environmentMergeBaseBranchesQueryKey(
-      environmentId,
-      query,
-      limit,
-      selectedBranch ?? "",
-    ),
+  const query = useDebouncedValue(options?.query?.trim() ?? "", 120);
+  const selectedBranch = options?.selectedBranch?.trim() ?? "";
+  const limit = options?.limit ?? 50;
+  const stable = { limit, selectedBranch };
+  return useQuery({
+    queryKey: qk.environmentBranches(environmentId, { ...stable, query }),
     queryFn: ({ signal }) =>
       sdk.environments.diffBranches({
         environmentId,
@@ -148,159 +77,73 @@ export function useEnvironmentMergeBaseBranches(
         limit: String(limit),
         signal,
       }),
-    enabled,
-    ...REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
-    staleTime: MERGE_BASE_BRANCHES_STALE_MS,
-    placeholderData: (previousData, previousQuery) =>
-      environmentId
-        ? resolveEnvironmentMergeBaseBranchesPlaceholder({
-            previousData,
-            previousQueryKey: previousQuery?.queryKey,
-            environmentId,
-            limit,
-            selectedBranch: selectedBranch ?? "",
-          })
-        : undefined,
+    enabled: (options?.enabled ?? true) && Boolean(environmentId),
+    staleTime: 30_000,
+    placeholderData: (previous, previousQuery) => {
+      const [, id, , args] = previousQuery?.queryKey ?? [];
+      const same = args as Partial<typeof stable> | undefined;
+      return id === environmentId &&
+        same?.limit === limit &&
+        same.selectedBranch === selectedBranch
+        ? previous
+        : undefined;
+    },
   });
 }
 
 export function useEnvironmentFilePreview(
-  environmentId: string | null | undefined,
+  environmentId: EnvironmentId,
   path: string | null,
   source: EnvironmentFilePreviewSource | null,
   options?: QueryOptions,
 ) {
-  const enabled =
-    (options?.enabled ?? true) &&
-    Boolean(environmentId) &&
-    Boolean(path) &&
-    source !== null;
-  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
   return useQuery<FilePreview>({
-    queryKey: environmentFilePreviewQueryKey(environmentId, path, source),
-    queryFn: async ({ signal }) => {
-      const resolvedPath = requireEnabledQueryArg({
-        value: path,
-        hookName: "useEnvironmentFilePreview",
-        argName: "path",
-      });
-      const resolvedSource = requireEnabledQueryArg({
-        value: source,
-        hookName: "useEnvironmentFilePreview",
-        argName: "source",
-      });
-      const resolvedEnvironmentId = requireEnvironmentId(
-        environmentId,
-        "useEnvironmentFilePreview",
-      );
-      return loadFilePreview(
-        {
-          name: resolvedPath.split("/").at(-1),
-          path: resolvedPath,
-          url: buildEnvironmentFileContentUrl(
-            resolvedEnvironmentId,
-            resolvedSource,
-            resolvedPath,
-          ),
-        },
-        signal,
-      );
+    queryKey: qk.environmentFile(environmentId, path, source),
+    queryFn: ({ signal }) => {
+      if (!environmentId || !path || source === null) {
+        throw new Error("File preview needs an environment, path and source");
+      }
+      const url = buildEnvironmentFileContentUrl(environmentId, source, path);
+      const name = path.split("/").at(-1);
+      return loadFilePreview({ name, path, url }, signal);
     },
-    enabled,
-    ...EXPENSIVE_MANUAL_QUERY_POLICY,
-    ...HEAVY_PAYLOAD_QUERY_POLICY,
+    enabled:
+      (options?.enabled ?? true) &&
+      Boolean(environmentId && path) &&
+      source !== null,
+    gcTime: HEAVY_GC_TIME_MS,
   });
 }
 
-interface UseEnvironmentPathSuggestionsArgs {
-  environmentId: string | null | undefined;
+export function useEnvironmentPathSuggestions(args: {
+  environmentId: EnvironmentId;
   query: string | null;
   limit?: number;
   includeFiles: boolean;
   includeDirectories: boolean;
-}
-
-export function useEnvironmentPathSuggestions(
-  args: UseEnvironmentPathSuggestionsArgs,
-) {
-  const {
-    environmentId,
-    query,
-    limit = 8,
-    includeFiles,
-    includeDirectories,
-  } = args;
-  const trimmedQuery = query?.trim() ?? "";
-  const enabled = Boolean(environmentId) && trimmedQuery.length > 0;
-  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
-  return useQuery<WorkspacePathListResponse>({
-    queryKey: environmentPathsQueryKey(
-      environmentId ?? undefined,
-      trimmedQuery,
-      limit,
-      includeFiles,
-      includeDirectories,
-    ),
+}) {
+  const { environmentId, limit = 8, includeFiles, includeDirectories } = args;
+  const query = args.query?.trim() ?? "";
+  const filter = { query, limit, includeFiles, includeDirectories };
+  return useQuery({
+    queryKey: qk.environmentPaths(environmentId, filter),
     queryFn: ({ signal }) =>
       sdk.environments.paths({
-        environmentId: requireEnvironmentId(
-          environmentId,
-          "useEnvironmentPathSuggestions",
-        ),
-        query: trimmedQuery,
+        environmentId: environmentId ?? "",
+        query,
         limit: String(limit),
         includeFiles: includeFiles ? "true" : "false",
         includeDirectories: includeDirectories ? "true" : "false",
         signal,
       }),
-    enabled,
-    ...TYPEAHEAD_QUERY_POLICY,
-    placeholderData: (previousData) => previousData,
+    enabled: Boolean(environmentId) && query.length > 0,
+    retry: false,
+    staleTime: 15_000,
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useEnvironmentDiffFiles(
-  environmentId: string,
-  options: UseEnvironmentDiffFilesOptions,
-) {
-  const target = options.target;
-  const enabled =
-    (options.enabled ?? true) && Boolean(environmentId) && target !== undefined;
-  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
-
-  return useQuery<EnvironmentDiffFilesResponse>({
-    queryKey: environmentDiffFilesQueryKey(
-      environmentId,
-      target?.type ?? null,
-      environmentDiffTargetKey(target),
-    ),
-    queryFn: ({ signal }) =>
-      sdk.environments.diffFiles({
-        ...buildEnvironmentDiffArgs(
-          environmentId,
-          requireEnabledQueryArg({
-            value: target,
-            hookName: "useEnvironmentDiffFiles",
-            argName: "target",
-          }),
-        ),
-        signal,
-      }),
-    enabled,
-    placeholderData: (previousData, previousQuery) =>
-      resolveEnvironmentDiffFilesPlaceholder(
-        previousData,
-        previousQuery?.queryKey,
-        environmentId,
-      ),
-    ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
-    staleTime: ENVIRONMENT_DIFF_STALE_MS,
-  });
-}
-
-function buildEnvironmentDiffArgs(
+function diffArgs(
   environmentId: string,
   target: WorkspaceDiffTarget,
 ): EnvironmentDiffArgs {
@@ -317,4 +160,29 @@ function buildEnvironmentDiffArgs(
     case "commit":
       return { environmentId, sha: target.sha, target: target.type };
   }
+}
+
+export function useEnvironmentDiffFiles(
+  environmentId: string,
+  options: QueryOptions & { target?: WorkspaceDiffTarget },
+) {
+  const { target } = options;
+  const enabled =
+    (options.enabled ?? true) && Boolean(environmentId) && target !== undefined;
+  useEnvironmentDetailRealtimeSubscription(environmentId, { enabled });
+  return useQuery({
+    queryKey: qk.environmentDiffFiles(environmentId, target),
+    queryFn: ({ signal }) => {
+      if (target === undefined) throw new Error("Diff files need a target");
+      return sdk.environments.diffFiles({
+        ...diffArgs(environmentId, target),
+        signal,
+      });
+    },
+    enabled,
+    refetchOnMount: "always",
+    staleTime: 5_000,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === environmentId ? previous : undefined,
+  });
 }

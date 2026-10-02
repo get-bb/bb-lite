@@ -1,85 +1,85 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import {
+  applyAppKeybindingOverrides,
   type AppKeybindingOverrides,
   type AppSettings,
   type AppThemeSelection,
 } from "@bb/domain";
+import type { SystemConfigResponse } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
-import {
-  invalidateGeneralSettingsDependencies,
-  invalidateSystemConfig,
-  invalidateSystemProviders,
-  resetModelCatalogsAfterStreamerModeChange,
-} from "../cache-owners/system-cache-effects";
-import {
-  beginKeyboardSettingsCacheTransaction,
-  readCachedProviderOrder,
-  readCachedStreamerMode,
-  rollbackKeyboardSettingsCacheTransaction,
-} from "../cache-owners/system-config-cache-owner";
+import { qk } from "../queries/query-keys";
+import { ANY, filterFor } from "../queries/refresh";
+
+interface QueryClientArg {
+  queryClient: QueryClient;
+}
+
+export function invalidateSystemConfig({
+  queryClient,
+}: QueryClientArg): Promise<void[]> {
+  return Promise.all(
+    [qk.system(), qk.timeline(ANY), qk.turnDetails(ANY)].map((queryKey) =>
+      queryClient.invalidateQueries(filterFor(queryKey)),
+    ),
+  );
+}
+
+export function invalidateMachineEnvironment({
+  queryClient,
+}: QueryClientArg): void {
+  void queryClient.invalidateQueries({ queryKey: qk.machineEnvironment() });
+}
 
 export function useUpdateGeneralSettings() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    meta: {
-      errorMessage: "Failed to update general settings.",
-    },
+    meta: { errorMessage: "Failed to update general settings." },
     mutationFn: (settings: AppSettings) =>
       sdk.system.updateGeneralSettings(settings),
-    onSuccess: (_settings, written) => {
-      const previousStreamerMode = readCachedStreamerMode(queryClient);
-      const previousProviderOrder = readCachedProviderOrder(queryClient);
-      invalidateGeneralSettingsDependencies({ queryClient });
-      if (previousStreamerMode !== written.streamerMode) {
-        void resetModelCatalogsAfterStreamerModeChange({ queryClient });
-      }
-      const providerOrderChanged =
-        previousProviderOrder === undefined ||
-        previousProviderOrder.length !== written.providerOrder.length ||
-        previousProviderOrder.some(
-          (providerId, index) => providerId !== written.providerOrder[index],
-        );
-      if (providerOrderChanged) {
-        return invalidateSystemProviders({ queryClient });
-      }
-    },
+    onSuccess: () => invalidateSystemConfig({ queryClient }),
   });
 }
 
 export function useUpdateKeyboardSettings() {
   const queryClient = useQueryClient();
-
+  const queryKey = qk.systemConfig();
   return useMutation({
-    meta: {
-      errorMessage: "Failed to update keyboard shortcuts.",
-    },
+    meta: { errorMessage: "Failed to update keyboard shortcuts." },
     mutationFn: (overrides: AppKeybindingOverrides) =>
       sdk.system.updateKeyboardSettings(overrides),
-    onMutate: (overrides) =>
-      beginKeyboardSettingsCacheTransaction({ overrides, queryClient }),
-    onError: (_error, _overrides, context) => {
-      rollbackKeyboardSettingsCacheTransaction({
-        queryClient,
-        transaction: context,
-      });
+    onMutate: async (keybindingOverrides) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<SystemConfigResponse>(queryKey);
+      queryClient.setQueryData<SystemConfigResponse>(
+        queryKey,
+        (config) =>
+          config && {
+            ...config,
+            keybindings: applyAppKeybindingOverrides(
+              config.defaultKeybindings,
+              keybindingOverrides,
+            ),
+            keybindingOverrides,
+          },
+      );
+      return previous;
     },
-    onSuccess: () => {
-      invalidateSystemConfig({ queryClient });
+    onError: (_error, _overrides, previous) => {
+      queryClient.setQueryData(queryKey, previous);
     },
+    onSettled: () => invalidateSystemConfig({ queryClient }),
   });
 }
 
 export function useUpdateAppearance() {
   const queryClient = useQueryClient();
-
   return useMutation({
-    meta: {
-      errorMessage: "Failed to update appearance.",
-    },
+    meta: { errorMessage: "Failed to update appearance." },
     mutationFn: (selection: AppThemeSelection) => sdk.theme.set(selection),
-    onSuccess: () => {
-      invalidateSystemConfig({ queryClient });
-    },
+    onSuccess: () => invalidateSystemConfig({ queryClient }),
   });
 }

@@ -2,7 +2,6 @@ import ReconnectingWebSocket from "partysocket/ws";
 import {
   changedMessageLenientSchema,
   pluginSignalLenientSchema,
-  pongMessageLenientSchema,
   realtimeSubscriptionTargetKey,
   threadOpenSignalLenientSchema,
 } from "@bb/server-contract";
@@ -15,424 +14,169 @@ import type {
   ThreadOpenSignal,
 } from "@bb/server-contract";
 import { buildBrowserWebSocketUrl } from "./browser-websocket-url";
-import {
-  isDocumentVisible,
-  subscribeToDocumentVisibility,
-} from "./document-visibility";
 
-type ChangeCallback = (message: ChangedMessage) => void;
-type ThreadOpenCallback = (signal: ThreadOpenSignal) => void;
-type PluginSignalCallback = (signal: PluginSignal) => void;
-export type WebSocketConnectedEvent =
-  | { reconnected: false }
-  | {
-      reconnected: true;
-      disconnectedAt: number;
-    };
-type ConnectedCallback = (event: WebSocketConnectedEvent) => void;
-type ConnectionStateCallback = () => void;
 export type WebSocketConnectionState =
   | "connecting"
   | "connected"
   | "reconnecting";
 
-export const REALTIME_PING_INTERVAL_MS = 25_000;
-export const REALTIME_PONG_TIMEOUT_MS = 5_000;
+type Listener<T> = (value: T) => void;
 
-export interface WebSocketManagerBrowserEvents {
-  subscribeToVisibility: (listener: () => void) => () => void;
-  isDocumentVisible: () => boolean;
-  subscribeToOnline: (listener: () => void) => () => void;
-}
+const PING_INTERVAL_MS = 25_000;
+const PONG_TIMEOUT_MS = 5_000;
+const GLOBAL_TARGETS: readonly RealtimeSubscriptionTarget[] = [
+  { kind: "system" },
+  { kind: "thread-list" },
+  { kind: "project-list" },
+  { kind: "environment-list" },
+  { kind: "host-list" },
+];
 
-function createDefaultBrowserEvents(): WebSocketManagerBrowserEvents {
+function createEmitter<T>() {
+  const listeners = new Set<Listener<T>>();
   return {
-    subscribeToVisibility: subscribeToDocumentVisibility,
-    isDocumentVisible,
-    subscribeToOnline: (listener) => {
-      if (typeof window === "undefined") {
-        return () => {};
-      }
-      window.addEventListener("online", listener);
-      return () => {
-        window.removeEventListener("online", listener);
-      };
+    emit: (value: T) => listeners.forEach((listener) => listener(value)),
+    on: (listener: Listener<T>) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
     },
   };
 }
 
-interface ActiveSubscription {
-  count: number;
-  target: RealtimeSubscriptionTarget;
-}
-
-export class WebSocketManager {
+class WebSocketManager {
   private socket: ReconnectingWebSocket | null = null;
-  private subscriptions = new Map<string, ActiveSubscription>();
-  private callbacks = new Set<ChangeCallback>();
-  private threadOpenCallbacks = new Set<ThreadOpenCallback>();
-  private pluginSignalCallbacks = new Set<PluginSignalCallback>();
-  private pendingOpenFileByThreadId = new Map<string, ThreadOpenFile>();
-  private connectedCallbacks = new Set<ConnectedCallback>();
-  private connectionStateCallbacks = new Set<ConnectionStateCallback>();
+  private state: WebSocketConnectionState = "connecting";
   private hasConnected = false;
-  private connectionState: WebSocketConnectionState = "connecting";
-  private readonly browserEvents: WebSocketManagerBrowserEvents;
-  private unsubscribeBrowserEvents: (() => void) | null = null;
-  private lastServerActivityAt = 0;
-  private disconnectedAt: number | null = null;
-  private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly targets = new Map<
+    string,
+    { count: number; target: RealtimeSubscriptionTarget }
+  >();
+  private readonly pendingOpenFiles = new Map<string, ThreadOpenFile>();
+  private readonly changed = createEmitter<ChangedMessage>();
+  private readonly threadOpen = createEmitter<ThreadOpenSignal>();
+  private readonly pluginSignal = createEmitter<PluginSignal>();
+  private readonly connected = createEmitter<boolean>();
+  private readonly stateChanged = createEmitter<void>();
 
-  constructor(browserEvents?: WebSocketManagerBrowserEvents) {
-    this.browserEvents = browserEvents ?? createDefaultBrowserEvents();
-  }
+  readonly onChanged = this.changed.on;
+  readonly onThreadOpen = this.threadOpen.on;
+  readonly onPluginSignal = this.pluginSignal.on;
+  readonly onConnected = this.connected.on;
+  readonly onConnectionStateChange = this.stateChanged.on;
 
   connect(): void {
     if (this.socket) return;
-
-    const url = buildBrowserWebSocketUrl("/ws");
-
-    const socket = new ReconnectingWebSocket(url, undefined, {
-      minReconnectionDelay: 1000,
-      maxReconnectionDelay: 30000,
-      reconnectionDelayGrowFactor: 1.5,
-      connectionTimeout: 10000,
-      maxRetries: Infinity,
-    });
-    this.socket = socket;
-
-    socket.onopen = () => {
-      const disconnectedAt = this.disconnectedAt;
-      this.disconnectedAt = null;
-      this.lastServerActivityAt = Date.now();
-      const reconnected = this.hasConnected;
-      this.hasConnected = true;
-      this.setConnectionState("connected");
-      this.startPingLoop();
-      for (const subscription of this.subscriptions.values()) {
-        this.sendMessage({ type: "subscribe", target: subscription.target });
-      }
-      const event: WebSocketConnectedEvent = reconnected
-        ? { reconnected, disconnectedAt: disconnectedAt ?? Date.now() }
-        : { reconnected };
-      for (const callback of this.connectedCallbacks) {
-        callback(event);
-      }
-    };
-
-    socket.onmessage = (event: MessageEvent) => {
-      if (typeof event.data !== "string") return;
-      this.noteServerActivity();
-      this.handleIncomingMessage(event.data);
-    };
-
-    socket.onclose = () => {
-      if (this.pongTimer !== null) {
-        this.replaceSocket(this.lastServerActivityAt);
-        return;
-      }
-      this.markSocketLost(Date.now());
-    };
-
-    this.installBrowserEvents();
-  }
-
-  reconnectNow(): void {
-    const socket = this.socket;
-    if (!socket) {
-      return;
-    }
-    this.replaceSocket(
-      socket.readyState === WebSocket.OPEN
-        ? this.lastServerActivityAt
-        : Date.now(),
-    );
-  }
-
-  private replaceSocket(disconnectedAt: number): void {
-    const socket = this.socket;
-    if (!socket) {
-      return;
-    }
-    this.markSocketLost(disconnectedAt);
-    socket.onopen = null;
-    socket.onmessage = null;
-    socket.onclose = null;
-    socket.close();
-    this.socket = null;
-    this.connect();
-  }
-
-  private installBrowserEvents(): void {
-    if (this.unsubscribeBrowserEvents) {
-      return;
-    }
-    const unsubscribeVisibility = this.browserEvents.subscribeToVisibility(
-      () => {
-        this.handleVisibilityChange();
+    const socket = new ReconnectingWebSocket(
+      buildBrowserWebSocketUrl("/ws"),
+      undefined,
+      {
+        minReconnectionDelay: 1000,
+        maxReconnectionDelay: 10_000,
+        reconnectionDelayGrowFactor: 1.5,
+        connectionTimeout: 10_000,
+        maxRetries: Infinity,
       },
     );
-    const unsubscribeOnline = this.browserEvents.subscribeToOnline(() => {
-      this.probeOrReconnect();
-    });
-    this.unsubscribeBrowserEvents = () => {
-      unsubscribeVisibility();
-      unsubscribeOnline();
+    this.socket = socket;
+    socket.onopen = () => {
+      const reconnected = this.hasConnected;
+      this.hasConnected = true;
+      this.setState("connected");
+      for (const target of GLOBAL_TARGETS) {
+        this.send({ type: "subscribe", target });
+      }
+      for (const { target } of this.targets.values()) {
+        this.send({ type: "subscribe", target });
+      }
+      this.connected.emit(reconnected);
+    };
+    socket.onmessage = (event: MessageEvent) => {
+      this.clearPongTimer();
+      if (typeof event.data === "string") this.receive(event.data);
+    };
+    socket.onclose = () => {
+      this.clearPongTimer();
+      this.setState(this.hasConnected ? "reconnecting" : "connecting");
+    };
+    setInterval(() => this.probe(), PING_INTERVAL_MS);
+    window.addEventListener("online", () => this.probe());
+    document.addEventListener("visibilitychange", () => this.probe());
+  }
+
+  subscribe(target: RealtimeSubscriptionTarget): () => void {
+    const key = realtimeSubscriptionTargetKey(target);
+    const entry = this.targets.get(key) ?? { count: 0, target };
+    this.targets.set(key, entry);
+    entry.count += 1;
+    if (entry.count === 1) this.send({ type: "subscribe", target });
+    return () => {
+      entry.count -= 1;
+      if (entry.count > 0) return;
+      this.targets.delete(key);
+      this.send({ type: "unsubscribe", target });
     };
   }
 
-  private handleVisibilityChange(): void {
-    if (!this.browserEvents.isDocumentVisible()) {
-      this.stopPingLoop();
-      return;
-    }
-    this.probeOrReconnect();
-    this.startPingLoop();
+  consumePendingOpenFile(threadId: string): ThreadOpenFile | null {
+    const pending = this.pendingOpenFiles.get(threadId) ?? null;
+    this.pendingOpenFiles.delete(threadId);
+    return pending;
   }
 
-  private probeOrReconnect(): void {
-    if (!this.socket || !this.browserEvents.isDocumentVisible()) {
-      return;
-    }
-    switch (this.socket.readyState) {
-      case WebSocket.OPEN:
-        this.sendPing({ ignoreRecentActivity: true });
-        return;
-      case WebSocket.CONNECTING:
-        return;
-      default:
-        this.reconnectNow();
-    }
+  getConnectionState(): WebSocketConnectionState {
+    return this.state;
   }
 
-  private startPingLoop(): void {
-    if (this.pingTimer !== null || !this.browserEvents.isDocumentVisible()) {
-      return;
-    }
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      return;
-    }
-    this.pingTimer = setInterval(() => {
-      this.sendPing();
-    }, REALTIME_PING_INTERVAL_MS);
-  }
-
-  private stopPingLoop(): void {
-    if (this.pingTimer !== null) {
-      clearInterval(this.pingTimer);
-      this.pingTimer = null;
-    }
-    this.clearPongTimer();
-  }
-
-  private sendPing(options?: { ignoreRecentActivity: boolean }): void {
-    if (this.socket?.readyState !== WebSocket.OPEN) {
-      return;
-    }
-    if (
-      !options?.ignoreRecentActivity &&
-      Date.now() - this.lastServerActivityAt < REALTIME_PONG_TIMEOUT_MS
-    ) {
-      return;
-    }
-    this.sendMessage({ type: "ping" });
-    if (this.pongTimer !== null) {
-      return;
-    }
+  private probe(): void {
+    if (document.hidden || this.pongTimer !== null) return;
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.send({ type: "ping" });
     this.pongTimer = setTimeout(() => {
       this.pongTimer = null;
-      this.reconnectNow();
-    }, REALTIME_PONG_TIMEOUT_MS);
+      this.socket?.reconnect();
+    }, PONG_TIMEOUT_MS);
   }
 
   private clearPongTimer(): void {
-    if (this.pongTimer !== null) {
-      clearTimeout(this.pongTimer);
-      this.pongTimer = null;
-    }
+    if (this.pongTimer !== null) clearTimeout(this.pongTimer);
+    this.pongTimer = null;
   }
 
-  private noteServerActivity(): void {
-    this.lastServerActivityAt = Date.now();
-  }
-
-  private markSocketLost(at: number): void {
-    this.stopPingLoop();
-    if (this.hasConnected && this.disconnectedAt === null) {
-      this.disconnectedAt = at;
-    }
-    this.setConnectionState(this.hasConnected ? "reconnecting" : "connecting");
-  }
-
-  handleIncomingMessage(data: string): void {
+  private receive(data: string): void {
     let parsed: unknown;
     try {
       parsed = JSON.parse(data);
     } catch {
       return;
     }
-
-    if (pongMessageLenientSchema.safeParse(parsed).success) {
-      this.clearPongTimer();
-      return;
-    }
-
     const threadOpen = threadOpenSignalLenientSchema.safeParse(parsed);
     if (threadOpen.success) {
-      if (threadOpen.data.file !== null) {
-        this.pendingOpenFileByThreadId.set(
-          threadOpen.data.threadId,
-          threadOpen.data.file,
-        );
-      }
-      for (const cb of this.threadOpenCallbacks) {
-        cb(threadOpen.data);
-      }
+      const { file, threadId } = threadOpen.data;
+      if (file !== null) this.pendingOpenFiles.set(threadId, file);
+      this.threadOpen.emit(threadOpen.data);
       return;
     }
-
     const pluginSignal = pluginSignalLenientSchema.safeParse(parsed);
     if (pluginSignal.success) {
-      for (const cb of this.pluginSignalCallbacks) {
-        cb(pluginSignal.data);
-      }
+      this.pluginSignal.emit(pluginSignal.data);
       return;
     }
-
-    const msg = changedMessageLenientSchema.safeParse(parsed);
-    if (msg.success) {
-      for (const cb of this.callbacks) {
-        cb(msg.data);
-      }
-    } else {
-      console.error("Ignored invalid realtime message", msg.error);
-    }
+    const changed = changedMessageLenientSchema.safeParse(parsed);
+    if (changed.success) this.changed.emit(changed.data);
   }
 
-  disconnect(): void {
-    this.stopPingLoop();
-    if (this.hasConnected && this.disconnectedAt === null) {
-      this.disconnectedAt = Date.now();
-    }
-    if (this.unsubscribeBrowserEvents) {
-      this.unsubscribeBrowserEvents();
-      this.unsubscribeBrowserEvents = null;
-    }
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
-    this.setConnectionState("connecting");
-  }
-
-  subscribe(target: RealtimeSubscriptionTarget): void {
-    const key = realtimeSubscriptionTargetKey(target);
-    const existing = this.subscriptions.get(key);
-    if (existing) {
-      existing.count += 1;
-      return;
-    }
-
-    this.subscriptions.set(key, { count: 1, target });
+  private send(message: ClientMessage): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.sendMessage({ type: "subscribe", target });
+      this.socket.send(JSON.stringify(message));
     }
   }
 
-  unsubscribe(target: RealtimeSubscriptionTarget): void {
-    const key = realtimeSubscriptionTargetKey(target);
-    const existing = this.subscriptions.get(key);
-    if (!existing) {
-      return;
-    }
-    if (existing.count > 1) {
-      existing.count -= 1;
-      return;
-    }
-
-    this.subscriptions.delete(key);
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.sendMessage({ type: "unsubscribe", target });
-    }
-  }
-
-  onChanged(callback: ChangeCallback): () => void {
-    this.callbacks.add(callback);
-    return () => {
-      this.callbacks.delete(callback);
-    };
-  }
-
-  onThreadOpen(callback: ThreadOpenCallback): () => void {
-    this.threadOpenCallbacks.add(callback);
-    return () => {
-      this.threadOpenCallbacks.delete(callback);
-    };
-  }
-
-  onPluginSignal(callback: PluginSignalCallback): () => void {
-    this.pluginSignalCallbacks.add(callback);
-    return () => {
-      this.pluginSignalCallbacks.delete(callback);
-    };
-  }
-
-  consumePendingOpenFile(threadId: string): ThreadOpenFile | null {
-    const pending = this.pendingOpenFileByThreadId.get(threadId);
-    if (!pending) {
-      return null;
-    }
-    this.pendingOpenFileByThreadId.delete(threadId);
-    return pending;
-  }
-
-  onConnected(callback: ConnectedCallback): () => void {
-    this.connectedCallbacks.add(callback);
-    return () => {
-      this.connectedCallbacks.delete(callback);
-    };
-  }
-
-  onConnectionStateChange(callback: ConnectionStateCallback): () => void {
-    this.connectionStateCallbacks.add(callback);
-    return () => {
-      this.connectionStateCallbacks.delete(callback);
-    };
-  }
-
-  getConnectionState(): WebSocketConnectionState {
-    return this.connectionState;
-  }
-
-  private sendMessage(msg: ClientMessage): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(msg));
-    }
-  }
-
-  private setConnectionState(nextState: WebSocketConnectionState): void {
-    if (this.connectionState === nextState) {
-      return;
-    }
-    this.connectionState = nextState;
-    for (const callback of this.connectionStateCallbacks) {
-      callback();
-    }
+  private setState(next: WebSocketConnectionState): void {
+    if (this.state === next) return;
+    this.state = next;
+    this.stateChanged.emit();
   }
 }
 
-function createOrReuse(): WebSocketManager {
-  if (import.meta.hot?.data) {
-    const existing = import.meta.hot.data.wsManager as
-      | WebSocketManager
-      | undefined;
-    if (existing) return existing;
-    const instance = new WebSocketManager();
-    import.meta.hot.data.wsManager = instance;
-    return instance;
-  }
-  return new WebSocketManager();
-}
-
-export const wsManager = createOrReuse();
+export const wsManager = new WebSocketManager();

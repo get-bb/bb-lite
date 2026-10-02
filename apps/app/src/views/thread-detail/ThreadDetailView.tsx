@@ -34,7 +34,6 @@ import {
   useThreadDetailBootstrap,
   useThreadPendingInteractions,
 } from "../../hooks/queries/thread-queries";
-import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialog";
 import { PageShell } from "@/components/ui/page-shell.js";
@@ -47,7 +46,6 @@ import { formatEnvironmentDisplay } from "@bb/core-ui";
 import { useCreateThreadInEnvironment } from "@/hooks/useCreateThreadInEnvironment";
 import { useLocalHostId, useOpenTargets } from "@/hooks/useOpenTargets";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
-import { useConnectionAwareQueryState } from "@/hooks/queries/connection-aware-query-state";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentSummaryChrome,
@@ -115,13 +113,10 @@ export function ThreadDetailView({
       : environment.hostLifecycle;
   const executionUnavailable =
     hostLifecycle !== null || environment?.status === "destroyed";
-  const threadQueryState = useConnectionAwareQueryState({
-    hasResolvedData: thread !== undefined,
-    isFetching: bootstrapQuery.isFetching || threadQuery.isFetching,
-    isLoadingError: threadQuery.isLoadingError,
-    isRecoverableLoadingError: isTransientReadError(threadQuery.error),
-  });
-  const isReady = threadQueryState.status === "ready" && thread !== undefined;
+  const isThreadLoading =
+    thread === undefined &&
+    (bootstrapQuery.isFetching || threadQuery.isFetching);
+  const isReady = thread !== undefined;
   const originKind = thread?.originKind ?? null;
   const sourceThreadId =
     thread?.sourceThreadId ??
@@ -379,7 +374,7 @@ export function ThreadDetailView({
     }),
   );
 
-  if (threadQueryState.status === "loading") {
+  if (isThreadLoading) {
     return <RouteLoadingSkeleton isBoundedPane={isBoundedPane} />;
   }
   if (!thread || thread.projectId !== projectId) {

@@ -1,67 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ResolvedThreadExecutionOptions } from "@bb/domain";
+import { resolvedThreadExecutionOptionsSchema } from "@bb/domain";
+import { createLastKnownCache } from "@/lib/last-known-cache";
 import { sdk } from "@/lib/sdk";
-import {
-  readCachedThreadExecutionOptions,
-  threadExecutionOptionsCacheKey,
-  writeCachedThreadExecutionOptions,
-} from "@/lib/thread-execution-options-cache";
 import { useThreadDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
-import { requireThreadId } from "./query-helpers";
-import { threadDefaultExecutionOptionsQueryKey } from "./query-keys";
-import { REALTIME_OWNED_NO_FOCUS_QUERY_POLICY } from "./query-policies";
+import { qk } from "./query-keys";
 
-export {
-  allThreadDefaultExecutionOptionsQueryKeyPrefix,
-  threadDefaultExecutionOptionsQueryKey,
-} from "./query-keys";
-
-interface ThreadDefaultExecutionOptionsQueryOptions {
-  enabled?: boolean;
-  refetchOnMount?: boolean | "always";
-  staleTime?: number;
-}
-
-async function fetchThreadDefaultExecutionOptions(
-  threadId: string,
-  signal?: AbortSignal,
-): Promise<ResolvedThreadExecutionOptions | null> {
-  const options = await sdk.threads.defaultExecutionOptions({
-    threadId,
-    signal,
-  });
-  if (options !== null && !signal?.aborted) {
-    writeCachedThreadExecutionOptions(
-      threadExecutionOptionsCacheKey(threadId),
-      options,
-    );
-  }
-  return options;
-}
+const lastKnown = createLastKnownCache({
+  prefix: "bb.thread-execution-options",
+  version: "1",
+  schema: resolvedThreadExecutionOptionsSchema,
+  maxEntries: 50,
+});
 
 export function useThreadDefaultExecutionOptions(
   id: string,
-  options?: ThreadDefaultExecutionOptionsQueryOptions,
+  options?: { enabled?: boolean },
 ) {
   const enabled = (options?.enabled ?? true) && Boolean(id);
   useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<ResolvedThreadExecutionOptions | null>({
-    queryKey: threadDefaultExecutionOptionsQueryKey(id),
-    queryFn: ({ signal }) =>
-      fetchThreadDefaultExecutionOptions(
-        requireThreadId(id, "useThreadDefaultExecutionOptions"),
-        signal,
-      ),
+  return useQuery({
+    queryKey: qk.threadExecution(id),
+    queryFn: async ({ signal }) => {
+      const args = { threadId: id, signal };
+      const execution = await sdk.threads.defaultExecutionOptions(args);
+      if (execution !== null) lastKnown.write(lastKnown.key(id), execution);
+      return execution;
+    },
     enabled,
-    refetchOnMount: options?.refetchOnMount ?? true,
-    ...REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
-    staleTime: options?.staleTime,
-    placeholderData: () =>
-      id
-        ? (readCachedThreadExecutionOptions(
-            threadExecutionOptionsCacheKey(id),
-          ) ?? undefined)
-        : undefined,
+    placeholderData: () => lastKnown.read(lastKnown.key(id)) ?? undefined,
   });
 }

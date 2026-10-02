@@ -1,25 +1,25 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Environment } from "@bb/domain";
-import type {
-  EnvironmentActionResponse,
-  UpdateEnvironmentRequest,
-} from "@bb/server-contract";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import type { EnvironmentActionResponse } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import type { RequestEnvironmentActionMutationRequest } from "./mutation-request-types";
-import { invalidateEnvironmentActionQueries } from "../cache-owners/environment-cache-effects";
-import {
-  beginEnvironmentNameUpdateTransaction,
-  completeEnvironmentNameUpdateTransaction,
-  rollbackEnvironmentNameUpdateTransaction,
-  type EnvironmentNameUpdateTransaction,
-} from "../cache-owners/environment-workspace-cache-owner";
-type UpdateEnvironmentMutationRequest = {
-  id: string;
-} & UpdateEnvironmentRequest;
+import { bumpDiffPatchEvictionGeneration } from "../cache-owners/environment-diff-patch-cache-owner";
+import { environmentDiffPatchQueryKeyPrefix, qk } from "../queries/query-keys";
+import { refresh } from "../queries/refresh";
+
+function refreshEnvironment(client: QueryClient, environmentId: string) {
+  bumpDiffPatchEvictionGeneration(environmentId);
+  client.removeQueries({
+    queryKey: environmentDiffPatchQueryKeyPrefix(environmentId),
+  });
+  refresh(client, qk.environment(environmentId));
+}
 
 export function useRequestEnvironmentAction() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
     meta: {
       errorMessage: "Failed to run environment action.",
@@ -27,68 +27,27 @@ export function useRequestEnvironmentAction() {
     },
     mutationFn: ({
       id,
-      ...request
-    }: RequestEnvironmentActionMutationRequest): Promise<EnvironmentActionResponse> => {
-      switch (request.action) {
-        case "commit":
-          return sdk.environments.commit({ environmentId: id });
-      }
-    },
-    onSuccess: (_response, variables) => {
-      invalidateEnvironmentActionQueries({
-        environmentId: variables.id,
-        queryClient,
-      });
-    },
+    }: RequestEnvironmentActionMutationRequest): Promise<EnvironmentActionResponse> =>
+      sdk.environments.commit({ environmentId: id }),
+    onSuccess: (_response, { id }) => refreshEnvironment(client, id),
   });
 }
 
 export function useUpdateEnvironment() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
     meta: {
       errorMessage: "Failed to update environment.",
       showErrorToast: false,
     },
-    mutationFn: ({ id, ...request }: UpdateEnvironmentMutationRequest) => {
-      if (request.name !== undefined) {
-        return sdk.environments.update({
-          environmentId: id,
-          name: request.name,
-          ...(request.mergeBaseBranch !== undefined
-            ? { mergeBaseBranch: request.mergeBaseBranch }
-            : {}),
-        });
-      }
-      if (request.mergeBaseBranch !== undefined) {
-        return sdk.environments.update({
-          environmentId: id,
-          mergeBaseBranch: request.mergeBaseBranch,
-        });
-      }
-      throw new Error("Environment update requires at least one field");
-    },
-    onMutate: ({
-      id,
-      name,
-    }): Promise<EnvironmentNameUpdateTransaction> | undefined =>
-      name === undefined
-        ? undefined
-        : beginEnvironmentNameUpdateTransaction({
-            environmentId: id,
-            name,
-            queryClient,
-          }),
-    onError: (_error, _variables, transaction) => {
-      rollbackEnvironmentNameUpdateTransaction({ queryClient, transaction });
-    },
-    onSuccess: (environment: Environment, _variables, transaction) => {
-      completeEnvironmentNameUpdateTransaction({
-        environment,
-        queryClient,
-        transaction,
-      });
+    mutationFn: (request: { id: string; mergeBaseBranch: string | null }) =>
+      sdk.environments.update({
+        environmentId: request.id,
+        mergeBaseBranch: request.mergeBaseBranch,
+      }),
+    onSuccess: (environment) => {
+      client.setQueryData(qk.environmentRecord(environment.id), environment);
+      refreshEnvironment(client, environment.id);
     },
   });
 }

@@ -7,182 +7,87 @@ import type {
 } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import { registerLocalAttachmentPreview } from "@/lib/attachment-local-previews";
-import {
-  applyProjectCreateResult,
-  applyProjectDeleteResult,
-  applyProjectUpdateResult,
-} from "../cache-owners/project-cache-owner";
-import {
-  invalidateProjectListQueries,
-  invalidateProjectSourceQueries,
-  invalidateProjectUpdateQueries,
-} from "../cache-owners/mutation-cache-effects";
+import { qk } from "../queries/query-keys";
+import { ANY, filterFor } from "../queries/refresh";
 
-interface AddLocalProjectSourceRequest {
-  projectId: string;
-  hostId: string;
-  path: string;
-}
-
-interface UpdateLocalProjectSourceRequest {
-  projectId: string;
-  sourceId: string;
-  path: string;
-}
-
-interface DeleteLocalProjectSourceRequest {
-  projectId: string;
-  sourceId: string;
-}
-
-interface UpdateProjectMutationRequest extends UpdateProjectRequest {
-  id: string;
-}
-
-interface UploadPromptAttachmentRequest {
-  projectId: string;
-  file: File;
+function useProjectMutation<TVariables, TData>(config: {
+  errorMessage?: string;
+  showErrorToast?: boolean;
+  mutationFn: (variables: TVariables) => Promise<TData>;
+}) {
+  const client = useQueryClient();
+  const { errorMessage, showErrorToast = errorMessage !== undefined } = config;
+  return useMutation({
+    meta: { errorMessage, showErrorToast },
+    mutationFn: config.mutationFn,
+    onSuccess: () =>
+      Promise.all(
+        [qk.sidebar(), qk.project(ANY), qk.hostPaths()].map((queryKey) =>
+          client.invalidateQueries(filterFor(queryKey)),
+        ),
+      ),
+  });
 }
 
 export function useCreateProject() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to create project.",
-    },
+  return useProjectMutation({
+    errorMessage: "Failed to create project.",
     mutationFn: (request: CreateProjectRequest) => sdk.projects.create(request),
-    onSuccess: (project) => {
-      applyProjectCreateResult({ project, queryClient });
-      invalidateProjectListQueries({ queryClient });
-    },
   });
 }
 
 export function useUpdateProject(options?: { showErrorToast?: boolean }) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to update project.",
-      showErrorToast: options?.showErrorToast ?? true,
-    },
-    mutationFn: ({ id, ...request }: UpdateProjectMutationRequest) =>
+  return useProjectMutation({
+    errorMessage: "Failed to update project.",
+    showErrorToast: options?.showErrorToast ?? true,
+    mutationFn: ({ id, ...request }: UpdateProjectRequest & { id: string }) =>
       sdk.projects.update({ projectId: id, ...request }),
-    onSuccess: (project, variables) => {
-      applyProjectUpdateResult({ project, queryClient });
-      invalidateProjectUpdateQueries({ projectId: variables.id, queryClient });
-    },
   });
 }
 
 export function useDeleteProject() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to remove project.",
-    },
+  return useProjectMutation({
+    errorMessage: "Failed to remove project.",
     mutationFn: async (projectId: string): Promise<void> => {
       await sdk.projects.delete({ projectId });
-    },
-    onSuccess: (_data, projectId) => {
-      applyProjectDeleteResult({ projectId, queryClient });
     },
   });
 }
 
 export function useAddLocalProjectSource() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to add local source.",
-    },
-    mutationFn: ({ projectId, hostId, path }: AddLocalProjectSourceRequest) =>
-      sdk.projects.sources.add({
-        projectId,
-        type: "local_path",
-        hostId,
-        path,
-      }),
-    onSuccess: (_data, variables) => {
-      invalidateProjectSourceQueries({
-        projectId: variables.projectId,
-        queryClient,
-      });
-    },
+  return useProjectMutation({
+    errorMessage: "Failed to add local source.",
+    mutationFn: (args: { projectId: string; hostId: string; path: string }) =>
+      sdk.projects.sources.add({ ...args, type: "local_path" }),
   });
 }
 
-interface AddProjectSourceMutationRequest {
-  projectId: string;
-  request: CreateProjectSourceRequest;
-}
-
 export function useAddProjectSource() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      showErrorToast: false,
-    },
-    mutationFn: ({ projectId, request }: AddProjectSourceMutationRequest) =>
-      sdk.projects.sources.add({ projectId, ...request }),
-    onSuccess: (_data, variables) => {
-      invalidateProjectSourceQueries({
-        projectId: variables.projectId,
-        queryClient,
-      });
-    },
+  return useProjectMutation({
+    mutationFn: (args: {
+      projectId: string;
+      request: CreateProjectSourceRequest;
+    }) =>
+      sdk.projects.sources.add({ projectId: args.projectId, ...args.request }),
   });
 }
 
 export function useUpdateLocalProjectSource() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to update local source.",
-    },
-    mutationFn: ({
-      projectId,
-      sourceId,
-      path,
-    }: UpdateLocalProjectSourceRequest) =>
-      sdk.projects.sources.update({
-        projectId,
-        sourceId,
-        type: "local_path",
-        path,
-      }),
-    onSuccess: (_data, variables) => {
-      invalidateProjectSourceQueries({
-        projectId: variables.projectId,
-        queryClient,
-      });
-    },
+  return useProjectMutation({
+    errorMessage: "Failed to update local source.",
+    mutationFn: (args: { projectId: string; sourceId: string; path: string }) =>
+      sdk.projects.sources.update({ ...args, type: "local_path" }),
   });
 }
 
 export function useDeleteLocalProjectSource() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to remove source.",
-    },
-    mutationFn: async ({
-      projectId,
-      sourceId,
-    }: DeleteLocalProjectSourceRequest): Promise<void> => {
-      await sdk.projects.sources.delete({ projectId, sourceId });
-    },
-    onSuccess: (_data, variables) => {
-      invalidateProjectSourceQueries({
-        projectId: variables.projectId,
-        queryClient,
-      });
+  return useProjectMutation({
+    errorMessage: "Failed to remove source.",
+    mutationFn: async (args: {
+      projectId: string;
+      sourceId: string;
+    }): Promise<void> => {
+      await sdk.projects.sources.delete(args);
     },
   });
 }
@@ -193,15 +98,15 @@ export function useUploadPromptAttachment() {
       errorMessage: "Failed to upload attachment.",
       showErrorToast: false,
     },
-    mutationFn: async ({
-      projectId,
-      file,
-    }: UploadPromptAttachmentRequest): Promise<UploadedPromptAttachment> => {
+    mutationFn: async (args: {
+      projectId: string;
+      file: File;
+    }): Promise<UploadedPromptAttachment> => {
       const uploaded = await sdk.projects.attachments.upload({
-        projectId,
-        clientFile: file,
+        projectId: args.projectId,
+        clientFile: args.file,
       });
-      registerLocalAttachmentPreview(uploaded.path, file);
+      registerLocalAttachmentPreview(uploaded.path, args.file);
       return uploaded;
     },
     retry: false,

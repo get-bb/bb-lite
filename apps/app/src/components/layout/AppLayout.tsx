@@ -29,7 +29,7 @@ import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcut
 import { CommandPalette } from "@/components/commands/CommandPalette";
 import { AppPageHeader } from "./AppPageHeader";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { listSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
+import { listSidebarNavigationThreads } from "@/hooks/queries/thread-cache";
 import {
   didThreadDetailBootstrapRefreshAfterMount,
   getLatestPendingInteraction,

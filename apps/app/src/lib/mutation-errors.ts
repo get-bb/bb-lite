@@ -7,179 +7,58 @@ import {
   type LifecycleErrorOperation,
 } from "./lifecycle-errors";
 
-const NETWORK_TRANSPORT_ERROR_MESSAGE =
-  "Could not reach the server. Check that it is running and try again.";
-const GENERIC_REQUEST_FAILED_MESSAGE = "Request failed";
-const TRAILING_PERIOD_PATTERN = /\.$/u;
-
 interface MutationErrorMessageOptions {
   error: unknown;
   fallbackMessage: string;
   lifecycleOperation?: LifecycleErrorOperation | undefined;
 }
 
-interface MutationErrorMeta {
-  errorMessage?: string;
-  lifecycleOperation?: LifecycleErrorOperation;
-  showErrorToast?: boolean;
-}
-
-type MutationErrorMetaInput = Readonly<Record<string, unknown>> | undefined;
-
-function normalizeMessage(message: string): string {
-  return message.replace(/\s+/g, " ").trim();
-}
-
 export function isAbortLikeError(error: unknown): boolean {
   return toRecord(error)?.name === "AbortError";
 }
 
-function isNetworkTransportError(error: unknown): boolean {
-  if (asHttpError(error) !== null || isAbortLikeError(error)) {
-    return false;
-  }
-
-  const record = toRecord(error);
-  if (!record || typeof record.message !== "string") {
-    return false;
-  }
-
-  const normalizedMessage = normalizeMessage(record.message).toLowerCase();
+export function isNetworkTransportError(error: unknown): boolean {
+  if (asHttpError(error) !== null || isAbortLikeError(error)) return false;
+  const message = toRecord(error)?.message;
   return (
-    normalizedMessage.includes("failed to fetch") ||
-    normalizedMessage.includes("load failed") ||
-    normalizedMessage.includes("networkerror")
+    typeof message === "string" &&
+    /failed to fetch|load failed|networkerror/i.test(message)
   );
-}
-
-function toLifecycleErrorOperation(
-  value: unknown,
-): LifecycleErrorOperation | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  switch (value) {
-    case "archive_thread":
-    case "commit":
-    case "create_thread":
-    case "edit_message":
-    case "load_diff":
-    case "load_git_status":
-    case "load_thread_storage":
-    case "open_terminal":
-    case "queue_message":
-    case "reorder_queued_message":
-    case "resolve_interaction":
-    case "send_message":
-    case "send_queued_message":
-    case "set_queued_message_group_boundary":
-    case "stop_thread":
-    case "update_queued_message":
-    case "update_merge_base":
-      return value;
-    default:
-      return undefined;
-  }
-}
-
-export function getMutationErrorMeta(
-  value: MutationErrorMetaInput,
-): MutationErrorMeta {
-  if (!value) {
-    return {};
-  }
-
-  const errorMessage =
-    typeof value.errorMessage === "string"
-      ? normalizeMessage(value.errorMessage)
-      : undefined;
-  const showErrorToast =
-    typeof value.showErrorToast === "boolean"
-      ? value.showErrorToast
-      : undefined;
-  const lifecycleOperation = toLifecycleErrorOperation(
-    value.lifecycleOperation,
-  );
-
-  return {
-    ...(errorMessage ? { errorMessage } : {}),
-    ...(lifecycleOperation ? { lifecycleOperation } : {}),
-    ...(showErrorToast === undefined ? {} : { showErrorToast }),
-  };
 }
 
 export function getMutationErrorMessage({
   error,
   fallbackMessage,
-  lifecycleOperation,
+  lifecycleOperation: operation,
 }: MutationErrorMessageOptions): string {
-  const lifecycleErrorDescription = describeLifecycleError({
-    error,
-    operation: lifecycleOperation,
-  });
-  if (lifecycleErrorDescription) {
-    return formatLifecycleErrorDescription(lifecycleErrorDescription);
-  }
-
+  const lifecycle = describeLifecycleError({ error, operation });
+  if (lifecycle) return formatLifecycleErrorDescription(lifecycle);
   const httpError = asHttpError(error);
   if (httpError !== null) {
     return getHttpErrorMessage(httpError) ?? fallbackMessage;
   }
-
   if (isNetworkTransportError(error)) {
-    return NETWORK_TRANSPORT_ERROR_MESSAGE;
+    return "Could not reach the server. Check that it is running and try again.";
   }
-
-  const extractedMessage = extractErrorMessage(error);
-  if (!extractedMessage) {
-    return fallbackMessage;
-  }
-
-  const normalizedMessage = normalizeMessage(extractedMessage);
-  return normalizedMessage.length > 0 ? normalizedMessage : fallbackMessage;
+  return extractErrorMessage(error) ?? fallbackMessage;
 }
 
-export function shouldShowMutationErrorToast(error: unknown): boolean {
-  return !isAbortLikeError(error);
-}
-
-export function showMutationErrorToast({
-  error,
-  fallbackMessage,
-  lifecycleOperation,
-}: MutationErrorMessageOptions): void {
-  if (!shouldShowMutationErrorToast(error)) {
+export function showMutationErrorToast(
+  options: MutationErrorMessageOptions,
+): void {
+  const { error, fallbackMessage, lifecycleOperation: operation } = options;
+  if (isAbortLikeError(error)) return;
+  const lifecycle = describeLifecycleError({ error, operation });
+  if (lifecycle) {
+    appToast.error(lifecycle.title, { description: lifecycle.body });
     return;
   }
-
-  const lifecycleDescription = describeLifecycleError({
-    error,
-    operation: lifecycleOperation,
-  });
-  if (lifecycleDescription) {
-    appToast.error(lifecycleDescription.title, {
-      description: lifecycleDescription.body,
-    });
+  const message = getMutationErrorMessage(options).replace(/\.$/u, "");
+  if (message === "Request failed") {
+    appToast.error("Request failed", { description: "Please try again" });
     return;
   }
-
-  const message = getMutationErrorMessage({
-    error,
-    fallbackMessage,
-    lifecycleOperation,
-  }).replace(TRAILING_PERIOD_PATTERN, "");
-  if (message === GENERIC_REQUEST_FAILED_MESSAGE) {
-    appToast.error("Request failed", {
-      description: "Please try again",
-    });
-    return;
-  }
-
-  const title = normalizeMessage(fallbackMessage).replace(
-    TRAILING_PERIOD_PATTERN,
-    "",
-  );
+  const title = fallbackMessage.replace(/\s+/g, " ").trim().replace(/\.$/u, "");
   appToast.error(
     title,
     message === title ? undefined : { description: message },

@@ -27,7 +27,7 @@ export function useSetPluginEnabled() {
 
   return useCallback(
     async (pluginId: string, enabled: boolean) => {
-      await setPluginEnabled(fetch, pluginId, enabled);
+      await setPluginEnabled(pluginId, enabled);
       if (enabled) return;
       const current = store.get(splitLayoutAtom);
       let next = current;
