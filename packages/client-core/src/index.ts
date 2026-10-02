@@ -6,17 +6,9 @@ export * from "./thread/thread-activity.js";
 export * from "./codepoint-compare.js";
 export * from "./stored-order.js";
 export * from "./environment-providers.js";
-export * from "./sidebar/sectionKeys.js";
-export * from "./sidebar/projectThreadGroups.js";
-export * from "./sidebar/machineThreadGroups.js";
-export * from "./sidebar/pinnedSidebarThreads.js";
-export * from "./sidebar/threadReadState.js";
-export * from "./sidebar/sidebarSectionId.js";
 export * from "./sidebar/sidebarSectionOrder.js";
-export * from "./sidebar/neighbor-reorder.js";
 
 export * from "./prompt/prompt-draft.js";
-export * from "./prompt/follow-up-submit-mode.js";
 export * from "./prompt/threadDetailPromptSubmission.js";
 export * from "./prompt/threadQueuedMessages.js";
 export * from "./prompt/effective-prompt-mode.js";
@@ -40,7 +32,6 @@ export * from "./terminal/terminal-websocket-transport.js";
 export * from "./terminal/terminal-websocket-path.js";
 
 export * from "./file-preview.js";
-export * from "./panel/array-move.js";
 
 export * from "./localhost-link-rewrite.js";
 export * from "./routes/route-paths.js";

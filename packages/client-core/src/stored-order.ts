@@ -1,41 +1,14 @@
-import { arrayMove } from "./panel/array-move.js";
-
-interface ArrangeByStoredOrderArgs<TItem> {
-  items: readonly TItem[];
-  getId: (item: TItem) => string;
-  storedOrder: readonly string[];
-}
-
-interface ArrangedByStoredOrder<TItem> {
-  ordered: TItem[];
-  normalizedOrder: string[];
-}
-
-export function arrangeByStoredOrder<TItem>({
-  items,
-  getId,
-  storedOrder,
-}: ArrangeByStoredOrderArgs<TItem>): ArrangedByStoredOrder<TItem> {
-  const byId = new Map(items.map((item) => [getId(item), item]));
-  const ordered: TItem[] = [];
-  const normalizedOrder: string[] = [];
-  const seen = new Set<string>();
-  for (const id of storedOrder) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    normalizedOrder.push(id);
-    const item = byId.get(id);
-    if (item) ordered.push(item);
+export function arrayMove<T>(
+  array: readonly T[],
+  from: number,
+  to: number,
+): T[] {
+  const result = [...array];
+  const [moved] = result.splice(from, 1);
+  if (moved !== undefined) {
+    result.splice(to < 0 ? result.length + to : to, 0, moved);
   }
-  for (const item of items) {
-    const id = getId(item);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    normalizedOrder.push(id);
-    ordered.push(item);
-  }
-
-  return { ordered, normalizedOrder };
+  return result;
 }
 
 type ReorderStoredOrderArgs<TId extends string> = {
@@ -55,7 +28,7 @@ export function reorderStoredOrder<TId extends string>(
       nextVisible.length !== visibleIds.length ||
       new Set(nextVisible).size !== visibleSet.size ||
       nextVisible.some((id) => !visibleSet.has(id)) ||
-      haveSameOrder(nextVisible, visibleIds)
+      nextVisible.every((id, index) => id === visibleIds[index])
     ) {
       return null;
     }
@@ -67,14 +40,4 @@ export function reorderStoredOrder<TId extends string>(
   }
   let cursor = 0;
   return order.map((id) => (visibleSet.has(id) ? nextVisible[cursor++] : id));
-}
-
-export function haveSameOrder(
-  left: readonly string[],
-  right: readonly string[],
-) {
-  return (
-    left.length === right.length &&
-    left.every((id, index) => id === right[index])
-  );
 }

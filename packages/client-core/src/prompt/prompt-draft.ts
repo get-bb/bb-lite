@@ -17,72 +17,42 @@ export interface PromptDraftState {
   attachments: PromptDraftAttachment[];
 }
 
+function validItems<T>(schema: z.ZodType<T>) {
+  return z
+    .array(z.unknown())
+    .default([])
+    .transform((items) =>
+      items.flatMap((item) => {
+        const result = schema.safeParse(item);
+        return result.success ? [result.data] : [];
+      }),
+    );
+}
+
 const promptDraftStorageSchema = z.object({
   text: z.string().default(""),
-  mentions: z
-    .array(z.unknown())
-    .default([])
-    .transform((items) =>
-      items.flatMap((item) => {
-        const result = promptTextMentionSchema.safeParse(item);
-        return result.success ? [result.data] : [];
-      }),
-    ),
-  attachments: z
-    .array(z.unknown())
-    .default([])
-    .transform((items) =>
-      items.flatMap((item) => {
-        const result = uploadedPromptAttachmentSchema.safeParse(item);
-        return result.success ? [result.data] : [];
-      }),
-    ),
+  mentions: validItems(promptTextMentionSchema),
+  attachments: validItems(uploadedPromptAttachmentSchema),
 });
 
 export function emptyPromptDraftState(): PromptDraftState {
-  return {
-    text: "",
-    mentions: [],
-    attachments: [],
-  };
+  return { text: "", mentions: [], attachments: [] };
 }
 
-function normalizeQuotedSelectionText(text: string): string {
-  const lines = text.replace(/\r\n|\r/gu, "\n").split("\n");
-  const normalizedLines: string[] = [];
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]!;
-    const previousLine = normalizedLines.at(-1);
-    const nextLine = lines[index + 1];
-    if (
-      line.trim().length === 0 &&
-      previousLine?.startsWith(">") === true &&
-      nextLine?.startsWith(">") === true
-    ) {
-      continue;
-    }
-    normalizedLines.push(line);
-  }
-
-  return normalizedLines.join("\n").trim();
-}
-
-export function appendQuoteToDraftText<Draft extends { text: string }>(
-  state: Draft,
-  quotedText: string,
-): Draft {
-  const trimmed = normalizeQuotedSelectionText(quotedText);
-  if (trimmed === "") return state;
-
-  const block = trimmed
+function quoteBlock(quotedText: string): string {
+  const lines = quotedText.replace(/\r\n|\r/gu, "\n").split("\n");
+  return lines
+    .filter(
+      (line, index) =>
+        line.trim().length > 0 ||
+        lines[index - 1]?.startsWith(">") !== true ||
+        lines[index + 1]?.startsWith(">") !== true,
+    )
+    .join("\n")
+    .trim()
     .split("\n")
     .map((line) => (line.length > 0 ? `> ${line}` : ">"))
     .join("\n");
-
-  const text = state.text === "" ? `${block}\n` : `${state.text}\n${block}\n`;
-
-  return { ...state, text };
 }
 
 export function appendQuoteAndAttachmentsToDraft<
@@ -92,28 +62,23 @@ export function appendQuoteAndAttachmentsToDraft<
   quotedText: string,
   attachments: readonly PromptDraftAttachment[],
 ): Draft {
-  const quotedState = appendQuoteToDraftText(state, quotedText);
-  if (attachments.length === 0) {
-    return quotedState;
-  }
-
-  const existingAttachmentPaths = new Set(
-    quotedState.attachments.map((attachment) => attachment.path),
+  const block = quoteBlock(quotedText);
+  const quoted =
+    block === ">"
+      ? state
+      : {
+          ...state,
+          text: `${state.text === "" ? "" : `${state.text}\n`}${block}\n`,
+        };
+  const paths = new Set(
+    quoted.attachments.map((attachment) => attachment.path),
   );
-  const mergedAttachments = [...quotedState.attachments];
-  for (const attachment of attachments) {
-    if (existingAttachmentPaths.has(attachment.path)) {
-      continue;
-    }
-    existingAttachmentPaths.add(attachment.path);
-    mergedAttachments.push(attachment);
-  }
-
-  if (mergedAttachments.length === quotedState.attachments.length) {
-    return quotedState;
-  }
-
-  return { ...quotedState, attachments: mergedAttachments };
+  const added = attachments.filter(
+    ({ path }) => !paths.has(path) && paths.add(path),
+  );
+  return added.length === 0
+    ? quoted
+    : { ...quoted, attachments: [...quoted.attachments, ...added] };
 }
 
 export function isPromptDraftEmpty(draft: PromptDraftState): boolean {
@@ -127,11 +92,10 @@ export function isPromptDraftEmpty(draft: PromptDraftState): boolean {
 export function parsePromptDraftStorage(
   rawValue: string | null,
 ): PromptDraftState {
-  if (!rawValue) return emptyPromptDraftState();
-
   try {
-    const parsed: unknown = JSON.parse(rawValue);
-    const result = promptDraftStorageSchema.safeParse(parsed);
+    const result = promptDraftStorageSchema.safeParse(
+      JSON.parse(rawValue ?? ""),
+    );
     return result.success ? result.data : emptyPromptDraftState();
   } catch {
     return emptyPromptDraftState();
@@ -141,17 +105,14 @@ export function parsePromptDraftStorage(
 export function serializePromptDraftStorage(
   draft: PromptDraftState,
 ): string | null {
-  const text = draft.text;
-  const mentions = draft.mentions;
-  const attachments = draft.attachments;
-  if (isPromptDraftEmpty(draft)) {
-    return null;
-  }
-  return JSON.stringify({
-    text,
-    ...(mentions.length > 0 ? { mentions } : {}),
-    attachments,
-  });
+  const { text, mentions, attachments } = draft;
+  return isPromptDraftEmpty(draft)
+    ? null
+    : JSON.stringify({
+        text,
+        ...(mentions.length > 0 ? { mentions } : {}),
+        attachments,
+      });
 }
 
 export function arePromptDraftStatesEqual(
@@ -163,15 +124,12 @@ export function arePromptDraftStatesEqual(
   );
 }
 
-function getFileNameFromPath(path: string): string {
-  const trimmedPath = path.trim();
-  if (trimmedPath.length === 0) {
-    return "Attachment";
-  }
-
-  const segments = trimmedPath.split("/");
-  const lastSegment = segments[segments.length - 1];
-  return lastSegment && lastSegment.length > 0 ? lastSegment : trimmedPath;
+function isValidMention(mention: PromptTextMention, textLength: number) {
+  return (
+    mention.start >= 0 &&
+    mention.end > mention.start &&
+    mention.end <= textLength
+  );
 }
 
 export function normalizePromptTextMentions(
@@ -179,136 +137,97 @@ export function normalizePromptTextMentions(
   textLength: number,
 ): PromptTextMention[] {
   return mentions
-    .filter(
-      (mention) =>
-        mention.start >= 0 &&
-        mention.end > mention.start &&
-        mention.end <= textLength,
-    )
+    .filter((mention) => isValidMention(mention, textLength))
     .sort((left, right) => left.start - right.start || left.end - right.end);
 }
 
 export function promptDraftToInput(draft: PromptDraftState): PromptInput[] {
   const input: PromptInput[] = [];
-
-  const trimStartLength = draft.text.length - draft.text.trimStart().length;
-  const trimEndIndex = draft.text.trimEnd().length;
-  const text = draft.text.slice(trimStartLength, trimEndIndex);
+  const trimStart = draft.text.length - draft.text.trimStart().length;
+  const trimEnd = draft.text.trimEnd().length;
+  const text = draft.text.slice(trimStart, trimEnd);
   if (text.length > 0) {
     const mentions = normalizePromptTextMentions(
       draft.mentions.flatMap((mention) => {
-        const visibleStart = Math.max(mention.start, trimStartLength);
-        const visibleEnd = Math.min(mention.end, trimEndIndex);
-        return visibleStart < visibleEnd
-          ? [
-              {
-                ...mention,
-                start: visibleStart - trimStartLength,
-                end: visibleEnd - trimStartLength,
-              },
-            ]
-          : [];
+        const start = Math.max(mention.start, trimStart) - trimStart;
+        const end = Math.min(mention.end, trimEnd) - trimStart;
+        return start < end ? [{ ...mention, start, end }] : [];
       }),
       text.length,
     );
     input.push({ type: "text", text, mentions });
   }
-
-  for (const attachment of draft.attachments) {
-    if (attachment.type === "localImage") {
-      input.push({
-        type: "localImage",
-        path: attachment.path,
-      });
-      continue;
-    }
-
-    input.push({
-      type: "localFile",
-      path: attachment.path,
-      name: attachment.name,
-      ...(attachment.sizeBytes > 0 ? { sizeBytes: attachment.sizeBytes } : {}),
-      ...(attachment.mimeType ? { mimeType: attachment.mimeType } : {}),
-    });
+  for (const { type, path, name, sizeBytes, mimeType } of draft.attachments) {
+    input.push(
+      type === "localImage"
+        ? { type, path }
+        : {
+            type: "localFile",
+            path,
+            name,
+            ...(sizeBytes > 0 ? { sizeBytes } : {}),
+            ...(mimeType ? { mimeType } : {}),
+          },
+    );
   }
-
   return input;
+}
+
+function fileNameFromPath(path: string): string {
+  const trimmed = path.trim();
+  return trimmed.length === 0
+    ? "Attachment"
+    : trimmed.split("/").at(-1) || trimmed;
 }
 
 export function promptInputToDraft(
   input: readonly PromptInput[],
 ): PromptDraftState {
-  const textSegments: string[] = [];
-  const mentions: PromptTextMention[] = [];
-  const attachments: PromptDraftState["attachments"] = [];
-  let textOffset = 0;
-
+  const draft = emptyPromptDraftState();
   for (const chunk of input) {
-    if (chunk.type === "text") {
-      if (chunk.text.trim().length > 0) {
-        if (textSegments.length > 0) {
-          textOffset += 2;
-        }
-        for (const mention of chunk.mentions) {
-          if (
-            mention.start >= 0 &&
-            mention.end > mention.start &&
-            mention.end <= chunk.text.length
-          ) {
-            mentions.push({
-              ...mention,
-              start: textOffset + mention.start,
-              end: textOffset + mention.end,
-            });
-          }
-        }
-        textSegments.push(chunk.text);
-        textOffset += chunk.text.length;
-      }
-      continue;
-    }
-
-    if (chunk.type === "localImage") {
-      attachments.push({
-        type: "localImage",
+    if (chunk.type === "text" && chunk.text.trim().length > 0) {
+      const offset = draft.text.length === 0 ? 0 : draft.text.length + 2;
+      draft.mentions.push(
+        ...chunk.mentions
+          .filter((mention) => isValidMention(mention, chunk.text.length))
+          .map((mention) => ({
+            ...mention,
+            start: offset + mention.start,
+            end: offset + mention.end,
+          })),
+      );
+      draft.text = offset === 0 ? chunk.text : `${draft.text}\n\n${chunk.text}`;
+    } else if (chunk.type === "localImage") {
+      const name = fileNameFromPath(chunk.path);
+      draft.attachments.push({
+        type: chunk.type,
         path: chunk.path,
-        name: getFileNameFromPath(chunk.path),
+        name,
         sizeBytes: 0,
       });
-      continue;
-    }
-
-    if (chunk.type === "localFile") {
-      attachments.push({
+    } else if (chunk.type === "localFile") {
+      draft.attachments.push({
         type: "localFile",
         path: chunk.path,
-        name: chunk.name ?? getFileNameFromPath(chunk.path),
+        name: chunk.name ?? fileNameFromPath(chunk.path),
         sizeBytes: chunk.sizeBytes ?? 0,
         ...(chunk.mimeType ? { mimeType: chunk.mimeType } : {}),
       });
     }
   }
-
-  return {
-    text: textSegments.join("\n\n"),
-    mentions,
-    attachments,
-  };
+  return draft;
 }
 
 export function getProjectStoredPromptAttachmentPaths(
   attachments: readonly PromptDraftAttachment[],
 ): string[] {
+  const isRuntimeReadable = (path: string) =>
+    /^[\\/]/u.test(path) || /^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(path);
   return [
     ...new Set(
-      attachments.flatMap((attachment) => {
-        const path = attachment.path;
-        const isRuntimeReadable =
-          /^[\\/]/u.test(path) ||
-          /^[a-zA-Z]:[\\/]/u.test(path) ||
-          /^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(path);
-        return isRuntimeReadable ? [] : [path];
-      }),
+      attachments
+        .map((attachment) => attachment.path)
+        .filter((path) => !isRuntimeReadable(path)),
     ),
   ];
 }
