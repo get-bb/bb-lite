@@ -1,5 +1,5 @@
 import * as domain from "@bb/domain";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { insertRow, type Db } from "./index.js";
 
 export interface Setting<T> {
@@ -8,10 +8,19 @@ export interface Setting<T> {
   fallback: T;
 }
 
+const knownKeybindingOverridesSchema = z
+  .array(z.unknown())
+  .transform((stored): domain.AppKeybindingOverrides =>
+    stored.flatMap((override) => {
+      const known = domain.appKeybindingOverridesSchema.safeParse([override]);
+      return known.success ? known.data : [];
+    }),
+  );
+
 export const keybindingOverridesSetting: Setting<domain.AppKeybindingOverrides> =
   {
     key: "keybindingOverrides",
-    schema: domain.appKeybindingOverridesSchema,
+    schema: knownKeybindingOverridesSchema,
     fallback: [],
   };
 

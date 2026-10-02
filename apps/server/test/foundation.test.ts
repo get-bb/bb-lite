@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig } from "../src/config.js";
-import { LegacyDataDirectoryError } from "../src/db/index.js";
+import { insertRow, LegacyDataDirectoryError } from "../src/db/index.js";
 import { authorize } from "../src/http/trust.js";
 import { Hub } from "../src/ws/hub.js";
 import { createTestServer, scratch } from "./helpers.js";
@@ -163,6 +163,21 @@ it("announces settings writes to system subscribers", async () => {
     ),
   );
   expect(status).toBe(403);
+});
+
+it("keeps stored keybinding overrides whose command still exists", async () => {
+  const { api, ctx } = await createTestServer();
+  const shortcut = { key: "k", mod: true, meta: false, control: false };
+  const kept = { command: "thread.new", shortcut: null };
+  const removed = {
+    command: "plugins.enterSafeMode",
+    shortcut: { ...shortcut, alt: false, shift: true },
+  };
+  const value = JSON.stringify([removed, kept]);
+  const row = { key: "keybindingOverrides", value, updatedAt: 1 };
+  insertRow(ctx.db, "settings", row);
+  const config = await (await api.system.config.$get()).json();
+  expect(config.keybindingOverrides).toEqual([kept]);
 });
 
 it("serves the app with an SPA fallback that spares /assets", async () => {
