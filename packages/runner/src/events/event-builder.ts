@@ -11,9 +11,8 @@ import {
   type ThreadEventItemStatus as ItemStatus,
   type ThreadEventTurnStatus as TurnStatus,
 } from "@bb/domain";
-import type { RunnerThreadEvent } from "../types.js";
+import type { DistributiveOmit as Strip, RunnerThreadEvent } from "../types.js";
 
-type Strip<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type Managed = "id" | "status" | "approvalStatus" | "parentToolCallId";
 type Draft = Strip<
   Extract<RunnerThreadEvent, { providerThreadId: unknown }>,

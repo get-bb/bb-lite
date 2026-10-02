@@ -24,6 +24,7 @@ import {
   type SubmitTurnArgs,
   type SubmitTurnResult,
 } from "../types.js";
+import { createKeyedLock } from "../workspace/exec.js";
 import { buildAgentEnv, loginShellPath } from "./agent-env.js";
 import type { Outbox } from "./outbox.js";
 
@@ -40,7 +41,6 @@ export interface SessionApiOptions {
   bbCliPath: string;
   outbox: Outbox;
   adapters: ProviderAdapter[];
-  version?: string;
   terminalIds?: () => string[];
   loginPath?: () => Promise<string | null>;
   timing?: Partial<SessionTiming>;
@@ -101,7 +101,7 @@ export function createSessionApi(
   const storageRoot = join(options.dataDir, "thread-storage");
   const adapters = new Map(options.adapters.map((a) => [a.id, a]));
   const sessions = new Map<string, LiveSession>();
-  const chains = new Map<string, Promise<unknown>>();
+  const serialize = createKeyedLock();
   const remembered = new Map<string, Map<string, Promise<SubmitTurnResult>>>();
   const resolveLoginPath = options.loginPath ?? loginShellPath;
   let requestCounter = 0;
@@ -111,16 +111,6 @@ export function createSessionApi(
     if (adapter !== undefined) return adapter;
     const message = `Provider "${providerId}" is not available on this runner`;
     throw new RunnerError("unavailable", message);
-  }
-
-  function serialize<T>(threadId: string, task: () => Promise<T>) {
-    const run = (chains.get(threadId) ?? Promise.resolve()).then(task, task);
-    const tail = run.catch(() => undefined);
-    chains.set(threadId, tail);
-    const forget = () =>
-      chains.get(threadId) === tail && chains.delete(threadId);
-    void tail.then(forget);
-    return run;
   }
 
   function isBusy(live: LiveSession) {
@@ -397,7 +387,7 @@ export function createSessionApi(
   return {
     describe: async () => ({
       instanceId,
-      version: options.version ?? "0.0.1",
+      version: "0.0.1",
       hostName: hostname(),
       platform: process.platform === "darwin" ? "darwin" : "linux",
       homeDir: homedir(),
