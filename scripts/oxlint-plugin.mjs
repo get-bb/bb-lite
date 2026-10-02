@@ -6,6 +6,7 @@ const noComments = {
     return {
       Program() {
         for (const comment of context.sourceCode.getAllComments()) {
+          if (comment.type === "Shebang") continue;
           if (DIRECTIVE.test(comment.value)) continue;
           context.report({
             loc: comment.loc,
