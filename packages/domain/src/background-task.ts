@@ -14,8 +14,7 @@ export function isBackgroundAgentTaskType(taskType: string): boolean {
     taskType === LOCAL_AGENT_TASK_TYPE || taskType === LOCAL_SUBAGENT_TASK_TYPE
   );
 }
-
-const backgroundTaskStatusValues = [
+export const backgroundTaskStatusSchema = z.enum([
   "pending",
   "running",
   "paused",
@@ -23,18 +22,15 @@ const backgroundTaskStatusValues = [
   "failed",
   "killed",
   "stopped",
-] as const;
-export const backgroundTaskStatusSchema = z.enum(backgroundTaskStatusValues);
+]);
 export type BackgroundTaskStatus = z.infer<typeof backgroundTaskStatusSchema>;
-
-const workflowAgentStateValues = [
+const workflowAgentStateSchema = z.enum([
   "queued",
   "running",
   "done",
   "failed",
   "skipped",
-] as const;
-const workflowAgentStateSchema = z.enum(workflowAgentStateValues);
+]);
 export type WorkflowAgentState = z.infer<typeof workflowAgentStateSchema>;
 
 export function isSettledWorkflowAgentState(

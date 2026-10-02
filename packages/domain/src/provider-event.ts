@@ -48,8 +48,7 @@ export const threadEventTurnStatusSchema = z.enum([
   "interrupted",
 ]);
 export type ThreadEventTurnStatus = z.infer<typeof threadEventTurnStatusSchema>;
-
-const providerErrorCategoryValues = [
+export const providerErrorCategorySchema = z.enum([
   "active-turn-not-steerable",
   "bad-request",
   "connection-failed",
@@ -69,8 +68,7 @@ const providerErrorCategoryValues = [
   "too-many-failed-attempts",
   "unauthorized",
   "unknown",
-] as const;
-export const providerErrorCategorySchema = z.enum(providerErrorCategoryValues);
+]);
 export type ProviderErrorCategory = z.infer<typeof providerErrorCategorySchema>;
 
 export const providerErrorInfoSchema = z.object({
@@ -106,11 +104,9 @@ export const providerRateLimitStateSchema = z.object({
   overageReason: z.string().min(1).nullable(),
 });
 
-const threadEventFileChangeKindSchema = z.enum(["add", "delete", "update"]);
-
 const threadEventFileChangeSchema = z.object({
   path: z.string(),
-  kind: threadEventFileChangeKindSchema,
+  kind: z.enum(["add", "delete", "update"]),
   movePath: z.string().optional(),
   diff: z.string().optional(),
 });

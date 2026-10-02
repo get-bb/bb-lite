@@ -126,8 +126,6 @@ export type PendingInteractionApprovalDecision = z.infer<
   typeof pendingInteractionApprovalDecisionSchema
 >;
 
-const pendingInteractionFileChangeWriteScopeSchema = z.string().min(1);
-
 const pendingInteractionCommandApprovalSubjectSchema = z.object({
   kind: z.literal("command"),
   itemId: z.string().min(1),
@@ -140,7 +138,7 @@ const pendingInteractionCommandApprovalSubjectSchema = z.object({
 const pendingInteractionFileChangeApprovalSubjectSchema = z.object({
   kind: z.literal("file_change"),
   itemId: z.string().min(1),
-  writeScope: pendingInteractionFileChangeWriteScopeSchema.nullable(),
+  writeScope: z.string().min(1).nullable(),
   sessionGrant: pendingInteractionGrantablePermissionProfileSchema.nullable(),
 });
 

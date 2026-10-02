@@ -20,15 +20,11 @@ export { threadStatusSchema, threadStatusValues } from "./thread-status.js";
 export type { ThreadStatus } from "./thread-status.js";
 export { threadOriginKindSchema } from "./thread-origin-kind.js";
 export type { ThreadOriginKind } from "./thread-origin-kind.js";
-
-const threadRuntimeDisplayStatusValues = [
+const threadRuntimeDisplayStatusSchema = z.enum([
   ...threadStatusValues,
   "provisioning",
   "waiting-for-host",
-] as const;
-const threadRuntimeDisplayStatusSchema = z.enum(
-  threadRuntimeDisplayStatusValues,
-);
+]);
 export type ThreadRuntimeDisplayStatus = z.infer<
   typeof threadRuntimeDisplayStatusSchema
 >;
@@ -45,15 +41,13 @@ export const threadActivityStateSchema = z.object({
   activeGoalCount: z.number().int().nonnegative(),
 });
 export type ThreadActivityState = z.infer<typeof threadActivityStateSchema>;
-
-const workspaceStateValues = [
+const workspaceStateSchema = z.enum([
   "clean",
   "untracked",
   "dirty_uncommitted",
   "committed_unmerged",
   "dirty_and_committed_unmerged",
-] as const;
-const workspaceStateSchema = z.enum(workspaceStateValues);
+]);
 
 const workspaceFileStatusKindSchema = z.enum([
   "M",

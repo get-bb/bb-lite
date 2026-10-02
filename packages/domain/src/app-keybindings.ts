@@ -116,7 +116,7 @@ export function pluginCommandId(
   return pluginCommandIdSchema.parse(`plugin:${pluginId}/${commandId}`);
 }
 
-const APP_COMMAND_CONTEXT_KEYS = [
+const appCommandContextKeySchema = z.enum([
   "mainSurface",
   "modalOpen",
   "editableFocus",
@@ -130,9 +130,7 @@ const APP_COMMAND_CONTEXT_KEYS = [
   "macPlatform",
   "windowsPlatform",
   "linuxPlatform",
-] as const;
-
-const appCommandContextKeySchema = z.enum(APP_COMMAND_CONTEXT_KEYS);
+]);
 export type AppCommandContextKey = z.infer<typeof appCommandContextKeySchema>;
 export type AppCommandContext = Record<AppCommandContextKey, boolean>;
 

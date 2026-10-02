@@ -2,12 +2,9 @@ import { z } from "zod";
 
 export const PERSONAL_PROJECT_ID = "proj_personal";
 
-const projectKindValues = ["standard", "personal"] as const;
-const projectKindSchema = z.enum(projectKindValues);
-
 export const projectSchema = z.object({
   id: z.string(),
-  kind: projectKindSchema,
+  kind: z.enum(["standard", "personal"]),
   name: z.string(),
   gitRemoteUrl: z.string().nullable(),
   createdAt: z.number(),

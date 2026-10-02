@@ -2,12 +2,12 @@ import { z } from "zod";
 
 const UI_PREFERENCE_STRING_MAX_LENGTH = 1_024;
 
-const providerIdSchema = z.string().min(1).max(UI_PREFERENCE_STRING_MAX_LENGTH);
-
 function provider(defaultValue: string, legacy: string, current: string) {
-  const schema = providerIdSchema.transform((value) =>
-    value === legacy ? current : value,
-  );
+  const schema = z
+    .string()
+    .min(1)
+    .max(UI_PREFERENCE_STRING_MAX_LENGTH)
+    .transform((value) => (value === legacy ? current : value));
   return { schema, defaultValue };
 }
 

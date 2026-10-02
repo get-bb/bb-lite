@@ -34,9 +34,7 @@ export const systemEventTypeValues = [
   "system/thread-provisioning",
   "system/provider-turn-watchdog",
 ] as const;
-
-const threadTurnInitiatorValues = ["user", "agent", "system"] as const;
-export const threadTurnInitiatorSchema = z.enum(threadTurnInitiatorValues);
+export const threadTurnInitiatorSchema = z.enum(["user", "agent", "system"]);
 export type ThreadTurnInitiator = z.infer<typeof threadTurnInitiatorSchema>;
 
 const turnRequestOptionsSchema = recordedThreadExecutionOptionsSchema;
@@ -113,15 +111,11 @@ export const systemErrorEventDataSchema = z.object({
   message: z.string(),
   detail: z.string().optional(),
 });
-
-const ownershipChangeOperationActionValues = [
+const ownershipChangeOperationActionSchema = z.enum([
   "assign",
   "release",
   "transfer",
-] as const;
-const ownershipChangeOperationActionSchema = z.enum(
-  ownershipChangeOperationActionValues,
-);
+]);
 
 export const ownershipChangeOperationMetadataSchema = z.object({
   action: ownershipChangeOperationActionSchema,
@@ -193,16 +187,12 @@ export const provisioningTranscriptEntrySchema = z.object({
 export type ProvisioningTranscriptEntry = z.infer<
   typeof provisioningTranscriptEntrySchema
 >;
-
-const systemThreadProvisioningStatusValues = [
+const systemThreadProvisioningStatusSchema = z.enum([
   "active",
   "completed",
   "failed",
   "cancelled",
-] as const;
-const systemThreadProvisioningStatusSchema = z.enum(
-  systemThreadProvisioningStatusValues,
-);
+]);
 export type SystemThreadProvisioningStatus = z.infer<
   typeof systemThreadProvisioningStatusSchema
 >;

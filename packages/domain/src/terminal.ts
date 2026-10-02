@@ -8,14 +8,12 @@ export const TERMINAL_DATA_MAX_BASE64_LENGTH =
 
 const terminalBase64DataPattern =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
-
-const terminalSessionStatusValues = [
+export const terminalSessionStatusSchema = z.enum([
   "starting",
   "running",
   "disconnected",
   "exited",
-] as const;
-export const terminalSessionStatusSchema = z.enum(terminalSessionStatusValues);
+]);
 export type TerminalSessionStatus = z.infer<typeof terminalSessionStatusSchema>;
 
 export function isActiveTerminalSessionStatus(
@@ -30,8 +28,7 @@ export function isActiveTerminalSessionStatus(
       return false;
   }
 }
-
-const terminalSessionCloseReasonValues = [
+export const terminalSessionCloseReasonSchema = z.enum([
   "user",
   "process-exit",
   "daemon-disconnect",
@@ -39,10 +36,7 @@ const terminalSessionCloseReasonValues = [
   "thread-archived",
   "thread-deleted",
   "open-timeout",
-] as const;
-export const terminalSessionCloseReasonSchema = z.enum(
-  terminalSessionCloseReasonValues,
-);
+]);
 export type TerminalSessionCloseReason = z.infer<
   typeof terminalSessionCloseReasonSchema
 >;

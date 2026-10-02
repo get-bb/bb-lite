@@ -54,25 +54,19 @@ export function resolveEnvironmentHostLifecycle(
   if (host.phase !== "removing") return "active";
   return host.teardownStatus === "failed" ? "cleanup-failed" : "removing";
 }
-
-const WORKSPACE_PROVISION_TYPES = [
+export const workspaceProvisionTypeSchema = z.enum([
   "unmanaged",
   "managed-worktree",
   "personal",
-] as const;
-export const workspaceProvisionTypeSchema = z.enum(WORKSPACE_PROVISION_TYPES);
+]);
 export type WorkspaceProvisionType = z.infer<
   typeof workspaceProvisionTypeSchema
 >;
-
-const environmentWorkspaceDisplayKindValues = [
+export const environmentWorkspaceDisplayKindSchema = z.enum([
   "managed-worktree",
   "unmanaged-worktree",
   "other",
-] as const;
-export const environmentWorkspaceDisplayKindSchema = z.enum(
-  environmentWorkspaceDisplayKindValues,
-);
+]);
 export type EnvironmentWorkspaceDisplayKind = z.infer<
   typeof environmentWorkspaceDisplayKindSchema
 >;

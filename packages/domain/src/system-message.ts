@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const systemMessageKindValues = [
+export const systemMessageKindSchema = z.enum([
   "ownership-assigned",
   "ownership-removed",
   "child-needs-attention",
@@ -10,8 +9,7 @@ const systemMessageKindValues = [
   "child-outcome-batch",
   "tool-result-delivered",
   "unlabeled",
-] as const;
-export const systemMessageKindSchema = z.enum(systemMessageKindValues);
+]);
 export type SystemMessageKind = z.infer<typeof systemMessageKindSchema>;
 
 export const systemThreadInterruptedReasonSchema = z.enum([

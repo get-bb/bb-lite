@@ -61,20 +61,9 @@ export const permissionEscalationValues = ["ask", "deny"] as const;
 const permissionEscalationSchema = z.enum(permissionEscalationValues);
 export type PermissionEscalation = z.infer<typeof permissionEscalationSchema>;
 
-const promptInputVisibilityValues = ["agent-only"] as const;
-const promptInputVisibilitySchema = z.enum(promptInputVisibilityValues);
-
 const promptInputVisibilityFields = {
-  visibility: promptInputVisibilitySchema.optional(),
+  visibility: z.enum(["agent-only"]).optional(),
 };
-
-const promptMentionPathSourceValues = ["workspace", "thread-storage"] as const;
-const promptMentionPathSourceSchema = z.enum(promptMentionPathSourceValues);
-
-const promptMentionPathEntryKindValues = ["file", "directory"] as const;
-const promptMentionPathEntryKindSchema = z.enum(
-  promptMentionPathEntryKindValues,
-);
 
 export const promptMentionCommandTriggerValues = ["/", "$"] as const;
 export const promptMentionCommandTriggerSchema = z.enum(
@@ -83,20 +72,6 @@ export const promptMentionCommandTriggerSchema = z.enum(
 export type PromptMentionCommandTrigger = z.infer<
   typeof promptMentionCommandTriggerSchema
 >;
-
-const promptMentionCommandSourceValues = ["skill", "command"] as const;
-const promptMentionCommandSourceSchema = z.enum(
-  promptMentionCommandSourceValues,
-);
-
-const promptMentionCommandOriginValues = [
-  "builtin",
-  "project",
-  "user",
-] as const;
-const promptMentionCommandOriginSchema = z.enum(
-  promptMentionCommandOriginValues,
-);
 
 const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -117,8 +92,8 @@ const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("path"),
-    source: promptMentionPathSourceSchema,
-    entryKind: promptMentionPathEntryKindSchema,
+    source: z.enum(["workspace", "thread-storage"]),
+    entryKind: z.enum(["file", "directory"]),
     path: z.string(),
     label: z.string(),
   }),
@@ -126,8 +101,8 @@ const canonicalPromptMentionResourceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("command"),
     trigger: promptMentionCommandTriggerSchema,
     name: z.string(),
-    source: promptMentionCommandSourceSchema,
-    origin: promptMentionCommandOriginSchema,
+    source: z.enum(["skill", "command"]),
+    origin: z.enum(["builtin", "project", "user"]),
     label: z.string(),
     argumentHint: z.string().nullable(),
   }),
@@ -391,14 +366,10 @@ const threadExecutionSourceSchema = z.enum([
   "client/turn/requested",
   "client/turn/start",
 ]);
-
-const callerExecutionInputSourceValues = [
+export const callerExecutionInputSourceSchema = z.enum([
   "explicit",
   "client-preference",
-] as const;
-export const callerExecutionInputSourceSchema = z.enum(
-  callerExecutionInputSourceValues,
-);
+]);
 export type CallerExecutionInputSource = z.infer<
   typeof callerExecutionInputSourceSchema
 >;
