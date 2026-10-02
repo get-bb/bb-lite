@@ -73,17 +73,6 @@ export function buildEnvironmentFileContentUrl(
   );
 }
 
-export function buildThreadStorageRawContentUrl(
-  threadId: string,
-  path: string,
-): string {
-  return toRelativeUrl(
-    apiClient.threads[":id"]["thread-storage"].files[":filePath{.+}"].$url({
-      param: { id: threadId, filePath: encodePathSegments(path) },
-    }),
-  );
-}
-
 export function buildThreadHostFileContentUrl(
   threadId: string,
   absolutePath: string,
