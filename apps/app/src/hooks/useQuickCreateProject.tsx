@@ -7,7 +7,6 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { deriveProjectNameFromPath, type Host } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
 import { useCreateProject } from "@/hooks/mutations/project-mutations";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import {
@@ -34,7 +33,6 @@ interface QuickCreateProjectController {
   isAvailable: boolean;
   isCreating: boolean;
   openCreateDialog: () => void;
-  platform: HostPlatform | null;
   hostId: string | null;
   hostName: string | null;
   hosts: readonly Host[];
@@ -96,7 +94,6 @@ export function useQuickCreateProject(): QuickCreateProjectController {
       isAvailable: controller.isAvailable,
       isCreating: isPending,
       openCreateDialog,
-      platform: controller.platform,
       hostId: controller.hostId,
       hostName: controller.hostName,
       hosts,

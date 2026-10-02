@@ -1,6 +1,4 @@
-import { useMemo } from "react";
 import { matchPath, useLocation } from "react-router-dom";
-import { useHostDaemon, useLocalHostDaemonAccess } from "@/hooks/useHostDaemon";
 import { usePluginSlots } from "@/plugins/registry";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
 import {
@@ -28,24 +26,9 @@ export interface SettingsNavState {
   sections: readonly SettingsNavSection[];
 }
 
-export function useSettingsNavSections(): readonly SettingsNavSection[] {
-  const { hasDaemon } = useHostDaemon();
-  const { accessState } = useLocalHostDaemonAccess();
-
-  return useMemo(
-    () =>
-      SETTINGS_NAV_SECTIONS.filter(
-        (section) =>
-          section.id !== "files" || hasDaemon || accessState !== "unavailable",
-      ),
-    [accessState, hasDaemon],
-  );
-}
-
 export function useSettingsNavState(): SettingsNavState {
   const location = useLocation();
   const { settingsSections } = usePluginSlots();
-  const sections = useSettingsNavSections();
   const pluginListQuery = usePluginList({ enabled: true });
 
   const sectionMatch = matchPath(
@@ -89,6 +72,6 @@ export function useSettingsNavState(): SettingsNavState {
     activeSection,
     hasUnknownSection,
     pluginEntries,
-    sections,
+    sections: SETTINGS_NAV_SECTIONS,
   };
 }

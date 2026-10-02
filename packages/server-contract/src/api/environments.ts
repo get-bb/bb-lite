@@ -6,9 +6,9 @@ import {
   gitBranchOptionsSchema,
   threadGitDiffResponseSchema,
   workspaceDiffTargetSchema,
+  workspaceResolutionFailureSchema,
   workspaceStatusSchema,
 } from "@bb/domain";
-import { workspaceResolutionFailureSchema } from "@bb/host-daemon-contract/workspace";
 import { apiErrorSchema } from "../errors.js";
 import {
   branchListQuerySchema,

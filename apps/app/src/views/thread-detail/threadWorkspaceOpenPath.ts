@@ -1,5 +1,4 @@
-import type { Environment, WorkspaceFileStatus } from "@bb/domain";
-import type { OpenInTargetContext } from "@bb/host-daemon-contract";
+import type { WorkspaceFileStatus } from "@bb/domain";
 import type { WorkspaceChangedFilesSection } from "@/components/workspace/workspace-change-summary";
 import type {
   EnvironmentFilePreviewSource,
@@ -7,36 +6,25 @@ import type {
 } from "@bb/client-core";
 import { buildAbsoluteFilePath } from "@/lib/absolute-file-path";
 
-interface ResolveThreadWorkspaceOpenPathArgs {
-  canOpenWorkspace: boolean;
-  environment: Environment | null | undefined;
-  hasWorkspaceOpenTargets: boolean;
-}
-
-interface ResolveEnvironmentOpenContextArgs {
-  environment: Environment | null | undefined;
-  serverOrigin: string;
-  threadEnvironmentIsLocal: boolean;
-}
+export type OpenInPreferredTarget = (request: {
+  lineNumber: number | null;
+  path: string;
+}) => void;
 
 interface BuildOpenInEditorHandlerArgs {
   rootPath: string | null;
-  canOpenPreferredTarget: boolean;
-  openInPreferredTarget: (request: {
-    lineNumber: number | null;
-    path: string;
-  }) => Promise<boolean>;
+  openInPreferredTarget: OpenInPreferredTarget | undefined;
 }
 
 export function buildOpenInEditorHandler(
   args: BuildOpenInEditorHandlerArgs,
 ): ((relativePath: string) => void) | undefined {
-  if (!args.rootPath || !args.canOpenPreferredTarget) {
+  const { rootPath, openInPreferredTarget } = args;
+  if (!rootPath || !openInPreferredTarget) {
     return undefined;
   }
-  const rootPath = args.rootPath;
   return (relativePath) => {
-    void args.openInPreferredTarget({
+    openInPreferredTarget({
       lineNumber: null,
       path: buildAbsoluteFilePath({ path: relativePath, rootPath }),
     });
@@ -85,30 +73,4 @@ export function resolveWorkspaceChangedFileOpenTarget(
   }
 
   return { kind: "diff" };
-}
-
-export function resolveEnvironmentOpenContext(
-  args: ResolveEnvironmentOpenContextArgs,
-): OpenInTargetContext | null {
-  if (!args.environment) {
-    return null;
-  }
-  if (args.threadEnvironmentIsLocal) {
-    return { kind: "local" };
-  }
-  return {
-    kind: "remote-ssh",
-    serverOrigin: args.serverOrigin,
-    hostId: args.environment.hostId,
-  };
-}
-
-export function resolveThreadWorkspaceOpenPath(
-  args: ResolveThreadWorkspaceOpenPathArgs,
-): string | null {
-  if (!args.canOpenWorkspace || !args.hasWorkspaceOpenTargets) {
-    return null;
-  }
-
-  return args.environment?.path ?? null;
 }

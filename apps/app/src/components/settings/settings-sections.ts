@@ -6,7 +6,6 @@ export const SETTINGS_NAV_SECTIONS = [
   { icon: "Bot", id: "providers", label: "Providers" },
   { icon: "Palette", id: "appearance", label: "Appearance" },
   { icon: "SlidersHorizontal", id: "keyboard", label: "Keyboard" },
-  { icon: "File", id: "files", label: "Files" },
   { icon: "FolderGit", id: "projects", label: "Projects" },
   { icon: "Laptop", id: "machines", label: "Machines" },
   {

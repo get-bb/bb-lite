@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { Host, PermissionMode } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
+import type { Host, HostPlatform, PermissionMode } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -31,11 +30,10 @@ import { useRenameHost } from "@/hooks/mutations/host-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
+import { useLocalHostId } from "@/hooks/useOpenTargets";
 import { getSettingsMachineRoutePath } from "@/lib/route-paths";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
-import { formatHostUpdateStatus } from "@/lib/host-update-status";
 
 const PERMISSION_MODE_PRESENTATION: Record<
   PermissionMode,
@@ -81,7 +79,6 @@ export function MachineRowContent({
   const permission = PERMISSION_MODE_PRESENTATION[host.maxPermissionMode];
   const projectLabel = `${projectCount} ${projectCount === 1 ? "project" : "projects"}`;
   const connectionLabel = machineStatusLabel({ host, now });
-  const updateStatus = formatHostUpdateStatus(host);
 
   return (
     <SettingsRow>
@@ -127,11 +124,6 @@ export function MachineRowContent({
                 >
                   {permission.label}
                 </span>
-                {updateStatus === null ? null : (
-                  <span className="min-w-0 text-warning-text">
-                    {updateStatus}
-                  </span>
-                )}
               </div>
             </div>
           </Link>
@@ -157,7 +149,7 @@ export function MachineRowContent({
 export function MachinesSettingsSection() {
   const systemConfig = useSystemConfig();
   const hostsQuery = useHosts({ includeCreating: true });
-  const { localDaemonHostId, platform: localDaemonPlatform } = useHostDaemon();
+  const localHostId = useLocalHostId();
   const sidebarNavigationQuery = useSidebarNavigation();
   const renameHost = useRenameHost();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -195,14 +187,12 @@ export function MachinesSettingsSection() {
           key={host.id}
           host={host}
           isPrimary={host.id === serverPrimaryHostId}
-          isThisMachine={showThisMachineBadge && host.id === localDaemonHostId}
+          isThisMachine={showThisMachineBadge && host.id === localHostId}
           showServerBadge={host.id === serverPrimaryHostId}
           platformLabel={
-            host.id === localDaemonHostId && localDaemonPlatform !== null
-              ? PLATFORM_LABELS[localDaemonPlatform]
-              : host.id === serverPrimaryHostId && primaryHostPlatform !== null
-                ? PLATFORM_LABELS[primaryHostPlatform]
-                : null
+            host.id === serverPrimaryHostId && primaryHostPlatform !== null
+              ? PLATFORM_LABELS[primaryHostPlatform]
+              : null
           }
           projectCount={projectCountByHostId.get(host.id) ?? 0}
           now={now}

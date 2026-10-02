@@ -8,10 +8,10 @@ import type {
   HostCloneDefaultPathResponse,
   HostDirectoryListing,
   HostDirectoryQuery,
+  HostOpenRequest,
+  HostOpenTargetsResponse,
   HostPathsExistRequest,
   HostPathsExistResponse,
-  HostPickFolderRequest,
-  HostPickFolderResponse,
   UpdateHostRequest,
 } from "@bb/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
@@ -52,9 +52,8 @@ export interface HostPathsExistArgs extends HostPathsExistRequest {
   signal?: AbortSignal;
 }
 
-export interface HostPickFolderArgs extends HostPickFolderRequest {
+export interface HostOpenArgs extends HostOpenRequest {
   hostId: string;
-  signal?: AbortSignal;
 }
 
 export interface HostListArgs {
@@ -80,7 +79,6 @@ export type HostReconnectResult = HostReconnectResponse;
 export type HostCloneDefaultPathResult = HostCloneDefaultPathResponse;
 export type HostListResult = Host[];
 export type HostPathsExistResult = HostPathsExistResponse;
-export type HostPickFolderResult = HostPickFolderResponse;
 export type HostUpdateResult = Host;
 
 export interface HostsArea {
@@ -99,7 +97,8 @@ export interface HostsArea {
   ): Promise<HostCloneDefaultPathResult>;
   list(args?: HostListArgs): Promise<HostListResult>;
   pathsExist(args: HostPathsExistArgs): Promise<HostPathsExistResult>;
-  pickFolder(args: HostPickFolderArgs): Promise<HostPickFolderResult>;
+  openTargets(args: HostGetArgs): Promise<HostOpenTargetsResponse>;
+  open(args: HostOpenArgs): Promise<void>;
   update(args: HostUpdateArgs): Promise<HostUpdateResult>;
 }
 
@@ -227,15 +226,20 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
         ),
       );
     },
-    async pickFolder(input) {
+    async openTargets(input) {
       return transport.readJson(
-        transport.api.v1.hosts[":id"]["pick-folder"].$post(
-          {
-            param: { id: input.hostId },
-            json: { clientHostId: input.clientHostId },
-          },
+        transport.api.v1.hosts[":id"]["open-targets"].$get(
+          { param: { id: input.hostId } },
           ...signalRequestArgs(input.signal),
         ),
+      );
+    },
+    async open({ hostId, ...json }) {
+      await transport.readVoid(
+        transport.api.v1.hosts[":id"].open.$post({
+          param: { id: hostId },
+          json,
+        }),
       );
     },
     async update(input) {

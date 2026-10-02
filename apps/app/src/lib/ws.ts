@@ -16,7 +16,7 @@ import type {
   ThreadOpenSignal,
   ThreadPaneActionSignal,
 } from "@bb/server-contract";
-import { buildBrowserWebSocketUrl } from "./dev-websocket-url";
+import { buildBrowserWebSocketUrl } from "./browser-websocket-url";
 import {
   isDocumentVisible,
   subscribeToDocumentVisibility,

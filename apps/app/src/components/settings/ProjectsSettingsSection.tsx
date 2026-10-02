@@ -331,7 +331,6 @@ export function ProjectsSettingsSection() {
       <ProjectPathDialog
         target={quickCreateProject.projectPathDialog.target}
         pending={quickCreateProject.isCreating}
-        platform={quickCreateProject.platform}
         hostId={quickCreateProject.hostId}
         hostName={quickCreateProject.hostName}
         hosts={quickCreateProject.hosts}

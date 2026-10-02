@@ -15,7 +15,7 @@ import { ThreadTimelinePanelContent } from "@/components/thread/timeline";
 import { useThreadTimelineNavigation } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
 import { useThread } from "@/hooks/queries/thread-queries";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
+import { useLocalHostId } from "@/hooks/useOpenTargets";
 import { useHosts } from "@/hooks/queries/host-queries";
 import {
   findEnvironmentDisplayProvider,
@@ -76,7 +76,7 @@ function PluginThreadChatBody({
   const threadQuery = useThread(threadId, { enabled: threadId.length > 0 });
   const thread = threadQuery.data;
   const navigate = useNavigate();
-  const { isLocalDaemonHost } = useHostDaemon();
+  const localHostId = useLocalHostId();
   const environmentQuery = useEnvironment(thread?.environmentId ?? null);
   const environment = environmentQuery.data ?? null;
   const hostsQuery = useHosts({ enabled: environment !== null });
@@ -134,7 +134,7 @@ function PluginThreadChatBody({
       return null;
     }
     const host: EnvironmentDisplayHostContext = {
-      locality: isLocalDaemonHost(environment.hostId) ? "local" : "remote",
+      locality: environment.hostId === localHostId ? "local" : "remote",
       identity: null,
     };
     const providerLookup = findEnvironmentDisplayProvider(
@@ -177,7 +177,7 @@ function PluginThreadChatBody({
     environmentHost,
     environmentProviders,
     hasMultipleMachines,
-    isLocalDaemonHost,
+    localHostId,
   ]);
 
   const isThreadMissing =

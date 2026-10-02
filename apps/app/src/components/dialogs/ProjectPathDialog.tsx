@@ -12,7 +12,6 @@ import {
   normalizeProjectPathInput,
   type Host,
 } from "@bb/domain";
-import type { HostPlatform } from "@bb/host-daemon-contract";
 import { Button } from "@bb/shared-ui/button";
 import {
   Dialog,
@@ -53,7 +52,6 @@ export type ProjectPathDialogSubmitHandler = (
 interface ProjectPathDialogProps {
   target: ProjectPathDialogTarget | null;
   pending?: boolean;
-  platform: HostPlatform | null;
   hostId: string | null;
   hostName: string | null;
   hosts?: readonly Host[];
@@ -64,7 +62,6 @@ interface ProjectPathDialogProps {
 export function ProjectPathDialog({
   target,
   pending = false,
-  platform,
   hostId,
   hostName,
   hosts,
@@ -79,7 +76,6 @@ export function ProjectPathDialog({
             key={target.kind === "create" ? "create" : target.projectId}
             target={target}
             pending={pending}
-            platform={platform}
             hostId={hostId}
             hostName={hostName}
             hosts={hosts}
@@ -94,14 +90,13 @@ export function ProjectPathDialog({
 interface ProjectPathDialogContentProps {
   target: ProjectPathDialogTarget;
   pending: boolean;
-  platform: HostPlatform | null;
   hostId: string | null;
   hostName: string | null;
   hosts?: readonly Host[];
   onSubmit: ProjectPathDialogSubmitHandler;
 }
 
-interface PlatformCopy {
+interface PathCopy {
   description: string;
   placeholder: string;
 }
@@ -128,28 +123,17 @@ function getDialogSubmitLabel(kind: ProjectPathDialogTarget["kind"]): string {
   }
 }
 
-function getPlatformCopy(
-  platform: HostPlatform | null,
-  hostName: string | null,
-): PlatformCopy {
-  const placeholder = "/path/to/project";
+function getPathCopy(hostName: string | null): PathCopy {
   const hostSuffix = hostName ? ` on ${hostName}` : "";
-  if (platform === "wsl") {
-    return {
-      description: `Enter an absolute WSL path${hostSuffix} to the project folder, such as /home/me/repo or /mnt/c/...`,
-      placeholder,
-    };
-  }
   return {
     description: `Enter an absolute path${hostSuffix} to the project folder.`,
-    placeholder,
+    placeholder: "/path/to/project",
   };
 }
 
 export function ProjectPathDialogContent({
   target,
   pending,
-  platform,
   hostId,
   hostName,
   hosts,
@@ -189,7 +173,7 @@ export function ProjectPathDialogContent({
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
-  const copy = getPlatformCopy(platform, selectedHostName);
+  const copy = getPathCopy(selectedHostName);
   const placeholder =
     target.kind === "update"
       ? target.currentPath || copy.placeholder

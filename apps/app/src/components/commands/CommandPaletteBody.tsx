@@ -25,7 +25,7 @@ import {
   buildPluginSettingsEntries,
   type PluginSettingsCandidate,
 } from "@/components/settings/plugin-settings-entries";
-import { useSettingsNavSections } from "@/components/settings/settings-nav";
+import { SETTINGS_NAV_SECTIONS } from "@/components/settings/settings-sections";
 import {
   PALETTE_SECTION_LABEL_CLASS,
   PaletteShell,
@@ -57,7 +57,6 @@ export function CommandPaletteBody({
   const optionIdPrefix = useId();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const pluginSlots = usePluginSlots();
-  const settingsSections = useSettingsNavSections();
   const pluginSettingsEntries = useMemo(
     () =>
       buildPluginSettingsEntries({
@@ -71,9 +70,9 @@ export function CommandPaletteBody({
       buildSettingsPaletteActions({
         navigate: (path) => void navigate(path),
         pluginEntries: pluginSettingsEntries,
-        sections: settingsSections,
+        sections: SETTINGS_NAV_SECTIONS,
       }),
-    [navigate, pluginSettingsEntries, settingsSections],
+    [navigate, pluginSettingsEntries],
   );
   const pluginPageActions = useMemo(
     () =>

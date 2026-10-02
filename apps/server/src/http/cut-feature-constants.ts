@@ -2,7 +2,6 @@ import { defaultFeatureFlags, type PluginThemeMeta } from "@bb/domain";
 import type { ServerAccessStatus } from "@bb/server-contract";
 
 const NO_PLUGIN_THEMES: PluginThemeMeta[] = [];
-const NO_LOCAL_HELPER_PORTS: number[] = [];
 
 export const DIRECT_SERVER_ACCESS_PROVIDER: ServerAccessStatus["providers"][number] =
   {
@@ -16,6 +15,4 @@ export const DIRECT_SERVER_ACCESS_PROVIDER: ServerAccessStatus["providers"][numb
 export const CUT_FEATURE_SYSTEM_CONFIG = {
   featureFlags: defaultFeatureFlags,
   pluginThemes: NO_PLUGIN_THEMES,
-  hostDaemonPort: null,
-  localHelperPorts: NO_LOCAL_HELPER_PORTS,
 };

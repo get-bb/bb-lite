@@ -33,7 +33,6 @@ import {
   type ThreadWithRuntime,
 } from "@bb/domain";
 import type { TerminalSession, TimelineRow } from "@bb/server-contract";
-import type { WorkspaceOpenTarget } from "@bb/host-daemon-contract";
 import { appToast } from "@/components/ui/app-toast";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
 import type { ThreadSecondaryPanel as ThreadSecondaryPanelTab } from "@/lib/thread-secondary-panel";
@@ -87,8 +86,7 @@ import {
   type EnvironmentDisplayHostContext,
 } from "@bb/core-ui";
 import { useCreateThreadInEnvironment } from "@/hooks/useCreateThreadInEnvironment";
-import { useHostDaemon } from "@/hooks/useHostDaemon";
-import { useLocalOpenTargets } from "@/hooks/useLocalOpenTargets";
+import { useLocalHostId, useOpenTargets } from "@/hooks/useOpenTargets";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useConnectionAwareQueryState } from "@/hooks/queries/connection-aware-query-state";
@@ -209,9 +207,8 @@ import {
 } from "@/components/secondary-panel/terminalPanelTabs";
 import {
   buildOpenInEditorHandler,
-  resolveEnvironmentOpenContext,
   resolveWorkspaceChangedFileOpenTarget,
-  resolveThreadWorkspaceOpenPath,
+  type OpenInPreferredTarget,
 } from "./threadWorkspaceOpenPath";
 import {
   resolveThreadLocalFileLink,
@@ -341,10 +338,6 @@ function buildMarkdownPreviewLinkRouting({
     localFile: localFileRouting,
     onOpenLink,
   };
-}
-
-function buildOpenTargetMenuItemLabel(target: WorkspaceOpenTarget): string {
-  return `Open in ${target.label}`;
 }
 
 function resolveHostFilePreviewLinkRootPath({
@@ -1341,9 +1334,9 @@ export function ThreadDetailView(
     }
     return workspaceChangedFilesSection;
   }, [workspaceChangedFilesSection]);
-  const { isLocalDaemonHost } = useHostDaemon();
+  const localHostId = useLocalHostId();
   const threadEnvironmentIsLocal = environment
-    ? isLocalDaemonHost(environment.hostId)
+    ? environment.hostId === localHostId
     : false;
   const removedEnvironmentHostName =
     environment !== undefined && environment.hostLifecycle !== "active"
@@ -1371,27 +1364,22 @@ export function ThreadDetailView(
     ],
   );
   const workspacePreviewRootPath = environment?.path ?? null;
-  const threadOpenContext = executionUnavailable
-    ? null
-    : resolveEnvironmentOpenContext({
-        environment,
-        serverOrigin: window.location.origin,
-        threadEnvironmentIsLocal,
-      });
   const {
-    canOpenPreferredDirectoryTarget,
-    canOpenPreferredFileTarget,
-    directoryOpenTargets,
-    fileOpenTargets,
-    openPathInDirectoryTarget,
-    openPathInFileTarget,
-    openPathInPreferredDirectoryTarget,
-    openPathInPreferredFileTarget,
+    directoryTargets,
+    fileTargets,
+    openPath,
     preferredDirectoryTarget,
-  } = useLocalOpenTargets({
-    enabled: threadOpenContext !== null,
-    ...(threadOpenContext ? { openContext: threadOpenContext } : {}),
-  });
+    preferredFileTarget,
+  } = useOpenTargets(
+    executionUnavailable ? null : (environment?.hostId ?? null),
+  );
+  const openInPreferredFileTarget = useMemo<OpenInPreferredTarget | undefined>(
+    () =>
+      preferredFileTarget
+        ? (request) => void openPath(preferredFileTarget, request)
+        : undefined,
+    [openPath, preferredFileTarget],
+  );
   const parentThreadSection: ThreadPromptParentThreadSection | null =
     useMemo(() => {
       const relatedThreadId =
@@ -1595,54 +1583,36 @@ export function ThreadDetailView(
     () =>
       buildOpenInEditorHandler({
         rootPath: workspacePreviewRootPath,
-        canOpenPreferredTarget: canOpenPreferredFileTarget,
-        openInPreferredTarget: openPathInPreferredFileTarget,
+        openInPreferredTarget: openInPreferredFileTarget,
       }),
-    [
-      canOpenPreferredFileTarget,
-      openPathInPreferredFileTarget,
-      workspacePreviewRootPath,
-    ],
+    [openInPreferredFileTarget, workspacePreviewRootPath],
   );
   const handleOpenStorageFileInEditor = useMemo(
     () =>
       buildOpenInEditorHandler({
         rootPath: threadStorageRootPath,
-        canOpenPreferredTarget: canOpenPreferredFileTarget,
-        openInPreferredTarget: openPathInPreferredFileTarget,
+        openInPreferredTarget: openInPreferredFileTarget,
       }),
-    [
-      canOpenPreferredFileTarget,
-      openPathInPreferredFileTarget,
-      threadStorageRootPath,
-    ],
+    [openInPreferredFileTarget, threadStorageRootPath],
   );
   const handleOpenHostFileInEditor = useMemo<
     OpenInEditorHandler | undefined
   >(() => {
-    if (!canOpenPreferredFileTarget) {
+    if (!openInPreferredFileTarget) {
       return undefined;
     }
     return (path) => {
-      void openPathInPreferredFileTarget({
+      openInPreferredFileTarget({
         lineNumber: getFilePreviewLineRangeStart({
           lineRange: activeHostFileLineRange,
         }),
         path,
       });
     };
-  }, [
-    activeHostFileLineRange,
-    canOpenPreferredFileTarget,
-    openPathInPreferredFileTarget,
-  ]);
-  const workspaceOpenPath = executionUnavailable
-    ? null
-    : resolveThreadWorkspaceOpenPath({
-        canOpenWorkspace: canOpenPreferredDirectoryTarget,
-        environment,
-        hasWorkspaceOpenTargets: directoryOpenTargets.length > 0,
-      });
+  }, [activeHostFileLineRange, openInPreferredFileTarget]);
+  const workspaceOpenPath = preferredDirectoryTarget
+    ? (environment?.path ?? null)
+    : null;
   usePublishThreadPanelOpener(handleOpenTimelinePluginPanel, isFocused);
   useAppCommandHandler("workspace.openPreferred", () => {
     if (!isFocused) return false;
@@ -1659,7 +1629,7 @@ export function ThreadDetailView(
       return true;
     }
     if (workspaceOpenPath && preferredDirectoryTarget) {
-      void openPathInPreferredDirectoryTarget({
+      void openPath(preferredDirectoryTarget, {
         lineNumber: null,
         path: workspaceOpenPath,
       });
@@ -1672,16 +1642,11 @@ export function ThreadDetailView(
       const lineNumber = getFilePreviewLineRangeStart({
         lineRange: link.lineRange,
       });
-      const openTargetItems = fileOpenTargets.map((target) => ({
+      const openTargetItems = fileTargets.map((target) => ({
         id: `open-target:${target.id}`,
-        label: buildOpenTargetMenuItemLabel(target),
+        label: `Open in ${target.label}`,
         onSelect: () => {
-          void openPathInFileTarget({
-            lineNumber,
-            path: link.path,
-            rememberTarget: false,
-            targetId: target.id,
-          });
+          void openPath(target, { lineNumber, path: link.path });
         },
       }));
       const items: MarkdownLocalFileContextMenuItem[] = [];
@@ -1720,7 +1685,7 @@ export function ThreadDetailView(
       );
       return items;
     },
-    [fileOpenTargets, openPathInFileTarget],
+    [fileTargets, openPath],
   );
   const handleOpenFilePreview = useCallback<OpenFilePreviewHandler>(
     (relativePath) => {
@@ -1807,27 +1772,14 @@ export function ThreadDetailView(
     workspaceOpenPath && preferredDirectoryTarget
       ? [
           preferredDirectoryTarget,
-          ...directoryOpenTargets.filter(
+          ...directoryTargets.filter(
             (target) => target.id !== preferredDirectoryTarget.id,
           ),
         ].map((target) => ({
           icon: "FolderOpen" as const,
           label: `Open workspace in ${target.label}`,
-          onSelect: async () => {
-            if (target.id === preferredDirectoryTarget.id) {
-              await openPathInPreferredDirectoryTarget({
-                lineNumber: null,
-                path: workspaceOpenPath,
-              });
-              return;
-            }
-            await openPathInDirectoryTarget({
-              lineNumber: null,
-              path: workspaceOpenPath,
-              rememberTarget: true,
-              targetId: target.id,
-            });
-          },
+          onSelect: () =>
+            openPath(target, { lineNumber: null, path: workspaceOpenPath }),
         }))
       : [];
   const responsiveGitActions: ThreadActionsMenuResponsiveAction[] = (
@@ -1847,21 +1799,10 @@ export function ThreadDetailView(
     workspaceOpenPath && preferredDirectoryTarget ? (
       <ThreadWorkspaceOpenButton
         preferredTarget={preferredDirectoryTarget}
-        targets={directoryOpenTargets}
-        onOpenPreferredTarget={async () => {
-          await openPathInPreferredDirectoryTarget({
-            lineNumber: null,
-            path: workspaceOpenPath,
-          });
-        }}
-        onOpenTarget={async (targetId) => {
-          await openPathInDirectoryTarget({
-            lineNumber: null,
-            path: workspaceOpenPath,
-            rememberTarget: true,
-            targetId,
-          });
-        }}
+        targets={directoryTargets}
+        onOpenTarget={(target) =>
+          openPath(target, { lineNumber: null, path: workspaceOpenPath })
+        }
       />
     ) : undefined;
   const timelineHeader = (
