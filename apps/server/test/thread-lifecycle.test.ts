@@ -82,7 +82,7 @@ it("serves a plugin: attributed spawn, workspace files and requestInput", async 
   Object.assign(runner.script, { readFile: async () => file });
   const read = await bb.files.read({ threadId: id, path: "a.txt" });
   const located = [{ path: "a.txt", rootPath: "/repo" }];
-  expect([read, server.callsTo("readFile")]).toEqual([
+  expect([read, server.callsTo("readFile").slice(-1)]).toEqual([
     { content: "hi", sha256: "s" },
     located,
   ]);

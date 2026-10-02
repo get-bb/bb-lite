@@ -9,7 +9,7 @@ import {
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
 import { ensurePersonalProject } from "./db/projects.js";
-import { createBasicEnvironments } from "./environments/basic.js";
+import { createEnvironments } from "./environments/manager.js";
 import { startWorkspaceWatch } from "./environments/watch.js";
 import { createHttpApp } from "./http/app.js";
 import { PluginHost, startPlugins } from "./plugins/host.js";
@@ -33,6 +33,7 @@ export const startupSteps: StartupStep[] = [
     ctx.threads.start();
     return () => ctx.threads.close();
   },
+  (ctx) => ctx.environments.start(),
   startPlugins,
   startTerminalSessions,
   startWorkspaceWatch,
@@ -65,20 +66,22 @@ export function createServer(options: CreateServerOptions): BbServer {
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
   const plugins = new PluginHost({ config, db, hub, log });
-  const environments = createBasicEnvironments({ db, hub, runners });
   const ctx: ServerContext = {
     config,
     db,
     hub,
     runners,
     plugins,
-    environments,
     log,
     now,
+    get environments() {
+      return environments;
+    },
     get threads() {
       return threads;
     },
   };
+  const environments = createEnvironments(ctx);
   const threads = createThreadEngine(ctx);
   const app = createHttpApp(ctx);
   const sockets = new SocketRegistry(ctx);

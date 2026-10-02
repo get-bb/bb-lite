@@ -249,30 +249,41 @@ async function runProvisioning(
   }
 }
 
+function startupOf(thread: ThreadRow): StartupContext {
+  const { environmentId, startupContext } = thread;
+  if (environmentId !== null) {
+    const intent = { type: "reuse" as const, environmentId };
+    return { intent, titleProvided: true };
+  }
+  if (startupContext !== null) {
+    return decodeJson(startupContextSchema, startupContext);
+  }
+  const message = `Thread ${thread.id} has no workspace to start in`;
+  throw new ApiError(500, "internal_error", message);
+}
+
 export function beginProvisioning(
   engine: Engine,
   thread: ThreadRow,
   args: DispatchArgs,
 ): void {
   const { db } = engine.ctx;
-  if (thread.startupContext === null) {
-    const message = `Thread ${thread.id} has no workspace to start in`;
-    throw new ApiError(500, "internal_error", message);
-  }
-  const startup = decodeJson(startupContextSchema, thread.startupContext);
+  const startup = startupOf(thread);
   const message = attributedMessage(args.message);
   const requestId = newId("creq");
   const job = { id: newId("tpv"), requestId, startup, message };
   engine.commit((out) => {
     consumeRows(engine, out, thread, args.rows);
-    const target = { kind: "thread-start" as const };
+    const restores = thread.environmentId !== null;
+    const kind = restores ? "new-turn" : "thread-start";
     const { initiator } = message;
     const request = { method: "thread/start" as const, params: {} };
     const start = { direction: "outbound", source: "spawn" } as const;
     const type = "client/thread/start";
+    const started = { type, scope: threadScope(), ...start } as const;
     engine.append(out, thread, [
-      turnRequestEvent(message, requestId, target),
-      { type, scope: threadScope(), ...start, initiator, request },
+      turnRequestEvent(message, requestId, { kind }),
+      ...(restores ? [] : [{ ...started, initiator, request }]),
     ]);
     patchThread(db, thread.id, message.execution, false);
     engine.transition(out, thread.id, "run.preparing");

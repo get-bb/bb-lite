@@ -6,7 +6,6 @@ import {
 } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import {
-  deleteEnvironment,
   listEnvironments,
   listEnvironmentThreadIds,
   updateEnvironment,
@@ -20,7 +19,6 @@ import {
   searchWorkspacePaths,
   workspaceFailure,
 } from "../../environments/workspace.js";
-import { closeTerminalsFor } from "../../terminals/sessions.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 
@@ -66,18 +64,12 @@ export function registerEnvironmentRoutes(
   });
 
   del(routes.delete, async (c) => {
-    const environment = requireEnvironment(ctx, c.req.param("id"));
-    const { id, hostId, path } = environment;
-    if (listEnvironmentThreadIds(db, id, "attached").length > 0) {
+    const { id } = requireEnvironment(ctx, c.req.param("id"));
+    if (listEnvironmentThreadIds(db, id, "unarchived").length > 0) {
       const message = "Environment still has live threads";
       throw new ApiError(409, "invalid_request", message);
     }
-    closeTerminalsFor(ctx, "environment_id", id, "environment-destroyed");
-    if (environment.managed && environment.isWorktree && path !== null) {
-      await runners.get(hostId).removeWorktree({ path });
-    }
-    deleteEnvironment(db, id);
-    hub.environment(id, ["environment-deleted"]);
+    await ctx.environments.remove(id);
     return c.json({ ok: true });
   });
 

@@ -356,10 +356,9 @@ export function recoverAfterRestart(engine: Engine): void {
       interactions.cancelPluginInteraction(engine, threadId, id, reason);
     });
   }
-  const running = ["starting", "active", "stopping"] as const;
   const interrupted = [
-    ...store.listThreadsOnHost(db, localHostId, ...running),
-    ...store.listStartingWithoutEnvironment(db),
+    ...store.listThreadsOnHost(db, localHostId, "active", "stopping"),
+    ...store.listStartingThreads(db),
   ];
   for (const { id } of interrupted) {
     engine.later(id, "restart recovery", () =>

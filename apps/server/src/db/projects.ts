@@ -24,7 +24,12 @@ export type ReorderOutcome = "reordered" | "unchanged" | "stale" | "invalid";
 export interface DeletedProject {
   projectId: string;
   threadIds: string[];
-  environments: { id: string; hostId: string; path: string | null }[];
+  environments: {
+    id: string;
+    hostId: string;
+    path: string | null;
+    providerOwnsPath: number;
+  }[];
 }
 
 const PROJECT_COLUMNS =
@@ -242,7 +247,8 @@ export function deleteProject(db: Db, projectId: string): DeletedProject {
       projectId,
     );
     const environments = db.all<DeletedProject["environments"][number]>(
-      "SELECT id, host_id, path FROM environments WHERE project_id = ?",
+      `SELECT id, host_id, path, provider_owns_path FROM environments
+       WHERE project_id = ?`,
       projectId,
     );
     db.run("DELETE FROM projects WHERE id = ?", projectId);

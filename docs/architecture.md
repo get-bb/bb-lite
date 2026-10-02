@@ -206,10 +206,45 @@ How the engine is built (`apps/server/src/threads`):
 - `status` is `starting` only while a workspace is being prepared. A send to a ready thread moves it straight
   to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
 - Seams on `ServerContext`: `threads` (the public operations, also for plugins), `environments`
-  (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; `environments/basic.ts` is the
-  placeholder), `plugins` (the plugin host: the engine asks it for instructions, tools, env, skill
+  (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; see "Environments" below),
+  `plugins` (the plugin host: the engine asks it for instructions, tools, env, skill
   directories and titles, and emits thread events to it; plugins reach the engine back through
   `plugins/deps.ts`). Startup order is local host, personal project, engine, then plugins.
+
+## Environments (server)
+
+An environment is the directory a thread runs in. Three kinds, fixed, all in `apps/server/src/environments`
+(`manager.ts`, `scripts.ts`): **project checkout** (the project's own path on a machine, or any existing
+directory; one row per `(project, machine, path)`, shared, never removed), **managed worktree**
+(`<runner dataDir>/worktrees/<threadId>-1/<repo>` on branch `<managedBranchPrefix><title-slug>-<threadId>`) and
+**personal workspace** (`<runner dataDir>/workspaces/<threadId>`). The last two are *managed*
+(`provider_owns_path = 1`): bb created the path and removes it.
+
+- Work on one environment is serialized through a per-environment queue, so preparing, switching branch and
+  tearing down never interleave. Status walks `creating → provisioning → ready | error`; every write notifies
+  (`environment-created`, `status-changed`, `metadata-changed`).
+- `ensureForThread` takes the engine's intent. `reuse` returns a ready environment or prepares it again;
+  `project-default` asks the runner whether the project source has a default branch (worktree) or not
+  (checkout). A managed row is created with `owner_thread_id` before its path exists; the owner counts as a
+  user of the environment until the engine sets `threads.environment_id`, and a later attempt by the same
+  thread (after a failed or cancelled setup) finds that row again and continues on it.
+- Managed paths run `.bb-env-setup.sh` after creation (15 min, output streamed into the provisioning
+  transcript; a failure or timeout leaves the environment in `error` and fails the thread's provisioning) and
+  `.bb-env-teardown.sh` before removal (a failing script is logged, removal continues). Aborting the engine's
+  signal cancels a running setup script through `cancelOperation`.
+- A checkout branch switch (`inputs.branch`) is refused while another unarchived thread uses the checkout;
+  the runner refuses a dirty or detached checkout.
+- **Retirement.** A managed environment with no unarchived thread gets `retire_at = now + 5 min`; deleting
+  its last thread sets `retire_at = now`; an unarchived thread clears it. A sweep (every 10 s, after
+  `onThreadDetached`, and when a machine connects) tears down what is due on a connected machine: status
+  `error` while it runs, then `destroyed` with `teardown_status = removed`. A failed removal records
+  `teardown_status = failed` and the message and is retried every minute, five times in all. Branches are kept.
+- **Restore.** A send to a thread whose environment is not `ready` goes through provisioning again with a
+  `reuse` intent: a destroyed worktree is re-created on its branch at the same path (and fails if the branch
+  is gone), setup runs again, and the provider session resumes there.
+- `DELETE /environments/:id` (409 while unarchived threads use it) tears down at once; the row is deleted
+  when no thread references it and kept as `destroyed` otherwise. Deleting a project removes its managed
+  paths on connected machines without running teardown scripts.
 
 ## HTTP and WebSocket surface
 

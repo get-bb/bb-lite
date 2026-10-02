@@ -72,6 +72,7 @@ export async function createThreadServer() {
   );
   let seq = 0;
   const submitted: SubmitTurnArgs[] = [];
+  const plainDirectory = { defaultBranch: null, originDefaultBranch: null };
   Object.assign(runner.script, {
     submitTurn: async (args: SubmitTurnArgs) => {
       submitted.push(args);
@@ -86,6 +87,13 @@ export async function createThreadServer() {
     describe: async () => ({ instanceId: "inst-1", homeDir: "/home/me" }),
     snapshot: async () => ({ sessions: [] }),
     listProviders: async () => [{ providerId: "codex", installed: true }],
+    inspectGitSource: async () => plainDirectory,
+    inspectPath: async () => ({ exists: true, isGitRepo: false }),
+    createWorktree: async ({ key }: { key: string }) => {
+      const path = `/worktrees/${key}`;
+      return { path, mergeBaseBranch: "main", worktreeInclude: null };
+    },
+    pathsExist: async () => ({ existence: {} }),
   });
   const settle = (): Promise<void> => ctx.threads.settled();
   const rows = <Row = Json>(sql: string, ...params: SqlValue[]): Row[] =>
