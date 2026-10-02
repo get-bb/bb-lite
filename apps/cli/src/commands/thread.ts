@@ -309,10 +309,10 @@ export const threadLog: Run = async (c) => {
     rows = [...older.rows.filter((row) => !known.has(row.id)), ...rows];
     page = older.timelinePage;
   }
-  const { formatThreadTimelineText } = await import("@bb/thread-view");
+  const { formatTimelineText } = await import("../log-text.js");
   const color = process.stdout.isTTY === true && !process.env.NO_COLOR;
   const verbose = format === "verbose";
-  const text = formatThreadTimelineText(rows, { verbose, color });
+  const text = formatTimelineText(rows, { verbose, color });
   const notice = page.hasOlderRows
     ? `\n\n(Showing the newest ${page.returnedSegmentCount} user-message ` +
       "turns; use --limit <n> (max 100) or --all for older history.)"
