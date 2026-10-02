@@ -136,7 +136,7 @@ export function encodeFrame(frame: WholeFrame): string[] {
   return parts;
 }
 
-function parseFrame(text: string): Frame | null {
+function parseFrame(text: string) {
   try {
     return frameSchema.parse(JSON.parse(text));
   } catch {

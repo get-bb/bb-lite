@@ -133,7 +133,7 @@ async function gitFailure(
   cwd: string,
   args: string[],
   stderr: string,
-): Promise<RunnerError> {
+) {
   const command = `git ${args.join(" ")}`;
   if (error.code === "ENOENT" || error.code === "ENOTDIR") {
     const directory = await fs.stat(cwd).catch(() => null);

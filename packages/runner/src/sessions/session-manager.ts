@@ -296,7 +296,7 @@ export function createSessionApi(
     return { outcome: "started", providerThreadId };
   }
 
-  async function submit(args: SubmitTurnArgs): Promise<SubmitTurnResult> {
+  async function submit(args: SubmitTurnArgs) {
     const { mode } = args;
     const live = sessions.get(args.session.threadId);
     if (mode.kind === "start") {

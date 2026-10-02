@@ -36,7 +36,7 @@ export interface LifecycleScripts {
   dispose(): Promise<void>;
 }
 
-function signalGroup(pid: number | undefined, signal: "SIGKILL" | 0): boolean {
+function signalGroup(pid: number | undefined, signal: "SIGKILL" | 0) {
   try {
     return pid !== undefined && process.kill(-pid, signal);
   } catch {
@@ -48,7 +48,7 @@ function failed(
   reason: FailureReason,
   message: string,
   exitCode: number | null = null,
-): LifecycleScriptResult {
+) {
   return { ran: true, exitCode, failure: { reason, message } };
 }
 
@@ -81,7 +81,7 @@ async function runScript(ctx: Ctx, args: ScriptArgs, signal: AbortSignal) {
   if (signal.aborted) killGroup();
   const flushes = [child.stdout, child.stderr].map((stream) => {
     const reader = createTerminalOutputLineReader();
-    const emit = (lines: string[]): void => {
+    const emit = (lines: string[]) => {
       const output = lines.map((line) => `${line}\n`).join("");
       const { operationId } = args;
       for (let at = 0; at < output.length; at += OUTPUT_EVENT_MAX_LENGTH) {
@@ -135,7 +135,7 @@ export function createLifecycleScripts(ctx: Ctx): LifecycleScripts {
       }
       if (existing !== undefined) return existing.done;
       const controller = new AbortController();
-      const settle = (): void => {
+      const settle = () => {
         operation.settled = true;
       };
       const done = runScript(ctx, args, controller.signal).finally(settle);

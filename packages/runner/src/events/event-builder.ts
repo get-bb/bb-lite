@@ -111,7 +111,7 @@ function trim<K>(collection: Map<K, unknown> | Set<K>, max: number) {
   }
 }
 
-function withoutUndefined<T extends object>(value: T): T {
+function withoutUndefined<T extends object>(value: T) {
   const entries = Object.entries(value).filter(([, v]) => v !== undefined);
   return Object.fromEntries(entries) as T;
 }
@@ -136,7 +136,7 @@ function buildItem(
   id: string,
   status: ItemStatus,
   extra: { presentation?: Presentation; parent?: string; denied?: boolean },
-): Item {
+) {
   const { presentation, parent: parentToolCallId } = extra;
   const common = withoutUndefined({ id, presentation, parentToolCallId });
   switch (shape.type) {

@@ -61,7 +61,7 @@ function promptText(input: readonly PromptInput[]) {
     .join(" ");
 }
 
-function approvalPayload(itemId: string): Payload {
+function approvalPayload(itemId: string) {
   const availableDecisions = ["allow_once" as const, "deny" as const];
   const base = { kind: "approval" as const, reason: null, availableDecisions };
   const command = { command: "echo hi", cwd: null, actions: [] };

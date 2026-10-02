@@ -74,7 +74,7 @@ export async function confinedTarget(location: FileLocation) {
   return { target, root };
 }
 
-function mimeTypeOf(target: string): string | undefined {
+function mimeTypeOf(target: string) {
   return mimeTypes.lookup(target) || undefined;
 }
 
@@ -141,12 +141,12 @@ export async function readFileContent(ctx: Ctx, target: ReadTarget) {
 
 export const readFile: Method<"readFile"> = readFileContent;
 
-function fileRevision(stat: BigIntStats): string {
+function fileRevision(stat: BigIntStats) {
   const { dev, ino, size, mtimeNs, ctimeNs } = stat;
   return sha256Hex([dev, ino, size, mtimeNs, ctimeNs].join(":"));
 }
 
-function requireUnchanged(expected: string | null, revision: string): void {
+function requireUnchanged(expected: string | null, revision: string) {
   if (expected !== null && expected !== revision) {
     fail("conflict", "File changed during read", true);
   }

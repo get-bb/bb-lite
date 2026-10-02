@@ -66,7 +66,7 @@ export function defaultLegacyMachineConfigPath(serverUrl: string): string {
   return join(homedir(), ".bb-machines", serverHost, "config.json");
 }
 
-function parseHeaderPair(pair: string): [string, string] {
+function parseHeaderPair(pair: string) {
   const [, name, value] = HEADER_PAIR.exec(pair) ?? [];
   if (name && value) return [name.toLowerCase(), value];
   throw new Error(`Expected a header as name=value, got "${pair}"`);

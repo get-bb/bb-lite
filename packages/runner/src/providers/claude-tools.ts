@@ -103,7 +103,7 @@ function toRecord(value: unknown) {
   return fields.safeParse(value).data;
 }
 
-function made(shape: ItemShape, presentation: Presentation): ClassifiedTool {
+function made(shape: ItemShape, presentation: Presentation) {
   return { shape, presentation };
 }
 
@@ -118,7 +118,7 @@ export function genericTool(tool: string, input: unknown): ClassifiedTool {
   return made({ ...shape, arguments: toRecord(input) }, presentation);
 }
 
-function fileChange(tool: string, args: Args, input: unknown): ClassifiedTool {
+function fileChange(tool: string, args: Args, input: unknown) {
   const notebook = tool === "NotebookEdit";
   const path = notebook
     ? text(args.notebook_path)
@@ -147,7 +147,7 @@ function fileChange(tool: string, args: Args, input: unknown): ClassifiedTool {
   return made({ type: "fileChange", changes }, presentation);
 }
 
-function delegation(tool: string, id: string, args: Args): ClassifiedTool {
+function delegation(tool: string, id: string, args: Args) {
   const [type, model] = [text(args.subagent_type), text(args.model)];
   const firstLine = text(args.prompt)?.split("\n", 1)[0]?.trim();
   const label = text(args.description) ?? firstLine ?? type ?? tool;
@@ -183,7 +183,7 @@ function bashCommand(args: Args, sandboxed: boolean) {
   return made({ ...shape, cwd: bash.cwd ?? "" }, presentation);
 }
 
-function todoPlanSteps(todos: unknown): PlanStep[] | undefined {
+function todoPlanSteps(todos: unknown) {
   return todosSchema.safeParse(todos).data?.flatMap((todo) => {
     const status = PLAN_STATUS[todo.status];
     const doing = status === "active" ? text(todo.activeForm) : undefined;
@@ -296,7 +296,7 @@ export function completedShape(
   }
 }
 
-function planSnapshot(plan: TaskPlan): PlanStep[] {
+function planSnapshot(plan: TaskPlan) {
   return [...plan.values()].flatMap((task) => {
     const active = task.status === "in_progress" && task.activeForm !== null;
     const step = active ? (task.activeForm ?? "") : task.subject;

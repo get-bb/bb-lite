@@ -111,7 +111,7 @@ function reportedContextWindow(modelUsage: unknown) {
   return windows.length === 0 ? null : Math.max(...windows);
 }
 
-function httpCategory(status: number): Category {
+function httpCategory(status: number) {
   if (status === 402) return "billing";
   if (status === 401 || status === 403) return "unauthorized";
   if (status === 429) return "rate-limit";

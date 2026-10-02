@@ -34,7 +34,7 @@ const recentListings = new Map<
   { at: number; listing: Promise<ListedPath[]> }
 >();
 
-async function gitFiles(ctx: Ctx, root: string): Promise<string[] | null> {
+async function gitFiles(ctx: Ctx, root: string) {
   const repo = openRepo(ctx, root, GIT_LISTING);
   if ((await repoKind(repo)) !== "work-tree") return null;
   const [present, deleted] = await Promise.all([
@@ -46,7 +46,7 @@ async function gitFiles(ctx: Ctx, root: string): Promise<string[] | null> {
   return [...files].filter((file) => !gone.has(file)).sort();
 }
 
-async function walkFiles(root: string): Promise<string[]> {
+async function walkFiles(root: string) {
   const files: string[] = [];
   const pending = [""];
   for (let visited = 0; pending.length > 0 && visited < WALK_MAX_ENTRIES;) {
@@ -70,7 +70,7 @@ async function walkFiles(root: string): Promise<string[]> {
 function withDirectories(
   files: string[],
   isExcluded: (segment: string) => boolean,
-): ListedPath[] {
+) {
   const listed: ListedPath[] = [];
   const directories = new Set<string>();
   for (const file of files) {

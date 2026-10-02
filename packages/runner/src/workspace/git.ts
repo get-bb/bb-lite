@@ -76,7 +76,7 @@ export function splitNul(output: string): string[] {
   return output.split("\0").filter((value) => value.length > 0);
 }
 
-function parsePorcelainZ(output: string): { path: string; code: string }[] {
+function parsePorcelainZ(output: string) {
   const tokens = output.split("\0");
   const entries: { path: string; code: string }[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
@@ -106,7 +106,7 @@ export function parseNameStatusZ(output: string): NameStatusEntry[] {
   return entries;
 }
 
-function parseCount(text: string): number | null {
+function parseCount(text: string) {
   const value = Number.parseInt(text, 10);
   return Number.isFinite(value) ? value : null;
 }
@@ -208,12 +208,12 @@ export async function gitDirs(repo: Repo) {
   return { gitDir: path.resolve(gitDir), commonDir };
 }
 
-async function isLinkedWorktree(repo: Repo): Promise<boolean> {
+async function isLinkedWorktree(repo: Repo) {
   const { gitDir, commonDir } = await gitDirs(repo);
   return gitDir !== commonDir;
 }
 
-async function branchNames(repo: Repo, namespace: string): Promise<string[]> {
+async function branchNames(repo: Repo, namespace: string) {
   const format = "--format=%(refname:lstrip=2)%09%(symref)";
   const { stdout } = await repo.git("for-each-ref", format, namespace);
   return stdout
@@ -227,13 +227,13 @@ export function localBranches(repo: Repo): Promise<string[]> {
   return branchNames(repo, "refs/heads");
 }
 
-async function originHead(repo: Repo): Promise<string | null> {
+async function originHead(repo: Repo) {
   const prefix = "refs/remotes/origin/";
   const ref = await repo.line("symbolic-ref", "--quiet", `${prefix}HEAD`);
   return ref?.startsWith(prefix) ? ref.slice(prefix.length) : null;
 }
 
-function preferredLocal(local: string[], origin: string | null): string | null {
+function preferredLocal(local: string[], origin: string | null) {
   const preferred = [origin, "main", "master"].find(
     (name) => name !== null && local.includes(name),
   );
@@ -245,7 +245,7 @@ export async function defaultBranch(repo: Repo): Promise<string | null> {
   return head ?? preferredLocal(await localBranches(repo), null);
 }
 
-async function branchRefs(repo: Repo, kind: RepoKind): Promise<BranchRefs> {
+async function branchRefs(repo: Repo, kind: RepoKind) {
   const [head, local, remote] =
     kind === "none"
       ? [null, [], []]
