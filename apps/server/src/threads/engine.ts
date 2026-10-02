@@ -382,8 +382,6 @@ export function createThreadEngine(ctx: ServerContext) {
     createQueuedMessage: serialized(mutations.createQueuedMessage),
     updateQueuedMessage: serialized(mutations.updateQueuedMessage),
     deleteQueuedMessage: serialized(mutations.deleteQueuedMessage),
-    reorderQueuedMessage: serialized(mutations.reorderQueuedMessage),
-    setQueuedMessageGroupBoundary: serialized(mutations.setQueueGroupBoundary),
     sendQueuedMessageNow: serialized(mutations.sendQueuedMessageNow),
     resolveInteraction: serialized(interactions.resolveProviderInteraction),
     respondToInteraction: serialized(interactions.respondToInteraction),

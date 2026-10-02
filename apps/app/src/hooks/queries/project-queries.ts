@@ -1,9 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import type { ProjectWithThreadsResponse } from "@bb/server-contract";
-import type { FilePreview } from "@bb/client-core";
-import { loadFilePreview } from "@/lib/api";
-import { buildProjectFileContentUrl } from "@/lib/file-content-urls";
 import { readProjectBranchOptions } from "@/lib/project-branch-options";
 import { sdk } from "@/lib/sdk";
 import { useDebouncedValue } from "../useDebouncedValue";
@@ -120,27 +117,6 @@ export function useProjectPathSuggestions(
     retry: false,
     staleTime: 15_000,
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useProjectFilePreview(
-  projectId: string | undefined,
-  path: string | null,
-  routing: ProjectRouting,
-  options?: QueryOptions,
-) {
-  return useQuery<FilePreview>({
-    queryKey: qk.projectFile(projectId, { ...routing, path }),
-    queryFn: ({ signal }) => {
-      if (!projectId || !path) {
-        throw new Error("File preview needs a project and a path");
-      }
-      const url = buildProjectFileContentUrl(projectId, path, routing);
-      const name = path.split("/").at(-1);
-      return loadFilePreview({ name, path, url }, signal);
-    },
-    enabled: (options?.enabled ?? true) && Boolean(projectId && path),
-    gcTime: 60_000,
   });
 }
 

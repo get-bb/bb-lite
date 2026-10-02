@@ -1,8 +1,3 @@
-import {
-  isAbortLikeError,
-  isNetworkTransportError,
-} from "@/lib/mutation-errors";
-
 export interface QueryOptions {
   enabled?: boolean;
 }
@@ -19,8 +14,4 @@ export function requireEnabledQueryArg<T>(args: {
     );
   }
   return value;
-}
-
-export function isTransientReadError(error: unknown): boolean {
-  return isAbortLikeError(error) || isNetworkTransportError(error);
 }

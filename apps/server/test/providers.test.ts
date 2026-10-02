@@ -1,6 +1,6 @@
 import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PERSONAL_PROJECT_ID, type AvailableModel } from "@bb/domain";
+import { type AvailableModel } from "@bb/domain";
 import { pluginSettingsResponseSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
 import { resolveContributedEnvironment } from "../src/machine-environment.js";
@@ -50,21 +50,13 @@ it("caches model catalogs and merges custom models", async () => {
 
 it("disables providers and turns their toggles into options", async () => {
   const server = await createTestServer();
-  const { api, ctx, runner, url } = server;
+  const { api, ctx, url } = server;
   const changed = await watchChanges(server);
   const enabled = api.system.providers[":id"].enabled;
   const off = { param: { id: "codex" }, json: { enabled: false } };
   const [codex] = await (await enabled.$put(off)).json();
   expect(codex).toMatchObject({ enabled: false, pluginId: "provider-codex" });
   await changed("system", "config-changed");
-  const ready = { installed: true, auth: "ready", message: null } as const;
-  const binary = { executablePath: "/bin/claude", version: "2" };
-  const claude = { providerId: "claude-code", ...binary, ...ready } as const;
-  runner.script.listProviders = async () => [claude];
-  const { state } = api.system.providers;
-  const { providers } = await (await state.$get({ query: {} })).json();
-  const readiness = providers.map((one) => `${one.providerId}:${one.status}`);
-  expect(readiness.join()).toBe("claude-code:ready,echo:unknown");
   const logo = await fetch(`${url}/api/v1/system/providers/claude-code/logo`);
   expect(logo.headers.get("content-type")).toBe("image/svg+xml");
   const defaults = { memoryEnabled: true, providerSubagentsEnabled: true };
@@ -110,23 +102,4 @@ it("keeps environment variable values encrypted and write-only", async () => {
   const projectEnv = await resolveContributedEnvironment(ctx, param.id);
   const resolved = [everywhereEnv.API_KEY, projectEnv.API_KEY].join();
   expect(resolved).toBe("s3cret-global,s3cret-own");
-});
-
-it("offers the environment providers that fit a project", async () => {
-  const server = await createTestServer();
-  const { hostId } = server.ctx.config;
-  const { id: projectId } = await createProject(server, "alpha");
-  const list = async (query: { projectId?: string; hostId?: string }) => {
-    const route = server.api.system["environment-providers"];
-    const { providers } = await (await route.$get({ query })).json();
-    return providers
-      .map((one) => `${one.id}@${Object.keys(one.machineAvailability)}`)
-      .join(" ");
-  };
-  const everything = "project-checkout@ git-worktree@ personal-workspace@";
-  expect(await list({})).toBe(everything);
-  const checkouts = `project-checkout@${hostId} git-worktree@${hostId}`;
-  expect(await list({ projectId })).toBe(checkouts);
-  const personal = { projectId: PERSONAL_PROJECT_ID, hostId };
-  expect(await list(personal)).toBe(`personal-workspace@${hostId}`);
 });

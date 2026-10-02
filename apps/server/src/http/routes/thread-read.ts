@@ -1,7 +1,6 @@
 import * as domain from "@bb/domain";
 import {
   publicApiRoutes,
-  THREAD_COUNT_ROOT_PARENT,
   THREAD_EVENT_LIST_PAGE_SIZE,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
@@ -178,12 +177,6 @@ export function registerThreadReadRoutes(
     if (query.limit !== undefined) positive(query.limit, "limit", 1);
     const rows = store.listThreadRows(db, query);
     return c.json(toThreadListEntries(ctx, rows));
-  });
-
-  get(threads.count, (c, query = {}) => {
-    if (query.projectId !== undefined) requireProject(db, query.projectId);
-    const rootsOnly = query.parentThreadId === THREAD_COUNT_ROOT_PARENT;
-    return c.json(store.countThreads(db, query, rootsOnly));
   });
 
   get(threads.search, (c, query) => {

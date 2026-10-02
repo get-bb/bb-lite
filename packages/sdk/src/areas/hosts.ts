@@ -3,8 +3,6 @@ import type {
   CreateMachineRequest,
   HostEnrollmentCommandResponse,
   HostReconnectResponse,
-  HostCloneDefaultPathQuery,
-  HostCloneDefaultPathResponse,
   HostDirectoryListing,
   HostDirectoryQuery,
   HostOpenRequest,
@@ -41,11 +39,6 @@ export interface HostDirectoryArgs extends HostDirectoryQuery {
   signal?: AbortSignal;
 }
 
-export interface HostCloneDefaultPathArgs extends HostCloneDefaultPathQuery {
-  hostId: string;
-  signal?: AbortSignal;
-}
-
 export interface HostPathsExistArgs extends HostPathsExistRequest {
   hostId: string;
   signal?: AbortSignal;
@@ -73,7 +66,6 @@ export type HostGetResult = Host & {
 };
 export type HostEnrollmentCommandResult = HostEnrollmentCommandResponse;
 export type HostReconnectResult = HostReconnectResponse;
-export type HostCloneDefaultPathResult = HostCloneDefaultPathResponse;
 export type HostListResult = Host[];
 export type HostPathsExistResult = HostPathsExistResponse;
 export type HostUpdateResult = Host;
@@ -87,9 +79,6 @@ export interface HostsArea {
   delete(args: HostDeleteArgs): Promise<HostDeleteResult>;
   directory(args: HostDirectoryArgs): Promise<HostDirectoryResult>;
   get(args: HostGetArgs): Promise<HostGetResult>;
-  cloneDefaultPath(
-    args: HostCloneDefaultPathArgs,
-  ): Promise<HostCloneDefaultPathResult>;
   list(args?: HostListArgs): Promise<HostListResult>;
   pathsExist(args: HostPathsExistArgs): Promise<HostPathsExistResult>;
   openTargets(args: HostGetArgs): Promise<HostOpenTargetsResponse>;
@@ -170,17 +159,6 @@ export function createHostsArea(args: CreateSdkAreaArgs): HostsArea {
         transport.api.v1.hosts[":id"].$get(
           {
             param: { id: input.hostId },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
-    async cloneDefaultPath(input) {
-      return transport.readJson(
-        transport.api.v1.hosts[":id"]["clone-default-path"].$get(
-          {
-            param: { id: input.hostId },
-            query: { projectId: input.projectId },
           },
           ...signalRequestArgs(input.signal),
         ),

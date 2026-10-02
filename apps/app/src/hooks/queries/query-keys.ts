@@ -45,7 +45,6 @@ export const qk = {
   projectExecution: (id: Id) => project(id, "execution-options"),
   projectBranches: (id: Id, args?: object) => project(id, "branches", args),
   projectPaths: (id: Id, args: object) => project(id, "paths", args),
-  projectFile: (id: Id, args: object) => project(id, "file", args),
   projectCommands: (id: Id, args: object) => project(id, "commands", args),
 
   environment,

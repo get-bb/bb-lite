@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, symlinkSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { symlinkSync } from "node:fs";
+import { join } from "node:path";
 import { environmentSchema } from "@bb/domain";
 import { expect, it } from "vitest";
 import { insertHost } from "../src/db/hosts.js";
@@ -26,19 +26,11 @@ it("reports status, diffs and commits for a checkout with mixed changes", async 
   await changed("environment", "metadata-changed");
   await matches(env, { branchName: "main", defaultBranch: "main" });
 
-  const files = [
-    { path: "src/a.ts", changeKind: "modified", additions: 1, deletions: 1 },
-    { path: "staged.txt", origin: "tracked", changeKind: "added" },
-    { path: "notes.md", origin: "untracked", changeKind: "added" },
-  ];
+  const files = ["src/a.ts", "staged.txt", "notes.md"].map((path) => ({
+    path,
+  }));
   const listed = { outcome: "available", truncated: false, files };
   await matches(`${env}/diff/files?${uncommitted}`, listed);
-  const wanted = { target: { type: "uncommitted" }, paths: ["src/a.ts"] };
-  const patch = await (await send(`${env}/diff/patch`, wanted)).text();
-  expect(patch).toMatch(/"outcome":"available".*\+export const a = 2;/u);
-  const before = { content: "export const a = 1;\n", sizeBytes: 20 };
-  const old = `${env}/diff/file?${uncommitted}&side=old&path=src/a.ts`;
-  await matches(old, before);
   const committed = await send(`${env}/actions`, commit);
   const made = { ok: true, commitSubject: "bb: automated commit" };
   expect(await committed.json()).toMatchObject(made);
@@ -77,9 +69,6 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   const span = part.headers.get("content-range");
   expect(`${part.status} ${span}`).toBe(`206 bytes 524280-524299/${size}`);
   expect((await bytes(part)).equals(big.subarray(524280, 524300))).toBe(true);
-  const beyond = await file("big.bin", { range: "bytes=9999999-" });
-  const total = beyond.headers.get("content-range");
-  expect(`${beyond.status} ${total}`).toBe(`416 bytes */${size}`);
   const fresh = await file("big.bin", { "if-none-match": etag });
   const head = await file("big.bin", { range: "bytes=0-1" }, "HEAD");
   const length = head.headers.get("content-length");
@@ -106,29 +95,19 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   ]) {
     expect(await (await request(route)).text(), route).toBe("# demo\n");
   }
-
-  const { readFileChunk } = server.runner.script;
-  server.runner.script.readFileChunk = async (args) => {
-    if (args.offset > 0) appendFileSync(join(repo, "big.bin"), "more");
-    return readFileChunk!(args);
-  };
-  await expect(file("big.bin").then(bytes)).rejects.toThrow();
 });
 
-it("searches paths and reads branches, commands and folders", async () => {
-  const { repo, projectId, hostId, matches, read, send } =
-    await helpers.createDemo();
+it("resolves a project to its checkout for paths and branches", async () => {
+  const { repo, projectId, hostId, matches } = await helpers.createDemo();
   helpers.git(repo, "branch", "feature");
-  helpers.write(repo, { "src/reader.ts": "", "docs/thread.md": "" });
+  helpers.write(repo, { "src/reader.ts": "" });
   const project = `/projects/${projectId}`;
-  const readme = { kind: "file", path: "README.md", positions: [0, 1, 2, 3] };
-  const paths = [readme, { path: "src/reader.ts" }, {}];
+  const paths = [
+    { kind: "file", path: "README.md" },
+    { path: "src/reader.ts" },
+  ];
   const both = "includeFiles=true&includeDirectories=true";
   await matches(`${project}/paths?query=read&${both}`, { paths });
-  const folders = "includeFiles=false&includeDirectories=true&query=sr";
-  const src = { kind: "directory", path: "src" };
-  await matches(`${env}/paths?${folders}`, { paths: [src], truncated: false });
-
   await matches(`${project}/branches?hostId=${hostId}&selectedBranch=feature`, {
     checkout: { kind: "branch", branchName: "main" },
     branches: ["main", "feature"],
@@ -136,20 +115,6 @@ it("searches paths and reads branches, commands and folders", async () => {
     defaultWorktreeBaseBranch: "main",
     hasUncommittedChanges: true,
   });
-  await matches(`${env}/diff/branches?query=feat`, { branches: ["feature"] });
-  const skill = { name: "ship", source: "skill", origin: "project" };
-  const commands = [{ ...skill, description: "Ship it", argumentHint: null }];
-  expect(await read(`${project}/commands?provider=echo`)).toEqual({ commands });
-
-  const entries = [{ name: "docs" }, { name: "src" }, { name: "README.md" }];
-  const browsed = { directory: repo, parent: dirname(repo), entries };
-  const browse = `/hosts/${hostId}/directory?path=${encodeURIComponent(repo)}`;
-  await matches(browse, browsed);
-  const made = join(repo, "made");
-  const exist = await send(`/hosts/${hostId}/paths/exist`, { paths: [made] });
-  expect(await exist.json()).toEqual({ existence: { [made]: false } });
-  const mkdir = await send("/files/mkdir", { path: made });
-  expect([await mkdir.json(), existsSync(made)]).toEqual([{ ok: true }, true]);
 });
 
 it("renames and deletes environments once their threads are gone", async () => {

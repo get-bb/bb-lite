@@ -1,8 +1,10 @@
-import type { EventProjectionToolParsedIntent } from "./event-projection-types.js";
+import type { TimelineActivityIntent } from "@bb/server-contract";
 
 const SHELL_WRAPPER_NAMES = new Set(["sh", "bash", "zsh"]);
 
 const SHELL_SEGMENT_BREAK_TOKENS = new Set(["&&", "||", "|", ";", "\n"]);
+
+const DOUBLE_QUOTE_ESCAPABLE = new Set(["$", "`", '"', "\\", "\n"]);
 
 function unwrapQuotedShellArg(value: string): string {
   if (value.length < 2) return value;
@@ -15,19 +17,11 @@ function unwrapQuotedShellArg(value: string): string {
   let result = "";
   for (let i = 0; i < inner.length; i += 1) {
     const ch = inner[i];
-    if (ch === "\\" && i + 1 < inner.length) {
-      const next = inner[i + 1]!;
-      if (
-        next === "$" ||
-        next === "`" ||
-        next === '"' ||
-        next === "\\" ||
-        next === "\n"
-      ) {
-        result += next;
-        i += 1;
-        continue;
-      }
+    const next = inner[i + 1];
+    if (ch === "\\" && next !== undefined && DOUBLE_QUOTE_ESCAPABLE.has(next)) {
+      result += next;
+      i += 1;
+      continue;
     }
     result += ch;
   }
@@ -53,8 +47,6 @@ export function extractShellCommandFromString(
   }
   return unwrapQuotedShellArg(commandArg.trim());
 }
-
-const DOUBLE_QUOTE_ESCAPABLE = new Set(["$", "`", '"', "\\", "\n"]);
 
 type ShellToken = { readonly value: string; readonly quoted: boolean };
 
@@ -264,7 +256,7 @@ const NO_FLAGS_WITH_VALUE: ReadonlySet<string> = new Set();
 
 type SegmentClassification =
   | { kind: "write" }
-  | { kind: "intent"; intent: EventProjectionToolParsedIntent }
+  | { kind: "intent"; intent: TimelineActivityIntent }
   | { kind: "none" };
 
 function baseExecutableName(token: string): string {
@@ -413,7 +405,12 @@ function classifyShellSegment(
     path
       ? {
           kind: "intent",
-          intent: { type: "read", cmd: fullCommand, name: commandName, path },
+          intent: {
+            type: "read",
+            command: fullCommand,
+            name: commandName,
+            path,
+          },
         }
       : { kind: "none" };
   switch (commandName) {
@@ -427,7 +424,7 @@ function classifyShellSegment(
         kind: "intent",
         intent: {
           type: "search",
-          cmd: fullCommand,
+          command: fullCommand,
           query: positionals[0] ?? null,
           path:
             positionals.length > 1
@@ -442,7 +439,7 @@ function classifyShellSegment(
       if (!path) return { kind: "none" };
       return {
         kind: "intent",
-        intent: { type: "list_files", cmd: fullCommand, path },
+        intent: { type: "list_files", command: fullCommand, path },
       };
     }
     case "ls": {
@@ -450,7 +447,7 @@ function classifyShellSegment(
       const path = positionals[0] ?? ".";
       return {
         kind: "intent",
-        intent: { type: "list_files", cmd: fullCommand, path },
+        intent: { type: "list_files", command: fullCommand, path },
       };
     }
     case "cat":
@@ -472,7 +469,7 @@ function classifyShellSegment(
 
 export function parseShellCommandIntents(
   command: string | undefined,
-): EventProjectionToolParsedIntent[] {
+): TimelineActivityIntent[] {
   if (!command) return [];
   const segments = splitShellCommandSegments(command);
   const classifications = segments.map((segment) =>

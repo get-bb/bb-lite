@@ -23,20 +23,6 @@ export const hostDirectoryListingSchema = z.object({
 });
 export type HostDirectoryListing = z.infer<typeof hostDirectoryListingSchema>;
 
-export const hostCloneDefaultPathQuerySchema = z.object({
-  projectId: z.string().min(1),
-});
-export type HostCloneDefaultPathQuery = z.infer<
-  typeof hostCloneDefaultPathQuerySchema
->;
-
-export const hostCloneDefaultPathResponseSchema = z
-  .object({ path: z.string().min(1) })
-  .strict();
-export type HostCloneDefaultPathResponse = z.infer<
-  typeof hostCloneDefaultPathResponseSchema
->;
-
 export const createMachineRequestSchema = z
   .object({
     machineProviderId: z.string().min(1),

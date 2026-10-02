@@ -1,8 +1,4 @@
-import {
-  flattenPromptInputGroups,
-  isStandaloneBuiltinClearCommand,
-  threadScope,
-} from "@bb/domain";
+import { isStandaloneBuiltinClearCommand, threadScope } from "@bb/domain";
 import type * as domain from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import type * as runner from "@bb/runner";
@@ -29,7 +25,6 @@ type TurnKind = "start" | "steer" | "auto";
 
 export interface OutboundMessage {
   input: PromptInput[];
-  inputGroups?: PromptInput[][];
   execution: execution.ExecutionTuple;
   senderThreadId: string | null;
   initiator: domain.ThreadTurnInitiator;
@@ -75,13 +70,8 @@ function attribute(input: PromptInput[], senderThreadId: string | null) {
 }
 
 export function attributedMessage(message: OutboundMessage): OutboundMessage {
-  const { senderThreadId, inputGroups } = message;
-  if (inputGroups === undefined) {
-    return { ...message, input: attribute(message.input, senderThreadId) };
-  }
-  const groups = inputGroups.map((group) => attribute(group, senderThreadId));
-  const input = flattenPromptInputGroups(groups);
-  return { ...message, input, inputGroups: groups };
+  const input = attribute(message.input, message.senderThreadId);
+  return { ...message, input };
 }
 
 export function turnRequestEvent(
@@ -90,7 +80,7 @@ export function turnRequestEvent(
   target: domain.TurnRequestTarget,
 ): runner.RunnerThreadEvent {
   const starts = target.kind === "thread-start";
-  const { systemNotice, inputGroups } = message;
+  const { systemNotice } = message;
   return {
     type: "client/turn/requested",
     scope: threadScope(),
@@ -106,7 +96,6 @@ export function turnRequestEvent(
           systemMessageSubject: systemNotice.subject,
         }),
     input: message.input,
-    ...(inputGroups === undefined ? {} : { inputGroups }),
     target,
     request: { method: starts ? "thread/start" : "turn/start", params: {} },
     execution: execution.recordedExecution(message.execution),
@@ -353,7 +342,7 @@ export async function dispatchMessage(
   return SENT;
 }
 
-function nextEligibleGroup(engine: Engine, thread: ThreadRow) {
+function nextEligible(engine: Engine, thread: ThreadRow) {
   const { db, now, runners } = engine.ctx;
   const rows = queue.listQueuedMessages(db, thread.id);
   if (rows.length === 0) return null;
@@ -382,41 +371,26 @@ function nextEligibleGroup(engine: Engine, thread: ThreadRow) {
         return idle;
     }
   };
-  for (let index = 0; index < rows.length;) {
-    const group = queue.groupStartingAt(rows, index);
-    if (group.every(eligible)) return group;
-    index += group.length;
-  }
-  return null;
+  return rows.find(eligible) ?? null;
 }
 
-function dispatchRows(
+function dispatchRow(
   engine: Engine,
   threadId: string,
-  rows: QueuedMessageRow[],
+  row: QueuedMessageRow,
   mode: SendMode,
   sendNow: boolean,
 ) {
-  const [lead] = rows;
-  const groups = rows.map(queue.parseQueuedContent);
-  const systemNotice = queue.parseQueuedNotice(lead);
-  const { model, reasoningLevel, permissionMode, serviceTier } = lead;
+  const { model, reasoningLevel, permissionMode, serviceTier, sendAt } = row;
   const message: OutboundMessage = {
-    input: flattenPromptInputGroups(groups),
-    ...(groups.length > 1 ? { inputGroups: groups } : {}),
+    input: queue.parseQueuedContent(row),
     execution: { model, reasoningLevel, permissionMode, serviceTier },
-    senderThreadId: lead.senderThreadId,
-    initiator: queue.queuedInitiator(lead),
-    systemNotice,
+    senderThreadId: row.senderThreadId,
+    initiator: queue.queuedInitiator(row),
+    systemNotice: queue.parseQueuedNotice(row),
   };
-  const { sendAt } = lead;
-  return dispatchMessage(engine, threadId, {
-    message,
-    mode,
-    sendAt,
-    rows,
-    sendNow,
-  });
+  const args = { message, mode, sendAt, rows: [row], sendNow };
+  return dispatchMessage(engine, threadId, args);
 }
 
 function recordDrainFailure(
@@ -443,14 +417,13 @@ export async function drainQueue(
     const thread = getThread(engine.ctx.db, threadId);
     if (thread === undefined || thread.status === "stopping") return;
     if (thread.archivedAt !== null || thread.deletedAt !== null) return;
-    const group = nextEligibleGroup(engine, thread);
-    if (group === null) return;
+    const row = nextEligible(engine, thread);
+    if (row === null) return;
     try {
-      const mode = "auto";
-      const outcome = await dispatchRows(engine, threadId, group, mode, false);
+      const outcome = await dispatchRow(engine, threadId, row, "auto", false);
       if (outcome.delivery === "queued") return;
     } catch (error) {
-      recordDrainFailure(engine, group[0], error);
+      recordDrainFailure(engine, row, error);
       return;
     }
   }
@@ -463,15 +436,13 @@ export async function sendQueuedMessageNow(
   mode: "auto" | "steer",
 ): Promise<Delivery> {
   const { db } = engine.ctx;
-  const rows = queue.listQueuedMessages(db, threadId);
-  const index = rows.findIndex((row) => row.id === queuedMessageId);
-  if (index < 0) throw queue.queuedMessageNotFound();
+  const row = queue.getQueuedMessage(db, threadId, queuedMessageId);
+  if (row === undefined) throw queue.queuedMessageNotFound();
   db.run(
     "UPDATE queued_thread_messages SET failure_reason = NULL WHERE id = ?",
     queuedMessageId,
   );
-  const group = queue.groupStartingAt(rows, index);
-  const outcome = await dispatchRows(engine, threadId, group, mode, true);
+  const outcome = await dispatchRow(engine, threadId, row, mode, true);
   if (outcome.delivery === "sent" || mode === "steer") return outcome;
   const kind = queue.parseQueuedWait(outcome.row)?.kind ?? "thread-busy";
   if (kind === "stopping") return outcome;

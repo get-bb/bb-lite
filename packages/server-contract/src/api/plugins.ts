@@ -7,7 +7,6 @@ export const pluginStatusSchema = z.enum([
   "error",
   "disabled",
 ]);
-export type PluginStatus = z.infer<typeof pluginStatusSchema>;
 
 const pluginSettingBaseSchema = {
   label: z.string().min(1),
@@ -94,12 +93,6 @@ export const pluginTokenRequestSchema = z
   .object({ rotate: z.boolean().optional().default(false) })
   .strict();
 
-export const pluginTokenResponseSchema = z.object({
-  ok: z.literal(true),
-  token: z.string(),
-});
-export type PluginTokenResponse = z.infer<typeof pluginTokenResponseSchema>;
-
 export const pluginCliRequestSchema = z.object({
   argv: z.array(z.string()),
   cwd: z.string().min(1).optional(),
@@ -112,7 +105,6 @@ export const pluginCliResponseSchema = z.object({
   stdout: z.string(),
   stderr: z.string(),
 });
-export type PluginCliResponse = z.infer<typeof pluginCliResponseSchema>;
 
 export const pluginMentionTriggerSchema = z.enum(["@", "#", "$", "!", "~"]);
 export type PluginMentionTrigger = z.infer<typeof pluginMentionTriggerSchema>;

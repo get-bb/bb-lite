@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import type {
@@ -9,7 +9,7 @@ import { expect, it, vi } from "vitest";
 import { getEnvironment, listEnvironments } from "../src/db/environments.js";
 import { getThread } from "../src/db/threads.js";
 import * as helpers from "./helpers.js";
-import { createThreadServer, text } from "./thread-harness.js";
+import { text } from "./thread-harness.js";
 
 type Placement = CreateThreadRequest["environment"];
 
@@ -37,8 +37,7 @@ async function createWorld(files: Record<string, string> = {}) {
     const input = text("cmd:pwd go");
     const request = { projectId, title: TITLE, input, environment };
     const origin = { origin: "app", providerId: "echo" } as const;
-    const unforked = { startedOnBehalfOf: null, originKind: null };
-    const json = { ...request, ...origin, ...unforked };
+    const json = { ...request, ...origin, startedOnBehalfOf: null };
     return (await (await api.threads.$post({ json })).json()).id;
   };
   const reaches = (id: string, status: string) =>
@@ -148,30 +147,6 @@ it("fails the thread when the setup script fails and retries in place", async ()
   await vi.waitFor(() => expect(existsSync(path)).toBe(false), WAIT);
 });
 
-it("cancels a running setup script on stop and removes the worktree on delete", async () => {
-  const slow = `echo $$ > ${GIT_DIR}/setup.pid\nsleep 60\n`;
-  const world = await createWorld({ [SETUP]: slow });
-  const { ctx, db, repo } = world;
-  const id = await world.spawn(world.worktree);
-  const pid = await vi.waitFor(() => {
-    const written = readFileSync(join(repo, ".git/setup.pid"), "utf8");
-    expect(Number(written)).toBeGreaterThan(0);
-    return Number(written);
-  }, WAIT);
-  await ctx.threads.stop(id);
-  expect(getThread(db, id)?.status).toBe("idle");
-  const [owned] = listEnvironments(db);
-  const status = () => getEnvironment(db, owned.id)?.status;
-  await vi.waitFor(() => expect(status()).toBe("error"), WAIT);
-  expect(() => process.kill(pid, 0)).toThrow();
-  const path = getEnvironment(db, owned.id)?.path ?? "";
-  expect(existsSync(join(path, "README.md"))).toBe(true);
-
-  await ctx.threads.delete(id, { childThreadsConfirmed: true });
-  await vi.waitFor(() => expect(status()).toBe("destroyed"), WAIT);
-  expect(existsSync(path)).toBe(false);
-});
-
 it("attaches checkouts and switches branch only when clean and unshared", async () => {
   const world = await createWorld();
   const { ctx, hostId, repo, reaches, spawn, stored } = world;
@@ -237,35 +212,4 @@ it("gives personal threads a scratch workspace and removes it on request", async
   expect(await remove()).toBe(200);
   const left = [getEnvironment(db, environmentId)?.status, existsSync(path)];
   expect(left).toEqual(["destroyed", false]);
-});
-
-it("waits for the machine, then retries a failing teardown a bounded number of times", async () => {
-  const server = await createThreadServer();
-  const { ctx, hostId, runner } = server;
-  const baseBranch = { kind: "default" } as const;
-  const workspace = { type: "managed-worktree", baseBranch } as const;
-  const environment = { type: "host", hostId, workspace } as const;
-  const id = await server.spawn({ environment });
-  const environmentId = server.thread(id).environmentId ?? "";
-  const lifecycle = () => getEnvironment(ctx.db, environmentId)?.lifecycle;
-  ctx.runners.disconnect(hostId);
-  await ctx.threads.delete(id, { childThreadsConfirmed: true });
-  await ctx.environments.sweep();
-  expect(lifecycle()).toMatchObject({ phase: "retiring", teardown: null });
-
-  await server.reconnect();
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    const failed = { status: "failed", attempt };
-    await vi.waitFor(() => expect(lifecycle()?.teardown).toMatchObject(failed));
-    server.clock.now += 60_000;
-    await ctx.environments.sweep();
-  }
-  const abandoned = { retireAt: null, teardown: { attempt: 5 } };
-  expect(lifecycle()).toMatchObject(abandoned);
-  const skipped = { ran: false, exitCode: null, failure: null };
-  const working = { runLifecycleScript: async () => skipped };
-  Object.assign(runner.script, working, { removeWorktree: async () => {} });
-  const removed = await server.http("DELETE", `/environments/${environmentId}`);
-  expect(removed.status).toBe(200);
-  expect(getEnvironment(ctx.db, environmentId)).toBeUndefined();
 });

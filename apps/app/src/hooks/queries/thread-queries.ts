@@ -15,12 +15,8 @@ import {
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
 import type { PathListOptions } from "@/lib/path-list-options";
-import type { ThreadStorageFileListOptions } from "@/lib/thread-storage-files";
 import { loadFilePreview } from "@/lib/api";
-import {
-  buildThreadHostFileContentUrl,
-  buildThreadStorageRawContentUrl,
-} from "@/lib/file-content-urls";
+import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 import { sdk } from "@/lib/sdk";
 import { useThreadDetailRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useDebouncedValue } from "../useDebouncedValue";
@@ -365,38 +361,6 @@ export function isPendingInteractionStateUnknown(
   return isFetching && !interactions?.length;
 }
 
-export function useThreadStorageFiles(
-  id: string,
-  listOptions: ThreadStorageFileListOptions,
-  options?: QueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-  const query = listOptions.query?.trim();
-  return useQuery({
-    queryKey: qk.threadStorage(id, "files", listOptions),
-    queryFn: ({ signal }) =>
-      sdk.threads.storageFiles({
-        limit: String(listOptions.limit),
-        ...(query ? { query } : {}),
-        threadId: id,
-        signal,
-      }),
-    enabled,
-    refetchOnMount: "always",
-  });
-}
-
-export function useThreadStorageLocation(id: string, options?: QueryOptions) {
-  return useQuery({
-    queryKey: qk.threadStorage(id, "location"),
-    queryFn: ({ signal }) =>
-      sdk.threads.storageLocation({ threadId: id, signal }),
-    enabled: (options?.enabled ?? true) && Boolean(id),
-    refetchOnMount: "always",
-  });
-}
-
 export function useThreadStoragePaths(
   id: string,
   listOptions: PathListOptions,
@@ -417,23 +381,6 @@ export function useThreadStoragePaths(
     enabled: (options?.enabled ?? true) && Boolean(id),
     refetchOnMount: "always",
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useThreadStorageFilePreview(
-  id: string,
-  path: string | null,
-  options?: QueryOptions,
-) {
-  return useQuery<FilePreview>({
-    queryKey: qk.threadStorage(id, "file", path),
-    queryFn: ({ signal }) => {
-      const url = buildThreadStorageRawContentUrl(id, path ?? "");
-      return loadFilePreview({ path: path ?? "", url }, signal);
-    },
-    enabled: (options?.enabled ?? true) && Boolean(id && path),
-    refetchOnMount: "always",
-    gcTime: HEAVY_GC_TIME_MS,
   });
 }
 

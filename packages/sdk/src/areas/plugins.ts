@@ -1,16 +1,13 @@
-import { jsonValueSchema, type JsonValue } from "@bb/domain";
+import { type JsonValue } from "@bb/domain";
 import {
   installedPluginSchema,
   pluginContributionsResponseSchema,
   pluginSettingsResponseSchema,
   pluginSettingsUpdateRequestSchema,
-  pluginTokenRequestSchema,
-  pluginTokenResponseSchema,
   type InstalledPlugin,
   type PluginContributionsResponse,
   type PluginListResponse,
   type PluginSettingsResponse,
-  type PluginTokenResponse,
 } from "@bb/server-contract";
 import { z } from "zod";
 import type { CreateSdkAreaArgs } from "./common.js";
@@ -42,17 +39,6 @@ export interface PluginSettingsUpdateArgs extends PluginIdArgs {
   values: Record<string, JsonValue>;
 }
 
-export interface PluginTokenArgs extends PluginIdArgs {
-  rotate?: boolean;
-}
-
-export interface PluginRpcArgs<TOutput> extends PluginIdArgs {
-  signal?: AbortSignal;
-  input?: JsonValue;
-  method: string;
-  outputSchema: z.ZodType<TOutput>;
-}
-
 export interface PluginGetSettingsArgs extends PluginIdArgs {
   signal?: AbortSignal;
 }
@@ -69,18 +55,15 @@ export type PluginDisableResult = InstalledPlugin;
 export type PluginEnableResult = InstalledPlugin;
 export type PluginGetSettingsResult = PluginSettingsResponse;
 export type PluginListResult = PluginListResponse;
-export type PluginTokenResult = PluginTokenResponse;
 export type PluginUpdateSettingsResult = PluginSettingsResponse;
 
 export interface PluginsArea {
-  callRpc<TOutput>(args: PluginRpcArgs<TOutput>): Promise<TOutput>;
   contributions(args?: PluginListArgs): Promise<PluginContributionsResponse>;
   reload(args?: PluginReloadArgs): Promise<PluginListResult>;
   disable(args: PluginIdArgs): Promise<PluginDisableResult>;
   enable(args: PluginIdArgs): Promise<PluginEnableResult>;
   getSettings(args: PluginGetSettingsArgs): Promise<PluginGetSettingsResult>;
   list(args?: PluginListArgs): Promise<PluginListResult>;
-  token(args: PluginTokenArgs): Promise<PluginTokenResult>;
   updateSettings(
     args: PluginSettingsUpdateArgs,
   ): Promise<PluginUpdateSettingsResult>;
@@ -116,14 +99,6 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
   }
 
   return {
-    async callRpc(input) {
-      const envelope = await requestParsed(
-        pluginPath(input.pluginId, `/rpc/${encodeURIComponent(input.method)}`),
-        z.object({ ok: z.literal(true), result: jsonValueSchema }),
-        { ...jsonInit("POST", input.input ?? null), signal: input.signal },
-      );
-      return input.outputSchema.parse(envelope.result);
-    },
     async contributions(input = {}) {
       return requestParsed(
         "/api/v1/plugins/contributions",
@@ -168,16 +143,6 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
       return requestParsed("/api/v1/plugins", pluginListResponseSchema, {
         signal: input.signal,
       });
-    },
-    async token(input) {
-      const body = pluginTokenRequestSchema.parse({
-        rotate: input.rotate ?? false,
-      });
-      return requestParsed(
-        pluginPath(input.pluginId, "/token"),
-        pluginTokenResponseSchema,
-        jsonInit("POST", body),
-      );
     },
     async updateSettings(input) {
       const body = pluginSettingsUpdateRequestSchema.parse({

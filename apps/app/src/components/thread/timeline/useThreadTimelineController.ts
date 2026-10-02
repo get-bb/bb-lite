@@ -13,9 +13,7 @@ import {
   resolveLoadedTimelineSurfaceKey,
   type LoadedTimelineState,
 } from "@bb/client-core";
-import { useConnectionAwareQueryState } from "@/hooks/queries/connection-aware-query-state";
 import { threadTimelineQueryKey } from "@/hooks/queries/query-keys";
-import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { useThreadTimeline } from "@/hooks/queries/thread-queries";
 import { BbHttpError, sdk } from "@/lib/sdk";
 
@@ -221,19 +219,14 @@ export function useThreadTimelineController({
     loadedTimeline.surfaceKey === surfaceKey && loadedTimeline.rows.length > 0
       ? loadedTimeline.rows
       : (latestTimeline?.rows ?? []);
-  const timelineQueryState = useConnectionAwareQueryState({
-    hasResolvedData:
-      latestTimelineQuery.data !== undefined || timelineRows.length > 0,
-    isFetching: latestTimelineQuery.isFetching,
-    isLoadingError: latestTimelineQuery.isLoadingError,
-    isRecoverableLoadingError: isTransientReadError(latestTimelineQuery.error),
-  });
   const timelineLoading =
     latestTimelineQuery.isLoading ||
-    (timelineQueryState.status === "loading" && timelineRows.length === 0) ||
     (latestTimelineQuery.isFetching && timelineRows.length === 0);
   const timelineError =
-    timelineLoading || timelineQueryState.status !== "unavailable"
+    timelineLoading ||
+    latestTimeline !== undefined ||
+    timelineRows.length > 0 ||
+    !latestTimelineQuery.isLoadingError
       ? null
       : latestTimelineQuery.error;
 

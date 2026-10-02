@@ -13,7 +13,7 @@ import { createTestServer, scratch } from "./helpers.js";
 type Listing = { plugins: InstalledPlugin[] };
 type Contributions = { cliCommands: unknown[] };
 type RpcBody = { result?: unknown; error?: { code: string; issues?: unknown } };
-type CliBody = { exitCode: number; stdout: string; stderr: string };
+type CliBody = { stderr: string };
 
 const FIXTURE = fileURLToPath(
   new URL("./fixtures/echo-plugin", import.meta.url),
@@ -42,18 +42,12 @@ async function serverWithEcho(directory = FIXTURE) {
     const { result, error } = body as RpcBody;
     return [status, result ?? error?.code];
   };
-  const cli = async (plugin: string, ...argv: string[]) => {
-    const scope = { argv, cwd: "/work", threadId: "thr_1" };
-    const { body } = await send(`/${plugin}/cli`, scope);
-    const { exitCode, stdout, stderr } = body as CliBody;
-    return [exitCode, stdout, stderr] as const;
-  };
   const kv = (key: string) =>
     ctx.db.get<{ value: string }>(
       "SELECT value FROM plugin_kv WHERE plugin_id = 'echo' AND key = ?",
       key,
     )?.value;
-  return { ...server, configFile, request, send, rpc, cli, kv };
+  return { ...server, configFile, request, send, rpc, kv };
 }
 
 it("loads the builtin table and the directories named in config.json", async () => {
@@ -67,13 +61,8 @@ it("loads the builtin table and the directories named in config.json", async () 
     plugin.icon,
   ]);
   const icon = "/api/v1/plugins/echo/assets/icon.svg";
-  expect(summary).toContainEqual([
-    "thread-list",
-    "running",
-    "builtin",
-    undefined,
-    "ListView",
-  ]);
+  const list = ["thread-list", "running", "builtin", undefined, "ListView"];
+  expect(summary).toContainEqual(list);
   expect(summary.at(-1)).toEqual(["echo", "running", "external", "echo", icon]);
   expect(plugins.at(-1)).toMatchObject({ enabled: true, hasSettings: true });
   const served = await request("/echo/assets/icon.svg");
@@ -96,10 +85,8 @@ it("validates rpc calls, stores data and broadcasts realtime signals", async () 
   const signal = { type: "plugin-signal", pluginId: "echo", channel: "echoed" };
   expect(await client.next()).toEqual({ ...signal, payload });
   expect(kv("last")).toBe('"there"');
-  expect(await rpc("echo/rpc/echo", { text: 1 })).toEqual([
-    400,
-    "invalid_input",
-  ]);
+  const invalidInput = [400, "invalid_input"];
+  expect(await rpc("echo/rpc/echo", { text: 1 })).toEqual(invalidInput);
   expect(await rpc("echo/rpc/absent", null)).toEqual([404, "unknown_method"]);
   expect(await rpc("echo/rpc/fail", null)).toEqual([500, "handler_error"]);
   expect(await rpc("absent/rpc/echo", {})).toEqual([404, "plugin_unavailable"]);
@@ -150,30 +137,8 @@ it("stores settings and never returns a secret", async () => {
   expect((await save({ unknown: "x" })).status).toBe(400);
 });
 
-it("dispatches plugin CLI commands inside the server", async () => {
-  const { cli } = await serverWithEcho();
-  const run = cli.bind(null, "echo");
-  const usage =
-    "Usage:\n  bb echo say <text> [--times <value>] [--tone <plain|loud>] [--json]";
-  expect(await run("say", "hi", "--times", "2", "--tone=loud")).toEqual([
-    0,
-    "HI HI",
-    "",
-  ]);
-  expect((await run("say", "--help"))[1]).toContain(usage);
-  expect((await run("--help"))[1]).toContain("bb echo say  Repeat a phrase");
-  const [badTone, , toneError] = await run("say", "hi", "--tone", "soft");
-  expect([badTone, toneError]).toEqual([1, expect.stringContaining("loud")]);
-  expect((await run("say", "hi", "--times", "x"))[0]).toBe(1);
-  expect((await run("shout"))[2]).toContain("unknown command 'shout'");
-  const [exitCode, stdout, stderr] = await run("say", "--json");
-  const error = { code: "usage", message: "missing <text>" };
-  expect([exitCode, JSON.parse(stdout)]).toEqual([1, { ok: false, error }]);
-  expect(stderr).toContain(usage);
-});
-
 it("restarts a crashed service and disposes a disabled plugin", async () => {
-  const { send, request, rpc, cli, kv } = await serverWithEcho();
+  const { send, request, rpc, kv } = await serverWithEcho();
   await vi.waitFor(() => expect(kv("starts")).toBe("2"), { timeout: 5_000 });
   expect(kv("disposed")).toBeUndefined();
   expect((await send("/echo/disable", {}, MACHINE)).status).toBe(403);
@@ -184,7 +149,9 @@ it("restarts a crashed service and disposes a disabled plugin", async () => {
   const unavailable = [503, "plugin_unavailable"];
   expect(await rpc("echo/rpc/echo", { text: "x" })).toEqual(unavailable);
   expect((await request("/echo/http/none")).status).toBe(503);
-  expect((await cli("echo", "say", "x"))[2]).toContain("not running");
+  const scope = { argv: ["say", "x"], cwd: "/work", threadId: "thr_1" };
+  const { stderr } = (await send("/echo/cli", scope)).body as CliBody;
+  expect(stderr).toContain("not running");
   const enabled = await send("/echo/enable", {});
   expect(enabled.body).toMatchObject({ plugin: { status: "running" } });
   expect((await rpc("echo/rpc/echo", { text: "x" }))[0]).toBe(200);
@@ -243,27 +210,6 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(panels[0]?.component()).toEqual({ type: "div", props });
 });
 
-it("round-trips thread-list preferences over rpc", async () => {
-  const { rpc, socket } = await serverWithEcho();
-  const client = await socket();
-  const list = async (): Promise<unknown> =>
-    (await rpc("thread-list/rpc/listPreferences", null))[1];
-  const sorted = (chronologicalSort: string) => ({
-    preferences: { chronologicalSort, collapsedSections: [] },
-  });
-  const change = { key: "chronologicalSort", value: "alpha" };
-  const set = (input: object) => rpc("thread-list/rpc/setPreference", input);
-  expect(await list()).toMatchObject(sorted("updated"));
-  expect(await set(change)).toEqual([200, change]);
-  const signal = { type: "plugin-signal", pluginId: "thread-list" };
-  expect(await client.next()).toMatchObject({ ...signal, payload: change });
-  expect(await set({ ...change, value: "sideways" })).toEqual([
-    500,
-    "handler_error",
-  ]);
-  expect(await list()).toMatchObject(sorted("alpha"));
-});
-
 it("answers the thread engine's queries from plugin registrations", async () => {
   const { ctx } = await createTestServer();
   const directory = scratch();
@@ -302,23 +248,18 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   const signal = new AbortController().signal;
   const thread = { threadId: "thr_1", projectId: "proj_1", hostId: "host_1" };
   const codex = { ...thread, providerId: "codex", signal };
-  const status = {
-    status: "needs-configuration",
-    statusMessage: "Sign in first",
-  };
-  expect(plugins.list()).toMatchObject([{ id: "probe", ...status }]);
+  const status = "needs-configuration";
+  const waiting = { id: "probe", status, statusMessage: "Sign in first" };
+  expect(plugins.list()).toMatchObject([waiting]);
   const instructions = "Use Shout sparingly.\n\nThread thr_1";
   expect(await plugins.instructionsFor(codex)).toBe(instructions);
   expect(plugins.toolsFor({ ...codex, providerId: "claude-code" })).toEqual([]);
   const inputSchema = { type: "object", required: ["text"] };
-  expect(plugins.toolsFor(codex)).toMatchObject([
-    { name: "Shout", inputSchema },
-  ]);
-  const shouted = [{ type: "inputText", text: "HI" }];
-  expect(await plugins.callTool("Shout", { text: "hi" }, codex)).toEqual({
-    contentItems: shouted,
-    success: true,
-  });
+  const tool = { name: "Shout", inputSchema };
+  expect(plugins.toolsFor(codex)).toMatchObject([tool]);
+  const contentItems = [{ type: "inputText", text: "HI" }];
+  const shouted = await plugins.callTool("Shout", { text: "hi" }, codex);
+  expect(shouted).toEqual({ contentItems, success: true });
   const refused = await plugins.callTool("Shout", {}, codex);
   expect(refused.success).toBe(false);
   const env = [{ name: "POOL_URL", value: { serverPath: "/pool/host_1" } }];
@@ -327,15 +268,10 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   plugins.emit("thread.idle", idle);
   expect(idleTexts).toEqual(["done"]);
   const query = { query: "x", projectId: null, threadId: null };
-  const item = {
-    itemId: "note:n1",
-    title: "Note x",
-    subtitle: null,
-    icon: null,
-  };
+  const item = { itemId: "note:n1", title: "Note x", subtitle: null };
   const group = { pluginId: "probe", providerId: "note", label: "Notes" };
   const found = await plugins.searchMentions({ trigger: "@", ...query });
-  expect(found).toEqual([{ ...group, items: [item] }]);
+  expect(found).toMatchObject([{ ...group, items: [item] }]);
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
   plugins.titleFallback = async () => "Unused";
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");

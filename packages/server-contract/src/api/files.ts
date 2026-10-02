@@ -46,16 +46,6 @@ export const hostFileListRequestSchema = z
   .strict();
 export type HostFileListRequest = z.infer<typeof hostFileListRequestSchema>;
 
-export const hostMkdirRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    path: z.string().min(1),
-    rootPath: z.string().min(1).optional(),
-    recursive: z.boolean().optional(),
-  })
-  .strict();
-export type HostMkdirRequest = z.infer<typeof hostMkdirRequestSchema>;
-
 export interface HostFileReadResponse {
   path: string;
   content: string;
@@ -69,6 +59,3 @@ export type HostFileWriteResponse =
   | { outcome: "written"; sha256: string; sizeBytes: number }
   | { outcome: "conflict"; currentSha256: string | null };
 export type HostFileListResponse = WorkspaceFileListResponse;
-export interface HostMkdirResponse {
-  ok: true;
-}

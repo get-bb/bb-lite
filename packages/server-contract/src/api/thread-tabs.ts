@@ -4,9 +4,7 @@ import { terminalCreateTargetSchema } from "./terminals.js";
 const THREAD_TAB_ID_MAX_LENGTH = 4_194_304;
 const THREAD_TAB_PATH_MAX_LENGTH = 32_768;
 const THREAD_TAB_TITLE_MAX_LENGTH = 1_024;
-const THREAD_TAB_URL_MAX_LENGTH = 4_096;
 const THREAD_TAB_PARAMS_MAX_LENGTH = 1_048_576;
-const THREAD_TAB_SOURCE_MESSAGE_MAX_LENGTH = 2_097_152;
 const THREAD_TAB_LIST_MAX_LENGTH = 200;
 const THREAD_TABS_JSON_MAX_LENGTH = 8_388_608;
 
@@ -67,23 +65,7 @@ export const threadTabFileOpenerOwnerSchema = z.discriminatedUnion("kind", [
         (owner.environmentId !== null && owner.threadId !== null),
       { message: "hostId or threadId/environmentId is required" },
     ),
-  z
-    .object({
-      environmentId: z.string().min(1).nullable(),
-      kind: z.literal("thread-storage-file-preview"),
-      tab: z
-        .object({
-          lineRange: threadTabLineRangeSchema.nullable(),
-          path: threadTabPathSchema,
-        })
-        .strict(),
-      threadId: z.string().min(1),
-    })
-    .strict(),
 ]);
-export type ThreadTabFileOpenerOwner = z.infer<
-  typeof threadTabFileOpenerOwnerSchema
->;
 
 export const threadTabSchema = z.discriminatedUnion("kind", [
   z.object({ id: threadTabIdSchema, kind: z.literal("thread-info") }).strict(),
@@ -122,45 +104,7 @@ export const threadTabSchema = z.discriminatedUnion("kind", [
       threadId: z.string().min(1).nullable(),
     })
     .strict(),
-  z
-    .object({
-      environmentId: z.string().min(1).nullable(),
-      id: threadTabIdSchema,
-      isPinned: z.boolean(),
-      kind: z.literal("thread-storage-file-preview"),
-      lineRange: threadTabLineRangeSchema.nullable(),
-      path: threadTabPathSchema,
-      threadId: z.string().min(1).nullable(),
-    })
-    .strict(),
-  z
-    .object({
-      environmentId: z.string().min(1).nullable(),
-      id: threadTabIdSchema,
-      kind: z.literal("browser"),
-      desktopTarget: z
-        .object({
-          hostId: z.string().min(1),
-          instanceId: z.string().min(1),
-          generation: z.string().min(1),
-        })
-        .strict()
-        .optional(),
-      title: z.string().min(1).max(THREAD_TAB_TITLE_MAX_LENGTH).nullable(),
-      url: z.string().max(THREAD_TAB_URL_MAX_LENGTH),
-    })
-    .strict(),
   z.object({ id: threadTabIdSchema, kind: z.literal("new-tab") }).strict(),
-  z
-    .object({
-      id: threadTabIdSchema,
-      kind: z.literal("side-chat"),
-      sourceMessageText: z.string().max(THREAD_TAB_SOURCE_MESSAGE_MAX_LENGTH),
-      sourceSeqEnd: z.number().int().nonnegative().nullable(),
-      threadId: z.string().min(1).nullable(),
-      title: z.string().min(1).max(THREAD_TAB_TITLE_MAX_LENGTH),
-    })
-    .strict(),
   z
     .object({
       id: threadTabIdSchema,

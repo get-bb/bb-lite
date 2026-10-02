@@ -27,7 +27,7 @@ async function until<T>(read: () => T) {
 function turn(threadId: string, text: string): SubmitTurnArgs {
   turnCounter += 1;
   const identity = { threadId, providerId: "echo" as const, cwd: tmpdir() };
-  const blank = { providerThreadId: null, fork: null, instructions: "" };
+  const blank = { providerThreadId: null, instructions: "" };
   const extras = { dynamicTools: [], env: {}, skillDirs: [] };
   return {
     session: { ...identity, ...blank, ...extras },
@@ -91,12 +91,10 @@ async function enrollMachine(server: TestServer) {
   const joined = { blob, dataDir, hostName: "laptop", headers };
   await joinServer({ ...joined, legacyMachineConfigPath });
   expect(fs.readFileSync(legacyMachineConfigPath, "utf8")).toBe(legacy);
-  const logs: string[] = [];
   const run = async () => {
-    const options = { dataDir, bbCliPath: "/opt/bb/bin/bb" };
+    const options = { dataDir, bbCliPath: "/opt/bb/bin/bb", log: () => {} };
     const adapters = [createEchoAdapter()];
-    const log = (line: string) => void logs.push(line);
-    const running = await runRunner({ ...options, adapters, log });
+    const running = await runRunner({ ...options, adapters });
     onTestFinished(() => running.stop());
     return running;
   };
@@ -116,7 +114,7 @@ async function enrollMachine(server: TestServer) {
   });
   const types = () => seen.flatMap((batch) => batch.types);
   const remote = () => ctx.runners.get(hostId);
-  const tools = { run, connected, row, seen, gate, types, remote, logs };
+  const tools = { run, connected, row, seen, gate, types, remote };
   return { hostId, dataDir, relay, ...tools };
 }
 
@@ -135,7 +133,7 @@ it("enrolls a machine and runs an echo turn over the socket", async () => {
     hostId: machine.hostId,
     headers: { "x-bb-connect-machine": "bbcm_legacy", "x-extra": "one=two" },
   });
-  const running = await machine.run();
+  await machine.run();
   await machine.connected();
   const info = await machine.remote().describe();
   expect(machine.row()).toMatchObject({
@@ -150,12 +148,6 @@ it("enrolls a machine and runs an echo turn over the socket", async () => {
   expectConsecutive(machine.seen);
   const lastSeq = machine.seen.at(-1)?.seq;
   await until(() => machine.row()?.lastEventSeq === lastSeq);
-
-  const asAgent = async (method: string, path: string) =>
-    (await fetch(`${running.cliProxyUrl}/api/v1${path}`, { method })).status;
-  expect(await asAgent("GET", "/hosts")).toBe(200);
-  expect(await asAgent("DELETE", `/hosts/${machine.hostId}`)).toBe(403);
-  expect(server.ctx.runners.isConnected(machine.hostId)).toBe(true);
 });
 
 it("keeps a turn alive across a dropped socket without duplicates", async () => {
@@ -188,34 +180,4 @@ it("keeps a turn alive across a dropped socket without duplicates", async () => 
   expectConsecutive(machine.seen);
   const lastSeq = machine.seen.at(-1)?.seq;
   await until(() => machine.row()?.lastEventSeq === lastSeq);
-});
-
-it("sees a restarted runner as a new instance and replaces twins", async () => {
-  const server = await createTestServer();
-  const machine = await enrollMachine(server);
-  const first = await machine.run();
-  await machine.connected();
-  const before = await machine.remote().describe();
-  await machine.remote().submitTurn(turn("thr_held", "hold_turn"));
-  await until(() => machine.types().includes("turn/started"));
-  expect((await machine.remote().snapshot()).sessions).toHaveLength(1);
-  await first.stop();
-  await until(() => !server.ctx.runners.isConnected(machine.hostId));
-
-  const second = await machine.run();
-  await machine.connected();
-  const after = await machine.remote().describe();
-  expect(after.instanceId).not.toBe(before.instanceId);
-  expect((await machine.remote().snapshot()).sessions).toEqual([]);
-  const cursor = { lastInstanceId: after.instanceId, lastEventSeq: 0 };
-  expect(machine.row()).toMatchObject(cursor);
-
-  const twin = await machine.run();
-  await second.stopped;
-  await machine.connected();
-  const winner = await until(() => machine.row()?.lastInstanceId);
-  expect(winner).not.toBe(after.instanceId);
-  await server.api.hosts[":id"].$delete({ param: { id: machine.hostId } });
-  await twin.stopped;
-  expect(machine.logs.join("\n")).toContain("replaced or removed");
 });

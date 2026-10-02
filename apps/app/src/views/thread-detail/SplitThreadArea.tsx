@@ -85,7 +85,6 @@ import {
   reconcileLayoutForContent,
   replaceOriginPaneContent,
 } from "./splitThreadNavigation";
-import { ThreadDetailWorkerPoolProvider } from "./ThreadDetailWorkerPoolProvider";
 import { SplitWorkspaceSecondaryPanelHost } from "./SplitWorkspaceSecondaryPanelHost";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
 import {
@@ -365,47 +364,45 @@ export function SplitThreadArea({
   });
 
   return (
-    <ThreadDetailWorkerPoolProvider>
-      <SplitControllerContext.Provider value={controller}>
-        {onlyPane ? (
-          <PaneBody
-            node={onlyPane}
-            isFocused
-            isSplitPane={false}
-            isHidden={false}
-            isMaximized={false}
-            reservesWindowPanelToggle={false}
-            isTopRow
-            ownsWindowTopLeft
-          />
-        ) : (
-          <div
-            ref={(element) => controller.setWorkspace(element)}
-            className="relative -m-4 flex min-h-0 min-w-0 flex-1 overflow-hidden md:-m-5"
+    <SplitControllerContext.Provider value={controller}>
+      {onlyPane ? (
+        <PaneBody
+          node={onlyPane}
+          isFocused
+          isSplitPane={false}
+          isHidden={false}
+          isMaximized={false}
+          reservesWindowPanelToggle={false}
+          isTopRow
+          ownsWindowTopLeft
+        />
+      ) : (
+        <div
+          ref={(element) => controller.setWorkspace(element)}
+          className="relative -m-4 flex min-h-0 min-w-0 flex-1 overflow-hidden md:-m-5"
+        >
+          <SplitWorkspaceSecondaryPanelHost
+            focusedPaneId={focusedPaneId}
+            isPaneMaximized={maximizedPaneId !== null}
+            registry={controller.registry}
           >
-            <SplitWorkspaceSecondaryPanelHost
+            <SplitTree
+              node={layout.root}
+              path={[]}
+              isTopRow
+              isLeftEdge
+              isRightEdge
               focusedPaneId={focusedPaneId}
-              isPaneMaximized={maximizedPaneId !== null}
-              registry={controller.registry}
-            >
-              <SplitTree
-                node={layout.root}
-                path={[]}
-                isTopRow
-                isLeftEdge
-                isRightEdge
-                focusedPaneId={focusedPaneId}
-                maximizedPaneId={maximizedPaneId}
-                onPointerFocus={(paneId) => {
-                  setKeyboardFocusPaneId(null);
-                  controller.focusPane(paneId);
-                }}
-              />
-            </SplitWorkspaceSecondaryPanelHost>
-          </div>
-        )}
-      </SplitControllerContext.Provider>
-    </ThreadDetailWorkerPoolProvider>
+              maximizedPaneId={maximizedPaneId}
+              onPointerFocus={(paneId) => {
+                setKeyboardFocusPaneId(null);
+                controller.focusPane(paneId);
+              }}
+            />
+          </SplitWorkspaceSecondaryPanelHost>
+        </div>
+      )}
+    </SplitControllerContext.Provider>
   );
 }
 

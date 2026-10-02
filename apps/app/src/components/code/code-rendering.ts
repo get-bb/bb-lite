@@ -1,44 +1,27 @@
 import type { ParsedGitDiffFile } from "@/components/git-diff/git-diff-parsing";
 import type { CodeOverflowMode } from "@/lib/code-overflow-mode";
 
-type DiffViewMode = "unified" | "split";
-
-interface SourceCodeLineRange {
-  start: number;
-  end: number;
-}
-
-interface ExperimentalDiffFileContent {
-  path: string;
-  content: string;
-}
-
-export interface ExperimentalDiffFullFileContents {
-  old: ExperimentalDiffFileContent;
-  new: ExperimentalDiffFileContent;
-}
-
-interface SourceCodePresentation {
-  overflow: CodeOverflowMode;
-  highlightedLines: SourceCodeLineRange | null;
+export interface DiffFullFileContents {
+  old: { path: string; content: string };
+  new: { path: string; content: string };
 }
 
 export interface DiffPresentation {
-  view: DiffViewMode;
+  view: "unified" | "split";
   overflow: CodeOverflowMode;
   showLineNumbers: boolean;
 }
 
-export interface BbSourceCodeProps extends SourceCodePresentation {
+export interface BbSourceCodeProps {
   content: string;
   path: string;
   cacheKey?: string;
-  onSelectionAddToChat?: (text: string) => void;
+  overflow: CodeOverflowMode;
+  highlightedLines: { start: number; end: number } | null;
 }
 
 export interface BbDiffProps extends DiffPresentation {
   file: ParsedGitDiffFile;
   patchText?: string;
-  fullFileContents: ExperimentalDiffFullFileContents | null;
-  onSelectionAddToChat?: (text: string) => void;
+  fullFileContents: DiffFullFileContents | null;
 }

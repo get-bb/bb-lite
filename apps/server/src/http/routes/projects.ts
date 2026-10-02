@@ -132,13 +132,6 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(projectResponse(id));
   });
 
-  patch(routes.reorder, (c, payload) => {
-    const { id } = store.requireStandardProject(db, c.req.param("id"));
-    const reordered = store.reorderProject(db, id, payload);
-    if (reordered) hub.project(id, ["project-order-changed"]);
-    return c.json(store.withSources(db, store.listStandardProjects(db)));
-  });
-
   del(routes.delete, async (c) => {
     const project = store.requireProject(db, c.req.param("id"));
     if (project.kind === "personal") {

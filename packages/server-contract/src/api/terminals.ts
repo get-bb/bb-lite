@@ -200,7 +200,6 @@ export const terminalClientMessageSchema = z.discriminatedUnion("type", [
     })
     .strict(),
 ]);
-export type TerminalClientMessage = z.infer<typeof terminalClientMessageSchema>;
 
 export const terminalServerMessageSchema = z.discriminatedUnion("type", [
   z

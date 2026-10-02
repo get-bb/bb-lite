@@ -86,7 +86,6 @@ export async function buildSessionSpec(
     providerId,
     cwd: environment.path,
     providerThreadId: thread.providerThreadId,
-    fork: null,
     instructions: sections.join("\n\n"),
     dynamicTools: ctx.plugins.toolsFor(scope),
     env: {

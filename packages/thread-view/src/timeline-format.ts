@@ -118,19 +118,11 @@ export function directoryFromPath(path: string): string {
   return lastSlash === -1 ? "" : path.slice(0, lastSlash);
 }
 
-export function formatTimelinePath({
-  mode,
-  path,
-}: {
-  mode: TimelinePathDisplayMode;
-  path: string;
-}): string {
-  switch (mode) {
-    case "compact":
-      return fileNameFromPath(path);
-    case "full":
-      return path;
-  }
+function formatTimelinePath(
+  path: string,
+  mode: TimelinePathDisplayMode,
+): string {
+  return mode === "compact" ? fileNameFromPath(path) : path;
 }
 
 export type FileChangeAction = "created" | "deleted" | "renamed" | "edited";
@@ -150,20 +142,25 @@ function normalizeFileChangeKind(kind: string | null | undefined): string {
   return (kind ?? "").toLowerCase().replaceAll(/[^a-z0-9]/gu, "");
 }
 
+const PATCH_METADATA_PREFIXES = [
+  "diff --git ",
+  "index ",
+  "new file mode ",
+  "deleted file mode ",
+  "similarity index ",
+  "rename from ",
+  "rename to ",
+  "--- ",
+  "+++ ",
+  "@@",
+];
+
 export function isPatchMetadataLine(line: string): boolean {
   const normalizedLine = line.trimEnd();
   return (
-    normalizedLine.startsWith("diff --git ") ||
-    normalizedLine.startsWith("index ") ||
-    normalizedLine.startsWith("new file mode ") ||
-    normalizedLine.startsWith("deleted file mode ") ||
-    normalizedLine.startsWith("similarity index ") ||
-    normalizedLine.startsWith("rename from ") ||
-    normalizedLine.startsWith("rename to ") ||
-    normalizedLine.startsWith("--- ") ||
-    normalizedLine.startsWith("+++ ") ||
-    normalizedLine.startsWith("@@") ||
-    normalizedLine === "\\ No newline at end of file"
+    PATCH_METADATA_PREFIXES.some((prefix) =>
+      normalizedLine.startsWith(prefix),
+    ) || normalizedLine === "\\ No newline at end of file"
   );
 }
 
@@ -195,22 +192,16 @@ export const FILE_CHANGE_VERBS: Record<
   edited: { past: "Edited", present: "Editing", infinitive: "edit" },
 };
 
-export function formatFileChangePath({
-  change,
-  mode,
-}: {
-  change: FileChangeLike;
-  mode: TimelinePathDisplayMode;
-}): string {
-  const sourcePath = formatTimelinePath({ path: change.path, mode });
+export function formatFileChangePath(
+  change: FileChangeLike,
+  mode: TimelinePathDisplayMode,
+): string {
+  const sourcePath = formatTimelinePath(change.path, mode);
   if (!change.movePath) return sourcePath;
-  if (getFileChangeAction(change) === "edited") {
-    return formatTimelinePath({ path: change.movePath, mode });
-  }
-  return `${sourcePath} -> ${formatTimelinePath({
-    path: change.movePath,
-    mode,
-  })}`;
+  const movePath = formatTimelinePath(change.movePath, mode);
+  return getFileChangeAction(change) === "edited"
+    ? movePath
+    : `${sourcePath} -> ${movePath}`;
 }
 
 function countPlainContentLines(diff: string): number {
@@ -221,10 +212,6 @@ function countPlainContentLines(diff: string): number {
     .filter((line) => !isPatchMetadataLine(line)).length;
 }
 
-function hasPatchMetadata(diff: string): boolean {
-  return diff.split("\n").some(isPatchMetadataLine);
-}
-
 export function getFileChangeDiffStats(
   change: FileChangeLike,
 ): FileChangeDiffStats {
@@ -232,45 +219,27 @@ export function getFileChangeDiffStats(
   if (!diff) return EMPTY_DIFF_STATS;
   const action = getFileChangeAction(change);
   const plainContentLineCount = countPlainContentLines(diff);
-  if (
-    !hasPatchMetadata(diff) &&
-    (action === "created" || action === "deleted")
-  ) {
-    return action === "created"
+  const wholeFile =
+    action === "created"
       ? { added: plainContentLineCount, removed: 0 }
-      : { added: 0, removed: plainContentLineCount };
-  }
-  let added = 0;
-  let removed = 0;
-  let sawUnifiedDiffLine = false;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
-    if (line.startsWith("+")) {
-      sawUnifiedDiffLine = true;
-      added += 1;
-      continue;
-    }
-    if (line.startsWith("-")) {
-      sawUnifiedDiffLine = true;
-      removed += 1;
-    }
-  }
-  if (sawUnifiedDiffLine) return { added, removed };
-  switch (action) {
-    case "created":
-      return { added: plainContentLineCount, removed: 0 };
-    case "deleted":
-      return { added: 0, removed: plainContentLineCount };
-    case "renamed":
-    case "edited":
-      return EMPTY_DIFF_STATS;
-  }
+      : action === "deleted"
+        ? { added: 0, removed: plainContentLineCount }
+        : null;
+  const lines = diff.split("\n");
+  if (wholeFile && !lines.some(isPatchMetadataLine)) return wholeFile;
+  const changed = lines.filter(
+    (line) => !line.startsWith("+++ ") && !line.startsWith("--- "),
+  );
+  const added = changed.filter((line) => line.startsWith("+")).length;
+  const removed = changed.filter((line) => line.startsWith("-")).length;
+  if (added + removed > 0) return { added, removed };
+  return wholeFile ?? EMPTY_DIFF_STATS;
 }
 
 const AGENT_MESSAGE_ENVELOPE_PATTERN =
   /^\[bb message from thread:([^;\]\s]+)(?:;[^\]]*)?\]\s*/;
 
-export interface AgentMessageEnvelope {
+interface AgentMessageEnvelope {
   bodyStart: number;
   senderThreadId: string;
 }
@@ -347,20 +316,14 @@ export function hasTimelineExplorationIntent(
   return primaryTimelineActivityIntent(row) !== null;
 }
 
-function readTarget(intent: TimelineReadActivityIntent): string {
-  return intent.path ?? intent.name;
-}
-
 function formatReadTarget(
   intent: TimelineReadActivityIntent,
   pathMode: TimelinePathDisplayMode,
 ): string {
-  const target = readTarget(intent);
-  if (pathMode === "compact") {
-    const skillTarget = formatCompactSkillTarget(target);
-    if (skillTarget !== null) return skillTarget;
-  }
-  return formatTimelinePath({ path: target, mode: pathMode });
+  const target = intent.path ?? intent.name;
+  const skillTarget =
+    pathMode === "compact" ? formatCompactSkillTarget(target) : null;
+  return skillTarget ?? formatTimelinePath(target, pathMode);
 }
 
 function formatCompactSkillTarget(path: string): string | null {
@@ -384,12 +347,11 @@ function formatCompactSkillTarget(path: string): string | null {
   return null;
 }
 
-export function formatTimelineActivityIntentDetailParts(args: {
-  intent: TimelineActivityIntent;
-  pathMode: TimelinePathDisplayMode;
-  pending: boolean;
-}): { prefix: string | null; content: string } {
-  const { intent, pathMode, pending } = args;
+export function formatTimelineActivityIntentDetailParts(
+  intent: TimelineActivityIntent,
+  pathMode: TimelinePathDisplayMode,
+  pending: boolean,
+): { prefix: string | null; content: string } {
   switch (intent.type) {
     case "read":
       return {

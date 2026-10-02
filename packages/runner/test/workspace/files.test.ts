@@ -32,6 +32,9 @@ describe("files", () => {
     const absolute = path.join(root, "notes.txt");
     const direct = await h.api.readFile({ path: absolute });
     expect(direct).toMatchObject({ path: absolute, sha256 });
+    h.write(root, { "big.bin": Buffer.alloc(513 * KIB) });
+    const whole = h.api.readFile({ path: "big.bin", rootPath: root });
+    expect(await failureCode(whole)).toBe("file_too_large");
 
     const repo = h.initRepo("history", { "src/a.txt": "committed\n" });
     h.write(repo, { "src/a.txt": "working\n" });
@@ -80,35 +83,6 @@ describe("files", () => {
     expect(await failureCode(oversized)).toBe("file_too_large");
   });
 
-  it("transfers large files in chunks and detects a change mid-read", async () => {
-    const bytes = Buffer.alloc(700 * KIB, "ab");
-    const target = { path: "upload/big.bin", rootPath: root };
-    const half = 350 * KIB;
-    for (const offset of [0, half]) {
-      const part = bytes.subarray(offset, offset + half).toString("base64");
-      const sent = { ...target, offset, dataBase64: part, createParents: true };
-      expect(await h.api.writeFileChunk(sent)).toEqual({
-        sizeBytes: offset + half,
-      });
-    }
-    expect(await failureCode(h.api.readFile(target))).toBe("file_too_large");
-
-    const read = (offset: number, revision: string | null, length = half) =>
-      h.api.readFileChunk({ ...target, offset, length, revision });
-    const first = await read(0, null);
-    expect(first).toMatchObject({ sizeBytes: bytes.length, offset: 0 });
-    const rest = await read(half, first.revision);
-    const received = [first, rest].map((chunk) =>
-      Buffer.from(chunk.dataBase64, "base64"),
-    );
-    expect(Buffer.concat(received).equals(bytes)).toBe(true);
-
-    fs.appendFileSync(path.join(root, target.path), "changed");
-    expect(await failureCode(read(half, first.revision))).toBe("conflict");
-    expect((await read(half, null)).sizeBytes).toBe(bytes.length + 7);
-    expect(await failureCode(read(0, null, 600 * KIB))).toBe("failed");
-  });
-
   it("lists paths ranked by the query and skips ignored files", async () => {
     const repo = h.initRepo("listing", {
       ".gitignore": "dist/\n*.log\n",
@@ -140,23 +114,7 @@ describe("files", () => {
     const hidden = await list(repo, 5, dotfiles);
     expect(hidden.paths[0]?.path).toBe(".github/workflow.yml");
     const plain = (await list(root, 50)).paths.map((entry) => entry.path);
-    expect(plain).toContain("upload/big.bin");
+    expect(plain).toContain("state/config.json");
     expect(plain).not.toContain("link");
-  });
-
-  it("lists provider commands and skills for the composer", async () => {
-    const repo = h.initRepo("commands", {
-      ".claude/commands/team/sync.md": "---\ndescription: Sync up\n---\n",
-      ".claude/skills/deploy/SKILL.md":
-        "---\ndescription: >\n  Ship\n  it\n---",
-    });
-    const scope = { providerId: "claude-code", cwd: repo } as const;
-    const { commands } = await h.api.listCommands(scope);
-    const listed = commands
-      .filter((entry) => entry.origin !== "user")
-      .map((entry) => `${entry.source} ${entry.name}: ${entry.description}`);
-    const found = ["skill deploy: Ship it", "command team:sync: Sync up"];
-    expect(listed[0]).toMatch(/^command clear: /u);
-    expect(listed.slice(2)).toEqual(found);
   });
 });

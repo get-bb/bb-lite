@@ -13,8 +13,6 @@ import type {
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
-  SystemProviderStatesResponse,
-  SystemProvidersQuery,
   UiPreferenceResponse,
   UiPreferencesResponse,
 } from "@bb/server-contract";
@@ -36,10 +34,6 @@ export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
 export type SystemUpdateGeneralSettingsResult = AppSettings;
 export type SystemUpdateKeyboardSettingsResult = AppKeybindingOverrides;
-export interface SystemProviderStatesArgs extends SystemProvidersQuery {
-  signal?: AbortSignal;
-}
-export type SystemProviderStatesResult = SystemProviderStatesResponse;
 
 export interface SystemUiPreferencesArgs {
   signal?: AbortSignal;
@@ -82,9 +76,6 @@ export interface SystemArea {
   updateKeyboardSettings(
     args: AppKeybindingOverrides,
   ): Promise<SystemUpdateKeyboardSettingsResult>;
-  providerStates(
-    args?: SystemProviderStatesArgs,
-  ): Promise<SystemProviderStatesResult>;
 }
 
 export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
@@ -150,19 +141,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async updateKeyboardSettings(input) {
       return transport.readJson(
         transport.api.v1.settings.keyboard.$put({ json: input }),
-      );
-    },
-    async providerStates(input = {}) {
-      return transport.readJson(
-        transport.api.v1.system.providers.state.$get(
-          {
-            query: {
-              environmentId: input.environmentId,
-              hostId: input.hostId,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
       );
     },
   };

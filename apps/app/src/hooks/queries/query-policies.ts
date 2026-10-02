@@ -1,8 +1,3 @@
-export const RESUME_REFETCH_QUERY_POLICY = {
-  refetchOnReconnect: true,
-  refetchOnWindowFocus: true,
-} as const;
-
 export const REALTIME_OWNED_NO_FOCUS_QUERY_POLICY = {
   refetchOnWindowFocus: false,
 } as const;

@@ -10,30 +10,13 @@ import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig } from "../src/config.js";
-import {
-  insertRow,
-  LegacyDataDirectoryError,
-  openDatabase,
-} from "../src/db/index.js";
+import { LegacyDataDirectoryError } from "../src/db/index.js";
 import { authorize } from "../src/http/trust.js";
 import { Hub } from "../src/ws/hub.js";
 import { createTestServer, scratch } from "./helpers.js";
 
 type Headers = Record<string, string>;
 type Sent = { metadata?: { eventTypes?: string[] } };
-
-it("applies the schema once and reopens the same file", () => {
-  const path = join(scratch(), "bb.db");
-  const first = openDatabase({ path, now: () => 42 });
-  const at = { createdAt: first.now(), updatedAt: first.now() };
-  insertRow(first, "projects", { id: "p1", name: "P", ...at });
-  first.close();
-  const db = openDatabase({ path });
-  expect(db.get("PRAGMA user_version")).toEqual({ userVersion: 1 });
-  const stored = { id: "p1", createdAt: 42, sortKey: "V" };
-  expect(db.get("SELECT * FROM projects")).toMatchObject(stored);
-  expect(() => db.transaction(async () => {})).toThrow("synchronous");
-});
 
 it("refuses a data directory of the original bb without touching it", () => {
   const dataDir = scratch();

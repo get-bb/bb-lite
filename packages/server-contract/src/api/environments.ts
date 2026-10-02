@@ -222,29 +222,6 @@ export const gitDiffFileChangeKindSchema = z.enum([
 ]);
 export type GitDiffFileChangeKind = z.infer<typeof gitDiffFileChangeKindSchema>;
 
-export function letterToChangeKind({
-  letter,
-}: {
-  letter: string;
-}): GitDiffFileChangeKind {
-  switch (letter) {
-    case "A":
-      return "added";
-    case "M":
-      return "modified";
-    case "D":
-      return "deleted";
-    case "R":
-      return "renamed";
-    case "C":
-      return "copied";
-    case "T":
-      return "type_changed";
-    default:
-      throw new Error(`Unrecognized git name-status letter: ${letter}`);
-  }
-}
-
 export const DIFF_PATCH_MAX_PATHS_PER_REQUEST = 50;
 
 export const diffFileEntrySchema = z.object({
