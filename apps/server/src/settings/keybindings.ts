@@ -44,7 +44,6 @@ function bind(
 ): domain.AppDefaultKeybinding {
   return {
     command,
-    desktopOnly: false,
     shortcut: keys === null ? null : parseShortcut(keys),
     when: { all: [...when.all], none: [...when.none] },
   };
@@ -97,7 +96,6 @@ export const DEFAULT_APP_KEYBINDINGS: domain.AppDefaultKeybindings = [
   bind("app.back", "Escape", main),
   bind("settings.open", "mod+,", main),
   bind("sidebar.toggle", "mod+\\", main),
-  bind("notifications.open", null, main),
   bind("thread.previous", "control+shift+[", webMain),
   bind("thread.next", "control+shift+]", webMain),
   ...numbered(domain.THREAD_JUMP_APP_COMMAND_IDS, main),
