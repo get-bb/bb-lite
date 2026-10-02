@@ -1,10 +1,7 @@
 import { threadEventSchema } from "@bb/domain";
 import { describe, expect, it } from "vitest";
-import {
-  internIds,
-  readOriginalEvents,
-  replayCodexRecording,
-} from "./codex-replay.js";
+import { readOriginalEvents, replayCodexRecording } from "./codex-replay.js";
+import { internIds } from "./kit.js";
 
 const SCENARIOS = [
   "turn-tools",

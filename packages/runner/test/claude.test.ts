@@ -6,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import * as claude from "./claude-replay.js";
+import { settle } from "./kit.js";
 
 const SCENARIOS = `turn-tools:2 steer-compaction:4 stop-interrupt:4
   approval-allow:4 approval-deny:4 subagent:2 resume:4 web-search:2
@@ -80,7 +81,7 @@ describe("claude adapter", () => {
         toolUse("t11", "Mystery", { a: 1 }),
       ),
     );
-    await claude.settle();
+    await settle();
     const started = items(harness);
     expect(started.map((item) => item.brief)).toEqual([
       "commandExecution | Starting background command | Terminal | ls | Outside of sandbox",
@@ -107,7 +108,7 @@ describe("claude adapter", () => {
       toolResult("t7", [{ type: "text", text: report }]),
       toolResult("t11", "boom", { failed: true }),
     );
-    await claude.settle();
+    await settle();
     const [command, delegation, mystery] = items(harness, "item/completed");
     expect(command).toMatchObject({ status: "completed", exitCode: 0 });
     expect(command).not.toHaveProperty("aggregatedOutput");
@@ -154,7 +155,7 @@ describe("claude adapter", () => {
       { type: "result", subtype: "success", is_error: false, session_id },
       { ...task, subtype: "task_notification", ...outcome, output_file: "/o" },
     );
-    await claude.settle();
+    await settle();
     const completed = items(harness, "item/completed");
     const plans = completed.filter((item) => item.type === "planSteps");
     const steps = plans.map((plan) => plan.steps);
@@ -183,7 +184,7 @@ describe("claude adapter", () => {
     const allowed = { behavior: "allow", updatedInput: command };
     expect(await live.decide("Bash", command)).toMatchObject(allowed);
     const temporary = live.decide("Bash", command, reason);
-    await claude.settle();
+    await settle();
     const asked = harness.interactions.shift();
     const shell = { kind: "command", itemId: "toolu_ask", ...command };
     expect(asked?.turnId).toBe(live.builder.activeTurnId);
@@ -198,7 +199,7 @@ describe("claude adapter", () => {
     expect(await temporary).toMatchObject({ ...allowed, ...kind });
     const write = { file_path: "/outside/a.txt", content: "x" };
     const lasting = live.decide("Write", write, { blockedPath: "/outside" });
-    await claude.settle();
+    await settle();
     const fileSystem = { read: [], write: ["/outside"] };
     const grantedPermissions = { network: null, fileSystem };
     const subject = { kind: "file_change", sessionGrant: grantedPermissions };
@@ -212,7 +213,7 @@ describe("claude adapter", () => {
     const permanent = { decisionClassification: "user_permanent" };
     expect(await lasting).toMatchObject({ ...permanent, updatedPermissions });
     const fetch = live.decide("WebFetch", { url: "https://x.dev" }, reason);
-    await claude.settle();
+    await settle();
     const permissions = { network: { enabled: true }, fileSystem: null };
     const web = { kind: "permission_grant", toolName: "WebFetch", permissions };
     expect(harness.interactions[0]?.payload).toMatchObject({ subject: web });
@@ -220,7 +221,7 @@ describe("claude adapter", () => {
     const denied = { behavior: "deny", message: "Permission request denied" };
     expect(await fetch).toMatchObject(denied);
     const pending = live.decide("Bash", command, reason);
-    await claude.settle();
+    await settle();
     const before = harness.events.length;
     await live.session.interrupt();
     harness.interactions.length = 0;
@@ -228,7 +229,7 @@ describe("claude adapter", () => {
     expect(harness.events.at(-1)).toMatchObject({ status: "interrupted" });
     const failed = { subtype: "error_during_execution", is_error: true };
     live.query.emit({ type: "result", ...failed, session_id });
-    await claude.settle();
+    await settle();
     expect(harness.events).toHaveLength(before + 1);
     expect(live.query.calls).toEqual([["interrupt"]]);
     expect(live.session.canApply(claude.SPEC, claude.OPTIONS)).toBe(false);
@@ -248,7 +249,7 @@ describe("claude adapter", () => {
     const colour = { question: "Colour?", header: "Tint", multiSelect: true };
     const questions = [{ ...colour, options }];
     const asking = live.decide("AskUserQuestion", { questions });
-    await claude.settle();
+    await settle();
     const id = "toolu_ask:question-1";
     const [red, blue] = [`${id}:option-1`, `${id}:option-2`];
     const choices = [{ value: red, label: "Red", description: "Red!" }, {}];
@@ -278,7 +279,7 @@ describe("claude adapter", () => {
     const live = await harness.open({}, { planMode: true });
     const plan = { plan: "1. Ship", planFilePath: "/plans/p.md" };
     const rejected = live.decide("ExitPlanMode", plan);
-    await claude.settle();
+    await settle();
     harness.interactions.shift()?.resolve({ decision: "deny" });
     const message = expect.stringContaining("rejected this plan");
     expect(await rejected).toMatchObject({ behavior: "deny", message });
