@@ -43,8 +43,8 @@ export {
   extractThreadTimelineGoal,
   THREAD_TIMELINE_EXCLUDED_EVENT_TYPES,
 } from "./thread-state-extraction.js";
+export type { ThreadEventWithMeta } from "./event-projection-types.js";
 export {
   isExternalUserBoundaryForTurn,
   type ExternalUserBoundaryTurnSpan,
-  type ThreadEventWithMeta,
 } from "./group-event-projection-turns.js";

@@ -18,14 +18,9 @@ import {
   type ThreadTimelinePendingTodoItemStatus,
   type ThreadTimelinePendingTodos,
 } from "@bb/domain";
-import {
-  createBufferedTextInstanceKey,
-  resolveBufferedTextIdentity,
-} from "./text-projection.js";
-import {
-  type ThreadEventWithMeta,
-  getOrderedThreadEvents,
-} from "./group-event-projection-turns.js";
+import type { ThreadEventWithMeta } from "./event-projection-types.js";
+import { getOrderedThreadEvents } from "./group-event-projection-turns.js";
+import { bufferedTextIdentity } from "./text-projection.js";
 import type { ThreadContextWindowUsage } from "@bb/server-contract";
 import { parsePromptInput } from "./user-message-parsing.js";
 import { z } from "zod";
@@ -44,56 +39,31 @@ const MIN_AGENT_MESSAGE_DELTAS_FOR_SUMMARY_COMPACTION = 1000;
 export function compactThreadTimelineSummaryEvents(
   events: ThreadEventWithMeta[],
 ): ThreadEventWithMeta[] {
-  let agentMessageDeltaCount = 0;
-  const completedAssistantKeys = new Set<string>();
-  for (const eventWithMeta of events) {
-    const { event } = eventWithMeta;
-    if (event.type === "item/agentMessage/delta") {
-      agentMessageDeltaCount += 1;
-      continue;
-    }
-    if (event.type === "item/completed" && event.item.type === "agentMessage") {
-      const identity = resolveBufferedTextIdentity({
-        decoded: event,
-        kind: "assistant",
-      });
-      if (identity) {
-        completedAssistantKeys.add(createBufferedTextInstanceKey(identity));
-      }
-    }
-  }
+  const deltas = events.filter(
+    ({ event }) => event.type === "item/agentMessage/delta",
+  );
+  const completedAssistantKeys = new Set(
+    events.flatMap(({ event }) =>
+      event.type === "item/completed" && event.item.type === "agentMessage"
+        ? (bufferedTextIdentity(event)?.key ?? [])
+        : [],
+    ),
+  );
   if (
-    agentMessageDeltaCount < MIN_AGENT_MESSAGE_DELTAS_FOR_SUMMARY_COMPACTION ||
+    deltas.length < MIN_AGENT_MESSAGE_DELTAS_FOR_SUMMARY_COMPACTION ||
     completedAssistantKeys.size === 0
   ) {
     return events;
   }
   const retainedCompletedDeltaKeys = new Set<string>();
-  const compactedEvents: ThreadEventWithMeta[] = [];
-  for (const eventWithMeta of events) {
-    const { event } = eventWithMeta;
-    if (event.type !== "item/agentMessage/delta") {
-      compactedEvents.push(eventWithMeta);
-      continue;
-    }
-    const identity = resolveBufferedTextIdentity({
-      decoded: event,
-      kind: "assistant",
-    });
-    if (!identity) {
-      compactedEvents.push(eventWithMeta);
-      continue;
-    }
-    const assistantKey = createBufferedTextInstanceKey(identity);
-    if (!completedAssistantKeys.has(assistantKey)) {
-      compactedEvents.push(eventWithMeta);
-      continue;
-    }
-    if (retainedCompletedDeltaKeys.has(assistantKey)) continue;
-    retainedCompletedDeltaKeys.add(assistantKey);
-    compactedEvents.push(eventWithMeta);
-  }
-  return compactedEvents;
+  return events.filter(({ event }) => {
+    if (event.type !== "item/agentMessage/delta") return true;
+    const key = bufferedTextIdentity(event)?.key;
+    if (key === undefined || !completedAssistantKeys.has(key)) return true;
+    if (retainedCompletedDeltaKeys.has(key)) return false;
+    retainedCompletedDeltaKeys.add(key);
+    return true;
+  });
 }
 
 function toNonNegativeNumber(value: number): number | null {
@@ -124,17 +94,6 @@ function decodeContextWindowSignal(eventWithMeta: ThreadEventWithMeta): {
   };
 }
 
-function getOrderedContextWindowEvents(
-  events: readonly ThreadEventWithMeta[],
-): readonly ThreadEventWithMeta[] {
-  for (let index = 1; index < events.length; index += 1) {
-    if (events[index - 1].meta.seq > events[index].meta.seq) {
-      return [...events].sort((left, right) => left.meta.seq - right.meta.seq);
-    }
-  }
-  return events;
-}
-
 export function extractThreadContextWindowUsage(
   events: readonly ThreadEventWithMeta[],
 ): ThreadContextWindowUsage | null {
@@ -143,7 +102,7 @@ export function extractThreadContextWindowUsage(
   let modelContextWindow: number | undefined;
   let usedTokens: number | undefined;
   let usageIsUnknown = false;
-  const orderedEvents = getOrderedContextWindowEvents(events);
+  const orderedEvents = getOrderedThreadEvents(events);
   for (let index = orderedEvents.length - 1; index >= 0; index -= 1) {
     const signal = decodeContextWindowSignal(orderedEvents[index]);
     if (!signal) continue;
@@ -286,12 +245,6 @@ export function extractThreadTimelineActivePlanTurn({
         turnId: latestPlanTurn.turnId,
       }
     : null;
-}
-
-export function extractThreadTimelineActivePromptMode(
-  args: Parameters<typeof extractThreadTimelineActivePlanTurn>[0],
-): ThreadTimelineActivePromptMode | null {
-  return extractThreadTimelineActivePlanTurn(args)?.promptMode ?? null;
 }
 
 const goalStatePayloadSchema = z.union([

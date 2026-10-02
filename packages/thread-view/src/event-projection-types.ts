@@ -1,29 +1,35 @@
 import {
   getThreadEventScopeTurnId,
-  type ThreadEvent,
-  type ActiveThinking,
-  type BackgroundTaskStatus,
-  type BackgroundTaskUsage,
-  type ExtensionKind,
-  type JsonObject,
-  type JsonValue,
-  type OwnershipChangeOperationMetadata,
-  type PendingInteractionUserAnswer,
-  type PendingInteractionUserQuestionQuestion,
-  type ProviderErrorInfo,
-  type PromptTextMention,
-  type SystemMessageKind,
-  type SystemMessageSubject,
-  type Thread,
-  type ThreadEventItemPresentation,
-  type ThreadEventPlanStep,
-  type ThreadEventScope,
-  type ThreadEventSearchMode,
-  type ThreadTurnInitiator,
-  type WorkflowProgressSnapshot,
   threadScope,
   turnScope,
+  type ActiveThinking,
+  type ProviderErrorInfo,
+  type ProvisioningTranscriptEntry,
+  type Thread,
+  type ThreadEvent,
+  type ThreadEventItemPresentation,
+  type ThreadEventScope,
 } from "@bb/domain";
+import type {
+  TimelineApprovalStatus,
+  TimelineApprovalWorkRow,
+  TimelineParentChange,
+  TimelineRowBase,
+  TimelineRowStatus,
+  TimelineUserConversationRow,
+  TimelineWorkRow,
+  TimelineWorkflowWorkRow,
+} from "@bb/server-contract";
+
+export type EventMeta = { id: string; seq: number; createdAt: number };
+
+export type ThreadEventWithMeta = { event: ThreadEvent; meta: EventMeta };
+
+export interface ProjectionOptions {
+  includeDiagnosticOperations: boolean;
+  threadStatus: Thread["status"];
+  threadName: string;
+}
 
 export function getEventTurnId(decoded: ThreadEvent): string | undefined {
   return getThreadEventScopeTurnId(decoded.scope);
@@ -45,76 +51,20 @@ export function getEventParentToolCallId(
   return "parentToolCallId" in decoded ? decoded.parentToolCallId : undefined;
 }
 
-export type EventMeta = { id: string; seq: number; createdAt: number };
-
-export type EventProjectionTurnStatus =
-  | "pending"
-  | "completed"
-  | "error"
-  | "interrupted";
-
-export type EventProjectionEntry =
-  | { kind: "projected-message"; message: EventProjectionMessage }
-  | { kind: "turn"; turn: EventProjectionTurn };
-
-export interface EventProjectionTurn {
-  turnId: string;
-  threadId: string;
-  sourceSeqStart: number;
-  sourceSeqEnd: number;
-  startedAt: number;
-  createdAt: number;
-  completedAt: number | null;
-  status: EventProjectionTurnStatus;
-  summaryCount: number;
-  externalUserBoundarySeqs?: number[];
-  terminalMessage?: EventProjectionMessage;
-  messages: EventProjectionMessage[];
+export function scopeForTurn(turnId: string | undefined): ThreadEventScope {
+  return turnId ? turnScope(turnId) : threadScope();
 }
 
-export interface EventProjection {
-  entries: EventProjectionEntry[];
-  state: {
-    activeThinking: ActiveThinking | null;
-    activeWorkflows: EventProjectionWorkflowMessage[];
-    activeBackgroundCommands: EventProjectionWorkflowMessage[];
-  };
+export function areThreadEventScopesEqual(
+  left: ThreadEventScope,
+  right: ThreadEventScope,
+): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "thread") return true;
+  return right.kind === "turn" && left.turnId === right.turnId;
 }
 
-type EventProjectionItemActivityStatus =
-  | "pending"
-  | "completed"
-  | "error"
-  | "interrupted";
-
-type EventProjectionWebActivityStatus = Exclude<
-  EventProjectionItemActivityStatus,
-  "error"
->;
-
-export type EventProjectionApprovalLifecycleStatus =
-  | "waiting_for_approval"
-  | "denied";
-
-export type EventProjectionPermissionGrantLifecycle =
-  | "pending"
-  | "resolving"
-  | "granted"
-  | "denied"
-  | "interrupted";
-
-export type EventProjectionUserQuestionLifecycle =
-  | "pending"
-  | "resolving"
-  | "answered"
-  | "interrupted";
-
-export type EventProjectionPluginFormLifecycle =
-  | "pending"
-  | "submitted"
-  | "cancelled";
-
-export interface EventProjectionMessageBase {
+interface MessageBase {
   id: string;
   threadId: string;
   sourceSeqStart: number;
@@ -125,216 +75,93 @@ export interface EventProjectionMessageBase {
   parentToolCallId?: string;
 }
 
-interface EventProjectionPresentedMessage extends EventProjectionMessageBase {
-  presentation?: ThreadEventItemPresentation;
-}
+type RowFields<Row> = Row extends unknown
+  ? Omit<Row, keyof TimelineRowBase | "kind">
+  : never;
 
-export type EventProjectionTurnRequestKind = "message" | "steer";
+type WorkRow<Kind extends TimelineWorkRow["workKind"]> = Extract<
+  TimelineWorkRow,
+  { workKind: Kind }
+>;
 
-export interface EventProjectionTurnRequest {
-  isGrouped: boolean;
-  kind: EventProjectionTurnRequestKind;
-  status: "pending" | "accepted" | "rejected";
-}
+type ItemRow = WorkRow<
+  | "web-search"
+  | "web-fetch"
+  | "image-view"
+  | "image-generation"
+  | "file-read"
+  | "search"
+  | "plan-steps"
+  | "extension"
+>;
 
-export interface EventProjectionUserMessage extends EventProjectionMessageBase {
-  kind: "user";
-  initiator: ThreadTurnInitiator;
-  senderThreadId: string | null;
-  systemMessageKind: SystemMessageKind;
-  systemMessageSubject: SystemMessageSubject | null;
-  turnRequest: EventProjectionTurnRequest;
-  text: string;
-  mentions: PromptTextMention[];
-  attachments?: {
-    webImages: number;
-    localImages: number;
-    localFiles: number;
-    imageUrls?: string[];
-    localImagePaths?: string[];
-    localFilePaths?: string[];
-  };
-}
+type InteractionRow =
+  | Extract<TimelineApprovalWorkRow, { approvalKind: "permission-grant" }>
+  | WorkRow<"question" | "form">;
 
-export interface EventProjectionAssistantTextMessage extends EventProjectionMessageBase {
+export type ItemRowFields = RowFields<ItemRow>;
+
+type UserRowFields = RowFields<TimelineUserConversationRow>;
+
+export type UserMessage = MessageBase & { kind: "user" } & UserRowFields;
+
+export interface AssistantMessage extends MessageBase {
   kind: "assistant-text";
   text: string;
   status: "streaming" | "completed";
 }
 
-export type EventProjectionToolParsedIntent =
-  | { type: "read"; cmd: string; name: string; path: string | null }
-  | { type: "list_files"; cmd: string; path: string | null }
-  | { type: "search"; cmd: string; query: string | null; path: string | null }
-  | { type: "unknown"; cmd: string };
+type CommandRowFields = RowFields<WorkRow<"command">>;
 
-export interface EventProjectionToolCallMessage extends EventProjectionPresentedMessage {
-  kind: "tool-call";
+type ToolRowFields = RowFields<WorkRow<"tool">>;
+
+type CommandMessage = MessageBase & { kind: "exec" } & CommandRowFields;
+
+export type ToolCallMessage = MessageBase & { kind: "exec" } & ToolRowFields;
+
+export interface DelegationMessage extends MessageBase {
+  kind: "exec";
+  workKind: "delegation";
+  status: TimelineRowStatus;
+  callId: string;
   toolName: string;
-  toolArgs: JsonObject | null;
-  callId: string;
+  childRef: string | null;
+  background: boolean;
+  subagentType?: string;
+  description?: string;
+  model?: string;
   output: string;
   completedAt: number | null;
-  approvalStatus: EventProjectionApprovalLifecycleStatus | null;
-  status: EventProjectionItemActivityStatus;
+  children: Message[];
+  presentation?: ThreadEventItemPresentation;
 }
 
-export interface EventProjectionCommandMessage extends EventProjectionPresentedMessage {
-  kind: "command";
-  callId: string;
-  command: string;
-  cwd: string | null;
-  parsedIntents: EventProjectionToolParsedIntent[];
-  source: string | null;
-  output: string;
-  exitCode: number | null;
-  completedAt: number | null;
-  approvalStatus: EventProjectionApprovalLifecycleStatus | null;
-  status: EventProjectionItemActivityStatus;
-}
+export type ExecMessage = CommandMessage | ToolCallMessage | DelegationMessage;
 
-export interface EventProjectionWebSearchMessage extends EventProjectionPresentedMessage {
-  kind: "web-search";
-  callId: string;
-  queries: string[];
-  completedAt: number | null;
-  status: EventProjectionWebActivityStatus;
-}
+export type ItemMessage = MessageBase & { kind: "item" } & ItemRowFields;
 
-export interface EventProjectionWebFetchMessage extends EventProjectionPresentedMessage {
-  kind: "web-fetch";
-  callId: string;
-  url: string;
-  prompt: string | null;
-  pattern: string | null;
-  completedAt: number | null;
-  status: EventProjectionWebActivityStatus;
-}
+export type InteractionMessage = MessageBase & {
+  kind: "interaction";
+} & RowFields<InteractionRow>;
 
-export interface EventProjectionImageViewMessage extends EventProjectionPresentedMessage {
-  kind: "image-view";
-  callId: string;
-  path: string;
-  completedAt: number | null;
-  status: EventProjectionWebActivityStatus;
-}
-
-export interface EventProjectionImageGenerationMessage extends EventProjectionPresentedMessage {
-  kind: "image-generation";
-  callId: string;
-  prompt: string | null;
-  path: string | null;
-  error: string | null;
-  transparentBackground: boolean;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-}
-
-export interface EventProjectionFileReadMessage extends EventProjectionPresentedMessage {
-  kind: "file-read";
-  callId: string;
-  path: string;
-  cmd: string | null;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-}
-
-export interface EventProjectionSearchMessage extends EventProjectionPresentedMessage {
-  kind: "search";
-  callId: string;
-  mode: ThreadEventSearchMode;
-  query: string;
-  path: string | null;
-  cmd: string | null;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-}
-
-export interface EventProjectionPlanStepsMessage extends EventProjectionPresentedMessage {
-  kind: "plan-steps";
-  callId: string;
-  steps: ThreadEventPlanStep[];
-  explanation: string | null;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-}
-
-export interface EventProjectionExtensionMessage extends EventProjectionMessageBase {
-  kind: "extension";
-  callId: string;
-  extensionKind: ExtensionKind;
-  payload: JsonValue;
-  presentation: ThreadEventItemPresentation;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-}
-
-export interface EventProjectionFileEditChange {
+export interface FileEditChange {
   path: string;
   kind?: string;
   movePath?: string | null;
   diff?: string;
 }
 
-export interface EventProjectionFileEditMessage extends EventProjectionPresentedMessage {
+export interface FileEditMessage extends MessageBase {
   kind: "file-edit";
   callId: string;
-  changes: EventProjectionFileEditChange[];
+  changes: FileEditChange[];
   stdout?: string;
-  stderr?: string;
-  approvalStatus: EventProjectionApprovalLifecycleStatus | null;
-  status: EventProjectionItemActivityStatus;
+  approvalStatus: TimelineApprovalStatus;
+  status: TimelineRowStatus;
+  presentation?: ThreadEventItemPresentation;
 }
 
-export type EventProjectionThreadOperationKind = "ownership_change" | "other";
-
-export type EventProjectionThreadOperationStatus =
-  | "requested"
-  | "queued"
-  | "running"
-  | "started"
-  | "completed"
-  | "failed"
-  | "noop"
-  | "other";
-
-interface EventProjectionThreadOperationBase {
-  rawOperation: string;
-  status: EventProjectionThreadOperationStatus;
-  rawStatus: string;
-  operationId: string;
-}
-
-export interface EventProjectionOwnershipChangeThreadOperationMetadata extends EventProjectionThreadOperationBase {
-  operation: "ownership_change";
-  metadata: OwnershipChangeOperationMetadata | null;
-}
-
-export type EventProjectionThreadOperationMetadata =
-  | EventProjectionOwnershipChangeThreadOperationMetadata
-  | (EventProjectionThreadOperationBase & {
-      operation: "other";
-      metadata?: JsonObject;
-    });
-
-export interface EventProjectionProvisioningTranscriptEntry {
-  type: "step" | "output";
-  key: string;
-  text: string;
-  startedAt?: number;
-  status?: "started" | "completed" | "failed";
-  metadata?: Record<string, unknown>;
-}
-
-export interface EventProjectionProvisioningMetadata {
-  environmentId?: string;
-  provisioningId: string;
-  transcript?: EventProjectionProvisioningTranscriptEntry[];
-}
-
-export type EventProjectionPermissionGrantGrantScope = "turn" | "session";
-
-export interface EventProjectionOperationMessage extends EventProjectionMessageBase {
+export interface OperationMessage extends MessageBase {
   kind: "operation";
   opType:
     | "reasoning"
@@ -348,79 +175,20 @@ export interface EventProjectionOperationMessage extends EventProjectionMessageB
     | "context-clear";
   title: string;
   detail?: string;
-  status?: EventProjectionItemActivityStatus;
+  status: TimelineRowStatus;
   completedAt: number | null;
-  provisioning?: EventProjectionProvisioningMetadata;
-  threadOperation?: EventProjectionThreadOperationMetadata;
+  mergeKey?: string;
+  transcript?: ProvisioningTranscriptEntry[];
+  parentChange?: TimelineParentChange | null;
 }
 
-export interface EventProjectionPermissionGrantLifecycleMessage extends EventProjectionMessageBase {
-  kind: "permission-grant-lifecycle";
-  interactionId: string;
-  lifecycle: EventProjectionPermissionGrantLifecycle;
-  status: EventProjectionItemActivityStatus;
-  approvalTarget: { itemId: string; toolName: string | null };
-  grantScope: EventProjectionPermissionGrantGrantScope | null;
-  statusReason: string | null;
-}
-
-export interface EventProjectionUserQuestionLifecycleMessage extends EventProjectionMessageBase {
-  kind: "user-question-lifecycle";
-  interactionId: string;
-  lifecycle: EventProjectionUserQuestionLifecycle;
-  status: EventProjectionItemActivityStatus;
-  questions: PendingInteractionUserQuestionQuestion[];
-  answers: Record<string, PendingInteractionUserAnswer> | null;
-  statusReason: string | null;
-}
-
-export interface EventProjectionPluginFormLifecycleMessage extends EventProjectionMessageBase {
-  kind: "plugin-form-lifecycle";
-  interactionId: string;
-  lifecycle: EventProjectionPluginFormLifecycle;
-  status: EventProjectionItemActivityStatus;
-  pluginId: string;
-  rendererId: string;
-  title: string;
-  statusReason: string | null;
-  presentation: ThreadEventItemPresentation;
-  payload: JsonValue | null;
-}
-
-export interface EventProjectionDelegationMessage extends EventProjectionPresentedMessage {
-  kind: "delegation";
-  subagentType?: string;
-  description?: string;
-  model?: string;
-  toolName: string;
-  callId: string;
-  childRef: string | null;
-  background: boolean;
-  output: string;
-  completedAt: number | null;
-  status: EventProjectionItemActivityStatus;
-  childProjection: EventProjection;
-}
-
-export interface EventProjectionWorkflowMessage extends EventProjectionPresentedMessage {
+export type WorkflowMessage = MessageBase & {
   kind: "workflow";
-  itemId: string;
   familyId: string | null;
-  taskType: string;
-  workflowName: string | null;
-  description: string;
-  model: string | null;
-  status: EventProjectionItemActivityStatus;
-  taskStatus: BackgroundTaskStatus;
   skipTranscript: boolean;
-  workflow: WorkflowProgressSnapshot | null;
-  usage: BackgroundTaskUsage | null;
-  summary: string | null;
-  error: string | null;
-  completedAt: number | null;
-}
+} & Omit<RowFields<TimelineWorkflowWorkRow>, "workKind">;
 
-export interface EventProjectionErrorMessage extends EventProjectionMessageBase {
+export interface ErrorMessage extends MessageBase {
   kind: "error";
   message: string;
   detail: string | null;
@@ -429,88 +197,39 @@ export interface EventProjectionErrorMessage extends EventProjectionMessageBase 
   willRetry?: boolean;
 }
 
-export type EventProjectionMessage =
-  | EventProjectionUserMessage
-  | EventProjectionAssistantTextMessage
-  | EventProjectionCommandMessage
-  | EventProjectionToolCallMessage
-  | EventProjectionWebSearchMessage
-  | EventProjectionWebFetchMessage
-  | EventProjectionImageViewMessage
-  | EventProjectionImageGenerationMessage
-  | EventProjectionFileReadMessage
-  | EventProjectionSearchMessage
-  | EventProjectionPlanStepsMessage
-  | EventProjectionExtensionMessage
-  | EventProjectionFileEditMessage
-  | EventProjectionOperationMessage
-  | EventProjectionPermissionGrantLifecycleMessage
-  | EventProjectionUserQuestionLifecycleMessage
-  | EventProjectionPluginFormLifecycleMessage
-  | EventProjectionDelegationMessage
-  | EventProjectionWorkflowMessage
-  | EventProjectionErrorMessage;
+export type Message =
+  | UserMessage
+  | AssistantMessage
+  | ExecMessage
+  | ItemMessage
+  | FileEditMessage
+  | OperationMessage
+  | InteractionMessage
+  | WorkflowMessage
+  | ErrorMessage;
 
-export interface BuildEventProjectionMessagesOptions {
-  includeDiagnosticOperations?: boolean;
-  threadStatus?: Thread["status"];
-  threadName: string;
+export interface ProjectedTurn {
+  turnId: string;
+  threadId: string;
+  sourceSeqStart: number;
+  sourceSeqEnd: number;
+  startedAt: number;
+  createdAt: number;
+  completedAt: number | null;
+  status: TimelineRowStatus;
+  externalUserBoundarySeqs?: number[];
+  messages: Message[];
 }
 
-export function areThreadEventScopesEqual(
-  left: ThreadEventScope,
-  right: ThreadEventScope,
-): boolean {
-  if (left.kind !== right.kind) return false;
-  if (left.kind === "thread") return true;
-  return right.kind === "turn" && left.turnId === right.turnId;
-}
+export type ProjectionEntry =
+  | { kind: "projected-message"; message: Message }
+  | { kind: "turn"; turn: ProjectedTurn };
 
-export function haveCompatibleEventProjectionMessageScope(
-  left: Pick<EventProjectionMessageBase, "scope">,
-  right: Pick<EventProjectionMessageBase, "scope">,
-): boolean {
-  return areThreadEventScopesEqual(left.scope, right.scope);
-}
-
-export function getEventProjectionMessageScopeTurnId(
-  message: Pick<EventProjectionMessageBase, "scope">,
-): string | null {
-  return message.scope.kind === "turn" ? message.scope.turnId : null;
-}
-
-export function eventProjectionMessageTurnScopeFields(
-  turnId: string,
-): Pick<EventProjectionMessageBase, "scope"> {
-  return { scope: turnScope(turnId) };
-}
-
-export function eventProjectionMessageThreadScopeFields(): Pick<
-  EventProjectionMessageBase,
-  "scope"
-> {
-  return { scope: threadScope() };
-}
-
-export function emptyEventProjection(
-  entries: EventProjectionEntry[] = [],
-): EventProjection {
-  return {
-    state: {
-      activeThinking: null,
-      activeWorkflows: [],
-      activeBackgroundCommands: [],
-    },
-    entries,
-  };
-}
-
-export function getProjectionEntryMessages(
-  entry: EventProjectionEntry,
-): readonly EventProjectionMessage[] {
-  return entry.kind === "projected-message"
-    ? [entry.message]
-    : entry.turn.messages;
+export interface Projection {
+  entries: ProjectionEntry[];
+  activeThinking: ActiveThinking | null;
+  activeWorkflows: WorkflowMessage[];
+  activeBackgroundCommands: WorkflowMessage[];
 }
 
 export function extendMessageBounds(
@@ -522,47 +241,41 @@ export function extendMessageBounds(
   target.createdAt = Math.max(target.createdAt, createdAt);
 }
 
-export function isTimelineTerminalMessage(
-  message: EventProjectionMessage,
-): boolean {
-  return message.kind === "assistant-text" || message.kind === "error";
+export interface VisibleTextBuffer {
+  visible: string;
+  pending: string;
 }
 
-function isTimelineSummaryGroupableSteerMessage(
-  message: EventProjectionMessage,
-): boolean {
-  return (
-    message.kind === "user" &&
-    message.turnRequest.kind === "steer" &&
-    (message.initiator === "agent" || message.initiator === "system")
-  );
+export function createVisibleTextBuffer(): VisibleTextBuffer {
+  return { visible: "", pending: "" };
 }
 
-export function isTimelineUngroupableMessage(
-  message: EventProjectionMessage,
-): boolean {
-  return (
-    message.kind === "user" && !isTimelineSummaryGroupableSteerMessage(message)
-  );
-}
-
-export function isSingletonContextManagementOperation(
-  messages: readonly EventProjectionMessage[],
-): boolean {
-  const onlyMessage = messages.length === 1 ? messages[0] : undefined;
-  return (
-    onlyMessage?.kind === "operation" &&
-    (onlyMessage.opType === "compaction" ||
-      onlyMessage.opType === "context-clear")
-  );
-}
-
-export function findLastTerminalTimelineMessage(
-  messages: readonly EventProjectionMessage[],
-): EventProjectionMessage | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message && isTimelineTerminalMessage(message)) return message;
+export function appendVisibleText(
+  buffer: VisibleTextBuffer,
+  delta: string,
+): void {
+  const lastNewline = delta.lastIndexOf("\n");
+  if (lastNewline === -1) {
+    buffer.pending += delta;
+    return;
   }
-  return undefined;
+  buffer.visible += buffer.pending + delta.slice(0, lastNewline + 1);
+  buffer.pending = delta.slice(lastNewline + 1);
+}
+
+export function setVisibleText(
+  buffer: VisibleTextBuffer,
+  text: string,
+  showTrailingPartial: boolean,
+): void {
+  const cut = showTrailingPartial ? text.length : text.lastIndexOf("\n") + 1;
+  buffer.visible = text.slice(0, cut);
+  buffer.pending = text.slice(cut);
+}
+
+export function flushVisibleText(buffer: VisibleTextBuffer): boolean {
+  if (buffer.pending === "") return false;
+  buffer.visible += buffer.pending;
+  buffer.pending = "";
+  return true;
 }

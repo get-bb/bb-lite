@@ -270,7 +270,7 @@ export function getFileChangeDiffStats(
 const AGENT_MESSAGE_ENVELOPE_PATTERN =
   /^\[bb message from thread:([^;\]\s]+)(?:;[^\]]*)?\]\s*/;
 
-export interface AgentMessageEnvelope {
+interface AgentMessageEnvelope {
   bodyStart: number;
   senderThreadId: string;
 }

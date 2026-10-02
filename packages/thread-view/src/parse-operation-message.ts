@@ -1,104 +1,63 @@
 import {
-  type ProvisioningTranscriptEntry,
-  type ApprovalInteractionLifecycle,
-  type PendingInteractionPermissionGrantApprovalSubject,
-  type ThreadEvent,
-  type SystemThreadInterruptedReason,
-  type PluginInteractionLifecycle,
-  type ThreadEventItemPresentation,
-  type UserQuestionInteractionLifecycle,
   THREAD_CONTEXT_CLEAR_OPERATION,
   isApprovalInteractionLifecycle,
   isPluginInteractionLifecycle,
   isUserQuestionInteractionLifecycle,
   ownershipChangeOperationMetadataSchema,
+  type OwnershipChangeOperationMetadata,
+  type PluginInteractionLifecycle,
+  type ProvisioningTranscriptEntry,
+  type ThreadEvent,
+  type ThreadEventItemPresentation,
 } from "@bb/domain";
+import type { TimelineRowStatus } from "@bb/server-contract";
 import type {
-  EventProjectionOperationMessage,
-  EventProjectionProvisioningMetadata,
-  EventProjectionProvisioningTranscriptEntry,
+  ErrorMessage,
   EventMeta,
-  BuildEventProjectionMessagesOptions,
-  EventProjectionPermissionGrantLifecycleMessage,
-  EventProjectionUserQuestionLifecycleMessage,
-  EventProjectionOwnershipChangeThreadOperationMetadata,
-  EventProjectionThreadOperationMetadata,
-  EventProjectionThreadOperationKind,
-  EventProjectionThreadOperationStatus,
-  EventProjectionPluginFormLifecycleMessage,
-  EventProjectionErrorMessage,
+  InteractionMessage,
+  OperationMessage,
+  ProjectionOptions,
 } from "./event-projection-types.js";
 import {
-  assertNever,
-  OWNERSHIP_CHANGE_VERBS,
   capitalize,
   messageId,
+  OWNERSHIP_CHANGE_VERBS,
 } from "./timeline-format.js";
-import { getCompactionKey } from "./item-lifecycle.js";
-import { getProviderModelFallbackData } from "./thread-state-extraction.js";
 
-export function readProvisioningTranscript(
-  entries: ProvisioningTranscriptEntry[] | undefined,
-): EventProjectionProvisioningTranscriptEntry[] | undefined {
-  if (!Array.isArray(entries) || entries.length === 0) return undefined;
-  const result: EventProjectionProvisioningTranscriptEntry[] = [];
-  for (const entry of entries) {
+type EventOfType<Type extends ThreadEvent["type"]> = Extract<
+  ThreadEvent,
+  { type: Type }
+>;
+
+function readProvisioningTranscript(
+  entries: ProvisioningTranscriptEntry[],
+): ProvisioningTranscriptEntry[] | undefined {
+  const result = entries.flatMap((entry) => {
     const key = entry.key.trim();
-    if (!key) continue;
     const text = entry.text.trim();
-    if (!text) continue;
-    if (entry.type === "step") {
-      result.push({
-        type: "step",
-        key,
-        text,
-        status: entry.status ?? "started",
-        ...(entry.startedAt !== undefined
-          ? { startedAt: entry.startedAt }
-          : {}),
-        ...(entry.metadata ? { metadata: entry.metadata } : {}),
-      });
-    } else if (entry.type === "output") {
-      result.push({
-        type: "output",
-        key,
-        text,
-        ...(entry.startedAt !== undefined
-          ? { startedAt: entry.startedAt }
-          : {}),
-        ...(entry.metadata ? { metadata: entry.metadata } : {}),
-      });
-    }
-  }
+    if (!key || !text) return [];
+    const status =
+      entry.type === "step" ? (entry.status ?? "started") : undefined;
+    return [{ ...entry, key, text, status }];
+  });
   return result.length > 0 ? result : undefined;
 }
 
-export function provisioningKey(
-  message: EventProjectionOperationMessage,
-): string {
-  return message.provisioning?.provisioningId ?? message.id;
+const PROVISIONING_TITLES: Record<TimelineRowStatus, string> = {
+  pending: "Provisioning thread",
+  completed: "Provisioned thread",
+  error: "Provisioning thread failed",
+  interrupted: "Provisioning thread interrupted",
+};
+
+export function provisioningTitleForStatus(status: TimelineRowStatus): string {
+  return PROVISIONING_TITLES[status];
 }
 
-export function provisioningTitleForStatus(
-  status: EventProjectionOperationMessage["status"],
-): string {
-  switch (status) {
-    case "completed":
-      return "Provisioned thread";
-    case "error":
-      return "Provisioning thread failed";
-    case "interrupted":
-      return "Provisioning thread interrupted";
-    case "pending":
-    case undefined:
-      return "Provisioning thread";
-  }
-}
-
-function mergeTranscriptEntries(
-  existing: EventProjectionProvisioningTranscriptEntry[] | undefined,
-  incoming: EventProjectionProvisioningTranscriptEntry[] | undefined,
-): EventProjectionProvisioningTranscriptEntry[] | undefined {
+export function mergeTranscriptEntries(
+  existing: ProvisioningTranscriptEntry[] | undefined,
+  incoming: ProvisioningTranscriptEntry[] | undefined,
+): ProvisioningTranscriptEntry[] | undefined {
   const result = existing?.map((entry) => ({ ...entry })) ?? [];
   for (const entry of incoming ?? []) {
     const existingStepIndex =
@@ -117,167 +76,81 @@ function mergeTranscriptEntries(
   return result.length > 0 ? result : undefined;
 }
 
-export function mergeProvisioningMetadata(
-  existing: EventProjectionProvisioningMetadata | undefined,
-  incoming: EventProjectionProvisioningMetadata | undefined,
-): EventProjectionProvisioningMetadata | undefined {
-  if (!incoming) return existing ? { ...existing } : undefined;
-  if (!existing) {
-    return {
-      ...incoming,
-      ...(incoming.transcript
-        ? { transcript: mergeTranscriptEntries(undefined, incoming.transcript) }
-        : {}),
-    };
-  }
-  const transcript = mergeTranscriptEntries(
-    existing.transcript,
-    incoming.transcript,
-  );
-  return {
-    environmentId: incoming.environmentId ?? existing.environmentId,
-    provisioningId: incoming.provisioningId,
-    ...(transcript ? { transcript } : {}),
-  };
-}
-
-type ParseOperationMessageOptions = Pick<
-  BuildEventProjectionMessagesOptions,
-  "includeDiagnosticOperations" | "threadName"
->;
-
 function withThreadName(threadName: string, verb: string): string {
   const name = threadName.trim();
   return name.length > 0 ? `${name} ${verb}` : capitalize(verb);
 }
 
-type InteractionLifecycleEvent = Extract<
-  ThreadEvent,
-  { type: "system/interaction/lifecycle" }
->;
+const THREAD_INTERRUPTED_TITLES = {
+  "host-removed": "Stopped because the machine was removed",
+  "manual-stop": "Stopped manually",
+  "host-daemon-restarted": "Stopped — host daemon restarted",
+  "provider-turn-idle": "Stopped — provider turn stopped responding",
+};
 
-function normalizeThreadOperationKind(
-  rawOperation: string,
-): EventProjectionThreadOperationKind {
-  if (rawOperation === "ownership_change") return "ownership_change";
-  return "other";
-}
-
-function normalizeThreadOperationStatus(
-  rawStatus: string,
-): EventProjectionThreadOperationStatus {
-  switch (rawStatus) {
-    case "requested":
-    case "queued":
-    case "running":
-    case "started":
-    case "completed":
-    case "failed":
-    case "noop":
-      return rawStatus;
-    default:
-      return "other";
-  }
-}
-
-function createThreadOperationMetadata(
-  decoded: Extract<ThreadEvent, { type: "system/operation" }>,
-): EventProjectionThreadOperationMetadata {
-  const operation = normalizeThreadOperationKind(decoded.operation);
-  const base = {
-    rawOperation: decoded.operation,
-    status: normalizeThreadOperationStatus(decoded.status),
-    rawStatus: decoded.status,
-    operationId: decoded.operationId,
-  };
-  if (operation === "ownership_change") {
-    const parsedMetadata = decoded.metadata
-      ? ownershipChangeOperationMetadataSchema.safeParse(decoded.metadata)
-      : null;
-    return {
-      ...base,
-      operation,
-      metadata: parsedMetadata?.success ? parsedMetadata.data : null,
-    };
-  }
-  return {
-    ...base,
-    operation,
-    ...(decoded.metadata ? { metadata: decoded.metadata } : {}),
-  };
-}
-
-function threadInterruptedTitle(
-  reason: SystemThreadInterruptedReason,
-  cause?: "host-connection-lost",
-): string {
-  if (cause === "host-connection-lost") {
-    return "Stopped — connection to host was lost";
-  }
-  switch (reason) {
-    case "host-removed":
-      return "Stopped because the machine was removed";
-    case "manual-stop":
-      return "Stopped manually";
-    case "host-daemon-restarted":
-      return "Stopped — host daemon restarted";
-    case "provider-turn-idle":
-      return "Stopped — provider turn stopped responding";
-    default:
-      return assertNever(reason);
-  }
-}
-
-function ownershipTitleWithParent(
-  threadName: string,
-  verb: string,
-  parentTitle: string | null,
-): string {
-  const parent =
-    parentTitle !== null && parentTitle.trim().length > 0
-      ? parentTitle.trim()
-      : "parent";
-  return withThreadName(threadName, `${verb} ${parent}`);
-}
-
-function ownershipChangeOperationTitle(
-  meta: EventProjectionOwnershipChangeThreadOperationMetadata,
+function ownershipChangeTitle(
+  decoded: EventOfType<"system/operation">,
+  metadata: OwnershipChangeOperationMetadata | null,
   threadName: string,
 ): string {
-  if (meta.status === "failed") return "Ownership change failed";
-  if (meta.status !== "completed") return `Ownership change ${meta.rawStatus}`;
-  if (!meta.metadata) return "Ownership change completed";
-  const { action } = meta.metadata;
-  return ownershipTitleWithParent(
+  if (decoded.status === "failed") return "Ownership change failed";
+  if (decoded.status !== "completed") {
+    return `Ownership change ${decoded.status}`;
+  }
+  if (!metadata) return "Ownership change completed";
+  const parentTitle =
+    metadata.action === "release"
+      ? metadata.previousParentThreadTitle
+      : metadata.nextParentThreadTitle;
+  const verb = OWNERSHIP_CHANGE_VERBS[metadata.action];
+  return withThreadName(
     threadName,
-    OWNERSHIP_CHANGE_VERBS[action],
-    action === "release"
-      ? meta.metadata.previousParentThreadTitle
-      : meta.metadata.nextParentThreadTitle,
+    `${verb} ${parentTitle?.trim() || "parent"}`,
   );
 }
 
-function threadOperationTitle(
-  meta: EventProjectionThreadOperationMetadata | null,
+function threadOperationMessage(
+  decoded: EventOfType<"system/operation">,
+  meta: EventMeta,
   threadName: string,
-): string {
-  if (!meta) return "Operation update";
-  switch (meta.operation) {
-    case "ownership_change":
-      return ownershipChangeOperationTitle(meta, threadName);
-    case "other":
-      if (
-        meta.rawOperation === THREAD_CONTEXT_CLEAR_OPERATION &&
-        meta.status === "completed"
-      ) {
-        return "Context cleared";
-      }
-      return `${capitalize(meta.rawOperation.replace(/_/g, " "))} ${
-        meta.rawStatus
-      }`;
-    default:
-      return assertNever(meta);
-  }
+): OperationMessage {
+  const { operation, status } = decoded;
+  const ownershipChange = operation === "ownership_change";
+  const parsed =
+    ownershipChange && decoded.metadata
+      ? ownershipChangeOperationMetadataSchema.safeParse(decoded.metadata)
+      : null;
+  const metadata = parsed?.success ? parsed.data : null;
+  const title = ownershipChange
+    ? ownershipChangeTitle(decoded, metadata, threadName)
+    : operation === THREAD_CONTEXT_CLEAR_OPERATION && status === "completed"
+      ? "Context cleared"
+      : `${capitalize(operation.replace(/_/g, " "))} ${status}`;
+  const branch = decoded.metadata?.branch;
+  const messageDetail = decoded.message.trim();
+  const detailParts = [
+    messageDetail.length > 0 && messageDetail !== title ? messageDetail : "",
+    typeof branch === "string" && branch ? `Branch: ${branch}` : "",
+  ].filter(Boolean);
+  return op(decoded, meta, {
+    opType: "operation",
+    title,
+    detail: detailParts.length > 0 ? detailParts.join(" • ") : undefined,
+    status:
+      status === "completed" || status === "noop"
+        ? "completed"
+        : status === "failed"
+          ? "error"
+          : "pending",
+    mergeKey: decoded.operationId,
+    parentChange: metadata && {
+      action: metadata.action,
+      previousParentThreadId: metadata.previousParentThreadId,
+      previousParentThreadTitle: metadata.previousParentThreadTitle,
+      nextParentThreadId: metadata.nextParentThreadId,
+      nextParentThreadTitle: metadata.nextParentThreadTitle,
+    },
+  });
 }
 
 const PROVISIONING_OPERATION_STATUSES = {
@@ -286,77 +159,6 @@ const PROVISIONING_OPERATION_STATUSES = {
   failed: "error",
   cancelled: "interrupted",
 } as const;
-
-function interactionMessageBase(
-  decoded: InteractionLifecycleEvent,
-  meta: EventMeta,
-) {
-  const { status } = decoded.interaction;
-  return {
-    threadId: decoded.threadId,
-    sourceSeqStart: meta.seq,
-    sourceSeqEnd: meta.seq,
-    createdAt: meta.createdAt,
-    startedAt: meta.createdAt,
-    scope: decoded.scope,
-    interactionId: decoded.interaction.id,
-    status:
-      status === "resolved"
-        ? ("completed" as const)
-        : status === "interrupted"
-          ? ("interrupted" as const)
-          : ("pending" as const),
-  };
-}
-
-function buildPermissionGrantLifecycleMessage(
-  decoded: InteractionLifecycleEvent,
-  interaction: ApprovalInteractionLifecycle,
-  subject: PendingInteractionPermissionGrantApprovalSubject,
-  meta: EventMeta,
-): EventProjectionPermissionGrantLifecycleMessage {
-  const decision = interaction.resolution?.decision;
-  const { status, ...base } = interactionMessageBase(decoded, meta);
-  return {
-    kind: "permission-grant-lifecycle",
-    id: messageId(decoded.threadId, "approval", interaction.id),
-    ...base,
-    lifecycle:
-      interaction.status !== "resolved"
-        ? interaction.status
-        : decision === "deny"
-          ? "denied"
-          : "granted",
-    status,
-    approvalTarget: { itemId: subject.itemId, toolName: subject.toolName },
-    grantScope:
-      decision === "allow_once"
-        ? "turn"
-        : decision === "allow_for_session"
-          ? "session"
-          : null,
-    statusReason: interaction.statusReason,
-  };
-}
-
-function buildUserQuestionLifecycleMessage(
-  decoded: InteractionLifecycleEvent,
-  interaction: UserQuestionInteractionLifecycle,
-  meta: EventMeta,
-): EventProjectionUserQuestionLifecycleMessage {
-  const { status, ...base } = interactionMessageBase(decoded, meta);
-  return {
-    kind: "user-question-lifecycle",
-    id: messageId(decoded.threadId, "question", interaction.id),
-    ...base,
-    lifecycle:
-      interaction.status === "resolved" ? "answered" : interaction.status,
-    status,
-    questions: interaction.payload.questions,
-    answers: interaction.resolution?.answers ?? null,
-    statusReason: interaction.statusReason,
-  };
-}
 
 function pluginFormPresentation(
   interaction: PluginInteractionLifecycle,
@@ -378,87 +180,89 @@ function pluginFormPresentation(
   };
 }
 
-function buildPluginFormLifecycleMessage(
-  decoded: InteractionLifecycleEvent,
-  interaction: PluginInteractionLifecycle,
-  meta: EventMeta,
-): EventProjectionPluginFormLifecycleMessage {
-  const { status, ...base } = interactionMessageBase(decoded, meta);
-  return {
-    kind: "plugin-form-lifecycle",
-    id: messageId(decoded.threadId, "form", interaction.id),
-    ...base,
-    lifecycle:
-      interaction.status === "resolved"
-        ? "submitted"
-        : interaction.status === "interrupted"
-          ? "cancelled"
-          : "pending",
-    status,
-    pluginId: interaction.origin.pluginId,
-    rendererId: interaction.origin.rendererId,
-    title: interaction.payload.title,
-    statusReason: interaction.statusReason,
-    presentation: pluginFormPresentation(interaction),
-    payload: interaction.resolution?.description?.payload ?? null,
-  };
-}
-
 function buildInteractionLifecycleMessage(
-  decoded: InteractionLifecycleEvent,
+  decoded: EventOfType<"system/interaction/lifecycle">,
   meta: EventMeta,
-):
-  | EventProjectionPermissionGrantLifecycleMessage
-  | EventProjectionUserQuestionLifecycleMessage
-  | EventProjectionPluginFormLifecycleMessage
-  | null {
+): InteractionMessage | null {
   const { interaction } = decoded;
-  if (isUserQuestionInteractionLifecycle(interaction)) {
-    return buildUserQuestionLifecycleMessage(decoded, interaction, meta);
-  }
-  if (isPluginInteractionLifecycle(interaction)) {
-    return buildPluginFormLifecycleMessage(decoded, interaction, meta);
-  }
-  if (!isApprovalInteractionLifecycle(interaction)) return null;
-  const subject = interaction.payload.subject;
-  return subject.kind === "permission_grant"
-    ? buildPermissionGrantLifecycleMessage(decoded, interaction, subject, meta)
-    : null;
-}
-
-function op(
-  decoded: ThreadEvent,
-  meta: EventMeta,
-  idKey: string,
-  fields: ViewOperationFields,
-): EventProjectionOperationMessage {
-  const completedAt = isTerminalOperationStatus(fields.status)
-    ? meta.createdAt
-    : null;
-  return {
-    kind: "operation",
-    id: messageId(decoded.threadId, "op", `${idKey}:${meta.seq}`),
+  const { status, statusReason } = interaction;
+  const base = (workKind: InteractionMessage["workKind"]) => ({
+    id: messageId(decoded.threadId, workKind, interaction.id),
     threadId: decoded.threadId,
     sourceSeqStart: meta.seq,
     sourceSeqEnd: meta.seq,
     createdAt: meta.createdAt,
     startedAt: meta.createdAt,
-    completedAt,
     scope: decoded.scope,
-    ...fields,
+    kind: "interaction" as const,
+  });
+  const common = {
+    status:
+      status === "resolved"
+        ? ("completed" as const)
+        : status === "interrupted"
+          ? ("interrupted" as const)
+          : ("pending" as const),
+    interactionId: interaction.id,
+  };
+  if (isUserQuestionInteractionLifecycle(interaction)) {
+    return {
+      ...base("question"),
+      workKind: "question",
+      ...common,
+      lifecycle: status === "resolved" ? "answered" : status,
+      questions: interaction.payload.questions,
+      answers: interaction.resolution?.answers ?? null,
+      statusReason,
+    };
+  }
+  if (isPluginInteractionLifecycle(interaction)) {
+    return {
+      ...base("form"),
+      workKind: "form",
+      ...common,
+      lifecycle:
+        status === "resolved"
+          ? "submitted"
+          : status === "interrupted"
+            ? "cancelled"
+            : "pending",
+      pluginId: interaction.origin.pluginId,
+      rendererId: interaction.origin.rendererId,
+      title: interaction.payload.title,
+      statusReason,
+      presentation: pluginFormPresentation(interaction),
+      payload: interaction.resolution?.description?.payload ?? null,
+    };
+  }
+  if (!isApprovalInteractionLifecycle(interaction)) return null;
+  const { subject } = interaction.payload;
+  if (subject.kind !== "permission_grant") return null;
+  const decision = interaction.resolution?.decision;
+  return {
+    ...base("approval"),
+    workKind: "approval",
+    ...common,
+    approvalKind: "permission-grant",
+    lifecycle:
+      status !== "resolved"
+        ? status
+        : decision === "deny"
+          ? "denied"
+          : "granted",
+    grantScope:
+      decision === "allow_once"
+        ? "turn"
+        : decision === "allow_for_session"
+          ? "session"
+          : null,
+    statusReason,
+    target: { itemId: subject.itemId, toolName: subject.toolName },
   };
 }
 
-function isTerminalOperationStatus(
-  status: EventProjectionOperationMessage["status"],
-): boolean {
-  return (
-    status === "completed" || status === "error" || status === "interrupted"
-  );
-}
-
-type ViewOperationFields = Omit<
-  EventProjectionOperationMessage,
+type OperationFields = Omit<
+  OperationMessage,
   | "kind"
   | "id"
   | "threadId"
@@ -468,198 +272,158 @@ type ViewOperationFields = Omit<
   | "startedAt"
   | "completedAt"
   | "scope"
-  | "turnId"
 >;
+
+function op(
+  decoded: ThreadEvent,
+  meta: EventMeta,
+  fields: OperationFields,
+): OperationMessage {
+  return {
+    kind: "operation",
+    id: messageId(decoded.threadId, "op", `${fields.opType}:${meta.seq}`),
+    threadId: decoded.threadId,
+    sourceSeqStart: meta.seq,
+    sourceSeqEnd: meta.seq,
+    createdAt: meta.createdAt,
+    startedAt: meta.createdAt,
+    completedAt: fields.status === "pending" ? null : meta.createdAt,
+    scope: decoded.scope,
+    ...fields,
+  };
+}
+
+function environmentDetail(
+  decoded: EventOfType<"provider.env-resolved">,
+): string {
+  return decoded.entries
+    .map((entry) => {
+      const source =
+        entry.source === "shell"
+          ? "shell"
+          : "plugin" in entry.source
+            ? entry.source.plugin
+            : entry.source.core;
+      const value = typeof entry.value === "string" ? entry.value : "••••••";
+      const reason = entry.reason ? ` — ${entry.reason}` : "";
+      return `${entry.name}=${value} (${source})${reason}`;
+    })
+    .join("\n");
+}
+
+function warningMessage(
+  decoded: EventOfType<"provider/warning">,
+  meta: EventMeta,
+): OperationMessage {
+  const { category, summary, details } = decoded;
+  const labeled = category === "deprecation" || category === "config";
+  const detail = (labeled ? [summary, details] : [details])
+    .filter(Boolean)
+    .join("\n");
+  return op(decoded, meta, {
+    opType: category === "deprecation" ? "deprecation" : "warning",
+    title:
+      category === "deprecation"
+        ? "Deprecation notice"
+        : category === "config"
+          ? "Configuration warning"
+          : summary?.trim() || "Warning",
+    detail: detail.length > 0 ? detail : undefined,
+    status: "completed",
+  });
+}
 
 export function parseOperationMessage(
   decoded: ThreadEvent,
   meta: EventMeta,
-  options?: ParseOperationMessageOptions,
-):
-  | EventProjectionOperationMessage
-  | EventProjectionPermissionGrantLifecycleMessage
-  | EventProjectionUserQuestionLifecycleMessage
-  | EventProjectionPluginFormLifecycleMessage
-  | null {
-  const threadName = options?.threadName ?? "";
-  const modelFallback = getProviderModelFallbackData(decoded);
-  if (modelFallback !== null) {
-    return op(decoded, meta, "warning", {
-      opType: "warning",
-      title: `Model fallback: ${modelFallback.originalModel} → ${modelFallback.fallbackModel}`,
-      detail: modelFallback.message,
-      status: "completed",
-    });
-  }
-  if (decoded.type === "provider.env-resolved") {
-    if (options?.includeDiagnosticOperations !== true) return null;
-    const detail = decoded.entries
-      .map((entry) => {
-        const source =
-          entry.source === "shell"
-            ? "shell"
-            : "plugin" in entry.source
-              ? entry.source.plugin
-              : entry.source.core;
-        const value = typeof entry.value === "string" ? entry.value : "••••••";
-        const reason = entry.reason ? ` — ${entry.reason}` : "";
-        return `${entry.name}=${value} (${source})${reason}`;
-      })
-      .join("\n");
-    return op(decoded, meta, "provider-environment", {
-      opType: "provider-environment",
-      title: "Provider environment resolved",
-      detail: detail || undefined,
-      status: "completed",
-    });
-  }
-  if (decoded.type === "provider/warning") {
-    const category = decoded.category;
-    const isDeprecation = category === "deprecation";
-    const isConfig = category === "config";
-    const title = isDeprecation
-      ? "Deprecation notice"
-      : isConfig
-        ? "Configuration warning"
-        : decoded.summary?.trim() || "Warning";
-    const detail = (
-      isDeprecation || isConfig
-        ? [decoded.summary, decoded.details]
-        : [decoded.details]
-    )
-      .filter((line): line is string => Boolean(line))
-      .join("\n");
-    return op(decoded, meta, isDeprecation ? "deprecation" : "warning", {
-      opType: isDeprecation ? "deprecation" : "warning",
-      title,
-      detail: detail.length > 0 ? detail : undefined,
-      status: "completed",
-    });
-  }
-  if (decoded.type === "system/thread/interrupted") {
-    return op(decoded, meta, "thread-interrupted", {
-      opType: "thread-interrupted",
-      title: threadInterruptedTitle(decoded.reason, decoded.cause),
-      status: "interrupted",
-    });
-  }
-  if (decoded.type === "system/thread-provisioning") {
-    const { status, environmentId, provisioningId } = decoded;
-    if (provisioningId.startsWith("thread-start:")) return null;
-    const transcript = readProvisioningTranscript(decoded.entries);
-    const operationStatus = PROVISIONING_OPERATION_STATUSES[status];
-    return op(decoded, meta, "thread-provisioning", {
-      opType: "thread-provisioning",
-      title: provisioningTitleForStatus(operationStatus),
-      status: operationStatus,
-      provisioning: {
-        ...(environmentId !== null ? { environmentId } : {}),
-        provisioningId,
-        ...(transcript ? { transcript } : {}),
-      },
-    });
-  }
-  if (decoded.type === "thread/name/updated") return null;
-  if (decoded.type === "system/operation") {
-    if (
-      decoded.operation === "plugin_interaction" ||
-      decoded.operation === "edit_message"
-    ) {
-      return null;
-    }
-    const threadOperation = createThreadOperationMetadata(decoded);
-    const title = threadOperationTitle(threadOperation, threadName);
-    const branch =
-      typeof decoded.metadata?.branch === "string"
-        ? decoded.metadata.branch
-        : undefined;
-    const messageDetail = decoded.message.trim();
-    const detailParts = [
-      messageDetail.length > 0 && messageDetail !== title
-        ? messageDetail
-        : undefined,
-      branch ? `Branch: ${branch}` : undefined,
-    ].filter((value): value is string => Boolean(value));
-    return op(decoded, meta, "operation", {
-      opType: "operation",
-      title,
-      detail: detailParts.length > 0 ? detailParts.join(" • ") : undefined,
-      status:
-        threadOperation.status === "completed" ||
-        threadOperation.status === "noop"
-          ? "completed"
-          : threadOperation.status === "failed"
-            ? "error"
-            : "pending",
-      threadOperation,
-    });
-  }
-  if (decoded.type === "system/interaction/lifecycle") {
-    return buildInteractionLifecycleMessage(decoded, meta);
-  }
-  if (decoded.type === "thread/compacted") {
-    return {
-      ...op(decoded, meta, `compaction`, {
-        opType: "compaction",
-        title: "Context compacted",
+  options: ProjectionOptions,
+): OperationMessage | InteractionMessage | null {
+  switch (decoded.type) {
+    case "provider/modelFallback":
+      return op(decoded, meta, {
+        opType: "warning",
+        title: `Model fallback: ${decoded.originalModel} → ${decoded.fallbackModel}`,
+        detail: decoded.message,
         status: "completed",
-      }),
-      id: messageId(
-        decoded.threadId,
-        "op",
-        `compaction:${getCompactionKey(decoded, meta)}`,
-      ),
-    };
+      });
+    case "provider.env-resolved":
+      if (!options.includeDiagnosticOperations) return null;
+      return op(decoded, meta, {
+        opType: "provider-environment",
+        title: "Provider environment resolved",
+        detail: environmentDetail(decoded) || undefined,
+        status: "completed",
+      });
+    case "provider/warning":
+      return warningMessage(decoded, meta);
+    case "system/thread/interrupted":
+      return op(decoded, meta, {
+        opType: "thread-interrupted",
+        title:
+          decoded.cause === "host-connection-lost"
+            ? "Stopped — connection to host was lost"
+            : THREAD_INTERRUPTED_TITLES[decoded.reason],
+        status: "interrupted",
+      });
+    case "system/thread-provisioning": {
+      const { provisioningId } = decoded;
+      if (provisioningId.startsWith("thread-start:")) return null;
+      const status = PROVISIONING_OPERATION_STATUSES[decoded.status];
+      return op(decoded, meta, {
+        opType: "thread-provisioning",
+        title: provisioningTitleForStatus(status),
+        status,
+        mergeKey: provisioningId,
+        transcript: readProvisioningTranscript(decoded.entries),
+      });
+    }
+    case "system/operation":
+      return decoded.operation === "plugin_interaction" ||
+        decoded.operation === "edit_message"
+        ? null
+        : threadOperationMessage(decoded, meta, options.threadName);
+    case "system/interaction/lifecycle":
+      return buildInteractionLifecycleMessage(decoded, meta);
+    case "thread/context/cleared":
+      return op(decoded, meta, {
+        opType: "context-clear",
+        title: "Context cleared",
+        status: "completed",
+      });
+    default:
+      return null;
   }
-  if (decoded.type === "thread/context/cleared") {
-    return op(decoded, meta, "context-clear", {
-      opType: "context-clear",
-      title: "Context cleared",
-      status: "completed",
-    });
-  }
-  return null;
 }
 
-export function interruptOperationMessage(
-  message: EventProjectionOperationMessage,
-): void {
+const INTERRUPTED_OPERATION_TITLES: Partial<
+  Record<OperationMessage["opType"], string>
+> = {
+  operation: "Operation interrupted",
+  "thread-provisioning": PROVISIONING_TITLES.interrupted,
+  compaction: "Context compaction interrupted",
+  "context-clear": "Context clear interrupted",
+};
+
+export function interruptOperationMessage(message: OperationMessage): void {
   if (message.status !== "pending") return;
   message.status = "interrupted";
   message.completedAt = message.createdAt;
-  switch (message.opType) {
-    case "operation":
-      message.title = "Operation interrupted";
-      return;
-    case "thread-provisioning":
-      message.title = provisioningTitleForStatus("interrupted");
-      return;
-    case "compaction":
-      message.title = "Context compaction interrupted";
-      return;
-    case "context-clear":
-      message.title = "Context clear interrupted";
-      return;
-    default:
-      return;
-  }
+  message.title = INTERRUPTED_OPERATION_TITLES[message.opType] ?? message.title;
 }
 
 export function finalizeOperationMessage(
-  message: EventProjectionOperationMessage,
-  options: BuildEventProjectionMessagesOptions | undefined,
+  message: OperationMessage,
+  options: ProjectionOptions,
 ): void {
   if (message.status !== "pending") return;
-  if (options?.threadStatus === "error") {
-    switch (message.opType) {
-      case "thread-provisioning":
-        message.status = "error";
-        message.title = provisioningTitleForStatus("error");
-        message.completedAt = message.createdAt;
-        return;
-      default:
-        break;
-    }
+  if (
+    options.threadStatus === "error" &&
+    message.opType === "thread-provisioning"
+  ) {
+    message.status = "error";
+    message.title = PROVISIONING_TITLES.error;
+    message.completedAt = message.createdAt;
+    return;
   }
   interruptOperationMessage(message);
 }
@@ -667,10 +431,12 @@ export function finalizeOperationMessage(
 export function parseErrorMessage(
   decoded: ThreadEvent,
   meta: EventMeta,
-): EventProjectionErrorMessage | null {
-  if (decoded.type !== "provider/error" && decoded.type !== "system/error")
+): ErrorMessage | null {
+  if (decoded.type !== "provider/error" && decoded.type !== "system/error") {
     return null;
+  }
   const { message, detail } = decoded;
+  const provider = decoded.type === "provider/error" ? decoded : null;
   return {
     kind: "error",
     id: messageId(decoded.threadId, "error", `${meta.seq}`),
@@ -682,11 +448,9 @@ export function parseErrorMessage(
     rawType: decoded.type,
     message: message || "Error event",
     detail: detail && detail !== message ? detail : null,
-    ...(decoded.type === "provider/error" && decoded.errorInfo
-      ? { providerErrorInfo: decoded.errorInfo }
-      : {}),
-    ...(decoded.type === "provider/error" && decoded.willRetry !== undefined
-      ? { willRetry: decoded.willRetry }
+    ...(provider?.errorInfo ? { providerErrorInfo: provider.errorInfo } : {}),
+    ...(provider?.willRetry !== undefined
+      ? { willRetry: provider.willRetry }
       : {}),
   };
 }
