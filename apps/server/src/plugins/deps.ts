@@ -6,15 +6,17 @@ import type { PluginServerApi } from "@bb/plugin";
 import { RunnerError } from "@bb/runner";
 import { createThreadRequestSchema } from "@bb/server-contract";
 import type { ServerContext } from "../context.js";
-import { lastAssistantText } from "../db/events.js";
+import { decodeEvent, lastOutput, listEvents } from "../db/event-read.js";
 import { listHosts } from "../db/hosts.js";
 import { listStandardProjects } from "../db/projects.js";
+import { listThreadRows } from "../db/thread-read.js";
 import {
   createThreadSection,
   listThreadSections,
 } from "../db/thread-sections.js";
 import { ApiError } from "../http/errors.js";
 import { hostResponse } from "../runners/hosts.js";
+import { toThreadListEntries } from "../threads/thread-display.js";
 
 export type PluginOutwardApi = Pick<
   PluginServerApi,
@@ -22,11 +24,6 @@ export type PluginOutwardApi = Pick<
 > & { requestInput: PluginServerApi["ui"]["requestInput"] };
 
 export type PluginHostDeps = (pluginId: string) => PluginOutwardApi;
-
-const unavailable = (surface: string) => async (): Promise<never> => {
-  const message = `bb.${surface} is not connected to the thread read side`;
-  throw new ApiError(503, "unavailable", message);
-};
 
 export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
   const { db, hub, runners, threads } = ctx;
@@ -43,11 +40,13 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
       },
       send: (threadId, request) => threads.send(threadId, request),
       get: async (threadId) => threads.get(threadId),
-      list: unavailable("threads.list"),
+      list: async (query = {}) =>
+        toThreadListEntries(ctx, listThreadRows(db, query)),
       stop: async (threadId) => void (await threads.stop(threadId)),
       update: (threadId, patch) => threads.update(threadId, patch),
-      output: async (threadId) => lastAssistantText(db, threadId),
-      events: unavailable("threads.events"),
+      output: async (threadId) => lastOutput(db, threadId),
+      events: async (threadId, after) =>
+        listEvents(db, { threadId, after }).map(decodeEvent),
     },
     projects: { list: async () => listStandardProjects(db) },
     hosts: {

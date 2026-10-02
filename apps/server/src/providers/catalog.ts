@@ -4,6 +4,7 @@ import {
   disabledProviderIdsSchema,
   type PermissionMode,
   type ProviderComposerAction,
+  type ProviderComposerCommand,
   type ProviderInfo,
   type ProviderOptionDescriptor,
   type ReasoningLevel,
@@ -222,6 +223,15 @@ export function findProviderDefinition(
   providerId: string,
 ): ProviderDefinition | undefined {
   return listProviderDefinitions(db).find(({ id }) => id === providerId);
+}
+
+export function providerPlanCommand(
+  db: Db,
+  providerId: string,
+): ProviderComposerCommand | null {
+  const actions = findProviderDefinition(db, providerId)?.info.composerActions;
+  const plan = actions?.find((action) => action.kind === "plan");
+  return plan?.kind === "plan" ? plan.command : null;
 }
 
 export function listEnabledProviders(db: Db): ProviderDefinition[] {

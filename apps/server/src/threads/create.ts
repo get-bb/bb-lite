@@ -48,8 +48,7 @@ export function requireThreadSection(db: Db, sectionId: string): void {
   if (listThreadSections(db).some((section) => section.id === sectionId)) {
     return;
   }
-  const message = "Thread section not found";
-  throw new ApiError(404, "thread_section_not_found", message);
+  throw new ApiError(404, "section_not_found", "Section not found");
 }
 
 export function requireValidParent(
@@ -198,7 +197,7 @@ export async function createThread(
     });
     out.thread(row.id, ["thread-created"], { projectId });
     out.project(projectId, ["threads-changed"]);
-    const response = engine.respond(row);
+    const response = engine.respond(row.id);
     out.after(() => plugins.emit("thread.created", { thread: response }));
     return row;
   });
@@ -226,5 +225,5 @@ export async function createThread(
   if (request.origin === "app" && request.environment.type !== "reuse") {
     setProjectExecutionDefaults(db, projectId, { providerId, ...execution });
   }
-  return engine.respond(getThread(db, thread.id) ?? thread);
+  return engine.respond(thread.id);
 }

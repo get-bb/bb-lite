@@ -353,6 +353,5 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
   expect(await plugins.resolveMention("probe", "note:n1")).toBe("Body of n1");
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
-  const unavailable = { body: { code: "unavailable" } };
-  await expect(api?.threads.list()).rejects.toMatchObject(unavailable);
+  expect(await api?.threads.list()).toEqual([]);
 });

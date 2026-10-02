@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { pruneSupersededDeltas } from "../src/db/events.js";
 import { createTestServer } from "./helpers.js";
 import { insertRow, type SeedRow } from "./thread-seed.js";
 
@@ -63,22 +64,6 @@ function differences(mine: Json, theirs: Json, path = "$"): string[] {
     .slice(0, DIFFERENCE_LIMIT);
 }
 
-function asIngested(events: ThreadFixture["events"]): ThreadFixture["events"] {
-  const completed = new Set(
-    events.flatMap((event) =>
-      event.type === "item/completed" ? [event.item_id] : [],
-    ),
-  );
-  const kept = new Set<string>();
-  return events.filter((event) => {
-    const superseded =
-      /delta$/iu.test(event.type) && completed.has(event.item_id);
-    const key = `${String(event.item_id)} ${event.type}`;
-    if (!superseded || !kept.has(key)) return kept.add(key);
-    return false;
-  });
-}
-
 function lastExecution(events: ThreadFixture["events"]): SeedRow {
   const requests = events.filter(
     (event) => event.type === "client/turn/requested",
@@ -104,8 +89,6 @@ function snakeCased(row: JsonObject): SeedRow {
 
 describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
   test("serves what the original served for the exported threads", async () => {
-    const server = await createTestServer();
-    const { db } = server.ctx;
     const golden = (name: string): Json => readJson(join(goldenDir, name));
     const fixtures = readdirSync(join(fixturesDir, "threads")).map((file) =>
       readJson<ThreadFixture>(join(fixturesDir, "threads", file)),
@@ -121,8 +104,9 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
       host: JsonObject & { id: string };
     };
     const { environment, host } = detail;
+    const server = await createTestServer({ hostId: host.id });
+    const { db } = server.ctx;
     const selection = JSON.stringify(environment.environmentProviderSelection);
-    server.ctx.runners.connect(host.id, () => server.runner.api);
     insertRow(db, "hosts", snakeCased(host));
     insertRow(db, "projects", { ...snakeCased(project), sources: undefined });
     insertRow(db, "projects", snakeCased(sidebar.personalProject));
@@ -133,8 +117,7 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
       lifecycle: undefined,
     });
     db.transaction(() => {
-      for (const { thread, events: logged, interactions } of fixtures) {
-        const events = asIngested(logged);
+      for (const { thread, events, interactions } of fixtures) {
         const parent = thread.parent_thread_id ?? "";
         insertRow(db, "threads", {
           ...thread,
@@ -151,6 +134,8 @@ describe.skipIf(!existsSync(goldenDir))("original server equivalence", () => {
         });
         for (const event of events) {
           insertRow(db, "events", { ...event, environment_id: environment.id });
+          if (event.type !== "item/completed") continue;
+          pruneSupersededDeltas(db, thread.id, String(event.item_id));
         }
         for (const row of interactions)
           insertRow(db, "pending_interactions", row);

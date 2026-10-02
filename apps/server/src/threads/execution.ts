@@ -98,11 +98,11 @@ function projectDefaults(db: Db, projectId: string, providerId: string) {
   return stored?.providerId === providerId ? stored : {};
 }
 
-export function resolveTurnExecution(
+export function findTurnExecution(
   db: Db,
   thread: ThreadRow,
   request: ExecutionRequest,
-): ExecutionTuple {
+): ExecutionTuple | null {
   const asked = namedFields(request);
   const defaults = projectDefaults(db, thread.projectId, thread.providerId);
   const overrides = {
@@ -116,13 +116,21 @@ export function resolveTurnExecution(
   const inherited = { permissionMode: live ? parent?.permissionMode : null };
   const layers = [asked, overrides, thread, inherited, defaults];
   const model = layers.map((layer: Stored) => layer.model).find(Boolean);
-  if (model == null) {
-    const message = `Thread ${thread.id} has no stored execution model`;
-    throw new ApiError(500, "internal_error", message);
-  }
+  if (model == null) return null;
   const environment =
     environmentId === null ? undefined : getEnvironment(db, environmentId);
   return resolve(db, environment?.hostId ?? null, model, layers);
+}
+
+export function resolveTurnExecution(
+  db: Db,
+  thread: ThreadRow,
+  request: ExecutionRequest,
+): ExecutionTuple {
+  const execution = findTurnExecution(db, thread, request);
+  if (execution !== null) return execution;
+  const message = `Thread ${thread.id} has no stored execution model`;
+  throw new ApiError(500, "internal_error", message);
 }
 
 async function firstInstalledProvider(

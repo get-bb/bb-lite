@@ -1,10 +1,6 @@
 import {
-  DEFAULT_COMPLETED_TURN_DISPLAY,
-  resolvedThreadExecutionOptionsSchema,
-  type AppSettings,
-  type CompletedTurnDisplay,
-  type ProviderComposerCommand,
-  type ResolvedThreadExecutionOptions,
+  threadSchema,
+  type Project,
   type ThreadActivityState,
   type ThreadListEntry,
   type ThreadRuntimeDisplayStatus,
@@ -14,6 +10,7 @@ import {
   extractThreadTimelineActivePlanTurn,
   extractThreadTimelineGoal,
 } from "@bb/thread-view";
+import type { ServerContext } from "../context.js";
 import {
   activeBackgroundTaskCounts,
   decodeEvents,
@@ -23,34 +20,17 @@ import {
   OPEN_TURN,
 } from "../db/event-read.js";
 import type { Db } from "../db/index.js";
+import { getProjectExecutionDefaults, withSources } from "../db/projects.js";
 import {
-  canThreadSpawnChild,
-  findEnvironment,
   listQueueCounts,
-  toThread,
+  listSidebarThreadRows,
   type ThreadListRow,
 } from "../db/thread-read.js";
+import { ancestry, MAX_THREAD_HIERARCHY_DEPTH } from "../db/threads.js";
+import { providerPlanCommand } from "../providers/catalog.js";
 
-export interface ThreadDisplayDeps {
-  db: Db;
-  isHostConnected(hostId: string): boolean;
-}
+type DisplayContext = Pick<ServerContext, "db" | "runners">;
 
-export interface ProviderDisplay {
-  displayName: string | undefined;
-  completedTurnDisplay: CompletedTurnDisplay;
-  planCommand: ProviderComposerCommand | null;
-}
-
-const PLAN_COMMAND: ProviderComposerCommand = {
-  trigger: "/",
-  name: "plan",
-  trailingText: " ",
-};
-const PROVIDER_DISPLAYS: Record<string, [string, CompletedTurnDisplay]> = {
-  codex: ["Codex", "collapse"],
-  "claude-code": ["Claude Code", "flat"],
-};
 const NO_ACTIVITY: ThreadActivityState = {
   activeBackgroundAgentCount: 0,
   activeBackgroundCommandCount: 0,
@@ -59,38 +39,24 @@ const NO_ACTIVITY: ThreadActivityState = {
   activeWorkflowCount: 0,
 };
 
-export function providerDisplay(
-  providerId: string,
-  settings?: AppSettings,
-): ProviderDisplay {
-  const known = PROVIDER_DISPLAYS[providerId];
-  return {
-    displayName: known?.[0],
-    completedTurnDisplay:
-      settings?.providerCompletedTurnDisplay[providerId] ??
-      known?.[1] ??
-      DEFAULT_COMPLETED_TURN_DISPLAY,
-    planCommand: known === undefined ? null : PLAN_COMMAND,
-  };
-}
-
-export function threadDisplayStatus(
+function threadDisplayStatus(
+  { runners }: DisplayContext,
   row: ThreadListRow,
-  isHostConnected: (hostId: string) => boolean,
 ): ThreadRuntimeDisplayStatus {
   const { status, environmentHostId, environmentStatus } = row;
   const preparing =
     environmentStatus === "creating" || environmentStatus === "provisioning";
   if (status === "starting" && preparing) return "provisioning";
   const hostGone =
-    environmentHostId !== null && !isHostConnected(environmentHostId);
+    environmentHostId !== null && !runners.isConnected(environmentHostId);
   return status === "active" && hostGone ? "waiting-for-host" : status;
 }
 
 function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
   const { id: threadId, providerId, status: threadStatus } = thread;
-  const { planCommand } = providerDisplay(providerId);
-  if (threadStatus !== "active" || planCommand === null) return false;
+  if (threadStatus !== "active") return false;
+  const planCommand = providerPlanCommand(db, providerId);
+  if (planCommand === null) return false;
   const types = ["turn/input/accepted"];
   const accepted = listEvents(db, { threadId, types, where: OPEN_TURN });
   const requestIds = decodeEvents(db, accepted).flatMap(({ event }) =>
@@ -103,7 +69,7 @@ function hasActivePlanTurn(db: Db, thread: ThreadListRow): boolean {
   return extractThreadTimelineActivePlanTurn(args) !== null;
 }
 
-export function threadActivities(
+function threadActivities(
   db: Db,
   threads: readonly ThreadListRow[],
 ): Map<string, ThreadActivityState> {
@@ -129,13 +95,13 @@ export function threadActivities(
 }
 
 export function toThreadListEntries(
-  deps: ThreadDisplayDeps,
+  ctx: DisplayContext,
   rows: readonly ThreadListRow[],
 ): ThreadListEntry[] {
   const threadIds = rows.map((row) => row.id);
-  const activities = threadActivities(deps.db, rows);
+  const activities = threadActivities(ctx.db, rows);
   const failedQueues = new Map(
-    listQueueCounts(deps.db, threadIds).map((queue) => [
+    listQueueCounts(ctx.db, threadIds).map((queue) => [
       queue.threadId,
       queue.failed > 0,
     ]),
@@ -147,7 +113,7 @@ export function toThreadListEntries(
     const failed = failedQueues.get(row.id);
     const queued = failed === true ? "failed" : "waiting";
     return {
-      ...toThread(row),
+      ...threadSchema.parse(row),
       activity: activities.get(row.id) ?? NO_ACTIVITY,
       queuedWork: failed === undefined ? "none" : queued,
       pinSortKey: row.pinSortKey,
@@ -159,55 +125,37 @@ export function toThreadListEntries(
       environmentIsWorktree: worktree === null ? null : worktree === 1,
       environmentWorkspaceDisplayKind: managed ? "managed-worktree" : unmanaged,
       hasPendingInteraction: row.hasPendingInteraction === 1,
-      runtime: {
-        displayStatus: threadDisplayStatus(row, deps.isHostConnected),
-      },
+      runtime: { displayStatus: threadDisplayStatus(ctx, row) },
     };
   });
 }
 
-function canRestoreEnvironment(db: Db, thread: ThreadListRow): boolean {
-  const settled = thread.status === "idle" || thread.status === "error";
-  const destroyed = thread.environmentStatus === "destroyed";
-  if (thread.archivedAt !== null || !settled || !destroyed) return false;
-  const environment = findEnvironment(db, thread.environmentId ?? "");
-  return (
-    environment?.environmentProviderId === "git-worktree" &&
-    environment.environmentProviderSelection !== null &&
-    environment.hostLifecycle === "active"
-  );
-}
-
 export function toThreadResponse(
-  deps: ThreadDisplayDeps,
+  ctx: DisplayContext,
   row: ThreadListRow,
 ): ThreadResponse {
-  const { db } = deps;
+  const { db } = ctx;
   const [counts] = activeBackgroundTaskCounts(db, [row.id]);
   const [queue] = listQueueCounts(db, [row.id]);
   return {
-    ...toThread(row),
-    runtime: { displayStatus: threadDisplayStatus(row, deps.isHostConnected) },
+    ...threadSchema.parse(row),
+    runtime: { displayStatus: threadDisplayStatus(ctx, row) },
     activeBackgroundAgentCount: counts?.activeBackgroundAgentCount ?? 0,
-    canRestoreEnvironment: canRestoreEnvironment(db, row),
-    canSpawnChild: canThreadSpawnChild(db, row.id),
+    canRestoreEnvironment: false,
+    canSpawnChild: ancestry(db, row).length < MAX_THREAD_HIERARCHY_DEPTH,
     queuedMessageCount: queue?.queued ?? 0,
   };
 }
 
-export function threadDefaultExecution(
-  thread: ThreadListRow,
-  settings: AppSettings,
-): ResolvedThreadExecutionOptions | null {
-  const model = thread.modelOverride ?? thread.model;
-  if (model === null) return null;
-  const { reasoningLevelOverride, reasoningLevel, permissionMode } = thread;
-  const tier = settings.allowFastServiceTier ? thread.serviceTier : null;
-  return resolvedThreadExecutionOptionsSchema.parse({
-    model,
-    permissionMode: permissionMode ?? "auto",
-    reasoningLevel: reasoningLevelOverride ?? reasoningLevel ?? "medium",
-    serviceTier: tier ?? "default",
-    source: "client/turn/requested",
-  });
+export function listProjectsWithThreads(
+  ctx: DisplayContext,
+  projects: Project[],
+) {
+  const { db } = ctx;
+  const entries = toThreadListEntries(ctx, listSidebarThreadRows(db));
+  return withSources(db, projects).map((project) => ({
+    ...project,
+    threads: entries.filter((thread) => thread.projectId === project.id),
+    defaultExecutionOptions: getProjectExecutionDefaults(db, project.id),
+  }));
 }

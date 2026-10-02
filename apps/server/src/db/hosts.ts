@@ -52,6 +52,11 @@ export function findHost(
   );
 }
 
+export function findHostName(db: Db, id: string): string | null {
+  const sql = "SELECT name FROM hosts WHERE id = ?";
+  return db.get<{ name: string }>(sql, id)?.name ?? null;
+}
+
 export function findEnvironmentHostId(
   db: Db,
   environmentId: string,

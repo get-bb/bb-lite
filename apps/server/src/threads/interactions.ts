@@ -134,7 +134,7 @@ export function registerProviderInteraction(
     });
     const interaction = announce(engine, out, thread, row);
     out.after(() => {
-      const response = engine.respond(thread);
+      const response = engine.respond(thread.id);
       plugins.emit("interaction.pending", { thread: response, interaction });
       notifyParentBlocked(engine, thread, interaction);
     });
@@ -329,7 +329,7 @@ function openPluginInteraction(
       payload: { kind: "plugin", title, data, presentation },
     });
     const interaction = announce(engine, out, thread, created);
-    const response = engine.respond(thread);
+    const response = engine.respond(thread.id);
     out.after(() =>
       plugins.emit("interaction.pending", { thread: response, interaction }),
     );

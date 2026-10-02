@@ -241,3 +241,32 @@ test("sidebar bootstrap always carries the personal project", async () => {
   const threads = sidebar.projects[0]?.threads.map((thread) => thread.id);
   expect(threads).toEqual(["thr_live"]);
 });
+
+test("default execution falls back to project, parent and host", async () => {
+  const { db, get } = await setup({ provider_id: "codex" });
+  const path = "/threads/thr_1/default-execution-options";
+  expect(await get(path)).toBeNull();
+  const project = {
+    model: "gpt-p",
+    reasoningLevel: "high",
+    serviceTier: "fast",
+  };
+  const defaults = { ...project, providerId: "codex", permissionMode: "full" };
+  const stored = JSON.stringify(defaults);
+  db.run("UPDATE projects SET execution_defaults = ?", stored);
+  db.run("UPDATE hosts SET max_permission_mode = 'auto'");
+  const source = "client/turn/requested";
+  const inherited = { ...project, permissionMode: "auto", source };
+  expect(await get(path)).toEqual(inherited);
+  seedThread(db, "thr_parent", { permission_mode: "accept-edits" });
+  db.run(
+    `UPDATE threads SET parent_thread_id = 'thr_parent', reasoning_level = 'low',
+       model_override = 'gpt-o', provider_id = 'claude-code'
+     WHERE id = 'thr_1'`,
+  );
+  const own = { model: "gpt-o", reasoningLevel: "low" };
+  const parented = { ...own, permissionMode: "accept-edits" };
+  expect(await get(path)).toMatchObject(parented);
+  db.run("UPDATE threads SET model_override = NULL WHERE id = 'thr_1'");
+  expect(await get(path)).toBeNull();
+});
