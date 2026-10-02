@@ -4,6 +4,8 @@ const SHELL_WRAPPER_NAMES = new Set(["sh", "bash", "zsh"]);
 
 const SHELL_SEGMENT_BREAK_TOKENS = new Set(["&&", "||", "|", ";", "\n"]);
 
+const DOUBLE_QUOTE_ESCAPABLE = new Set(["$", "`", '"', "\\", "\n"]);
+
 function unwrapQuotedShellArg(value: string): string {
   if (value.length < 2) return value;
   const quote = value[0];
@@ -15,19 +17,11 @@ function unwrapQuotedShellArg(value: string): string {
   let result = "";
   for (let i = 0; i < inner.length; i += 1) {
     const ch = inner[i];
-    if (ch === "\\" && i + 1 < inner.length) {
-      const next = inner[i + 1]!;
-      if (
-        next === "$" ||
-        next === "`" ||
-        next === '"' ||
-        next === "\\" ||
-        next === "\n"
-      ) {
-        result += next;
-        i += 1;
-        continue;
-      }
+    const next = inner[i + 1];
+    if (ch === "\\" && next !== undefined && DOUBLE_QUOTE_ESCAPABLE.has(next)) {
+      result += next;
+      i += 1;
+      continue;
     }
     result += ch;
   }
@@ -53,8 +47,6 @@ export function extractShellCommandFromString(
   }
   return unwrapQuotedShellArg(commandArg.trim());
 }
-
-const DOUBLE_QUOTE_ESCAPABLE = new Set(["$", "`", '"', "\\", "\n"]);
 
 type ShellToken = { readonly value: string; readonly quoted: boolean };
 

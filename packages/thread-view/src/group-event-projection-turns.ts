@@ -196,20 +196,14 @@ function groupMessagesIntoTurns(
       const existing = requireTurn(turnsById, turnId, orphan);
       const request = clientRequestMetaById.get(event.clientRequestId);
       if (request) {
-        const { threadId } = event;
-        updateTurnBounds(
-          existing,
-          threadId,
-          request.seq,
-          request.seq,
-          request.createdAt,
-        );
+        const { seq: requested, createdAt: at } = request;
+        updateTurnBounds(existing, event.threadId, requested, requested, at);
       }
     }
   }
   for (const message of messages) {
     const { scope, sourceSeqStart: seq, createdAt } = message;
-    const turn =
+    const draft =
       scope.kind === "turn"
         ? requireTurn(
             turnsById,
@@ -219,10 +213,10 @@ function groupMessagesIntoTurns(
         : message.kind === "interaction"
           ? findTurnRunningAtSequence(turnsById, seq)
           : null;
-    if (turn) {
-      turn.turn.messages.push(message);
+    if (draft) {
+      draft.turn.messages.push(message);
       const { threadId, sourceSeqEnd } = message;
-      updateTurnBounds(turn, threadId, seq, sourceSeqEnd, createdAt);
+      updateTurnBounds(draft, threadId, seq, sourceSeqEnd, createdAt);
     } else {
       const entry: ProjectionEntry = { kind: "projected-message", message };
       drafts.push({ seq, createdAt, entry });

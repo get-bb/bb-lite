@@ -94,13 +94,13 @@ function findFlushedItem(
   callId: string,
   workKind?: ItemMessage["workKind"],
 ): ItemMessage | undefined {
-  return state.toolActivity.flushedItems
-    .filter(
-      (item) =>
-        item.callId === callId &&
-        (workKind === undefined || item.workKind === workKind),
-    )
-    .pop();
+  const { flushedItems } = state.toolActivity;
+  for (let index = flushedItems.length - 1; index >= 0; index -= 1) {
+    const item = flushedItems[index];
+    const sameKind = workKind === undefined || item.workKind === workKind;
+    if (item.callId === callId && sameKind) return item;
+  }
+  return undefined;
 }
 
 export function flushActiveToolCell(state: ProjectionState): void {

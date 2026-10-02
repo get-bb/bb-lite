@@ -83,26 +83,21 @@ function mergeOperation(
   existing: OperationMessage,
   incoming: OperationMessage,
 ): void {
-  const previousStatus = existing.status;
-  if ((previousStatus ?? "pending") === "pending") {
-    existing.status = incoming.status ?? "pending";
+  const settles =
+    existing.status === "pending" && incoming.status !== "pending";
+  if (settles) {
+    existing.status = incoming.status;
+    existing.completedAt = incoming.completedAt ?? incoming.createdAt;
   }
-  const settled = existing.status !== "pending";
   if (existing.opType === "thread-provisioning") {
     existing.title = provisioningTitleForStatus(existing.status);
-    if ((previousStatus ?? "pending") === "pending" && settled) {
-      existing.completedAt = incoming.completedAt ?? incoming.createdAt;
-    }
     existing.transcript = mergeTranscriptEntries(
       existing.transcript,
       incoming.transcript,
     );
-  } else if (previousStatus !== existing.status) {
+  } else if (settles) {
     existing.title = incoming.title;
     existing.parentChange = incoming.parentChange;
-    if (settled) {
-      existing.completedAt = incoming.completedAt ?? incoming.createdAt;
-    }
   }
   existing.detail = mergeOperationDetail(existing.detail, incoming.detail);
 }
@@ -122,25 +117,18 @@ function mergeInteraction(
     existing.workKind === "question" &&
     incoming.workKind === "question"
   ) {
-    const { status, lifecycle, questions, answers, statusReason } = incoming;
-    Object.assign(existing, {
-      status,
-      lifecycle,
-      questions,
-      answers,
-      statusReason,
-    });
+    existing.status = incoming.status;
+    existing.lifecycle = incoming.lifecycle;
+    existing.questions = incoming.questions;
+    existing.answers = incoming.answers;
+    existing.statusReason = incoming.statusReason;
   } else if (existing.workKind === "form" && incoming.workKind === "form") {
-    const { status, lifecycle, title, statusReason } = incoming;
-    const { presentation, payload } = incoming;
-    Object.assign(existing, {
-      status,
-      lifecycle,
-      title,
-      statusReason,
-      presentation,
-      payload,
-    });
+    existing.status = incoming.status;
+    existing.lifecycle = incoming.lifecycle;
+    existing.title = incoming.title;
+    existing.statusReason = incoming.statusReason;
+    existing.presentation = incoming.presentation;
+    existing.payload = incoming.payload;
   }
 }
 
