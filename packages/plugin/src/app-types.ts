@@ -2,7 +2,6 @@ import type {
   ComponentPropsWithoutRef,
   ComponentType,
   CSSProperties,
-  PointerEvent,
   ReactNode,
 } from "react";
 import type {
@@ -112,7 +111,6 @@ export interface PluginSidebarSplitPane {
 }
 
 export interface PluginSidebarThreadSplit {
-  splitProps: { onPointerDown?: (event: PointerEvent<HTMLElement>) => void };
   isAvailable: boolean;
   layout: { panes: readonly PluginSidebarSplitPane[] } | null;
 }

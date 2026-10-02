@@ -55,7 +55,6 @@ export function useSidebarThreadSplit(
   const panes = usePaneContentSplitPanes(content);
   return useMemo<PluginSidebarThreadSplit>(
     () => ({
-      splitProps: {},
       isAvailable: content !== null,
       layout: panes === null ? null : { panes },
     }),
