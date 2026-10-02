@@ -1,14 +1,6 @@
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@bb/shared-ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import {
   ResourceDetailConfigurationSection,
@@ -39,14 +31,11 @@ import {
   type PluginListItem,
   type PluginSettingFieldDescriptor,
 } from "@/hooks/queries/plugin-settings-queries";
-import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemProviderCatalog } from "@/hooks/queries/system-queries";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { getPluginConfigurationRoutePath } from "@/lib/route-paths";
 import { PluginSlotMount } from "@/plugins/mount";
 import { usePluginSlots } from "@/plugins/registry";
-
-type SettingValue = string | number | boolean | null;
 
 function PluginSetting({
   descriptor,
@@ -62,27 +51,21 @@ function PluginSetting({
   const queryClient = useQueryClient();
   const messageId = useId();
   const [draft, setDraft] = useState<string | null>(null);
-  const [invalid, setInvalid] = useState(false);
-  const projects = useSidebarNavigation({
-    enabled: descriptor.type === "project",
-  }).data;
   const save = useMutation({
     scope: { id: `plugin-setting:${pluginId}:${settingKey}` },
-    mutationFn: (value: SettingValue) =>
+    mutationFn: (value: string | boolean) =>
       updatePluginSettings(fetch, pluginId, { [settingKey]: value }),
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
       setDraft(null);
     },
   });
-  const error = invalid
-    ? "Enter a finite number"
-    : save.isError
-      ? getMutationErrorMessage({
-          error: save.error,
-          fallbackMessage: "Could not save this setting",
-        })
-      : null;
+  const error = save.isError
+    ? getMutationErrorMessage({
+        error: save.error,
+        fallbackMessage: "Could not save this setting",
+      })
+    : null;
   const aria = {
     "aria-label": descriptor.label,
     "aria-describedby": error === null ? undefined : messageId,
@@ -92,80 +75,20 @@ function PluginSetting({
   const multiline =
     descriptor.type === "string" && descriptor.multiline === true && !secret;
   const stored = save.isPending ? save.variables : storedValue;
-  const text =
-    draft ??
-    (secret || (typeof stored !== "string" && typeof stored !== "number")
-      ? ""
-      : String(stored));
+  const text = draft ?? (secret || typeof stored !== "string" ? "" : stored);
   const textProps = {
     ...aria,
     value: text,
     onChange: (event: { target: { value: string } }) => {
       setDraft(event.target.value);
-      setInvalid(false);
       if (!save.isPending) save.reset();
     },
-    onBlur: (event: { currentTarget: HTMLElement }) => {
-      const target = event.currentTarget;
-      const badInput =
-        target instanceof HTMLInputElement && target.validity.badInput;
-      if (draft === null && !badInput) return;
-      const trimmed = (draft ?? "").trim();
-      const value: SettingValue =
-        descriptor.type !== "number"
-          ? (draft ?? "")
-          : trimmed.length === 0
-            ? null
-            : Number(trimmed);
-      if (badInput || (typeof value === "number" && !Number.isFinite(value))) {
+    onBlur: () => {
+      if (draft === null) return;
+      if (draft === (storedValue ?? null) || (secret && draft === ""))
         setDraft(null);
-        return setInvalid(true);
-      }
-      if (value === (storedValue ?? null) || (secret && value === "")) {
-        return setDraft(null);
-      }
-      save.mutate(value);
+      else save.mutate(draft);
     },
-  };
-  const picker = (
-    options: readonly { label: string; value: string }[],
-    placeholder: string,
-  ) => {
-    const value = typeof stored === "string" ? stored : "";
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full justify-between border-border/60 bg-card px-2 text-xs sm:w-44"
-            {...aria}
-          >
-            <span className="min-w-0 truncate">
-              {options.find((option) => option.value === value)?.label ??
-                (value || placeholder)}
-            </span>
-            <Icon
-              name="ChevronDown"
-              className="size-3.5 text-muted-foreground"
-            />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="min-w-[var(--radix-dropdown-menu-trigger-width)]"
-        >
-          {options.map((option) => (
-            <DropdownMenuItem
-              key={option.value}
-              onSelect={() => save.mutate(option.value)}
-            >
-              {option.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
   };
   return (
     <SettingsWithControl
@@ -187,23 +110,6 @@ function PluginSetting({
             onCheckedChange={(checked) => save.mutate(checked)}
             {...aria}
           />
-        ) : descriptor.type === "select" ? (
-          picker(
-            descriptor.options.map((option) => ({
-              label: option,
-              value: option,
-            })),
-            "Select…",
-          )
-        ) : descriptor.type === "project" ? (
-          picker(
-            projects
-              ? [projects.personalProject, ...projects.projects].map(
-                  (project) => ({ label: project.name, value: project.id }),
-                )
-              : [],
-            "Select a project…",
-          )
         ) : multiline ? (
           <Textarea
             {...textProps}
@@ -212,14 +118,6 @@ function PluginSetting({
             autoCapitalize="off"
             autoCorrect="off"
             className="max-h-96 min-h-32 w-full resize-y overflow-y-auto font-mono text-xs field-sizing-content"
-          />
-        ) : descriptor.type === "number" ? (
-          <Input
-            {...textProps}
-            type="number"
-            inputMode="decimal"
-            step="any"
-            className="h-7 w-full text-xs sm:w-64"
           />
         ) : (
           <Input

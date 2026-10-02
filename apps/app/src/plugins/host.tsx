@@ -14,11 +14,6 @@ import type {
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
-import { PluginNewThreadComposer } from "@/components/plugin/PluginNewThreadComposer";
-import {
-  PluginPermissionModePicker,
-  PluginProviderModelPicker,
-} from "@/components/plugin/PluginPickers";
 import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
 import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
 import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
@@ -121,9 +116,10 @@ function useSettings(): PluginSettingsState {
   const stored = query.data?.values;
   const values = useMemo(() => {
     if (stored === undefined) return undefined;
-    const plain: Record<string, string | number | boolean> = {};
+    const plain: Record<string, string | boolean> = {};
     for (const [key, value] of Object.entries(stored)) {
-      if (typeof value !== "object") plain[key] = value;
+      if (typeof value === "string" || typeof value === "boolean")
+        plain[key] = value;
     }
     return plain;
   }, [stored]);
@@ -244,9 +240,6 @@ export const pluginAppHost: PluginAppHost = {
   useQuestionFormHost,
   SidebarNavigationIcon,
   ThreadChat: PluginThreadChat,
-  NewThreadComposer: PluginNewThreadComposer,
-  ProviderModelPicker: PluginProviderModelPicker,
-  PermissionModePicker: PluginPermissionModePicker,
   Icon,
   ProviderIcon,
   UrlLink: PluginUrlLink,

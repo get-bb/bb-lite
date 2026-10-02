@@ -118,9 +118,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
     if (!plugin.enabled || app?.kind !== "external") return;
     if (externalHashes.get(plugin.id) === app.hash) return;
     try {
-      const module: { default?: unknown } = await import(
-        /* @vite-ignore */ app.jsUrl
-      );
+      const module: { default?: unknown } = await import(app.jsUrl);
       if (!isPluginAppDefinition(module.default)) {
         throw new Error("the default export is not definePluginApp(...)");
       }
