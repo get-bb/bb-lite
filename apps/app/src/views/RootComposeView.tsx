@@ -1,8 +1,6 @@
 import {
   readThreadCreationPlacement,
   DEFAULT_THREAD_CREATION_PLACEMENT,
-} from "@/lib/thread-creation-placement";
-import {
   useRootComposePlacement,
   useRootComposeProjectId,
   useSetRootComposeProjectId,

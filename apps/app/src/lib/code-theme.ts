@@ -37,10 +37,6 @@ export function previewResolvedCodeTheme(
   publish();
 }
 
-export function useResolvedCodeTheme(): ResolvedCodeTheme {
-  return useSyncExternalStore(subscribe, getResolvedCodeTheme);
-}
-
 export function useResolvedCodeThemePair(): { dark: string; light: string } {
   return useSyncExternalStore(subscribe, () => pair);
 }

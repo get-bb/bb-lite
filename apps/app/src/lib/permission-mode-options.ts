@@ -1,7 +1,7 @@
 import type { PermissionMode } from "@bb/domain";
 import type { IconName } from "@bb/shared-ui/icon";
 
-export interface PermissionModeOption {
+interface PermissionModeOption {
   value: PermissionMode;
   label: string;
   description: string;

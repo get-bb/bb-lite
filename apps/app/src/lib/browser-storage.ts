@@ -1,6 +1,6 @@
 import { atomWithStorage } from "jotai/utils";
 
-export interface SyncStorage<T> {
+interface SyncStorage<T> {
   getItem: (key: string, initialValue: T) => T;
   setItem: (key: string, newValue: T) => void;
   removeItem: (key: string) => void;

@@ -7,7 +7,7 @@ import { useDebouncedValue } from "./useDebouncedValue";
 
 export const PATH_SUGGESTION_DEBOUNCE_MS = 120;
 
-export interface PathSuggestion {
+interface PathSuggestion {
   source: "workspace";
   entryKind: WorkspacePathEntry["kind"];
   path: string;
