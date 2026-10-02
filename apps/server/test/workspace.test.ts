@@ -43,9 +43,6 @@ it("reports status, diffs and commits for a checkout with mixed changes", async 
   const before = { content: "export const a = 1;\n", sizeBytes: 20 };
   const old = `${env}/diff/file?${uncommitted}&side=old&path=src/a.ts`;
   await matches(old, before);
-  const whole = await read(`${env}/diff?${uncommitted}`);
-  expect(JSON.stringify(whole)).toContain("+untracked");
-
   const committed = await send(`${env}/actions`, commit);
   const made = { ok: true, commitSubject: "bb: automated commit" };
   expect(await committed.json()).toMatchObject(made);
@@ -198,7 +195,7 @@ it("answers with outcomes when git, a machine or a folder is missing", async () 
   await matches("/environments/env_gone/status", absent);
   const skipped = { outcome: "not_applicable", reason: "non_git_environment" };
   await matches("/environments/env_plain/status", skipped);
-  await matches(`/environments/env_plain/diff?${uncommitted}`, skipped);
+  await matches(`/environments/env_plain/diff/files?${uncommitted}`, skipped);
 
   const refused = await send("/environments/env_away/actions", commit);
   const details = { kind: "workspace_unavailable", failure };

@@ -180,13 +180,6 @@ export const systemConfigResponseSchema = z.object({
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
 
-export const systemAttentionResponseSchema = z.object({
-  hasAttention: z.boolean(),
-});
-export type SystemAttentionResponse = z.infer<
-  typeof systemAttentionResponseSchema
->;
-
 const systemEnvironmentProviderAvailabilitySchema = z.discriminatedUnion(
   "status",
   [

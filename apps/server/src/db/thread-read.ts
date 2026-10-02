@@ -203,19 +203,6 @@ export function listThreadMentionRows(
   );
 }
 
-export function hasThreadAttention(db: Db): boolean {
-  const row = db.get(
-    `SELECT 1 FROM threads
-     WHERE deleted_at IS NULL AND archived_at IS NULL
-       AND visibility = 'visible'
-       AND (last_read_at IS NULL OR last_read_at < latest_attention_at
-         OR EXISTS (SELECT 1 FROM pending_interactions AS p
-           WHERE p.thread_id = threads.id AND p.status = 'pending'))
-     LIMIT 1`,
-  );
-  return row !== undefined;
-}
-
 export function listQueueCounts(db: Db, threadIds: readonly string[]) {
   return db.all<{ threadId: string; queued: number; failed: number }>(
     `SELECT thread_id, COUNT(id) AS queued, COUNT(failure_reason) AS failed

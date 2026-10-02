@@ -79,7 +79,6 @@ import type {
   EnvironmentDiffPatchRequest,
   EnvironmentDiffPatchResponse,
   EnvironmentDiffQuery,
-  EnvironmentDiffResponse,
   EnvironmentPathsQuery,
   EnvironmentStatusQuery,
   EnvironmentStatusResponse,
@@ -127,7 +126,6 @@ import type {
   SendQueuedMessageRequest,
   SendQueuedMessageResponse,
   SidebarBootstrapResponse,
-  SystemAttentionResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
@@ -698,14 +696,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<EnvironmentStatusResponse>(),
     }),
-    diff: defineRoute({
-      path: "/environments/:id/diff",
-      method: "get",
-      request: queryRequest<PathId, EnvironmentDiffQuery>(
-        environmentDiffQuerySchema,
-      ),
-      response: jsonResponse<EnvironmentDiffResponse>(),
-    }),
     diffFiles: defineRoute({
       path: "/environments/:id/diff/files",
       method: "get",
@@ -1229,12 +1219,6 @@ export const publicApiRoutes = {
         machineEnvironmentReplaceSchema,
       ),
       response: jsonResponse<MachineEnvironmentList>(),
-    }),
-    attention: defineRoute({
-      path: "/system/attention",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<SystemAttentionResponse>(),
     }),
     config: defineRoute({
       path: "/system/config",

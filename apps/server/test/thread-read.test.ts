@@ -118,7 +118,7 @@ test("starts after the last completed context clear", async () => {
   expect(previews).toEqual(["question 2", "answer 2"]);
 });
 
-test("list entries carry display status, queue and attention", async () => {
+test("list entries carry display status and queue state", async () => {
   const { db, get } = await setup({ status: "active" });
   const at = { created_at: 1, updated_at: 1 };
   insertRow(db, "hosts", { id: "host_away", name: "away", ...at });
@@ -129,7 +129,6 @@ test("list entries carry display status, queue and attention", async () => {
   seedThread(db, "thr_2", { status: "active", environment_id: "env_away" });
   seedThread(db, "thr_3", { status: "starting", environment_id: "env_new" });
   seedThread(db, "thr_4", {});
-  expect(await get("/system/attention")).toEqual({ hasAttention: false });
   const execution = {
     model: "m",
     reasoning_level: "low",
@@ -158,7 +157,6 @@ test("list entries carry display status, queue and attention", async () => {
     ["thr_3", "provisioning", "none", false],
     ["thr_4", "idle", "failed", false],
   ]);
-  expect(await get("/system/attention")).toEqual({ hasAttention: true });
   expect(await get("/threads/count?groupBy=host")).toMatchObject({ total: 4 });
 });
 

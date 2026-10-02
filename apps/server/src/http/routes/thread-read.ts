@@ -84,7 +84,7 @@ export function registerThreadReadRoutes(
 ): void {
   const { get, post } = typedApi(app);
   const { db } = ctx;
-  const { threads, projects, system } = publicApiRoutes;
+  const { threads, projects } = publicApiRoutes;
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
@@ -175,10 +175,6 @@ export function registerThreadReadRoutes(
     const { id: projectId } = requireProject(db, c.req.param("id"));
     return c.json(promptHistory({ projectId }, query?.limit, []));
   });
-
-  get(system.attention, (c) =>
-    c.json({ hasAttention: store.hasThreadAttention(db) }),
-  );
 
   get(threads.list, (c, query = {}) => {
     const { sectionId } = query;

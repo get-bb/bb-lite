@@ -91,20 +91,6 @@ export function registerEnvironmentRoutes(
     return c.json(await read);
   });
 
-  get(routes.diff, async (c, query) => {
-    const target = diffTarget(query);
-    const id = c.req.param("id");
-    const read = readGitWorkspace(
-      ctx,
-      id,
-      "diff",
-      async (runner, { path }) => ({
-        diff: await runner.gitDiff({ path, target }),
-      }),
-    );
-    return c.json(await read);
-  });
-
   get(routes.diffFiles, async (c, query) => {
     const target = diffTarget(query);
     const id = c.req.param("id");

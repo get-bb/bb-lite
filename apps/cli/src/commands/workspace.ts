@@ -13,12 +13,6 @@ import {
 } from "../call.js";
 import { usageError, type Run } from "../engine.js";
 
-const DIFF_TARGETS = [
-  "uncommitted",
-  "branch_committed",
-  "all",
-  "commit",
-] as const;
 const ENVIRONMENT_STATUSES = ["ready", "destroyed"] as const;
 const MANUAL_MACHINE_PROVIDER = "manual";
 const LOCAL_PATH = "local_path";
@@ -129,45 +123,6 @@ export const envStatus: Run = async (c) => {
   const environmentId = id(c, "id");
   const mergeBaseBranch = c.flag("merge-base-branch");
   c.out(await c.sdk.environments.status({ environmentId, mergeBaseBranch }));
-};
-
-async function requestDiff(c: Call) {
-  const environmentId = id(c, "id");
-  const target = c.choice("target", DIFF_TARGETS) ?? "uncommitted";
-  const { environments } = c.sdk;
-  if (target === "uncommitted") {
-    return environments.diff({ environmentId, target });
-  }
-  if (target === "commit") {
-    return environments.diff({
-      environmentId,
-      target,
-      sha: required(c, "sha"),
-    });
-  }
-  const found = await environments.get({ environmentId });
-  const mergeBaseBranch =
-    c.flag("merge-base-branch") ??
-    found.mergeBaseBranch ??
-    found.baseBranch ??
-    found.defaultBranch;
-  if (mergeBaseBranch === null) {
-    throw usageError("No merge base is known; pass --merge-base-branch.");
-  }
-  return environments.diff({ environmentId, target, mergeBaseBranch });
-}
-
-export const envDiff: Run = async (c) => {
-  const result = await requestDiff(c);
-  if (result.outcome === "available") {
-    const { files, shortstat, diff, truncated } = result.diff;
-    const cut = truncated ? "\n(diff truncated)" : "";
-    const summary = `${files.trimEnd()}\n${shortstat.trim()}`.trim();
-    return c.out(result, `${summary}\n\n${diff}${cut}`);
-  }
-  const unavailable = result.outcome === "unavailable";
-  const reason = unavailable ? result.failure.message : result.message;
-  c.out(result, `Diff: ${reason}`);
 };
 
 export const envCommit: Run = async (c) => {
