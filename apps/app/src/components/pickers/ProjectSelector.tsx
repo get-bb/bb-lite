@@ -29,35 +29,21 @@ export interface ProjectSelectorCreateProjectConfig {
   isCreating?: boolean;
 }
 
-interface ProjectSelectorProps {
-  projects: readonly { id: string; name: string }[];
-  value: string | null;
-  onChange: (projectId: string | null) => void;
-  allowNoProject?: boolean;
-  allProjectsValue?: string;
-  variant?: "ghost" | "outline";
-  createProject?: ProjectSelectorCreateProjectConfig;
-  disabled?: boolean;
-  isLoading?: boolean;
-  showChevronWhenDisabled?: boolean;
-  className?: string;
-  modal?: boolean;
-}
-
 export function ProjectSelector({
   projects,
   value,
   onChange,
-  allowNoProject = false,
-  allProjectsValue,
-  variant = "ghost",
   createProject,
-  disabled: disabledProp = false,
-  isLoading = false,
-  showChevronWhenDisabled = false,
-  className,
-  modal = true,
-}: ProjectSelectorProps) {
+  disabled: disabledProp,
+  isLoading,
+}: {
+  projects: readonly { id: string; name: string }[];
+  value: string | null;
+  onChange: (projectId: string | null) => void;
+  createProject: ProjectSelectorCreateProjectConfig;
+  disabled: boolean;
+  isLoading: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedValue, setHighlightedValue] = useState(NO_HIGHLIGHT_VALUE);
@@ -80,33 +66,10 @@ export function ProjectSelector({
         getLabel: (project) => project.name,
       })
     : projects;
-  const selected = value !== null ? projects.find((p) => p.id === value) : null;
-  const allProjectsSelected =
-    allProjectsValue !== undefined && value === allProjectsValue;
-  const fallback =
-    !allowNoProject && !allProjectsSelected && !selected ? projects[0] : null;
-  const noProjectSelected = allowNoProject && value === null;
+  const selected = projects.find((project) => project.id === value);
   const triggerLabel = isLoading
     ? "Loading projects…"
-    : (selected?.name ??
-      fallback?.name ??
-      (allProjectsSelected ? "All projects" : undefined) ??
-      (noProjectSelected ? "No project" : "Work in a project"));
-  const compactTriggerLabel = isLoading
-    ? "Loading…"
-    : (selected?.name ??
-      fallback?.name ??
-      (allProjectsSelected ? "All projects" : "No project"));
-  const triggerIcon =
-    isLoading || selected || fallback || allProjectsSelected
-      ? "Folder"
-      : noProjectSelected
-        ? "FolderMinus"
-        : "FolderPlus";
-  const hasActions =
-    createProject !== undefined ||
-    allowNoProject ||
-    allProjectsValue !== undefined;
+    : (selected?.name ?? (value === null ? "No project" : "Work in a project"));
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     setHighlightedValue(NO_HIGHLIGHT_VALUE);
@@ -118,11 +81,11 @@ export function ProjectSelector({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange} modal={modal}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal>
       <PopoverTrigger asChild disabled={disabled}>
         <Button
           type="button"
-          variant={variant}
+          variant="ghost"
           size="sm"
           aria-label={`Project: ${triggerLabel}`}
           aria-busy={isLoading || undefined}
@@ -130,15 +93,21 @@ export function ProjectSelector({
           data-promptbox-project-control=""
           className={cn(
             OPTION_BASE_CLASS_NAME,
-            variant === "ghost" && !disabled && OPTION_INTERACTIVE_CLASS_NAME,
+            !disabled && OPTION_INTERACTIVE_CLASS_NAME,
             disabled && "cursor-default disabled:opacity-100",
-            variant === "ghost" && OPTION_MUTED_CLASS_NAME,
-            className,
+            OPTION_MUTED_CLASS_NAME,
+            "shrink-0",
           )}
         >
           <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
             <Icon
-              name={triggerIcon}
+              name={
+                isLoading || selected
+                  ? "Folder"
+                  : value === null
+                    ? "FolderMinus"
+                    : "FolderPlus"
+              }
               className="size-3.5 shrink-0"
               aria-hidden
             />
@@ -146,16 +115,14 @@ export function ProjectSelector({
               {triggerLabel}
             </span>
             <span className="min-w-0 truncate" data-promptbox-compact-label="">
-              {compactTriggerLabel}
+              {isLoading ? "Loading…" : (selected?.name ?? "No project")}
             </span>
           </span>
-          {disabled && !showChevronWhenDisabled ? null : (
-            <Icon
-              name="ChevronDown"
-              className="size-3.5 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-          )}
+          <Icon
+            name="ChevronDown"
+            className="size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -230,74 +197,50 @@ export function ProjectSelector({
                 </div>
               </CommandGroup>
             ) : null}
-            {hasActions ? (
-              <div className="shrink-0">
-                {projects.length > 0 ? <CommandSeparator /> : null}
-                <CommandGroup
-                  heading={projects.length === 0 ? "Project" : undefined}
+            <div className="shrink-0">
+              {projects.length > 0 ? <CommandSeparator /> : null}
+              <CommandGroup
+                heading={projects.length === 0 ? "Project" : undefined}
+              >
+                <CommandItem
+                  disabled={createProject.disabled}
+                  value="new-project"
+                  onSelect={() => {
+                    createProject.onCreate();
+                    handleOpenChange(false);
+                  }}
+                  className={PROJECT_PICKER_ITEM_CLASS_NAME}
                 >
-                  {allProjectsValue !== undefined ? (
-                    <CommandItem
-                      value={allProjectsValue}
-                      aria-current={allProjectsSelected ? "true" : undefined}
-                      onSelect={() => selectProject(allProjectsValue)}
-                      className={PROJECT_PICKER_ITEM_CLASS_NAME}
-                    >
-                      <Icon
-                        name="Folder"
-                        className="text-muted-foreground"
-                        aria-hidden
-                      />
-                      <span className="min-w-0 flex-1">All projects</span>
-                      {allProjectsSelected ? (
-                        <Icon name="Check" aria-hidden />
-                      ) : null}
-                    </CommandItem>
-                  ) : null}
-                  {createProject ? (
-                    <CommandItem
-                      disabled={createProject.disabled}
-                      value="new-project"
-                      onSelect={() => {
-                        createProject.onCreate();
-                        handleOpenChange(false);
-                      }}
-                      className={PROJECT_PICKER_ITEM_CLASS_NAME}
-                    >
-                      <Icon
-                        name="FolderPlus"
-                        className="size-4 text-muted-foreground"
-                        aria-hidden
-                      />
-                      {createProject.isCreating ? "Creating..." : "New project"}
-                    </CommandItem>
-                  ) : null}
-                  {allowNoProject ? (
-                    <CommandItem
-                      value="no-project"
-                      aria-current={value === null ? "true" : undefined}
-                      onSelect={() => selectProject(null)}
-                      className={PROJECT_PICKER_ITEM_CLASS_NAME}
-                    >
-                      <Icon
-                        name="FolderMinus"
-                        className="size-4 text-muted-foreground"
-                        aria-hidden
-                      />
-                      Don&apos;t work in a project
-                      <Icon
-                        name="Check"
-                        className={cn(
-                          "ml-auto size-4",
-                          value === null ? "opacity-100" : "opacity-0",
-                        )}
-                        aria-hidden
-                      />
-                    </CommandItem>
-                  ) : null}
-                </CommandGroup>
-              </div>
-            ) : null}
+                  <Icon
+                    name="FolderPlus"
+                    className="size-4 text-muted-foreground"
+                    aria-hidden
+                  />
+                  {createProject.isCreating ? "Creating..." : "New project"}
+                </CommandItem>
+                <CommandItem
+                  value="no-project"
+                  aria-current={value === null ? "true" : undefined}
+                  onSelect={() => selectProject(null)}
+                  className={PROJECT_PICKER_ITEM_CLASS_NAME}
+                >
+                  <Icon
+                    name="FolderMinus"
+                    className="size-4 text-muted-foreground"
+                    aria-hidden
+                  />
+                  Don&apos;t work in a project
+                  <Icon
+                    name="Check"
+                    className={cn(
+                      "ml-auto size-4",
+                      value === null ? "opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden
+                  />
+                </CommandItem>
+              </CommandGroup>
+            </div>
           </CommandList>
         </Command>
       </PopoverContent>

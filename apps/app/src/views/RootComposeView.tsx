@@ -8,13 +8,13 @@ import {
   useSetRootComposeProjectId,
 } from "@/lib/root-compose-selection";
 import { useInitialPromptDraft } from "@/components/promptbox/mentions/initial-prompt-draft";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useNewThreadComposer } from "@/components/promptbox/NewThreadComposer";
 import {
-  NewThreadComposer,
-  type NewThreadComposerState,
-} from "@/components/promptbox/NewThreadComposer";
-import { PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID } from "@bb/client-core";
+  PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
+  type PromptDraftState,
+} from "@bb/client-core";
 import {
   encodeProviderValue,
   encodeReuseValue,
@@ -85,55 +85,15 @@ export function LegacyProjectComposeRedirect({
 }
 
 export function RootComposeView() {
-  const { navigateInPane } = usePaneContext();
+  const paneContext = usePaneContext();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [rootComposeProjectId, setRootComposeProjectId] =
     useRootComposeProjectId();
   const createThread = useCreateThread();
   const [placement, setPlacement] = useRootComposePlacement();
   const [navigateToThreadAfterCreate] =
     useNavigateToThreadAfterCreatePreference();
-
-  return (
-    <NewThreadComposer
-      projectId={rootComposeProjectId}
-      onProjectChange={setRootComposeProjectId}
-      draftStorage={{ kind: "new-thread" }}
-      selectionScope="new-thread"
-      onSubmit={async (request) => {
-        const thread = await createThread.mutateAsync({
-          ...request,
-          ...placement,
-        });
-        setPlacement(DEFAULT_THREAD_CREATION_PLACEMENT);
-        if (navigateToThreadAfterCreate) {
-          navigateInPane({ projectId: thread.projectId, threadId: thread.id });
-        }
-      }}
-    >
-      {(composer) => (
-        <RootComposeSurface
-          composer={composer}
-          rootComposeProjectId={rootComposeProjectId}
-          setRootComposeProjectId={setRootComposeProjectId}
-        />
-      )}
-    </NewThreadComposer>
-  );
-}
-
-function RootComposeSurface({
-  composer,
-  rootComposeProjectId,
-  setRootComposeProjectId,
-}: {
-  composer: NewThreadComposerState;
-  rootComposeProjectId: string;
-  setRootComposeProjectId: (projectId: string) => void;
-}) {
-  const paneContext = usePaneContext();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [, setPlacement] = useRootComposePlacement();
   const quickCreateProject = useQuickCreateProjectController();
   const {
     projectId,
@@ -142,7 +102,26 @@ function RootComposeSurface({
     promptDraft,
     focusPromptBox,
     selectEnvironment,
-  } = composer;
+    environmentProviderId,
+    sidebarNavigationError,
+    renderPromptBox,
+  } = useNewThreadComposer({
+    projectId: rootComposeProjectId,
+    onProjectChange: setRootComposeProjectId,
+    onSubmit: async (request) => {
+      const thread = await createThread.mutateAsync({
+        ...request,
+        ...placement,
+      });
+      setPlacement(DEFAULT_THREAD_CREATION_PLACEMENT);
+      if (navigateToThreadAfterCreate) {
+        paneContext.navigateInPane({
+          projectId: thread.projectId,
+          threadId: thread.id,
+        });
+      }
+    },
+  });
   const [startedComposing, setStartedComposing] = useState(() =>
     hasFocusPromptState(location.state),
   );
@@ -150,9 +129,9 @@ function RootComposeSurface({
     useState<ProjectMachineSetupDialogTarget | null>(null);
   const showEmptyWelcome =
     !startedComposing && projects !== undefined && projects.length === 0;
-  const focusSoon = () => {
+  const focusSoon = useEffectEvent(() => {
     window.requestAnimationFrame(focusPromptBox);
-  };
+  });
 
   useEffect(() => {
     if (projectId !== rootComposeProjectId) setRootComposeProjectId(projectId);
@@ -174,44 +153,54 @@ function RootComposeSurface({
     searchPrompt?.slice(0, INITIAL_PROMPT_MAX_LENGTH) ?? null,
   );
   const stateDraft = useInitialPromptDraft(statePrompt);
-  useEffect(() => {
-    if (searchPrompt === null || searchDraft === undefined) return;
+  const applySearchDraft = useEffectEvent((draft: PromptDraftState) => {
     setStartedComposing(true);
-    promptDraft.setDraft(searchDraft);
+    promptDraft.setDraft(draft);
     searchParams.delete(INITIAL_PROMPT_SEARCH_PARAM);
     const rest = searchParams.toString();
     navigate(getRootComposeRoutePath() + (rest ? `?${rest}` : ""), {
       replace: true,
       state: location.state,
     });
-  }, [searchPrompt, searchDraft]);
+  });
   useEffect(() => {
-    const state: unknown = location.state;
-    const targetPlacement = readThreadCreationPlacement(state);
-    const reuseEnvironmentId = readStateString(state, "reuseEnvironmentId");
-    const focusPrompt = hasFocusPromptState(state) || statePrompt !== null;
-    if (
-      (statePrompt !== null && stateDraft === undefined) ||
-      (targetPlacement === null && reuseEnvironmentId === null && !focusPrompt)
-    ) {
-      return;
+    if (searchPrompt !== null && searchDraft !== undefined) {
+      applySearchDraft(searchDraft);
     }
-    if (stateDraft !== undefined) promptDraft.restoreIfEmpty(stateDraft);
-    setPlacement(targetPlacement ?? DEFAULT_THREAD_CREATION_PLACEMENT);
-    if (reuseEnvironmentId !== null) {
-      selectEnvironment(encodeReuseValue(reuseEnvironmentId));
-    }
-    if (focusPrompt) {
-      setStartedComposing(true);
-      focusSoon();
-    }
-    navigate(getRootComposeRoutePath() + location.search, {
-      replace: true,
-      state: null,
-    });
+  }, [searchPrompt, searchDraft]);
+  const applyLocationState = useEffectEvent(
+    (state: unknown, draft: PromptDraftState | undefined) => {
+      const targetPlacement = readThreadCreationPlacement(state);
+      const reuseEnvironmentId = readStateString(state, "reuseEnvironmentId");
+      const focusPrompt = hasFocusPromptState(state) || statePrompt !== null;
+      if (
+        (statePrompt !== null && draft === undefined) ||
+        (targetPlacement === null &&
+          reuseEnvironmentId === null &&
+          !focusPrompt)
+      ) {
+        return;
+      }
+      if (draft !== undefined) promptDraft.restoreIfEmpty(draft);
+      setPlacement(targetPlacement ?? DEFAULT_THREAD_CREATION_PLACEMENT);
+      if (reuseEnvironmentId !== null) {
+        selectEnvironment(encodeReuseValue(reuseEnvironmentId));
+      }
+      if (focusPrompt) {
+        setStartedComposing(true);
+        focusSoon();
+      }
+      navigate(getRootComposeRoutePath() + location.search, {
+        replace: true,
+        state: null,
+      });
+    },
+  );
+  useEffect(() => {
+    applyLocationState(location.state, stateDraft);
   }, [location.state, stateDraft]);
 
-  if (!projects && composer.sidebarNavigationError) {
+  if (!projects && sidebarNavigationError) {
     return (
       <PageShell contentClassName="min-h-full items-center justify-center">
         <p className="py-12 text-center text-sm text-destructive">
@@ -239,8 +228,7 @@ function RootComposeSurface({
           setMachineSetupTarget(null);
           selectEnvironment(
             encodeProviderValue(
-              composer.environmentProviderId ??
-                PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
+              environmentProviderId ?? PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
             ),
             hostId,
           );
@@ -277,10 +265,7 @@ function RootComposeSurface({
                     addProjectDisabled={createProject.disabled}
                   />
                 ) : (
-                  composer.renderPromptBox({
-                    id: "root-compose-prompt",
-                    autoFocus: true,
-                    mentionMenuPlacement: "bottom",
+                  renderPromptBox({
                     createProject,
                     onRequestMachineSetup: (host) => {
                       if (!currentProject) return;

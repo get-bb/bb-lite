@@ -8,19 +8,11 @@ import type {
 import type {
   EnvironmentWorkspaceDisplayKind,
   JsonValue,
-  PermissionMode,
-  PromptInput,
   ProviderInfo,
-  ReasoningLevel,
-  ServiceTier,
   ThreadQueuedWork,
   ThreadRuntimeDisplayStatus,
   ThreadStatus,
 } from "@bb/domain";
-import type {
-  CreateExecutionInputSources,
-  CreateThreadEnvironmentArgs,
-} from "@bb/server-contract";
 
 export interface PluginNavPanelProps {
   subPath: string;
@@ -473,16 +465,4 @@ export interface ThreadChatProps {
   focusRequest?: number;
   className?: string;
   leadingContent?: ReactNode;
-}
-
-export interface NewThreadRequest {
-  projectId: string;
-  providerId: string;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  permissionMode: PermissionMode;
-  serviceTier?: ServiceTier;
-  executionInputSources: CreateExecutionInputSources;
-  environment: CreateThreadEnvironmentArgs;
-  input: PromptInput[];
 }

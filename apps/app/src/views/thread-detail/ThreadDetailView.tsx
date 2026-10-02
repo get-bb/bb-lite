@@ -1,5 +1,4 @@
 import { appendQuoteAndAttachmentsToDraft } from "@bb/client-core";
-import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 import {
   useCallback,
   useEffect,
@@ -58,7 +57,6 @@ import {
 } from "../../hooks/queries/thread-queries";
 import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
-import { subscribeComposerFocusRequests } from "@/lib/composer-focus-requests";
 import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialog";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
@@ -667,29 +665,18 @@ export function ThreadDetailView(
     [selectionPromptDraftProjectId, selectionPromptDraftThreadId],
   );
   const [composerFocusRequestNonce, setComposerFocusRequestNonce] = useState(0);
-  useEffect(
-    () =>
-      subscribeComposerFocusRequests(selectionPromptDraft.storageKey, () =>
-        setComposerFocusRequestNonce((nonce) => nonce + 1),
-      ),
-    [selectionPromptDraft.storageKey],
-  );
-  const composerActions = useMemo(
-    () =>
-      createCoreComposerActions({
-        ...selectionPromptDraft,
-        focus: () => setComposerFocusRequestNonce((nonce) => nonce + 1),
-      }),
-    [selectionPromptDraft],
-  );
   const handleSelectionAddToChat = useCallback(
     (text: string, attachments?: readonly PromptDraftAttachment[]) => {
-      composerActions.replace((current) =>
-        appendQuoteAndAttachmentsToDraft(current, text, attachments ?? []),
+      selectionPromptDraft.setDraft(
+        appendQuoteAndAttachmentsToDraft(
+          selectionPromptDraft.getCurrent(),
+          text,
+          attachments ?? [],
+        ),
       );
-      composerActions.focus();
+      setComposerFocusRequestNonce((nonce) => nonce + 1);
     },
-    [composerActions],
+    [selectionPromptDraft],
   );
   const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
   const canCreateTerminal =

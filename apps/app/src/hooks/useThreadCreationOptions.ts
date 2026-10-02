@@ -53,7 +53,7 @@ interface ThreadCreationSelections {
 
 type ThreadCreationField = keyof ThreadCreationSelections;
 
-export interface UseThreadCreationOptionsArgs {
+interface UseThreadCreationOptionsArgs {
   enabled?: boolean;
   scope?: "new-thread" | "component-local";
   environmentId?: string;
@@ -67,7 +67,7 @@ export interface UseThreadCreationOptionsArgs {
   initialPermissionMode?: PermissionMode;
 }
 
-export function formatModelLabel(value: string): string {
+function formatModelLabel(value: string): string {
   return value
     .split("-")
     .map((part) =>
@@ -352,11 +352,6 @@ export function useThreadCreationOptions({
     Object.entries(sources).filter(([, source]) => source !== undefined),
   ) as CreateExecutionInputSources;
 
-  const setServiceTier = (value: ServiceTier | undefined) => {
-    if (usesStored) setStoredServiceTier(value ?? "");
-    touch(["serviceTier"], { serviceTier: value });
-  };
-  const serviceTierFastLabel = fastServiceTierLabel(provider);
   const execution: ExecutionControlsProps = {
     provider: {
       options: providers.map((candidate): ProviderPickerOption => ({
@@ -415,9 +410,12 @@ export function useThreadCreationOptions({
     },
     serviceTier: {
       value: serviceTier,
-      onChange: setServiceTier,
+      onChange: (value) => {
+        if (usesStored) setStoredServiceTier(value ?? "");
+        touch(["serviceTier"], { serviceTier: value });
+      },
       supported: supportsServiceTier,
-      fastLabel: serviceTierFastLabel,
+      fastLabel: fastServiceTierLabel(provider),
     },
     reasoning: {
       value: reasoningLevel,
@@ -442,32 +440,15 @@ export function useThreadCreationOptions({
     execution,
     permission,
     selectedProviderId: providerId,
-    setSelectedProviderId: execution.provider.onChange,
-    providerOptions: execution.provider.options,
-    hasMultipleProviders: providers.length >= 2,
     selectedProviderDisplayName: provider?.displayName ?? providerId,
     selectedProviderComposerActions: provider?.composerActions ?? [],
     selectedModel,
-    setSelectedModel: execution.model.onChange,
     serviceTier,
-    setServiceTier,
     reasoningLevel,
-    setReasoningLevel: execution.reasoning.onChange,
-    permissionMode,
-    setPermissionMode: permission.onChange,
     activeModel,
-    modelOptions,
-    moreModelOptions,
     isLoadingModels: execution.model.isLoading,
-    modelLoadFailed: execution.model.loadFailed,
     modelLoadError,
-    modelCatalogIsVerified,
-    reasoningOptions,
-    permissionModeOptions,
-    supportsPermissionModeSelection: permission.supported,
-    permissionModeIsVerified,
     supportsServiceTier,
-    serviceTierFastLabel,
     executionInputSources,
   };
 }
