@@ -4,7 +4,6 @@ import {
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type Ref,
 } from "react";
 import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { Icon } from "@bb/shared-ui/icon";
@@ -32,10 +31,8 @@ export function PaletteShell({
   idPrefix,
   inputDescription,
   inputLabel,
-  inputRef,
   listLabel,
   modeLabel,
-  inputAccessory,
   onActiveIndexChange,
   onChoose,
   onExitMode,
@@ -49,10 +46,8 @@ export function PaletteShell({
   idPrefix: string;
   inputDescription: string;
   inputLabel: string;
-  inputRef?: Ref<HTMLInputElement>;
   listLabel: string;
   modeLabel?: string;
-  inputAccessory?: ReactNode;
   onActiveIndexChange: (index: number) => void;
   onChoose: (index: number, withModifier: boolean) => void;
   onExitMode?: () => void;
@@ -160,7 +155,6 @@ export function PaletteShell({
             </span>
           )}
           <input
-            ref={inputRef}
             autoFocus
             role="combobox"
             aria-expanded
@@ -184,7 +178,6 @@ export function PaletteShell({
           <span id={inputDescriptionId} className="sr-only">
             {inputDescription}
           </span>
-          {inputAccessory}
         </div>
       </div>
       <div
