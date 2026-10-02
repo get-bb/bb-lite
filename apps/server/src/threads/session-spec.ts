@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { DynamicTool } from "@bb/domain";
 import type { ThreadContext } from "@bb/plugin";
 import type { SessionSpec } from "@bb/runner";
@@ -129,6 +130,9 @@ export async function buildSessionSpec(
       BB_PROJECT_ID: thread.projectId,
       BB_ENVIRONMENT_ID: environment.id,
     },
-    skillDirs: hostId === ctx.config.hostId ? ctx.plugins.skillDirs() : [],
+    skillDirs:
+      hostId === ctx.config.hostId
+        ? [join(ctx.config.cliDir, "skills"), ...ctx.plugins.skillDirs()]
+        : [],
   };
 }

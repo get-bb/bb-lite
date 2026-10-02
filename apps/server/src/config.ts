@@ -11,6 +11,7 @@ export interface ServerConfig {
   port: number;
   bindHost: string;
   appDir: string;
+  cliDir: string;
   version: string;
   hostId: string;
   logLevel: LogLevel;
@@ -21,6 +22,7 @@ export type ServerEnv = Record<string, string | undefined>;
 const DEFAULT_PORT = 48886;
 const DEFAULT_BIND_HOST = "127.0.0.1";
 const DEFAULT_APP_DIR = new URL("../../app/dist", import.meta.url);
+const DEFAULT_CLI_DIR = new URL("../../cli", import.meta.url);
 const ROOT_PACKAGE_JSON = new URL("../../../package.json", import.meta.url);
 
 const envSchema = z.object({
@@ -90,6 +92,7 @@ export function loadConfig(env: ServerEnv = process.env): ServerConfig {
     port: parsed.BB_SERVER_PORT ?? DEFAULT_PORT,
     bindHost: parsed.BB_SERVER_BIND_HOST ?? DEFAULT_BIND_HOST,
     appDir: resolve(parsed.BB_APP_DIR ?? fileURLToPath(DEFAULT_APP_DIR)),
+    cliDir: fileURLToPath(DEFAULT_CLI_DIR),
     version: readVersion(),
     hostId: prepareDataDir(dataDir),
     logLevel: parsed.BB_LOG_LEVEL ?? "info",

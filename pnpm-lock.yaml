@@ -377,6 +377,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@bb/core-ui':
+        specifier: workspace:*
+        version: link:../../packages/core-ui
       '@bb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -392,9 +395,9 @@ importers:
       '@bb/server-contract':
         specifier: workspace:*
         version: link:../../packages/server-contract
-      ws:
-        specifier: ^8.19.0
-        version: 8.21.0
+      '@bb/thread-view':
+        specifier: workspace:*
+        version: link:../../packages/thread-view
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -405,9 +408,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.10
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
 
   apps/server:
     dependencies:

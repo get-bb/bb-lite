@@ -1,11 +1,13 @@
 import { jsonValueSchema, type JsonValue } from "@bb/domain";
 import {
   installedPluginSchema,
+  pluginContributionsResponseSchema,
   pluginSettingsResponseSchema,
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
   pluginTokenResponseSchema,
   type InstalledPlugin,
+  type PluginContributionsResponse,
   type PluginListResponse,
   type PluginSettingsResponse,
   type PluginTokenResponse,
@@ -59,6 +61,10 @@ export interface PluginListArgs {
   signal?: AbortSignal;
 }
 
+export interface PluginReloadArgs {
+  pluginId?: string;
+}
+
 export type PluginDisableResult = InstalledPlugin;
 export type PluginEnableResult = InstalledPlugin;
 export type PluginGetSettingsResult = PluginSettingsResponse;
@@ -68,6 +74,8 @@ export type PluginUpdateSettingsResult = PluginSettingsResponse;
 
 export interface PluginsArea {
   callRpc<TOutput>(args: PluginRpcArgs<TOutput>): Promise<TOutput>;
+  contributions(args?: PluginListArgs): Promise<PluginContributionsResponse>;
+  reload(args?: PluginReloadArgs): Promise<PluginListResult>;
   disable(args: PluginIdArgs): Promise<PluginDisableResult>;
   enable(args: PluginIdArgs): Promise<PluginEnableResult>;
   getSettings(args: PluginGetSettingsArgs): Promise<PluginGetSettingsResult>;
@@ -115,6 +123,23 @@ export function createPluginsArea(args: CreateSdkAreaArgs): PluginsArea {
         { ...jsonInit("POST", input.input ?? null), signal: input.signal },
       );
       return input.outputSchema.parse(envelope.result);
+    },
+    async contributions(input = {}) {
+      return requestParsed(
+        "/api/v1/plugins/contributions",
+        pluginContributionsResponseSchema,
+        { signal: input.signal },
+      );
+    },
+    async reload(input = {}) {
+      const { pluginId } = input;
+      const query =
+        pluginId === undefined ? "" : `?id=${encodeURIComponent(pluginId)}`;
+      return requestParsed(
+        `/api/v1/plugins/reload${query}`,
+        pluginListResponseSchema,
+        jsonInit("POST", {}),
+      );
     },
     async disable(input) {
       const response = await requestParsed(
