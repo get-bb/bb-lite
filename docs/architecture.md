@@ -284,6 +284,13 @@ this product writes. Facts the code no longer states in comments:
   written with it. A `host-offline` wait stores the machine's display name because the code that words
   the wait has no database. `editable` is the server's answer; clients do not derive it. In a thread's
   queue state `failed` outranks `waiting`.
+- Event scope (`thread-event-scope.ts`) is fixed per event type. Turn scope: what belongs to one turn's
+  transcript. Thread scope: thread metadata (identity, name, goal, extension state, rate limits, resolved
+  environment), client requests (recorded before a provider turn exists), provisioning, interruption, and
+  background task and delegation progress and completion, which outlive the turn that spawned them (thread
+  scope keeps every turn's sequence range contiguous). Either: context-window usage, provider errors,
+  warnings, model fallback and unhandled events, system errors, operations and interaction lifecycle,
+  which are turn-scoped inside a turn and thread-scoped outside one.
 - Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
   `client-preference` (a remembered default) does not.
 - A plugin id is the npm package name without scope and without the `bb-plugin-` prefix, lowercased
