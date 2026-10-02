@@ -102,7 +102,6 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   for (const route of [
     `/projects/${projectId}/files/README.md`,
     `/projects/${projectId}/hosts/${hostId}/files/README.md`,
-    `/hosts/${hostId}/files${repo}/README.md`,
     `/threads/thr_demo/host-files${repo}/README.md`,
   ]) {
     expect(await (await request(route)).text(), route).toBe("# demo\n");

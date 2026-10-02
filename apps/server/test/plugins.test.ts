@@ -352,7 +352,6 @@ it("answers the thread engine's queries from plugin registrations", async () => 
   const found = await plugins.searchMentions({ trigger: "@", ...query });
   expect(found).toEqual([{ ...group, items: [item] }]);
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
-  expect(await plugins.resolveMention("probe", "note:n1")).toBe("Body of n1");
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
   expect(await api?.threads.list()).toEqual([]);
 });

@@ -331,25 +331,6 @@ export function closeTerminal(
   return endTerminal(ctx, session, request.reason);
 }
 
-export async function restartTerminal(
-  ctx: ServerContext,
-  terminalId: string,
-): Promise<TerminalSession> {
-  const current = requireTerminal(ctx, terminalId);
-  const { threadId, environmentId, hostId, initialCwd, ...shape } = current;
-  const cwd = initialCwd === HOME_CWD ? null : initialCwd;
-  const target: TerminalCreateTarget =
-    threadId !== null
-      ? { kind: "thread", threadId }
-      : environmentId !== null
-        ? { kind: "environment", environmentId }
-        : { kind: "host_path", hostId, cwd };
-  const { cols, rows, title } = shape;
-  const replacement = await createTerminal(ctx, { cols, rows, title, target });
-  endTerminal(ctx, current, "user");
-  return replacement;
-}
-
 export function closeTerminalsFor(
   ctx: ServerContext,
   owner: "thread_id" | "environment_id",

@@ -145,10 +145,6 @@ export class Hub {
     return this.send(this.keysBySocket.keys(), message);
   }
 
-  hasSubscribers(target: RealtimeSubscriptionTarget): boolean {
-    return this.subscriptions.has(targetKey(target));
-  }
-
   onSubscriptionChange(listener: SubscriptionListener): () => void {
     this.subscriptionListeners.add(listener);
     return () => this.subscriptionListeners.delete(listener);

@@ -93,7 +93,6 @@ it("routes changes to list and detail subscribers and tracks them", () => {
   hub.disconnect(detail);
   const detailEdges = edges.slice(1).join().replaceAll("project-detail ", "");
   expect(detailEdges).toBe("true,true,false");
-  expect(hub.hasSubscribers(projectOne)).toBe(false);
 });
 
 it("coalesces events-appended for list-only subscribers", () => {

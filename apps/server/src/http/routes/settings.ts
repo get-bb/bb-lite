@@ -185,15 +185,6 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(await activeTheme());
   });
 
-  get(routes.themes, async (c) =>
-    c.json({
-      dir: themesDir,
-      custom: await listCustomThemes(themesDir),
-      plugins: NO_PLUGIN_THEMES,
-      active: await activeTheme(),
-    }),
-  );
-
   get(routes.resolveTheme, async (c) => {
     const themeId = c.req.param("id");
     await requireKnownTheme(themeId);

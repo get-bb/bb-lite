@@ -8,7 +8,6 @@ import {
   renameTerminal,
   requireTerminal,
   resizeTerminal,
-  restartTerminal,
   sendTerminalInput,
 } from "../../terminals/sessions.js";
 import { typedApi, type ApiApp } from "../api.js";
@@ -31,10 +30,6 @@ export function registerTerminalRoutes(app: ApiApp, ctx: ServerContext): void {
 
   patch(routes.update, (c, payload) =>
     c.json(renameTerminal(ctx, c.req.param("terminalId"), payload.title)),
-  );
-
-  post(routes.restart, async (c) =>
-    c.json(await restartTerminal(ctx, c.req.param("terminalId")), 201),
   );
 
   post(routes.close, (c, payload) =>

@@ -11,7 +11,6 @@ import type {
   UiPreferenceValue,
 } from "@bb/domain";
 import type {
-  SystemAttentionResponse,
   SystemConfigReloadResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
@@ -27,10 +26,6 @@ import {
   type CreateSdkAreaArgs,
 } from "./common.js";
 
-export interface SystemAttentionArgs {
-  signal?: AbortSignal;
-}
-
 export interface SystemConfigArgs {
   signal?: AbortSignal;
 }
@@ -39,7 +34,6 @@ export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery 
   signal?: AbortSignal;
 }
 
-export type SystemAttentionResult = SystemAttentionResponse;
 export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
 export type SystemReloadConfigResult = SystemConfigReloadResponse;
@@ -88,7 +82,6 @@ export interface SystemArea {
   replaceMachineEnvironment(
     input: MachineEnvironmentReplace,
   ): Promise<MachineEnvironmentList>;
-  attention(args?: SystemAttentionArgs): Promise<SystemAttentionResult>;
   config(args?: SystemConfigArgs): Promise<SystemConfigResult>;
   executionOptions(
     args?: SystemExecutionOptionsArgs,
@@ -160,14 +153,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     async replaceMachineEnvironment(input) {
       return transport.readJson(
         transport.api.v1.settings["machine-environment"].$put({ json: input }),
-      );
-    },
-    async attention(input) {
-      return transport.readJson(
-        transport.api.v1.system.attention.$get(
-          {},
-          ...signalRequestArgs(input?.signal),
-        ),
       );
     },
     async config(input) {

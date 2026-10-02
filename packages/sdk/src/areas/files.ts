@@ -4,9 +4,6 @@ import type {
   HostFileReadResponse,
   HostFileWriteResponse,
   HostMkdirResponse,
-  HostMovePathResponse,
-  HostPathListResponse,
-  HostRemovePathResponse,
 } from "@bb/server-contract";
 import { signalRequestArgs, type CreateSdkAreaArgs } from "./common.js";
 
@@ -38,26 +35,7 @@ export interface FileListArgs {
   signal?: AbortSignal;
 }
 
-export interface PathListArgs extends FileListArgs {
-  includeFiles: boolean;
-  includeDirectories: boolean;
-}
-
 export interface FileMkdirArgs {
-  hostId?: string;
-  path: string;
-  rootPath?: string;
-  recursive?: boolean;
-}
-
-export interface FileMoveArgs {
-  hostId?: string;
-  sourcePath: string;
-  destinationPath: string;
-  rootPath?: string;
-}
-
-export interface FileRemoveArgs {
   hostId?: string;
   path: string;
   rootPath?: string;
@@ -74,20 +52,14 @@ export interface FilePreviewArgs {
 export type FileReadResult = HostFileReadResponse;
 export type FileWriteResult = HostFileWriteResponse;
 export type FileListResult = HostFileListResponse;
-export type PathListResult = HostPathListResponse;
 export type FileMkdirResult = HostMkdirResponse;
-export type FileMoveResult = HostMovePathResponse;
-export type FileRemoveResult = HostRemovePathResponse;
 export type FilePreviewResult = CreateFilePreviewResponse;
 
 export interface FilesArea {
   read(args: FileReadArgs): Promise<FileReadResult>;
   write(args: FileWriteArgs): Promise<FileWriteResult>;
   list(args: FileListArgs): Promise<FileListResult>;
-  listPaths(args: PathListArgs): Promise<PathListResult>;
   mkdir(args: FileMkdirArgs): Promise<FileMkdirResult>;
-  move(args: FileMoveArgs): Promise<FileMoveResult>;
-  remove(args: FileRemoveArgs): Promise<FileRemoveResult>;
   createPreview(args: FilePreviewArgs): Promise<FilePreviewResult>;
 }
 
@@ -130,38 +102,9 @@ export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
         ),
       );
     },
-    async listPaths(input) {
-      return transport.readJson(
-        transport.api.v1.files.paths.$post(
-          {
-            json: {
-              excludeNames: input.excludeNames,
-              hostId: input.hostId,
-              includeDirectories: input.includeDirectories,
-              includeFiles: input.includeFiles,
-              includeHidden: input.includeHidden,
-              limit: input.limit,
-              path: input.path,
-              query: input.query,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
     async mkdir(input) {
       return transport.readJson(
         transport.api.v1.files.mkdir.$post({ json: input }),
-      );
-    },
-    async move(input) {
-      return transport.readJson(
-        transport.api.v1.files.move.$post({ json: input }),
-      );
-    },
-    async remove(input) {
-      return transport.readJson(
-        transport.api.v1.files.remove.$post({ json: input }),
       );
     },
     async createPreview(input) {

@@ -1,7 +1,6 @@
 import type { DynamicTool, ToolCallResponse } from "@bb/domain";
 import type {
   AgentTool,
-  EnvironmentDefinition,
   MachineAccessProvider,
   MentionQuery,
   PluginEvents,
@@ -29,11 +28,6 @@ export interface PluginRecord {
   app: AppBundle | null;
   error: string | null;
   token: string | null;
-}
-
-export interface ContributedEnvironment {
-  pluginId: string;
-  definition: EnvironmentDefinition;
 }
 
 function toolResponse(text: string, success: boolean): ToolCallResponse {
@@ -157,17 +151,6 @@ export class PluginRegistry {
     return groups;
   }
 
-  async resolveMention(pluginId: string, itemId: string): Promise<string> {
-    const [providerId, ...rest] = itemId.split(":");
-    const provider = this.running(pluginId).mentionProviders.find(
-      (candidate) => candidate.id === providerId,
-    );
-    if (provider === undefined) {
-      throw notFound(`Unknown mention provider "${providerId}"`);
-    }
-    return (await provider.resolve(rest.join(":"))).context;
-  }
-
   async generateTitle(
     prompt: string,
     signal: AbortSignal,
@@ -180,12 +163,6 @@ export class PluginRegistry {
       }
     }
     return null;
-  }
-
-  environmentProviders(): ContributedEnvironment[] {
-    return this.active().flatMap(([pluginId, instance]) =>
-      instance.environments.map((definition) => ({ pluginId, definition })),
-    );
   }
 
   publicUrl(): string | null {

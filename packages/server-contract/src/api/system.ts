@@ -187,14 +187,6 @@ export type SystemAttentionResponse = z.infer<
   typeof systemAttentionResponseSchema
 >;
 
-export const themeCatalogResponseSchema = z.object({
-  dir: z.string(),
-  custom: z.array(z.string()),
-  plugins: z.array(pluginThemeMetaSchema),
-  active: appThemeSchema,
-});
-export type ThemeCatalogResponse = z.infer<typeof themeCatalogResponseSchema>;
-
 export const systemConfigReloadResponseSchema = z.object({
   ok: z.literal(true),
 });

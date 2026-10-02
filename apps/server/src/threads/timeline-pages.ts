@@ -347,16 +347,12 @@ function previewRow(row: TimelineRow): TimelineRow {
   return { ...row, output: previewText(row.output), outputPreview };
 }
 
-export function truncateOutputs(rows: readonly TimelineRow[]): TimelineRow[] {
-  return mapRows(rows, truncateRow);
-}
-
 export function limitResponseOutputs(
   response: ThreadTimelineResponse,
   preview: boolean,
 ): ThreadTimelineResponse {
   const limit = (rows: readonly TimelineRow[]): TimelineRow[] => {
-    const truncated = truncateOutputs(rows);
+    const truncated = mapRows(rows, truncateRow);
     return preview ? truncated.map(previewRow) : truncated;
   };
   const { timelinePage } = response;

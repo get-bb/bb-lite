@@ -71,7 +71,6 @@ import type {
   EditMessageRequest,
   EditMessageResponse,
   ForkThreadRequest,
-  RestartTerminalRequest,
   DeleteThreadSectionRequest,
   DeleteThreadRequest,
   EnvironmentActionApiError,
@@ -105,12 +104,6 @@ import type {
   HostFileWriteResponse,
   HostMkdirRequest,
   HostMkdirResponse,
-  HostMovePathRequest,
-  HostMovePathResponse,
-  HostPathListRequest,
-  HostPathListResponse,
-  HostRemovePathRequest,
-  HostRemovePathResponse,
   CreateFilePreviewRequest,
   CreateFilePreviewResponse,
   HostOpenRequest,
@@ -145,8 +138,8 @@ import type {
   SendQueuedMessageRequest,
   SendQueuedMessageResponse,
   SidebarBootstrapResponse,
-  SystemAttentionResponse,
   SystemConfigReloadResponse,
+  SystemAttentionResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
@@ -156,7 +149,6 @@ import type {
   SystemProvidersQuery,
   SystemProviderStatesResponse,
   TerminalListResponse,
-  ThemeCatalogResponse,
   TerminalSession,
   TerminalInputRequest,
   TerminalListQuery,
@@ -233,7 +225,6 @@ import {
   createThreadSectionRequestSchema,
   deleteThreadSectionRequestSchema,
   createTerminalRequestSchema,
-  restartTerminalRequestSchema,
   createProjectRequestSchema,
   createHostJoinCodeRequestSchema,
   createMachineRequestSchema,
@@ -260,9 +251,6 @@ import {
   hostFileReadRequestSchema,
   hostFileWriteRequestSchema,
   hostMkdirRequestSchema,
-  hostMovePathRequestSchema,
-  hostPathListRequestSchema,
-  hostRemovePathRequestSchema,
   hostOpenRequestSchema,
   hostPathsExistRequestSchema,
   projectAttachmentContentQuerySchema,
@@ -544,14 +532,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<HostFileListResponse>(),
     }),
-    listPaths: defineRoute({
-      path: "/files/paths",
-      method: "post",
-      request: jsonRequest<EmptyInput, HostPathListRequest>(
-        hostPathListRequestSchema,
-      ),
-      response: jsonResponse<HostPathListResponse>(),
-    }),
     mkdir: defineRoute({
       path: "/files/mkdir",
       method: "post",
@@ -559,22 +539,6 @@ export const publicApiRoutes = {
         hostMkdirRequestSchema,
       ),
       response: jsonResponse<HostMkdirResponse>(),
-    }),
-    move: defineRoute({
-      path: "/files/move",
-      method: "post",
-      request: jsonRequest<EmptyInput, HostMovePathRequest>(
-        hostMovePathRequestSchema,
-      ),
-      response: jsonResponse<HostMovePathResponse>(),
-    }),
-    remove: defineRoute({
-      path: "/files/remove",
-      method: "post",
-      request: jsonRequest<EmptyInput, HostRemovePathRequest>(
-        hostRemovePathRequestSchema,
-      ),
-      response: jsonResponse<HostRemovePathResponse>(),
     }),
     createPreview: defineRoute({
       path: "/files/previews",
@@ -671,12 +635,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<HostDirectoryListing>(),
     }),
-    file: defineRoute({
-      path: "/hosts/:id/files/:filePath{.+}",
-      method: "get",
-      request: noRequest<PathIdAndFilePath>(),
-      response: binaryResponse<Uint8Array>(),
-    }),
     cloneDefaultPath: defineRoute({
       path: "/hosts/:id/clone-default-path",
       method: "get",
@@ -737,14 +695,6 @@ export const publicApiRoutes = {
         updateTerminalRequestSchema,
       ),
       response: jsonResponse<TerminalSession>(),
-    }),
-    restart: defineRoute({
-      path: "/terminals/:terminalId/restart",
-      method: "post",
-      request: jsonRequest<PathTerminal, RestartTerminalRequest>(
-        restartTerminalRequestSchema,
-      ),
-      response: jsonResponse<TerminalSession>({ status: 201 }),
     }),
     close: defineRoute({
       path: "/terminals/:terminalId/close",
@@ -1523,12 +1473,6 @@ export const publicApiRoutes = {
         jsonResponse<UiPreferenceResponse>(),
         jsonResponse<ApiError>({ status: 404 }),
       ],
-    }),
-    themes: defineRoute({
-      path: "/settings/themes",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<ThemeCatalogResponse>(),
     }),
     /**
      * Resolve a built-in, custom, or plugin theme exactly as activating it

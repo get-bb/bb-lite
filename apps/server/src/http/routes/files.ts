@@ -70,11 +70,6 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     return serve(c, { hostId, path: HOST_ROOT });
   });
 
-  get(hosts.file, (c) => {
-    const { id: hostId } = requireHost(ctx, c.req.param("id"));
-    return serve(c, { hostId, path: HOST_ROOT });
-  });
-
   get(hosts.directory, async (c, { path }) =>
     c.json(await runnerOf(c.req.param("id")).browseDirectory({ path })),
   );
@@ -102,20 +97,7 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json({ files: listed, truncated });
   });
 
-  post(files.listPaths, async (c, { hostId, path: rootPath, ...query }) => {
-    const search = { ...LIST_DEFAULTS, ...query, rootPath };
-    return c.json(await runnerOf(hostId).listPaths(search));
-  });
-
   post(files.mkdir, async (c, { hostId, ...target }) =>
     c.json(await runnerOf(hostId).mutatePath({ op: "mkdir", ...target })),
-  );
-
-  post(files.move, async (c, { hostId, ...target }) =>
-    c.json(await runnerOf(hostId).mutatePath({ op: "move", ...target })),
-  );
-
-  post(files.remove, async (c, { hostId, ...target }) =>
-    c.json(await runnerOf(hostId).mutatePath({ op: "remove", ...target })),
   );
 }
