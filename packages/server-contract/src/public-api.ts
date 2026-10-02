@@ -68,8 +68,6 @@ import type {
   CreateQueuedMessageRequest,
   CreateThreadSectionRequest,
   CreateThreadRequest,
-  EditMessageRequest,
-  EditMessageResponse,
   ForkThreadRequest,
   RestartTerminalRequest,
   DeleteThreadSectionRequest,
@@ -174,7 +172,6 @@ import type {
   ThreadCountResponse,
   ThreadListQuery,
   ThreadListResponse,
-  ThreadConversationOutlineResponse,
   ThreadOpenRequest,
   ThreadOpenResponse,
   ThreadPaneActionRequest,
@@ -281,7 +278,6 @@ import {
   respondPluginInteractionRequestSchema,
   retryTurnRequestSchema,
   sendMessageRequestSchema,
-  editMessageRequestSchema,
   setQueuedMessageGroupBoundaryRequestSchema,
   sendQueuedMessageRequestSchema,
   systemExecutionOptionsQuerySchema,
@@ -1075,14 +1071,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<SendMessageResponse>(),
     }),
-    editMessage: defineRoute({
-      path: "/threads/:id/edit-message",
-      method: "post",
-      request: jsonRequest<PathId, EditMessageRequest>(
-        editMessageRequestSchema,
-      ),
-      response: jsonResponse<EditMessageResponse>(),
-    }),
     /**
      * Retry a failed turn: re-submit it by reference, as an ordinary dispatch
      * attempt. `turnRequestId` null means the thread's most recent turn, whose
@@ -1330,12 +1318,6 @@ export const publicApiRoutes = {
       method: "get",
       request: noRequest<PathId>(),
       response: jsonResponse<ThreadContextResponse>(),
-    }),
-    conversationOutline: defineRoute({
-      path: "/threads/:id/conversation-outline",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<ThreadConversationOutlineResponse>(),
     }),
     timelineTurnSummaryDetails: defineRoute({
       path: "/threads/:id/timeline/turn-summary-details",

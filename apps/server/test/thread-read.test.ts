@@ -118,11 +118,6 @@ test("starts after the last completed context clear", async () => {
   const timeline = await get<Timeline>("/threads/thr_1/timeline");
   expect(timeline.contextBoundarySeq).toBe(10);
   expect(said(timeline)).toEqual(["question 2", "answer 2"]);
-  const outline = await get<{ items: { preview: string }[] }>(
-    "/threads/thr_1/conversation-outline",
-  );
-  const previews = outline.items.map((item) => item.preview);
-  expect(previews).toEqual(["question 2", "answer 2"]);
 });
 
 test("list entries carry display status, queue and attention", async () => {

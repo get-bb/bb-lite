@@ -3,7 +3,6 @@ import type {
   PromptInput,
   ReasoningLevel,
   ServiceTier,
-  Thread,
 } from "@bb/domain";
 import type { AppCreateThreadRequest } from "../api-types.js";
 
@@ -26,25 +25,6 @@ export interface ForkThreadCreateSeed {
 interface BuildForkThreadRequestArgs extends ForkThreadCreateSeed {
   input: PromptInput[];
   providerSupportsFork: boolean;
-}
-
-type ForkableThread = Pick<
-  Thread,
-  "archivedAt" | "environmentId" | "providerId"
->;
-
-export function isThreadForkable(
-  sourceThread: ForkableThread | null,
-  providerSupportsFork: boolean,
-): boolean {
-  if (
-    sourceThread === null ||
-    sourceThread.environmentId === null ||
-    sourceThread.archivedAt !== null
-  ) {
-    return false;
-  }
-  return providerSupportsFork;
 }
 
 export function buildForkThreadRequest({

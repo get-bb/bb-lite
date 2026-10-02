@@ -5,7 +5,6 @@ import type {
 } from "@bb/domain";
 import {
   computeTimelineRowDelta,
-  type ThreadConversationOutlineResponse,
   type ThreadTimelineResponse,
   type TimelineRow,
   type TimelineTurnSummaryDetailsResponse,
@@ -31,7 +30,6 @@ import {
   listTurnIds,
   MAX_INLINE_OUTPUT_CHARS,
   mergeEventRows,
-  OUTLINE_EVENT,
   ROOT_TURN_EVENT,
   UNBOUNDED,
   type StoredEventRow,
@@ -46,7 +44,6 @@ import {
   paginateTimeline,
   snapshotFromCursor,
   nestedTimelineRows,
-  splitsSurrogatePair,
   type TimelineContentCursor,
   type TimelinePage,
   type TimelineSnapshot,
@@ -91,8 +88,6 @@ const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
 const DETAIL_LEAF_LIMIT = 1_500;
 const SERVED_KEY_LIMIT = 64;
 const SERVED_RING_SIZE = 4;
-const OUTLINE_CACHE_LIMIT = 128;
-const OUTLINE_PREVIEW_CHARS = 200;
 const REQUESTED = "client/turn/requested";
 const ACCEPTED = "turn/input/accepted";
 const REJECTED = "client/turn/rejected";
@@ -641,40 +636,6 @@ function buildTurnDetails(
   };
 }
 
-function outlinePreview(text: string): string {
-  const normalized = text.replace(/\s+/gu, " ").trim();
-  if (normalized.length <= OUTLINE_PREVIEW_CHARS) return normalized;
-  const split = splitsSurrogatePair(normalized, OUTLINE_PREVIEW_CHARS);
-  return normalized.slice(0, OUTLINE_PREVIEW_CHARS - (split ? 1 : 0)).trimEnd();
-}
-
-function buildOutline(
-  db: Db,
-  thread: ThreadListRow,
-  display: TimelineDisplay,
-  maxSeq: number,
-): ThreadConversationOutlineResponse["items"] {
-  const threadId = thread.id;
-  const after = (contextClearSequence(db, threadId, maxSeq) ?? 0) - 1;
-  const timeline = { excludeDiagnostics: false };
-  const outline = { threadId, after, where: OUTLINE_EVENT, timeline };
-  const loaded = { rows: listEvents(db, outline) };
-  const shown = { ...display, includeDiagnosticOperations: false };
-  const shape = { includeNestedRows: false, isLatestPage: true };
-  const { status } = thread;
-  const projected = projectWindow(db, thread, shown, status, loaded, shape);
-  return projected.rows.flatMap((row) => {
-    if (row.kind !== "conversation") return [];
-    const { webImages = 0, localImages = 0 } = row.attachments ?? {};
-    const imageCount = webImages + localImages;
-    const fileCount = row.attachments?.localFiles ?? 0;
-    const attachmentSummary =
-      imageCount + fileCount === 0 ? null : { imageCount, fileCount };
-    const preview = outlinePreview(row.text);
-    return [{ id: row.id, role: row.role, preview, attachmentSummary }];
-  });
-}
-
 function remember<Value>(
   cache: Map<string, Value>,
   key: string,
@@ -692,13 +653,10 @@ function remember<Value>(
 export function createTimelineReader(db: Db) {
   type Served = Pick<ThreadTimelineResponse, "maxSeq" | "rows">;
   const served = new Map<string, Served[]>();
-  const outlines = new Map<string, ThreadConversationOutlineResponse>();
   return {
     forgetThread(threadId: string): void {
-      for (const cache of [served, outlines]) {
-        for (const key of cache.keys()) {
-          if (key.startsWith(`${threadId}|`)) cache.delete(key);
-        }
+      for (const key of served.keys()) {
+        if (key.startsWith(`${threadId}|`)) served.delete(key);
       }
     },
     timeline(
@@ -724,21 +682,6 @@ export function createTimelineReader(db: Db) {
       request: TurnDetailsRequest,
     ): TimelineTurnSummaryDetailsResponse {
       return db.transaction(() => buildTurnDetails(db, thread, request));
-    },
-    outline(
-      thread: ThreadListRow,
-      display: TimelineDisplay,
-    ): ThreadConversationOutlineResponse {
-      const maxSeq = latestSequence(db, thread.id);
-      const { id, status, title, titleFallback } = thread;
-      const facts = [maxSeq, status, title, titleFallback, display];
-      const key = `${id}|${JSON.stringify(facts)}`;
-      const outline = outlines.get(key) ?? {
-        items: buildOutline(db, thread, display, maxSeq),
-        maxSeq,
-      };
-      remember(outlines, key, outline, OUTLINE_CACHE_LIMIT);
-      return outline;
     },
   };
 }

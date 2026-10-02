@@ -23,7 +23,6 @@ const PER_THREAD_GOLDENS = [
   ["timeline", "/timeline"],
   ["timeline-nested", "/timeline?includeNestedRows=true"],
   ["thread", "?include=environment,host"],
-  ["outline", "/conversation-outline"],
   ["output", "/output"],
   ["exec", "/default-execution-options"],
   ["interactions", "/interactions"],
