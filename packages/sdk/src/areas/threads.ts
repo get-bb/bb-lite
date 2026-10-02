@@ -93,17 +93,6 @@ export interface ThreadSearchArgs extends ThreadSearchQuery {
   signal?: AbortSignal;
 }
 
-/**
- * Counting is a server-side `SELECT count(*)`: a caller that only needs "how
- * many threads are running on this host" must never page rows through
- * `threads.list`, which would both cost memory and miscount past its limit.
- *
- * Every filter is genuinely absent by default. `parentThreadId` is
- * three-valued: omitted does not filter on parentage at all, the
- * `THREAD_COUNT_ROOT_PARENT` sentinel (`"none"`) counts root threads only, and
- * any other value counts that parent's children. Archived and deleted threads
- * are excluded by the route.
- */
 export interface ThreadCountArgs {
   groupBy?: ThreadCountGroupBy;
   hostId?: string;
@@ -267,13 +256,7 @@ export interface ThreadQueuedMessageGroupBoundaryArgs extends SetQueuedMessageGr
   threadId: string;
 }
 
-/**
- * Both filters are genuinely absent by default: no filter lists every live
- * queued row in the workspace, which is what `bb thread queue list` with no
- * thread and a limiter plugin's own bookkeeping ask for.
- */
 export interface ThreadQueueListArgs {
-  /** `plugin:<id>` — every row that plugin is holding the wait on. */
   waitHolder?: QueuedMessageWaitHolder;
   signal?: AbortSignal;
   threadId?: string;
@@ -460,15 +443,6 @@ export interface ThreadTabsArea {
   update(args: ThreadTabsUpdateArgs): Promise<ThreadTabsUpdateResult>;
 }
 
-/**
- * Queued rows across every thread.
- *
- * The per-thread list, send-now, edit, reorder and delete all live on
- * `queuedMessages`, which is where a row's own operations belong. This area
- * exists for the one question a thread-scoped list cannot answer: "what is
- * queued right now, anywhere" — a workspace-wide pending view, or a plugin
- * recovering the rows it is holding after a restart.
- */
 export interface ThreadQueueArea {
   list(args?: ThreadQueueListArgs): Promise<ThreadQueueListResult>;
 }
@@ -509,32 +483,12 @@ export interface ThreadsArea {
   resolveMentions(
     args: ThreadResolveMentionsArgs,
   ): Promise<ThreadResolveMentionsResult>;
-  /**
-   * Re-submit a failed turn. The retry is an ordinary dispatch attempt, so a
-   * `sendAt` in the future queues it on the clock and a `message.dispatch` hook
-   * can still hold it; the response says which of the two happened.
-   */
-  /**
-   * Ask the environment provider to restore the destroyed workspace of a
-   * thread and attach it; the provider decides what restoring means, such as
-   * checking the recorded branch out again. Sends fail until this runs. Starts
-   * no turn: the thread settles back to `idle` once the workspace is ready.
-   * Refused unless the thread's `canRestoreEnvironment` is true.
-   */
   restoreEnvironment(
     args: ThreadActionArgs,
   ): Promise<ThreadRestoreEnvironmentResult>;
   search(args: ThreadSearchArgs): Promise<ThreadSearchResult>;
   send(args: ThreadSendArgs): Promise<ThreadSendResult>;
   spawn(args: ThreadSpawnArgs): Promise<ThreadSpawnResult>;
-  /**
-   * Stop the thread's work and release its loaded runtime. An explicit stop
-   * wins over running work: a turn the machine still runs while the thread
-   * looks idle or failed, or a turn that starts while the stop is delivered,
-   * is interrupted. The call waits for the interrupt attempt; if the machine
-   * cannot confirm it, the thread remains stopping. Inspect its status before
-   * treating the stop as confirmed.
-   */
   stop(args: ThreadActionArgs): Promise<ThreadStopResult>;
   tabs: ThreadTabsArea;
   timeline(args: ThreadTimelineArgs): Promise<ThreadTimelineResult>;
@@ -612,8 +566,6 @@ function sendJson(args: ThreadSendArgs): SendMessageRequest {
     serviceTier: args.serviceTier,
     pluginSubmission: args.pluginSubmission,
     executionInputSources: args.executionInputSources,
-    // Present ⇒ the message joins the queue waiting for the clock instead
-    // of attempting now; the response reports `delivery: "queued"`.
     sendAt: args.sendAt,
   };
 }

@@ -108,13 +108,6 @@ export const createThreadRequestSchema = z
     sourceSeqEnd: z.number().int().nonnegative().optional(),
     startedOnBehalfOf: startedOnBehalfOfSchema.nullable().default(null),
     originKind: threadOriginKindSchema.nullable().default(null),
-    /**
-     * Epoch ms at which this thread's first message should dispatch. Present ⇒
-     * the thread is created `pending` with no turn and no environment work,
-     * and the first message is queued as a row waiting on the clock. Absent
-     * ⇒ attempt the dispatch now; when nothing blocks it no queued row is ever
-     * created and creation runs exactly as it did before the queue existed.
-     */
     sendAt: z.number().int().nonnegative().optional(),
     pluginSubmission: z
       .object({ pluginId: pluginIdSchema, data: jsonValueSchema })
@@ -240,34 +233,15 @@ const sendMessageRequestFieldsSchema = z.object({
   pluginSubmission: z
     .object({ pluginId: pluginIdSchema, data: jsonValueSchema })
     .optional(),
-  /**
-   * Epoch ms at which this message should dispatch. Present ⇒ nothing is sent
-   * now; the message is queued as a row waiting on the clock, and the due
-   * sweep re-attempts it then. Absent ⇒ attempt the dispatch now.
-   */
   sendAt: z.number().int().nonnegative().optional(),
 });
 
 export const sendMessageRequestSchema = sendMessageRequestFieldsSchema;
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
 
-/**
- * How a `send` request was taken.
- *
- * Two outcomes, because there are two: the attempt cleared and dispatched, or
- * something blocked it and it queued. The four-way `sent`/`queued`/`deferred`/
- * `held` split this replaces described WHICH queueing mechanism took the
- * message, and there is only one now — so the useful half of that answer, WHY
- * it is waiting, moved onto the queued arm where it can be typed.
- */
 export const sendMessageDeliverySchema = z.enum(["sent", "queued"]);
 export type SendMessageDelivery = z.infer<typeof sendMessageDeliverySchema>;
 
-/**
- * A discriminated union rather than a flat record with nullable extras: a
- * `sent` message has no queued row and no wait, and modelling those as "null
- * for now" would invite every caller to check fields that cannot exist.
- */
 export const sendMessageResponseSchema = z.discriminatedUnion("delivery", [
   z.object({ ok: z.literal(true), delivery: z.literal("sent") }),
   z.object({
@@ -278,8 +252,6 @@ export const sendMessageResponseSchema = z.discriminatedUnion("delivery", [
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
-// `sendAt` is deliberately dropped: an edit rewrites a message that has
-// already been dispatched, so there is nothing left to schedule.
 export const editMessageRequestSchema = sendMessageRequestFieldsSchema
   .omit({ mode: true, sendAt: true, pluginSubmission: true })
   .extend({
@@ -424,21 +396,8 @@ export type ThreadSearchResponse = z.infer<typeof threadSearchResponseSchema>;
 
 export const threadResponseSchema = threadWithRuntimeSchema.extend({
   activeBackgroundAgentCount: z.number().int().nonnegative(),
-  /**
-   * Whether `POST /threads/:id/restore-environment` would build this thread a
-   * replacement workspace right now. True only for a live, settled thread whose
-   * environment was destroyed while the provider that created it is still here
-   * and restores environments, and the machine it stood on is still here — so a
-   * surface can offer the action instead of discovering the refusal by making
-   * the call.
-   */
   canRestoreEnvironment: z.boolean(),
   canSpawnChild: z.boolean(),
-  // How many messages are waiting on this thread's queue right now — waiting on
-  // the clock, on the running turn, on provisioning, on an interaction, or on
-  // a plugin. The count alone drives the pending-region and thread-row badges;
-  // `GET /threads/:id/queued-messages` supplies the reasons once a surface
-  // actually renders them.
   queuedMessageCount: z.number().int().nonnegative(),
 });
 export type ThreadResponse = z.infer<typeof threadResponseSchema>;
@@ -491,17 +450,6 @@ export type RespondPluginInteractionRequest = z.infer<
   typeof respondPluginInteractionRequestSchema
 >;
 
-/**
- * Filters for the cross-thread queue list — the replacement for the hold
- * list, and cross-thread for the same reason it was: "what is queued right
- * now" is a whole-workspace question (`bb thread queue list` with no thread, a
- * limiter plugin's own bookkeeping, a router recovering its rows after a
- * restart) that no single thread's list can answer.
- *
- * `waitHolder` is the indexed one. It answers "every row this plugin is
- * holding", which is exactly what a plugin needs on restart and what the
- * orphan sweep needs per uninstalled plugin.
- */
 export const queuedMessageListQuerySchema = z.object({
   threadId: z.string().min(1).optional(),
   waitHolder: queuedMessageWaitHolderSchema.optional(),
@@ -673,24 +621,9 @@ export const threadListQuerySchema = z.object({
 });
 export type ThreadListQuery = z.infer<typeof threadListQuerySchema>;
 
-/**
- * Grouping for `GET /threads/count`. Omitted, the route answers one total.
- * `host` groups by the host the thread's environment lives on; a thread with
- * no environment yet counts under the `null` key.
- */
 export const threadCountGroupBySchema = z.enum(["host", "provider", "project"]);
 export type ThreadCountGroupBy = z.infer<typeof threadCountGroupBySchema>;
 
-/**
- * Filters for `GET /threads/count`. Every value is a string because this is a
- * query string; the route parses them once at the boundary.
- *
- * `parentThreadId` is deliberately three-valued and unambiguous: omitted means
- * "do not filter on parentage", the literal `"none"` means root threads only
- * (`parent_thread_id IS NULL`), and any other value is that parent's id. An
- * empty string would have been ambiguous with an omitted parameter, and a
- * thread id can never be `"none"` (ids are prefixed `thr_`).
- */
 export const THREAD_COUNT_ROOT_PARENT = "none";
 
 export const threadCountQuerySchema = z.object({
@@ -700,24 +633,16 @@ export const threadCountQuerySchema = z.object({
   projectId: z.string().min(1).optional(),
   parentThreadId: z.string().min(1).optional(),
   groupBy: threadCountGroupBySchema.optional(),
-  /** Count archived threads too; omitted/false excludes them (deleted always are). */
   includeArchived: z.enum(["true", "false"]).optional(),
-  /** Count hidden threads too; omitted/false counts visible threads only. */
   includeHidden: z.enum(["true", "false"]).optional(),
 });
 export type ThreadCountQuery = z.infer<typeof threadCountQuerySchema>;
 
-/**
- * `total` is always the count of every matching thread. `groups` is present
- * exactly when `groupBy` was requested — an ungrouped count has no group list,
- * rather than one anonymous group.
- */
 export const threadCountResponseSchema = z.object({
   total: z.number().int().nonnegative(),
   groups: z
     .array(
       z.object({
-        /** The host/provider/project id, or null for threads with none. */
         key: z.string().nullable(),
         count: z.number().int().nonnegative(),
       }),

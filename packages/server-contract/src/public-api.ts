@@ -830,11 +830,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<ThreadListResponse>(),
     }),
-    /**
-     * Grouped `SELECT count(*)` over threads. Exists because a plugin gate
-     * that limits concurrency must count without loading: `threads.list`
-     * would page rows into memory and still miscount past its limit.
-     */
     count: defineRoute({
       path: "/threads/count",
       method: "get",
@@ -927,10 +922,6 @@ export const publicApiRoutes = {
       request: noRequest<PathId>(),
       response: jsonResponse<ThreadQueuedMessageListResponse>(),
     }),
-    /**
-     * Create a queued message; senderThreadId preserves agent-to-agent context
-     * until send time.
-     */
     createQueuedMessage: defineRoute({
       path: "/threads/:id/queued-messages",
       method: "post",
@@ -1109,15 +1100,6 @@ export const publicApiRoutes = {
       request: noRequest<PathId>(),
       response: jsonResponse<{ ok: true }>(),
     }),
-    /**
-     * Ask the environment provider to restore a thread's destroyed environment
-     * and attach the result; the provider decides what restoring means, such
-     * as checking the recorded branch out again. Sends to such a thread fail
-     * until this runs. Answers
-     * the thread as it now stands — `starting`, with provisioning underway —
-     * and starts no turn: the thread settles back to `idle` once the workspace
-     * is ready. Refused unless `canRestoreEnvironment` is true.
-     */
     restoreEnvironment: defineRoute({
       path: "/threads/:id/restore-environment",
       method: "post",
@@ -1223,13 +1205,6 @@ export const publicApiRoutes = {
   },
 
   queue: {
-    /**
-     * Every live queued row, optionally narrowed to one thread or one
-     * wait holder. Cross-thread because "what is queued right now" is a
-     * whole-workspace question (`bb thread queue list` with no thread, a
-     * limiter plugin's own bookkeeping, a router recovering its rows after a
-     * restart) that no single thread's list can answer.
-     */
     list: defineRoute({
       path: "/queued-messages",
       method: "get",
@@ -1320,12 +1295,6 @@ export const publicApiRoutes = {
         jsonResponse<ApiError>({ status: 404 }),
       ],
     }),
-    /**
-     * Resolve a built-in, custom, or plugin theme exactly as activating it
-     * would, without persisting anything. The Settings palette hover preview
-     * and `bb theme show <id>` read it; `faviconColor` echoes the stored
-     * appearance because the response is a full `AppTheme`.
-     */
     resolveTheme: defineRoute({
       path: "/settings/themes/:id",
       method: "get",
