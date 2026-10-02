@@ -15,18 +15,15 @@ type SettingsListener = (next: SettingRecord, previous: SettingRecord) => void;
 
 const SECRET_FILE_MODE = 0o600;
 
-function isSecret(descriptor: SettingDescriptor) {
+function isSecret(descriptor: SettingDescriptor): boolean {
   return descriptor.type === "string" && descriptor.secret === true;
 }
 
-function accepted(descriptor: SettingDescriptor, value: unknown) {
-  const { type } = descriptor;
-  const primitive = type === "boolean" || type === "number" ? type : "string";
-  const allowed = type !== "select" || descriptor.options.includes(`${value}`);
-  if (typeof value !== primitive || Number.isNaN(value) || !allowed) {
-    return undefined;
-  }
-  return value as SettingValue;
+function accepted(
+  descriptor: SettingDescriptor,
+  value: unknown,
+): SettingValue | undefined {
+  return typeof value === descriptor.type ? (value as SettingValue) : undefined;
 }
 
 export class PluginSettings {

@@ -84,12 +84,15 @@ function dropExternal(pluginId: string): void {
 }
 
 async function syncPlugins(refetch: boolean): Promise<void> {
+  const query = {
+    ...pluginListQueryOptions({ enabled: true }),
+    ...(refetch ? { staleTime: 0 } : {}),
+  };
   let plugins;
   try {
-    plugins = await appQueryClient.fetchQuery({
-      ...pluginListQueryOptions({ enabled: true }),
-      ...(refetch ? { staleTime: 0 } : {}),
-    });
+    plugins = await appQueryClient
+      .fetchQuery(query)
+      .catch(() => appQueryClient.fetchQuery(query));
   } catch (error) {
     console.warn("plugin list failed to load", error);
     return;
@@ -115,9 +118,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
     if (!plugin.enabled || app?.kind !== "external") return;
     if (externalHashes.get(plugin.id) === app.hash) return;
     try {
-      const module: { default?: unknown } = await import(
-        /* @vite-ignore */ app.jsUrl
-      );
+      const module: { default?: unknown } = await import(app.jsUrl);
       if (!isPluginAppDefinition(module.default)) {
         throw new Error("the default export is not definePluginApp(...)");
       }

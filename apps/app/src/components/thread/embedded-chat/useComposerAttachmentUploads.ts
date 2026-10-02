@@ -1,8 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  usePendingAttachmentUploads,
-  type PendingAttachmentUpload,
-} from "@/components/promptbox/usePendingAttachmentUploads";
+import { usePendingAttachmentUploads } from "@/components/promptbox/usePendingAttachmentUploads";
 import { useUploadPromptAttachment } from "@/hooks/mutations/project-mutations";
 import { getMutationErrorMessage } from "@/lib/mutation-errors";
 import { BbHttpError } from "@/lib/sdk";
@@ -16,19 +13,6 @@ interface UseComposerAttachmentUploadsArgs {
   inlineSessionRef: React.RefObject<InlineComposerDraftSession | null>;
 }
 
-interface UseComposerAttachmentUploadsResult {
-  bottomAttachmentError: string | null;
-  setBottomAttachmentError: (error: string | null) => void;
-  handleAttachBottomFiles: (files: File[]) => Promise<void>;
-  isAttachingBottomFiles: boolean;
-  bottomPendingUploads: readonly PendingAttachmentUpload[];
-  inlineAttachmentError: string | null;
-  setInlineAttachmentError: (error: string | null) => void;
-  handleAttachInlineFiles: (files: File[]) => Promise<void>;
-  isAttachingInlineFiles: boolean;
-  inlinePendingUploads: readonly PendingAttachmentUpload[];
-}
-
 interface DraftAttachmentUploadTarget {
   key: string;
   addAttachment: (attachment: PromptDraftAttachment) => void;
@@ -37,14 +21,6 @@ interface DraftAttachmentUploadTarget {
 interface UseDraftAttachmentUploadsArgs {
   projectId: string;
   target: DraftAttachmentUploadTarget | null;
-}
-
-interface UseDraftAttachmentUploadsResult {
-  attachmentError: string | null;
-  setAttachmentError: (error: string | null) => void;
-  handleAttachFiles: (files: File[]) => Promise<void>;
-  isAttachingFiles: boolean;
-  pendingUploads: readonly PendingAttachmentUpload[];
 }
 
 interface DraftAttachmentOperationState {
@@ -72,7 +48,7 @@ function attachFailureMessage(
 export function useDraftAttachmentUploads({
   projectId,
   target,
-}: UseDraftAttachmentUploadsArgs): UseDraftAttachmentUploadsResult {
+}: UseDraftAttachmentUploadsArgs) {
   const uploadPromptAttachment = useUploadPromptAttachment();
   const targetRef = useRef(target);
   targetRef.current = target;
@@ -83,9 +59,10 @@ export function useDraftAttachmentUploads({
   });
   const targetKey = target?.key ?? null;
   const isCurrentOperation = operation.targetKey === targetKey;
-  const { pendingUploads, startUploads, finishUploads } = usePendingAttachmentUploads(
-    targetKey === null ? null : `${projectId}\0${targetKey}`,
-  );
+  const { pendingUploads, startUploads, finishUploads } =
+    usePendingAttachmentUploads(
+      targetKey === null ? null : `${projectId}\0${targetKey}`,
+    );
 
   const setAttachmentError = useCallback(
     (error: string | null) => {
@@ -165,7 +142,7 @@ export function useComposerAttachmentUploads({
   addDraftAttachment,
   inlineEditSessionId,
   inlineSessionRef,
-}: UseComposerAttachmentUploadsArgs): UseComposerAttachmentUploadsResult {
+}: UseComposerAttachmentUploadsArgs) {
   const {
     attachmentError: bottomAttachmentError,
     setAttachmentError: setBottomAttachmentError,

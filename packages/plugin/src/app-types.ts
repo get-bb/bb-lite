@@ -410,7 +410,7 @@ export interface PluginRpcClient<
 }
 
 export interface PluginSettingsState {
-  values: Record<string, string | number | boolean> | undefined;
+  values: Record<string, string | boolean> | undefined;
   isLoading: boolean;
 }
 
@@ -471,40 +471,8 @@ export interface ThreadChatProps {
   variant?: "full" | "compact" | "timeline";
   layout?: "contained" | "document";
   focusRequest?: number;
-  permissionPolicy?: "inherit" | "editable";
   className?: string;
   leadingContent?: ReactNode;
-}
-
-export interface ProviderModelPickerValue {
-  providerId: string;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  serviceTier?: ServiceTier;
-}
-
-export type ProviderModelPickerRouting =
-  | { kind: "host"; hostId: string }
-  | { kind: "environment"; environmentId: string };
-
-export interface ProviderModelPickerProps {
-  value: ProviderModelPickerValue;
-  onChange(value: ProviderModelPickerValue): void;
-  routing?: ProviderModelPickerRouting;
-  allowProviderChange?: boolean;
-  align?: "start" | "center" | "end";
-  disabled?: boolean;
-  className?: string;
-}
-
-export interface PermissionModePickerProps {
-  providerId: string;
-  value: PermissionMode;
-  onChange(value: PermissionMode): void;
-  routing?: ProviderModelPickerRouting;
-  align?: "start" | "center" | "end";
-  disabled?: boolean;
-  className?: string;
 }
 
 export interface NewThreadRequest {
@@ -517,21 +485,4 @@ export interface NewThreadRequest {
   executionInputSources: CreateExecutionInputSources;
   environment: CreateThreadEnvironmentArgs;
   input: PromptInput[];
-}
-
-export interface NewThreadComposerProps {
-  defaultProjectId?: string;
-  defaultProviderId?: string;
-  defaultModel?: string;
-  defaultReasoningLevel?: ReasoningLevel;
-  defaultServiceTier?: ServiceTier;
-  defaultPermissionMode?: PermissionMode;
-  defaultEnvironment?: CreateThreadEnvironmentArgs;
-  initialPrompt?: string;
-  placeholder?: string;
-  layout?: "contained" | "document";
-  focusRequest?: number;
-  className?: string;
-  draftKey?: string;
-  onSubmit: (request: NewThreadRequest) => void | Promise<void>;
 }

@@ -1,5 +1,5 @@
 import { capitalize } from "@bb/thread-view";
-import { useId, useState, type FormEvent, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
   DialogDescription,
@@ -8,72 +8,99 @@ import {
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { Input } from "@bb/shared-ui/input";
-import { useNameValidation } from "@bb/shared-ui/rename-dialog";
+import { RenameDialog as RenameDialogShell } from "@bb/shared-ui/rename-dialog";
 
-interface RenameDialogContentProps {
+interface RenameDialogProps {
+  target: { key: string; name: string } | null;
   entityLabel: string;
-  initialName: string;
-  pending: boolean;
-  autoCapitalize: "words" | "sentences";
+  autoCapitalize?: "words" | "sentences";
   compact?: boolean;
+  shellClassName?: string;
+  pending: boolean;
+  description?: string;
+  errorMessage?: string | null;
+  maxLength?: number;
+  onOpenChange: (open: boolean) => void;
   onRename: (name: string) => void;
-  inputRef: RefObject<HTMLInputElement | null>;
 }
 
-export function RenameDialogContent({
+export function RenameDialog(props: RenameDialogProps) {
+  const { target } = props;
+  return (
+    <RenameDialogShell
+      open={target !== null}
+      onOpenChange={props.onOpenChange}
+      shellClassName={props.shellClassName}
+    >
+      {(inputRef) =>
+        target ? (
+          <RenameForm
+            key={target.key}
+            {...props}
+            name={target.name}
+            inputRef={inputRef}
+          />
+        ) : null
+      }
+    </RenameDialogShell>
+  );
+}
+
+function RenameForm({
+  name,
   entityLabel,
-  initialName,
-  pending,
   autoCapitalize,
   compact = false,
+  pending,
+  description,
+  errorMessage,
+  maxLength,
   onRename,
   inputRef,
-}: RenameDialogContentProps) {
-  const inputId = useId();
-  const [nextName, setNextName] = useState(initialName);
-  const { validationMessage, validate, clearMessage } = useNameValidation({
-    emptyMessage: `${capitalize(entityLabel)} name cannot be empty.`,
-  });
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (pending) return;
-
-    const trimmedName = validate(nextName);
-    if (trimmedName === null) return;
-
-    onRename(trimmedName);
-  };
-
+}: RenameDialogProps & {
+  name: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+}) {
+  const [nextName, setNextName] = useState(name);
+  const [empty, setEmpty] = useState(false);
+  const message = empty
+    ? `${capitalize(entityLabel)} name cannot be empty.`
+    : errorMessage;
   return (
     <>
       <DialogHeader>
         <DialogTitle>Rename {entityLabel}</DialogTitle>
         <DialogDescription>
-          Choose a new name for this {entityLabel}.
+          {description ?? `Choose a new name for this ${entityLabel}.`}
         </DialogDescription>
       </DialogHeader>
       <form
         className={compact ? "space-y-3" : "space-y-4"}
-        onSubmit={handleSubmit}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (pending) return;
+          const trimmed = nextName.trim();
+          if (trimmed) onRename(trimmed);
+          else setEmpty(true);
+        }}
       >
         <div className={compact ? "space-y-1.5" : "space-y-2"}>
           <Input
             ref={inputRef}
-            id={inputId}
             aria-label={`${capitalize(entityLabel)} name`}
             value={nextName}
+            maxLength={maxLength}
             autoCapitalize={autoCapitalize}
             autoCorrect="off"
             spellCheck={false}
             disabled={pending}
             onChange={(event) => {
               setNextName(event.target.value);
-              clearMessage();
+              setEmpty(false);
             }}
           />
-          {validationMessage ? (
-            <p className="text-sm text-destructive">{validationMessage}</p>
+          {message ? (
+            <p className="text-sm text-destructive">{message}</p>
           ) : null}
         </div>
         <DialogFooter>

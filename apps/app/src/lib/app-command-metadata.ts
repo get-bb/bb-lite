@@ -179,11 +179,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "Close focused chat pane",
         "Close the focused chat pane when more than one is open.",
       ),
-      command(
-        "notifications.open",
-        "Show all notifications",
-        "Open the notification center to read and clear past notifications.",
-      ),
     ],
   },
   {

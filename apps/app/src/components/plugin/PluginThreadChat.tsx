@@ -1,257 +1,300 @@
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { appendQuoteAndAttachmentsToDraft } from "@bb/client-core";
+import { formatEnvironmentDisplay } from "@bb/core-ui";
+import { defaultAppSettings } from "@bb/domain";
 import type { ThreadChatProps } from "@bb/plugin/app";
-import {
-  formatEnvironmentDisplay,
-  type EnvironmentDisplayHostContext,
-} from "@bb/core-ui";
+import type { ThreadResponse } from "@bb/server-contract";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
-import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { Skeleton } from "@bb/shared-ui/skeleton";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
-import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironmentSummary";
-import { EmbeddedThreadChat } from "@/components/thread/embedded-chat";
-import { ThreadTimelinePanelContent } from "@/components/thread/timeline";
+import {
+  ThreadTimelinePanelContent,
+  type ThreadTimelineAddToChatHandler,
+} from "@/components/thread/timeline";
 import { useThreadTimelineNavigation } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
+import { BottomAnchoredScrollBody } from "@/components/ui/bottom-anchored-scroll-body";
+import { OverflowFade } from "@/components/ui/overflow-fade";
+import { useSendThreadMessage } from "@/hooks/mutations/thread-runtime-mutations";
+import { useMarkThreadRead } from "@/hooks/mutations/thread-state-mutations";
+import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
-import { useThread } from "@/hooks/queries/thread-queries";
-import { useLocalHostId } from "@/hooks/useOpenTargets";
 import { useHosts } from "@/hooks/queries/host-queries";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
+import {
+  isPendingInteractionStateUnknown,
+  useThread,
+  useThreadPendingInteractions,
+} from "@/hooks/queries/thread-queries";
+import { useLocalHostId } from "@/hooks/useOpenTargets";
+import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
+import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentSummaryChrome,
 } from "@/lib/environment-workspace-display";
-import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
-import { BbHttpError } from "@/lib/sdk";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
 } from "@/lib/route-paths";
+import { BbHttpError } from "@/lib/sdk";
+import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
+import { ThreadDetailPromptArea } from "@/views/thread-detail/ThreadDetailPromptArea";
+
+const NOTHING: never[] = [];
 
 export function PluginThreadChat({
   threadId,
   variant = "full",
   layout = "contained",
   focusRequest,
-  permissionPolicy = "inherit",
   className,
   leadingContent,
 }: ThreadChatProps) {
-  const containerClassName = cn(
-    layout === "contained" ? "flex h-full min-h-0 flex-col" : "flex flex-col",
-    className,
-  );
-  return (
-    <div className={containerClassName}>
-      <PluginThreadChatBody
-        threadId={threadId}
-        variant={variant}
-        layout={layout}
-        focusRequest={focusRequest}
-        permissionPolicy={permissionPolicy}
+  const navigate = useNavigate();
+  const threadQuery = useThread(threadId, { enabled: threadId.length > 0 });
+  const thread = threadQuery.data;
+  const environment = useEnvironment(thread?.environmentId ?? null).data;
+  const hostNavigation = useThreadTimelineNavigation();
+  const navigation =
+    thread !== undefined &&
+    thread.environmentId === hostNavigation?.environmentId
+      ? hostNavigation
+      : null;
+  const resolveMentionLink: PromptMentionLinkResolver = (resource) => {
+    if (resource.kind === "thread") {
+      const projectId = resource.projectId ?? thread?.projectId;
+      return projectId === undefined
+        ? null
+        : () =>
+            navigate(
+              getThreadRoutePath({ projectId, threadId: resource.threadId }),
+            );
+    }
+    if (resource.kind === "project") {
+      return () => navigate(getProjectComposeRoutePath(resource.projectId));
+    }
+    return resource.kind === "path" &&
+      resource.entryKind === "file" &&
+      resource.source === "workspace"
+      ? (navigation?.resolveMentionLink?.(resource) ?? null)
+      : null;
+  };
+  const contained = layout === "contained";
+  const timeline = (
+    onAddToChat?: ThreadTimelineAddToChatHandler,
+    isTurnSubmitting?: boolean,
+  ) =>
+    thread && (
+      <ThreadTimelinePanelContent
+        isTurnSubmitting={isTurnSubmitting}
         leadingContent={leadingContent}
+        onOpenLink={hostNavigation?.onOpenLink}
+        onOpenLocalFileLink={navigation?.onOpenLocalFileLink}
+        onMessageAddToChat={onAddToChat}
+        projectId={thread.projectId}
+        resolveMentionLink={resolveMentionLink}
+        surfaceKey={onAddToChat ? undefined : `plugin-thread-chat:${threadId}`}
+        threadId={threadId}
+        workspaceRootPath={environment?.path ?? navigation?.workspaceRootPath}
       />
+    );
+  return (
+    <div
+      className={cn(
+        contained ? "flex h-full min-h-0 flex-col" : "flex flex-col",
+        className,
+      )}
+    >
+      {threadQuery.error instanceof BbHttpError &&
+      threadQuery.error.status === 404 ? (
+        <EmptyStatePanel className="m-2 rounded-lg">
+          This thread is no longer available.
+        </EmptyStatePanel>
+      ) : thread === undefined ? (
+        <div className="space-y-2 px-4 pt-4">
+          <Skeleton className="h-4 w-3/4 rounded-sm" />
+          <Skeleton className="h-4 w-2/3 rounded-sm" />
+          <Skeleton className="h-4 w-1/2 rounded-sm" />
+        </div>
+      ) : variant === "timeline" ? (
+        <div
+          className={cn(
+            "bg-background px-2 pb-3 pt-3",
+            contained && "min-h-0 flex-1 overflow-y-auto",
+          )}
+        >
+          {timeline()}
+        </div>
+      ) : (
+        <ThreadChatWithComposer
+          key={threadId}
+          thread={thread}
+          contained={contained}
+          page={variant === "full"}
+          focusRequest={focusRequest ?? 0}
+          resolveMentionLink={resolveMentionLink}
+          timeline={timeline}
+        />
+      )}
     </div>
   );
 }
 
-interface PluginThreadChatBodyProps {
-  threadId: string;
-  variant: "full" | "compact" | "timeline";
-  layout: "contained" | "document";
-  focusRequest: number | undefined;
-  permissionPolicy: "inherit" | "editable";
-  leadingContent: ReactNode;
-}
-
-function PluginThreadChatBody({
-  threadId,
-  variant,
-  layout,
+function ThreadChatWithComposer({
+  thread,
+  contained,
+  page,
   focusRequest,
-  permissionPolicy,
-  leadingContent,
-}: PluginThreadChatBodyProps) {
-  const threadQuery = useThread(threadId, { enabled: threadId.length > 0 });
-  const thread = threadQuery.data;
-  const navigate = useNavigate();
+  resolveMentionLink,
+  timeline,
+}: {
+  thread: ThreadResponse;
+  contained: boolean;
+  page: boolean;
+  focusRequest: number;
+  resolveMentionLink: PromptMentionLinkResolver;
+  timeline: (
+    onAddToChat: ThreadTimelineAddToChatHandler,
+    isTurnSubmitting: boolean,
+  ) => ReactNode;
+}) {
+  const settings = useSystemConfig().data?.generalSettings;
+  const sendMessage = useSendThreadMessage();
+  const markThreadRead = useMarkThreadRead();
+  const pending = useThreadPendingInteractions(thread.id);
+  const environment = useEnvironment(thread.environmentId).data;
+  const hosts = useHosts({ enabled: environment !== undefined }).data;
   const localHostId = useLocalHostId();
-  const environmentQuery = useEnvironment(thread?.environmentId ?? null);
-  const environment = environmentQuery.data ?? null;
-  const hostsQuery = useHosts({ enabled: environment !== null });
-  const environmentHost = environment
-    ? (hostsQuery.data?.find((host) => host.id === environment.hostId) ?? null)
-    : null;
-  const hasMultipleMachines = (hostsQuery.data?.length ?? 0) > 1;
-  const { providers: environmentProviders } = useSystemEnvironmentProviders();
-  const timelineNavigation = useThreadTimelineNavigation();
-  const canUseHostFileNavigation =
-    thread !== undefined &&
-    thread.environmentId === timelineNavigation?.environmentId;
-  const onOpenLink = timelineNavigation?.onOpenLink;
-  const onOpenLocalFileLink = canUseHostFileNavigation
-    ? timelineNavigation.onOpenLocalFileLink
-    : undefined;
-  const resolveHostMentionLink = canUseHostFileNavigation
-    ? timelineNavigation.resolveMentionLink
-    : undefined;
-  const workspaceRootPath =
-    environment?.path ??
-    (canUseHostFileNavigation
-      ? timelineNavigation.workspaceRootPath
-      : undefined);
-  const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
-    (resource) => {
-      if (resource.kind === "thread") {
-        const targetProjectId = resource.projectId ?? thread?.projectId;
-        if (targetProjectId === undefined) return null;
-        return () =>
-          navigate(
-            getThreadRoutePath({
-              projectId: targetProjectId,
-              threadId: resource.threadId,
-            }),
-          );
-      }
-      if (resource.kind === "project") {
-        return () => navigate(getProjectComposeRoutePath(resource.projectId));
-      }
-      if (
-        resource.kind === "path" &&
-        resource.entryKind === "file" &&
-        resource.source === "workspace"
-      ) {
-        return resolveHostMentionLink?.(resource) ?? null;
-      }
-      return null;
-    },
-    [navigate, resolveHostMentionLink, thread?.projectId],
+  const { providers } = useSystemEnvironmentProviders();
+  const [focusNonce, setFocusNonce] = useState(0);
+  useThreadReadTracking({ markThreadRead, thread });
+  const providerLookup = findEnvironmentDisplayProvider(
+    providers,
+    environment?.environmentProviderId ?? null,
   );
-
-  const environmentSummary = useMemo(() => {
-    if (environment === null) {
-      return null;
-    }
-    const host: EnvironmentDisplayHostContext = {
-      locality: environment.hostId === localHostId ? "local" : "remote",
-      identity: null,
-    };
-    const providerLookup = findEnvironmentDisplayProvider(
-      environmentProviders,
-      environment.environmentProviderId,
-    );
-    const display = formatEnvironmentDisplay({
-      environment,
-      host,
-      providerLookup,
+  const chrome = environment
+    ? getEnvironmentSummaryChrome({
+        display: formatEnvironmentDisplay({
+          environment,
+          host: {
+            locality: environment.hostId === localHostId ? "local" : "remote",
+            identity: null,
+          },
+          providerLookup,
+        }),
+        providerLookup,
+        hasMultipleMachines: (hosts?.length ?? 0) > 1,
+        host: hosts?.find((host) => host.id === environment.hostId) ?? null,
+      })
+    : undefined;
+  const addToChat: ThreadTimelineAddToChatHandler = (text, attachments) => {
+    const draft = getPromptDraftAccessor({
+      kind: "thread",
+      projectId: thread.projectId,
+      threadId: thread.id,
     });
-    const chrome = getEnvironmentSummaryChrome({
-      display,
-      providerLookup,
-      hasMultipleMachines,
-      host: environmentHost,
-    });
-    return (
-      <ThreadEnvironmentSummary
-        environmentLabel={chrome.environmentLabel}
-        environmentCompactLabel={chrome.environmentCompactLabel}
-        environmentHost={chrome.environmentHost}
-        environmentIcon={chrome.environmentIcon}
-        environmentProviderName={chrome.environmentProviderName}
-        environmentCheckout={
-          environment.branchName
-            ? formatWorkspaceCheckoutDisplay({
-                checkout: {
-                  kind: "branch",
-                  branchName: environment.branchName,
-                  headSha: null,
-                },
-              })
-            : undefined
-        }
-      />
+    draft.setDraft(
+      appendQuoteAndAttachmentsToDraft(
+        draft.getCurrent(),
+        text,
+        attachments ?? [],
+      ),
     );
-  }, [
-    environment,
-    environmentHost,
-    environmentProviders,
-    hasMultipleMachines,
-    localHostId,
-  ]);
-
-  const isThreadMissing =
-    threadQuery.error instanceof BbHttpError &&
-    threadQuery.error.status === 404;
-  if (isThreadMissing) {
+    setFocusNonce((nonce) => nonce + 1);
+  };
+  const tone = page ? "background" : "sidebar";
+  const surfaceClassName = page ? "bg-background" : "bg-sidebar";
+  const footer = (
+    <div className={cn("relative", surfaceClassName)}>
+      <OverflowFade placement="above" tone={tone} />
+      <div className="px-4 pb-4 pt-2">
+        <ThreadDetailPromptArea
+          thread={thread}
+          projectId={thread.projectId}
+          resolveMentionLink={resolveMentionLink}
+          sendMessage={sendMessage}
+          steerActiveThreadOnEnter={
+            settings?.steerActiveThreadOnEnter ??
+            defaultAppSettings.steerActiveThreadOnEnter
+          }
+          composerFocusRequestNonce={focusNonce + focusRequest}
+          pendingInteractions={pending.data ?? NOTHING}
+          pendingInteractionsInitialLoading={isPendingInteractionStateUnknown(
+            pending.data,
+            pending.isFetching,
+          )}
+          queuedMessageCount={thread.queuedMessageCount}
+          activeBackgroundAgentCount={thread.activeBackgroundAgentCount}
+          canRestoreEnvironment={false}
+          environmentGoneStatus={null}
+          environmentHostId={environment?.hostId}
+          environmentCheckout={
+            environment?.branchName
+              ? formatWorkspaceCheckoutDisplay({
+                  checkout: {
+                    kind: "branch",
+                    branchName: environment.branchName,
+                    headSha: null,
+                  },
+                })
+              : undefined
+          }
+          {...chrome}
+          canUseGitUi={false}
+          onChangedFileClick={() => {}}
+          workspaceChangedFilesSection={null}
+          workspaceStatusPending={false}
+          contextBannerMergeBase={null}
+          pendingTodos={null}
+          activePromptMode={null}
+          goal={null}
+          modelFallback={null}
+          activeWorkflows={NOTHING}
+          activeBackgroundCommands={NOTHING}
+          parentThreadSection={null}
+          childPendingInteractions={NOTHING}
+          childThreadsSection={null}
+        />
+      </div>
+    </div>
+  );
+  const maxWidthClassName = page ? "max-w-[760px]" : "max-w-none";
+  if (!contained) {
     return (
-      <EmptyStatePanel className="m-2 rounded-lg">
-        This thread is no longer available.
-      </EmptyStatePanel>
-    );
-  }
-  if (thread === undefined) {
-    return (
-      <div className="space-y-2 px-4 pt-4">
-        <Skeleton className="h-4 w-3/4 rounded-sm" />
-        <Skeleton className="h-4 w-2/3 rounded-sm" />
-        <Skeleton className="h-4 w-1/2 rounded-sm" />
+      <div
+        data-thread-window=""
+        data-surface-tone={tone}
+        className={cn("flex min-w-0 flex-col", surfaceClassName)}
+      >
+        <div
+          className={cn(
+            "mx-auto flex w-full min-w-0 flex-col pb-3 pt-3",
+            page ? "px-4" : "px-2",
+            maxWidthClassName,
+          )}
+        >
+          {timeline(addToChat, sendMessage.isPending)}
+        </div>
+        <div className="sticky bottom-0 z-20">{footer}</div>
       </div>
     );
   }
-
-  if (variant === "timeline") {
-    const transcript = (
-      <ThreadTimelinePanelContent
-        leadingContent={leadingContent}
-        onOpenLink={onOpenLink}
-        onOpenLocalFileLink={onOpenLocalFileLink}
-        projectId={thread.projectId}
-        resolveMentionLink={resolveMentionLink}
-        surfaceKey={`plugin-thread-chat:${threadId}`}
-        threadId={threadId}
-        workspaceRootPath={workspaceRootPath}
-      />
-    );
-    return layout === "contained" ? (
-      <div className="min-h-0 flex-1 overflow-y-auto bg-background px-2 pb-3 pt-3">
-        {transcript}
-      </div>
-    ) : (
-      <div className="bg-background px-2 pb-3 pt-3">{transcript}</div>
-    );
-  }
-
   return (
-    <EmbeddedThreadChat
-      variant="compact"
-      layout={layout}
-      measure={variant === "full" ? "page" : "panel"}
-      surfaceTone={variant === "compact" ? "sidebar" : "background"}
-      threadId={threadId}
-      projectId={thread.projectId}
-      providerId={thread.providerId}
-      promptContextEnvironmentId={thread.environmentId}
-      resolveMentionLink={resolveMentionLink}
-      leadingContent={leadingContent}
-      onOpenLink={onOpenLink}
-      onOpenLocalFileLink={onOpenLocalFileLink}
-      workspaceRootPath={workspaceRootPath}
-      composer={{
-        draftScope: {
-          kind: "thread",
-          projectId: thread.projectId,
-          threadId,
-        },
-        executionDefaultsThreadId: threadId,
-        executionResetKey: threadId,
-        executionEnvironmentId: thread.environmentId ?? undefined,
-        executionEnvironmentHostId: environment?.hostId,
-        permissionPolicy:
-          permissionPolicy === "editable" ? "editable" : "snapshot",
-        environmentSummary,
-        focusRequestKey: focusRequest,
-      }}
-    />
+    <div
+      data-thread-window=""
+      data-surface-tone={tone}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <BottomAnchoredScrollBody
+        scrollAreaClassName={surfaceClassName}
+        contentClassName={page ? "!pb-3 !pt-3" : "!px-2 !pb-3 !pt-3"}
+        maxWidthClassName={maxWidthClassName}
+        footer={footer}
+      >
+        {timeline(addToChat, sendMessage.isPending)}
+      </BottomAnchoredScrollBody>
+    </div>
   );
 }
