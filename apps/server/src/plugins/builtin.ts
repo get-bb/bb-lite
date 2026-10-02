@@ -4,6 +4,7 @@ import connect from "../../../../plugins/connect/src/server.js";
 import askUserQuestion from "../../../../plugins/ask-user-question/src/server.js";
 import customInstructions from "../../../../plugins/custom-instructions/server.js";
 import secrets from "../../../../plugins/secrets/src/server.js";
+import accountPool from "../../../../plugins/account-pool/src/server.js";
 import threadList from "../../../../plugins/thread-list/server.js";
 
 export interface BuiltinPlugin {
@@ -24,4 +25,5 @@ export const builtinPlugins: BuiltinPlugin[] = [
     server: customInstructions,
   },
   { directory: pluginDirectory("connect"), server: connect },
+  { directory: pluginDirectory("account-pool"), server: accountPool },
 ];
