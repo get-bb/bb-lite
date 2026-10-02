@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef } from "react";
-import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { cn } from "@bb/shared-ui/lib/utils";
-import { SIDEBAR_CONTROL_BUTTON_CLASS } from "@bb/shared-ui/sidebar-row-classes";
-import type { RenameSession, RenameController } from "./SidebarInlineRename.js";
+import { Icon } from "./icon.js";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "./coarse-pointer-sizing.js";
+import { cn } from "../../lib/utils";
+import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebar-row-classes.js";
+import type {
+  RenameSession,
+  RenameController,
+} from "./sidebar-inline-rename.js";
 
 interface HttpErrorShape {
   status: number | null;
@@ -153,6 +156,7 @@ export function SidebarRenameEditor({
         autoCorrect="off"
         className={cn(
           "min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 py-0 [font:inherit] outline-none",
+          session.inputClassName,
           isPending && "animate-shine motion-reduce:opacity-60",
         )}
         spellCheck={false}

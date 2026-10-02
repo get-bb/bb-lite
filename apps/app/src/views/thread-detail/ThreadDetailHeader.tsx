@@ -19,7 +19,7 @@ import type { ThreadGitActionDialogTarget } from "@/components/dialogs/ThreadGit
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
-import { useInlineRename } from "@/components/sidebar/SidebarInlineRename";
+import { useSidebarRename } from "@bb/shared-ui/sidebar-inline-rename";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
@@ -58,10 +58,12 @@ export function ThreadDetailHeader({
   workspaceOpenButton?: ReactNode;
 }) {
   const { renameThreadAsync } = useThreadActions();
-  const { editor, isEditing, startEditing } = useInlineRename({
+  const { editor, isEditing, startEditing } = useSidebarRename({
+    kind: "thread",
     id: threadId,
     name: threadTitle,
     label: "Thread name",
+    inputClassName: "field-sizing-content",
     onSave: (nextTitle) => renameThreadAsync(threadId, nextTitle),
   });
   const dimsInactiveSplits = useAtomValue(dimInactiveSplitsAtom);

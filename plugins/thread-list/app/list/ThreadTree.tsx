@@ -94,7 +94,7 @@ import { SidebarChildToggleChevron } from "../rows/SidebarChildToggleChevron.js"
 import {
   useSidebarRename,
   useSidebarRenameState,
-} from "../rows/SidebarInlineRename.js";
+} from "@bb/shared-ui/sidebar-inline-rename";
 import {
   SidebarControlButton,
   SidebarRowControls,

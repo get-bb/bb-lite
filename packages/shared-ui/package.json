@@ -194,6 +194,11 @@
       "types": "./src/components/ui/rename-dialog.tsx",
       "default": "./src/components/ui/rename-dialog.tsx"
     },
+    "./sidebar-inline-rename": {
+      "source": "./src/components/ui/sidebar-inline-rename.tsx",
+      "types": "./src/components/ui/sidebar-inline-rename.tsx",
+      "default": "./src/components/ui/sidebar-inline-rename.tsx"
+    },
     "./sidebar-row-classes": {
       "source": "./src/components/ui/sidebar-row-classes.ts",
       "types": "./src/components/ui/sidebar-row-classes.ts",

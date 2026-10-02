@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { SidebarRenameEditor, renameError } from "./SidebarRenameEditor.js";
+import { SidebarRenameEditor, renameError } from "./sidebar-rename-editor.js";
 
 interface SidebarRenameArgs {
   kind: "thread" | "section" | "environment";
@@ -18,6 +18,7 @@ interface SidebarRenameArgs {
   onSave: (name: string) => Promise<unknown>;
   maxLength?: number;
   placeholder?: string;
+  inputClassName?: string;
   onClear?: () => Promise<unknown>;
   ownerKey?: string;
 }
