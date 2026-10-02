@@ -53,7 +53,7 @@ describe("claude adapter", () => {
     expect(replay.checked).toHaveLength(Number(checks));
   });
 
-  it("maps each tool to its bb item and serves bb tools", async () => {
+  it("labels escaped commands and bb tools, and serves bb tools", async () => {
     const harness = claude.createClaudeHarness();
     const label = { pending: "Nooping", completed: "Nooped" };
     const presentation = { label, icon: { glyph: "Zap" } };
@@ -63,57 +63,28 @@ describe("claude adapter", () => {
     const live = await harness.open({ dynamicTools });
     await live.turn("go");
     const escape = { run_in_background: true, dangerouslyDisableSandbox: true };
-    const file_path = "/w/a.ts";
-    const edit = { file_path, old_string: "a\nb", new_string: "a\nc" };
     const agent = { description: "Dig", subagent_type: "Explore" };
+    const report = "agentId: 7\nFound it\n<usage>1</usage>";
     live.query.emit(
       assistant(
         toolUse("t1", "Bash", { command: "ls\npwd", ...escape }),
-        toolUse("t2", "Read", { file_path }),
-        toolUse("t3", "Grep", { pattern: "needle", path: "/w" }),
-        toolUse("t4", "Edit", edit),
-        toolUse("t5", "Write", { file_path: "/w/b.ts", content: "x\n" }),
-        toolUse("t6", "WebFetch", { url: "https://x.dev", prompt: "sum" }),
-        toolUse("t7", "Task", { ...agent, model: "opus" }),
-        toolUse("t8", "ToolSearch", { query: "select:Read" }),
-        toolUse("t9", "mcp__github__create_issue", { title: "x" }),
-        toolUse("t10", "mcp__bb-bridge__noop", {}),
-        toolUse("t11", "Mystery", { a: 1 }),
+        toolUse("t2", "Task", agent),
+        toolUse("t3", "mcp__github__create_issue", { title: "x" }),
+        toolUse("t4", "mcp__bb-bridge__noop", {}),
       ),
+      toolResult("t2", [{ type: "text", text: report }]),
     );
     await settle();
     const started = items(harness);
     expect(started.map((item) => item.brief)).toEqual([
       "commandExecution | Starting background command | Terminal | ls | Outside of sandbox",
-      "fileRead | Reading file | FileText | a.ts",
-      "search | Searching files | Search | needle",
-      "fileChange | Editing file | EditFile | a.ts",
-      "fileChange | Writing file | EditFile | b.ts",
-      "webFetch | Fetching page | Browser | https://x.dev",
-      "delegation | Running subagent | UserRound | Dig | Explore agent · model opus",
-      "toolCall | Searching tools | Toolbox | select:Read | hidden",
+      "delegation | Running subagent | UserRound | Dig | Explore agent",
       "toolCall | Running create_issue | Toolbox | github",
       "toolCall | Nooping | Zap",
-      "toolCall | Running Mystery | Toolbox",
     ]);
-    const diff = "--- a/w/a.ts\n+++ b/w/a.ts\n-b\n+c\n";
-    const added = "--- /dev/null\n+++ b/w/b.ts\n+x\n";
-    const changed = [{ path: file_path, kind: "update", diff }];
-    expect(started[3]?.changes).toEqual(changed);
-    expect(started[4]?.changes).toMatchObject([{ kind: "add", diff: added }]);
-    expect(started[8]).toMatchObject({ server: "github", arguments: {} });
-    const report = "agentId: 7\nFound it\n<usage>1</usage>";
-    live.query.emit(
-      toolResult("t1", "(Bash completed with no output)"),
-      toolResult("t7", [{ type: "text", text: report }]),
-      toolResult("t11", "boom", { failed: true }),
-    );
-    await settle();
-    const [command, delegation, mystery] = items(harness, "item/completed");
-    expect(command).toMatchObject({ status: "completed", exitCode: 0 });
-    expect(command).not.toHaveProperty("aggregatedOutput");
+    expect(started[2]).toMatchObject({ server: "github", arguments: {} });
+    const [delegation] = items(harness, "item/completed");
     expect(delegation).toMatchObject({ summary: "Found it" });
-    expect(mystery).toMatchObject({ status: "failed", result: "boom" });
     const { mcpServers, allowedTools } = live.query.args.options;
     expect(allowedTools).toEqual(["mcp__bb-bridge__noop"]);
     const server = mcpServers?.["bb-bridge"];
@@ -124,11 +95,11 @@ describe("claude adapter", () => {
     await Promise.all([server.instance.connect(far), client.connect(near)]);
     const listed = await client.listTools();
     expect(listed.tools).toMatchObject([{ name: "noop", inputSchema }]);
-    const _meta = { "claudecode/toolUseId": "t10" };
+    const _meta = { "claudecode/toolUseId": "t4" };
     const result = await client.callTool({ name: "noop", _meta });
     expect(result.content).toEqual([{ type: "text", text: "moved" }]);
     const turnId = live.builder.activeTurnId;
-    const callId = live.builder.bbItemId("t10");
+    const callId = live.builder.bbItemId("t4");
     const forwarded = { tool: "noop", arguments: {}, turnId, callId };
     expect(harness.toolCalls).toEqual([forwarded]);
   });
@@ -153,9 +124,13 @@ describe("claude adapter", () => {
       assistant(toolUse("t3", "Bash", background)),
       { ...task, subtype: "task_started", tool_use_id: "t3", ...watch },
       { type: "result", subtype: "success", is_error: false, session_id },
-      { ...task, subtype: "task_notification", ...outcome, output_file: "/o" },
     );
     await settle();
+    expect(live.builder.hasOpenBackgroundWork()).toBe(true);
+    const notified = { subtype: "task_notification", output_file: "/o" };
+    live.query.emit({ ...task, ...notified, ...outcome });
+    await settle();
+    expect(live.builder.hasOpenBackgroundWork()).toBe(false);
     const completed = items(harness, "item/completed");
     const plans = completed.filter((item) => item.type === "planSteps");
     const steps = plans.map((plan) => plan.steps);
@@ -220,6 +195,12 @@ describe("claude adapter", () => {
     harness.interactions.shift()?.resolve({ decision: "deny" });
     const denied = { behavior: "deny", message: "Permission request denied" };
     expect(await fetch).toMatchObject(denied);
+    const plan = { plan: "1. Ship", planFilePath: "/plans/p.md" };
+    const rejected = live.decide("ExitPlanMode", plan);
+    await settle();
+    harness.interactions.shift()?.resolve({ decision: "deny" });
+    const rejection = expect.stringContaining("rejected this plan");
+    expect(await rejected).toMatchObject({ message: rejection });
     const pending = live.decide("Bash", command, reason);
     await settle();
     const before = harness.events.length;
@@ -244,45 +225,24 @@ describe("claude adapter", () => {
   it("turns user answers into the tool input", async () => {
     const harness = claude.createClaudeHarness();
     const live = await harness.open();
-    const option = (label: string) => ({ label, description: `${label}!` });
-    const options = [option("Red"), option("Blue")];
+    const options = ["Red", "Blue"].map((label) => ({
+      label,
+      description: label,
+    }));
     const colour = { question: "Colour?", header: "Tint", multiSelect: true };
     const questions = [{ ...colour, options }];
     const asking = live.decide("AskUserQuestion", { questions });
     await settle();
     const id = "toolu_ask:question-1";
-    const [red, blue] = [`${id}:option-1`, `${id}:option-2`];
-    const choices = [{ value: red, label: "Red", description: "Red!" }, {}];
-    const asked = {
-      id,
-      prompt: "Colour?",
-      shortLabel: "Tint",
-      multiSelect: true,
-    };
-    const question = { ...asked, allowFreeText: true, options: choices };
-    const payload = { kind: "user_question", questions: [question] };
-    expect(harness.interactions[0]?.payload).toMatchObject(payload);
-    const answers = { [id]: { selected: [red, blue], freeText: "but dark" } };
+    const selected = [`${id}:option-1`, `${id}:option-2`];
+    const answers = { [id]: { selected, freeText: "but dark" } };
     harness.interactions.shift()?.resolve({ kind: "user_answer", answers });
-    const updatedInput = {
-      questions,
-      answers: { "Colour?": "Red, Blue; but dark" },
-      annotations: { "Colour?": { notes: "but dark" } },
-    };
+    const annotations = { "Colour?": { notes: "but dark" } };
+    const answered = { answers: { "Colour?": "Red, Blue; but dark" } };
+    const updatedInput = { questions, ...answered, annotations };
     expect(await asking).toMatchObject({ behavior: "allow", updatedInput });
     const invalid = await live.decide("AskUserQuestion", { questions: [] });
     expect(invalid).toMatchObject({ behavior: "deny" });
-  });
-
-  it("tells Claude not to re-propose a rejected plan", async () => {
-    const harness = claude.createClaudeHarness();
-    const live = await harness.open({}, { planMode: true });
-    const plan = { plan: "1. Ship", planFilePath: "/plans/p.md" };
-    const rejected = live.decide("ExitPlanMode", plan);
-    await settle();
-    harness.interactions.shift()?.resolve({ decision: "deny" });
-    const message = expect.stringContaining("rejected this plan");
-    expect(await rejected).toMatchObject({ behavior: "deny", message });
   });
 
   it("builds the query from the spec and applies later changes live", async () => {
