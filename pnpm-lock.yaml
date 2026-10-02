@@ -926,6 +926,9 @@ importers:
 
   plugins/ask-user-question:
     dependencies:
+      '@bb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
@@ -1088,9 +1091,9 @@ importers:
 
   plugins/custom-instructions:
     dependencies:
-      zod:
-        specifier: 4.6.5
-        version: 4.6.5
+      '@bb/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.12

@@ -11,9 +11,7 @@
   "bb": {
     "name": "Ask User Question",
     "description": "Let any provider ask the user a multiple-choice question, the way Claude Code's AskUserQuestion does natively.",
-    "branding": {
-      "icon": "MessageQuestion"
-    },
+    "icon": "MessageQuestion",
     "server": "./src/server.ts",
     "app": "./app.tsx"
   },
@@ -26,6 +24,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@bb/domain": "workspace:*",
     "@bb/plugin": "workspace:*",
     "@bb/shared-ui": "workspace:*",
     "zod": "^4.3.6"

@@ -1,5 +1,8 @@
 import * as domain from "@bb/domain";
-import type { InputResult as PluginInputResult } from "@bb/plugin";
+import type {
+  InputRequest,
+  InputResult as PluginInputResult,
+} from "@bb/plugin";
 import * as pending from "../db/pending-interactions.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
@@ -20,11 +23,13 @@ export interface PluginInputRequest {
   payload: domain.JsonValue;
   presentation?: domain.ThreadEventItemPresentation;
   signal?: AbortSignal;
+  describeSubmission?: InputRequest["describeSubmission"];
 }
 
 export interface InputWaiter {
   resolve(result: PluginInputResult): void;
   dispose(): void;
+  describeSubmission?: InputRequest["describeSubmission"];
 }
 
 const ACTIVE = ["pending", "resolving"] as const;
@@ -272,6 +277,20 @@ function settlePluginInteraction(
   });
 }
 
+function describeSubmission(
+  engine: Engine,
+  interactionId: string,
+  value: domain.JsonValue,
+): domain.PluginInteractionDescription | undefined {
+  const describe = engine.inputWaiters.get(interactionId)?.describeSubmission;
+  try {
+    const described = describe?.(value);
+    return domain.pluginInteractionDescriptionSchema.safeParse(described).data;
+  } catch {
+    return undefined;
+  }
+}
+
 export function respondToInteraction(
   engine: Engine,
   threadId: string,
@@ -284,9 +303,10 @@ export function respondToInteraction(
     return resolveProviderInteraction(engine, threadId, row.id, resolution);
   }
   if (row.status !== "pending") throw alreadySettled(row);
+  const description = describeSubmission(engine, row.id, value);
   const next = {
     status: "resolved" as const,
-    resolution: { kind: "plugin_submitted" },
+    resolution: { kind: "plugin_submitted", description },
   };
   const result = { outcome: "submitted" as const, value };
   return settlePluginInteraction(engine, row, next, result);
@@ -341,11 +361,16 @@ function openPluginInteraction(
       if (current === undefined || current.status !== "pending") return;
       cancelPluginInteraction(engine, threadId, row.id, reason);
     });
+  const { describeSubmission } = request;
   const result = new Promise<PluginInputResult>((resolve) => {
-    const abort = (): void => cancel("request-aborted");
+    const abort = (): void => {
+      const reason: unknown = signal?.reason;
+      const expired = reason instanceof Error && reason.name === "TimeoutError";
+      cancel(expired ? "timeout" : "request-aborted");
+    };
     signal?.addEventListener("abort", abort, { once: true });
     const dispose = (): void => signal?.removeEventListener("abort", abort);
-    engine.inputWaiters.set(row.id, { resolve, dispose });
+    engine.inputWaiters.set(row.id, { resolve, dispose, describeSubmission });
     if (signal?.aborted) abort();
   });
   return { result };

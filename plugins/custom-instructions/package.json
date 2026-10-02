@@ -11,9 +11,7 @@
   "bb": {
     "name": "Custom instructions",
     "description": "Add persistent custom instructions to agent tasks on this bb host.",
-    "branding": {
-      "icon": "EditFile"
-    },
+    "icon": "EditFile",
     "server": "./server.ts"
   },
   "keywords": [
@@ -25,7 +23,7 @@
     "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "@bb/plugin": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

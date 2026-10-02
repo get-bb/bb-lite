@@ -4,9 +4,11 @@ import type { ThreadContext } from "@bb/plugin";
 import type { SessionSpec } from "@bb/runner";
 import { dataPaths, loopbackUrl } from "../config.js";
 import type { ServerContext } from "../context.js";
+import type { Db } from "../db/index.js";
 import { getAppSettings } from "../db/settings.js";
 import type { ThreadRow } from "../db/threads.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
+import { findProviderDefinition } from "../providers/catalog.js";
 import { requireProviderId } from "./execution.js";
 
 export interface SessionEnvironment {
@@ -64,11 +66,14 @@ async function readUserInstructions(dataDir: string): Promise<string | null> {
 }
 
 export function pluginContext(
+  db: Db,
   thread: ThreadRow,
   hostId: string | null,
 ): ThreadContext {
   const { id: threadId, projectId, providerId } = thread;
-  return { threadId, projectId, hostId, providerId };
+  const provider = findProviderDefinition(db, providerId);
+  const providerCapabilities = provider?.info.capabilities;
+  return { threadId, projectId, hostId, providerId, providerCapabilities };
 }
 
 function serverUrlFor(ctx: ServerContext, hostId: string): string {
@@ -83,7 +88,7 @@ export async function buildSessionSpec(
   environment: SessionEnvironment,
 ): Promise<SessionSpec> {
   const { hostId } = environment;
-  const scope = pluginContext(thread, hostId);
+  const scope = pluginContext(ctx.db, thread, hostId);
   const providerId = requireProviderId(thread.providerId);
   const [plugins, pluginEnv, machineEnv, user, workspace] = await Promise.all([
     ctx.plugins.instructionsFor(scope),
