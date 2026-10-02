@@ -1,8 +1,4 @@
-import {
-  PROMPT_HISTORY_ENTRY_LIMIT,
-  takeVisiblePromptHistoryEntries,
-  type PromptHistoryEntry,
-} from "@bb/domain";
+import type { PromptHistoryEntry } from "@bb/domain";
 import {
   arePromptDraftStatesEqual,
   isPromptDraftEmpty,
@@ -30,14 +26,4 @@ export function promptHistoryEntriesToDrafts(
   }
 
   return drafts;
-}
-
-export function prependPromptHistoryEntry(
-  entries: readonly PromptHistoryEntry[] | undefined,
-  entry: PromptHistoryEntry,
-): PromptHistoryEntry[] {
-  return takeVisiblePromptHistoryEntries({
-    entries: [entry, ...(entries ?? [])],
-    limit: PROMPT_HISTORY_ENTRY_LIMIT,
-  });
 }

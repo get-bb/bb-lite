@@ -3,79 +3,46 @@ import type { Host, PermissionMode } from "@bb/domain";
 import { apiClient } from "@/lib/api-server";
 import { request } from "@/lib/api";
 import { sdk } from "@/lib/sdk";
-import { invalidateHostListQueries } from "../cache-owners/mutation-cache-effects";
-import { applyHostRenameResult } from "../cache-owners/system-cache-effects";
+import { qk } from "../queries/query-keys";
 
-interface RenameHostRequest {
-  hostId: string;
-  name: string;
+function useHostMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { showErrorToast: false },
+    mutationFn,
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.hosts() }),
+  });
 }
 
 export function useRenameHost() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      showErrorToast: false,
-    },
-    mutationFn: ({ hostId, name }: RenameHostRequest) =>
-      sdk.hosts.update({ hostId, name }),
-    onSuccess: (host) => {
-      applyHostRenameResult({ host, queryClient });
-      invalidateHostListQueries({ queryClient });
-    },
-  });
+  return useHostMutation((args: { hostId: string; name: string }) =>
+    sdk.hosts.update(args),
+  );
 }
 
 export function useRemoveHost() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      showErrorToast: false,
-    },
-    mutationFn: async (hostId: string) => {
-      await sdk.hosts.delete({ hostId });
-    },
-    onSuccess: () => {
-      invalidateHostListQueries({ queryClient });
-    },
+  return useHostMutation(async (hostId: string) => {
+    await sdk.hosts.delete({ hostId });
   });
-}
-
-interface UpdateHostPermissionCeilingRequest {
-  hostId: string;
-  maxPermissionMode: PermissionMode;
 }
 
 export function useUpdateHostPermissionCeiling() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      showErrorToast: false,
-    },
-    mutationFn: ({
-      hostId,
-      maxPermissionMode,
-    }: UpdateHostPermissionCeilingRequest) =>
+  return useHostMutation(
+    (args: { hostId: string; maxPermissionMode: PermissionMode }) =>
       request<Host>(
         apiClient.hosts[":id"]["permission-ceiling"].$patch({
-          param: { id: hostId },
-          json: { maxPermissionMode },
+          param: { id: args.hostId },
+          json: { maxPermissionMode: args.maxPermissionMode },
         }),
       ),
-    onSuccess: () => {
-      invalidateHostListQueries({ queryClient });
-    },
-  });
+  );
 }
 
 export function useReconnectHost() {
   return useMutation({
-    meta: {
-      showErrorToast: false,
-    },
+    meta: { showErrorToast: false },
     mutationFn: (hostId: string) =>
       sdk.hosts.experimental_reconnect({ hostId }),
   });

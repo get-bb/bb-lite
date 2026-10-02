@@ -1,120 +1,51 @@
-interface ResolveAbsoluteFilePathArgs {
-  path: string;
-  rootPath: string | null | undefined;
-}
-
-interface BuildAbsoluteFilePathArgs {
-  path: string;
-  rootPath: string;
-}
-
-interface GetAbsoluteDirnameArgs {
-  path: string;
-}
-
-interface IsAbsoluteFilePathWithinRootArgs {
-  candidatePath: string;
-  rootPath: string;
-}
-
-interface NormalizeAbsoluteFilePathArgs {
-  path: string;
-}
-
-function trimTrailingSlash(path: string): string {
-  if (path === "/") {
-    return path;
-  }
-  return path.replace(/\/+$/u, "");
-}
-
-function trimLeadingSlash(path: string): string {
-  return path.replace(/^\/+/u, "");
-}
-
-function isAbsoluteFilePath(path: string): boolean {
-  return path.startsWith("/");
-}
-
 export function normalizeAbsoluteFilePath({
   path,
-}: NormalizeAbsoluteFilePathArgs): string | null {
-  if (!isAbsoluteFilePath(path)) {
-    return null;
-  }
-
-  const normalizedSegments: string[] = [];
+}: {
+  path: string;
+}): string | null {
+  if (!path.startsWith("/")) return null;
+  const segments: string[] = [];
   for (const segment of path.split("/")) {
-    if (segment.length === 0 || segment === ".") {
-      continue;
-    }
-    if (segment === "..") {
-      if (normalizedSegments.length > 0) {
-        normalizedSegments.pop();
-      }
-      continue;
-    }
-    normalizedSegments.push(segment);
+    if (segment === "..") segments.pop();
+    else if (segment.length > 0 && segment !== ".") segments.push(segment);
   }
-
-  return normalizedSegments.length === 0
-    ? "/"
-    : `/${normalizedSegments.join("/")}`;
+  return `/${segments.join("/")}`;
 }
 
-export function isAbsoluteFilePathWithinRoot({
-  candidatePath,
-  rootPath,
-}: IsAbsoluteFilePathWithinRootArgs): boolean {
-  const normalizedCandidatePath = normalizeAbsoluteFilePath({
-    path: candidatePath,
-  });
-  const normalizedRootPath = normalizeAbsoluteFilePath({ path: rootPath });
-  if (normalizedCandidatePath === null || normalizedRootPath === null) {
-    return false;
-  }
-
-  if (normalizedRootPath === "/") {
-    return normalizedCandidatePath.startsWith("/");
-  }
-
+export function isAbsoluteFilePathWithinRoot(args: {
+  candidatePath: string;
+  rootPath: string;
+}): boolean {
+  const candidate = normalizeAbsoluteFilePath({ path: args.candidatePath });
+  const root = normalizeAbsoluteFilePath({ path: args.rootPath });
   return (
-    normalizedCandidatePath === normalizedRootPath ||
-    normalizedCandidatePath.startsWith(`${normalizedRootPath}/`)
+    candidate !== null &&
+    root !== null &&
+    (root === "/" || candidate === root || candidate.startsWith(`${root}/`))
   );
 }
 
-export function buildAbsoluteFilePath({
-  path,
-  rootPath,
-}: BuildAbsoluteFilePathArgs): string {
-  if (isAbsoluteFilePath(path)) {
-    return path;
-  }
-
-  const normalizedRootPath = trimTrailingSlash(rootPath);
-  const relativePath = trimLeadingSlash(path);
-  if (normalizedRootPath === "/") {
-    return `/${relativePath}`;
-  }
-  return `${normalizedRootPath}/${relativePath}`;
+export function buildAbsoluteFilePath(args: {
+  path: string;
+  rootPath: string;
+}): string {
+  if (args.path.startsWith("/")) return args.path;
+  const root = args.rootPath === "/" ? "" : args.rootPath.replace(/\/+$/u, "");
+  return `${root}/${args.path}`;
 }
 
-export function resolveAbsoluteFilePath({
-  path,
-  rootPath,
-}: ResolveAbsoluteFilePathArgs): string | null {
-  if (isAbsoluteFilePath(path)) {
-    return path;
-  }
-  if (!rootPath) {
-    return null;
-  }
-  return buildAbsoluteFilePath({ path, rootPath });
+export function resolveAbsoluteFilePath(args: {
+  path: string;
+  rootPath: string | null | undefined;
+}): string | null {
+  if (args.path.startsWith("/")) return args.path;
+  return args.rootPath
+    ? buildAbsoluteFilePath({ path: args.path, rootPath: args.rootPath })
+    : null;
 }
 
-export function getAbsoluteDirname({ path }: GetAbsoluteDirnameArgs): string {
-  const trimmed = trimTrailingSlash(path);
+export function getAbsoluteDirname({ path }: { path: string }): string {
+  const trimmed = path === "/" ? path : path.replace(/\/+$/u, "");
   const lastSlashIndex = trimmed.lastIndexOf("/");
   return lastSlashIndex <= 0 ? "/" : trimmed.slice(0, lastSlashIndex);
 }

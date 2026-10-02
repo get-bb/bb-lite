@@ -29,7 +29,7 @@ import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcut
 import { CommandPalette } from "@/components/commands/CommandPalette";
 import { AppPageHeader } from "./AppPageHeader";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
-import { listSidebarNavigationThreads } from "@/hooks/cache-owners/query-cache";
+import { listSidebarNavigationThreads } from "@/hooks/queries/thread-cache";
 import {
   didThreadDetailBootstrapRefreshAfterMount,
   getLatestPendingInteraction,
@@ -72,7 +72,7 @@ import {
 } from "@/components/commands/AppCommandProvider";
 import { wsManager } from "@/lib/ws";
 import { splitLayoutAtom } from "@/lib/split-layout/atoms";
-import { findPaneByThread } from "@/lib/split-layout";
+import { findPaneByContent } from "@/lib/split-layout";
 import { applyThreadOpenToLayout } from "@/views/thread-detail/splitThreadNavigation";
 import { useAppSettingsRouteMemory } from "@/hooks/useAppSettingsRouteMemory";
 import { useSetRootComposeProjectId } from "@/lib/root-compose-selection";
@@ -206,7 +206,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
         const current = store.get(splitLayoutAtom);
         const alreadyOpen =
           current !== null &&
-          findPaneByThread(current.root, projectId, threadId) !== null;
+          findPaneByContent(current.root, {
+            kind: "thread",
+            projectId,
+            threadId,
+          }) !== null;
         const next = applyThreadOpenToLayout(
           current,
           { projectId, threadId },
@@ -227,10 +231,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   useAppCommandHandler("settings.open", () => {
     void navigate(settingsRoutePath);
-    return true;
-  });
-  useAppCommandHandler("settings.openServers", () => {
-    void navigate(`${SETTINGS_ROUTE_PATH}/servers`);
     return true;
   });
   const isSettingsView =

@@ -1,6 +1,9 @@
-import { useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Thread } from "@bb/domain";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import type { Thread, ThreadListEntry, ThreadWithRuntime } from "@bb/domain";
 import type {
   ThreadArchiveAllResponse,
   ThreadResponse,
@@ -8,55 +11,33 @@ import type {
 } from "@bb/server-contract";
 import { sdk } from "@/lib/sdk";
 import type { LifecycleErrorOperation } from "@/lib/lifecycle-errors";
+import { qk } from "../queries/query-keys";
 import {
-  applyThreadPinStateResult,
-  applyThreadReadStateResult,
-  applyThreadUpdateResult,
-  beginArchiveThreadAndChildrenTransaction,
-  beginDeleteThreadTransaction,
-  beginPinThreadTransaction,
-  beginThreadReadStateTransaction,
-  beginThreadMetadataTransaction,
-  beginUnarchiveThreadTransaction,
-  beginUnpinAndMoveThreadTransaction,
-  beginUnpinThreadTransaction,
-  rollbackArchiveThreadsTransaction,
-  rollbackDeleteThreadTransaction,
-  rollbackThreadListMutationTransaction,
-  rollbackThreadReadStateTransaction,
-  type ThreadReadStateTransaction,
-  settleArchiveThreadsTransaction,
-  settleDeleteThreadTransaction,
-  settleThreadListMembershipMutation,
-  settleThreadReadStateTransaction,
-  type ArchiveThreadsTransaction,
-  type DeleteThreadTransaction,
-  type ThreadListMutationTransaction,
-} from "../cache-owners/thread-state-cache-owner";
+  cachedThreads,
+  findCachedThread,
+  mapCachedThreadLists,
+  patchCachedThreads,
+  refreshThreadCaches,
+  restoreCacheSnapshot,
+  snapshotThreadCaches,
+  type CacheSnapshot,
+  type ThreadPatch,
+} from "../queries/thread-cache";
 
 interface ThreadMutationRequest {
   id: string;
 }
 
-type UpdateThreadMutationRequest = ThreadMutationRequest & UpdateThreadRequest;
-type UnpinAndMoveThreadMutationRequest = ThreadMutationRequest & {
-  sectionId: string | null;
-};
-
-interface MoveThreadToSectionRequest {
-  sectionId: string | null;
-  thread: Pick<Thread, "id" | "pinnedAt" | "sectionId">;
+interface ThreadMetadataUpdate {
+  threadId: string;
+  parentThreadId?: string | null;
+  sectionId?: string | null;
+  title?: string | null;
 }
 
-interface UpdateThreadMutationOptions {
-  errorMessage?: string | undefined;
-  lifecycleOperation?: LifecycleErrorOperation | undefined;
-  showErrorToast?: boolean;
-}
-
-interface ArchiveThreadAndChildrenMutationRequest {
-  id: string;
-  childThreadsConfirmed: boolean;
+interface ThreadReadMutationInput {
+  signal?: AbortSignal;
+  threadId: string;
 }
 
 export class ArchiveThreadConfirmationRequired extends Error {
@@ -65,198 +46,190 @@ export class ArchiveThreadConfirmationRequired extends Error {
   }
 }
 
-interface DeleteThreadMutationRequest {
-  id: string;
-  childThreadsConfirmed: boolean;
+const UNPINNED = { pinnedAt: null, pinSortKey: null };
+const recentlyArchived = new Map<string, ThreadListEntry>();
+
+function metadataPatch(
+  client: QueryClient,
+  update: ThreadMetadataUpdate,
+): ThreadPatch {
+  const { threadId, title } = update;
+  let { parentThreadId, sectionId } = update;
+  const current = findCachedThread(client, threadId)?.parentThreadId;
+  if (parentThreadId === null && sectionId === undefined && current) {
+    const parent = findCachedThread(client, current);
+    if (parent) sectionId = parent.sectionId;
+    else parentThreadId = undefined;
+  }
+  return {
+    ...(title !== undefined ? { title } : {}),
+    ...(sectionId !== undefined ? { sectionId } : {}),
+    ...(parentThreadId !== undefined ? { parentThreadId } : {}),
+  };
 }
 
-interface ThreadReadMutationInput {
-  signal?: AbortSignal;
-  threadId: string;
+export async function beginThreadUpdates(
+  client: QueryClient,
+  updates: readonly ThreadMetadataUpdate[],
+): Promise<CacheSnapshot> {
+  const threadIds = [...new Set(updates.map((update) => update.threadId))];
+  const snapshot = await snapshotThreadCaches(client, threadIds);
+  const patches = new Map<string, ThreadPatch>();
+  for (const update of updates) {
+    patches.set(update.threadId, {
+      ...patches.get(update.threadId),
+      ...metadataPatch(client, update),
+    });
+  }
+  patchCachedThreads(client, (thread) => patches.get(thread.id), threadIds);
+  return snapshot;
 }
 
-export function useUpdateThread(options?: UpdateThreadMutationOptions) {
-  const queryClient = useQueryClient();
+export function settleThreadUpdates(
+  client: QueryClient,
+  threadIds: readonly string[],
+  failedSnapshot?: CacheSnapshot,
+): void {
+  restoreCacheSnapshot(client, failedSnapshot);
+  refreshThreadCaches(client, threadIds);
+}
 
-  return useMutation<
-    ThreadResponse,
-    Error,
-    UpdateThreadMutationRequest,
-    ThreadListMutationTransaction | undefined
-  >({
+function useThreadPatchMutation<TVariables, TData>(config: {
+  errorMessage: string;
+  meta?: Record<string, unknown>;
+  threadId: (variables: TVariables) => string;
+  patch: (variables: TVariables) => (thread: ThreadWithRuntime) => ThreadPatch;
+  mutationFn: (variables: TVariables) => Promise<TData>;
+}) {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { errorMessage: config.errorMessage, ...config.meta },
+    mutationFn: config.mutationFn,
+    onMutate: async (variables) => {
+      const threadIds = [config.threadId(variables)];
+      const snapshot = await snapshotThreadCaches(client, threadIds);
+      patchCachedThreads(client, config.patch(variables), threadIds);
+      return snapshot;
+    },
+    onError: (_error, _variables, snapshot) =>
+      restoreCacheSnapshot(client, snapshot),
+    onSettled: (_data, _error, variables) =>
+      refreshThreadCaches(client, [config.threadId(variables)]),
+  });
+}
+
+export function useUpdateThread(options?: {
+  errorMessage?: string | undefined;
+  lifecycleOperation?: LifecycleErrorOperation | undefined;
+  showErrorToast?: boolean;
+}) {
+  const client = useQueryClient();
+  return useThreadPatchMutation({
+    errorMessage: options?.errorMessage ?? "Failed to update thread.",
     meta: {
-      errorMessage: options?.errorMessage ?? "Failed to update thread.",
       showErrorToast: options?.showErrorToast ?? true,
-      ...(options?.lifecycleOperation
-        ? { lifecycleOperation: options.lifecycleOperation }
-        : {}),
+      lifecycleOperation: options?.lifecycleOperation,
     },
-    mutationFn: ({ id, ...request }: UpdateThreadMutationRequest) =>
+    threadId: ({ id }: ThreadMutationRequest & UpdateThreadRequest) => id,
+    patch: ({ id, ...update }) => {
+      const patch = metadataPatch(client, { threadId: id, ...update });
+      return () => patch;
+    },
+    mutationFn: ({ id, ...request }): Promise<ThreadResponse> =>
       sdk.threads.update({ threadId: id, ...request }),
-    onMutate: ({
-      parentThreadId,
-      sectionId,
-      id,
-      title,
-    }): Promise<ThreadListMutationTransaction | undefined> | undefined => {
-      if (
-        title === undefined &&
-        sectionId === undefined &&
-        parentThreadId === undefined
-      ) {
-        return undefined;
-      }
-
-      return beginThreadMetadataTransaction({
-        parentThreadId,
-        sectionId,
-        queryClient,
-        threadId: id,
-        title,
-      });
-    },
-    onError: (_error, variables, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadUpdateResult({ queryClient, thread });
-    },
   });
 }
 
 export function usePinThread() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to pin thread.",
+  return useThreadPatchMutation({
+    errorMessage: "Failed to pin thread.",
+    threadId: ({ id }: ThreadMutationRequest) => id,
+    patch: () => {
+      const pinned = { pinnedAt: Date.now(), pinSortKey: null };
+      return () => pinned;
     },
-    mutationFn: ({ id }: ThreadMutationRequest) =>
-      sdk.threads.pin({ threadId: id }),
-    onMutate: async ({ id }): Promise<ThreadListMutationTransaction> =>
-      beginPinThreadTransaction({
-        pinnedAt: Date.now(),
-        queryClient,
-        threadId: id,
-      }),
-    onError: (_error, variables, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadPinStateResult({ queryClient, thread, pinSortKey: null });
-    },
-    onSettled: (_data, _error, variables) => {
-      settleThreadListMembershipMutation({
-        queryClient,
-        threadId: variables.id,
-      });
-    },
+    mutationFn: ({ id }) => sdk.threads.pin({ threadId: id }),
   });
 }
 
 export function useUnpinThread() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to unpin thread.",
-    },
-    mutationFn: ({ id }: ThreadMutationRequest) =>
-      sdk.threads.unpin({ threadId: id }),
-    onMutate: async ({ id }): Promise<ThreadListMutationTransaction> =>
-      beginUnpinThreadTransaction({ queryClient, threadId: id }),
-    onError: (_error, variables, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadPinStateResult({ queryClient, thread, pinSortKey: null });
-    },
-    onSettled: (_data, _error, variables) => {
-      settleThreadListMembershipMutation({
-        queryClient,
-        threadId: variables.id,
-      });
-    },
-  });
-}
-
-export function useUnpinAndMoveThread() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    ThreadResponse,
-    Error,
-    UnpinAndMoveThreadMutationRequest,
-    ThreadListMutationTransaction
-  >({
-    meta: {
-      errorMessage: "Failed to unpin and move thread.",
-    },
-    mutationFn: async ({ sectionId, id }) => {
-      await sdk.threads.unpin({ threadId: id });
-      return sdk.threads.update({ sectionId, threadId: id });
-    },
-    onMutate: async ({ sectionId, id }) =>
-      beginUnpinAndMoveThreadTransaction({
-        sectionId,
-        queryClient,
-        threadId: id,
-      }),
-    onError: (_error, variables, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadPinStateResult({ queryClient, thread, pinSortKey: null });
-    },
-    onSettled: (_data, _error, variables) => {
-      settleThreadListMembershipMutation({
-        queryClient,
-        threadId: variables.id,
-      });
-    },
+  return useThreadPatchMutation({
+    errorMessage: "Failed to unpin thread.",
+    threadId: ({ id }: ThreadMutationRequest) => id,
+    patch: () => () => UNPINNED,
+    mutationFn: ({ id }) => sdk.threads.unpin({ threadId: id }),
   });
 }
 
 export function useMoveThreadToSection() {
   const { mutate: updateThread } = useUpdateThread();
   const { mutate: unpinThread } = useUnpinThread();
-  const { mutate: unpinAndMoveThread } = useUnpinAndMoveThread();
-
-  return useCallback(
-    ({ thread, sectionId }: MoveThreadToSectionRequest) => {
-      if (thread.pinnedAt !== null) {
-        if (thread.sectionId === sectionId) {
-          unpinThread({ id: thread.id });
-        } else {
-          unpinAndMoveThread({ id: thread.id, sectionId });
-        }
-      } else if (thread.sectionId !== sectionId) {
-        updateThread({ id: thread.id, sectionId });
-      }
+  const { mutate: unpinAndMoveThread } = useThreadPatchMutation({
+    errorMessage: "Failed to unpin and move thread.",
+    threadId: ({ id }: ThreadMutationRequest & { sectionId: string | null }) =>
+      id,
+    patch:
+      ({ sectionId }) =>
+      () => ({ ...UNPINNED, sectionId }),
+    mutationFn: async ({ id, sectionId }) => {
+      await sdk.threads.unpin({ threadId: id });
+      return sdk.threads.update({ sectionId, threadId: id });
     },
-    [unpinAndMoveThread, unpinThread, updateThread],
+  });
+  return ({
+    thread,
+    sectionId,
+  }: {
+    sectionId: string | null;
+    thread: Pick<Thread, "id" | "pinnedAt" | "sectionId">;
+  }) => {
+    const { id } = thread;
+    if (thread.pinnedAt === null) {
+      if (thread.sectionId !== sectionId) updateThread({ id, sectionId });
+    } else if (thread.sectionId === sectionId) unpinThread({ id });
+    else unpinAndMoveThread({ id, sectionId });
+  };
+}
+
+function readStatePatch(read: boolean) {
+  return (thread: ThreadWithRuntime): ThreadPatch => ({
+    lastReadAt: read ? Math.max(Date.now(), thread.latestAttentionAt) : null,
+  });
+}
+
+export function useMarkThreadRead() {
+  return useThreadPatchMutation({
+    errorMessage: "Failed to mark thread read.",
+    meta: { showErrorToast: false },
+    threadId: ({ threadId }: ThreadReadMutationInput) => threadId,
+    patch: () => readStatePatch(true),
+    mutationFn: (input) => sdk.threads.markRead(input),
+  });
+}
+
+export function useMarkThreadUnread() {
+  return useThreadPatchMutation({
+    errorMessage: "Failed to mark thread unread.",
+    meta: { showErrorToast: false },
+    threadId: ({ threadId }: ThreadReadMutationInput) => threadId,
+    patch: () => readStatePatch(false),
+    mutationFn: (input) => sdk.threads.markUnread(input),
+  });
+}
+
+function setArchivedAt(
+  client: QueryClient,
+  threadId: string,
+  archivedAt: number | null,
+): void {
+  client.setQueryData<ThreadResponse>(
+    qk.threadDetail(threadId),
+    (thread) => thread && { ...thread, archivedAt },
   );
 }
 
 export function useArchiveThreadAndChildren() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
     meta: {
       errorMessage: "Failed to archive thread and children.",
@@ -266,7 +239,9 @@ export function useArchiveThreadAndChildren() {
     mutationFn: async ({
       id,
       childThreadsConfirmed,
-    }: ArchiveThreadAndChildrenMutationRequest): Promise<ThreadArchiveAllResponse> => {
+    }: ThreadMutationRequest & {
+      childThreadsConfirmed: boolean;
+    }): Promise<ThreadArchiveAllResponse> => {
       if (!childThreadsConfirmed) {
         const summary = await sdk.threads.childSummary({ threadId: id });
         if (summary.unarchivedDescendantCount > 0) {
@@ -277,159 +252,100 @@ export function useArchiveThreadAndChildren() {
       }
       return sdk.threads.archiveAll({ threadId: id });
     },
-    onMutate: async ({ id }): Promise<ArchiveThreadsTransaction> =>
-      beginArchiveThreadAndChildrenTransaction({
-        queryClient,
-        threadId: id,
-      }),
-    onError: (_error, _variables, context) => {
-      rollbackArchiveThreadsTransaction({ queryClient, transaction: context });
+    onMutate: async ({ id }) => {
+      const family = cachedThreads(client).filter(
+        (thread) =>
+          thread.archivedAt === null &&
+          (thread.id === id || thread.parentThreadId === id),
+      );
+      const threadIds = [...new Set([id, ...family.map(({ id }) => id)])];
+      const snapshot = await snapshotThreadCaches(client, threadIds);
+      const archivedAt = Date.now();
+      for (const thread of family) recentlyArchived.set(thread.id, thread);
+      for (const threadId of threadIds) {
+        setArchivedAt(client, threadId, archivedAt);
+      }
+      mapCachedThreadLists(client, (threads) =>
+        threads.filter(
+          (thread) =>
+            thread.archivedAt !== null || !threadIds.includes(thread.id),
+        ),
+      );
+      return { snapshot, threadIds };
     },
-    onSettled: (data, _error, _variables, context) => {
-      settleArchiveThreadsTransaction({
-        queryClient,
-        response: data,
-        transaction: context,
-      });
-    },
+    onError: (_error, _variables, context) =>
+      restoreCacheSnapshot(client, context?.snapshot),
+    onSettled: (data, _error, _variables, context) =>
+      refreshThreadCaches(
+        client,
+        data?.archivedThreadIds ?? context?.threadIds ?? [],
+      ),
   });
 }
 
 export function useUnarchiveThread() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
     mutationKey: ["unarchive-thread"],
-    meta: {
-      errorMessage: "Failed to unarchive thread.",
-    },
+    meta: { errorMessage: "Failed to unarchive thread." },
     mutationFn: async ({ id }: ThreadMutationRequest) => {
       await sdk.threads.unarchive({ threadId: id });
     },
-    onMutate: async ({ id }): Promise<ThreadListMutationTransaction> =>
-      beginUnarchiveThreadTransaction({ queryClient, threadId: id }),
-    onError: (_error, variables, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
+    onMutate: async ({ id }) => {
+      const snapshot = await snapshotThreadCaches(client, [id]);
+      const entry =
+        recentlyArchived.get(id) ??
+        cachedThreads(client).find((thread) => thread.id === id);
+      recentlyArchived.delete(id);
+      setArchivedAt(client, id, null);
+      mapCachedThreadLists(client, (threads, projectId) => {
+        const rest = threads.filter((thread) => thread.id !== id);
+        return entry && projectId === entry.projectId
+          ? [...rest, { ...entry, archivedAt: null }]
+          : rest;
       });
+      return snapshot;
     },
-    onSettled: (_data, _error, variables) => {
-      settleThreadListMembershipMutation({
-        queryClient,
-        threadId: variables.id,
-      });
-    },
+    onError: (_error, _variables, snapshot) =>
+      restoreCacheSnapshot(client, snapshot),
+    onSettled: (_data, _error, { id }) => refreshThreadCaches(client, [id]),
   });
 }
 
 export function useRestoreThreadEnvironment() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
-    meta: {
-      errorMessage: "Failed to restore workspace.",
-    },
+    meta: { errorMessage: "Failed to restore workspace." },
     mutationFn: ({ id }: ThreadMutationRequest): Promise<ThreadResponse> =>
       sdk.threads.restoreEnvironment({ threadId: id }),
-    onSuccess: (thread) => {
-      applyThreadUpdateResult({ queryClient, thread });
-    },
+    onSuccess: (thread) => refreshThreadCaches(client, [thread.id]),
   });
+}
+
+export function dropCachedThread(client: QueryClient, threadId: string): void {
+  void client.cancelQueries({ queryKey: qk.threadDetail(threadId) });
+  client.setQueryData<ThreadResponse>(
+    qk.threadDetail(threadId),
+    (thread) => thread && { ...thread, deletedAt: Date.now() },
+  );
+  mapCachedThreadLists(client, (threads) =>
+    threads.filter((thread) => thread.id !== threadId),
+  );
 }
 
 export function useDeleteThread() {
-  const queryClient = useQueryClient();
-
+  const client = useQueryClient();
   return useMutation({
-    meta: {
-      errorMessage: "Failed to delete thread.",
-    },
+    meta: { errorMessage: "Failed to delete thread." },
     mutationFn: async ({
       childThreadsConfirmed,
       id,
-    }: DeleteThreadMutationRequest) => {
+    }: ThreadMutationRequest & { childThreadsConfirmed: boolean }) => {
       await sdk.threads.delete({ childThreadsConfirmed, threadId: id });
     },
-    onMutate: async ({ id }): Promise<DeleteThreadTransaction> =>
-      beginDeleteThreadTransaction({ queryClient, threadId: id }),
-    onError: (_error, variables, context) => {
-      rollbackDeleteThreadTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-    onSettled: (_data, _error, variables, context) => {
-      settleDeleteThreadTransaction({
-        queryClient,
-        threadId: variables.id,
-        transaction: context,
-      });
-    },
-  });
-}
-
-export function useMarkThreadRead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to mark thread read.",
-      showErrorToast: false,
-    },
-    mutationFn: (input: ThreadReadMutationInput) => sdk.threads.markRead(input),
-    onMutate: (input): Promise<ThreadReadStateTransaction> =>
-      beginThreadReadStateTransaction({
-        lastReadAt: Date.now(),
-        queryClient,
-        threadId: input.threadId,
-      }),
-    onError: (_error, input, context) => {
-      rollbackThreadReadStateTransaction({
-        queryClient,
-        threadId: input.threadId,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadReadStateResult({ queryClient, thread });
-    },
-    onSettled: (_data, _error, _input, transaction) => {
-      settleThreadReadStateTransaction({ queryClient, transaction });
-    },
-  });
-}
-
-export function useMarkThreadUnread() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    meta: {
-      errorMessage: "Failed to mark thread unread.",
-      showErrorToast: false,
-    },
-    mutationFn: (input: ThreadReadMutationInput) =>
-      sdk.threads.markUnread(input),
-    onMutate: (input): Promise<ThreadReadStateTransaction> =>
-      beginThreadReadStateTransaction({
-        lastReadAt: null,
-        queryClient,
-        threadId: input.threadId,
-      }),
-    onError: (_error, input, context) => {
-      rollbackThreadListMutationTransaction({
-        queryClient,
-        threadId: input.threadId,
-        transaction: context,
-      });
-    },
-    onSuccess: (thread) => {
-      applyThreadReadStateResult({ queryClient, thread });
-    },
-    onSettled: (_data, _error, _input, transaction) => {
-      settleThreadReadStateTransaction({ queryClient, transaction });
+    onSuccess: (_data, { id }) => {
+      dropCachedThread(client, id);
+      refreshThreadCaches(client, []);
     },
   });
 }

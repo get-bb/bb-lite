@@ -3,92 +3,58 @@ import { displayWidth, truncateToWidth } from "@bb/text-utils";
 import { fileNameFromPath } from "@bb/thread-view";
 import { promptInputToDraft, type PromptDraftState } from "./prompt-draft.js";
 
-const QUEUED_MESSAGE_PREVIEW_MAX_WIDTH = 140;
-const QUEUED_MESSAGE_PREVIEW_ELLIPSIS = "...";
+const PREVIEW_MAX_WIDTH = 140;
+const PREVIEW_ELLIPSIS = "...";
 
-interface FormatQueuedMessagePreviewOptions {
-  truncate?: boolean;
-}
-
-function visibleQueuedMessageInput(
-  input: readonly PromptInput[],
-): PromptInput[] {
+function visibleInput(input: readonly PromptInput[]): PromptInput[] {
   return input.filter((chunk) => chunk.visibility !== "agent-only");
 }
 
-function getAttachmentNameFromPath(path: string): string {
-  const trimmedPath = path.trim();
-  if (trimmedPath.length === 0) return "Attachment";
-  return fileNameFromPath(trimmedPath);
+function visibleAttachments(input: readonly PromptInput[]) {
+  return visibleInput(input).flatMap((chunk) =>
+    chunk.type === "localImage" || chunk.type === "localFile" ? [chunk] : [],
+  );
 }
 
 export function countQueuedMessageAttachments(
   input: readonly PromptInput[],
 ): number {
-  let count = 0;
-  for (const chunk of visibleQueuedMessageInput(input)) {
-    if (chunk.type === "localImage" || chunk.type === "localFile") {
-      count += 1;
-    }
-  }
-  return count;
-}
-
-function getQueuedMessageVisibleText(input: readonly PromptInput[]): string {
-  return visibleQueuedMessageInput(input)
-    .filter(
-      (chunk): chunk is Extract<PromptInput, { type: "text" }> =>
-        chunk.type === "text",
-    )
-    .map((chunk) => chunk.text.trim())
-    .filter((chunk) => chunk.length > 0)
-    .join("\n\n");
+  return visibleAttachments(input).length;
 }
 
 export function formatQueuedMessagePreview(
   input: readonly PromptInput[],
-  options: FormatQueuedMessagePreviewOptions = {},
+  options: { truncate?: boolean } = {},
 ): string {
-  const visibleInput = visibleQueuedMessageInput(input);
-  const text = getQueuedMessageVisibleText(visibleInput);
-  const trimmedText = text.replace(/\s+/g, " ").trim();
-  if (trimmedText.length > 0) {
-    if (
-      options.truncate === false ||
-      displayWidth(trimmedText) <= QUEUED_MESSAGE_PREVIEW_MAX_WIDTH
-    ) {
-      return trimmedText;
-    }
-    return `${truncateToWidth(
-      trimmedText,
-      QUEUED_MESSAGE_PREVIEW_MAX_WIDTH - QUEUED_MESSAGE_PREVIEW_ELLIPSIS.length,
-    )}${QUEUED_MESSAGE_PREVIEW_ELLIPSIS}`;
+  const text = visibleInput(input)
+    .flatMap((chunk) => (chunk.type === "text" ? [chunk.text.trim()] : []))
+    .filter((chunk) => chunk.length > 0)
+    .join("\n\n")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (text.length > 0) {
+    return options.truncate === false || displayWidth(text) <= PREVIEW_MAX_WIDTH
+      ? text
+      : `${truncateToWidth(
+          text,
+          PREVIEW_MAX_WIDTH - PREVIEW_ELLIPSIS.length,
+        )}${PREVIEW_ELLIPSIS}`;
   }
-
-  const attachmentCount = countQueuedMessageAttachments(visibleInput);
-  if (attachmentCount === 1) {
-    const firstAttachment = visibleInput.find(
-      (chunk) => chunk.type === "localImage" || chunk.type === "localFile",
-    );
-    if (firstAttachment) {
-      if (firstAttachment.type === "localFile" && firstAttachment.name) {
-        return `Attachment only (${firstAttachment.name})`;
-      }
-      return `Attachment only (${getAttachmentNameFromPath(
-        firstAttachment.path,
-      )})`;
-    }
-    return "Attachment only (1 file)";
+  const attachments = visibleAttachments(input);
+  const [first] = attachments;
+  if (first === undefined) return "(empty message)";
+  if (attachments.length > 1) {
+    return `Attachment only (${attachments.length} files)`;
   }
-  if (attachmentCount > 1) {
-    return `Attachment only (${attachmentCount} files)`;
-  }
-
-  return "(empty message)";
+  const path = first.path.trim();
+  const name =
+    (first.type === "localFile" && first.name) ||
+    (path.length === 0 ? "Attachment" : fileNameFromPath(path));
+  return `Attachment only (${name})`;
 }
 
 export function queuedInputToDraft(
   input: readonly PromptInput[],
 ): PromptDraftState {
-  return promptInputToDraft(visibleQueuedMessageInput(input));
+  return promptInputToDraft(visibleInput(input));
 }

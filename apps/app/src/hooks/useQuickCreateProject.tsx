@@ -1,129 +1,71 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { deriveProjectNameFromPath, type Host } from "@bb/domain";
+import { deriveProjectNameFromPath } from "@bb/domain";
 import { useCreateProject } from "@/hooks/mutations/project-mutations";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
-import {
-  useLocalPathPicker,
-  type LocalPathSubmitParams,
-} from "@/hooks/useLocalPathPicker";
+import { useLocalPathPicker } from "@/hooks/useLocalPathPicker";
 import {
   APP_ROOT_ROUTE_PATH,
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
 import { useSetRootComposeProjectId } from "@/lib/root-compose-selection";
-import type {
-  ProjectPathDialogSubmitHandler,
-  ProjectPathDialogTarget,
-} from "@/components/dialogs/ProjectPathDialog";
 
-interface QuickCreateProjectDialogState {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  target: ProjectPathDialogTarget | null;
-}
-
-interface QuickCreateProjectController {
-  isAvailable: boolean;
-  isCreating: boolean;
-  openCreateDialog: () => void;
-  hostId: string | null;
-  hostName: string | null;
-  hosts: readonly Host[];
-  projectPathDialog: QuickCreateProjectDialogState;
-  submitProjectPath: ProjectPathDialogSubmitHandler;
-}
-
-const quickCreateProjectContext =
-  createContext<QuickCreateProjectController | null>(null);
-
-export function useQuickCreateProject(): QuickCreateProjectController {
+function useQuickCreateProject() {
   const { mutate, isPending } = useCreateProject();
-  const hostsQuery = useHosts();
-  const hosts = useMemo(
-    () => selectHosts(hostsQuery.data, "all"),
-    [hostsQuery.data],
-  );
+  const hosts = selectHosts(useHosts().data, "all");
   const navigate = useNavigate();
   const location = useLocation();
   const setRootComposeProjectId = useSetRootComposeProjectId();
-  const shouldReplaceRoute = location.pathname === APP_ROOT_ROUTE_PATH;
-
-  const submit = useCallback(
-    ({ path, hostId, target, closeDialog }: LocalPathSubmitParams) => {
-      if (target.kind !== "create") return;
+  const picker = useLocalPathPicker({
+    isPending,
+    submit: ({ path, hostId, target, closeDialog }) => {
       const name = deriveProjectNameFromPath(path).trim();
-      if (!name) return;
-
+      if (target.kind !== "create" || !name) return;
       mutate(
-        {
-          name,
-          source: { type: "local_path", hostId, path },
-        },
+        { name, source: { type: "local_path", hostId, path } },
         {
           onSuccess: (project) => {
             closeDialog();
             setRootComposeProjectId(project.id);
             void navigate(getRootComposeRoutePath(), {
-              replace: shouldReplaceRoute,
+              replace: location.pathname === APP_ROOT_ROUTE_PATH,
             });
           },
         },
       );
     },
-    [mutate, navigate, setRootComposeProjectId, shouldReplaceRoute],
-  );
-
-  const controller = useLocalPathPicker({
-    isPending,
-    submit,
   });
-
-  const openCreateDialog = useCallback(() => {
-    controller.openPathEntry({ kind: "create" });
-  }, [controller]);
-
-  return useMemo(
-    () => ({
-      isAvailable: controller.isAvailable,
-      isCreating: isPending,
-      openCreateDialog,
-      hostId: controller.hostId,
-      hostName: controller.hostName,
-      hosts,
-      projectPathDialog: controller.projectPathDialog,
-      submitProjectPath: controller.submitProjectPath,
-    }),
-    [controller, hosts, isPending, openCreateDialog],
-  );
+  return {
+    isAvailable: picker.isAvailable,
+    isCreating: isPending,
+    openCreateDialog: () => picker.openPathEntry({ kind: "create" }),
+    hostId: picker.hostId,
+    hostName: picker.hostName,
+    hosts,
+    projectPathDialog: picker.projectPathDialog,
+    submitProjectPath: picker.submitProjectPath,
+  };
 }
 
-interface QuickCreateProjectProviderProps {
-  children: ReactNode;
-}
+type QuickCreateProjectController = ReturnType<typeof useQuickCreateProject>;
+
+const QuickCreateProjectContext =
+  createContext<QuickCreateProjectController | null>(null);
 
 export function QuickCreateProjectProvider({
   children,
-}: QuickCreateProjectProviderProps) {
-  const quickCreateProject = useQuickCreateProject();
-
+}: {
+  children: ReactNode;
+}) {
   return (
-    <quickCreateProjectContext.Provider value={quickCreateProject}>
+    <QuickCreateProjectContext.Provider value={useQuickCreateProject()}>
       {children}
-    </quickCreateProjectContext.Provider>
+    </QuickCreateProjectContext.Provider>
   );
 }
 
 export function useQuickCreateProjectController(): QuickCreateProjectController {
-  const quickCreateProject = useContext(quickCreateProjectContext);
-  if (!quickCreateProject) {
-    throw new Error("QuickCreateProjectProvider is required");
-  }
-  return quickCreateProject;
+  const controller = useContext(QuickCreateProjectContext);
+  if (!controller) throw new Error("QuickCreateProjectProvider is required");
+  return controller;
 }

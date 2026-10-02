@@ -15,7 +15,7 @@ import { SettingsSection } from "@/components/ui/settings-section";
 import {
   invalidateMachineEnvironment,
   invalidateSystemConfig,
-} from "@/hooks/cache-owners/system-cache-effects";
+} from "@/hooks/mutations/settings-mutations";
 import { machineEnvironmentQueryKey } from "@/hooks/queries/query-keys";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { sdk } from "@/lib/sdk";

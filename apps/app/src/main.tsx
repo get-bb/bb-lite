@@ -8,7 +8,6 @@ import { AppToaster } from "./components/AppToaster";
 import { initializePreferredTheme } from "./hooks/useTheme";
 import { initializeFavicon } from "./lib/favicon-color-preference";
 import { installForeignDomMutationGuard } from "./lib/foreign-dom-mutation-guard";
-import { installAppQueryClientBrowserEvents } from "./lib/query-client";
 import { appQueryClient } from "./lib/app-query-client";
 import { applyCachedAppThemeCss } from "./lib/themes";
 import "./app.css";
@@ -16,8 +15,6 @@ import "./app.css";
 installForeignDomMutationGuard();
 
 Error.stackTraceLimit = 50;
-
-installAppQueryClientBrowserEvents(appQueryClient);
 
 initializePreferredTheme();
 applyCachedAppThemeCss();

@@ -48,7 +48,7 @@ import {
   useUpdateGeneralSettings,
 } from "@/hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
-import { useAppThemePreview } from "@/hooks/useAppThemePreview";
+import { useAppThemePreview } from "@/hooks/useAppTheme";
 import {
   setPreferredTheme,
   useThemePreference,
@@ -58,8 +58,10 @@ import {
   FAVICON_COLOR_VALUES,
   getFaviconGlyphHref,
 } from "@/lib/favicon-color-preference";
-import { localhostLinkRewriteDescription } from "@/lib/localhost-link-rewrite-description";
-import { useRewriteLocalhostLinksPreference } from "@/lib/localhost-link-rewrite-preference";
+import {
+  localhostLinkRewriteDescription,
+  useRewriteLocalhostLinksPreference,
+} from "@/lib/localhost-link-rewrite-preference";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
 import { SETTINGS_ROUTE_PATH } from "@/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";
@@ -232,7 +234,7 @@ function AppearanceSettingsSection({
 }) {
   const themePreference = useThemePreference();
   const updateAppearance = useUpdateAppearance();
-  const preview = useAppThemePreview();
+  const previewTheme = useAppThemePreview();
   const [dimsInactiveSplits, setDimsInactiveSplits] = useAtom(
     dimInactiveSplitsAtom,
   );
@@ -296,21 +298,20 @@ function AppearanceSettingsSection({
             options={palettes}
             onOpenChange={(open) => {
               if (!open) {
-                if (!paletteSelectedRef.current) preview.previewTheme(null);
+                if (!paletteSelectedRef.current) previewTheme(null);
                 return;
               }
               paletteSelectedRef.current = false;
-              preview.prefetchThemes(palettes.map((entry) => entry.value));
             }}
             onPreview={(themeId) => {
               if (themeId !== null || !paletteSelectedRef.current)
-                preview.previewTheme(themeId);
+                previewTheme(themeId);
             }}
             onSelect={(themeId) => {
               paletteSelectedRef.current = true;
               updateAppearance.mutate(
                 { themeId, faviconColor: appearance.faviconColor },
-                { onError: () => preview.previewTheme(null) },
+                { onError: () => previewTheme(null) },
               );
             }}
           />

@@ -38,7 +38,6 @@ const SESSION = {
   threadId: THREAD,
   providerId: "echo" as const,
   cwd: "/work",
-  fork: null,
   instructions: "",
   dynamicTools: [],
   env: { BB_THREAD_ID: THREAD, API_TOKEN: "secret" },

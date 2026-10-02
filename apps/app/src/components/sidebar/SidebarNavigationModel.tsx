@@ -22,7 +22,7 @@ import { PluginItemIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/plugins/mount";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { appToast } from "@/components/ui/app-toast";
-import { invalidatePluginList } from "@/hooks/cache-owners/plugin-cache-owner";
+import { invalidatePluginList } from "@/hooks/queries/plugin-settings-queries";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
@@ -32,7 +32,7 @@ import {
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
 import type { PaneContent } from "@/lib/split-layout";
-import { openPaneContentInSplit } from "@/lib/split-layout/openPaneContentInSplit";
+import { openPaneContentInSplit } from "@/lib/split-layout/atoms";
 
 interface SidebarNavigationEntry {
   item: SidebarNavigationItem;

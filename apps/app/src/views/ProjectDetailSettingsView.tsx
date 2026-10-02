@@ -42,7 +42,7 @@ import {
 import {
   isHostPathMissing,
   useHostPathExistence,
-} from "@/hooks/queries/host-path-queries";
+} from "@/hooks/queries/host-queries";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useProjectDefaultExecutionOptions } from "@/hooks/queries/project-default-execution-options-query";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";

@@ -37,7 +37,6 @@ export interface SessionSpec {
   providerId: ProviderId;
   cwd: string;
   providerThreadId: string | null;
-  fork: { sourceProviderThreadId: string; checkpointId: string | null } | null;
   instructions: string;
   dynamicTools: DynamicTool[];
   env: Record<string, string>;

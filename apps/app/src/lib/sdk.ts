@@ -1,12 +1,9 @@
 import { createBrowserBbSdk } from "@bb/sdk/browser";
-import { fetchWithAppSurface } from "./app-surface";
-
-const BASE_URL =
-  typeof window === "undefined" ? "http://localhost" : window.location.origin;
 
 export const sdk = createBrowserBbSdk({
-  baseUrl: BASE_URL,
-  fetch: fetchWithAppSurface,
+  baseUrl:
+    typeof window === "undefined" ? "http://localhost" : window.location.origin,
+  fetch: (input, init) => fetch(input, init),
 });
 
 export { BbHttpError } from "@bb/sdk/browser";

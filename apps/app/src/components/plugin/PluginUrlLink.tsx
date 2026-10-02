@@ -1,7 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { UrlLinkProps } from "@bb/plugin/app";
 import { RouteAnchor } from "@/components/ui/app-route-anchor";
-import { useAppNavigationHost } from "@/lib/app-navigation-host";
+import { useAppNavigationHost } from "@/lib/url-open-routing";
 import { resolveRouteHref } from "@/lib/route-paths";
 
 export function PluginUrlLink({

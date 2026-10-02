@@ -19,12 +19,10 @@ import {
   SettingsSection,
   SettingsWithControl,
 } from "@/components/ui/settings-section.js";
+import { useSetProviderEnabled } from "@/hooks/mutations/provider-mutations";
 import {
   applyPluginSettingsView,
   invalidatePluginList,
-} from "@/hooks/cache-owners/plugin-cache-owner";
-import { useSetProviderEnabled } from "@/hooks/mutations/provider-mutations";
-import {
   updatePluginSettings,
   usePluginList,
   usePluginSettingsView,
@@ -54,7 +52,7 @@ function PluginSetting({
   const save = useMutation({
     scope: { id: `plugin-setting:${pluginId}:${settingKey}` },
     mutationFn: (value: string | boolean) =>
-      updatePluginSettings(fetch, pluginId, { [settingKey]: value }),
+      updatePluginSettings(pluginId, { [settingKey]: value }),
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
       setDraft(null);

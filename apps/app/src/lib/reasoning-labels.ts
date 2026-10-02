@@ -11,7 +11,7 @@ const FALLBACK_REASONING_LABELS: Record<ReasoningLevel, string> = {
   ultra: "Ultra",
 };
 
-export type ReasoningLabelSource = Pick<ProviderInfo, "reasoningLevels">;
+type ReasoningLabelSource = Pick<ProviderInfo, "reasoningLevels">;
 
 export function reasoningLevelLabel(
   level: ReasoningLevel,

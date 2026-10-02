@@ -6,23 +6,15 @@ export function serializePluginPanelParams(
 ): string | null {
   if (params === undefined) return null;
   const result = jsonValueSchema.safeParse(params);
-  if (!result.success) {
-    throw new Error('"params" must be a JSON value');
-  }
-  const serialized = JSON.stringify(result.data);
-  if (serialized === undefined) {
-    throw new Error('"params" must be a JSON value');
-  }
-  return serialized;
+  if (!result.success) throw new Error('"params" must be a JSON value');
+  return JSON.stringify(result.data);
 }
 
 export function parsePersistedPluginPanelParams(
   paramsJson: string | null,
 ): JsonValue | null {
-  if (paramsJson === null) return null;
   try {
-    const parsed: unknown = JSON.parse(paramsJson);
-    const result = jsonValueSchema.safeParse(parsed);
+    const result = jsonValueSchema.safeParse(JSON.parse(paramsJson ?? ""));
     return result.success ? result.data : null;
   } catch {
     return null;

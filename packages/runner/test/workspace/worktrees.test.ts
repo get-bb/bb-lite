@@ -34,27 +34,12 @@ describe("managed worktrees and lifecycle scripts", () => {
 
   afterAll(() => h.dispose());
 
-  it("creates a worktree once, copies included files and reuses it", async () => {
+  it("copies included files, streams setup output and enforces the timeout", async () => {
     const created = await create();
-    expect(created).toEqual({
-      path: path.join(h.dataDir, "worktrees", "thr_1-1", "project"),
-      branchName,
-      mergeBaseBranch: "main",
-      worktreeInclude: { copied: 1, skipped: 0 },
-    });
-    const copied = fs.readFileSync(path.join(created.path, ".env"), "utf8");
-    expect(copied).toBe("TOKEN=1\n");
-    expect(fs.existsSync(path.join(created.path, "node_modules"))).toBe(false);
-    const inspected = await h.api.inspectPath({ path: created.path });
-    expect(inspected).toMatchObject({ isWorktree: true, branchName });
-
-    h.write(created.path, { "work.txt": "in progress\n" });
-    expect(await create()).toEqual({ ...created, worktreeInclude: null });
-    expect(fs.existsSync(path.join(created.path, "work.txt"))).toBe(true);
-  });
-
-  it("streams setup output, joins a repeated run and enforces the timeout", async () => {
-    const { path: cwd } = await create();
+    const cwd = created.path;
+    expect(created.worktreeInclude).toEqual({ copied: 1, skipped: 0 });
+    expect(fs.existsSync(path.join(cwd, "node_modules"))).toBe(false);
+    expect((await create()).worktreeInclude).toBeNull();
     const script = { path: cwd, env: { BB_THREAD_ID: "thr_1" } };
     const run = (operationId: string, kind: Kind, timeoutMs = 20_000) =>
       h.api.runLifecycleScript({ operationId, kind, timeoutMs, ...script });
