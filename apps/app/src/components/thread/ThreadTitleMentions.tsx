@@ -130,18 +130,6 @@ export function RawThreadMentionBatchProvider({
   return children;
 }
 
-export function useRawThreadMentionResources(
-  threadIds: readonly string[],
-): ReadonlyMap<string, PromptMentionResource> {
-  const { threadById } = useContext(ResourcesContext);
-  return new Map(
-    threadIds.flatMap((threadId) => {
-      const resource = threadResource(threadId, threadById.get(threadId));
-      return resource ? [[threadId, resource] as const] : [];
-    }),
-  );
-}
-
 export function useSidebarThreadMentionResource(
   threadId: string,
 ): PromptMentionResource | null {
