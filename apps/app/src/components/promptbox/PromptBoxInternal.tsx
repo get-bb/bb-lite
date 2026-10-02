@@ -148,9 +148,6 @@ export interface TypeaheadCommandConfig {
   suggestions: readonly ProviderCommandSuggestion[];
   isLoading: boolean;
   isError: boolean;
-  hasMore: boolean;
-  isLoadingMore: boolean;
-  loadMore: () => void;
   onQueryChange: (
     query: string | null,
     trigger: PromptMentionCommandTrigger | null,
@@ -696,11 +693,6 @@ export function PromptBoxInternal({
       setSelected({ triggerKey, key: typeaheadSuggestionKey(suggestion) });
     }
   };
-  const canLoadMoreCommands =
-    activeTrigger?.kind === "command" &&
-    command.hasMore &&
-    !command.isError &&
-    !command.isLoadingMore;
   const mentionQuery =
     activeTrigger?.kind === "mention" ? activeTrigger.query.trim() : "";
   const typeaheadMenuState: TypeaheadMenuState =
@@ -899,16 +891,7 @@ export function PromptBoxInternal({
       const canNavigate = !hasModifier && !canNavigateHistory && count > 0;
       if (event.key === "ArrowDown" && canNavigate) {
         event.preventDefault();
-        if (
-          activeTrigger?.kind === "command" &&
-          !command.isError &&
-          selectedIndex >= count - 1 &&
-          (command.hasMore || command.isLoadingMore)
-        ) {
-          if (canLoadMoreCommands) command.loadMore();
-        } else {
-          selectSuggestion((selectedIndex + 1) % count);
-        }
+        selectSuggestion((selectedIndex + 1) % count);
         return true;
       }
       if (event.key === "ArrowUp" && canNavigate) {
@@ -1247,15 +1230,6 @@ export function PromptBoxInternal({
   });
   useEffect(() => () => reportTypeaheadHeight?.(0), [reportTypeaheadHeight]);
 
-  const shouldPrefetchCommands =
-    canLoadMoreCommands &&
-    activeSuggestions.length > 0 &&
-    selectedIndex >= Math.max(0, activeSuggestions.length - 3);
-  const loadMoreCommands = useEffectEvent(() => command.loadMore());
-  useEffect(() => {
-    if (shouldPrefetchCommands) loadMoreCommands();
-  }, [shouldPrefetchCommands, activeSuggestions.length]);
-
   const submitPendingCommand = useEffectEvent(() => {
     setPendingCommandSubmit(false);
     submitPrompt();
@@ -1365,9 +1339,6 @@ export function PromptBoxInternal({
                 onApply={(item) => {
                   if (editor) applySuggestion(editor, item);
                 }}
-                onCommandLoadMore={
-                  canLoadMoreCommands ? command.loadMore : undefined
-                }
               />
             </div>
           ) : null}

@@ -1,10 +1,8 @@
 import { fuzzyMatchText } from "@bb/fuzzy-match";
 import {
-  providerCommandSection,
   providerCommandSectionRank,
   type ProviderCommand,
   type ProviderCommandOrigin,
-  type ProviderCommandSection,
   type ProviderCommandSource,
 } from "@bb/server-contract";
 import type { PromptMentionCommandTrigger } from "@bb/domain";
@@ -14,14 +12,11 @@ import type { OrderedMentionSuggestions } from "./mention-candidates.js";
 type PromptPathMentionSource = "workspace" | "thread-storage";
 type PromptPathMentionEntryKind = "file" | "directory";
 
-export const threadMentionRelationValues = [
-  "parent",
-  "child",
-  "same-parent",
-  "same-environment",
-] as const;
 export type ThreadMentionRelation =
-  (typeof threadMentionRelationValues)[number];
+  | "parent"
+  | "child"
+  | "same-parent"
+  | "same-environment";
 
 export type PromptMentionSuggestion =
   | {
@@ -81,14 +76,15 @@ export interface ProviderCommandSuggestion {
 export function toProviderCommandSuggestion(
   command: ProviderCommand,
 ): ProviderCommandSuggestion {
+  const { name, source, origin, description, argumentHint, pluginId } = command;
   return {
     kind: "command",
-    name: command.name,
-    source: command.source,
-    origin: command.origin,
-    description: command.description,
-    argumentHint: command.argumentHint,
-    ...(command.pluginId !== undefined ? { pluginId: command.pluginId } : {}),
+    name,
+    source,
+    origin,
+    description,
+    argumentHint,
+    ...(pluginId !== undefined ? { pluginId } : {}),
   };
 }
 
@@ -110,134 +106,77 @@ export function filterCommandSuggestions(
   suggestions: readonly ProviderCommandSuggestion[],
   query: string,
 ): ProviderCommandSuggestion[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  const nameMatches = matchingCommandNames(suggestions, normalizedQuery);
+  const needle = query.trim().toLowerCase();
+  const nameMatches = matchingCommandNames(suggestions, needle);
   return suggestions.filter(
     (suggestion) =>
       nameMatches.has(suggestion) ||
       [suggestion.description ?? "", suggestion.argumentHint ?? ""].some(
-        (text) => text.toLowerCase().includes(normalizedQuery),
+        (text) => text.toLowerCase().includes(needle),
       ),
   );
 }
 
-function compareCommandSuggestionSections(
-  left: ProviderCommandSuggestion,
-  right: ProviderCommandSuggestion,
-): number {
-  return providerCommandSectionRank(left) - providerCommandSectionRank(right);
-}
-
-function commandSuggestionSearchNames(
+function commandMatchRank(
   suggestion: ProviderCommandSuggestion,
-): string[] {
+  needle: string,
+  nameMatches: ReadonlySet<ProviderCommandSuggestion>,
+): number {
   const name = suggestion.name.toLowerCase();
-  if (suggestion.source !== "skill") {
-    return [name];
-  }
-  const separatorIndex = name.lastIndexOf(":");
-  return separatorIndex < 0 ? [name] : [name, name.slice(separatorIndex + 1)];
-}
-
-function commandSuggestionMatchRank(
-  suggestion: ProviderCommandSuggestion,
-  normalizedQuery: string,
-  nameMatches: ReadonlySet<ProviderCommandSuggestion>,
-): number {
-  const canonicalName = suggestion.name.toLowerCase();
-  if (canonicalName === normalizedQuery) {
-    return 0;
-  }
-  const names = commandSuggestionSearchNames(suggestion);
-  if (names.includes(normalizedQuery)) {
-    return 1;
-  }
-  if (names.some((name) => name.startsWith(normalizedQuery))) {
-    return 2;
-  }
-  if (names.some((name) => name.includes(normalizedQuery))) {
-    return 3;
-  }
+  if (name === needle) return 0;
+  const separator = suggestion.source === "skill" ? name.lastIndexOf(":") : -1;
+  const names = separator < 0 ? [name] : [name, name.slice(separator + 1)];
+  if (names.includes(needle)) return 1;
+  if (names.some((candidate) => candidate.startsWith(needle))) return 2;
+  if (names.some((candidate) => candidate.includes(needle))) return 3;
   return nameMatches.has(suggestion) ? 4 : 5;
-}
-
-function compareCommandSuggestions(
-  left: ProviderCommandSuggestion,
-  right: ProviderCommandSuggestion,
-  normalizedQuery: string,
-  nameMatches: ReadonlySet<ProviderCommandSuggestion>,
-): number {
-  const byMatch =
-    commandSuggestionMatchRank(left, normalizedQuery, nameMatches) -
-    commandSuggestionMatchRank(right, normalizedQuery, nameMatches);
-  return byMatch !== 0
-    ? byMatch
-    : compareCommandSuggestionSections(left, right);
 }
 
 export function orderCommandSuggestions(
   suggestions: readonly ProviderCommandSuggestion[],
   query: string,
 ): ProviderCommandSuggestion[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  const nameMatches = matchingCommandNames(suggestions, normalizedQuery);
-  const ranked = [...suggestions].sort((left, right) =>
-    compareCommandSuggestions(left, right, normalizedQuery, nameMatches),
+  const needle = query.trim().toLowerCase();
+  const nameMatches = matchingCommandNames(suggestions, needle);
+  const ranked = suggestions
+    .map((suggestion) => ({
+      suggestion,
+      rank: commandMatchRank(suggestion, needle, nameMatches),
+      section: providerCommandSectionRank(suggestion),
+    }))
+    .sort(
+      (left, right) => left.rank - right.rank || left.section - right.section,
+    );
+  return [...new Set(ranked.map((entry) => entry.section))].flatMap((section) =>
+    ranked
+      .filter((entry) => entry.section === section)
+      .map((entry) => entry.suggestion),
   );
-
-  const bySection = new Map<
-    ProviderCommandSection,
-    ProviderCommandSuggestion[]
-  >();
-  for (const suggestion of ranked) {
-    const section = providerCommandSection(suggestion);
-    const existing = bySection.get(section);
-    if (existing) {
-      existing.push(suggestion);
-      continue;
-    }
-    bySection.set(section, [suggestion]);
-  }
-  return [...bySection.values()].flat();
 }
 
 export type TypeaheadTrigger =
   | { char: PluginMentionTrigger; kind: "mention" }
   | { char: PromptMentionCommandTrigger; kind: "command" };
 
-export type ActiveTrigger =
-  | {
-      char: PluginMentionTrigger;
-      kind: "mention";
-      query: string;
-      from: number;
-      to: number;
-    }
-  | {
-      char: PromptMentionCommandTrigger;
-      kind: "command";
-      query: string;
-      from: number;
-      to: number;
-    };
-
-export type MentionMenuState =
-  | { kind: "hint" }
-  | { kind: "loading" }
-  | { kind: "error" }
-  | {
-      kind: "results";
-      results: OrderedMentionSuggestions;
-    };
-
-export type CommandMenuState =
-  | { kind: "loading" }
-  | { kind: "error" }
-  | {
-      kind: "results";
-      suggestions: readonly ProviderCommandSuggestion[];
-    };
+export type ActiveTrigger = TypeaheadTrigger & {
+  query: string;
+  from: number;
+  to: number;
+};
 
 export type TypeaheadMenuState =
-  | { trigger: "mention"; state: MentionMenuState }
-  | { trigger: "command"; state: CommandMenuState };
+  | {
+      trigger: "mention";
+      state:
+        | { kind: "hint" | "loading" | "error" }
+        | { kind: "results"; results: OrderedMentionSuggestions };
+    }
+  | {
+      trigger: "command";
+      state:
+        | { kind: "loading" | "error" }
+        | {
+            kind: "results";
+            suggestions: readonly ProviderCommandSuggestion[];
+          };
+    };
