@@ -7,6 +7,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
+    "build:cli": "node scripts/build-cli.mjs",
     "check:lines": "node scripts/count-lines.mjs --max 150000",
     "count": "node scripts/count-lines.mjs",
     "typecheck": "pnpm -r --no-bail run typecheck",

@@ -12,7 +12,7 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import type { ResourceOverflowMenuItem } from "@bb/shared-ui/resource-list";
 import { MachineLaunchCommand } from "@/components/dialogs/AddMachineDialog";
-import { ConfirmDeleteDialog } from "@/components/dialogs/ConfirmDeleteDialog";
+import { ConfirmDeleteDialog } from "@bb/shared-ui/confirm-delete-dialog";
 import { RenameDialog } from "@/components/dialogs/RenameDialog";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import {

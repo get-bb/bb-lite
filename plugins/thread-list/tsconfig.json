@@ -5,25 +5,18 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "noEmit": true,
     "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
-    "customConditions": [
-      "source"
-    ]
+    "types": ["node"],
+    "customConditions": ["source"]
   },
   "include": [
     "server.ts",
     "app.tsx",
     "app/**/*.ts",
     "app/**/*.tsx",
-    "shared/**/*.ts"
+    "shared/**/*.ts",
+    "test/**/*.ts"
   ]
 }

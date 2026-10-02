@@ -1,15 +1,14 @@
 import { capitalize } from "@bb/thread-view";
-import { useRef, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Button } from "@bb/shared-ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@bb/shared-ui/dialog";
 import { Input } from "@bb/shared-ui/input";
+import { RenameDialog as RenameDialogShell } from "@bb/shared-ui/rename-dialog";
 
 interface RenameDialogProps {
   target: { key: string; name: string } | null;
@@ -26,45 +25,24 @@ interface RenameDialogProps {
 }
 
 export function RenameDialog(props: RenameDialogProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const returnFocusRef = useRef<HTMLElement | null | undefined>(undefined);
+  const { target } = props;
   return (
-    <Dialog open={props.target !== null} onOpenChange={props.onOpenChange}>
-      <DialogContent
-        className={props.shellClassName}
-        onOpenAutoFocus={(event) => {
-          if (returnFocusRef.current === undefined) {
-            const active = document.activeElement;
-            returnFocusRef.current =
-              active instanceof HTMLElement && active !== document.body
-                ? active
-                : null;
-          }
-          event.preventDefault();
-          inputRef.current?.focus();
-          inputRef.current?.select();
-        }}
-        onAfterCloseAutoFocus={() => {
-          const returnFocus = returnFocusRef.current;
-          returnFocusRef.current = undefined;
-          if (
-            returnFocus?.isConnected &&
-            returnFocus.closest('[aria-hidden="true"], [inert]') === null
-          ) {
-            returnFocus.focus({ preventScroll: true });
-          }
-        }}
-      >
-        {props.target ? (
+    <RenameDialogShell
+      open={target !== null}
+      onOpenChange={props.onOpenChange}
+      shellClassName={props.shellClassName}
+    >
+      {(inputRef) =>
+        target ? (
           <RenameForm
-            key={props.target.key}
+            key={target.key}
             {...props}
-            name={props.target.name}
+            name={target.name}
             inputRef={inputRef}
           />
-        ) : null}
-      </DialogContent>
-    </Dialog>
+        ) : null
+      }
+    </RenameDialogShell>
   );
 }
 

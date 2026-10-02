@@ -10,7 +10,7 @@ import { ResourceOverflowMenu } from "@bb/shared-ui/resource-list";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogContent,
-} from "@/components/dialogs/ConfirmDeleteDialog";
+} from "@bb/shared-ui/confirm-delete-dialog";
 import {
   ProjectMachineSetupDialog,
   type ProjectMachineSetupDialogTarget,

@@ -24,6 +24,7 @@ const COMMON_DIR_IGNORED = [
 ];
 const GIT_DIR_NOISE = /(?:\.lock|^commondir|^gitdir)$/u;
 const SHARED_REF = /^(?:packed-refs$|refs\/heads\/|refs\/remotes\/)/u;
+const CHANGED = { lane: "live", kind: "workspace.changed" } as const;
 
 type Change = "status" | "refs" | "files";
 type WatchKind = "workspace" | "directory";
@@ -34,17 +35,13 @@ export interface Watcher {
   dispose(): Promise<void>;
 }
 
-async function gitLayout(
-  root: string,
-): Promise<{ gitDir: string; commonDir: string } | null> {
+async function gitLayout(root: string) {
   const dotGit = path.join(root, ".git");
   const stat = await fs.lstat(dotGit).catch(() => null);
   const pointer = stat?.isFile()
     ? /^gitdir:\s*(.+)$/mu.exec(await fs.readFile(dotGit, "utf8"))?.[1]
     : ".git";
-  if (stat === null || pointer === undefined) {
-    return null;
-  }
+  if (stat === null || pointer === undefined) return null;
   const gitDir = await fs.realpath(path.resolve(root, pointer.trim()));
   const common = await fs
     .readFile(path.join(gitDir, "commondir"), "utf8")
@@ -93,13 +90,8 @@ async function watchWorkspace(
     ignore: string[],
     onPath: (relativePath: string) => void,
   ): Promise<void> => {
-    const onEvents = (
-      error: Error | null,
-      events: { path: string }[],
-    ): void => {
-      if (error) {
-        note("status", "refs");
-      }
+    const onEvents = (error: Error | null, events: { path: string }[]) => {
+      if (error) note("status", "refs");
       for (const event of error ? [] : events) {
         onPath(path.relative(directory, event.path).split(path.sep).join("/"));
       }
@@ -113,31 +105,20 @@ async function watchWorkspace(
     }
     const sharedGitDir = layout.gitDir === layout.commonDir;
     const ignored = await ignoredDirectories(ctx, root);
-    await watchTree(
-      root,
-      [".git", ...WORKSPACE_IGNORED_GLOBS, ...ignored],
-      () => note("status"),
-    );
-    await watchTree(
-      layout.gitDir,
-      sharedGitDir ? COMMON_DIR_IGNORED : [],
-      (relativePath) => {
-        if (GIT_DIR_NOISE.test(relativePath)) {
-          return;
-        }
-        const refs =
-          relativePath === "HEAD" ||
-          (sharedGitDir && SHARED_REF.test(relativePath));
-        note("status", ...(refs ? (["refs"] as const) : []));
-      },
-    );
-    if (!sharedGitDir) {
-      await watchTree(layout.commonDir, COMMON_DIR_IGNORED, (relativePath) => {
-        if (SHARED_REF.test(relativePath) && !relativePath.endsWith(".lock")) {
-          note("refs");
-        }
-      });
-    }
+    const workIgnored = [".git", ...WORKSPACE_IGNORED_GLOBS, ...ignored];
+    await watchTree(root, workIgnored, () => note("status"));
+    const gitIgnored = sharedGitDir ? COMMON_DIR_IGNORED : [];
+    await watchTree(layout.gitDir, gitIgnored, (relativePath) => {
+      if (GIT_DIR_NOISE.test(relativePath)) return;
+      const sharedRef = sharedGitDir && SHARED_REF.test(relativePath);
+      if (relativePath === "HEAD" || sharedRef) note("status", "refs");
+      else note("status");
+    });
+    if (sharedGitDir) return stop;
+    await watchTree(layout.commonDir, COMMON_DIR_IGNORED, (relativePath) => {
+      const lock = relativePath.endsWith(".lock");
+      if (SHARED_REF.test(relativePath) && !lock) note("refs");
+    });
     return stop;
   } catch (error) {
     await stop();
@@ -180,10 +161,7 @@ export function createWatcher(ctx: Ctx): Watcher {
 
   const start = (key: string, kind: WatchKind, target: string): void => {
     const emit = (change: Change): void => {
-      if (active.has(key)) {
-        const event = { lane: "live", kind: "workspace.changed" } as const;
-        ctx.sink({ ...event, path: target, change });
-      }
+      if (active.has(key)) ctx.sink({ ...CHANGED, path: target, change });
     };
     const watch = (
       kind === "workspace"
@@ -192,32 +170,24 @@ export function createWatcher(ctx: Ctx): Watcher {
     ).catch(() => null);
     active.set(key, watch);
     void watch.then((started) => {
-      if (started === null && active.get(key) === watch) {
-        active.delete(key);
-      }
+      if (started === null && active.get(key) === watch) active.delete(key);
     });
   };
 
   return {
     setWatchedPaths: (args) =>
       locked(async () => {
-        if (args.generation <= latestGeneration) {
-          return;
-        }
+        if (args.generation <= latestGeneration) return;
         latestGeneration = args.generation;
         const wanted = new Map<string, [WatchKind, string]>();
-        for (const target of args.workspaces) {
-          wanted.set(`workspace\0${target}`, ["workspace", target]);
-        }
-        for (const target of args.directories) {
-          wanted.set(`directory\0${target}`, ["directory", target]);
-        }
+        const want = (kind: WatchKind, target: string) =>
+          wanted.set(`${kind}\0${target}`, [kind, target]);
+        for (const target of args.workspaces) want("workspace", target);
+        for (const target of args.directories) want("directory", target);
         const stale = [...active.keys()].filter((key) => !wanted.has(key));
         await Promise.all(stale.map(stop));
         for (const [key, [kind, target]] of wanted) {
-          if (!active.has(key)) {
-            start(key, kind, target);
-          }
+          if (!active.has(key)) start(key, kind, target);
         }
         await Promise.all(active.values());
       }),

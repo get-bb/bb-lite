@@ -1,439 +1,185 @@
-import type { BbPluginApi, PluginRpcHandlers } from "@get-bb/plugin-sdk";
-import { z } from "zod";
-import type {
-  Attachment,
-  Comment,
-  Preset,
-  Project,
-  Task,
-  TasksStore,
-  TaskThreadLiveStatus,
-} from "../db";
+import type { PluginServerApi, SpawnThreadRequest } from "@bb/plugin";
 import {
-  publishCommentsChanged,
-  publishTasksChanged,
-  type TasksApiStore,
-} from "../api";
-import {
-  presetPermissionModeSchema,
-  presetReasoningLevelSchema,
-  presetServiceTierSchema,
-  type ThreadsChangedEvent,
-} from "../shared/contract";
-import { errorMessage } from "../shared/errors";
-import { truncateToWidth } from "../shared/text-measure";
-import { delegationRpcContract } from "./contract";
+  errorMessage,
+  taskBrief,
+  publish,
+  requireTask,
+  type TasksContext,
+} from "../api/index.js";
+import type { LiveStatus, Preset, TaskThread } from "../shared/contract.js";
 
-const MAX_DELEGATED_THREAD_TITLE_WIDTH = 120;
-const SYSTEM_AUTHOR_NAME = "Tasks";
-const MANUAL_PRESET_NAME = "Attached";
+type Thread = NonNullable<
+  Awaited<ReturnType<PluginServerApi["threads"]["get"]>>
+>;
 
-const presetExecutionSchema = z
-  .object({
-    providerId: z.string().trim().min(1),
-    model: z.string().trim().min(1),
-    reasoningLevel: presetReasoningLevelSchema,
-    serviceTier: presetServiceTierSchema.nullable(),
-    permissionMode: presetPermissionModeSchema,
-  })
-  .strict();
+const TITLE_MAX_CHARACTERS = 120;
+const SYSTEM_AUTHOR = "Tasks";
+export const MANUAL_PRESET_NAME = "Attached";
 
-type DelegationErrorCode = "project_not_linked" | "spawn_target_invalid";
+const clip = (title: string): string =>
+  [...title].slice(0, TITLE_MAX_CHARACTERS).join("");
 
-class DelegationError extends Error {
-  constructor(
-    readonly code: DelegationErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "DelegationError";
-  }
+function liveStatusOf(thread: Pick<Thread, "status" | "deletedAt">) {
+  if (thread.status === "error") return "failed";
+  if (thread.deletedAt !== null) return "completed";
+  if (thread.status === "idle") return "idle";
+  const running = thread.status === "active" || thread.status === "stopping";
+  return running ? "working" : "starting";
 }
 
-interface SeedPromptInput {
-  task: Task;
-  project: Project;
-  subtasks: readonly Task[];
-  attachments: readonly Pick<Attachment, "id" | "fileName">[];
-  recentComments: readonly Comment[];
-  presetInstructions: string;
-  extraInstructions?: string;
-}
-
-function markdownSection(title: string, body: string): string {
-  return `## ${title}\n\n${body}`;
-}
-
-function formatSubtasks(subtasks: readonly Task[]): string {
-  if (subtasks.length === 0) return "None.";
-  return subtasks
-    .map((subtask) => `- ${subtask.key} · ${subtask.title} (${subtask.status})`)
-    .join("\n");
-}
-
-function formatAttachments(
-  attachments: readonly Pick<Attachment, "id" | "fileName">[],
-): string {
-  if (attachments.length === 0) return "None.";
-  return attachments
-    .map(
-      (attachment) =>
-        `- ${attachment.fileName} · ${attachment.id}\n` +
-        `  Fetch with: bb tasks attachment get ${attachment.id} --out <path>`,
-    )
-    .join("\n");
-}
-
-function formatComments(comments: readonly Comment[]): string {
-  if (comments.length === 0) return "None.";
-  return comments
-    .map(
-      (comment) =>
-        `### ${comment.authorName} · ${comment.kind} · ${comment.createdAt}\n\n${comment.body}`,
-    )
-    .join("\n\n");
-}
-
-export function buildSeedPrompt(input: SeedPromptInput): string {
-  const sections = [
-    `# ${input.task.key} · ${input.task.title}`,
-    markdownSection(
-      "Description",
-      input.task.description.trim() || "No description provided.",
-    ),
-    markdownSection(
-      "Project context",
-      `- Name: ${input.project.name}\n- Linked bb project: ${input.project.linkedBbProjectId ?? "Not linked"}`,
-    ),
-    markdownSection("Sub-tasks", formatSubtasks(input.subtasks)),
-    markdownSection("Attachments", formatAttachments(input.attachments)),
-    markdownSection("Recent comments", formatComments(input.recentComments)),
-    markdownSection(
-      "Report-back contract",
-      `You are working on task ${input.task.key}. Use the bb tasks CLI: comment substantive updates (bb tasks comment ${input.task.key} --body ...), attach result artifacts, set status when done (bb tasks update ${input.task.key} --status in_review) or explain blockage in a comment. Your thread is already attached to the task.`,
-    ),
-  ];
-
-  if (input.presetInstructions.trim()) {
-    sections.push(
-      markdownSection("Preset instructions", input.presetInstructions.trim()),
-    );
-  }
-  if (input.extraInstructions?.trim()) {
-    sections.push(
-      markdownSection(
-        "Additional instructions",
-        input.extraInstructions.trim(),
-      ),
-    );
-  }
-
-  return `${sections.join("\n\n")}\n`;
-}
-
-function delegatedThreadTitle(task: Task): string {
-  return truncateToWidth(
-    `${task.key} · ${task.title}`,
-    MAX_DELEGATED_THREAD_TITLE_WIDTH,
-  );
-}
-
-function requireTask(store: TasksStore, taskId: string): Task {
-  const task = store.getTask(taskId);
-  if (!task) throw new Error(`Task not found: ${taskId}`);
-  return task;
-}
-
-function requireProject(store: TasksStore, projectId: string): Project {
-  const project = store.getProject(projectId);
-  if (!project) throw new Error(`Project not found: ${projectId}`);
-  return project;
-}
-
-function requirePreset(store: TasksStore, presetId: string): Preset {
-  const preset = store.getPreset(presetId);
-  if (!preset) throw new Error(`Preset not found: ${presetId}`);
-  return preset;
-}
-
-function requireLinkedBbProject(project: Project): string {
-  if (project.linkedBbProjectId) return project.linkedBbProjectId;
-  throw new DelegationError(
-    "project_not_linked",
-    `Task project "${project.name}" is not linked to a bb project`,
-  );
-}
-
-function collectAttachments(
-  store: TasksStore,
-  taskId: string,
-  comments: readonly Comment[],
-): Attachment[] {
-  const attachments = new Map<string, Attachment>();
-  for (const attachment of store.listAttachmentsForTask(taskId)) {
-    attachments.set(attachment.id, attachment);
-  }
-  for (const comment of comments) {
-    for (const attachment of store.listAttachmentsForComment(comment.id)) {
-      attachments.set(attachment.id, attachment);
-    }
-  }
-  return [...attachments.values()];
-}
-
-type SpawnEnvironment = Parameters<
-  BbPluginApi["sdk"]["threads"]["spawn"]
->[0]["environment"];
-
-async function presetSpawnEnvironment(
-  bb: BbPluginApi,
+async function spawnEnvironment(
+  bb: PluginServerApi,
   preset: Preset,
-): Promise<SpawnEnvironment> {
+): Promise<SpawnThreadRequest["environment"]> {
   if (preset.environmentKind === "project-default") {
     return { type: "project-default" };
   }
-
-  const hostId =
-    preset.machineId ?? (await bb.sdk.system.config()).primaryHostId;
-  if (hostId === null) {
-    throw new DelegationError(
-      "spawn_target_invalid",
-      "Could not create a worktree because BB has no default machine",
-    );
+  const hosts = await bb.hosts.list();
+  const oldest = [...hosts].sort((a, b) => a.createdAt - b.createdAt)[0];
+  const hostId = preset.machineId ?? oldest?.id;
+  if (hostId === undefined) {
+    throw new Error("Could not create a worktree because BB has no machine");
   }
-  return {
-    type: "host",
-    hostId,
-    workspace: {
-      type: "managed-worktree",
-      baseBranch:
-        preset.baseBranch === null
-          ? { kind: "default" }
-          : { kind: "named", name: preset.baseBranch },
-    },
-  };
+  const baseBranch =
+    preset.baseBranch === null
+      ? { kind: "default" as const }
+      : { kind: "named" as const, name: preset.baseBranch };
+  const workspace = { type: "managed-worktree" as const, baseBranch };
+  return { type: "host", hostId, workspace };
 }
 
-function isBbHttpError(
-  error: unknown,
-): error is Error & { code: string | null; status: number } {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (typeof error.code === "string" || error.code === null) &&
-    "status" in error &&
-    typeof error.status === "number"
-  );
-}
-
-const SPAWN_TARGET_ERROR_CODES = new Set([
-  "host_not_found",
-  "host_unavailable",
-  "invalid_request",
-  "project_unavailable",
-  "unsupported_host",
-  "workspace_unavailable",
-]);
-
-function mapSpawnTargetError(error: unknown, preset: Preset): never {
-  if (
-    preset.environmentKind === "new-worktree" &&
-    isBbHttpError(error) &&
-    error.code !== null &&
-    SPAWN_TARGET_ERROR_CODES.has(error.code)
-  ) {
-    const machine = preset.machineId ?? "the default machine";
-    const branch = preset.baseBranch ?? "the default branch";
-    const detail = error.message.replace(/^HTTP \d+:\s*/u, "");
-    throw new DelegationError(
-      "spawn_target_invalid",
-      `Could not create a worktree on ${machine} from ${branch}: ${detail}`,
-    );
+export async function dispatch(
+  ctx: TasksContext,
+  input: { taskId: string; presetId: string; extraInstructions?: string },
+): Promise<{ threadId: string }> {
+  const { bb, store } = ctx;
+  const { taskId } = input;
+  const task = requireTask(store, taskId);
+  const project = store.getProject(task.projectId);
+  if (!project?.linkedBbProjectId) {
+    const name = project?.name ?? task.projectId;
+    throw new Error(`Task project "${name}" is not linked to a bb project`);
   }
-  throw error;
-}
-
-export function createSystemComment(
-  store: TasksStore,
-  input: {
-    taskId: string;
-    presetName: string;
-    threadId: string;
-    body: string;
-  },
-): void {
-  store.createComment({
-    taskId: input.taskId,
-    kind: "system",
-    authorName: SYSTEM_AUTHOR_NAME,
-    presetName: input.presetName,
-    threadId: input.threadId,
-    body: input.body,
+  const preset = store
+    .listPresets()
+    .find((candidate) => candidate.id === input.presetId);
+  if (!preset) throw new Error(`Preset not found: ${input.presetId}`);
+  const title = clip(`${task.key} · ${task.title}`);
+  const { key } = task;
+  const contract = `You are working on task ${key}. Use the bb tasks CLI: comment substantive updates (bb tasks comment ${key} --body ...), attach result artifacts, set status when done (bb tasks update ${key} --status in_review) or explain blockage in a comment. Your thread is already attached to the task.`;
+  const text = taskBrief(ctx, task, [
+    ["Report-back contract", contract],
+    ["Preset instructions", preset.instructions],
+    ["Additional instructions", input.extraInstructions ?? ""],
+  ]);
+  const thread = await bb.threads.spawn({
+    projectId: project.linkedBbProjectId,
+    environment: await spawnEnvironment(bb, preset),
+    providerId: preset.providerId,
+    model: preset.modelId,
+    reasoningLevel: preset.reasoningLevel,
+    ...(preset.serviceTier === null ? {} : { serviceTier: preset.serviceTier }),
+    permissionMode: preset.permissionMode,
+    title,
+    input: [{ type: "text", text, mentions: [] }],
   });
+  const { id: threadId } = thread;
+  const presetName = preset.name;
+  store.transaction(() => {
+    const liveStatus = liveStatusOf(thread);
+    store.upsertTaskThread({ taskId, threadId, presetName, title, liveStatus });
+    const note = (body: string) => {
+      const author = { kind: "system" as const, authorName: SYSTEM_AUTHOR };
+      store.createComment({ taskId, ...author, presetName, threadId, body });
+    };
+    if (task.status === "backlog" || task.status === "todo") {
+      store.updateTask(taskId, { status: "in_progress" });
+      note(`Status changed to In Progress · dispatched to ${presetName}`);
+    }
+    note(`Dispatched to ${presetName}`);
+  });
+  publish(ctx, taskId, "threads:changed", "tasks:changed", "comments:changed");
+  return { threadId };
 }
 
-export function publishThreadsChanged(bb: BbPluginApi, taskId: string): void {
-  const payload: ThreadsChangedEvent = { taskId };
-  bb.realtime.publish("threads:changed", payload);
+export async function attachThread(
+  ctx: TasksContext,
+  taskId: string,
+  threadId: string,
+): Promise<void> {
+  const task = requireTask(ctx.store, taskId);
+  const thread = await ctx.bb.threads.get(threadId);
+  if (thread === null) throw new Error(`Thread not found: ${threadId}`);
+  const fallback = `${task.key} · ${task.title}`;
+  ctx.store.upsertTaskThread({
+    taskId,
+    threadId,
+    presetName: MANUAL_PRESET_NAME,
+    title: clip(thread.title ?? thread.titleFallback ?? fallback),
+    liveStatus: liveStatusOf(thread),
+  });
+  publish(ctx, taskId, "threads:changed", "tasks:changed");
 }
 
-type SdkThread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
-
-function taskThreadLiveStatus(thread: SdkThread): TaskThreadLiveStatus {
-  if (thread.deletedAt != null) return "completed";
-  switch (thread.status) {
-    case "pending":
-    case "starting":
-      return "starting";
-    case "active":
-    case "stopping":
-      return "working";
-    case "idle":
-      return "idle";
-    case "error":
-      return "failed";
+export function detachThread(
+  ctx: TasksContext,
+  taskId: string,
+  threadId: string,
+): { threadId: string } {
+  const task = requireTask(ctx.store, taskId);
+  if (!ctx.store.deleteTaskThread(taskId, threadId)) {
+    throw new Error(`Thread ${threadId} is not attached to ${task.key}`);
   }
+  publish(ctx, taskId, "threads:changed", "tasks:changed");
+  return { threadId };
 }
 
-export function handlers(
-  bb: BbPluginApi,
-  store: TasksApiStore,
-): PluginRpcHandlers<typeof delegationRpcContract> {
-  return {
-    async delegate(input) {
-      const task = requireTask(store.tasks, input.taskId);
-      const project = requireProject(store.tasks, task.projectId);
-      const linkedBbProjectId = requireLinkedBbProject(project);
-      const preset = requirePreset(store.tasks, input.presetId);
-      const comments = store.tasks.listComments(task.id);
-      const recentComments = comments.slice(-5);
-      const title = delegatedThreadTitle(task);
-      const execution = presetExecutionSchema.parse({
-        providerId: preset.providerId,
-        model: preset.modelId,
-        reasoningLevel: preset.reasoningLevel,
-        serviceTier: preset.serviceTier,
-        permissionMode: preset.permissionMode,
-      });
-      const prompt = buildSeedPrompt({
-        task,
-        project,
-        subtasks: store.tasks.listSubtasks(task.id),
-        attachments: collectAttachments(store.tasks, task.id, comments),
-        recentComments,
-        presetInstructions: preset.instructions,
-        extraInstructions: input.extraInstructions,
-      });
-
-      const environment = await presetSpawnEnvironment(bb, preset);
-      const thread = await bb.sdk.threads
-        .spawn({
-          projectId: linkedBbProjectId,
-          environment,
-          providerId: execution.providerId,
-          model: execution.model,
-          reasoningLevel: execution.reasoningLevel,
-          ...(execution.serviceTier === null
-            ? {}
-            : { serviceTier: execution.serviceTier }),
-          permissionMode: execution.permissionMode,
-          title,
-          prompt,
-        })
-        .catch((error: unknown) => mapSpawnTargetError(error, preset));
-
-      const taskThread = store.transaction(() => {
-        const attached = store.tasks.upsertTaskThread({
-          taskId: task.id,
-          threadId: thread.id,
-          presetName: preset.name,
-          title,
-          liveStatus: "starting",
-        });
-
-        if (task.status === "backlog" || task.status === "todo") {
-          store.tasks.updateTask(task.id, { status: "in_progress" });
-          createSystemComment(store.tasks, {
-            taskId: task.id,
-            presetName: preset.name,
-            threadId: thread.id,
-            body: `Status changed to In Progress · dispatched to ${preset.name}`,
-          });
-        }
-
-        createSystemComment(store.tasks, {
-          taskId: task.id,
-          presetName: preset.name,
-          threadId: thread.id,
-          body: `Dispatched to ${preset.name}`,
-        });
-        return attached;
-      });
-
-      try {
-        const currentThread = await bb.sdk.threads.get({ threadId: thread.id });
-        const currentLiveStatus = taskThreadLiveStatus(currentThread);
-        if (currentLiveStatus !== taskThread.liveStatus) {
-          store.tasks.updateTaskThreadStatus(taskThread.id, currentLiveStatus);
-        }
-      } catch (error) {
-        bb.log.warn(
-          `Could not read delegated thread ${thread.id} after attach: ${errorMessage(
-            error,
-          )}`,
-        );
-      }
-
-      publishThreadsChanged(bb, task.id);
-      publishTasksChanged(bb, task.id, task.projectId);
-      publishCommentsChanged(bb, task.id);
-      return { threadId: thread.id };
-    },
-
-    async taskThreadsAttach(input) {
-      const task = requireTask(store.tasks, input.taskId);
-      const thread = await bb.sdk.threads.get({ threadId: input.threadId });
-      const title = truncateToWidth(
-        thread.title ?? thread.titleFallback ?? delegatedThreadTitle(task),
-        MAX_DELEGATED_THREAD_TITLE_WIDTH,
-      );
-
-      store.tasks.upsertTaskThread({
-        taskId: task.id,
-        threadId: thread.id,
-        presetName: MANUAL_PRESET_NAME,
-        title,
-        liveStatus: taskThreadLiveStatus(thread),
-      });
-
-      publishThreadsChanged(bb, task.id);
-      publishTasksChanged(bb, task.id, task.projectId);
-      return { threadId: thread.id };
-    },
-
-    async taskThreadsDetach(input) {
-      const task = requireTask(store.tasks, input.taskId);
-      const taskThread = store.tasks.getTaskThreadByThreadId(
-        task.id,
-        input.threadId,
-      );
-      if (!taskThread) {
-        throw new Error(
-          `Thread ${input.threadId} is not attached to ${task.key}`,
-        );
-      }
-      store.tasks.deleteTaskThread(taskThread.id);
-
-      publishThreadsChanged(bb, task.id);
-      publishTasksChanged(bb, task.id, task.projectId);
-      return { threadId: taskThread.threadId };
-    },
-  };
-}
-
-export function registerDelegation(
-  bb: BbPluginApi,
-  store: TasksApiStore,
+function transition(
+  ctx: TasksContext,
+  link: TaskThread,
+  liveStatus: LiveStatus,
+  announce = true,
 ): void {
-  bb.rpc.register(delegationRpcContract, handlers(bb, store));
+  const { store } = ctx;
+  if (link.liveStatus === liveStatus || link.liveStatus === "completed") return;
+  const { taskId, presetName, threadId } = link;
+  const ended = liveStatus === "completed" || liveStatus === "failed";
+  store.transaction(() => {
+    store.setLiveStatus(link.id, liveStatus);
+    if (!ended || !announce) return;
+    const outcome =
+      liveStatus === "completed"
+        ? "completed — final message posted"
+        : "failed";
+    const body = `Thread "${link.title}" ${outcome} · ${threadId}`;
+    const author = { kind: "system" as const, authorName: SYSTEM_AUTHOR };
+    store.createComment({ taskId, ...author, presetName, threadId, body });
+  });
+  publish(ctx, taskId, "threads:changed", "comments:changed");
+}
+
+export async function registerLifecycle(ctx: TasksContext): Promise<void> {
+  const { bb, store } = ctx;
+  const follow = (thread: Thread, liveStatus: LiveStatus): void => {
+    for (const link of store.listThreadLinks(thread.id)) {
+      transition(ctx, link, liveStatus);
+    }
+  };
+  bb.events.on("thread.created", ({ thread }) =>
+    follow(thread, liveStatusOf(thread)),
+  );
+  bb.events.on("thread.active", ({ thread }) => follow(thread, "working"));
+  bb.events.on("thread.idle", ({ thread }) => follow(thread, "idle"));
+  bb.events.on("thread.failed", ({ thread }) => follow(thread, "failed"));
+  bb.events.on("thread.deleted", ({ thread }) => follow(thread, "completed"));
+  for (const link of store.listOpenThreadLinks()) {
+    try {
+      const thread = await bb.threads.get(link.threadId);
+      if (thread === null) transition(ctx, link, "completed", false);
+      else transition(ctx, link, liveStatusOf(thread));
+    } catch (error) {
+      const reason = errorMessage(error);
+      bb.log.warn(`Could not reconcile thread ${link.threadId}: ${reason}`);
+    }
+  }
 }

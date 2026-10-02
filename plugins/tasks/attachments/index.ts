@@ -1,572 +1,222 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import type { Attachment, TasksStore } from "../db";
+import { publish, type TasksContext } from "../api/index.js";
+import type { StoredAttachment } from "../db/store.js";
 import {
   attachmentDownloadUrl,
   MAX_ATTACHMENT_SIZE_BYTES,
-} from "../shared/attachments";
-import { errorMessage } from "../shared/errors";
+} from "../shared/contract.js";
 
-const INLINE_RASTER_MIMES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "image/avif",
-]);
-
-const RASTER_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".avif": "image/avif",
-};
-
-const UPLOAD_PATH = "/attachments/upload";
-const DOWNLOAD_PATH = "/attachments/download";
-const DELETE_PATH = "/attachments/delete";
-const MIME_PATTERN =
-  /^(application|audio|font|image|message|model|multipart|text|video)\/[!#$&^_.+\-A-Za-z0-9]+$/;
-const storeRoots = new WeakMap<TasksStore, string>();
-
-export type AttachmentOwner =
-  | { taskId: string; commentId?: never }
-  | { taskId?: never; commentId: string };
-
-type SaveAttachmentFromBytesOptions = AttachmentOwner & {
-  fileName: string;
-  mime?: string;
-};
-
-interface DatabaseListRow {
-  name: string;
-  file: string;
+export interface AttachmentOwner {
+  taskId: string | null;
+  commentId: string | null;
 }
 
-type PluginHttpContext = Parameters<
-  Parameters<BbPluginApi["http"]["route"]>[2]
->[0];
+const RASTER_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+};
+const INLINE_MIMES = new Set(Object.values(RASTER_MIME_BY_EXTENSION));
+const MIME_PATTERN =
+  /^(application|audio|font|image|message|model|multipart|text|video)\/[!#$&^_.+\-A-Za-z0-9]+$/u;
+const UNSAFE_NAME_CHARACTERS = /[\u0000-\u001f\u007f<>:"|?*؜‎‏‪-‮⁦-⁩]/gu;
 
-class AttachmentRequestError extends Error {
+class AttachmentError extends Error {
   constructor(
-    readonly status: 400 | 413,
+    readonly status: number,
     message: string,
   ) {
     super(message);
   }
 }
 
-export class AttachmentReferencedError extends Error {
-  constructor(readonly attachment: Attachment) {
-    super(
-      `Attachment "${attachment.fileName}" is used in the task description. Remove it from the description before deleting the attachment.`,
-    );
-    this.name = "AttachmentReferencedError";
-  }
+function safeFileName(fileName: string): string {
+  const base = fileName.normalize("NFC").split(/[\\/]/u).at(-1) ?? "";
+  const clean = base.replace(UNSAFE_NAME_CHARACTERS, "_").replace(/^\.+/u, "");
+  return clean.trim().slice(0, 120) || "attachment";
 }
 
-class AttachmentCleanupError extends Error {
-  constructor(
-    readonly attachment: Attachment,
-    readonly cleanupCause: unknown,
-  ) {
-    super(`Failed to remove attachment blob: ${attachment.fileName}`);
-    this.name = "AttachmentCleanupError";
-  }
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function removeAttachmentDescriptionReferences(
-  markdown: string,
-  attachmentId: string,
-): string {
-  const url = escapeRegExp(attachmentDownloadUrl(attachmentId));
-  return markdown.replace(new RegExp(`!\\[[^\\]]*\\]\\(${url}\\)`, "g"), "");
-}
-
-function pluginDataDirectory(bb: BbPluginApi): string {
-  const main = bb.storage
-    .database()
-    .prepare<[], DatabaseListRow>("PRAGMA database_list")
-    .all()
-    .find((database) => database.name === "main");
-  if (!main?.file) {
-    throw new Error("Tasks attachment storage requires a file-backed database");
-  }
-  return dirname(main.file);
-}
-
-function requireStoreRoot(store: TasksStore): string {
-  const root = storeRoots.get(store);
-  if (!root) {
-    throw new Error(
-      "Tasks attachment helpers require registerAttachments(bb, store) first",
-    );
-  }
-  return root;
-}
-
-function pathInside(root: string, blobPath: string): string {
-  const absoluteRoot = resolve(root);
-  const absolutePath = resolve(absoluteRoot, blobPath);
-  if (
-    absolutePath !== absoluteRoot &&
-    !absolutePath.startsWith(`${absoluteRoot}${sep}`)
-  ) {
+function blobFile({ bb }: TasksContext, blobPath: string): string {
+  const root = resolve(bb.dataDir);
+  const file = resolve(root, blobPath);
+  if (!file.startsWith(`${root}${sep}`)) {
     throw new Error("Attachment blob path escapes the plugin data directory");
   }
-  return absolutePath;
+  return file;
 }
 
-export async function removeAttachmentBlobs(
-  bb: BbPluginApi,
-  store: TasksStore,
-  attachments: readonly Pick<Attachment, "id" | "blobPath">[],
-): Promise<void> {
-  if (attachments.length === 0) return;
-  const root = requireStoreRoot(store);
-  const removals = await Promise.allSettled(
-    attachments.map(async (attachment) => {
-      const absolutePath = pathInside(root, attachment.blobPath);
-      await rm(dirname(absolutePath), { recursive: true, force: true });
-    }),
-  );
-  const failures = removals.flatMap((result, index) => {
-    if (result.status === "fulfilled") return [];
-    const attachment = attachments[index];
-    const message = errorMessage(result.reason);
-    bb.log.warn(
-      `failed to remove attachment blob ${attachment?.id ?? "unknown"}: ${message}`,
-    );
-    return [result.reason];
-  });
-  if (failures.length > 0) {
-    throw new AggregateError(failures, "Failed to remove attachment blobs");
-  }
-}
-
-function buildContentDisposition(
-  disposition: "inline" | "attachment",
-  fileName: string,
-): string {
-  const visibleName = fileName.replace(BIDI_CONTROL_PATTERN, "_");
-  const asciiFallback = visibleName
-    .replace(/[^\x20-\x7e]/g, "-")
-    .replace(/["\\]/g, "_");
-  return `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${encodeExtValue(visibleName)}`;
-}
-
-function encodeExtValue(value: string): string {
-  let encoded = "";
-  for (const byte of Buffer.from(value, "utf8")) {
-    const char = String.fromCharCode(byte);
-    encoded += /[A-Za-z0-9!#$&+\-.^_`|~]/.test(char)
-      ? char
-      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
-  }
-  return encoded;
-}
-
-const BIDI_CONTROL_PATTERN = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
-
-function sanitizeFileName(fileName: string): string {
-  const baseName = fileName
-    .normalize("NFC")
-    .replaceAll("\\", "/")
-    .split("/")
-    .at(-1)
-    ?.trim();
-  let sanitized = (baseName ?? "")
-    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_")
-    .replace(BIDI_CONTROL_PATTERN, "_")
-    .replace(/^\.+/, "")
-    .trim();
-  while (Buffer.byteLength(sanitized, "utf8") > 180) {
-    sanitized = sanitized.slice(0, -1);
-  }
-  if (!sanitized || sanitized === "." || sanitized === "..") {
-    return "attachment";
-  }
-  return sanitized;
-}
-
-function normalizeMime(mime: string): string {
-  const normalized = mime.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  if (!MIME_PATTERN.test(normalized)) {
-    throw new AttachmentRequestError(400, "mime must be a valid MIME type");
-  }
-  return normalized;
-}
-
-function isInlineRasterMime(mime: string): boolean {
-  return INLINE_RASTER_MIMES.has(
-    mime.split(";", 1)[0]?.trim().toLowerCase() ?? "",
-  );
-}
-
-function bytesMatch(
-  bytes: Uint8Array,
-  offset: number,
-  expected: readonly number[],
-): boolean {
-  return expected.every((value, index) => bytes[offset + index] === value);
-}
-
-function sniffRasterMime(bytes: Uint8Array): string | undefined {
-  if (bytesMatch(bytes, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
-    return "image/png";
-  }
-  if (bytesMatch(bytes, 0, [0xff, 0xd8, 0xff])) return "image/jpeg";
-  if (
-    bytesMatch(bytes, 0, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
-    bytesMatch(bytes, 0, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
-  ) {
-    return "image/gif";
-  }
-  if (
-    bytesMatch(bytes, 0, [0x52, 0x49, 0x46, 0x46]) &&
-    bytesMatch(bytes, 8, [0x57, 0x45, 0x42, 0x50])
-  ) {
-    return "image/webp";
-  }
-  if (
-    bytesMatch(bytes, 4, [0x66, 0x74, 0x79, 0x70]) &&
-    (bytesMatch(bytes, 8, [0x61, 0x76, 0x69, 0x66]) ||
-      bytesMatch(bytes, 8, [0x61, 0x76, 0x69, 0x73]))
-  ) {
-    return "image/avif";
-  }
-  return undefined;
-}
-
-function inferMimeFromBytes(bytes: Uint8Array, fileName: string): string {
-  const sniffed = sniffRasterMime(bytes.subarray(0, 12));
-  if (sniffed) return sniffed;
-  const extension = fileName.toLowerCase().match(/\.[^.]+$/u)?.[0];
-  return (
-    (extension && RASTER_MIME_BY_EXTENSION[extension]) ??
-    "application/octet-stream"
-  );
-}
-
-function normalizeOwner(
-  taskId: string | null | undefined,
-  commentId: string | null | undefined,
-): AttachmentOwner {
-  const normalizedTaskId = taskId?.trim() || undefined;
-  const normalizedCommentId = commentId?.trim() || undefined;
-  if (Boolean(normalizedTaskId) === Boolean(normalizedCommentId)) {
-    throw new AttachmentRequestError(
-      400,
-      "exactly one of taskId or commentId is required",
-    );
-  }
-  if (normalizedTaskId) return { taskId: normalizedTaskId };
-  if (normalizedCommentId) return { commentId: normalizedCommentId };
-  throw new Error("unreachable attachment owner state");
-}
-
-function attachmentParameters(context: PluginHttpContext): {
-  owner: AttachmentOwner;
-  fileName: string;
-  mime: string;
-} {
-  const query = context.req.query();
-  const owner = normalizeOwner(
-    query.taskId ?? context.req.header("x-task-id"),
-    query.commentId ?? context.req.header("x-comment-id"),
-  );
-  const requestedFileName =
-    query.fileName ?? context.req.header("x-file-name") ?? "";
-  if (!requestedFileName.trim()) {
-    throw new AttachmentRequestError(400, "fileName is required");
-  }
-  const requestedMime =
-    query.mime ??
-    context.req.header("x-mime-type") ??
-    context.req.header("content-type") ??
-    "";
-  return {
-    owner,
-    fileName: sanitizeFileName(requestedFileName),
-    mime: normalizeMime(requestedMime),
-  };
-}
-
-async function readRequestBody(request: Request): Promise<Uint8Array> {
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (
-    Number.isFinite(declaredLength) &&
-    declaredLength > MAX_ATTACHMENT_SIZE_BYTES
-  ) {
-    throw new AttachmentRequestError(413, "attachment exceeds the 25 MB limit");
-  }
-  if (!request.body) return new Uint8Array();
-
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  const reader = request.body.getReader();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_ATTACHMENT_SIZE_BYTES) {
-        await reader.cancel();
-        throw new AttachmentRequestError(
-          413,
-          "attachment exceeds the 25 MB limit",
-        );
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
-}
-
-async function persistAttachment(
-  store: TasksStore,
+function ownerTaskId(
+  { store }: TasksContext,
   owner: AttachmentOwner,
-  fileName: string,
-  mime: string,
-  sizeBytes: number,
-  writeBlob: (path: string) => Promise<void>,
-): Promise<Attachment> {
-  if (sizeBytes > MAX_ATTACHMENT_SIZE_BYTES) {
-    throw new AttachmentRequestError(413, "attachment exceeds the 25 MB limit");
-  }
-  const safeFileName = sanitizeFileName(fileName);
-  const safeMime = normalizeMime(mime);
-  const attachment = store.createAttachment({
-    ...owner,
-    fileName: safeFileName,
-    mime: safeMime,
-    sizeBytes,
-    blobPath: join("blobs", "pending", safeFileName),
-    isImage: isInlineRasterMime(safeMime),
-  });
-  const blobPath = join("blobs", attachment.id, safeFileName);
-  const absolutePath = pathInside(requireStoreRoot(store), blobPath);
+): string | undefined {
+  if (owner.taskId !== null) return store.getTask(owner.taskId)?.id;
+  return store.getComment(owner.commentId ?? "")?.taskId;
+}
 
+export async function saveAttachment(
+  ctx: TasksContext,
+  owner: AttachmentOwner,
+  requestedName: string,
+  bytes: Uint8Array,
+  requestedMime?: string,
+): Promise<StoredAttachment> {
+  const { store } = ctx;
+  if (bytes.byteLength > MAX_ATTACHMENT_SIZE_BYTES) {
+    throw new AttachmentError(413, "attachment exceeds the 25 MB limit");
+  }
+  const taskId = ownerTaskId(ctx, owner);
+  if ((owner.taskId === null) === (owner.commentId === null) || !taskId) {
+    throw new AttachmentError(
+      400,
+      "an existing taskId or commentId is required",
+    );
+  }
+  const fileName = safeFileName(requestedName);
+  const extension = fileName.split(".").at(-1)?.toLowerCase() ?? "";
+  const mime = (
+    requestedMime?.split(";", 1)[0] ??
+    RASTER_MIME_BY_EXTENSION[extension] ??
+    "application/octet-stream"
+  )
+    .trim()
+    .toLowerCase();
+  if (!MIME_PATTERN.test(mime)) {
+    throw new AttachmentError(400, "mime must be a valid MIME type");
+  }
+  const created = store.createAttachment({
+    ...owner,
+    fileName,
+    mime,
+    sizeBytes: bytes.byteLength,
+    blobPath: join("blobs", "pending", fileName),
+    isImage: INLINE_MIMES.has(mime),
+  });
+  const blobPath = join("blobs", created.id, fileName);
+  const file = blobFile(ctx, blobPath);
   try {
-    await mkdir(dirname(absolutePath), { recursive: true });
-    await writeBlob(absolutePath);
-    return store.updateAttachment(attachment.id, {
-      blobPath,
-    });
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, bytes);
   } catch (error) {
-    store.deleteAttachment(attachment.id);
-    await rm(dirname(absolutePath), { recursive: true, force: true });
+    store.deleteAttachment(created.id);
+    await rm(dirname(file), { recursive: true, force: true });
     throw error;
   }
+  store.setBlobPath(created.id, blobPath);
+  publish(ctx, taskId, "tasks:changed");
+  return { ...created, blobPath };
 }
 
-export async function saveAttachmentFromBytes(
-  store: TasksStore,
-  bytes: Uint8Array,
-  options: SaveAttachmentFromBytesOptions,
-): Promise<Attachment> {
-  return persistAttachment(
-    store,
-    normalizeOwner(options.taskId, options.commentId),
-    options.fileName,
-    options.mime ?? inferMimeFromBytes(bytes, options.fileName),
-    bytes.byteLength,
-    (destinationPath) => writeFile(destinationPath, bytes),
-  );
-}
-
-export async function readAttachmentContent(
-  store: TasksStore,
+export async function readAttachment(
+  ctx: TasksContext,
   attachmentId: string,
-): Promise<{ attachment: Attachment; content: Buffer }> {
-  const attachment = store.getAttachment(attachmentId);
-  if (!attachment) throw new Error(`Attachment not found: ${attachmentId}`);
-  const sourcePath = pathInside(requireStoreRoot(store), attachment.blobPath);
-  return { attachment, content: await readFile(sourcePath) };
-}
-
-function errorResponse(context: PluginHttpContext, error: unknown): Response {
-  if (error instanceof AttachmentRequestError) {
-    return context.json({ error: error.message }, error.status);
-  }
-  if (error instanceof AttachmentReferencedError) {
-    return context.json({ error: error.message }, 409);
-  }
-  if (error instanceof AttachmentCleanupError) {
-    return context.json({ error: error.message }, 500);
-  }
-  throw error;
-}
-
-export async function deleteAttachmentById(
-  bb: BbPluginApi,
-  store: TasksStore,
-  attachmentId: string,
-  options: {
-    removeBlobs?: typeof removeAttachmentBlobs;
-    removeDescriptionReferences?: boolean;
-  } = {},
-): Promise<Attachment | null> {
-  const attachment = store.getAttachment(attachmentId);
+): Promise<{ attachment: StoredAttachment; content: Buffer } | null> {
+  const attachment = ctx.store.getAttachment(attachmentId);
   if (!attachment) return null;
-
-  const taskId =
-    attachment.taskId ??
-    (attachment.commentId
-      ? store.getComment(attachment.commentId)?.taskId
-      : undefined);
-  const ownerTask = taskId ? store.getTask(taskId) : undefined;
-  let nextDescription: string | undefined;
-  if (ownerTask?.description.includes(attachmentDownloadUrl(attachment.id))) {
-    if (!options.removeDescriptionReferences) {
-      throw new AttachmentReferencedError(attachment);
-    }
-    nextDescription = removeAttachmentDescriptionReferences(
-      ownerTask.description,
-      attachment.id,
-    );
-    if (nextDescription === ownerTask.description) {
-      throw new AttachmentReferencedError(attachment);
-    }
-  }
-
-  try {
-    await (options.removeBlobs ?? removeAttachmentBlobs)(bb, store, [
-      attachment,
-    ]);
-  } catch (error) {
-    throw new AttachmentCleanupError(attachment, error);
-  }
-  if (ownerTask && nextDescription !== undefined) {
-    store.updateTask(ownerTask.id, { description: nextDescription });
-  }
-  if (!store.deleteAttachment(attachment.id)) return null;
-  publishAttachmentChanged(bb, store, attachment);
-  return attachment;
+  const file = blobFile(ctx, attachment.blobPath);
+  const content = await readFile(file).catch(() => null);
+  return content && { attachment, content };
 }
 
-export function publishAttachmentChanged(
-  bb: BbPluginApi,
-  store: TasksStore,
-  attachment: Attachment,
-): void {
-  const taskId =
-    attachment.taskId ??
-    (attachment.commentId
-      ? store.getComment(attachment.commentId)?.taskId
-      : undefined);
+export async function deleteAttachment(
+  ctx: TasksContext,
+  attachmentId: string,
+): Promise<boolean> {
+  const { store } = ctx;
+  const attachment = store.getAttachment(attachmentId);
+  if (!attachment) return false;
+  const taskId = ownerTaskId(ctx, attachment);
   const task = taskId ? store.getTask(taskId) : undefined;
-  if (!task) {
-    bb.log.warn(`failed to publish attachment change ${attachment.id}`);
-    return;
+  const url = attachmentDownloadUrl(attachmentId);
+  const file = blobFile(ctx, attachment.blobPath);
+  await rm(dirname(file), { recursive: true, force: true });
+  if (task?.description.includes(url)) {
+    const description = task.description
+      .split(/(!\[[^\]]*\]\([^)]*\))/u)
+      .filter((part) => !(part.startsWith("![") && part.includes(url)))
+      .join("");
+    store.updateTask(task.id, { description });
   }
-  bb.realtime.publish("tasks:changed", {
-    taskId: task.id,
-    projectId: task.projectId,
-  });
+  store.deleteAttachment(attachmentId);
+  if (task) publish(ctx, task.id, "tasks:changed");
+  return true;
 }
 
-export function registerAttachments(
-  bb: BbPluginApi,
-  store: TasksStore,
-  options: {
-    removeBlobs?: typeof removeAttachmentBlobs;
-  } = {},
-): void {
-  const root = pluginDataDirectory(bb);
-  storeRoots.set(store, root);
+function failure(error: unknown): Response {
+  if (!(error instanceof AttachmentError)) throw error;
+  return Response.json({ error: error.message }, { status: error.status });
+}
+
+export function registerAttachments(ctx: TasksContext): void {
+  const { bb } = ctx;
+  const notFound = () =>
+    Response.json({ error: "attachment not found" }, { status: 404 });
+  const requestedId = (request: Request): string =>
+    new URL(request.url).searchParams.get("attachmentId")?.trim() ?? "";
 
   bb.http.route(
     "POST",
-    UPLOAD_PATH,
-    async (context) => {
+    "/attachments/upload",
+    async (request) => {
+      const { searchParams } = new URL(request.url);
+      const value = (name: string, header: string): string | null =>
+        (searchParams.get(name) ?? request.headers.get(header))?.trim() || null;
+      const owner = {
+        taskId: value("taskId", "x-task-id"),
+        commentId: value("commentId", "x-comment-id"),
+      };
+      const mime =
+        value("mime", "x-mime-type") ?? value("mime", "content-type");
       try {
-        const parameters = attachmentParameters(context);
-        const body = await readRequestBody(context.req.raw);
-        const attachment = await persistAttachment(
-          store,
-          parameters.owner,
-          parameters.fileName,
-          parameters.mime,
-          body.byteLength,
-          (destinationPath) => writeFile(destinationPath, body),
+        const fileName = value("fileName", "x-file-name");
+        if (fileName === null)
+          throw new AttachmentError(400, "fileName is required");
+        if (
+          Number(request.headers.get("content-length")) >
+          MAX_ATTACHMENT_SIZE_BYTES
+        ) {
+          throw new AttachmentError(413, "attachment exceeds the 25 MB limit");
+        }
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        const saved = await saveAttachment(
+          ctx,
+          owner,
+          fileName,
+          bytes,
+          mime ?? "",
         );
-        publishAttachmentChanged(bb, store, attachment);
-        return context.json(
-          {
-            attachmentId: attachment.id,
-            url: attachmentDownloadUrl(attachment.id),
-          },
-          201,
-        );
+        const url = attachmentDownloadUrl(saved.id);
+        return Response.json({ attachmentId: saved.id, url }, { status: 201 });
       } catch (error) {
-        return errorResponse(context, error);
+        return failure(error);
       }
     },
     { auth: "token" },
   );
 
-  bb.http.route("GET", DOWNLOAD_PATH, async (context) => {
-    const attachmentId = context.req.query("attachmentId")?.trim();
-    const attachment = attachmentId
-      ? store.getAttachment(attachmentId)
-      : undefined;
-    if (!attachment)
-      return context.json({ error: "attachment not found" }, 404);
-
-    const absolutePath = pathInside(root, attachment.blobPath);
-    try {
-      await stat(absolutePath);
-    } catch {
-      return context.json({ error: "attachment not found" }, 404);
-    }
-    const disposition = isInlineRasterMime(attachment.mime)
-      ? "inline"
-      : "attachment";
-    return new Response(new Uint8Array(await readFile(absolutePath)), {
+  bb.http.route("GET", "/attachments/download", async (request) => {
+    const found = await readAttachment(ctx, requestedId(request));
+    if (found === null) return notFound();
+    const { mime, fileName, isImage } = found.attachment;
+    const encoded = encodeURIComponent(fileName).replace(
+      /['()*]/gu,
+      (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+    return new Response(new Uint8Array(found.content), {
       headers: {
-        "Content-Type": attachment.mime,
-        "Content-Length": String(attachment.sizeBytes),
-        "Content-Disposition": buildContentDisposition(
-          disposition,
-          attachment.fileName,
-        ),
+        "Content-Type": mime,
+        "Content-Length": String(found.content.byteLength),
+        "Content-Disposition": `${isImage ? "inline" : "attachment"}; filename*=UTF-8''${encoded}`,
         "X-Content-Type-Options": "nosniff",
       },
     });
   });
 
-  bb.http.route("DELETE", DELETE_PATH, async (context) => {
-    const attachmentId = context.req.query("attachmentId")?.trim();
-    try {
-      const attachment = attachmentId
-        ? await deleteAttachmentById(bb, store, attachmentId, {
-            removeBlobs: options.removeBlobs,
-            removeDescriptionReferences:
-              context.req.query("removeDescriptionReferences") === "true",
-          })
-        : null;
-      if (!attachment)
-        return context.json({ error: "attachment not found" }, 404);
-      return context.json({ deleted: true });
-    } catch (error) {
-      return errorResponse(context, error);
-    }
+  bb.http.route("DELETE", "/attachments/delete", async (request) => {
+    const deleted = await deleteAttachment(ctx, requestedId(request));
+    return deleted ? Response.json({ deleted: true }) : notFound();
   });
 }

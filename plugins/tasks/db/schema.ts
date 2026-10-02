@@ -1,6 +1,6 @@
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import type { PluginServerApi } from "@bb/plugin";
 
-type PluginDatabase = ReturnType<BbPluginApi["storage"]["database"]>;
+export type PluginDatabase = ReturnType<PluginServerApi["storage"]["database"]>;
 
 const MIGRATIONS = [
   `

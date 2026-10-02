@@ -79,7 +79,7 @@ it("loads the builtin table and the directories named in config.json", async () 
     "thread-list",
     "running",
     "builtin",
-    "thread-list",
+    undefined,
     "ListView",
   ]);
   expect(summary.at(-1)).toEqual(["echo", "running", "external", "echo", icon]);
@@ -91,7 +91,7 @@ it("loads the builtin table and the directories named in config.json", async () 
   const contributed = (await request("/contributions")).body as Contributions;
   const say = { pluginId: "echo", commands: [{ name: "say" }] };
   expect(contributed.cliCommands.at(-1)).toMatchObject(say);
-  const skills = expect.stringMatching(/thread-list\/skills$/u);
+  const skills = expect.stringMatching(/tasks\/skills$/u);
   expect(ctx.plugins.skillDirs()).toContainEqual(skills);
 });
 
@@ -254,8 +254,8 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(panels[0]?.component()).toEqual({ type: "div", props });
 });
 
-it("round-trips thread-list preferences over rpc and its CLI", async () => {
-  const { rpc, cli, socket } = await serverWithEcho();
+it("round-trips thread-list preferences over rpc", async () => {
+  const { rpc, socket } = await serverWithEcho();
   const client = await socket();
   const list = async (): Promise<unknown> =>
     (await rpc("thread-list/rpc/listPreferences", null))[1];
@@ -273,8 +273,6 @@ it("round-trips thread-list preferences over rpc and its CLI", async () => {
     "handler_error",
   ]);
   expect(await list()).toMatchObject(sorted("alpha"));
-  const read = await cli("thread-list", "prefs", "get", change.key, "--json");
-  expect(read).toEqual([0, JSON.stringify(change), ""]);
 });
 
 it("answers the thread engine's queries from plugin registrations", async () => {

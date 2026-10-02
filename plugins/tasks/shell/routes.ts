@@ -1,20 +1,12 @@
 import { useMemo } from "react";
-import { useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { useBbNavigate } from "@bb/plugin/app";
 
 export const PANEL_PATH = "tasks";
 
-export type TaskViewMode = "list" | "board";
-
 export type TasksRoute =
-  | { kind: "all" }
-  | { kind: "active" }
-  | { kind: "manage" }
-  | { kind: "project"; projectId: string; view: TaskViewMode | null }
+  | { kind: "all" | "active" | "manage" }
+  | { kind: "project"; projectId: string }
   | { kind: "task"; taskKey: string };
-
-export type ResolvedTasksRoute =
-  | Exclude<TasksRoute, { kind: "project" }>
-  | { kind: "project"; projectId: string; view: TaskViewMode };
 
 function decodeSegment(segment: string): string {
   try {
@@ -25,43 +17,22 @@ function decodeSegment(segment: string): string {
 }
 
 export function parseTasksRoute(rawSubPath: string): TasksRoute {
-  const subPath = rawSubPath.split("/").map(decodeSegment).join("/");
-  const queryIndex = subPath.indexOf("?");
-  const path = queryIndex === -1 ? subPath : subPath.slice(0, queryIndex);
-  const query = queryIndex === -1 ? "" : subPath.slice(queryIndex + 1);
-  const segments = path.split("/").filter((segment) => segment.length > 0);
-  const head = segments[0];
+  const [path = ""] = rawSubPath
+    .split("/")
+    .map(decodeSegment)
+    .join("/")
+    .split("?");
+  const [head, taskKey] = path.split("/").filter(Boolean);
+  if (head === "active" || head === "manage") return { kind: head };
+  if (head === "task")
+    return taskKey ? { kind: "task", taskKey } : { kind: "all" };
   if (head === undefined || head === "all") return { kind: "all" };
-  if (head === "active") return { kind: "active" };
-  if (head === "manage") return { kind: "manage" };
-  if (head === "task") {
-    const taskKey = segments[1];
-    if (taskKey !== undefined) return { kind: "task", taskKey };
-    return { kind: "all" };
-  }
-  const view = new URLSearchParams(query).get("view");
-  return {
-    kind: "project",
-    projectId: head,
-    view: view === "board" || view === "list" ? view : null,
-  };
+  return { kind: "project", projectId: head };
 }
 
 export function tasksRouteToSubPath(route: TasksRoute): string {
-  switch (route.kind) {
-    case "all":
-      return "all";
-    case "active":
-      return "active";
-    case "manage":
-      return "manage";
-    case "task":
-      return `task/${route.taskKey}`;
-    case "project":
-      return route.view === null
-        ? route.projectId
-        : `${route.projectId}?view=${route.view}`;
-  }
+  if (route.kind === "task") return `task/${route.taskKey}`;
+  return route.kind === "project" ? route.projectId : route.kind;
 }
 
 export interface TasksNavigation {

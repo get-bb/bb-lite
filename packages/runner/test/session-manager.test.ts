@@ -17,6 +17,7 @@ import {
   type SessionTiming,
   type SubmitTurnArgs,
 } from "@bb/runner";
+import { until } from "./kit.js";
 
 type Kind = RunnerEvent["kind"];
 type OfKind<K extends Kind> = Extract<RunnerEvent, { kind: K }>;
@@ -59,16 +60,6 @@ function turn(
   const input = [{ type: "text" as const, text, mentions: [] }];
   const session = { ...SESSION, providerThreadId };
   return { session, clientRequestId, input, options, mode };
-}
-
-async function until<T>(read: () => T | Promise<T>): Promise<NonNullable<T>> {
-  const deadline = Date.now() + 5_000;
-  for (;;) {
-    const value = await read();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error("condition not reached in 5 s");
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
 }
 
 async function setup(timing: Partial<SessionTiming> = {}) {

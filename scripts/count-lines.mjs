@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Line budget counter.
-//
-// Counts physical lines of hand-written source and tests (ts, tsx, js, css,
-// sql, html and their module-flavour variants). Not counted: lockfiles,
-// generated output, vendored third-party code, markdown and JSON (which covers
-// migration snapshot JSON).
-//
-// Usage:
-//   node scripts/count-lines.mjs [root] [--max N] [--json] [--depth N] [--top N]
-//
-// The file list comes from git (tracked + untracked-but-not-ignored), so
-// build output and node_modules never count. Exits 1 when --max is exceeded.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -29,7 +17,6 @@ const COUNTED_EXTENSIONS = new Set([
   "html",
 ]);
 
-// Path segments that mark generated or vendored trees.
 const EXCLUDED_SEGMENTS = new Set([
   "node_modules",
   "dist",
@@ -51,8 +38,13 @@ const EXCLUDED_FILE_PATTERNS = [
   /\.d\.ts\.map$/,
 ];
 
-// Directories whose direct children are separate packages.
-const WORKSPACE_ROOTS = new Set(["apps", "packages", "plugins", "tests", "examples"]);
+const WORKSPACE_ROOTS = new Set([
+  "apps",
+  "packages",
+  "plugins",
+  "tests",
+  "examples",
+]);
 
 function parseArgs(argv) {
   const options = { root: process.cwd(), max: null, json: false, top: null };
@@ -71,10 +63,14 @@ function parseArgs(argv) {
 }
 
 function listFiles(root) {
-  const output = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: root,
-    maxBuffer: 256 * 1024 * 1024,
-  });
+  const output = execFileSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
+      cwd: root,
+      maxBuffer: 256 * 1024 * 1024,
+    },
+  );
   return output.toString("utf8").split("\0").filter(Boolean);
 }
 
@@ -109,7 +105,10 @@ function countLines(buffer) {
 }
 
 function isTestFile(path) {
-  return /(^|\/)(tests?|__tests__|e2e)\//.test(path) || /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(path);
+  return (
+    /(^|\/)(tests?|__tests__|e2e)\//.test(path) ||
+    /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(path)
+  );
 }
 
 function main() {
@@ -148,14 +147,19 @@ function main() {
   } else {
     const shown = options.top ? sorted.slice(0, options.top) : sorted;
     const width = Math.max(...shown.map(([area]) => area.length), 10);
-    console.log(`${"area".padEnd(width)}  ${"lines".padStart(9)}  ${"of which tests".padStart(14)}  ${"files".padStart(6)}`);
+    console.log(
+      `${"area".padEnd(width)}  ${"lines".padStart(9)}  ${"of which tests".padStart(14)}  ${"files".padStart(6)}`,
+    );
     for (const [area, entry] of shown) {
       console.log(
         `${area.padEnd(width)}  ${String(entry.lines).padStart(9)}  ${String(entry.tests).padStart(14)}  ${String(entry.files).padStart(6)}`,
       );
     }
-    if (shown.length < sorted.length) console.log(`… ${sorted.length - shown.length} more areas`);
-    console.log(`${"TOTAL".padEnd(width)}  ${String(total).padStart(9)}  ${String(totalTests).padStart(14)}  ${String(files).padStart(6)}`);
+    if (shown.length < sorted.length)
+      console.log(`… ${sorted.length - shown.length} more areas`);
+    console.log(
+      `${"TOTAL".padEnd(width)}  ${String(total).padStart(9)}  ${String(totalTests).padStart(14)}  ${String(files).padStart(6)}`,
+    );
     if (options.max !== null) {
       const remaining = options.max - total;
       console.log(

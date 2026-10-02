@@ -5,7 +5,7 @@ import type { ProjectResponse } from "@bb/server-contract";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogContent,
-} from "@/components/dialogs/ConfirmDeleteDialog";
+} from "@bb/shared-ui/confirm-delete-dialog";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { RenameDialog } from "@/components/dialogs/RenameDialog";
 import { collapsedProjectIdsAtom } from "@/components/sidebar/sidebarCollapsedAtoms";

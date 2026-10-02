@@ -15,14 +15,7 @@ export interface FrameLinkOptions {
   onClosed(): void;
 }
 
-export interface FrameLink {
-  send(frame: WholeFrame, written?: () => void): void;
-}
-
-export function linkFrames(
-  socket: WebSocket,
-  options: FrameLinkOptions,
-): FrameLink {
+export function linkFrames(socket: WebSocket, options: FrameLinkOptions) {
   const decode = createFrameDecoder();
   let heardAt = Date.now();
   let closed = false;

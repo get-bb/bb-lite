@@ -12,7 +12,7 @@ import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { AppCommandShortcutPill } from "@/components/commands/AppCommandShortcutHint";
+import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import { SettingsSwitch } from "@/components/settings/SettingsDropdown";
 import {
   SettingsBadge,

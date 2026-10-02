@@ -109,7 +109,7 @@ export function getThreadListIndicatorLabel(
   return kind === "none" ? null : THREAD_LIST_INDICATOR_LABELS[kind];
 }
 
-function hasThreadListWorkingActivity(
+export function hasThreadListWorkingActivity(
   state: ThreadListIndicatorState,
 ): boolean {
   return (

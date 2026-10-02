@@ -178,11 +178,8 @@ export function decodeApproval(
     const sessionGrant = writeScope ? { network: null, fileSystem } : null;
     const change = { kind: "file_change" as const, itemId, writeScope };
     const availableDecisions = writeScope ? every : every.filter(once);
-    return {
-      ...base,
-      subject: { ...change, sessionGrant },
-      availableDecisions,
-    };
+    const subject = { ...change, sessionGrant };
+    return { ...base, subject, availableDecisions };
   }
   const { command } = request;
   if (!command) throw new Error("Command approval request has no command");
@@ -241,9 +238,8 @@ export function parseModels(result: unknown): AvailableModel[] {
       return known.success ? [known.data.reasoningEffort] : [];
     });
     const supported = levels.length > 0 ? [...new Set(levels)] : [...defaults];
-    const preferred = reasoningLevelSchema.safeParse(
-      raw.defaultReasoningEffort,
-    );
+    const stated = raw.defaultReasoningEffort;
+    const preferred = reasoningLevelSchema.safeParse(stated);
     const usable = preferred.success && supported.includes(preferred.data);
     const available: AvailableModel = {
       id,

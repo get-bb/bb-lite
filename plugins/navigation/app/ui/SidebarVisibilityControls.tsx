@@ -27,10 +27,10 @@ import {
 import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
+  PROJECT_LIST_ACTION_BUTTON_CLASS,
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-} from "./sidebar-hover-actions.js";
-import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@/components/sidebar/sidebarRowClasses";
+} from "@bb/shared-ui/sidebar-row-classes";
 
 const OVERFLOW_ROW_BUTTON_CLASS =
   "w-full justify-start gap-2 rounded-sm px-2 text-xs font-normal hover:bg-state-hover focus-visible:bg-state-hover";

@@ -19,17 +19,9 @@ import {
   type RunnerEventSink,
   type RunnerServing,
 } from "@bb/runner";
+import { until } from "./kit.js";
 
 const MIB = 1024 * 1024;
-
-async function until<T>(read: () => T): Promise<NonNullable<T>> {
-  for (const deadline = Date.now() + 10_000; ;) {
-    const value = read();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error("condition not reached");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
 
 async function socketPair() {
   const acceptor = new WebSocketServer({ port: 0, host: "127.0.0.1" });

@@ -38,24 +38,20 @@ const answerSchema = z.object({
 });
 const toolInputSchema = z.record(z.string(), z.unknown());
 const CONTEXT_WINDOW = 200_000;
+const EFFORTS = reasoningEffortsForLevels(["low", "medium", "high"]);
 const MODELS: AvailableModel[] = ["echo-1", "echo-2"].map((id, index) => ({
   id,
   model: id,
   displayName: index === 0 ? "Echo" : "Echo Two",
   description: "Scripted provider for development and tests",
-  supportedReasoningEfforts: reasoningEffortsForLevels([
-    "low",
-    "medium",
-    "high",
-  ]),
+  supportedReasoningEfforts: EFFORTS,
   defaultReasoningEffort: "medium",
   isDefault: index === 0,
 }));
 
 function directive(text: string, name: string) {
-  const match = new RegExp(`(?:^|\\s)${name}(?::(\\S+))?(?=\\s|$)`, "u").exec(
-    text,
-  );
+  const pattern = new RegExp(`(?:^|\\s)${name}(?::(\\S+))?(?=\\s|$)`, "u");
+  const match = pattern.exec(text);
   return match === null ? undefined : (match[1] ?? "").replaceAll("_", " ");
 }
 
@@ -230,18 +226,10 @@ class EchoSession implements ProviderSession {
     if (tool === undefined) return undefined;
     const encoded = directive(text, "tool_input") ?? "{}";
     const input = toolInputSchema.parse(JSON.parse(encoded));
-    const call = {
-      type: "toolCall" as const,
-      server: "bb",
-      tool,
-      arguments: input,
-    };
-    const { id: callId, close } = this.item(
-      turn,
-      "call",
-      call,
-      ui.labels.tool(tool),
-    );
+    const shape = { type: "toolCall" as const, server: "bb", tool };
+    const call = { ...shape, arguments: input };
+    const item = this.item(turn, "call", call, ui.labels.tool(tool));
+    const { id: callId, close } = item;
     const request = { callId, tool, arguments: input, turnId };
     const { contentItems } = await host.callTool(request);
     const texts = contentItems.flatMap((c) =>
@@ -319,9 +307,8 @@ class EchoSession implements ProviderSession {
     const echoed =
       text.length > 0 ? `Response to: ${text}` : "Response complete";
     const reply = outcome ?? (counted ? `Turn count: ${this.turns}` : echoed);
-    const size = Math.ceil(
-      reply.length / Number(directive(text, "stream") ?? 1),
-    );
+    const pieces = Number(directive(text, "stream") ?? 1);
+    const size = Math.ceil(reply.length / pieces);
     const empty = { type: "agentMessage" as const, text: "" };
     const item = this.item(turn, "reply", empty, ui.labels.message);
     for (let offset = 0; offset < reply.length; offset += Math.max(1, size)) {
@@ -338,21 +325,17 @@ class EchoSession implements ProviderSession {
     };
     const total = { ...last, totalTokens: tokens * this.turns };
     const modelContextWindow = CONTEXT_WINDOW;
-    const tokenUsage = { total, last, modelContextWindow };
-    events.usage({ tokenUsage }, { turn });
+    events.usage({ total, last, modelContextWindow }, { turn });
     const window = { usedTokens: tokens, modelContextWindow, estimated: false };
-    events.contextWindow({ contextWindowUsage: window }, { turn });
+    events.contextWindow(window, { turn });
     this.finish(live);
   }
 }
 
 export function createEchoAdapter(): ProviderAdapter {
   const ready = { installed: true, auth: "ready" as const, message: null };
-  const status = {
-    providerId: "echo" as const,
-    executablePath: null,
-    ...ready,
-  };
+  const identity = { providerId: "echo" as const, executablePath: null };
+  const status = { ...identity, ...ready };
   return {
     id: "echo",
     approvalEnforcedBy: "runner",
