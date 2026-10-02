@@ -1,10 +1,4 @@
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -54,7 +48,6 @@ import { QueuedEditorTypeaheadLayoutContext } from "@/components/promptbox/queue
 
 export type QueuedMessageProcessingAction = "send" | "edit" | "delete";
 type QueuedMessageSendAction = "send-now" | "steer-when-ready";
-type QueueSurfaceMode = "collapsed" | "drawer" | "workspace";
 
 export interface QueuedMessageEditRequest {
   queuedMessageId: string;
@@ -85,10 +78,7 @@ interface QueuedMessagesListProps {
 
 const COLLAPSED_HEIGHT = 44;
 const DRAWER_MAX_HEIGHT = 174;
-const DRAWER_MAX_VISIBLE_MESSAGES = 3;
-const WORKSPACE_MIN_HEIGHT = 240;
-const WORKSPACE_MAX_HEIGHT = 360;
-const SURFACE_DRAG_THRESHOLD = 72;
+const EDITING_MIN_HEIGHT = 240;
 const WAIT_LINES: Record<string, { icon: IconName; label: string }> = {
   "turn-starting": { icon: "TimeSchedule", label: "Waiting for turn to start" },
   stopping: { icon: "TimeSchedule", label: "Sending when the thread stops" },
@@ -579,12 +569,10 @@ function QueuedMessagesListSurface({
 }: QueuedMessagesListProps) {
   const senderThreadMetadataById = useSenderThreadMetadataById();
   const getScrollElement = useBottomAnchoredScroll()?.getScrollElement;
-  const [preferredMode, setPreferredMode] =
-    useState<QueueSurfaceMode>("drawer");
+  const [collapsedPreference, setCollapsed] = useState(false);
   const [editorHeight, setEditorHeight] = useState<number | null>(null);
   const surfaceRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const dragStartYRef = useRef<number | null>(null);
   const {
     aboveOverflow,
     belowOverflow,
@@ -593,14 +581,12 @@ function QueuedMessagesListSurface({
     topSentinelRef,
   } = useScrollOverflowState<HTMLDivElement>({ measureOverflow: true });
   const isEditing = inlineEditor !== undefined;
-  const mode: QueueSurfaceMode = isEditing ? "workspace" : preferredMode;
+  const collapsed = collapsedPreference && !isEditing;
   const messageCount = queuedMessages.length;
   const [seenCount, setSeenCount] = useState(messageCount);
   if (seenCount !== messageCount) {
     setSeenCount(messageCount);
-    if (messageCount > seenCount && preferredMode === "collapsed") {
-      setPreferredMode("drawer");
-    }
+    if (messageCount > seenCount) setCollapsed(false);
   }
 
   useLayoutEffect(() => {
@@ -632,7 +618,7 @@ function QueuedMessagesListSurface({
       const surfaceHeight = surface.getBoundingClientRect().height;
       const scrollBounds = scroll.getBoundingClientRect();
       const desired = Math.max(
-        WORKSPACE_MIN_HEIGHT,
+        EDITING_MIN_HEIGHT,
         Math.ceil(
           last.getBoundingClientRect().bottom -
             top +
@@ -672,41 +658,15 @@ function QueuedMessagesListSurface({
     };
   }, [getScrollElement, isEditing, inlineEditor?.queuedMessageId, scrollRef]);
 
-  const changeMode = (nextMode: QueueSurfaceMode) => {
-    setPreferredMode(nextMode);
-    if (nextMode !== "workspace") inlineEditor?.onDismiss();
-  };
-  const finishSurfaceDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const startY = dragStartYRef.current;
-    dragStartYRef.current = null;
-    if (startY === null || event.type !== "pointerup") return;
-    const offset = startY - event.clientY;
-    if (mode !== "workspace" && offset >= SURFACE_DRAG_THRESHOLD) {
-      changeMode("workspace");
-    } else if (mode !== "collapsed" && offset <= -SURFACE_DRAG_THRESHOLD) {
-      changeMode(mode === "workspace" ? "drawer" : "collapsed");
-    }
-  };
+  const caretLabel = collapsed
+    ? "Show queued messages"
+    : "Collapse queued messages";
 
-  const queueFitsDrawer = messageCount <= DRAWER_MAX_VISIBLE_MESSAGES;
-  const caretWillCollapse =
-    mode === "workspace" || (mode === "drawer" && queueFitsDrawer);
-  const caretLabel = caretWillCollapse
-    ? "Collapse queued messages"
-    : mode === "collapsed" && queueFitsDrawer
-      ? "Show queued messages"
-      : "Expand queued messages";
-  const surfaceHeight =
-    isEditing && editorHeight !== null
-      ? editorHeight
-      : mode === "workspace"
-        ? Math.min(
-            WORKSPACE_MAX_HEIGHT,
-            Math.max(WORKSPACE_MIN_HEIGHT, 56 + Math.max(1, messageCount) * 40),
-          )
-        : mode === "drawer"
-          ? drawerHeight(queuedMessages, processingMessageId)
-          : COLLAPSED_HEIGHT;
+  const surfaceHeight = isEditing
+    ? (editorHeight ?? EDITING_MIN_HEIGHT)
+    : collapsed
+      ? COLLAPSED_HEIGHT
+      : drawerHeight(queuedMessages, processingMessageId);
 
   return (
     <PromptStackCard
@@ -724,9 +684,9 @@ function QueuedMessagesListSurface({
       <header
         className={cn(
           "group/queue-header flex h-8 shrink-0 items-center gap-2 px-2",
-          mode !== "collapsed" && "border-b border-border/35",
+          !collapsed && "border-b border-border/35",
         )}
-        data-queued-messages-mode={mode}
+        data-queued-messages-mode={collapsed ? "collapsed" : "drawer"}
       >
         <div className="flex min-w-16 items-baseline gap-1.5 pl-1">
           <span className="text-xs font-medium text-foreground">Queue</span>
@@ -734,44 +694,7 @@ function QueuedMessagesListSurface({
             {messageCount}
           </span>
         </div>
-        <button
-          type="button"
-          className="group/handle flex h-full min-w-16 flex-1 touch-none select-none items-center justify-center focus-visible:rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-grab"
-          aria-label={
-            mode === "workspace"
-              ? "Drag down to dock the queue"
-              : "Drag up to open the queue workspace"
-          }
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            event.currentTarget.setPointerCapture(event.pointerId);
-            dragStartYRef.current = event.clientY;
-          }}
-          onPointerUp={finishSurfaceDrag}
-          onPointerCancel={finishSurfaceDrag}
-          onKeyDown={(event) => {
-            const expands = ["ArrowUp", "Enter", " "].includes(event.key);
-            if (
-              !expands &&
-              event.key !== "ArrowDown" &&
-              event.key !== "Escape"
-            ) {
-              return;
-            }
-            event.preventDefault();
-            changeMode(
-              expands
-                ? mode === "collapsed"
-                  ? "drawer"
-                  : "workspace"
-                : mode === "workspace"
-                  ? "drawer"
-                  : "collapsed",
-            );
-          }}
-        >
-          <span className="h-px w-7 rounded-full bg-muted-foreground opacity-30 transition-opacity group-hover/handle:opacity-50 group-focus-visible/handle:opacity-50" />
-        </button>
+        <div className="min-w-16 flex-1" />
         <div className="flex min-w-16 items-center justify-end">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -784,20 +707,15 @@ function QueuedMessagesListSurface({
                     "h-6 text-muted-foreground hover:bg-surface-recessed",
                     PROMPT_STACK_EDGE_CARET_BUTTON_WIDTH_CLASS,
                   )}
-                  onClick={() =>
-                    changeMode(
-                      caretWillCollapse
-                        ? "collapsed"
-                        : mode === "drawer" || !queueFitsDrawer
-                          ? "workspace"
-                          : "drawer",
-                    )
-                  }
+                  onClick={() => {
+                    setCollapsed(!collapsed);
+                    if (!collapsed) inlineEditor?.onDismiss();
+                  }}
                   aria-label={caretLabel}
-                  aria-expanded={mode !== "collapsed"}
+                  aria-expanded={!collapsed}
                 >
                   <Icon
-                    name={caretWillCollapse ? "ChevronDown" : "ChevronUp"}
+                    name={collapsed ? "ChevronUp" : "ChevronDown"}
                     className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/queue-header:opacity-65 group-focus-within/queue-header:opacity-65"
                     aria-hidden
                   />
@@ -811,14 +729,14 @@ function QueuedMessagesListSurface({
       <div
         className="relative min-h-0 flex-1"
         data-queued-messages-scroll-frame=""
-        aria-hidden={mode === "collapsed"}
-        inert={mode === "collapsed" ? true : undefined}
+        aria-hidden={collapsed}
+        inert={collapsed ? true : undefined}
       >
         <div
           ref={scrollRef}
           data-queued-messages-scroll=""
           className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain"
-          tabIndex={mode === "collapsed" ? -1 : 0}
+          tabIndex={collapsed ? -1 : 0}
         >
           <div ref={topSentinelRef} aria-hidden className="h-px w-full" />
           <ul ref={listRef} className="group/queue py-1">
@@ -846,12 +764,9 @@ function QueuedMessagesListSurface({
                   sendAction={sendAction}
                   sendDisabled={sendDisabled}
                   actionDisabled={actionDisabled}
-                  compact={mode !== "workspace"}
+                  compact={!isEditing}
                   onSend={onSend}
-                  onEdit={(request) => {
-                    setPreferredMode("drawer");
-                    onEdit(request);
-                  }}
+                  onEdit={onEdit}
                   onDelete={onDelete}
                 />
               ),
@@ -859,7 +774,7 @@ function QueuedMessagesListSurface({
           </ul>
           <div ref={bottomSentinelRef} aria-hidden className="h-px w-full" />
         </div>
-        {mode === "collapsed"
+        {collapsed
           ? null
           : [aboveOverflow && "above", belowOverflow && "below"].map(
               (placement) =>
