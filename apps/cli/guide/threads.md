@@ -24,10 +24,10 @@ bb thread spawn --project <proj> --machine <id-or-name> \
   project's remembered choice, then the default; an omitted permission mode is
   inherited from the parent thread.
 - Where it runs: `--environment <env id>` reuses an environment;
-  `--environment <path>` runs in an existing directory; `--new-environment
-  worktree|checkout|personal` creates one (`--base-branch` only with
-  `worktree`); `--machine` picks the machine. With none of these the server
-  picks the project's default.
+  `--environment <path>` runs in an existing directory;
+  `--new-environment worktree|checkout|personal` creates one (`--base-branch`
+  only with `worktree`); `--machine` picks the machine. With none of these the
+  server picks the project's default.
 - `--file` / `--image` attach files. An absolute path on this machine is
   uploaded to the server first.
 - `--send-at 10m` (or an ISO time) schedules the first message; the thread

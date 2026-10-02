@@ -4,14 +4,19 @@ An environment is the directory a thread works in, on one machine. Threads can
 share one (a child spawned with `--environment "$BB_ENVIRONMENT_ID"` works in
 its parent's directory) or get their own.
 
-| `bb thread spawn` flag | Environment |
-|---|---|
-| `--environment <env id>` | Reuse that environment. It already fixes the machine, so `--machine` is refused. |
-| `--environment <path>` | Run in an existing directory on the chosen machine. A value with `/`, or starting with `.` or `~`, is a path. |
-| `--new-environment worktree [--base-branch <ref>]` | A new git worktree that bb creates and later removes. `--base-branch origin/main` starts from a remote ref; without it bb uses the project's default branch. |
-| `--new-environment checkout` | The project's own checkout on that machine. |
-| `--new-environment personal` | The personal workspace: a directory outside any project. |
-| none of these | The server picks the project's default. |
+`bb thread spawn` chooses the environment:
+
+- `--environment <env id>` reuses that environment. It already fixes the
+  machine, so `--machine` is refused.
+- `--environment <path>` runs in an existing directory on the chosen machine. A
+  value with `/`, or starting with `.` or `~`, is a path.
+- `--new-environment worktree [--base-branch <ref>]` makes a new worktree that
+  bb creates and later removes. `--base-branch origin/main` starts from a
+  remote ref; without it bb uses the project's default branch.
+- `--new-environment checkout` uses the project's own checkout on that machine.
+- `--new-environment personal` uses the personal workspace: a directory outside
+  any project.
+- With none of these the server picks the project's default.
 
 `--machine <id-or-name>` chooses the machine. Without it, a new environment is
 created on the machine the calling thread runs on, or on the server's machine
@@ -45,6 +50,6 @@ bb file read <path> --machine <id-or-name>      # any machine, absolute path
 printf '…' | bb file write <path> --stdin --create-parents --machine <host>
 ```
 
-A terminal keeps running after the command that created it returns. `terminal
-output --json` returns base64 chunks and `nextSeq`; pass it back as
-`--since-seq` to read only what is new.
+A terminal keeps running after the command that created it returns.
+`bb terminal output --json` returns base64 chunks and `nextSeq`; pass it back
+as `--since-seq` to read only what is new.

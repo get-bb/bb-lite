@@ -26,7 +26,7 @@ working directory, `BB_THREAD_ID` and `BB_PROJECT_ID`. The server runs the
 command and returns its exit code, stdout and stderr.
 
 - `bb <name> --help` is answered by the plugin.
-- `--<flag>-stdin` reads one line from stdin and passes it as `--<flag>
-  <value>`, so a secret never appears in a process list.
+- `--<flag>-stdin` reads one line from stdin and passes it on as the value of
+  `--<flag>`, so a secret never appears in a process list.
 - An unknown first word that no enabled plugin owns is an `unknown_command`
   error.
