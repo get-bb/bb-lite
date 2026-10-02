@@ -17,10 +17,8 @@ import type { QueuedMessageReorderRequest } from "@/lib/queued-message-reorder";
 import { BbHttpError } from "@/lib/sdk";
 import type { InlineQueuedMessageEditState } from "./useInlineQueuedMessageEditing";
 
-type QueuedMessageSendGuard = "current-head" | "exists" | "none";
-
 interface SendQueuedMessageByIdArgs {
-  guard: QueuedMessageSendGuard;
+  guard: "current-head" | "exists" | "none";
   messageId: string;
   mode: SendQueuedMessageMode;
 }
@@ -36,22 +34,6 @@ interface UseQueuedMessageActionsArgs {
   activeComposerDraftInput: PromptInput[];
 }
 
-interface UseQueuedMessageActionsResult {
-  processingQueuedMessage: {
-    action: QueuedMessageProcessingAction;
-    id: string;
-  } | null;
-  queuedMessageActionPending: boolean;
-  isUpdateQueuedMessagePending: boolean;
-  sendQueuedMessageById: (args: SendQueuedMessageByIdArgs) => Promise<void>;
-  handleSaveInlineQueuedMessage: () => Promise<void>;
-  handleDeleteQueuedMessage: (queuedMessageId: string) => void;
-  handleReorderQueuedMessage: (request: QueuedMessageReorderRequest) => void;
-  handleSetQueuedMessageGroupBoundary: (
-    request: QueuedMessageGroupBoundaryRequest,
-  ) => void;
-}
-
 export function useQueuedMessageActions({
   threadId,
   queuedMessages,
@@ -61,7 +43,7 @@ export function useQueuedMessageActions({
   inlineEditingQueuedMessage,
   dismissInlineQueuedMessageEditor,
   activeComposerDraftInput,
-}: UseQueuedMessageActionsArgs): UseQueuedMessageActionsResult {
+}: UseQueuedMessageActionsArgs) {
   const updateQueuedMessage = useUpdateThreadQueuedMessage();
   const sendQueuedMessage = useSendThreadQueuedMessage();
   const deleteQueuedMessage = useDeleteThreadQueuedMessage();

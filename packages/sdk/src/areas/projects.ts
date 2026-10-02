@@ -1,6 +1,5 @@
 import type {
   MachineEnvironmentReplace,
-  MachineEnvironmentSet,
   ProjectMachineEnvironmentList,
   CommandListResponse,
   CopyProjectAttachmentsRequest,
@@ -9,7 +8,6 @@ import type {
   ProjectBranchesResponse,
   ProjectBranchesQuery,
   ProjectCommandsQuery,
-  ProjectFilesQuery,
   ProjectResponse,
   ProjectWithThreadsResponse,
   ProjectListQuery,
@@ -22,7 +20,6 @@ import type {
   UpdateProjectSourceRequest,
   UploadedPromptAttachment,
   WorkspacePathListResponse,
-  WorkspaceFileListResponse,
 } from "@bb/server-contract";
 import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import type { ProjectExecutionDefaults, ProjectSource } from "@bb/domain";
@@ -62,12 +59,6 @@ export type ProjectWorkspaceRoutingArgs =
   | { environmentId: string; hostId?: never }
   | { environmentId?: never; hostId: string }
   | { environmentId?: never; hostId?: never };
-
-export type ProjectFilesArgs = ProjectWorkspaceRoutingArgs &
-  Omit<ProjectFilesQuery, "environmentId" | "hostId"> & {
-    projectId: string;
-    signal?: AbortSignal;
-  };
 
 export type ProjectPathsArgs = ProjectWorkspaceRoutingArgs &
   Omit<ProjectPathsQuery, "environmentId" | "hostId"> & {
@@ -171,7 +162,6 @@ export interface ProjectFileContentResult {
   mimeType: string;
   sizeBytes: number;
 }
-export type ProjectFilesResult = WorkspaceFileListResponse;
 export type ProjectGetResult = ProjectResponse;
 export type ProjectListResult =
   | ProjectResponse[]
@@ -206,13 +196,6 @@ export interface ProjectsArea {
   replaceMachineEnvironment(
     args: { projectId: string } & MachineEnvironmentReplace,
   ): Promise<ProjectMachineEnvironmentList>;
-  setMachineEnvironmentVariable(
-    args: { projectId: string } & MachineEnvironmentSet,
-  ): Promise<ProjectMachineEnvironmentList>;
-  deleteMachineEnvironmentVariable(args: {
-    projectId: string;
-    name: string;
-  }): Promise<ProjectMachineEnvironmentList>;
   attachments: ProjectAttachmentsArea;
   branches(args: ProjectBranchesArgs): Promise<ProjectBranchesResult>;
   commands(args: ProjectCommandsArgs): Promise<ProjectCommandsResult>;
@@ -222,7 +205,6 @@ export interface ProjectsArea {
   ): Promise<ProjectDefaultExecutionOptionsResult>;
   delete(args: ProjectDeleteArgs): Promise<ProjectDeleteResult>;
   fileContent(args: ProjectFileContentArgs): Promise<ProjectFileContentResult>;
-  files(args: ProjectFilesArgs): Promise<ProjectFilesResult>;
   get(args: ProjectGetArgs): Promise<ProjectGetResult>;
   list(args?: ProjectListArgs): Promise<ProjectListResult>;
   paths(args: ProjectPathsArgs): Promise<ProjectPathsResult>;
@@ -532,18 +514,6 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
         sizeBytes: bytes.byteLength,
       };
     },
-    async files(input) {
-      const { projectId, signal, ...query } = input;
-      return transport.readJson(
-        transport.api.v1.projects[":id"].files.$get(
-          {
-            param: { id: projectId },
-            query,
-          },
-          ...signalRequestArgs(signal),
-        ),
-      );
-    },
     async machineEnvironment(input) {
       return transport.readJson(
         transport.api.v1.projects[":id"]["machine-environment"].$get({
@@ -556,22 +526,6 @@ export function createProjectsArea(args: CreateSdkAreaArgs): ProjectsArea {
         transport.api.v1.projects[":id"]["machine-environment"].$put({
           param: { id: input.projectId },
           json: { variables: input.variables },
-        }),
-      );
-    },
-    async setMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["machine-environment"].$post({
-          param: { id: input.projectId },
-          json: { name: input.name, value: input.value, note: input.note },
-        }),
-      );
-    },
-    async deleteMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.projects[":id"]["machine-environment"].$delete({
-          param: { id: input.projectId },
-          json: { name: input.name },
         }),
       );
     },

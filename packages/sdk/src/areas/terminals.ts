@@ -98,8 +98,6 @@ export interface TerminalOutputArgs extends TerminalTargetArgs {
   tailBytes?: TerminalOutputQuery["tailBytes"];
 }
 
-export type TerminalRestartArgs = TerminalTargetArgs;
-
 export type TerminalListResult = TerminalListResponse;
 export type TerminalCreateResult = TerminalSession;
 export type TerminalGetResult = TerminalSession;
@@ -108,7 +106,6 @@ export type TerminalCloseResult = TerminalSession;
 export type TerminalInputResult = TerminalSession;
 export type TerminalResizeResult = TerminalSession;
 export type TerminalOutputResult = TerminalOutputResponse;
-export type TerminalRestartResult = TerminalSession;
 
 export interface TerminalsArea {
   close(args: TerminalCloseArgs): Promise<TerminalCloseResult>;
@@ -118,7 +115,6 @@ export interface TerminalsArea {
   list(args: TerminalListArgs): Promise<TerminalListResult>;
   output(args: TerminalOutputArgs): Promise<TerminalOutputResult>;
   rename(args: TerminalRenameArgs): Promise<TerminalRenameResult>;
-  restart(args: TerminalRestartArgs): Promise<TerminalRestartResult>;
   resize(args: TerminalResizeArgs): Promise<TerminalResizeResult>;
 }
 
@@ -263,14 +259,6 @@ export function createTerminalsArea(args: CreateSdkAreaArgs): TerminalsArea {
         transport.api.v1.terminals[":terminalId"].$patch({
           param: { terminalId: input.terminalId },
           json: { title: input.title },
-        }),
-      );
-    },
-    async restart(input) {
-      return transport.readJson(
-        transport.api.v1.terminals[":terminalId"].restart.$post({
-          param: { terminalId: input.terminalId },
-          json: {},
         }),
       );
     },

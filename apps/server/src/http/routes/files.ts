@@ -1,5 +1,5 @@
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext, ServerRunner } from "../../context.js";
+import type { ServerContext } from "../../context.js";
 import {
   PATH_LIST_EXCLUDED_NAMES,
   PATH_LIST_LIMIT_DEFAULT,
@@ -30,14 +30,14 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
   const { get, post } = typedApi(app);
   const { environments, files, hosts, projects, threads } = publicApiRoutes;
 
-  const runnerOf = (hostId: string | undefined): ServerRunner =>
+  const runnerOf = (hostId: string | undefined) =>
     ctx.runners.get(requireHost(ctx, hostId ?? ctx.config.hostId).id);
 
   const serve = (
     c: FileRequest,
     root: { hostId: string; path: string },
     gitRef?: string,
-  ): Promise<Response> => {
+  ) => {
     const segments = relativeFileSegments(c.req.param("filePath"));
     const { hostId, path: rootPath } = root;
     const target = { hostId, rootPath, segments, gitRef };
@@ -70,11 +70,6 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     return serve(c, { hostId, path: HOST_ROOT });
   });
 
-  get(hosts.file, (c) => {
-    const { id: hostId } = requireHost(ctx, c.req.param("id"));
-    return serve(c, { hostId, path: HOST_ROOT });
-  });
-
   get(hosts.directory, async (c, { path }) =>
     c.json(await runnerOf(c.req.param("id")).browseDirectory({ path })),
   );
@@ -83,12 +78,9 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json(await runnerOf(c.req.param("id")).pathsExist({ paths })),
   );
 
-  post(files.read, async (c, { hostId, ...location }) => {
-    const file = await runnerOf(hostId).readFile(location);
-    if ("notModified" in file)
-      throw new Error("Unconditional read was skipped");
-    return c.json(file);
-  });
+  post(files.read, async (c, { hostId, ...location }) =>
+    c.json(await runnerOf(hostId).readFile(location)),
+  );
 
   post(files.write, async (c, { hostId, ...write }) =>
     c.json(await runnerOf(hostId).writeFile(write)),
@@ -102,20 +94,7 @@ export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json({ files: listed, truncated });
   });
 
-  post(files.listPaths, async (c, { hostId, path: rootPath, ...query }) => {
-    const search = { ...LIST_DEFAULTS, ...query, rootPath };
-    return c.json(await runnerOf(hostId).listPaths(search));
-  });
-
   post(files.mkdir, async (c, { hostId, ...target }) =>
     c.json(await runnerOf(hostId).mutatePath({ op: "mkdir", ...target })),
-  );
-
-  post(files.move, async (c, { hostId, ...target }) =>
-    c.json(await runnerOf(hostId).mutatePath({ op: "move", ...target })),
-  );
-
-  post(files.remove, async (c, { hostId, ...target }) =>
-    c.json(await runnerOf(hostId).mutatePath({ op: "remove", ...target })),
   );
 }

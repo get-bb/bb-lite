@@ -7,10 +7,18 @@ import {
 } from "@bb/domain";
 import {
   createFilePreviewLineRange,
+  getFilePreviewLineRangeStart,
   type HostFileTabState,
   type WorkspaceFileTabState,
 } from "@bb/client-core";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
+import { usePublishThreadPanelOpener } from "@/components/plugin/plugin-thread-panel-navigation";
+import type {
+  ThreadTimelineLocalFileLink,
+  ThreadTimelineOpenPluginPanelHandler,
+} from "@/components/thread/timeline";
+import { appToast } from "@/components/ui/app-toast";
+import type { MarkdownLocalFileContextMenuItem } from "@/components/ui/markdown-link-routing";
 import type { WorkspaceChangedFileSelection } from "@/components/workspace/workspace-change-summary";
 import { useEnvironmentMergeBaseBranches } from "@/hooks/queries/environment-queries";
 import {
@@ -18,8 +26,19 @@ import {
   useCreateTerminal,
   useTerminals,
 } from "@/hooks/queries/thread-terminal-queries";
+import type { useOpenTargets } from "@/hooks/useOpenTargets";
+import { copyToClipboardWithToast } from "@/lib/clipboard";
+import { getFileBasename } from "@/lib/live-file-navigation";
+import { serializePluginPanelParams } from "@/lib/plugin-json-value";
+import { resolveThreadLocalFileLink } from "@/lib/thread-local-file-links";
+import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
 import { wsManager } from "@/lib/ws";
-import { resolveWorkspaceChangedFileOpenTarget } from "@/views/thread-detail/threadWorkspaceOpenPath";
+import { usePluginSlots } from "@/plugins/registry";
+import {
+  buildOpenInEditorHandler,
+  resolveWorkspaceChangedFileOpenTarget,
+} from "@/views/thread-detail/threadWorkspaceOpenPath";
+import { resolveGitDiffTabStatus } from "./gitDiffTabEligibility";
 import {
   GIT_DIFF_TAB_ID,
   hostFileTab,
@@ -41,10 +60,11 @@ interface UseThreadPanelArgs {
   threadId: string;
   thread: Thread | undefined;
   environment: Environment | undefined;
+  environmentLoadFailed: boolean;
+  executionUnavailable: boolean;
+  hostConnected: boolean;
   isFocused: boolean;
-  canUseGitUi: boolean;
-  canCreateTerminal: boolean;
-  showsGitDiffTab: boolean;
+  openTargets: ReturnType<typeof useOpenTargets>;
 }
 
 interface PendingGitDiff {
@@ -65,22 +85,52 @@ function withSelectedBranch(
     : list;
 }
 
+function copyFileText(text: string, what: string): void {
+  void copyToClipboardWithToast(text, {
+    successMessage: `File ${what} copied`,
+    errorMessage: `Failed to copy file ${what}`,
+  });
+}
+
+export function openThreadLink({ href }: { href: string }) {
+  return openHttpUrlInExternalBrowser(href);
+}
+
 export type ThreadPanelController = ReturnType<typeof useThreadPanel>;
 
 export function useThreadPanel({
   threadId,
   thread,
   environment,
+  environmentLoadFailed,
+  executionUnavailable,
+  hostConnected,
   isFocused,
-  canUseGitUi,
-  canCreateTerminal,
-  showsGitDiffTab,
+  openTargets,
 }: UseThreadPanelArgs) {
   const environmentId = thread?.environmentId ?? null;
+  const workspaceRootPath = environment?.path ?? null;
+  const gitDiffTabStatus = resolveGitDiffTabStatus({
+    environmentId,
+    environmentIsGitRepo: environment?.isGitRepo,
+    environmentLoadFailed,
+    environmentOwnsPath: environment?.managed,
+    hasResolvedThread: thread !== undefined,
+    threadArchived: thread?.archivedAt != null || executionUnavailable,
+  });
+  const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
+  const canCreateTerminal =
+    !executionUnavailable &&
+    environmentId !== null &&
+    environment?.status === "ready" &&
+    hostConnected;
   const tabs = usePanelTabs({
     panelId: threadId,
     synced: true,
-    fixedIds: showsGitDiffTab ? THREAD_FIXED_TAB_IDS : THREAD_INFO_ONLY_TAB_IDS,
+    fixedIds:
+      gitDiffTabStatus === "ineligible"
+        ? THREAD_INFO_ONLY_TAB_IDS
+        : THREAD_FIXED_TAB_IDS,
   });
   const { activate, close, isOpen, open, setOpen } = tabs;
   const terminalSessions = useTerminals(
@@ -93,6 +143,7 @@ export function useThreadPanel({
   const [focusRequest, setFocusRequest] = useState<
     "new-tab" | "terminal" | null
   >(null);
+  const { threadPanels } = usePluginSlots();
 
   const openWorkspaceFile = useCallback(
     (file: WorkspaceFileTabState, replaceNewTab = false) => {
@@ -101,13 +152,20 @@ export function useThreadPanel({
     },
     [environmentId, open],
   );
-  const openHostFile = useCallback(
-    (file: HostFileTabState) => {
-      if (environmentId === null) return;
+  const previewWorkspaceFile = (path: string, replaceNewTab = false) =>
+    openWorkspaceFile(
+      {
+        lineRange: null,
+        path,
+        source: { kind: "working-tree" },
+        statusLabel: null,
+      },
+      replaceNewTab,
+    );
+  const openHostFile = (file: HostFileTabState) => {
+    if (environmentId !== null)
       open(hostFileTab(file, environmentId, threadId));
-    },
-    [environmentId, open, threadId],
-  );
+  };
   const openNewTab = useCallback(() => {
     open(NEW_TAB);
     setFocusRequest("new-tab");
@@ -135,6 +193,100 @@ export function useThreadPanel({
       ),
     [close, closeTerminalSession],
   );
+  const openPluginPanel = useCallback(
+    (args: Parameters<typeof pluginPanelTab>[0]) =>
+      open(pluginPanelTab(args), true),
+    [open],
+  );
+  const openPluginPanelFromTimeline: ThreadTimelineOpenPluginPanelHandler = ({
+    pluginId,
+    actionId,
+    title,
+    params,
+  }) => {
+    const action = threadPanels.find(
+      (candidate) =>
+        candidate.pluginId === pluginId && candidate.id === actionId,
+    );
+    if (action === undefined) return false;
+    try {
+      const paramsJson = serializePluginPanelParams(params);
+      openPluginPanel({
+        pluginId,
+        actionId,
+        title: title ?? action.title,
+        paramsJson,
+      });
+      return true;
+    } catch (error) {
+      console.warn(
+        `[plugin:${pluginId}] messageDirective openThreadPanel params are invalid: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return false;
+    }
+  };
+  usePublishThreadPanelOpener(openPluginPanelFromTimeline, isFocused);
+  const openLocalFileLink = (link: ThreadTimelineLocalFileLink) => {
+    const resolution = resolveThreadLocalFileLink({
+      hostFileLinksAvailable: environmentId !== null,
+      link,
+      workspaceRootPath,
+    });
+    if (resolution.kind === "app-route") return false;
+    if (resolution.kind === "error") {
+      appToast.error("Failed to open file locally", {
+        description: resolution.description,
+      });
+    } else if (resolution.kind === "open-workspace-path") {
+      openWorkspaceFile({
+        lineRange: resolution.request.lineRange,
+        path: resolution.request.relativePath,
+        source: { kind: "working-tree" },
+        statusLabel: null,
+      });
+    } else openHostFile(resolution.request);
+    return true;
+  };
+  const localFileContextMenuItems = (link: ThreadTimelineLocalFileLink) => {
+    const lineNumber = getFilePreviewLineRangeStart({
+      lineRange: link.lineRange,
+    });
+    const items: MarkdownLocalFileContextMenuItem[] = [
+      {
+        id: "copy-path",
+        label: "Copy file path",
+        onSelect: () => copyFileText(link.path, "path"),
+      },
+      {
+        id: "copy-name",
+        label: "Copy file name",
+        onSelect: () => copyFileText(getFileBasename(link.path), "name"),
+      },
+    ];
+    if (openTargets.fileTargets.length > 0) {
+      items.unshift(
+        {
+          id: "open-in",
+          items: openTargets.fileTargets.map((target) => ({
+            id: `open-target:${target.id}`,
+            label: `Open in ${target.label}`,
+            onSelect: () => {
+              void openTargets.openPath(target, {
+                lineNumber,
+                path: link.path,
+              });
+            },
+          })),
+          label: "Open in",
+          type: "submenu",
+        },
+        { id: "copy-separator", type: "separator" },
+      );
+    }
+    return items;
+  };
 
   useEffect(() => {
     if (thread === undefined) return;
@@ -208,38 +360,27 @@ export function useThreadPanel({
     if (pickerOpen) setBranchOptionsRequested(true);
   }, []);
   const clearPendingGitDiff = useCallback(() => setPendingGitDiff(null), []);
-  const openGitDiff = useCallback(
-    (target: Omit<PendingGitDiff, "threadId"> = {}) => {
-      if (!canUseGitUi) return;
-      setPendingGitDiff({ ...target, threadId });
-      activate(GIT_DIFF_TAB_ID);
-    },
-    [activate, canUseGitUi, threadId],
-  );
-  const openDiffFile = useCallback(
-    (path: string) => openGitDiff({ path }),
-    [openGitDiff],
-  );
-  const openCommitDiff = useCallback(
-    (commitSha: string) => openGitDiff({ commitSha }),
-    [openGitDiff],
-  );
-  const openChangedFile = useCallback(
-    (selection: WorkspaceChangedFileSelection) => {
-      const target = resolveWorkspaceChangedFileOpenTarget(selection);
-      if (target.kind === "diff") {
-        openDiffFile(selection.file.path);
-        return;
-      }
-      openWorkspaceFile({
-        lineRange: null,
-        path: selection.file.path,
-        source: target.source,
-        statusLabel: target.statusLabel,
-      });
-    },
-    [openDiffFile, openWorkspaceFile],
-  );
+  const openGitDiff = (target: Omit<PendingGitDiff, "threadId">) => {
+    if (!canUseGitUi) return;
+    setPendingGitDiff({ ...target, threadId });
+    activate(GIT_DIFF_TAB_ID);
+  };
+  const openDiffFile = (path: string) => {
+    if (path.length > 0) openGitDiff({ path });
+  };
+  const openCommitDiff = (commitSha: string) => {
+    if (commitSha.length > 0) openGitDiff({ commitSha });
+  };
+  const openChangedFile = (selection: WorkspaceChangedFileSelection) => {
+    const target = resolveWorkspaceChangedFileOpenTarget(selection);
+    if (target.kind === "diff") return openDiffFile(selection.file.path);
+    openWorkspaceFile({
+      lineRange: null,
+      path: selection.file.path,
+      source: target.source,
+      statusLabel: target.statusLabel,
+    });
+  };
   const toggle = useCallback(() => setOpen(!isOpen), [isOpen, setOpen]);
   const closePanel = useCallback(() => setOpen(false), [setOpen]);
 
@@ -272,19 +413,26 @@ export function useThreadPanel({
   return {
     tabs,
     isOpen,
+    isFocused,
     toggle,
     close: closePanel,
+    gitDiffTabStatus,
+    canUseGitUi,
+    canCreateTerminal,
     terminalSessions,
     focusRequest,
     setFocusRequest,
-    openWorkspaceFile,
-    openHostFile,
+    previewWorkspaceFile,
     openNewTab,
-    openPluginPanel: useCallback(
-      (args: Parameters<typeof pluginPanelTab>[0]) =>
-        open(pluginPanelTab(args), true),
-      [open],
-    ),
+    openPluginPanel,
+    openPluginPanelFromTimeline,
+    openLocalFileLink,
+    localFileContextMenuItems,
+    openFileInEditor: buildOpenInEditorHandler({
+      rootPath: workspaceRootPath,
+      openInPreferredTarget: openTargets.openInPreferredFileTarget,
+    }),
+    openInPreferredFileTarget: openTargets.openInPreferredFileTarget,
     startTerminal,
     closeTerminal,
     openDiffFile,

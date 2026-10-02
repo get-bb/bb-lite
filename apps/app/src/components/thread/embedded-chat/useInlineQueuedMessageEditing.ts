@@ -24,27 +24,11 @@ interface UseInlineQueuedMessageEditingArgs {
   onBeginEdit?: () => void;
 }
 
-interface UseInlineQueuedMessageEditingResult {
-  inlineEditingQueuedMessage: InlineQueuedMessageEditState | null;
-  inlineEditingQueuedMessageRef: React.RefObject<InlineQueuedMessageEditState | null>;
-  commitInlineQueuedMessage: (
-    next: InlineQueuedMessageEditState | null,
-  ) => void;
-  updateInlineQueuedMessage: (
-    updater: (
-      current: InlineQueuedMessageEditState | null,
-    ) => InlineQueuedMessageEditState | null,
-  ) => void;
-  dismissInlineQueuedMessageEditor: () => void;
-  beginEditQueuedMessage: (request: QueuedMessageEditRequest) => void;
-  queuedMessageDraftSession: InlineComposerDraftSession | null;
-}
-
 export function useInlineQueuedMessageEditing({
   ownerThreadId,
   queuedMessages,
   onBeginEdit,
-}: UseInlineQueuedMessageEditingArgs): UseInlineQueuedMessageEditingResult {
+}: UseInlineQueuedMessageEditingArgs) {
   const [inlineEditingQueuedMessageState, setInlineEditingQueuedMessage] =
     useState<InlineQueuedMessageEditState | null>(null);
   const inlineEditingQueuedMessageRef =
@@ -66,20 +50,6 @@ export function useInlineQueuedMessageEditing({
     (next: InlineQueuedMessageEditState | null) => {
       inlineEditingQueuedMessageRef.current = next;
       setInlineEditingQueuedMessage(next);
-    },
-    [],
-  );
-  const updateInlineQueuedMessage = useCallback(
-    (
-      updater: (
-        current: InlineQueuedMessageEditState | null,
-      ) => InlineQueuedMessageEditState | null,
-    ) => {
-      setInlineEditingQueuedMessage((current) => {
-        const next = updater(current);
-        inlineEditingQueuedMessageRef.current = next;
-        return next;
-      });
     },
     [],
   );
@@ -158,7 +128,6 @@ export function useInlineQueuedMessageEditing({
     inlineEditingQueuedMessage,
     inlineEditingQueuedMessageRef,
     commitInlineQueuedMessage,
-    updateInlineQueuedMessage,
     dismissInlineQueuedMessageEditor,
     beginEditQueuedMessage,
     queuedMessageDraftSession,

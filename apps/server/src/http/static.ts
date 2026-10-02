@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { contentType } from "mime-types";
 import type { ApiApp } from "./api.js";
+import { matchesEntityTag } from "./range.js";
 
 const INDEX_PATH = "/index.html";
 const ASSETS_PREFIX = "/assets/";
@@ -14,24 +15,11 @@ function cacheControl(urlPath: string): string {
   return urlPath.endsWith(".html") ? "no-cache" : "public, max-age=86400";
 }
 
-function matchesEntityTag(header: string | undefined, etag: string): boolean {
-  if (header === undefined) return false;
-  const opaque = etag.replace(/^W\//u, "");
-  return header
-    .split(",")
-    .map((candidate) => candidate.trim().replace(/^W\//u, ""))
-    .some((candidate) => candidate === "*" || candidate === opaque);
+function readIfFile(path: string): Promise<Buffer | null> {
+  return readFile(path).catch(() => null);
 }
 
-async function readIfFile(path: string): Promise<Buffer | null> {
-  try {
-    return await readFile(path);
-  } catch {
-    return null;
-  }
-}
-
-function decodePath(path: string): string | null {
+function decodePath(path: string) {
   try {
     return decodeURIComponent(path);
   } catch {
@@ -43,7 +31,7 @@ function fileResponse(
   urlPath: string,
   content: Buffer,
   ifNoneMatch: string | undefined,
-): Response {
+) {
   const headers = new Headers({
     "cache-control": cacheControl(urlPath),
     "content-type": contentType(extname(urlPath)) || "application/octet-stream",

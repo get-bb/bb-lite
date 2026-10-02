@@ -16,7 +16,6 @@ import type {
   ThreadResponse,
   ThreadSearchResponse,
   ThreadWithIncludesResponse,
-  ThreadConversationOutlineResponse,
   ThreadStoragePathListResponse,
   ThreadTimelineResponse,
   TimelineTurnSummaryDetailsResponse,
@@ -42,14 +41,12 @@ import {
   getCachedThreadLists,
   iterateThreadListCacheEntries,
 } from "../cache-owners/thread-list-cache-data";
-import type { ArchivedThreadsKindFilter } from "./query-keys";
 import {
   resolveThreadPlaceholder,
   resolveThreadTimelinePlaceholder,
 } from "./query-placeholders";
 import {
   PROMPT_HISTORY_STALE_TIME_MS,
-  requireEnabledQueryArg,
   requireThreadId,
   shouldRetryTransientReadQuery,
   TRANSIENT_READ_RETRY_DELAY_MS,
@@ -72,7 +69,6 @@ import {
   threadSearchQueryKey,
   threadStoragePathsQueryKey,
   threadHostFilePreviewQueryKey,
-  threadConversationOutlineQueryKey,
   threadTimelineQueryKey,
   threadTimelineTurnSummaryDetailsQueryKey,
   threadsQueryKey,
@@ -115,8 +111,6 @@ export function didThreadDetailBootstrapRefreshAfterMount(query: {
 interface ThreadTimelineQueryOptions extends QueryOptions {
   notifyOnChangeProps?: NotifyOnChangeProps;
 }
-
-type ThreadConversationOutlineQueryOptions = QueryOptions;
 
 type ThreadTimelineTurnSummaryDetailsQueryOptions = QueryOptions;
 
@@ -313,18 +307,8 @@ export function hasThreadSearchableQuery(value: string): boolean {
   );
 }
 
-export interface UseArchivedThreadsFilters {
-  projectId?: string;
-  kind?: ArchivedThreadsKindFilter;
-}
-
-export function useArchivedThreads(
-  filters: UseArchivedThreadsFilters,
-  options?: QueryOptions,
-) {
-  const { projectId, kind = "all" } = filters;
+export function useArchivedThreads(options?: QueryOptions) {
   const enabled = options?.enabled ?? true;
-  const hasParent = kind === "all" ? undefined : kind === "child";
   useThreadListRealtimeSubscription({ enabled });
 
   return useInfiniteQuery<
@@ -334,14 +318,9 @@ export function useArchivedThreads(
     ReturnType<typeof archivedThreadsListQueryKey>,
     number
   >({
-    queryKey: archivedThreadsListQueryKey({
-      ...(projectId ? { projectId } : {}),
-      ...(kind !== "all" ? { kind } : {}),
-    }),
+    queryKey: archivedThreadsListQueryKey({}),
     queryFn: ({ pageParam, signal }) =>
       sdk.threads.list({
-        ...(projectId ? { projectId } : {}),
-        ...(hasParent !== undefined ? { hasParent } : {}),
         archived: true,
         limit: ARCHIVED_THREADS_PAGE_SIZE,
         offset: pageParam,
@@ -376,42 +355,6 @@ export function useThreads(filters: UseThreadsFilters, options?: QueryOptions) {
         projectId: requireThreadId(projectId ?? "", "useThreads"),
         signal,
       }),
-    enabled,
-    staleTime: THREAD_LIST_STALE_TIME_MS,
-  });
-}
-
-interface MachineThreadPreview {
-  threads: ThreadListResponse;
-  total: number;
-}
-
-export function useMachineThreadPreview({
-  hostId,
-  limit,
-}: {
-  hostId: string | null;
-  limit: number;
-}) {
-  const enabled = hostId !== null;
-  useThreadListRealtimeSubscription({ enabled });
-  return useQuery<MachineThreadPreview>({
-    queryKey:
-      hostId === null
-        ? disabledThreadListQueryKey({ archived: false, limit })
-        : threadListQueryKey({ archived: false, hostId, limit }),
-    queryFn: async ({ signal }) => {
-      const id = requireEnabledQueryArg({
-        value: hostId,
-        hookName: "useMachineThreadPreview",
-        argName: "host id",
-      });
-      const [threads, count] = await Promise.all([
-        sdk.threads.list({ archived: false, hostId: id, limit, signal }),
-        sdk.threads.count({ hostId: id, signal }),
-      ]);
-      return { threads, total: count.total };
-    },
     enabled,
     staleTime: THREAD_LIST_STALE_TIME_MS,
   });
@@ -920,27 +863,6 @@ export function useThreadTimeline(
         previousQuery?.queryKey,
         id,
       ),
-  });
-}
-
-export function useThreadConversationOutline(
-  id: string,
-  options?: ThreadConversationOutlineQueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<ThreadConversationOutlineResponse>({
-    queryKey: threadConversationOutlineQueryKey(id),
-    queryFn: async ({ signal }) => {
-      const threadId = requireThreadId(id, "useThreadConversationOutline");
-      return sdk.threads.conversationOutline({ threadId, signal });
-    },
-    enabled,
-    refetchOnMount: options?.refetchOnMount ?? true,
-    ...(options?.staleTime === undefined
-      ? {}
-      : { staleTime: options.staleTime }),
   });
 }
 

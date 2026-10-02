@@ -4,7 +4,6 @@ import {
   FILE_LIST_QUERY_MAX_LENGTH,
   gitBranchNameSchema,
   gitBranchOptionsSchema,
-  threadGitDiffResponseSchema,
   workspaceDiffTargetSchema,
   workspaceResolutionFailureSchema,
   workspaceStatusSchema,
@@ -212,25 +211,6 @@ export const environmentStatusResponseSchema = z.discriminatedUnion("outcome", [
     })
     .strict(),
 ]);
-
-export const environmentDiffResponseSchema = z.discriminatedUnion("outcome", [
-  z
-    .object({
-      outcome: z.literal("available"),
-      diff: threadGitDiffResponseSchema,
-    })
-    .strict(),
-  environmentWorkspaceNotApplicableOutcomeSchema,
-  z
-    .object({
-      outcome: z.literal("unavailable"),
-      failure: workspaceResolutionFailureSchema,
-    })
-    .strict(),
-]);
-export type EnvironmentDiffResponse = z.infer<
-  typeof environmentDiffResponseSchema
->;
 
 export const gitDiffFileChangeKindSchema = z.enum([
   "added",

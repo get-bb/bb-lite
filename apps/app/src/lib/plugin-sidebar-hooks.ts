@@ -1,5 +1,11 @@
-import { useCallback, useMemo } from "react";
-import { useStore } from "jotai";
+import { useMemo } from "react";
+import { useAtomValue, useStore } from "jotai";
+import {
+  getThreadListIndicatorLabel,
+  isThreadRead,
+  resolveThreadListIndicator,
+  threadListIndicatorStateForThread,
+} from "@bb/client-core";
 import {
   PERSONAL_PROJECT_ID,
   type Host,
@@ -7,96 +13,131 @@ import {
 } from "@bb/domain";
 import type {
   PluginAppHost,
-  PluginSidebarProject,
-  PluginSidebarSection,
+  PluginSidebarSplitLayout,
   PluginSidebarThread,
   PluginSidebarThreadActions,
   PluginSidebarThreadDraftState,
-  ShortcutHint,
+  PluginSidebarThreadSplit,
   PluginSidebarThreadsState,
+  ShortcutHint,
+  SidebarNavigationState,
 } from "@bb/plugin/app";
+import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
+import { useSidebarNavigationModel } from "@/components/sidebar/SidebarNavigationModel";
+import { usePaneContentSplitPanes } from "@/components/sidebar/paneContentSplitIndicator";
 import { useSidebarThreadShortcut as useHostSidebarThreadShortcut } from "@/components/sidebar/sidebarThreadShortcuts";
+import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import {
+  resolveThreadTitleDisplayText,
   useThreadTitleMentionResources,
   type ThreadTitleMentionResources,
 } from "@/components/thread/ThreadTitleMentions";
-import {
-  usePromptDraftHasInput,
-  usePromptDraftInputThreadIds,
-} from "@/hooks/usePromptDraftStorage";
-import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
-import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
-import { useHosts } from "@/hooks/queries/host-queries";
-import { useArchivedThreads } from "@/hooks/queries/thread-queries";
-import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
+import { useRouteNavigate } from "@/components/ui/app-route-anchor";
 import {
   usePinThread,
   useUnpinThread,
   useUpdateThread,
 } from "@/hooks/mutations/thread-state-mutations";
-import { useRouteNavigate } from "@/components/ui/app-route-anchor";
-import { toPluginSidebarThread } from "./plugin-sidebar-threads";
+import { useHosts } from "@/hooks/queries/host-queries";
+import { useSidebarNavigation as useSidebarNavigationQuery } from "@/hooks/queries/sidebar-navigation-query";
+import { useArchivedThreads } from "@/hooks/queries/thread-queries";
+import {
+  usePromptDraftHasInput,
+  usePromptDraftInputThreadIds,
+} from "@/hooks/usePromptDraftStorage";
 import { useSetRootComposeProjectId } from "./root-compose-selection";
-import { openThreadInSplit } from "./split-layout/openThreadInSplit";
 import {
   getProjectComposeRoutePath,
   getRootComposeRoutePath,
   getSettingsProjectRoutePath,
   getThreadRoutePath,
 } from "./route-paths";
+import {
+  computePaneRects,
+  countPanes,
+  listPanes,
+  type PaneContent,
+} from "./split-layout";
+import { splitLayoutAtom } from "./split-layout/atoms";
+import { openThreadInSplit } from "./split-layout/openThreadInSplit";
+import { getThreadDisplayTitle } from "./thread-title";
 
-const EMPTY_THREADS: readonly PluginSidebarThread[] = [];
-const EMPTY_PROJECTS: readonly PluginSidebarProject[] = [];
-const EMPTY_SECTIONS: readonly PluginSidebarSection[] = [];
-const EMPTY_ENTRIES: ReadonlyMap<string, ThreadListEntry> = new Map();
-const EMPTY_HOST_NAMES: ReadonlyMap<string, string> = new Map();
+type HostNames = ReadonlyMap<string, string>;
+type Entries = ReadonlyMap<string, ThreadListEntry>;
+type NavigationData = ReturnType<typeof useSidebarNavigationQuery>["data"];
 
-const hostNamesByHosts = new WeakMap<
-  readonly Host[],
-  ReadonlyMap<string, string>
->();
+const NONE: readonly never[] = [];
+const NO_ENTRIES: Entries = new Map();
+const NO_HOST_NAMES: HostNames = new Map();
 
-function hostNamesFor(
-  hosts: readonly Host[] | undefined,
-): ReadonlyMap<string, string> {
-  if (hosts === undefined) return EMPTY_HOST_NAMES;
-  const cached = hostNamesByHosts.get(hosts);
-  if (cached !== undefined) return cached;
-  const names = new Map(hosts.map((host) => [host.id, host.name] as const));
-  hostNamesByHosts.set(hosts, names);
+function toPluginSidebarThread(
+  entry: ThreadListEntry,
+  hostNames: HostNames,
+  titleResources: ThreadTitleMentionResources,
+): PluginSidebarThread {
+  const indicator = resolveThreadListIndicator(
+    threadListIndicatorStateForThread(entry, false),
+  );
+  const { activity, environmentHostId: hostId, runtime, ...shared } = entry;
+  return {
+    ...shared,
+    displayTitle: resolveThreadTitleDisplayText(
+      getThreadDisplayTitle(entry),
+      titleResources,
+    ),
+    runtimeStatus: runtime.displayStatus,
+    activity: {
+      workflows: activity.activeWorkflowCount,
+      backgroundAgents: activity.activeBackgroundAgentCount,
+      backgroundCommands: activity.activeBackgroundCommandCount,
+      planMode: activity.activePlanModeCount,
+      goals: activity.activeGoalCount,
+    },
+    indicator,
+    indicatorLabel: getThreadListIndicatorLabel(indicator),
+    isUnread: !isThreadRead(entry),
+    isPinned: entry.pinnedAt !== null,
+    isArchived: entry.archivedAt !== null,
+    href: getThreadRoutePath({
+      projectId: entry.projectId,
+      threadId: entry.id,
+    }),
+    isHidden: entry.visibility === "hidden",
+    environment:
+      entry.environmentId === null
+        ? null
+        : {
+            id: entry.environmentId,
+            name: entry.environmentName,
+            branchName: entry.environmentBranchName,
+            path: entry.environmentPath,
+            isWorktree: entry.environmentIsWorktree,
+            providerId: entry.environmentProviderId,
+            workspaceDisplayKind: entry.environmentWorkspaceDisplayKind,
+          },
+    host:
+      hostId === null
+        ? null
+        : { id: hostId, name: hostNames.get(hostId) ?? hostId },
+  };
+}
+
+const hostNamesByHosts = new WeakMap<readonly Host[], HostNames>();
+
+function hostNamesFor(hosts: readonly Host[] | undefined): HostNames {
+  if (hosts === undefined) return NO_HOST_NAMES;
+  let names = hostNamesByHosts.get(hosts);
+  if (names === undefined) {
+    names = new Map(hosts.map((host) => [host.id, host.name]));
+    hostNamesByHosts.set(hosts, names);
+  }
   return names;
 }
 
-const pluginSidebarThreadByEntry = new WeakMap<
+const threadByEntry = new WeakMap<
   ThreadListEntry,
-  {
-    hostNamesById: ReadonlyMap<string, string>;
-    titleResources: ThreadTitleMentionResources;
-    thread: PluginSidebarThread;
-  }
+  { key: readonly unknown[]; thread: PluginSidebarThread }
 >();
-
-function toPluginSidebarThreadCached(
-  entry: ThreadListEntry,
-  hostNamesById: ReadonlyMap<string, string>,
-  titleResources: ThreadTitleMentionResources,
-): PluginSidebarThread {
-  const cached = pluginSidebarThreadByEntry.get(entry);
-  if (
-    cached !== undefined &&
-    cached.hostNamesById === hostNamesById &&
-    cached.titleResources === titleResources
-  ) {
-    return cached.thread;
-  }
-  const thread = toPluginSidebarThread(entry, hostNamesById, titleResources);
-  pluginSidebarThreadByEntry.set(entry, {
-    hostNamesById,
-    titleResources,
-    thread,
-  });
-  return thread;
-}
 
 export function useSidebarThreads(
   options?: Parameters<PluginAppHost["useSidebarThreads"]>[0],
@@ -104,76 +145,75 @@ export function useSidebarThreads(
   const lifecycles = options?.lifecycles;
   const active = !lifecycles?.length || lifecycles.includes("active");
   const includeArchived = lifecycles?.includes("archived") ?? false;
-  const archived = useArchivedThreads({}, { enabled: includeArchived });
-  const fetchArchivedPage = archived.fetchNextPage;
-  const fetchNextPage = useCallback(async () => {
-    await fetchArchivedPage();
-  }, [fetchArchivedPage]);
+  const archived = useArchivedThreads({ enabled: includeArchived });
+  const { fetchNextPage } = archived;
+  const archivedStatus =
+    archived.data !== undefined
+      ? "ready"
+      : archived.isLoadingError
+        ? "error"
+        : "loading";
   const archiveState = useMemo<PluginSidebarThreadsState["archived"]>(
     () =>
       includeArchived
         ? {
-            status:
-              archived.data !== undefined
-                ? "ready"
-                : archived.isLoadingError
-                  ? "error"
-                  : "loading",
+            status: archivedStatus,
             hasNextPage: archived.hasNextPage,
             isFetchingNextPage: archived.isFetchingNextPage,
             isFetchNextPageError: archived.isFetchNextPageError,
-            fetchNextPage,
+            fetchNextPage: async () => void (await fetchNextPage()),
           }
         : null,
     [
       includeArchived,
-      archived.data,
-      archived.isLoadingError,
+      archivedStatus,
       archived.hasNextPage,
       archived.isFetchingNextPage,
       archived.isFetchNextPageError,
       fetchNextPage,
     ],
   );
-  const query = useSidebarNavigation();
-  const data = query.data;
+  const query = useSidebarNavigationQuery();
+  const { data } = query;
   const { data: hosts } = useHosts();
-  const hostNamesById = hostNamesFor(hosts);
+  const hostNames = hostNamesFor(hosts);
   const titleResources = useThreadTitleMentionResources();
-
   return useMemo<PluginSidebarThreadsState>(() => {
     if (data === undefined) {
       return {
         archived: archiveState,
         status: query.isError ? "error" : "loading",
-        threads: EMPTY_THREADS,
+        threads: NONE,
         hosts: hosts ?? [],
-        projects: EMPTY_PROJECTS,
-        sections: EMPTY_SECTIONS,
+        projects: NONE,
+        sections: NONE,
       };
     }
-    const allProjects = [...data.projects, data.personalProject];
+    const projects = [...data.projects, data.personalProject];
     const selected = new Map<string, ThreadListEntry>();
-    if (includeArchived) {
-      for (const thread of archived.data?.pages.flat() ?? []) {
-        if (thread.archivedAt !== null) selected.set(thread.id, thread);
-      }
+    for (const thread of includeArchived
+      ? (archived.data?.pages.flat() ?? [])
+      : []) {
+      if (thread.archivedAt !== null) selected.set(thread.id, thread);
     }
-    if (active) {
-      for (const project of allProjects) {
-        for (const thread of project.threads) {
-          if (thread.archivedAt === null) selected.set(thread.id, thread);
-        }
+    for (const project of active ? projects : []) {
+      for (const thread of project.threads) {
+        if (thread.archivedAt === null) selected.set(thread.id, thread);
       }
     }
     return {
       archived: archiveState,
       status: !active && archiveState !== null ? archiveState.status : "ready",
-      threads: [...selected.values()].map((thread) =>
-        toPluginSidebarThreadCached(thread, hostNamesById, titleResources),
-      ),
+      threads: [...selected.values()].map((entry) => {
+        const cached = threadByEntry.get(entry);
+        if (cached?.key[0] === hostNames && cached.key[1] === titleResources)
+          return cached.thread;
+        const thread = toPluginSidebarThread(entry, hostNames, titleResources);
+        threadByEntry.set(entry, { key: [hostNames, titleResources], thread });
+        return thread;
+      }),
       hosts: hosts ?? [],
-      projects: allProjects.map((project) => ({
+      projects: projects.map((project) => ({
         id: project.id,
         name: project.name,
         isPersonal: project.id === PERSONAL_PROJECT_ID,
@@ -184,7 +224,7 @@ export function useSidebarThreads(
     };
   }, [
     data,
-    hostNamesById,
+    hostNames,
     hosts,
     query.isError,
     titleResources,
@@ -195,55 +235,26 @@ export function useSidebarThreads(
   ]);
 }
 
-const threadEntryMapByPayload = new WeakMap<
-  object,
-  ReadonlyMap<string, ThreadListEntry>
+const entriesByData = new WeakMap<
+  NonNullable<NavigationData>,
+  { archived: unknown; entries: Entries }
 >();
 
-function threadEntryMapFor(
-  data: ReturnType<typeof useSidebarNavigation>["data"],
-): ReadonlyMap<string, ThreadListEntry> {
-  if (data === undefined) return EMPTY_ENTRIES;
-  const cached = threadEntryMapByPayload.get(data);
-  if (cached !== undefined) return cached;
-  const entries = new Map<string, ThreadListEntry>();
-  for (const project of [...data.projects, data.personalProject]) {
-    for (const thread of project.threads) entries.set(thread.id, thread);
-  }
-  threadEntryMapByPayload.set(data, entries);
+function useThreadEntryMap(): Entries {
+  const { data } = useSidebarNavigationQuery();
+  const archived = useArchivedThreads({ enabled: false }).data;
+  if (data === undefined) return NO_ENTRIES;
+  const cached = entriesByData.get(data);
+  if (cached && cached.archived === archived) return cached.entries;
+  const threads = [
+    ...(archived?.pages.flat() ?? []),
+    ...[...data.projects, data.personalProject].flatMap(
+      (project) => project.threads,
+    ),
+  ];
+  const entries = new Map(threads.map((thread) => [thread.id, thread]));
+  entriesByData.set(data, { archived, entries });
   return entries;
-}
-
-const archivedEntryMaps = new WeakMap<
-  NonNullable<ReturnType<typeof useArchivedThreads>["data"]>,
-  WeakMap<
-    ReadonlyMap<string, ThreadListEntry>,
-    ReadonlyMap<string, ThreadListEntry>
-  >
->();
-
-function useThreadEntryMap(): ReadonlyMap<string, ThreadListEntry> {
-  const { data } = useSidebarNavigation();
-  const archived = useArchivedThreads({}, { enabled: false });
-  return useMemo(() => {
-    const active = threadEntryMapFor(data);
-    if (archived.data === undefined) return active;
-    let maps = archivedEntryMaps.get(archived.data);
-    if (maps === undefined) {
-      maps = new WeakMap();
-      archivedEntryMaps.set(archived.data, maps);
-    }
-    const cached = maps.get(active);
-    if (cached !== undefined) return cached;
-    const entries = new Map([
-      ...archived.data.pages
-        .flat()
-        .map((thread) => [thread.id, thread] as const),
-      ...active,
-    ]);
-    maps.set(active, entries);
-    return entries;
-  }, [data, archived.data]);
 }
 
 export function useSidebarThreadEntry(
@@ -257,114 +268,74 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
   const store = useStore();
   const setRootComposeProjectId = useSetRootComposeProjectId();
   const hostActions = useThreadActions();
-  const entriesById = useThreadEntryMap();
-  const { mutateAsync: pinThreadAsync } = usePinThread();
-  const { mutateAsync: unpinThreadAsync } = useUnpinThread();
-  const { mutateAsync: updateThreadAsync } = useUpdateThread();
-
-  const requireEntry = useCallback(
-    (threadId: string): ThreadListEntry => {
-      const entry = entriesById.get(threadId);
-      if (entry === undefined) {
-        throw new Error(`Unknown thread: ${threadId}`);
-      }
+  const entries = useThreadEntryMap();
+  const { mutateAsync: pinThread } = usePinThread();
+  const { mutateAsync: unpinThread } = useUnpinThread();
+  const { mutateAsync: updateThread } = useUpdateThread();
+  return useMemo<PluginSidebarThreadActions>(() => {
+    const requireEntry = (threadId: string): ThreadListEntry => {
+      const entry = entries.get(threadId);
+      if (entry === undefined) throw new Error(`Unknown thread: ${threadId}`);
       return entry;
-    },
-    [entriesById],
-  );
-
-  return useMemo<PluginSidebarThreadActions>(
-    () => ({
+    };
+    return {
       open(threadId, options) {
-        const entry = entriesById.get(threadId);
-        if (entry === undefined) return;
-        const { projectId } = entry;
-        if (options?.split) {
-          store.set(getThreadConversationCollapsedAtom(threadId), false);
-          openThreadInSplit({
-            store,
-            navigate,
-            projectId,
-            threadId,
-          });
-          return;
-        }
+        const projectId = entries.get(threadId)?.projectId;
+        if (projectId === undefined) return;
         store.set(getThreadConversationCollapsedAtom(threadId), false);
-        navigate(getThreadRoutePath({ projectId, threadId }));
+        if (options?.split)
+          openThreadInSplit({ store, navigate, projectId, threadId });
+        else navigate(getThreadRoutePath({ projectId, threadId }));
       },
-      openNewThread(options) {
-        const projectId = options?.projectId;
-        if (projectId !== undefined) {
-          setRootComposeProjectId(projectId);
-        }
-        const state = {
-          placement: options?.placement ?? {
-            sectionId: options?.sectionId ?? null,
-            pinned: false,
+      openNewThread(options = {}) {
+        const { projectId, sectionId, environmentId } = options;
+        const hostId = options.hostId?.trim();
+        if (projectId !== undefined) setRootComposeProjectId(projectId);
+        navigate(getRootComposeRoutePath(), {
+          state: {
+            placement: options.placement ?? {
+              sectionId: sectionId ?? null,
+              pinned: false,
+            },
+            ...(options.focusPrompt ? { focusPrompt: true } : {}),
+            ...(sectionId === undefined ? {} : { sectionId }),
+            ...(environmentId === undefined
+              ? {}
+              : { reuseEnvironmentId: environmentId }),
+            ...(hostId ? { newEnvironmentHostId: hostId } : {}),
           },
-          ...(options?.focusPrompt ? { focusPrompt: true } : {}),
-          ...(options?.sectionId !== undefined
-            ? { sectionId: options.sectionId }
-            : {}),
-          ...(options?.environmentId !== undefined
-            ? { reuseEnvironmentId: options.environmentId }
-            : {}),
-          ...(typeof options?.hostId === "string" &&
-          options.hostId.trim().length > 0
-            ? { newEnvironmentHostId: options.hostId.trim() }
-            : {}),
-        };
-        navigate(
-          getRootComposeRoutePath(),
-          Object.keys(state).length > 0 ? { state } : undefined,
-        );
+        });
       },
       async setPinned(threadId, pinned) {
-        const entry = requireEntry(threadId);
-        if ((entry.pinnedAt !== null) === pinned) return;
-        if (pinned) {
-          await pinThreadAsync({ id: threadId });
-        } else {
-          await unpinThreadAsync({ id: threadId });
-        }
+        if ((requireEntry(threadId).pinnedAt !== null) === pinned) return;
+        await (pinned ? pinThread : unpinThread)({ id: threadId });
       },
       async setRead(threadId, read) {
         const entry = requireEntry(threadId);
-        const isRead = (entry.lastReadAt ?? 0) >= entry.latestAttentionAt;
-        if (isRead === read) return;
-        hostActions.toggleRead(entry);
+        if (isThreadRead(entry) !== read) hostActions.toggleRead(entry);
       },
       async rename(threadId, title) {
-        await updateThreadAsync({ id: threadId, title });
+        await updateThread({ id: threadId, title });
       },
-      archive(threadId) {
-        hostActions.requestArchive(requireEntry(threadId));
-      },
-      requestDelete(threadId) {
-        hostActions.requestDelete(requireEntry(threadId));
-      },
-    }),
-    [
-      entriesById,
-      hostActions,
-      navigate,
-      pinThreadAsync,
-      requireEntry,
-      setRootComposeProjectId,
-      store,
-      unpinThreadAsync,
-      updateThreadAsync,
-    ],
-  );
+      archive: (threadId) => hostActions.requestArchive(requireEntry(threadId)),
+      requestDelete: (threadId) =>
+        hostActions.requestDelete(requireEntry(threadId)),
+    };
+  }, [
+    entries,
+    hostActions,
+    navigate,
+    pinThread,
+    setRootComposeProjectId,
+    store,
+    unpinThread,
+    updateThread,
+  ]);
 }
 
-const NO_DRAFT: PluginSidebarThreadDraftState = Object.freeze({
-  hasUnsubmittedDraft: false,
-});
-const HAS_DRAFT: PluginSidebarThreadDraftState = Object.freeze({
-  hasUnsubmittedDraft: true,
-});
-const EMPTY_DRAFT_IDS: ReadonlySet<string> = new Set();
+const NO_DRAFT: PluginSidebarThreadDraftState = { hasUnsubmittedDraft: false };
+const HAS_DRAFT: PluginSidebarThreadDraftState = { hasUnsubmittedDraft: true };
+const NO_DRAFT_IDS: ReadonlySet<string> = new Set();
 
 export function useSidebarThreadDraft(
   threadId: string,
@@ -382,11 +353,79 @@ export function useSidebarThreadDraftIds(): ReadonlySet<string> {
   const entries = useThreadEntryMap();
   const refs = useMemo(() => [...entries.values()], [entries]);
   const ids = usePromptDraftInputThreadIds(refs);
-  return ids.size === 0 ? EMPTY_DRAFT_IDS : ids;
+  return ids.size === 0 ? NO_DRAFT_IDS : ids;
 }
 
 export function useSidebarThreadShortcut(
   threadId: string,
 ): ShortcutHint | null {
   return useHostSidebarThreadShortcut(threadId) ?? null;
+}
+
+export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
+  const layout = useAtomValue(splitLayoutAtom);
+  return useMemo(() => {
+    if (layout === null || countPanes(layout.root) < 2) return null;
+    const rects = computePaneRects(layout.root);
+    return {
+      panes: listPanes(layout.root).flatMap(({ paneId, content }) => {
+        const rect = rects.get(paneId);
+        return rect === undefined
+          ? []
+          : {
+              paneId,
+              rect: { x: rect.x, y: rect.y, width: rect.w, height: rect.h },
+              threadId: content.kind === "thread" ? content.threadId : null,
+              isFocused: paneId === layout.focusedPaneId,
+            };
+      }),
+    };
+  }, [layout]);
+}
+
+function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
+  const panes = usePaneContentSplitPanes(content);
+  return useMemo(
+    () => ({
+      isAvailable: content !== null,
+      layout: panes === null ? null : { panes },
+    }),
+    [content, panes],
+  );
+}
+
+export function useSidebarThreadSplit(
+  threadId: string,
+): PluginSidebarThreadSplit {
+  const projectId = useSidebarThreadEntry(threadId)?.projectId ?? null;
+  const content = useMemo<PaneContent | null>(
+    () => (projectId === null ? null : { kind: "thread", projectId, threadId }),
+    [projectId, threadId],
+  );
+  return useSplit(content);
+}
+
+const EMPTY_NAVIGATION: SidebarNavigationState = {
+  items: [],
+  activeItemId: null,
+  isShortcutModifierHeld: false,
+  actions: { activate() {}, disablePlugin: () => Promise.resolve() },
+};
+
+export function useSidebarNavigation(): SidebarNavigationState {
+  const state = useSidebarNavigationModel()?.state ?? EMPTY_NAVIGATION;
+  const { items, activeItemId, isShortcutModifierHeld, actions } = state;
+  return useMemo(
+    () => ({ items, activeItemId, isShortcutModifierHeld, actions }),
+    [items, activeItemId, isShortcutModifierHeld, actions],
+  );
+}
+
+export function useSidebarNavigationSplit(
+  itemId: string,
+): PluginSidebarThreadSplit {
+  const entry = useSidebarNavigationModel()?.entries.find(
+    (candidate) => candidate.item.id === itemId,
+  );
+  return useSplit(entry?.content ?? null);
 }

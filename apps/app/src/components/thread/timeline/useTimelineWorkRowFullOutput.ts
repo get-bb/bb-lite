@@ -1,7 +1,6 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import type {
   TimelineCommandWorkRow,
-  TimelineOutputPreview,
   TimelineRow,
   TimelineToolWorkRow,
 } from "@bb/server-contract";
@@ -26,21 +25,11 @@ export interface TimelineWorkRowFullOutput {
   retry: () => void;
 }
 
-function loadedOutputState(
-  outputPreview: TimelineOutputPreview | undefined,
-): TimelineWorkRowFullOutputState {
-  if (outputPreview === undefined) {
-    return "loaded";
-  }
-  switch (outputPreview.experimental_fullOutputAvailability) {
-    case "available":
-      return "error";
-    case "detail-limit":
-      return "limited-preview";
-    case "retention-expired":
-      return "expired-preview";
-  }
-}
+const LOADED_PREVIEW_STATE = {
+  available: "error",
+  "detail-limit": "limited-preview",
+  "retention-expired": "expired-preview",
+} as const;
 
 function findPreviewableWorkRow(
   rows: readonly TimelineRow[],
@@ -89,35 +78,25 @@ export function useTimelineWorkRowFullOutput(
     },
     { enabled: shouldLoad, refetchOnMount: false },
   );
-  const retry = useCallback((): void => {
+  const retry = (): void => {
     void refetch();
-  }, [refetch]);
-  const loadedOutput = useMemo((): {
-    output: string;
-    outputPreview: TimelineOutputPreview | undefined;
-  } | null => {
-    if (!shouldLoad || data === undefined) {
-      return null;
-    }
-    const match =
-      findPreviewableWorkRow(
-        data.rows,
-        (candidate) => candidate.id === row.id,
-      ) ??
-      findPreviewableWorkRow(
-        data.rows,
-        (candidate) =>
-          candidate.workKind === row.workKind &&
-          candidate.callId === row.callId,
-      );
-    if (match === null) {
-      return null;
-    }
-    return {
-      output: match.output,
-      outputPreview: match.outputPreview,
-    };
-  }, [data, row.callId, row.id, row.workKind, shouldLoad]);
+  };
+  const loadedOutput = useMemo(
+    () =>
+      !shouldLoad || data === undefined
+        ? null
+        : (findPreviewableWorkRow(
+            data.rows,
+            (candidate) => candidate.id === row.id,
+          ) ??
+          findPreviewableWorkRow(
+            data.rows,
+            (candidate) =>
+              candidate.workKind === row.workKind &&
+              candidate.callId === row.callId,
+          )),
+    [data, row.callId, row.id, row.workKind, shouldLoad],
+  );
 
   if (!isPreview) {
     return { output: row.output, state: "complete", retry };
@@ -130,7 +109,12 @@ export function useTimelineWorkRowFullOutput(
   if (loadedOutput !== null) {
     return {
       output: loadedOutput.output,
-      state: loadedOutputState(loadedOutput.outputPreview),
+      state:
+        loadedOutput.outputPreview === undefined
+          ? "loaded"
+          : LOADED_PREVIEW_STATE[
+              loadedOutput.outputPreview.experimental_fullOutputAvailability
+            ],
       retry,
     };
   }

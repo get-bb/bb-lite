@@ -1,19 +1,17 @@
 import { expect, it } from "vitest";
-import { closeTerminalsForThread } from "../src/terminals/sessions.js";
-import { createDemo, git, write } from "./demo.js";
-import type { SocketMessage, TestSocket } from "./helpers.js";
-import { insertThread, watchChanges } from "./watch.js";
+import { closeTerminalsFor } from "../src/terminals/sessions.js";
+import * as helpers from "./helpers.js";
 
 type Chunk = { seq: number; dataBase64: string };
-const base64 = (text: string): string => Buffer.from(text).toString("base64");
-const decode = (chunk?: Chunk): string =>
+const base64 = (text: string) => Buffer.from(text).toString("base64");
+const decode = (chunk?: Chunk) =>
   Buffer.from(chunk?.dataBase64 ?? "", "base64").toString();
 const typing = (text: string) => ({ type: "input", dataBase64: base64(text) });
-const isType = (wanted: string) => (message: SocketMessage) =>
+const isType = (wanted: string) => (message: helpers.SocketMessage) =>
   message.type === wanted;
 const shell = { cols: 80, rows: 24 };
 
-async function outputUntil(socket: TestSocket, marker: string) {
+async function outputUntil(socket: helpers.TestSocket, marker: string) {
   let text = "";
   let lastSeq = -1;
   while (!text.includes(marker)) {
@@ -25,11 +23,11 @@ async function outputUntil(socket: TestSocket, marker: string) {
 }
 
 it("runs terminals through attach, replay, exit and a lost machine", async () => {
-  const demo = await createDemo();
+  const demo = await helpers.createDemo();
   const { server, projectId, hostId, matches, read, request, send } = demo;
   const { runner, ctx } = server;
-  const changed = await watchChanges(server);
-  insertThread(server, "thr_demo", projectId);
+  const changed = await helpers.watchChanges(server);
+  helpers.insertThread(server, "thr_demo", projectId);
   ctx.db.run("UPDATE threads SET environment_id = 'env_demo'");
   const target = { kind: "thread", threadId: "thr_demo" };
   const open = async () => {
@@ -111,13 +109,13 @@ it("runs terminals through attach, replay, exit and a lost machine", async () =>
   expect(await closed.json()).toMatchObject({ closeReason: "user" });
 
   const doomed = await open();
-  closeTerminalsForThread(ctx, "thr_demo");
+  closeTerminalsFor(ctx, "thread_id", "thr_demo", "thread-archived");
   const archived = { status: "exited", closeReason: "thread-archived" };
   await matches(`/terminals/${doomed.id}`, archived);
 });
 
 it("watches a subscribed environment and reports edits and branches", async () => {
-  const { server, repo, matches } = await createDemo();
+  const { server, repo, matches } = await helpers.createDemo();
   const { setWatchedPaths } = server.runner.script;
   const watching = new Promise<void>((resolve) => {
     server.runner.script.setWatchedPaths = async (args) => {
@@ -131,9 +129,9 @@ it("watches a subscribed environment and reports edits and branches", async () =
   await watching;
   const changedTo = (kind: string) =>
     client.next(({ changes }) => (changes as string[]).includes(kind));
-  write(repo, { "src/a.ts": "export const a = 3;\n" });
+  helpers.write(repo, { "src/a.ts": "export const a = 3;\n" });
   await changedTo("work-status-changed");
-  git(repo, "switch", "--quiet", "-c", "topic");
+  helpers.git(repo, "switch", "--quiet", "-c", "topic");
   await changedTo("git-refs-changed");
   await changedTo("metadata-changed");
   await matches("/environments/env_demo", { branchName: "topic" });

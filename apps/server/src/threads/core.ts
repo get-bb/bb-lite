@@ -71,10 +71,6 @@ export class ThreadSerial {
   }
 }
 
-export function threadNotFound(): ApiError {
-  return new ApiError(404, "thread_not_found", "Thread not found");
-}
-
 export function notWritable(
   thread: ThreadRow,
   reason: ThreadNotWritableReason,
@@ -95,12 +91,4 @@ export function environmentUnavailable(
   return new ApiError(409, "thread_environment_unavailable", message, {
     details,
   });
-}
-
-export function conflict(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
-}
-
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

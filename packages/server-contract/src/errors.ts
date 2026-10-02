@@ -114,9 +114,6 @@ export type ParentThreadInvalidErrorDetails = z.infer<
   typeof parentThreadInvalidErrorDetailsSchema
 >;
 
-/** Which plugin's `message.dispatch` hook ended the dispatch. Shared by the
- *  hook's `reject` decision (409) and its fail-closed failure (502): both name
- *  the same plugin, so the client can attribute either one without guessing. */
 export const dispatchHookErrorDetailsSchema = z.object({
   pluginId: pluginIdSchema,
 });

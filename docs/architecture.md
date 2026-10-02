@@ -27,8 +27,14 @@ The runner never imports the server. The server talks to machines only through t
   `127.0.0.1` (`BB_SERVER_BIND_HOST`). These differ from the original on purpose.
 - The server refuses to start when the data directory contains a database with a
   `__drizzle_migrations` table (an original bb data directory).
+- `bb import-legacy --from <dir>` (`apps/server/src/import-legacy.ts`) is the only code that reads an
+  original database: read-only, with the server stopped, row for row into this schema and idempotent on
+  primary keys. Thread content goes in one transaction per thread; a thread that already has events is
+  skipped whole. Environments the original still had on disk are imported with `provider_owns_path = 0`
+  (the runner only removes paths under its own data directory, and the original may still be using
+  them). `apps/cli/guide/migrating.md` lists what is and is not copied.
 - `<dataDir>/bb.db` (WAL), `attachments/<projectId>/`, `thread-storage/<threadId>/`, `worktrees/`,
-  `plugins/<id>/` (plugin `data.db`, secrets, files), `theme/<name>/theme.css`, `AGENTS.md`,
+  `plugins/<id>/` (plugin `data.db`, secrets, files), `AGENTS.md`,
   `config.json`, `connect.json` (0600), `host-id`, `logs/`.
 - One schema file, `apps/server/src/db/schema.sql`, applied through `PRAGMA user_version` steps. No ORM:
   `better-sqlite3` prepared statements behind small typed query modules. Never mock the database in tests;
@@ -168,7 +174,11 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
   environment intent (reuse | project checkout | managed worktree | personal workspace); insert the row;
   append `client/turn/requested` (the user message) and `client/thread/start`; answer 201; then, off the
   request: provisioning steps as `system/thread-provisioning` events, environment creation through the
-  runner, title generation, and the first `submitTurn`.
+  runner, title generation, and the first `submitTurn`. Titles come from the first inference service a
+  plugin registered; when none did, `startServer` installs `codexTitle` (`providers/title-service.ts`),
+  which reads the Codex CLI's own `auth.json` (never written, never logged) and asks the Codex responses
+  endpoint within 5 s. `createServer` alone has no fallback, and under vitest the service refuses its real
+  endpoints, so tests never call out.
 - **Send** (`POST /threads/:id/send`) goes through one dispatch checkpoint that either submits or records
   a `queued_thread_messages` row with a typed `waiting_on` (`time`, `stopping`, `host-offline`,
   `thread-busy`, `turn-starting`, `provisioning`, `interaction`). Modes: `start`, `steer`,
@@ -293,8 +303,8 @@ not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`
 
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
-`useRealtime`, `useSettings`, `useSdk`, `useBbContext`, `useBbNavigate`, the sidebar thread hooks; components
-`ThreadChat`, `NewThreadComposer`, `ProviderModelPicker`, `PermissionModePicker`.
+`useRealtime`, `useSettings`, `useSdk`, `useBbContext`, `useBbNavigate`, the sidebar thread hooks; component
+`ThreadChat`. Plugin settings are `boolean` or `string` (optionally `secret` or `multiline`).
 
 Plugin commands (`bb tasks …`) are parsed and run in the server: the CLI posts
 `{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result. The
@@ -336,8 +346,9 @@ materialised by the CLI before the request.
   `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
   mints one getbb.app machine credential per machine and revokes it on removal.
 - **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
-  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `resolveMention`, `generateTitle`,
-  `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
+  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `generateTitle`, `skillDirs`). Mention
+  resolution and plugin-contributed environments are accepted by the plugin API but nothing in the
+  server reads them yet. The calls a plugin makes outward (`threads`, `projects`,
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
 - **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,
@@ -352,6 +363,35 @@ materialised by the CLI before the request.
 - **`files`.** A relative path is confined to the thread's workspace; an absolute path may point
   anywhere on the thread's machine (`bb secret request --write-env`). Writes create parent
   directories and honour `mode` and `expectedSha256` (`null` means "must not exist yet").
+
+## CLI
+
+`apps/cli` is one table and one engine.
+
+- **The table** (`src/table.ts`) is text in the shape of help output: one line per command
+  (`thread tell|message|send <id> [message]  Summary`), then indented lines for its flags
+  (`--mode <mode>  Help`; `<v>...` repeats, `[v]` is optional, `--machine|host` declares an alias),
+  examples (`$ …`) and the `--json` shape (`> …`). Two spaces separate a declaration from its text.
+  `groups` and `aliases` (first-word rewrites such as `models` → `provider models`) sit beside it.
+- **Handlers** are the exported functions of `src/commands/*.ts`, bound by name: `thread section list` runs
+  `threadSectionList`. A command without a handler, or a flag line that does not parse, fails at startup; a
+  handler that reads a flag its command does not declare throws.
+- **The engine** (`src/engine.ts`) derives everything else from the table: resolution (longest path first,
+  then group help, then plugin dispatch), flag and argument parsing, `--help` at every level, the short
+  "did you mean" errors, and the reference `bb guide commands` prints. Every command gets `--json` and
+  `--help`. A failure with `--json` prints `{"ok": false, "error": {code, message, hint?}}` on stdout.
+- Handlers reach the server only through `@bb/sdk`. The SDK and `@bb/domain` are loaded just before a
+  handler runs, never for help, `bb guide`, `bb server` or `bb runner`, so those start without them.
+- A first word that is not in the table is looked up in `GET /plugins/contributions` and dispatched to
+  the server.
+- `bin/bb` runs `dist/bb.mjs` when `pnpm build:cli` has produced it and the TypeScript source through
+  `tsx` otherwise. The bundle keeps native packages in `node_modules` and rewrites `import.meta.url` per
+  source file, so it depends on the repository layout (schema, logos, plugin directories) but not on
+  where the repository lives.
+- `bb server` calls `startServer({ cliDir })` from `@bb/server`, the same function `apps/server/src/main.ts`
+  runs. `ServerConfig.cliDir` is the CLI package root: the local runner gets `<cliDir>/bin/bb` as the agent's
+  `bb`, and every local session gets `<cliDir>/skills` (the `bb-cli` skill) as a skill directory.
+- Topic text for `bb guide` is Markdown under `apps/cli/guide/`.
 
 ## Conventions
 

@@ -1,16 +1,16 @@
+import { useState } from "react";
+import type { JsonValue, PendingInteraction } from "@bb/domain";
+import { Button } from "@bb/shared-ui/button";
+import { Skeleton } from "@bb/shared-ui/skeleton";
 import {
   PendingInteractionShell,
   type PendingInteractionSourceThread,
 } from "@/components/thread/pending-interactions/PendingInteractionShell";
-import { useCallback, useMemo, useState } from "react";
-import { Button } from "@bb/shared-ui/button";
-import type { JsonValue, PendingInteraction } from "@bb/domain";
-import { PluginSlotMount } from "@/plugins/mount";
-import { Skeleton } from "@bb/shared-ui/skeleton";
-import { usePluginDisplayName } from "@/lib/plugin-logos";
-import { usePluginSlots, usePluginsSettled } from "@/plugins/registry";
 import { useStopThread } from "@/hooks/mutations/thread-runtime-mutations";
+import { usePluginDisplayName } from "@/lib/plugin-logos";
 import { sdk } from "@/lib/sdk";
+import { PluginSlotMount } from "@/plugins/mount";
+import { usePluginSlots, usePluginsSettled } from "@/plugins/registry";
 
 export interface PluginPendingInteractionRequest {
   pluginId: string;
@@ -19,7 +19,12 @@ export interface PluginPendingInteractionRequest {
   data: JsonValue;
 }
 
-interface PluginPendingInteractionComposerProps {
+export function PluginPendingInteractionComposer({
+  interaction,
+  request,
+  origin,
+  sourceThread,
+}: {
   interaction: Pick<
     PendingInteraction,
     "id" | "threadId" | "createdAt" | "expiresAt"
@@ -27,73 +32,55 @@ interface PluginPendingInteractionComposerProps {
   request: PluginPendingInteractionRequest;
   origin: "plugin" | "provider";
   sourceThread?: PendingInteractionSourceThread;
-}
-
-export function PluginPendingInteractionComposer({
-  interaction,
-  request,
-  origin,
-  sourceThread,
-}: PluginPendingInteractionComposerProps) {
-  const { pendingInteractions } = usePluginSlots();
+}) {
+  const slot = usePluginSlots().pendingInteractions.find(
+    (candidate) =>
+      candidate.pluginId === request.pluginId &&
+      candidate.id === request.rendererId,
+  );
   const pluginName = usePluginDisplayName(request.pluginId);
   const pluginsSettled = usePluginsSettled();
   const stopThread = useStopThread();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const slot = useMemo(
-    () =>
-      pendingInteractions.find(
-        (candidate) =>
-          candidate.pluginId === request.pluginId &&
-          candidate.id === request.rendererId,
-      ) ?? null,
-    [request.pluginId, request.rendererId, pendingInteractions],
-  );
-  const submit = useCallback(
-    async (value: JsonValue) => {
-      setSubmitting(true);
-      setError(null);
-      try {
-        await sdk.threads.interactions.respond({
-          interactionId: interaction.id,
-          threadId: interaction.threadId,
-          value,
-        });
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-        throw cause;
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [interaction.id, interaction.threadId],
-  );
-
-  const cancel = useCallback(async () => {
+  const { id: interactionId, threadId } = interaction;
+  const run = async (action: () => Promise<unknown>) => {
     setSubmitting(true);
     setError(null);
     try {
-      if (origin === "provider") {
-        await stopThread.mutateAsync(interaction.threadId);
-      } else {
-        await sdk.threads.interactions.cancel({
-          interactionId: interaction.id,
-          threadId: interaction.threadId,
-        });
-      }
+      await action();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       throw cause;
     } finally {
       setSubmitting(false);
     }
-  }, [origin, interaction.id, interaction.threadId, stopThread]);
-  const dismissLabel = origin === "plugin" ? "Cancel" : "Stop turn";
-
+  };
+  const cancel = () =>
+    run(() =>
+      origin === "provider"
+        ? stopThread.mutateAsync(threadId)
+        : sdk.threads.interactions.cancel({ interactionId, threadId }),
+    );
+  const dismiss = (problem: string) => (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        The plugin form {problem}.{" "}
+        {origin === "plugin" ? "Cancel" : "Stop turn"} to continue.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => void cancel()}
+        disabled={submitting}
+      >
+        {origin === "plugin" ? "Cancel" : "Stop turn"}
+      </Button>
+    </div>
+  );
   return (
     <PendingInteractionShell
-      key={interaction.id}
+      key={interactionId}
       label={request.title}
       initiallyExpanded
       errorMessage={error}
@@ -112,51 +99,33 @@ export function PluginPendingInteractionComposer({
               pluginId={slot.pluginId}
               slotKind="pendingInteraction"
               slotId={slot.id}
-              crashFallback={
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    The plugin form crashed. {dismissLabel} to continue.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void cancel()}
-                    disabled={submitting}
-                  >
-                    {dismissLabel}
-                  </Button>
-                </div>
-              }
+              crashFallback={dismiss("crashed")}
             >
               <fieldset disabled={submitting}>
                 <slot.component
                   interaction={{
-                    id: interaction.id,
-                    threadId: interaction.threadId,
+                    id: interactionId,
+                    threadId,
                     title: request.title,
                     payload: request.data,
                     createdAt: interaction.createdAt,
                     expiresAt: interaction.expiresAt ?? null,
                   }}
-                  submit={submit}
+                  submit={(value) =>
+                    run(() =>
+                      sdk.threads.interactions.respond({
+                        interactionId,
+                        threadId,
+                        value,
+                      }),
+                    )
+                  }
                   cancel={cancel}
                 />
               </fieldset>
             </PluginSlotMount>
           ) : pluginsSettled ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                The plugin form is unavailable. {dismissLabel} to continue.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void cancel()}
-                disabled={submitting}
-              >
-                {dismissLabel}
-              </Button>
-            </div>
+            dismiss("is unavailable")
           ) : (
             <div
               className="space-y-3"

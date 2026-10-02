@@ -1,6 +1,5 @@
 import { useContext, type ComponentProps, type ReactNode } from "react";
 import { useAtom } from "jotai";
-import type { Environment } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
@@ -15,7 +14,6 @@ import {
 } from "@/components/plugin/PluginPanelActions";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { useGitDiffTab } from "@/components/secondary-panel/git-diff/GitDiffTab";
-import type { GitDiffTabStatus } from "@/components/secondary-panel/gitDiffTabEligibility";
 import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
 import {
   GIT_DIFF_TAB_ID,
@@ -40,15 +38,17 @@ import {
   WorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
-import type { ThreadPanelController } from "@/components/secondary-panel/useThreadPanel";
+import {
+  openThreadLink,
+  type ThreadPanelController,
+} from "@/components/secondary-panel/useThreadPanel";
 import { ThreadTerminalPanel } from "@/components/thread/terminal/ThreadTerminalPanel";
-import type {
-  ThreadTimelineLinkHandler,
-  ThreadTimelineLocalFileLinkHandler,
-} from "@/components/thread/timeline";
 import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
 import { DETAIL_GRID_CLASS } from "@/components/ui/detail-card.js";
-import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing";
+import {
+  MarkdownLocalFileContextMenuContext,
+  type MarkdownLinkRouting,
+} from "@/components/ui/markdown-link-routing";
 import { useThreads } from "@/hooks/queries/thread-queries";
 import {
   getAbsoluteDirname,
@@ -58,32 +58,18 @@ import {
 import { usePluginSlots } from "@/plugins/registry";
 import { ThreadTimelinePane } from "./ThreadTimelinePane";
 
-type OpenFileInTarget = (request: {
-  lineNumber: number | null;
-  path: string;
-}) => void;
-
 interface ThreadRightPanelProps {
   panel: ThreadPanelController;
   metadata: ThreadMetadataContentProps;
   isMetadataLoading: boolean;
-  environment: Environment | undefined;
-  isFocused: boolean;
-  canCreateTerminal: boolean;
-  gitDiffTabStatus: GitDiffTabStatus;
   onRetryGitDiffEligibility: () => void;
-  onOpenLink: ThreadTimelineLinkHandler;
-  onOpenLocalFileLink: ThreadTimelineLocalFileLinkHandler;
   resolveMentionLink: PromptMentionLinkResolver;
-  onOpenFileInEditor: ((relativePath: string) => void) | undefined;
-  openInPreferredFileTarget: OpenFileInTarget | undefined;
 }
 
 interface ThreadDetailSecondaryContentProps extends ThreadRightPanelProps {
   footer: ReactNode;
   header: ReactNode;
   isBoundedPane: boolean;
-  renderHostedPanel: (panel: ReactNode) => ReactNode;
   timeline: Omit<ComponentProps<typeof ThreadTimelinePane>, "footer">;
 }
 
@@ -91,7 +77,6 @@ export function ThreadDetailSecondaryContent({
   footer,
   header,
   isBoundedPane,
-  renderHostedPanel,
   timeline,
   ...panelProps
 }: ThreadDetailSecondaryContentProps) {
@@ -99,7 +84,14 @@ export function ThreadDetailSecondaryContent({
   const [isConversationCollapsed, setConversationCollapsed] = useAtom(
     getThreadConversationCollapsedAtom(timeline.threadId),
   );
-  return (
+  const withFileContextMenu = (node: ReactNode) => (
+    <MarkdownLocalFileContextMenuContext.Provider
+      value={panel.localFileContextMenuItems}
+    >
+      {node}
+    </MarkdownLocalFileContextMenuContext.Provider>
+  );
+  return withFileContextMenu(
     <div
       className={cn(
         "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-clip",
@@ -119,27 +111,27 @@ export function ThreadDetailSecondaryContent({
           active: isConversationCollapsed,
           onToggle: () => setConversationCollapsed((collapsed) => !collapsed),
         }}
-        renderHostedPanel={renderHostedPanel}
+        renderHostedPanel={withFileContextMenu}
         renderPanel={(layout) => (
           <ThreadRightPanel {...panelProps} {...layout} />
         )}
       />
-    </div>
+    </div>,
   );
 }
 
 function markdownLinkRouting(
-  props: ThreadRightPanelProps,
+  panel: ThreadPanelController,
   baseDir: string | undefined,
   rootPath: string | null,
 ): MarkdownLinkRouting {
-  const { onOpenLink } = props;
+  const onOpenLink = openThreadLink;
   if (rootPath === null) return { onOpenLink };
   return {
     onOpenLink,
     localFile: {
       absoluteLinks: { kind: "contained", rootPath },
-      onOpenLink: props.onOpenLocalFileLink,
+      onOpenLink: panel.openLocalFileLink,
       ...(baseDir === undefined
         ? {}
         : { relativeLinks: { baseDir, rootPath } }),
@@ -154,18 +146,9 @@ function ThreadRightPanel(
     resizablePanelId?: string;
   },
 ) {
-  const {
-    panel,
-    metadata,
-    environment,
-    canCreateTerminal,
-    gitDiffTabStatus,
-    onOpenLink,
-    onOpenFileInEditor,
-    openInPreferredFileTarget,
-  } = props;
+  const { panel, metadata } = props;
   const { thread, projectId } = metadata;
-  const { tabs, isOpen } = panel;
+  const { tabs, isOpen, gitDiffTabStatus, openInPreferredFileTarget } = panel;
   const hostLayout = useContext(SecondaryPanelHostLayoutContext);
   const diffShortcut = useAppCommandShortcut("diff.toggle");
   const { threadPanels } = usePluginSlots();
@@ -183,17 +166,7 @@ function ThreadRightPanel(
       },
       { enabled: isOpen },
     ).data?.length ?? 0) > 0;
-  const workspaceRootPath = environment?.path ?? null;
-  const openFilePreview = (path: string, replaceNewTab = false) =>
-    panel.openWorkspaceFile(
-      {
-        lineRange: null,
-        path,
-        source: { kind: "working-tree" },
-        statusLabel: null,
-      },
-      replaceNewTab,
-    );
+  const workspaceRootPath = metadata.environment?.path ?? null;
   const isGitDiffEligible = gitDiffTabStatus === "eligible";
   const diff = useGitDiffTab({
     environmentId: thread.environmentId ?? undefined,
@@ -208,8 +181,8 @@ function ThreadRightPanel(
     pendingScrollPath: panel.pendingGitDiffScrollPath,
     onClearPending: panel.clearPendingGitDiff,
     workspaceRootPath,
-    onOpenFileInEditor,
-    onOpenFilePreview: openFilePreview,
+    onOpenFileInEditor: panel.openFileInEditor,
+    onOpenFilePreview: panel.previewWorkspaceFile,
   });
 
   const fixedTabs: SecondaryPanelFixedTab[] = [
@@ -308,7 +281,7 @@ function ThreadRightPanel(
               autoFocus={panel.focusRequest === "terminal"}
               isPanelOpen={isOpen}
               onAutoFocusHandled={() => panel.setFocusRequest(null)}
-              onOpenLink={onOpenLink}
+              onOpenLink={openThreadLink}
               session={session}
             />
           ),
@@ -331,9 +304,9 @@ function ThreadRightPanel(
               projectId={projectId}
               environmentId={thread.environmentId ?? null}
               onAutoFocusHandled={() => panel.setFocusRequest(null)}
-              onSelect={(path) => openFilePreview(path, true)}
+              onSelect={(path) => panel.previewWorkspaceFile(path, true)}
               onStartTerminal={
-                canCreateTerminal ? panel.startTerminal : undefined
+                panel.canCreateTerminal ? panel.startTerminal : undefined
               }
               pluginActions={pluginActions}
             />
@@ -357,11 +330,11 @@ function ThreadRightPanel(
               isPanelOpen={isOpen}
               lineRange={tab.lineRange}
               markdownLinkRouting={markdownLinkRouting(
-                props,
+                panel,
                 copyPath ? getAbsoluteDirname({ path: copyPath }) : undefined,
                 workspaceRootPath,
               )}
-              onOpenInEditor={onOpenFileInEditor}
+              onOpenInEditor={panel.openFileInEditor}
               source={tab.source}
               statusLabel={tab.statusLabel}
               threadId={thread.id}
@@ -390,7 +363,7 @@ function ThreadRightPanel(
               isPanelOpen={isOpen}
               lineRange={tab.lineRange}
               markdownLinkRouting={markdownLinkRouting(
-                props,
+                panel,
                 baseDir,
                 isInWorkspace ? workspaceRootPath : null,
               )}
@@ -425,11 +398,11 @@ function ThreadRightPanel(
           renderContent: () => (
             <ThreadTimelineNavigationProvider
               environmentId={thread.environmentId}
-              onOpenLink={onOpenLink}
-              onOpenLocalFileLink={props.onOpenLocalFileLink}
+              onOpenLink={openThreadLink}
+              onOpenLocalFileLink={panel.openLocalFileLink}
               resolveMentionLink={props.resolveMentionLink}
               threadId={thread.id}
-              workspaceRootPath={environment?.path ?? undefined}
+              workspaceRootPath={workspaceRootPath ?? undefined}
             >
               <PluginPanelTabContent
                 tab={tab}
@@ -445,7 +418,7 @@ function ThreadRightPanel(
   return (
     <ThreadSecondaryPanel
       activeTabId={tabs.activeTabId}
-      canNavigateTabs={props.isFocused}
+      canNavigateTabs={panel.isFocused}
       tabs={panelTabs}
       fixedTabs={fixedTabs}
       isOpen={isOpen}

@@ -4,16 +4,13 @@ import {
   turnScope,
   type ExtensionKind,
   type JsonValue,
-  type ProviderRateLimitState,
-  type ProviderRawEvent,
   type ThreadEventItem as Item,
   type ThreadEventItemPresentation as Presentation,
   type ThreadEventItemStatus as ItemStatus,
   type ThreadEventTurnStatus as TurnStatus,
 } from "@bb/domain";
-import type { RunnerThreadEvent } from "../types.js";
+import type { DistributiveOmit as Strip, RunnerThreadEvent } from "../types.js";
 
-type Strip<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type Managed = "id" | "status" | "approvalStatus" | "parentToolCallId";
 type Draft = Strip<
   Extract<RunnerThreadEvent, { providerThreadId: unknown }>,
@@ -23,17 +20,17 @@ type Fields<T extends Draft["type"]> = Omit<
   Extract<Draft, { type: T }>,
   "type"
 >;
-type ContextWindowFields = Fields<"thread/contextWindowUsage/updated">;
+type TokenUsage = Fields<"thread/tokenUsage/updated">["tokenUsage"];
+type ContextWindow =
+  Fields<"thread/contextWindowUsage/updated">["contextWindowUsage"];
 type TextDeltaEvent = Extract<RunnerThreadEvent, { delta: string }>;
 type TextItemType = "agentMessage" | "plan" | "reasoning";
 type DeltaChannel = TextChannel | OutputChannel;
 
-export type ItemShape =
-  | Strip<
-      Exclude<Item, { type: "userMessage" | "extension" }>,
-      Managed | "presentation"
-    >
-  | Strip<Extract<Item, { type: "extension" }>, Managed>;
+export type ItemShape = Strip<
+  Exclude<Item, { type: "userMessage" | "extension" }>,
+  Managed | "presentation"
+>;
 export type BackgroundTaskShape = Extract<
   ItemShape,
   { type: "backgroundTask" }
@@ -50,7 +47,6 @@ export interface TurnTarget {
 }
 export interface ItemOptions extends TurnTarget {
   presentation?: Presentation;
-  attach?: "currentOrLast";
 }
 export interface CloseOptions extends TurnTarget {
   status: ItemStatus;
@@ -66,12 +62,7 @@ export interface ErrorOptions extends TurnTarget {
   settlesTurn?: boolean;
   threadScoped?: boolean;
 }
-export interface RawOptions extends TurnTarget {
-  inTurn?: boolean;
-  parentRef?: string;
-}
 export interface EventBuilderOptions {
-  providerId: string;
   emit: (event: RunnerThreadEvent) => void;
   textFlushMs?: number;
   progressThrottleMs?: number;
@@ -120,7 +111,7 @@ function trim<K>(collection: Map<K, unknown> | Set<K>, max: number) {
   }
 }
 
-function withoutUndefined<T extends object>(value: T): T {
+function withoutUndefined<T extends object>(value: T) {
   const entries = Object.entries(value).filter(([, v]) => v !== undefined);
   return Object.fromEntries(entries) as T;
 }
@@ -145,7 +136,7 @@ function buildItem(
   id: string,
   status: ItemStatus,
   extra: { presentation?: Presentation; parent?: string; denied?: boolean },
-): Item {
+) {
   const { presentation, parent: parentToolCallId } = extra;
   const common = withoutUndefined({ id, presentation, parentToolCallId });
   switch (shape.type) {
@@ -162,10 +153,6 @@ function buildItem(
     case "imageGeneration":
     case "backgroundTask":
       return withoutUndefined({ ...shape, ...common, status });
-    case "extension": {
-      const merged = { ...shape, ...common, status };
-      return { ...merged, presentation: presentation ?? shape.presentation };
-    }
     default:
       return withoutUndefined({ ...shape, ...common });
   }
@@ -183,7 +170,6 @@ export class EventBuilder {
   private lastRootTurn: string | undefined;
   private accepted: string[] = [];
   private open = new Map<string, OpenItem>();
-  private snapshots = new Map<string, string>();
   private bbItems = new Map<string, string>();
   private bbTurns = new Map<string, string>();
   private providerTurns = new Map<string, string>();
@@ -242,10 +228,6 @@ export class EventBuilder {
     this.send(undefined, { type: "thread/name/updated", threadName });
   }
 
-  rateLimits(rateLimits: ProviderRateLimitState) {
-    this.send(undefined, { type: "provider/rateLimits/updated", rateLimits });
-  }
-
   extensionState(kind: ExtensionKind, payload: JsonValue) {
     const type = "thread/extensionState/updated";
     this.send(undefined, { type, kind, payload });
@@ -285,7 +267,7 @@ export class EventBuilder {
   }
 
   openItem(key: ItemKey, shape: ItemShape, options: ItemOptions = {}) {
-    const turnId = this.target(options, options.attach === "currentOrLast");
+    const turnId = this.target(options);
     if (turnId === undefined) return undefined;
     if (shape.type !== "contextCompaction") this.detachAssistant(key);
     const id = this.resolveItemId(key, undefined);
@@ -414,31 +396,16 @@ export class EventBuilder {
     this.send(turnId, { type: "item/completed", item });
   }
 
-  outputSnapshot(key: ItemKey, text: string, t?: TurnTarget) {
-    const turnId = this.target(t);
-    const k = keyOf(key);
-    const itemId = this.open.get(k)?.id;
-    const previous = this.snapshots.get(k) ?? "";
-    if (turnId === undefined || itemId === undefined) return;
-    if (text.length === 0 || text === previous) return;
-    this.snapshots.set(k, text);
-    const appended = text.startsWith(previous);
-    const delta = appended ? text.slice(previous.length) : text;
-    const reset = appended ? undefined : true;
-    const parentToolCallId = this.parentOf(key.parentRef);
-    const type = "item/commandExecution/outputDelta";
-    this.send(turnId, { type, itemId, delta, reset, parentToolCallId });
-  }
-
-  usage(tokenUsage: Fields<"thread/tokenUsage/updated">, t?: TurnTarget) {
+  usage(tokenUsage: TokenUsage, t?: TurnTarget) {
     const turnId = this.target(t, true);
     const type = "thread/tokenUsage/updated";
-    if (turnId !== undefined) this.send(turnId, { type, ...tokenUsage });
+    if (turnId !== undefined) this.send(turnId, { type, tokenUsage });
   }
 
-  contextWindow(usage: ContextWindowFields, t?: TurnTarget, openOnly = false) {
+  contextWindow(usage: ContextWindow, t?: TurnTarget, openOnly = false) {
     const type = "thread/contextWindowUsage/updated";
-    this.send(this.target(t, !openOnly), { type, ...usage });
+    const turnId = this.target(t, !openOnly);
+    this.send(turnId, { type, contextWindowUsage: usage });
   }
 
   compacted(t?: TurnTarget) {
@@ -462,19 +429,9 @@ export class EventBuilder {
     if (options.settlesTurn && turnId) this.sendTurnCompleted(turnId, "failed");
   }
 
-  warning(warning: Partial<Fields<"provider/warning">>, inTurn = false) {
-    const turnId = inTurn ? this.target() : undefined;
+  warning(warning: Partial<Fields<"provider/warning">>) {
     const category = warning.category ?? "general";
-    this.send(turnId, { type: "provider/warning", ...warning, category });
-  }
-
-  unhandled(rawType: string, rawEvent: ProviderRawEvent, to: RawOptions = {}) {
-    const scoped = to.turn !== undefined || to.inTurn;
-    const turnId = scoped ? this.target(to) : undefined;
-    const parentToolCallId = this.parentOf(to.parentRef);
-    const { providerId } = this.options;
-    const origin = { providerId, rawType, rawEvent, parentToolCallId };
-    this.send(turnId, { type: "provider/unhandled", ...origin });
+    this.send(undefined, { type: "provider/warning", ...warning, category });
   }
 
   settle(status: "interrupted" | "failed", error?: string) {
@@ -505,17 +462,6 @@ export class EventBuilder {
     for (const [stream, event] of pending) {
       this.out(event);
       this.textAt.set(stream, this.now());
-    }
-  }
-
-  reset() {
-    this.flush();
-    this.accepted = [];
-    const { open, snapshots, bbItems, bbTurns, providerTurns } = this;
-    const { progressAt, pendingProgress, textAt } = this;
-    const maps = [open, snapshots, bbItems, bbTurns, providerTurns];
-    for (const map of [...maps, progressAt, pendingProgress, textAt]) {
-      map.clear();
     }
   }
 
@@ -576,7 +522,6 @@ export class EventBuilder {
 
   private forget(k: string) {
     this.open.delete(k);
-    this.snapshots.delete(k);
     this.pendingProgress.delete(k);
     this.progressAt.delete(k);
   }
@@ -633,7 +578,7 @@ export class EventBuilder {
   private bufferText(event: TextDeltaEvent) {
     const stream = `${event.type}${SEP}${event.itemId}`;
     const lastEmit = this.textAt.get(stream);
-    if (lastEmit === undefined || ("reset" in event && event.reset)) {
+    if (lastEmit === undefined) {
       this.flush();
       this.out(event);
       this.textAt.set(stream, this.now());
@@ -692,7 +637,6 @@ export class EventBuilder {
         trim(this.doneItems, MAX_GUARDED);
         return true;
       case "item/backgroundTask/progress":
-      case "item/delegation/progress":
         return this.liveItems.has(event.item.id);
       default:
         return !("itemId" in event) || this.liveItems.has(event.itemId);

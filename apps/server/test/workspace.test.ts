@@ -3,8 +3,7 @@ import { dirname, join } from "node:path";
 import { environmentSchema } from "@bb/domain";
 import { expect, it } from "vitest";
 import { insertHost } from "../src/db/hosts.js";
-import { createDemo, git, insertEnvironment, write } from "./demo.js";
-import { insertThread, watchChanges } from "./watch.js";
+import * as helpers from "./helpers.js";
 
 const env = "/environments/env_demo";
 const uncommitted = "target=uncommitted";
@@ -12,11 +11,14 @@ const commit = { action: "commit" };
 const attach = "UPDATE threads SET environment_id = ?";
 
 it("reports status, diffs and commits for a checkout with mixed changes", async () => {
-  const { server, repo, read, matches, send } = await createDemo();
-  const changed = await watchChanges(server);
-  write(repo, { "src/a.ts": "export const a = 2;\n", "staged.txt": "new\n" });
-  write(repo, { "notes.md": "untracked\n" });
-  git(repo, "add", "staged.txt");
+  const { server, repo, read, matches, send } = await helpers.createDemo();
+  const changed = await helpers.watchChanges(server);
+  helpers.write(repo, {
+    "src/a.ts": "export const a = 2;\n",
+    "staged.txt": "new\n",
+  });
+  helpers.write(repo, { "notes.md": "untracked\n" });
+  helpers.git(repo, "add", "staged.txt");
   expect(environmentSchema.parse(await read(env)).branchName).toBeNull();
   const workingTree = { state: "dirty_uncommitted", insertions: 3 };
   const workspace = { workingTree, branch: { currentBranch: "main" } };
@@ -37,9 +39,6 @@ it("reports status, diffs and commits for a checkout with mixed changes", async 
   const before = { content: "export const a = 1;\n", sizeBytes: 20 };
   const old = `${env}/diff/file?${uncommitted}&side=old&path=src/a.ts`;
   await matches(old, before);
-  const whole = await read(`${env}/diff?${uncommitted}`);
-  expect(JSON.stringify(whole)).toContain("+untracked");
-
   const committed = await send(`${env}/actions`, commit);
   const made = { ok: true, commitSubject: "bb: automated commit" };
   expect(await committed.json()).toMatchObject(made);
@@ -52,10 +51,11 @@ it("reports status, diffs and commits for a checkout with mixed changes", async 
 });
 
 it("serves file bytes with ranges, validators and confinement", async () => {
-  const { server, repo, projectId, hostId, request } = await createDemo();
+  const { server, repo, projectId, hostId, request } =
+    await helpers.createDemo();
   const big = Buffer.alloc(1_300_000).map((_, at) => at % 251);
   const size = String(big.length);
-  write(repo, { "big.bin": big, "src/a.ts": "changed\n" });
+  helpers.write(repo, { "big.bin": big, "src/a.ts": "changed\n" });
   symlinkSync("/etc/hosts", join(repo, "escape"));
   const file = (path: string, headers = {}, method = "GET") =>
     request(`${env}/files/${path}`, { method, headers });
@@ -97,12 +97,11 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   }
   expect((await file("missing")).status).toBe(404);
 
-  insertThread(server, "thr_demo", projectId);
+  helpers.insertThread(server, "thr_demo", projectId);
   server.ctx.db.run(attach, "env_demo");
   for (const route of [
     `/projects/${projectId}/files/README.md`,
     `/projects/${projectId}/hosts/${hostId}/files/README.md`,
-    `/hosts/${hostId}/files${repo}/README.md`,
     `/threads/thr_demo/host-files${repo}/README.md`,
   ]) {
     expect(await (await request(route)).text(), route).toBe("# demo\n");
@@ -117,9 +116,10 @@ it("serves file bytes with ranges, validators and confinement", async () => {
 });
 
 it("searches paths and reads branches, commands and folders", async () => {
-  const { repo, projectId, hostId, matches, read, send } = await createDemo();
-  git(repo, "branch", "feature");
-  write(repo, { "src/reader.ts": "", "docs/thread.md": "" });
+  const { repo, projectId, hostId, matches, read, send } =
+    await helpers.createDemo();
+  helpers.git(repo, "branch", "feature");
+  helpers.write(repo, { "src/reader.ts": "", "docs/thread.md": "" });
   const project = `/projects/${projectId}`;
   const readme = { kind: "file", path: "README.md", positions: [0, 1, 2, 3] };
   const paths = [readme, { path: "src/reader.ts" }, {}];
@@ -153,12 +153,13 @@ it("searches paths and reads branches, commands and folders", async () => {
 });
 
 it("renames and deletes environments once their threads are gone", async () => {
-  const { server, projectId, matches, request, send } = await createDemo();
-  const changed = await watchChanges(server);
+  const { server, projectId, matches, request, send } =
+    await helpers.createDemo();
+  const changed = await helpers.watchChanges(server);
   const renamed = await send(env, { name: "Docs" }, "PATCH");
   expect(await renamed.json()).toMatchObject({ id: "env_demo", name: "Docs" });
   await changed("environment", "metadata-changed");
-  insertThread(server, "thr_demo", projectId);
+  helpers.insertThread(server, "thr_demo", projectId);
   server.ctx.db.run(attach, "env_demo");
   const remove = { method: "DELETE" };
   const archive = `${env}/archive-threads`;
@@ -175,14 +176,14 @@ it("renames and deletes environments once their threads are gone", async () => {
 
 it("answers with outcomes when git, a machine or a folder is missing", async () => {
   const { server, repo, projectId, hostId, matches, request, send } =
-    await createDemo();
+    await helpers.createDemo();
   insertHost(server.ctx.db, { id: "host_away", name: "away", phase: "active" });
   const away = { id: "env_away", hostId: "host_away", path: "/repos/away" };
-  insertEnvironment(server, { ...away, projectId });
+  helpers.insertEnvironment(server, { ...away, projectId });
   const missing = { id: "env_gone", hostId, path: join(repo, "gone") };
-  insertEnvironment(server, { ...missing, projectId });
+  helpers.insertEnvironment(server, { ...missing, projectId });
   const plain = { id: "env_plain", hostId, path: join(repo, "src") };
-  insertEnvironment(server, { ...plain, projectId }, 0);
+  helpers.insertEnvironment(server, { ...plain, projectId }, 0);
 
   const failure = { code: "unknown", workspacePath: "/repos/away" };
   const offline = { outcome: "unavailable", failure };
@@ -193,7 +194,7 @@ it("answers with outcomes when git, a machine or a folder is missing", async () 
   await matches("/environments/env_gone/status", absent);
   const skipped = { outcome: "not_applicable", reason: "non_git_environment" };
   await matches("/environments/env_plain/status", skipped);
-  await matches(`/environments/env_plain/diff?${uncommitted}`, skipped);
+  await matches(`/environments/env_plain/diff/files?${uncommitted}`, skipped);
 
   const refused = await send("/environments/env_away/actions", commit);
   const details = { kind: "workspace_unavailable", failure };

@@ -9,10 +9,6 @@ import { toast as sonnerToast, type Action, type ExternalToast } from "sonner";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  openNotificationCenter,
-  recordNotification,
-} from "@/lib/notifications/notification-store";
 
 export type AppToastTone =
   | "message"
@@ -50,7 +46,6 @@ interface AppToastContentProps {
   description?: ReactNode;
   dismissible?: boolean;
   id?: number | string;
-  notificationId?: string | null;
   onDismiss?: () => void;
   title: ReactNode;
   tone: AppToastTone;
@@ -59,8 +54,6 @@ interface AppToastContentProps {
 interface AppToastOverflowTextProps {
   className?: string;
   content: ReactNode;
-  notificationId: string | null;
-  onShowMore: () => void;
   testId: string;
 }
 
@@ -83,7 +76,7 @@ type AppToastMethod = (
 
 const DEFAULT_TOAST_DURATION = 4000;
 
-export function iconForTone(tone: AppToastTone): IconName {
+function iconForTone(tone: AppToastTone): IconName {
   switch (tone) {
     case "success":
       return "CircleCheck";
@@ -134,12 +127,11 @@ function AppToastActionButton({
 function AppToastOverflowText({
   className,
   content,
-  notificationId,
-  onShowMore,
   testId,
 }: AppToastOverflowTextProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [truncated, setTruncated] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useLayoutEffect(() => {
     const body = bodyRef.current;
@@ -164,19 +156,20 @@ function AppToastOverflowText({
         ref={bodyRef}
         data-testid={testId}
         className={cn(
-          "line-clamp-4 whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+          "whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+          !expanded && "line-clamp-4",
           className,
         )}
       >
         {content}
       </div>
-      {truncated && notificationId !== null ? (
+      {truncated && !expanded ? (
         <Button
           type="button"
           variant="link"
           size="sm"
           className="h-auto shrink-0 px-0 py-0 text-xs text-muted-foreground underline underline-offset-4"
-          onClick={onShowMore}
+          onClick={() => setExpanded(true)}
         >
           Show more
         </Button>
@@ -191,16 +184,11 @@ export function AppToastContent({
   description,
   dismissible = true,
   id,
-  notificationId = null,
   onDismiss,
   title,
   tone,
 }: AppToastContentProps) {
   const hasActions = action !== undefined || cancel !== undefined;
-  const showNotification = () => {
-    dismissToast(id);
-    openNotificationCenter(notificationId);
-  };
   const actions = hasActions ? (
     <>
       {action ? (
@@ -228,8 +216,6 @@ export function AppToastContent({
             <AppToastOverflowText
               className="text-sm font-medium leading-5"
               content={title}
-              notificationId={notificationId}
-              onShowMore={showNotification}
               testId="app-toast-title"
             />
           </div>
@@ -238,8 +224,6 @@ export function AppToastContent({
               {description ? (
                 <AppToastOverflowText
                   content={description}
-                  notificationId={notificationId}
-                  onShowMore={showNotification}
                   testId="app-toast-description"
                 />
               ) : null}
@@ -287,16 +271,6 @@ function showAppToast({
   } = options ?? {};
   const nextDuration =
     duration ?? (tone === "loading" ? Infinity : DEFAULT_TOAST_DURATION);
-  const notificationId =
-    tone === "loading"
-      ? null
-      : recordNotification({
-          toastId: sonnerOptions.id ?? null,
-          tone,
-          title,
-          description: description ?? null,
-          createdAt: Date.now(),
-        });
 
   return sonnerToast.custom(
     (id) => (
@@ -306,7 +280,6 @@ function showAppToast({
         description={description}
         dismissible={dismissible}
         id={id}
-        notificationId={notificationId}
         title={title}
         tone={tone}
       />

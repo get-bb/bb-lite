@@ -47,20 +47,6 @@ export function appShortcutFromInput(
   };
 }
 
-export function areAppShortcutsEqual(
-  left: AppShortcut,
-  right: AppShortcut,
-): boolean {
-  return (
-    left.key.toLowerCase() === right.key.toLowerCase() &&
-    left.mod === right.mod &&
-    left.meta === right.meta &&
-    left.control === right.control &&
-    left.alt === right.alt &&
-    left.shift === right.shift
-  );
-}
-
 export function canAssignAppShortcut(
   command: KeyboardCommandId,
   shortcut: AppShortcut,

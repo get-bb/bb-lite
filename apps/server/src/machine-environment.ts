@@ -47,7 +47,7 @@ function encrypt(
   key: Buffer,
   scope: Pick<StoredVariable, "projectId" | "name">,
   value: string,
-): string {
+) {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   cipher.setAAD(associatedData(scope));
@@ -55,7 +55,7 @@ function encrypt(
   return Buffer.concat([iv, cipher.getAuthTag(), sealed]).toString("base64");
 }
 
-function decrypt(key: Buffer, variable: StoredVariable): string {
+function decrypt(key: Buffer, variable: StoredVariable) {
   try {
     const sealed = Buffer.from(variable.ciphertext, "base64");
     const iv = sealed.subarray(0, IV_BYTES);
@@ -72,7 +72,7 @@ function decrypt(key: Buffer, variable: StoredVariable): string {
   }
 }
 
-function listVariables(db: Db, projectId: string | null): StoredVariable[] {
+function listVariables(db: Db, projectId: string | null) {
   return db.all<StoredVariable>(
     `SELECT project_id, name, ciphertext, note FROM environment_variables
      WHERE project_id IS ? ORDER BY name`,

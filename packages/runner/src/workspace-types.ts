@@ -12,6 +12,9 @@ import type {
   EnvironmentDiffFileQuery,
   EnvironmentDiffFileResponse,
   HostDirectoryListing,
+  HostFileReadResponse,
+  HostFileWriteResponse,
+  HostOpenTarget,
   TerminalOutputChunk,
   WorkspacePathListResponse,
 } from "@bb/server-contract";
@@ -40,7 +43,6 @@ export interface PathInspection {
   branchName: string | null;
   defaultBranch: string | null;
   remoteUrl: string | null;
-  dirty: boolean;
 }
 
 export interface DiffFiles {
@@ -67,21 +69,8 @@ export interface LifecycleScriptResult {
   } | null;
 }
 
-export type FileContentEncoding = "utf8" | "base64";
-
-export interface FileContent {
-  path: string;
-  content: string;
-  contentEncoding: FileContentEncoding;
-  mimeType?: string;
-  modifiedAtMs?: number;
-  sha256: string;
-  sizeBytes: number;
-}
-
-export type FileNotModified = Omit<FileContent, "content"> & {
-  notModified: true;
-};
+export type FileContent = HostFileReadResponse;
+export type FileContentEncoding = FileContent["contentEncoding"];
 
 export interface FileChunk {
   path: string;
@@ -93,9 +82,7 @@ export interface FileChunk {
   dataBase64: string;
 }
 
-export type FileWriteResult =
-  | { outcome: "written"; sha256: string; sizeBytes: number }
-  | { outcome: "conflict"; currentSha256: string | null };
+export type FileWriteResult = HostFileWriteResponse;
 
 export interface FileLocation {
   path: string;
@@ -131,17 +118,7 @@ export interface TerminalReplay {
   exited: { exitCode: number | null } | null;
 }
 
-export interface OpenTarget {
-  id: string;
-  label: string;
-  kind: "editor" | "file-manager" | "terminal";
-  capabilities: {
-    openDirectory: boolean;
-    openFile: boolean;
-    openFileAtLine: boolean;
-    openFileAtColumn: boolean;
-  };
-}
+export type OpenTarget = HostOpenTarget;
 
 interface DiffScope {
   path: string;
@@ -203,9 +180,7 @@ export interface WorkspaceApi {
     operationId: string;
   }): Promise<{ cancelled: boolean }>;
 
-  readFile(
-    args: FileLocation & { gitRef?: string; ifNoneMatch?: string[] },
-  ): Promise<FileContent | FileNotModified>;
+  readFile(args: FileLocation & { gitRef?: string }): Promise<FileContent>;
   readFileChunk(
     args: FileLocation & {
       gitRef?: string;
@@ -249,12 +224,7 @@ export interface WorkspaceApi {
   listCommands(args: {
     providerId: ProviderId;
     cwd: string | null;
-    builtinDir?: string;
   }): Promise<CommandListResponse>;
-  resolveSkillDirs(args: {
-    cwd: string | null;
-    builtinDir: string | null;
-  }): Promise<{ skillDirs: string[] }>;
 
   openTerminal(
     args: TerminalRef & {

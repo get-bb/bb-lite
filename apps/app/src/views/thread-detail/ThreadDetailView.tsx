@@ -1,51 +1,30 @@
-import { appendQuoteAndAttachmentsToDraft } from "@bb/client-core";
+import {
+  appendQuoteAndAttachmentsToDraft,
+  type PromptDraftAttachment,
+} from "@bb/client-core";
 import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { nanoid } from "nanoid";
-import { useSystemProviderInfo } from "@/hooks/queries/system-queries";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import {
   isRunningThreadRuntimeDisplayStatus,
-  type ThreadTimelineEditMessageHandler,
-  type ThreadTimelineEditMessageTarget,
-  type ThreadTimelineInlineMessageEditor,
-  type ThreadTimelineForkMessageHandler,
-  type ThreadTimelineLinkHandler,
-  type ThreadTimelineLocalFileLink,
-  type ThreadTimelineOpenPluginPanelHandler,
-  type TimelineTitleActionResolver,
   useThreadTimelineController,
 } from "@/components/thread/timeline";
-import { serializePluginPanelParams } from "@/lib/plugin-json-value";
+import { defaultAppSettings, type ThreadListEntry } from "@bb/domain";
 import {
-  defaultAppSettings,
-  type ThreadListEntry,
-  type ThreadWithRuntime,
-} from "@bb/domain";
-import type { TimelineRow } from "@bb/server-contract";
-import { appToast } from "@/components/ui/app-toast";
-import { copyToClipboardWithToast } from "@/lib/clipboard";
-import { useForkThreadFromMessage } from "@/hooks/useForkThreadFromMessage";
-import { isThreadForkable } from "@bb/client-core";
-import { useRequestEnvironmentAction } from "../../hooks/mutations/environment-mutations";
+  useRequestEnvironmentAction,
+  useUpdateEnvironment,
+} from "../../hooks/mutations/environment-mutations";
 import {
   useMarkThreadRead,
   useUpdateThread,
 } from "../../hooks/mutations/thread-state-mutations";
-import {
-  useCreateThreadQueuedMessage,
-  useEditThreadMessage,
-  useSendThreadMessage,
-} from "../../hooks/mutations/thread-runtime-mutations";
-import { useUpdateEnvironment } from "../../hooks/mutations/environment-mutations";
+import { useSendThreadMessage } from "../../hooks/mutations/thread-runtime-mutations";
 import {
   useEnvironment,
   useEnvironmentWorkStatus,
 } from "../../hooks/queries/environment-queries";
-import {
-  useChildThreadPendingAttention,
-  type ChildThreadPendingAttentionSource,
-} from "../../hooks/queries/child-thread-pending-interactions";
+import { useChildThreadPendingAttention } from "../../hooks/queries/child-thread-pending-interactions";
 import {
   didThreadDetailBootstrapRefreshAfterMount,
   getLatestPendingInteraction,
@@ -55,7 +34,6 @@ import {
   useThread,
   useThreadDetailBootstrap,
   useThreadPendingInteractions,
-  type ProjectThreadSubsetFilters,
 } from "../../hooks/queries/thread-queries";
 import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
@@ -64,19 +42,13 @@ import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialo
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
 import { HEADER_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
-import {
-  ThreadActionsMenu,
-  type ThreadActionsMenuResponsiveAction,
-} from "@/components/thread/ThreadActionsMenu";
+import { ThreadActionsMenu } from "@/components/thread/ThreadActionsMenu";
+import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import { ThreadWorkspaceOpenButton } from "@/components/thread/ThreadWorkspaceOpenButton";
-import {
-  formatEnvironmentDisplay,
-  type EnvironmentDisplayHostContext,
-} from "@bb/core-ui";
+import { formatEnvironmentDisplay } from "@bb/core-ui";
 import { useCreateThreadInEnvironment } from "@/hooks/useCreateThreadInEnvironment";
 import { useLocalHostId, useOpenTargets } from "@/hooks/useOpenTargets";
 import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
-import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useConnectionAwareQueryState } from "@/hooks/queries/connection-aware-query-state";
 import {
   findEnvironmentDisplayProvider,
@@ -89,121 +61,53 @@ import { getGitStatusDisplay } from "@/components/workspace/workspace-status";
 import { selectWorkspaceChangedFilesSection } from "@/components/workspace/workspace-change-summary";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { hasThreadProvisioningFailure } from "@/lib/thread-provisioning-failure";
-import { showMutationErrorToast } from "@/lib/mutation-errors";
-import {
-  promptInputToDraft,
-  type PromptDraftAttachment,
-  type PromptDraftState,
-} from "@bb/client-core";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
   type ThreadRoutePathArgs,
 } from "@/lib/route-paths";
 import { ThreadDetailHeader } from "./ThreadDetailHeader";
-import {
-  ThreadDetailPromptArea,
-  type ThreadDetailSentMessageEdit,
-} from "./ThreadDetailPromptArea";
-import {
-  isThreadDisplayStatusBannerActive,
-  type ThreadPromptParentThreadSection,
-  type ThreadPromptChildThreadsSection,
-} from "@/components/promptbox/banner/ThreadPromptContextBanner";
+import { ThreadDetailPromptArea } from "./ThreadDetailPromptArea";
+import { isThreadDisplayStatusBannerActive } from "@/components/promptbox/banner/ThreadPromptContextBanner";
 import { ThreadDetailSecondaryContent } from "./ThreadDetailSecondaryContent";
-import type { HostConnectionNotice } from "@/components/thread/timeline/ThreadTimelineSurface";
-import {
-  PluginThreadPanelNavigationProvider,
-  usePublishThreadPanelOpener,
-} from "@/components/plugin/plugin-thread-panel-navigation";
-import { usePluginSlots } from "@/plugins/registry";
-import { openHttpUrlInExternalBrowser } from "@/lib/url-open-routing";
-import { getFileBasename } from "@/lib/live-file-navigation";
-import { getFilePreviewLineRangeStart } from "@bb/client-core";
+import { PluginThreadPanelNavigationProvider } from "@/components/plugin/plugin-thread-panel-navigation";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { useEnvironmentMergeBase } from "@/components/secondary-panel/git-diff/useEnvironmentMergeBase";
+import {
+  openThreadLink,
+  useThreadPanel,
+} from "@/components/secondary-panel/useThreadPanel";
 import { useThreadGitActions } from "./useThreadGitActions";
-import { useThreadPanel } from "@/components/secondary-panel/useThreadPanel";
 import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
-import { buildOpenInEditorHandler } from "./threadWorkspaceOpenPath";
-import {
-  resolveThreadLocalFileLink,
-  type ThreadLocalFileLinkResolution,
-} from "@/lib/thread-local-file-links";
-import {
-  MarkdownLocalFileContextMenuContext,
-  type MarkdownLocalFileContextMenuItem,
-} from "@/components/ui/markdown-link-routing";
-import { resolveGitDiffTabStatus } from "@/components/secondary-panel/gitDiffTabEligibility";
 import { isRootThread } from "./threadParentSelectorOptions";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { usePaneContext } from "./PaneContext";
-import { ThreadArchiveCommandHandler } from "./ThreadArchiveCommandHandler";
-import { ThreadRenameCommandHandler } from "./ThreadRenameCommandHandler";
 
-const EMPTY_PARENT_THREADS: readonly ThreadListEntry[] = [];
-const EMPTY_CHILD_THREAD_ITEMS: readonly ChildThreadPendingAttentionSource[] =
-  [];
-const EMPTY_PROJECT_THREAD_SUBSET_FILTERS =
-  {} satisfies ProjectThreadSubsetFilters;
+type ContentProps = ComponentProps<typeof ThreadDetailSecondaryContent>;
+const NO_THREADS: readonly ThreadListEntry[] = [];
+const NO_FILTERS = {};
 
-interface SentMessageEditSession {
-  draft: PromptDraftState;
-  operationId: string;
-  target: ThreadTimelineEditMessageTarget;
-  threadId: string;
-}
-
-function hasTimelineRowId(
-  rows: readonly TimelineRow[],
-  rowId: string,
-): boolean {
-  return rows.some(
-    (row) =>
-      row.id === rowId ||
-      (row.kind === "turn" &&
-        row.children !== null &&
-        hasTimelineRowId(row.children, rowId)),
-  );
-}
-
-function buildHostConnectionNotice(
-  thread: ThreadWithRuntime,
-  hostName: string | null,
-): HostConnectionNotice | null {
-  if (thread.runtime.displayStatus !== "waiting-for-host") {
-    return null;
-  }
-  return { label: `${hostName ?? "Host"} disconnected` };
-}
-
-export function ThreadDetailView(
-  props: ThreadRoutePathArgs & { timelineEnabled: boolean },
-) {
-  const { projectId, threadId, timelineEnabled } = props;
-  const { isFocused, navigateInPane, onRequestClose, isBoundedPane } =
-    usePaneContext();
+export function ThreadDetailView({
+  projectId,
+  threadId,
+  timelineEnabled,
+}: ThreadRoutePathArgs & { timelineEnabled: boolean }) {
+  const { isFocused, navigateInPane, isBoundedPane } = usePaneContext();
   const navigate = useImmediateRouteNavigate();
+  const threadActions = useThreadActions();
   const systemConfigQuery = useSystemConfig();
-  const threadDetailBootstrapQuery = useThreadDetailBootstrap(threadId);
-  const hasThreadDetailBootstrapSettled =
-    threadDetailBootstrapQuery.isSuccess || threadDetailBootstrapQuery.isError;
-  const {
-    data: thread,
-    isFetching,
-    isLoadingError,
-    error,
-  } = useThread(threadId, {
-    enabled: hasThreadDetailBootstrapSettled,
-    refetchOnMount: didThreadDetailBootstrapRefreshAfterMount(
-      threadDetailBootstrapQuery,
-    )
+  const bootstrapQuery = useThreadDetailBootstrap(threadId);
+  const bootstrapSettled = bootstrapQuery.isSuccess || bootstrapQuery.isError;
+  const threadQuery = useThread(threadId, {
+    enabled: bootstrapSettled,
+    refetchOnMount: didThreadDetailBootstrapRefreshAfterMount(bootstrapQuery)
       ? false
       : "always",
   });
+  const thread = threadQuery.data;
   const environmentQuery = useEnvironment(thread?.environmentId, {
-    enabled: hasThreadDetailBootstrapSettled,
+    enabled: bootstrapSettled,
     staleTime: 5_000,
   });
   const environment = environmentQuery.data;
@@ -213,37 +117,24 @@ export function ThreadDetailView(
       : environment.hostLifecycle;
   const executionUnavailable =
     hostLifecycle !== null || environment?.status === "destroyed";
-  const gitDiffTabStatus = resolveGitDiffTabStatus({
-    environmentId: thread?.environmentId ?? null,
-    environmentIsGitRepo: environment?.isGitRepo,
-    environmentLoadFailed: environmentQuery.isError,
-    environmentOwnsPath: environment?.managed,
-    hasResolvedThread: thread !== undefined,
-    threadArchived: thread?.archivedAt != null || executionUnavailable,
-  });
   const threadQueryState = useConnectionAwareQueryState({
     hasResolvedData: thread !== undefined,
-    isFetching: threadDetailBootstrapQuery.isFetching || isFetching,
-    isLoadingError,
-    isRecoverableLoadingError: isTransientReadError(error),
+    isFetching: bootstrapQuery.isFetching || threadQuery.isFetching,
+    isLoadingError: threadQuery.isLoadingError,
+    isRecoverableLoadingError: isTransientReadError(threadQuery.error),
   });
-  const threadOriginKind = thread?.originKind ?? null;
-  const threadSourceThreadId =
+  const isReady = threadQueryState.status === "ready" && thread !== undefined;
+  const originKind = thread?.originKind ?? null;
+  const sourceThreadId =
     thread?.sourceThreadId ??
-    (thread && threadOriginKind ? thread.parentThreadId : null);
+    (thread && originKind ? thread.parentThreadId : null);
   const { data: parentThread } = useThread(thread?.parentThreadId ?? "");
-  const { data: sourceThread } = useThread(threadSourceThreadId ?? "");
+  const { data: sourceThread } = useThread(sourceThreadId ?? "");
   const pendingInteractionsQuery = useThreadPendingInteractions(
     thread?.id ?? "",
-    {
-      enabled: threadQueryState.status === "ready" && Boolean(thread?.id),
-    },
+    { enabled: isReady },
   );
   const pendingInteractions = pendingInteractionsQuery.data ?? [];
-  const pendingInteractionsInitialLoading = isPendingInteractionStateUnknown(
-    pendingInteractionsQuery.data,
-    pendingInteractionsQuery.isFetching,
-  );
   const hasPendingInteraction =
     getLatestPendingInteraction(pendingInteractions) !== null;
   const unreadDividerState = useThreadUnreadDividerState({
@@ -251,62 +142,28 @@ export function ThreadDetailView(
     thread,
   });
   const isThreadRoot = isRootThread(thread);
-  const [
-    parentThreadsRequestedForThreadId,
-    setParentThreadsRequestedForThreadId,
-  ] = useState<string | null>(null);
-  const shouldLoadParentThreads =
-    threadQueryState.status === "ready" &&
-    isThreadRoot &&
-    parentThreadsRequestedForThreadId === thread?.id;
-  const parentThreadSubsetQuery = useProjectThreadSubset({
-    enabled: shouldLoadParentThreads,
-    filters: EMPTY_PROJECT_THREAD_SUBSET_FILTERS,
+  const [parentThreadsRequestedFor, setParentThreadsRequestedFor] = useState<
+    string | null
+  >(null);
+  const loadsParentThreads =
+    isReady && isThreadRoot && parentThreadsRequestedFor === thread.id;
+  const parentThreadsQuery = useProjectThreadSubset({
+    enabled: loadsParentThreads,
+    filters: NO_FILTERS,
     projectId,
   });
-  const childThreadSubsetQuery = useChildThreads({
-    enabled: threadQueryState.status === "ready" && Boolean(thread?.id),
+  const childThreadsQuery = useChildThreads({
+    enabled: isReady,
     parentThreadId: thread?.id,
   });
-  const parentThreads = useMemo(
-    () =>
-      shouldLoadParentThreads
-        ? (parentThreadSubsetQuery.data ?? EMPTY_PARENT_THREADS)
-        : EMPTY_PARENT_THREADS,
-    [parentThreadSubsetQuery.data, shouldLoadParentThreads],
-  );
-  const handleParentSelectorOpenChange = useCallback(
-    (open: boolean) => {
-      if (open && thread?.id) {
-        setParentThreadsRequestedForThreadId(thread.id);
-      }
-    },
-    [thread?.id],
-  );
-  const handleRetryParentThreads = parentThreadSubsetQuery.retry;
-  const {
-    activePromptMode,
-    activeThinking,
-    activeWorkflows,
-    activeBackgroundCommands,
-    contextBoundarySeq,
-    contextWindowUsage,
-    goal,
-    hasOlderTimelineRows,
-    isLoadingOlderTimelineRows,
-    loadOlderTimelineRows,
-    modelFallback,
-    pendingTodos,
-    timelineError,
-    timelineLoading,
-    timelineRows,
-  } = useThreadTimelineController({
+  const timeline = useThreadTimelineController({
     threadId,
     enabled: timelineEnabled,
   });
+  const { timelineRows } = timeline;
+  const isTimelinePending =
+    timeline.timelineLoading && timelineRows.length === 0;
   const sendMessage = useSendThreadMessage();
-  const editMessage = useEditThreadMessage();
-  const createQueuedMessage = useCreateThreadQueuedMessage();
   const requestEnvironmentAction = useRequestEnvironmentAction();
   const markThreadRead = useMarkThreadRead();
   const updateEnvironment = useUpdateEnvironment();
@@ -314,488 +171,153 @@ export function ThreadDetailView(
     errorMessage: "Failed to assign parent thread.",
   });
   const hostsQuery = useHosts({
-    enabled:
-      hasThreadDetailBootstrapSettled &&
-      thread?.environmentId !== null &&
-      thread?.environmentId !== undefined,
+    enabled: bootstrapSettled && thread?.environmentId != null,
   });
-  const connectedHostIds = useMemo(
-    () =>
-      new Set(
-        (hostsQuery.data ?? [])
-          .filter((host) => host.status === "connected")
-          .map((host) => host.id),
-      ),
-    [hostsQuery.data],
-  );
-  const resolvedThreadEnvironmentHost = useMemo(() => {
-    const hosts = hostsQuery.data ?? [];
-    const environmentHostId = environment?.hostId;
-    if (!environmentHostId) return null;
-    return hosts.find((host) => host.id === environmentHostId) ?? null;
-  }, [environment?.hostId, hostsQuery.data]);
+  const hosts = hostsQuery.data ?? [];
+  const environmentHost =
+    hosts.find((host) => host.id === environment?.hostId) ?? null;
   const hasMultipleMachines =
     selectHosts(hostsQuery.data, "persistent").length > 1;
-  const threadEnvironmentHost = isHostAmbiguous(
+  const ambiguousHost = isHostAmbiguous(
     hasMultipleMachines,
-    resolvedThreadEnvironmentHost?.type ?? null,
+    environmentHost?.type ?? null,
   )
-    ? resolvedThreadEnvironmentHost
+    ? environmentHost
     : null;
-  const hostConnectionNotice = useMemo(
-    () =>
-      thread
-        ? buildHostConnectionNotice(thread, threadEnvironmentHost?.name ?? null)
-        : null,
-    [thread, threadEnvironmentHost],
-  );
-  const forkThreadFromMessage = useForkThreadFromMessage({
-    sourceThread: thread ?? null,
-  });
-  const handleForkMessage = useCallback<ThreadTimelineForkMessageHandler>(
-    (target) => {
-      void forkThreadFromMessage(target);
-    },
-    [forkThreadFromMessage],
-  );
-  const threadProviderInfo = useSystemProviderInfo(
-    thread?.environmentId
-      ? {
-          enabled: true,
-          environmentId: thread.environmentId,
-          providerId: thread.providerId,
-        }
-      : {
-          enabled: thread !== undefined,
-          providerId: thread?.providerId,
-        },
-  );
-  const isForkAvailable = isThreadForkable(
-    thread ?? null,
-    threadProviderInfo?.capabilities.supportsFork ?? false,
-  );
-  const selectionPromptDraftProjectId = thread?.projectId ?? projectId;
-  const selectionPromptDraftThreadId = thread?.id ?? "";
-  const selectionPromptDraft = useMemo(
+  const draftProjectId = thread?.projectId ?? projectId;
+  const draftThreadId = thread?.id ?? "";
+  const promptDraft = useMemo(
     () =>
       getPromptDraftAccessor({
         kind: "thread",
-        projectId: selectionPromptDraftProjectId,
-        threadId: selectionPromptDraftThreadId,
+        projectId: draftProjectId,
+        threadId: draftThreadId,
       }),
-    [selectionPromptDraftProjectId, selectionPromptDraftThreadId],
+    [draftProjectId, draftThreadId],
   );
-  const [composerFocusRequestNonce, setComposerFocusRequestNonce] = useState(0);
-  const [sentMessageEditSession, setSentMessageEditSession] =
-    useState<SentMessageEditSession | null>(null);
-  const [sentMessageEditHostElement, setSentMessageEditHostElement] =
-    useState<HTMLDivElement | null>(null);
-  const activeSentMessageEditSession =
-    sentMessageEditSession?.threadId === thread?.id
-      ? sentMessageEditSession
-      : null;
-  const canEditSentMessages =
-    thread !== undefined &&
-    (threadProviderInfo?.capabilities.supportsSessionRewind ?? false) &&
-    thread.archivedAt === null &&
-    thread.deletedAt === null &&
-    !hasPendingInteraction &&
-    sentMessageEditSession === null &&
-    !sendMessage.isPending &&
-    !createQueuedMessage.isPending &&
-    !editMessage.isPending &&
-    !(timelineLoading && timelineRows.length === 0) &&
-    activeWorkflows.length === 0 &&
-    thread.activeBackgroundAgentCount === 0 &&
-    activeBackgroundCommands.length === 0;
-  const sentMessageEditEntryRef = useRef({ canEditSentMessages, thread });
-  sentMessageEditEntryRef.current = { canEditSentMessages, thread };
-  const handleEditSentMessage = useCallback<ThreadTimelineEditMessageHandler>(
-    (target: ThreadTimelineEditMessageTarget) => {
-      const current = sentMessageEditEntryRef.current;
-      if (!current.thread || !current.canEditSentMessages) {
-        return;
-      }
-      const editDraft = promptInputToDraft(target.input);
-      setSentMessageEditHostElement(null);
-      setSentMessageEditSession({
-        draft: editDraft,
-        operationId: nanoid(),
-        target,
-        threadId: current.thread.id,
-      });
-    },
-    [],
-  );
-  const sentMessageEditThreadId = sentMessageEditSession?.threadId ?? null;
-  const sentMessageEditTargetMessageId =
-    sentMessageEditSession?.target.messageId ?? null;
-  const currentThreadId = thread?.id ?? null;
-  const sentMessageEditTargetStillPresent =
-    sentMessageEditThreadId === currentThreadId &&
-    sentMessageEditTargetMessageId !== null
-      ? hasTimelineRowId(timelineRows, sentMessageEditTargetMessageId)
-      : true;
-  const shouldDiscardMissingSentMessageEdit =
-    sentMessageEditThreadId !== null &&
-    sentMessageEditThreadId === currentThreadId &&
-    !timelineLoading &&
-    !sentMessageEditTargetStillPresent;
-  useEffect(() => {
-    if (!shouldDiscardMissingSentMessageEdit) {
-      return;
-    }
-    setSentMessageEditHostElement(null);
-    setSentMessageEditSession(null);
-    appToast.warning("The message being edited is no longer available.");
-  }, [shouldDiscardMissingSentMessageEdit]);
-  const activeSentMessageEditOperationId =
-    activeSentMessageEditSession?.operationId ?? null;
-  const updateSentMessageEditDraft = useCallback(
-    (update: (current: PromptDraftState) => PromptDraftState) => {
-      setSentMessageEditSession((current) =>
-        current?.operationId === activeSentMessageEditOperationId
-          ? { ...current, draft: update(current.draft) }
-          : current,
-      );
-    },
-    [activeSentMessageEditOperationId],
-  );
-  const closeSentMessageEdit = useCallback((operationId: string) => {
-    setSentMessageEditSession((current) =>
-      current?.operationId === operationId ? null : current,
-    );
-  }, []);
-  const cancelSentMessageEdit = useCallback(() => {
-    if (!activeSentMessageEditSession) {
-      return;
-    }
-    closeSentMessageEdit(activeSentMessageEditSession.operationId);
-  }, [activeSentMessageEditSession, closeSentMessageEdit]);
-  const submitSentMessageEdit = useCallback<
-    ThreadDetailSentMessageEdit["onSubmit"]
-  >(
-    (target) => {
-      if (!activeSentMessageEditSession) {
-        return;
-      }
-      const session = activeSentMessageEditSession;
-      const execution = target.execution;
-      void editMessage
-        .mutateAsync({
-          id: session.threadId,
-          operationId: session.operationId,
-          expectedRequestSequence: session.target.expectedRequestSequence,
-          input: target.input,
-          ...(execution
-            ? {
-                model: execution.model,
-                permissionMode: execution.permissionMode,
-                reasoningLevel: execution.reasoningLevel,
-                executionInputSources: execution.executionInputSources,
-                ...(execution.supportsServiceTier && execution.serviceTier
-                  ? { serviceTier: execution.serviceTier }
-                  : {}),
-              }
-            : {}),
-        })
-        .then(() => {
-          closeSentMessageEdit(session.operationId);
-        })
-        .catch((error) => {
-          showMutationErrorToast({
-            error,
-            fallbackMessage: "Failed to edit the message",
-            lifecycleOperation: "edit_message",
-          });
-        });
-    },
-    [activeSentMessageEditSession, closeSentMessageEdit, editMessage],
-  );
-  const activeSentMessageEditTargetMessageId =
-    activeSentMessageEditSession?.target.messageId ?? null;
-  const inlineMessageEditor = useMemo<
-    ThreadTimelineInlineMessageEditor | undefined
-  >(
-    () =>
-      activeSentMessageEditTargetMessageId !== null
-        ? {
-            messageId: activeSentMessageEditTargetMessageId,
-            onHostElementChange: setSentMessageEditHostElement,
-          }
-        : undefined,
-    [activeSentMessageEditTargetMessageId],
-  );
-  const sentMessageEdit = useMemo<ThreadDetailSentMessageEdit | undefined>(
-    () =>
-      activeSentMessageEditSession
-        ? {
-            draft: activeSentMessageEditSession.draft,
-            hostElement: sentMessageEditHostElement,
-            isSubmitting: editMessage.isPending,
-            operationId: activeSentMessageEditSession.operationId,
-            onCancel: cancelSentMessageEdit,
-            onSubmit: submitSentMessageEdit,
-            updateDraft: updateSentMessageEditDraft,
-          }
-        : undefined,
-    [
-      activeSentMessageEditSession,
-      cancelSentMessageEdit,
-      editMessage.isPending,
-      sentMessageEditHostElement,
-      submitSentMessageEdit,
-      updateSentMessageEditDraft,
-    ],
-  );
+  const [composerFocusNonce, setComposerFocusNonce] = useState(0);
   useEffect(
     () =>
-      subscribeComposerFocusRequests(selectionPromptDraft.storageKey, () =>
-        setComposerFocusRequestNonce((nonce) => nonce + 1),
+      subscribeComposerFocusRequests(promptDraft.storageKey, () =>
+        setComposerFocusNonce((nonce) => nonce + 1),
       ),
-    [selectionPromptDraft.storageKey],
+    [promptDraft.storageKey],
   );
-  const composerActions = useMemo(
-    () =>
-      createCoreComposerActions({
-        ...selectionPromptDraft,
-        focus: () => setComposerFocusRequestNonce((nonce) => nonce + 1),
-      }),
-    [selectionPromptDraft],
-  );
-  const handleSelectionAddToChat = useCallback(
-    (text: string, attachments?: readonly PromptDraftAttachment[]) => {
-      composerActions.replace((current) =>
+  const addToChat = (
+    text: string,
+    attachments?: readonly PromptDraftAttachment[],
+  ) => {
+    createCoreComposerActions({ ...promptDraft, focus: () => {} }).replace(
+      (current) =>
         appendQuoteAndAttachmentsToDraft(current, text, attachments ?? []),
-      );
-      composerActions.focus();
-    },
-    [composerActions],
+    );
+    setComposerFocusNonce((nonce) => nonce + 1);
+  };
+
+  const workspaceRootPath = environment?.path ?? null;
+  const openTargets = useOpenTargets(
+    executionUnavailable ? null : (environment?.hostId ?? null),
   );
-  const canUseGitUi = !executionUnavailable && gitDiffTabStatus === "eligible";
-  const canCreateTerminal =
-    !executionUnavailable &&
-    thread?.environmentId !== null &&
-    thread?.environmentId !== undefined &&
-    environment?.status === "ready" &&
-    connectedHostIds.has(environment.hostId);
+  const { openPath, preferredDirectoryTarget } = openTargets;
+  const panel = useThreadPanel({
+    threadId,
+    thread,
+    environment,
+    environmentLoadFailed: environmentQuery.isError,
+    executionUnavailable,
+    hostConnected: environmentHost?.status === "connected",
+    isFocused,
+    openTargets,
+  });
+  const { canUseGitUi } = panel;
   const createThreadInEnvironment = useCreateThreadInEnvironment({
     projectId,
     environmentId: thread?.environmentId ?? "",
     sectionId: thread?.sectionId ?? null,
     pinned: thread?.pinnedAt != null,
   });
-  const { providers: registeredEnvironmentProviders } =
-    useSystemEnvironmentProviders();
-  const panel = useThreadPanel({
-    threadId,
-    thread,
-    environment,
-    isFocused,
-    canUseGitUi,
-    canCreateTerminal,
-    showsGitDiffTab: gitDiffTabStatus !== "ineligible",
-  });
-  const {
-    isLoadingMergeBaseBranchOptions,
-    mergeBaseBranchOptions,
-    mergeBaseRemoteBranchOptions,
-    onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
-    openChangedFile: handleChangedFileClick,
-    openCommitDiff: openSecondaryPanelCommitDiff,
-    openDiffFile: openSecondaryPanelDiffFile,
-    openHostFile,
-    openPluginPanel,
-    openWorkspaceFile,
-    requestedMergeBaseBranch,
-    selectedMergeBaseBranch,
-    selectedMergeBaseBranchRef,
-    setMergeBaseBranchSearchQuery,
-    setSelectedMergeBaseBranch,
-  } = panel;
-  const { threadPanels: pluginThreadPanelActions } = usePluginSlots();
-  const handleOpenTimelinePluginPanel =
-    useCallback<ThreadTimelineOpenPluginPanelHandler>(
-      ({ pluginId, actionId, title, params }) => {
-        const action = pluginThreadPanelActions.find(
-          (candidate) =>
-            candidate.pluginId === pluginId && candidate.id === actionId,
-        );
-        if (action === undefined) return false;
-        let paramsJson: string | null;
-        try {
-          paramsJson = serializePluginPanelParams(params);
-        } catch (error) {
-          console.warn(
-            `[plugin:${pluginId}] messageDirective openThreadPanel params are invalid: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          return false;
-        }
-        openPluginPanel({
-          pluginId,
-          actionId,
-          title: title ?? action.title,
-          paramsJson,
-        });
-        return true;
-      },
-      [openPluginPanel, pluginThreadPanelActions],
-    );
-  const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
-    (resource) => {
-      if (resource.kind === "thread") {
-        const targetProjectId = resource.projectId ?? projectId;
-        if (!targetProjectId) return null;
-        return () =>
-          navigateInPane({
-            projectId: targetProjectId,
-            threadId: resource.threadId,
-          });
-      }
-      if (resource.kind === "project") {
-        return () => navigate(getProjectComposeRoutePath(resource.projectId));
-      }
-      if (resource.kind !== "path" || resource.entryKind !== "file") {
-        return null;
-      }
-      if (resource.source === "thread-storage" || !thread?.environmentId) {
-        return null;
-      }
-      return () =>
-        openWorkspaceFile({
-          lineRange: null,
-          path: resource.path,
-          source: { kind: "working-tree" },
-          statusLabel: null,
-        });
-    },
-    [
-      navigate,
-      navigateInPane,
-      openWorkspaceFile,
-      projectId,
-      thread?.environmentId,
-    ],
-  );
+  const { providers: environmentProviders } = useSystemEnvironmentProviders();
+  const resolveMentionLink: PromptMentionLinkResolver = (resource) => {
+    if (resource.kind === "thread") {
+      const targetProjectId = resource.projectId ?? projectId;
+      return targetProjectId
+        ? () =>
+            navigateInPane({
+              projectId: targetProjectId,
+              threadId: resource.threadId,
+            })
+        : null;
+    }
+    if (resource.kind === "project") {
+      return () => navigate(getProjectComposeRoutePath(resource.projectId));
+    }
+    if (resource.kind !== "path" || resource.entryKind !== "file") return null;
+    return resource.source !== "thread-storage" && thread?.environmentId
+      ? () => panel.previewWorkspaceFile(resource.path)
+      : null;
+  };
+  const whenFocused = (run: () => boolean | void) => () =>
+    isFocused && run() !== false;
   const workStatusQuery = useEnvironmentWorkStatus(
     thread?.environmentId,
-    requestedMergeBaseBranch,
-    {
-      enabled: canUseGitUi && environment !== undefined,
-    },
+    panel.requestedMergeBaseBranch,
+    { enabled: canUseGitUi && environment !== undefined },
   );
-  const workspaceStatusError = workStatusQuery.error;
-  const workStatusResponse = workspaceStatusError
-    ? undefined
-    : workStatusQuery.data;
+  const workStatus = workStatusQuery.error ? undefined : workStatusQuery.data;
   const workspaceStatus =
-    workStatusResponse?.outcome === "available"
-      ? workStatusResponse.workspace
-      : undefined;
+    workStatus?.outcome === "available" ? workStatus.workspace : undefined;
   const workspaceUnavailable =
-    workStatusResponse?.outcome === "unavailable"
-      ? workStatusResponse.failure
-      : undefined;
-  const workspaceBranch = workspaceStatus?.branch;
-  const workspaceChangedFilesSection = useMemo(
-    () => selectWorkspaceChangedFilesSection(workspaceStatus),
-    [workspaceStatus],
-  );
-  const workingTreeChangedFilesSection = useMemo(() => {
-    if (
-      workspaceChangedFilesSection === null ||
-      workspaceChangedFilesSection.kind === "committed"
-    ) {
-      return null;
-    }
-    return workspaceChangedFilesSection;
-  }, [workspaceChangedFilesSection]);
+    workStatus?.outcome === "unavailable" ? workStatus.failure : undefined;
+  const changedFilesSection =
+    selectWorkspaceChangedFilesSection(workspaceStatus);
   const localHostId = useLocalHostId();
-  const threadEnvironmentIsLocal = environment
-    ? environment.hostId === localHostId
-    : false;
-  const removedEnvironmentHostName =
+  const removedHostName =
     environment !== undefined && environment.hostLifecycle !== "active"
-      ? (threadDetailBootstrapQuery.data?.environmentHostName ?? null)
+      ? (bootstrapQuery.data?.environmentHostName ?? null)
       : null;
-  const environmentDisplayHostContext = useMemo<EnvironmentDisplayHostContext>(
+  const isLocalEnvironment =
+    environment !== undefined && environment.hostId === localHostId;
+  const environmentDisplayHost = useMemo(
     () => ({
-      locality: threadEnvironmentIsLocal ? "local" : "remote",
-      identity: threadEnvironmentHost
+      locality: isLocalEnvironment ? ("local" as const) : ("remote" as const),
+      identity: ambiguousHost
         ? {
-            name: threadEnvironmentHost.name,
-            connected: threadEnvironmentHost.status === "connected",
+            name: ambiguousHost.name,
+            connected: ambiguousHost.status === "connected",
           }
-        : removedEnvironmentHostName
-          ? {
-              name: removedEnvironmentHostName,
-              connected: false,
-            }
+        : removedHostName
+          ? { name: removedHostName, connected: false }
           : null,
     }),
-    [
-      removedEnvironmentHostName,
-      threadEnvironmentIsLocal,
-      threadEnvironmentHost,
-    ],
+    [ambiguousHost, isLocalEnvironment, removedHostName],
   );
-  const workspacePreviewRootPath = environment?.path ?? null;
-  const {
-    directoryTargets,
-    fileTargets,
-    openInPreferredFileTarget,
-    openPath,
-    preferredDirectoryTarget,
-  } = useOpenTargets(
-    executionUnavailable ? null : (environment?.hostId ?? null),
-  );
-  const parentThreadSection: ThreadPromptParentThreadSection | null =
-    useMemo(() => {
-      const relatedThreadId =
-        threadOriginKind !== null
-          ? threadSourceThreadId
-          : thread?.parentThreadId;
-      if (!thread || !relatedThreadId) return null;
-      const relationship = threadOriginKind === "fork" ? "fork" : "parent";
-      const relatedThread =
-        relationship === "parent" ? parentThread : sourceThread;
-      const href = getThreadRoutePath({
-        projectId: relatedThread?.projectId ?? thread.projectId,
-        threadId: relatedThreadId,
-      });
-      if (relatedThread === undefined) {
-        return {
-          parentThreadTitle: relatedThreadId.slice(0, 8),
-          href,
-          relationship,
-        };
-      }
-      if (
-        relatedThread.archivedAt !== null ||
+  const relatedThreadId =
+    originKind !== null ? sourceThreadId : thread?.parentThreadId;
+  const relationship: "fork" | "parent" =
+    originKind === "fork" ? "fork" : "parent";
+  const relatedThread = relationship === "parent" ? parentThread : sourceThread;
+  const parentThreadSection =
+    !thread ||
+    !relatedThreadId ||
+    (relatedThread !== undefined &&
+      (relatedThread.archivedAt !== null ||
         relatedThread.deletedAt !== null ||
         (relationship !== "parent" &&
-          relatedThread.projectId !== thread.projectId)
-      ) {
-        return null;
-      }
-      return {
-        parentThreadTitle: getThreadDisplayTitle(relatedThread),
-        href,
-        relationship,
-      };
-    }, [
-      parentThread,
-      sourceThread,
-      thread,
-      threadOriginKind,
-      threadSourceThreadId,
-    ]);
-  const childThreadsSection: ThreadPromptChildThreadsSection | null =
-    useMemo(() => {
-      const list = childThreadSubsetQuery.data ?? [];
-      const activeItems = list
+          relatedThread.projectId !== thread.projectId)))
+      ? null
+      : {
+          parentThreadTitle: relatedThread
+            ? getThreadDisplayTitle(relatedThread)
+            : relatedThreadId.slice(0, 8),
+          href: getThreadRoutePath({
+            projectId: relatedThread?.projectId ?? thread.projectId,
+            threadId: relatedThreadId,
+          }),
+          relationship,
+        };
+  const activeChildThreads = useMemo(
+    () =>
+      (childThreadsQuery.data ?? [])
         .filter(
           (entry) =>
             entry.originKind === null &&
@@ -811,33 +333,20 @@ export function ThreadDetailView(
           }),
           hasPendingInteraction: entry.hasPendingInteraction,
         }))
-        .sort((left, right) =>
-          left.hasPendingInteraction === right.hasPendingInteraction
-            ? 0
-            : left.hasPendingInteraction
-              ? -1
-              : 1,
-        );
-      if (activeItems.length === 0) return null;
-      return { items: activeItems };
-    }, [childThreadSubsetQuery.data]);
-  const childPendingInteractions = useChildThreadPendingAttention(
-    childThreadsSection?.items ?? EMPTY_CHILD_THREAD_ITEMS,
+        .sort(
+          (left, right) =>
+            Number(right.hasPendingInteraction) -
+            Number(left.hasPendingInteraction),
+        ),
+    [childThreadsQuery.data],
   );
-  const isThreadTimelinePending = timelineLoading && timelineRows.length === 0;
-  useThreadReadTracking({
-    markThreadRead,
-    thread,
-  });
-  const {
-    effectiveMergeBaseBranch,
-    handleMergeBaseBranchChange,
-    showBranchComparisonUi,
-    showMergeBase,
-  } = useEnvironmentMergeBase({
+  const childPendingInteractions =
+    useChildThreadPendingAttention(activeChildThreads);
+  useThreadReadTracking({ markThreadRead, thread });
+  const mergeBase = useEnvironmentMergeBase({
     environment,
-    selectedMergeBaseBranch,
-    setSelectedMergeBaseBranch,
+    selectedMergeBaseBranch: panel.selectedMergeBaseBranch,
+    setSelectedMergeBaseBranch: panel.setSelectedMergeBaseBranch,
     thread,
     updateEnvironment,
     workspaceStatus,
@@ -848,159 +357,32 @@ export function ThreadDetailView(
     thread,
     workspaceStatus,
   });
-  const parentThreadId = thread?.parentThreadId;
-  const parentThreadDisplayName =
-    parentThread?.title && parentThread.title.trim().length > 0
-      ? parentThread.title
-      : parentThreadId;
-  const handleAssignParent = useCallback(
-    (nextParentThreadId: string | null) => {
-      if (!thread || updateThread.isPending) {
-        return;
-      }
-
-      updateThread.mutate({
-        id: thread.id,
-        parentThreadId: nextParentThreadId,
-      });
-    },
-    [thread, updateThread],
-  );
-  const handleTimelineLocalFileLinkResolution = useCallback(
-    (resolution: ThreadLocalFileLinkResolution) => {
-      if (resolution.kind === "app-route") {
-        return false;
-      }
-      if (resolution.kind === "error") {
-        appToast.error("Failed to open file locally", {
-          description: resolution.description,
-        });
-        return true;
-      }
-
-      if (resolution.kind === "open-workspace-path") {
-        openWorkspaceFile({
-          lineRange: resolution.request.lineRange,
-          path: resolution.request.relativePath,
-          source: { kind: "working-tree" },
-          statusLabel: null,
-        });
-        return true;
-      }
-
-      if (resolution.kind === "open-thread-storage-path") {
-        return false;
-      }
-
-      openHostFile({
-        lineRange: resolution.request.lineRange,
-        path: resolution.request.path,
-      });
-      return true;
-    },
-    [openHostFile, openWorkspaceFile],
-  );
-  const handleOpenTimelineLocalFileLink = useCallback(
-    (link: ThreadTimelineLocalFileLink) => {
-      return handleTimelineLocalFileLinkResolution(
-        resolveThreadLocalFileLink({
-          hostFileLinksAvailable:
-            thread?.environmentId !== null &&
-            thread?.environmentId !== undefined,
-          link,
-          threadStorageRootPath: null,
-          workspaceRootPath: workspacePreviewRootPath,
-        }),
-      );
-    },
-    [
-      handleTimelineLocalFileLinkResolution,
-      thread?.environmentId,
-      workspacePreviewRootPath,
-    ],
-  );
-  const handleOpenTimelineLink = useCallback<ThreadTimelineLinkHandler>(
-    ({ href }) => openHttpUrlInExternalBrowser(href),
-    [],
-  );
-  const handleTimelineTitleAction = useCallback<TimelineTitleActionResolver>(
-    (action) => () => {
-      openSecondaryPanelDiffFile(action.path);
-    },
-    [openSecondaryPanelDiffFile],
-  );
-  const handleOpenFileInEditor = useMemo(
-    () =>
-      buildOpenInEditorHandler({
-        rootPath: workspacePreviewRootPath,
-        openInPreferredTarget: openInPreferredFileTarget,
-      }),
-    [openInPreferredFileTarget, workspacePreviewRootPath],
-  );
-  const workspaceOpenPath = preferredDirectoryTarget
-    ? (environment?.path ?? null)
-    : null;
-  usePublishThreadPanelOpener(handleOpenTimelinePluginPanel, isFocused);
-  useAppCommandHandler("workspace.openPreferred", () => {
-    if (!isFocused) return false;
-    if (workspaceOpenPath && preferredDirectoryTarget) {
+  const workspaceOpenPath = preferredDirectoryTarget ? workspaceRootPath : null;
+  useAppCommandHandler(
+    "workspace.openPreferred",
+    whenFocused(() => {
+      if (!workspaceOpenPath || !preferredDirectoryTarget) return false;
       void openPath(preferredDirectoryTarget, {
         lineNumber: null,
         path: workspaceOpenPath,
       });
-      return true;
-    }
-    return false;
-  });
-  const getLocalFileContextMenuItems = useCallback(
-    (link: ThreadTimelineLocalFileLink) => {
-      const lineNumber = getFilePreviewLineRangeStart({
-        lineRange: link.lineRange,
-      });
-      const openTargetItems = fileTargets.map((target) => ({
-        id: `open-target:${target.id}`,
-        label: `Open in ${target.label}`,
-        onSelect: () => {
-          void openPath(target, { lineNumber, path: link.path });
-        },
-      }));
-      const items: MarkdownLocalFileContextMenuItem[] = [];
-      if (openTargetItems.length > 0) {
-        items.push({
-          id: "open-in",
-          items: openTargetItems,
-          label: "Open in",
-          type: "submenu",
-        });
-      }
-      if (items.length > 0) {
-        items.push({ id: "copy-separator", type: "separator" });
-      }
-      items.push(
-        {
-          id: "copy-path",
-          label: "Copy file path",
-          onSelect: () => {
-            void copyToClipboardWithToast(link.path, {
-              successMessage: "File path copied",
-              errorMessage: "Failed to copy file path",
-            });
-          },
-        },
-        {
-          id: "copy-name",
-          label: "Copy file name",
-          onSelect: () => {
-            void copyToClipboardWithToast(getFileBasename(link.path), {
-              successMessage: "File name copied",
-              errorMessage: "Failed to copy file name",
-            });
-          },
-        },
-      );
-      return items;
-    },
-    [fileTargets, openPath],
+    }),
+  );
+  const visibleThread =
+    thread && thread.projectId === projectId ? thread : undefined;
+  useAppCommandHandler(
+    "thread.archive",
+    whenFocused(() => {
+      if (!visibleThread || visibleThread.archivedAt !== null) return false;
+      threadActions.requestArchive(visibleThread);
+    }),
+  );
+  useAppCommandHandler(
+    "thread.rename",
+    whenFocused(() => {
+      if (!visibleThread) return false;
+      threadActions.requestRename(visibleThread);
+    }),
   );
 
   if (threadQueryState.status === "loading") {
@@ -1010,310 +392,281 @@ export function ThreadDetailView(
     return (
       <PageShell contentClassName="min-h-full items-center justify-center">
         <p className="py-12 text-center text-sm text-destructive">
-          {error ? "Failed to load thread." : "Not found"}
+          {threadQuery.error ? "Failed to load thread." : "Not found"}
         </p>
       </PageShell>
     );
   }
-  const canAssignToParent = isThreadRoot;
-  const canTakeOverThread = Boolean(thread.parentThreadId);
-  const environmentProvisioningFailure =
-    thread.status === "error" && thread.environmentId === null
-      ? hasThreadProvisioningFailure(timelineRows)
-      : false;
-  const threadEnvironmentProviderLookup = findEnvironmentDisplayProvider(
-    registeredEnvironmentProviders,
+  const providerLookup = findEnvironmentDisplayProvider(
+    environmentProviders,
     environment?.environmentProviderId ?? null,
   );
-  const threadEnvironmentDisplay = environment
-    ? formatEnvironmentDisplay({
-        environment,
-        host: environmentDisplayHostContext,
-        providerLookup: threadEnvironmentProviderLookup,
-      })
-    : undefined;
-  const composerEnvironmentChrome = threadEnvironmentDisplay
+  const environmentChrome = environment
     ? getEnvironmentSummaryChrome({
-        display: threadEnvironmentDisplay,
-        providerLookup: threadEnvironmentProviderLookup,
+        display: formatEnvironmentDisplay({
+          environment,
+          host: environmentDisplayHost,
+          providerLookup,
+        }),
+        providerLookup,
         hasMultipleMachines,
-        host: resolvedThreadEnvironmentHost,
+        host: environmentHost,
       })
-    : undefined;
-  const isThreadOnReusableEnvironment =
-    !executionUnavailable &&
-    environment !== undefined &&
-    environment.status === "ready" &&
-    environment.path !== null;
-  const onCreateNewThreadInEnvironment =
-    isThreadOnReusableEnvironment && projectId && thread.environmentId !== null
-      ? createThreadInEnvironment
-      : undefined;
-  const promptBannerMergeBaseBranch = effectiveMergeBaseBranch;
-  const threadBranchName = workspaceBranch?.currentBranch ?? undefined;
-  const threadCheckoutDisplay = workspaceStatus
-    ? formatWorkspaceCheckoutDisplay({ checkout: workspaceStatus.checkout })
     : undefined;
   const isWorkspaceDeleted = environment?.status === "destroyed";
-  const threadEnvironmentGoneStatus =
-    hostLifecycle ??
-    (environment?.status === "destroyed" ? environment.status : null);
-  const threadGitStatusDisplay = getGitStatusDisplay(workspaceStatus, {
-    mergeBaseBranch: effectiveMergeBaseBranch,
-    showBranchComparison: showBranchComparisonUi,
-    error: workspaceStatusError,
-    workspaceUnavailable,
-    workspaceDeleted: isWorkspaceDeleted,
-  });
-  const threadTitle = getThreadDisplayTitle(thread);
-  const responsiveWorkspaceActions: ThreadActionsMenuResponsiveAction[] =
-    workspaceOpenPath && preferredDirectoryTarget
+  const headerGitActions = executionUnavailable
+    ? []
+    : gitActions.threadHeaderGitActions;
+  const openGitAction = gitActions.threadGitActionDialog.onOpen;
+  const directoryTarget = workspaceRootPath ? preferredDirectoryTarget : null;
+  const openWorkspaceIn = (target: NonNullable<typeof directoryTarget>) =>
+    openPath(target, { lineNumber: null, path: workspaceRootPath ?? "" });
+  const responsiveActions = [
+    ...(directoryTarget
       ? [
-          preferredDirectoryTarget,
-          ...directoryTargets.filter(
-            (target) => target.id !== preferredDirectoryTarget.id,
+          directoryTarget,
+          ...openTargets.directoryTargets.filter(
+            (target) => target.id !== directoryTarget.id,
           ),
         ].map((target) => ({
           icon: "FolderOpen" as const,
           label: `Open workspace in ${target.label}`,
-          onSelect: () =>
-            openPath(target, { lineNumber: null, path: workspaceOpenPath }),
+          onSelect: () => openWorkspaceIn(target),
         }))
-      : [];
-  const responsiveGitActions: ThreadActionsMenuResponsiveAction[] = (
-    executionUnavailable ? [] : gitActions.threadHeaderGitActions
-  ).map((action) => ({
-    icon: "GitBranch" as const,
-    label: action.label,
-    onSelect: () => {
-      gitActions.threadGitActionDialog.onOpen(action.target);
-    },
-  }));
-  const responsiveHeaderActions = [
-    ...responsiveWorkspaceActions,
-    ...responsiveGitActions,
+      : []),
+    ...headerGitActions.map((action) => ({
+      icon: "GitBranch" as const,
+      label: action.label,
+      onSelect: () => openGitAction(action.target),
+    })),
   ];
-  const workspaceOpenButton =
-    workspaceOpenPath && preferredDirectoryTarget ? (
-      <ThreadWorkspaceOpenButton
-        preferredTarget={preferredDirectoryTarget}
-        targets={directoryTargets}
-        onOpenTarget={(target) =>
-          openPath(target, { lineNumber: null, path: workspaceOpenPath })
-        }
-      />
-    ) : undefined;
-  const timelineHeader = (
+  const mergeBaseOptions = {
+    branchRef: panel.selectedMergeBaseBranchRef,
+    options: panel.mergeBaseBranchOptions,
+    remoteOptions: panel.mergeBaseRemoteBranchOptions,
+    optionsLoading: panel.isLoadingMergeBaseBranchOptions,
+  };
+  const header = (
     <ThreadDetailHeader
       actionsMenu={(includeResponsiveActions) => (
         <ThreadActionsMenu
           thread={thread}
           triggerClassName={HEADER_ICON_BUTTON_CLASS}
           responsiveActions={
-            includeResponsiveActions ? responsiveHeaderActions : undefined
+            includeResponsiveActions ? responsiveActions : undefined
           }
         />
       )}
-      childPillLabel={parentThreadId ? "child" : null}
+      showsChildPill={Boolean(thread.parentThreadId)}
       isSecondaryPanelOpen={panel.isOpen}
-      onClosePane={onRequestClose ?? undefined}
-      onOpenThreadGitAction={gitActions.threadGitActionDialog.onOpen}
+      onOpenThreadGitAction={openGitAction}
       onToggleSecondaryPanel={panel.toggle}
-      threadHeaderGitActions={
-        executionUnavailable ? [] : gitActions.threadHeaderGitActions
-      }
+      threadHeaderGitActions={headerGitActions}
       threadId={thread.id}
-      threadTitle={threadTitle}
-      workspaceOpenButton={workspaceOpenButton}
+      threadTitle={getThreadDisplayTitle(thread)}
+      workspaceOpenButton={
+        directoryTarget ? (
+          <ThreadWorkspaceOpenButton
+            preferredTarget={directoryTarget}
+            targets={openTargets.directoryTargets}
+            onOpenTarget={openWorkspaceIn}
+          />
+        ) : undefined
+      }
     />
   );
-  const composerFooter = (
+  const footer = (
     <ThreadDetailPromptArea
       activeBackgroundAgentCount={thread.activeBackgroundAgentCount}
       canUseGitUi={canUseGitUi}
-      contextWindowUsage={contextWindowUsage}
-      environmentCheckout={threadCheckoutDisplay}
-      environmentCompactLabel={
-        composerEnvironmentChrome?.environmentCompactLabel
+      contextWindowUsage={timeline.contextWindowUsage}
+      environmentCheckout={
+        workspaceStatus &&
+        formatWorkspaceCheckoutDisplay({ checkout: workspaceStatus.checkout })
       }
-      environmentHost={composerEnvironmentChrome?.environmentHost}
-      environmentIcon={composerEnvironmentChrome?.environmentIcon}
-      environmentLabel={composerEnvironmentChrome?.environmentLabel}
-      environmentProviderName={
-        composerEnvironmentChrome?.environmentProviderName
-      }
+      environmentCompactLabel={environmentChrome?.environmentCompactLabel}
+      environmentHost={environmentChrome?.environmentHost}
+      environmentIcon={environmentChrome?.environmentIcon}
+      environmentLabel={environmentChrome?.environmentLabel}
+      environmentProviderName={environmentChrome?.environmentProviderName}
       canRestoreEnvironment={thread.canRestoreEnvironment}
-      environmentGoneStatus={threadEnvironmentGoneStatus}
+      environmentGoneStatus={
+        hostLifecycle ?? (isWorkspaceDeleted ? "destroyed" : null)
+      }
       environmentHostId={environment?.hostId}
-      onCreateNewThreadInEnvironment={onCreateNewThreadInEnvironment}
-      onChangedFileClick={handleChangedFileClick}
+      onCreateNewThreadInEnvironment={
+        !executionUnavailable &&
+        environment?.status === "ready" &&
+        environment.path !== null &&
+        projectId &&
+        thread.environmentId !== null
+          ? createThreadInEnvironment
+          : undefined
+      }
+      onChangedFileClick={panel.openChangedFile}
       projectId={projectId}
       resolveMentionLink={resolveMentionLink}
-      workspaceChangedFilesSection={
-        canUseGitUi ? workspaceChangedFilesSection : null
-      }
+      workspaceChangedFilesSection={canUseGitUi ? changedFilesSection : null}
       workspaceStatusPending={
         canUseGitUi && (environmentQuery.isLoading || workStatusQuery.isLoading)
       }
       contextBannerMergeBase={
-        canUseGitUi && showMergeBase && promptBannerMergeBaseBranch
+        canUseGitUi &&
+        mergeBase.showMergeBase &&
+        mergeBase.effectiveMergeBaseBranch
           ? {
-              branch: promptBannerMergeBaseBranch,
-              branchRef: selectedMergeBaseBranchRef,
-              options: mergeBaseBranchOptions,
-              remoteOptions: mergeBaseRemoteBranchOptions,
-              optionsLoading: isLoadingMergeBaseBranchOptions,
-              onChange: handleMergeBaseBranchChange,
-              onPickerOpenChange: handleMergeBasePickerOpenChange,
-              onSearchQueryChange: setMergeBaseBranchSearchQuery,
+              ...mergeBaseOptions,
+              branch: mergeBase.effectiveMergeBaseBranch,
+              onChange: mergeBase.handleMergeBaseBranchChange,
+              onPickerOpenChange: panel.onMergeBasePickerOpenChange,
+              onSearchQueryChange: panel.setMergeBaseBranchSearchQuery,
             }
           : null
       }
-      composerFocusRequestNonce={composerFocusRequestNonce}
+      composerFocusRequestNonce={composerFocusNonce}
       sendMessage={sendMessage}
-      sentMessageEdit={sentMessageEdit}
       steerActiveThreadOnEnter={
         systemConfigQuery.data?.generalSettings.steerActiveThreadOnEnter ??
         defaultAppSettings.steerActiveThreadOnEnter
       }
       pendingInteractions={pendingInteractions}
-      pendingInteractionsInitialLoading={pendingInteractionsInitialLoading}
+      pendingInteractionsInitialLoading={isPendingInteractionStateUnknown(
+        pendingInteractionsQuery.data,
+        pendingInteractionsQuery.isFetching,
+      )}
       queuedMessageCount={thread.queuedMessageCount}
-      pendingTodos={pendingTodos}
-      activePromptMode={activePromptMode}
-      goal={goal}
-      modelFallback={modelFallback}
-      activeWorkflows={activeWorkflows}
-      activeBackgroundCommands={activeBackgroundCommands}
+      pendingTodos={timeline.pendingTodos}
+      activePromptMode={timeline.activePromptMode}
+      goal={timeline.goal}
+      modelFallback={timeline.modelFallback}
+      activeWorkflows={timeline.activeWorkflows}
+      activeBackgroundCommands={timeline.activeBackgroundCommands}
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
-      childThreadsSection={childThreadsSection}
+      childThreadsSection={
+        activeChildThreads.length > 0 ? { items: activeChildThreads } : null
+      }
       thread={thread}
     />
   );
-  const threadDetailContent = (
-    <MarkdownLocalFileContextMenuContext.Provider
-      value={getLocalFileContextMenuItems}
+  const metadata: ContentProps["metadata"] = {
+    thread,
+    projectId,
+    parentThreadProjectId: parentThread?.projectId ?? null,
+    parentThreadDisplayName:
+      (parentThread?.title?.trim()
+        ? parentThread.title
+        : thread.parentThreadId) ?? null,
+    parentThreads: loadsParentThreads
+      ? (parentThreadsQuery.data ?? NO_THREADS)
+      : NO_THREADS,
+    canAssignToParent: isThreadRoot,
+    canTakeOverThread: Boolean(thread.parentThreadId),
+    isLoadingParentThreads: parentThreadsQuery.isLoading,
+    isParentThreadsError: parentThreadsQuery.isError,
+    environment: environment ?? null,
+    environmentProvisioningFailure:
+      thread.status === "error" &&
+      thread.environmentId === null &&
+      hasThreadProvisioningFailure(timelineRows),
+    environmentDisplayHost,
+    workspaceStatus,
+    workspaceStatusError: workStatusQuery.error ?? null,
+    workspaceUnavailable,
+    selectedMergeBaseBranch: panel.selectedMergeBaseBranch,
+    mergeBaseBranchRef: mergeBaseOptions.branchRef,
+    mergeBaseBranchOptions: mergeBaseOptions.options,
+    mergeBaseRemoteBranchOptions: mergeBaseOptions.remoteOptions,
+    isLoadingMergeBaseBranchOptions: mergeBaseOptions.optionsLoading,
+    updateThreadPending: updateThread.isPending || updateEnvironment.isPending,
+    onAssignParent: (parentThreadId) => {
+      if (updateThread.isPending) return;
+      updateThread.mutate({ id: thread.id, parentThreadId });
+    },
+    onParentSelectorOpenChange: (open) => {
+      if (open) setParentThreadsRequestedFor(thread.id);
+    },
+    onRetryParentThreads: parentThreadsQuery.retry,
+    onMergeBaseBranchChange: mergeBase.handleMergeBaseBranchChange,
+    onMergeBasePickerOpenChange: panel.onMergeBasePickerOpenChange,
+    onMergeBaseBranchSearchQueryChange: panel.setMergeBaseBranchSearchQuery,
+    onChangedFileClick: canUseGitUi ? panel.openChangedFile : undefined,
+    onCommitClick: canUseGitUi ? panel.openCommitDiff : undefined,
+  };
+  const timelineProps: ContentProps["timeline"] = {
+    activeThinking: timeline.activeThinking,
+    contextBoundarySeq: timeline.contextBoundarySeq,
+    threadOriginKind: originKind,
+    hasOlderTimelineRows: timeline.hasOlderTimelineRows,
+    hostConnectionNotice:
+      thread.runtime.displayStatus === "waiting-for-host"
+        ? { label: `${ambiguousHost?.name ?? "Host"} disconnected` }
+        : null,
+    isLoadingOlderTimelineRows: timeline.isLoadingOlderTimelineRows,
+    isThreadTimelinePending: isTimelinePending,
+    timelineError: Boolean(timeline.timelineError),
+    onMessageAddToChat: addToChat,
+    onLoadOlderRows: timeline.loadOlderTimelineRows,
+    onOpenLink: openThreadLink,
+    onOpenLocalFileLink: panel.openLocalFileLink,
+    onOpenPluginPanel: panel.openPluginPanelFromTimeline,
+    onTitleAction: (action) => () => panel.openDiffFile(action.path),
+    projectId,
+    resolveMentionLink,
+    showOngoingIndicator:
+      thread.status !== "stopping" &&
+      !hasPendingInteraction &&
+      isRunningThreadRuntimeDisplayStatus(thread.runtime.displayStatus) &&
+      !isTimelinePending,
+    timelineRows,
+    isStopping: thread.status === "stopping",
+    stoppingAnchorAt: thread.updatedAt,
+    threadId: thread.id,
+    threadRuntimeDisplayStatus: thread.runtime.displayStatus,
+    unreadDividerAutoScroll: unreadDividerState.autoScroll,
+    unreadDividerPlacement: unreadDividerState.placement,
+    workspaceRootPath: environment?.path ?? undefined,
+  };
+
+  return (
+    <PluginThreadPanelNavigationProvider
+      openThreadPanel={panel.openPluginPanelFromTimeline}
     >
       <ThreadDetailSecondaryContent
-        footer={composerFooter}
-        header={timelineHeader}
+        header={header}
+        footer={footer}
         isMetadataLoading={environmentQuery.isLoading}
         isBoundedPane={isBoundedPane}
+        metadata={metadata}
+        onRetryGitDiffEligibility={() => {
+          void environmentQuery.refetch();
+        }}
         panel={panel}
-        environment={environment}
-        isFocused={isFocused}
-        canCreateTerminal={canCreateTerminal}
-        gitDiffTabStatus={gitDiffTabStatus}
-        onRetryGitDiffEligibility={() => void environmentQuery.refetch()}
-        onOpenLink={handleOpenTimelineLink}
-        onOpenLocalFileLink={handleOpenTimelineLocalFileLink}
         resolveMentionLink={resolveMentionLink}
-        onOpenFileInEditor={handleOpenFileInEditor}
-        openInPreferredFileTarget={openInPreferredFileTarget}
-        renderHostedPanel={(panel) => (
-          <MarkdownLocalFileContextMenuContext.Provider
-            value={getLocalFileContextMenuItems}
-          >
-            {panel}
-          </MarkdownLocalFileContextMenuContext.Provider>
-        )}
-        metadata={{
-          thread,
-          projectId,
-          parentThreadProjectId: parentThread?.projectId ?? null,
-          parentThreadDisplayName: parentThreadDisplayName ?? null,
-          parentThreads,
-          canAssignToParent,
-          canTakeOverThread,
-          isLoadingParentThreads: parentThreadSubsetQuery.isLoading,
-          isParentThreadsError: parentThreadSubsetQuery.isError,
-          environment: environment ?? null,
-          environmentProvisioningFailure,
-          environmentDisplayHost: environmentDisplayHostContext,
-          workspaceStatus,
-          workspaceStatusError: workspaceStatusError ?? null,
-          workspaceUnavailable,
-          selectedMergeBaseBranch,
-          mergeBaseBranchRef: selectedMergeBaseBranchRef,
-          mergeBaseBranchOptions,
-          mergeBaseRemoteBranchOptions,
-          isLoadingMergeBaseBranchOptions,
-          updateThreadPending:
-            updateThread.isPending || updateEnvironment.isPending,
-          onAssignParent: handleAssignParent,
-          onParentSelectorOpenChange: handleParentSelectorOpenChange,
-          onRetryParentThreads: handleRetryParentThreads,
-          onMergeBaseBranchChange: handleMergeBaseBranchChange,
-          onMergeBasePickerOpenChange: handleMergeBasePickerOpenChange,
-          onMergeBaseBranchSearchQueryChange: setMergeBaseBranchSearchQuery,
-          onChangedFileClick: canUseGitUi ? handleChangedFileClick : undefined,
-          onCommitClick: canUseGitUi ? openSecondaryPanelCommitDiff : undefined,
-        }}
-        timeline={{
-          activeThinking,
-          canSpawnChild: thread.canSpawnChild,
-          contextBoundarySeq,
-          threadOriginKind,
-          hasOlderTimelineRows,
-          hostConnectionNotice,
-          isLoadingOlderTimelineRows,
-          isThreadTimelinePending,
-          timelineError: Boolean(timelineError),
-          onForkMessage: isForkAvailable ? handleForkMessage : undefined,
-          onEditMessage: canEditSentMessages
-            ? handleEditSentMessage
-            : undefined,
-          inlineMessageEditor,
-          onMessageAddToChat: handleSelectionAddToChat,
-          onSelectionAddToChat: handleSelectionAddToChat,
-          onLoadOlderRows: loadOlderTimelineRows,
-          onOpenLink: handleOpenTimelineLink,
-          onOpenLocalFileLink: handleOpenTimelineLocalFileLink,
-          onOpenPluginPanel: handleOpenTimelinePluginPanel,
-          onTitleAction: handleTimelineTitleAction,
-          projectId,
-          resolveMentionLink,
-          showOngoingIndicator:
-            thread.status !== "stopping" &&
-            !hasPendingInteraction &&
-            isRunningThreadRuntimeDisplayStatus(thread.runtime.displayStatus) &&
-            !isThreadTimelinePending,
-          timelineRows,
-          isStopping: thread.status === "stopping",
-          stoppingAnchorAt: thread.updatedAt,
-          threadId: thread.id,
-          threadRuntimeDisplayStatus: thread.runtime.displayStatus,
-          unreadDividerAutoScroll: unreadDividerState.autoScroll,
-          unreadDividerPlacement: unreadDividerState.placement,
-          workspaceRootPath: environment?.path ?? undefined,
-        }}
+        timeline={timelineProps}
       />
       {canUseGitUi ? (
         <ThreadGitActionDialog
           target={gitActions.threadGitActionDialog.target}
-          branchName={threadBranchName}
-          gitStatusDisplay={threadGitStatusDisplay}
-          changedFilesSection={workingTreeChangedFilesSection}
+          branchName={workspaceStatus?.branch?.currentBranch ?? undefined}
+          gitStatusDisplay={getGitStatusDisplay(workspaceStatus, {
+            mergeBaseBranch: mergeBase.effectiveMergeBaseBranch,
+            showBranchComparison: mergeBase.showBranchComparisonUi,
+            error: workStatusQuery.error,
+            workspaceUnavailable,
+            workspaceDeleted: isWorkspaceDeleted,
+          })}
+          changedFilesSection={
+            changedFilesSection?.kind === "committed"
+              ? null
+              : changedFilesSection
+          }
           onOpenChange={(open) => {
-            if (!open) {
-              gitActions.threadGitActionDialog.onClose();
-            }
+            if (!open) gitActions.threadGitActionDialog.onClose();
           }}
           onCommit={gitActions.handleCommitThread}
         />
       ) : null}
-    </MarkdownLocalFileContextMenuContext.Provider>
-  );
-  return (
-    <>
-      <ThreadArchiveCommandHandler thread={thread} />
-      <ThreadRenameCommandHandler thread={thread} />
-      <PluginThreadPanelNavigationProvider
-        openThreadPanel={handleOpenTimelinePluginPanel}
-      >
-        {threadDetailContent}
-      </PluginThreadPanelNavigationProvider>
-    </>
+    </PluginThreadPanelNavigationProvider>
   );
 }

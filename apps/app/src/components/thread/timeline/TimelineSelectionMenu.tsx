@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import { preventOverlayTriggerSelection } from "@bb/shared-ui/overlay-trigger";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import type { MessageProseSelection } from "./SelectableMessageProse.js";
@@ -11,63 +11,20 @@ const SELECTION_ACTION_BUTTON_CLASS =
 const SELECTION_MENU_CONTENT_CLASS =
   "z-50 flex w-auto items-center gap-0.5 rounded-md border bg-popover p-0.5 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95";
 
-interface SelectionAction {
-  icon: IconName;
-  label: string;
-  onSelect: (selection: MessageProseSelection) => void;
-}
-
-export interface TimelineSelectionMenuProps {
-  selection: MessageProseSelection | null;
-  onAddToChat?: (text: string) => void;
-  onDismiss: () => void;
-}
-
-function ActionButton({
-  action,
-  onDismiss,
-  selection,
-}: {
-  action: SelectionAction;
-  onDismiss: () => void;
-  selection: MessageProseSelection;
-}) {
-  const activate = () => {
-    flushSync(() => {
-      action.onSelect(selection);
-      window.getSelection()?.removeAllRanges();
-      onDismiss();
-    });
-  };
-  return (
-    <button
-      type="button"
-      className={SELECTION_ACTION_BUTTON_CLASS}
-      onMouseDown={(event: MouseEvent) => preventOverlayTriggerSelection(event)}
-      onClick={() => {
-        activate();
-      }}
-    >
-      <Icon
-        name={action.icon}
-        className="size-3.5 text-muted-foreground"
-        aria-hidden="true"
-      />
-      {action.label}
-    </button>
-  );
-}
-
 export function TimelineSelectionMenu({
   selection,
   onAddToChat,
   onDismiss,
-}: TimelineSelectionMenuProps) {
+}: {
+  selection: MessageProseSelection | null;
+  onAddToChat?: (text: string) => void;
+  onDismiss: () => void;
+}) {
   const open = selection !== null;
   const portalScopeProps = usePortalScopeProps();
 
   useEffect(() => {
-    if (!open || typeof window === "undefined") return;
+    if (!open) return;
     const dismiss = () => onDismiss();
     window.addEventListener("scroll", dismiss, true);
     window.addEventListener("resize", dismiss);
@@ -97,21 +54,7 @@ export function TimelineSelectionMenu({
   const virtualAnchorRef = useRef(virtualAnchor);
   virtualAnchorRef.current = virtualAnchor;
 
-  if (!selection) return null;
-
-  const actions: SelectionAction[] = [
-    ...(onAddToChat
-      ? [
-          {
-            icon: "MessageSquarePlus" as const,
-            label: "Add to chat",
-            onSelect: (currentSelection: MessageProseSelection) =>
-              onAddToChat(currentSelection.text),
-          },
-        ]
-      : []),
-  ];
-  if (actions.length === 0) return null;
+  if (!selection || !onAddToChat) return null;
 
   return (
     <PopoverPrimitive.Root
@@ -133,21 +76,29 @@ export function TimelineSelectionMenu({
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
-          {actions.map((action, index) => (
-            <div key={action.label} className="flex items-center">
-              {index > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="mx-0.5 h-4 w-px bg-border"
-                />
-              ) : null}
-              <ActionButton
-                action={action}
-                onDismiss={onDismiss}
-                selection={selection}
+          <div className="flex items-center">
+            <button
+              type="button"
+              className={SELECTION_ACTION_BUTTON_CLASS}
+              onMouseDown={(event: MouseEvent) =>
+                preventOverlayTriggerSelection(event)
+              }
+              onClick={() => {
+                flushSync(() => {
+                  onAddToChat(selection.text);
+                  window.getSelection()?.removeAllRanges();
+                  onDismiss();
+                });
+              }}
+            >
+              <Icon
+                name="MessageSquarePlus"
+                className="size-3.5 text-muted-foreground"
+                aria-hidden="true"
               />
-            </div>
-          ))}
+              Add to chat
+            </button>
+          </div>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

@@ -1,9 +1,8 @@
 import type { ServerContext } from "../context.js";
-import { withSources } from "../db/projects.js";
+import { requireProject, withSources } from "../db/projects.js";
 import { requireEnvironment } from "../environments/workspace.js";
 import { ApiError } from "../http/errors.js";
 import { requireHost } from "../runners/hosts.js";
-import { requireProject } from "./require.js";
 
 export interface ProjectWorkspaceSelector {
   hostId?: string;
@@ -13,6 +12,16 @@ export interface ProjectWorkspaceSelector {
 export interface ProjectWorkspace {
   hostId: string;
   path: string | null;
+}
+
+export async function inspectProjectPath(
+  ctx: ServerContext,
+  hostId: string,
+  path: string,
+) {
+  if (!ctx.runners.isConnected(hostId)) return null;
+  const inspecting = ctx.runners.get(hostId).inspectPath({ path });
+  return inspecting.catch(() => null);
 }
 
 export function findProjectWorkspace(

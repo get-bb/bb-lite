@@ -18,7 +18,6 @@ import type {
   EnvironmentDiffPatchRequest,
   EnvironmentDiffPatchResponse,
   EnvironmentDiffQuery,
-  EnvironmentDiffResponse,
   EnvironmentDiffFilesResponse,
   EnvironmentPathsQuery,
   EnvironmentStatusResponse,
@@ -101,7 +100,6 @@ export interface EnvironmentPathsArgs extends EnvironmentPathsQuery {
 
 export type EnvironmentArchiveThreadsResult = EnvironmentArchiveThreadsResponse;
 export type EnvironmentCommitResult = CommitActionResponse;
-export type EnvironmentDiffResult = EnvironmentDiffResponse;
 export type EnvironmentDiffBranchesResult = EnvironmentDiffBranchesResponse;
 export type EnvironmentDiffFileResult = EnvironmentDiffFileResponse;
 export type EnvironmentDiffFilesResult = EnvironmentDiffFilesResponse;
@@ -136,12 +134,10 @@ export type EnvironmentListProvidersResult = SystemEnvironmentProvider[];
 const okResponseSchema = z.object({ ok: z.literal(true) });
 
 export interface EnvironmentsArea {
-  experimental_cleanup(args: EnvironmentActionArgs): Promise<{ ok: true }>;
   archiveThreads(
     args: EnvironmentActionArgs,
   ): Promise<EnvironmentArchiveThreadsResult>;
   commit(args: EnvironmentCommitArgs): Promise<EnvironmentCommitResult>;
-  diff(args: EnvironmentDiffArgs): Promise<EnvironmentDiffResult>;
   diffBranches(
     args: EnvironmentDiffBranchesArgs,
   ): Promise<EnvironmentDiffBranchesResult>;
@@ -268,17 +264,6 @@ export function createEnvironmentsArea(
       );
       return commitActionResponseSchema.parse(body);
     },
-    async diff(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"].diff.$get(
-          {
-            param: { id: input.environmentId },
-            query: environmentDiffQuery(input),
-          },
-          ...signalRequestArgs(input.signal),
-        ),
-      );
-    },
     async diffBranches(input) {
       return transport.readJson(
         transport.api.v1.environments[":id"].diff.branches.$get(
@@ -370,13 +355,6 @@ export function createEnvironmentsArea(
         ),
       );
       return response.providers;
-    },
-    async experimental_cleanup(input) {
-      return transport.readJson(
-        transport.api.v1.environments[":id"]["cleanup"].$post({
-          param: { id: input.environmentId },
-        }),
-      );
     },
     async delete(input) {
       const body = await transport.readJson(

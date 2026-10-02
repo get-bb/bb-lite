@@ -11,12 +11,11 @@ import {
   type SubmitTurnArgs,
 } from "@bb/runner";
 import { expect, it, onTestFinished } from "vitest";
-import { createTestServer } from "./helpers.js";
-import type { TestServer } from "./watch.js";
+import { createTestServer, type TestServer } from "./helpers.js";
 
 let turnCounter = 0;
 
-async function until<T>(read: () => T): Promise<NonNullable<T>> {
+async function until<T>(read: () => T) {
   for (const deadline = Date.now() + 10_000; ;) {
     const value = read();
     if (value) return value;
@@ -121,7 +120,7 @@ async function enrollMachine(server: TestServer) {
   return { hostId, dataDir, relay, ...tools };
 }
 
-function expectConsecutive(seen: { seq: number }[]): void {
+function expectConsecutive(seen: { seq: number }[]) {
   const seqs = seen.map((batch) => batch.seq);
   expect(seqs).toEqual(seqs.map((_seq, index) => index + 1));
 }
@@ -165,7 +164,7 @@ it("keeps a turn alive across a dropped socket without duplicates", async () => 
   await machine.run();
   await machine.connected();
   const { instanceId } = await machine.remote().describe();
-  let release = (): void => {};
+  let release = () => {};
   const slow = "stream:12 pace:150 survive the gap";
   await machine.remote().submitTurn(turn("thr_gap", slow));
   await until(() => machine.types().includes("item/agentMessage/delta"));

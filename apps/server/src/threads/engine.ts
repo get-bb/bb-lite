@@ -1,10 +1,4 @@
-import {
-  threadScope,
-  type QueuedMessageWaitingOn,
-  type QueuedMessageWaitingOnKind,
-  type ThreadChangeMetadata,
-  type ThreadLifecycleEventType,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import type { ThreadResponse } from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
@@ -14,8 +8,7 @@ import * as eventLog from "../db/events.js";
 import * as queue from "../db/queued-messages.js";
 import { findThreadListRow } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
-import { onProjectDeleted } from "../projects/remove.js";
+import { ApiError, threadNotFound } from "../http/errors.js";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
 import * as dispatching from "./dispatch.js";
@@ -98,9 +91,7 @@ export class Engine {
   }
 
   requireThread(threadId: string): ThreadRow {
-    const thread = store.getThread(this.ctx.db, threadId);
-    if (thread !== undefined && thread.deletedAt === null) return thread;
-    throw core.threadNotFound();
+    return store.requireThread(this.ctx.db, threadId);
   }
 
   hostOf(thread: ThreadRow): string | null {
@@ -117,11 +108,11 @@ export class Engine {
 
   private listed(threadId: string) {
     const row = findThreadListRow(this.ctx.db, threadId);
-    if (row === undefined) throw core.threadNotFound();
+    if (row === undefined) throw threadNotFound();
     return row;
   }
 
-  statusMetadata(threadId: string): ThreadChangeMetadata {
+  statusMetadata(threadId: string): domain.ThreadChangeMetadata {
     const [entry] = toThreadListEntries(this.ctx, [this.listed(threadId)]);
     const { projectId, status, runtime, activity } = entry;
     const { latestAttentionAt, updatedAt } = entry;
@@ -163,7 +154,7 @@ export class Engine {
   transition(
     out: Outbox,
     threadId: string,
-    type: ThreadLifecycleEventType,
+    type: domain.ThreadLifecycleEventType,
   ): store.LifecycleOutcome {
     const outcome = store.applyLifecycleEvent(this.ctx.db, threadId, type);
     if (!outcome.applied) return outcome;
@@ -179,7 +170,7 @@ export class Engine {
     failure: ThreadFailure,
     failureContext?: string,
   ): void {
-    const scope = threadScope();
+    const scope = domain.threadScope();
     this.append(out, thread, [{ type: "system/error", scope, ...failure }]);
     const stopping = thread.status === "stopping";
     const settlement = stopping ? "stop.settled" : "run.failed";
@@ -192,8 +183,8 @@ export class Engine {
   relabelWaits(
     out: Outbox,
     threadId: string,
-    from: readonly (QueuedMessageWaitingOnKind | null)[],
-    to: QueuedMessageWaitingOn | null,
+    from: readonly (domain.QueuedMessageWaitingOnKind | null)[],
+    to: domain.QueuedMessageWaitingOn | null,
   ): void {
     const { db } = this.ctx;
     const rows = queue
@@ -349,7 +340,7 @@ export function createThreadEngine(ctx: ServerContext) {
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,
     ) =>
-    (...args: Args): Result =>
+    (...args: Args) =>
       run(engine, ...args);
   const serialized =
     <Args extends unknown[], Result>(
@@ -359,7 +350,7 @@ export function createThreadEngine(ctx: ServerContext) {
         ...args: Args
       ) => Result | Promise<Result>,
     ) =>
-    (threadId: string, ...args: Args): Promise<Result> =>
+    (threadId: string, ...args: Args) =>
       engine.inThread(threadId, () => run(engine, threadId, ...args));
   return {
     start: () => engine.start(),
@@ -402,7 +393,3 @@ export function createThreadEngine(ctx: ServerContext) {
 }
 
 export type ThreadEngine = ReturnType<typeof createThreadEngine>;
-
-onProjectDeleted.push((ctx, deleted) =>
-  ctx.threads.releaseDeletedProject(deleted),
-);

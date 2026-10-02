@@ -9,11 +9,7 @@ type EnvResolved = Extract<
 >;
 export type EnvEntry = EnvResolved["entries"][number];
 
-export interface AgentEnv {
-  agent: Record<string, string>;
-  process: Record<string, string>;
-  entries: EnvEntry[];
-}
+export type ChildEnv = () => Promise<NodeJS.ProcessEnv>;
 
 const START = "__BB_SHELL_ENV_START__";
 const END = "__BB_SHELL_ENV_END__";
@@ -47,15 +43,13 @@ async function probeShell(shell: string, flag: string, env: NodeJS.ProcessEnv) {
   return run.then(({ stdout }) => parseShellPath(stdout)).catch(() => null);
 }
 
-export async function resolveLoginShellPath(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<string | null> {
+async function resolveLoginShellPath() {
   if (process.platform === "win32") return null;
   const fallback = process.platform === "darwin" ? "/bin/zsh" : "/bin/sh";
-  const shell = env.SHELL?.trim() || fallback;
+  const shell = process.env.SHELL?.trim() || fallback;
   const plain = ["sh", "dash"].includes(basename(shell));
   for (const flag of plain ? ["-lc"] : ["-ilc", "-lc"]) {
-    const path = await probeShell(shell, flag, scrubEnv(env));
+    const path = await probeShell(shell, flag, scrubEnv(process.env));
     if (path !== null) return path;
   }
   return null;
@@ -68,6 +62,14 @@ export function loginShellPath(): Promise<string | null> {
   return cachedLoginPath;
 }
 
+export function loginShellEnv(extra: Record<string, string> = {}, bin = "") {
+  return async () => {
+    const env = scrubEnv(process.env);
+    const inherited = (await loginShellPath()) ?? env.PATH ?? "";
+    return { ...env, ...extra, PATH: bin ? `${bin}:${inherited}` : inherited };
+  };
+}
+
 export function buildAgentEnv(args: {
   loginPath: string | null;
   bbCliPath: string;
@@ -75,7 +77,7 @@ export function buildAgentEnv(args: {
   threadStorageDir: string;
   specEnv: Record<string, string>;
   baseEnv?: NodeJS.ProcessEnv;
-}): AgentEnv {
+}) {
   const base = scrubEnv(args.baseEnv ?? process.env);
   const inherited = args.loginPath ?? base.PATH;
   const bbDir = dirname(args.bbCliPath);

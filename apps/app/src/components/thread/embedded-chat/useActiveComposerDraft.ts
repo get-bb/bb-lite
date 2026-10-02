@@ -6,7 +6,6 @@ import {
 } from "@/hooks/usePromptDraftStorage";
 import { promptDraftToInput } from "@bb/client-core";
 import type { PromptDraftState } from "@bb/client-core";
-import type { PromptInput } from "@bb/domain";
 
 export interface InlineComposerDraftSession {
   editSessionId: number;
@@ -19,21 +18,11 @@ interface UseActiveComposerDraftArgs {
   inlineSessionRef: React.RefObject<InlineComposerDraftSession | null>;
 }
 
-interface UseActiveComposerDraftResult {
-  promptDraft: ReturnType<typeof usePromptDraftStorage>;
-  currentPromptDraft: PromptDraftState;
-  currentPromptDraftInput: PromptInput[];
-  activeComposerDraft: PromptDraftState;
-  activeComposerDraftInput: PromptInput[];
-  handleChangeMessage: (text: string, mentions: PromptTextMention[]) => void;
-  removeActiveComposerAttachment: (path: string) => void;
-}
-
 export function useActiveComposerDraft({
   draftScope,
   inlineDraft,
   inlineSessionRef,
-}: UseActiveComposerDraftArgs): UseActiveComposerDraftResult {
+}: UseActiveComposerDraftArgs) {
   const promptDraft = usePromptDraftStorage(draftScope);
   const setStoredPromptTextAndMentions = promptDraft.setTextAndMentions;
   const removeStoredPromptAttachment = promptDraft.removeAttachment;

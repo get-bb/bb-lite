@@ -28,15 +28,10 @@ export interface IndexedPromptMention {
   serializedText: string;
 }
 
-interface SubstitutePromptMentionsResult {
-  content: string;
-  mentions: IndexedPromptMention[];
-}
-
 export function substitutePromptMentions(
   text: string,
   mentions: readonly PromptTextMention[],
-): SubstitutePromptMentionsResult {
+): { content: string; mentions: IndexedPromptMention[] } {
   const normalized = normalizePromptTextMentions(mentions, text.length);
   if (normalized.length === 0) {
     return { content: text, mentions: [] };
@@ -101,12 +96,6 @@ export interface MarkdownPromptMentions {
   resolveMentionLink?: PromptMentionLinkResolver;
 }
 
-interface BuildPromptMentionComponentArgs {
-  mentions: readonly IndexedPromptMention[];
-  resolveLinkHref?: TimelineTitleLinkResolver;
-  resolveMentionLink?: PromptMentionLinkResolver;
-}
-
 interface PromptMentionElementProps {
   "data-mention-index"?: string;
 }
@@ -119,24 +108,15 @@ declare module "react" {
   }
 }
 
-function resolveThreadMentionHref(
-  resource: PromptTextMention["resource"],
-  resolveLinkHref: TimelineTitleLinkResolver | undefined,
-): string | undefined {
-  if (resource.kind !== "thread" || !resolveLinkHref) {
-    return undefined;
-  }
-  return (
-    resolveLinkHref({ kind: "thread", threadId: resource.threadId }) ??
-    undefined
-  );
-}
-
 export function buildPromptMentionComponent({
   mentions,
   resolveLinkHref,
   resolveMentionLink,
-}: BuildPromptMentionComponentArgs): ComponentType<PromptMentionElementProps> {
+}: {
+  mentions: readonly IndexedPromptMention[];
+  resolveLinkHref?: TimelineTitleLinkResolver;
+  resolveMentionLink?: PromptMentionLinkResolver;
+}): ComponentType<PromptMentionElementProps> {
   function PromptMentionElement(props: PromptMentionElementProps) {
     const rawIndex = props["data-mention-index"];
     if (rawIndex === undefined) {
@@ -151,7 +131,14 @@ export function buildPromptMentionComponent({
         resource={mention.resource}
         resolveMentionLink={resolveMentionLink}
         serializedText={mention.serializedText}
-        linkHref={resolveThreadMentionHref(mention.resource, resolveLinkHref)}
+        linkHref={
+          mention.resource.kind === "thread"
+            ? (resolveLinkHref?.({
+                kind: "thread",
+                threadId: mention.resource.threadId,
+              }) ?? undefined)
+            : undefined
+        }
       />
     );
   }

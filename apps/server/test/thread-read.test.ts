@@ -1,7 +1,6 @@
 import type { ThreadListEntry } from "@bb/domain";
 import {
   applyTimelineDelta,
-  type SidebarBootstrapResponse,
   type ThreadSearchResponse,
   type ThreadTimelineResponse as Timeline,
   type TimelineTurnSummaryDetailsResponse,
@@ -17,18 +16,12 @@ import {
   userRequest,
 } from "./thread-seed.js";
 
-async function setup(threadOverrides?: Record<string, unknown>) {
+async function setup(threadOverrides: Record<string, unknown>) {
   const server = await createTestServer();
   const { db } = server.ctx;
-  const request = (path: string): Promise<Response> =>
-    fetch(`${server.url}/api/v1${path}`);
-  const get = async <Body>(path: string): Promise<Body> =>
-    (await (await request(path)).json()) as Body;
-  if (threadOverrides !== undefined) {
-    seedWorkspace(db, server.ctx.config.hostId);
-    seedThread(db, "thr_1", threadOverrides);
-  }
-  return { ...server, db, request, get };
+  seedWorkspace(db, server.ctx.config.hostId);
+  seedThread(db, "thr_1", threadOverrides);
+  return { ...server, db, get: server.read };
 }
 
 function exchange(n: number, status: "completed" | "open" = "completed") {
@@ -37,7 +30,7 @@ function exchange(n: number, status: "completed" | "open" = "completed") {
   return [request, ...agentTurn(`t${n}`, id, `answer ${n}`, status)];
 }
 
-function said(timeline: Pick<Timeline, "rows">): string[] {
+function said(timeline: Pick<Timeline, "rows">) {
   return timeline.rows.flatMap((row) =>
     row.kind === "conversation" ? [row.text] : [],
   );
@@ -118,14 +111,9 @@ test("starts after the last completed context clear", async () => {
   const timeline = await get<Timeline>("/threads/thr_1/timeline");
   expect(timeline.contextBoundarySeq).toBe(10);
   expect(said(timeline)).toEqual(["question 2", "answer 2"]);
-  const outline = await get<{ items: { preview: string }[] }>(
-    "/threads/thr_1/conversation-outline",
-  );
-  const previews = outline.items.map((item) => item.preview);
-  expect(previews).toEqual(["question 2", "answer 2"]);
 });
 
-test("list entries carry display status, queue and attention", async () => {
+test("list entries carry display status and queue state", async () => {
   const { db, get } = await setup({ status: "active" });
   const at = { created_at: 1, updated_at: 1 };
   insertRow(db, "hosts", { id: "host_away", name: "away", ...at });
@@ -136,7 +124,6 @@ test("list entries carry display status, queue and attention", async () => {
   seedThread(db, "thr_2", { status: "active", environment_id: "env_away" });
   seedThread(db, "thr_3", { status: "starting", environment_id: "env_new" });
   seedThread(db, "thr_4", {});
-  expect(await get("/system/attention")).toEqual({ hasAttention: false });
   const execution = {
     model: "m",
     reasoning_level: "low",
@@ -165,7 +152,6 @@ test("list entries carry display status, queue and attention", async () => {
     ["thr_3", "provisioning", "none", false],
     ["thr_4", "idle", "failed", false],
   ]);
-  expect(await get("/system/attention")).toEqual({ hasAttention: true });
   expect(await get("/threads/count?groupBy=host")).toMatchObject({ total: 4 });
 });
 
@@ -214,32 +200,6 @@ test("search ranks threads and returns highlight ranges", async () => {
   const archived = broad.archived.results.map((result) => result.thread.id);
   expect(archived).toEqual(["thr_2"]);
   expect((await request(`${search}d`)).status).toBe(400);
-});
-
-test("event wait times out with 204 and wakes on a new event", async () => {
-  const { ctx, db, get, request } = await setup({});
-  const wait = "/threads/thr_1/events/wait?type=turn/completed";
-  expect((await request(`${wait}&waitMs=20`)).status).toBe(204);
-  const waiting = get<{ type: string; seq: number }>(`${wait}&afterSeq=0`);
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  appendEvents(db, "thr_1", exchange(1));
-  ctx.hub.thread("thr_1", ["events-appended"]);
-  expect(await waiting).toMatchObject({ type: "turn/completed", seq: 9 });
-});
-
-test("sidebar bootstrap always carries the personal project", async () => {
-  const { ctx, db, get } = await setup();
-  const empty = await get<SidebarBootstrapResponse>("/sidebar-bootstrap");
-  expect(empty).toMatchObject({ sections: [], projects: [] });
-  const bare = { sources: [], threads: [], defaultExecutionOptions: null };
-  const personal = { id: "proj_personal", kind: "personal", ...bare };
-  expect(empty.personalProject).toMatchObject(personal);
-  seedWorkspace(db, ctx.config.hostId);
-  seedThread(db, "thr_live", {});
-  seedThread(db, "thr_gone", { archived_at: 5 });
-  const sidebar = await get<SidebarBootstrapResponse>("/sidebar-bootstrap");
-  const threads = sidebar.projects[0]?.threads.map((thread) => thread.id);
-  expect(threads).toEqual(["thr_live"]);
 });
 
 test("default execution falls back to project, parent and host", async () => {

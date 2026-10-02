@@ -48,7 +48,7 @@ export function attachmentMimeType(path: string): string | null {
   return lookup(path) || null;
 }
 
-function storedNameFor(originalName: string, now: number): string {
+function storedNameFor(originalName: string, now: number) {
   const sanitized = basename(originalName).replace(/[^a-zA-Z0-9._-]+/gu, "-");
   const extension = extname(sanitized);
   const stem = sanitized.slice(0, sanitized.length - extension.length);
@@ -56,11 +56,11 @@ function storedNameFor(originalName: string, now: number): string {
   return `${stem || "attachment"}-${now}-${suffix}${extension}`;
 }
 
-function megabytes(bytes: number): string {
+function megabytes(bytes: number) {
   return String(Math.round((bytes / MEBIBYTE) * 10) / 10);
 }
 
-function recordAttachment(db: Db, record: AttachmentRecord): void {
+function recordAttachment(db: Db, record: AttachmentRecord) {
   db.run(
     `INSERT INTO project_attachments
        (id, project_id, stored_path, original_name, mime_type, size_bytes,

@@ -4,6 +4,7 @@ export * from "./thread/thread-read-state.js";
 export * from "./thread/thread-activity.js";
 
 export * from "./codepoint-compare.js";
+export * from "./stored-order.js";
 export * from "./environment-providers.js";
 export * from "./sidebar/sectionKeys.js";
 export * from "./sidebar/projectThreadGroups.js";
@@ -30,7 +31,6 @@ export * from "./prompt/thread-handoff-request.js";
 
 export * from "./timeline/thread-runtime-status.js";
 export * from "./timeline/timeline-auto-expand.js";
-export * from "./timeline/timelineRowSignatures.js";
 export * from "./timeline/conversation-message-limits.js";
 export * from "./timeline/compute-muted-prefix-length.js";
 export * from "./timeline/conversation-turn-request-label.js";

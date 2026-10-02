@@ -14,7 +14,6 @@ const THREAD_LOCAL_FILE_LINK_INVALID_PATH_DESCRIPTION =
 interface ResolveThreadLocalFileLinkArgs {
   hostFileLinksAvailable: boolean;
   link: ThreadTimelineLocalFileLink;
-  threadStorageRootPath: string | null;
   workspaceRootPath: string | null;
 }
 
@@ -28,13 +27,6 @@ interface ThreadWorkspaceFileLinkOpenRequest {
 interface ThreadHostFileLinkOpenRequest {
   lineRange: FilePreviewLineRange | null;
   path: string;
-}
-
-interface ThreadStorageFileLinkOpenRequest {
-  lineRange: FilePreviewLineRange | null;
-  path: string;
-  relativePath: string;
-  threadStorageRootPath: string;
 }
 
 interface ThreadLocalFileLinkAppRouteResolution {
@@ -56,11 +48,6 @@ interface ThreadHostFileLinkOpenResolution {
   request: ThreadHostFileLinkOpenRequest;
 }
 
-interface ThreadStorageFileLinkOpenResolution {
-  kind: "open-thread-storage-path";
-  request: ThreadStorageFileLinkOpenRequest;
-}
-
 interface NormalizeLocalFilePathWithinRootArgs {
   linkPath: string;
   rootPath: string;
@@ -76,8 +63,7 @@ export type ThreadLocalFileLinkResolution =
   | ThreadLocalFileLinkAppRouteResolution
   | ThreadLocalFileLinkErrorResolution
   | ThreadWorkspaceFileLinkOpenResolution
-  | ThreadHostFileLinkOpenResolution
-  | ThreadStorageFileLinkOpenResolution;
+  | ThreadHostFileLinkOpenResolution;
 
 function normalizeLocalFilePathWithinRoot(
   args: NormalizeLocalFilePathWithinRootArgs,
@@ -147,26 +133,6 @@ export function resolveThreadLocalFileLink(
         path: openRequest.path,
         relativePath: openRequest.relativePath,
         workspaceRootPath: openRequest.rootPath,
-      },
-    };
-  }
-
-  const storageOpenRequest =
-    args.threadStorageRootPath === null
-      ? null
-      : normalizeLocalFilePathWithinRoot({
-          linkPath: normalizedPath,
-          rootPath: args.threadStorageRootPath,
-        });
-
-  if (storageOpenRequest) {
-    return {
-      kind: "open-thread-storage-path",
-      request: {
-        lineRange: args.link.lineRange,
-        path: storageOpenRequest.path,
-        relativePath: storageOpenRequest.relativePath,
-        threadStorageRootPath: storageOpenRequest.rootPath,
       },
     };
   }

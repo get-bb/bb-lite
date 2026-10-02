@@ -113,7 +113,7 @@ function withNestedRows(row: TimelineRow, rows: TimelineRow[]): TimelineRow {
   return row;
 }
 
-function jsonBytes(value: unknown): number {
+function jsonBytes(value: unknown) {
   return Buffer.byteLength(JSON.stringify(value));
 }
 
@@ -124,7 +124,7 @@ export function paginateContents(
   maxBytes: number,
 ) {
   const costs: number[] = [];
-  const measure = (items: readonly TimelineRow[], ancestors: number): void => {
+  const measure = (items: readonly TimelineRow[], ancestors: number) => {
     for (const row of items) {
       const nested = nestedTimelineRows(row);
       if (nested === null) costs.push(jsonBytes(row) + ancestors);
@@ -143,7 +143,7 @@ export function paginateContents(
   }
   let index = 0;
   let olderRowsSourceSeqEnd: number | null = null;
-  const recordOlder = (row: TimelineRow): void => {
+  const recordOlder = (row: TimelineRow) => {
     olderRowsSourceSeqEnd = Math.max(
       olderRowsSourceSeqEnd ?? 0,
       row.sourceSeqEnd,
@@ -276,18 +276,18 @@ export function paginateTimeline(args: PaginateTimelineArgs) {
   };
 }
 
-function truncateText(value: string, max: number): string {
+function truncateText(value: string, max: number) {
   if (value.length <= max || value.endsWith(TRUNCATION_TAIL)) return value;
   const dropped = (value.length - max).toLocaleString("en-US");
   return `${value.slice(0, max)}\n…[${dropped}${TRUNCATION_TAIL}`;
 }
 
-export function splitsSurrogatePair(value: string, index: number): boolean {
+function splitsSurrogatePair(value: string, index: number) {
   const high = value.charCodeAt(index - 1) & 0xfc00;
   return high === 0xd800 && (value.charCodeAt(index) & 0xfc00) === 0xdc00;
 }
 
-function previewText(output: string): string {
+function previewText(output: string) {
   const headEnd = PREVIEW_HEAD_CHARS;
   const tailStart = output.length - PREVIEW_TAIL_CHARS;
   const head = output.slice(
@@ -328,13 +328,13 @@ function truncateRow(row: TimelineRow): TimelineRow {
     return { ...row, output: truncateText(row.output, max) };
   }
   if (row.workKind !== "file-change") return row;
-  const cut = (text: string | null): string | null =>
+  const cut = (text: string | null) =>
     text === null ? null : truncateText(text, max);
   const change = { ...row.change, diff: cut(row.change.diff) };
   return { ...row, change, stdout: cut(row.stdout), stderr: cut(row.stderr) };
 }
 
-function previewRow(row: TimelineRow): TimelineRow {
+function previewRow(row: TimelineRow) {
   const previewable =
     row.kind === "work" &&
     (row.workKind === "command" || row.workKind === "tool") &&
@@ -347,16 +347,12 @@ function previewRow(row: TimelineRow): TimelineRow {
   return { ...row, output: previewText(row.output), outputPreview };
 }
 
-export function truncateOutputs(rows: readonly TimelineRow[]): TimelineRow[] {
-  return mapRows(rows, truncateRow);
-}
-
 export function limitResponseOutputs(
   response: ThreadTimelineResponse,
   preview: boolean,
 ): ThreadTimelineResponse {
   const limit = (rows: readonly TimelineRow[]): TimelineRow[] => {
-    const truncated = truncateOutputs(rows);
+    const truncated = mapRows(rows, truncateRow);
     return preview ? truncated.map(previewRow) : truncated;
   };
   const { timelinePage } = response;

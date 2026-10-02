@@ -76,16 +76,10 @@ export interface PluginAppHost {
   useProviders(): T.PluginProvidersState;
   useEnvironmentProviders(): T.PluginEnvironmentProvidersState;
   useSidebarNavigation(): T.SidebarNavigationState;
-  useSidebarNavigationSplit(
-    itemId: string,
-    options?: T.SidebarNavigationSplitOptions,
-  ): T.PluginSidebarThreadSplit;
+  useSidebarNavigationSplit(itemId: string): T.PluginSidebarThreadSplit;
   useQuestionFormHost(): T.QuestionFormHost;
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
   ThreadChat: ComponentType<T.ThreadChatProps>;
-  NewThreadComposer: ComponentType<T.NewThreadComposerProps>;
-  ProviderModelPicker: ComponentType<T.ProviderModelPickerProps>;
-  PermissionModePicker: ComponentType<T.PermissionModePickerProps>;
   Icon: ComponentType<T.IconProps>;
   ProviderIcon: ComponentType<T.ProviderIconProps>;
   UrlLink: ComponentType<T.UrlLinkProps>;
@@ -143,9 +137,6 @@ export const useSidebarNavigationSplit = hook("useSidebarNavigationSplit");
 export const useQuestionFormHost = hook("useQuestionFormHost");
 export const SidebarNavigationIcon = component((h) => h.SidebarNavigationIcon);
 export const ThreadChat = component((h) => h.ThreadChat);
-export const NewThreadComposer = component((h) => h.NewThreadComposer);
-export const ProviderModelPicker = component((h) => h.ProviderModelPicker);
-export const PermissionModePicker = component((h) => h.PermissionModePicker);
 export const Icon = component((h) => h.Icon);
 export const ProviderIcon = component((h) => h.ProviderIcon);
 export const UrlLink = component((h) => h.UrlLink);

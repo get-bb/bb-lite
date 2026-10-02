@@ -1,6 +1,12 @@
 import type { TerminalSession } from "@bb/server-contract";
-import { newId, type Db, type SqlValue } from "./index.js";
-import { updateRow, type RowPatch } from "./update-row.js";
+import {
+  insertRow,
+  newId,
+  updateRow,
+  type Db,
+  type RowValues,
+  type SqlValue,
+} from "./index.js";
 
 export type NewTerminal = Pick<
   TerminalSession,
@@ -35,22 +41,9 @@ export function getTerminal(db: Db, id: string): TerminalSession | undefined {
 
 export function insertTerminal(db: Db, terminal: NewTerminal): TerminalSession {
   const id = newId("term");
-  db.run(
-    `INSERT INTO terminal_sessions
-       (id, thread_id, environment_id, host_id, title, initial_cwd, cols, rows,
-        status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-    id,
-    terminal.threadId,
-    terminal.environmentId,
-    terminal.hostId,
-    terminal.title,
-    terminal.initialCwd,
-    terminal.cols,
-    terminal.rows,
-    db.now(),
-    db.now(),
-  );
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  const row = { id, ...terminal, status: "starting", ...at };
+  insertRow(db, "terminal_sessions", row);
   const stored = getTerminal(db, id);
   if (stored === undefined) throw new Error("Terminal session was not stored");
   return stored;
@@ -59,7 +52,7 @@ export function insertTerminal(db: Db, terminal: NewTerminal): TerminalSession {
 export function updateTerminal(
   db: Db,
   id: string,
-  patch: RowPatch,
+  patch: RowValues,
 ): TerminalSession | undefined {
   updateRow(db, "terminal_sessions", id, patch);
   return getTerminal(db, id);

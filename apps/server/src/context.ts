@@ -1,7 +1,7 @@
 import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
-import type { Environments } from "./environments/types.js";
+import type { Environments } from "./environments/manager.js";
 import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
 import type { ThreadEngine } from "./threads/engine.js";
@@ -27,7 +27,7 @@ export type LogFields = Record<string, unknown>;
 type LogMethod = (message: string, fields?: LogFields) => void;
 export type Logger = Record<Exclude<LogLevel, "silent">, LogMethod>;
 
-function serializeLogValue(_key: string, value: unknown): unknown {
+function serializeLogValue(_key: string, value: unknown) {
   if (value instanceof Error) {
     return { name: value.name, message: value.message, stack: value.stack };
   }

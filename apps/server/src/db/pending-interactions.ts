@@ -3,7 +3,7 @@ import {
   type PendingInteraction,
   type PendingInteractionStatus,
 } from "@bb/domain";
-import { encodeJson, newId, type Db } from "./index.js";
+import { insertRow, newId, type Db } from "./index.js";
 
 export interface PendingInteractionRow {
   id: string;
@@ -91,29 +91,13 @@ export function insertPendingInteraction(
   input: NewPendingInteraction,
 ): PendingInteractionRow {
   const id = newId("pint");
-  const now = db.now();
-  db.run(
-    `INSERT INTO pending_interactions
-       (id, thread_id, origin_kind, turn_id, provider_id, provider_thread_id,
-        provider_request_id, plugin_id, renderer_id, status, payload,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-    id,
-    input.threadId,
-    input.originKind,
-    input.turnId ?? null,
-    input.providerId ?? null,
-    input.providerThreadId ?? null,
-    input.providerRequestId ?? null,
-    input.pluginId ?? null,
-    input.rendererId ?? null,
-    encodeJson(input.payload),
-    now,
-    now,
-  );
-  const row = getPendingInteraction(db, id);
-  if (row === undefined) throw new Error("Interaction insert was lost");
-  return row;
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  const payload = JSON.stringify(input.payload);
+  const row = { ...input, id, status: "pending", payload, ...at };
+  insertRow(db, "pending_interactions", row);
+  const stored = getPendingInteraction(db, id);
+  if (stored === undefined) throw new Error("Interaction insert was lost");
+  return stored;
 }
 
 export function settleInteraction(
@@ -128,7 +112,7 @@ export function settleInteraction(
   const resolution =
     next.resolution === undefined
       ? current.resolution
-      : encodeJson(next.resolution);
+      : JSON.stringify(next.resolution);
   db.run(
     `UPDATE pending_interactions
      SET status = ?, status_reason = ?, resolution = ?, resolved_at = ?,

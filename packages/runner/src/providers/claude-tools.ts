@@ -103,7 +103,7 @@ function toRecord(value: unknown) {
   return fields.safeParse(value).data;
 }
 
-function made(shape: ItemShape, presentation: Presentation): ClassifiedTool {
+function made(shape: ItemShape, presentation: Presentation) {
   return { shape, presentation };
 }
 
@@ -118,7 +118,7 @@ export function genericTool(tool: string, input: unknown): ClassifiedTool {
   return made({ ...shape, arguments: toRecord(input) }, presentation);
 }
 
-function fileChange(tool: string, args: Args, input: unknown): ClassifiedTool {
+function fileChange(tool: string, args: Args, input: unknown) {
   const notebook = tool === "NotebookEdit";
   const path = notebook
     ? text(args.notebook_path)
@@ -147,7 +147,7 @@ function fileChange(tool: string, args: Args, input: unknown): ClassifiedTool {
   return made({ type: "fileChange", changes }, presentation);
 }
 
-function delegation(tool: string, id: string, args: Args): ClassifiedTool {
+function delegation(tool: string, id: string, args: Args) {
   const [type, model] = [text(args.subagent_type), text(args.model)];
   const firstLine = text(args.prompt)?.split("\n", 1)[0]?.trim();
   const label = text(args.description) ?? firstLine ?? type ?? tool;
@@ -157,10 +157,8 @@ function delegation(tool: string, id: string, args: Args): ClassifiedTool {
     : ["Running subagent", "Subagent finished"];
   const base = ui.presentation(pending, completed, "UserRound", label);
   const parts = [type && `${type} agent`, model && `model ${model}`];
-  const detail = ui.ellipsize(
-    parts.filter(Boolean).join(" · "),
-    DETAIL_MAX_LENGTH,
-  );
+  const stated = parts.filter(Boolean).join(" · ");
+  const detail = ui.ellipsize(stated, DETAIL_MAX_LENGTH);
   const shape = { type: "delegation" as const, childRef: id, label };
   return made({ ...shape, background }, detail ? { ...base, detail } : base);
 }
@@ -185,7 +183,7 @@ function bashCommand(args: Args, sandboxed: boolean) {
   return made({ ...shape, cwd: bash.cwd ?? "" }, presentation);
 }
 
-function todoPlanSteps(todos: unknown): PlanStep[] | undefined {
+function todoPlanSteps(todos: unknown) {
   return todosSchema.safeParse(todos).data?.flatMap((todo) => {
     const status = PLAN_STATUS[todo.status];
     const doing = status === "active" ? text(todo.activeForm) : undefined;
@@ -228,10 +226,8 @@ export function classifyTool(
   }
   if (tool === "Agent" || tool === "Task") return delegation(tool, id, args);
   if (tool === "TodoWrite") {
-    return {
-      ...genericTool(tool, input),
-      planSteps: todoPlanSteps(args.todos),
-    };
+    const planSteps = todoPlanSteps(args.todos);
+    return { ...genericTool(tool, input), planSteps };
   }
   if (!server || !mcpTool) return genericTool(tool, input);
   const fromBb = server === BB_MCP_SERVER;
@@ -300,7 +296,7 @@ export function completedShape(
   }
 }
 
-function planSnapshot(plan: TaskPlan): PlanStep[] {
+function planSnapshot(plan: TaskPlan) {
   return [...plan.values()].flatMap((task) => {
     const active = task.status === "in_progress" && task.activeForm !== null;
     const step = active ? (task.activeForm ?? "") : task.subject;

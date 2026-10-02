@@ -34,11 +34,9 @@ const recentListings = new Map<
   { at: number; listing: Promise<ListedPath[]> }
 >();
 
-async function gitFiles(ctx: Ctx, root: string): Promise<string[] | null> {
+async function gitFiles(ctx: Ctx, root: string) {
   const repo = openRepo(ctx, root, GIT_LISTING);
-  if ((await repoKind(repo)) !== "work-tree") {
-    return null;
-  }
+  if ((await repoKind(repo)) !== "work-tree") return null;
   const [present, deleted] = await Promise.all([
     repo.git("ls-files", "-z", "--cached", "--others", "--exclude-standard"),
     repo.git("ls-files", "-z", "--deleted"),
@@ -48,7 +46,7 @@ async function gitFiles(ctx: Ctx, root: string): Promise<string[] | null> {
   return [...files].filter((file) => !gone.has(file)).sort();
 }
 
-async function walkFiles(root: string): Promise<string[]> {
+async function walkFiles(root: string) {
   const files: string[] = [];
   const pending = [""];
   for (let visited = 0; pending.length > 0 && visited < WALK_MAX_ENTRIES;) {
@@ -72,14 +70,12 @@ async function walkFiles(root: string): Promise<string[]> {
 function withDirectories(
   files: string[],
   isExcluded: (segment: string) => boolean,
-): ListedPath[] {
+) {
   const listed: ListedPath[] = [];
   const directories = new Set<string>();
   for (const file of files) {
     const segments = file.split("/");
-    if (isExcluded(file) || segments.some(isExcluded)) {
-      continue;
-    }
+    if (isExcluded(file) || segments.some(isExcluded)) continue;
     segments.forEach((name, index) => {
       const entryPath = segments.slice(0, index + 1).join("/");
       if (index === segments.length - 1) {
@@ -94,26 +90,20 @@ function withDirectories(
 }
 
 export const listPaths: Method<"listPaths"> = async (ctx, args) => {
-  const root = await resolveRoot(requireAbsolute(args.rootPath)).catch(
-    unlessCode("ENOENT", null),
-  );
-  if (root === null) {
-    return { paths: [], truncated: false };
-  }
+  const absolute = requireAbsolute(args.rootPath);
+  const root = await resolveRoot(absolute).catch(unlessCode("ENOENT", null));
+  if (root === null) return { paths: [], truncated: false };
   const excluded = new Set(args.excludeNames);
   const skipHidden = args.includeHidden !== true;
   const key = JSON.stringify([root, skipHidden, [...excluded].sort()]);
   let recent = recentListings.get(key);
   if (recent === undefined || Date.now() - recent.at > LISTING_REUSE_MS) {
-    const listing = gitFiles(ctx, root)
-      .catch(() => null)
-      .then(async (files) =>
-        withDirectories(
-          files ?? (await walkFiles(root)),
-          (segment) =>
-            excluded.has(segment) || (skipHidden && segment.startsWith(".")),
-        ),
-      );
+    const isExcluded = (segment: string) =>
+      excluded.has(segment) || (skipHidden && segment.startsWith("."));
+    const tracked = gitFiles(ctx, root).catch(() => null);
+    const listing = tracked.then(async (files) =>
+      withDirectories(files ?? (await walkFiles(root)), isExcluded),
+    );
     recent = { at: Date.now(), listing };
     recentListings.set(key, recent);
     setTimeout(() => recentListings.delete(key), LISTING_REUSE_MS).unref();
@@ -163,12 +153,12 @@ export const browseDirectory: Method<"browseDirectory"> = async (
       left.kind.localeCompare(right.kind) ||
       left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
   );
-  const parent = path.dirname(directory);
-  const shown = entries.slice(0, PATH_LIST_MAX_ENTRIES);
+  const above = path.dirname(directory);
+  const parent = above === directory ? null : above;
   return {
     directory,
-    parent: parent === directory ? null : parent,
-    entries: shown,
+    parent,
+    entries: entries.slice(0, PATH_LIST_MAX_ENTRIES),
   };
 };
 
@@ -176,18 +166,11 @@ export const pathsExist: Method<"pathsExist"> = async (_ctx, args) => {
   if (args.paths.length > PATHS_EXIST_MAX_PATHS) {
     fail("failed", `At most ${PATHS_EXIST_MAX_PATHS} paths per request`);
   }
-  const missing = await Promise.all(
-    args.paths.map((target) =>
-      fs.stat(target).then(
-        () => false,
-        (error: unknown) =>
-          ["ENOENT", "ENOTDIR"].includes(errorCode(error) ?? ""),
-      ),
-    ),
-  );
-  return {
-    existence: Object.fromEntries(
-      args.paths.map((target, index) => [target, !missing[index]]),
-    ),
+  const exists = async (target: string) => {
+    const failure = await fs.stat(target).then(() => null, errorCode);
+    return failure !== "ENOENT" && failure !== "ENOTDIR";
   };
+  const found = await Promise.all(args.paths.map(exists));
+  const pairs = args.paths.map((target, at) => [target, found[at] === true]);
+  return { existence: Object.fromEntries(pairs) };
 };

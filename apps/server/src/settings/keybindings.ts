@@ -1,24 +1,15 @@
-import {
-  PANE_FOCUS_APP_COMMAND_IDS,
-  QUESTION_SELECT_APP_COMMAND_IDS,
-  THREAD_JUMP_APP_COMMAND_IDS,
-  type AppCommandContextKey,
-  type AppCommandId,
-  type AppDefaultKeybinding,
-  type AppDefaultKeybindings,
-  type AppShortcut,
-} from "@bb/domain";
+import * as domain from "@bb/domain";
 
 interface When {
-  all: readonly AppCommandContextKey[];
-  none: readonly AppCommandContextKey[];
+  all: readonly domain.AppCommandContextKey[];
+  none: readonly domain.AppCommandContextKey[];
 }
 
 const MODIFIERS = ["mod", "meta", "control", "alt", "shift"] as const;
 
 function when(
-  all: AppCommandContextKey[],
-  none: AppCommandContextKey[] = ["modalOpen"],
+  all: domain.AppCommandContextKey[],
+  none: domain.AppCommandContextKey[] = ["modalOpen"],
 ): When {
   return { all: ["mainSurface", ...all], none };
 }
@@ -37,7 +28,7 @@ const composer = when(
   ["modalOpen", "terminalFocus", "browserFocus"],
 );
 
-function parseShortcut(keys: string): AppShortcut {
+function parseShortcut(keys: string) {
   const parts = keys.split("+");
   const held = new Set(parts.slice(0, -1));
   const [mod, meta, control, alt, shift] = MODIFIERS.map((modifier) =>
@@ -47,10 +38,10 @@ function parseShortcut(keys: string): AppShortcut {
 }
 
 function bind(
-  command: AppCommandId,
+  command: domain.AppCommandId,
   keys: string | null,
   when: When,
-): AppDefaultKeybinding {
+): domain.AppDefaultKeybinding {
   return {
     command,
     desktopOnly: false,
@@ -68,17 +59,17 @@ function offMac(when: When): When {
 }
 
 function macOnly(
-  command: AppCommandId,
+  command: domain.AppCommandId,
   keys: string,
   when: When,
-): AppDefaultKeybindings {
+): domain.AppDefaultKeybindings {
   return [bind(command, keys, onMac(when)), bind(command, null, offMac(when))];
 }
 
 function numbered(
-  commands: readonly AppCommandId[],
+  commands: readonly domain.AppCommandId[],
   when: When,
-): AppDefaultKeybindings {
+): domain.AppDefaultKeybindings {
   const web: When = { all: [...when.all, "webSurface"], none: when.none };
   return commands.flatMap((command, index) => [
     bind(command, `control+${index + 1}`, onMac(web)),
@@ -86,7 +77,7 @@ function numbered(
   ]);
 }
 
-function modelPicker(when: When): AppDefaultKeybindings {
+function modelPicker(when: When): domain.AppDefaultKeybindings {
   return [
     bind("modelPicker.cycleModel", "alt+m", when),
     bind("modelPicker.cycleModelBackward", "alt+shift+m", when),
@@ -97,7 +88,7 @@ function modelPicker(when: When): AppDefaultKeybindings {
   ];
 }
 
-export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
+export const DEFAULT_APP_KEYBINDINGS: domain.AppDefaultKeybindings = [
   bind("palette.open", "mod+shift+p", main),
   bind("thread.new", "mod+shift+o", main),
   bind("thread.search", "mod+k", main),
@@ -109,14 +100,14 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   bind("notifications.open", null, main),
   bind("thread.previous", "control+shift+[", webMain),
   bind("thread.next", "control+shift+]", webMain),
-  ...numbered(THREAD_JUMP_APP_COMMAND_IDS, main),
+  ...numbered(domain.THREAD_JUMP_APP_COMMAND_IDS, main),
   ...macOnly("pane.focus.left", "mod+control+shift+ArrowLeft", split),
   ...macOnly("pane.focus.right", "mod+control+shift+ArrowRight", split),
   ...macOnly("pane.focus.up", "mod+control+shift+ArrowUp", split),
   ...macOnly("pane.focus.down", "mod+control+shift+ArrowDown", split),
   bind("pane.focus.previous", null, split),
   bind("pane.focus.next", null, split),
-  ...numbered(PANE_FOCUS_APP_COMMAND_IDS, split),
+  ...numbered(domain.PANE_FOCUS_APP_COMMAND_IDS, split),
   bind("pane.maximize.toggle", "mod+shift+e", split),
   bind("pane.close", "mod+shift+x", split),
   ...macOnly("panel.previousTab", "mod+control+ArrowLeft", main),
@@ -135,7 +126,7 @@ export const DEFAULT_APP_KEYBINDINGS: AppDefaultKeybindings = [
   ...modelPicker(composer),
   ...modelPicker(pickerOpen),
   bind("workspace.openPreferred", "mod+o", main),
-  ...QUESTION_SELECT_APP_COMMAND_IDS.map((command, index) =>
+  ...domain.QUESTION_SELECT_APP_COMMAND_IDS.map((command, index) =>
     bind(command, String(index + 1), question),
   ),
 ];

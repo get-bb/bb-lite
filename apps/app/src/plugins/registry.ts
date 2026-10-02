@@ -67,21 +67,17 @@ export function isPluginAppDefinition(
   );
 }
 
+function slotRecord<Slots>(listFor: (kind: SlotKind) => object[]): Slots {
+  const record: object = Object.fromEntries(
+    SLOT_KINDS.map((kind) => [kind, listFor(kind)]),
+  );
+  return record as Slots;
+}
+
 export function collectPluginApp(
   definition: PluginAppDefinition,
 ): PluginRegistrations {
-  const collected: PluginRegistrations = {
-    navPanels: [],
-    threadPanels: [],
-    settingsSections: [],
-    appOverlays: [],
-    pendingInteractions: [],
-    messageDirectives: [],
-    threadLists: [],
-    sidebarNavigations: [],
-    sidebarHeaders: [],
-    commands: [],
-  };
+  const collected = slotRecord<PluginRegistrations>(() => []);
   const add =
     <Kind extends SlotKind>(
       kind: Kind,
@@ -124,18 +120,7 @@ export function collectPluginApp(
   return collected;
 }
 
-const EMPTY_SLOTS: PluginSlots = {
-  navPanels: [],
-  threadPanels: [],
-  settingsSections: [],
-  appOverlays: [],
-  pendingInteractions: [],
-  messageDirectives: [],
-  threadLists: [],
-  sidebarNavigations: [],
-  sidebarHeaders: [],
-  commands: [],
-};
+const EMPTY_SLOTS = slotRecord<PluginSlots>(() => []);
 
 const slotsByPluginId = new Map<string, PluginSlots>();
 const generationByPluginId = new Map<string, number>();
@@ -144,14 +129,17 @@ const listeners = new Set<() => void>();
 let snapshot = EMPTY_SLOTS;
 let settled = false;
 
+function notify(): void {
+  for (const listener of [...listeners]) listener();
+}
+
 function publish(): void {
   const pluginIds = [...slotsByPluginId.keys()].sort();
   const next = { ...snapshot };
   for (const kind of SLOT_KINDS) {
-    const slots: unknown[] = [];
-    for (const pluginId of pluginIds) {
-      slots.push(...(slotsByPluginId.get(pluginId)?.[kind] ?? []));
-    }
+    const slots = pluginIds.flatMap<unknown>(
+      (pluginId) => slotsByPluginId.get(pluginId)?.[kind] ?? [],
+    );
     const previous: readonly unknown[] = snapshot[kind];
     if (
       slots.length !== previous.length ||
@@ -161,7 +149,7 @@ function publish(): void {
     }
   }
   snapshot = next;
-  for (const listener of [...listeners]) listener();
+  notify();
 }
 
 export function registerPluginApp(
@@ -178,17 +166,16 @@ export function registerPluginApp(
   }
   const generation = (generationByPluginId.get(pluginId) ?? 0) + 1;
   generationByPluginId.set(pluginId, generation);
-  const stamped = { ...EMPTY_SLOTS };
-  for (const kind of SLOT_KINDS) {
-    Object.assign(stamped, {
-      [kind]: collected[kind].map((registration) => ({
+  slotsByPluginId.set(
+    pluginId,
+    slotRecord((kind) =>
+      collected[kind].map((registration) => ({
         ...registration,
         pluginId,
         generation,
       })),
-    });
-  }
-  slotsByPluginId.set(pluginId, stamped);
+    ),
+  );
   resetCrashedSlots(pluginId);
   publish();
   return null;
@@ -199,16 +186,13 @@ export function unregisterPluginApp(pluginId: string): void {
 }
 
 export function markPluginsSettled(): void {
-  if (settled) return;
   settled = true;
-  for (const listener of [...listeners]) listener();
+  notify();
 }
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return () => void listeners.delete(listener);
 }
 
 export function getPluginSlots(): PluginSlots {
@@ -216,25 +200,15 @@ export function getPluginSlots(): PluginSlots {
 }
 
 export function usePluginSlots(): PluginSlots {
-  return useSyncExternalStore(subscribe, getPluginSlots, getPluginSlots);
-}
-
-function getSettled(): boolean {
-  return settled;
+  return useSyncExternalStore(subscribe, getPluginSlots);
 }
 
 export function usePluginsSettled(): boolean {
-  return useSyncExternalStore(subscribe, getSettled, getSettled);
+  return useSyncExternalStore(subscribe, () => settled);
 }
 
-export function slotInstanceKey(
-  pluginId: string,
-  slotKind: string,
-  slotId: string,
-  instanceId?: string,
-): string {
-  const base = `${pluginId}/${slotKind}/${slotId}`;
-  return instanceId === undefined ? base : `${base}/${instanceId}`;
+export function slotInstanceKey(...parts: (string | undefined)[]): string {
+  return parts.filter((part) => part !== undefined).join("/");
 }
 
 export function markSlotCrashed(instanceKey: string): void {

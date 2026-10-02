@@ -1,10 +1,8 @@
 import {
-  useCallback,
   useContext,
   useLayoutEffect,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { Button } from "@bb/shared-ui/button";
@@ -12,7 +10,6 @@ import { useAtomValue } from "jotai";
 import { COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { Pill } from "@bb/shared-ui/pill";
-import { SplitButton } from "@/components/ui/split-button.js";
 import {
   AppPageHeader,
   HEADER_ICON_BUTTON_CLASS,
@@ -22,7 +19,7 @@ import type { ThreadGitActionDialogTarget } from "@/components/dialogs/ThreadGit
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
-import { useSidebarRename } from "@/components/sidebar/SidebarInlineRename";
+import { useSidebarRename } from "@bb/shared-ui/sidebar-inline-rename";
 import { useThreadActions } from "@/components/thread/ThreadActionsProvider";
 import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
@@ -37,244 +34,192 @@ import { usePaneContext } from "./PaneContext";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
 import type { ThreadHeaderGitAction } from "./useThreadGitActions";
 
-const THREAD_HEADER_ACTION_BUTTON_CLASS = cn(
-  COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
-  "border-border/70 bg-transparent font-normal hover:bg-state-hover",
-);
 const NARROW_SPLIT_HEADER_MAX_WIDTH = 560;
-
-interface ThreadDetailHeaderProps {
-  actionsMenu: ((includeResponsiveActions: boolean) => ReactNode) | null;
-  childPillLabel: "child" | "side chat" | null;
-  isSecondaryPanelOpen: boolean;
-  onClosePane?: () => void;
-  onOpenThreadGitAction: (target: ThreadGitActionDialogTarget) => void;
-  onToggleSecondaryPanel: () => void;
-  threadHeaderGitActions: ThreadHeaderGitAction[];
-  threadId: string;
-  threadTitle: string;
-  workspaceOpenButton?: ReactNode;
-}
 
 export function ThreadDetailHeader({
   actionsMenu,
-  childPillLabel,
+  showsChildPill,
   isSecondaryPanelOpen,
-  onClosePane,
   onOpenThreadGitAction,
   onToggleSecondaryPanel,
   threadHeaderGitActions,
   threadId,
   threadTitle,
   workspaceOpenButton,
-}: ThreadDetailHeaderProps) {
-  const [primaryAction, ...secondaryActions] = threadHeaderGitActions;
+}: {
+  actionsMenu: (includeResponsiveActions: boolean) => ReactNode;
+  showsChildPill: boolean;
+  isSecondaryPanelOpen: boolean;
+  onOpenThreadGitAction: (target: ThreadGitActionDialogTarget) => void;
+  onToggleSecondaryPanel: () => void;
+  threadHeaderGitActions: readonly ThreadHeaderGitAction[];
+  threadId: string;
+  threadTitle: string;
+  workspaceOpenButton?: ReactNode;
+}) {
   const { renameThreadAsync } = useThreadActions();
-  const handleRename = useCallback(
-    (nextTitle: string) => renameThreadAsync(threadId, nextTitle),
-    [renameThreadAsync, threadId],
-  );
   const { editor, isEditing, startEditing } = useSidebarRename({
     kind: "thread",
     id: threadId,
     name: threadTitle,
     label: "Thread name",
-    onSave: handleRename,
+    inputClassName: "field-sizing-content",
+    onSave: (nextTitle) => renameThreadAsync(threadId, nextTitle),
   });
   const dimsInactiveSplits = useAtomValue(dimInactiveSplitsAtom);
   const panelShortcut = useAppCommandShortcut("panel.toggle");
-  const headerRef = useRef<HTMLElement>(null!);
-  const {
-    beginPaneDrag,
-    isFocused,
-    ownsWindowTopLeft,
-    reservesWindowPanelToggle,
-    secondaryPanelHost,
-  } = usePaneContext();
+  const headerRef = useRef<HTMLElement>(null);
+  const pane = usePaneContext();
+  const { isFocused, isSplitPane: isSplitPaneHeader } = pane;
   const isWindowPanelOpen =
     useContext(SecondaryPanelHostLayoutContext)?.isOpen === true;
-  const isSplitPaneHeader = beginPaneDrag !== undefined;
-  const [measuredPaneWidth, setMeasuredPaneWidth] = useState(0);
-  const usesResponsiveActionOverflow =
+  const [paneWidth, setPaneWidth] = useState(0);
+  const usesActionOverflow =
     isSplitPaneHeader &&
-    measuredPaneWidth > 0 &&
-    measuredPaneWidth < NARROW_SPLIT_HEADER_MAX_WIDTH;
+    paneWidth > 0 &&
+    paneWidth < NARROW_SPLIT_HEADER_MAX_WIDTH;
   useLayoutEffect(() => {
-    if (!isSplitPaneHeader) {
-      return;
-    }
-
     const header = headerRef.current;
-    const pane = header.closest<HTMLElement>("[data-split-pane-id]");
-    const measuredElement = pane ?? header;
+    if (!isSplitPaneHeader || header === null) return;
+    const measured =
+      header.closest<HTMLElement>("[data-split-pane-id]") ?? header;
     const measure = () => {
-      const width = measuredElement.getBoundingClientRect().width;
-      if (width > 0) {
-        setMeasuredPaneWidth(width);
-      }
+      const width = measured.getBoundingClientRect().width;
+      if (width > 0) setPaneWidth(width);
     };
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(measuredElement);
-    return () => {
-      observer.disconnect();
-    };
+    observer.observe(measured);
+    return () => observer.disconnect();
   }, [isSplitPaneHeader]);
-  const handleTitlePointerDown = (event: ReactPointerEvent) => {
-    if (isEditing || !beginPaneDrag || event.button !== 0) {
-      return;
-    }
-    beginPaneDrag(event, threadTitle);
-  };
-  const handleTitleDoubleClick = () => {
-    if (isEditing) {
-      return;
-    }
-    startEditing();
-  };
-  const rightPanelLabel = "Show right panel";
-  const rightPanelIconName = RIGHT_PANEL_TOGGLE_ICON_NAME;
-  const showRightPanelToggle =
-    secondaryPanelHost === null && !isSecondaryPanelOpen;
-
-  const center = (
-    <>
-      <div
-        data-pane-header-focus-tab={
-          isSplitPaneHeader && isFocused ? "" : undefined
-        }
-        className={cn(
-          "relative min-w-0",
-          isSplitPaneHeader && "-my-1 -ml-2 rounded-md px-2 py-1",
-          isSplitPaneHeader && isFocused && CONTEXT_SELECTION_SURFACE_CLASS,
-        )}
-      >
-        <p
-          className={cn(
-            "relative min-w-0 text-sm font-normal transition-colors",
-            isEditing && "overflow-visible",
-            isSplitPaneHeader &&
-              !isFocused &&
-              dimsInactiveSplits &&
-              CONTEXT_INACTIVE_TEXT_CLASS,
-            beginPaneDrag && !isEditing && "cursor-grab touch-none select-none",
-          )}
-          onDoubleClick={handleTitleDoubleClick}
-          onPointerDown={beginPaneDrag ? handleTitlePointerDown : undefined}
-        >
-          {isEditing ? editor : <ThreadTitle title={threadTitle} />}
-        </p>
-      </div>
-      {childPillLabel ? (
-        <Pill variant="outline" size="sm">
-          {childPillLabel}
-        </Pill>
-      ) : null}
-      {actionsMenu == null ? null : (
-        <span className="flex items-center">
-          {actionsMenu(usesResponsiveActionOverflow)}
-        </span>
-      )}
-    </>
-  );
-
-  const actions = (
-    <>
-      <div
-        className="flex items-center gap-1"
-        data-thread-header-workflow-actions=""
-      >
-        {!usesResponsiveActionOverflow && workspaceOpenButton ? (
-          <span className="inline-flex" data-thread-header-responsive-action="">
-            {workspaceOpenButton}
-          </span>
-        ) : null}
-        {!usesResponsiveActionOverflow && primaryAction ? (
-          <span className="inline-flex" data-thread-header-responsive-action="">
-            {secondaryActions.length > 0 ? (
-              <SplitButton
-                className={THREAD_HEADER_ACTION_BUTTON_CLASS}
-                primaryAction={{
-                  label: primaryAction.label,
-                  onSelect: () => onOpenThreadGitAction(primaryAction.target),
-                }}
-                secondaryActions={secondaryActions.map((action) => ({
-                  label: action.label,
-                  onSelect: () => onOpenThreadGitAction(action.target),
-                }))}
-              />
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={THREAD_HEADER_ACTION_BUTTON_CLASS}
-                onClick={() => onOpenThreadGitAction(primaryAction.target)}
-              >
-                {primaryAction.label}
-              </Button>
-            )}
-          </span>
-        ) : null}
-      </div>
-      <div
-        className="ml-1 flex items-center gap-0.5"
-        data-thread-header-pane-actions=""
-      >
-        <PaneMaximizeButton />
-        {onClosePane ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(
-              HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
-              CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
-            )}
-            aria-label="Close pane"
-            onClick={onClosePane}
-          >
-            <Icon name="CloseThreadPane" />
-          </Button>
-        ) : null}
-        {showRightPanelToggle ? (
-          <span className="inline-flex items-center gap-1.5">
-            <AppCommandShortcutHint shortcut={panelShortcut} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                HEADER_ICON_BUTTON_CLASS,
-                CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
-              )}
-              aria-label={
-                panelShortcut
-                  ? `${rightPanelLabel} (${panelShortcut.label})`
-                  : rightPanelLabel
-              }
-              aria-keyshortcuts={panelShortcut?.ariaKeyshortcuts}
-              aria-expanded={false}
-              onClick={onToggleSecondaryPanel}
-            >
-              <Icon name={rightPanelIconName} />
-            </Button>
-          </span>
-        ) : null}
-        {reservesWindowPanelToggle && !isWindowPanelOpen ? (
-          <span aria-hidden className={HEADER_ICON_BUTTON_CLASS} />
-        ) : null}
-      </div>
-    </>
-  );
 
   return (
     <AppPageHeader
       headerRef={headerRef}
-      center={center}
-      actions={actions}
-      ownsWindowTopLeft={ownsWindowTopLeft}
-      className={beginPaneDrag ? "z-[21]" : undefined}
+      ownsWindowTopLeft={pane.ownsWindowTopLeft}
+      className={isSplitPaneHeader ? "z-[21]" : undefined}
+      center={
+        <>
+          <div
+            data-pane-header-focus-tab={
+              isSplitPaneHeader && isFocused ? "" : undefined
+            }
+            className={cn(
+              "relative min-w-0",
+              isSplitPaneHeader && "-my-1 -ml-2 rounded-md px-2 py-1",
+              isSplitPaneHeader && isFocused && CONTEXT_SELECTION_SURFACE_CLASS,
+            )}
+          >
+            <p
+              className={cn(
+                "relative min-w-0 text-sm font-normal transition-colors",
+                isEditing && "overflow-visible",
+                isSplitPaneHeader &&
+                  !isFocused &&
+                  dimsInactiveSplits &&
+                  CONTEXT_INACTIVE_TEXT_CLASS,
+              )}
+              onDoubleClick={isEditing ? undefined : startEditing}
+            >
+              {isEditing ? editor : <ThreadTitle title={threadTitle} />}
+            </p>
+          </div>
+          {showsChildPill ? (
+            <Pill variant="outline" size="sm">
+              child
+            </Pill>
+          ) : null}
+          <span className="flex items-center">
+            {actionsMenu(usesActionOverflow)}
+          </span>
+        </>
+      }
+      actions={
+        <>
+          <div
+            className="flex items-center gap-1"
+            data-thread-header-workflow-actions=""
+          >
+            {usesActionOverflow
+              ? null
+              : [
+                  workspaceOpenButton,
+                  ...threadHeaderGitActions.map((action) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
+                        "border-border/70 bg-transparent font-normal hover:bg-state-hover",
+                      )}
+                      onClick={() => onOpenThreadGitAction(action.target)}
+                    >
+                      {action.label}
+                    </Button>
+                  )),
+                ].map((action, index) =>
+                  action ? (
+                    <span
+                      key={index}
+                      className="inline-flex"
+                      data-thread-header-responsive-action=""
+                    >
+                      {action}
+                    </span>
+                  ) : null,
+                )}
+          </div>
+          <div
+            className="ml-1 flex items-center gap-0.5"
+            data-thread-header-pane-actions=""
+          >
+            <PaneMaximizeButton />
+            {pane.onRequestClose ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
+                  CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
+                )}
+                aria-label="Close pane"
+                onClick={pane.onRequestClose}
+              >
+                <Icon name="CloseThreadPane" />
+              </Button>
+            ) : null}
+            {pane.secondaryPanelHost === null && !isSecondaryPanelOpen ? (
+              <span className="inline-flex items-center gap-1.5">
+                <AppCommandShortcutHint shortcut={panelShortcut} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    HEADER_ICON_BUTTON_CLASS,
+                    CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
+                  )}
+                  aria-label={
+                    panelShortcut
+                      ? `Show right panel (${panelShortcut.label})`
+                      : "Show right panel"
+                  }
+                  aria-keyshortcuts={panelShortcut?.ariaKeyshortcuts}
+                  aria-expanded={false}
+                  onClick={onToggleSecondaryPanel}
+                >
+                  <Icon name={RIGHT_PANEL_TOGGLE_ICON_NAME} />
+                </Button>
+              </span>
+            ) : null}
+            {pane.reservesWindowPanelToggle && !isWindowPanelOpen ? (
+              <span aria-hidden className={HEADER_ICON_BUTTON_CLASS} />
+            ) : null}
+          </div>
+        </>
+      }
     />
   );
 }

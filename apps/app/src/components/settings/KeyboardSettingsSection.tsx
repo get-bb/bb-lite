@@ -1,29 +1,36 @@
-import {
-  memo,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useState } from "react";
 import {
   defaultAppSettings,
   findAppKeybindingOverride,
   keyboardPlatform,
-  type KeyboardCommandId,
-  type AppDefaultKeybindings,
+  pluginCommandId,
   type AppKeybindingOverrides,
   type AppShortcut,
+  type KeyboardCommandId,
 } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
-import { Switch } from "@bb/shared-ui/switch";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
+import { SettingsSwitch } from "@/components/settings/SettingsDropdown";
+import {
+  SettingsBadge,
+  SettingsSection,
+} from "@/components/ui/settings-section";
+import {
+  useUpdateGeneralSettings,
+  useUpdateKeyboardSettings,
+} from "@/hooks/mutations/settings-mutations";
+import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { usePluginCommandBindings } from "@/hooks/usePluginCommandBindings";
 import { APP_COMMAND_GROUPS } from "@/lib/app-command-metadata";
 import {
-  areAppShortcutsEqual,
+  appShortcutMatchesQuery,
+  browserPlatform,
+  presentAppShortcut,
+} from "@/lib/app-keybindings";
+import {
   appShortcutFromInput,
   canAssignAppShortcut,
   getCommandShortcut,
@@ -32,612 +39,218 @@ import {
   resetCommandShortcutOverride,
   setCommandShortcutOverride,
 } from "@/lib/keyboard-shortcut-settings";
-import {
-  browserPlatform,
-  presentAppShortcut,
-  appShortcutMatchesQuery,
-} from "@/lib/app-keybindings";
-import {
-  useUpdateGeneralSettings,
-  useUpdateKeyboardSettings,
-} from "@/hooks/mutations/settings-mutations";
-import { pluginCommandId } from "@bb/domain";
-import { usePluginCommandBindings } from "@/hooks/usePluginCommandBindings";
-import { useSystemConfig } from "@/hooks/queries/system-queries";
-import {
-  SettingsBadge,
-  SettingsSection,
-  SettingsWithControl,
-} from "@/components/ui/settings-section";
-import { AppCommandShortcutPill } from "@/components/commands/AppCommandShortcutHint";
 
-const EMPTY_OVERRIDES: AppKeybindingOverrides = [];
-const SETTINGS_SHORTCUT_PILL_CLASS =
-  "rounded-none bg-transparent px-0 py-0 text-foreground opacity-100";
-const SETTINGS_DEFAULT_SHORTCUT_CLASS =
-  "bg-muted/40 px-1.5 py-0.5 text-foreground opacity-100";
-
-function areNullableAppShortcutsEqual(
-  left: AppShortcut | null,
-  right: AppShortcut | null,
-): boolean {
-  return (
-    left === right ||
-    (left !== null && right !== null && areAppShortcutsEqual(left, right))
-  );
+interface CommandRow {
+  command: KeyboardCommandId;
+  label: string;
+  description: string;
 }
 
-interface ShortcutRecorderProps {
-  label: string;
-  command: KeyboardCommandId;
+function ShortcutRecorder({
+  row,
+  disabled,
+  onChange,
+  onRecordingChange,
+  recording,
+  shortcut,
+}: {
+  row: CommandRow;
   disabled: boolean;
-  onChange(command: KeyboardCommandId, shortcut: AppShortcut): void;
-  onRecordingChange(command: KeyboardCommandId | null): void;
+  onChange: (shortcut: AppShortcut) => void;
+  onRecordingChange: (recording: boolean) => void;
   recording: boolean;
   shortcut: AppShortcut | null;
-}
-
-const ShortcutRecorder = memo(
-  function ShortcutRecorder({
-    label,
-    command,
-    disabled,
-    onChange,
-    onRecordingChange,
-    recording,
-    shortcut,
-  }: ShortcutRecorderProps) {
-    const platform = browserPlatform();
-    const [error, setError] = useState<string | null>(null);
-    const shortcutPresentation =
-      shortcut === null ? null : presentAppShortcut(shortcut, platform);
-    const formattedShortcut = shortcutPresentation?.label ?? "unassigned";
-
-    function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-      if (!recording) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.key === "Escape") {
-        setError(null);
-        onRecordingChange(null);
-        return;
-      }
-      const next = appShortcutFromInput(event, platform);
-      if (next === null) {
-        setError("Press a non-modifier key.");
-        return;
-      }
-      if (!canAssignAppShortcut(command, next)) {
-        setError("Use Command, Control, or Alt with a key.");
-        return;
-      }
-      setError(null);
-      onChange(command, next);
-      onRecordingChange(null);
-    }
-
-    return (
-      <div className="flex flex-col items-end gap-1">
-        <Button
-          aria-label={
-            recording
-              ? `Recording shortcut for ${label}. Press keys or Escape to cancel.`
-              : `Record shortcut for ${label}, current shortcut ${formattedShortcut}`
-          }
-          aria-pressed={recording}
-          className={cn(
-            "h-7 min-w-24 px-2 text-xs",
-            recording && "border-ring text-foreground",
-          )}
-          disabled={disabled}
-          onBlur={() => {
-            setError(null);
-            onRecordingChange(null);
-          }}
-          onClick={() => {
-            if (recording) return;
-            setError(null);
-            onRecordingChange(command);
-          }}
-          onKeyDown={handleKeyDown}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {recording ? (
-            "Press keys"
-          ) : shortcutPresentation === null ? (
-            "Unassigned"
-          ) : (
-            <AppCommandShortcutPill
-              className={SETTINGS_SHORTCUT_PILL_CLASS}
-              shortcut={shortcutPresentation}
-            />
-          )}
-        </Button>
-        {error ? (
-          <p className="text-xs text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    );
-  },
-  function areShortcutRecorderPropsEqual(left, right) {
-    return (
-      left.label === right.label &&
-      left.command === right.command &&
-      left.disabled === right.disabled &&
-      left.onChange === right.onChange &&
-      left.onRecordingChange === right.onRecordingChange &&
-      left.recording === right.recording &&
-      areNullableAppShortcutsEqual(left.shortcut, right.shortcut)
-    );
-  },
-);
-
-interface KeyboardCommandRowProps {
-  model: KeyboardCommandRowModel;
-  onChange(command: KeyboardCommandId, shortcut: AppShortcut | null): void;
-  onReset(command: KeyboardCommandId): void;
-  onRecordingChange(command: KeyboardCommandId | null): void;
-  pending: boolean;
-  platform: string;
-  recording: boolean;
-}
-
-interface KeyboardCommandRowModel {
-  availableOnClient: boolean;
-  command: KeyboardCommandId;
-  conflicts: readonly string[];
-  label: string;
-  description: string;
-  defaultConflicts: readonly string[];
-  customized: boolean;
-  shortcut: AppShortcut | null;
-  webDefaultShortcut: AppShortcut | null;
-}
-
-interface BuildKeyboardCommandRowModelArgs {
-  label: string;
-  description: string;
-  labels: ReadonlyMap<KeyboardCommandId, string>;
-  defaultConflicts: readonly KeyboardCommandId[];
-  command: KeyboardCommandId;
-  defaults: AppDefaultKeybindings;
-  overrides: AppKeybindingOverrides;
-  platform: string;
-}
-
-function buildKeyboardCommandRowModel({
-  label,
-  description,
-  labels,
-  defaultConflicts,
-  command,
-  defaults,
-  overrides,
-  platform,
-}: BuildKeyboardCommandRowModelArgs): KeyboardCommandRowModel {
-  const shortcut = getCommandShortcut(defaults, overrides, command, platform);
-  const customized =
-    findAppKeybindingOverride(
-      overrides,
-      command,
-      keyboardPlatform(platform),
-    ) !== undefined;
-  const webDefaultShortcut = getCommandShortcut(
-    defaults,
-    [],
-    command,
-    platform,
-  );
-  const availableOnClient = isAppCommandAvailableForClient(
-    defaults,
-    command,
-    platform,
-  );
-  const conflicts = customized
-    ? getShortcutConflicts(defaults, overrides, command, platform)
-    : [];
-
-  return {
-    availableOnClient,
-    command,
-    conflicts: conflicts.map((id) => labels.get(id) ?? id),
-    label,
-    description,
-    defaultConflicts: defaultConflicts.map((id) => labels.get(id) ?? id),
-    customized,
-    shortcut,
-    webDefaultShortcut,
-  };
-}
-
-function areCommandListsEqual(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
+}) {
+  const platform = browserPlatform();
+  const [error, setError] = useState<string | null>(null);
+  const presentation =
+    shortcut === null ? null : presentAppShortcut(shortcut, platform);
   return (
-    left.length === right.length &&
-    left.every((command, index) => command === right[index])
-  );
-}
-
-function areKeyboardCommandRowModelsEqual(
-  left: KeyboardCommandRowModel,
-  right: KeyboardCommandRowModel,
-): boolean {
-  return (
-    left.command === right.command &&
-    left.label === right.label &&
-    left.description === right.description &&
-    areCommandListsEqual(left.defaultConflicts, right.defaultConflicts) &&
-    left.availableOnClient === right.availableOnClient &&
-    left.customized === right.customized &&
-    areNullableAppShortcutsEqual(left.shortcut, right.shortcut) &&
-    areNullableAppShortcutsEqual(
-      left.webDefaultShortcut,
-      right.webDefaultShortcut,
-    ) &&
-    areCommandListsEqual(left.conflicts, right.conflicts)
-  );
-}
-
-const KeyboardCommandRow = memo(
-  function KeyboardCommandRow({
-    model,
-    onChange,
-    onReset,
-    onRecordingChange,
-    pending,
-    platform,
-    recording,
-  }: KeyboardCommandRowProps) {
-    const {
-      availableOnClient,
-      command,
-      conflicts,
-      customized,
-      shortcut,
-      webDefaultShortcut,
-    } = model;
-    const metadata = model;
-
-    return (
-      <div
-        aria-busy={pending || undefined}
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        aria-label={
+          recording
+            ? `Recording shortcut for ${row.label}. Press keys or Escape to cancel.`
+            : `Record shortcut for ${row.label}, current shortcut ${presentation?.label ?? "unassigned"}`
+        }
+        aria-pressed={recording}
         className={cn(
-          "flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-5",
-          pending && "opacity-50",
+          "h-7 min-w-24 px-2 text-xs",
+          recording && "border-ring text-foreground",
         )}
+        disabled={disabled}
+        onBlur={() => {
+          setError(null);
+          onRecordingChange(false);
+        }}
+        onClick={() => {
+          if (recording) return;
+          setError(null);
+          onRecordingChange(true);
+        }}
+        onKeyDown={(event) => {
+          if (!recording) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const next =
+            event.key === "Escape"
+              ? undefined
+              : appShortcutFromInput(event, platform);
+          if (next === null) return setError("Press a non-modifier key.");
+          if (next !== undefined && !canAssignAppShortcut(row.command, next))
+            return setError("Use Command, Control, or Alt with a key.");
+          setError(null);
+          if (next !== undefined) onChange(next);
+          onRecordingChange(false);
+        }}
+        size="sm"
+        type="button"
+        variant="outline"
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-sm text-foreground">{metadata.label}</p>
-            {customized ? <SettingsBadge>Custom</SettingsBadge> : null}
-          </div>
-          <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
-            {metadata.description}
-          </p>
-          {webDefaultShortcut !== null ? (
-            <div
-              aria-label={`Default shortcut for ${metadata.label}`}
-              className="mt-1.5 flex flex-wrap items-center gap-1.5"
-            >
-              <span className="text-xs text-subtle-foreground/75">
-                Default:
-              </span>
-              <AppCommandShortcutPill
-                ariaHidden={false}
-                className={SETTINGS_DEFAULT_SHORTCUT_CLASS}
-                shortcut={presentAppShortcut(webDefaultShortcut, platform)}
-              />
-            </div>
-          ) : null}
-          {model.defaultConflicts.length > 0 ? (
-            <p className="mt-1 text-xs text-warning-text">
-              Default shortcut left unbound: also used by{" "}
-              {model.defaultConflicts.join(", ")}.
-            </p>
-          ) : null}
-          {conflicts.length > 0 ? (
-            <p className="mt-1 text-xs text-warning-text">
-              Also used by {conflicts.join(", ")}. Context determines which
-              command runs.
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-start justify-end gap-1">
-          <ShortcutRecorder
-            label={metadata.label}
-            command={command}
-            disabled={!availableOnClient}
-            onChange={onChange}
-            onRecordingChange={onRecordingChange}
-            recording={recording}
-            shortcut={shortcut}
+        {recording ? (
+          "Press keys"
+        ) : presentation === null ? (
+          "Unassigned"
+        ) : (
+          <AppCommandShortcutPill
+            className="rounded-none bg-transparent px-0 py-0 text-foreground opacity-100"
+            shortcut={presentation}
           />
-          <Button
-            aria-label={`Clear shortcut for ${metadata.label}`}
-            className="size-7"
-            disabled={!availableOnClient || shortcut === null}
-            onClick={() => onChange(command, null)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="X" className="size-3.5" />
-          </Button>
-          <Button
-            aria-label={`Reset shortcut for ${metadata.label}`}
-            className="size-7"
-            disabled={!availableOnClient || !customized}
-            onClick={() => onReset(command)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="RotateCcw" className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-    );
-  },
-  function areKeyboardCommandRowPropsEqual(left, right) {
-    return (
-      left.onChange === right.onChange &&
-      left.onReset === right.onReset &&
-      left.onRecordingChange === right.onRecordingChange &&
-      left.pending === right.pending &&
-      left.platform === right.platform &&
-      left.recording === right.recording &&
-      areKeyboardCommandRowModelsEqual(left.model, right.model)
-    );
-  },
-);
+        )}
+      </Button>
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function KeyboardSettingsSection() {
   const systemConfig = useSystemConfig();
   const updateGeneralSettings = useUpdateGeneralSettings();
-  const {
-    isPending: isKeyboardSettingsPending,
-    mutate: mutateKeyboardSettings,
-  } = useUpdateKeyboardSettings();
+  const updateKeyboard = useUpdateKeyboardSettings();
   const platform = browserPlatform();
   const generalSettings =
     systemConfig.data?.generalSettings ?? defaultAppSettings;
-  const {
-    defaults,
-    commands,
-    conflicts: defaultConflicts,
-  } = usePluginCommandBindings();
-  const commandGroups = useMemo(
-    () => [
-      ...APP_COMMAND_GROUPS,
-      {
-        label: "Plugin commands",
-        commands: commands.map((command) => ({
-          command: pluginCommandId(command.pluginId, command.id),
-          label: command.title,
-          description: `Plugin: ${command.pluginId}`,
-        })),
-      },
-    ],
-    [commands],
-  );
-  const labels = useMemo(
-    () =>
-      new Map<KeyboardCommandId, string>(
-        commandGroups.flatMap((group) =>
-          group.commands.map(
-            (command) => [command.command, command.label] as const,
-          ),
-        ),
-      ),
-    [commandGroups],
-  );
+  const bindings = usePluginCommandBindings();
+  const { defaults } = bindings;
+  const overrides = systemConfig.data?.keybindingOverrides ?? [];
   const [pendingAssignment, setPendingAssignment] = useState<{
     command: KeyboardCommandId;
     shortcut: AppShortcut;
     conflicts: KeyboardCommandId[];
   } | null>(null);
-  const serverOverrides =
-    systemConfig.data?.keybindingOverrides ?? EMPTY_OVERRIDES;
-  const serverOverridesKey = JSON.stringify(serverOverrides);
-  const [draft, setDraft] = useState<{
-    sourceKey: string;
-    value: AppKeybindingOverrides;
-  }>(() => ({ sourceKey: serverOverridesKey, value: serverOverrides }));
-  const overrides =
-    draft.sourceKey === serverOverridesKey ? draft.value : serverOverrides;
   const [recordingCommand, setRecordingCommand] =
     useState<KeyboardCommandId | null>(null);
+  const [changedCommand, setChangedCommand] =
+    useState<KeyboardCommandId | null>(null);
   const [search, setSearch] = useState("");
-  const pendingCommandRef = useRef<KeyboardCommandId | null>(null);
 
-  const commandRowModels = useMemo(
-    () =>
-      new Map(
-        commandGroups.flatMap((group) =>
-          group.commands.map(
-            ({ command, label, description }) =>
-              [
-                command,
-                buildKeyboardCommandRowModel({
-                  command,
-                  label,
-                  description,
-                  labels,
-                  defaultConflicts: defaultConflicts.get(command) ?? [],
-                  defaults,
-                  overrides,
-                  platform,
-                }),
-              ] as const,
-          ),
-        ),
-      ),
-    [commandGroups, defaultConflicts, defaults, labels, overrides, platform],
-  );
-
-  const shortcutMatches = useCallback(
-    (command: KeyboardCommandId, query: string): boolean => {
-      const model = commandRowModels.get(command);
-      if (model === undefined) return false;
-      return [model.shortcut, model.webDefaultShortcut]
-        .filter((shortcut): shortcut is AppShortcut => shortcut !== null)
-        .some((shortcut) => appShortcutMatchesQuery(shortcut, platform, query));
-    },
-    [commandRowModels, platform],
-  );
-
-  const visibleGroups = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (query.length === 0) return commandGroups;
-    const commands = commandGroups
-      .flatMap((group) =>
-        group.commands.map((metadata) => {
-          const label = metadata.label.toLowerCase();
-          const rank = [
-            label === query,
-            label.startsWith(query),
-            label.includes(query),
-            shortcutMatches(metadata.command, query),
-            metadata.command.toLowerCase().includes(query),
-            metadata.description.toLowerCase().includes(query),
-          ].findIndex(Boolean);
-          return { metadata, rank };
-        }),
-      )
-      .filter(({ rank }) => rank !== -1)
-      .sort((left, right) => left.rank - right.rank)
-      .map(({ metadata }) => metadata);
-    return commands.length === 0 ? [] : [{ label: "Search results", commands }];
-  }, [commandGroups, search, shortcutMatches]);
-
-  const latestSettingsRef = useRef({
-    defaults,
-    overrides,
-    platform,
-    serverOverridesKey,
-  });
-  useLayoutEffect(() => {
-    latestSettingsRef.current = {
-      defaults,
+  const groups: readonly { label: string; commands: readonly CommandRow[] }[] =
+    [
+      ...APP_COMMAND_GROUPS,
+      {
+        label: "Plugin commands",
+        commands: bindings.commands.map((command) => ({
+          command: pluginCommandId(command.pluginId, command.id),
+          label: command.title,
+          description: `Plugin: ${command.pluginId}`,
+        })),
+      },
+    ];
+  const rows = groups.flatMap((group) => group.commands);
+  const labelOf = (id: KeyboardCommandId) =>
+    rows.find((row) => row.command === id)?.label ?? id;
+  const shortcutOf = (command: KeyboardCommandId) =>
+    getCommandShortcut(defaults, overrides, command, platform);
+  const defaultShortcutOf = (command: KeyboardCommandId) =>
+    getCommandShortcut(defaults, [], command, platform);
+  const isAvailable = (command: KeyboardCommandId) =>
+    isAppCommandAvailableForClient(defaults, command, platform);
+  const isCustomized = (command: KeyboardCommandId) =>
+    findAppKeybindingOverride(
       overrides,
+      command,
+      keyboardPlatform(platform),
+    ) !== undefined;
+
+  const apply = (
+    next: AppKeybindingOverrides,
+    command: KeyboardCommandId | null,
+  ) => {
+    setChangedCommand(command);
+    setPendingAssignment(null);
+    updateKeyboard.mutate(next);
+  };
+  const assign = (
+    command: KeyboardCommandId,
+    shortcut: AppShortcut | null,
+    replace: boolean,
+  ) => {
+    let next = setCommandShortcutOverride(
+      overrides,
+      command,
+      shortcut,
       platform,
-      serverOverridesKey,
-    };
-  }, [defaults, overrides, platform, serverOverridesKey]);
+    );
+    const conflicts = getShortcutConflicts(defaults, next, command, platform);
+    if (shortcut !== null && conflicts.length > 0 && !replace)
+      return setPendingAssignment({ command, shortcut, conflicts });
+    if (replace)
+      for (const conflict of conflicts)
+        next = setCommandShortcutOverride(next, conflict, null, platform);
+    apply(next, command);
+  };
 
-  const applyOverrides = useCallback(
-    (
-      next: AppKeybindingOverrides,
-      pending: KeyboardCommandId | null,
-      previous: AppKeybindingOverrides,
-      sourceKey: string,
-    ) => {
-      pendingCommandRef.current = pending;
-      setDraft({ sourceKey, value: next });
-      mutateKeyboardSettings(next, {
-        onError: () => setDraft({ sourceKey, value: previous }),
-      });
-    },
-    [mutateKeyboardSettings],
-  );
+  const query = search.trim().toLowerCase();
+  const matches = rows
+    .map((row) => {
+      const label = row.label.toLowerCase();
+      const rank = [
+        label === query,
+        label.startsWith(query),
+        label.includes(query),
+        [shortcutOf(row.command), defaultShortcutOf(row.command)].some(
+          (shortcut) =>
+            shortcut !== null &&
+            appShortcutMatchesQuery(shortcut, platform, query),
+        ),
+        row.command.toLowerCase().includes(query),
+        row.description.toLowerCase().includes(query),
+      ].findIndex(Boolean);
+      return { row, rank };
+    })
+    .filter(({ rank }) => rank !== -1)
+    .sort((left, right) => left.rank - right.rank)
+    .map(({ row }) => row);
+  const visibleGroups =
+    query.length === 0
+      ? groups
+      : matches.length === 0
+        ? []
+        : [{ label: "Search results", commands: matches }];
 
-  const assignCommand = useCallback(
-    (
-      command: KeyboardCommandId,
-      shortcut: AppShortcut | null,
-      replace: boolean,
-    ) => {
-      const current = latestSettingsRef.current;
-      let next = setCommandShortcutOverride(
-        current.overrides,
-        command,
-        shortcut,
-        current.platform,
-      );
-      const conflicts = getShortcutConflicts(
-        current.defaults,
-        next,
-        command,
-        current.platform,
-      );
-      if (shortcut !== null && conflicts.length > 0 && !replace) {
-        setPendingAssignment({ command, shortcut, conflicts });
-        return;
-      }
-      if (replace) {
-        for (const conflict of conflicts) {
-          next = setCommandShortcutOverride(
-            next,
-            conflict,
-            null,
-            current.platform,
-          );
-        }
-      }
-      setPendingAssignment(null);
-      applyOverrides(
-        next,
-        command,
-        current.overrides,
-        current.serverOverridesKey,
-      );
-    },
-    [applyOverrides],
+  const pending = updateKeyboard.isPending;
+  const disabled = systemConfig.data === undefined || pending;
+  const customized = rows.filter(
+    (row) => isAvailable(row.command) && isCustomized(row.command),
   );
-  const updateCommand = useCallback(
-    (command: KeyboardCommandId, shortcut: AppShortcut | null) =>
-      assignCommand(command, shortcut, false),
-    [assignCommand],
-  );
-
-  const resetCommand = useCallback(
-    (command: KeyboardCommandId) => {
-      const current = latestSettingsRef.current;
-      const next = resetCommandShortcutOverride(
-        current.overrides,
-        command,
-        current.platform,
-      );
-      applyOverrides(
-        next,
-        command,
-        current.overrides,
-        current.serverOverridesKey,
-      );
-    },
-    [applyOverrides],
-  );
-
-  const pendingCommand = isKeyboardSettingsPending
-    ? pendingCommandRef.current
-    : null;
-  const disabled = systemConfig.data === undefined || isKeyboardSettingsPending;
-  const customizedCommands = [...commandRowModels.values()].filter(
-    (row) => row.availableOnClient && row.customized,
-  );
-  const hasOverrides = customizedCommands.length > 0;
 
   return (
     <SettingsSection
       action={
         <Button
-          disabled={disabled || !hasOverrides}
+          disabled={disabled || customized.length === 0}
           onClick={() =>
-            applyOverrides(
-              customizedCommands.reduce(
+            apply(
+              customized.reduce(
                 (next, row) =>
                   resetCommandShortcutOverride(next, row.command, platform),
                 overrides,
               ),
               null,
-              overrides,
-              serverOverridesKey,
             )
           }
           size="sm"
@@ -651,24 +264,20 @@ export function KeyboardSettingsSection() {
       title="Keyboard shortcuts"
     >
       <div className="space-y-5">
-        <SettingsWithControl
-          description="Show shortcut badges after holding Command or Control."
+        <SettingsSwitch
           label="Show keyboard hints when holding CMD / Control"
-        >
-          <Switch
-            aria-label="Show keyboard hints when holding CMD / Control"
-            checked={generalSettings.showKeyboardHints}
-            disabled={
-              systemConfig.data === undefined || updateGeneralSettings.isPending
-            }
-            onCheckedChange={(showKeyboardHints) =>
-              updateGeneralSettings.mutate({
-                ...generalSettings,
-                showKeyboardHints,
-              })
-            }
-          />
-        </SettingsWithControl>
+          description="Show shortcut badges after holding Command or Control."
+          checked={generalSettings.showKeyboardHints}
+          disabled={
+            systemConfig.data === undefined || updateGeneralSettings.isPending
+          }
+          onChange={(showKeyboardHints) =>
+            updateGeneralSettings.mutate({
+              ...generalSettings,
+              showKeyboardHints,
+            })
+          }
+        />
         <Input
           aria-label="Search keyboard shortcuts"
           onChange={(event) => setSearch(event.target.value)}
@@ -682,19 +291,14 @@ export function KeyboardSettingsSection() {
           >
             <p className="text-sm">
               Shortcut already used by{" "}
-              {pendingAssignment.conflicts
-                .map((id) => labels.get(id) ?? id)
-                .join(", ")}
-              . Replace it with{" "}
-              {labels.get(pendingAssignment.command) ??
-                pendingAssignment.command}
-              ?
+              {pendingAssignment.conflicts.map(labelOf).join(", ")}. Replace it
+              with {labelOf(pendingAssignment.command)}?
             </p>
             <div className="flex gap-2">
               <Button
                 disabled={disabled}
                 onClick={() =>
-                  assignCommand(
+                  assign(
                     pendingAssignment.command,
                     pendingAssignment.shortcut,
                     true,
@@ -717,8 +321,7 @@ export function KeyboardSettingsSection() {
         <fieldset
           className={cn(
             "m-0 min-w-0 space-y-5 border-0 p-0",
-            isKeyboardSettingsPending &&
-              "[&:disabled_button:not([disabled])]:opacity-100",
+            pending && "[&:disabled_button:not([disabled])]:opacity-100",
           )}
           disabled={disabled}
         >
@@ -728,20 +331,116 @@ export function KeyboardSettingsSection() {
                 {group.label}
               </h3>
               <div className="divide-y divide-border">
-                {group.commands.map((metadata) => {
-                  const model = commandRowModels.get(metadata.command);
-                  if (model === undefined) return null;
+                {group.commands.map((row) => {
+                  const { command } = row;
+                  const available = isAvailable(command);
+                  const custom = isCustomized(command);
+                  const shortcut = shortcutOf(command);
+                  const defaultShortcut = defaultShortcutOf(command);
+                  const defaultConflicts = bindings.conflicts.get(command);
+                  const conflicts = custom
+                    ? getShortcutConflicts(
+                        defaults,
+                        overrides,
+                        command,
+                        platform,
+                      )
+                    : [];
+                  const busy = pending && changedCommand === command;
                   return (
-                    <KeyboardCommandRow
-                      key={metadata.command}
-                      model={model}
-                      onChange={updateCommand}
-                      onReset={resetCommand}
-                      onRecordingChange={setRecordingCommand}
-                      pending={pendingCommand === metadata.command}
-                      platform={platform}
-                      recording={recordingCommand === metadata.command}
-                    />
+                    <div
+                      key={command}
+                      aria-busy={busy || undefined}
+                      className={cn(
+                        "flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-5",
+                        busy && "opacity-50",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-sm text-foreground">{row.label}</p>
+                          {custom ? (
+                            <SettingsBadge>Custom</SettingsBadge>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-xs leading-snug text-subtle-foreground/75">
+                          {row.description}
+                        </p>
+                        {defaultShortcut !== null ? (
+                          <div
+                            aria-label={`Default shortcut for ${row.label}`}
+                            className="mt-1.5 flex flex-wrap items-center gap-1.5"
+                          >
+                            <span className="text-xs text-subtle-foreground/75">
+                              Default:
+                            </span>
+                            <AppCommandShortcutPill
+                              ariaHidden={false}
+                              className="bg-muted/40 px-1.5 py-0.5 text-foreground opacity-100"
+                              shortcut={presentAppShortcut(
+                                defaultShortcut,
+                                platform,
+                              )}
+                            />
+                          </div>
+                        ) : null}
+                        {defaultConflicts?.length ? (
+                          <p className="mt-1 text-xs text-warning-text">
+                            Default shortcut left unbound: also used by{" "}
+                            {defaultConflicts.map(labelOf).join(", ")}.
+                          </p>
+                        ) : null}
+                        {conflicts.length > 0 ? (
+                          <p className="mt-1 text-xs text-warning-text">
+                            Also used by {conflicts.map(labelOf).join(", ")}.
+                            Context determines which command runs.
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-start justify-end gap-1">
+                        <ShortcutRecorder
+                          row={row}
+                          disabled={!available}
+                          onChange={(next) => assign(command, next, false)}
+                          onRecordingChange={(recording) =>
+                            setRecordingCommand(recording ? command : null)
+                          }
+                          recording={recordingCommand === command}
+                          shortcut={shortcut}
+                        />
+                        <Button
+                          aria-label={`Clear shortcut for ${row.label}`}
+                          className="size-7"
+                          disabled={!available || shortcut === null}
+                          onClick={() => assign(command, null, false)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Icon name="X" className="size-3.5" />
+                        </Button>
+                        <Button
+                          aria-label={`Reset shortcut for ${row.label}`}
+                          className="size-7"
+                          disabled={!available || !custom}
+                          onClick={() =>
+                            apply(
+                              resetCommandShortcutOverride(
+                                overrides,
+                                command,
+                                platform,
+                              ),
+                              command,
+                            )
+                          }
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Icon name="RotateCcw" className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

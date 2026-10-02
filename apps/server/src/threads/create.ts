@@ -6,24 +6,15 @@ import type {
 import type { Environment, Project } from "@bb/domain";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
-import { encodeJson, type Db } from "../db/index.js";
-import { setProjectExecutionDefaults } from "../db/projects.js";
-import { listThreadSections } from "../db/thread-sections.js";
-import {
-  ancestry,
-  deleteThreadRow,
-  getThread,
-  insertThread,
-  MAX_THREAD_HIERARCHY_DEPTH,
-  subtreeDepth,
-  type ThreadRow,
-} from "../db/threads.js";
+import type { Db } from "../db/index.js";
+import { requireProject, setProjectExecutionDefaults } from "../db/projects.js";
+import { requireThreadSection } from "../db/thread-sections.js";
+import * as store from "../db/threads.js";
 import {
   environmentProviderIdSchema,
   type EnvironmentIntent,
 } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
-import { requireProject } from "../projects/require.js";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
@@ -35,7 +26,7 @@ type ProviderIntent = Extract<EnvironmentIntent, { type: "provider" }>;
 
 const DEFAULT_BRANCH = { branch: { kind: "default" } };
 
-function invalidParent(reason: InvalidReason): ApiError {
+function invalidParent(reason: InvalidReason) {
   const details: ParentThreadInvalidErrorDetails = {
     reason,
     subject: "parent",
@@ -44,29 +35,22 @@ function invalidParent(reason: InvalidReason): ApiError {
   return new ApiError(400, "parent_thread_invalid", message, { details });
 }
 
-export function requireThreadSection(db: Db, sectionId: string): void {
-  if (listThreadSections(db).some((section) => section.id === sectionId)) {
-    return;
-  }
-  throw new ApiError(404, "section_not_found", "Section not found");
-}
-
 export function requireValidParent(
   db: Db,
   parentThreadId: string,
-  child: ThreadRow | null,
-): ThreadRow {
-  const parent = getThread(db, parentThreadId);
+  child: store.ThreadRow | null,
+): store.ThreadRow {
+  const parent = store.getThread(db, parentThreadId);
   if (parent === undefined) throw invalidParent("not_found");
   if (parent.archivedAt !== null) throw invalidParent("archived");
   if (parent.deletedAt !== null) throw invalidParent("deleted");
-  const ancestors = ancestry(db, parent);
+  const ancestors = store.ancestry(db, parent);
   if (child !== null && parent.id === child.id) throw invalidParent("self");
   if (child !== null && ancestors.includes(child.id)) {
     throw invalidParent("cycle");
   }
-  const below = child === null ? 1 : subtreeDepth(db, child);
-  if (ancestors.length + below > MAX_THREAD_HIERARCHY_DEPTH) {
+  const below = child === null ? 1 : store.subtreeDepth(db, child);
+  if (ancestors.length + below > store.MAX_THREAD_HIERARCHY_DEPTH) {
     throw invalidParent("too_deep");
   }
   return parent;
@@ -139,7 +123,7 @@ function resolveIntent(
   }
 }
 
-function intentHostId(db: Db, intent: EnvironmentIntent): string {
+function intentHostId(db: Db, intent: EnvironmentIntent) {
   if (intent.type !== "reuse") return intent.hostId;
   const environment = getEnvironment(db, intent.environmentId);
   if (environment === undefined) throw new Error("Environment disappeared");
@@ -181,14 +165,14 @@ export async function createThread(
     titleProvided: title !== undefined,
   };
   const thread = engine.commit((out) => {
-    const row = insertThread(db, {
+    const row = store.insertThread(db, {
       projectId,
       providerId,
       ...execution,
       title: title ?? null,
       titleFallback: deriveTitleFallback(request.input),
       sectionId: sectionId ?? null,
-      startupContext: encodeJson(startup),
+      startupContext: JSON.stringify(startup),
       parentThreadId: parent?.id ?? null,
       lifecycleOwnerThreadId: ownerId,
       originPluginId: request.originPluginId ?? null,
@@ -218,7 +202,7 @@ export async function createThread(
       }),
     );
   } catch (error) {
-    deleteThreadRow(db, thread.id);
+    store.deleteThreadRow(db, thread.id);
     ctx.hub.thread(thread.id, ["thread-deleted"], { projectId });
     throw error;
   }

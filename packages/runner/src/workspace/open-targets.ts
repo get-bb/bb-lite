@@ -14,7 +14,7 @@ interface Target extends Pick<OpenTarget, "id" | "label" | "kind"> {
 
 const mac = process.platform === "darwin";
 
-function position({ path: file, line, column }: OpenRequest): string {
+function position({ path: file, line, column }: OpenRequest) {
   const suffix = column === null ? "" : `:${column}`;
   return line === null ? file : `${file}:${line}${suffix}`;
 }
@@ -54,17 +54,12 @@ const TARGETS: Target[] = [
   },
 ];
 
-async function findExecutable(
-  names: string[],
-  searchPath: string,
-): Promise<string | null> {
+async function findExecutable(names: string[], searchPath: string) {
   const directories = searchPath.split(path.delimiter).filter(Boolean);
   for (const name of names) {
     for (const directory of directories) {
       const candidate = path.join(directory, name);
-      if (await pathExists(candidate, constants.X_OK)) {
-        return candidate;
-      }
+      if (await pathExists(candidate, constants.X_OK)) return candidate;
     }
   }
   return null;

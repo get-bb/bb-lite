@@ -1,7 +1,7 @@
 const DIGITS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const LAST_DIGIT = DIGITS.length - 1;
 
-function digitAt(key: string | null, index: number, fallback: number): number {
+function digitAt(key: string | null, index: number, fallback: number) {
   if (key === null || index >= key.length) return fallback;
   const digit = DIGITS.indexOf(key.charAt(index));
   if (digit < 0) throw new Error(`Invalid order key '${key}'`);

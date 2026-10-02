@@ -1,33 +1,22 @@
 import { randomUUID } from "node:crypto";
+import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
 import type { ServerContext } from "../../context.js";
-import { newId } from "../../db/index.js";
-import {
-  destroyHost,
-  findHost,
-  insertHost,
-  listHosts,
-  updateHost,
-} from "../../db/hosts.js";
-import {
-  hashToken,
-  issueJoinToken,
-  joinCommand,
-  redeemJoinToken,
-  type JoinToken,
-} from "../../runners/enrollment.js";
+import { newId, type RowValues } from "../../db/index.js";
+import * as store from "../../db/hosts.js";
+import * as enrollment from "../../runners/enrollment.js";
 import {
   hostResponse,
   publicServerUrl,
   requireHost,
 } from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
-import { principalOf } from "../trust.js";
+import { ApiError, errorMessage, invalidRequest } from "../errors.js";
+import { principalOf, requireOwner } from "../trust.js";
 
-interface RequestUrl {
-  req: { url: string };
+interface HostRequest {
+  req: { raw: Request; url: string; param(name: "id"): string };
 }
 
 const MANUAL_MACHINE_PROVIDER_ID = "manual";
@@ -40,23 +29,40 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.hosts;
   const { db, hub, plugins, runners } = ctx;
-  const pendingJoins = new Map<string, JoinToken>();
+  const pendingJoins = new Map<string, enrollment.JoinToken>();
 
   const commandFor = async (
-    c: RequestUrl,
+    c: HostRequest,
     hostId: string,
-    { joinToken, expiresAt }: JoinToken,
+    { joinToken, expiresAt }: enrollment.JoinToken,
   ) => {
     const granting = plugins.machineAccess()?.grant(hostId);
     const access = await granting?.catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new ApiError(502, "machine_access_unavailable", message);
+      const code = "machine_access_unavailable";
+      throw new ApiError(502, code, errorMessage(error));
     });
     const serverUrl =
       access?.serverUrl ?? publicServerUrl(ctx) ?? new URL(c.req.url).origin;
     const headers = access?.headers;
-    const command = joinCommand({ serverUrl, hostId, joinToken, headers });
+    const command = enrollment.joinCommand({
+      serverUrl,
+      hostId,
+      joinToken,
+      headers,
+    });
     return { command, expiresAt };
+  };
+
+  const patchHost = (hostId: string, patch: RowValues): Host => {
+    const { id } = requireHost(ctx, hostId);
+    store.updateHost(db, id, patch);
+    hub.host(id, ["host-connected"]);
+    return hostResponse(ctx, requireHost(ctx, id));
+  };
+
+  const ownerRunner = (c: HostRequest) => {
+    requireOwner(c, "Only the owner can open paths in local apps");
+    return runners.get(requireHost(ctx, c.req.param("id")).id);
   };
 
   post(routes.create, (c, payload) => {
@@ -69,24 +75,24 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       );
     }
     const launchKey = payload.key ?? randomUUID();
-    const existing = findHost(db, "launch_key", launchKey);
+    const existing = store.findHost(db, "launch_key", launchKey);
     if (existing !== undefined) return c.json(hostResponse(ctx, existing), 201);
     const id = newId("host");
-    insertHost(db, {
+    store.insertHost(db, {
       id,
       name: `New machine ${id.slice(-6)}`,
       phase: "creating",
       statusMessage: "Waiting for the enrollment command to run",
       launchKey,
     });
-    pendingJoins.set(id, issueJoinToken(db, id));
+    pendingJoins.set(id, enrollment.issueJoinToken(db, id));
     hub.host(id, ["host-connected"]);
     return c.json(hostResponse(ctx, requireHost(ctx, id)), 201);
   });
 
   get(routes.list, (c, query) => {
     const includeCreating = query.includeCreating === "true";
-    const hosts = listHosts(db, { includeCreating, type: query.type });
+    const hosts = store.listHosts(db, { includeCreating, type: query.type });
     return c.json(hosts.map((host) => hostResponse(ctx, host)));
   });
 
@@ -100,19 +106,13 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   get(routes.enrollmentCommand, async (c) => {
-    if (principalOf(c).kind !== "owner") {
-      throw new ApiError(
-        403,
-        "forbidden",
-        "Machine credentials cannot read enrollment commands",
-      );
-    }
+    requireOwner(c, "Machine credentials cannot read enrollment commands");
     const host = requireHost(ctx, c.req.param("id"));
     const pending = pendingJoins.get(host.id);
     const usable =
       pending !== undefined &&
       host.phase === "creating" &&
-      host.joinTokenHash === hashToken(pending.joinToken) &&
+      host.joinTokenHash === enrollment.hashToken(pending.joinToken) &&
       pending.expiresAt > ctx.now();
     return c.json(usable ? await commandFor(c, host.id, pending) : null);
   });
@@ -133,24 +133,18 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
         "Machine is connected and doesn't need reconnecting",
       );
     }
-    const token = issueJoinToken(db, host.id);
+    const token = enrollment.issueJoinToken(db, host.id);
     const command = await commandFor(c, host.id, token);
     return c.json({ ...command, hostId: host.id }, 201);
   });
 
-  patch(routes.update, (c, payload) => {
-    const { id } = requireHost(ctx, c.req.param("id"));
-    updateHost(db, id, { name: payload.name });
-    hub.host(id, ["host-connected"]);
-    return c.json(hostResponse(ctx, requireHost(ctx, id)));
-  });
+  patch(routes.update, (c, { name }) =>
+    c.json(patchHost(c.req.param("id"), { name })),
+  );
 
-  patch(routes.updatePermissionCeiling, (c, payload) => {
-    const { id } = requireHost(ctx, c.req.param("id"));
-    updateHost(db, id, { maxPermissionMode: payload.maxPermissionMode });
-    hub.host(id, ["host-connected"]);
-    return c.json(hostResponse(ctx, requireHost(ctx, id)));
-  });
+  patch(routes.updatePermissionCeiling, (c, { maxPermissionMode }) =>
+    c.json(patchHost(c.req.param("id"), { maxPermissionMode })),
+  );
 
   del(routes.delete, async (c) => {
     const { id, connectMachineId } = requireHost(ctx, c.req.param("id"));
@@ -162,7 +156,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       );
     }
     const wasConnected = runners.isConnected(id);
-    destroyHost(db, id);
+    store.destroyHost(db, id);
     pendingJoins.delete(id);
     runners.disconnect(id);
     if (!wasConnected) hub.host(id, ["host-disconnected"]);
@@ -175,6 +169,15 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     });
     return c.json({ ok: true });
   });
+
+  get(routes.openTargets, async (c) =>
+    c.json(await ownerRunner(c).listOpenTargets()),
+  );
+
+  post(routes.open, async (c, { line = null, column = null, ...target }) => {
+    await ownerRunner(c).openInTarget({ ...target, line, column });
+    return c.json({ ok: true });
+  });
 }
 
 export function registerRunnerRoutes(app: ApiApp, ctx: ServerContext): void {
@@ -182,7 +185,7 @@ export function registerRunnerRoutes(app: ApiApp, ctx: ServerContext): void {
     const raw: unknown = await c.req.json().catch(() => ({}));
     const body = joinBodySchema.safeParse(raw);
     if (!body.success) throw invalidRequest("Invalid runner join body");
-    const credential = redeemJoinToken(ctx.db, {
+    const credential = enrollment.redeemJoinToken(ctx.db, {
       authorization: c.req.header("authorization"),
       principal: principalOf(c),
       hostName: body.data.hostName,

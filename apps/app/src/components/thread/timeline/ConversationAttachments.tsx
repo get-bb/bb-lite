@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { TimelineConversationAttachments } from "@bb/server-contract";
+import type { PromptDraftAttachment } from "@bb/client-core";
 import { fileNameFromPath } from "@bb/thread-view";
 import {
   ImageLightbox,
@@ -7,97 +8,47 @@ import {
 } from "../../ui/image-lightbox.js";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { buildProjectAttachmentContentUrl } from "@/lib/file-content-urls";
-import type {
-  ThreadTimelineLocalFileLinkHandler,
-  UserAttachmentImageSrcResolver,
-} from "./types.js";
-
-interface ConversationImageItem {
-  alt: string;
-  src: string;
-}
+import { toUserAttachmentImageSrc } from "@/lib/user-attachment-images";
+import { useTimeline } from "./timeline-context.js";
 
 export interface ConversationAttachmentItems {
+  draftAttachments: PromptDraftAttachment[];
   filePaths: string[];
-  imageItems: ConversationImageItem[];
+  imageItems: { alt: string; src: string }[];
 }
 
-interface ConversationAttachmentsProps extends ConversationAttachmentItems {
-  align?: "start" | "end";
-  onOpenLocalFileLink?: ThreadTimelineLocalFileLinkHandler;
-  projectId?: string;
-}
-
-interface BuildAttachmentItemsArgs {
-  attachments: TimelineConversationAttachments | null;
-  projectId?: string;
-  resolveUserAttachmentImageSrc?: UserAttachmentImageSrcResolver;
-}
-
-interface ProjectAttachmentHrefArgs {
-  path: string;
-  projectId: string | undefined;
-}
-
-interface PathClassificationArgs {
-  path: string;
-}
-
-const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/u;
+const ABSOLUTE_LOCAL_PATH_PATTERN = /^(?:\/|[a-zA-Z]:[\\/])/u;
 const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/u;
 
-function isAbsoluteLocalPath({ path }: PathClassificationArgs): boolean {
-  return path.startsWith("/") || WINDOWS_ABSOLUTE_PATH_PATTERN.test(path);
-}
-
-function isProjectAttachmentPath({ path }: PathClassificationArgs): boolean {
-  return (
-    path.length > 0 &&
-    !path.startsWith("\\") &&
-    !isAbsoluteLocalPath({ path }) &&
-    !URL_SCHEME_PATTERN.test(path)
-  );
-}
-
-function projectAttachmentHref({
-  path,
-  projectId,
-}: ProjectAttachmentHrefArgs): string | null {
-  if (!projectId || !isProjectAttachmentPath({ path })) {
-    return null;
-  }
-
-  return buildProjectAttachmentContentUrl(projectId, path);
-}
-
-export function buildAttachmentItems({
-  attachments,
-  projectId,
-  resolveUserAttachmentImageSrc,
-}: BuildAttachmentItemsArgs): ConversationAttachmentItems {
+export function buildAttachmentItems(
+  attachments: TimelineConversationAttachments | null,
+  projectId: string | undefined,
+): ConversationAttachmentItems {
   if (!attachments) {
-    return {
-      filePaths: [],
-      imageItems: [],
-    };
+    return { draftAttachments: [], filePaths: [], imageItems: [] };
   }
-
-  const imageItems: ConversationImageItem[] = [
-    ...attachments.imageUrls.map((url) => ({
-      alt: fileNameFromPath(url),
-      src: url,
-    })),
-    ...attachments.localImagePaths.map((path) => ({
-      alt: fileNameFromPath(path),
-      src: resolveUserAttachmentImageSrc
-        ? resolveUserAttachmentImageSrc(path, projectId)
-        : path,
-    })),
-  ];
-
+  const draft = (type: "localImage" | "localFile") => (path: string) => ({
+    type,
+    path,
+    name: fileNameFromPath(path),
+    sizeBytes: 0,
+  });
   return {
+    draftAttachments: [
+      ...attachments.localImagePaths.map(draft("localImage")),
+      ...attachments.localFilePaths.map(draft("localFile")),
+    ],
     filePaths: attachments.localFilePaths,
-    imageItems,
+    imageItems: [
+      ...attachments.imageUrls.map((url) => ({
+        alt: fileNameFromPath(url),
+        src: url,
+      })),
+      ...attachments.localImagePaths.map((path) => ({
+        alt: fileNameFromPath(path),
+        src: toUserAttachmentImageSrc(path, projectId),
+      })),
+    ],
   };
 }
 
@@ -105,9 +56,10 @@ export function ConversationAttachments({
   align = "start",
   filePaths,
   imageItems,
-  onOpenLocalFileLink,
-  projectId,
-}: ConversationAttachmentsProps) {
+}: Pick<ConversationAttachmentItems, "filePaths" | "imageItems"> & {
+  align?: "start" | "end";
+}) {
+  const { onOpenLocalFileLink, projectId } = useTimeline();
   const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(
     null,
   );
@@ -115,15 +67,22 @@ export function ConversationAttachments({
     expandedImageIndex === null
       ? null
       : (imageItems[expandedImageIndex] ?? null);
-  const hasMultipleImages = imageItems.length > 1;
   const justifyClassName = align === "end" ? "justify-end" : "justify-start";
-
-  useEffect(() => {
-    if (expandedImageIndex === null || expandedImageIndex < imageItems.length) {
-      return;
-    }
-    setExpandedImageIndex(null);
-  }, [expandedImageIndex, imageItems.length]);
+  const surfaceClassName =
+    align === "end"
+      ? "border-surface-selected-border bg-surface-raised"
+      : "border-border bg-surface-recessed";
+  const stepImage = (direction: "previous" | "next") => {
+    setExpandedImageIndex(
+      expandedImageIndex === null || imageItems.length <= 1
+        ? expandedImageIndex
+        : getWrappedImageIndex({
+            currentIndex: expandedImageIndex,
+            direction,
+            itemCount: imageItems.length,
+          }),
+    );
+  };
 
   if (filePaths.length === 0 && imageItems.length === 0) {
     return null;
@@ -139,9 +98,7 @@ export function ConversationAttachments({
               key={`${imageItem.src}-${index}`}
               className={cn(
                 "cursor-zoom-in overflow-hidden rounded-md border",
-                align === "end"
-                  ? "border-surface-selected-border bg-surface-raised"
-                  : "border-border bg-surface-recessed",
+                surfaceClassName,
               )}
               onClick={() => setExpandedImageIndex(index)}
               title={imageItem.alt}
@@ -165,20 +122,23 @@ export function ConversationAttachments({
           {filePaths.map((path) => {
             const className = cn(
               "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-xs text-muted-foreground",
-              align === "end"
-                ? "border-surface-selected-border bg-surface-raised"
-                : "border-border bg-surface-recessed",
+              surfaceClassName,
             );
             const label = (
               <span className="truncate">{fileNameFromPath(path)}</span>
             );
-            const attachmentHref = projectAttachmentHref({ path, projectId });
-
-            if (attachmentHref) {
+            const isAbsolute = ABSOLUTE_LOCAL_PATH_PATTERN.test(path);
+            if (
+              projectId &&
+              path.length > 0 &&
+              !path.startsWith("\\") &&
+              !isAbsolute &&
+              !URL_SCHEME_PATTERN.test(path)
+            ) {
               return (
                 <a
                   key={path}
-                  href={attachmentHref}
+                  href={buildProjectAttachmentContentUrl(projectId, path)}
                   target="_blank"
                   rel="noreferrer"
                   className={cn(
@@ -190,15 +150,13 @@ export function ConversationAttachments({
                 </a>
               );
             }
-
-            if (!onOpenLocalFileLink || !isAbsoluteLocalPath({ path })) {
+            if (!onOpenLocalFileLink || !isAbsolute) {
               return (
                 <span key={path} className={cn(className, "cursor-default")}>
                   {label}
                 </span>
               );
             }
-
             return (
               <button
                 key={path}
@@ -218,29 +176,9 @@ export function ConversationAttachments({
         title="Attached image preview"
         imageSrc={currentImageItem?.src ?? null}
         imageAlt={currentImageItem?.alt ?? "Attached image"}
-        hasMultipleImages={hasMultipleImages}
-        onPrevious={() => {
-          setExpandedImageIndex(
-            expandedImageIndex === null || imageItems.length <= 1
-              ? expandedImageIndex
-              : getWrappedImageIndex({
-                  currentIndex: expandedImageIndex,
-                  direction: "previous",
-                  itemCount: imageItems.length,
-                }),
-          );
-        }}
-        onNext={() => {
-          setExpandedImageIndex(
-            expandedImageIndex === null || imageItems.length <= 1
-              ? expandedImageIndex
-              : getWrappedImageIndex({
-                  currentIndex: expandedImageIndex,
-                  direction: "next",
-                  itemCount: imageItems.length,
-                }),
-          );
-        }}
+        hasMultipleImages={imageItems.length > 1}
+        onPrevious={() => stepImage("previous")}
+        onNext={() => stepImage("next")}
         onClose={() => setExpandedImageIndex(null)}
       />
     </div>

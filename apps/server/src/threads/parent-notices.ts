@@ -1,11 +1,4 @@
-import type {
-  ChildThreadOutcome,
-  PendingInteraction,
-  PromptInput,
-  PromptTextMention,
-  QueuedMessageSystemNotice,
-  ThreadEventTurnStatus,
-} from "@bb/domain";
+import type * as domain from "@bb/domain";
 import { lastOutput } from "../db/event-read.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { dispatchMessage } from "./dispatch.js";
@@ -13,9 +6,9 @@ import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
 
 export interface ChildOutcome {
-  status: ThreadEventTurnStatus;
+  status: domain.ThreadEventTurnStatus;
   failureContext?: string;
-  interruption?: ChildThreadOutcome["interruption"];
+  interruption?: domain.ChildThreadOutcome["interruption"];
 }
 
 interface OutcomeItem extends ChildOutcome {
@@ -29,8 +22,8 @@ export interface NoticeBatch {
   timer: ReturnType<typeof setTimeout>;
 }
 
-interface SystemNotice extends QueuedMessageSystemNotice {
-  input: PromptInput[];
+interface SystemNotice extends domain.QueuedMessageSystemNotice {
+  input: domain.PromptInput[];
 }
 
 type Segment = string | ThreadRow;
@@ -46,13 +39,13 @@ const BLOCKER_FALLBACK = "It is blocked on a pending interaction.";
 const BLOCKER_MAX_LINES = 4;
 const BLOCKER_MAX_CHARS = 700;
 
-function label(thread: ThreadRow): string {
+function label(thread: ThreadRow) {
   return thread.title?.trim() || thread.id;
 }
 
-function compose(segments: Segment[]): PromptInput[] {
+function compose(segments: Segment[]): domain.PromptInput[] {
   let text = SYSTEM_PREFIX;
-  const mentions: PromptTextMention[] = [];
+  const mentions: domain.PromptTextMention[] = [];
   for (const segment of segments) {
     if (typeof segment === "string") {
       text += segment;
@@ -68,7 +61,7 @@ function compose(segments: Segment[]): PromptInput[] {
   return [{ type: "text", text, mentions }];
 }
 
-function subjectOf(thread: ThreadRow, outcomes?: ChildThreadOutcome[]) {
+function subjectOf(thread: ThreadRow, outcomes?: domain.ChildThreadOutcome[]) {
   const kind = "thread" as const;
   const base = { kind, threadId: thread.id, threadName: label(thread) };
   return outcomes === undefined ? base : { ...base, outcomes };
@@ -82,13 +75,13 @@ function interruptionCause(interruption: ChildOutcome["interruption"]) {
   return restarted ? " because its host daemon restarted" : "";
 }
 
-function outcomeLabel(item: OutcomeItem): string {
+function outcomeLabel(item: OutcomeItem) {
   if (item.failureContext !== undefined) return item.failureContext;
   if (item.status !== "interrupted") return item.status;
   return `was interrupted${interruptionCause(item.interruption)}`;
 }
 
-function outputExcerpt(output: string | null): string {
+function outputExcerpt(output: string | null) {
   const text = output?.trim() ?? "";
   if (text === "") return "No final output was recorded.";
   if (text.length <= OUTPUT_EXCERPT_MAX_CHARS) return text;
@@ -132,7 +125,7 @@ function deliverNotice(
   engine: Engine,
   parentThreadId: string,
   notice: SystemNotice,
-): void {
+) {
   const { db } = engine.ctx;
   const { input, kind, subject } = notice;
   engine.later(parentThreadId, "parent notice", async () => {
@@ -155,7 +148,7 @@ function deliverNotice(
   });
 }
 
-function flushBatch(engine: Engine, parentThreadId: string): void {
+function flushBatch(engine: Engine, parentThreadId: string) {
   const batch = engine.noticeBatches.get(parentThreadId);
   if (batch === undefined) return;
   engine.noticeBatches.delete(parentThreadId);
@@ -197,7 +190,7 @@ export function queueChildOutcome(
   engine.noticeBatches.set(parentThreadId, { items, dueAt, timer });
 }
 
-function blockerSummary(interaction: PendingInteraction): string {
+function blockerSummary(interaction: domain.PendingInteraction) {
   const { payload } = interaction;
   const details =
     payload.kind === "user_question"
@@ -218,7 +211,7 @@ function blockerSummary(interaction: PendingInteraction): string {
 export function notifyParentBlocked(
   engine: Engine,
   child: ThreadRow,
-  interaction: PendingInteraction,
+  interaction: domain.PendingInteraction,
 ): void {
   if (child.parentThreadId === null || child.originKind !== null) return;
   const summary = blockerSummary(interaction);

@@ -20,10 +20,6 @@ import {
   type MountedMessageDirective,
 } from "./markdown-message-directives.js";
 import {
-  BARE_FENCE_PATTERN,
-  TRAILING_CLOSE_PATTERN,
-} from "./markdown-math-fences.js";
-import {
   closesAnyIndentMarkdownFence,
   isMarkdownFenceClose,
   isMarkdownListLikeLine,
@@ -39,7 +35,6 @@ type MarkdownPluginList = NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 export interface MarkdownPieceRenderConfig {
   components: Components;
   messageDirectiveRegistry: MessageDirectiveRegistry | null;
-  rehypePlugins: MarkdownPluginList;
   remarkPlugins: MarkdownPluginList;
   urlTransform: UrlTransform | undefined;
 }
@@ -54,11 +49,6 @@ interface MarkdownPieceSummary {
 interface ResolvedMarkdownPieces {
   children: readonly ReactNode[];
   mounts: readonly MountedMessageDirective[];
-}
-
-interface MarkdownElementProps {
-  children?: ReactNode;
-  node?: object;
 }
 
 interface MarkdownPieceEntry {
@@ -92,9 +82,6 @@ interface ParseMarkdownPieceArgs {
 const MARKDOWN_BLANK_LINE_PATTERN = /^[ \t]*$/u;
 const MARKDOWN_PIECE_START_PATTERN = /^\S/u;
 const MARKDOWN_PIECE_LIST_MARKER_PATTERN = /(?:[-*+]|\d{1,9}[.)])(?:\s|$)/uy;
-const MARKDOWN_MATH_FLOW_OPEN_PATTERN = /^ {0,3}\$\$[^$]*$/u;
-const MARKDOWN_MATH_FLOW_SEQUENCE_PATTERN = /^ {0,3}(\${2,})/u;
-const MARKDOWN_MATH_FLOW_CLOSE_PATTERN = /^ {0,3}(\${2,})[ \t]*$/u;
 const MARKDOWN_LEADING_WHITESPACE_PATTERN = /^[ \t]/u;
 const MARKDOWN_HTML_RAW_OPEN_PATTERN =
   /^<(?:pre|script|style|textarea)(?:[\s>]|$)/iu;
@@ -123,7 +110,6 @@ const EMPTY_MARKDOWN_PIECE_SUMMARY: MarkdownPieceSummary = {
 export function findMarkdownPieceCandidates(body: string): readonly number[] {
   const candidates: number[] = [];
   let fence: MarkdownFence | null = null;
-  let mathOpen = false;
   let previousLineBlank = false;
   let lastNonBlankLine: string | null = null;
   let lineStart = 0;
@@ -135,10 +121,6 @@ export function findMarkdownPieceCandidates(body: string): readonly number[] {
     if (fence !== null) {
       if (closesAnyIndentMarkdownFence(line, fence)) {
         fence = null;
-      }
-    } else if (mathOpen) {
-      if (BARE_FENCE_PATTERN.test(line) || TRAILING_CLOSE_PATTERN.test(line)) {
-        mathOpen = false;
       }
     } else if (!blank) {
       if (
@@ -153,9 +135,6 @@ export function findMarkdownPieceCandidates(body: string): readonly number[] {
         candidates.push(lineStart);
       }
       fence = parseAnyIndentMarkdownFenceStart(line);
-      if (fence === null && MARKDOWN_MATH_FLOW_OPEN_PATTERN.test(line)) {
-        mathOpen = true;
-      }
     }
     if (!blank) {
       lastNonBlankLine = line;
@@ -191,18 +170,6 @@ function isMarkdownCodeOpen(slice: string): boolean {
   return lines.length < 2 || !isMarkdownFenceClose(lines.at(-1) ?? "", fence);
 }
 
-function isMarkdownMathOpen(slice: string): boolean {
-  const lines = slice.split("\n");
-  const open = MARKDOWN_MATH_FLOW_SEQUENCE_PATTERN.exec(lines[0] ?? "");
-  if (open === null || lines.length < 2) {
-    return true;
-  }
-  const close = MARKDOWN_MATH_FLOW_CLOSE_PATTERN.exec(
-    trimMarkdownLineCarriageReturn(lines.at(-1) ?? ""),
-  );
-  return close === null || close[1]!.length < open[1]!.length;
-}
-
 function isMarkdownHtmlOpen(value: string): boolean {
   const html = value.replace(MARKDOWN_HTML_INDENT_PATTERN, "");
   if (MARKDOWN_HTML_RAW_OPEN_PATTERN.test(html)) {
@@ -231,16 +198,11 @@ function isMarkdownNodeOpen(node: Nodes, source: string): boolean {
   if (node.type === "html") {
     return isMarkdownHtmlOpen(node.value);
   }
-  if (type !== "code" && type !== "math") {
+  if (type !== "code") {
     return false;
   }
   const slice = markdownNodeSource(node, source);
-  if (slice === null) {
-    return true;
-  }
-  return type === "code"
-    ? isMarkdownCodeOpen(slice)
-    : isMarkdownMathOpen(slice);
+  return slice === null || isMarkdownCodeOpen(slice);
 }
 
 function markdownLastDescendantChainIsOpen(
@@ -382,7 +344,6 @@ function parseMarkdownPiece({
   const element = ReactMarkdown({
     children: source,
     components: config.components,
-    rehypePlugins: config.rehypePlugins,
     remarkPlugins,
     urlTransform: config.urlTransform,
   });
@@ -497,50 +458,19 @@ function resolveIncrementalMarkdownPieceEntries(
   return entries;
 }
 
-function refreshMarkdownElementTree(child: ReactNode): ReactNode {
-  if (Array.isArray(child)) {
-    return child.map(refreshMarkdownElementTree);
-  }
-  if (!isValidElement<MarkdownElementProps>(child)) {
-    return child;
-  }
-  const { children, node } = child.props;
-  const props = node === undefined ? undefined : { node: { ...node } };
-  if (children === undefined) {
-    return cloneElement(child, props);
-  }
-  if (Array.isArray(children)) {
-    return cloneElement(
-      child,
-      props,
-      ...children.map(refreshMarkdownElementTree),
-    );
-  }
-  return cloneElement(child, props, refreshMarkdownElementTree(children));
-}
-
 function buildResolvedMarkdownPieces(
   entries: readonly MarkdownPieceEntry[],
-  previousEntries: readonly MarkdownPieceEntry[],
 ): ResolvedMarkdownPieces {
-  const reusedEntries = new Set(previousEntries);
   const children: ReactNode[] = [];
   const mounts: MountedMessageDirective[] = [];
   for (const entry of entries) {
-    const reused = reusedEntries.has(entry);
     if (entry.children.length > 0) {
       if (children.length > 0) {
         children.push("\n");
       }
-      for (const child of entry.children) {
-        children.push(reused ? refreshMarkdownElementTree(child) : child);
-      }
+      children.push(...entry.children);
     }
-    for (const mount of entry.mounts) {
-      mounts.push(
-        reused ? { ...mount, attributes: { ...mount.attributes } } : mount,
-      );
-    }
+    mounts.push(...entry.mounts);
   }
   return {
     children,
@@ -596,7 +526,7 @@ export function resolveMarkdownPieces(
   } else {
     cache.latchedWholeDocumentPrefix = null;
   }
-  const result = buildResolvedMarkdownPieces(entries, previousEntries);
+  const result = buildResolvedMarkdownPieces(entries);
   cache.entries = entries;
   cache.resolved = { body, result };
   return result;

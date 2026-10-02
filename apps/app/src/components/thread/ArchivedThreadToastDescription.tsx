@@ -3,26 +3,17 @@ import {
   useThreadTitleDisplayText,
 } from "@/components/thread/ThreadTitleMentions";
 
-interface ArchivedThreadToastDescriptionProps {
-  archivedThreadCount: number;
-  onOpenThread: () => void;
-  threadTitle: string;
-}
-
-function formatArchivedChildThreadLabel(childThreadCount: number): string {
-  return childThreadCount === 1
-    ? "and 1 child thread"
-    : `and ${childThreadCount} child threads`;
-}
-
 export function ArchivedThreadToastDescription({
   archivedThreadCount,
   onOpenThread,
   threadTitle,
-}: ArchivedThreadToastDescriptionProps) {
-  const childThreadCount = archivedThreadCount - 1;
+}: {
+  archivedThreadCount: number;
+  onOpenThread: () => void;
+  threadTitle: string;
+}) {
+  const children = archivedThreadCount - 1;
   const displayTitle = useThreadTitleDisplayText(threadTitle);
-
   return (
     <span className="flex min-w-0 items-baseline gap-1">
       <button
@@ -33,13 +24,15 @@ export function ArchivedThreadToastDescription({
       >
         <ThreadTitle title={threadTitle} />
       </button>
-      {childThreadCount > 0 ? (
+      {children > 0 ? (
         <>
           <span className="shrink-0" aria-hidden>
-            +{childThreadCount}
+            +{children}
           </span>
           <span className="sr-only">
-            {` ${formatArchivedChildThreadLabel(childThreadCount)}`}
+            {children === 1
+              ? " and 1 child thread"
+              : ` and ${children} child threads`}
           </span>
         </>
       ) : null}

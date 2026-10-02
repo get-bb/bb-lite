@@ -71,7 +71,6 @@ import {
   getProjectListInvalidationQueryKeys,
   getProjectPromptHistoryInvalidationQueryKeys,
   getProjectSourceDependentInvalidationQueryKeys,
-  getThreadConversationOutlineInvalidationQueryKeys,
   getThreadDetailInvalidationQueryKeys,
   getThreadListInvalidationQueryKeys,
   getThreadPendingInteractionInvalidationQueryKeys,
@@ -832,16 +831,11 @@ function dirtyThreadTimelineQueries({
   const timelineQueryKeys = getThreadTimelineWindowInvalidationQueryKeys({
     threadId,
   });
-  const outlineQueryKeys = getThreadConversationOutlineInvalidationQueryKeys({
-    threadId,
-  });
-  const outlineMayHaveChanged =
-    eventTypes === undefined || eventTypes.includes("turn/completed");
   if (
     threadId !== undefined &&
     !hasActiveQueries(queryClient, threadTimelineQueryKeyPrefix(threadId))
   ) {
-    for (const queryKey of [...timelineQueryKeys, ...outlineQueryKeys]) {
+    for (const queryKey of timelineQueryKeys) {
       queryClient.invalidateQueries({ queryKey, refetchType: "none" });
     }
     return;
@@ -849,7 +843,7 @@ function dirtyThreadTimelineQueries({
   if (eventTypes?.includes("turn/completed")) {
     invalidateTerminalTimelineQueryKeys({
       queryClient,
-      queryKeys: [...timelineQueryKeys, ...outlineQueryKeys],
+      queryKeys: timelineQueryKeys,
     });
     return;
   }
@@ -857,12 +851,6 @@ function dirtyThreadTimelineQueries({
     queryClient,
     queryKeys: timelineQueryKeys,
   });
-  if (outlineMayHaveChanged) {
-    invalidateQueryKeysWithoutCancelingActiveFetches({
-      queryClient,
-      queryKeys: outlineQueryKeys,
-    });
-  }
 }
 
 function dirtyThreadTurnRequestQueries({

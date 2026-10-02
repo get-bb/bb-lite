@@ -24,28 +24,15 @@ interface PromptMentionPillProps {
   onActivate?: () => void;
 }
 
-interface ShiftMentionsToTextRangeArgs {
-  mentions: readonly PromptTextMention[];
-  rangeEnd: number;
-  rangeStart: number;
-}
-
-interface ClipMentionTextToVisibleRangeArgs {
-  mentions: readonly PromptTextMention[];
-  rangeStart: number;
-  text: string;
-}
-
-interface ClipMentionTextToVisibleRangeResult {
-  mentions: PromptTextMention[];
-  text: string;
-}
-
 export function shiftMentionsToTextRange({
   mentions,
   rangeEnd,
   rangeStart,
-}: ShiftMentionsToTextRangeArgs): PromptTextMention[] {
+}: {
+  mentions: readonly PromptTextMention[];
+  rangeEnd: number;
+  rangeStart: number;
+}): PromptTextMention[] {
   return mentions.flatMap((mention) => {
     if (mention.start < rangeStart || mention.end > rangeEnd) {
       return [];
@@ -64,7 +51,11 @@ export function clipMentionTextToVisibleRange({
   mentions,
   rangeStart,
   text,
-}: ClipMentionTextToVisibleRangeArgs): ClipMentionTextToVisibleRangeResult {
+}: {
+  mentions: readonly PromptTextMention[];
+  rangeStart: number;
+  text: string;
+}): { mentions: PromptTextMention[]; text: string } {
   const rangeEnd = rangeStart + text.length;
   const clippedRangeEnd = mentions.reduce<number>((currentEnd, mention) => {
     const crossesVisibleEnd =
@@ -105,24 +96,27 @@ export function PromptMentionPill({
     resource,
     serializedText,
   });
-  const iconClassName = "size-3.5 shrink-0 self-center text-muted-foreground";
   const labelNode = (
     <>
-      <PromptMentionIcon resource={resource} className={iconClassName} />
+      <PromptMentionIcon
+        resource={resource}
+        className="size-3.5 shrink-0 self-center text-muted-foreground"
+      />
       <span className="truncate">{resource.label}</span>
     </>
   );
+  const staticPill = (
+    <span
+      className={mentionPillClassName(false)}
+      {...clipboardAttributes}
+      title={title}
+    >
+      {labelNode}
+    </span>
+  );
 
   if (!interactive) {
-    return (
-      <span
-        className={mentionPillClassName(false)}
-        {...clipboardAttributes}
-        title={title}
-      >
-        {labelNode}
-      </span>
-    );
+    return staticPill;
   }
 
   if (onActivate) {
@@ -209,28 +203,18 @@ export function PromptMentionPill({
     }
   }
 
-  return (
-    <span
-      className={mentionPillClassName(false)}
-      {...clipboardAttributes}
-      title={title}
-    >
-      {labelNode}
-    </span>
-  );
+  return staticPill;
 }
 
 export function resolveThreadMentionResource(
   mentions: readonly PromptTextMention[],
   threadId: string,
 ): PromptMentionResource {
-  for (const mention of mentions) {
-    if (
-      mention.resource.kind === "thread" &&
-      mention.resource.threadId === threadId
-    ) {
-      return mention.resource;
-    }
-  }
-  return { kind: "thread", threadId, label: threadId };
+  return (
+    mentions.find(
+      (mention) =>
+        mention.resource.kind === "thread" &&
+        mention.resource.threadId === threadId,
+    )?.resource ?? { kind: "thread", threadId, label: threadId }
+  );
 }
