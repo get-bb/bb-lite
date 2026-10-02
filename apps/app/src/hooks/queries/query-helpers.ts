@@ -1,6 +1,7 @@
-import { toRecord } from "@bb/core-ui";
-import { HttpError } from "@/lib/api";
-import { BbHttpError } from "@/lib/sdk";
+import {
+  isAbortLikeError,
+  isNetworkTransportError,
+} from "@/lib/mutation-errors";
 
 export const PROMPT_HISTORY_STALE_TIME_MS = 10_000;
 const TRANSIENT_READ_RETRY_COUNT = 2;
@@ -44,29 +45,8 @@ export function requireThreadId(id: string, hookName: string): string {
   return requireEnabledQueryArg({ value: id, hookName, argName: "thread id" });
 }
 
-function normalizeErrorMessage(message: string): string {
-  return message.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
 export function isTransientReadError(error: unknown): boolean {
-  if (toRecord(error)?.name === "AbortError") {
-    return true;
-  }
-  if (error instanceof HttpError || error instanceof BbHttpError) {
-    return false;
-  }
-
-  const record = toRecord(error);
-  if (!record || typeof record.message !== "string") {
-    return false;
-  }
-
-  const message = normalizeErrorMessage(record.message);
-  return (
-    message.includes("failed to fetch") ||
-    message.includes("load failed") ||
-    message.includes("networkerror")
-  );
+  return isAbortLikeError(error) || isNetworkTransportError(error);
 }
 
 export function shouldRetryTransientReadQuery(

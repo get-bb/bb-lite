@@ -4,10 +4,8 @@ import {
   QueryClient,
   type QueryClientConfig,
 } from "@tanstack/react-query";
-import {
-  getMutationErrorMeta,
-  showMutationErrorToast,
-} from "./mutation-errors";
+import { isLifecycleErrorOperation } from "./lifecycle-errors";
+import { showMutationErrorToast } from "./mutation-errors";
 import { createBrowserLifecycleFetchController } from "@/hooks/cache-owners/browser-lifecycle-cache-owner";
 import {
   shouldRetryTransientReadQuery,
@@ -108,15 +106,18 @@ export function createAppQueryClient(
           return;
         }
 
-        const meta = getMutationErrorMeta(mutation.meta);
+        const meta = mutation.meta ?? {};
         if (meta.showErrorToast === false) {
           return;
         }
-
+        const { errorMessage, lifecycleOperation } = meta;
         showMutationErrorToast({
           error,
-          fallbackMessage: meta.errorMessage ?? "Request failed.",
-          lifecycleOperation: meta.lifecycleOperation,
+          fallbackMessage:
+            typeof errorMessage === "string" ? errorMessage : "Request failed.",
+          lifecycleOperation: isLifecycleErrorOperation(lifecycleOperation)
+            ? lifecycleOperation
+            : undefined,
         });
       },
     }),

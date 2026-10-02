@@ -28,7 +28,11 @@ import type { ThreadListFilters } from "@bb/client-core";
 import type { FilePreview } from "@bb/client-core";
 import type { PathListOptions } from "@/lib/path-list-options";
 import type { ThreadStorageFileListOptions } from "@/lib/thread-storage-files";
-import * as api from "@/lib/api";
+import { loadFilePreview } from "@/lib/api";
+import {
+  buildThreadHostFileContentUrl,
+  buildThreadStorageRawContentUrl,
+} from "@/lib/file-content-urls";
 import { sdk } from "@/lib/sdk";
 import {
   useThreadDetailRealtimeSubscription,
@@ -817,9 +821,11 @@ export function useThreadStorageFilePreview(
   return useQuery<FilePreview>({
     queryKey: threadStorageFilePreviewQueryKey(id, path),
     queryFn: ({ signal }) =>
-      api.getThreadStorageFilePreview(
-        requireThreadId(id, "useThreadStorageFilePreview"),
-        path ?? "",
+      loadFilePreview(
+        {
+          path: path ?? "",
+          url: buildThreadStorageRawContentUrl(id, path ?? ""),
+        },
         signal,
       ),
     enabled,
@@ -844,9 +850,12 @@ export function useThreadHostFilePreview(
   return useQuery<FilePreview>({
     queryKey: threadHostFilePreviewQueryKey(id, environmentId, path),
     queryFn: ({ signal }) =>
-      api.getThreadHostFilePreview(
-        requireThreadId(id, "useThreadHostFilePreview"),
-        path ?? "",
+      loadFilePreview(
+        {
+          name: (path ?? "").split("/").at(-1),
+          path: path ?? "",
+          url: buildThreadHostFileContentUrl(id, path ?? ""),
+        },
         signal,
       ),
     enabled,
