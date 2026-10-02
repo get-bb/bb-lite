@@ -5,7 +5,7 @@ export type AppCreateThreadRequest = Omit<
   CreateThreadRequest,
   "origin" | "startedOnBehalfOf" | "originKind"
 > &
-  Partial<Pick<CreateThreadRequest, "startedOnBehalfOf" | "originKind">>;
+  Partial<Pick<CreateThreadRequest, "startedOnBehalfOf">>;
 
 export interface ThreadListFilters {
   projectId?: string;

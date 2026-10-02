@@ -1,40 +1,38 @@
 import {
-  useCallback,
   useEffect,
   useId,
-  useMemo,
   useRef,
   useState,
-  type KeyboardEventHandler,
+  type AriaRole,
+  type KeyboardEvent,
+  type ReactNode,
 } from "react";
-import type {
-  SystemExecutionOptionsModelLoadError,
-  SystemProvidersQuery,
-} from "@bb/server-contract";
-import type { ReasoningLevel } from "@bb/domain";
-import { useQueryClient } from "@tanstack/react-query";
+import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
 import {
-  stripModelBrandPrefix,
-  type ProviderPickerOption,
-} from "./model-brand-prefix";
-import { fastServiceTierLabel } from "@/lib/reasoning-labels";
+  reasoningLevelValues,
+  type PermissionMode,
+  type ReasoningLevel,
+  type ServiceTier,
+} from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import {
-  COARSE_POINTER_ICON_SIZE_CLASS,
-  COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS,
-  COARSE_POINTER_TEXT_SM_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@bb/shared-ui/popover";
 import { Skeleton } from "@bb/shared-ui/skeleton";
+import { Switch } from "@bb/shared-ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@bb/shared-ui/toggle-group";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
-import { cn } from "@bb/shared-ui/lib/utils";
 import {
-  prefetchSystemExecutionOptions,
-  useSystemExecutionOptions,
-} from "@/hooks/queries/system-queries";
-import { resolveModelCatalogSelection } from "@/hooks/thread-creation-options/model-catalog-selection";
+  MENU_ITEM_LAST_HOVERED_CLASS,
+  MenuHoverProvider,
+  useMenuItemHover,
+} from "@bb/shared-ui/menu-item-hover";
+import { cn } from "@bb/shared-ui/lib/utils";
 import {
   OPTION_BASE_CLASS_NAME,
   OPTION_INTERACTIVE_CLASS_NAME,
@@ -42,15 +40,16 @@ import {
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
 } from "@bb/shared-ui/option-display";
 import { type PickerOption } from "./OptionPicker";
-import type { ModelPickerOption } from "./model-picker-option";
 import {
-  MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
-  splitModelLabelTag,
-} from "./model-picker-menu";
-import { ModelReasoningMenu } from "./ModelReasoningMenu";
-import { searchPickerOptions } from "./picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
-import { formatModelLoadErrorText } from "./model-load-error-message";
+  PickerLoadingRows,
+  searchPickerOptions,
+  useResetPickerScroll,
+} from "./picker-search";
+import {
+  formatModelLoadErrorText,
+  formatModelLoadErrorTitle,
+  ModelLoadErrorMessage,
+} from "./model-load-error-message";
 import {
   useAppCommandContext,
   useAppCommandHandler,
@@ -60,41 +59,20 @@ import {
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { isEditableKeyboardTarget } from "@/lib/app-keybindings";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
-import {
-  ownsModelPickerCycleChord,
-  resolveModelPickerToggle,
-  type ModelPickerScope,
-} from "./modelPickerToggle";
-import {
-  cycleReasoningValue,
-  nextCycleValue,
-  previousCycleValue,
-} from "./modelPickerCycle";
 
-interface ResolvedProviderPreview {
-  providerId: string;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-  supportsServiceTier: boolean;
+export interface ProviderPickerOption extends PickerOption<string> {
+  brandPrefix?: string;
+  planModeCopy?: string;
+  installUrl?: string;
 }
 
-export interface ModelReasoningPickerHandoffSelection {
-  providerId: string;
-  model: string;
-  reasoningLevel: ReasoningLevel;
-}
-
-export interface ModelReasoningPickerHandoff {
-  sourceProviderId: string;
-  active: boolean;
-  onStart: () => void;
-  onExit: () => void;
-  onSelect: (selection: ModelReasoningPickerHandoffSelection) => void;
-}
+type ModelPickerOption = PickerOption<string>;
 
 const FAILED_TO_LOAD_MODELS_LABEL = "Failed to load models";
-const EMPTY_MODEL_OPTIONS: readonly ModelPickerOption[] = [];
-const preserveModelLabel = (displayName: string): string => displayName;
+const MODEL_SEARCH_MIN_OPTIONS = 5;
+const MENU_WIDTH_CLASS_NAME = "w-max min-w-64 max-w-80";
+const MENU_ROW_CLASS_NAME =
+  "relative flex w-full cursor-default select-none items-center rounded-sm px-2 text-xs outline-none hover:bg-state-hover hover:text-foreground";
 const MODEL_CYCLE_COMMANDS = [
   "modelPicker.cycleModel",
   "modelPicker.cycleModelBackward",
@@ -108,559 +86,269 @@ const REASONING_CYCLE_COMMANDS = [
   "modelPicker.cycleReasoningBackward",
 ] as const;
 
-const MODEL_SEARCH_MIN_OPTIONS = 5;
-
-export type ModelNavRow = { kind: "model"; option: ModelPickerOption };
-
-export function buildModelNavRows({
-  modelOptions,
-  moreModelOptions,
-  isSearching,
-}: {
-  modelOptions: readonly ModelPickerOption[];
-  moreModelOptions: readonly ModelPickerOption[];
-  isSearching: boolean;
-}): ModelNavRow[] {
-  const rows: ModelNavRow[] = modelOptions.map((option): ModelNavRow => ({
-    kind: "model",
-    option,
-  }));
-  if (moreModelOptions.length === 0) return rows;
-
-  if (isSearching) {
-    for (const option of moreModelOptions) rows.push({ kind: "model", option });
-    return rows;
-  }
-
-  return rows;
+function stripModelBrandPrefix(
+  label: string,
+  brandPrefix: string | undefined,
+): string {
+  return brandPrefix &&
+    label.toLowerCase().startsWith(brandPrefix.toLowerCase())
+    ? label.slice(brandPrefix.length).trimStart()
+    : label;
 }
 
-interface ModelReasoningPickerProps {
-  providerRouting?: SystemProvidersQuery;
-  providerOptions: readonly ProviderPickerOption[];
-  selectedProviderId: string;
-  onSelectedProviderChange?: (value: string) => void;
-  onProviderPreviewResolved?: (value: ResolvedProviderPreview) => void;
-  requireVerifiedProviderPreview?: boolean;
-  hasMultipleProviders: boolean;
-  modelValue: string;
-  modelOptions: readonly ModelPickerOption[];
-  moreModelOptions?: readonly ModelPickerOption[];
-  modelIsLoading?: boolean;
-  modelLoadFailed?: boolean;
-  modelLoadError?: SystemExecutionOptionsModelLoadError | null;
-  onModelChange: (value: string) => void;
-  formatModelLabel?: (displayName: string) => string;
-  reasoningValue: ReasoningLevel;
-  reasoningOptions: readonly PickerOption<ReasoningLevel>[];
-  onReasoningChange: (value: ReasoningLevel) => void;
-  fastModeEnabled: boolean;
-  onFastModeChange: (enabled: boolean) => void;
-  showFastModeToggle: boolean;
-  commandShortcutsEnabled?: boolean;
-  serviceTierSupportByProvider?: Record<string, boolean>;
-  className?: string;
-  fastModeLabel?: string;
-  muted?: boolean;
-  modal?: boolean;
-  align?: "start" | "center" | "end";
+function splitModelLabelTag(label: string): {
+  base: string;
+  tag: string | null;
+} {
+  const match = label.match(/^(.*\S)\s*\(([^()]+)\)$/u);
+  return match
+    ? { base: match[1]!, tag: match[2]! }
+    : { base: label, tag: null };
+}
+
+function cycleValue<T extends string>(
+  options: readonly PickerOption<T>[],
+  current: T,
+  step: 1 | -1,
+): T | null {
+  const index = options.findIndex((option) => option.value === current);
+  const next =
+    options[
+      index < 0 && step < 0
+        ? options.length - 1
+        : (index + step + options.length) % options.length
+    ];
+  return next === undefined || next.value === current ? null : next.value;
+}
+
+function cycleReasoningValue(
+  options: readonly PickerOption<ReasoningLevel>[],
+  current: ReasoningLevel,
+  step: 1 | -1,
+): ReasoningLevel | null {
+  const supported = reasoningLevelValues.filter((level) =>
+    options.some((option) => option.value === level),
+  );
+  const rank = reasoningLevelValues.indexOf(current);
+  const next =
+    step > 0
+      ? (supported.find(
+          (level) => reasoningLevelValues.indexOf(level) > rank,
+        ) ?? supported[0])
+      : ([...supported]
+          .reverse()
+          .find((level) => reasoningLevelValues.indexOf(level) < rank) ??
+        supported.at(-1));
+  return next === undefined || next === current ? null : next;
+}
+
+export interface ExecutionPermissionConfig {
+  value?: PermissionMode;
+  options: readonly PickerOption<PermissionMode>[];
+  onChange: (value: PermissionMode) => void;
+  supported: boolean;
+}
+
+export interface ExecutionControlsProps {
+  provider: {
+    options?: readonly ProviderPickerOption[];
+    selectedId?: string;
+    onChange?: (value: string) => void;
+    hasMultiple?: boolean;
+  };
+  model: {
+    active?: { model: string } | null;
+    selected: string;
+    options: readonly ModelPickerOption[];
+    moreOptions: readonly ModelPickerOption[];
+    isLoading: boolean;
+    loadFailed: boolean;
+    loadError?: SystemExecutionOptionsModelLoadError | null;
+    onChange: (value: string) => void;
+  };
+  serviceTier?: {
+    value?: ServiceTier;
+    onChange: (value: ServiceTier | undefined) => void;
+    supported: boolean;
+    fastLabel?: string;
+  };
+  reasoning: {
+    value: ReasoningLevel;
+    options: readonly PickerOption<ReasoningLevel>[];
+    onChange: (value: ReasoningLevel) => void;
+  };
   disabled?: boolean;
-  handoff?: ModelReasoningPickerHandoff;
 }
 
 export function ModelReasoningPicker({
-  providerOptions,
-  providerRouting,
-  selectedProviderId,
-  onSelectedProviderChange,
-  onProviderPreviewResolved,
-  requireVerifiedProviderPreview = false,
-  hasMultipleProviders,
-  modelValue,
-  modelOptions,
-  moreModelOptions = [],
-  modelIsLoading = false,
-  modelLoadFailed = false,
-  modelLoadError,
-  onModelChange,
-  formatModelLabel,
-  reasoningValue,
-  reasoningOptions,
-  onReasoningChange,
-  fastModeEnabled,
-  onFastModeChange,
-  showFastModeToggle,
+  provider: providerConfig,
+  model,
+  serviceTier,
+  reasoning,
+  disabled = false,
   commandShortcutsEnabled = true,
-  serviceTierSupportByProvider,
   className,
-  fastModeLabel,
   muted,
-  modal = true,
   align = "start",
-  disabled,
-  handoff,
-}: ModelReasoningPickerProps) {
+}: ExecutionControlsProps & {
+  commandShortcutsEnabled?: boolean;
+  className?: string;
+  muted?: boolean;
+  align?: "start" | "center" | "end";
+}) {
+  const providerOptions = providerConfig.options ?? [];
+  const selectedProviderId = providerConfig.selectedId ?? "";
+  const onSelectedProviderChange = providerConfig.onChange;
+  const modelValue = model.active?.model ?? model.selected;
+  const modelOptions = model.options;
+  const moreModelOptions = model.moreOptions;
+  const modelIsLoading = model.isLoading;
+  const onModelChange = model.onChange;
+  const reasoningValue = reasoning.value;
+  const reasoningOptions = reasoning.options;
+  const onReasoningChange = reasoning.onChange;
+  const fastModeEnabled = serviceTier?.value === "fast";
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [moreModelsOpen, setMoreModelsOpen] = useState(false);
+  const [browsedProviderId, setBrowsedProviderId] =
+    useState(selectedProviderId);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
   const registeredToggleShortcut = useAppCommandShortcut("modelPicker.toggle");
   const toggleShortcut = commandShortcutsEnabled
     ? registeredToggleShortcut
     : null;
-  const [searchQuery, setSearchQuery] = useState("");
-  const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const isSearching = searchQuery.trim().length > 0;
   const navId = useId();
   const listboxId = `${navId}-listbox`;
   const optionDomId = (index: number) => `${navId}-opt-${index}`;
+  const paneContext = useOptionalPaneContext();
 
-  const [previewProviderId, setPreviewProviderId] = useState<string | null>(
-    null,
-  );
-  const [moreModelsOpen, setMoreModelsOpen] = useState(false);
-  const [trackedSelectedProviderId, setTrackedSelectedProviderId] =
-    useState(selectedProviderId);
-  const [browsingHandoff, setHandoffMode] = useState(false);
-  const handoffMode =
-    handoff !== undefined && (handoff.active || browsingHandoff);
-  const [handoffReasoningLevel, setHandoffReasoningLevel] =
-    useState<ReasoningLevel | null>(null);
-
-  if (trackedSelectedProviderId !== selectedProviderId) {
-    setTrackedSelectedProviderId(selectedProviderId);
-    setHandoffMode(
-      open &&
-        handoff !== undefined &&
-        selectedProviderId !== handoff.sourceProviderId,
-    );
-    setHandoffReasoningLevel(null);
-    setPreviewProviderId(null);
+  const resetBrowseState = () => {
     setMoreModelsOpen(false);
     setSearchQuery("");
     setActiveIndex(-1);
+  };
+  if (browsedProviderId !== selectedProviderId) {
+    setBrowsedProviderId(selectedProviderId);
+    resetBrowseState();
   }
+  const changeOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) resetBrowseState();
+  };
 
-  const activeProviderId = previewProviderId ?? selectedProviderId;
-
-  const selectedProvider = providerOptions.find(
-    (p) => p.value === selectedProviderId,
+  const isSearching = searchQuery.trim().length > 0;
+  const provider = providerOptions.find(
+    (option) => option.value === selectedProviderId,
   );
-  const ProviderIcon = selectedProvider?.icon;
-  const selectedModelOption = modelOptions.find((m) => m.value === modelValue);
-  const selectedModelLabel = selectedModelOption?.label ?? modelValue;
+  const providerLabel = provider?.label ?? selectedProviderId;
+  const selectedModelLabel =
+    modelOptions.find((option) => option.value === modelValue)?.label ??
+    modelValue;
   const hasSelectedModel = selectedModelLabel.trim().length > 0;
-  const selectedProviderLabel = selectedProvider?.label ?? selectedProviderId;
-  const selectedModelLoadErrorMatches =
-    modelLoadError?.providerId === selectedProviderId;
-  const selectedModelLoadFailed =
-    modelLoadFailed || selectedModelLoadErrorMatches;
+  const hasModelOptions = modelOptions.length > 0;
+  const loadError =
+    model.loadError?.providerId === selectedProviderId ? model.loadError : null;
+  const loadFailed = model.loadFailed || loadError !== null;
   const canSwitchProviders =
-    hasMultipleProviders &&
+    (providerConfig.hasMultiple ?? false) &&
     onSelectedProviderChange !== undefined &&
     providerOptions.length > 1;
-  const queryClient = useQueryClient();
-  const prefetchRoutingEnvironmentId = providerRouting?.environmentId;
-  const prefetchRoutingHostId = providerRouting?.hostId;
-  const siblingIdsKey = providerOptions
-    .map((option) => option.value)
-    .filter((id) => id !== selectedProviderId)
-    .join("\0");
-  useEffect(() => {
-    if (!open || !canSwitchProviders || siblingIdsKey.length === 0) {
-      return;
-    }
-    prefetchSystemExecutionOptions(queryClient, {
-      routing: {
-        environmentId: prefetchRoutingEnvironmentId,
-        hostId: prefetchRoutingHostId,
-      },
-      providerIds: siblingIdsKey.split("\0"),
-    });
-  }, [
-    canSwitchProviders,
-    open,
-    prefetchRoutingEnvironmentId,
-    prefetchRoutingHostId,
-    queryClient,
-    siblingIdsKey,
-  ]);
-  const hasAlternateSelectionPath =
-    modelOptions.length > 0 ||
-    (selectedModelLoadErrorMatches && canSwitchProviders);
-  const selectedModelLoadErrorText =
-    selectedModelLoadErrorMatches && modelLoadError
-      ? formatModelLoadErrorText({
-          error: modelLoadError,
-          providerLabel: selectedProviderLabel,
-        })
-      : "Could not load models.";
   const triggerModelLabel = modelIsLoading
     ? "Loading models..."
     : hasSelectedModel
-      ? stripModelBrandPrefix(selectedModelLabel, selectedProvider?.brandPrefix)
-      : selectedModelLoadFailed
-        ? hasAlternateSelectionPath
+      ? stripModelBrandPrefix(selectedModelLabel, provider?.brandPrefix)
+      : loadFailed && !hasModelOptions && !(loadError && canSwitchProviders)
+        ? FAILED_TO_LOAD_MODELS_LABEL
+        : loadFailed || hasModelOptions || canSwitchProviders
           ? "Select model"
-          : FAILED_TO_LOAD_MODELS_LABEL
-        : modelOptions.length === 0
-          ? canSwitchProviders
-            ? "Select model"
-            : "No models available"
-          : "Select model";
-  const triggerModelValueIsDestructive =
-    triggerModelLabel === FAILED_TO_LOAD_MODELS_LABEL;
-  const { base: triggerModelBase, tag: triggerModelTag } =
-    splitModelLabelTag(triggerModelLabel);
-
-  const selectedReasoningOption = reasoningOptions.find(
-    (r) => r.value === reasoningValue,
-  );
+          : "No models available";
+  const triggerModel = splitModelLabelTag(triggerModelLabel);
   const triggerReasoningLabel = hasSelectedModel
-    ? (selectedReasoningOption?.label ?? null)
+    ? (reasoningOptions.find((option) => option.value === reasoningValue)
+        ?.label ?? null)
     : null;
-
-  const isPreviewing =
-    previewProviderId !== null && previewProviderId !== selectedProviderId;
-  const previewQuery = useSystemExecutionOptions({
-    enabled: isPreviewing,
-    ...providerRouting,
-    providerId: isPreviewing ? previewProviderId : undefined,
-  });
-  const previewCatalogIsVerified =
-    isPreviewing &&
-    previewQuery.data !== undefined &&
-    !previewQuery.isPlaceholderData &&
-    !previewQuery.isError &&
-    previewQuery.data.modelLoadError === null;
-  const previewSelectionBlocked =
-    requireVerifiedProviderPreview && isPreviewing && !previewCatalogIsVerified;
-
-  const previewProvider = useMemo(
-    () =>
-      isPreviewing
-        ? previewQuery.data?.providers.find(
-            (provider) => provider.id === previewProviderId,
-          )
-        : undefined,
-    [isPreviewing, previewProviderId, previewQuery.data?.providers],
-  );
-  const previewSelection = useMemo(
-    () =>
-      isPreviewing
-        ? resolveModelCatalogSelection({
-            models: previewQuery.data?.models ?? [],
-            selectedOnlyModels: previewQuery.data?.selectedOnlyModels ?? [],
-            selectedModel: "",
-            preferredReasoningLevel: reasoningValue,
-            provider: previewProvider,
-            catalogIsVerified: previewCatalogIsVerified,
-            formatModelLabel: formatModelLabel ?? preserveModelLabel,
-          })
-        : null,
-    [
-      formatModelLabel,
-      isPreviewing,
-      previewCatalogIsVerified,
-      previewProvider,
-      previewQuery.data?.models,
-      previewQuery.data?.selectedOnlyModels,
-      reasoningValue,
-    ],
-  );
-  const previewModelOptions = previewSelection?.modelOptions ?? modelOptions;
-  const previewMoreModelOptions =
-    previewSelection?.moreModelOptions ?? moreModelOptions;
-  useEffect(() => {
-    if (
-      !previewCatalogIsVerified ||
-      !previewProviderId ||
-      !previewSelection?.selectedModel
-    ) {
-      return;
-    }
-    const provider = previewQuery.data?.providers.find(
-      (candidate) => candidate.id === previewProviderId,
-    );
-    onProviderPreviewResolved?.({
-      providerId: previewProviderId,
-      model: previewSelection.selectedModel,
-      reasoningLevel: previewSelection.reasoningLevel,
-      supportsServiceTier: provider?.capabilities.supportsServiceTier ?? false,
-    });
-  }, [
-    onProviderPreviewResolved,
-    previewCatalogIsVerified,
-    previewProviderId,
-    previewQuery.data?.providers,
-    previewSelection,
-  ]);
-  const activeReasoningOptions = isPreviewing
-    ? (previewSelection?.reasoningOptions ?? [])
-    : reasoningOptions;
-  const activeReasoningValue: ReasoningLevel | "" = handoffMode
-    ? (handoffReasoningLevel ??
-      (isPreviewing ? previewSelection?.reasoningLevel : reasoningValue) ??
-      "")
-    : isPreviewing
-      ? ""
-      : reasoningValue;
-  const activeModelLoadError = isPreviewing
-    ? (previewQuery.data?.modelLoadError ?? null)
-    : (modelLoadError ?? null);
-  const activeModelIsLoading = isPreviewing
-    ? previewQuery.isLoading
-    : modelIsLoading;
-  const activeProvider = providerOptions.find(
-    (p) => p.value === activeProviderId,
-  );
-  const activeProviderLabel = activeProvider?.label ?? activeProviderId;
-  const activeModelLoadErrorMatches =
-    activeModelLoadError?.providerId === activeProviderId;
-  const activeModelLoadFailed = isPreviewing
-    ? previewQuery.isError || activeModelLoadErrorMatches
-    : modelLoadFailed || activeModelLoadErrorMatches;
-  const activeModelOptions = previewModelOptions;
-  const activeMoreModelOptions = previewSelectionBlocked
-    ? EMPTY_MODEL_OPTIONS
-    : previewMoreModelOptions;
-  const hasActiveModelOptions = activeModelOptions.length > 0;
-  const activeModelErrorIsProviderSpecific =
-    activeModelLoadErrorMatches && activeModelLoadError !== null;
-  const isShowingModelError =
-    !activeModelIsLoading && !hasActiveModelOptions && activeModelLoadFailed;
+  const isShowingModelError = !modelIsLoading && !hasModelOptions && loadFailed;
   const showProviderTabs =
-    (handoffMode || canSwitchProviders) &&
-    providerOptions.length > 1 &&
-    (!isShowingModelError || activeModelErrorIsProviderSpecific);
-
-  const activeBrandPrefix = activeProvider?.brandPrefix;
-  const filteredModelOptions = useMemo(() => {
-    if (!isSearching) {
-      return activeModelOptions;
-    }
-    return searchPickerOptions({
-      options: [...activeModelOptions, ...activeMoreModelOptions],
-      query: searchQuery,
-      getLabel: (option) =>
-        stripModelBrandPrefix(option.label, activeBrandPrefix),
-      getAliases: (option) =>
-        option.routeProviderId
-          ? [option.routeProviderId, option.value]
-          : [option.value],
-    });
-  }, [
-    activeBrandPrefix,
-    activeModelOptions,
-    activeMoreModelOptions,
-    isSearching,
-    searchQuery,
-  ]);
-  const filteredMoreModelOptions = isSearching
-    ? EMPTY_MODEL_OPTIONS
-    : activeMoreModelOptions;
-
-  const navRows = useMemo(
-    () =>
-      buildModelNavRows({
-        modelOptions: filteredModelOptions,
-        moreModelOptions: filteredMoreModelOptions,
-        isSearching,
-      }),
-    [filteredModelOptions, filteredMoreModelOptions, isSearching],
-  );
-
+    canSwitchProviders && (!isShowingModelError || loadError !== null);
+  const visibleModelOptions = isSearching
+    ? searchPickerOptions({
+        options: [...modelOptions, ...moreModelOptions],
+        query: searchQuery,
+        getLabel: (option) =>
+          stripModelBrandPrefix(option.label, provider?.brandPrefix),
+        getAliases: (option) => [option.value],
+      })
+    : modelOptions;
   const highlightedIndex =
-    activeIndex >= 0 && activeIndex < navRows.length ? activeIndex : -1;
-
-  const effectiveShowFastModeToggle =
-    !handoffMode &&
-    hasActiveModelOptions &&
-    (serviceTierSupportByProvider
-      ? (serviceTierSupportByProvider[activeProviderId] ?? false)
-      : showFastModeToggle);
-  const effectiveFastModeLabel = isPreviewing
-    ? fastServiceTierLabel(previewProvider)
-    : (fastModeLabel ?? "Fast");
+    activeIndex < visibleModelOptions.length ? activeIndex : -1;
   const showSelectedFastMode =
-    hasSelectedModel && fastModeEnabled && modelOptions.length > 0;
+    hasSelectedModel && fastModeEnabled && hasModelOptions;
   const showReasoningSection =
-    !isShowingModelError &&
-    activeReasoningOptions.length > 0 &&
-    (isPreviewing
-      ? hasActiveModelOptions && !activeModelIsLoading
-      : hasSelectedModel && !modelIsLoading && !selectedModelLoadFailed);
+    reasoningOptions.length > 0 &&
+    hasSelectedModel &&
+    !modelIsLoading &&
+    !loadFailed;
+  const showSearchInput =
+    hasModelOptions &&
+    !modelIsLoading &&
+    modelOptions.length + moreModelOptions.length > MODEL_SEARCH_MIN_OPTIONS;
+  const fastModeText = `${serviceTier?.fastLabel ?? "Fast"} mode`;
 
-  const resetBrowseState = useCallback(() => {
-    setHandoffMode(false);
-    setHandoffReasoningLevel(null);
-    setPreviewProviderId(null);
+  const selectModel = (model: string) => {
+    onModelChange(model);
     setMoreModelsOpen(false);
+  };
+  const selectProvider = (providerId: string) => {
+    onSelectedProviderChange?.(providerId);
     setSearchQuery("");
     setActiveIndex(-1);
-  }, []);
+  };
+  const selectReasoning = (level: ReasoningLevel) => {
+    onReasoningChange(level);
+    setMoreModelsOpen(false);
+  };
 
-  const handleModelSelect = useCallback(
-    (model: string) => {
-      if (previewSelectionBlocked) return;
-      if (handoff !== undefined && handoffMode) {
-        handoff.onSelect({
-          providerId: activeProviderId,
-          model,
-          reasoningLevel:
-            handoffReasoningLevel ??
-            (isPreviewing ? previewSelection?.reasoningLevel : undefined) ??
-            reasoningValue,
-        });
-        setMoreModelsOpen(false);
-        return;
-      }
-      onModelChange(model);
-      setMoreModelsOpen(false);
-      setPreviewProviderId(null);
-    },
-    [
-      activeProviderId,
-      handoff,
-      handoffMode,
-      handoffReasoningLevel,
-      isPreviewing,
-      onModelChange,
-      previewSelection,
-      previewSelectionBlocked,
-      reasoningValue,
-    ],
-  );
-
-  const handleHandoffProviderSelect = useCallback(
-    (providerId: string) => {
-      handoff?.onStart();
-      setHandoffMode(true);
-      setPreviewProviderId(
-        providerId === selectedProviderId ? null : providerId,
-      );
-      setHandoffReasoningLevel(null);
-      setMoreModelsOpen(false);
-      setSearchQuery("");
-      setActiveIndex(-1);
-    },
-    [handoff, selectedProviderId],
-  );
-  const handleProviderSelect = useCallback(
-    (providerId: string) => {
-      if (
-        open &&
-        handoff !== undefined &&
-        (handoffMode || providerId !== handoff.sourceProviderId)
-      ) {
-        handleHandoffProviderSelect(providerId);
-        return;
-      }
-      onSelectedProviderChange?.(providerId);
-      const nextPreviewProviderId =
-        open && providerId !== selectedProviderId ? providerId : null;
-      setPreviewProviderId(nextPreviewProviderId);
-      setSearchQuery("");
-      setActiveIndex(-1);
-    },
-    [
-      handoff,
-      handoffMode,
-      handleHandoffProviderSelect,
-      onSelectedProviderChange,
-      open,
-      selectedProviderId,
-    ],
-  );
-  const startHandoffMode = useCallback(() => {
-    handleHandoffProviderSelect(selectedProviderId);
-  }, [handleHandoffProviderSelect, selectedProviderId]);
-  const exitHandoffMode = useCallback(() => {
-    setHandoffMode(false);
-    setHandoffReasoningLevel(null);
-    setPreviewProviderId(null);
-    setSearchQuery("");
-    handoff?.onExit();
-  }, [handoff]);
-
-  const handleReasoningSelect = useCallback(
-    (level: ReasoningLevel) => {
-      if (previewSelectionBlocked) return;
-      if (handoffMode) {
-        setHandoffReasoningLevel(level);
-        if (!isPreviewing) {
-          onReasoningChange(level);
-        }
-        return;
-      }
-      if (isPreviewing && previewSelection?.selectedModel) {
-        onModelChange(previewSelection.selectedModel);
-      }
-      onReasoningChange(level);
-      setPreviewProviderId(null);
-      setMoreModelsOpen(false);
-    },
-    [
-      handoffMode,
-      isPreviewing,
-      previewSelection,
-      onModelChange,
-      onReasoningChange,
-      previewSelectionBlocked,
-    ],
-  );
-
-  const paneContext = useOptionalPaneContext();
-  const isFocusedPane = paneContext?.isFocused ?? true;
-  const isSplitPane = paneContext?.isSplitPane ?? false;
-  const resolveCommandScope = useCallback(
-    (target: EventTarget | null): ModelPickerScope => {
-      const pickerComposer =
-        triggerRef.current?.closest("[data-app-composer]") ?? null;
-      const caretComposer =
-        target instanceof HTMLElement
-          ? target.closest("[data-app-composer]")
-          : null;
-      const pickerPane =
-        triggerRef.current?.closest("[data-split-pane-id]") ?? null;
-      const caretPane = caretComposer?.closest("[data-split-pane-id]") ?? null;
-      return {
-        disabled: disabled ?? false,
-        isFocusedPane,
-        isSplitPane,
-        isPrimaryComposer:
-          pickerComposer?.getAttribute("data-app-composer-role") !==
-          "secondary",
-        caretInThisComposer:
-          caretComposer !== null && caretComposer === pickerComposer,
-        caretInOtherComposerOfPane:
-          caretComposer !== null &&
-          caretComposer !== pickerComposer &&
-          pickerPane !== null &&
-          caretPane === pickerPane,
-        editableOutsideComposer:
-          caretComposer === null && isEditableKeyboardTarget(target),
-      };
-    },
-    [disabled, isFocusedPane, isSplitPane],
-  );
+  const ownsChord = (target: EventTarget | null, cycle: boolean): boolean => {
+    const composerOf = (element: Element | null) =>
+      element?.closest("[data-app-composer]") ?? null;
+    const paneOf = (element: Element | null) =>
+      element?.closest("[data-split-pane-id]") ?? null;
+    const pickerComposer = composerOf(triggerRef.current);
+    const caretComposer = composerOf(
+      target instanceof HTMLElement ? target : null,
+    );
+    if (!commandShortcutsEnabled || disabled) return false;
+    if (!(paneContext?.isFocused ?? true)) return false;
+    if (open) return true;
+    if (cycle && caretComposer === null && isEditableKeyboardTarget(target)) {
+      return false;
+    }
+    if (caretComposer !== null && caretComposer === pickerComposer) return true;
+    if (
+      caretComposer !== null &&
+      paneOf(pickerComposer) !== null &&
+      paneOf(caretComposer) === paneOf(pickerComposer)
+    ) {
+      return false;
+    }
+    return (
+      (paneContext?.isSplitPane ?? false) &&
+      pickerComposer?.getAttribute("data-app-composer-role") !== "secondary"
+    );
+  };
   useAppCommandContext(
     "modelPickerOpen",
     commandShortcutsEnabled && open && !disabled,
   );
-  const ownsCycleChord = (target: EventTarget | null): boolean =>
-    commandShortcutsEnabled &&
-    ownsModelPickerCycleChord({ open, ...resolveCommandScope(target) });
   useAppCommandHandler(
     "modelPicker.toggle",
     ({ target }) => {
-      if (!commandShortcutsEnabled) return false;
-      const action = resolveModelPickerToggle({
-        open,
-        ...resolveCommandScope(target),
-      });
-      if (action === "ignore") return false;
-      setOpen(action === "open");
+      if (!ownsChord(target, false)) return false;
+      changeOpen(!open);
       return true;
     },
     50,
@@ -669,24 +357,9 @@ export function ModelReasoningPicker({
   useIndexedAppCommandHandlers(
     MODEL_CYCLE_COMMANDS,
     (index, { target }) => {
-      if (!ownsCycleChord(target)) return false;
-      const options = handoffMode ? activeModelOptions : modelOptions;
-      const value =
-        handoffMode && isPreviewing
-          ? (previewSelection?.selectedModel ?? "")
-          : modelValue;
-      const next =
-        index === 0
-          ? nextCycleValue(options, value)
-          : previousCycleValue(options, value);
-      if (next !== null) {
-        if (handoffMode) {
-          handleModelSelect(next);
-        } else {
-          onModelChange(next);
-          setPreviewProviderId(null);
-        }
-      }
+      if (!ownsChord(target, true)) return false;
+      const next = cycleValue(modelOptions, modelValue, index === 0 ? 1 : -1);
+      if (next !== null) onModelChange(next);
       return true;
     },
     50,
@@ -695,26 +368,11 @@ export function ModelReasoningPicker({
   useIndexedAppCommandHandlers(
     PROVIDER_CYCLE_COMMANDS,
     (index, { target }) => {
-      if (!ownsCycleChord(target)) return false;
-      if (handoffMode) {
-        const next =
-          index === 0
-            ? nextCycleValue(providerOptions, activeProviderId)
-            : previousCycleValue(providerOptions, activeProviderId);
-        if (next !== null) {
-          handleHandoffProviderSelect(next);
-        }
-        return true;
-      }
-      if (canSwitchProviders && onSelectedProviderChange !== undefined) {
-        const next =
-          index === 0
-            ? nextCycleValue(providerOptions, selectedProviderId)
-            : previousCycleValue(providerOptions, selectedProviderId);
-        if (next !== null) {
-          handleProviderSelect(next);
-        }
-      }
+      if (!ownsChord(target, true)) return false;
+      const next = canSwitchProviders
+        ? cycleValue(providerOptions, selectedProviderId, index === 0 ? 1 : -1)
+        : null;
+      if (next !== null) selectProvider(next);
       return true;
     },
     50,
@@ -723,117 +381,63 @@ export function ModelReasoningPicker({
   useIndexedAppCommandHandlers(
     REASONING_CYCLE_COMMANDS,
     (index, { target }) => {
-      if (!ownsCycleChord(target)) return false;
-      const value = handoffMode ? activeReasoningValue : reasoningValue;
-      if (value === "") return true;
+      if (!ownsChord(target, true)) return false;
       const next = cycleReasoningValue(
-        handoffMode ? activeReasoningOptions : reasoningOptions,
-        value,
-        index === 0 ? "forward" : "backward",
+        reasoningOptions,
+        reasoningValue,
+        index === 0 ? 1 : -1,
       );
-      if (next !== null) {
-        if (handoffMode) {
-          handleReasoningSelect(next);
-        } else {
-          onReasoningChange(next);
-          setPreviewProviderId(null);
-        }
-      }
+      if (next !== null) onReasoningChange(next);
       return true;
     },
     50,
     commandShortcutsEnabled,
   );
-  const handleReasoningArrowKeyDown: KeyboardEventHandler<HTMLElement> = (
-    event,
-  ) => {
-    if (
-      event.defaultPrevented ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      disabled ||
-      !showReasoningSection ||
-      previewSelectionBlocked ||
-      (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
-    ) {
-      return;
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const total = visibleModelOptions.length;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (total === 0) return;
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((current) => {
+        const from = current >= total ? -1 : current;
+        return from < 0 && step < 0 ? total - 1 : (from + step + total) % total;
+      });
+    } else if (event.key === "Enter" && highlightedIndex >= 0) {
+      event.preventDefault();
+      selectModel(visibleModelOptions[highlightedIndex]!.value);
     }
-    if (
-      isEditableKeyboardTarget(event.target) &&
-      (event.target !== searchInputRef.current || searchQuery.length > 0)
-    ) {
-      return;
-    }
-    const index = activeReasoningOptions.findIndex(
-      (option) => option.value === activeReasoningValue,
-    );
-    if (index < 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next =
-      activeReasoningOptions[index + (event.key === "ArrowRight" ? 1 : -1)];
-    if (next) handleReasoningSelect(next.value);
   };
-
-  const handleQueryChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    setActiveIndex(-1);
-  }, []);
-
-  const handleSearchKeyDown = useCallback<
-    KeyboardEventHandler<HTMLInputElement>
-  >(
-    (event) => {
-      const total = navRows.length;
-
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (total === 0) return;
-        setActiveIndex((current) => {
-          const from = current >= total ? -1 : current;
-          return from >= total - 1 ? 0 : from + 1;
-        });
-        return;
-      }
-
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        if (total === 0) return;
-        setActiveIndex((current) => {
-          const from = current >= total ? -1 : current;
-          return from <= 0 ? total - 1 : from - 1;
-        });
-        return;
-      }
-
-      if (event.key === "Enter") {
-        if (highlightedIndex < 0) return;
-        const row = navRows[highlightedIndex];
-        if (!row) return;
-        event.preventDefault();
-        handleModelSelect(row.option.value);
-      }
-    },
-    [navRows, highlightedIndex, handleModelSelect],
-  );
-
   useEffect(() => {
-    if (highlightedIndex < 0) return;
-    const el = document.getElementById(`${navId}-opt-${highlightedIndex}`);
-    el?.scrollIntoView({ block: "nearest" });
+    if (highlightedIndex >= 0) {
+      document
+        .getElementById(`${navId}-opt-${highlightedIndex}`)
+        ?.scrollIntoView({ block: "nearest" });
+    }
   }, [highlightedIndex, navId]);
 
+  if (
+    !modelIsLoading &&
+    !model.loadFailed &&
+    !hasModelOptions &&
+    selectedProviderId.length === 0 &&
+    !canSwitchProviders
+  ) {
+    return null;
+  }
   const TriggerIcon =
-    hasSelectedModel || modelIsLoading ? ProviderIcon : undefined;
-  const triggerTitleModelLabel = modelIsLoading
-    ? "Loading models..."
-    : selectedModelLoadFailed
-      ? selectedModelLoadErrorText
-      : triggerModelLabel;
+    hasSelectedModel || modelIsLoading ? provider?.icon : undefined;
   const triggerTitle = [
-    `${selectedProviderLabel}: ${triggerTitleModelLabel}`,
+    `${providerLabel}: ${
+      modelIsLoading
+        ? "Loading models..."
+        : loadFailed
+          ? loadError
+            ? formatModelLoadErrorText({ error: loadError, providerLabel })
+            : "Could not load models."
+          : triggerModelLabel
+    }`,
     triggerReasoningLabel ? ` · ${triggerReasoningLabel} reasoning` : "",
     showSelectedFastMode ? " (Fast mode)" : "",
   ].join("");
@@ -850,7 +454,6 @@ export function ModelReasoningPicker({
       }
       aria-keyshortcuts={toggleShortcut?.ariaKeyshortcuts}
       disabled={disabled}
-      onKeyDown={handleReasoningArrowKeyDown}
       className={cn(
         OPTION_BASE_CLASS_NAME,
         OPTION_INTERACTIVE_CLASS_NAME,
@@ -885,27 +488,28 @@ export function ModelReasoningPicker({
               className="h-3 w-8 shrink-0 rounded-sm"
             />
           </>
-        ) : showSelectedFastMode ? (
-          <Icon
-            name="Zap"
-            className="size-3.5 shrink-0 fill-current text-subtle-foreground"
-          />
-        ) : TriggerIcon ? (
-          <TriggerIcon className="size-4 shrink-0" />
-        ) : null}
-        {modelIsLoading ? null : (
+        ) : (
           <>
+            {showSelectedFastMode ? (
+              <Icon
+                name="Zap"
+                className="size-3.5 shrink-0 fill-current text-subtle-foreground"
+              />
+            ) : TriggerIcon ? (
+              <TriggerIcon className="size-4 shrink-0" />
+            ) : null}
             <span
               className={cn(
                 "min-w-0 truncate",
-                triggerModelValueIsDestructive && "text-destructive-text",
+                triggerModelLabel === FAILED_TO_LOAD_MODELS_LABEL &&
+                  "text-destructive-text",
               )}
             >
-              {triggerModelBase}
+              {triggerModel.base}
             </span>
-            {triggerModelTag ? (
+            {triggerModel.tag ? (
               <span className="shrink-0 text-subtle-foreground">
-                {triggerModelTag}
+                {triggerModel.tag}
               </span>
             ) : null}
             {triggerReasoningLabel ? (
@@ -934,210 +538,389 @@ export function ModelReasoningPicker({
       />
     </Button>
   );
-
-  if (disabled) {
-    return trigger;
-  }
-
-  const showSearchInput =
-    hasActiveModelOptions &&
-    !activeModelIsLoading &&
-    !isShowingModelError &&
-    activeModelOptions.length + activeMoreModelOptions.length >
-      MODEL_SEARCH_MIN_OPTIONS;
+  if (disabled) return trigger;
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={modal}>
+    <Popover open={open} onOpenChange={changeOpen} modal>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align={align}
-        onKeyDown={handleReasoningArrowKeyDown}
         autoFocusRef={showSearchInput ? searchInputRef : undefined}
         className={cn(
           "flex min-h-0 flex-col p-0",
-          MODEL_PICKER_MENU_WIDTH_CLASS_NAME,
+          MENU_WIDTH_CLASS_NAME,
           "max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-hidden",
         )}
       >
-        <ResetBrowseStateOnContentUnmount onReset={resetBrowseState} />
-        {handoffMode ? <HandoffModeHeader onBack={exitHandoffMode} /> : null}
         {showProviderTabs ? (
           <div className="flex shrink-0 items-center gap-0.5 border-b border-border bg-background px-2.5 pt-1">
-            {providerOptions.map((provider) => {
-              const TabIcon = provider.icon;
-              const isActive = provider.value === activeProviderId;
-              const isHandoffSource =
-                handoffMode &&
-                handoff !== undefined &&
-                provider.value === handoff.sourceProviderId;
-              return (
-                <button
-                  key={provider.value}
-                  type="button"
-                  title={
-                    isHandoffSource
-                      ? `${provider.label} (current thread)`
-                      : provider.label
+            {providerOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                title={option.label}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  if (option.value !== selectedProviderId) {
+                    selectProvider(option.value);
                   }
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    if (provider.value === activeProviderId) {
-                      return;
-                    }
-                    handleProviderSelect(provider.value);
-                  }}
-                  className={cn(
-                    "flex items-center justify-center border-b-2 focus-visible:outline-none",
-                    LIST_HOVER_TRANSITION,
-                    COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS,
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {TabIcon ? (
-                    <TabIcon className={COARSE_POINTER_ICON_SIZE_CLASS} />
-                  ) : (
-                    <span
-                      className={cn(
-                        "font-medium",
-                        COARSE_POINTER_TEXT_SM_CLASS,
-                      )}
-                    >
-                      {provider.label.charAt(0)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+                }}
+                className={cn(
+                  "flex items-center justify-center border-b-2 focus-visible:outline-none",
+                  LIST_HOVER_TRANSITION,
+                  "h-7 w-6",
+                  option.value === selectedProviderId
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {option.icon ? (
+                  <option.icon className="size-4" />
+                ) : (
+                  <span className="font-medium text-xs">
+                    {option.label.charAt(0)}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         ) : null}
 
         {showSearchInput ? (
-          <ModelSearchInput
-            inputRef={searchInputRef}
-            query={searchQuery}
-            onQueryChange={handleQueryChange}
-            onKeyDown={handleSearchKeyDown}
-            listboxId={listboxId}
-            activeOptionId={
-              highlightedIndex >= 0 ? optionDomId(highlightedIndex) : undefined
-            }
-          />
+          <div className="shrink-0 border-b border-border px-1.5 py-1">
+            <div className="relative">
+              <Icon
+                name="Search"
+                className="pointer-events-none absolute left-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setActiveIndex(-1);
+                }}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search models"
+                aria-label="Search models"
+                role="combobox"
+                aria-expanded
+                aria-controls={listboxId}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  highlightedIndex >= 0
+                    ? optionDomId(highlightedIndex)
+                    : undefined
+                }
+                className="h-7 border-0 bg-transparent pl-8 pr-2 text-xs text-foreground placeholder:text-subtle-foreground shadow-none focus-visible:ring-0"
+              />
+            </div>
+          </div>
         ) : null}
 
-        <ModelReasoningMenu
-          listRef={listRef}
-          providerId={activeProviderId}
-          provider={activeProvider}
-          providerLabel={activeProviderLabel}
-          listboxId={showSearchInput ? listboxId : undefined}
-          optionId={optionDomId}
-          modelIsLoading={activeModelIsLoading}
-          isShowingModelError={isShowingModelError}
-          hasModelOptions={hasActiveModelOptions}
-          modelLoadError={
-            activeModelLoadErrorMatches ? activeModelLoadError : null
-          }
-          modelLoadFailed={activeModelLoadFailed}
-          navRows={navRows}
-          highlightedIndex={highlightedIndex}
-          isSearching={isSearching}
-          moreModelOptions={filteredMoreModelOptions}
-          moreModelsOpen={moreModelsOpen}
-          onMoreModelsOpenChange={setMoreModelsOpen}
-          isPreviewing={isPreviewing}
-          modelValue={modelValue}
-          selectionBlocked={previewSelectionBlocked}
-          onModelSelect={handleModelSelect}
-          showReasoningSection={showReasoningSection}
-          reasoningValue={activeReasoningValue}
-          reasoningOptions={activeReasoningOptions}
-          onReasoningSelect={handleReasoningSelect}
-          showFastModeToggle={effectiveShowFastModeToggle}
-          fastModeLabel={effectiveFastModeLabel}
-          fastModeEnabled={fastModeEnabled}
-          onFastModeChange={onFastModeChange}
-          onStartHandoff={
-            handoff !== undefined && !handoffMode && providerOptions.length > 0
-              ? startHandoffMode
-              : null
-          }
-        />
+        <MenuHoverProvider>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+              ref={listRef}
+              key={selectedProviderId || "no-provider"}
+              role={showSearchInput ? "listbox" : undefined}
+              id={showSearchInput ? listboxId : undefined}
+              aria-label={showSearchInput ? "Models" : undefined}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0 max-h-64"
+            >
+              {isShowingModelError ? null : (
+                <MenuSectionLabel>Model</MenuSectionLabel>
+              )}
+              {modelIsLoading ? (
+                <PickerLoadingRows
+                  label="Loading models"
+                  rowDataAttribute="data-model-loading-row"
+                />
+              ) : hasModelOptions ? (
+                <>
+                  {visibleModelOptions.map((option, index) => (
+                    <MenuRowButton
+                      key={option.value}
+                      id={optionDomId(index)}
+                      role={showSearchInput ? "option" : undefined}
+                      isActive={highlightedIndex === index}
+                      label={stripModelBrandPrefix(
+                        option.label,
+                        provider?.brandPrefix,
+                      )}
+                      selected={option.value === modelValue}
+                      onClick={() => selectModel(option.value)}
+                    />
+                  ))}
+                  {!isSearching && moreModelOptions.length > 0 ? (
+                    <MoreModelsSubmenu
+                      open={moreModelsOpen}
+                      onOpenChange={setMoreModelsOpen}
+                    >
+                      {moreModelOptions.map((option) => (
+                        <MenuRowButton
+                          key={option.value}
+                          label={stripModelBrandPrefix(
+                            option.label,
+                            provider?.brandPrefix,
+                          )}
+                          selected={option.value === modelValue}
+                          onClick={() => selectModel(option.value)}
+                        />
+                      ))}
+                    </MoreModelsSubmenu>
+                  ) : null}
+                  {isSearching && visibleModelOptions.length === 0 ? (
+                    <div className="px-2 text-xs text-muted-foreground py-[0.3125rem]">
+                      No models match your search
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div
+                  className="px-2 text-xs leading-relaxed text-muted-foreground pb-2 pt-1.5"
+                  title={
+                    loadError
+                      ? formatModelLoadErrorTitle({
+                          error: loadError,
+                          providerLabel,
+                        })
+                      : undefined
+                  }
+                >
+                  {loadError ? (
+                    <ModelLoadErrorMessage
+                      error={loadError}
+                      providerLabel={providerLabel}
+                      installUrl={provider?.installUrl}
+                    />
+                  ) : loadFailed ? (
+                    "Could not load models."
+                  ) : (
+                    "No models available"
+                  )}
+                </div>
+              )}
+            </div>
+
+            {showReasoningSection ? (
+              <>
+                <div className="shrink-0 border-t border-border" />
+                <div className="shrink-0 px-2 py-2.5">
+                  <MenuSectionLabel className="mb-2 px-1 py-0">
+                    Reasoning
+                  </MenuSectionLabel>
+                  <ToggleGroup
+                    type="single"
+                    aria-label="Reasoning"
+                    value={reasoningValue}
+                    onValueChange={(value) => {
+                      const option = reasoningOptions.find(
+                        (candidate) => candidate.value === value,
+                      );
+                      if (option) selectReasoning(option.value);
+                    }}
+                    className="flex gap-1"
+                  >
+                    {reasoningOptions.map((option) => (
+                      <ToggleGroupItem
+                        key={option.value}
+                        value={option.value}
+                        aria-label={option.label}
+                        className={cn(
+                          "h-6 min-w-0 flex-auto shrink-0 whitespace-nowrap rounded-sm px-1 text-xs font-normal shadow-none hover:bg-state-hover hover:text-foreground data-[state=on]:bg-state-active data-[state=on]:text-foreground data-[state=on]:hover:bg-state-active",
+                          LIST_HOVER_TRANSITION,
+                        )}
+                      >
+                        {option.label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+              </>
+            ) : null}
+
+            {serviceTier?.supported && hasModelOptions ? (
+              <>
+                <div className="shrink-0 border-t border-border" />
+                <div className="shrink-0 p-1">
+                  <div className="flex items-center justify-between gap-3 rounded-sm px-2 py-[0.3125rem] text-xs">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Icon
+                        name="Zap"
+                        className="size-4 fill-current text-muted-foreground"
+                      />
+                      <span>{fastModeText}</span>
+                    </span>
+                    <Switch
+                      checked={fastModeEnabled}
+                      onCheckedChange={(enabled) =>
+                        serviceTier.onChange(enabled ? "fast" : "default")
+                      }
+                      aria-label={fastModeText}
+                      className={cn(LIST_HOVER_TRANSITION, "[&>span]:size-3.5")}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </MenuHoverProvider>
       </PopoverContent>
     </Popover>
   );
 }
 
-function HandoffModeHeader({ onBack }: { onBack: () => void }) {
+function MenuSectionLabel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex shrink-0 items-center gap-1 bg-background px-2 pb-1 pt-1.5">
-      <button
-        type="button"
-        aria-label="Exit handoff"
-        onClick={onBack}
-        className={cn(
-          "flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-state-hover hover:text-foreground",
-          LIST_HOVER_TRANSITION,
-        )}
-      >
-        <Icon name="X" className="size-3.5" aria-hidden />
-      </button>
-      <span className="min-w-0 truncate text-xs font-normal text-subtle-foreground">
-        Handoff to new thread
-      </span>
+    <div
+      className={cn(
+        "sticky top-0 z-10 bg-background px-2 text-xs font-medium text-muted-foreground",
+        "pb-[0.3125rem] pt-2",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }
 
-function ResetBrowseStateOnContentUnmount({
-  onReset,
+function MoreModelsSubmenu({
+  open,
+  onOpenChange,
+  children,
 }: {
-  onReset: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
 }) {
-  useEffect(() => onReset, [onReset]);
-  return null;
-}
+  const { isLastHovered, hoverProps } = useMenuItemHover();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
-interface ModelSearchInputProps {
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  query: string;
-  onQueryChange: (query: string) => void;
-  onKeyDown: KeyboardEventHandler<HTMLInputElement>;
-  listboxId: string;
-  activeOptionId: string | undefined;
-}
+  useEffect(() => {
+    if (open && !isLastHovered) onOpenChange(false);
+  }, [open, isLastHovered, onOpenChange]);
 
-function ModelSearchInput({
-  inputRef,
-  query,
-  onQueryChange,
-  onKeyDown,
-  listboxId,
-  activeOptionId,
-}: ModelSearchInputProps) {
   return (
-    <div className="shrink-0 border-b border-border px-1.5 py-1">
-      <div className="relative">
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => onOpenChange(true)}
+          onPointerEnter={(event) => {
+            hoverProps.onPointerEnter(event);
+            onOpenChange(true);
+          }}
+          onKeyDown={(event) => {
+            hoverProps.onKeyDown(event);
+            if (["Enter", " ", "Spacebar", "ArrowRight"].includes(event.key)) {
+              event.preventDefault();
+              onOpenChange(true);
+              window.setTimeout(() => {
+                contentRef.current
+                  ?.querySelector<HTMLButtonElement>("button")
+                  ?.focus();
+              }, 0);
+            } else if (event.key === "Escape" || event.key === "ArrowLeft") {
+              event.preventDefault();
+              onOpenChange(false);
+            }
+          }}
+          className={cn(
+            MENU_ROW_CLASS_NAME,
+            "gap-1 py-[0.3125rem] text-muted-foreground",
+            LIST_HOVER_TRANSITION,
+            MENU_ITEM_LAST_HOVERED_CLASS,
+          )}
+          data-last-hovered={hoverProps["data-last-hovered"]}
+        >
+          <span>More models</span>
+          <Icon name="ChevronRight" className="size-3.5 shrink-0" />
+        </button>
+      </PopoverAnchor>
+      <PopoverContent
+        ref={contentRef}
+        side="right"
+        align="start"
+        sideOffset={6}
+        className={cn(
+          "max-h-[min(20rem,var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-y-auto overscroll-contain p-1 data-[state=closed]:animate-none",
+          MENU_WIDTH_CLASS_NAME,
+        )}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" || event.key === "ArrowLeft") {
+            event.preventDefault();
+            onOpenChange(false);
+            triggerRef.current?.focus();
+          }
+        }}
+      >
+        <MenuHoverProvider>{children}</MenuHoverProvider>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MenuRowButton({
+  label,
+  selected,
+  onClick,
+  isActive,
+  id,
+  role,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  isActive?: boolean;
+  id?: string;
+  role?: AriaRole;
+}) {
+  const { hoverProps } = useMenuItemHover();
+  const { base, tag } = splitModelLabelTag(label);
+  return (
+    <button
+      type="button"
+      id={id}
+      role={role}
+      aria-selected={role === "option" ? Boolean(isActive) : undefined}
+      onClick={onClick}
+      className={cn(
+        MENU_ROW_CLASS_NAME,
+        "justify-between gap-3",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
+        isActive && "bg-state-active",
+        "py-[0.3125rem]",
+      )}
+      {...hoverProps}
+    >
+      <span className="truncate" title={label}>
+        {base}
+        {tag ? (
+          <span className="ml-1.5 text-subtle-foreground">{tag}</span>
+        ) : null}
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5">
         <Icon
-          name="Search"
-          className="pointer-events-none absolute left-1.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          name="Check"
+          className={cn(
+            "size-4 shrink-0",
+            "text-subtle-foreground",
+            selected ? "opacity-100" : "opacity-0",
+          )}
         />
-        <Input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Search models"
-          aria-label="Search models"
-          role="combobox"
-          aria-expanded
-          aria-controls={listboxId}
-          aria-autocomplete="list"
-          aria-activedescendant={activeOptionId}
-          className="h-7 border-0 bg-transparent pl-8 pr-2 text-xs text-foreground placeholder:text-subtle-foreground shadow-none focus-visible:ring-0"
-        />
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }

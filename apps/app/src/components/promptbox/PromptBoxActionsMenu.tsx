@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -8,77 +8,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { Icon } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import type { ProviderPromptActionCommand } from "@bb/client-core";
 
-type PromptBoxActionKind = "skills" | "plan" | "goal";
-
 export interface PromptBoxAction {
-  kind: PromptBoxActionKind;
+  kind: "skills" | "plan" | "goal";
   text: string;
   command?: ProviderPromptActionCommand;
 }
 
-interface PromptBoxActionsMenuProps {
-  actions?: readonly PromptBoxAction[];
-  onAttach?: () => void;
-  onAction: (action: PromptBoxAction) => void;
-}
-
-const PROMPT_ACTION_PRESENTATION = {
-  skills: {
-    label: "Skills",
-    icon: "Zap",
-  },
-  plan: {
-    label: "Plan",
-    icon: "ListTodo",
-  },
-  goal: {
-    label: "Goal",
-    icon: "Target",
-  },
-} as const satisfies Record<
-  PromptBoxActionKind,
-  { label: string; icon: IconName }
->;
-
-const PROMPT_ACTION_ORDER: readonly PromptBoxActionKind[] = [
-  "skills",
-  "plan",
-  "goal",
-];
-
-function orderedPromptActions(
-  actions: readonly PromptBoxAction[],
-): PromptBoxAction[] {
-  return PROMPT_ACTION_ORDER.flatMap((kind) => {
-    const action = actions.find((candidate) => candidate.kind === kind);
-    return action ? [action] : [];
-  });
-}
+const PROMPT_ACTIONS = [
+  { kind: "skills", label: "Skills", icon: "Zap" },
+  { kind: "plan", label: "Plan", icon: "ListTodo" },
+] as const;
 
 export function PromptBoxActionsMenu({
   actions = [],
   onAttach,
   onAction,
-}: PromptBoxActionsMenuProps) {
+}: {
+  actions?: readonly PromptBoxAction[];
+  onAttach?: () => void;
+  onAction: (action: PromptBoxAction) => void;
+}) {
   const selectedItemRef = useRef(false);
-  const visibleActions = orderedPromptActions(actions).filter(
-    (action) => action.text.length > 0,
-  );
-  const clearSelectedActionAfterClose = useCallback(() => {
-    const clear = () => {
-      selectedItemRef.current = false;
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(clear);
-      return;
-    }
-    setTimeout(clear, 0);
-  }, []);
+  const visibleActions = PROMPT_ACTIONS.flatMap((presentation) => {
+    const action = actions.find(
+      (candidate) => candidate.kind === presentation.kind,
+    );
+    return action && action.text.length > 0 ? [{ action, presentation }] : [];
+  });
 
   if (visibleActions.length === 0 && !onAttach) {
     return null;
@@ -89,7 +50,9 @@ export function PromptBoxActionsMenu({
       modal={false}
       onOpenChange={(open) => {
         if (!open) {
-          clearSelectedActionAfterClose();
+          requestAnimationFrame(() => {
+            selectedItemRef.current = false;
+          });
         }
       }}
     >
@@ -138,25 +101,22 @@ export function PromptBoxActionsMenu({
             {visibleActions.length > 0 ? <DropdownMenuSeparator /> : null}
           </>
         ) : null}
-        {visibleActions.map((action) => {
-          const presentation = PROMPT_ACTION_PRESENTATION[action.kind];
-          return (
-            <DropdownMenuItem
-              key={action.kind}
-              onSelect={() => {
-                selectedItemRef.current = true;
-                onAction(action);
-              }}
-            >
-              <Icon
-                name={presentation.icon}
-                className="size-4 text-muted-foreground"
-                aria-hidden
-              />
-              {presentation.label}
-            </DropdownMenuItem>
-          );
-        })}
+        {visibleActions.map(({ action, presentation }) => (
+          <DropdownMenuItem
+            key={action.kind}
+            onSelect={() => {
+              selectedItemRef.current = true;
+              onAction(action);
+            }}
+          >
+            <Icon
+              name={presentation.icon}
+              className="size-4 text-muted-foreground"
+              aria-hidden
+            />
+            {presentation.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

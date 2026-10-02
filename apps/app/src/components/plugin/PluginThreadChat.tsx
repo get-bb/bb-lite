@@ -225,8 +225,6 @@ function ThreadChatWithComposer({
             pending.data,
             pending.isFetching,
           )}
-          queuedMessageCount={thread.queuedMessageCount}
-          activeBackgroundAgentCount={thread.activeBackgroundAgentCount}
           canRestoreEnvironment={false}
           environmentGoneStatus={null}
           environmentHostId={environment?.hostId}
@@ -249,10 +247,7 @@ function ThreadChatWithComposer({
           contextBannerMergeBase={null}
           pendingTodos={null}
           activePromptMode={null}
-          goal={null}
           modelFallback={null}
-          activeWorkflows={NOTHING}
-          activeBackgroundCommands={NOTHING}
           parentThreadSection={null}
           childPendingInteractions={NOTHING}
           childThreadsSection={null}

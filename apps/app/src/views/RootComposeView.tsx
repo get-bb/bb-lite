@@ -1,395 +1,66 @@
-import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
-
 import {
   readThreadCreationPlacement,
   DEFAULT_THREAD_CREATION_PLACEMENT,
 } from "@/lib/thread-creation-placement";
-import { useRootComposePlacement } from "@/lib/root-compose-selection";
+import {
+  useRootComposePlacement,
+  useRootComposeProjectId,
+  useSetRootComposeProjectId,
+} from "@/lib/root-compose-selection";
 import { useInitialPromptDraft } from "@/components/promptbox/mentions/initial-prompt-draft";
-import {
-  ThreadTitle,
-  useThreadTitleDisplayText,
-} from "@/components/thread/ThreadTitleMentions";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { findCachedProviderInfo } from "@/hooks/queries/system-queries";
+import { useNewThreadComposer } from "@/components/promptbox/NewThreadComposer";
 import {
-  findLocalPathProjectSourceForHost,
-  type EnvironmentStatus,
-  type Host,
-  type ReasoningLevel,
-  type ServiceTier,
-} from "@bb/domain";
-import type { TerminalSession } from "@bb/server-contract";
-import {
-  NewThreadComposer,
-  type NewThreadComposerState,
-  type NewThreadComposerSubmission,
-} from "@/components/promptbox/NewThreadComposer";
-import { PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID } from "@bb/client-core";
+  PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
+  type PromptDraftState,
+} from "@bb/client-core";
 import {
   encodeProviderValue,
   encodeReuseValue,
 } from "@/components/pickers/environment-picker-value";
 import {
   ProjectMachineSetupDialog,
-  type ProjectMachineSetupCompletion,
   type ProjectMachineSetupDialogTarget,
 } from "@/components/dialogs/ProjectMachineSetupDialog";
-import { HEADER_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
-import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
-import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
-import type { SecondaryPanelRenderableTab } from "@/components/secondary-panel/ThreadSecondaryPanel";
-import { Icon } from "@bb/shared-ui/icon";
+import { PANEL_COLLAPSE_TRANSITION_CLASS } from "@/components/secondary-panel/panelTransitionTokens";
+import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { PageShell } from "@/components/ui/page-shell.js";
+import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
-import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
-import { PluginItemIcon } from "@/components/plugin/PluginIcon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
-import {
-  useCloseTerminal,
-  useCloseEnvironmentTerminal,
-  useCreateTerminal,
-  useCreateEnvironmentTerminal,
-  useEnvironmentTerminals,
-  useTerminals,
-} from "@/hooks/queries/thread-terminal-queries";
-import { useEnvironment } from "@/hooks/queries/environment-queries";
-import {
-  requestComposerFocus,
-  subscribeComposerFocusRequests,
-} from "@/lib/composer-focus-requests";
-import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
-import {
-  buildForkThreadRequest,
-  FORK_THREAD_CREATE_SEED_LOCATION_STATE_KEY,
-  type ForkThreadCreateSeed,
-} from "@bb/client-core";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
-import {
-  readInitialPromptFromSearch,
-  stripInitialPromptFromSearch,
-} from "./root-compose-initial-prompt";
-import {
-  getThreadRoutePath,
-  getProjectComposeRoutePath,
-  getRootComposeRoutePath,
-} from "@/lib/route-paths";
-import {
-  NEW_TAB,
-  terminalTab,
-  usePanelTabs,
-  useTerminalTabSync,
-  workspaceFileTab,
-} from "@/components/secondary-panel/panelTabs";
-import type { WorkspaceFileTabState } from "@bb/client-core";
-import {
-  useRootComposeForkSeed,
-  useRootComposeProjectId,
-  useSetRootComposeProjectId,
-} from "@/lib/root-compose-selection";
-import {
-  ROOT_COMPOSE_PINNED_PANEL_TOGGLE_POSITION_CLASS,
-  RootComposeSecondaryContent,
-} from "./RootComposeSecondaryContent";
+import { getRootComposeRoutePath } from "@/lib/route-paths";
 import { RootComposeEmptyWelcome } from "./RootComposeEmptyWelcome";
-import { RightPanelFileTabIcon } from "@/components/secondary-panel/RightPanelFileTabIcon";
-import {
-  DEFAULT_TERMINAL_COLS,
-  DEFAULT_TERMINAL_ROWS,
-} from "@/components/secondary-panel/useThreadPanel";
-import {
-  useAppCommandHandler,
-  useAppCommandShortcut,
-} from "@/components/commands/AppCommandProvider";
-import {
-  useOptionalPaneContext,
-  usePaneContext,
-} from "./thread-detail/PaneContext";
-import { RootComposePanelCommandHandlers } from "./RootComposePanelCommandHandlers";
-import {
-  ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-  RootComposePanelTabContent,
-  type RootComposeTerminalTarget,
-} from "./RootComposePanelTabContent";
+import { usePaneContext } from "./thread-detail/PaneContext";
 
-const ROOT_COMPOSE_SIDEBAR_ACTION_ALIGNED_TOP_PADDING_CLASS = "pt-14";
+const INITIAL_PROMPT_SEARCH_PARAM = "initialPrompt";
+const INITIAL_PROMPT_MAX_LENGTH = 8000;
 
-const ROOT_COMPOSE_EMPTY_WELCOME_CONTENT_CLASS =
-  "min-h-full flex-1 items-center justify-center pb-12";
-const EMPTY_TERMINAL_SESSIONS: readonly TerminalSession[] = [];
-
-interface LegacyProjectComposeRedirectProps {
-  projectId: string;
+function readStateString(state: unknown, key: string): string | null {
+  const value =
+    typeof state === "object" && state !== null
+      ? (state as Record<string, unknown>)[key]
+      : null;
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function readSectionIdFromLocationState(state: unknown): string | null {
-  if (typeof state !== "object" || state === null) {
-    return null;
-  }
-  if (!("sectionId" in state) || typeof state.sectionId !== "string") {
-    return null;
-  }
-  const sectionId = state.sectionId.trim();
-  return sectionId.length > 0 ? sectionId : null;
-}
-
-type RootComposeSectionTarget =
-  | { kind: "clear" }
-  | { sectionId: string; kind: "set" };
-
-export function readRootComposeSectionTargetFromLocationState(
-  state: unknown,
-): RootComposeSectionTarget | null {
-  if (typeof state !== "object" || state === null) {
-    return null;
-  }
-
-  if ("sectionId" in state) {
-    const sectionId = readSectionIdFromLocationState(state);
-    return sectionId ? { sectionId, kind: "set" } : { kind: "clear" };
-  }
-
-  if ("focusPrompt" in state && state.focusPrompt === true) {
-    return { kind: "clear" };
-  }
-
-  return null;
-}
-
-export function shouldStartComposingFromLocationState(state: unknown): boolean {
-  if (typeof state !== "object" || state === null) {
-    return false;
-  }
-  return "focusPrompt" in state && state.focusPrompt === true;
-}
-
-interface ShouldNavigateAfterThreadCreateArgs {
-  isForkDraft: boolean;
-  navigateToThreadAfterCreate: boolean;
-}
-
-interface CanCreateRootComposeTerminalArgs {
-  connectedHostIds: ReadonlySet<string>;
-  environmentHostId: string | null | undefined;
-  terminalTarget: RootComposeTerminalTarget | null;
-  environmentStatus: EnvironmentStatus | undefined;
-}
-
-interface BuildRootComposeTerminalSessionsArgs {
-  environmentTerminalSessions: readonly TerminalSession[] | undefined;
-  globalTerminalSessions: readonly TerminalSession[] | undefined;
-  terminalTarget: RootComposeTerminalTarget | null;
-}
-
-interface RootComposeRightPanelToggleProps {
-  onToggle: () => void;
-}
-
-export function RootComposeRightPanelToggle({
-  onToggle,
-}: RootComposeRightPanelToggleProps) {
-  const shortcut = useAppCommandShortcut("panel.toggle");
-  const rightPanelLabel = "Show right panel";
-  const rightPanelIconName = RIGHT_PANEL_TOGGLE_ICON_NAME;
-
+function hasFocusPromptState(state: unknown): boolean {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={`${HEADER_ICON_BUTTON_CLASS} relative`}
-      aria-label={
-        shortcut ? `${rightPanelLabel} (${shortcut.label})` : rightPanelLabel
-      }
-      aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
-      aria-expanded={false}
-      onClick={onToggle}
-    >
-      <Icon name={rightPanelIconName} />
-      <AppCommandShortcutHint
-        shortcut={shortcut}
-        className="absolute right-full mr-1"
-      />
-    </Button>
+    typeof state === "object" &&
+    state !== null &&
+    "focusPrompt" in state &&
+    state.focusPrompt === true
   );
-}
-
-function readReuseEnvironmentIdFromLocationState(
-  state: unknown,
-): string | null {
-  if (!state || typeof state !== "object") return null;
-  const candidate = (state as { reuseEnvironmentId?: unknown })
-    .reuseEnvironmentId;
-  if (typeof candidate === "string" && candidate.length > 0) return candidate;
-  return null;
-}
-
-export function readNewEnvironmentHostIdFromLocationState(
-  state: unknown,
-): string | null {
-  if (typeof state !== "object" || state === null) return null;
-  if (!("newEnvironmentHostId" in state)) return null;
-  const hostId = state.newEnvironmentHostId;
-  return typeof hostId === "string" && hostId.trim().length > 0
-    ? hostId.trim()
-    : null;
-}
-
-export function readRootComposeEnvironmentTargetFromLocationState(
-  state: unknown,
-):
-  | { kind: "reuse"; environmentId: string }
-  | { kind: "host"; hostId: string }
-  | null {
-  const environmentId = readReuseEnvironmentIdFromLocationState(state);
-  if (environmentId !== null) return { kind: "reuse", environmentId };
-  const hostId = readNewEnvironmentHostIdFromLocationState(state);
-  return hostId === null ? null : { kind: "host", hostId };
-}
-
-export function shouldNavigateAfterThreadCreate({
-  isForkDraft,
-  navigateToThreadAfterCreate,
-}: ShouldNavigateAfterThreadCreateArgs): boolean {
-  return isForkDraft || navigateToThreadAfterCreate;
-}
-
-function readForkThreadCreateSeedFromLocationState(
-  state: unknown,
-): ForkThreadCreateSeed | null {
-  if (!state || typeof state !== "object") return null;
-  const candidate = (state as Record<string, unknown>)[
-    FORK_THREAD_CREATE_SEED_LOCATION_STATE_KEY
-  ];
-  if (!candidate || typeof candidate !== "object") return null;
-  const value = candidate as Record<string, unknown>;
-  if (
-    typeof value.environmentId !== "string" ||
-    value.environmentId.length === 0 ||
-    typeof value.model !== "string" ||
-    value.model.length === 0 ||
-    typeof value.permissionMode !== "string" ||
-    value.permissionMode.length === 0 ||
-    typeof value.projectId !== "string" ||
-    value.projectId.length === 0 ||
-    typeof value.providerId !== "string" ||
-    value.providerId.length === 0 ||
-    typeof value.reasoningLevel !== "string" ||
-    value.reasoningLevel.length === 0 ||
-    typeof value.sourceThreadId !== "string" ||
-    value.sourceThreadId.length === 0 ||
-    typeof value.sourceThreadTitle !== "string" ||
-    value.sourceThreadTitle.trim().length === 0
-  ) {
-    return null;
-  }
-  const seedPermissionMode =
-    value.permissionMode === "workspace-write"
-      ? "accept-edits"
-      : value.permissionMode === "accept-edits" ||
-          value.permissionMode === "auto" ||
-          value.permissionMode === "full"
-        ? value.permissionMode
-        : null;
-  if (seedPermissionMode === null) {
-    return null;
-  }
-  if (
-    value.serviceTier !== undefined &&
-    typeof value.serviceTier !== "string"
-  ) {
-    return null;
-  }
-  if (
-    value.sourceSeqEnd !== undefined &&
-    (typeof value.sourceSeqEnd !== "number" ||
-      !Number.isInteger(value.sourceSeqEnd) ||
-      value.sourceSeqEnd < 0)
-  ) {
-    return null;
-  }
-  return {
-    environmentId: value.environmentId,
-    model: value.model,
-    permissionMode: seedPermissionMode,
-    projectId: value.projectId,
-    providerId: value.providerId,
-    reasoningLevel: value.reasoningLevel as ReasoningLevel,
-    serviceTier: value.serviceTier as ServiceTier | undefined,
-    sourceSeqEnd: value.sourceSeqEnd as number | undefined,
-    sourceThreadId: value.sourceThreadId,
-    sourceThreadTitle: value.sourceThreadTitle.trim(),
-  };
-}
-
-export function hasSingleUseRootComposeTargetState(state: unknown): boolean {
-  return (
-    readThreadCreationPlacement(state) !== null ||
-    readRootComposeSectionTargetFromLocationState(state) !== null ||
-    readRootComposeEnvironmentTargetFromLocationState(state) !== null ||
-    readForkThreadCreateSeedFromLocationState(state) !== null
-  );
-}
-
-export function readInitialPromptFromLocationState(
-  state: unknown,
-): string | null {
-  if (!state || typeof state !== "object") return null;
-  const candidate = (state as { initialPrompt?: unknown }).initialPrompt;
-  if (typeof candidate === "string" && candidate.length > 0) return candidate;
-  return null;
-}
-
-export function canCreateRootComposeTerminal({
-  connectedHostIds,
-  environmentHostId,
-  terminalTarget,
-  environmentStatus,
-}: CanCreateRootComposeTerminalArgs): boolean {
-  if (terminalTarget === null) {
-    return false;
-  }
-  if (terminalTarget.kind === "environment") {
-    return (
-      environmentStatus === "ready" &&
-      environmentHostId !== null &&
-      environmentHostId !== undefined &&
-      connectedHostIds.has(environmentHostId)
-    );
-  }
-  return connectedHostIds.has(terminalTarget.hostId);
-}
-
-export function buildRootComposeTerminalSessions({
-  environmentTerminalSessions,
-  globalTerminalSessions,
-  terminalTarget,
-}: BuildRootComposeTerminalSessionsArgs):
-  | readonly TerminalSession[]
-  | undefined {
-  if (terminalTarget?.kind === "environment") {
-    return environmentTerminalSessions;
-  }
-  if (terminalTarget?.kind === "host_path") {
-    return globalTerminalSessions?.filter(
-      (session) =>
-        session.threadId === null &&
-        session.environmentId === null &&
-        session.hostId === terminalTarget.hostId &&
-        (terminalTarget.cwd === null ||
-          session.initialCwd === terminalTarget.cwd),
-    );
-  }
-  return undefined;
 }
 
 export function LegacyProjectComposeRedirect({
   projectId,
-}: LegacyProjectComposeRedirectProps) {
+}: {
+  projectId: string;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const setRootComposeProjectId = useSetRootComposeProjectId();
@@ -414,862 +85,120 @@ export function LegacyProjectComposeRedirect({
 }
 
 export function RootComposeView() {
-  const { navigateInPane } = usePaneContext();
-  const [rootComposeProjectId, setRootComposeProjectId] =
-    useRootComposeProjectId();
-  const location = useLocation();
-  const queryClient = useQueryClient();
-  const createThread = useCreateThread();
-  const [placement, setPlacement] = useRootComposePlacement();
-  const [startedComposing, setStartedComposing] = useState(() =>
-    shouldStartComposingFromLocationState(location.state),
-  );
-  const [navigateToThreadAfterCreate] =
-    useNavigateToThreadAfterCreatePreference();
-  const [forkSeed, setForkSeed] = useRootComposeForkSeed();
-
-  const handleProjectChange = useCallback(
-    (projectId: string) => {
-      setForkSeed(null);
-      setRootComposeProjectId(projectId);
-    },
-    [setForkSeed, setRootComposeProjectId],
-  );
-  const handleSubmit = useCallback(
-    async (request: NewThreadComposerSubmission) => {
-      const shouldNavigateToCreatedThread = shouldNavigateAfterThreadCreate({
-        isForkDraft: forkSeed !== null,
-        navigateToThreadAfterCreate,
-      });
-      const createRequest =
-        forkSeed === null
-          ? request
-          : buildForkThreadRequest({
-              ...forkSeed,
-              input: request.input,
-              model: request.model,
-              permissionMode: request.permissionMode,
-              providerSupportsFork:
-                findCachedProviderInfo(queryClient, forkSeed.providerId)
-                  ?.capabilities.supportsFork ?? false,
-              reasoningLevel: request.reasoningLevel,
-              serviceTier: request.serviceTier,
-            });
-      if (createRequest === null) return;
-      const thread = await createThread.mutateAsync({
-        ...createRequest,
-        ...placement,
-      });
-      setForkSeed(null);
-      setPlacement(DEFAULT_THREAD_CREATION_PLACEMENT);
-      if (shouldNavigateToCreatedThread) {
-        navigateInPane({ projectId: thread.projectId, threadId: thread.id });
-      }
-    },
-    [
-      createThread,
-      forkSeed,
-      queryClient,
-      navigateInPane,
-      navigateToThreadAfterCreate,
-      placement,
-      setForkSeed,
-      setPlacement,
-    ],
-  );
-
-  const composerSeed = useMemo(
-    () =>
-      forkSeed === null
-        ? undefined
-        : {
-            providerId: forkSeed.providerId,
-            model: forkSeed.model,
-            reasoningLevel: forkSeed.reasoningLevel,
-            serviceTier: forkSeed.serviceTier,
-            permissionMode: forkSeed.permissionMode,
-            environment: {
-              type: "reuse" as const,
-              environmentId: forkSeed.environmentId,
-            },
-          },
-    [forkSeed],
-  );
-
-  return (
-    <NewThreadComposer
-      projectId={rootComposeProjectId}
-      onProjectChange={handleProjectChange}
-      draftStorage={{ kind: "new-thread" }}
-      selectionScope="new-thread"
-      seed={composerSeed}
-      resetKey={forkSeed?.sourceThreadId ?? null}
-      preferReadyProviderWhenUnset={forkSeed === null}
-      onSubmit={handleSubmit}
-    >
-      {(composer) => (
-        <RootComposeSurface
-          composer={composer}
-          forkSeed={forkSeed}
-          rootComposeProjectId={rootComposeProjectId}
-          setForkSeed={setForkSeed}
-          setRootComposeProjectId={setRootComposeProjectId}
-          setStartedComposing={setStartedComposing}
-          startedComposing={startedComposing}
-        />
-      )}
-    </NewThreadComposer>
-  );
-}
-
-interface RootComposeSurfaceProps {
-  composer: NewThreadComposerState;
-  forkSeed: ForkThreadCreateSeed | null;
-  rootComposeProjectId: string;
-  setForkSeed: (seed: ForkThreadCreateSeed | null) => void;
-  setRootComposeProjectId: (projectId: string) => void;
-  setStartedComposing: (started: boolean) => void;
-  startedComposing: boolean;
-}
-
-function RootComposeSurface({
-  composer,
-  forkSeed,
-  rootComposeProjectId,
-  setForkSeed,
-  setRootComposeProjectId,
-  setStartedComposing,
-  startedComposing,
-}: RootComposeSurfaceProps) {
-  const paneContext = useOptionalPaneContext();
-  const isFocusedPane = paneContext?.isFocused ?? true;
+  const paneContext = usePaneContext();
   const location = useLocation();
   const navigate = useNavigate();
-  const [, setPlacement] = useRootComposePlacement();
+  const [rootComposeProjectId, setRootComposeProjectId] =
+    useRootComposeProjectId();
+  const createThread = useCreateThread();
+  const [placement, setPlacement] = useRootComposePlacement();
+  const [navigateToThreadAfterCreate] =
+    useNavigateToThreadAfterCreatePreference();
   const quickCreateProject = useQuickCreateProjectController();
   const {
     projectId,
-    isProjectless,
     projects,
-    sidebarNavigationError,
     currentProject,
-    projectSources,
-    connectedHostIds,
-    primaryHostId,
-    parsedEnvironment,
-    projectHostId: rootProjectHostId,
-    panelThreadId: rootPanelThreadId,
     promptDraft,
     focusPromptBox,
-    pluginComposerHost: sharedPluginComposerHost,
-    seedEnvironmentSelectionValue,
-    hostSelectionReady,
-    selectHostForNewEnvironment,
-    setEnvironmentSelectionValue,
-    setProviderModelReasoning,
-    setPermissionMode,
-    setServiceTier,
+    selectEnvironment,
+    environmentProviderId,
+    sidebarNavigationError,
     renderPromptBox,
-  } = composer;
-  const rootPanelEnvironmentId =
-    parsedEnvironment?.type === "reuse"
-      ? parsedEnvironment.environmentId
-      : null;
-  const pluginComposerHost = useMemo(
-    () => ({
-      ...sharedPluginComposerHost,
-      focus: () => requestComposerFocus(promptDraft.storageKey),
-    }),
-    [promptDraft.storageKey, sharedPluginComposerHost],
-  );
-
-  useEffect(() => {
-    if (projectId === rootComposeProjectId) return;
-    setRootComposeProjectId(projectId);
-  }, [projectId, rootComposeProjectId, setRootComposeProjectId]);
-  useEffect(
-    () =>
-      subscribeComposerFocusRequests(promptDraft.storageKey, () => {
-        setStartedComposing(true);
-        window.requestAnimationFrame(focusPromptBox);
-      }),
-    [focusPromptBox, promptDraft.storageKey, setStartedComposing],
-  );
-  const composerActions = useMemo(
-    () => createCoreComposerActions(pluginComposerHost),
-    [pluginComposerHost],
-  );
-
-  const searchInitialPrompt = readInitialPromptFromSearch(location.search);
-  const stateInitialPrompt = readInitialPromptFromLocationState(location.state);
-  const searchInitialDraft = useInitialPromptDraft(searchInitialPrompt);
-  const stateInitialDraft = useInitialPromptDraft(stateInitialPrompt);
-  const setPromptDraft = composerActions.restoreDraft;
-  const restorePromptDraftIfEmpty = promptDraft.restoreIfEmpty;
-
-  useEffect(() => {
-    const initialPrompt = readInitialPromptFromSearch(location.search);
-    if (initialPrompt === null || searchInitialDraft === undefined) return;
-    setStartedComposing(true);
-    setPromptDraft(searchInitialDraft);
-    navigate(
-      getRootComposeRoutePath() + stripInitialPromptFromSearch(location.search),
-      { replace: true, state: location.state },
-    );
-  }, [
-    location.search,
-    location.state,
-    navigate,
-    setPromptDraft,
-    setStartedComposing,
-    searchInitialDraft,
-  ]);
-  useEffect(() => {
-    if (stateInitialPrompt !== null && stateInitialDraft === undefined) return;
-    const sectionTarget = readRootComposeSectionTargetFromLocationState(
-      location.state,
-    );
-    const environmentTarget = readRootComposeEnvironmentTargetFromLocationState(
-      location.state,
-    );
-    const nextForkSeed = readForkThreadCreateSeedFromLocationState(
-      location.state,
-    );
-    if (!hasSingleUseRootComposeTargetState(location.state)) return;
-    if (environmentTarget?.kind === "host" && !hostSelectionReady) {
-      return;
-    }
-    if (shouldStartComposingFromLocationState(location.state)) {
-      setStartedComposing(true);
-    }
-    const targetPlacement = readThreadCreationPlacement(location.state);
-    if (targetPlacement !== null) {
-      setPlacement(targetPlacement);
-    } else if (
-      sectionTarget !== null ||
-      environmentTarget !== null ||
-      nextForkSeed !== null
-    ) {
-      setPlacement({
-        sectionId:
-          sectionTarget?.kind === "set" ? sectionTarget.sectionId : null,
-        pinned: false,
+  } = useNewThreadComposer({
+    projectId: rootComposeProjectId,
+    onProjectChange: setRootComposeProjectId,
+    onSubmit: async (request) => {
+      const thread = await createThread.mutateAsync({
+        ...request,
+        ...placement,
       });
-    }
-    if (environmentTarget?.kind === "reuse") {
-      seedEnvironmentSelectionValue(
-        encodeReuseValue(environmentTarget.environmentId),
-      );
-    } else if (environmentTarget?.kind === "host") {
-      selectHostForNewEnvironment(environmentTarget.hostId);
-    }
-    if (nextForkSeed !== null) {
-      setForkSeed(nextForkSeed);
-      setRootComposeProjectId(nextForkSeed.projectId);
-      setProviderModelReasoning(nextForkSeed);
-      setPermissionMode(nextForkSeed.permissionMode);
-      setServiceTier(nextForkSeed.serviceTier);
-      seedEnvironmentSelectionValue(
-        encodeReuseValue(nextForkSeed.environmentId),
-      );
-    }
-    if (shouldStartComposingFromLocationState(location.state)) {
-      window.requestAnimationFrame(focusPromptBox);
-    }
-    navigate(getRootComposeRoutePath() + location.search, {
-      replace: true,
-      state: null,
-    });
-  }, [
-    focusPromptBox,
-    location.search,
-    location.state,
-    hostSelectionReady,
-    navigate,
-    seedEnvironmentSelectionValue,
-    selectHostForNewEnvironment,
-    setForkSeed,
-    setPermissionMode,
-    setProviderModelReasoning,
-    setRootComposeProjectId,
-    setServiceTier,
-    setPlacement,
-    setStartedComposing,
-    stateInitialPrompt,
-    stateInitialDraft,
-  ]);
-  useEffect(() => {
-    const initialPrompt = readInitialPromptFromLocationState(location.state);
-    if (initialPrompt === null || stateInitialDraft === undefined) return;
-    restorePromptDraftIfEmpty(stateInitialDraft);
-    navigate(getRootComposeRoutePath() + location.search, {
-      replace: true,
-      state: { focusPrompt: true },
-    });
-  }, [
-    location.search,
-    location.state,
-    navigate,
-    restorePromptDraftIfEmpty,
-    stateInitialDraft,
-  ]);
-  const shouldFocusPrompt =
-    typeof location.state === "object" &&
-    location.state !== null &&
-    "focusPrompt" in location.state &&
-    location.state.focusPrompt === true;
-  useEffect(() => {
-    if (!shouldFocusPrompt) return;
-    const handle = window.requestAnimationFrame(focusPromptBox);
-    return () => window.cancelAnimationFrame(handle);
-  }, [focusPromptBox, location.key, shouldFocusPrompt]);
-
-  const rootPanelTabs = usePanelTabs({
-    panelId: ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-  });
-  const {
-    activate: activateTab,
-    close: closeTab,
-    open: openPanelTab,
-    setOpen: setSecondaryPanelOpen,
-  } = rootPanelTabs;
-  const isSecondaryPanelOpen = rootPanelTabs.isOpen;
-  const activeFixedSecondaryTab = rootPanelTabs.activeTab;
-  const activeFixedSecondaryTabId = rootPanelTabs.activeTabId;
-  const [shouldAutoFocusTerminal, setShouldAutoFocusTerminal] = useState(false);
-  const handleTerminalAutoFocusHandled = useCallback(
-    () => setShouldAutoFocusTerminal(false),
-    [],
-  );
-  const rootPanelEnvironmentQuery = useEnvironment(rootPanelEnvironmentId, {
-    enabled: rootPanelEnvironmentId !== null,
-    staleTime: 5_000,
-  });
-  const rootPanelEnvironment = rootPanelEnvironmentQuery.data;
-  const rootPanelHostPathTerminalTarget =
-    useMemo<RootComposeTerminalTarget | null>(() => {
-      if (rootPanelEnvironmentId !== null) {
-        return null;
-      }
-      const selectedHostId = rootProjectHostId;
-      if (selectedHostId === null) {
-        return null;
-      }
-      const source =
-        findLocalPathProjectSourceForHost(projectSources, selectedHostId) ??
-        projectSources.find((projectSource) => projectSource.isDefault) ??
-        null;
-      if (!source) {
-        return {
-          kind: "host_path",
-          hostId: selectedHostId,
-          cwd: null,
-        };
-      }
-      return {
-        kind: "host_path",
-        hostId: source.hostId,
-        cwd: source.path,
-      };
-    }, [projectSources, rootPanelEnvironmentId, rootProjectHostId]);
-  const rootPanelTerminalTarget = useMemo<RootComposeTerminalTarget | null>(
-    () =>
-      rootPanelEnvironmentId !== null
-        ? { kind: "environment", environmentId: rootPanelEnvironmentId }
-        : rootPanelHostPathTerminalTarget,
-    [rootPanelEnvironmentId, rootPanelHostPathTerminalTarget],
-  );
-  const environmentTerminalsListQuery = useEnvironmentTerminals(
-    rootPanelEnvironmentId ?? "",
-    {
-      enabled:
-        isSecondaryPanelOpen && rootPanelTerminalTarget?.kind === "environment",
-    },
-  );
-  const globalTerminalsListQuery = useTerminals(
-    rootPanelTerminalTarget?.kind === "host_path"
-      ? {
-          kind: "host_path",
-          hostId: rootPanelTerminalTarget.hostId,
-          ...(rootPanelTerminalTarget.cwd === null
-            ? {}
-            : { cwd: rootPanelTerminalTarget.cwd }),
-        }
-      : null,
-    {
-      enabled:
-        isSecondaryPanelOpen && rootPanelTerminalTarget?.kind === "host_path",
-    },
-  );
-  const loadedTerminalSessions = useMemo(
-    () =>
-      buildRootComposeTerminalSessions({
-        environmentTerminalSessions:
-          environmentTerminalsListQuery.data?.sessions,
-        globalTerminalSessions: globalTerminalsListQuery.data?.sessions,
-        terminalTarget: rootPanelTerminalTarget,
-      }),
-    [
-      environmentTerminalsListQuery.data?.sessions,
-      globalTerminalsListQuery.data?.sessions,
-      rootPanelTerminalTarget,
-    ],
-  );
-  const terminalSessions = loadedTerminalSessions ?? EMPTY_TERMINAL_SESSIONS;
-  const terminalsById = useMemo(
-    () => new Map(terminalSessions.map((session) => [session.id, session])),
-    [terminalSessions],
-  );
-  const [shouldAutoFocusNewTab, setShouldAutoFocusNewTab] = useState(false);
-  const handleNewTabAutoFocusHandled = useCallback(
-    () => setShouldAutoFocusNewTab(false),
-    [],
-  );
-  useTerminalTabSync(rootPanelTabs.update, loadedTerminalSessions);
-  const syncedOrderedSecondaryFileTabs = rootPanelTabs.state.tabs;
-  const canCreateRootTerminal = canCreateRootComposeTerminal({
-    connectedHostIds,
-    environmentHostId: rootPanelEnvironment?.hostId,
-    terminalTarget: rootPanelTerminalTarget,
-    environmentStatus: rootPanelEnvironment?.status,
-  });
-  const openWorkspaceFile = useCallback(
-    (file: WorkspaceFileTabState, replaceNewTab = false) => {
-      openPanelTab(
-        workspaceFileTab(
-          file,
-          rootPanelEnvironmentId,
-          rootPanelEnvironmentId === null && !isProjectless ? projectId : null,
-        ),
-        replaceNewTab,
-      );
-    },
-    [isProjectless, openPanelTab, projectId, rootPanelEnvironmentId],
-  );
-  const selectFileSearchResult = useCallback(
-    (path: string) =>
-      openWorkspaceFile(
-        {
-          lineRange: null,
-          path,
-          source: { kind: "working-tree" },
-          statusLabel: null,
-        },
-        true,
-      ),
-    [openWorkspaceFile],
-  );
-  const closeSecondaryPanel = useCallback(() => {
-    setSecondaryPanelOpen(false);
-  }, [setSecondaryPanelOpen]);
-  const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
-    (resource) => {
-      if (resource.kind === "thread") {
-        return () =>
-          navigate(
-            getThreadRoutePath({
-              projectId: resource.projectId ?? projectId,
-              threadId: resource.threadId,
-            }),
-          );
-      }
-      if (resource.kind === "project") {
-        return () => navigate(getProjectComposeRoutePath(resource.projectId));
-      }
-      if (resource.kind !== "path" || resource.entryKind !== "file") {
-        return null;
-      }
-      if (resource.source === "thread-storage" || isProjectless) {
-        return null;
-      }
-      if (rootPanelEnvironmentId === null) return null;
-      return () => {
-        openWorkspaceFile({
-          lineRange: null,
-          path: resource.path,
-          source: { kind: "working-tree" },
-          statusLabel: null,
-        });
-      };
-    },
-    [
-      isProjectless,
-      navigate,
-      openWorkspaceFile,
-      projectId,
-      rootPanelEnvironmentId,
-    ],
-  );
-  const handleOpenNewTab = useCallback(() => {
-    openPanelTab(NEW_TAB);
-    setShouldAutoFocusNewTab(true);
-  }, [openPanelTab]);
-  useAppCommandHandler("panel.newTab", () => {
-    if (!isFocusedPane) return false;
-    handleOpenNewTab();
-    return true;
-  });
-  useAppCommandHandler("file.quickOpen", () => {
-    if (!isFocusedPane) return false;
-    handleOpenNewTab();
-    return true;
-  });
-  const handleToggleSecondaryPanel = useCallback(() => {
-    if (isSecondaryPanelOpen) {
-      closeSecondaryPanel();
-      return;
-    }
-    handleOpenNewTab();
-  }, [closeSecondaryPanel, handleOpenNewTab, isSecondaryPanelOpen]);
-  const createEnvironmentTerminalMutation = useCreateEnvironmentTerminal();
-  const createHostPathTerminalMutation = useCreateTerminal();
-  const closeEnvironmentTerminalMutation = useCloseEnvironmentTerminal();
-  const closeHostPathTerminalMutation = useCloseTerminal();
-  const handleStartTerminal = useCallback(() => {
-    if (
-      !canCreateRootTerminal ||
-      rootPanelTerminalTarget === null ||
-      createEnvironmentTerminalMutation.isPending ||
-      createHostPathTerminalMutation.isPending
-    ) {
-      return;
-    }
-    const createTerminal =
-      rootPanelTerminalTarget.kind === "environment"
-        ? createEnvironmentTerminalMutation.mutateAsync({
-            environmentId: rootPanelTerminalTarget.environmentId,
-            cols: DEFAULT_TERMINAL_COLS,
-            rows: DEFAULT_TERMINAL_ROWS,
-          })
-        : createHostPathTerminalMutation.mutateAsync({
-            cols: DEFAULT_TERMINAL_COLS,
-            rows: DEFAULT_TERMINAL_ROWS,
-            target: rootPanelTerminalTarget,
-          });
-    void createTerminal
-      .then((session) => {
-        setShouldAutoFocusTerminal(true);
-        openPanelTab(terminalTab(session.id), true);
-      })
-      .catch(() => undefined);
-  }, [
-    canCreateRootTerminal,
-    createEnvironmentTerminalMutation,
-    createHostPathTerminalMutation,
-    openPanelTab,
-    rootPanelTerminalTarget,
-  ]);
-  useAppCommandHandler("terminal.open", () => {
-    if (
-      !isFocusedPane ||
-      !canCreateRootTerminal ||
-      rootPanelTerminalTarget === null ||
-      createEnvironmentTerminalMutation.isPending ||
-      createHostPathTerminalMutation.isPending
-    ) {
-      return false;
-    }
-    handleStartTerminal();
-    return true;
-  });
-  const handleActivateTerminalTab = useCallback(
-    (terminalId: string) => {
-      setShouldAutoFocusTerminal(true);
-      activateTab(terminalTab(terminalId).id);
-    },
-    [activateTab],
-  );
-  const handleCloseTerminalTab = useCallback(
-    (terminalId: string) => {
-      const removeTab = () => closeTab(terminalTab(terminalId).id);
-      if (rootPanelTerminalTarget === null) {
-        removeTab();
-        return;
-      }
-      const options = { onSuccess: removeTab };
-      if (rootPanelTerminalTarget.kind === "environment") {
-        closeEnvironmentTerminalMutation.mutate(
-          {
-            mode: "force",
-            environmentId: rootPanelTerminalTarget.environmentId,
-            terminalId,
-          },
-          options,
-        );
-        return;
-      }
-      closeHostPathTerminalMutation.mutate(
-        { mode: "force", terminalId },
-        options,
-      );
-    },
-    [
-      closeEnvironmentTerminalMutation,
-      closeHostPathTerminalMutation,
-      closeTab,
-      rootPanelTerminalTarget,
-    ],
-  );
-  const handleCloseWindowRequest = useCallback(() => {
-    if (!isSecondaryPanelOpen) {
-      return false;
-    }
-    if (activeFixedSecondaryTab !== null) {
-      if (activeFixedSecondaryTab.kind === "terminal") {
-        handleCloseTerminalTab(activeFixedSecondaryTab.terminalId);
-      } else {
-        closeTab(activeFixedSecondaryTab.id);
-      }
-      return true;
-    }
-    closeSecondaryPanel();
-    return true;
-  }, [
-    activeFixedSecondaryTab,
-    closeSecondaryPanel,
-    closeTab,
-    handleCloseTerminalTab,
-    isSecondaryPanelOpen,
-  ]);
-  const renderRootPanelTabContent = useCallback(
-    (tab: (typeof syncedOrderedSecondaryFileTabs)[number]) => (
-      <RootComposePanelTabContent
-        activeTabId={activeFixedSecondaryTabId}
-        canCreateTerminal={canCreateRootTerminal}
-        currentProjectId={projectId}
-        isPanelOpen={isSecondaryPanelOpen}
-        isProjectless={isProjectless}
-        onActivateTab={activateTab}
-        onAutoFocusNewTabHandled={handleNewTabAutoFocusHandled}
-        onAutoFocusTerminalHandled={handleTerminalAutoFocusHandled}
-        onSelectFileSearchResult={selectFileSearchResult}
-        onStartTerminal={handleStartTerminal}
-        primaryHostId={primaryHostId}
-        projectSources={projectSources}
-        projects={projects}
-        rootPanelEnvironmentId={rootPanelEnvironmentId}
-        rootPanelThreadId={rootPanelThreadId}
-        rootProjectHostId={rootProjectHostId}
-        shouldAutoFocusNewTab={shouldAutoFocusNewTab}
-        shouldAutoFocusTerminal={shouldAutoFocusTerminal}
-        tab={tab}
-        terminalSession={
-          tab.kind === "terminal"
-            ? terminalsById.get(tab.terminalId)
-            : undefined
-        }
-      />
-    ),
-    [
-      activateTab,
-      activeFixedSecondaryTabId,
-      canCreateRootTerminal,
-      handleNewTabAutoFocusHandled,
-      handleStartTerminal,
-      handleTerminalAutoFocusHandled,
-      isProjectless,
-      isSecondaryPanelOpen,
-      projectId,
-      primaryHostId,
-      projectSources,
-      projects,
-      rootPanelEnvironmentId,
-      rootPanelThreadId,
-      rootProjectHostId,
-      selectFileSearchResult,
-      shouldAutoFocusNewTab,
-      shouldAutoFocusTerminal,
-      terminalsById,
-    ],
-  );
-  const panelTabs = useMemo<readonly SecondaryPanelRenderableTab[]>(() => {
-    const filenameOf = (path: string) => path.split("/").at(-1) ?? path;
-    const tabs = syncedOrderedSecondaryFileTabs.map(
-      (tab): SecondaryPanelRenderableTab => {
-        const shared = {
-          onClose: () => closeTab(tab.id),
-          renderContent: () => renderRootPanelTabContent(tab),
-          tab,
-        };
-        switch (tab.kind) {
-          case "terminal": {
-            const session = terminalsById.get(tab.terminalId);
-            return {
-              ...shared,
-              label: session?.title ?? "Terminal",
-              leadingVisual: (
-                <Icon
-                  name="Terminal"
-                  className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-                  aria-hidden
-                />
-              ),
-              statusLabel:
-                session === undefined || session.status === "running"
-                  ? null
-                  : session.status,
-              onSelect: () => handleActivateTerminalTab(tab.terminalId),
-              onClose: () => handleCloseTerminalTab(tab.terminalId),
-            };
-          }
-          case "workspace-file-preview":
-            return {
-              ...shared,
-              label: filenameOf(tab.path),
-              leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
-              statusLabel: tab.statusLabel,
-              onSelect: () => activateTab(tab.id),
-            };
-          case "host-file-preview":
-            return {
-              ...shared,
-              label: filenameOf(tab.path),
-              leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
-              statusLabel: null,
-              onSelect: () => activateTab(tab.id),
-            };
-          case "new-tab":
-            return {
-              ...shared,
-              label: "New tab",
-              leadingVisual: (
-                <Icon
-                  name="NewTab"
-                  className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-                  aria-hidden
-                />
-              ),
-              statusLabel: null,
-              onSelect: () => activateTab(tab.id),
-            };
-          case "plugin-panel":
-            return {
-              ...shared,
-              label: tab.title,
-              leadingVisual: (
-                <PluginItemIcon
-                  pluginId={tab.pluginId}
-                  icon={null}
-                  className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-                />
-              ),
-              statusLabel: null,
-              onSelect: () => activateTab(tab.id),
-            };
-        }
-      },
-    );
-    return tabs;
-  }, [
-    activateTab,
-    closeTab,
-    handleActivateTerminalTab,
-    handleCloseTerminalTab,
-    renderRootPanelTabContent,
-    syncedOrderedSecondaryFileTabs,
-    terminalsById,
-  ]);
-  const showPinnedToggle =
-    (paneContext?.secondaryPanelHost ?? null) === null && !isSecondaryPanelOpen;
-  const rootPanelToggle = showPinnedToggle ? (
-    <div
-      className={`fixed z-40 ${ROOT_COMPOSE_PINNED_PANEL_TOGGLE_POSITION_CLASS}`}
-    >
-      <RootComposeRightPanelToggle onToggle={handleToggleSecondaryPanel} />
-    </div>
-  ) : null;
-  const isForkDraft = forkSeed !== null;
-  const showEmptyWelcome =
-    !isForkDraft &&
-    !startedComposing &&
-    projects !== undefined &&
-    projects.length === 0;
-  const handleStartComposing = useCallback(
-    (prefill?: string) => {
-      if (prefill) {
-        composerActions.replace({
-          text: prefill,
-          mentions: [],
+      setPlacement(DEFAULT_THREAD_CREATION_PLACEMENT);
+      if (navigateToThreadAfterCreate) {
+        paneContext.navigateInPane({
+          projectId: thread.projectId,
+          threadId: thread.id,
         });
       }
-      setStartedComposing(true);
     },
-    [composerActions, setStartedComposing],
+  });
+  const [startedComposing, setStartedComposing] = useState(() =>
+    hasFocusPromptState(location.state),
   );
-  useEffect(() => {
-    if (!startedComposing) return;
-    const handle = window.requestAnimationFrame(focusPromptBox);
-    return () => window.cancelAnimationFrame(handle);
-  }, [focusPromptBox, startedComposing]);
   const [machineSetupTarget, setMachineSetupTarget] =
     useState<ProjectMachineSetupDialogTarget | null>(null);
-  const currentProjectName = currentProject?.name ?? null;
-  const currentProjectGitRemoteUrl = currentProject?.gitRemoteUrl ?? null;
-  const handleRequestMachineSetup = useCallback(
-    (setupHost: Host) => {
-      if (!projectId || currentProjectName === null) return;
-      setMachineSetupTarget({
-        projectId,
-        projectName: currentProjectName,
-        gitRemoteUrl: currentProjectGitRemoteUrl,
-        hostId: setupHost.id,
-        hostName: setupHost.name,
-      });
-    },
-    [currentProjectGitRemoteUrl, currentProjectName, projectId],
+  const showEmptyWelcome =
+    !startedComposing && projects !== undefined && projects.length === 0;
+  const focusSoon = useEffectEvent(() => {
+    window.requestAnimationFrame(focusPromptBox);
+  });
+
+  useEffect(() => {
+    if (projectId !== rootComposeProjectId) setRootComposeProjectId(projectId);
+  }, [projectId, rootComposeProjectId, setRootComposeProjectId]);
+  useAppCommandHandler("composer.focus", () => {
+    if (!paneContext.isFocused || !showEmptyWelcome) return false;
+    setStartedComposing(true);
+    return true;
+  });
+  useEffect(() => {
+    if (startedComposing) focusSoon();
+  }, [startedComposing]);
+
+  const searchParams = new URLSearchParams(location.search);
+  const searchPrompt =
+    searchParams.get(INITIAL_PROMPT_SEARCH_PARAM)?.trim() || null;
+  const statePrompt = readStateString(location.state, "initialPrompt");
+  const searchDraft = useInitialPromptDraft(
+    searchPrompt?.slice(0, INITIAL_PROMPT_MAX_LENGTH) ?? null,
   );
-  const handleMachineSetupComplete = useCallback(
-    ({ hostId: setUpHostId }: ProjectMachineSetupCompletion) => {
-      setMachineSetupTarget(null);
-      if (parsedEnvironment?.type === "provider") {
-        setEnvironmentSelectionValue(
-          encodeProviderValue(parsedEnvironment.environmentProviderId),
-          setUpHostId,
-        );
+  const stateDraft = useInitialPromptDraft(statePrompt);
+  const applySearchDraft = useEffectEvent((draft: PromptDraftState) => {
+    setStartedComposing(true);
+    promptDraft.setDraft(draft);
+    searchParams.delete(INITIAL_PROMPT_SEARCH_PARAM);
+    const rest = searchParams.toString();
+    navigate(getRootComposeRoutePath() + (rest ? `?${rest}` : ""), {
+      replace: true,
+      state: location.state,
+    });
+  });
+  useEffect(() => {
+    if (searchPrompt !== null && searchDraft !== undefined) {
+      applySearchDraft(searchDraft);
+    }
+  }, [searchPrompt, searchDraft]);
+  const applyLocationState = useEffectEvent(
+    (state: unknown, draft: PromptDraftState | undefined) => {
+      const targetPlacement = readThreadCreationPlacement(state);
+      const reuseEnvironmentId = readStateString(state, "reuseEnvironmentId");
+      const focusPrompt = hasFocusPromptState(state) || statePrompt !== null;
+      if (
+        (statePrompt !== null && draft === undefined) ||
+        (targetPlacement === null &&
+          reuseEnvironmentId === null &&
+          !focusPrompt)
+      ) {
         return;
       }
-      setEnvironmentSelectionValue(
-        encodeProviderValue(PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID),
-        setUpHostId,
-      );
+      if (draft !== undefined) promptDraft.restoreIfEmpty(draft);
+      setPlacement(targetPlacement ?? DEFAULT_THREAD_CREATION_PLACEMENT);
+      if (reuseEnvironmentId !== null) {
+        selectEnvironment(encodeReuseValue(reuseEnvironmentId));
+      }
+      if (focusPrompt) {
+        setStartedComposing(true);
+        focusSoon();
+      }
+      navigate(getRootComposeRoutePath() + location.search, {
+        replace: true,
+        state: null,
+      });
     },
-    [parsedEnvironment, setEnvironmentSelectionValue],
   );
-  const handleCancelForkDraft = useCallback(() => {
-    setForkSeed(null);
-    window.requestAnimationFrame(focusPromptBox);
-  }, [focusPromptBox, setForkSeed]);
-
-  const forkSourceDisplayTitle = useThreadTitleDisplayText(
-    forkSeed?.sourceThreadTitle ?? "",
-  );
-  const promptHeader = useMemo(() => {
-    if (forkSeed === null) {
-      return null;
-    }
-    return (
-      <div className="flex">
-        <div
-          aria-label={`Forking ${forkSourceDisplayTitle}`}
-          className="-ml-1.5 inline-flex h-7 max-w-full items-center gap-1.5 rounded-full bg-muted py-0 pl-2.5 pr-1 text-xs font-medium text-muted-foreground"
-        >
-          <Icon name="Fork" className="size-3.5 shrink-0" aria-hidden />
-          <span className="flex min-w-0 items-baseline gap-1">
-            <span className="shrink-0">Forking</span>
-            <ThreadTitle title={forkSeed.sourceThreadTitle} />
-          </span>
-          <button
-            type="button"
-            aria-label="Cancel fork"
-            className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={handleCancelForkDraft}
-          >
-            <Icon name="X" className="size-3" aria-hidden />
-          </button>
-        </div>
-      </div>
-    );
-  }, [forkSeed, forkSourceDisplayTitle, handleCancelForkDraft]);
+  useEffect(() => {
+    applyLocationState(location.state, stateDraft);
+  }, [location.state, stateDraft]);
 
   if (!projects && sidebarNavigationError) {
     return (
@@ -1281,76 +210,80 @@ function RootComposeSurface({
     );
   }
 
-  const machineSetupDialog = (
-    <ProjectMachineSetupDialog
-      target={machineSetupTarget}
-      onOpenChange={(open) => {
-        if (!open) setMachineSetupTarget(null);
-      }}
-      onComplete={handleMachineSetupComplete}
-    />
-  );
-
-  const promptBox = renderPromptBox({
-    id: "root-compose-prompt",
-    autoFocus: true,
-    mentionMenuPlacement: "bottom",
-    header: promptHeader,
-    resolveMentionLink,
-    pluginComposerHost,
-    allowNoProject: true,
-    createProject: {
-      onCreate: quickCreateProject.openCreateDialog,
-      disabled:
-        !quickCreateProject.isAvailable || quickCreateProject.isCreating,
-      isCreating: quickCreateProject.isCreating,
-    },
-    onRequestMachineSetup: handleRequestMachineSetup,
-    locks: {
-      project: isForkDraft,
-      provider: isForkDraft,
-      environment: isForkDraft,
-    },
-  });
+  const createProject = {
+    onCreate: quickCreateProject.openCreateDialog,
+    disabled: !quickCreateProject.isAvailable || quickCreateProject.isCreating,
+    isCreating: quickCreateProject.isCreating,
+  };
+  const isHosted = paneContext.secondaryPanelHost !== null;
 
   return (
     <>
-      <RootComposePanelCommandHandlers
-        isFocused={isFocusedPane}
-        onClose={handleCloseWindowRequest}
-        onToggle={handleToggleSecondaryPanel}
-      />
-      {machineSetupDialog}
-      {rootPanelToggle}
-      <RootComposeSecondaryContent
-        contentClassName={
-          showEmptyWelcome
-            ? ROOT_COMPOSE_EMPTY_WELCOME_CONTENT_CLASS
-            : ROOT_COMPOSE_SIDEBAR_ACTION_ALIGNED_TOP_PADDING_CLASS
-        }
-        isSecondaryPanelOpen={isSecondaryPanelOpen}
-        onToggleSecondaryPanel={handleToggleSecondaryPanel}
-        secondaryPanel={{
-          activeTabId: activeFixedSecondaryTabId,
-          tabs: panelTabs,
-          isOpen: isSecondaryPanelOpen,
-          fixedTabs: [],
-          onClose: closeSecondaryPanel,
-          onOpenNewTab: handleOpenNewTab,
+      <ProjectMachineSetupDialog
+        target={machineSetupTarget}
+        onOpenChange={(open) => {
+          if (!open) setMachineSetupTarget(null);
         }}
-      >
-        {showEmptyWelcome ? (
-          <RootComposeEmptyWelcome
-            onCompose={handleStartComposing}
-            onAddProject={quickCreateProject.openCreateDialog}
-            addProjectDisabled={
-              !quickCreateProject.isAvailable || quickCreateProject.isCreating
-            }
-          />
-        ) : (
-          promptBox
-        )}
-      </RootComposeSecondaryContent>
+        onComplete={({ hostId }) => {
+          setMachineSetupTarget(null);
+          selectEnvironment(
+            encodeProviderValue(
+              environmentProviderId ?? PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
+            ),
+            hostId,
+          );
+        }}
+      />
+      <div className="-mx-4 -mb-4 -mt-4 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-clip md:-mx-5 md:-mb-5 md:-mt-5">
+        <div
+          data-split-pane-id={isHosted ? undefined : paneContext.paneId}
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col transition-opacity",
+            !isHosted && "h-full",
+            PANEL_COLLAPSE_TRANSITION_CLASS,
+          )}
+        >
+          <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="@container/page min-h-0 flex-1 overflow-y-auto">
+              <div
+                className={cn(
+                  "mx-auto flex w-full flex-col px-4 pb-4 pt-2",
+                  "max-w-[760px]",
+                  showEmptyWelcome
+                    ? "min-h-full flex-1 items-center justify-center pb-12"
+                    : "pt-14",
+                )}
+                style={PAGE_SHELL_CONTENT_STYLE}
+              >
+                {showEmptyWelcome ? (
+                  <RootComposeEmptyWelcome
+                    onCompose={(prefill) => {
+                      if (prefill) promptDraft.setTextAndMentions(prefill, []);
+                      setStartedComposing(true);
+                    }}
+                    onAddProject={createProject.onCreate}
+                    addProjectDisabled={createProject.disabled}
+                  />
+                ) : (
+                  renderPromptBox({
+                    createProject,
+                    onRequestMachineSetup: (host) => {
+                      if (!currentProject) return;
+                      setMachineSetupTarget({
+                        projectId,
+                        projectName: currentProject.name,
+                        gitRemoteUrl: currentProject.gitRemoteUrl ?? null,
+                        hostId: host.id,
+                        hostName: host.name,
+                      });
+                    },
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

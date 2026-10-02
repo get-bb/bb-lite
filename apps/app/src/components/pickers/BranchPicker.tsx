@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import {
   BRANCH_PICKER_CONTENT_CLASS_NAME,
   BranchPickerRow,
@@ -13,130 +13,39 @@ import { blurActiveKeyboardInputWithin } from "@bb/shared-ui/overlay-trigger";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { GitBranchRefClassification } from "@bb/domain";
-import { searchPickerOptions } from "./picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
-
-interface GetMergeBaseBranchCandidatesArgs {
-  mergeBaseBranch?: string;
-  mergeBaseBranchRef?: GitBranchRefClassification | null;
-  mergeBaseBranchOptions?: readonly string[];
-  remoteMergeBaseBranchOptions?: readonly string[];
-}
-
-export interface MergeBaseBranchCandidateGroups {
-  options: readonly string[];
-  remoteOptions: readonly string[];
-}
+import { searchPickerOptions, useResetPickerScroll } from "./picker-search";
 
 export function getMergeBaseBranchCandidateGroups({
   mergeBaseBranch,
   mergeBaseBranchRef,
-  mergeBaseBranchOptions,
-  remoteMergeBaseBranchOptions,
-}: GetMergeBaseBranchCandidatesArgs): MergeBaseBranchCandidateGroups {
-  const fromProps = mergeBaseBranchOptions ?? [];
-  const fromRemoteProps = remoteMergeBaseBranchOptions ?? [];
-  const selectedRef =
-    mergeBaseBranchRef?.name === mergeBaseBranch ? mergeBaseBranchRef : null;
-  const selectedOptionKind =
-    selectedRef && selectedRef.kind !== "missing"
-      ? selectedRef.kind
+  mergeBaseBranchOptions: options = [],
+  remoteMergeBaseBranchOptions: remoteOptions = [],
+}: {
+  mergeBaseBranch?: string;
+  mergeBaseBranchRef?: GitBranchRefClassification | null;
+  mergeBaseBranchOptions?: readonly string[];
+  remoteMergeBaseBranchOptions?: readonly string[];
+}): { options: readonly string[]; remoteOptions: readonly string[] } {
+  const kind =
+    mergeBaseBranchRef?.name === mergeBaseBranch
+      ? mergeBaseBranchRef?.kind
       : undefined;
   if (
     !mergeBaseBranch ||
-    fromProps.includes(mergeBaseBranch) ||
-    fromRemoteProps.includes(mergeBaseBranch)
+    kind === "missing" ||
+    options.includes(mergeBaseBranch) ||
+    remoteOptions.includes(mergeBaseBranch)
   ) {
-    return {
-      options: fromProps,
-      remoteOptions: fromRemoteProps,
-    };
+    return { options, remoteOptions };
   }
-  if (selectedOptionKind === "remote") {
-    return {
-      options: fromProps,
-      remoteOptions: [mergeBaseBranch, ...fromRemoteProps],
-    };
-  }
-  if (selectedOptionKind === "local" || selectedRef?.kind !== "missing") {
-    return {
-      options: [mergeBaseBranch, ...fromProps],
-      remoteOptions: fromRemoteProps,
-    };
-  }
-  return { options: fromProps, remoteOptions: fromRemoteProps };
+  return kind === "remote"
+    ? { options, remoteOptions: [mergeBaseBranch, ...remoteOptions] }
+    : { options: [mergeBaseBranch, ...options], remoteOptions };
 }
 
 const EMPTY_BRANCH_OPTIONS: readonly string[] = [];
 
-interface BranchPickerTextProps {
-  label: string;
-  className?: string;
-  wrap?: boolean;
-}
-
-interface OrderBranchPickerOptionsArgs {
-  options: readonly string[];
-  selectedValue: string | null;
-}
-
-function BranchPickerText({
-  label,
-  className,
-  wrap = false,
-}: BranchPickerTextProps) {
-  return (
-    <span
-      className={cn(
-        wrap ? "min-w-0 whitespace-normal break-words" : "min-w-0 truncate",
-        className,
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
-export function buildBranchPickerOptionGroups({
-  options,
-  remoteOptions,
-}: {
-  options: readonly string[];
-  remoteOptions: readonly string[];
-}): { local: string[]; remote: string[] } {
-  const local = [...options];
-  const localBranchNames = new Set(local);
-  const remote = remoteOptions.filter(
-    (branch) => !localBranchNames.has(branch),
-  );
-  return { local, remote };
-}
-
-export function orderBranchPickerOptions({
-  options,
-  selectedValue,
-}: OrderBranchPickerOptionsArgs): string[] {
-  const availableOptions = new Set(options);
-  const ordered: string[] = [];
-  const seenOptions = new Set<string>();
-
-  const append = (branch: string | null | undefined) => {
-    if (!branch || !availableOptions.has(branch) || seenOptions.has(branch)) {
-      return;
-    }
-    ordered.push(branch);
-    seenOptions.add(branch);
-  };
-
-  append(selectedValue);
-  for (const branch of options) {
-    append(branch);
-  }
-
-  return ordered;
-}
-
-export interface BranchPickerProps {
+interface BranchPickerProps {
   value: string;
   options: readonly string[];
   remoteOptions?: readonly string[];
@@ -169,41 +78,24 @@ export function BranchPicker({
   const deferredQuery = useDeferredValue(query);
   const inputRef = useRef<HTMLInputElement>(null);
   const normalizedQuery = deferredQuery.trim().toLowerCase();
-  const isSearching = normalizedQuery.length > 0;
-  const branchOptionGroups = useMemo(
-    () =>
-      buildBranchPickerOptionGroups({
-        options,
-        remoteOptions,
-      }),
-    [options, remoteOptions],
-  );
-  const combinedBranchOptions = useMemo(
-    () => [...branchOptionGroups.local, ...branchOptionGroups.remote],
-    [branchOptionGroups.local, branchOptionGroups.remote],
-  );
-  const filteredCombinedBranchOptions = useMemo(
-    () =>
-      searchPickerOptions({
-        options: combinedBranchOptions,
-        query: deferredQuery,
-        getLabel: (branch) => branch,
-      }),
-    [combinedBranchOptions, deferredQuery],
-  );
-  const filteredBranchOptions = useMemo(
-    () =>
-      orderBranchPickerOptions({
-        options: filteredCombinedBranchOptions,
-        selectedValue: isSearching ? null : value,
-      }),
-    [filteredCombinedBranchOptions, isSearching, value],
-  );
-  const firstFilteredOption = filteredBranchOptions[0];
-  const enterSelection = value
-    ? (filteredBranchOptions.find((branch) => branch === value) ??
-      firstFilteredOption)
-    : firstFilteredOption;
+  const filteredOptions = searchPickerOptions({
+    options: [
+      ...options,
+      ...remoteOptions.filter((branch) => !options.includes(branch)),
+    ],
+    query: deferredQuery,
+    getLabel: (branch) => branch,
+  });
+  const filteredBranchOptions = [
+    ...new Set(
+      normalizedQuery.length === 0 && filteredOptions.includes(value)
+        ? [value, ...filteredOptions]
+        : filteredOptions,
+    ),
+  ];
+  const enterSelection =
+    (value ? filteredBranchOptions.find((branch) => branch === value) : null) ??
+    filteredBranchOptions[0];
   const updateOpen = (nextOpen: boolean) => {
     if (!nextOpen) {
       blurActiveKeyboardInputWithin(inputRef.current);
@@ -211,12 +103,9 @@ export function BranchPicker({
     setOpen(nextOpen);
     onOpenChange?.(nextOpen);
   };
-  const closePicker = () => {
-    updateOpen(false);
-  };
   const selectBranchAndClose = (branch: string) => {
     onChange(branch);
-    closePicker();
+    updateOpen(false);
   };
 
   useEffect(() => {
@@ -250,7 +139,7 @@ export function BranchPicker({
             className="flex min-w-0 items-center overflow-hidden"
             title={value}
           >
-            <BranchPickerText label={value} className="truncate text-left" />
+            <span className="min-w-0 truncate text-left">{value}</span>
           </span>
           <Icon
             name="ChevronDown"
@@ -276,9 +165,7 @@ export function BranchPicker({
           <div
             ref={optionsScrollRef}
             className="min-h-0 max-h-[60vh] overflow-y-auto overscroll-contain px-1 pb-1 pt-0 md:max-h-80"
-            onWheel={(event) => {
-              event.stopPropagation();
-            }}
+            onWheel={(event) => event.stopPropagation()}
           >
             <BranchPickerSectionHeader label="Branches" />
             {filteredBranchOptions.map((branch) => (
@@ -289,7 +176,9 @@ export function BranchPicker({
                 title={branch}
                 onSelect={() => selectBranchAndClose(branch)}
               >
-                <BranchPickerText label={branch} className="flex-1" wrap />
+                <span className="min-w-0 whitespace-normal break-words flex-1">
+                  {branch}
+                </span>
               </BranchPickerRow>
             ))}
             {filteredBranchOptions.length === 0 ? (

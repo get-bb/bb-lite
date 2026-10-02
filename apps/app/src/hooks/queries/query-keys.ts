@@ -57,7 +57,6 @@ const SYSTEM_CONFIG_QUERY_KEY = "systemConfig";
 const UI_PREFERENCES_QUERY_KEY = "uiPreferences";
 const SYSTEM_THEME_QUERY_KEY = "systemTheme";
 export const SYSTEM_EXECUTION_OPTIONS_QUERY_KEY = "systemExecutionOptions";
-const SYSTEM_PROVIDER_STATES_QUERY_KEY = "systemProviderStates";
 const HOST_PATH_EXISTENCE_QUERY_KEY = "hostPathExistence";
 const PLUGIN_LIST_QUERY_KEY = "plugin-list";
 const PLUGIN_SETTINGS_VIEW_QUERY_KEY = "plugin-settings-view";
@@ -421,11 +420,6 @@ type SystemConfigQueryKey = readonly [typeof SYSTEM_CONFIG_QUERY_KEY];
 type UiPreferencesQueryKey = readonly [typeof UI_PREFERENCES_QUERY_KEY];
 type SystemThemeQueryKey = readonly [typeof SYSTEM_THEME_QUERY_KEY, string];
 type AllSystemThemesQueryKeyPrefix = readonly [typeof SYSTEM_THEME_QUERY_KEY];
-type SystemProviderStatesQueryKey = readonly [
-  typeof SYSTEM_PROVIDER_STATES_QUERY_KEY,
-  string | null,
-  string | null,
-];
 type SystemExecutionOptionsQueryKey = readonly [
   typeof SYSTEM_EXECUTION_OPTIONS_QUERY_KEY,
   string | null,
@@ -1023,12 +1017,6 @@ export function systemThemeQueryKey(themeId: string): SystemThemeQueryKey {
 
 export function allSystemThemesQueryKeyPrefix(): AllSystemThemesQueryKeyPrefix {
   return [SYSTEM_THEME_QUERY_KEY];
-}
-
-export function systemProviderStatesQueryKey(
-  args: Pick<SystemExecutionOptionsQueryKeyArgs, "environmentId" | "hostId">,
-): SystemProviderStatesQueryKey {
-  return [SYSTEM_PROVIDER_STATES_QUERY_KEY, args.environmentId, args.hostId];
 }
 
 interface SystemExecutionOptionsQueryKeyArgs {

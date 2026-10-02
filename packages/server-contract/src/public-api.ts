@@ -62,7 +62,6 @@ import type {
   CreateQueuedMessageRequest,
   CreateThreadSectionRequest,
   CreateThreadRequest,
-  ForkThreadRequest,
   DeleteThreadSectionRequest,
   DeleteThreadRequest,
   EnvironmentActionApiError,
@@ -206,7 +205,6 @@ import {
   queuedMessageListQuerySchema,
   updateQueuedMessageRequestSchema,
   createThreadRequestSchema,
-  forkThreadRequestSchema,
   deleteThreadRequestSchema,
   environmentActionRequestSchema,
   environmentDiffBranchesQuerySchema,
@@ -848,14 +846,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<ThreadResponse>({ status: 201 }),
     }),
-    fork: defineRoute({
-      path: "/threads/fork",
-      method: "post",
-      request: jsonRequest<EmptyInput, ForkThreadRequest>(
-        forkThreadRequestSchema,
-      ),
-      response: jsonResponse<ThreadResponse>({ status: 201 }),
-    }),
     get: defineRoute({
       path: "/threads/:id",
       method: "get",
@@ -977,12 +967,6 @@ export const publicApiRoutes = {
     }),
     cancelPlan: defineRoute({
       path: "/threads/:id/plan/cancel",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<{ ok: true }>(),
-    }),
-    clearGoal: defineRoute({
-      path: "/threads/:id/goal/clear",
       method: "post",
       request: noRequest<PathId>(),
       response: jsonResponse<{ ok: true }>(),

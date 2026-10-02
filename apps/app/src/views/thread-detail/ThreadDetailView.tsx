@@ -2,8 +2,7 @@ import {
   appendQuoteAndAttachmentsToDraft,
   type PromptDraftAttachment,
 } from "@bb/client-core";
-import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { useImmediateRouteNavigate } from "@/components/ui/app-route-anchor";
 import {
@@ -37,7 +36,6 @@ import {
 } from "../../hooks/queries/thread-queries";
 import { isTransientReadError } from "@/hooks/queries/query-helpers";
 import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
-import { subscribeComposerFocusRequests } from "@/lib/composer-focus-requests";
 import { ThreadGitActionDialog } from "@/components/dialogs/ThreadGitActionDialog";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
@@ -196,20 +194,16 @@ export function ThreadDetailView({
     [draftProjectId, draftThreadId],
   );
   const [composerFocusNonce, setComposerFocusNonce] = useState(0);
-  useEffect(
-    () =>
-      subscribeComposerFocusRequests(promptDraft.storageKey, () =>
-        setComposerFocusNonce((nonce) => nonce + 1),
-      ),
-    [promptDraft.storageKey],
-  );
   const addToChat = (
     text: string,
     attachments?: readonly PromptDraftAttachment[],
   ) => {
-    createCoreComposerActions({ ...promptDraft, focus: () => {} }).replace(
-      (current) =>
-        appendQuoteAndAttachmentsToDraft(current, text, attachments ?? []),
+    promptDraft.setDraft(
+      appendQuoteAndAttachmentsToDraft(
+        promptDraft.getCurrent(),
+        text,
+        attachments ?? [],
+      ),
     );
     setComposerFocusNonce((nonce) => nonce + 1);
   };
@@ -477,7 +471,6 @@ export function ThreadDetailView({
   );
   const footer = (
     <ThreadDetailPromptArea
-      activeBackgroundAgentCount={thread.activeBackgroundAgentCount}
       canUseGitUi={canUseGitUi}
       contextWindowUsage={timeline.contextWindowUsage}
       environmentCheckout={
@@ -534,13 +527,9 @@ export function ThreadDetailView({
         pendingInteractionsQuery.data,
         pendingInteractionsQuery.isFetching,
       )}
-      queuedMessageCount={thread.queuedMessageCount}
       pendingTodos={timeline.pendingTodos}
       activePromptMode={timeline.activePromptMode}
-      goal={timeline.goal}
       modelFallback={timeline.modelFallback}
-      activeWorkflows={timeline.activeWorkflows}
-      activeBackgroundCommands={timeline.activeBackgroundCommands}
       parentThreadSection={parentThreadSection}
       childPendingInteractions={childPendingInteractions}
       childThreadsSection={

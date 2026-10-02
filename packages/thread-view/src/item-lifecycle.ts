@@ -1,36 +1,27 @@
 import {
   jsonValueSchema,
-  type JsonObject,
-  ThreadEvent,
-  ThreadEventItemPresentation,
-  ThreadEventItemStatus,
-  type ExtensionKind,
-  type JsonValue,
-  type ThreadEventPlanStep,
-  type ThreadEventSearchMode,
-  type ThreadEventFileChange,
   requireThreadEventScopeTurnId,
+  type JsonObject,
+  type ThreadEvent,
+  type ThreadEventItemPresentation,
+  type ThreadEventItemStatus,
 } from "@bb/domain";
+import type {
+  TimelineActivityIntent,
+  TimelineApprovalStatus,
+  TimelineRowStatus,
+} from "@bb/server-contract";
 import {
   getEventParentToolCallId,
-  type EventMeta,
-  type EventProjectionApprovalLifecycleStatus,
-  type EventProjectionToolCallMessage,
-  type EventProjectionToolParsedIntent,
-  type EventProjectionFileEditChange,
-  type EventProjectionFileEditMessage,
   getEventTurnId,
+  type EventMeta,
+  type FileEditChange,
+  type ItemRowFields,
 } from "./event-projection-types.js";
 import {
   extractShellCommandFromString,
   parseShellCommandIntents,
 } from "./tool-call-parsing.js";
-
-interface DelegationMetadata {
-  subagentType?: string;
-  description?: string;
-  model?: string;
-}
 
 function parseToolArgs(
   args: Record<string, unknown> | null,
@@ -43,11 +34,9 @@ function parseToolArgs(
   return toolArgs;
 }
 
-type ExecItemViewStatus = EventProjectionToolCallMessage["status"];
-
 export function itemStatusToExecStatus(
   status: ThreadEventItemStatus,
-): ExecItemViewStatus {
+): TimelineRowStatus {
   return status === "failed" ? "error" : status;
 }
 
@@ -55,34 +44,36 @@ interface ExecutionUpdateBase {
   callId: string;
   output?: string;
   completedAt: number | null;
-  status?: EventProjectionToolCallMessage["status"];
+  status?: TimelineRowStatus;
   parentToolCallId?: string;
   presentation?: ThreadEventItemPresentation;
 }
 
-export interface CommandExecutionUpdate extends ExecutionUpdateBase {
-  kind: "command";
+interface CommandExecutionUpdate extends ExecutionUpdateBase {
+  workKind: "command";
   command?: string;
   cwd?: string | null;
-  parsedIntents?: EventProjectionToolParsedIntent[];
+  activityIntents?: TimelineActivityIntent[];
   source?: string | null;
   exitCode?: number | null;
-  approvalStatus?: EventProjectionApprovalLifecycleStatus | null;
+  approvalStatus?: TimelineApprovalStatus;
 }
 
-export interface ToolCallExecutionUpdate extends ExecutionUpdateBase {
-  kind: "tool-call";
+interface ToolCallExecutionUpdate extends ExecutionUpdateBase {
+  workKind: "tool";
   toolName?: string;
   toolArgs?: JsonObject | null;
-  approvalStatus?: EventProjectionApprovalLifecycleStatus | null;
+  approvalStatus?: TimelineApprovalStatus;
 }
 
-export interface DelegationExecutionUpdate
-  extends ExecutionUpdateBase, DelegationMetadata {
-  kind: "delegation";
+interface DelegationExecutionUpdate extends ExecutionUpdateBase {
+  workKind: "delegation";
   toolName?: string;
   childRef?: string;
   background?: boolean;
+  subagentType?: string;
+  description?: string;
+  model?: string;
 }
 
 export type ProviderExecutionUpdate =
@@ -93,11 +84,11 @@ export type ProviderExecutionUpdate =
 export interface ExecutionOutputUpdate {
   callId: string;
   output: string;
-  status?: EventProjectionToolCallMessage["status"];
+  status?: TimelineRowStatus;
   parentToolCallId?: string;
 }
 
-type ExecLifecycleEvent =
+export type ExecLifecycleEvent =
   | { kind: "begin" | "end"; call: ProviderExecutionUpdate }
   | {
       kind: "output";
@@ -113,57 +104,49 @@ export function parseExecLifecycleEvent(
 ): ExecLifecycleEvent | null {
   const parentToolCallId =
     parentToolCallIdOverride ?? getEventParentToolCallId(decoded);
+  const parent = parentToolCallId ? { parentToolCallId } : {};
   if (decoded.type === "item/commandExecution/outputDelta") {
-    const callId = decoded.itemId;
-    if (!callId) return null;
+    if (!decoded.itemId) return null;
     return {
       kind: "output",
       output: {
-        callId,
+        callId: decoded.itemId,
         output: decoded.delta,
         status: "pending",
-        ...(parentToolCallId ? { parentToolCallId } : {}),
+        ...parent,
       },
       ...(decoded.reset ? { replaceOutput: true } : { appendOutput: true }),
     };
   }
   if (
-    (decoded.type === "item/started" || decoded.type === "item/completed") &&
-    decoded.item.type === "commandExecution"
+    (decoded.type !== "item/started" && decoded.type !== "item/completed") ||
+    decoded.item.type !== "commandExecution" ||
+    !decoded.item.id
   ) {
-    const callId = decoded.item.id;
-    if (!callId) return null;
-    const kind = decoded.type === "item/started" ? "begin" : "end";
-    const exitCode = decoded.item.exitCode;
-    const status =
-      exitCode !== undefined && exitCode !== 0
-        ? "error"
-        : itemStatusToExecStatus(decoded.item.status);
-    const completedAt = kind === "end" ? meta.createdAt : null;
-    const command = extractShellCommandFromString(decoded.item.command);
-    const presentation = decoded.item.presentation;
-    return {
-      kind,
-      call: {
-        kind: "command",
-        callId,
-        command,
-        cwd: decoded.item.cwd,
-        parsedIntents: parseShellCommandIntents(command),
-        output: decoded.item.aggregatedOutput,
-        exitCode,
-        completedAt,
-        approvalStatus: decoded.item.approvalStatus,
-        status,
-        ...(presentation ? { presentation } : {}),
-        ...(parentToolCallId ? { parentToolCallId } : {}),
-      },
-    };
+    return null;
   }
-  return null;
+  const { item } = decoded;
+  const kind = decoded.type === "item/started" ? "begin" : "end";
+  const failedExit = item.exitCode !== undefined && item.exitCode !== 0;
+  const command = extractShellCommandFromString(item.command);
+  return {
+    kind,
+    call: {
+      workKind: "command",
+      callId: item.id,
+      command,
+      cwd: item.cwd,
+      activityIntents: parseShellCommandIntents(command),
+      output: item.aggregatedOutput,
+      exitCode: item.exitCode,
+      completedAt: kind === "end" ? meta.createdAt : null,
+      approvalStatus: item.approvalStatus,
+      status: failedExit ? "error" : itemStatusToExecStatus(item.status),
+      ...(item.presentation ? { presentation: item.presentation } : {}),
+      ...parent,
+    },
+  };
 }
-
-export const DELEGATION_ITEM_TOOL_NAME = "delegation";
 
 function parseDelegationItemLifecycleEvent(
   decoded: ThreadEvent,
@@ -171,35 +154,33 @@ function parseDelegationItemLifecycleEvent(
   parentToolCallId: string | undefined,
 ): ExecLifecycleEvent | null {
   if (
-    decoded.type !== "item/started" &&
-    decoded.type !== "item/completed" &&
-    decoded.type !== "item/delegation/progress" &&
-    decoded.type !== "item/delegation/completed"
+    (decoded.type !== "item/started" &&
+      decoded.type !== "item/completed" &&
+      decoded.type !== "item/delegation/progress" &&
+      decoded.type !== "item/delegation/completed") ||
+    decoded.item.type !== "delegation"
   ) {
     return null;
   }
-  if (decoded.item.type !== "delegation") return null;
+  const { item } = decoded;
   const kind =
     decoded.type === "item/started" ||
     decoded.type === "item/delegation/progress"
       ? "begin"
       : "end";
-  const status =
-    kind === "end" ? itemStatusToExecStatus(decoded.item.status) : "pending";
-  const presentation = decoded.item.presentation;
   return {
     kind,
     call: {
-      kind: "delegation",
-      callId: decoded.item.id,
-      toolName: DELEGATION_ITEM_TOOL_NAME,
-      childRef: decoded.item.childRef,
-      background: decoded.item.background,
-      description: decoded.item.label,
-      output: decoded.item.summary,
+      workKind: "delegation",
+      callId: item.id,
+      toolName: "delegation",
+      childRef: item.childRef,
+      background: item.background,
+      description: item.label,
+      output: item.summary,
       completedAt: kind === "end" ? meta.createdAt : null,
-      status,
-      ...(presentation ? { presentation } : {}),
+      status: kind === "end" ? itemStatusToExecStatus(item.status) : "pending",
+      ...(item.presentation ? { presentation: item.presentation } : {}),
       ...(parentToolCallId ? { parentToolCallId } : {}),
     },
   };
@@ -212,6 +193,7 @@ export function parseToolCallLifecycleEvent(
 ): ExecLifecycleEvent | null {
   const parentToolCallId =
     parentToolCallIdOverride ?? getEventParentToolCallId(decoded);
+  const parent = parentToolCallId ? { parentToolCallId } : {};
   if (
     decoded.type === "item/toolCall/progress" ||
     decoded.type === "item/mcpToolCall/progress"
@@ -222,7 +204,7 @@ export function parseToolCallLifecycleEvent(
         callId: decoded.itemId,
         output: decoded.message ?? "Progress update",
         status: "pending",
-        ...(parentToolCallId ? { parentToolCallId } : {}),
+        ...parent,
       },
     };
   }
@@ -232,203 +214,178 @@ export function parseToolCallLifecycleEvent(
     parentToolCallId,
   );
   if (delegationEvent) return delegationEvent;
-  if (decoded.type === "item/started" || decoded.type === "item/completed") {
-    if (decoded.item.type !== "toolCall") return null;
-    const callId = decoded.item.id;
-    if (!callId) return null;
-    const toolName = decoded.item.tool;
-    const serverPrefix = decoded.item.server ? `${decoded.item.server}:` : "";
-    const fullToolName = `${serverPrefix}${toolName}`;
-    const parsedArgs = decoded.item.arguments ?? null;
-    const kind = decoded.type === "item/started" ? "begin" : "end";
-    const status =
-      kind === "end" ? itemStatusToExecStatus(decoded.item.status) : "pending";
-    const completedAt = kind === "end" ? meta.createdAt : null;
-    const result = decoded.item.result;
-    const output =
-      typeof result === "string"
-        ? result
-        : result !== undefined
-          ? JSON.stringify(result)
-          : undefined;
-    const errorField = decoded.item.error;
-    const toolArgs = parseToolArgs(parsedArgs);
-    const presentation = decoded.item.presentation;
-    return {
-      kind,
-      call: {
-        kind: "tool-call",
-        callId,
-        toolName: fullToolName,
-        output: kind === "end" ? (output ?? errorField) : undefined,
-        completedAt,
-        status,
-        toolArgs,
-        ...(presentation ? { presentation } : {}),
-        ...(parentToolCallId ? { parentToolCallId } : {}),
-      },
-    };
+  if (
+    (decoded.type !== "item/started" && decoded.type !== "item/completed") ||
+    decoded.item.type !== "toolCall" ||
+    !decoded.item.id
+  ) {
+    return null;
   }
-  return null;
+  const { item } = decoded;
+  const ended = decoded.type === "item/completed";
+  const result =
+    typeof item.result === "string"
+      ? item.result
+      : item.result !== undefined
+        ? JSON.stringify(item.result)
+        : undefined;
+  return {
+    kind: ended ? "end" : "begin",
+    call: {
+      workKind: "tool",
+      callId: item.id,
+      toolName: `${item.server ? `${item.server}:` : ""}${item.tool}`,
+      output: ended ? (result ?? item.error) : undefined,
+      completedAt: ended ? meta.createdAt : null,
+      status: ended ? itemStatusToExecStatus(item.status) : "pending",
+      toolArgs: parseToolArgs(item.arguments ?? null),
+      ...(item.presentation ? { presentation: item.presentation } : {}),
+      ...parent,
+    },
+  };
 }
 
-type StatusedItemActivity = { status: ThreadEventItemStatus };
-
-export type WebActivityLifecycleEvent = {
+export interface ItemLifecycleEvent {
   kind: "begin" | "end";
-  callId: string;
   parentToolCallId?: string;
-  presentation?: ThreadEventItemPresentation;
-} & (
-  | { itemKind: "web-search"; queries: string[] }
-  | {
-      itemKind: "web-fetch";
-      url: string;
-      prompt: string | null;
-      pattern: string | null;
-    }
-  | { itemKind: "image-view"; path: string }
-  | (StatusedItemActivity & {
-      itemKind: "image-generation";
-      prompt: string | null;
-      path: string | null;
-      error: string | null;
-      transparentBackground: boolean;
-    })
-  | (StatusedItemActivity & {
-      itemKind: "file-read";
-      path: string;
-      cmd: string | null;
-    })
-  | (StatusedItemActivity & {
-      itemKind: "search";
-      mode: ThreadEventSearchMode;
-      query: string;
-      path: string | null;
-      cmd: string | null;
-    })
-  | (StatusedItemActivity & {
-      itemKind: "plan-steps";
-      steps: ThreadEventPlanStep[];
-      explanation: string | null;
-    })
-  | (StatusedItemActivity & {
-      itemKind: "extension";
-      extensionKind: ExtensionKind;
-      payload: JsonValue;
-      presentation: ThreadEventItemPresentation;
-    })
-);
+  row: ItemRowFields;
+}
 
-export function parseWebActivityLifecycleEvent(
+export function parseItemLifecycleEvent(
   decoded: ThreadEvent,
+  meta: EventMeta,
   parentToolCallIdOverride?: string,
-): WebActivityLifecycleEvent | null {
-  if (decoded.type !== "item/started" && decoded.type !== "item/completed") {
+): ItemLifecycleEvent | null {
+  if (
+    (decoded.type !== "item/started" && decoded.type !== "item/completed") ||
+    !decoded.item.id
+  ) {
     return null;
   }
   const parentToolCallId =
     parentToolCallIdOverride ?? getEventParentToolCallId(decoded);
-  const item = decoded.item;
+  const { item } = decoded;
+  const ended = decoded.type === "item/completed";
+  const settled = (status?: ThreadEventItemStatus): TimelineRowStatus => {
+    if (!ended) return "pending";
+    return status === undefined || status === "pending"
+      ? "completed"
+      : itemStatusToExecStatus(status);
+  };
   const callId = item.id;
-  if (!callId) return null;
-  const kind = decoded.type === "item/started" ? "begin" : "end";
-  const base = {
-    kind,
-    callId,
-    ...(parentToolCallId ? { parentToolCallId } : {}),
-    ...("presentation" in item && item.presentation
+  const completedAt = ended ? meta.createdAt : null;
+  const presented =
+    "presentation" in item && item.presentation
       ? { presentation: item.presentation }
-      : {}),
-  } as const;
+      : {};
+  const event = (row: ItemRowFields): ItemLifecycleEvent => ({
+    kind: ended ? "end" : "begin",
+    ...(parentToolCallId ? { parentToolCallId } : {}),
+    row,
+  });
   switch (item.type) {
     case "webSearch":
-      return { ...base, itemKind: "web-search", queries: item.queries };
+      return event({
+        workKind: "web-search",
+        status: settled(),
+        callId,
+        queries: item.queries,
+        completedAt,
+        ...presented,
+      });
     case "webFetch":
-      return {
-        ...base,
-        itemKind: "web-fetch",
+      return event({
+        workKind: "web-fetch",
+        status: settled(),
+        callId,
         url: item.url,
         prompt: item.prompt,
         pattern: item.pattern,
-      };
+        completedAt,
+        ...presented,
+      });
     case "imageView":
-      return { ...base, itemKind: "image-view", path: item.path };
+      return event({
+        workKind: "image-view",
+        status: settled(),
+        callId,
+        path: item.path,
+        completedAt,
+        ...presented,
+      });
     case "imageGeneration":
-      return {
-        ...base,
-        itemKind: "image-generation",
+      return event({
+        workKind: "image-generation",
+        status: settled(item.status),
+        callId,
         prompt: item.prompt,
         path: item.path,
         error: item.error,
         transparentBackground: item.transparentBackground,
-        status: item.status,
-      };
+        completedAt,
+        ...presented,
+      });
     case "fileRead":
-      return {
-        ...base,
-        itemKind: "file-read",
+      return event({
+        workKind: "file-read",
+        status: settled(item.status),
+        callId,
         path: item.path,
         cmd: item.cmd ?? null,
-        status: item.status,
-      };
+        completedAt,
+        ...presented,
+      });
     case "search":
-      return {
-        ...base,
-        itemKind: "search",
+      return event({
+        workKind: "search",
+        status: settled(item.status),
+        callId,
         mode: item.mode,
         query: item.query,
         path: item.path ?? null,
         cmd: item.cmd ?? null,
-        status: item.status,
-      };
+        completedAt,
+        ...presented,
+      });
     case "planSteps":
-      return {
-        ...base,
-        itemKind: "plan-steps",
+      return event({
+        workKind: "plan-steps",
+        status: settled(item.status),
+        callId,
         steps: item.steps,
         explanation: item.explanation ?? null,
-        status: item.status,
-      };
+        completedAt,
+        ...presented,
+      });
     case "extension":
-      return {
-        ...base,
-        itemKind: "extension",
+      return event({
+        workKind: "extension",
+        status: settled(item.status),
+        callId,
         extensionKind: item.kind,
         payload: item.payload,
-        status: item.status,
+        completedAt,
         presentation: item.presentation,
-      };
+      });
     default:
       return null;
   }
 }
 
-function mapFileChanges(
-  changes: ThreadEventFileChange[],
-): EventProjectionFileEditChange[] {
-  return changes.map((change) => ({
-    path: change.path,
-    kind: change.kind,
-    movePath: change.movePath ?? null,
-    diff: change.diff,
-  }));
+interface FileEditPartialBase {
+  callId: string;
+  parentToolCallId?: string;
 }
-
-type FileEditStatus = EventProjectionFileEditMessage["status"];
-
-type FileEditPartialBase = { callId: string; parentToolCallId?: string };
 
 interface FileEditOutputPartial extends FileEditPartialBase {
   stdout: string;
-  appendStdout: true;
-  status: Extract<FileEditStatus, "pending">;
+  status: "pending";
 }
 
 interface FileEditChangesPartial extends FileEditPartialBase {
-  changes: EventProjectionFileEditChange[];
-  approvalStatus: EventProjectionApprovalLifecycleStatus | null;
-  status: FileEditStatus;
+  changes: FileEditChange[];
+  approvalStatus: TimelineApprovalStatus;
+  status: TimelineRowStatus;
   presentation?: ThreadEventItemPresentation;
 }
 
@@ -440,33 +397,36 @@ export function parseFileEditFromItemEvent(
 ): FileEditPartial | null {
   const parentToolCallId =
     parentToolCallIdOverride ?? getEventParentToolCallId(decoded);
+  const parent = parentToolCallId ? { parentToolCallId } : {};
   if (decoded.type === "item/fileChange/outputDelta") {
-    const callId = decoded.itemId;
-    if (!callId) return null;
+    if (!decoded.itemId) return null;
     return {
-      callId,
+      callId: decoded.itemId,
       stdout: decoded.delta,
-      appendStdout: true,
       status: "pending",
-      ...(parentToolCallId ? { parentToolCallId } : {}),
+      ...parent,
     };
   }
-  if (decoded.type !== "item/started" && decoded.type !== "item/completed") {
+  if (
+    (decoded.type !== "item/started" && decoded.type !== "item/completed") ||
+    decoded.item.type !== "fileChange" ||
+    !decoded.item.id
+  ) {
     return null;
   }
-  if (decoded.item.type !== "fileChange") return null;
-  const callId = decoded.item.id;
-  if (!callId) return null;
-  const changes = mapFileChanges(decoded.item.changes);
+  const { item } = decoded;
   return {
-    callId,
-    changes,
-    approvalStatus: decoded.item.approvalStatus,
-    status: itemStatusToExecStatus(decoded.item.status),
-    ...(decoded.item.presentation
-      ? { presentation: decoded.item.presentation }
-      : {}),
-    ...(parentToolCallId ? { parentToolCallId } : {}),
+    callId: item.id,
+    changes: item.changes.map((change) => ({
+      path: change.path,
+      kind: change.kind,
+      movePath: change.movePath ?? null,
+      diff: change.diff,
+    })),
+    approvalStatus: item.approvalStatus,
+    status: itemStatusToExecStatus(item.status),
+    ...(item.presentation ? { presentation: item.presentation } : {}),
+    ...parent,
   };
 }
 
@@ -477,10 +437,7 @@ export interface CompactionLifecycleEvent {
   parentToolCallId?: string;
 }
 
-export function getCompactionKey(
-  decoded: ThreadEvent,
-  meta: EventMeta,
-): string {
+function getCompactionKey(decoded: ThreadEvent, meta: EventMeta): string {
   if (decoded.type === "thread/compacted") {
     return requireThreadEventScopeTurnId(decoded);
   }
@@ -496,24 +453,15 @@ export function parseCompactionLifecycleEvent(
   meta: EventMeta,
   parentToolCallId: string | undefined,
 ): CompactionLifecycleEvent | null {
-  if (
+  const compactionItem =
     (decoded.type === "item/started" || decoded.type === "item/completed") &&
-    decoded.item.type === "contextCompaction"
-  ) {
-    return {
-      key: getCompactionKey(decoded, meta),
-      kind: decoded.type === "item/started" ? "begin" : "end",
-      ...(parentToolCallId ? { parentToolCallId } : {}),
-    };
-  }
-  if (decoded.type === "thread/compacted") {
-    return {
-      key: getCompactionKey(decoded, meta),
-      kind: "end",
-      ...(parentToolCallId ? { parentToolCallId } : {}),
-    };
-  }
-  return null;
+    decoded.item.type === "contextCompaction";
+  if (!compactionItem && decoded.type !== "thread/compacted") return null;
+  return {
+    key: getCompactionKey(decoded, meta),
+    kind: decoded.type === "item/started" ? "begin" : "end",
+    ...(parentToolCallId ? { parentToolCallId } : {}),
+  };
 }
 
 export function shouldSuppressLowValueToolCall(decoded: ThreadEvent): boolean {

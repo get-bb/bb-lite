@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Command,
   CommandGroup,
@@ -18,17 +18,11 @@ import {
   ThreadTitle,
   useResolveThreadTitle,
 } from "@/components/thread/ThreadTitleMentions";
-import { searchPickerOptions } from "./picker-search";
-import { useResetPickerScroll } from "./useResetPickerScroll";
+import { searchPickerOptions, useResetPickerScroll } from "./picker-search";
 
-export interface ParentThreadPickerOption {
-  label: string;
+interface ParentThreadPickerProps {
   value: string;
-}
-
-export interface ParentThreadPickerProps {
-  value: string;
-  options: readonly ParentThreadPickerOption[];
+  options: readonly { label: string; value: string }[];
   isLoading: boolean;
   isError: boolean;
   disabled?: boolean;
@@ -53,28 +47,19 @@ export function ParentThreadPicker({
   const [searchQuery, setSearchQuery] = useState("");
   const listRef = useResetPickerScroll<HTMLDivElement>(searchQuery);
   const resolveTitle = useResolveThreadTitle();
-  const filteredOptions = useMemo(
-    () =>
-      searchPickerOptions({
-        options,
-        query: searchQuery,
-        getLabel: (option) => option.label,
-        getAliases: (option) => [option.value, resolveTitle(option.label)],
-      }),
-    [options, resolveTitle, searchQuery],
-  );
+  const filteredOptions = searchPickerOptions({
+    options,
+    query: searchQuery,
+    getLabel: (option) => option.label,
+    getAliases: (option) => [option.value, resolveTitle(option.label)],
+  });
   const selectedLabel =
     options.find((option) => option.value === value)?.label ?? "None";
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen);
-      if (!nextOpen) {
-        setSearchQuery("");
-      }
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange],
-  );
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) setSearchQuery("");
+    onOpenChange(nextOpen);
+  };
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>

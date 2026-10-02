@@ -33,20 +33,23 @@ import {
   timelineRowActivityIntents,
   type TimelineExplorationWorkRow,
   fileNameFromPath,
-  formatTimelinePath,
   type TimelinePathDisplayMode,
   primaryTimelineActivityIntent,
 } from "./timeline-format.js";
 import {
-  buildTimelineWorkSummaryLabelParts,
+  buildTimelineWorkSummaryLabel,
   type ThreadTimelineViewRow,
   type TimelineWorkSummaryRow,
   type TimelineViewDelegationWorkRow,
-  type TimelineQuestionViewWorkRow,
   type TimelineViewTurnRow,
   type TimelineViewWorkRow,
   type TimelineViewWorkflowWorkRow,
 } from "./timeline-view.js";
+
+type TimelineQuestionViewWorkRow = Extract<
+  TimelineViewWorkRow,
+  { workKind: "question" }
+>;
 
 export type TimelineTitleTone = "default" | "summary";
 
@@ -58,7 +61,7 @@ type StatusVerbs = Record<TimelineRowStatus, string>;
 
 export type TimelineTitleLink = { kind: "thread"; threadId: string };
 
-export type TimelineTitleSegmentAccent = "muted" | "subtle" | "file";
+type TimelineTitleSegmentAccent = "muted" | "subtle" | "file";
 
 export interface TimelineTitleSegment {
   text: string;
@@ -103,13 +106,13 @@ export interface TimelineTitle {
   plain: string;
 }
 
-export interface BuildTimelineRowTitleOptions {
+interface BuildTimelineRowTitleOptions {
   summaryStyle: "bundle" | "background";
   workStyle: "default" | "summary";
   isActiveLatestBundle?: boolean;
 }
 
-export interface TimelineActivityIntentTitle {
+interface TimelineActivityIntentTitle {
   id: string;
   intent: TimelineActivityIntent;
   title: TimelineTitle;
@@ -247,9 +250,7 @@ function diffStatsDecorations(
     : [{ kind: "diff-stats", added, removed }];
 }
 
-export function formatTimelineDecorationText(
-  d: TimelineTitleDecoration,
-): string {
+function formatTimelineDecorationText(d: TimelineTitleDecoration): string {
   switch (d.kind) {
     case "duration": {
       if (d.completedAt === null) return "";
@@ -322,6 +323,15 @@ function displayStatus(
   return approvalStatus === "denied" ? "denied" : status;
 }
 
+function approvalLead(
+  status: "waiting" | "denied",
+  purpose: string,
+): TimelineTitleSegment[] {
+  return status === "denied"
+    ? [segment("Permission denied:")]
+    : [segment("Waiting for approval", { shimmer: true }), segment(purpose)];
+}
+
 function presentedTitle(
   presentation: TimelineRowPresentation,
   row: TimedRow & { status: TimelineRowStatus },
@@ -378,23 +388,17 @@ function mapExecutionTitle(
   );
   const badges = badgeDecorations(row);
   if (status === "waiting") {
-    return makeTitle(
-      [
-        segment("Waiting for approval", { shimmer: true }),
-        segment(isCommand ? "to run" : "to use"),
-        content,
-      ],
-      badges,
-    );
+    const purpose = isCommand ? "to run" : "to use";
+    return makeTitle([...approvalLead(status, purpose), content], badges);
   }
   const lead =
     status === "denied"
-      ? segment("Permission denied:")
+      ? approvalLead(status, "")
       : status === "pending"
-        ? segment(isCommand ? "Running" : "Running tool:", { shimmer: true })
-        : segment(isCommand ? "Ran" : "Ran tool");
+        ? [segment(isCommand ? "Running" : "Running tool:", { shimmer: true })]
+        : [segment(isCommand ? "Ran" : "Ran tool")];
   return makeTitle(
-    [lead, content],
+    [...lead, content],
     [...badges, ...settledDecorations(status, row)],
   );
 }
@@ -403,11 +407,11 @@ function joinedIntentDetail(
   intent: TimelineActivityIntent,
   pathMode: TimelinePathDisplayMode,
 ): string {
-  const { prefix, content } = formatTimelineActivityIntentDetailParts({
+  const { prefix, content } = formatTimelineActivityIntentDetailParts(
     intent,
     pathMode,
-    pending: false,
-  });
+    false,
+  );
   return prefix ? `${prefix} ${content}` : content;
 }
 
@@ -417,16 +421,16 @@ function mapTimelineActivityIntentTitle(
   failureStatus: "error" | "interrupted" | undefined,
   badges: readonly TimelineTitleDecoration[],
 ): TimelineTitle {
-  const detail = formatTimelineActivityIntentDetailParts({
+  const detail = formatTimelineActivityIntentDetailParts(
     intent,
-    pathMode: "compact",
+    "compact",
     pending,
-  });
-  const plainDetail = formatTimelineActivityIntentDetailParts({
+  );
+  const plainContent = formatTimelineActivityIntentDetailParts(
     intent,
-    pathMode: "full",
+    "full",
     pending,
-  });
+  ).content;
   const segments: TimelineTitleSegment[] = [];
   if (detail.prefix) {
     segments.push(segment(detail.prefix, { shimmer: pending }));
@@ -435,7 +439,7 @@ function mapTimelineActivityIntentTitle(
     segment(detail.content, {
       em: false,
       truncate: true,
-      plainText: plainDetail.content,
+      plainText: plainContent,
     }),
   );
   return makeTitle(segments, [
@@ -459,16 +463,7 @@ function explorationIntentTitle(
       truncate: true,
       plainText: joinedIntentDetail(intent, "full"),
     });
-    return makeTitle(
-      status === "denied"
-        ? [segment("Permission denied:"), subject]
-        : [
-            segment("Waiting for approval", { shimmer: true }),
-            segment("to use"),
-            subject,
-          ],
-      badges,
-    );
+    return makeTitle([...approvalLead(status, "to use"), subject], badges);
   }
   return mapTimelineActivityIntentTitle(
     intent,
@@ -496,12 +491,8 @@ function fileChangeLeadSegments(
   const verbs = FILE_CHANGE_VERBS[getFileChangeAction(row.change)];
   switch (status) {
     case "waiting":
-      return [
-        segment("Waiting for approval", { shimmer: true }),
-        segment("to edit"),
-      ];
     case "denied":
-      return [segment("Permission denied:")];
+      return approvalLead(status, "to edit");
     case "pending":
       return [segment(verbs.present, { shimmer: true })];
     case "completed":
@@ -515,15 +506,12 @@ function fileChangeLeadSegments(
 
 function mapFileChangeTitle(row: TimelineFileChangeWorkRow): TimelineTitle {
   const status = displayStatus(row.approvalStatus, row.status);
-  const pathSegment = segment(
-    formatFileChangePath({ change: row.change, mode: "compact" }),
-    {
-      em: true,
-      truncate: true,
-      plainText: formatFileChangePath({ change: row.change, mode: "full" }),
-      accent: "file",
-    },
-  );
+  const pathSegment = segment(formatFileChangePath(row.change, "compact"), {
+    em: true,
+    truncate: true,
+    plainText: formatFileChangePath(row.change, "full"),
+    accent: "file",
+  });
   return makeTitle(
     [...fileChangeLeadSegments(row, status), pathSegment],
     status === "error"
@@ -805,7 +793,7 @@ function mapFormTitle(
 function mapFileReadTitle(row: TimelineFileReadWorkRow): TimelineTitle {
   if (row.presentation) {
     return presentedTitle(row.presentation, row, {
-      content: formatTimelinePath({ path: row.path, mode: "compact" }),
+      content: fileNameFromPath(row.path),
       plainContent: row.path,
     });
   }
@@ -923,9 +911,10 @@ function mapWorkSummaryTitle(
 ): TimelineTitle {
   const isActive =
     row.kind === "bundle-summary" && options.isActiveLatestBundle === true;
-  const { verb, rest } = buildTimelineWorkSummaryLabelParts(row, {
-    active: isActive,
-  });
+  const label = buildTimelineWorkSummaryLabel(row, isActive);
+  const spaceIndex = label.indexOf(" ");
+  const verb = spaceIndex === -1 ? label : label.slice(0, spaceIndex);
+  const rest = spaceIndex === -1 ? "" : label.slice(spaceIndex + 1);
   const decorations = filterNull([summaryStatusDecoration(row)]);
   if (options.summaryStyle === "background") {
     const labelText = rest.length === 0 ? verb : `${verb} ${rest}`;
@@ -1140,7 +1129,7 @@ export function buildTimelineRowTitle(
   }
 }
 
-export type TimelineWorkRowGlyph =
+type TimelineWorkRowGlyph =
   | "CircleQuestion"
   | "EditFile"
   | "File"

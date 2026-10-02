@@ -1,10 +1,9 @@
 import type {
-  ThreadTimelinePendingTodoItem,
   ThreadTimelinePendingTodoItemStatus,
   ThreadTimelinePendingTodos,
 } from "@bb/domain";
-import { AnimatedBody } from "@/components/promptbox/banner/AnimatedBody";
 import {
+  AnimatedBody,
   PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
   PROMPT_STACK_CARD_ROW_HEIGHT,
   PromptStackCard,
@@ -19,138 +18,36 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 
-const STATUS_SORT_RANK: Record<ThreadTimelinePendingTodoItemStatus, number> = {
-  in_progress: 0,
-  pending: 1,
-  completed: 2,
-};
-
-const STATUS_ACTIVITY_STATE: Record<
+const STATUS: Record<
   ThreadTimelinePendingTodoItemStatus,
-  ActivityRowState
+  { rank: number; state: ActivityRowState }
 > = {
-  in_progress: "active",
-  pending: "pending",
-  completed: "completed",
+  in_progress: { rank: 0, state: "active" },
+  pending: { rank: 1, state: "pending" },
+  completed: { rank: 2, state: "completed" },
 };
-
-interface ThreadTodoCardProps {
-  pendingTodos: ThreadTimelinePendingTodos | null;
-  isExpanded: boolean;
-  onToggle: () => void;
-}
-
 const BODY_ID = "thread-todo-card-body";
 const TOGGLE_ID = "thread-todo-card-toggle";
-const TODO_HEADER_BUTTON_CLASS = activityRowClass(
-  "active",
-  PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
-);
-const TODO_ACTIVE_ROW_CLASS = "shadow-none ring-0";
-const TODO_ACTIVE_ICON_CLASS = "text-foreground";
-
-function getTodoSummary(items: readonly ThreadTimelinePendingTodoItem[]): {
-  visible: string;
-  aria: string;
-} {
-  let completedCount = 0;
-  for (const item of items) {
-    if (item.status === "completed") completedCount += 1;
-  }
-  return {
-    visible: `${completedCount}/${items.length} complete`,
-    aria: `${completedCount} of ${items.length} ${
-      items.length === 1 ? "item" : "items"
-    } complete`,
-  };
-}
-
-function TodoStatusIcon({
-  status,
-}: {
-  status: ThreadTimelinePendingTodoItemStatus;
-}) {
-  const className = "size-3.5 shrink-0";
-  const activityState = STATUS_ACTIVITY_STATE[status];
-  switch (status) {
-    case "in_progress":
-      return (
-        <Icon
-          name="Square"
-          className={cn(className, TODO_ACTIVE_ICON_CLASS)}
-          aria-hidden="true"
-        />
-      );
-    case "completed":
-      return (
-        <Icon
-          name="Check"
-          className={cn(className, activityIconClass(activityState))}
-          aria-hidden="true"
-        />
-      );
-    case "pending":
-      return (
-        <Icon
-          name="Square"
-          className={cn(className, activityIconClass(activityState))}
-          aria-hidden="true"
-        />
-      );
-  }
-}
-
-function TodoBody({
-  items,
-}: {
-  items: readonly ThreadTimelinePendingTodoItem[];
-}) {
-  const ordered = [...items].sort(
-    (a, b) => STATUS_SORT_RANK[a.status] - STATUS_SORT_RANK[b.status],
-  );
-  return (
-    <ul className="max-h-40 space-y-1 overflow-y-auto px-2.5 pb-2 pt-2">
-      {ordered.map((item) => {
-        const activityState = STATUS_ACTIVITY_STATE[item.status];
-        const isActive = activityState === "active";
-        return (
-          <li
-            key={item.id}
-            className={activityRowClass(
-              activityState,
-              cn(
-                "flex min-w-0 items-center gap-2 text-xs",
-                isActive && TODO_ACTIVE_ROW_CLASS,
-              ),
-            )}
-          >
-            <TodoStatusIcon status={item.status} />
-            <span
-              className={activityTextClass(
-                activityState,
-                "min-w-0 flex-1 truncate",
-              )}
-              title={item.text}
-            >
-              {item.text}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 export function ThreadTodoCard({
   pendingTodos,
   isExpanded,
   onToggle,
-}: ThreadTodoCardProps) {
+}: {
+  pendingTodos: ThreadTimelinePendingTodos | null;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
   const items = pendingTodos?.items ?? [];
   if (items.length === 0) {
     return null;
   }
-  const summary = getTodoSummary(items);
+  const completedCount = items.filter(
+    (item) => item.status === "completed",
+  ).length;
+  const ordered = [...items].sort(
+    (a, b) => STATUS[a.status].rank - STATUS[b.status].rank,
+  );
   return (
     <PromptStackCard
       ariaLabel="To-do list"
@@ -163,9 +60,14 @@ export function ThreadTodoCard({
           id={TOGGLE_ID}
           aria-expanded={isExpanded}
           aria-controls={BODY_ID}
-          aria-label={`To-do list: ${summary.aria}`}
+          aria-label={`To-do list: ${completedCount} of ${items.length} ${
+            items.length === 1 ? "item" : "items"
+          } complete`}
           onClick={onToggle}
-          className={TODO_HEADER_BUTTON_CLASS}
+          className={activityRowClass(
+            "active",
+            PROMPT_STACK_CARD_HEADER_BUTTON_CLASS,
+          )}
         >
           <Icon
             name="ListTodo"
@@ -178,7 +80,7 @@ export function ThreadTodoCard({
               "min-w-0 flex-1 truncate text-left",
             )}
           >
-            {summary.visible}
+            {completedCount}/{items.length} complete
           </span>
           <PromptStackCardChevron
             isExpanded={isExpanded}
@@ -192,7 +94,43 @@ export function ThreadTodoCard({
         isExpanded={isExpanded}
         collapsedBorder="none"
       >
-        <TodoBody items={items} />
+        <ul className="max-h-40 space-y-1 overflow-y-auto px-2.5 pb-2 pt-2">
+          {ordered.map((item) => {
+            const { state } = STATUS[item.status];
+            return (
+              <li
+                key={item.id}
+                className={activityRowClass(
+                  state,
+                  cn(
+                    "flex min-w-0 items-center gap-2 text-xs",
+                    state === "active" && "shadow-none ring-0",
+                  ),
+                )}
+              >
+                <Icon
+                  name={item.status === "completed" ? "Check" : "Square"}
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    state === "active"
+                      ? "text-foreground"
+                      : activityIconClass(state),
+                  )}
+                  aria-hidden="true"
+                />
+                <span
+                  className={activityTextClass(
+                    state,
+                    "min-w-0 flex-1 truncate",
+                  )}
+                  title={item.text}
+                >
+                  {item.text}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </AnimatedBody>
     </PromptStackCard>
   );

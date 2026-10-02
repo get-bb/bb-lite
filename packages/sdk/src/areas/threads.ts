@@ -17,7 +17,6 @@ import type {
   CreateQueuedMessageRequest,
   CreateThreadRequest,
   QueuedMessageListQuery,
-  ForkThreadRequest,
   DeleteThreadRequest,
   PromptHistoryResponse,
   SendQueuedMessageResponse,
@@ -43,13 +42,11 @@ import type {
   ThreadOpenSplit,
   PromptHistoryQuery,
   ReorderPinnedThreadRequest,
-  ReorderQueuedMessageRequest,
   ResolveThreadMentionsRequest,
   ResolveThreadMentionsResponse,
   SendMessageRequest,
   SendMessageResponse,
   SendQueuedMessageRequest,
-  SetQueuedMessageGroupBoundaryRequest,
   ThreadEventsQuery,
   ThreadEventWaitQuery,
   ThreadGetQuery,
@@ -120,7 +117,6 @@ export interface ThreadOutputResponse {
 }
 export type ThreadMutationResult = ThreadResponse;
 export type ThreadSpawnResult = ThreadResponse;
-export type ThreadForkResult = ThreadResponse;
 export type ThreadInteractionGetResult = PendingInteraction;
 export type ThreadInteractionListResult = ThreadPendingInteractionsResponse;
 export type ThreadInteractionResolveResult = PendingInteraction;
@@ -146,10 +142,7 @@ export type ThreadQueuedMessagesResult = ThreadQueuedMessageListResponse;
 export type ThreadQueuedMessageCreateResult = ThreadQueuedMessage;
 export type ThreadQueuedMessageUpdateResult = ThreadQueuedMessage;
 export type ThreadQueuedMessageDeleteResult = { ok: true };
-export type ThreadQueuedMessageReorderResult = ThreadQueuedMessageListResponse;
 export type ThreadQueuedMessageSendResult = SendQueuedMessageResponse;
-export type ThreadQueuedMessageGroupBoundaryResult =
-  ThreadQueuedMessageListResponse;
 export type ThreadQueueListResult = ThreadQueuedMessageListResponse;
 export type ThreadTabsResult = ThreadTabsResponse;
 export type ThreadTabsUpdateResult = ThreadTabsResponse;
@@ -166,7 +159,6 @@ export interface ThreadSpawnBaseArgs extends Omit<
   "input" | "origin" | "originKind" | "startedOnBehalfOf"
 > {
   origin?: CreateThreadRequest["origin"];
-  originKind?: CreateThreadRequest["originKind"];
   startedOnBehalfOf?: CreateThreadRequest["startedOnBehalfOf"];
 }
 
@@ -181,14 +173,6 @@ export type ThreadSpawnArgs = ThreadSpawnBaseArgs &
         prompt: string;
       }
   );
-
-export interface ThreadForkArgs extends Omit<
-  ForkThreadRequest,
-  "origin" | "visibility"
-> {
-  origin?: ForkThreadRequest["origin"];
-  visibility?: ForkThreadRequest["visibility"];
-}
 
 export interface ThreadUpdateArgs extends UpdateThreadRequest {
   threadId: string;
@@ -239,13 +223,6 @@ export interface ThreadQueuedMessageTargetArgs {
 
 export interface ThreadQueuedMessageSendArgs
   extends ThreadQueuedMessageTargetArgs, SendQueuedMessageRequest {}
-
-export interface ThreadQueuedMessageReorderArgs
-  extends ThreadQueuedMessageTargetArgs, ReorderQueuedMessageRequest {}
-
-export interface ThreadQueuedMessageGroupBoundaryArgs extends SetQueuedMessageGroupBoundaryRequest {
-  threadId: string;
-}
 
 export interface ThreadQueueListArgs {
   waitHolder?: QueuedMessageWaitHolder;
@@ -415,15 +392,9 @@ export interface ThreadQueuedMessagesArea {
     args: ThreadQueuedMessageTargetArgs,
   ): Promise<ThreadQueuedMessageDeleteResult>;
   list(args: ThreadQueuedMessageArgs): Promise<ThreadQueuedMessagesResult>;
-  reorder(
-    args: ThreadQueuedMessageReorderArgs,
-  ): Promise<ThreadQueuedMessageReorderResult>;
   send(
     args: ThreadQueuedMessageSendArgs,
   ): Promise<ThreadQueuedMessageSendResult>;
-  setGroupBoundary(
-    args: ThreadQueuedMessageGroupBoundaryArgs,
-  ): Promise<ThreadQueuedMessageGroupBoundaryResult>;
   update(
     args: ThreadQueuedMessageUpdateArgs,
   ): Promise<ThreadQueuedMessageUpdateResult>;
@@ -445,14 +416,12 @@ export interface ThreadsArea {
   compact(args: ThreadActionArgs): Promise<ThreadCompactResult>;
   cancelPlan(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
   clearContext(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
-  clearGoal(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
   count(args?: ThreadCountArgs): Promise<ThreadCountResult>;
   defaultExecutionOptions(
     args: ThreadStatusArgs,
   ): Promise<ThreadDefaultExecutionOptionsResult>;
   delete(args: ThreadDeleteArgs): Promise<ThreadDeleteResult>;
   events: ThreadEventsArea;
-  fork(args: ThreadForkArgs): Promise<ThreadForkResult>;
   get(args: ThreadGetArgs): Promise<ThreadGetResult>;
   queue: ThreadQueueArea;
   interactions: ThreadInteractionsArea;
@@ -580,7 +549,6 @@ function spawnJson(args: ThreadSpawnArgs): CreateThreadRequest {
   const {
     input: _input,
     origin,
-    originKind,
     prompt: _prompt,
     startedOnBehalfOf,
     ...request
@@ -593,18 +561,7 @@ function spawnJson(args: ThreadSpawnArgs): CreateThreadRequest {
     input: spawnInput(args),
     origin: origin ?? "sdk",
     startedOnBehalfOf: startedOnBehalfOf ?? null,
-    originKind: originKind ?? null,
-  };
-}
-
-function forkJson(args: ThreadForkArgs): ForkThreadRequest {
-  return {
-    ...args,
-    ...(args.pluginMetadata === undefined
-      ? {}
-      : { pluginMetadata: validatePluginMetadata(args.pluginMetadata) }),
-    origin: args.origin ?? "sdk",
-    visibility: args.visibility ?? "visible",
+    originKind: null,
   };
 }
 
@@ -855,23 +812,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
         ),
       );
     },
-    async reorder(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"][
-          ":queuedMessageId"
-        ].order.$patch({
-          param: {
-            id: input.threadId,
-            queuedMessageId: input.queuedMessageId,
-          },
-          json: {
-            previousQueuedMessageId: input.previousQueuedMessageId,
-            nextQueuedMessageId: input.nextQueuedMessageId,
-            groupBoundaryQueuedMessageId: input.groupBoundaryQueuedMessageId,
-          },
-        }),
-      );
-    },
     async send(input) {
       return transport.readJson(
         transport.api.v1.threads[":id"]["queued-messages"][
@@ -882,20 +822,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
             queuedMessageId: input.queuedMessageId,
           },
           json: { mode: input.mode },
-        }),
-      );
-    },
-    async setGroupBoundary(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"]["queued-messages"][
-          "group-boundary"
-        ].$patch({
-          param: { id: input.threadId },
-          json: {
-            expectedGroupedPrefixQueuedMessageIds:
-              input.expectedGroupedPrefixQueuedMessageIds,
-            groupBoundaryQueuedMessageId: input.groupBoundaryQueuedMessageId,
-          },
         }),
       );
     },
@@ -983,13 +909,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
       return { ok: true };
     },
     events,
-    async fork(input) {
-      return transport.readJson(
-        transport.api.v1.threads.fork.$post({
-          json: forkJson(input),
-        }),
-      );
-    },
     get: getThread,
     queue,
     interactions,
@@ -1135,14 +1054,6 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
     async cancelPlan(input) {
       await transport.readVoid(
         transport.api.v1.threads[":id"].plan.cancel.$post({
-          param: { id: input.threadId },
-        }),
-      );
-      return { ok: true };
-    },
-    async clearGoal(input) {
-      await transport.readVoid(
-        transport.api.v1.threads[":id"].goal.clear.$post({
           param: { id: input.threadId },
         }),
       );
