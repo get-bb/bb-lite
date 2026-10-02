@@ -1,31 +1,26 @@
 import type { ReactNode } from "react";
 import {
   TASK_PRIORITIES,
+  TASK_SORTS,
   TASK_STATUSES,
-  type TaskPriority,
-  type TaskStatus,
 } from "../../shared/contract.js";
-import { TASK_SORTS, type TaskSort } from "../../shared/pagination.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { cn } from "@/lib/utils";
+} from "@bb/shared-ui/dropdown-menu";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { cn } from "@bb/shared-ui/lib/utils";
 import { PriorityIcon, StatusIcon } from "./icons.js";
 import {
+  EMPTY_FILTERS,
   PRIORITY_LABELS,
   SORT_LABELS,
   STATUS_LABELS,
   type LabelFilterOption,
+  type ListPreference,
 } from "./lib.js";
-
-function toggled<T>(values: readonly T[], value: T, checked: boolean): T[] {
-  if (checked) return values.includes(value) ? [...values] : [...values, value];
-  return values.filter((existing) => existing !== value);
-}
 
 function chipTriggerClass(active: boolean): string {
   return cn(
@@ -36,18 +31,26 @@ function chipTriggerClass(active: boolean): string {
   );
 }
 
-function FilterChip({
+function FilterChip<Value extends string>({
   icon,
   label,
-  selectedNames,
-  children,
+  align = "start",
+  selected,
+  options,
+  onToggle,
 }: {
   icon: IconName;
   label: string;
-  selectedNames: readonly string[];
-  children: ReactNode;
+  align?: "start" | "end";
+  selected: readonly Value[];
+  options: readonly { value: Value; name: string; mark?: ReactNode }[];
+  onToggle: (value: Value, checked: boolean) => void;
 }) {
-  const active = selectedNames.length > 0;
+  const names = options
+    .filter((option) => selected.includes(option.value))
+    .map((option) => option.name);
+  const sorting = align === "end";
+  const active = sorting ? selected[0] !== "manual" : names.length > 0;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -55,48 +58,38 @@ function FilterChip({
           <Icon name={icon} className="size-3" />
           {label}
           {active ? (
-            <span className="max-w-48 truncate font-medium @max-md:max-w-24">
-              {selectedNames.join(", ")}
+            <span
+              className={
+                sorting
+                  ? "font-medium"
+                  : "max-w-48 truncate font-medium @max-md:max-w-24"
+              }
+            >
+              {names.join(", ")}
             </span>
           ) : null}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-44">
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function SortChip({
-  sort,
-  onChange,
-}: {
-  sort: TaskSort;
-  onChange: (sort: TaskSort) => void;
-}) {
-  const active = sort !== "manual";
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className={chipTriggerClass(active)}>
-          <Icon name="Sort" className="size-3" />
-          Sort
-          {active ? (
-            <span className="font-medium">{SORT_LABELS[sort]}</span>
-          ) : null}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        {TASK_SORTS.map((option) => (
+      <DropdownMenuContent align={align} className="min-w-44">
+        {options.map((option) => (
           <DropdownMenuCheckboxItem
-            key={option}
-            checked={sort === option}
-            onCheckedChange={(checked) => {
-              if (checked === true) onChange(option);
-            }}
+            key={option.value}
+            checked={selected.includes(option.value)}
+            onSelect={
+              sorting ? undefined : (event: Event) => event.preventDefault()
+            }
+            onCheckedChange={(checked) =>
+              onToggle(option.value, checked === true)
+            }
           >
-            {SORT_LABELS[option]}
+            {option.mark === undefined ? (
+              option.name
+            ) : (
+              <span className="flex items-center gap-2">
+                {option.mark}
+                {option.name}
+              </span>
+            )}
           </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuContent>
@@ -104,168 +97,75 @@ function SortChip({
   );
 }
 
-export interface ListFilterState {
-  statuses: TaskStatus[];
-  priorities: TaskPriority[];
-  labelNames: string[];
-}
-
-export const EMPTY_FILTERS: ListFilterState = {
-  statuses: [],
-  priorities: [],
-  labelNames: [],
-};
-
-export function hasActiveFilters(filters: ListFilterState): boolean {
-  return (
-    filters.statuses.length > 0 ||
-    filters.priorities.length > 0 ||
-    filters.labelNames.length > 0
-  );
+function toggled<T>(values: readonly T[], value: T, checked: boolean): T[] {
+  const rest = values.filter((existing) => existing !== value);
+  return checked ? [...rest, value] : rest;
 }
 
 export function ListFilterBar({
-  filters,
+  preference,
   onChange,
-  sort,
-  onSortChange,
   labelOptions,
   taskCount,
 }: {
-  filters: ListFilterState;
-  onChange: (filters: ListFilterState) => void;
-  sort: TaskSort;
-  onSortChange: (sort: TaskSort) => void;
+  preference: ListPreference;
+  onChange: (patch: Partial<ListPreference>) => void;
   labelOptions: readonly LabelFilterOption[];
   taskCount: number | undefined;
 }) {
-  const keepOpen = (event: Event) => event.preventDefault();
-  const showLabelChip =
-    labelOptions.length > 0 || filters.labelNames.length > 0;
+  const { statuses, priorities, labelNames, sort } = preference;
+  const filtered = statuses.length + priorities.length + labelNames.length > 0;
   return (
     <div className="flex shrink-0 items-center gap-1.5 border-b border-border-hairline px-3.5 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
         <FilterChip
           icon="Circle"
           label="Status"
-          selectedNames={filters.statuses.map(
-            (status) => STATUS_LABELS[status],
-          )}
-        >
-          {TASK_STATUSES.map((status) => (
-            <DropdownMenuCheckboxItem
-              key={status}
-              checked={filters.statuses.includes(status)}
-              onSelect={keepOpen}
-              onCheckedChange={(checked) =>
-                onChange({
-                  ...filters,
-                  statuses: toggled(filters.statuses, status, checked === true),
-                })
-              }
-            >
-              <span className="flex items-center gap-2">
-                <StatusIcon status={status} className="size-3" />
-                {STATUS_LABELS[status]}
-              </span>
-            </DropdownMenuCheckboxItem>
-          ))}
-        </FilterChip>
+          selected={statuses}
+          options={TASK_STATUSES.map((value) => ({
+            value,
+            name: STATUS_LABELS[value],
+            mark: <StatusIcon status={value} className="size-3" />,
+          }))}
+          onToggle={(value, checked) =>
+            onChange({ statuses: toggled(statuses, value, checked) })
+          }
+        />
         <FilterChip
           icon="ArrowUpDown"
           label="Priority"
-          selectedNames={filters.priorities.map(
-            (priority) => PRIORITY_LABELS[priority],
-          )}
-        >
-          {TASK_PRIORITIES.map((priority) => (
-            <DropdownMenuCheckboxItem
-              key={priority}
-              checked={filters.priorities.includes(priority)}
-              onSelect={keepOpen}
-              onCheckedChange={(checked) =>
-                onChange({
-                  ...filters,
-                  priorities: toggled(
-                    filters.priorities,
-                    priority,
-                    checked === true,
-                  ),
-                })
-              }
-            >
-              <span className="flex items-center gap-2">
-                <PriorityIcon priority={priority} className="size-3" />
-                {PRIORITY_LABELS[priority]}
-              </span>
-            </DropdownMenuCheckboxItem>
-          ))}
-        </FilterChip>
-        {showLabelChip ? (
+          selected={priorities}
+          options={TASK_PRIORITIES.map((value) => ({
+            value,
+            name: PRIORITY_LABELS[value],
+            mark: <PriorityIcon priority={value} className="size-3" />,
+          }))}
+          onToggle={(value, checked) =>
+            onChange({ priorities: toggled(priorities, value, checked) })
+          }
+        />
+        {labelOptions.length > 0 || labelNames.length > 0 ? (
           <FilterChip
             icon="ListTodo"
             label="Label"
-            selectedNames={filters.labelNames}
-          >
-            {labelOptions.map((option) => (
-              <DropdownMenuCheckboxItem
-                key={option.name}
-                checked={filters.labelNames.includes(option.name)}
-                onSelect={keepOpen}
-                onCheckedChange={(checked) =>
-                  onChange({
-                    ...filters,
-                    labelNames: toggled(
-                      filters.labelNames,
-                      option.name,
-                      checked === true,
-                    ),
-                  })
-                }
-              >
-                <span className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="size-2 rounded-full"
-                    style={{ backgroundColor: option.color }}
-                  />
-                  {option.name}
-                </span>
-              </DropdownMenuCheckboxItem>
-            ))}
-            {filters.labelNames
-              .filter(
-                (name) => !labelOptions.some((option) => option.name === name),
-              )
-              .map((name) => (
-                <DropdownMenuCheckboxItem
-                  key={`stale:${name}`}
-                  checked
-                  onSelect={keepOpen}
-                  onCheckedChange={(checked) =>
-                    onChange({
-                      ...filters,
-                      labelNames: toggled(
-                        filters.labelNames,
-                        name,
-                        checked === true,
-                      ),
-                    })
-                  }
-                >
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <span
-                      aria-hidden
-                      className="size-2 rounded-full bg-muted-foreground/40"
-                    />
-                    {name}
-                    <span className="text-xs">(unavailable)</span>
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-          </FilterChip>
+            selected={labelNames}
+            options={labelOptions.map((option) => ({
+              value: option.name,
+              name: option.name,
+              mark: (
+                <span
+                  aria-hidden
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: option.color }}
+                />
+              ),
+            }))}
+            onToggle={(value, checked) =>
+              onChange({ labelNames: toggled(labelNames, value, checked) })
+            }
+          />
         ) : null}
-        {hasActiveFilters(filters) ? (
+        {filtered ? (
           <button
             type="button"
             onClick={() => onChange(EMPTY_FILTERS)}
@@ -276,7 +176,19 @@ export function ListFilterBar({
           </button>
         ) : null}
       </div>
-      <SortChip sort={sort} onChange={onSortChange} />
+      <FilterChip
+        icon="Sort"
+        label="Sort"
+        align="end"
+        selected={[sort]}
+        options={TASK_SORTS.map((value) => ({
+          value,
+          name: SORT_LABELS[value],
+        }))}
+        onToggle={(value, checked) => {
+          if (checked) onChange({ sort: value });
+        }}
+      />
       <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-subtle-foreground">
         {taskCount === undefined
           ? ""
