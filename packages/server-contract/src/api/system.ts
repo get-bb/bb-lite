@@ -1,19 +1,6 @@
+import * as domain from "@bb/domain";
 import { rejectMultipleWorkspaceSelectors } from "./shared.js";
 import { z } from "zod";
-import {
-  appSettingsSchema,
-  appDefaultKeybindingsSchema,
-  appKeybindingOverridesSchema,
-  appKeybindingsSchema,
-  appThemeSchema,
-  availableModelSchema,
-  featureFlagsSchema,
-  hostPlatformSchema,
-  jsonValueSchema,
-  permissionModeSchema,
-  pluginThemeMetaSchema,
-  providerInfoSchema,
-} from "@bb/domain";
 import { machineEnvironmentSetSchema } from "./machine-environment.js";
 
 const machineEnvironmentReplacementVariableSchema =
@@ -61,10 +48,10 @@ export type SystemExecutionOptionsModelLoadError = z.infer<
 >;
 
 export const systemExecutionOptionsResponseSchema = z.object({
-  providers: z.array(providerInfoSchema),
-  permissionCeiling: permissionModeSchema,
-  models: z.array(availableModelSchema),
-  selectedOnlyModels: z.array(availableModelSchema),
+  providers: z.array(domain.providerInfoSchema),
+  permissionCeiling: domain.permissionModeSchema,
+  models: z.array(domain.availableModelSchema),
+  selectedOnlyModels: z.array(domain.availableModelSchema),
   modelLoadError: systemExecutionOptionsModelLoadErrorSchema.nullable(),
 });
 export type SystemExecutionOptionsResponse = z.infer<
@@ -96,9 +83,6 @@ export type SystemExecutionOptionsQuery = z.infer<
   typeof systemExecutionOptionsQuerySchema
 >;
 
-export { providerInfoSchema as systemProviderInfoSchema } from "@bb/domain";
-export type { ProviderInfo as SystemProviderInfo } from "@bb/domain";
-
 export const serverAccessStatusSchema = z.object({
   providers: z.array(
     z.object({
@@ -129,16 +113,16 @@ export type ServerAccessStatus = z.infer<typeof serverAccessStatusSchema>;
 
 export const systemConfigResponseSchema = z.object({
   serverAccess: serverAccessStatusSchema,
-  generalSettings: appSettingsSchema,
-  keybindings: appKeybindingsSchema,
-  defaultKeybindings: appDefaultKeybindingsSchema,
-  keybindingOverrides: appKeybindingOverridesSchema,
-  appearance: appThemeSchema,
-  pluginThemes: z.array(pluginThemeMetaSchema),
-  featureFlags: featureFlagsSchema,
+  generalSettings: domain.appSettingsSchema,
+  keybindings: domain.appKeybindingsSchema,
+  defaultKeybindings: domain.appDefaultKeybindingsSchema,
+  keybindingOverrides: domain.appKeybindingOverridesSchema,
+  appearance: domain.appThemeSchema,
+  pluginThemes: z.array(domain.pluginThemeMetaSchema),
+  featureFlags: domain.featureFlagsSchema,
   serverUrl: z.string().url(),
   primaryHostId: z.string().nullable(),
-  primaryHostPlatform: hostPlatformSchema.nullable(),
+  primaryHostPlatform: domain.hostPlatformSchema.nullable(),
   dataDir: z.string(),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
@@ -173,14 +157,14 @@ export const systemEnvironmentProviderSchema = z.object({
     gitRemote: z.boolean(),
     projectless: z.boolean(),
   }),
-  inputs: jsonValueSchema.nullable(),
+  inputs: domain.jsonValueSchema.nullable(),
   acceptsEmptyInputs: z.boolean(),
   availability: systemEnvironmentProviderAvailabilitySchema.nullable(),
   machineAvailability: z.record(
     z.string().min(1),
     systemEnvironmentProviderAvailabilitySchema.nullable(),
   ),
-  machineInputs: jsonValueSchema.nullable().optional(),
+  machineInputs: domain.jsonValueSchema.nullable().optional(),
   machineAcceptsEmptyInputs: z.boolean().optional(),
   machineProviderPluginId: z.string().min(1).optional(),
 });
@@ -222,7 +206,7 @@ export const systemProviderCatalogEntrySchema = z.object({
   enabled: z.boolean(),
   available: z.boolean(),
   logoUrl: z.string().nullable(),
-  info: providerInfoSchema.nullable(),
+  info: domain.providerInfoSchema.nullable(),
 });
 export type SystemProviderCatalogEntry = z.infer<
   typeof systemProviderCatalogEntrySchema

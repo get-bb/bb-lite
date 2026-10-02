@@ -1,9 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  hostTypeSchema,
-  jsonValueSchema,
-  permissionModeSchema,
-} from "@bb/domain";
 
 export const hostDirectoryQuerySchema = z.object({
   path: z.string().min(1).optional(),
@@ -26,7 +22,7 @@ export type HostDirectoryListing = z.infer<typeof hostDirectoryListingSchema>;
 export const createMachineRequestSchema = z
   .object({
     machineProviderId: z.string().min(1),
-    inputs: jsonValueSchema.nullable(),
+    inputs: domain.jsonValueSchema.nullable(),
     key: z.string().min(1).optional(),
   })
   .strict();
@@ -60,7 +56,7 @@ export type UpdateHostRequest = z.infer<typeof updateHostRequestSchema>;
 
 export const updateHostPermissionCeilingRequestSchema = z
   .object({
-    maxPermissionMode: permissionModeSchema,
+    maxPermissionMode: domain.permissionModeSchema,
   })
   .strict();
 export type UpdateHostPermissionCeilingRequest = z.infer<
@@ -109,6 +105,6 @@ export type HostOpenRequest = z.infer<typeof hostOpenRequestSchema>;
 
 export const hostListQuerySchema = z.object({
   includeCreating: z.enum(["true", "false"]).optional(),
-  type: hostTypeSchema.optional(),
+  type: domain.hostTypeSchema.optional(),
 });
 export type HostListQuery = z.input<typeof hostListQuerySchema>;

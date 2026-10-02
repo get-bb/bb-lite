@@ -1,17 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  contextSnapshotSchema,
-  BRANCH_LIST_QUERY_MAX_LENGTH,
-  gitBranchNameSchema,
-  gitBranchSelectionSchema,
-  jsonValueSchema,
-} from "@bb/domain";
-
-export {
-  BRANCH_LIST_LIMIT_MAX,
-  FILE_LIST_LIMIT_MAX,
-  FILE_LIST_QUERY_MAX_LENGTH,
-} from "@bb/domain";
 
 interface IncludeQueryValidationArgs {
   allowedValues: readonly string[];
@@ -28,7 +16,7 @@ export function isCommaSeparatedIncludeQueryValue(
 }
 
 export const threadContextWindowUsageSchema = z.object({
-  snapshot: contextSnapshotSchema.optional(),
+  snapshot: domain.contextSnapshotSchema.optional(),
   usedTokens: z.number(),
   modelContextWindow: z.number(),
   estimated: z.boolean(),
@@ -37,17 +25,15 @@ export type ThreadContextWindowUsage = z.infer<
   typeof threadContextWindowUsageSchema
 >;
 
-export { gitBranchNameSchema };
-
 export const unmanagedBranchSpecSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("existing"),
-      name: gitBranchNameSchema,
+      name: domain.gitBranchNameSchema,
     })
     .strict(),
   z
-    .object({ kind: z.literal("new"), baseBranch: gitBranchNameSchema })
+    .object({ kind: z.literal("new"), baseBranch: domain.gitBranchNameSchema })
     .strict(),
 ]);
 export type UnmanagedBranchSpec = z.infer<typeof unmanagedBranchSpecSchema>;
@@ -60,7 +46,7 @@ export const unmanagedWorkspaceSchema = z.object({
 
 export const managedWorktreeWorkspaceSchema = z.object({
   type: z.literal("managed-worktree"),
-  baseBranch: gitBranchSelectionSchema,
+  baseBranch: domain.gitBranchSelectionSchema,
 });
 
 export const personalWorkspaceSchema = z.object({
@@ -107,11 +93,11 @@ export const providerEnvironmentSchema = z.object({
       z.object({
         type: z.literal("new"),
         machineProviderId: z.string().min(1),
-        inputs: jsonValueSchema.nullable().default(null),
+        inputs: domain.jsonValueSchema.nullable().default(null),
       }),
     ])
     .optional(),
-  inputs: jsonValueSchema.nullable().default(null),
+  inputs: domain.jsonValueSchema.nullable().default(null),
 });
 
 export const environmentProviderInstanceKeySchema = z.string().min(1).max(128);
@@ -129,7 +115,7 @@ export type CreateThreadEnvironmentArgs = z.infer<
 export const pathListIncludeQueryValueSchema = z.enum(["true", "false"]);
 
 export const branchListQuerySchema = z.object({
-  query: z.string().min(1).max(BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
+  query: z.string().min(1).max(domain.BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
   limit: z.string().regex(/^\d+$/).optional(),
 });
 

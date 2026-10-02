@@ -1,3 +1,4 @@
+import type { ProviderInfo } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import type * as api from "@bb/server-contract";
 import { pick, type Http } from "../http.js";
@@ -20,7 +21,7 @@ export interface ProvidersArea {
   list(
     args?: ProviderHostRoutingArgs &
       Abortable & { capability?: api.SystemProvidersQuery["capability"] },
-  ): Promise<api.SystemProviderInfo[]>;
+  ): Promise<ProviderInfo[]>;
   models(
     args?: ProviderHostRoutingArgs & Abortable & { providerId?: string },
   ): Promise<api.SystemExecutionOptionsResponse>;

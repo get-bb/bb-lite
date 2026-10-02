@@ -1,9 +1,5 @@
+import * as domain from "@bb/domain";
 import { z } from "zod";
-import {
-  environmentStatusSchema,
-  hostStatusSchema,
-  threadStatusSchema,
-} from "@bb/domain";
 
 export const apiErrorSchema = z.object({
   code: z.string().min(1),
@@ -14,7 +10,7 @@ export const apiErrorSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 export const environmentNotReadyErrorDetailsSchema = z.object({
-  environmentStatus: environmentStatusSchema,
+  environmentStatus: domain.environmentStatusSchema,
   hasPath: z.boolean(),
 });
 export type EnvironmentNotReadyErrorDetails = z.infer<
@@ -38,7 +34,7 @@ export type ThreadNotWritableReason = z.infer<
 export const threadNotWritableErrorDetailsSchema = z.object({
   reason: threadNotWritableReasonSchema,
   archivedAt: z.number().int().nonnegative().nullable(),
-  threadStatus: threadStatusSchema,
+  threadStatus: domain.threadStatusSchema,
 });
 export type ThreadNotWritableErrorDetails = z.infer<
   typeof threadNotWritableErrorDetailsSchema
@@ -53,7 +49,7 @@ export const threadEnvironmentUnavailableReasonSchema = z.enum([
 
 export const threadEnvironmentUnavailableErrorDetailsSchema = z.object({
   reason: threadEnvironmentUnavailableReasonSchema,
-  environmentStatus: environmentStatusSchema.nullable(),
+  environmentStatus: domain.environmentStatusSchema.nullable(),
 });
 export type ThreadEnvironmentUnavailableErrorDetails = z.infer<
   typeof threadEnvironmentUnavailableErrorDetailsSchema
@@ -67,7 +63,7 @@ export const hostUnavailableReasonSchema = z.enum([
 
 export const hostUnavailableErrorDetailsSchema = z.object({
   reason: hostUnavailableReasonSchema,
-  hostStatus: hostStatusSchema.nullable(),
+  hostStatus: domain.hostStatusSchema.nullable(),
   suspendedAt: z.number().int().nonnegative().nullable(),
   destroyedAt: z.number().int().nonnegative().nullable(),
 });
