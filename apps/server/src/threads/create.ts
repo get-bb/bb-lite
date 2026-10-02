@@ -6,9 +6,9 @@ import type {
 import type { Environment, Project } from "@bb/domain";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
-import { encodeJson, type Db } from "../db/index.js";
+import type { Db } from "../db/index.js";
 import { setProjectExecutionDefaults } from "../db/projects.js";
-import { listThreadSections } from "../db/thread-sections.js";
+import { requireThreadSection } from "../db/thread-sections.js";
 import {
   ancestry,
   deleteThreadRow,
@@ -42,13 +42,6 @@ function invalidParent(reason: InvalidReason): ApiError {
   };
   const message = "Parent thread is invalid";
   return new ApiError(400, "parent_thread_invalid", message, { details });
-}
-
-export function requireThreadSection(db: Db, sectionId: string): void {
-  if (listThreadSections(db).some((section) => section.id === sectionId)) {
-    return;
-  }
-  throw new ApiError(404, "section_not_found", "Section not found");
 }
 
 export function requireValidParent(
@@ -188,7 +181,7 @@ export async function createThread(
       title: title ?? null,
       titleFallback: deriveTitleFallback(request.input),
       sectionId: sectionId ?? null,
-      startupContext: encodeJson(startup),
+      startupContext: JSON.stringify(startup),
       parentThreadId: parent?.id ?? null,
       lifecycleOwnerThreadId: ownerId,
       originPluginId: request.originPluginId ?? null,

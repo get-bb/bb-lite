@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { contentType } from "mime-types";
 import type { ApiApp } from "./api.js";
+import { matchesEntityTag } from "./range.js";
 
 const INDEX_PATH = "/index.html";
 const ASSETS_PREFIX = "/assets/";
@@ -14,21 +15,8 @@ function cacheControl(urlPath: string): string {
   return urlPath.endsWith(".html") ? "no-cache" : "public, max-age=86400";
 }
 
-function matchesEntityTag(header: string | undefined, etag: string): boolean {
-  if (header === undefined) return false;
-  const opaque = etag.replace(/^W\//u, "");
-  return header
-    .split(",")
-    .map((candidate) => candidate.trim().replace(/^W\//u, ""))
-    .some((candidate) => candidate === "*" || candidate === opaque);
-}
-
-async function readIfFile(path: string): Promise<Buffer | null> {
-  try {
-    return await readFile(path);
-  } catch {
-    return null;
-  }
+function readIfFile(path: string): Promise<Buffer | null> {
+  return readFile(path).catch(() => null);
 }
 
 function decodePath(path: string): string | null {

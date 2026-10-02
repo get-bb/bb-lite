@@ -13,8 +13,8 @@ import {
   type ThreadQueuedMessage,
 } from "@bb/domain";
 import { z } from "zod";
-import { ApiError } from "../http/errors.js";
-import { decodeJson, encodeJson, newId, type Db } from "./index.js";
+import { ApiError, conflict as rejected } from "../http/errors.js";
+import { decodeJson, insertRow, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
 export interface QueuedMessageRow {
@@ -42,8 +42,6 @@ export interface NewQueuedMessage {
   threadId: string;
   content: PromptInput[];
   senderThreadId: string | null;
-  origin: ThreadCreateOrigin | null;
-  originPluginId: string | null;
   systemNotice: QueuedMessageSystemNotice | null;
   model: string;
   reasoningLevel: ReasoningLevel;
@@ -51,10 +49,6 @@ export interface NewQueuedMessage {
   serviceTier: ServiceTier;
   waitingOn: QueuedMessageWaitingOn | null;
   sendAt: number | null;
-}
-
-function rejected(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
 }
 
 export function queuedMessageNotFound(): ApiError {
@@ -80,7 +74,7 @@ export function getQueuedMessage(db: Db, threadId: string, id: string) {
 }
 
 function encodeOptional(value: object | null): string | null {
-  return value === null ? null : encodeJson(value);
+  return value === null ? null : JSON.stringify(value);
 }
 
 export function insertQueuedMessage(
@@ -88,31 +82,17 @@ export function insertQueuedMessage(
   input: NewQueuedMessage,
 ): QueuedMessageRow {
   const id = newId("qmsg");
-  const now = db.now();
   const last = listQueuedMessages(db, input.threadId).at(-1);
-  db.run(
-    `INSERT INTO queued_thread_messages
-       (id, thread_id, content, sender_thread_id, origin, origin_plugin_id,
-        system_notice, model, reasoning_level, permission_mode, service_tier,
-        send_at, waiting_on, sort_key, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  insertRow(db, "queued_thread_messages", {
+    ...input,
     id,
-    input.threadId,
-    encodeJson(input.content),
-    input.senderThreadId,
-    input.origin,
-    input.originPluginId,
-    encodeOptional(input.systemNotice),
-    input.model,
-    input.reasoningLevel,
-    input.permissionMode,
-    input.serviceTier,
-    input.sendAt,
-    encodeOptional(input.waitingOn),
-    orderKeyBetween(last?.sortKey ?? null, null),
-    now,
-    now,
-  );
+    content: JSON.stringify(input.content),
+    systemNotice: encodeOptional(input.systemNotice),
+    waitingOn: encodeOptional(input.waitingOn),
+    sortKey: orderKeyBetween(last?.sortKey ?? null, null),
+    createdAt: db.now(),
+    updatedAt: db.now(),
+  });
   const row = getQueuedMessage(db, input.threadId, id);
   if (row === undefined) throw new Error("Queued message insert was lost");
   return row;
@@ -147,7 +127,7 @@ export function updateQueuedMessageContent(
 ): void {
   db.run(
     "UPDATE queued_thread_messages SET content = ?, updated_at = ? WHERE id = ?",
-    encodeJson(content),
+    JSON.stringify(content),
     Math.max(db.now(), row.updatedAt + 1),
     row.id,
   );

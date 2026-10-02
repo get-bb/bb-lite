@@ -10,10 +10,11 @@ import type { SendMessageRequest } from "@bb/server-contract";
 import { getEnvironment } from "../db/environments.js";
 import { isQueueAutoSendPaused } from "../db/events.js";
 import { findHost } from "../db/hosts.js";
-import { encodeJson, newId } from "../db/index.js";
+import { newId } from "../db/index.js";
 import { hasTurnBoundInteraction } from "../db/pending-interactions.js";
 import * as queue from "../db/queued-messages.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
+import { conflict, errorMessage, threadNotFound } from "../http/errors.js";
 import { deliverAttachments } from "./attachments.js";
 import * as core from "./core.js";
 import type { Engine } from "./engine.js";
@@ -196,7 +197,7 @@ function recordWait(
   const { db } = engine.ctx;
   const { message, rows, sendAt } = args;
   const [lead] = rows;
-  const encoded = encodeJson(waitingOn);
+  const encoded = JSON.stringify(waitingOn);
   if (lead?.waitingOn === encoded) return lead;
   return engine.commit((out) => {
     out.thread(thread.id, ["queue-changed"]);
@@ -208,8 +209,6 @@ function recordWait(
       threadId: thread.id,
       content: message.input,
       senderThreadId: message.senderThreadId,
-      origin: null,
-      originPluginId: null,
       systemNotice: message.systemNotice,
       ...message.execution,
       waitingOn,
@@ -231,7 +230,7 @@ function settleRejectedTurn(
   const thread = getThread(engine.ctx.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const reason = error instanceof RunnerError ? error.code : "failed";
-  const message = core.errorMessage(error);
+  const message = errorMessage(error);
   engine.commit((out) => {
     const rejection = { scope: threadScope(), requestId, reason, message };
     engine.append(out, thread, [
@@ -327,7 +326,7 @@ export async function dispatchMessage(
   args: DispatchArgs,
 ): Promise<Delivery> {
   const thread = getThread(engine.ctx.db, threadId);
-  if (thread === undefined) throw core.threadNotFound();
+  if (thread === undefined) throw threadNotFound();
   if (thread.deletedAt !== null) {
     throw core.notWritable(thread, "deleted", "Thread is deleted");
   }
@@ -433,7 +432,7 @@ function recordDrainFailure(
   log.warn("Queued message dispatch failed", { err: error, threadId });
   db.run(
     "UPDATE queued_thread_messages SET failure_reason = ? WHERE id = ?",
-    core.errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
+    errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
     row.id,
   );
   engine.ctx.hub.thread(threadId, ["queue-changed"]);
@@ -479,5 +478,5 @@ export async function sendQueuedMessageNow(
   if (outcome.delivery === "sent" || mode === "steer") return outcome;
   const kind = queue.parseQueuedWait(outcome.row)?.kind ?? "thread-busy";
   if (kind === "stopping") return outcome;
-  throw core.conflict(`This message cannot be sent yet: it waits on ${kind}.`);
+  throw conflict(`This message cannot be sent yet: it waits on ${kind}.`);
 }

@@ -1,4 +1,8 @@
-import { FILE_LIST_LIMIT_MAX, type Environment } from "@bb/domain";
+import {
+  BRANCH_LIST_LIMIT_MAX,
+  FILE_LIST_LIMIT_MAX,
+  type Environment,
+} from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import type {
   EnvironmentNotReadyErrorDetails,
@@ -8,11 +12,8 @@ import type {
   WorkspacePathListResponse,
 } from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
-import {
-  findThreadEnvironment,
-  getEnvironment,
-  updateEnvironment,
-} from "../db/environments.js";
+import { getEnvironment, updateEnvironment } from "../db/environments.js";
+import { requireThread } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 
 export type ReadyEnvironment = Environment & { path: string };
@@ -47,6 +48,7 @@ const REPORTED_FAILURES = [
   "not_git_repo",
   "permission_denied",
 ] as const;
+const BRANCH_LIST_LIMIT_DEFAULT = 50;
 export const PATH_LIST_LIMIT_DEFAULT = 1_000;
 export const PATH_LIST_EXCLUDED_NAMES = [
   "node_modules",
@@ -88,22 +90,11 @@ export function requireReadyEnvironment(
   });
 }
 
-export function threadEnvironmentId(
-  ctx: ServerContext,
-  threadId: string,
-): string | null {
-  const thread = findThreadEnvironment(ctx.db, threadId);
-  if (thread === undefined) {
-    throw new ApiError(404, "thread_not_found", "Thread not found");
-  }
-  return thread.environmentId;
-}
-
 export function requireThreadEnvironment(
   ctx: ServerContext,
   threadId: string,
 ): Environment {
-  const environmentId = threadEnvironmentId(ctx, threadId);
+  const { environmentId } = requireThread(ctx.db, threadId);
   if (environmentId !== null) return requireEnvironment(ctx, environmentId);
   const details: ThreadEnvironmentUnavailableErrorDetails = {
     reason: "never_attached",
@@ -180,13 +171,26 @@ export async function refreshWorkspaceMetadata(
   recordWorkspaceMetadata(ctx, environment, observed);
 }
 
-export function boundedLimit(
+function boundedLimit(
   value: string | undefined,
-  bounds: { fallback: number; max: number },
+  fallback: number,
+  max: number,
 ): number {
-  const limit = Math.min(Number(value ?? bounds.fallback), bounds.max);
+  const limit = Math.min(Number(value ?? fallback), max);
   if (limit <= 0) throw invalidRequest("limit must be a positive integer");
   return limit;
+}
+
+export function branchSearch(search: {
+  query?: string;
+  selectedBranch?: string;
+  limit?: string;
+}) {
+  const { selectedBranch } = search;
+  const query = search.query?.trim() || undefined;
+  const max = BRANCH_LIST_LIMIT_MAX;
+  const limit = boundedLimit(search.limit, BRANCH_LIST_LIMIT_DEFAULT, max);
+  return { query, selectedBranch, limit };
 }
 
 export function searchWorkspacePaths(
@@ -202,10 +206,11 @@ export function searchWorkspacePaths(
   return ctx.runners.get(workspace.hostId).listPaths({
     rootPath: workspace.path,
     query: query.query,
-    limit: boundedLimit(query.limit, {
-      fallback: PATH_LIST_LIMIT_DEFAULT,
-      max: FILE_LIST_LIMIT_MAX,
-    }),
+    limit: boundedLimit(
+      query.limit,
+      PATH_LIST_LIMIT_DEFAULT,
+      FILE_LIST_LIMIT_MAX,
+    ),
     includeFiles,
     includeDirectories,
     includeHidden: true,

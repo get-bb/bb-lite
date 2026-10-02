@@ -1,18 +1,27 @@
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { publicApiRoutes, type ProjectResponse } from "@bb/server-contract";
+import { PERSONAL_PROJECT_ID, type GitSourceInspection } from "@bb/domain";
+import {
+  publicApiRoutes,
+  type ProjectBranchesQuery,
+  type ProjectBranchesResponse,
+  type ProjectResponse,
+} from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
+import { updateRow } from "../../db/index.js";
 import {
   addProjectSource,
   deleteProjectSource,
   findOrCreateProject,
   getProjectSource,
   listStandardProjects,
-  renameProject,
   reorderProject,
   setGitRemoteUrlIfMissing,
   updateProjectSource,
   withSources,
 } from "../../db/projects.js";
+import {
+  branchSearch,
+  searchWorkspacePaths,
+} from "../../environments/workspace.js";
 import {
   attachmentMimeType,
   copyAttachments,
@@ -25,27 +34,34 @@ import {
   requireProject,
   requireStandardProject,
 } from "../../projects/require.js";
+import {
+  findProjectWorkspace,
+  requireProjectWorkspace,
+} from "../../projects/workspace.js";
+import { findProviderDefinition } from "../../providers/catalog.js";
 import { requireHost } from "../../runners/hosts.js";
 import { listProjectsWithThreads } from "../../threads/thread-display.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest, notFound } from "../errors.js";
+import { ApiError, conflict, invalidRequest, notFound } from "../errors.js";
 import { fileResponse } from "../range.js";
 
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
 
-function conflict(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
-}
-
-function sourceNotFound(): ApiError {
-  return new ApiError(404, "invalid_request", "Project source not found");
+function defaultWorktreeBaseBranch(source: GitSourceInspection): string | null {
+  const { defaultBranch, originDefaultBranch, defaultBranchRelation } = source;
+  if (originDefaultBranch === null) return defaultBranch;
+  const localIsAhead =
+    defaultBranch !== null &&
+    defaultBranchRelation !== "equal" &&
+    defaultBranchRelation !== "local-behind";
+  return localIsAhead ? defaultBranch : originDefaultBranch;
 }
 
 export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.projects;
-  const { db, hub } = ctx;
+  const { db, hub, runners } = ctx;
   const { dataDir } = ctx.config;
 
   const projectResponse = (projectId: string): ProjectResponse => {
@@ -56,8 +72,26 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
 
   const requireSource = (projectId: string, id: string) => {
     const source = getProjectSource(db, projectId, { id });
-    if (source === undefined) throw sourceNotFound();
-    return source;
+    if (source !== undefined) return source;
+    throw new ApiError(404, "invalid_request", "Project source not found");
+  };
+
+  const readBranches = async (
+    projectId: string,
+    query: ProjectBranchesQuery,
+  ): Promise<ProjectBranchesResponse> => {
+    requireStandardProject(db, projectId);
+    const { hostId, path } = requireProjectWorkspace(ctx, projectId, {
+      hostId: query.hostId,
+    });
+    const runner = runners.get(hostId);
+    const search = { path, ...branchSearch(query) };
+    const [source, branches] = await Promise.all([
+      runner.inspectGitSource({ path }),
+      runner.listBranches(search),
+    ]);
+    const defaultBase = defaultWorktreeBaseBranch(source);
+    return { ...source, ...branches, defaultWorktreeBaseBranch: defaultBase };
   };
 
   const recordGitRemote = async (
@@ -102,7 +136,8 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
 
   patch(routes.update, (c, payload) => {
     const { id } = requireStandardProject(db, c.req.param("id"));
-    if (payload.name !== undefined) renameProject(db, id, payload.name);
+    const { name } = payload;
+    if (name !== undefined) updateRow(db, "projects", id, { name });
     hub.project(id, ["project-updated"]);
     return c.json(projectResponse(id));
   });
@@ -205,4 +240,26 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
     if (response === null) throw notFound("Attachment not found");
     return response;
   });
+
+  get(routes.paths, async (c, query) => {
+    const workspace = requireProjectWorkspace(ctx, c.req.param("id"), query);
+    return c.json(await searchWorkspacePaths(ctx, workspace, query));
+  });
+
+  get(routes.commands, async (c, query) => {
+    const projectId = c.req.param("id");
+    const { hostId, path: cwd } = findProjectWorkspace(ctx, projectId, query);
+    const provider = findProviderDefinition(db, query.provider);
+    if (provider === undefined) return c.json({ commands: [] });
+    const providerId = provider.id;
+    return c.json(await runners.get(hostId).listCommands({ providerId, cwd }));
+  });
+
+  get(routes.branches, async (c, query) =>
+    c.json(await readBranches(c.req.param("id"), query)),
+  );
+
+  get(routes.branchOptions, async (c, query) =>
+    c.json(await readBranches(c.req.param("id"), query)),
+  );
 }

@@ -1,4 +1,4 @@
-import type { Db } from "./index.js";
+import { insertRow, type Db } from "./index.js";
 
 export type PluginRowTable = "plugin_kv" | "plugin_settings";
 
@@ -11,16 +11,8 @@ export function isPluginEnabled(db: Db, id: string): boolean {
 }
 
 export function setPluginEnabled(db: Db, id: string, enabled: boolean): void {
-  db.run(
-    `INSERT INTO plugins (id, enabled, created_at, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE
-     SET enabled = excluded.enabled, updated_at = excluded.updated_at`,
-    id,
-    enabled ? 1 : 0,
-    db.now(),
-    db.now(),
-  );
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  insertRow(db, "plugins", { id, enabled: Number(enabled), ...at }, ["id"]);
 }
 
 export function readPluginRows(
@@ -51,14 +43,6 @@ export function writePluginRow(
     db.run(sql, pluginId, key);
     return;
   }
-  db.run(
-    `INSERT INTO ${table} (plugin_id, key, value, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT (plugin_id, key) DO UPDATE
-     SET value = excluded.value, updated_at = excluded.updated_at`,
-    pluginId,
-    key,
-    value,
-    db.now(),
-  );
+  const row = { pluginId, key, value, updatedAt: db.now() };
+  insertRow(db, table, row, ["plugin_id", "key"]);
 }

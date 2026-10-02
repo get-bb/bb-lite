@@ -8,9 +8,15 @@ import {
   type ThreadLifecycleNoopReason,
   type ThreadStatus,
 } from "@bb/domain";
-import { ApiError } from "../http/errors.js";
+import { conflict, threadNotFound } from "../http/errors.js";
 import { upsertSearchSegment } from "./events.js";
-import { newId, type Db, type SqlValue } from "./index.js";
+import {
+  insertRow,
+  newId,
+  updateRow,
+  type Db,
+  type SqlValue,
+} from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
 export interface ThreadRow extends Thread {
@@ -59,12 +65,14 @@ export type LifecycleOutcome =
 export const MAX_THREAD_HIERARCHY_DEPTH = 4;
 const LIVE = "deleted_at IS NULL";
 
-function snakeCase(key: string): string {
-  return key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`);
-}
-
 export function getThread(db: Db, id: string): ThreadRow | undefined {
   return db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
+}
+
+export function requireThread(db: Db, id: string): ThreadRow {
+  const thread = getThread(db, id);
+  if (thread !== undefined && thread.deletedAt === null) return thread;
+  throw threadNotFound();
 }
 
 export function nextPinSortKey(db: Db): string {
@@ -84,9 +92,10 @@ function syncTitleSearch(db: Db, thread: ThreadRow): void {
 export function insertThread(db: Db, input: NewThread): ThreadRow {
   const { pinned, ...columns } = input;
   const now = db.now();
-  const row: Record<string, SqlValue> = {
+  const id = newId("thr");
+  insertRow(db, "threads", {
     ...columns,
-    id: newId("thr"),
+    id,
     status: "pending",
     pinnedAt: pinned ? now : null,
     pinSortKey: pinned ? nextPinSortKey(db) : null,
@@ -94,14 +103,8 @@ export function insertThread(db: Db, input: NewThread): ThreadRow {
     latestAttentionAt: now,
     createdAt: now,
     updatedAt: now,
-  };
-  const keys = Object.keys(row);
-  db.run(
-    `INSERT INTO threads (${keys.map(snakeCase).join(", ")})
-     VALUES (${keys.map((key) => `@${key}`).join(", ")})`,
-    row,
-  );
-  const thread = getThread(db, String(row.id));
+  });
+  const thread = getThread(db, id);
   if (thread === undefined) throw new Error("Thread insert was lost");
   syncTitleSearch(db, thread);
   return thread;
@@ -113,18 +116,8 @@ export function patchThread(
   patch: ThreadPatch,
   touch = true,
 ): ThreadRow {
-  const values: Record<string, SqlValue> = { ...patch, id };
-  const assignments = Object.keys(patch).map(
-    (key) => `${snakeCase(key)} = @${key}`,
-  );
-  if (touch) {
-    assignments.push("updated_at = @updatedAt");
-    values.updatedAt = db.now();
-  }
-  if (assignments.length > 0) {
-    const sets = assignments.join(", ");
-    db.run(`UPDATE threads SET ${sets} WHERE id = @id`, values);
-  }
+  const changes = touch || Object.keys(patch).length > 0;
+  if (changes) updateRow(db, "threads", id, patch, touch);
   const thread = getThread(db, id);
   if (thread === undefined) throw new Error(`Thread ${id} does not exist`);
   if ("title" in patch) syncTitleSearch(db, thread);
@@ -254,7 +247,7 @@ export function reorderPinnedThread(
   previousThreadId: string | null,
   nextThreadId: string | null,
 ): void {
-  const stale = new ApiError(409, "invalid_request", "Pinned order changed");
+  const stale = conflict("Pinned order changed");
   const keyOf = (threadId: string | null): string | null => {
     if (threadId === null) return null;
     const key = getThread(db, threadId)?.pinSortKey ?? null;
@@ -262,7 +255,7 @@ export function reorderPinnedThread(
     return key;
   };
   if (getThread(db, id)?.pinnedAt == null) {
-    throw new ApiError(409, "invalid_request", "Thread is not pinned");
+    throw conflict("Thread is not pinned");
   }
   const previous = keyOf(previousThreadId);
   const next = keyOf(nextThreadId);

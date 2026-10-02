@@ -2,8 +2,8 @@ import { hostname } from "node:os";
 import type { Host } from "@bb/domain";
 import { dataPaths } from "../config.js";
 import type { ServerContext } from "../context.js";
+import { getEnvironment } from "../db/environments.js";
 import {
-  findEnvironmentHostId,
   findHost,
   insertHost,
   toHost,
@@ -35,11 +35,11 @@ export function resolveLookupHostId(
   if (query.environmentId === undefined) {
     return requireHost(ctx, query.hostId ?? ctx.config.hostId).id;
   }
-  const hostId = findEnvironmentHostId(ctx.db, query.environmentId);
-  if (hostId === undefined) {
+  const environment = getEnvironment(ctx.db, query.environmentId);
+  if (environment === undefined) {
     throw new ApiError(404, "environment_not_found", "Environment not found");
   }
-  return requireHost(ctx, hostId).id;
+  return requireHost(ctx, environment.hostId).id;
 }
 
 export function hostResponse(ctx: ServerContext, row: HostRow): Host {

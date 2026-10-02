@@ -14,11 +14,11 @@ import { contentType } from "mime-types";
 import type { z } from "zod";
 import type { ServerContext } from "../../context.js";
 import type { PluginHost } from "../../plugins/host.js";
-import { errorMessage, type PluginInstance } from "../../plugins/instance.js";
+import type { PluginInstance } from "../../plugins/instance.js";
 import { resolveInside } from "../../plugins/manifest.js";
 import type { ApiApp, AppEnv } from "../api.js";
-import { ApiError, invalidRequest, notFound } from "../errors.js";
-import { principalOf } from "../trust.js";
+import { ApiError, errorMessage, invalidRequest, notFound } from "../errors.js";
+import { requireOwner } from "../trust.js";
 
 type RouteContext = Context<AppEnv>;
 
@@ -29,11 +29,6 @@ const IMMUTABLE = "public, max-age=31536000, immutable";
 interface RpcOutcome {
   status: ContentfulStatusCode;
   body: { ok: true; result: unknown } | { ok: false; error: RpcError };
-}
-
-function requireOwner(c: RouteContext): void {
-  if (principalOf(c).kind === "owner") return;
-  throw new ApiError(403, "forbidden", "Only the owner can manage plugins");
 }
 
 function parseJson(text: string): unknown {
@@ -125,6 +120,8 @@ function keepAliveJson(result: Promise<unknown>): Response {
 
 export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
   const { plugins, log } = ctx;
+  const requireManager = (c: RouteContext): void =>
+    requireOwner(c, "Only the owner can manage plugins");
 
   app.get("/plugins", (c) => c.json({ plugins: plugins.list() }));
 
@@ -139,14 +136,14 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   app.post("/plugins/reload", async (c) => {
-    requireOwner(c);
+    requireManager(c);
     await plugins.reload(c.req.query("id"));
     return c.json({ ok: true, plugins: plugins.list() });
   });
 
   for (const action of ["enable", "disable"] as const) {
     app.post(`/plugins/:id/${action}`, async (c) => {
-      requireOwner(c);
+      requireManager(c);
       const enabled = action === "enable";
       const plugin = await plugins.setEnabled(c.req.param("id"), enabled);
       return c.json({ ok: true, plugin });
@@ -158,14 +155,14 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
   );
 
   app.put("/plugins/:id/settings", async (c) => {
-    requireOwner(c);
+    requireManager(c);
     const { values } = await jsonBody(c, pluginSettingsUpdateRequestSchema);
     const view = await plugins.settings(c.req.param("id"), values);
     return c.json({ ok: true, ...view });
   });
 
   app.post("/plugins/:id/token", async (c) => {
-    requireOwner(c);
+    requireManager(c);
     const { rotate } = await jsonBody(c, pluginTokenRequestSchema);
     const token = plugins.token(c.req.param("id"), rotate);
     return c.json({ ok: true, token });
@@ -206,8 +203,8 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
     if (route === undefined) {
       throw notFound(`Plugin "${id}" has no ${method} route for "${path}"`);
     }
-    if (route.auth === "local" && principalOf(c).kind !== "owner") {
-      throw new ApiError(403, "forbidden", "This plugin route is owner-only");
+    if (route.auth === "local") {
+      requireOwner(c, "This plugin route is owner-only");
     }
     const token = c.req.header("x-bb-plugin-token") ?? c.req.query("token");
     if (route.auth === "token" && !plugins.acceptsToken(id, token)) {

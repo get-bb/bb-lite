@@ -5,9 +5,15 @@ import type {
 } from "@bb/plugin";
 import * as pending from "../db/pending-interactions.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
-import { ApiError, hostUnavailable, invalidRequest } from "../http/errors.js";
+import {
+  ApiError,
+  conflict,
+  hostUnavailable,
+  invalidRequest,
+  threadNotFound,
+} from "../http/errors.js";
 import type { RunnerEventOf } from "../runners/registry.js";
-import { conflict, threadNotFound, type Outbox } from "./core.js";
+import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import { notifyParentBlocked } from "./parent-notices.js";
 

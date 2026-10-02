@@ -1,8 +1,8 @@
 import type { ToolCallResponse } from "@bb/domain";
 import { z } from "zod";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
+import { errorMessage } from "../http/errors.js";
 import type { RunnerEventOf } from "../runners/registry.js";
-import { errorMessage } from "./core.js";
 import { sessionEnvironmentOf } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import {

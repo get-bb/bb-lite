@@ -10,7 +10,7 @@ import { z } from "zod";
 import { dataPaths } from "../config.js";
 import type { ServerContext } from "../context.js";
 import { getAppSettings } from "../db/settings.js";
-import { invalidRequest, toApiError } from "../http/errors.js";
+import { errorMessage, invalidRequest, toApiError } from "../http/errors.js";
 import { requireHost, resolveLookupHostId } from "../runners/hosts.js";
 import {
   findProviderDefinition,
@@ -52,8 +52,7 @@ function modelLoadError(
   error: unknown,
 ): SystemExecutionOptionsModelLoadError {
   const known = toApiError(error)?.body.code;
-  const message = error instanceof Error ? error.message : String(error);
-  const detail = message.replace(/\s+/gu, " ").trim();
+  const detail = errorMessage(error).replace(/\s+/gu, " ").trim();
   const code =
     known === "missing_executable" || known === "auth_required"
       ? known

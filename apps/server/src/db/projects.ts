@@ -6,9 +6,8 @@ import {
   type ProjectSource,
 } from "@bb/domain";
 import type { ProjectResponse } from "@bb/server-contract";
-import { encodeJson, newId, type Db } from "./index.js";
+import { insertRow, newId, updateRow, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
-import { updateRow } from "./update-row.js";
 
 interface SourceRow extends Omit<ProjectSource, "isDefault"> {
   isDefault: number;
@@ -42,14 +41,14 @@ function toSource(row: SourceRow): ProjectSource {
   return { ...row, isDefault: row.isDefault === 1 };
 }
 
+function stamps(db: Db) {
+  return { createdAt: db.now(), updatedAt: db.now() };
+}
+
 export function ensurePersonalProject(db: Db): void {
-  db.run(
-    `INSERT INTO projects (id, kind, name, created_at, updated_at)
-     VALUES (?, 'personal', 'Personal', ?, ?) ON CONFLICT DO NOTHING`,
-    PERSONAL_PROJECT_ID,
-    db.now(),
-    db.now(),
-  );
+  const personal = { id: PERSONAL_PROJECT_ID, kind: "personal" };
+  const row = { ...personal, name: "Personal", ...stamps(db) };
+  insertRow(db, "projects", row, "ignore");
 }
 
 export function listStandardProjects(db: Db): Project[] {
@@ -118,7 +117,7 @@ export function setProjectExecutionDefaults(
   projectId: string,
   defaults: ProjectExecutionDefaults,
 ): void {
-  const executionDefaults = encodeJson(defaults);
+  const executionDefaults = JSON.stringify(defaults);
   updateRow(db, "projects", projectId, { executionDefaults });
 }
 
@@ -129,18 +128,9 @@ function insertSource(
   isDefault: boolean,
 ): string {
   const id = newId("src");
-  db.run(
-    `INSERT INTO project_sources
-       (id, project_id, host_id, path, is_default, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    id,
-    projectId,
-    source.hostId,
-    source.path,
-    isDefault ? 1 : 0,
-    db.now(),
-    db.now(),
-  );
+  const { hostId, path } = source;
+  const row = { id, projectId, hostId, path, isDefault: Number(isDefault) };
+  insertRow(db, "project_sources", { ...row, ...stamps(db) });
   return id;
 }
 
@@ -166,24 +156,13 @@ export function findOrCreateProject(
        ORDER BY sort_key DESC, id DESC LIMIT 1`,
     );
     const projectId = newId("proj");
-    db.run(
-      `INSERT INTO projects
-         (id, name, git_remote_url, sort_key, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      projectId,
-      input.name,
-      input.gitRemoteUrl,
-      orderKeyBetween(last?.sortKey ?? null, null),
-      db.now(),
-      db.now(),
-    );
+    const { name, gitRemoteUrl } = input;
+    const sortKey = orderKeyBetween(last?.sortKey ?? null, null);
+    const row = { id: projectId, name, gitRemoteUrl, sortKey };
+    insertRow(db, "projects", { ...row, ...stamps(db) });
     insertSource(db, projectId, input.source, true);
     return { projectId, created: true };
   });
-}
-
-export function renameProject(db: Db, id: string, name: string): void {
-  updateRow(db, "projects", id, { name });
 }
 
 export function setGitRemoteUrlIfMissing(

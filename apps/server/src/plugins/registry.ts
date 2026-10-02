@@ -15,9 +15,9 @@ import type {
 } from "@bb/server-contract";
 import { z } from "zod";
 import type { Logger } from "../context.js";
-import { ApiError, notFound } from "../http/errors.js";
+import { ApiError, errorMessage, notFound } from "../http/errors.js";
 import type { AppBundle } from "./bundle.js";
-import { errorMessage, type PluginInstance } from "./instance.js";
+import type { PluginInstance } from "./instance.js";
 import type { PluginManifest } from "./manifest.js";
 
 export interface PluginRecord {

@@ -24,6 +24,7 @@ import Database from "better-sqlite3";
 import type { Logger } from "../context.js";
 import type { Db } from "../db/index.js";
 import { readPluginRows, writePluginRow } from "../db/plugins.js";
+import { errorMessage } from "../http/errors.js";
 import type { Hub } from "../ws/hub.js";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
@@ -48,10 +49,6 @@ const MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS _bb_migrations
   (id INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL, statement_hash TEXT)`;
 const SERVICE_RESTART_BASE_MS = 1_000;
 const SERVICE_HEALTHY_MS = 60_000;
-
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export class PluginInstance {
   readonly rpc = new Map<

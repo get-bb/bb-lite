@@ -8,7 +8,7 @@ import {
   type AppThemeSelection,
 } from "@bb/domain";
 import type { ZodType } from "zod";
-import { encodeJson, type Db } from "./index.js";
+import { insertRow, type Db } from "./index.js";
 
 export interface Setting<T> {
   key: string;
@@ -45,14 +45,9 @@ export function readSetting<T>(db: Db, setting: Setting<T>): T {
 }
 
 export function writeSetting<T>(db: Db, setting: Setting<T>, value: T): void {
-  db.run(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (key) DO UPDATE
-     SET value = excluded.value, updated_at = excluded.updated_at`,
-    setting.key,
-    encodeJson(value),
-    db.now(),
-  );
+  const { key } = setting;
+  const row = { key, value: JSON.stringify(value), updatedAt: db.now() };
+  insertRow(db, "settings", row, ["key"]);
 }
 
 export function getAppSettings(db: Db): AppSettings {

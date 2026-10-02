@@ -5,8 +5,9 @@ import {
   type RealtimeSubscriptionTarget,
 } from "@bb/domain";
 import type { ServerContext } from "../context.js";
-import { findThreadEnvironment, getEnvironment } from "../db/environments.js";
+import { getEnvironment } from "../db/environments.js";
 import { findHost } from "../db/hosts.js";
+import { getThread } from "../db/threads.js";
 import type { Disposer } from "../server.js";
 import { refreshWorkspaceMetadata } from "./workspace.js";
 
@@ -62,8 +63,9 @@ export function startWorkspaceWatch(ctx: ServerContext): Disposer {
         if (found?.status !== "ready" || !found.path) continue;
         watch(on(found.hostId).workspaces, found.path, found.id);
       } else if (target.kind === "thread-detail") {
-        const thread = findThreadEnvironment(db, target.threadId);
-        if (!thread?.environmentId || thread.archivedAt !== null) continue;
+        const thread = getThread(db, target.threadId);
+        const closed = thread?.archivedAt !== null || thread.deletedAt !== null;
+        if (!thread?.environmentId || closed) continue;
         const found = getEnvironment(db, thread.environmentId);
         if (found === undefined || found.status === "destroyed") continue;
         const root = findHost(db, "id", found.hostId)?.threadStorageRoot;

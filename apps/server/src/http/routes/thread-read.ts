@@ -31,15 +31,17 @@ import {
   searchThreads,
   type ThreadSearchGroup,
 } from "../../db/thread-search.js";
-import { listThreadSections } from "../../db/thread-sections.js";
+import {
+  listThreadSections,
+  requireThreadSection,
+} from "../../db/thread-sections.js";
 import { requireProject } from "../../projects/require.js";
 import {
   findProviderDefinition,
   providerPlanCommand,
 } from "../../providers/catalog.js";
 import { hostResponse } from "../../runners/hosts.js";
-import { threadNotFound } from "../../threads/core.js";
-import { requireThreadSection } from "../../threads/create.js";
+
 import {
   findTurnExecution,
   recordedExecution,
@@ -55,7 +57,7 @@ import {
   type TimelineDisplay,
 } from "../../threads/timeline.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { invalidRequest, notFound } from "../errors.js";
+import { invalidRequest, notFound, threadNotFound } from "../errors.js";
 
 const DEFAULT_SEGMENT_LIMIT = 20;
 const MAX_SEGMENT_LIMIT = 100;

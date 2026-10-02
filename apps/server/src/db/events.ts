@@ -5,7 +5,7 @@ import type {
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import { latestSequence } from "./event-read.js";
-import { encodeJson, newId, type Db } from "./index.js";
+import { insertRow, newId, type Db } from "./index.js";
 import type { ThreadRow } from "./threads.js";
 
 export type EventSource = "server" | "runner";
@@ -143,30 +143,19 @@ export function upsertSearchSegment(
     );
     return;
   }
-  const now = db.now();
-  db.run(
-    `INSERT INTO thread_search_segments
-       (id, thread_id, source_kind, source_key, source_seq, text,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (thread_id, source_kind, source_key) DO UPDATE
-     SET text = excluded.text, updated_at = excluded.updated_at`,
-    `${threadId}:${kind}:${key}`,
-    threadId,
-    kind,
-    key,
-    sequence,
-    trimmed,
-    now,
-    now,
-  );
+  const at = { createdAt: db.now(), updatedAt: db.now() };
+  const id = `${threadId}:${kind}:${key}`;
+  const source = { sourceKind: kind, sourceKey: key, sourceSeq: sequence };
+  const segment = { id, threadId, ...source, text: trimmed, ...at };
+  const identity = ["thread_id", "source_kind", "source_key"];
+  insertRow(db, "thread_search_segments", segment, identity);
 }
 
 function visiblePromptInput(input: readonly PromptInput[]): PromptInput[] {
   return input.filter((part) => part.visibility !== "agent-only");
 }
 
-export function visiblePromptText(input: readonly PromptInput[]): string {
+function visiblePromptText(input: readonly PromptInput[]): string {
   return visiblePromptInput(input)
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")
@@ -188,18 +177,15 @@ function recordTurnRequest(
   const starts = event.target.kind === "thread-start";
   const input = visiblePromptInput(event.input);
   if (input.length === 0 || (starts && thread.parentThreadId !== null)) return;
-  db.run(
-    `INSERT INTO prompt_history_entries
-       (id, project_id, thread_id, scope, request_sequence, input, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    newId("phist"),
-    thread.projectId,
-    thread.id,
-    starts ? "project" : "thread",
-    sequence,
-    encodeJson(input),
-    now,
-  );
+  insertRow(db, "prompt_history_entries", {
+    id: newId("phist"),
+    projectId: thread.projectId,
+    threadId: thread.id,
+    scope: starts ? "project" : "thread",
+    requestSequence: sequence,
+    input: JSON.stringify(input),
+    createdAt: now,
+  });
 }
 
 function insertEvent(
@@ -209,27 +195,19 @@ function insertEvent(
   sequence: number,
 ): void {
   const { type, scope, ...data } = event;
-  const item = itemFields(event);
-  db.run(
-    `INSERT INTO events
-       (id, thread_id, environment_id, scope_kind, turn_id,
-        provider_thread_id, sequence, type, item_id, item_kind,
-        parent_tool_call_id, data, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    newId("evt"),
-    thread.id,
-    thread.environmentId,
-    scope.kind,
-    scope.kind === "turn" ? scope.turnId : null,
-    providerThreadIdOf(event),
+  insertRow(db, "events", {
+    id: newId("evt"),
+    threadId: thread.id,
+    environmentId: thread.environmentId,
+    scopeKind: scope.kind,
+    turnId: scope.kind === "turn" ? scope.turnId : null,
+    providerThreadId: providerThreadIdOf(event),
     sequence,
     type,
-    item.itemId,
-    item.itemKind,
-    item.parentToolCallId,
-    encodeJson(data),
-    db.now(),
-  );
+    ...itemFields(event),
+    data: JSON.stringify(data),
+    createdAt: db.now(),
+  });
   if (type === "client/turn/requested") {
     recordTurnRequest(db, thread, event, sequence);
   } else if (type === "item/completed") {

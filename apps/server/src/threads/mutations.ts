@@ -5,9 +5,10 @@ import {
 import type * as contract from "@bb/server-contract";
 import * as queue from "../db/queued-messages.js";
 import { listSidebarThreadRows } from "../db/thread-read.js";
+import { requireThreadSection } from "../db/thread-sections.js";
 import * as store from "../db/threads.js";
-import { conflict } from "./core.js";
-import { requireThreadSection, requireValidParent } from "./create.js";
+import { conflict } from "../http/errors.js";
+import { requireValidParent } from "./create.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
@@ -167,8 +168,6 @@ export function createQueuedMessage(
     threadId,
     content: request.input,
     senderThreadId: engine.senderOf(thread, request.senderThreadId),
-    origin: null,
-    originPluginId: null,
     systemNotice: null,
     ...resolveTurnExecution(db, thread, request),
     waitingOn: { kind: stopping ? "stopping" : "thread-busy" },

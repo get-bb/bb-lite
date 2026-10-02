@@ -2,21 +2,18 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 
-export interface ByteRange {
+interface ByteRange {
   start: number;
   end: number;
 }
 
-export interface FileResponseOptions {
-  range: string | undefined;
-  ifNoneMatch: string | undefined;
-  contentType: string;
-  cacheControl: string;
+interface ByteSelection extends ByteRange {
+  status: 200 | 206;
 }
 
 const SINGLE_RANGE = /^bytes=(\d*)-(\d*)$/u;
 
-export function parseSingleRange(
+function parseSingleRange(
   header: string | undefined,
   size: number,
 ): ByteRange | "unsatisfiable" | null {
@@ -35,9 +32,40 @@ export function parseSingleRange(
   return start >= size || end < start ? "unsatisfiable" : { start, end };
 }
 
+export function matchesEntityTag(
+  header: string | null | undefined,
+  etag: string,
+): boolean {
+  const opaque = (tag: string): string => tag.trim().replace(/^W\//u, "");
+  const wanted = header?.split(",").map(opaque) ?? [];
+  return wanted.includes("*") || wanted.includes(opaque(etag));
+}
+
+export function selectRange(
+  headers: Headers,
+  header: string | undefined,
+  size: number,
+): ByteSelection | null {
+  const range = parseSingleRange(header, size);
+  if (range === "unsatisfiable") {
+    headers.set("content-range", `bytes */${size}`);
+    return null;
+  }
+  const { start, end } = range ?? { start: 0, end: size - 1 };
+  headers.set("content-length", String(end - start + 1));
+  if (range === null) return { start, end, status: 200 };
+  headers.set("content-range", `bytes ${start}-${end}/${size}`);
+  return { start, end, status: 206 };
+}
+
 export async function fileResponse(
   path: string,
-  options: FileResponseOptions,
+  options: {
+    range: string | undefined;
+    ifNoneMatch: string | undefined;
+    contentType: string;
+    cacheControl: string;
+  },
 ): Promise<Response | null> {
   const file = await stat(path).catch(() => null);
   if (file === null || !file.isFile()) return null;
@@ -52,17 +80,9 @@ export async function fileResponse(
   if (options.ifNoneMatch?.split(",").some((tag) => tag.trim() === etag)) {
     return new Response(null, { status: 304, headers });
   }
-  const range = parseSingleRange(options.range, size);
-  if (range === "unsatisfiable") {
-    headers.set("content-range", `bytes */${size}`);
-    return new Response(null, { status: 416, headers });
-  }
-  const { start, end } = range ?? { start: 0, end: size - 1 };
-  headers.set("content-length", String(end - start + 1));
-  if (range !== null) {
-    headers.set("content-range", `bytes ${start}-${end}/${size}`);
-  }
-  const status = range === null ? 200 : 206;
+  const selected = selectRange(headers, options.range, size);
+  if (selected === null) return new Response(null, { status: 416, headers });
+  const { start, end, status } = selected;
   if (size === 0) return new Response(null, { status, headers });
   const body = Readable.toWeb(createReadStream(path, { start, end }));
   return new Response(body as ReadableStream<Uint8Array>, { status, headers });

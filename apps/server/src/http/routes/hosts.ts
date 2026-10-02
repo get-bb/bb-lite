@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
-import type { ServerContext } from "../../context.js";
+import type { ServerContext, ServerRunner } from "../../context.js";
 import { newId } from "../../db/index.js";
 import {
   destroyHost,
@@ -23,11 +23,11 @@ import {
   requireHost,
 } from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
-import { principalOf } from "../trust.js";
+import { ApiError, errorMessage, invalidRequest } from "../errors.js";
+import { principalOf, requireOwner } from "../trust.js";
 
-interface RequestUrl {
-  req: { url: string };
+interface HostRequest {
+  req: { raw: Request; url: string; param(name: "id"): string };
 }
 
 const MANUAL_MACHINE_PROVIDER_ID = "manual";
@@ -43,20 +43,25 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   const pendingJoins = new Map<string, JoinToken>();
 
   const commandFor = async (
-    c: RequestUrl,
+    c: HostRequest,
     hostId: string,
     { joinToken, expiresAt }: JoinToken,
   ) => {
     const granting = plugins.machineAccess()?.grant(hostId);
     const access = await granting?.catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new ApiError(502, "machine_access_unavailable", message);
+      const code = "machine_access_unavailable";
+      throw new ApiError(502, code, errorMessage(error));
     });
     const serverUrl =
       access?.serverUrl ?? publicServerUrl(ctx) ?? new URL(c.req.url).origin;
     const headers = access?.headers;
     const command = joinCommand({ serverUrl, hostId, joinToken, headers });
     return { command, expiresAt };
+  };
+
+  const ownerRunner = (c: HostRequest): ServerRunner => {
+    requireOwner(c, "Only the owner can open paths in local apps");
+    return runners.get(requireHost(ctx, c.req.param("id")).id);
   };
 
   post(routes.create, (c, payload) => {
@@ -100,13 +105,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   get(routes.enrollmentCommand, async (c) => {
-    if (principalOf(c).kind !== "owner") {
-      throw new ApiError(
-        403,
-        "forbidden",
-        "Machine credentials cannot read enrollment commands",
-      );
-    }
+    requireOwner(c, "Machine credentials cannot read enrollment commands");
     const host = requireHost(ctx, c.req.param("id"));
     const pending = pendingJoins.get(host.id);
     const usable =
@@ -173,6 +172,15 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
         err: error,
       });
     });
+    return c.json({ ok: true });
+  });
+
+  get(routes.openTargets, async (c) =>
+    c.json(await ownerRunner(c).listOpenTargets()),
+  );
+
+  post(routes.open, async (c, { line = null, column = null, ...target }) => {
+    await ownerRunner(c).openInTarget({ ...target, line, column });
     return c.json({ ok: true });
   });
 }

@@ -5,25 +5,29 @@ import {
   type EnvironmentStatus,
   type WorkspaceProvisionType,
 } from "@bb/domain";
-import { decodeJson, newId, type Db, type SqlValue } from "./index.js";
-import { updateRow, type RowPatch } from "./update-row.js";
+import {
+  decodeJson,
+  insertRow,
+  newId,
+  updateRow,
+  type Db,
+  type RowValues,
+  type SqlValue,
+} from "./index.js";
 
-interface EnvironmentRow {
-  id: string;
-  name: string | null;
-  projectId: string;
-  hostId: string;
-  path: string | null;
+type Derived =
+  | "isGitRepo"
+  | "isWorktree"
+  | "lifecycle"
+  | "hostLifecycle"
+  | "environmentProviderSelection"
+  | "managed"
+  | "workspaceProvisionType";
+
+interface EnvironmentRow extends Omit<Environment, Derived> {
   isGitRepo: number;
   isWorktree: number;
-  branchName: string | null;
-  baseBranch: string | null;
-  defaultBranch: string | null;
-  mergeBaseBranch: string | null;
-  status: EnvironmentStatus;
-  environmentProviderId: string | null;
   environmentProviderSelection: string | null;
-  environmentProviderInstanceKey: string | null;
   providerOwnsPath: number;
   retireAt: number | null;
   teardownStatus: "running" | "failed" | "removed" | null;
@@ -31,8 +35,6 @@ interface EnvironmentRow {
   teardownMessage: string | null;
   hostPhase: string;
   hostDestroyedAt: number | null;
-  createdAt: number;
-  updatedAt: number;
 }
 
 export interface EnvironmentFilter {
@@ -75,11 +77,6 @@ export interface NewEnvironment {
 export interface EnvironmentUse {
   attached: number;
   live: number;
-}
-
-export interface ThreadEnvironmentLink {
-  environmentId: string | null;
-  archivedAt: number | null;
 }
 
 const SELECT_ENVIRONMENTS = `SELECT e.id, e.name, e.project_id, e.host_id,
@@ -190,30 +187,20 @@ export function listEnvironments(
 
 export function insertEnvironment(db: Db, input: NewEnvironment): string {
   const id = newId("env");
-  const { ownerThreadId } = input;
-  const managed = ownerThreadId !== null;
+  const { instanceKey, ...columns } = input;
+  const managed = input.ownerThreadId !== null;
   const worktree = input.environmentProviderId === "git-worktree";
-  db.run(
-    `INSERT INTO environments
-       (id, project_id, host_id, path, environment_provider_id,
-        environment_provider_instance_key, owner_thread_id,
-        provider_owns_path, is_git_repo, is_worktree, status,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  insertRow(db, "environments", {
     id,
-    input.projectId,
-    input.hostId,
-    input.path,
-    input.environmentProviderId,
-    input.instanceKey,
-    ownerThreadId,
-    Number(managed),
-    Number(worktree),
-    Number(worktree),
-    managed ? "creating" : "provisioning",
-    db.now(),
-    db.now(),
-  );
+    ...columns,
+    environmentProviderInstanceKey: instanceKey,
+    providerOwnsPath: Number(managed),
+    isGitRepo: Number(worktree),
+    isWorktree: Number(worktree),
+    status: managed ? "creating" : "provisioning",
+    createdAt: db.now(),
+    updatedAt: db.now(),
+  });
   return id;
 }
 
@@ -222,15 +209,11 @@ export function updateEnvironment(
   id: string,
   patch: EnvironmentPatch,
 ): boolean {
-  const columns: RowPatch = {};
+  const columns: RowValues = {};
   for (const [key, value] of Object.entries(patch)) {
     columns[key] = typeof value === "boolean" ? Number(value) : value;
   }
   return updateRow(db, "environments", id, columns);
-}
-
-export function deleteEnvironment(db: Db, id: string): void {
-  db.run("DELETE FROM environments WHERE id = ?", id);
 }
 
 export function listEnvironmentThreadIds(
@@ -247,17 +230,6 @@ export function listEnvironmentThreadIds(
       environmentId,
     )
     .map((thread) => thread.id);
-}
-
-export function findThreadEnvironment(
-  db: Db,
-  threadId: string,
-): ThreadEnvironmentLink | undefined {
-  return db.get<ThreadEnvironmentLink>(
-    `SELECT environment_id, archived_at FROM threads
-     WHERE id = ? AND deleted_at IS NULL`,
-    threadId,
-  );
 }
 
 export function environmentUse(db: Db, environmentId: string): EnvironmentUse {

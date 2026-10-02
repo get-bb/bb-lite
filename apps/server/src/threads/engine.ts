@@ -14,7 +14,7 @@ import * as eventLog from "../db/events.js";
 import * as queue from "../db/queued-messages.js";
 import { findThreadListRow } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
+import { ApiError, threadNotFound } from "../http/errors.js";
 import { onProjectDeleted } from "../projects/remove.js";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
@@ -98,9 +98,7 @@ export class Engine {
   }
 
   requireThread(threadId: string): ThreadRow {
-    const thread = store.getThread(this.ctx.db, threadId);
-    if (thread !== undefined && thread.deletedAt === null) return thread;
-    throw core.threadNotFound();
+    return store.requireThread(this.ctx.db, threadId);
   }
 
   hostOf(thread: ThreadRow): string | null {
@@ -117,7 +115,7 @@ export class Engine {
 
   private listed(threadId: string) {
     const row = findThreadListRow(this.ctx.db, threadId);
-    if (row === undefined) throw core.threadNotFound();
+    if (row === undefined) throw threadNotFound();
     return row;
   }
 

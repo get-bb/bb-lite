@@ -1,5 +1,5 @@
 import type { IncomingHttpHeaders } from "node:http";
-import { ApiError, notFound } from "./errors.js";
+import { ApiError, forbidden, notFound } from "./errors.js";
 
 export type Principal =
   | { kind: "owner" }
@@ -115,11 +115,7 @@ export function authorize(
     !READ_METHODS.includes(request.method) &&
     RUNNER_FORBIDDEN_WRITES.test(path)
   ) {
-    throw new ApiError(
-      403,
-      "forbidden",
-      "Machine credentials cannot manage machines or settings",
-    );
+    throw forbidden("Machine credentials cannot manage machines or settings");
   }
   return principal;
 }
@@ -130,4 +126,11 @@ export function principalOf(context: { req: { raw: Request } }): Principal {
   const principal = principals.get(context.req.raw);
   if (principal === undefined) throw new Error("Request has no principal");
   return principal;
+}
+
+export function requireOwner(
+  context: { req: { raw: Request } },
+  refusal: string,
+): void {
+  if (principalOf(context).kind !== "owner") throw forbidden(refusal);
 }

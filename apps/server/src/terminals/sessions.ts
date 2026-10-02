@@ -22,14 +22,14 @@ import {
   selectTerminals,
   updateTerminal,
 } from "../db/terminals.js";
-import type { RowPatch } from "../db/update-row.js";
+import type { RowValues } from "../db/index.js";
+import { requireThread } from "../db/threads.js";
 import {
   requireEnvironment,
   requireReadyEnvironment,
   requireThreadEnvironment,
-  threadEnvironmentId,
 } from "../environments/workspace.js";
-import { ApiError, toApiError } from "../http/errors.js";
+import { ApiError, errorMessage, toApiError } from "../http/errors.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
 import { requireHost } from "../runners/hosts.js";
 import type { Disposer } from "../server.js";
@@ -67,9 +67,8 @@ function clientsOf(ctx: ServerContext, terminalId: string): Client[] {
 }
 
 function errorFrame(error: unknown): { code: string; message: string } {
-  const known = toApiError(error)?.body;
-  const message = error instanceof Error ? error.message : String(error);
-  return known ?? { code: "terminal_socket_error", message };
+  const message = errorMessage(error);
+  return toApiError(error)?.body ?? { code: "terminal_socket_error", message };
 }
 
 function announce(ctx: ServerContext, session: TerminalSession) {
@@ -86,7 +85,7 @@ function announce(ctx: ServerContext, session: TerminalSession) {
 function change(
   ctx: ServerContext,
   session: TerminalSession,
-  patch: RowPatch,
+  patch: RowValues,
 ): TerminalSession {
   const current = getTerminal(ctx.db, session.id) ?? session;
   if (current.status === "exited" && "status" in patch) return current;
@@ -243,7 +242,7 @@ export function listTerminalSessions(
   const { threadId, environmentId, hostId = "", cwd = null } = query;
   const open = "status <> 'exited'";
   if (threadId !== undefined) {
-    threadEnvironmentId(ctx, threadId);
+    requireThread(db, threadId);
     return selectTerminals(db, `thread_id = ? AND ${open}`, threadId);
   }
   const unowned = `thread_id IS NULL AND ${open}`;

@@ -10,7 +10,8 @@ import type { Hub } from "../ws/hub.js";
 import { builtinPlugins, type BuiltinPlugin } from "./builtin.js";
 import { bundleApp, importServerEntry } from "./bundle.js";
 import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
-import { createPluginInstance, errorMessage } from "./instance.js";
+import { errorMessage } from "../http/errors.js";
+import { createPluginInstance } from "./instance.js";
 import { readExternalPluginEntries, readManifest } from "./manifest.js";
 import { PluginRegistry, type PluginRecord } from "./registry.js";
 

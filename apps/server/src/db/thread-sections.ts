@@ -2,12 +2,8 @@ import type {
   ThreadSectionMutationResponse,
   ThreadSectionResponse,
 } from "@bb/server-contract";
-import { newId, type Db } from "./index.js";
-import { updateRow } from "./update-row.js";
-
-export type SectionWrite<Result> =
-  | { outcome: "ok"; result: Result }
-  | { outcome: "duplicate" | "not-found" };
+import { ApiError } from "../http/errors.js";
+import { insertRow, newId, updateRow, type Db } from "./index.js";
 
 export interface DeletedSection extends ThreadSectionMutationResponse {
   threads: { id: string; projectId: string }[];
@@ -26,6 +22,20 @@ function findSection(
   );
 }
 
+export function requireThreadSection(
+  db: Db,
+  id: string,
+): ThreadSectionResponse {
+  const section = findSection(db, "id", id);
+  if (section !== undefined) return section;
+  throw new ApiError(404, "section_not_found", "Section not found");
+}
+
+function nameTaken(): ApiError {
+  const message = "Section name already exists";
+  return new ApiError(409, "section_name_conflict", message);
+}
+
 export function listThreadSections(db: Db): ThreadSectionResponse[] {
   return db.all<ThreadSectionResponse>(
     `SELECT ${SECTION_COLUMNS} FROM thread_sections ORDER BY name, id`,
@@ -35,23 +45,13 @@ export function listThreadSections(db: Db): ThreadSectionResponse[] {
 export function createThreadSection(
   db: Db,
   name: string,
-): SectionWrite<ThreadSectionResponse> {
-  return db.transaction((): SectionWrite<ThreadSectionResponse> => {
-    if (findSection(db, "name", name)) return { outcome: "duplicate" };
-    const section = {
-      id: newId("sec"),
-      name,
-      createdAt: db.now(),
-      updatedAt: db.now(),
-    };
-    db.run(
-      `INSERT INTO thread_sections (${SECTION_COLUMNS}) VALUES (?, ?, ?, ?)`,
-      section.id,
-      section.name,
-      section.createdAt,
-      section.updatedAt,
-    );
-    return { outcome: "ok", result: section };
+): ThreadSectionResponse {
+  return db.transaction(() => {
+    if (findSection(db, "name", name)) throw nameTaken();
+    const at = { createdAt: db.now(), updatedAt: db.now() };
+    const section = { id: newId("sec"), name, ...at };
+    insertRow(db, "thread_sections", section);
+    return section;
   });
 }
 
@@ -59,27 +59,19 @@ export function renameThreadSection(
   db: Db,
   id: string,
   name: string,
-): SectionWrite<ThreadSectionMutationResponse> {
-  return db.transaction((): SectionWrite<ThreadSectionMutationResponse> => {
-    if (findSection(db, "id", id) === undefined) {
-      return { outcome: "not-found" };
-    }
+): ThreadSectionMutationResponse {
+  return db.transaction(() => {
+    requireThreadSection(db, id);
     const sameName = findSection(db, "name", name);
-    if (sameName !== undefined && sameName.id !== id) {
-      return { outcome: "duplicate" };
-    }
+    if (sameName !== undefined && sameName.id !== id) throw nameTaken();
     if (sameName === undefined) updateRow(db, "thread_sections", id, { name });
-    return { outcome: "ok", result: { id, name, updatedThreadCount: 0 } };
+    return { id, name, updatedThreadCount: 0 };
   });
 }
 
-export function deleteThreadSection(
-  db: Db,
-  id: string,
-): DeletedSection | undefined {
+export function deleteThreadSection(db: Db, id: string): DeletedSection {
   return db.transaction(() => {
-    const section = findSection(db, "id", id);
-    if (section === undefined) return undefined;
+    const { name } = requireThreadSection(db, id);
     const threads = db.all<{ id: string; projectId: string }>(
       "SELECT id, project_id FROM threads WHERE section_id = ?",
       id,
@@ -90,7 +82,6 @@ export function deleteThreadSection(
       id,
     );
     db.run("DELETE FROM thread_sections WHERE id = ?", id);
-    const updatedThreadCount = threads.length;
-    return { id, name: section.name, updatedThreadCount, threads };
+    return { id, name, updatedThreadCount: threads.length, threads };
   });
 }

@@ -2,11 +2,20 @@ import {
   applyAppKeybindingOverrides,
   appSettingsSchema,
   customThemeNameSchema,
+  defaultFeatureFlags,
+  getUiPreferenceDefault,
   isBuiltInThemeId,
+  isUiPreferenceKey,
+  parseUiPreferenceValue,
+  UI_PREFERENCE_KEYS,
+  type PluginThemeMeta,
+  type UiPreferenceEntries,
+  type UiPreferenceKey,
 } from "@bb/domain";
-import { publicApiRoutes } from "@bb/server-contract";
+import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
 import { dataPaths } from "../../config.js";
 import type { ServerContext } from "../../context.js";
+import { writeRevision, type Db } from "../../db/index.js";
 import {
   appearanceSetting,
   getAppSettings,
@@ -15,6 +24,12 @@ import {
   setAppSettings,
   writeSetting,
 } from "../../db/settings.js";
+import {
+  machineEnvironmentView,
+  projectMachineEnvironmentView,
+  replaceMachineEnvironment,
+} from "../../machine-environment.js";
+import { requireProject } from "../../projects/require.js";
 import { publicServerUrl } from "../../runners/hosts.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
 import {
@@ -24,22 +39,78 @@ import {
   resolveTheme,
 } from "../../settings/themes.js";
 import { typedApi, type ApiApp } from "../api.js";
-import {
-  CUT_FEATURE_SYSTEM_CONFIG,
-  DIRECT_SERVER_ACCESS_PROVIDER,
-} from "../cut-feature-constants.js";
 import { ApiError, invalidRequest } from "../errors.js";
+
+interface PreferenceRow {
+  key: string;
+  valueJson: string;
+  revision: number;
+}
+
+const NO_PLUGIN_THEMES: PluginThemeMeta[] = [];
+const DIRECT_ACCESS: ServerAccessStatus["providers"][number] = {
+  id: "direct",
+  displayName: "Manual",
+  description: "Use your own domain or network address.",
+  pluginId: null,
+  availability: null,
+};
 
 function serverPlatform(): "darwin" | "linux" | "unknown" {
   const { platform } = process;
   return platform === "darwin" || platform === "linux" ? platform : "unknown";
 }
 
+function requireUiPreferenceKey(key: string): UiPreferenceKey {
+  if (isUiPreferenceKey(key)) return key;
+  throw new ApiError(
+    404,
+    "ui_preference_not_found",
+    `Unknown UI preference '${key}'. Known preferences: ` +
+      `${UI_PREFERENCE_KEYS.join(", ")}.`,
+  );
+}
+
+function readUiPreferences(db: Db): UiPreferenceEntries {
+  const sql = "SELECT key, value_json, revision FROM ui_preferences";
+  const rows = db.all<PreferenceRow>(sql);
+  const entries = UI_PREFERENCE_KEYS.map((key) => {
+    const row = rows.find((stored) => stored.key === key);
+    const fallback = getUiPreferenceDefault(key);
+    if (row === undefined) return [key, { revision: 0, value: fallback }];
+    const stored = parseUiPreferenceValue(key, JSON.parse(row.valueJson));
+    const value = stored.success ? stored.value : fallback;
+    return [key, { revision: row.revision, value }];
+  });
+  return Object.fromEntries(entries) as UiPreferenceEntries;
+}
+
+function writeUiPreference(
+  db: Db,
+  key: UiPreferenceKey,
+  value: unknown,
+  expectedRevision: number | null,
+): number {
+  const row = { key, valueJson: JSON.stringify(value) };
+  const write = writeRevision(
+    db,
+    "ui_preferences",
+    "key",
+    row,
+    expectedRevision,
+  );
+  if (write.outcome === "updated") return write.revision;
+  const message = "UI preference changed on another client";
+  const details = { currentRevision: write.revision };
+  throw new ApiError(409, "ui_preference_conflict", message, { details });
+}
+
 export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
-  const { get, put } = typedApi(app);
-  const routes = publicApiRoutes.system;
+  const { del, get, put } = typedApi(app);
+  const { system: routes, projects } = publicApiRoutes;
+  const { db, hub } = ctx;
   const themesDir = dataPaths(ctx.config.dataDir).themes;
-  const appearance = () => readSetting(ctx.db, appearanceSetting);
+  const appearance = () => readSetting(db, appearanceSetting);
   const activeTheme = () => resolveTheme(themesDir, appearance());
 
   async function requireKnownTheme(themeId: string): Promise<void> {
@@ -58,14 +129,15 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   }
 
   get(routes.config, async (c) => {
-    const generalSettings = getAppSettings(ctx.db);
-    const keybindingOverrides = readSetting(ctx.db, keybindingOverridesSetting);
+    const generalSettings = getAppSettings(db);
+    const keybindingOverrides = readSetting(db, keybindingOverridesSetting);
     const publicUrl = publicServerUrl(ctx);
     return c.json({
-      ...CUT_FEATURE_SYSTEM_CONFIG,
+      featureFlags: defaultFeatureFlags,
+      pluginThemes: NO_PLUGIN_THEMES,
       serverAccess: {
-        providers: [DIRECT_SERVER_ACCESS_PROVIDER],
-        defaultProviderId: DIRECT_SERVER_ACCESS_PROVIDER.id,
+        providers: [DIRECT_ACCESS],
+        defaultProviderId: DIRECT_ACCESS.id,
         effectiveUrl: publicUrl,
         urlSource: publicUrl === null ? null : "setting",
       },
@@ -87,30 +159,29 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
 
   put(routes.generalSettings, (c, payload) => {
     const { showUnhandledProviderEvents, ...settings } = payload;
-    const current = getAppSettings(ctx.db);
     const updated = appSettingsSchema.parse({
-      ...current,
+      ...getAppSettings(db),
       ...settings,
       showDiagnosticEvents:
         "showDiagnosticEvents" in settings
           ? settings.showDiagnosticEvents
           : showUnhandledProviderEvents,
     });
-    setAppSettings(ctx.db, updated);
-    ctx.hub.system(["config-changed"]);
+    setAppSettings(db, updated);
+    hub.system(["config-changed"]);
     return c.json(updated);
   });
 
   put(routes.keyboardSettings, (c, overrides) => {
-    writeSetting(ctx.db, keybindingOverridesSetting, overrides);
-    ctx.hub.system(["config-changed"]);
+    writeSetting(db, keybindingOverridesSetting, overrides);
+    hub.system(["config-changed"]);
     return c.json(overrides);
   });
 
   put(routes.appearance, async (c, selection) => {
     await requireKnownTheme(selection.themeId);
-    writeSetting(ctx.db, appearanceSetting, selection);
-    ctx.hub.system(["config-changed"]);
+    writeSetting(db, appearanceSetting, selection);
+    hub.system(["config-changed"]);
     return c.json(await activeTheme());
   });
 
@@ -118,7 +189,7 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     c.json({
       dir: themesDir,
       custom: await listCustomThemes(themesDir),
-      plugins: CUT_FEATURE_SYSTEM_CONFIG.pluginThemes,
+      plugins: NO_PLUGIN_THEMES,
       active: await activeTheme(),
     }),
   );
@@ -128,5 +199,56 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
     await requireKnownTheme(themeId);
     const { faviconColor } = appearance();
     return c.json(await resolveTheme(themesDir, { themeId, faviconColor }));
+  });
+
+  get(routes.uiPreferences, (c) =>
+    c.json({ preferences: readUiPreferences(db) }),
+  );
+
+  put(routes.updateUiPreference, (c, payload) => {
+    const key = requireUiPreferenceKey(c.req.param("key"));
+    const parsed = parseUiPreferenceValue(key, payload.value);
+    if (!parsed.success) {
+      throw invalidRequest(
+        `Invalid value for UI preference '${key}': ${parsed.message}`,
+      );
+    }
+    const { value } = parsed;
+    const revision = writeUiPreference(
+      db,
+      key,
+      value,
+      payload.expectedRevision,
+    );
+    hub.system(["ui-preferences-changed"]);
+    return c.json({ key, revision, value });
+  });
+
+  del(routes.resetUiPreference, (c) => {
+    const key = requireUiPreferenceKey(c.req.param("key"));
+    const value = getUiPreferenceDefault(key);
+    const revision = writeUiPreference(db, key, value, null);
+    hub.system(["ui-preferences-changed"]);
+    return c.json({ key, revision, value });
+  });
+
+  get(routes.machineEnvironment, (c) => c.json(machineEnvironmentView(db)));
+
+  put(routes.replaceMachineEnvironment, async (c, payload) => {
+    await replaceMachineEnvironment(ctx, null, payload);
+    hub.system(["config-changed"]);
+    return c.json(machineEnvironmentView(db));
+  });
+
+  get(projects.machineEnvironment, (c) => {
+    const { id } = requireProject(db, c.req.param("id"));
+    return c.json(projectMachineEnvironmentView(db, id));
+  });
+
+  put(projects.replaceMachineEnvironment, async (c, payload) => {
+    const { id } = requireProject(db, c.req.param("id"));
+    await replaceMachineEnvironment(ctx, id, payload);
+    hub.system(["config-changed"]);
+    return c.json(projectMachineEnvironmentView(db, id));
   });
 }

@@ -1,16 +1,61 @@
-import { PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES } from "@bb/domain";
-import { publicApiRoutes } from "@bb/server-contract";
+import {
+  PERSONAL_PROJECT_ID,
+  PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES,
+} from "@bb/domain";
+import {
+  publicApiRoutes,
+  threadTabSchema,
+  type ThreadTab,
+  type ThreadTabsWireResponse,
+} from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
-import { getThread } from "../../db/threads.js";
+import { writeRevision } from "../../db/index.js";
+import * as sections from "../../db/thread-sections.js";
+import { requireThread } from "../../db/threads.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
 
+type WireTab = ThreadTabsWireResponse["tabs"][number];
+
 const OK = { ok: true } as const;
 
+function sectionName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed === "") throw invalidRequest("Section name cannot be empty");
+  return trimmed;
+}
+
+function toWireTab(tab: ThreadTab): WireTab {
+  if (tab.kind === "host-file-preview") {
+    const { hostId, ...rest } = tab;
+    return hostId === null ? rest : tab;
+  }
+  if (
+    tab.kind === "plugin-panel" &&
+    tab.fileOpenerOwner?.kind === "host-file-preview"
+  ) {
+    const { hostId, ...owner } = tab.fileOpenerOwner;
+    return hostId === null ? { ...tab, fileOpenerOwner: owner } : tab;
+  }
+  return tab;
+}
+
+function storedWireTabs(tabsJson: string): WireTab[] {
+  const parsed: unknown = JSON.parse(tabsJson);
+  const candidates: unknown[] = Array.isArray(parsed) ? parsed : [];
+  return candidates.flatMap((candidate) => {
+    const tab = threadTabSchema.safeParse(candidate);
+    return tab.success ? [toWireTab(tab.data)] : [];
+  });
+}
+
 export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
-  const { del, patch, post } = typedApi(app);
+  const { del, get, patch, post, put } = typedApi(app);
   const routes = publicApiRoutes.threads;
-  const { threads } = ctx;
+  const sectionRoutes = publicApiRoutes.threadSections;
+  const { db, hub, threads } = ctx;
+  const announceSections = (): void =>
+    hub.project(PERSONAL_PROJECT_ID, ["threads-changed"]);
 
   post(routes.create, async (c, payload) =>
     c.json(await threads.create(payload), 201),
@@ -95,9 +140,8 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(OK);
   });
 
-  post(routes.sendQueuedMessage, async (c, payload) => {
+  post(routes.sendQueuedMessage, async (c, { mode }) => {
     const { id, queuedMessageId } = c.req.param();
-    const { mode } = payload;
     return c.json(
       await threads.sendQueuedMessageNow(id, queuedMessageId, mode),
     );
@@ -115,16 +159,14 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json(await threads.resolveInteraction(id, interactionId, payload));
   });
 
-  post(routes.respondToInteraction, async (c, payload) => {
+  post(routes.respondToInteraction, async (c, { value }) => {
     const { id, interactionId } = c.req.param();
-    const size = Buffer.byteLength(JSON.stringify(payload.value), "utf8");
+    const size = Buffer.byteLength(JSON.stringify(value), "utf8");
     if (size > PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES) {
       const message = "Interaction response exceeds 64 KiB";
       throw new ApiError(413, "invalid_request", message);
     }
-    return c.json(
-      await threads.respondToInteraction(id, interactionId, payload.value),
-    );
+    return c.json(await threads.respondToInteraction(id, interactionId, value));
   });
 
   post(routes.cancelInteraction, async (c) => {
@@ -133,17 +175,68 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.open, (c, payload) => {
-    const thread = getThread(ctx.db, c.req.param("id"));
-    if (thread === undefined || thread.deletedAt !== null) {
-      throw new ApiError(404, "thread_not_found", "Thread not found");
-    }
+    const { projectId, id: threadId } = requireThread(db, c.req.param("id"));
     const { file } = payload;
     if (file !== null && file.path.split("/").includes("..")) {
       throw invalidRequest("File path must stay inside its root.");
     }
-    const { projectId, id: threadId } = thread;
     const split = payload.split ?? "replace";
-    const delivered = ctx.hub.threadOpen({ projectId, threadId, split, file });
+    const delivered = hub.threadOpen({ projectId, threadId, split, file });
     return c.json({ delivered });
+  });
+
+  get(routes.tabs, (c) => {
+    const { id } = requireThread(db, c.req.param("id"));
+    const stored = db.get<{ revision: number; tabsJson: string }>(
+      "SELECT revision, tabs_json FROM thread_tabs WHERE thread_id = ?",
+      id,
+    );
+    if (stored === undefined) return c.json({ revision: 0, tabs: [] });
+    const { revision, tabsJson } = stored;
+    return c.json({ revision, tabs: storedWireTabs(tabsJson) });
+  });
+
+  put(routes.updateTabs, (c, { expectedRevision, tabs }) => {
+    const { id } = requireThread(db, c.req.param("id"));
+    const row = { threadId: id, tabsJson: JSON.stringify(tabs) };
+    const expected = expectedRevision;
+    const write = writeRevision(db, "thread_tabs", "threadId", row, expected);
+    const { revision } = write;
+    if (write.outcome === "conflict") {
+      const message = "Thread tabs changed on another client";
+      const details = { currentRevision: revision };
+      throw new ApiError(409, "thread_tabs_conflict", message, { details });
+    }
+    hub.thread(id, ["tabs-changed"]);
+    return c.json({ revision, tabs: tabs.map(toWireTab) });
+  });
+
+  get(sectionRoutes.list, (c) => c.json(sections.listThreadSections(db)));
+
+  post(sectionRoutes.create, (c, payload) => {
+    const name = sectionName(payload.name);
+    const section = sections.createThreadSection(db, name);
+    announceSections();
+    return c.json(section, 201);
+  });
+
+  patch(sectionRoutes.update, (c, payload) => {
+    const name = sectionName(payload.name);
+    const renamed = sections.renameThreadSection(db, payload.id, name);
+    announceSections();
+    return c.json(renamed);
+  });
+
+  del(sectionRoutes.delete, (c, payload) => {
+    const deleted = sections.deleteThreadSection(db, payload.id);
+    const { threads: moved, ...result } = deleted;
+    for (const { id, projectId } of moved) {
+      hub.thread(id, ["title-changed"], { projectId });
+    }
+    const projectIds = moved.map((thread) => thread.projectId);
+    for (const projectId of new Set([PERSONAL_PROJECT_ID, ...projectIds])) {
+      hub.project(projectId, ["threads-changed"]);
+    }
+    return c.json(result);
   });
 }

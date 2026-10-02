@@ -10,12 +10,13 @@ import { z } from "zod";
 import { getEnvironment } from "../db/environments.js";
 import { decodeJson, newId } from "../db/index.js";
 import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
+import { step } from "../environments/scripts.js";
 import {
   environmentIntentSchema,
   type ThreadEnvironment,
 } from "../environments/types.js";
-import { ApiError } from "../http/errors.js";
-import { errorMessage, type Outbox } from "./core.js";
+import { ApiError, errorMessage } from "../http/errors.js";
+import type { Outbox } from "./core.js";
 import {
   attributedMessage,
   consumeRows,
@@ -46,19 +47,7 @@ const GENERATED_TITLE_MAX_LENGTH = 48;
 const TITLE_MIN_WORDS = 5;
 const TITLE_TIMEOUT_MS = 5_000;
 
-type StepStatus = NonNullable<ProvisioningTranscriptEntry["status"]>;
 type Recorder = (entries: ProvisioningTranscriptEntry[]) => void;
-
-function step(
-  key: string,
-  text: string,
-  status: StepStatus,
-  startedAt: number,
-  metadata?: Record<string, unknown>,
-): ProvisioningTranscriptEntry {
-  const entry = { type: "step" as const, key, text, status, startedAt };
-  return metadata === undefined ? entry : { ...entry, metadata };
-}
 
 function promptText(input: readonly PromptInput[]): string {
   return input

@@ -2,7 +2,6 @@ import type { Environment } from "@bb/domain";
 import type { z } from "zod";
 import type { ServerContext, ServerRunner } from "../context.js";
 import {
-  deleteEnvironment,
   environmentUse,
   findEnvironment,
   getEnvironment,
@@ -22,7 +21,8 @@ import {
   worktreeInputsSchema,
 } from "../providers/environment-providers.js";
 import { closeTerminalsFor } from "../terminals/sessions.js";
-import { errorMessage, ThreadSerial } from "../threads/core.js";
+import { errorMessage } from "../http/errors.js";
+import { ThreadSerial } from "../threads/core.js";
 import { createLifecycleScripts, notReady, step } from "./scripts.js";
 import type {
   EnsureEnvironmentArgs as Job,
@@ -83,7 +83,7 @@ export function createEnvironments(ctx: ServerContext): Environments {
   }
 
   function discard(id: string): void {
-    deleteEnvironment(db, id);
+    db.run("DELETE FROM environments WHERE id = ?", id);
     hub.environment(id, ["environment-deleted"]);
   }
 

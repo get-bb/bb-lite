@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Db } from "../db/index.js";
 import { findHost, updateHost, type HostRow } from "../db/hosts.js";
-import { ApiError } from "../http/errors.js";
+import { ApiError, forbidden } from "../http/errors.js";
 import type { Principal } from "../http/trust.js";
 
 export interface JoinToken {
@@ -118,11 +118,8 @@ export function authenticateRunner(
     principal.kind === "runner" &&
     principal.connectMachineId !== host.connectMachineId
   ) {
-    throw new ApiError(
-      403,
-      "forbidden",
-      "This runner token belongs to a different bb connect machine.",
-    );
+    const owner = "a different bb connect machine";
+    throw forbidden(`This runner token belongs to ${owner}.`);
   }
   return host;
 }
