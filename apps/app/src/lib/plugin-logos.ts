@@ -2,66 +2,41 @@ import { useSyncExternalStore } from "react";
 import type { InstalledPlugin } from "@bb/server-contract";
 import { pluginIconUrl } from "@/hooks/queries/plugin-settings-queries";
 
-interface PluginLogoUrls {
+interface PluginBranding {
   displayName: string;
   icon: string | null;
   compactIconUrl: string | null;
 }
 
-let logoUrls: ReadonlyMap<string, PluginLogoUrls> = new Map();
+let branding: ReadonlyMap<string, PluginBranding> = new Map();
 const listeners = new Set<() => void>();
 
 export function setPluginBranding(plugins: readonly InstalledPlugin[]): void {
-  logoUrls = new Map(
+  branding = new Map(
     plugins.map((plugin) => {
       const compactIconUrl = pluginIconUrl(plugin.icon);
-      return [
-        plugin.id,
-        {
-          displayName: plugin.name,
-          icon: compactIconUrl === null ? plugin.icon : null,
-          compactIconUrl,
-        },
-      ];
+      const icon = compactIconUrl === null ? plugin.icon : null;
+      return [plugin.id, { displayName: plugin.name, icon, compactIconUrl }];
     }),
   );
   for (const listener of listeners) listener();
 }
 
-function subscribePluginLogos(listener: () => void): () => void {
+function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getPluginLogoUrls(): ReadonlyMap<string, PluginLogoUrls> {
-  return logoUrls;
+  return () => void listeners.delete(listener);
 }
 
 export function getPluginDisplayName(pluginId: string): string {
-  return getPluginLogoUrls().get(pluginId)?.displayName ?? pluginId;
+  return branding.get(pluginId)?.displayName ?? pluginId;
 }
 
 export function usePluginCompactBranding(
   pluginId: string,
-): Pick<PluginLogoUrls, "icon" | "compactIconUrl"> | null {
-  const entries = useSyncExternalStore(
-    subscribePluginLogos,
-    getPluginLogoUrls,
-    getPluginLogoUrls,
-  );
-  const branding = entries.get(pluginId);
-  return branding === undefined
-    ? null
-    : { icon: branding.icon, compactIconUrl: branding.compactIconUrl };
+): PluginBranding | null {
+  return useSyncExternalStore(subscribe, () => branding.get(pluginId) ?? null);
 }
 
 export function usePluginDisplayName(pluginId: string): string {
-  const entries = useSyncExternalStore(
-    subscribePluginLogos,
-    getPluginLogoUrls,
-    getPluginLogoUrls,
-  );
-  return entries.get(pluginId)?.displayName ?? pluginId;
+  return usePluginCompactBranding(pluginId)?.displayName ?? pluginId;
 }
