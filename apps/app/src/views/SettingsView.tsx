@@ -61,7 +61,6 @@ import {
 } from "@/lib/favicon-color-preference";
 import { localhostLinkRewriteDescription } from "@/lib/localhost-link-rewrite-description";
 import { useRewriteLocalhostLinksPreference } from "@/lib/localhost-link-rewrite-preference";
-import { useRichTextEditingPreference } from "@/lib/rich-text-editing-preference";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
 import { SETTINGS_ROUTE_PATH } from "@/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";
@@ -379,7 +378,6 @@ function GeneralSettingsSection({
     useRewriteLocalhostLinksPreference();
   const [navigateToThreadAfterCreate, setNavigateToThreadAfterCreate] =
     useNavigateToThreadAfterCreatePreference();
-  const [richTextEditing, setRichTextEditing] = useRichTextEditingPreference();
   const localhostRewriteDescription = localhostLinkRewriteDescription(
     window.location.hostname,
   );
@@ -391,11 +389,6 @@ function GeneralSettingsSection({
             label="Navigate to threads on creation"
             checked={navigateToThreadAfterCreate}
             onChange={setNavigateToThreadAfterCreate}
-          />
-          <SettingsSwitch
-            label="Markdown formatting in prompt box"
-            checked={richTextEditing}
-            onChange={setRichTextEditing}
           />
           <SettingsDropdown
             label="Default thread followup behavior"
