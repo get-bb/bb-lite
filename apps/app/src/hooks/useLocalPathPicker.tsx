@@ -1,5 +1,4 @@
-import { useCallback } from "react";
-import { useDialogState } from "@/hooks/useDialogState";
+import { useState } from "react";
 import {
   selectHosts,
   useHosts,
@@ -10,102 +9,54 @@ import type {
   ProjectPathDialogTarget,
 } from "@/components/dialogs/ProjectPathDialog";
 
-export interface LocalPathSubmitParams {
+interface LocalPathSubmitParams {
   path: string;
   hostId: string;
   target: ProjectPathDialogTarget;
   closeDialog: () => void;
 }
 
-interface UseLocalPathPickerOptions {
-  isPending: boolean;
-  submit: (params: LocalPathSubmitParams) => void;
-}
-
-interface LocalPathPickerController {
-  isAvailable: boolean;
-  hostId: string | null;
-  hostName: string | null;
-  openPathEntry: (target: ProjectPathDialogTarget) => void;
-  openPicker: (target: ProjectPathDialogTarget) => void;
-  projectPathDialog: ReturnType<typeof useDialogState<ProjectPathDialogTarget>>;
-  submitProjectPath: ProjectPathDialogSubmitHandler;
-}
-
-interface PathPickerHost {
-  hostId: string | null;
-  hostName: string | null;
-}
-
-export function usePathPickerHost(): PathPickerHost {
-  const primaryHost = usePrimaryHost();
-  const connectedPrimaryHost =
-    primaryHost?.status === "connected" ? primaryHost : null;
-
-  return {
-    hostId: connectedPrimaryHost?.id ?? null,
-    hostName: connectedPrimaryHost?.name ?? null,
-  };
-}
-
 export function useLocalPathPicker({
   isPending,
   submit,
-}: UseLocalPathPickerOptions): LocalPathPickerController {
-  const { hostId, hostName } = usePathPickerHost();
+}: {
+  isPending: boolean;
+  submit: (params: LocalPathSubmitParams) => void;
+}) {
+  const primaryHost = usePrimaryHost();
+  const host = primaryHost?.status === "connected" ? primaryHost : null;
   const hostsQuery = useHosts();
-  const isLoadingHosts = hostsQuery.isPending;
-  const connectedHostCount = selectHosts(hostsQuery.data, "all").filter(
-    (host) => host.status === "connected",
-  ).length;
-  const projectPathDialog = useDialogState<ProjectPathDialogTarget>();
-  const closeDialog = projectPathDialog.onClose;
-
-  const submitPath = useCallback(
-    (
-      path: string,
-      target: ProjectPathDialogTarget,
-      targetHostId: string | null,
-    ) => {
-      if (isPending || !targetHostId) return;
-      submit({ path, hostId: targetHostId, target, closeDialog });
-    },
-    [closeDialog, isPending, submit],
-  );
-
-  const openPicker = useCallback(
-    (target: ProjectPathDialogTarget) => {
-      if (isPending || !hostId) return;
-      projectPathDialog.onOpen(target);
-    },
-    [hostId, isPending, projectPathDialog],
-  );
-
-  const submitProjectPath = useCallback<ProjectPathDialogSubmitHandler>(
-    (target, path, selectedHostId) => {
-      submitPath(path, target, selectedHostId);
-    },
-    [submitPath],
-  );
-
-  const openPathEntry = useCallback(
-    (target: ProjectPathDialogTarget) => {
-      if (isLoadingHosts || connectedHostCount > 1) {
-        projectPathDialog.onOpen(target);
-        return;
-      }
-      openPicker(target);
-    },
-    [connectedHostCount, isLoadingHosts, openPicker, projectPathDialog],
-  );
-
-  return {
-    isAvailable: hostId != null,
+  const [target, setTarget] = useState<ProjectPathDialogTarget | null>(null);
+  const openPicker = (next: ProjectPathDialogTarget) => {
+    if (!isPending && host) setTarget(next);
+  };
+  const submitProjectPath: ProjectPathDialogSubmitHandler = (
+    submitted,
+    path,
     hostId,
-    hostName,
-    openPathEntry,
+  ) => {
+    if (isPending || !hostId) return;
+    const closeDialog = () => setTarget(null);
+    submit({ path, hostId, target: submitted, closeDialog });
+  };
+  return {
+    isAvailable: host !== null,
+    hostId: host?.id ?? null,
+    hostName: host?.name ?? null,
     openPicker,
-    projectPathDialog,
+    openPathEntry: (next: ProjectPathDialogTarget) => {
+      const connected = selectHosts(hostsQuery.data, "all").filter(
+        (candidate) => candidate.status === "connected",
+      );
+      if (hostsQuery.isPending || connected.length > 1) setTarget(next);
+      else openPicker(next);
+    },
+    projectPathDialog: {
+      target,
+      onOpenChange: (open: boolean) => {
+        if (!open) setTarget(null);
+      },
+    },
     submitProjectPath,
   };
 }

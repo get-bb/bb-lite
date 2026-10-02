@@ -1,31 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export function useDialogState<T>() {
   const [target, setTarget] = useState<T | null>(null);
-
-  const onOpen = useCallback((nextTarget: T) => {
-    setTarget(nextTarget);
-  }, []);
-
-  const onClose = useCallback(() => {
-    setTarget(null);
-  }, []);
-
-  const onOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setTarget(null);
-    }
-  }, []);
-
-  return useMemo(
-    () => ({
-      isOpen: target !== null,
-      onClose,
-      onOpen,
-      onOpenChange,
-      setTarget,
-      target,
-    }),
-    [onClose, onOpen, onOpenChange, setTarget, target],
-  );
+  const [handlers] = useState(() => ({
+    onOpen: (next: T) => setTarget(next),
+    onClose: () => setTarget(null),
+    onOpenChange: (open: boolean) => {
+      if (!open) setTarget(null);
+    },
+  }));
+  return useMemo(() => ({ ...handlers, target }), [handlers, target]);
 }

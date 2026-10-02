@@ -6,149 +6,58 @@ import {
 } from "./absolute-file-path";
 import { isRoutePath } from "./route-paths";
 
-const THREAD_LOCAL_FILE_LINK_UNAVAILABLE_DESCRIPTION =
-  "Thread file links are only available when the thread has an environment.";
-const THREAD_LOCAL_FILE_LINK_INVALID_PATH_DESCRIPTION =
-  "Thread file links must use absolute file paths.";
+type ThreadLocalFileLinkResolution =
+  | { kind: "app-route" }
+  | { kind: "error"; description: string }
+  | {
+      kind: "open-workspace-path";
+      request: {
+        lineRange: FilePreviewLineRange | null;
+        path: string;
+        relativePath: string;
+        workspaceRootPath: string;
+      };
+    }
+  | {
+      kind: "open-host-path";
+      request: { lineRange: FilePreviewLineRange | null; path: string };
+    };
 
-interface ResolveThreadLocalFileLinkArgs {
+export function resolveThreadLocalFileLink(args: {
   hostFileLinksAvailable: boolean;
   link: ThreadTimelineLocalFileLink;
   workspaceRootPath: string | null;
-}
-
-interface ThreadWorkspaceFileLinkOpenRequest {
-  lineRange: FilePreviewLineRange | null;
-  path: string;
-  relativePath: string;
-  workspaceRootPath: string;
-}
-
-interface ThreadHostFileLinkOpenRequest {
-  lineRange: FilePreviewLineRange | null;
-  path: string;
-}
-
-interface ThreadLocalFileLinkAppRouteResolution {
-  kind: "app-route";
-}
-
-interface ThreadLocalFileLinkErrorResolution {
-  description: string;
-  kind: "error";
-}
-
-interface ThreadWorkspaceFileLinkOpenResolution {
-  kind: "open-workspace-path";
-  request: ThreadWorkspaceFileLinkOpenRequest;
-}
-
-interface ThreadHostFileLinkOpenResolution {
-  kind: "open-host-path";
-  request: ThreadHostFileLinkOpenRequest;
-}
-
-interface NormalizeLocalFilePathWithinRootArgs {
-  linkPath: string;
-  rootPath: string;
-}
-
-interface NormalizedLocalFilePathWithinRoot {
-  path: string;
-  relativePath: string;
-  rootPath: string;
-}
-
-export type ThreadLocalFileLinkResolution =
-  | ThreadLocalFileLinkAppRouteResolution
-  | ThreadLocalFileLinkErrorResolution
-  | ThreadWorkspaceFileLinkOpenResolution
-  | ThreadHostFileLinkOpenResolution;
-
-function normalizeLocalFilePathWithinRoot(
-  args: NormalizeLocalFilePathWithinRootArgs,
-): NormalizedLocalFilePathWithinRoot | null {
-  const normalizedRootPath = normalizeAbsoluteFilePath({ path: args.rootPath });
-  if (!normalizedRootPath) {
-    return null;
-  }
-
-  const normalizedPath = normalizeAbsoluteFilePath({ path: args.linkPath });
-  if (!normalizedPath) {
-    return null;
-  }
-
-  if (
-    !isAbsoluteFilePathWithinRoot({
-      candidatePath: normalizedPath,
-      rootPath: normalizedRootPath,
-    }) ||
-    normalizedPath === normalizedRootPath
-  ) {
-    return null;
-  }
-
-  const relativePath =
-    normalizedRootPath === "/"
-      ? normalizedPath.slice(1)
-      : normalizedPath.slice(normalizedRootPath.length + 1);
-
-  return {
-    path: normalizedPath,
-    relativePath,
-    rootPath: normalizedRootPath,
-  };
-}
-
-export function resolveThreadLocalFileLink(
-  args: ResolveThreadLocalFileLinkArgs,
-): ThreadLocalFileLinkResolution {
-  if (isRoutePath({ path: args.link.path })) {
+}): ThreadLocalFileLinkResolution {
+  const { lineRange } = args.link;
+  if (isRoutePath({ path: args.link.path })) return { kind: "app-route" };
+  const path = normalizeAbsoluteFilePath({ path: args.link.path });
+  if (path === null) {
     return {
-      kind: "app-route",
-    };
-  }
-
-  const normalizedPath = normalizeAbsoluteFilePath({ path: args.link.path });
-  if (!normalizedPath) {
-    return {
-      description: THREAD_LOCAL_FILE_LINK_INVALID_PATH_DESCRIPTION,
       kind: "error",
+      description: "Thread file links must use absolute file paths.",
     };
   }
-
-  const openRequest =
+  const root =
     args.workspaceRootPath === null
       ? null
-      : normalizeLocalFilePathWithinRoot({
-          linkPath: normalizedPath,
-          rootPath: args.workspaceRootPath,
-        });
-
-  if (openRequest) {
+      : normalizeAbsoluteFilePath({ path: args.workspaceRootPath });
+  if (
+    root !== null &&
+    path !== root &&
+    isAbsoluteFilePathWithinRoot({ candidatePath: path, rootPath: root })
+  ) {
+    const relativePath = path.slice(root === "/" ? 1 : root.length + 1);
     return {
       kind: "open-workspace-path",
-      request: {
-        lineRange: args.link.lineRange,
-        path: openRequest.path,
-        relativePath: openRequest.relativePath,
-        workspaceRootPath: openRequest.rootPath,
-      },
+      request: { lineRange, path, relativePath, workspaceRootPath: root },
     };
   }
-
   if (!args.hostFileLinksAvailable) {
     return {
-      description: THREAD_LOCAL_FILE_LINK_UNAVAILABLE_DESCRIPTION,
       kind: "error",
+      description:
+        "Thread file links are only available when the thread has an environment.",
     };
   }
-
-  return {
-    kind: "open-host-path",
-    request: {
-      lineRange: args.link.lineRange,
-      path: normalizedPath,
-    },
-  };
+  return { kind: "open-host-path", request: { lineRange, path } };
 }

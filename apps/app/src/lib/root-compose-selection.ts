@@ -1,35 +1,41 @@
-import { parseEnvironmentValue } from "@/components/pickers/environment-picker-value";
-import {
-  DEFAULT_THREAD_CREATION_PLACEMENT,
-  readThreadCreationPlacement,
-  type ThreadCreationPlacement,
-} from "./thread-creation-placement";
 import { atom, useAtom, useSetAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import { z } from "zod";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { parseEnvironmentValue } from "@/components/pickers/environment-picker-value";
 import { createTabScopedStorage } from "./browser-storage";
 
-const ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY = "bb.root-compose.project-id";
+const placementSchema = z.object({
+  sectionId: z
+    .string()
+    .refine((sectionId) => sectionId.trim().length > 0)
+    .nullable(),
+  pinned: z.boolean(),
+});
+type ThreadCreationPlacement = z.infer<typeof placementSchema>;
 
-function parseStoredProjectId(
-  storedValue: string | null,
-  initialValue: string,
-): string {
-  return storedValue && storedValue.length > 0 ? storedValue : initialValue;
+export const DEFAULT_THREAD_CREATION_PLACEMENT: ThreadCreationPlacement = {
+  sectionId: null,
+  pinned: false,
+};
+
+export function readThreadCreationPlacement(
+  state: unknown,
+): ThreadCreationPlacement | null {
+  const parsed = z.object({ placement: placementSchema }).safeParse(state);
+  return parsed.success ? parsed.data.placement : null;
 }
 
-const rootComposeProjectIdStorage = createTabScopedStorage<string>(
-  {
-    parse: parseStoredProjectId,
-    serialize: (value) => value,
-  },
-  { persistInitialValue: true },
-);
-
 const rootComposeProjectIdAtom = atomWithStorage<string>(
-  ROOT_COMPOSE_PROJECT_ID_STORAGE_KEY,
+  "bb.root-compose.project-id",
   PERSONAL_PROJECT_ID,
-  rootComposeProjectIdStorage,
+  createTabScopedStorage<string>(
+    {
+      parse: (storedValue, initialValue) => storedValue || initialValue,
+      serialize: (value) => value,
+    },
+    { persistInitialValue: true },
+  ),
   { getOnInit: true },
 );
 
@@ -52,12 +58,9 @@ const rootComposeStoredPlacementAtom = atomWithStorage<ThreadCreationPlacement>(
   DEFAULT_THREAD_CREATION_PLACEMENT,
   createTabScopedStorage<ThreadCreationPlacement>({
     parse: (storedValue, initialValue) => {
-      if (storedValue === null) return initialValue;
       try {
-        return (
-          readThreadCreationPlacement({ placement: JSON.parse(storedValue) }) ??
-          initialValue
-        );
+        const placement: unknown = JSON.parse(storedValue ?? "");
+        return readThreadCreationPlacement({ placement }) ?? initialValue;
       } catch {
         return initialValue;
       }
@@ -71,9 +74,12 @@ const rootComposePlacementAtom = atom(
   (get) => get(rootComposeStoredPlacementAtom),
   (get, set, next: ThreadCreationPlacement) => {
     const current = get(rootComposeStoredPlacementAtom);
-    if (current.sectionId === next.sectionId && current.pinned === next.pinned)
-      return;
-    set(rootComposeStoredPlacementAtom, next);
+    if (
+      current.sectionId !== next.sectionId ||
+      current.pinned !== next.pinned
+    ) {
+      set(rootComposeStoredPlacementAtom, next);
+    }
   },
 );
 
@@ -92,4 +98,3 @@ export function useSetRootComposeProjectId() {
 export function useRootComposeReuseEnvironment() {
   return useAtom(rootComposeReuseEnvironmentAtom);
 }
-

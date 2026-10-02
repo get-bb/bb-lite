@@ -10,16 +10,7 @@ interface PromptModeInput {
   value: string;
 }
 
-interface PermissionDisplayOverride {
-  label: string;
-  compactLabel?: string;
-  description?: string;
-  title?: string;
-}
-
-function planPermissionDisplay(
-  planModeCopy: string,
-): PermissionDisplayOverride {
+function planPermissionDisplay(planModeCopy: string) {
   return {
     label: "Plan Mode",
     compactLabel: "Plan",
@@ -27,37 +18,30 @@ function planPermissionDisplay(
   };
 }
 
-export function isPlanModePrompt({
-  mentionRanges,
-  planModeCopy,
-  value,
-}: PromptModeInput): boolean {
+export function isPlanModePrompt(args: PromptModeInput): boolean {
+  const mentions = [...args.mentionRanges];
   return (
-    planModeCopy !== undefined &&
+    args.planModeCopy !== undefined &&
     promptInputHasCommandMention(
-      [{ type: "text", text: value, mentions: [...mentionRanges] }],
+      [{ type: "text", text: args.value, mentions }],
       { trigger: "/", name: "plan" },
     )
   );
 }
 
-export function permissionDisplayForPromptMode(
-  args: PromptModeInput,
-): PermissionDisplayOverride | undefined {
-  if (args.planModeCopy === undefined || !isPlanModePrompt(args)) {
-    return undefined;
-  }
-  return planPermissionDisplay(args.planModeCopy);
+export function permissionDisplayForPromptMode(args: PromptModeInput) {
+  return args.planModeCopy !== undefined && isPlanModePrompt(args)
+    ? planPermissionDisplay(args.planModeCopy)
+    : undefined;
 }
 
 export function permissionDisplayForActivePromptMode(
   activePromptMode: ThreadTimelineActivePromptMode | null | undefined,
   planModeCopy: string | undefined,
-): PermissionDisplayOverride | undefined {
-  if (activePromptMode?.mode === "plan" && planModeCopy !== undefined) {
-    return planPermissionDisplay(planModeCopy);
-  }
-  return undefined;
+) {
+  return activePromptMode?.mode === "plan" && planModeCopy !== undefined
+    ? planPermissionDisplay(planModeCopy)
+    : undefined;
 }
 
 export function shouldDisablePermissionPickerForActivePromptMode(

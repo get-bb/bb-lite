@@ -26,19 +26,17 @@ import { useSystemConfig } from "@/hooks/queries/system-queries";
 import { usePluginCommandBindings } from "@/hooks/usePluginCommandBindings";
 import { APP_COMMAND_GROUPS } from "@/lib/app-command-metadata";
 import {
+  appShortcutFromInput,
   appShortcutMatchesQuery,
   browserPlatform,
-  presentAppShortcut,
-} from "@/lib/app-keybindings";
-import {
-  appShortcutFromInput,
   canAssignAppShortcut,
   getCommandShortcut,
   getShortcutConflicts,
   isAppCommandAvailableForClient,
+  presentAppShortcut,
   resetCommandShortcutOverride,
   setCommandShortcutOverride,
-} from "@/lib/keyboard-shortcut-settings";
+} from "@/lib/app-keybindings";
 
 interface CommandRow {
   command: KeyboardCommandId;

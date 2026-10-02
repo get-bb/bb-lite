@@ -30,7 +30,6 @@ type ApplySuggestion = (item: TypeaheadSuggestion) => void;
 
 const ROW_ICON_CLASS = "size-3.5 shrink-0 text-muted-foreground";
 const MUTED_TRAILING_CLASS = "text-subtle-foreground [flex-shrink:9999]";
-const COMMAND_LOAD_MORE_DISTANCE_PX = 48;
 
 const commandSectionLabel = (kind: ProviderCommandSection) =>
   kind === "agent-command"
@@ -292,12 +291,10 @@ export function MentionMenu({
   state,
   selectedIndex,
   onApply,
-  onCommandLoadMore,
 }: {
   state: TypeaheadMenuState;
   selectedIndex: number;
   onApply: ApplySuggestion;
-  onCommandLoadMore?: () => void;
 }) {
   const isCommand = state.trigger === "command";
   const commands =
@@ -319,19 +316,7 @@ export function MentionMenu({
 
   return (
     <div className="@container/mention-menu overflow-hidden rounded-md border border-border bg-popover text-popover-foreground">
-      <div
-        className="max-h-48 overflow-y-auto"
-        onScroll={(event) => {
-          const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
-          if (
-            isCommand &&
-            scrollHeight - scrollTop - clientHeight <=
-              COMMAND_LOAD_MORE_DISTANCE_PX
-          ) {
-            onCommandLoadMore?.();
-          }
-        }}
-      >
+      <div className="max-h-48 overflow-y-auto">
         {state.state.kind === "hint" ? (
           <MenuStatusRow className="text-muted-foreground">
             Type to search mentions
