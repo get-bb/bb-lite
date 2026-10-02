@@ -294,6 +294,18 @@ materialised by the CLI before the request.
   `environmentProviders`, `skillDirs`). The calls a plugin makes outward (`threads`, `projects`,
   `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
   `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
+- **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,
+  providerCapabilities}`; a tool's `enabledFor` gates on it (ask-user-question is offered only where
+  `supportsNativeUserQuestion` is false).
+- **`ui.requestInput`.** Opens a plugin-origin pending interaction and resolves with
+  `submitted` or `cancelled` (`reason`: `user`, `timeout` when `timeoutMs` ran out, `request-aborted`
+  when the request's `signal` fired, or the interrupt reason of a stop). The submitted value goes to the
+  waiting plugin only: the stored resolution is `{kind: "plugin_submitted", description?}`, where the
+  description is what the request's synchronous `describeSubmission(value)` returned (title and detail
+  for the timeline row), so a plugin decides what the transcript keeps.
+- **`files`.** A relative path is confined to the thread's workspace; an absolute path may point
+  anywhere on the thread's machine (`bb secret request --write-env`). Writes create parent
+  directories and honour `mode` and `expectedSha256` (`null` means "must not exist yet").
 
 ## Conventions
 

@@ -83,7 +83,7 @@ async function runTool(
   if (tool === UPDATE_ENVIRONMENT_DIRECTORY_TOOL.name) {
     return updateEnvironmentDirectory(engine, thread, input, signal);
   }
-  const scope = pluginContext(thread, engine.hostOf(thread));
+  const scope = pluginContext(db, thread, engine.hostOf(thread));
   return plugins.callTool(tool, input, { ...scope, signal });
 }
 

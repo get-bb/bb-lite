@@ -2,7 +2,7 @@ Tell every agent on this bb host the things you would otherwise repeat in each t
 
 ## What you get
 
-- One text field in Settings, up to 4,096 characters.
+- One text field in Settings.
 - The text is added to the instructions of every agent task on this host, for every provider and every project.
 - Changes apply to the next task. You do not restart anything.
 
@@ -17,5 +17,3 @@ Use the `bb instructions` command:
 - `bb instructions get` prints the current text.
 - `bb instructions set <text...>` replaces it.
 - `bb instructions clear` removes it.
-
-Add `--json` for machine-readable output.
