@@ -9,15 +9,6 @@ import {
   DialogTitle,
 } from "./dialog.js";
 
-interface ConfirmDeleteDialogContentProps {
-  title: string;
-  description: ReactNode;
-  confirmLabel: string;
-  pending: boolean;
-  onConfirm: () => void;
-  onCancel?: () => void;
-}
-
 export function ConfirmDeleteDialogContent({
   title,
   description,
@@ -25,7 +16,14 @@ export function ConfirmDeleteDialogContent({
   pending,
   onConfirm,
   onCancel,
-}: ConfirmDeleteDialogContentProps) {
+}: {
+  title: string;
+  description: ReactNode;
+  confirmLabel: string;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}) {
   return (
     <>
       <DialogHeader>
@@ -56,21 +54,17 @@ export function ConfirmDeleteDialogContent({
   );
 }
 
-interface ConfirmDeleteDialogProps {
-  modal?: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: ReactNode;
-}
-
 export function ConfirmDeleteDialog({
-  modal = true,
   open,
   onOpenChange,
   children,
-}: ConfirmDeleteDialogProps) {
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal>
       <DialogContent>{open ? children : null}</DialogContent>
     </Dialog>
   );

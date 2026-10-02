@@ -10,21 +10,10 @@ import { LIST_HOVER_TRANSITION } from "./motion";
 
 const BRANCH_PICKER_ROW_CLASS_NAME =
   "flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-left text-xs outline-none hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:text-foreground";
-const BRANCH_PICKER_HEADER_BASE_CLASS_NAME =
-  "text-xs font-medium text-muted-foreground";
-const BRANCH_PICKER_HEADER_STICKY_CLASS_NAME =
-  "sticky top-0 z-20 -mx-1 bg-background px-3";
 export const BRANCH_PICKER_CONTENT_CLASS_NAME =
   "flex w-full min-w-0 flex-col overflow-hidden p-0 md:w-max md:max-w-[min(18rem,calc(100vw-2rem))] md:max-h-[calc(100vh-6rem)]";
 
-interface BranchPickerSectionHeaderProps {
-  label: string;
-  subtitle?: string;
-  sticky?: boolean;
-}
-
 interface BranchPickerRowProps {
-  disabled?: boolean;
   icon: IconName;
   selected: boolean;
   title: string;
@@ -42,36 +31,12 @@ interface BranchPickerSearchProps {
   placeholder?: string;
 }
 
-export function BranchPickerSectionHeader({
-  label,
-  subtitle,
-  sticky = true,
-}: BranchPickerSectionHeaderProps) {
-  const positionClassName = sticky
-    ? BRANCH_PICKER_HEADER_STICKY_CLASS_NAME
-    : "px-2";
-  if (subtitle) {
-    return (
-      <div
-        className={cn(
-          BRANCH_PICKER_HEADER_BASE_CLASS_NAME,
-          positionClassName,
-          "py-[0.3125rem] pb-1.5",
-        )}
-        title={subtitle}
-      >
-        <div>{label}</div>
-        <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
-          <span className="min-w-0">{subtitle}</span>
-        </div>
-      </div>
-    );
-  }
+export function BranchPickerSectionHeader({ label }: { label: string }) {
   return (
     <div
       className={cn(
-        BRANCH_PICKER_HEADER_BASE_CLASS_NAME,
-        positionClassName,
+        "text-xs font-medium text-muted-foreground",
+        "sticky top-0 z-20 -mx-1 bg-background px-3",
         "flex h-7 items-center",
       )}
     >
@@ -81,7 +46,6 @@ export function BranchPickerSectionHeader({
 }
 
 export function BranchPickerRow({
-  disabled,
   icon,
   selected,
   title,
@@ -96,10 +60,7 @@ export function BranchPickerRow({
         BRANCH_PICKER_ROW_CLASS_NAME,
         LIST_HOVER_TRANSITION,
         MENU_ITEM_LAST_HOVERED_CLASS,
-        disabled &&
-          "cursor-not-allowed text-muted-foreground opacity-60 hover:bg-transparent hover:text-muted-foreground",
       )}
-      disabled={disabled}
       title={title}
       onClick={onSelect}
       {...hoverProps}

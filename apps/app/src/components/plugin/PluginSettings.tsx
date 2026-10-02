@@ -328,7 +328,7 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
       {shown ? (
         <>
           {plugin.hasSettings || !available ? (
-            <ResourceDetailPanel surface="recessed" className="px-3 py-3">
+            <ResourceDetailPanel className="px-3 py-3">
               {available ? (
                 <PluginSettingsForm pluginId={plugin.id} />
               ) : (
@@ -395,7 +395,7 @@ export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
         }
       >
         {provider.enabled ? (
-          <ResourceDetailPanel surface="recessed" className="px-3 py-3">
+          <ResourceDetailPanel className="px-3 py-3">
             <PluginSettingsForm key={pluginId} pluginId={pluginId} />
           </ResourceDetailPanel>
         ) : null}

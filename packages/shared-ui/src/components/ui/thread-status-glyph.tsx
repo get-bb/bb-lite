@@ -28,11 +28,9 @@ const WAITING_ICONS = {
 function ThreadDraftIndicator({
   hideIdleLabel = false,
   isWorking,
-  size,
 }: {
   hideIdleLabel?: boolean;
   isWorking: boolean;
-  size: "default" | "compact";
 }) {
   const label = getThreadListIndicatorLabel(
     isWorking ? "working-draft" : "draft",
@@ -42,7 +40,7 @@ function ThreadDraftIndicator({
       name="Edit"
       className={cn(
         "pointer-events-none shrink-0",
-        size === "compact" ? "size-3.5" : SIDEBAR_STATUS_ICON_CLASS,
+        SIDEBAR_STATUS_ICON_CLASS,
         isWorking
           ? ["animate-shine-icon", SIDEBAR_WORKING_STATUS_COLOR_CLASS]
           : "text-muted-foreground",
@@ -54,35 +52,18 @@ function ThreadDraftIndicator({
   );
 }
 
-interface ThreadStatusResolution {
+export function resolveThreadStatus(statusProps: ThreadListIndicatorState): {
   accessibleLabel: string | null;
-  indicatorKind: ThreadListIndicatorKind | "archived";
-}
-
-export function resolveThreadStatus(
-  statusProps: ThreadListIndicatorState,
-  archived = false,
-): ThreadStatusResolution {
-  const indicatorKind = archived
-    ? "archived"
-    : resolveThreadListIndicator(statusProps);
+  indicatorKind: ThreadListIndicatorKind;
+} {
+  const indicatorKind = resolveThreadListIndicator(statusProps);
   return {
-    accessibleLabel:
-      indicatorKind === "archived"
-        ? "Archived thread"
-        : getThreadListIndicatorLabel(indicatorKind),
+    accessibleLabel: getThreadListIndicatorLabel(indicatorKind),
     indicatorKind,
   };
 }
 
-export interface ThreadStatusGlyphProps extends ThreadListIndicatorState {
-  archived?: boolean;
-  hideIdleDraftLabel?: boolean;
-  size?: "default" | "compact";
-}
-
 export function ThreadStatusGlyph({
-  archived = false,
   hasPendingInteraction,
   hasUnsubmittedDraft,
   hasUnreadError,
@@ -95,36 +76,23 @@ export function ThreadStatusGlyph({
   isRuntimeActive,
   isWorkflowActive,
   queuedWork,
-  size = "default",
-}: ThreadStatusGlyphProps) {
-  const iconSizeClass =
-    size === "compact" ? "size-3.5" : SIDEBAR_STATUS_ICON_CLASS;
-  const { indicatorKind: kind } = resolveThreadStatus(
-    {
-      hasPendingInteraction,
-      hasUnsubmittedDraft,
-      hasUnreadError,
-      hasUnreadSuccess,
-      isBackgroundAgentActive,
-      isBackgroundCommandActive,
-      isGoalActive,
-      isPlanModeActive,
-      isRuntimeActive,
-      isWorkflowActive,
-      queuedWork,
-    },
-    archived,
-  );
+}: ThreadListIndicatorState & { hideIdleDraftLabel?: boolean }) {
+  const iconSizeClass = SIDEBAR_STATUS_ICON_CLASS;
+  const kind = resolveThreadListIndicator({
+    hasPendingInteraction,
+    hasUnsubmittedDraft,
+    hasUnreadError,
+    hasUnreadSuccess,
+    isBackgroundAgentActive,
+    isBackgroundCommandActive,
+    isGoalActive,
+    isPlanModeActive,
+    isRuntimeActive,
+    isWorkflowActive,
+    queuedWork,
+  });
 
   switch (kind) {
-    case "archived":
-      return (
-        <Icon
-          name="Archive"
-          className={iconSizeClass}
-          aria-label="Archived thread"
-        />
-      );
     case "unread-error":
     case "queued-failed":
       return (
@@ -144,7 +112,7 @@ export function ThreadStatusGlyph({
         />
       );
     case "working-draft":
-      return <ThreadDraftIndicator isWorking size={size} />;
+      return <ThreadDraftIndicator isWorking />;
     case "workflow":
     case "background-agent":
     case "background-command":
@@ -178,7 +146,6 @@ export function ThreadStatusGlyph({
         <ThreadDraftIndicator
           hideIdleLabel={hideIdleDraftLabel}
           isWorking={false}
-          size={size}
         />
       );
     case "unread-success":
