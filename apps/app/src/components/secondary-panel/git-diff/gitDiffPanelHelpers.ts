@@ -3,158 +3,98 @@ import type { DiffFileEntry } from "@bb/server-contract";
 import picomatch from "picomatch/posix";
 import type { GitDiffSelectionOption } from "../GitDiffToolbar";
 
-interface GitDiffIdentityParams {
-  environmentId?: string;
-  mergeBaseRef: string | null;
-  target: WorkspaceDiffTarget | undefined;
-}
-
-export function buildGitDiffIdentity({
-  environmentId,
-  mergeBaseRef,
-  target,
-}: GitDiffIdentityParams): string {
+export function buildGitDiffIdentity(
+  environmentId: string | undefined,
+  mergeBaseRef: string | null,
+  target: WorkspaceDiffTarget | undefined,
+): string {
   const environmentKey = environmentId ?? "none";
   if (!target) return `${environmentKey}:none`;
-
   switch (target.type) {
     case "uncommitted":
       return `${environmentKey}:uncommitted`;
     case "branch_committed":
-      return [
-        environmentKey,
-        "branch_committed",
-        target.mergeBaseBranch,
-        mergeBaseRef ?? "pending",
-      ].join(":");
     case "all":
       return [
         environmentKey,
-        "all",
+        target.type,
         target.mergeBaseBranch,
         mergeBaseRef ?? "pending",
       ].join(":");
     case "commit":
       return `${environmentKey}:commit:${target.sha}`;
-    default: {
-      const _exhaustive: never = target;
-      return _exhaustive;
-    }
   }
 }
 
 export const GIT_DIFF_AUTO_COLLAPSE_FILE_THRESHOLD = 10;
-
 export const ALL_GIT_DIFF_SELECTION = "all";
-export const COMMITTED_GIT_DIFF_SELECTION = "branch_committed";
-export const UNCOMMITTED_GIT_DIFF_SELECTION = "uncommitted";
-
-export type GitDiffSelectionValue = string | null;
-
-interface GitDiffSelectionAvailability {
-  hasUncommittedChanges: boolean;
-}
+const COMMITTED_GIT_DIFF_SELECTION = "branch_committed";
+const UNCOMMITTED_GIT_DIFF_SELECTION = "uncommitted";
 
 export function buildGitDiffTarget(
-  selectedGitDiffSelection: GitDiffSelectionValue,
-  effectiveMergeBaseBranch: string | undefined,
+  selection: string | null,
+  mergeBaseBranch: string | undefined,
 ): WorkspaceDiffTarget | undefined {
-  if (selectedGitDiffSelection === UNCOMMITTED_GIT_DIFF_SELECTION) {
+  if (selection === UNCOMMITTED_GIT_DIFF_SELECTION) {
     return { type: "uncommitted" };
   }
-
-  if (selectedGitDiffSelection === COMMITTED_GIT_DIFF_SELECTION) {
-    return effectiveMergeBaseBranch
-      ? {
-          type: "branch_committed",
-          mergeBaseBranch: effectiveMergeBaseBranch,
-        }
+  if (selection === COMMITTED_GIT_DIFF_SELECTION) {
+    return mergeBaseBranch
+      ? { type: "branch_committed", mergeBaseBranch }
       : undefined;
   }
-
-  if (selectedGitDiffSelection) {
-    return { type: "commit", sha: selectedGitDiffSelection };
-  }
-
-  if (effectiveMergeBaseBranch) {
-    return {
-      type: "all",
-      mergeBaseBranch: effectiveMergeBaseBranch,
-    };
-  }
-
-  return undefined;
+  if (selection) return { type: "commit", sha: selection };
+  return mergeBaseBranch ? { type: "all", mergeBaseBranch } : undefined;
 }
 
 export function buildGitDiffSelectionOptions(
-  diffCommits: readonly WorkspaceCommitSummary[],
-  options: GitDiffSelectionAvailability = {
-    hasUncommittedChanges: false,
-  },
+  commits: readonly WorkspaceCommitSummary[],
+  hasUncommittedChanges: boolean,
 ): GitDiffSelectionOption[] {
-  const allChangesOption = {
-    value: ALL_GIT_DIFF_SELECTION,
-    label: "All changes",
-  };
-  const committedOption = {
-    value: COMMITTED_GIT_DIFF_SELECTION,
-    label: "Committed changes",
-  };
-  const uncommittedOption = {
-    value: UNCOMMITTED_GIT_DIFF_SELECTION,
-    label: "Uncommitted changes",
-  };
-  const commitOptions = diffCommits.map((commit) => ({
-    value: commit.sha,
-    label: commit.subject,
-    monoPrefix: commit.shortSha,
-  }));
-
-  const hasMergeBaseContext =
-    diffCommits.length > 0 || options.hasUncommittedChanges;
-  if (!hasMergeBaseContext) {
-    return [allChangesOption];
-  }
-
   return [
-    allChangesOption,
-    ...(diffCommits.length > 0 ? [committedOption] : []),
-    ...(options.hasUncommittedChanges ? [uncommittedOption] : []),
-    ...commitOptions,
+    { value: ALL_GIT_DIFF_SELECTION, label: "All changes" },
+    ...(commits.length > 0
+      ? [{ value: COMMITTED_GIT_DIFF_SELECTION, label: "Committed changes" }]
+      : []),
+    ...(hasUncommittedChanges
+      ? [
+          {
+            value: UNCOMMITTED_GIT_DIFF_SELECTION,
+            label: "Uncommitted changes",
+          },
+        ]
+      : []),
+    ...commits.map((commit) => ({
+      value: commit.sha,
+      label: commit.subject,
+      monoPrefix: commit.shortSha,
+    })),
   ];
 }
 
-export function shouldResetSelectedGitDiffSelection(
-  selectedGitDiffSelection: GitDiffSelectionValue,
-  diffCommits: readonly WorkspaceCommitSummary[],
-  options: GitDiffSelectionAvailability = {
-    hasUncommittedChanges: false,
-  },
+export function shouldResetGitDiffSelection(
+  selection: string | null,
+  commits: readonly WorkspaceCommitSummary[],
+  hasUncommittedChanges: boolean,
 ): boolean {
-  if (!selectedGitDiffSelection) {
-    return false;
+  if (!selection) return false;
+  if (selection === COMMITTED_GIT_DIFF_SELECTION) return commits.length === 0;
+  if (selection === UNCOMMITTED_GIT_DIFF_SELECTION) {
+    return !hasUncommittedChanges;
   }
-  if (selectedGitDiffSelection === COMMITTED_GIT_DIFF_SELECTION) {
-    return diffCommits.length === 0;
-  }
-  if (selectedGitDiffSelection === UNCOMMITTED_GIT_DIFF_SELECTION) {
-    return !options.hasUncommittedChanges;
-  }
-  return !diffCommits.some((commit) => commit.sha === selectedGitDiffSelection);
+  return !commits.some((commit) => commit.sha === selection);
 }
 
 type DiffFilePathMatcher = (path: string) => boolean;
-
-interface DiffFilePatternMatchers {
-  exact: DiffFilePathMatcher;
-  partial: DiffFilePathMatcher;
-}
 
 function compileGlob(patterns: string | string[], basename: boolean) {
   return picomatch(patterns, { basename, dot: true, nocase: true });
 }
 
-function compileDiffFilePattern(pattern: string): DiffFilePatternMatchers {
+function compileDiffFilePattern(pattern: string): {
+  exact: DiffFilePathMatcher;
+  partial: DiffFilePathMatcher;
+} {
   if (!picomatch.scan(pattern).isGlob) {
     const needle = pattern.toLowerCase();
     const matcher = (path: string) => path.toLowerCase().includes(needle);
@@ -169,9 +109,10 @@ function compileDiffFilePattern(pattern: string): DiffFilePatternMatchers {
   };
 }
 
-export function filterDiffFilesByPath<
-  T extends Pick<DiffFileEntry, "path" | "previousPath">,
->(files: readonly T[], query: string): readonly T[] {
+export function filterDiffFilesByPath(
+  files: readonly DiffFileEntry[],
+  query: string,
+): readonly DiffFileEntry[] {
   const patterns = query
     .split(",")
     .map((pattern) => pattern.trim())
@@ -179,7 +120,7 @@ export function filterDiffFilesByPath<
   if (patterns.length === 0) {
     return files;
   }
-  const fileMatches = (file: T, isMatch: DiffFilePathMatcher) =>
+  const fileMatches = (file: DiffFileEntry, isMatch: DiffFilePathMatcher) =>
     [file.path, file.previousPath].some(
       (path) => path !== null && isMatch(path),
     );

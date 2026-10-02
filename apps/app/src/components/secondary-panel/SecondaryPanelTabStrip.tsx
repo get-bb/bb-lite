@@ -1,32 +1,10 @@
 import {
-  type CSSProperties,
-  type MouseEventHandler,
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  useCallback,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
-import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  MouseSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import {
-  horizontalListSortingStrategy,
-  SortableContext,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import {
@@ -36,378 +14,146 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@bb/shared-ui/context-menu";
-import {
-  OverflowFade,
-  type OverflowFadeTone,
-} from "@/components/ui/overflow-fade";
+import { OverflowFade } from "@/components/ui/overflow-fade";
 import { TabPill } from "@/components/ui/tab-pill";
-import { useDragClickSuppression } from "@/components/ui/use-drag-click-suppression";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type {
-  SecondaryPanelRenderableTab,
-  SecondaryPanelTabReorderHandler,
-} from "./secondaryPanelTab";
 
 const CHEVRON_SCROLL_STEP_PX = 140;
-
-const TAB_STRIP_SCROLL_BUTTON_CLASS =
-  "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5";
-
 const EDGE_EPSILON_PX = 1;
 
-const SECONDARY_PANEL_TAB_STRIP_FADE_TONE: OverflowFadeTone = "sidebar";
-
-interface TabStripOverflowState {
-  hasOverflow: boolean;
-  canScrollLeft: boolean;
-  canScrollRight: boolean;
+export interface SecondaryPanelRenderableTab {
+  contentFillsRegion?: boolean;
+  label: string;
+  leadingVisual: ReactNode;
+  onClose: () => void;
+  onSelect: () => void;
+  renderContent: () => ReactNode;
+  statusLabel: string | null;
+  tab: { id: string; kind: string };
 }
 
-const INITIAL_OVERFLOW_STATE: TabStripOverflowState = {
-  hasOverflow: false,
-  canScrollLeft: false,
-  canScrollRight: false,
-};
-
-export interface SecondaryPanelTabStripProps {
+interface SecondaryPanelTabStripProps {
   activeTabId: string | null;
   tabs: readonly SecondaryPanelRenderableTab[];
-  onBeginTabDrag?: (
-    tabId: string,
-    event: ReactPointerEvent<HTMLElement>,
-  ) => void;
-  onReorderTab: SecondaryPanelTabReorderHandler;
-}
-
-export type SecondaryPanelTabCloseScope = "self" | "others" | "right";
-
-export function secondaryPanelTabsToClose(
-  tabs: readonly SecondaryPanelRenderableTab[],
-  tabId: string,
-  scope: SecondaryPanelTabCloseScope,
-): SecondaryPanelRenderableTab[] {
-  const index = tabs.findIndex((tab) => tab.tab.id === tabId);
-  if (index === -1) {
-    return [];
-  }
-  const candidates =
-    scope === "self"
-      ? tabs.slice(index, index + 1)
-      : scope === "right"
-        ? tabs.slice(index + 1)
-        : tabs.filter((tab) => tab.tab.id !== tabId);
-  return candidates.filter((tab) => !tab.isPinned);
-}
-
-interface SortablePanelTabProps {
-  isActive: boolean;
-  activeTabRef: RefObject<HTMLDivElement | null>;
-  dragDisabled: boolean;
-  onCloseTabs: (tabId: string, scope: SecondaryPanelTabCloseScope) => void;
-  tabs: readonly SecondaryPanelRenderableTab[];
-  onBeginTabDrag?: (
-    tabId: string,
-    event: ReactPointerEvent<HTMLElement>,
-  ) => void;
-  tab: SecondaryPanelRenderableTab;
 }
 
 export function SecondaryPanelTabStrip({
   activeTabId,
   tabs,
-  onBeginTabDrag,
-  onReorderTab,
 }: SecondaryPanelTabStripProps) {
   const stripRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
-  const leftScrollButtonRef = useRef<HTMLButtonElement>(null);
-  const rightScrollButtonRef = useRef<HTMLButtonElement>(null);
-  const [overflow, setOverflow] = useState<TabStripOverflowState>(
-    INITIAL_OVERFLOW_STATE,
-  );
-  const maxScrollLeftRef = useRef(0);
-  const hasOverflowRef = useRef(false);
-  const scrollFrameRef = useRef<number | null>(null);
-  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
-  const {
-    beginDragClickSuppression,
-    clearDragClickSuppressionSoon,
-    consumeDragClickSuppression,
-  } = useDragClickSuppression();
-  const dragDisabled = tabs.length < 2;
-  const mouseSensor = useSensor(MouseSensor, {
-    activationConstraint: { distance: 4 },
-  });
-  const sensors = useSensors(mouseSensor);
-  const tabIds = useMemo(() => tabs.map((tab) => tab.tab.id), [tabs]);
-  const draggingTab =
-    draggingTabId === null
-      ? null
-      : (tabs.find((tab) => tab.tab.id === draggingTabId) ?? null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const hasOverflow = edges.left || edges.right;
 
-  const applyEdgeFlags = useCallback(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) {
-      return;
-    }
-    const maxScrollLeft = maxScrollLeftRef.current;
-    const hasOverflow = hasOverflowRef.current;
-    const isScrollable = hasOverflow && maxScrollLeft > EDGE_EPSILON_PX;
-    const { scrollLeft } = viewport;
-    const canScrollLeft = isScrollable && scrollLeft > EDGE_EPSILON_PX;
-    const canScrollRight =
-      isScrollable && scrollLeft < maxScrollLeft - EDGE_EPSILON_PX;
-    setOverflow((prev) =>
-      prev.hasOverflow === hasOverflow &&
-      prev.canScrollLeft === canScrollLeft &&
-      prev.canScrollRight === canScrollRight
-        ? prev
-        : { hasOverflow, canScrollLeft, canScrollRight },
-    );
-  }, []);
-
-  const measureCapacity = useCallback(() => {
+  useEffect(() => {
     const strip = stripRef.current;
     const viewport = viewportRef.current;
     const content = contentRef.current;
-    if (strip === null || viewport === null || content === null) {
-      return;
-    }
-    const hasOverflow =
-      content.scrollWidth > strip.clientWidth + EDGE_EPSILON_PX;
-    hasOverflowRef.current = hasOverflow;
-    maxScrollLeftRef.current = hasOverflow
-      ? Math.max(0, viewport.scrollWidth - viewport.clientWidth)
-      : 0;
-    applyEdgeFlags();
-  }, [applyEdgeFlags]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) {
-      return;
-    }
-    const handleScroll = () => {
-      if (scrollFrameRef.current !== null) {
-        return;
-      }
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        applyEdgeFlags();
-      });
+    if (strip === null || viewport === null || content === null) return;
+    const measure = () => {
+      const overflows =
+        content.scrollWidth > strip.clientWidth + EDGE_EPSILON_PX;
+      const max = overflows ? viewport.scrollWidth - viewport.clientWidth : 0;
+      const left =
+        max > EDGE_EPSILON_PX && viewport.scrollLeft > EDGE_EPSILON_PX;
+      const right =
+        max > EDGE_EPSILON_PX && viewport.scrollLeft < max - EDGE_EPSILON_PX;
+      setEdges((current) =>
+        current.left === left && current.right === right
+          ? current
+          : { left, right },
+      );
     };
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-    const resizeObserver = new ResizeObserver(measureCapacity);
-    if (stripRef.current !== null) {
-      resizeObserver.observe(stripRef.current);
-    }
-    resizeObserver.observe(viewport);
-    if (contentRef.current !== null) {
-      resizeObserver.observe(contentRef.current);
-    }
-    return () => {
-      viewport.removeEventListener("scroll", handleScroll);
-      resizeObserver.disconnect();
-      if (scrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollFrameRef.current);
-        scrollFrameRef.current = null;
-      }
-    };
-  }, [applyEdgeFlags, measureCapacity]);
-
-  useEffect(() => {
-    measureCapacity();
-  }, [tabs, measureCapacity]);
-
-  useEffect(() => {
-    void document.fonts?.ready?.then(() => measureCapacity());
-  }, [measureCapacity]);
-
-  useLayoutEffect(() => {
-    const activeTabElement = activeTabRef.current;
-    if (activeTabElement === null) {
-      return;
-    }
-    activeTabElement.scrollIntoView({ inline: "nearest", block: "nearest" });
-  }, [activeTabId, overflow.hasOverflow]);
-
-  useLayoutEffect(() => {
-    const focusedElement = document.activeElement;
-    const activeTabButton =
-      activeTabRef.current?.querySelector<HTMLButtonElement>("button") ?? null;
-    if (
-      !overflow.canScrollLeft &&
-      focusedElement === leftScrollButtonRef.current
-    ) {
-      (overflow.canScrollRight
-        ? rightScrollButtonRef.current
-        : activeTabButton
-      )?.focus();
-      return;
-    }
-    if (
-      !overflow.canScrollRight &&
-      focusedElement === rightScrollButtonRef.current
-    ) {
-      (overflow.canScrollLeft
-        ? leftScrollButtonRef.current
-        : activeTabButton
-      )?.focus();
-    }
-  }, [overflow.canScrollLeft, overflow.canScrollRight]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) {
-      return;
-    }
     const handleWheel = (event: WheelEvent) => {
+      const max = viewport.scrollWidth - viewport.clientWidth;
       if (
         event.deltaY === 0 ||
-        Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+        Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
+        max <= EDGE_EPSILON_PX ||
+        (event.deltaY > 0
+          ? viewport.scrollLeft >= max - EDGE_EPSILON_PX
+          : viewport.scrollLeft <= EDGE_EPSILON_PX)
       ) {
         return;
       }
-      const maxScrollLeft = maxScrollLeftRef.current;
-      if (maxScrollLeft <= EDGE_EPSILON_PX) {
-        return;
-      }
-      const { scrollLeft } = viewport;
-      const canScrollInWheelDirection =
-        event.deltaY > 0
-          ? scrollLeft < maxScrollLeft - EDGE_EPSILON_PX
-          : scrollLeft > EDGE_EPSILON_PX;
-      if (!canScrollInWheelDirection) {
-        return;
-      }
       viewport.scrollLeft = Math.min(
-        maxScrollLeft,
-        Math.max(0, scrollLeft + event.deltaY),
+        max,
+        Math.max(0, viewport.scrollLeft + event.deltaY),
       );
       event.preventDefault();
     };
+    measure();
+    viewport.addEventListener("scroll", measure, { passive: true });
     viewport.addEventListener("wheel", handleWheel, { passive: false });
+    const resizeObserver = new ResizeObserver(measure);
+    for (const element of [strip, viewport, content]) {
+      resizeObserver.observe(element);
+    }
     return () => {
+      viewport.removeEventListener("scroll", measure);
       viewport.removeEventListener("wheel", handleWheel);
+      resizeObserver.disconnect();
     };
   }, []);
 
-  const scrollByStep = useCallback((direction: -1 | 1) => {
-    viewportRef.current?.scrollBy({
-      left: direction * CHEVRON_SCROLL_STEP_PX,
-      behavior: "smooth",
+  useLayoutEffect(() => {
+    activeTabRef.current?.scrollIntoView({
+      inline: "nearest",
+      block: "nearest",
     });
-  }, []);
+  }, [activeTabId, hasOverflow]);
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      setDraggingTabId(String(event.active.id));
-      beginDragClickSuppression();
-    },
-    [beginDragClickSuppression],
-  );
-  const handleDragCancel = useCallback(() => {
-    setDraggingTabId(null);
-    clearDragClickSuppressionSoon();
-  }, [clearDragClickSuppressionSoon]);
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      setDraggingTabId(null);
-      clearDragClickSuppressionSoon();
-      if (!event.over) {
-        return;
-      }
-      const activeTabId = String(event.active.id);
-      const overTabId = String(event.over.id);
-      if (activeTabId === overTabId) {
-        return;
-      }
-      onReorderTab({ activeTabId, overTabId });
-    },
-    [clearDragClickSuppressionSoon, onReorderTab],
-  );
-  const handleClickCapture = useCallback<MouseEventHandler<HTMLDivElement>>(
-    (event) => {
-      if (!consumeDragClickSuppression()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-    },
-    [consumeDragClickSuppression],
-  );
-
-  const handleCloseTabs = useCallback(
-    (tabId: string, scope: SecondaryPanelTabCloseScope) => {
-      const tabsToClose = secondaryPanelTabsToClose(tabs, tabId, scope);
-      const closesActiveTab = tabsToClose.some(
-        (tab) => tab.tab.id === activeTabId,
-      );
-      if (scope !== "self" && closesActiveTab) {
-        tabs.find((tab) => tab.tab.id === tabId)?.onSelect();
-      }
-      for (const tab of tabsToClose) {
-        tab.onClose();
-      }
-    },
-    [activeTabId, tabs],
-  );
-
-  const dndTabs = useMemo(
-    () => (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragCancel={handleDragCancel}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={tabIds}
-          strategy={horizontalListSortingStrategy}
-        >
-          {tabs.map((tab) => (
-            <SortablePanelTab
-              key={tab.tab.id}
-              activeTabRef={activeTabRef}
-              dragDisabled={dragDisabled}
-              isActive={tab.tab.id === activeTabId}
-              onBeginTabDrag={onBeginTabDrag}
-              onCloseTabs={handleCloseTabs}
-              tab={tab}
-              tabs={tabs}
-            />
-          ))}
-        </SortableContext>
-        {createPortal(
-          <DragOverlay className="cursor-grabbing">
-            {draggingTab === null ? null : (
-              <PanelTab
-                isActive={draggingTab.tab.id === activeTabId}
-                tab={draggingTab}
-              />
-            )}
-          </DragOverlay>,
-          document.body,
+  const closeTabs = (index: number, scope: "self" | "others" | "right") => {
+    const closing =
+      scope === "self"
+        ? tabs.slice(index, index + 1)
+        : scope === "right"
+          ? tabs.slice(index + 1)
+          : tabs.filter((_, tabIndex) => tabIndex !== index);
+    if (scope !== "self" && closing.some((tab) => tab.tab.id === activeTabId)) {
+      tabs[index]?.onSelect();
+    }
+    for (const tab of closing) tab.onClose();
+  };
+  const scrollButton = (direction: "left" | "right") => {
+    const canScroll = edges[direction];
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        tabIndex={canScroll ? 0 : -1}
+        aria-hidden={!canScroll}
+        aria-label={
+          direction === "left" ? "Scroll tabs left" : "Scroll tabs right"
+        }
+        onClick={() =>
+          viewportRef.current?.scrollBy({
+            left:
+              direction === "left"
+                ? -CHEVRON_SCROLL_STEP_PX
+                : CHEVRON_SCROLL_STEP_PX,
+            behavior: "smooth",
+          })
+        }
+        className={cn(
+          "z-20 shrink-0 bg-sidebar text-muted-foreground/70 shadow-none hover:bg-surface-raised-solid hover:text-foreground focus-visible:bg-sidebar",
+          canScroll
+            ? "h-7 w-5 rounded-md p-0 [&_[data-icon-root]]:size-3.5"
+            : "h-7 w-0 overflow-hidden p-0",
+          "transition-opacity",
+          canScroll
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
         )}
-      </DndContext>
-    ),
-    [
-      sensors,
-      handleDragStart,
-      handleDragCancel,
-      handleDragEnd,
-      tabIds,
-      tabs,
-      dragDisabled,
-      onBeginTabDrag,
-      handleCloseTabs,
-      draggingTab,
-      activeTabId,
-    ],
-  );
+      >
+        <Icon name={direction === "left" ? "ChevronLeft" : "ChevronRight"} />
+      </Button>
+    );
+  };
 
   return (
     <div
@@ -415,32 +161,20 @@ export function SecondaryPanelTabStrip({
       data-testid="secondary-panel-tab-strip"
       className="group relative flex min-w-0 items-center [&_[data-tab-pill-close]]:text-muted-foreground/70 [&_[data-tab-pill-close]:hover]:text-foreground [&_[data-tab-pill-close]_[data-icon-root]]:size-3"
     >
-      <TabStripScrollButton
-        buttonRef={leftScrollButtonRef}
-        direction="left"
-        canScroll={overflow.canScrollLeft}
-        onClick={() => scrollByStep(-1)}
-      />
+      {scrollButton("left")}
       <div data-secondary-panel-tab-scroll-region className="relative min-w-0">
         <OverflowFade
           placement="left"
-          tone={SECONDARY_PANEL_TAB_STRIP_FADE_TONE}
-          className={cn(
-            "z-10",
-            overflow.canScrollLeft ? "opacity-100" : "opacity-0",
-          )}
+          tone="sidebar"
+          className={cn("z-10", edges.left ? "opacity-100" : "opacity-0")}
         />
         <OverflowFade
           placement="right"
-          tone={SECONDARY_PANEL_TAB_STRIP_FADE_TONE}
-          className={cn(
-            "z-10",
-            overflow.canScrollRight ? "opacity-100" : "opacity-0",
-          )}
+          tone="sidebar"
+          className={cn("z-10", edges.right ? "opacity-100" : "opacity-0")}
         />
         <div
           ref={viewportRef}
-          onClickCapture={handleClickCapture}
           className="no-scrollbar min-w-0 overflow-x-auto overflow-y-hidden"
         >
           <div
@@ -448,172 +182,63 @@ export function SecondaryPanelTabStrip({
             data-secondary-panel-tab-content
             className="flex w-max items-center gap-1"
           >
-            {dndTabs}
+            {tabs.map((tab, index) => {
+              const isActive = tab.tab.id === activeTabId;
+              return (
+                <ContextMenu key={tab.tab.id} modal={false}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      ref={isActive ? activeTabRef : undefined}
+                      className="shrink-0"
+                    >
+                      <TabPill
+                        label={tab.label}
+                        leadingVisual={tab.leadingVisual}
+                        secondaryLabel={
+                          tab.statusLabel === null
+                            ? null
+                            : `(${tab.statusLabel})`
+                        }
+                        title={
+                          tab.statusLabel === null
+                            ? tab.label
+                            : `${tab.label} (${tab.statusLabel})`
+                        }
+                        isActive={isActive}
+                        onSelect={tab.onSelect}
+                        labelMaxWidthClass="max-w-[160px]"
+                        closeAction={{
+                          onClose: tab.onClose,
+                          closeLabel: `Close ${tab.label}`,
+                        }}
+                      />
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent aria-label={`${tab.label} tab actions`}>
+                    <ContextMenuItem onSelect={() => closeTabs(index, "self")}>
+                      Close tab
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      disabled={tabs.length < 2}
+                      onSelect={() => closeTabs(index, "others")}
+                    >
+                      Close other tabs
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      disabled={index === tabs.length - 1}
+                      onSelect={() => closeTabs(index, "right")}
+                    >
+                      Close tabs to the right
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              );
+            })}
           </div>
         </div>
       </div>
-      <TabStripScrollButton
-        buttonRef={rightScrollButtonRef}
-        direction="right"
-        canScroll={overflow.canScrollRight}
-        onClick={() => scrollByStep(1)}
-      />
+      {scrollButton("right")}
     </div>
-  );
-}
-
-function SortablePanelTab({
-  activeTabRef,
-  dragDisabled,
-  isActive,
-  onBeginTabDrag,
-  onCloseTabs,
-  tab,
-  tabs,
-}: SortablePanelTabProps) {
-  const { isDragging, listeners, setNodeRef, transform, transition } =
-    useSortable({
-      id: tab.tab.id,
-      disabled: dragDisabled,
-    });
-  const { onPointerDown: sortablePointerDown, ...sortableListeners } =
-    listeners ?? {};
-  const setTabRef = useCallback(
-    (element: HTMLDivElement | null) => {
-      setNodeRef(element);
-      if (isActive) {
-        activeTabRef.current = element;
-      }
-    },
-    [activeTabRef, isActive, setNodeRef],
-  );
-  const style = useMemo<CSSProperties>(
-    () => ({
-      transform: CSS.Translate.toString(transform),
-      transition,
-    }),
-    [transform, transition],
-  );
-
-  const tabId = tab.tab.id;
-  const canCloseSelf =
-    secondaryPanelTabsToClose(tabs, tabId, "self").length > 0;
-  const canCloseOthers =
-    secondaryPanelTabsToClose(tabs, tabId, "others").length > 0;
-  const canCloseRight =
-    secondaryPanelTabsToClose(tabs, tabId, "right").length > 0;
-
-  return (
-    <ContextMenu modal={false}>
-      <ContextMenuTrigger asChild>
-        <div
-          ref={setTabRef}
-          style={style}
-          className={cn(
-            "shrink-0",
-            !dragDisabled && "cursor-grab active:cursor-grabbing",
-            isDragging && "opacity-40",
-          )}
-          onPointerDown={(event) => {
-            onBeginTabDrag?.(tabId, event);
-            sortablePointerDown?.(event);
-          }}
-          {...sortableListeners}
-        >
-          <PanelTab tab={tab} isActive={isActive} />
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent aria-label={`${tab.label} tab actions`}>
-        <ContextMenuItem
-          disabled={!canCloseSelf}
-          onSelect={() => onCloseTabs(tabId, "self")}
-        >
-          Close tab
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          disabled={!canCloseOthers}
-          onSelect={() => onCloseTabs(tabId, "others")}
-        >
-          Close other tabs
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={!canCloseRight}
-          onSelect={() => onCloseTabs(tabId, "right")}
-        >
-          Close tabs to the right
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-}
-
-interface TabStripScrollButtonProps {
-  buttonRef: RefObject<HTMLButtonElement | null>;
-  direction: "left" | "right";
-  canScroll: boolean;
-  onClick: () => void;
-}
-
-function TabStripScrollButton({
-  buttonRef,
-  direction,
-  canScroll,
-  onClick,
-}: TabStripScrollButtonProps) {
-  const label = direction === "left" ? "Scroll tabs left" : "Scroll tabs right";
-  return (
-    <Button
-      ref={buttonRef}
-      type="button"
-      variant="ghost"
-      size="sm"
-      tabIndex={canScroll ? 0 : -1}
-      aria-hidden={!canScroll}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "z-20 shrink-0 bg-sidebar text-muted-foreground/70 shadow-none hover:bg-surface-raised-solid hover:text-foreground focus-visible:bg-sidebar",
-        canScroll
-          ? TAB_STRIP_SCROLL_BUTTON_CLASS
-          : "h-7 w-0 overflow-hidden p-0",
-        "transition-opacity",
-        canScroll
-          ? "pointer-events-auto opacity-100"
-          : "pointer-events-none opacity-0",
-      )}
-    >
-      <Icon name={direction === "left" ? "ChevronLeft" : "ChevronRight"} />
-    </Button>
-  );
-}
-
-function PanelTab({
-  tab,
-  isActive,
-}: {
-  tab: SecondaryPanelRenderableTab;
-  isActive: boolean;
-}) {
-  const title =
-    tab.statusLabel === null ? tab.label : `${tab.label} (${tab.statusLabel})`;
-  return (
-    <TabPill
-      label={tab.label}
-      leadingVisual={tab.leadingVisual}
-      secondaryLabel={tab.statusLabel === null ? null : `(${tab.statusLabel})`}
-      title={title}
-      isActive={isActive}
-      onSelect={tab.onSelect}
-      labelMaxWidthClass="max-w-[160px]"
-      closeAction={
-        tab.isPinned
-          ? null
-          : {
-              onClose: tab.onClose,
-              closeLabel: `Close ${tab.label}`,
-            }
-      }
-    />
   );
 }

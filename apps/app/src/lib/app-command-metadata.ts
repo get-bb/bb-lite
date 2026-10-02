@@ -118,11 +118,6 @@ export const APP_COMMAND_GROUPS: readonly AppCommandGroup[] = [
         "Open a tab in the secondary panel.",
       ),
       command(
-        "panel.reopenClosedTab",
-        "Reopen closed panel tab",
-        "Reopen the most recently closed secondary panel tab.",
-      ),
-      command(
         "panel.close",
         "Close panel tab",
         "Close the active panel tab or terminal.",

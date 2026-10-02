@@ -1,7 +1,3 @@
-import {
-  appendQuoteAndAttachmentsToDraft,
-  type PromptDraftAttachment,
-} from "@bb/client-core";
 import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 
 import {
@@ -44,11 +40,7 @@ import {
 import { HEADER_ICON_BUTTON_CLASS } from "@/components/layout/AppPageHeader";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
-import type {
-  SecondaryPanelPaneRenderContext,
-  SecondaryPanelRenderableTab,
-} from "@/components/secondary-panel/ThreadSecondaryPanel";
-import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
+import type { SecondaryPanelRenderableTab } from "@/components/secondary-panel/ThreadSecondaryPanel";
 import { Icon } from "@bb/shared-ui/icon";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
@@ -87,18 +79,13 @@ import {
   getRootComposeRoutePath,
 } from "@/lib/route-paths";
 import {
-  useFixedPanelTabsState,
-  useFixedPanelTabsStorageMaintenance,
-  useRemoveFixedRightTerminalTab,
-  useSetFixedRightTerminalActiveTerminal,
-  useTouchFixedPanelTabsState,
-  useUpdateFixedPanelTabsState,
-} from "@/lib/fixed-panel-tabs";
-import { createNewTabFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
-import type {
-  ThreadStorageFileTabState,
-  WorkspaceFileTabState,
-} from "@bb/client-core";
+  NEW_TAB,
+  terminalTab,
+  usePanelTabs,
+  useTerminalTabSync,
+  workspaceFileTab,
+} from "@/components/secondary-panel/panelTabs";
+import type { WorkspaceFileTabState } from "@bb/client-core";
 import {
   useRootComposeForkSeed,
   useRootComposeProjectId,
@@ -109,25 +96,11 @@ import {
   RootComposeSecondaryContent,
 } from "./RootComposeSecondaryContent";
 import { RootComposeEmptyWelcome } from "./RootComposeEmptyWelcome";
-import {
-  shouldLoadThreadStorageFileList,
-  useThreadStorageViewer,
-} from "@/components/secondary-panel/useThreadStorageViewer";
-import { useThreadFileTabs } from "@/components/secondary-panel/useThreadFileTabs";
-import { isSecondaryFileTab } from "@bb/client-core";
 import { RightPanelFileTabIcon } from "@/components/secondary-panel/RightPanelFileTabIcon";
 import {
   DEFAULT_TERMINAL_COLS,
   DEFAULT_TERMINAL_ROWS,
-} from "@/components/thread/terminal/useThreadTerminalController";
-import {
-  buildTerminalSyncedSecondaryFileTabs,
-  syncTerminalTabsInFixedPanelState,
-} from "@/components/secondary-panel/terminalPanelTabs";
-import {
-  getActiveFixedSecondaryTab,
-  useSetThreadSecondaryPanelSelection,
-} from "./thread-detail/threadSecondaryPanelSelection";
+} from "@/components/secondary-panel/useThreadPanel";
 import {
   useAppCommandHandler,
   useAppCommandShortcut,
@@ -626,15 +599,6 @@ function RootComposeSurface({
     () => createCoreComposerActions(pluginComposerHost),
     [pluginComposerHost],
   );
-  const handleRootPanelSelectionAddToChat = useCallback(
-    (text: string, attachments?: readonly PromptDraftAttachment[]) => {
-      composerActions.replace((current) =>
-        appendQuoteAndAttachmentsToDraft(current, text, attachments ?? []),
-      );
-      composerActions.focus();
-    },
-    [composerActions],
-  );
 
   const searchInitialPrompt = readInitialPromptFromSearch(location.search);
   const stateInitialPrompt = readInitialPromptFromLocationState(location.state);
@@ -760,40 +724,22 @@ function RootComposeSurface({
     return () => window.cancelAnimationFrame(handle);
   }, [focusPromptBox, location.key, shouldFocusPrompt]);
 
-  useFixedPanelTabsStorageMaintenance();
-  const fixedPanelTabsState = useFixedPanelTabsState(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
-  );
-  const isSecondaryPanelOpen = fixedPanelTabsState.secondary.isOpen;
-  const activeFixedSecondaryTab = getActiveFixedSecondaryTab({
-    fixedPanelTabsState,
+  const rootPanelTabs = usePanelTabs({
+    panelId: ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
   });
-  const activeFixedSecondaryTabId = activeFixedSecondaryTab?.id ?? null;
-  const touchFixedPanelTabsState = useTouchFixedPanelTabsState(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
-  );
-  const updateFixedPanelTabsState = useUpdateFixedPanelTabsState(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
-  );
-  const setActiveFixedTerminal = useSetFixedRightTerminalActiveTerminal(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
-  );
+  const {
+    activate: activateTab,
+    close: closeTab,
+    open: openPanelTab,
+    setOpen: setSecondaryPanelOpen,
+  } = rootPanelTabs;
+  const isSecondaryPanelOpen = rootPanelTabs.isOpen;
+  const activeFixedSecondaryTab = rootPanelTabs.activeTab;
+  const activeFixedSecondaryTabId = rootPanelTabs.activeTabId;
   const [shouldAutoFocusTerminal, setShouldAutoFocusTerminal] = useState(false);
   const handleTerminalAutoFocusHandled = useCallback(
     () => setShouldAutoFocusTerminal(false),
     [],
-  );
-  const removeFixedTerminalTab = useRemoveFixedRightTerminalTab(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
-  );
-  const setRootSecondaryPanel = useSetThreadSecondaryPanelSelection(
-    ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    null,
   );
   const rootPanelEnvironmentQuery = useEnvironment(rootPanelEnvironmentId, {
     enabled: rootPanelEnvironmentId !== null,
@@ -833,16 +779,6 @@ function RootComposeSurface({
         : rootPanelHostPathTerminalTarget,
     [rootPanelEnvironmentId, rootPanelHostPathTerminalTarget],
   );
-  const { threadStorageFiles: rootThreadStorageFiles } = useThreadStorageViewer(
-    {
-      fileListEnabled: shouldLoadThreadStorageFileList({
-        hasThread: rootPanelThreadId !== null,
-        isSecondaryPanelOpen,
-        secondaryTabs: fixedPanelTabsState.secondary.tabs,
-      }),
-      threadId: rootPanelThreadId ?? undefined,
-    },
-  );
   const environmentTerminalsListQuery = useEnvironmentTerminals(
     rootPanelEnvironmentId ?? "",
     {
@@ -880,7 +816,6 @@ function RootComposeSurface({
     ],
   );
   const terminalSessions = loadedTerminalSessions ?? EMPTY_TERMINAL_SESSIONS;
-  const terminalsListLoaded = loadedTerminalSessions !== undefined;
   const terminalsById = useMemo(
     () => new Map(terminalSessions.map((session) => [session.id, session])),
     [terminalSessions],
@@ -890,46 +825,8 @@ function RootComposeSurface({
     () => setShouldAutoFocusNewTab(false),
     [],
   );
-  const {
-    activateTab,
-    closeTab,
-    openTab,
-    orderedSecondaryFileTabs,
-    reopenClosedTab,
-    reorderTab,
-    selectFileSearchResult,
-  } = useThreadFileTabs({
-    panelStateId: ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
-    syncThreadId: null,
-    environmentId: rootPanelEnvironmentId,
-    fileOwnerThreadId: rootPanelThreadId,
-    preserveWorkspaceTabsAcrossContexts: true,
-    projectHostId: rootProjectHostId,
-    projectId: isProjectless ? null : projectId,
-    storageFiles: rootThreadStorageFiles,
-    terminalSessions: loadedTerminalSessions,
-  });
-  const syncedOrderedSecondaryFileTabs = useMemo(
-    () =>
-      loadedTerminalSessions === undefined
-        ? orderedSecondaryFileTabs
-        : buildTerminalSyncedSecondaryFileTabs({
-            orderedTabs: orderedSecondaryFileTabs,
-            terminalSessions: loadedTerminalSessions,
-          }),
-    [loadedTerminalSessions, orderedSecondaryFileTabs],
-  );
-  useEffect(() => {
-    if (!terminalsListLoaded) {
-      return;
-    }
-    updateFixedPanelTabsState((state) =>
-      syncTerminalTabsInFixedPanelState({
-        state,
-        terminalSessions,
-      }),
-    );
-  }, [terminalSessions, terminalsListLoaded, updateFixedPanelTabsState]);
+  useTerminalTabSync(rootPanelTabs.update, loadedTerminalSessions);
+  const syncedOrderedSecondaryFileTabs = rootPanelTabs.state.tabs;
   const canCreateRootTerminal = canCreateRootComposeTerminal({
     connectedHostIds,
     environmentHostId: rootPanelEnvironment?.hostId,
@@ -937,20 +834,34 @@ function RootComposeSurface({
     environmentStatus: rootPanelEnvironment?.status,
   });
   const openWorkspaceFile = useCallback(
-    (file: WorkspaceFileTabState) => {
-      openTab({ kind: "workspace-file-preview", tab: file });
+    (file: WorkspaceFileTabState, replaceNewTab = false) => {
+      openPanelTab(
+        workspaceFileTab(
+          file,
+          rootPanelEnvironmentId,
+          rootPanelEnvironmentId === null && !isProjectless ? projectId : null,
+        ),
+        replaceNewTab,
+      );
     },
-    [openTab],
+    [isProjectless, openPanelTab, projectId, rootPanelEnvironmentId],
   );
-  const openStorageFile = useCallback(
-    (file: ThreadStorageFileTabState) => {
-      openTab({ kind: "thread-storage-file-preview", tab: file });
-    },
-    [openTab],
+  const selectFileSearchResult = useCallback(
+    (path: string) =>
+      openWorkspaceFile(
+        {
+          lineRange: null,
+          path,
+          source: { kind: "working-tree" },
+          statusLabel: null,
+        },
+        true,
+      ),
+    [openWorkspaceFile],
   );
   const closeSecondaryPanel = useCallback(() => {
-    setRootSecondaryPanel(null);
-  }, [setRootSecondaryPanel]);
+    setSecondaryPanelOpen(false);
+  }, [setSecondaryPanelOpen]);
   const resolveMentionLink = useCallback<PromptMentionLinkResolver>(
     (resource) => {
       if (resource.kind === "thread") {
@@ -968,15 +879,7 @@ function RootComposeSurface({
       if (resource.kind !== "path" || resource.entryKind !== "file") {
         return null;
       }
-      if (resource.source === "thread-storage") {
-        if (rootPanelThreadId === null) {
-          return null;
-        }
-        return () => {
-          openStorageFile({ lineRange: null, path: resource.path });
-        };
-      }
-      if (isProjectless) {
+      if (resource.source === "thread-storage" || isProjectless) {
         return null;
       }
       if (rootPanelEnvironmentId === null) return null;
@@ -992,24 +895,18 @@ function RootComposeSurface({
     [
       isProjectless,
       navigate,
-      openStorageFile,
       openWorkspaceFile,
       projectId,
       rootPanelEnvironmentId,
-      rootPanelThreadId,
     ],
   );
   const handleOpenNewTab = useCallback(() => {
-    openTab({ kind: "new-tab" });
+    openPanelTab(NEW_TAB);
     setShouldAutoFocusNewTab(true);
-  }, [openTab]);
+  }, [openPanelTab]);
   useAppCommandHandler("panel.newTab", () => {
     if (!isFocusedPane) return false;
     handleOpenNewTab();
-    return true;
-  });
-  useAppCommandHandler("panel.reopenClosedTab", () => {
-    if (!isFocusedPane || !reopenClosedTab()) return false;
     return true;
   });
   useAppCommandHandler("file.quickOpen", () => {
@@ -1037,7 +934,6 @@ function RootComposeSurface({
     ) {
       return;
     }
-    const newTab = createNewTabFixedPanelTab();
     const createTerminal =
       rootPanelTerminalTarget.kind === "environment"
         ? createEnvironmentTerminalMutation.mutateAsync({
@@ -1052,18 +948,16 @@ function RootComposeSurface({
           });
     void createTerminal
       .then((session) => {
-        closeTab(newTab.id);
         setShouldAutoFocusTerminal(true);
-        setActiveFixedTerminal(session.id);
+        openPanelTab(terminalTab(session.id), true);
       })
       .catch(() => undefined);
   }, [
     canCreateRootTerminal,
-    closeTab,
     createEnvironmentTerminalMutation,
     createHostPathTerminalMutation,
+    openPanelTab,
     rootPanelTerminalTarget,
-    setActiveFixedTerminal,
   ]);
   useAppCommandHandler("terminal.open", () => {
     if (
@@ -1081,21 +975,18 @@ function RootComposeSurface({
   const handleActivateTerminalTab = useCallback(
     (terminalId: string) => {
       setShouldAutoFocusTerminal(true);
-      setActiveFixedTerminal(terminalId);
+      activateTab(terminalTab(terminalId).id);
     },
-    [setActiveFixedTerminal],
+    [activateTab],
   );
   const handleCloseTerminalTab = useCallback(
     (terminalId: string) => {
+      const removeTab = () => closeTab(terminalTab(terminalId).id);
       if (rootPanelTerminalTarget === null) {
-        removeFixedTerminalTab(terminalId);
+        removeTab();
         return;
       }
-      const options = {
-        onSuccess: () => {
-          removeFixedTerminalTab(terminalId);
-        },
-      };
+      const options = { onSuccess: removeTab };
       if (rootPanelTerminalTarget.kind === "environment") {
         closeEnvironmentTerminalMutation.mutate(
           {
@@ -1115,7 +1006,7 @@ function RootComposeSurface({
     [
       closeEnvironmentTerminalMutation,
       closeHostPathTerminalMutation,
-      removeFixedTerminalTab,
+      closeTab,
       rootPanelTerminalTarget,
     ],
   );
@@ -1123,10 +1014,7 @@ function RootComposeSurface({
     if (!isSecondaryPanelOpen) {
       return false;
     }
-    if (
-      activeFixedSecondaryTab !== null &&
-      isSecondaryFileTab(activeFixedSecondaryTab)
-    ) {
+    if (activeFixedSecondaryTab !== null) {
       if (activeFixedSecondaryTab.kind === "terminal") {
         handleCloseTerminalTab(activeFixedSecondaryTab.terminalId);
       } else {
@@ -1144,10 +1032,7 @@ function RootComposeSurface({
     isSecondaryPanelOpen,
   ]);
   const renderRootPanelTabContent = useCallback(
-    (
-      tab: (typeof syncedOrderedSecondaryFileTabs)[number],
-      pane: SecondaryPanelPaneRenderContext,
-    ) => (
+    (tab: (typeof syncedOrderedSecondaryFileTabs)[number]) => (
       <RootComposePanelTabContent
         activeTabId={activeFixedSecondaryTabId}
         canCreateTerminal={canCreateRootTerminal}
@@ -1158,9 +1043,7 @@ function RootComposeSurface({
         onAutoFocusNewTabHandled={handleNewTabAutoFocusHandled}
         onAutoFocusTerminalHandled={handleTerminalAutoFocusHandled}
         onSelectFileSearchResult={selectFileSearchResult}
-        onSelectionAddToChat={handleRootPanelSelectionAddToChat}
         onStartTerminal={handleStartTerminal}
-        pane={pane}
         primaryHostId={primaryHostId}
         projectSources={projectSources}
         projects={projects}
@@ -1170,7 +1053,11 @@ function RootComposeSurface({
         shouldAutoFocusNewTab={shouldAutoFocusNewTab}
         shouldAutoFocusTerminal={shouldAutoFocusTerminal}
         tab={tab}
-        terminalTarget={rootPanelTerminalTarget}
+        terminalSession={
+          tab.kind === "terminal"
+            ? terminalsById.get(tab.terminalId)
+            : undefined
+        }
       />
     ),
     [
@@ -1178,7 +1065,6 @@ function RootComposeSurface({
       activeFixedSecondaryTabId,
       canCreateRootTerminal,
       handleNewTabAutoFocusHandled,
-      handleRootPanelSelectionAddToChat,
       handleStartTerminal,
       handleTerminalAutoFocusHandled,
       isProjectless,
@@ -1189,11 +1075,11 @@ function RootComposeSurface({
       projects,
       rootPanelEnvironmentId,
       rootPanelThreadId,
-      rootPanelTerminalTarget,
       rootProjectHostId,
       selectFileSearchResult,
       shouldAutoFocusNewTab,
       shouldAutoFocusTerminal,
+      terminalsById,
     ],
   );
   const panelTabs = useMemo<readonly SecondaryPanelRenderableTab[]>(() => {
@@ -1202,8 +1088,7 @@ function RootComposeSurface({
       (tab): SecondaryPanelRenderableTab => {
         const shared = {
           onClose: () => closeTab(tab.id),
-          renderContent: (pane: SecondaryPanelPaneRenderContext) =>
-            renderRootPanelTabContent(tab, pane),
+          renderContent: () => renderRootPanelTabContent(tab),
           tab,
         };
         switch (tab.kind) {
@@ -1239,15 +1124,6 @@ function RootComposeSurface({
             return {
               ...shared,
               label: filenameOf(tab.path),
-              leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
-              statusLabel: null,
-              onSelect: () => activateTab(tab.id),
-            };
-          case "thread-storage-file-preview":
-            return {
-              ...shared,
-              label: filenameOf(tab.path),
-              isPinned: tab.isPinned,
               leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
               statusLabel: null,
               onSelect: () => activateTab(tab.id),
@@ -1293,27 +1169,6 @@ function RootComposeSurface({
     syncedOrderedSecondaryFileTabs,
     terminalsById,
   ]);
-  const rootPanelMetadataContent = useMemo(
-    () => (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-1">
-        <EmptyStatePanel className="rounded-lg">
-          No thread details available.
-        </EmptyStatePanel>
-      </div>
-    ),
-    [],
-  );
-  const handleOpenFilePreview = useCallback(
-    (relativePath: string) => {
-      openWorkspaceFile({
-        lineRange: null,
-        path: relativePath,
-        source: { kind: "working-tree" },
-        statusLabel: null,
-      });
-    },
-    [openWorkspaceFile],
-  );
   const showPinnedToggle =
     (paneContext?.secondaryPanelHost ?? null) === null && !isSecondaryPanelOpen;
   const rootPanelToggle = showPinnedToggle ? (
@@ -1476,27 +1331,12 @@ function RootComposeSurface({
         isSecondaryPanelOpen={isSecondaryPanelOpen}
         onToggleSecondaryPanel={handleToggleSecondaryPanel}
         secondaryPanel={{
-          activeTab: activeFixedSecondaryTab,
-          canUseGitUi: false,
-          environmentId: rootPanelEnvironmentId ?? undefined,
-          metadataContent: rootPanelMetadataContent,
-          workspaceRootPath:
-            rootPanelEnvironment?.path ??
-            (rootPanelTerminalTarget?.kind === "host_path"
-              ? (rootPanelTerminalTarget.cwd ?? undefined)
-              : undefined),
+          activeTabId: activeFixedSecondaryTabId,
           tabs: panelTabs,
-          splitPanelStateId: ROOT_COMPOSE_FIXED_PANEL_STATE_ID,
           isOpen: isSecondaryPanelOpen,
           fixedTabs: [],
-          showConversationCollapseControl: false,
           onClose: closeSecondaryPanel,
-          onCollapse: closeSecondaryPanel,
-          onTabReorder: reorderTab,
           onOpenNewTab: handleOpenNewTab,
-          onOpenFilePreview: handleOpenFilePreview,
-          onSelectionAddToChat: handleRootPanelSelectionAddToChat,
-          onPanelFocus: touchFixedPanelTabsState,
         }}
       >
         {showEmptyWelcome ? (

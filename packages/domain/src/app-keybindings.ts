@@ -68,7 +68,6 @@ export const APP_COMMAND_IDS = [
   "panel.previousNewTabItem",
   "panel.nextNewTabItem",
   "panel.newTab",
-  "panel.reopenClosedTab",
   "panel.close",
   "panel.toggle",
   "file.quickOpen",

@@ -1,26 +1,22 @@
 import { useMemo } from "react";
 import type { SidebarProject } from "@/hooks/queries/project-queries";
 import { findLocalPathProjectSourceForHost } from "@bb/domain";
-import type { SecondaryFileFixedPanelTab } from "@/lib/fixed-panel-tabs-state";
-import type { SecondaryPanelPaneRenderContext } from "@/components/secondary-panel/ThreadSecondaryPanel";
+import type { TerminalSession } from "@bb/server-contract";
+import type { PanelTab } from "@/components/secondary-panel/panelTabs";
 import { FilePreview } from "@/components/secondary-panel/FilePreview";
-import { LazyThreadTerminalPanel } from "@/components/secondary-panel/lazySecondaryPanelComponents";
+import { ThreadTerminalPanel } from "@/components/thread/terminal/ThreadTerminalPanel";
 import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
 import {
   HostFilePreviewTabContent,
   ProjectFilePreviewTabContent,
-  ThreadStorageFilePreviewTabContent,
   WorkspaceFilePreviewTabContent,
 } from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
-import type { FileSearchSelection } from "@/components/secondary-panel/useThreadFileTabs";
 import { PluginPanelTabContent } from "@/components/plugin/PluginPanelActions";
 import { useEnvironment } from "@/hooks/queries/environment-queries";
-import { useThreadStorageLocation } from "@/hooks/queries/thread-queries";
 import { useOpenTargets } from "@/hooks/useOpenTargets";
 import { buildOpenInEditorHandler } from "./thread-detail/threadWorkspaceOpenPath";
 import { getFilePreviewLineRangeStart } from "@bb/client-core";
 import { resolveAbsoluteFilePath } from "@/lib/absolute-file-path";
-import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 
 export const ROOT_COMPOSE_FIXED_PANEL_STATE_ID = "root-compose";
 
@@ -37,10 +33,8 @@ interface RootComposePanelTabContentProps {
   onActivateTab: (tabId: string) => void;
   onAutoFocusNewTabHandled: () => void;
   onAutoFocusTerminalHandled: () => void;
-  onSelectFileSearchResult: (selection: FileSearchSelection) => void;
-  onSelectionAddToChat: (text: string) => void;
+  onSelectFileSearchResult: (path: string) => void;
   onStartTerminal: () => void;
-  pane: SecondaryPanelPaneRenderContext;
   primaryHostId: string | null;
   projectSources: SidebarProject["sources"];
   projects: readonly SidebarProject[] | undefined;
@@ -49,15 +43,13 @@ interface RootComposePanelTabContentProps {
   rootProjectHostId: string | null;
   shouldAutoFocusNewTab: boolean;
   shouldAutoFocusTerminal: boolean;
-  tab: SecondaryFileFixedPanelTab;
-  terminalTarget: RootComposeTerminalTarget | null;
+  tab: PanelTab;
+  terminalSession: TerminalSession | undefined;
 }
 
 interface RootComposeFilePreviewTabContentProps {
   currentProjectId: string;
-  isFocused: boolean;
   isPanelOpen: boolean;
-  onSelectionAddToChat: (text: string) => void;
   primaryHostId: string | null;
   projectSources: SidebarProject["sources"];
   projects: readonly SidebarProject[] | undefined;
@@ -65,13 +57,8 @@ interface RootComposeFilePreviewTabContentProps {
   rootPanelThreadId: string | null;
   rootProjectHostId: string | null;
   tab: Extract<
-    SecondaryFileFixedPanelTab,
-    {
-      kind:
-        | "workspace-file-preview"
-        | "host-file-preview"
-        | "thread-storage-file-preview";
-    }
+    PanelTab,
+    { kind: "workspace-file-preview" | "host-file-preview" }
   >;
 }
 
@@ -85,9 +72,7 @@ export function RootComposePanelTabContent({
   onAutoFocusNewTabHandled,
   onAutoFocusTerminalHandled,
   onSelectFileSearchResult,
-  onSelectionAddToChat,
   onStartTerminal,
-  pane,
   primaryHostId,
   projectSources,
   projects,
@@ -97,41 +82,30 @@ export function RootComposePanelTabContent({
   shouldAutoFocusNewTab,
   shouldAutoFocusTerminal,
   tab,
-  terminalTarget,
+  terminalSession,
 }: RootComposePanelTabContentProps) {
   switch (tab.kind) {
     case "terminal":
-      return terminalTarget === null ? null : (
-        <LazyThreadTerminalPanel
-          autoFocus={
-            pane.isFocused && tab.id === activeTabId && shouldAutoFocusTerminal
-          }
-          canCreateTerminal={canCreateTerminal}
+      return (
+        <ThreadTerminalPanel
+          autoFocus={tab.id === activeTabId && shouldAutoFocusTerminal}
           isPanelOpen={isPanelOpen}
           onAutoFocusHandled={onAutoFocusTerminalHandled}
-          onSelectionAddToChat={onSelectionAddToChat}
-          panelStateId={ROOT_COMPOSE_FIXED_PANEL_STATE_ID}
-          syncThreadId={null}
-          target={terminalTarget}
-          terminalId={tab.terminalId}
+          session={terminalSession}
         />
       );
     case "new-tab":
       return (
         <NewTabPage
-          autoFocus={
-            pane.isFocused && tab.id === activeTabId && shouldAutoFocusNewTab
-          }
+          autoFocus={tab.id === activeTabId && shouldAutoFocusNewTab}
           projectId={isProjectless ? undefined : currentProjectId}
           environmentId={rootPanelEnvironmentId}
           hostId={rootProjectHostId}
-          currentThreadId={rootPanelThreadId ?? ""}
           onAutoFocusHandled={onAutoFocusNewTabHandled}
-          onSelect={(selection) => {
+          onSelect={(path) => {
             onActivateTab(tab.id);
-            onSelectFileSearchResult(selection);
+            onSelectFileSearchResult(path);
           }}
-          recentItemsThreadId={ROOT_COMPOSE_FIXED_PANEL_STATE_ID}
           onStartTerminal={
             canCreateTerminal
               ? () => {
@@ -145,13 +119,10 @@ export function RootComposePanelTabContent({
       );
     case "workspace-file-preview":
     case "host-file-preview":
-    case "thread-storage-file-preview":
       return (
         <RootComposeFilePreviewTabContent
           currentProjectId={currentProjectId}
-          isFocused={pane.isFocused}
           isPanelOpen={isPanelOpen}
-          onSelectionAddToChat={onSelectionAddToChat}
           primaryHostId={primaryHostId}
           projectSources={projectSources}
           projects={projects}
@@ -170,9 +141,7 @@ export function RootComposePanelTabContent({
 
 function RootComposeFilePreviewTabContent({
   currentProjectId,
-  isFocused,
   isPanelOpen,
-  onSelectionAddToChat,
   primaryHostId,
   projectSources,
   projects,
@@ -187,16 +156,6 @@ function RootComposeFilePreviewTabContent({
     staleTime: 5_000,
   });
   const environment = environmentQuery.data;
-  const storageThreadId =
-    tab.kind === "thread-storage-file-preview"
-      ? (tab.threadId ?? rootPanelThreadId)
-      : null;
-  const threadStorageLocationQuery = useThreadStorageLocation(
-    storageThreadId ?? "",
-    { enabled: storageThreadId !== null },
-  );
-  const threadStorageRootPath =
-    threadStorageLocationQuery.data?.storageRootPath ?? null;
   const projectPreviewId =
     tab.kind === "workspace-file-preview" && tab.environmentId === null
       ? (tab.projectId ?? currentProjectId)
@@ -240,9 +199,7 @@ function RootComposeFilePreviewTabContent({
       ? tab.environmentId === null
         ? projectPreviewRootPath
         : workspaceRootPath
-      : tab.kind === "thread-storage-file-preview"
-        ? threadStorageRootPath
-        : null;
+      : null;
   const openRelativeFileInEditor = useMemo(
     () =>
       buildOpenInEditorHandler({
@@ -268,12 +225,6 @@ function RootComposeFilePreviewTabContent({
       ? openHostFileInEditor
       : openRelativeFileInEditor;
 
-  useAppCommandHandler("workspace.openPreferred", () => {
-    if (!isFocused || onOpenInEditor === undefined) return false;
-    onOpenInEditor(tab.path);
-    return true;
-  });
-
   switch (tab.kind) {
     case "workspace-file-preview": {
       const copyPath = resolveAbsoluteFilePath({
@@ -291,7 +242,6 @@ function RootComposeFilePreviewTabContent({
           isPanelOpen={isPanelOpen}
           lineRange={tab.lineRange}
           onOpenInEditor={onOpenInEditor}
-          onSelectionAddToChat={onSelectionAddToChat}
           source={tab.source}
           statusLabel={tab.statusLabel}
           threadId={rootPanelThreadId}
@@ -305,7 +255,6 @@ function RootComposeFilePreviewTabContent({
           isPanelOpen={isPanelOpen}
           lineRange={tab.lineRange}
           onOpenInEditor={onOpenInEditor}
-          onSelectionAddToChat={onSelectionAddToChat}
           projectId={projectPreviewId}
           rootPath={projectPreviewRootPath}
           threadId={rootPanelThreadId}
@@ -329,37 +278,12 @@ function RootComposeFilePreviewTabContent({
           isPanelOpen={isPanelOpen}
           lineRange={tab.lineRange}
           onOpenInEditor={onOpenInEditor}
-          onSelectionAddToChat={onSelectionAddToChat}
           threadId={threadId}
         />
       ) : (
         <FilePreview
           path={tab.path}
           copyPath={tab.path}
-          onOpenInEditor={onOpenInEditor}
-          state={{ kind: "loading" }}
-        />
-      );
-    }
-    case "thread-storage-file-preview": {
-      const copyPath = resolveAbsoluteFilePath({
-        path: tab.path,
-        rootPath: threadStorageRootPath,
-      });
-      return storageThreadId ? (
-        <ThreadStorageFilePreviewTabContent
-          activePath={tab.path}
-          copyPath={copyPath}
-          isPanelOpen={isPanelOpen}
-          lineRange={tab.lineRange}
-          onOpenInEditor={onOpenInEditor}
-          onSelectionAddToChat={onSelectionAddToChat}
-          threadId={storageThreadId}
-        />
-      ) : (
-        <FilePreview
-          path={tab.path}
-          copyPath={copyPath}
           onOpenInEditor={onOpenInEditor}
           state={{ kind: "loading" }}
         />

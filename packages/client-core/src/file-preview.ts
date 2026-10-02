@@ -20,14 +20,10 @@ const UTF8_TEXT_MIME_TYPES = new Set([
 
 const MARKDOWN_FILE_EXTENSIONS = [".md", ".markdown"];
 const MARKDOWN_MIME_TYPES = new Set(["text/markdown", "text/x-markdown"]);
-const CSV_FILE_EXTENSIONS = [".csv"];
-const CSV_MIME_TYPES = new Set(["application/csv", "text/csv"]);
-const HTML_FILE_EXTENSION = ".html";
 const NULL_CHARACTER = "\u0000";
 
 export const FILE_PREVIEW_SAMPLE_BYTES = 64 * 1024;
 export const FILE_PREVIEW_TEXT_MAX_BYTES = 25 * 1024 * 1024;
-export const FILE_PREVIEW_HTML_MAX_BYTES = 5 * 1024 * 1024;
 
 export interface FilePreviewTarget {
   name?: string;
@@ -101,11 +97,6 @@ export interface WorkspaceFileTabState {
 }
 
 export interface HostFileTabState {
-  lineRange: FilePreviewLineRange | null;
-  path: string;
-}
-
-export interface ThreadStorageFileTabState {
   lineRange: FilePreviewLineRange | null;
   path: string;
 }
@@ -221,17 +212,6 @@ function hasMarkdownExtension(path: string): boolean {
   );
 }
 
-function hasCsvExtension(path: string): boolean {
-  const normalizedPath = path.toLowerCase();
-  return CSV_FILE_EXTENSIONS.some((extension) =>
-    normalizedPath.endsWith(extension),
-  );
-}
-
-export function isHtmlFilePreviewPath(path: string): boolean {
-  return path.toLowerCase().endsWith(HTML_FILE_EXTENSION);
-}
-
 export function normalizeFilePreviewMimeType(value: string | null): string {
   const normalizedValue = value?.split(";")[0]?.trim().toLowerCase();
   return normalizedValue && normalizedValue.length > 0
@@ -245,15 +225,6 @@ export function isMarkdownFilePreview(preview: FilePreview): boolean {
     (MARKDOWN_MIME_TYPES.has(preview.mimeType) ||
       hasMarkdownExtension(preview.path) ||
       (preview.name ? hasMarkdownExtension(preview.name) : false))
-  );
-}
-
-export function isCsvFilePreview(preview: FilePreview): boolean {
-  return (
-    preview.kind === "text" &&
-    (CSV_MIME_TYPES.has(preview.mimeType) ||
-      hasCsvExtension(preview.path) ||
-      (preview.name ? hasCsvExtension(preview.name) : false))
   );
 }
 

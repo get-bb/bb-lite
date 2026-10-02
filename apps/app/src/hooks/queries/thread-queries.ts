@@ -17,8 +17,6 @@ import type {
   ThreadSearchResponse,
   ThreadWithIncludesResponse,
   ThreadConversationOutlineResponse,
-  ThreadStorageFileListResponse,
-  ThreadStorageLocationResponse,
   ThreadStoragePathListResponse,
   ThreadTimelineResponse,
   TimelineTurnSummaryDetailsResponse,
@@ -28,7 +26,6 @@ import { applyTimelineDelta } from "@bb/server-contract";
 import type { ThreadListFilters } from "@bb/client-core";
 import type { FilePreview } from "@bb/client-core";
 import type { PathListOptions } from "@/lib/path-list-options";
-import type { ThreadStorageFileListOptions } from "@/lib/thread-storage-files";
 import * as api from "@/lib/api";
 import { sdk } from "@/lib/sdk";
 import {
@@ -73,10 +70,7 @@ import {
   threadPromptHistoryQueryKey,
   threadQueryKey,
   threadSearchQueryKey,
-  threadStorageFilesQueryKey,
-  threadStorageLocationQueryKey,
   threadStoragePathsQueryKey,
-  threadStorageFilePreviewQueryKey,
   threadHostFilePreviewQueryKey,
   threadConversationOutlineQueryKey,
   threadTimelineQueryKey,
@@ -796,46 +790,6 @@ export function useThreadPendingInteractions(
   });
 }
 
-export function useThreadStorageFiles(
-  id: string,
-  listOptions: ThreadStorageFileListOptions,
-  options?: QueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<ThreadStorageFileListResponse>({
-    queryKey: threadStorageFilesQueryKey(id, listOptions),
-    queryFn: ({ signal }) => {
-      const query = listOptions.query?.trim() ?? "";
-      return sdk.threads.storageFiles({
-        limit: String(listOptions.limit),
-        ...(query.length > 0 ? { query } : {}),
-        threadId: requireThreadId(id, "useThreadStorageFiles"),
-        signal,
-      });
-    },
-    enabled,
-    ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
-  });
-}
-
-export function useThreadStorageLocation(id: string, options?: QueryOptions) {
-  const enabled = (options?.enabled ?? true) && Boolean(id);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<ThreadStorageLocationResponse>({
-    queryKey: threadStorageLocationQueryKey(id),
-    queryFn: ({ signal }) =>
-      sdk.threads.storageLocation({
-        threadId: requireThreadId(id, "useThreadStorageLocation"),
-        signal,
-      }),
-    enabled,
-    ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
-  });
-}
-
 export function useThreadStoragePaths(
   id: string,
   listOptions: PathListOptions,
@@ -860,28 +814,6 @@ export function useThreadStoragePaths(
     enabled,
     ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
     placeholderData: (previousData) => previousData,
-  });
-}
-
-export function useThreadStorageFilePreview(
-  id: string,
-  path: string | null,
-  options?: QueryOptions,
-) {
-  const enabled = (options?.enabled ?? true) && Boolean(id) && Boolean(path);
-  useThreadDetailRealtimeSubscription(id, { enabled });
-
-  return useQuery<FilePreview>({
-    queryKey: threadStorageFilePreviewQueryKey(id, path),
-    queryFn: ({ signal }) =>
-      api.getThreadStorageFilePreview(
-        requireThreadId(id, "useThreadStorageFilePreview"),
-        path ?? "",
-        signal,
-      ),
-    enabled,
-    ...REALTIME_OWNED_MOUNT_BASELINE_QUERY_POLICY,
-    ...HEAVY_PAYLOAD_QUERY_POLICY,
   });
 }
 
