@@ -1,6 +1,5 @@
 import type {
   MachineEnvironmentReplace,
-  MachineEnvironmentSet,
   MachineEnvironmentList,
 } from "@bb/server-contract";
 import type {
@@ -11,7 +10,6 @@ import type {
   UiPreferenceValue,
 } from "@bb/domain";
 import type {
-  SystemConfigReloadResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
   SystemExecutionOptionsResponse,
@@ -36,7 +34,6 @@ export interface SystemExecutionOptionsArgs extends SystemExecutionOptionsQuery 
 
 export type SystemConfigResult = SystemConfigResponse;
 export type SystemExecutionOptionsResult = SystemExecutionOptionsResponse;
-export type SystemReloadConfigResult = SystemConfigReloadResponse;
 export type SystemUpdateGeneralSettingsResult = AppSettings & {
   showUnhandledProviderEvents?: boolean;
 };
@@ -72,12 +69,6 @@ export interface SystemUiPreferencesArea {
 }
 
 export interface SystemArea {
-  setMachineEnvironmentVariable(
-    input: MachineEnvironmentSet,
-  ): Promise<MachineEnvironmentList>;
-  deleteMachineEnvironmentVariable(input: {
-    name: string;
-  }): Promise<MachineEnvironmentList>;
   machineEnvironment(): Promise<MachineEnvironmentList>;
   replaceMachineEnvironment(
     input: MachineEnvironmentReplace,
@@ -86,7 +77,6 @@ export interface SystemArea {
   executionOptions(
     args?: SystemExecutionOptionsArgs,
   ): Promise<SystemExecutionOptionsResult>;
-  reloadConfig(): Promise<SystemReloadConfigResult>;
   uiPreferences: SystemUiPreferencesArea;
   updateGeneralSettings(
     args: AppSettingsUpdate,
@@ -133,18 +123,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
   };
   return {
     uiPreferences,
-    async setMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$post({ json: input }),
-      );
-    },
-    async deleteMachineEnvironmentVariable(input) {
-      return transport.readJson(
-        transport.api.v1.settings["machine-environment"].$delete({
-          json: input,
-        }),
-      );
-    },
     async machineEnvironment() {
       return transport.readJson(
         transport.api.v1.settings["machine-environment"].$get(),
@@ -165,9 +143,6 @@ export function createSystemArea(args: CreateSdkAreaArgs): SystemArea {
     },
     async executionOptions(input = {}) {
       return readExecutionOptions(transport, input);
-    },
-    async reloadConfig() {
-      return transport.readJson(transport.api.v1.system.config.reload.$post());
     },
     async updateGeneralSettings(input) {
       return transport.readJson(

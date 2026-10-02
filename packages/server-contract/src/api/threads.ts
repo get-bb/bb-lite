@@ -12,10 +12,7 @@ import {
   pendingInteractionSchema,
   permissionModeInputSchema,
   promptInputSchema,
-  clientTurnRequestIdSchema,
   queuedMessageWaitHolderSchema,
-  queuedMessageWaitingOnSchema,
-  queuedMessageWaitReasonSchema,
   reasoningLevelSchema,
   rawThreadIdSchema,
   serviceTierSchema,
@@ -301,63 +298,6 @@ export const editMessageResponseSchema = z
   .strict();
 export type EditMessageResponse = z.infer<typeof editMessageResponseSchema>;
 
-/**
- * The reason a retry carries when the caller names none. Filled here at the
- * boundary so the queued row, its card and `bb thread queue list` all read the
- * same word whether the retry came from a plugin, the CLI or the app.
- */
-export const DEFAULT_TURN_RETRY_REASON = "Retry";
-
-export const retryTurnRequestSchema = z
-  .object({
-    /**
-     * The failed turn to re-submit. Null means the thread's own most recent
-     * turn, which is the one whose failure put it in `error` — the only turn a
-     * caller who did not watch the failure happen can mean.
-     */
-    turnRequestId: clientTurnRequestIdSchema.nullable().default(null),
-    /**
-     * Epoch ms to retry at. Null attempts the retry now (it may still queue
-     * behind a busy thread or a plugin wait, like any other dispatch); a future
-     * instant queues the row on the clock, which is what a rate-limit window
-     * wants.
-     */
-    sendAt: z.number().int().nonnegative().nullable().default(null),
-    /** Why the turn is being retried, shown verbatim on the queued row. */
-    reason: queuedMessageWaitReasonSchema.default(DEFAULT_TURN_RETRY_REASON),
-  })
-  .strict();
-export type RetryTurnRequest = z.infer<typeof retryTurnRequestSchema>;
-
-/**
- * What a retry did, mirroring `sendMessageResponseSchema`: a retry is a
- * dispatch of a turn that already exists, so it is delivered or queued on
- * exactly the same terms as a send. The two retry-specific facts ride along,
- * because a caller that let the server pick the turn has no other way to learn
- * which one it picked.
- */
-export const retryTurnResponseSchema = z.discriminatedUnion("delivery", [
-  z.object({
-    ok: z.literal(true),
-    delivery: z.literal("sent"),
-    /** The ORIGINAL request of the retry chain, which the retry re-submits. */
-    turnRequestId: clientTurnRequestIdSchema,
-    /** Which attempt this retry is: 2 is the first retry. */
-    attempt: z.number().int().min(2),
-  }),
-  z.object({
-    ok: z.literal(true),
-    delivery: z.literal("queued"),
-    turnRequestId: clientTurnRequestIdSchema,
-    attempt: z.number().int().min(2),
-    /** The row now carrying the retry; addressable for send-now or cancel. */
-    queuedMessageId: z.string().min(1),
-    waitingOn: queuedMessageWaitingOnSchema,
-    sendAt: z.number().int().nonnegative().nullable(),
-  }),
-]);
-export type RetryTurnResponse = z.infer<typeof retryTurnResponseSchema>;
-
 export const sendQueuedMessageModeSchema = z.enum(["auto", "steer"]);
 export type SendQueuedMessageMode = z.infer<typeof sendQueuedMessageModeSchema>;
 
@@ -521,40 +461,6 @@ export const threadGetQuerySchema = z.object({
     .optional(),
 });
 export type ThreadGetQuery = z.infer<typeof threadGetQuerySchema>;
-
-export type ThreadPluginMetadataResponse = z.infer<typeof pluginMetadataSchema>;
-export const threadPluginMetadataQuerySchema = z
-  .object({ pluginId: pluginIdSchema })
-  .strict();
-export type ThreadPluginMetadataQuery = z.infer<
-  typeof threadPluginMetadataQuerySchema
->;
-export const updateThreadPluginMetadataRequestSchema = z
-  .object({
-    pluginId: pluginIdSchema,
-    set: pluginMetadataSchema.optional(),
-    remove: z.array(z.string()).optional(),
-  })
-  .strict()
-  .superRefine(({ set, remove }, ctx) => {
-    if (remove && new Set(remove).size !== remove.length) {
-      ctx.addIssue({
-        code: "custom",
-        message: "remove contains duplicate keys",
-        path: ["remove"],
-      });
-    }
-    if (set && remove?.some((key) => Object.hasOwn(set, key))) {
-      ctx.addIssue({
-        code: "custom",
-        message: "set and remove overlap",
-        path: ["remove"],
-      });
-    }
-  });
-export type UpdateThreadPluginMetadataRequest = z.infer<
-  typeof updateThreadPluginMetadataRequestSchema
->;
 
 export const threadWithIncludesResponseSchema = threadResponseSchema.extend({
   environment: environmentSchema.nullable().optional(),
@@ -722,13 +628,6 @@ export const threadPaneActionSchema = z.enum([
 ]);
 export type ThreadPaneAction = z.infer<typeof threadPaneActionSchema>;
 
-export const threadPaneActionRequestSchema = z
-  .object({ action: threadPaneActionSchema })
-  .strict();
-export type ThreadPaneActionRequest = z.infer<
-  typeof threadPaneActionRequestSchema
->;
-
 export const threadPaneActionSignalSchema = z
   .object({
     type: z.literal("thread-pane-action"),
@@ -747,13 +646,6 @@ export const threadPaneActionSignalLenientSchema = z.object({
   threadId: z.string(),
   action: threadPaneActionSchema,
 });
-
-export const threadPaneActionResponseSchema = z.object({
-  delivered: z.number().int().nonnegative(),
-});
-export type ThreadPaneActionResponse = z.infer<
-  typeof threadPaneActionResponseSchema
->;
 
 export const threadArchiveAllResponseSchema = z.object({
   ok: z.literal(true),
@@ -833,37 +725,6 @@ export const threadCountResponseSchema = z.object({
     .optional(),
 });
 export type ThreadCountResponse = z.infer<typeof threadCountResponseSchema>;
-
-/**
- * One thread currently occupying capacity — canonical status `starting` or
- * `active`. Archived and deleted threads are excluded (neither runs); hidden
- * ones are not, because a hidden thread burns a real slot on a real machine.
- *
- * The row is an id and the machine that id is occupying, and nothing else.
- * `hostId` is here because a per-host pool cannot be derived from an id
- * without a query per row; every other question a caller might ask is
- * answerable by fetching the thread it names.
- *
- * **Exact inside the `message.dispatch` hook, a snapshot everywhere else.**
- * Hook passes run one at a time under a server-wide lock, and a cleared first
- * attempt commits its `pending → starting` flip before that lock releases — so
- * the next handler in line sees the admission the previous one granted. Read
- * anywhere else (a background service, an HTTP client, a `turn.failed`
- * listener) it is an ordinary query that races with every concurrent dispatch,
- * exactly like `threads.count`.
- * See {@link threadRunningResponseSchema}'s consumers in the plugin authoring
- * guide for the one boundary case: a warm follow-up's `idle → active` flip
- * commits just after the lock, so admissions of already-live threads can be
- * momentarily invisible.
- */
-export const threadRunningEntrySchema = z.object({
-  id: z.string(),
-  /** The machine it runs on; null while no environment has been chosen. */
-  hostId: z.string().nullable(),
-});
-
-export const threadRunningResponseSchema = z.array(threadRunningEntrySchema);
-export type ThreadRunningResponse = z.infer<typeof threadRunningResponseSchema>;
 
 export const threadSearchQuerySchema = z.object({
   query: z.string().trim().min(2),

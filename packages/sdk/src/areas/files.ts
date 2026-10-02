@@ -1,5 +1,4 @@
 import type {
-  CreateFilePreviewResponse,
   HostFileListResponse,
   HostFileReadResponse,
   HostFileWriteResponse,
@@ -42,25 +41,16 @@ export interface FileMkdirArgs {
   recursive?: boolean;
 }
 
-export interface FilePreviewArgs {
-  hostId?: string;
-  rootPath: string;
-  signal?: AbortSignal;
-  ttlMs?: number;
-}
-
 export type FileReadResult = HostFileReadResponse;
 export type FileWriteResult = HostFileWriteResponse;
 export type FileListResult = HostFileListResponse;
 export type FileMkdirResult = HostMkdirResponse;
-export type FilePreviewResult = CreateFilePreviewResponse;
 
 export interface FilesArea {
   read(args: FileReadArgs): Promise<FileReadResult>;
   write(args: FileWriteArgs): Promise<FileWriteResult>;
   list(args: FileListArgs): Promise<FileListResult>;
   mkdir(args: FileMkdirArgs): Promise<FileMkdirResult>;
-  createPreview(args: FilePreviewArgs): Promise<FilePreviewResult>;
 }
 
 export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
@@ -105,20 +95,6 @@ export function createFilesArea(args: CreateSdkAreaArgs): FilesArea {
     async mkdir(input) {
       return transport.readJson(
         transport.api.v1.files.mkdir.$post({ json: input }),
-      );
-    },
-    async createPreview(input) {
-      return transport.readJson(
-        transport.api.v1.files.previews.$post(
-          {
-            json: {
-              hostId: input.hostId,
-              rootPath: input.rootPath,
-              ttlMs: input.ttlMs,
-            },
-          },
-          ...signalRequestArgs(input.signal),
-        ),
       );
     },
   };

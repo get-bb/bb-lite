@@ -1,8 +1,4 @@
 import {
-  machineEnvironmentSetSchema,
-  machineEnvironmentDeleteSchema,
-  type MachineEnvironmentSet,
-  type MachineEnvironmentDelete,
   type ProjectMachineEnvironmentList,
   type MachineEnvironmentList,
 } from "./api/machine-environment.js";
@@ -59,8 +55,6 @@ import type {
   CloseTerminalRequest,
   CommandListResponse,
   CopyProjectAttachmentsRequest,
-  CreateHostJoinCodeRequest,
-  CreateHostJoinCodeResponse,
   CreateMachineRequest,
   CreateTerminalRequest,
   CreateProjectRequest,
@@ -104,8 +98,6 @@ import type {
   HostFileWriteResponse,
   HostMkdirRequest,
   HostMkdirResponse,
-  CreateFilePreviewRequest,
-  CreateFilePreviewResponse,
   HostOpenRequest,
   HostOpenTargetsResponse,
   HostPathsExistRequest,
@@ -116,7 +108,6 @@ import type {
   ProjectBranchesResponse,
   ProjectCommandsQuery,
   ProjectDefaultExecutionOptionsQuery,
-  ProjectFilesQuery,
   ProjectListQuery,
   ProjectPathsQuery,
   ProjectResponse,
@@ -131,14 +122,11 @@ import type {
   ResolveThreadMentionsResponse,
   RespondPluginInteractionRequest,
   SendMessageRequest,
-  RetryTurnRequest,
-  RetryTurnResponse,
   SendMessageResponse,
   SetQueuedMessageGroupBoundaryRequest,
   SendQueuedMessageRequest,
   SendQueuedMessageResponse,
   SidebarBootstrapResponse,
-  SystemConfigReloadResponse,
   SystemAttentionResponse,
   SystemConfigResponse,
   SystemExecutionOptionsQuery,
@@ -169,15 +157,10 @@ import type {
   ThreadConversationOutlineResponse,
   ThreadOpenRequest,
   ThreadOpenResponse,
-  ThreadPaneActionRequest,
-  ThreadPaneActionResponse,
   ThreadPendingInteractionsResponse,
-  ThreadRunningResponse,
   QueuedMessageListQuery,
   ThreadQueuedMessageListResponse,
   ThreadResponse,
-  ThreadPluginMetadataQuery,
-  ThreadPluginMetadataResponse,
   ThreadSearchQuery,
   ThreadSearchResponse,
   ThreadStorageFileListResponse,
@@ -187,7 +170,6 @@ import type {
   ThreadStoragePathsQuery,
   ThreadTimelineQuery,
   ThreadTimelineResponse,
-  ThreadContextResponse,
   ThreadWithIncludesResponse,
   TimelineTurnSummaryDetailsQuery,
   TimelineTurnSummaryDetailsResponse,
@@ -199,11 +181,9 @@ import type {
   UpdateHostPermissionCeilingRequest,
   UpdateProjectRequest,
   UpdateProjectSourceRequest,
-  UpdateThreadPluginMetadataRequest,
   UpdateThreadRequest,
   UpdateQueuedMessageRequest,
   UploadedPromptAttachment,
-  WorkspaceFileListResponse,
   WorkspacePathListResponse,
 } from "./api-types.js";
 import type {
@@ -221,12 +201,10 @@ import { updateUiPreferenceRequestSchema } from "./api/ui-preferences.js";
 import {
   closeTerminalRequestSchema,
   copyProjectAttachmentsRequestSchema,
-  createFilePreviewRequestSchema,
   createThreadSectionRequestSchema,
   deleteThreadSectionRequestSchema,
   createTerminalRequestSchema,
   createProjectRequestSchema,
-  createHostJoinCodeRequestSchema,
   createMachineRequestSchema,
   createProjectSourceRequestSchema,
   createQueuedMessageRequestSchema,
@@ -234,8 +212,6 @@ import {
   updateQueuedMessageRequestSchema,
   createThreadRequestSchema,
   forkThreadRequestSchema,
-  updateThreadPluginMetadataRequestSchema,
-  threadPluginMetadataQuerySchema,
   deleteThreadRequestSchema,
   environmentActionRequestSchema,
   environmentDiffBranchesQuerySchema,
@@ -257,7 +233,6 @@ import {
   projectBranchesQuerySchema,
   projectCommandsQuerySchema,
   projectDefaultExecutionOptionsQuerySchema,
-  projectFilesQuerySchema,
   projectListQuerySchema,
   projectPathsQuerySchema,
   promptHistoryQuerySchema,
@@ -267,7 +242,6 @@ import {
   resolvePendingInteractionRequestSchema,
   resolveThreadMentionsRequestSchema,
   respondPluginInteractionRequestSchema,
-  retryTurnRequestSchema,
   sendMessageRequestSchema,
   editMessageRequestSchema,
   setQueuedMessageGroupBoundaryRequestSchema,
@@ -281,7 +255,6 @@ import {
   threadCountQuerySchema,
   threadListQuerySchema,
   threadOpenRequestSchema,
-  threadPaneActionRequestSchema,
   threadSearchQuerySchema,
   threadStorageFilesQuerySchema,
   threadStoragePathsQuerySchema,
@@ -321,22 +294,6 @@ export const publicApiRoutes = {
       method: "put",
       request: jsonRequest<PathProjectId, MachineEnvironmentReplace>(
         machineEnvironmentReplaceSchema,
-      ),
-      response: jsonResponse<ProjectMachineEnvironmentList>(),
-    }),
-    setMachineEnvironmentVariable: defineRoute({
-      path: "/projects/:id/machine-environment",
-      method: "post",
-      request: jsonRequest<PathProjectId, MachineEnvironmentSet>(
-        machineEnvironmentSetSchema,
-      ),
-      response: jsonResponse<ProjectMachineEnvironmentList>(),
-    }),
-    deleteMachineEnvironmentVariable: defineRoute({
-      path: "/projects/:id/machine-environment",
-      method: "delete",
-      request: jsonRequest<PathProjectId, MachineEnvironmentDelete>(
-        machineEnvironmentDeleteSchema,
       ),
       response: jsonResponse<ProjectMachineEnvironmentList>(),
     }),
@@ -430,14 +387,6 @@ export const publicApiRoutes = {
       method: "delete",
       request: noRequest<PathProjectSourceId>(),
       response: jsonResponse<{ ok: true }>(),
-    }),
-    files: defineRoute({
-      path: "/projects/:id/files",
-      method: "get",
-      request: queryRequest<PathProjectId, ProjectFilesQuery>(
-        projectFilesQuerySchema,
-      ),
-      response: jsonResponse<WorkspaceFileListResponse>(),
     }),
     file: defineRoute({
       path: "/projects/:id/files/:filePath{.+}",
@@ -540,23 +489,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<HostMkdirResponse>(),
     }),
-    createPreview: defineRoute({
-      path: "/files/previews",
-      method: "post",
-      request: jsonRequest<EmptyInput, CreateFilePreviewRequest>(
-        createFilePreviewRequestSchema,
-      ),
-      response: jsonResponse<CreateFilePreviewResponse>(),
-    }),
-  },
-
-  filePreviews: {
-    content: defineRoute({
-      path: "/file-previews/:id/:filePath{.+}",
-      method: "get",
-      request: noRequest<PathIdAndFilePath>(),
-      response: binaryResponse<Uint8Array>(),
-    }),
   },
 
   hosts: {
@@ -567,14 +499,6 @@ export const publicApiRoutes = {
         createMachineRequestSchema,
       ),
       response: jsonResponse<Host>({ status: 201 }),
-    }),
-    createJoinCode: defineRoute({
-      path: "/hosts/join-codes",
-      method: "post",
-      request: jsonRequest<EmptyInput, CreateHostJoinCodeRequest>(
-        createHostJoinCodeRequestSchema,
-      ),
-      response: jsonResponse<CreateHostJoinCodeResponse>({ status: 201 }),
     }),
     list: defineRoute({
       path: "/hosts",
@@ -731,12 +655,6 @@ export const publicApiRoutes = {
   },
 
   environments: {
-    cleanup: defineRoute({
-      path: "/environments/:id/cleanup",
-      method: "post",
-      request: noRequest<PathId>(),
-      response: jsonResponse<{ ok: true }>(),
-    }),
     list: defineRoute({
       path: "/environments",
       method: "get",
@@ -925,18 +843,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<ThreadCountResponse>(),
     }),
-    /**
-     * The threads occupying capacity right now, as rows rather than a count.
-     * A limiter needs to know *which* threads are running to hold several
-     * pools at once — `threads.count` answers one pool per request and cannot
-     * reconcile a global limit with a per-host one from separate counts.
-     */
-    running: defineRoute({
-      path: "/threads/running",
-      method: "get",
-      request: noRequest(),
-      response: jsonResponse<ThreadRunningResponse>(),
-    }),
     search: defineRoute({
       path: "/threads/search",
       method: "get",
@@ -985,24 +891,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<ThreadResponse>(),
     }),
-    pluginMetadata: {
-      get: defineRoute({
-        path: "/threads/:id/plugin-metadata",
-        method: "get",
-        request: queryRequest<PathId, ThreadPluginMetadataQuery>(
-          threadPluginMetadataQuerySchema,
-        ),
-        response: jsonResponse<ThreadPluginMetadataResponse>(),
-      }),
-      update: defineRoute({
-        path: "/threads/:id/plugin-metadata",
-        method: "patch",
-        request: jsonRequest<PathId, UpdateThreadPluginMetadataRequest>(
-          updateThreadPluginMetadataRequestSchema,
-        ),
-        response: jsonResponse<ThreadPluginMetadataResponse>(),
-      }),
-    },
     delete: defineRoute({
       path: "/threads/:id",
       method: "delete",
@@ -1032,17 +920,6 @@ export const publicApiRoutes = {
         editMessageRequestSchema,
       ),
       response: jsonResponse<EditMessageResponse>(),
-    }),
-    /**
-     * Retry a failed turn: re-submit it by reference, as an ordinary dispatch
-     * attempt. `turnRequestId` null means the thread's most recent turn, whose
-     * failure is what put the thread in `error`.
-     */
-    retry: defineRoute({
-      path: "/threads/:id/retry",
-      method: "post",
-      request: jsonRequest<PathId, RetryTurnRequest>(retryTurnRequestSchema),
-      response: jsonResponse<RetryTurnResponse>(),
     }),
     queuedMessages: defineRoute({
       path: "/threads/:id/queued-messages",
@@ -1146,14 +1023,6 @@ export const publicApiRoutes = {
       method: "post",
       request: jsonRequest<PathId, ThreadOpenRequest>(threadOpenRequestSchema),
       response: jsonResponse<ThreadOpenResponse>(),
-    }),
-    paneAction: defineRoute({
-      path: "/threads/:id/pane-action",
-      method: "post",
-      request: jsonRequest<PathId, ThreadPaneActionRequest>(
-        threadPaneActionRequestSchema,
-      ),
-      response: jsonResponse<ThreadPaneActionResponse>(),
     }),
     tabs: defineRoute({
       path: "/threads/:id/tabs",
@@ -1275,12 +1144,6 @@ export const publicApiRoutes = {
       ),
       response: jsonResponse<ThreadTimelineResponse>(),
     }),
-    context: defineRoute({
-      path: "/threads/:id/context",
-      method: "get",
-      request: noRequest<PathId>(),
-      response: jsonResponse<ThreadContextResponse>(),
-    }),
     conversationOutline: defineRoute({
       path: "/threads/:id/conversation-outline",
       method: "get",
@@ -1378,23 +1241,6 @@ export const publicApiRoutes = {
   },
 
   system: {
-    setMachineEnvironmentVariable: defineRoute({
-      path: "/settings/machine-environment",
-      method: "post",
-      request: jsonRequest<EmptyInput, MachineEnvironmentSet>(
-        machineEnvironmentSetSchema,
-      ),
-      response: jsonResponse<MachineEnvironmentList>(),
-    }),
-    deleteMachineEnvironmentVariable: defineRoute({
-      path: "/settings/machine-environment",
-      method: "delete",
-      request: jsonRequest<EmptyInput, MachineEnvironmentDelete>(
-        machineEnvironmentDeleteSchema,
-      ),
-      response: jsonResponse<MachineEnvironmentList>(),
-    }),
-
     machineEnvironment: defineRoute({
       path: "/settings/machine-environment",
       method: "get",
@@ -1485,12 +1331,6 @@ export const publicApiRoutes = {
       method: "get",
       request: noRequest<PathId>(),
       response: jsonResponse<AppTheme>(),
-    }),
-    reloadConfig: defineRoute({
-      path: "/system/config/reload",
-      method: "post",
-      request: noRequest(),
-      response: jsonResponse<SystemConfigReloadResponse>(),
     }),
     executionOptions: defineRoute({
       path: "/system/execution-options",

@@ -56,21 +56,6 @@ export const hostMkdirRequestSchema = z
   .strict();
 export type HostMkdirRequest = z.infer<typeof hostMkdirRequestSchema>;
 
-export const createFilePreviewRequestSchema = z
-  .object({
-    hostId: z.string().min(1).optional(),
-    rootPath: z.string().min(1),
-    ttlMs: z.number().int().min(60_000).max(3_600_000).optional(),
-  })
-  .strict();
-export type CreateFilePreviewRequest = z.infer<
-  typeof createFilePreviewRequestSchema
->;
-export interface CreateFilePreviewResponse {
-  baseUrl: string;
-  expiresAtMs: number;
-}
-
 export interface HostFileReadResponse {
   path: string;
   content: string;

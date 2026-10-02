@@ -187,14 +187,6 @@ export type SystemAttentionResponse = z.infer<
   typeof systemAttentionResponseSchema
 >;
 
-export const systemConfigReloadResponseSchema = z.object({
-  ok: z.literal(true),
-});
-
-export type SystemConfigReloadResponse = z.infer<
-  typeof systemConfigReloadResponseSchema
->;
-
 const systemEnvironmentProviderAvailabilitySchema = z.discriminatedUnion(
   "status",
   [
