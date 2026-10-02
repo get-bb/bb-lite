@@ -3,7 +3,6 @@ import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 
@@ -121,7 +120,7 @@ function SidebarTrigger({
       variant="ghost"
       size="icon"
       className={cn(
-        COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
+        "h-[28px] w-[28px] rounded-md p-0 [&_[data-icon-root]]:size-[16px]",
         "select-none",
         className,
       )}

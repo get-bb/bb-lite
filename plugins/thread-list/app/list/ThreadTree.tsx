@@ -31,12 +31,6 @@ import {
 } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import {
-  COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-  COARSE_POINTER_GLYPH_BOX_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -314,7 +308,7 @@ function NestDropPreviewRow({
       }}
       className={cn(
         SIDEBAR_ROW_BASE_CLASS,
-        COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
+        "h-7",
         "pointer-events-none overflow-hidden text-sidebar-foreground opacity-50",
       )}
     >
@@ -569,7 +563,7 @@ function EnvironmentThreadGroupHeader({
     SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
     stickyLevel === undefined && "relative",
     SIDEBAR_ROW_BASE_CLASS,
-    COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
+    "h-7",
   );
   const style = { paddingLeft: getSidebarThreadRowPaddingLeft(rowDepth) };
   const content = (
@@ -585,13 +579,13 @@ function EnvironmentThreadGroupHeader({
         className={cn(
           "pointer-events-none relative z-10 inline-flex shrink-0 items-center justify-center",
           SIDEBAR_GROUP_TEXT_CLASS,
-          COARSE_POINTER_GLYPH_BOX_CLASS,
+          "h-4 w-4",
         )}
         aria-hidden="true"
       >
         <Icon
           name={getEnvironmentLabelIconName(providerLookup)}
-          className={COARSE_POINTER_ICON_SIZE_CLASS}
+          className="size-4"
           aria-hidden="true"
         />
       </span>
@@ -634,7 +628,7 @@ function EnvironmentThreadGroupHeader({
             data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
             className={cn(
               SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-              COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+              "h-7 w-7",
               "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground",
             )}
           >
@@ -676,10 +670,7 @@ function EnvironmentThreadGroupHeader({
                   data-sidebar-rename-anchor=""
                   className={SIDEBAR_CONTROL_BUTTON_CLASS}
                 >
-                  <Icon
-                    name="MoreHorizontal"
-                    className={COARSE_POINTER_ICON_SIZE_CLASS}
-                  />
+                  <Icon name="MoreHorizontal" className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent

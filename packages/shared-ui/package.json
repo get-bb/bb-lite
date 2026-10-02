@@ -24,11 +24,6 @@
       "types": "./src/components/ui/chrome-style-tokens.ts",
       "default": "./src/components/ui/chrome-style-tokens.ts"
     },
-    "./coarse-pointer-sizing": {
-      "source": "./src/components/ui/coarse-pointer-sizing.ts",
-      "types": "./src/components/ui/coarse-pointer-sizing.ts",
-      "default": "./src/components/ui/coarse-pointer-sizing.ts"
-    },
     "./command": {
       "source": "./src/components/ui/command.tsx",
       "types": "./src/components/ui/command.tsx",

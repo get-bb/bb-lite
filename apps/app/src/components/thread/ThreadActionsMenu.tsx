@@ -14,7 +14,6 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { isThreadRead } from "@bb/client-core";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
@@ -97,10 +96,7 @@ export function ThreadActionsMenu({
             event.stopPropagation();
           }}
         >
-          <Icon
-            name="MoreHorizontal"
-            className={COARSE_POINTER_ICON_SIZE_CLASS}
-          />
+          <Icon name="MoreHorizontal" className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

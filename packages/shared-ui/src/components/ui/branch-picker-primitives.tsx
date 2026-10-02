@@ -1,9 +1,5 @@
 import type { ReactNode, RefObject } from "react";
 import { cn } from "../../lib/utils";
-import {
-  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-  COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
-} from "./coarse-pointer-sizing";
 import { Icon, type IconName } from "./icon";
 import { Input } from "./input";
 import {
@@ -110,17 +106,14 @@ export function BranchPickerRow({
     >
       <Icon
         name={icon}
-        className={cn(
-          "text-muted-foreground",
-          COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
-        )}
+        className={cn("text-muted-foreground", "size-3.5 shrink-0")}
       />
       {children}
       <Icon
         name="Check"
         className={cn(
           selected ? "opacity-100" : "opacity-0",
-          COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+          "size-4 shrink-0",
         )}
       />
     </button>

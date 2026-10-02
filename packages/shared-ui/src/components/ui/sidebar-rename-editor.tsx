@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef } from "react";
 import { Icon } from "./icon.js";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "./coarse-pointer-sizing.js";
 import { cn } from "../../lib/utils";
 import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebar-row-classes.js";
 import type {
@@ -189,7 +188,7 @@ export function SidebarRenameEditor({
             void submit(event.detail === 0, true);
           }}
         >
-          <Icon name="RotateCcw" className={COARSE_POINTER_ICON_SIZE_CLASS} />
+          <Icon name="RotateCcw" className="size-4" />
         </button>
       )}
       {session.error && (

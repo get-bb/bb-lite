@@ -2,7 +2,6 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar.js";
 import {
@@ -16,7 +15,7 @@ import {
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 
 export function SectionSidebarIcon({ name }: { name: IconName }) {
-  return <Icon name={name} className={COARSE_POINTER_ICON_SIZE_CLASS} />;
+  return <Icon name={name} className="size-4" />;
 }
 
 export function SectionSidebarRow({

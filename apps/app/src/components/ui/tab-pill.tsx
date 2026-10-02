@@ -1,5 +1,4 @@
 import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import type { ReactNode } from "react";
@@ -59,7 +58,7 @@ export function TabPill({
       }}
       className={cn(
         `group/tab-pill relative inline-flex h-7 shrink-0 items-center rounded-md ${LIST_HOVER_TRANSITION}`,
-        COARSE_POINTER_TEXT_SM_CLASS,
+        "text-xs",
         isActive
           ? cn(CONTEXT_SELECTION_SURFACE_CLASS, "text-foreground")
           : "text-muted-foreground hover:bg-state-hover",

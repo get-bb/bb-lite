@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -185,7 +184,7 @@ export function OptionPicker<T extends string>({
               <Icon
                 name="Check"
                 className={cn(
-                  COARSE_POINTER_ICON_SIZE_CLASS,
+                  "size-4",
                   "shrink-0",
                   option.value === value ? "opacity-100" : "opacity-0",
                 )}

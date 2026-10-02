@@ -1,7 +1,6 @@
 import { Fragment, type ReactElement, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { buttonVariants } from "@bb/shared-ui/button";
-import { COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   DropdownMenu,
@@ -68,7 +67,7 @@ function SplitButton({
 }: SplitButtonProps) {
   const base = cn(
     buttonVariants({ variant: "outline", size: "sm" }),
-    COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
+    "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground",
     className,
   );
   const primaryButton = (

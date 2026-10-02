@@ -21,7 +21,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import {
@@ -192,10 +191,7 @@ function NavigationRow({ item }: { item: SidebarNavigationItem }) {
                   isContextMenuOpen && "bg-state-active",
                 )}
               >
-                <Icon
-                  name="MoreHorizontal"
-                  className={COARSE_POINTER_ICON_SIZE_CLASS}
-                />
+                <Icon name="MoreHorizontal" className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
