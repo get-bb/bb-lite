@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
+import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../../lib/utils";
@@ -34,6 +34,18 @@ const buttonVariants = cva(
   },
 );
 
+function Slot({
+  children,
+  ref,
+  ...props
+}: React.HTMLAttributes<HTMLElement> & { ref?: React.Ref<HTMLElement> }) {
+  return useRender({
+    render: children as React.ReactElement<Record<string, unknown>>,
+    ref,
+    props,
+  });
+}
+
 function Button({
   className,
   variant,
@@ -51,4 +63,4 @@ function Button({
   );
 }
 
-export { Button, buttonVariants };
+export { Button, Slot, buttonVariants };

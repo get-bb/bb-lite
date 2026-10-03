@@ -161,7 +161,7 @@ export function ReuseEnvironmentPicker({
         aria-label="Reuse an existing environment"
         className={cn(
           OPTION_MENU_CONTENT_CLASS_NAME,
-          "flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0",
+          "flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0",
         )}
       >
         <Command label="Search environments" shouldFilter={false}>

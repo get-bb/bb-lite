@@ -132,7 +132,7 @@ export function ProjectSelector({
           event.preventDefault();
           (showSearch ? searchInputRef : commandRef).current?.focus();
         }}
-        className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0"
+        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0"
       >
         <Command
           ref={commandRef}

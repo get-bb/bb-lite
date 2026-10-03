@@ -339,10 +339,12 @@ export function ThreadActionsContextMenu({
   }, [dragging, handleOpenChange, open]);
 
   return (
-    <ContextMenu open={open} onOpenChange={handleOpenChange}>
-      <ContextMenuTrigger asChild disabled={disabled || dragging}>
-        {children}
-      </ContextMenuTrigger>
+    <ContextMenu
+      open={open}
+      onOpenChange={handleOpenChange}
+      disabled={disabled || dragging}
+    >
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent
         aria-label="Thread actions"
         onCloseAutoFocus={onCloseAutoFocus}

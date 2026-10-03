@@ -1,51 +1,153 @@
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
-import { isLastInputKeyboard } from "./overlay-trigger.js";
+import { consumeEscape } from "./overlay-layer.js";
+import {
+  isLastInputKeyboard,
+  popper,
+  slot,
+  type PopperProps,
+} from "./overlay-trigger.js";
 
-const TooltipProvider = TooltipPrimitive.Provider;
+const HoverableContext = React.createContext(true);
+const TooltipContext = React.createContext<{
+  id?: string;
+  open?: boolean;
+  delay?: number;
+}>({});
 
-const Tooltip = TooltipPrimitive.Root;
+function TooltipProvider({
+  delayDuration = 700,
+  disableHoverableContent = false,
+  children,
+}: {
+  delayDuration?: number;
+  disableHoverableContent?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <TooltipPrimitive.Provider delay={delayDuration} timeout={300}>
+      <HoverableContext.Provider value={!disableHoverableContent}>
+        {children}
+      </HoverableContext.Provider>
+    </TooltipPrimitive.Provider>
+  );
+}
 
-function TooltipTrigger({
-  onFocus,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+function Tooltip({
+  delayDuration,
+  disableHoverableContent,
+  children,
+}: {
+  delayDuration?: number;
+  disableHoverableContent?: boolean;
+  children?: React.ReactNode;
+}) {
+  const hoverable = React.useContext(HoverableContext);
+  const id = React.useId();
+  const [trigger, setTrigger] = React.useState<Element | null>(null);
+
+  React.useEffect(() => {
+    if (trigger === null) return;
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && event.target.contains(trigger)) {
+        setTrigger(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      consumeEscape(event);
+      setTrigger(null);
+    };
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [trigger]);
+
+  return (
+    <TooltipPrimitive.Root
+      open={trigger !== null}
+      onOpenChange={(open, details) =>
+        setTrigger(open ? (details.trigger ?? null) : null)
+      }
+      disableHoverablePopup={
+        disableHoverableContent === undefined
+          ? !hoverable
+          : disableHoverableContent
+      }
+    >
+      <TooltipContext.Provider
+        value={{ id, open: trigger !== null, delay: delayDuration }}
+      >
+        {children}
+      </TooltipContext.Provider>
+    </TooltipPrimitive.Root>
+  );
+}
+
+function TooltipTrigger(props: {
+  asChild?: boolean;
+  children?: React.ReactNode;
+}) {
+  const { id, open, delay } = React.useContext(TooltipContext);
+  const moved = React.useRef(false);
   return (
     <TooltipPrimitive.Trigger
+      aria-describedby={open ? id : undefined}
+      delay={delay}
       onFocus={(event) => {
-        onFocus?.(event);
-        if (!event.defaultPrevented && !isLastInputKeyboard()) {
-          event.preventDefault();
-        }
+        if (!isLastInputKeyboard()) event.preventBaseUIHandler();
       }}
-      {...props}
+      onMouseMove={(event) => {
+        if (moved.current) event.preventBaseUIHandler();
+        moved.current = true;
+      }}
+      onMouseLeave={() => {
+        moved.current = false;
+      }}
+      {...slot(props)}
     />
   );
 }
 
 function TooltipContent({
-  avoidCollisions = true,
   className,
-  collisionPadding = 8,
+  side,
+  align,
   sideOffset = 4,
+  collisionBoundary,
+  collisionPadding = 8,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Popup> & PopperProps) {
+  const { id } = React.useContext(TooltipContext);
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        {...usePortalScopeProps()}
-        avoidCollisions={avoidCollisions}
-        collisionPadding={collisionPadding}
-        sideOffset={sideOffset}
-        className={cn(
-          "z-50 max-w-[min(20rem,var(--radix-tooltip-content-available-width))] overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground break-words animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-          className,
-        )}
-        {...props}
-      />
+      <TooltipPrimitive.Positioner
+        className="pointer-events-auto! z-50"
+        {...popper({
+          side,
+          align,
+          sideOffset,
+          collisionBoundary,
+          collisionPadding,
+        })}
+      >
+        <TooltipPrimitive.Popup
+          {...usePortalScopeProps()}
+          id={id}
+          role="tooltip"
+          className={cn(
+            "max-w-[min(20rem,var(--available-width))] overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground break-words animate-in fade-in-0 zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            className,
+          )}
+          {...props}
+        />
+      </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
   );
 }

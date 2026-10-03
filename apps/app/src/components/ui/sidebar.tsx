@@ -1,8 +1,7 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@bb/shared-ui/lib/utils";
-import { Button } from "@bb/shared-ui/button";
+import { Button, Slot } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 

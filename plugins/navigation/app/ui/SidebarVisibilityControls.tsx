@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
@@ -45,6 +45,7 @@ export function SidebarMore({
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const close = useCallback(() => setIsMenuOpen(false), []);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   return (
     <div data-testid={`${testIdPrefix}-more-row`}>
@@ -84,13 +85,9 @@ export function SidebarMore({
           align="start"
           sideOffset={8}
           aria-label={ariaLabel}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            if (event.currentTarget instanceof HTMLElement) {
-              event.currentTarget.focus();
-            }
-          }}
-          className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1"
+          ref={contentRef}
+          initialFocus={contentRef}
+          className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1"
         >
           <div
             role="list"

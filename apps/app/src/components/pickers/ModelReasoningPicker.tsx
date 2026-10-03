@@ -548,7 +548,7 @@ export function ModelReasoningPicker({
         className={cn(
           "flex min-h-0 flex-col p-0",
           MENU_WIDTH_CLASS_NAME,
-          "max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-hidden",
+          "max-h-[min(var(--available-height),calc(100dvh-0.5rem))] overflow-hidden",
         )}
       >
         {showProviderTabs ? (
@@ -853,7 +853,7 @@ function MoreModelsSubmenu({
         align="start"
         sideOffset={6}
         className={cn(
-          "max-h-[min(20rem,var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] overflow-y-auto overscroll-contain p-1 data-[state=closed]:animate-none",
+          "max-h-[min(20rem,var(--available-height),calc(100dvh-0.5rem))] overflow-y-auto overscroll-contain p-1 data-closed:animate-none",
           MENU_WIDTH_CLASS_NAME,
         )}
         onKeyDown={(event) => {

@@ -67,6 +67,19 @@ function LabelEditorRow({
   );
 }
 
+function projectLabel(project: Project) {
+  return (
+    <span key={project.id} className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="size-2.5 rounded-sm"
+        style={{ backgroundColor: project.color }}
+      />
+      {project.name}
+    </span>
+  );
+}
+
 export function LabelsPanel({ projects }: { projects: Project[] }) {
   const rpc = useTasksRpc();
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
@@ -100,19 +113,16 @@ export function LabelsPanel({ projects }: { projects: Project[] }) {
             }}
           >
             <SelectTrigger aria-label="Project" className="h-8 w-56">
-              <SelectValue placeholder="Project" />
+              <SelectValue placeholder="Project">
+                {projects
+                  .filter((project) => project.id === projectId)
+                  .map(projectLabel)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
-                  <span className="flex items-center gap-2">
-                    <span
-                      aria-hidden
-                      className="size-2.5 rounded-sm"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    {project.name}
-                  </span>
+                  {projectLabel(project)}
                 </SelectItem>
               ))}
             </SelectContent>

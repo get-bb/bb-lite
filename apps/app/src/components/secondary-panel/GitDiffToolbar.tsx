@@ -80,9 +80,9 @@ function GitDiffSelector({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="min-w-[var(--radix-dropdown-menu-trigger-width)]"
+        className="min-w-[var(--anchor-width)]"
         style={{
-          maxWidth: `min(var(--radix-popper-available-width), max(${GIT_DIFF_SELECTOR_MENU_MIN_WIDTH}, ${panelWidthPx}px))`,
+          maxWidth: `min(var(--available-width), max(${GIT_DIFF_SELECTOR_MENU_MIN_WIDTH}, ${panelWidthPx}px))`,
         }}
       >
         {options.map((option) => (
