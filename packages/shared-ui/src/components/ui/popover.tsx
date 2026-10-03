@@ -6,9 +6,10 @@ import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
 import {
   autoFocus,
+  focusAfterClose,
   escapeAlreadyConsumed,
   loopTabFocus,
-  MODAL_PORTAL_CLASS,
+  PORTAL_CLASS,
   overlayTriggerProps,
   popper,
   slot,
@@ -24,12 +25,14 @@ const PopoverContext = React.createContext<{
   open: boolean;
   modal: boolean;
   press: ReturnType<typeof useOutsidePress> | null;
+  triggerRef: React.RefObject<HTMLButtonElement | null> | null;
   anchor: Element | null;
   setAnchor: (anchor: Element | null) => void;
 }>({
   open: false,
   modal: false,
   press: null,
+  triggerRef: null,
   anchor: null,
   setAnchor: () => {},
 });
@@ -52,6 +55,7 @@ function Popover({
   const id = React.useId();
   const actionsRef = usePopupActions(state.open, id);
   const [anchor, setAnchor] = React.useState<Element | null>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   return (
     <PopoverPrimitive.Root
       actionsRef={actionsRef}
@@ -68,7 +72,15 @@ function Popover({
       modal={modal}
     >
       <PopoverContext.Provider
-        value={{ id, open: state.open, modal, press, anchor, setAnchor }}
+        value={{
+          id,
+          open: state.open,
+          modal,
+          press,
+          triggerRef,
+          anchor,
+          setAnchor,
+        }}
       >
         {children}
       </PopoverContext.Provider>
@@ -85,9 +97,10 @@ function PopoverTrigger({
   className?: string;
   children?: React.ReactNode;
 }) {
-  const { open, press } = React.useContext(PopoverContext);
+  const { open, press, triggerRef } = React.useContext(PopoverContext);
   return (
     <PopoverPrimitive.Trigger
+      ref={triggerRef}
       data-state={open ? "open" : "closed"}
       onPointerDownCapture={() => {
         if (press) press.current.inside = true;
@@ -133,8 +146,8 @@ function PopoverContent({
     onOpenAutoFocus?: (event: Event) => void;
     onCloseAutoFocus?: (event: Event) => void;
   }) {
-  const { id, open, modal, press, anchor } = React.useContext(PopoverContext);
-  const returnFocus = autoFocus(onCloseAutoFocus);
+  const { id, open, modal, press, triggerRef, anchor } =
+    React.useContext(PopoverContext);
 
   React.useEffect(() => {
     if (!open || !autoFocusRef) return;
@@ -147,7 +160,7 @@ function PopoverContent({
   }, [autoFocusRef, open]);
 
   return (
-    <PopoverPrimitive.Portal className={modal ? MODAL_PORTAL_CLASS : undefined}>
+    <PopoverPrimitive.Portal className={PORTAL_CLASS}>
       <PopoverPrimitive.Positioner
         className="z-50"
         anchor={anchor ?? undefined}
@@ -157,11 +170,12 @@ function PopoverContent({
           {...usePortalScopeProps()}
           id={id}
           initialFocus={autoFocusRef ? false : autoFocus(onOpenAutoFocus)}
-          finalFocus={() =>
-            returnFocus() &&
-            anchor === null &&
-            !(modal ? press?.current.right : press?.current.outside)
-          }
+          finalFocus={focusAfterClose(
+            onCloseAutoFocus,
+            () =>
+              !(modal ? press?.current.right : press?.current.outside) &&
+              triggerRef?.current,
+          )}
           onPointerDownCapture={() => {
             if (press) press.current.inside = true;
           }}

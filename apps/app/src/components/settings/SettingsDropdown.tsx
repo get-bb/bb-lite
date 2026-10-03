@@ -119,10 +119,7 @@ export function SettingsDropdown<Value extends string | boolean>({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className={cn(
-            "min-w-[var(--radix-dropdown-menu-trigger-width)]",
-            contentClassName,
-          )}
+          className={cn("min-w-[var(--anchor-width)]", contentClassName)}
         >
           {options.map((option) => (
             <DropdownMenuItem

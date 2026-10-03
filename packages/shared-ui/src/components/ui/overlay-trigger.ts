@@ -125,7 +125,7 @@ export function usePopupActions(open: boolean, popupId: string) {
   return actionsRef;
 }
 
-export const MODAL_PORTAL_CLASS =
+export const PORTAL_CLASS =
   "pointer-events-auto [&>[data-base-ui-inert]:not([data-side])]:hidden";
 
 let outsidePointerLocks = 0;
@@ -223,6 +223,26 @@ export function autoFocus(handler: ((event: Event) => void) | undefined) {
     const event = new Event("focus", { cancelable: true });
     handler?.(event);
     return !event.defaultPrevented;
+  };
+}
+
+export function focusAfterClose(
+  handler: ((event: Event) => void) | undefined,
+  target: () => Element | null | false | undefined,
+) {
+  return () => {
+    window.setTimeout(() => {
+      const event = new Event("focus", { cancelable: true });
+      handler?.(event);
+      const element = event.defaultPrevented ? null : target();
+      if (!(element instanceof HTMLElement)) return;
+      const previous = document.activeElement;
+      element.focus({ preventScroll: true });
+      if (element !== previous && element instanceof HTMLInputElement) {
+        element.select();
+      }
+    }, 0);
+    return false;
   };
 }
 

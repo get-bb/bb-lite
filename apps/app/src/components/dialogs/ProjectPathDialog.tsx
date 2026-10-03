@@ -159,7 +159,7 @@ function ProjectPathForm({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
-              className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+              className="max-h-72 w-[var(--anchor-width)] overflow-y-auto"
             >
               {machines.map((host) => {
                 const connected = host.status === "connected";
