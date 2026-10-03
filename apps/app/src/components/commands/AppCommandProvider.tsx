@@ -81,7 +81,7 @@ const CAPTURED_COMMANDS: readonly KeyboardCommandId[] = [
   "pane.focus.next",
 ];
 const OPEN_MODAL_SELECTOR =
-  '[aria-modal="true"]:not([inert]):not([inert] *):not([data-closed]), [role="dialog"]:is([data-state="open"], [data-open]):not([inert]):not([inert] *)';
+  '[aria-modal="true"]:not([inert]):not([inert] *):not([data-closed]), [role="dialog"][data-open]:not([inert]):not([inert] *)';
 
 function isForThisClient(binding: AppKeybinding | AppDefaultKeybinding) {
   return isAppKeybindingAvailableForClient(binding, {

@@ -227,8 +227,10 @@ export function CommandPalette({
   return (
     <Dialog
       open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+      onOpenChange={(nextOpen, details) => {
+        if (details?.reason === "escape-key" && searchingThreads) {
+          details.cancel();
+        } else setOpen(nextOpen);
         if (!nextOpen) exitMode();
       }}
     >
@@ -272,11 +274,6 @@ export function CommandPalette({
           if (command === "palette.open") {
             runner.dispatch(command, openTargetRef.current);
           } else if (action) chooseAction(action);
-        }}
-        onEscapeKeyDown={(event) => {
-          if (!searchingThreads) return;
-          event.preventDefault();
-          exitMode();
         }}
         data-testid="command-palette"
       >

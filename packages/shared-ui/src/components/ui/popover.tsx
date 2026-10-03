@@ -4,19 +4,16 @@ import { useRender } from "@base-ui/react/use-render";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useLayer, useModalLayer, type OverlayLayer } from "./overlay-layer.js";
 import {
   autoFocus,
   focusAfterClose,
-  escapeAlreadyConsumed,
   loopTabFocus,
-  PORTAL_CLASS,
   overlayTriggerProps,
   popper,
+  PORTAL_CLASS,
   slot,
-  useModalLayer,
-  useOutsidePress,
   useOverlayOpen,
-  usePopupActions,
   type PopperProps,
 } from "./overlay-trigger.js";
 
@@ -24,14 +21,14 @@ const PopoverContext = React.createContext<{
   id?: string;
   open: boolean;
   modal: boolean;
-  press: ReturnType<typeof useOutsidePress> | null;
+  layer: OverlayLayer | null;
   triggerRef: React.RefObject<HTMLButtonElement | null> | null;
   anchor: Element | null;
   setAnchor: (anchor: Element | null) => void;
 }>({
   open: false,
   modal: false,
-  press: null,
+  layer: null,
   triggerRef: null,
   anchor: null,
   setAnchor: () => {},
@@ -51,19 +48,20 @@ function Popover({
   modal?: boolean;
 }) {
   const state = useOverlayOpen(open, onOpenChange, defaultOpen);
-  const press = useOutsidePress(state.open, () => state.onOpenChange(false));
   const id = React.useId();
-  const actionsRef = usePopupActions(state.open, id);
+  const layer = useLayer(state.open, modal, id, () =>
+    state.onOpenChange(false),
+  );
   const [anchor, setAnchor] = React.useState<Element | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   return (
     <PopoverPrimitive.Root
-      actionsRef={actionsRef}
+      actionsRef={layer.actionsRef}
       open={state.open}
       onOpenChange={(next, details) => {
-        if (escapeAlreadyConsumed(details)) return;
+        if (layer.ignores(details)) return;
         const { reason } = details;
-        press.current.outside =
+        layer.press.current.outside =
           reason === "outside-press" ||
           reason === "focus-out" ||
           reason === "trigger-press";
@@ -76,7 +74,7 @@ function Popover({
           id,
           open: state.open,
           modal,
-          press,
+          layer,
           triggerRef,
           anchor,
           setAnchor,
@@ -97,14 +95,12 @@ function PopoverTrigger({
   className?: string;
   children?: React.ReactNode;
 }) {
-  const { open, press, triggerRef } = React.useContext(PopoverContext);
+  const { open, layer, triggerRef } = React.useContext(PopoverContext);
   return (
     <PopoverPrimitive.Trigger
       ref={triggerRef}
       data-state={open ? "open" : "closed"}
-      onPointerDownCapture={() => {
-        if (press) press.current.inside = true;
-      }}
+      onPointerDownCapture={layer?.markPressInside}
       {...overlayTriggerProps(open, className)}
       {...slot(props)}
     />
@@ -122,8 +118,8 @@ function PopoverAnchor({
 }
 
 function ModalParts() {
-  const { id, open } = React.useContext(PopoverContext);
-  useModalLayer(id, open, "popover");
+  const { id, open, layer } = React.useContext(PopoverContext);
+  useModalLayer(id, open, "popover", layer);
   return <PopoverPrimitive.Close hidden />;
 }
 
@@ -146,8 +142,9 @@ function PopoverContent({
     onOpenAutoFocus?: (event: Event) => void;
     onCloseAutoFocus?: (event: Event) => void;
   }) {
-  const { id, open, modal, press, triggerRef, anchor } =
+  const { id, open, modal, layer, triggerRef, anchor } =
     React.useContext(PopoverContext);
+  const press = layer?.press.current;
 
   React.useEffect(() => {
     if (!open || !autoFocusRef) return;
@@ -173,15 +170,12 @@ function PopoverContent({
           finalFocus={focusAfterClose(
             onCloseAutoFocus,
             () =>
-              !(modal ? press?.current.right : press?.current.outside) &&
-              triggerRef?.current,
+              !(modal ? press?.right : press?.outside) && triggerRef?.current,
           )}
-          onPointerDownCapture={() => {
-            if (press) press.current.inside = true;
-          }}
+          onPointerDownCapture={layer?.markPressInside}
           onKeyDown={(event) => {
             onKeyDown?.(event);
-            if (!modal) loopTabFocus(event);
+            loopTabFocus(event);
           }}
           className={cn(
             "w-96 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95",

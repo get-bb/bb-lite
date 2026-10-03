@@ -3,17 +3,15 @@ import { Menu } from "@base-ui/react/menu";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { useLayer, useModalLayer, type OverlayLayer } from "./overlay-layer.js";
 import {
-  escapeAlreadyConsumed,
   focusAfterClose,
   isLastInputKeyboard,
-  PORTAL_CLASS,
   overlayTriggerProps,
   popper,
+  PORTAL_CLASS,
   slot,
-  useModalLayer,
   useOverlayOpen,
-  usePopupActions,
   type PopperProps,
 } from "./overlay-trigger.js";
 import {
@@ -36,12 +34,20 @@ export const MenuContext = React.createContext<{
   modal: boolean;
   context: boolean;
   returnTo: React.RefObject<Element | null> | null;
-}>({ open: false, modal: false, context: false, returnTo: null });
+  layer: OverlayLayer | null;
+}>({
+  open: false,
+  modal: false,
+  context: false,
+  returnTo: null,
+  layer: null,
+});
 
 export function useMenuRoot(
   open: boolean | undefined,
   onOpenChange: ((open: boolean) => void) | undefined,
   defaultOpen: boolean | undefined,
+  modal: boolean,
   onRootOpenChange?: (
     open: boolean,
     reason: string,
@@ -51,20 +57,20 @@ export function useMenuRoot(
   const state = useOverlayOpen(open, onOpenChange, defaultOpen);
   const id = React.useId();
   const returnTo = React.useRef<Element | null>(null);
+  const layer = useLayer(state.open, modal, id);
   return {
     id,
     open: state.open,
     returnTo,
+    layer,
     rootProps: {
-      actionsRef: usePopupActions(state.open, id),
+      actionsRef: layer.actionsRef,
       open: state.open,
       onOpenChange: (
         next: boolean,
-        details: Parameters<typeof escapeAlreadyConsumed>[0] & {
-          reason: string;
-        },
+        details: Parameters<typeof layer.ignores>[0],
       ) => {
-        if (escapeAlreadyConsumed(details)) return;
+        if (layer.ignores(details)) return;
         onRootOpenChange?.(next, details.reason, returnTo);
         state.onOpenChange(next);
       },
@@ -86,7 +92,7 @@ function DropdownMenu({
   defaultOpen?: boolean;
   modal?: boolean;
 }) {
-  const root = useMenuRoot(open, onOpenChange, defaultOpen);
+  const root = useMenuRoot(open, onOpenChange, defaultOpen, modal);
   return (
     <Menu.Root {...root.rootProps} modal={modal}>
       <MenuContext.Provider
@@ -96,6 +102,7 @@ function DropdownMenu({
           modal,
           context: false,
           returnTo: root.returnTo,
+          layer: root.layer,
         }}
       >
         {children}
@@ -128,8 +135,8 @@ function DropdownMenuTrigger({
 }
 
 function ModalLayer() {
-  const { id, open } = React.useContext(MenuContext);
-  useModalLayer(id, open, "menu");
+  const { id, open, layer } = React.useContext(MenuContext);
+  useModalLayer(id, open, "menu", layer);
   return null;
 }
 
@@ -358,19 +365,19 @@ function DropdownMenuPortal({ children }: { children?: React.ReactNode }) {
 }
 
 function DropdownMenuSub({ children }: { children?: React.ReactNode }) {
-  const { context } = React.useContext(MenuContext);
+  const { context, layer } = React.useContext(MenuContext);
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
   return (
     <Menu.SubmenuRoot
       onOpenChange={(next, details) => {
-        if (!escapeAlreadyConsumed(details)) setOpen(next);
+        if (!layer?.ignores(details)) setOpen(next);
       }}
       loopFocus={false}
       closeParentOnEsc
     >
       <MenuContext.Provider
-        value={{ id, open, modal: false, context, returnTo: null }}
+        value={{ id, open, modal: false, context, returnTo: null, layer }}
       >
         {children}
       </MenuContext.Provider>

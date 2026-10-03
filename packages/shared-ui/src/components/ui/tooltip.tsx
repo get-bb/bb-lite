@@ -3,8 +3,8 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { consumeEscape } from "./overlay-layer.js";
 import {
-  consumeEscape,
   isLastInputKeyboard,
   popper,
   slot,

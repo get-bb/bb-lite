@@ -166,11 +166,9 @@ function MachineReconnectDialog({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      disablePointerDismissal
     >
-      <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
-        onInteractOutside={(event) => event.preventDefault()}
-      >
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reconnect machine</DialogTitle>
           <DialogDescription

@@ -22,6 +22,7 @@ function ContextMenu({
     open,
     onOpenChange,
     false,
+    modal,
     (next, reason, returnTo) => {
       const outside = reason === "outside-press" || reason === "focus-out";
       if (next) returnTo.current = document.activeElement;
@@ -37,6 +38,7 @@ function ContextMenu({
           modal,
           context: true,
           returnTo: root.returnTo,
+          layer: root.layer,
         }}
       >
         {children}
