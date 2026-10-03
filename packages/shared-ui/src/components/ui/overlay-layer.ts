@@ -193,20 +193,28 @@ function hideOthers(portal: Element) {
 export function useModalLayer(
   popupId: string | undefined,
   open: boolean,
-  kind: "popover" | "menu" | "dialog",
+  kind: "popover" | "menu" | "dialog" | "select",
   layer: OverlayLayer | null,
 ) {
   const portal = () =>
     document.getElementById(popupId ?? "")?.closest("[data-base-ui-portal]") ??
     null;
+  const lockWhileMounted = kind === "popover" || kind === "select";
   useEffect(() => {
-    if (kind === "popover") return lockOutsidePointer();
-    if (kind === "menu") return layer?.hideOthers(portal());
+    const unlock = lockWhileMounted ? lockOutsidePointer() : undefined;
+    const unhide =
+      kind === "menu" || kind === "select"
+        ? layer?.hideOthers(portal())
+        : undefined;
+    return () => {
+      unlock?.();
+      unhide?.();
+    };
   }, []);
   useLayoutEffect(() => {
     if (!open) return;
     const untrap = trapFocus(portal(), () => layer?.isTopModal() ?? true);
-    const unlock = kind === "popover" ? undefined : lockOutsidePointer();
+    const unlock = lockWhileMounted ? undefined : lockOutsidePointer();
     return () => {
       untrap();
       unlock?.();

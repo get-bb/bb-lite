@@ -23,7 +23,7 @@ function isPlainShortcut(event: KeyboardEvent): boolean {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLElement && target.isContentEditable);
   const overlay = document.querySelector(
-    '[role="dialog"], [role="menu"], [role="listbox"]',
+    '[role="dialog"], [role="menu"], [role="listbox"]:not([hidden] *)',
   );
   const modified = event.metaKey || event.ctrlKey || event.altKey;
   return !editing && overlay === null && !modified && !event.defaultPrevented;
