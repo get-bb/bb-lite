@@ -3,6 +3,7 @@ import type { ServerContext } from "../context.js";
 import { findRunnerHost } from "../runners/enrollment.js";
 import { publicServerUrl } from "../runners/hosts.js";
 import type { ApiApp, AppEnv, RouteGroup } from "./api.js";
+import { compressJson } from "./compression.js";
 import { errorResponse, notFound } from "./errors.js";
 import { registerEnvironmentRoutes } from "./routes/environments.js";
 import { registerFileRoutes } from "./routes/files.js";
@@ -62,6 +63,7 @@ export function createHttpApp(ctx: ServerContext): ApiApp {
     principals.set(c.req.raw, authorize(request, trustLookups(ctx)));
     await next();
   });
+  app.use("/api/v1/*", compressJson);
   app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
   mount(app, "/api/v1", publicApiRouteGroups, ctx);
   mount(app, "/internal", [registerRunnerRoutes], ctx);

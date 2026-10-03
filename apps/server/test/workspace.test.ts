@@ -68,6 +68,14 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   const span = part.headers.get("content-range");
   expect(`${part.status} ${span}`).toBe(`206 bytes 524280-524299/${size}`);
   expect((await bytes(part)).equals(big.subarray(524280, 524300))).toBe(true);
+  const text = { range: "bytes=0-5", "accept-encoding": "br" };
+  const slice = await file("src/a.ts", text);
+  const coding = slice.headers.get("content-encoding");
+  expect([slice.status, coding, await slice.text()]).toEqual([
+    206,
+    null,
+    "change",
+  ]);
   const fresh = await file("big.bin", { "if-none-match": etag });
   const head = await file("big.bin", { range: "bytes=0-1" }, "HEAD");
   const length = head.headers.get("content-length");

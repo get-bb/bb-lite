@@ -3,6 +3,7 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { buffer } from "node:stream/consumers";
+import { gunzipSync } from "node:zlib";
 import * as wire from "@bb/tunnel-contract";
 import { onTestFinished } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
@@ -191,6 +192,8 @@ export async function visit(gate: FakeGate, path: string, init: Visit = {}) {
   request.end(body);
   const [response] = (await once(request, "response")) as [IncomingMessage];
   const chunked = response.headers["transfer-encoding"] === "chunked";
-  const text = (await buffer(response)).toString();
-  return { status: response.statusCode ?? 0, text, chunked };
+  const coding = response.headers["content-encoding"];
+  const raw = await buffer(response);
+  const text = (coding === "gzip" ? gunzipSync(raw) : raw).toString();
+  return { status: response.statusCode ?? 0, text, chunked, coding };
 }

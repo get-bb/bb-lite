@@ -199,16 +199,79 @@ it("serves the app with an SPA fallback that spares /assets", async () => {
   mkdirSync(join(appDir, "assets"), { recursive: true });
   writeFileSync(join(outside, "secret.txt"), "secret");
   writeFileSync(join(appDir, "index.html"), "<html>bb</html>");
-  writeFileSync(join(appDir, "assets", "app-abc.js"), "export {};");
+  const script = "export {};\n".repeat(200);
+  writeFileSync(join(appDir, "assets", "app-abc.js"), script);
+  writeFileSync(join(appDir, "assets", "logo.png"), script);
   const { url } = await createTestServer({ appDir });
   const get = (path: string, headers: Headers = {}) =>
     fetch(`${url}${path}`, { headers });
   const route = await get("/threads/thr_1");
   expect(await route.text()).toBe("<html>bb</html>");
-  expect((await get("/assets/app-abc.js")).status).toBe(200);
+  const sent = async (path: string, accept: string) => {
+    const response = await get(path, { "accept-encoding": accept });
+    const { headers } = response;
+    const coding = headers.get("content-encoding");
+    return [coding, headers.get("cache-control"), await response.text()];
+  };
+  const forever = "public, max-age=31536000, immutable";
+  for (const coding of ["br", "gzip"]) {
+    const packed = await sent("/assets/app-abc.js", `${coding}, deflate`);
+    expect(packed).toEqual([coding, forever, script]);
+  }
+  const plain = [null, forever, script];
+  expect(await sent("/assets/app-abc.js", "identity")).toEqual(plain);
+  expect(await sent("/assets/logo.png", "br")).toEqual(plain);
   expect((await get("/assets/app-old.js")).status).toBe(404);
   expect((await get("/assets/..%2F..%2Fsecret.txt")).status).toBe(404);
   const etag = String(route.headers.get("etag")).replace("W/", "");
   const cached = await get("/", { "if-none-match": `"other", ${etag}` });
   expect(cached.status).toBe(304);
+});
+
+it("compresses large JSON answers and leaves streams and small ones alone", async () => {
+  const server = await createTestServer();
+  const { ctx, request, send } = server;
+  const asked = (path: string, accept: string) =>
+    request(path, { headers: { "accept-encoding": accept } });
+  const plain = await asked("/system/config", "identity");
+  const config = await plain.text();
+  expect(plain.headers.get("content-encoding")).toBeNull();
+  for (const coding of ["br", "gzip"]) {
+    const packed = await asked("/system/config", `${coding}, deflate`);
+    const { headers } = packed;
+    const marks = [headers.get("content-encoding"), headers.get("vary")];
+    expect([...marks, await packed.text()]).toEqual([
+      coding,
+      "accept-encoding",
+      config,
+    ]);
+  }
+  const small = await asked("/threads", "br");
+  const untouched = [small.headers.get("content-encoding"), await small.text()];
+  expect(untouched).toEqual([null, "[]"]);
+
+  let finish = (): void => {};
+  const held = new Promise<void>((resolve) => (finish = resolve));
+  const stdout = "x".repeat(5_000);
+  const run = async () => held.then(() => ({ exitCode: 0, stdout }));
+  ctx.plugins.running = () => ({ cli: { run } }) as never;
+  vi.useFakeTimers({ toFake: ["setInterval"] });
+  onTestFinished(() => void vi.useRealTimers());
+  const scope = { argv: [], cwd: "/" };
+  const accept = { "accept-encoding": "br" };
+  const pending = send("/plugins/slow/cli", scope, "POST", accept);
+  while (vi.getTimerCount() === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  vi.advanceTimersByTime(10_000);
+  const streamed = await pending;
+  const reader = streamed.body?.getReader();
+  const beat = Buffer.from((await reader?.read())?.value ?? []).toString();
+  expect([beat, streamed.headers.get("content-encoding")]).toEqual([
+    "\n",
+    null,
+  ]);
+  finish();
+  const rest = Buffer.from((await reader?.read())?.value ?? []).toString();
+  expect(JSON.parse(rest)).toMatchObject({ exitCode: 0, stdout });
 });
