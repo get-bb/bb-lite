@@ -1,4 +1,5 @@
 import type { PendingInteractionPayload } from "@bb/domain";
+import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
 import { expect, it } from "vitest";
 import { insertRow, openDatabase } from "../src/db/index.js";
 import { createServer } from "../src/server.js";
@@ -307,4 +308,39 @@ it("announces every mutation to subscribers", async () => {
   expect(opened.body).toEqual({ delivered: 1 });
   const signal = await client.next((message) => message.type === "thread-open");
   expect(signal).toMatchObject({ threadId: id, split: "replace" });
+});
+
+it("serves a kept timeline until something it shows changes", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const id = await server.spawn();
+  await server.runTurn(id, "t1", "first reply");
+  const timeline = async (query = "") => {
+    const path = `/threads/${id}/timeline${query}`;
+    return (await http<Timeline>("GET", path)).body;
+  };
+  const first = await timeline();
+  expect(await timeline()).toEqual(first);
+  const idle = await timeline(`?afterSequence=${first.maxSeq}`);
+  expect([idle.rows, idle.delta]).toEqual([[], { upsertRows: [] }]);
+  await server.runTurn(id, "t2", "second reply");
+  const second = await timeline();
+  expect(JSON.stringify(second.rows)).toContain("second reply");
+  const delta = await timeline(`?afterSequence=${first.maxSeq}`);
+  expect(JSON.stringify(delta.delta?.upsertRows)).toContain("second reply");
+  await ingest(id, events.started("t3"));
+  await server.interact(id, "req-1", approval, "t3");
+  const asked = await timeline();
+  const [{ id: pending }] = server.rows<{ id: string }>(
+    "SELECT id FROM pending_interactions",
+  );
+  const path = `/threads/${id}/interactions/${pending}/resolve`;
+  await http("POST", path, { decision: "deny", grantedPermissions: null });
+  const answered = await timeline();
+  const sequences = [second, asked, answered].map(({ maxSeq }) => maxSeq);
+  expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+  expect(new Set(sequences).size).toBe(3);
+  await http("PATCH", `/threads/${id}`, { title: "Renamed" });
+  const renamed = (await timeline()).timelinePage.historySnapshot;
+  expect(renamed).toContain("Renamed");
 });

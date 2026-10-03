@@ -61,6 +61,9 @@ export const UNBOUNDED = Number.MAX_SAFE_INTEGER;
 const DIAGNOSTIC_TYPES = ["provider.env-resolved"];
 const DECODED_EVENT_CACHE_LIMIT = 20_000;
 const decodedEvents = new WeakMap<Db, Map<string, ThreadEventWithMeta>>();
+const KEPT_ROWS_MAX_CHARS = 24_000_000;
+type KeptRows = { rows: Map<string, StoredEventRow>; chars: number };
+const keptRows = new WeakMap<Db, KeptRows>();
 const META =
   "id, thread_id, scope_kind, turn_id, provider_thread_id, sequence, type, " +
   "item_id, item_kind, parent_tool_call_id, created_at";
@@ -153,13 +156,28 @@ function eventSource(query: EventQuery) {
 export function listEvents(db: Db, query: EventQuery): StoredEventRow[] {
   const { from, params } = eventSource(query);
   const order = query.order === "desc" ? "DESC" : "ASC";
-  return db.all<StoredEventRow>(
-    `SELECT ${COLUMNS[query.outputs ?? "full"]} FROM ${from}
-     ORDER BY sequence ${order} LIMIT ? OFFSET ?`,
+  const outputs = query.outputs ?? "full";
+  const found = db.all<{ id: string }>(
+    `SELECT id FROM ${from} ORDER BY sequence ${order} LIMIT ? OFFSET ?`,
     ...params,
     query.limit ?? -1,
     query.offset ?? 0,
   );
+  const kept = keptRows.get(db) ?? { rows: new Map(), chars: 0 };
+  keptRows.set(db, kept);
+  const keys = found.map(({ id }) => `${outputs}:${id}`);
+  const missing = found.filter((_row, index) => !kept.rows.has(keys[index]));
+  if (missing.length > 0) {
+    const ids = JSON.stringify(missing.map(({ id }) => id));
+    const sql = `SELECT ${COLUMNS[outputs]} FROM events WHERE id ${IN_LIST}`;
+    for (const row of db.all<StoredEventRow>(sql, ids)) {
+      kept.rows.set(`${outputs}:${row.id}`, row);
+      kept.chars += row.data.length;
+    }
+  }
+  const rows = keys.flatMap((key) => kept.rows.get(key) ?? []);
+  if (kept.chars > KEPT_ROWS_MAX_CHARS) keptRows.delete(db);
+  return rows;
 }
 
 export function listTurnIds(db: Db, query: EventQuery): string[] {

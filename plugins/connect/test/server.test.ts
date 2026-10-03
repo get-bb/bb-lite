@@ -53,6 +53,14 @@ it("serves gate-authenticated visitors through the tunnel", async () => {
   };
   const listed = await visit(gate, "/api/v1/hosts", { headers: OWNER });
   expect(JSON.parse(listed.text)).toMatchObject([{ id: ctx.config.hostId }]);
+  const zipped = { ...OWNER, "accept-encoding": "gzip" };
+  const config = await visit(gate, "/api/v1/system/config", {
+    headers: zipped,
+  });
+  const { primaryHostId } = JSON.parse(config.text) as {
+    primaryHostId: string;
+  };
+  expect([config.coding, primaryHostId]).toEqual(["gzip", ctx.config.hostId]);
   const body = JSON.stringify({ argv: ["status", "--json"] });
   const posted = { method: "POST", headers: ownerJson, body };
   const ran = await visit(gate, "/api/v1/plugins/connect/cli", posted);

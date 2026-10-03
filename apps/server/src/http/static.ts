@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { contentType } from "mime-types";
 import type { ApiApp } from "./api.js";
+import { encodeStatic } from "./compression.js";
 import { matchesEntityTag } from "./range.js";
 
 const INDEX_PATH = "/index.html";
@@ -27,11 +28,12 @@ function decodePath(path: string) {
   }
 }
 
-function fileResponse(
+async function fileResponse(
   urlPath: string,
   content: Buffer,
-  ifNoneMatch: string | undefined,
+  request: { header(name: string): string | undefined },
 ) {
+  const ifNoneMatch = request.header("if-none-match");
   const headers = new Headers({
     "cache-control": cacheControl(urlPath),
     "content-type": contentType(extname(urlPath)) || "application/octet-stream",
@@ -45,13 +47,14 @@ function fileResponse(
       return new Response(null, { status: 304, headers });
     }
   }
-  return new Response(new Uint8Array(content), { headers });
+  const acceptEncoding = request.header("accept-encoding");
+  const body = await encodeStatic(content, headers, acceptEncoding);
+  return new Response(body, { headers });
 }
 
 export function registerStaticApp(app: ApiApp, appDir: string): void {
   const root = resolve(appDir);
   app.get("*", async (context) => {
-    const ifNoneMatch = context.req.header("if-none-match");
     const decoded = decodePath(context.req.path);
     if (decoded === null) return context.notFound();
     const urlPath = decoded === "/" ? INDEX_PATH : decoded;
@@ -59,10 +62,10 @@ export function registerStaticApp(app: ApiApp, appDir: string): void {
     const content = filePath.startsWith(root + sep)
       ? await readIfFile(filePath)
       : null;
-    if (content !== null) return fileResponse(urlPath, content, ifNoneMatch);
+    if (content !== null) return fileResponse(urlPath, content, context.req);
     if (urlPath.startsWith(ASSETS_PREFIX)) return context.notFound();
     const index = await readIfFile(join(root, INDEX_PATH));
-    if (index !== null) return fileResponse(INDEX_PATH, index, ifNoneMatch);
+    if (index !== null) return fileResponse(INDEX_PATH, index, context.req);
     return urlPath === INDEX_PATH
       ? context.text("bb server")
       : context.notFound();
