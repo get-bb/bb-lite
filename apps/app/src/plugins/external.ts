@@ -2,12 +2,12 @@ import * as react from "react";
 import * as reactDom from "react-dom";
 import * as reactDomClient from "react-dom/client";
 import * as jsxRuntime from "react/jsx-runtime";
-import * as radixContextMenu from "@radix-ui/react-context-menu";
-import * as radixDialog from "@radix-ui/react-dialog";
-import * as radixDropdownMenu from "@radix-ui/react-dropdown-menu";
-import * as radixPopover from "@radix-ui/react-popover";
-import * as radixSelect from "@radix-ui/react-select";
-import * as radixTooltip from "@radix-ui/react-tooltip";
+import * as baseContextMenu from "@base-ui/react/context-menu";
+import * as baseDialog from "@base-ui/react/dialog";
+import * as baseMenu from "@base-ui/react/menu";
+import * as basePopover from "@base-ui/react/popover";
+import * as baseSelect from "@base-ui/react/select";
+import * as baseTooltip from "@base-ui/react/tooltip";
 import * as sonner from "sonner";
 import * as clsx from "clsx";
 import * as tailwindMerge from "tailwind-merge";
@@ -34,12 +34,12 @@ const RUNTIME_MODULES: Record<
   "react-dom/client": reactDomClient,
   "react/jsx-runtime": jsxRuntime,
   "@bb/plugin/app": pluginApp,
-  "@radix-ui/react-context-menu": radixContextMenu,
-  "@radix-ui/react-dialog": radixDialog,
-  "@radix-ui/react-dropdown-menu": radixDropdownMenu,
-  "@radix-ui/react-popover": radixPopover,
-  "@radix-ui/react-select": radixSelect,
-  "@radix-ui/react-tooltip": radixTooltip,
+  "@base-ui/react/context-menu": baseContextMenu,
+  "@base-ui/react/dialog": baseDialog,
+  "@base-ui/react/menu": baseMenu,
+  "@base-ui/react/popover": basePopover,
+  "@base-ui/react/select": baseSelect,
+  "@base-ui/react/tooltip": baseTooltip,
   sonner,
   clsx,
   "tailwind-merge": tailwindMerge,

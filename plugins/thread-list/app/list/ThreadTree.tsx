@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import { DragOverlay, useDroppable } from "@dnd-kit/core";
-import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -38,7 +37,7 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import type { ConsumeDragClickSuppression } from "@bb/shared-ui/hooks/use-drag-click-suppression";
 import { Icon } from "@bb/shared-ui/icon";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn, useComposedRefs } from "@bb/shared-ui/lib/utils";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,
   SIDEBAR_CONTROL_PAIR_SIZE_CLASS,

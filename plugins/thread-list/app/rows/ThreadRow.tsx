@@ -7,7 +7,6 @@ import {
   type CSSProperties,
   type MouseEventHandler,
 } from "react";
-import { useComposedRefs } from "@radix-ui/react-compose-refs";
 import { useAtomValue } from "jotai";
 import {
   hasThreadListWorkingActivity,
@@ -17,7 +16,7 @@ import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill"
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import type { ConsumeDragClickSuppression } from "@bb/shared-ui/hooks/use-drag-click-suppression";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn, useComposedRefs } from "@bb/shared-ui/lib/utils";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import {
   SIDEBAR_CONTROL_BUTTON_CLASS,

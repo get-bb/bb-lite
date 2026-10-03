@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { useComposedRefs } from "@radix-ui/react-compose-refs";
-import { cn } from "@bb/shared-ui/lib/utils";
+import { cn, useComposedRefs } from "@bb/shared-ui/lib/utils";
 import {
   getDetailScrollMaxHeightClass,
   type DetailScrollSize,

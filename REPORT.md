@@ -225,7 +225,8 @@ App side, `export default definePluginApp((app) => ...)` from `@bb/plugin/app`: 
 `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`, `messageDirective`,
 `threadList`, `sidebarNavigation`, `sidebarHeader`; `app.commands.register`; hooks `useRpc`,
 `useRealtime`, `useSettings`, `useSdk`, `useBbNavigate` and the sidebar hooks; the `ThreadChat`
-component.
+component. For overlays, external plugins share the host's Base UI (`@base-ui/react/menu`,
+`context-menu`, `dialog`, `popover`, `select`, `tooltip`), not Radix.
 
 ### Worked example: project notes that agents can read and add to
 

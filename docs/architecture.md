@@ -374,7 +374,9 @@ materialised by the CLI before the request.
   An external plugin with a builtin's id replaces it.
 - **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` (`@bb/plugin`)
   resolves to a CommonJS shim over `globalThis.__bbPluginRuntime["<specifier>"]`, which the app fills
-  with its own module namespaces before importing any bundle. No export lists are generated.
+  with its own module namespaces before importing any bundle. No export lists are generated. The
+  overlay primitives in that table are Base UI entry points (`@base-ui/react/menu`, `context-menu`,
+  `dialog`, `popover`, `select`, `tooltip`); Radix is not shared with plugins.
 - **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled` (a hard
   off switch that works with the server down). Status is `disabled`, `error` (the factory, the bundle
   or the manifest failed; the message is kept), `needs-configuration` or `running`. Enable, disable and

@@ -190,34 +190,39 @@ function hideOthers(portal: Element) {
   return hidden;
 }
 
+function portalOf(popupId: string | undefined) {
+  return (
+    document.getElementById(popupId ?? "")?.closest("[data-base-ui-portal]") ??
+    null
+  );
+}
+
 export function useModalLayer(
   popupId: string | undefined,
   open: boolean,
   kind: "popover" | "menu" | "dialog" | "select",
   layer: OverlayLayer | null,
 ) {
-  const portal = () =>
-    document.getElementById(popupId ?? "")?.closest("[data-base-ui-portal]") ??
-    null;
   const lockWhileMounted = kind === "popover" || kind === "select";
+  const hides = kind === "menu" || kind === "select";
   useEffect(() => {
     const unlock = lockWhileMounted ? lockOutsidePointer() : undefined;
-    const unhide =
-      kind === "menu" || kind === "select"
-        ? layer?.hideOthers(portal())
-        : undefined;
+    const unhide = hides ? layer?.hideOthers(portalOf(popupId)) : undefined;
     return () => {
       unlock?.();
       unhide?.();
     };
-  }, []);
+  }, [hides, layer, lockWhileMounted, popupId]);
   useLayoutEffect(() => {
     if (!open) return;
-    const untrap = trapFocus(portal(), () => layer?.isTopModal() ?? true);
+    const untrap = trapFocus(
+      portalOf(popupId),
+      () => layer?.isTopModal() ?? true,
+    );
     const unlock = lockWhileMounted ? undefined : lockOutsidePointer();
     return () => {
       untrap();
       unlock?.();
     };
-  }, [open]);
+  }, [layer, lockWhileMounted, open, popupId]);
 }
