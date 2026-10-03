@@ -49,7 +49,7 @@ type LoadedWindow = ReturnType<typeof loadWindow>;
 const MAX_EMPTY_WINDOWS = 8;
 const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
 const DETAIL_LEAF_LIMIT = 1_500;
-const SERVED_KEY_LIMIT = 64;
+const SERVED_KEY_LIMIT = 32;
 const SERVED_RING_SIZE = 4;
 const REQUESTED = "client/turn/requested";
 const ACCEPTED = "turn/input/accepted";
@@ -619,7 +619,7 @@ function buildTurnDetails(
 }
 
 export function createTimelineReader(db: Db) {
-  type Served = Pick<contract.ThreadTimelineResponse, "maxSeq" | "rows">;
+  type Served = { latest: number; full: contract.ThreadTimelineResponse };
   const served = new Map<string, Served[]>();
   return {
     forgetThread(threadId: string): void {
@@ -632,17 +632,25 @@ export function createTimelineReader(db: Db) {
       request: TimelineRequest,
     ): contract.ThreadTimelineResponse {
       const { page, afterSequence, ...shown } = request;
-      const full = buildThreadTimeline(db, thread, request);
-      const { id, status, environmentId } = thread;
-      const key = `${id}|${JSON.stringify([status, environmentId, page, shown])}`;
+      const { id, status, environmentPath } = thread;
+      const facts = [status, threadName(thread), environmentPath, page, shown];
+      const key = `${id}|${JSON.stringify(facts)}`;
+      const latest = events.latestSequence(db, id);
       const ring = served.get(key) ?? [];
-      const previous = ring.find((entry) => entry.maxSeq === afterSequence);
-      const { maxSeq, rows } = full;
-      const kept = ring.filter((entry) => entry.maxSeq !== maxSeq);
-      const next = [...kept, { maxSeq, rows }].slice(-SERVED_RING_SIZE);
+      const fresh = ring.find((entry) => entry.latest === latest);
+      const full = fresh?.full ?? buildThreadTimeline(db, thread, request);
+      const previous = ring.find(
+        (entry) => entry.full.maxSeq === afterSequence,
+      );
+      const kept = ring.filter((entry) => entry.full.maxSeq !== full.maxSeq);
+      const next = [...kept, { latest, full }].slice(-SERVED_RING_SIZE);
       events.rememberRecent(served, key, next, SERVED_KEY_LIMIT);
       if (previous === undefined) return full;
-      const delta = contract.computeTimelineRowDelta(previous.rows, rows);
+      const { rows } = previous.full;
+      const delta =
+        previous.full === full
+          ? { upsertRows: [] }
+          : contract.computeTimelineRowDelta(rows, full.rows);
       return { ...full, rows: [], delta };
     },
     turnDetails(

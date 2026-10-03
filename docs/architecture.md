@@ -322,7 +322,14 @@ callers, the response shapes and the change notifications each mutation must emi
   metadata), `plugin-signal`, `thread-open`, `pong` from the server. Notifications are the only cache
   invalidation the UI has, so every mutation emits its change kind.
 - `GET /threads/:id/timeline` returns projected rows for a window, with `afterSequence` deltas when the
-  server still holds the rows it last served for that thread.
+  server still holds the rows it last served for that thread. The projection is kept per thread and request
+  (page, nesting, display settings, thread status, name and workspace path) and reused while the thread's
+  last event sequence is unchanged: 32 such keys, the four latest projections each. Turn details are always
+  projected afresh. Event rows read from SQLite are kept by id up to 24M characters, which is what makes a
+  re-projection after an append cheaper than the first one.
+- Responses are compressed when the client accepts it (brotli, else gzip): JSON answers of 1 KB or more
+  written through `c.json`, and compressible static assets (compressed once, kept by content). File bytes,
+  attachments, plugin HTTP routes, the plugin CLI stream and the event long-poll are sent as they are.
 - `/ws/terminals/:id?sinceSeq=N`: terminal bytes with replay.
 - `/internal/runner/join`, `/internal/runner/ws`: remote runners.
 - File routes support a single `Range`.

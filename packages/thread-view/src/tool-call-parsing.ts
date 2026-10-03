@@ -467,10 +467,7 @@ function classifyShellSegment(
   }
 }
 
-export function parseShellCommandIntents(
-  command: string | undefined,
-): TimelineActivityIntent[] {
-  if (!command) return [];
+function shellCommandIntents(command: string): TimelineActivityIntent[] {
   const segments = splitShellCommandSegments(command);
   const classifications = segments.map((segment) =>
     classifyShellSegment(segment, command),
@@ -480,4 +477,24 @@ export function parseShellCommandIntents(
     if (classification.kind === "intent") return [classification.intent];
   }
   return [];
+}
+
+const INTENT_MEMO_MAX_CHARS = 4_000_000;
+const intentMemo = new Map<string, TimelineActivityIntent[]>();
+let intentMemoChars = 0;
+
+export function parseShellCommandIntents(
+  command: string | undefined,
+): TimelineActivityIntent[] {
+  if (!command) return [];
+  const known = intentMemo.get(command);
+  if (known !== undefined) return known;
+  const intents = shellCommandIntents(command);
+  intentMemoChars += command.length;
+  if (intentMemoChars > INTENT_MEMO_MAX_CHARS) {
+    intentMemo.clear();
+    intentMemoChars = command.length;
+  }
+  intentMemo.set(command, intents);
+  return intents;
 }
