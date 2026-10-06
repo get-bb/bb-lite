@@ -25,6 +25,7 @@ import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@/components/secondary-panel/panelToggleControlState";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { dimInactiveSplitsAtom } from "@/lib/split-layout/atoms";
 import {
   CONTEXT_INACTIVE_TEXT_CLASS,
@@ -57,6 +58,7 @@ export function ThreadDetailHeader({
   threadTitle: string;
   workspaceOpenButton?: ReactNode;
 }) {
+  const isCompactViewport = useIsCompactViewport();
   const { renameThreadAsync } = useThreadActions();
   const { editor, isEditing, startEditing } = useSidebarRename({
     kind: "thread",
@@ -92,6 +94,9 @@ export function ThreadDetailHeader({
     observer.observe(measured);
     return () => observer.disconnect();
   }, [isSplitPaneHeader]);
+  const rightPanelLabel = isSecondaryPanelOpen
+    ? "Hide right panel"
+    : "Show right panel";
 
   return (
     <AppPageHeader
@@ -190,7 +195,8 @@ export function ThreadDetailHeader({
                 <Icon name="CloseThreadPane" />
               </Button>
             ) : null}
-            {pane.secondaryPanelHost === null && !isSecondaryPanelOpen ? (
+            {pane.secondaryPanelHost === null &&
+            (!isSecondaryPanelOpen || isCompactViewport) ? (
               <span className="inline-flex items-center gap-1.5">
                 <AppCommandShortcutHint shortcut={panelShortcut} />
                 <Button
@@ -203,11 +209,11 @@ export function ThreadDetailHeader({
                   )}
                   aria-label={
                     panelShortcut
-                      ? `Show right panel (${panelShortcut.label})`
-                      : "Show right panel"
+                      ? `${rightPanelLabel} (${panelShortcut.label})`
+                      : rightPanelLabel
                   }
                   aria-keyshortcuts={panelShortcut?.ariaKeyshortcuts}
-                  aria-expanded={false}
+                  aria-expanded={isSecondaryPanelOpen}
                   onClick={onToggleSecondaryPanel}
                 >
                   <Icon name={RIGHT_PANEL_TOGGLE_ICON_NAME} />

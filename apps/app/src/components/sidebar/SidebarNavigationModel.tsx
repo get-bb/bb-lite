@@ -13,6 +13,7 @@ import type {
   SidebarNavigationState,
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   useAppCommandRunner,
   useAppCommandShortcut,
@@ -141,10 +142,13 @@ async function disablePlugin(
 
 export function SidebarNavigationModelProvider({
   children,
+  onNavigate,
 }: {
   children: ReactNode;
+  onNavigate: () => void;
 }) {
   const panelEntries = usePluginNavPanelChrome();
+  const isCompactViewport = useIsCompactViewport();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const store = useStore();
@@ -180,7 +184,8 @@ export function SidebarNavigationModelProvider({
         isLoading: panel === null,
         pluginId: chrome.pluginId,
         shortcut: null,
-        Accessory: panel === null ? null : wrappedAccessory(panel),
+        Accessory:
+          panel !== null && !isCompactViewport ? wrappedAccessory(panel) : null,
       },
       content: {
         kind: "plugin-panel",
@@ -201,6 +206,7 @@ export function SidebarNavigationModelProvider({
       const entry = find(itemId);
       if (!entry || entry.item.isDisabled || entry.item.isLoading) return;
       const { content, route } = entry;
+      onNavigate();
       if (content === null || route === null) {
         commandRunner.dispatch("thread.search", null);
       } else if (options.openInSplit) {
@@ -209,7 +215,7 @@ export function SidebarNavigationModelProvider({
           navigate,
           content,
           route,
-          enabled: true,
+          enabled: !isCompactViewport,
         });
       } else if (content.kind === "new-thread") {
         void navigate(route, { state: { focusPrompt: true } });

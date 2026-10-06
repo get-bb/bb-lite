@@ -3,11 +3,12 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useCloseMobileSidebar } from "@/components/ui/sidebar.js";
 import { CHROME_ROW_CLASS } from "@/lib/chrome-row";
 import { useRouteStateHistoryNavigation } from "@/lib/app-route-history";
 
 const BROWSER_HEADER_SLOT_START_CLASS =
-  "pl-[calc(12px_+_var(--bb-sidebar-control-size)_-_4px)]";
+  "pl-[calc(env(safe-area-inset-left)_+_12px_+_var(--bb-sidebar-control-size)_-_4px)]";
 
 const HISTORY_NAV_BUTTON_CLASS = cn(
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
@@ -21,6 +22,7 @@ export function SidebarTopReserveRow({
   testId: string;
   renderHeaderSlot?: (startInsetClassName: string) => ReactNode;
 }) {
+  const closeOnMobile = useCloseMobileSidebar();
   const history = useRouteStateHistoryNavigation();
   const buttons = [
     ["ChevronLeft", "Go back", history.canGoBack, history.goBack],
@@ -40,7 +42,10 @@ export function SidebarTopReserveRow({
             variant="ghost"
             size="icon"
             className={HISTORY_NAV_BUTTON_CLASS}
-            onClick={go}
+            onClick={() => {
+              go();
+              closeOnMobile();
+            }}
             disabled={!enabled}
             aria-label={label}
           >

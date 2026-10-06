@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -19,7 +20,12 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar.js";
+import {
+  COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
+  usePanelShelfState,
+} from "@/components/ui/secondary-panel-shelf-visibility";
 import {
   resolveThreadTitleDisplayText,
   ThreadTitleMentionResourcesProvider,
@@ -28,6 +34,11 @@ import {
 import { AppCommandShortcutHint } from "@/components/commands/AppCommandShortcutHint";
 import { CommandPalette } from "@/components/commands/CommandPalette";
 import { AppPageHeader } from "./AppPageHeader";
+import { AppLayoutSidebar } from "./AppLayoutSidebar";
+import {
+  shouldRestoreIOSViewportOnKeyboardDismissal,
+  useMobileVisualViewportHeight,
+} from "./useMobileVisualViewportHeight";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { listSidebarNavigationThreads } from "@/hooks/queries/thread-cache";
 import {
@@ -40,6 +51,7 @@ import {
 import { useRouteState } from "@/hooks/useRouteState";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { APP_OVERLAY_LAYER } from "@/components/ui/app-overlay-layers";
 import { ProjectPathDialog } from "@/components/dialogs/ProjectPathDialog";
 import { PluginAppOverlays } from "@/components/plugin/PluginAppOverlays";
@@ -64,8 +76,6 @@ import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { IframeDragGuardOverlay } from "@/lib/iframe-drag-guard";
 import { useFaviconBadge } from "@/lib/favicon-color-preference";
 import { shouldShowFaviconAttentionDot } from "./faviconAttentionDot";
-import { AppSidebar } from "@/components/sidebar/AppSidebar";
-import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
 import {
   useAppCommandHandler,
   useAppCommandShortcut,
@@ -107,7 +117,6 @@ function SidebarStateBridge({ children }: { children: ReactNode }) {
   const [open, setOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const sidebarLiveWidth = useAtomValue(sidebarLiveWidthAtom);
-  const shortcut = useAppCommandShortcut("sidebar.toggle");
   useAppCommandHandler("sidebar.toggle", () => {
     setOpen(!open);
     return true;
@@ -120,27 +129,46 @@ function SidebarStateBridge({ children }: { children: ReactNode }) {
       onOpenChange={setOpen}
     >
       {children}
-      <div
-        data-testid="app-sidebar-trigger-overlay"
-        style={{ zIndex: APP_OVERLAY_LAYER.sidebarTrigger }}
-        className={cn(
-          "fixed top-0 left-0",
-          CHROME_ROW_CLASS,
-          BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
-        )}
-      >
-        <SidebarTrigger
-          aria-label={
-            shortcut ? `Toggle sidebar (${shortcut.label})` : "Toggle sidebar"
-          }
-          aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
-        />
-        <AppCommandShortcutHint
-          shortcut={shortcut}
-          className="absolute left-full ml-1"
-        />
-      </div>
+      <SidebarTriggerOverlay />
     </SidebarProvider>
+  );
+}
+
+function SidebarTriggerOverlay() {
+  const isCompactViewport = useIsCompactViewport();
+  const { openMobile } = useSidebar();
+  const panelShelfState = usePanelShelfState({
+    isCompactViewport,
+    isSidebarDrawerOpen: openMobile,
+  });
+  const shortcut = useAppCommandShortcut("sidebar.toggle");
+  return (
+    <div
+      data-testid="app-sidebar-trigger-overlay"
+      data-panel-shelf={panelShelfState}
+      style={{
+        zIndex: isCompactViewport
+          ? APP_OVERLAY_LAYER.compactSidebarTrigger
+          : APP_OVERLAY_LAYER.sidebarTrigger,
+      }}
+      className={cn(
+        "fixed top-[env(safe-area-inset-top)] left-[env(safe-area-inset-left)]",
+        COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
+        CHROME_ROW_CLASS,
+        BROWSER_SIDEBAR_TRIGGER_INSET_CLASS,
+      )}
+    >
+      <SidebarTrigger
+        aria-label={
+          shortcut ? `Toggle sidebar (${shortcut.label})` : "Toggle sidebar"
+        }
+        aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
+      />
+      <AppCommandShortcutHint
+        shortcut={shortcut}
+        className="absolute left-full ml-1"
+      />
+    </div>
   );
 }
 
@@ -193,7 +221,18 @@ function useSidebarResize() {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const quickCreateProject = useQuickCreateProjectController();
+  const isCompactViewport = useIsCompactViewport();
   const store = useStore();
+  const [contentShell, setContentShell] = useState<HTMLDivElement | null>(null);
+  const restoreIOSViewportOnKeyboardDismissal = useMemo(
+    () => shouldRestoreIOSViewportOnKeyboardDismissal(navigator),
+    [],
+  );
+  useMobileVisualViewportHeight(
+    contentShell,
+    isCompactViewport,
+    restoreIOSViewportOnKeyboardDismissal,
+  );
   const location = useLocation();
   const { projectId, threadId, isThreadView, isRootView } = useRouteState();
   const navigate = useNavigate();
@@ -214,7 +253,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         const next = applyThreadOpenToLayout(
           current,
           { projectId, threadId },
-          split,
+          isCompactViewport ? "replace" : split,
         );
         if (next !== current) store.set(splitLayoutAtom, next);
         void navigate(
@@ -222,7 +261,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           alreadyOpen ? { replace: true } : undefined,
         );
       }),
-    [navigate, store],
+    [isCompactViewport, navigate, store],
   );
   useAppCommandHandler("thread.new", () => {
     if (projectId !== undefined) setRootComposeProjectId(projectId);
@@ -332,23 +371,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <ThreadTitleMentionResourcesProvider value={titleMentionResources}>
         <ThreadActionsProvider sections={sidebarNavigation?.sections ?? []}>
           <SidebarStateBridge>
-            {isSettingsView ? (
-              <SettingsSidebar
-                onResizeMouseDown={resize.onMouseDown}
-                isResizing={resize.isResizing}
-                appRoutePath={appRoutePath}
-              />
-            ) : (
-              <AppSidebar
-                onResizeMouseDown={resize.onMouseDown}
-                isResizing={resize.isResizing}
-                settingsRoutePath={settingsRoutePath}
-              />
-            )}
+            <AppLayoutSidebar
+              mode={isSettingsView ? "settings" : "app"}
+              onResizeMouseDown={resize.onMouseDown}
+              isResizing={resize.isResizing}
+              appRoutePath={appRoutePath}
+              settingsRoutePath={settingsRoutePath}
+            />
             <SidebarInset>
               <div
+                ref={setContentShell}
                 data-testid="app-layout-content-shell"
-                className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
+                className="relative flex h-full min-h-0 min-w-0 w-full flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[var(--bb-safe-area-bottom,env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)]"
               >
                 {!isThreadView && !isRootView && pluginPanelMatch === null ? (
                   <AppPageHeader

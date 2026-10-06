@@ -89,10 +89,11 @@ export function SidebarMore({
           side="right"
           align="start"
           sideOffset={8}
+          mobileTitle="More"
           aria-label={ariaLabel}
           ref={contentRef}
           initialFocus={contentRef}
-          className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1"
+          className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-56 flex-col overflow-hidden p-1 max-md:min-h-0 max-md:flex-1"
         >
           <div
             role="list"
@@ -168,7 +169,7 @@ export function SidebarOverflowItem({
           className={cn(
             OVERFLOW_ROW_BUTTON_CLASS,
             COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-            "pr-9",
+            "pr-9 max-md:pointer-coarse:pr-11",
           )}
           disabled={item.disabled}
           data-sidebar-overflow-item={item.id}
@@ -191,15 +192,18 @@ export function SidebarOverflowItem({
           </span>
           {activity}
         </Button>
-        <div
-          data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-          className={cn(
-            SIDEBAR_HOVER_ACTIONS_CLASS,
-            "absolute inset-y-0 right-0 flex items-center",
-          )}
-        >
-          {actions}
-        </div>
+        {additionalActions ? (
+          <div
+            data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+            data-sidebar-hover-actions-mobile="always"
+            className={cn(
+              SIDEBAR_HOVER_ACTIONS_CLASS,
+              "absolute inset-y-0 right-0 flex items-center pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto",
+            )}
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
     </div>
   );

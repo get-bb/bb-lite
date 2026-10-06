@@ -1,5 +1,6 @@
 import { focusPaneComposer } from "@/lib/pane-composer-focus";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   PANE_DIRECTION_APP_COMMAND_IDS,
   PANE_FOCUS_APP_COMMAND_IDS,
@@ -231,6 +232,7 @@ export function SplitThreadArea({
 }) {
   const navigate = useImmediateRouteNavigate();
   const store = useStore();
+  const isCompactViewport = useIsCompactViewport();
   const storedLayout = useAtomValue(splitLayoutAtom);
   const storedMaximizedPaneId = useAtomValue(maximizedPaneIdAtom);
   const [controller] = useState(() => createSplitController(store, navigate));
@@ -250,7 +252,11 @@ export function SplitThreadArea({
 
   const layout = storedLayout ?? reconcileLayoutForContent(null, routeContent);
   const panes = listPanes(layout.root);
-  const onlyPane = panes.length === 1 ? panes[0] : undefined;
+  const onlyPane: PaneNode | undefined = isCompactViewport
+    ? { type: "pane", paneId: layout.focusedPaneId, content: routeContent }
+    : panes.length === 1
+      ? panes[0]
+      : undefined;
   const isSplitActive = onlyPane === undefined;
   const maximizedPaneId =
     isSplitActive &&

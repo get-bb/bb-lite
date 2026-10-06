@@ -283,8 +283,14 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
         const projectId = entries.get(threadId)?.projectId;
         if (projectId === undefined) return;
         store.set(getThreadConversationCollapsedAtom(threadId), false);
-        if (options?.split && !isCompact)
-          openThreadInSplit({ store, navigate, projectId, threadId });
+        if (options?.split)
+          openThreadInSplit({
+            store,
+            navigate,
+            projectId,
+            threadId,
+            isCompact,
+          });
         else navigate(getThreadRoutePath({ projectId, threadId }));
       },
       openNewThread(options = {}) {

@@ -4,6 +4,7 @@ import {
   useSidebarNavigation,
   useSidebarNavigationSplit,
   type SidebarNavigationItem,
+  type SidebarNavigationProps,
 } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import {
@@ -78,7 +80,13 @@ function RowMenuItems({
   );
 }
 
-function NavigationRow({ item }: { item: SidebarNavigationItem }) {
+function NavigationRow({
+  item,
+  isCompactViewport,
+}: {
+  item: SidebarNavigationItem;
+  isCompactViewport: boolean;
+}) {
   const { activeItemId, actions, isShortcutModifierHeld } =
     useSidebarNavigation();
   const split = useSidebarNavigationSplit(item.id);
@@ -100,7 +108,7 @@ function NavigationRow({ item }: { item: SidebarNavigationItem }) {
     <RowMenuItems
       item={item}
       surface={surface}
-      canOpenInSplit={split.isAvailable}
+      canOpenInSplit={split.isAvailable && !isCompactViewport}
       disablePending={disablePending}
       onDisable={onDisable}
     />
@@ -172,6 +180,7 @@ function NavigationRow({ item }: { item: SidebarNavigationItem }) {
       {hasMenu ? (
         <div
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+          data-sidebar-hover-actions-mobile="always"
           className={cn(
             SIDEBAR_HOVER_ACTIONS_CLASS,
             "absolute inset-y-0 right-0 flex items-center",
@@ -220,14 +229,16 @@ function NavigationRow({ item }: { item: SidebarNavigationItem }) {
 
 function OverflowItem({
   item,
+  isCompactViewport,
   onClose,
 }: {
   item: SidebarNavigationItem;
+  isCompactViewport: boolean;
   onClose: () => void;
 }) {
   const { actions } = useSidebarNavigation();
   const split = useSidebarNavigationSplit(item.id);
-  const canSplit = split.isAvailable && !item.isDisabled;
+  const canSplit = split.isAvailable && !isCompactViewport && !item.isDisabled;
   return (
     <SidebarOverflowItem
       item={{
@@ -243,23 +254,25 @@ function OverflowItem({
       }
       onClose={onClose}
       additionalActions={
-        <DropdownMenuItem
-          className="cursor-pointer"
-          disabled={!canSplit}
-          onSelect={() => {
-            onClose();
-            actions.activate(item.id, { openInSplit: true });
-          }}
-        >
-          <Icon name="Columns2" aria-hidden="true" />
-          Open in split
-        </DropdownMenuItem>
+        !isCompactViewport ? (
+          <DropdownMenuItem
+            className="cursor-pointer"
+            disabled={!canSplit}
+            onSelect={() => {
+              onClose();
+              actions.activate(item.id, { openInSplit: true });
+            }}
+          >
+            <Icon name="Columns2" aria-hidden="true" />
+            Open in split
+          </DropdownMenuItem>
+        ) : null
       }
     />
   );
 }
 
-export function Navigation() {
+export function Navigation({ isCompactViewport }: SidebarNavigationProps) {
   const { items } = useSidebarNavigation();
   const visible = items.filter((item) => item.isVisible);
   const hidden = items.filter((item) => !item.isVisible);
@@ -267,13 +280,17 @@ export function Navigation() {
   if (items.length === 0) return null;
 
   return (
-    <>
+    <CompactViewportOverrideProvider isCompactViewport={isCompactViewport}>
       <div
         className="relative shrink-0 space-y-0.5 px-2 py-2"
         data-testid="plugin-nav-sidebar-items"
       >
         {visible.map((item) => (
-          <NavigationRow key={item.id} item={item} />
+          <NavigationRow
+            key={item.id}
+            item={item}
+            isCompactViewport={isCompactViewport}
+          />
         ))}
         {hidden.length > 0 ? (
           <SidebarMore
@@ -282,7 +299,12 @@ export function Navigation() {
           >
             {(close) =>
               hidden.map((item) => (
-                <OverflowItem key={item.id} item={item} onClose={close} />
+                <OverflowItem
+                  key={item.id}
+                  item={item}
+                  isCompactViewport={isCompactViewport}
+                  onClose={close}
+                />
               ))
             }
           </SidebarMore>
@@ -293,6 +315,6 @@ export function Navigation() {
         className="mx-2 my-2 shrink-0 border-t border-sidebar-border/25"
         data-testid="navigation-divider"
       />
-    </>
+    </CompactViewportOverrideProvider>
   );
 }

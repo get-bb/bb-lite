@@ -3,6 +3,7 @@ import { useAtomValue, useStore } from "jotai";
 import { isMacKeyboardPlatform } from "@bb/domain";
 import { EmptyState } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   ThreadTitle,
@@ -41,6 +42,7 @@ export function ThreadSearchPaletteMode({
   const navigate = useRouteNavigate();
   const store = useStore();
   const splitLayout = useAtomValue(splitLayoutAtom);
+  const isCompact = useIsCompactViewport();
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState<{
     index: number;
@@ -100,6 +102,7 @@ export function ThreadSearchPaletteMode({
       threadSearch.isLoading);
   const canSplit =
     activeRow !== undefined &&
+    !isCompact &&
     splitLayout !== null &&
     findPaneByContent(splitLayout.root, {
       kind: "thread",
@@ -121,7 +124,14 @@ export function ThreadSearchPaletteMode({
           ? undefined
           : { searchMessageSeq: messageSeq, searchThreadId: threadId };
       if (split) {
-        openThreadInSplit({ store, navigate, projectId, threadId, state });
+        openThreadInSplit({
+          store,
+          navigate,
+          projectId,
+          threadId,
+          isCompact,
+          state,
+        });
       } else {
         navigate(getThreadRoutePath({ projectId, threadId }), { state });
       }

@@ -7,6 +7,7 @@ import {
 } from "@bb/domain";
 import { Dialog, DialogContent, DialogTitle } from "@bb/shared-ui/dialog";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   useAppCommandHandler,
   useIndexedAppCommandHandlers,
@@ -169,11 +170,13 @@ export function CommandPalette({
     : [{ bucket: null, entries: ranked }];
   const entries = groups.flatMap((group) => group.entries);
   const activeIndex = Math.min(highlightedIndex, entries.length - 1);
+  const isCompactViewport = useIsCompactViewport();
   const renderRow = (entry: RankedPaletteAction) => {
     const index = entries.indexOf(entry);
     const { action } = entry;
     const isDrillIn = action.id === THREAD_SEARCH_ACTION_ID;
     const group = action.id.startsWith("plugin:") ? action.group : null;
+    const shortcut = isCompactViewport ? null : action.shortcut;
     const emphasized = new Set(entry.positions);
     return (
       <div
@@ -207,13 +210,13 @@ export function CommandPalette({
                 ),
               )}
         </span>
-        {group !== null || action.shortcut !== null || isDrillIn ? (
+        {group !== null || shortcut !== null || isDrillIn ? (
           <span className="ml-auto flex shrink-0 items-center gap-2">
             {group === null ? null : (
               <span className="text-xs text-muted-foreground">{group}</span>
             )}
-            {action.shortcut === null ? null : (
-              <PaletteShortcut>{action.shortcut.label}</PaletteShortcut>
+            {shortcut === null ? null : (
+              <PaletteShortcut>{shortcut.label}</PaletteShortcut>
             )}
             {isDrillIn ? (
               <span className="sr-only">Opens a search view</span>

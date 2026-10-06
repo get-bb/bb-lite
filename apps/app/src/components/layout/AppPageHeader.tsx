@@ -4,6 +4,7 @@ import {
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
   COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
   CHROME_ROW_CLASS,
@@ -32,6 +33,7 @@ export function AppPageHeader({
   ownsWindowTopLeft?: boolean;
 }) {
   const isSidebarShowing = useIsSidebarShowing();
+  const isCompactViewport = useIsCompactViewport();
   return (
     <header
       ref={headerRef}
@@ -50,7 +52,7 @@ export function AppPageHeader({
           "relative z-10 gap-1 md:gap-2",
           "transition-[padding] duration-200 ease-linear",
           ownsWindowTopLeft &&
-            !isSidebarShowing &&
+            (isCompactViewport || !isSidebarShowing) &&
             BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
         )}
       >
