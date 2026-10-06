@@ -13,6 +13,8 @@ import {
   type ThreadTimelineResponse,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
+import { COMPACT_VIEWPORT_QUERY } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { getMediaQuerySnapshot } from "@bb/shared-ui/hooks/use-media-query";
 import { loadFilePreview } from "@/lib/api";
 import { buildThreadHostFileContentUrl } from "@/lib/file-content-urls";
 import { sdk } from "@/lib/sdk";
@@ -200,6 +202,8 @@ export function didThreadDetailBootstrapRefreshAfterMount(query: {
   );
 }
 
+const COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT = 8;
+
 async function fetchTimeline(
   client: QueryClient,
   threadId: string,
@@ -208,14 +212,20 @@ async function fetchTimeline(
   const previous = client.getQueryData<ThreadTimelineResponse>(
     qk.timeline(threadId),
   );
-  if (previous === undefined) return sdk.threads.timeline({ threadId, signal });
+  const page = {
+    threadId,
+    signal,
+    ...(getMediaQuerySnapshot(COMPACT_VIEWPORT_QUERY)
+      ? { segmentLimit: String(COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT) }
+      : {}),
+  };
+  if (previous === undefined) return sdk.threads.timeline(page);
   const afterSequence = String(previous.maxSeq);
-  const args = { afterSequence, signal, threadId };
-  const response = await sdk.threads.timeline(args);
+  const response = await sdk.threads.timeline({ ...page, afterSequence });
   if (response.delta === undefined) return response;
   const rows = applyTimelineDelta(previous.rows, response.delta);
   return rows === null
-    ? sdk.threads.timeline({ threadId, signal })
+    ? sdk.threads.timeline(page)
     : { ...response, rows, delta: undefined };
 }
 

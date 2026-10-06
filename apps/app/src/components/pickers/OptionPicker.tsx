@@ -130,6 +130,7 @@ export function OptionPicker<T extends string>({
       <DropdownMenuContent
         align={align}
         className={cn(OPTION_MENU_CONTENT_CLASS_NAME, contentClassName)}
+        mobileTitle={label}
       >
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         {options.map((option) => {
@@ -150,7 +151,9 @@ export function OptionPicker<T extends string>({
                   option.tone === "warning" && "text-warning-text",
                 )}
               >
-                {OptionIcon ? <OptionIcon className="size-4 shrink-0" /> : null}
+                {OptionIcon ? (
+                  <OptionIcon className="size-4 shrink-0 max-md:pointer-coarse:mt-0.5" />
+                ) : null}
                 <span className="min-w-0 flex-1">
                   <span
                     className="block whitespace-normal break-words font-medium"

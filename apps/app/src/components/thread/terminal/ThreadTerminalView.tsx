@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import "@xterm/xterm/css/xterm.css";
 import type { ITheme, Terminal as XTermTerminal } from "@xterm/xterm";
 import { TERMINAL_DATA_MAX_BYTES } from "@bb/domain";
@@ -20,6 +20,8 @@ import {
 import { decodeBase64Bytes } from "@/lib/base64-bytes";
 import { buildBrowserWebSocketUrl } from "@/lib/browser-websocket-url";
 
+const TERMINAL_TOUCH_FOCUS_MAX_DURATION_MS = 700;
+const TERMINAL_TOUCH_FOCUS_MOVEMENT_THRESHOLD_PX = 10;
 const TERMINAL_FONT_FAMILY =
   '"JetBrainsMono Nerd Font Mono", "MesloLGS NF", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 const ANSI_COLOR_KEYS = [
@@ -133,6 +135,13 @@ export function ThreadTerminalView(props: ThreadTerminalViewProps) {
   const terminalRef = useRef<XTermTerminal | null>(null);
   const scheduleFitRef = useRef<(() => void) | null>(null);
   const lastStatusNoticeRef = useRef<TerminalSession["status"] | null>(null);
+  const touchFocusGestureRef = useRef<{
+    identifier: number;
+    maximumMovementPx: number;
+    startedAt: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const preferredTheme = usePreferredTheme();
   const appThemeEpoch = useAppThemeEpoch();
   const appNavigation = useAppNavigationHost();
@@ -384,8 +393,65 @@ export function ThreadTerminalView(props: ThreadTerminalViewProps) {
     terminal.options.theme = buildTerminalTheme();
   }, [preferredTheme, appThemeEpoch]);
 
+  const trackTouchFocusGesture = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const gesture = touchFocusGestureRef.current;
+    const touch = event.touches.length === 1 ? event.touches[0] : undefined;
+    if (touch === undefined) {
+      touchFocusGestureRef.current = null;
+    } else if (event.type === "touchstart") {
+      touchFocusGestureRef.current = {
+        identifier: touch.identifier,
+        maximumMovementPx: 0,
+        startedAt: event.timeStamp,
+        x: touch.clientX,
+        y: touch.clientY,
+      };
+    } else if (gesture !== null && gesture.identifier === touch.identifier) {
+      gesture.maximumMovementPx = Math.max(
+        gesture.maximumMovementPx,
+        Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y),
+      );
+    } else touchFocusGestureRef.current = null;
+  };
+  const focusTerminalFromTouchRelease = (
+    event: ReactTouchEvent<HTMLDivElement>,
+  ) => {
+    const gesture = touchFocusGestureRef.current;
+    touchFocusGestureRef.current = null;
+    const touch =
+      event.changedTouches.length === 1 ? event.changedTouches[0] : undefined;
+    if (
+      event.touches.length !== 0 ||
+      gesture === null ||
+      touch === undefined ||
+      touch.identifier !== gesture.identifier
+    ) {
+      return;
+    }
+    const duration = event.timeStamp - gesture.startedAt;
+    const movement = Math.max(
+      gesture.maximumMovementPx,
+      Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y),
+    );
+    if (
+      duration >= 0 &&
+      duration < TERMINAL_TOUCH_FOCUS_MAX_DURATION_MS &&
+      movement <= TERMINAL_TOUCH_FOCUS_MOVEMENT_THRESHOLD_PX
+    ) {
+      terminalRef.current?.focus();
+    }
+  };
+
   return (
-    <div className="h-full min-h-0 w-full overflow-hidden bg-sidebar p-2">
+    <div
+      className="h-full min-h-0 w-full overflow-hidden bg-sidebar p-2"
+      onTouchStart={trackTouchFocusGesture}
+      onTouchMove={trackTouchFocusGesture}
+      onTouchEnd={focusTerminalFromTouchRelease}
+      onTouchCancel={() => {
+        touchFocusGestureRef.current = null;
+      }}
+    >
       <div
         ref={containerRef}
         className="h-full min-h-0 w-full overflow-hidden"

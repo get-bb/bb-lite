@@ -10,6 +10,7 @@ import {
   PromptStackCardChevron,
 } from "@/components/promptbox/banner/PromptStackCard";
 import { LiveDurationText } from "@/components/thread/timeline/LiveDurationText";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   activityIconClass,
@@ -82,8 +83,9 @@ export function ThreadBackgroundCommandsCard({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const isCompactViewport = useIsCompactViewport();
   const cardRef = useRef<HTMLElement>(null!);
-  const [useCompactSummary, setUseCompactSummary] = useState(false);
+  const [isCompactCard, setIsCompactCard] = useState<boolean | null>(null);
   useResizeObserver({
     ref: cardRef,
     box: "border-box",
@@ -93,7 +95,7 @@ export function ThreadBackgroundCommandsCard({
         Number.parseFloat(
           window.getComputedStyle(document.documentElement).fontSize,
         ) || 16;
-      setUseCompactSummary(
+      setIsCompactCard(
         width <= COMPACT_PROMPT_SHELL_MAX_WIDTH_REM * rootFontSize,
       );
     },
@@ -103,6 +105,7 @@ export function ThreadBackgroundCommandsCard({
     return null;
   }
   const others = commands.slice(1);
+  const useCompactSummary = isCompactCard ?? isCompactViewport;
   const canExpand = others.length > 0 || useCompactSummary;
   const agentCount = commands.filter(isAgent).length;
   const commandCount = commands.length - agentCount;

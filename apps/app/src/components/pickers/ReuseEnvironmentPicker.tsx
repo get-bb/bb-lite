@@ -1,5 +1,10 @@
 import { useState } from "react";
 import { Button } from "@bb/shared-ui/button";
+import {
+  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+  COARSE_POINTER_ICON_SIZE_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   Command,
@@ -145,23 +150,30 @@ export function ReuseEnvironmentPicker({
           )}
         >
           <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME}>
-            <Icon name={trigger.icon} className="size-3.5 shrink-0" />
+            <Icon
+              name={trigger.icon}
+              className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
+            />
             <span className="min-w-0 truncate" data-promptbox-full-label="">
               {trigger.label}
             </span>
           </span>
           <Icon
             name="ChevronDown"
-            className="shrink-0 text-muted-foreground size-3.5"
+            className={cn(
+              "shrink-0 text-muted-foreground",
+              COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+            )}
           />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         aria-label="Reuse an existing environment"
+        mobileTitle="Environment"
         className={cn(
           OPTION_MENU_CONTENT_CLASS_NAME,
-          "flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0",
+          "flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1",
         )}
       >
         <Command label="Search environments" shouldFilter={false}>
@@ -236,7 +248,13 @@ function ReuseEnvironmentMenuItem({
       )}
     >
       <span className="flex min-w-0 items-center gap-2">
-        <Icon name={icon} className="shrink-0 text-muted-foreground size-3.5" />
+        <Icon
+          name={icon}
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+          )}
+        />
         <span className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-xs">
           <span className="min-w-0 truncate font-medium">{label}</span>
           {branchDetail ? (
@@ -247,7 +265,10 @@ function ReuseEnvironmentMenuItem({
         </span>
         <Icon
           name="Check"
-          className={cn("size-4", isSelected ? "opacity-100" : "opacity-0")}
+          className={cn(
+            COARSE_POINTER_ICON_SIZE_CLASS,
+            isSelected ? "opacity-100" : "opacity-0",
+          )}
         />
       </span>
       {secondaryText ? (

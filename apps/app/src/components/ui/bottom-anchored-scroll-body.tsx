@@ -260,6 +260,12 @@ export function BottomAnchoredScrollBody({
 
     scrollArea.addEventListener("scroll", handleScroll, { passive: true });
     scrollArea.addEventListener("wheel", handleWheel, { passive: true });
+    scrollArea.addEventListener("touchstart", markUserScrollIntent, {
+      passive: true,
+    });
+    scrollArea.addEventListener("touchmove", markUserScrollIntent, {
+      passive: true,
+    });
     scrollArea.addEventListener("pointerdown", startPointerScrollIntent, {
       passive: true,
     });
@@ -272,6 +278,8 @@ export function BottomAnchoredScrollBody({
       resizeObserver.disconnect();
       scrollArea.removeEventListener("scroll", handleScroll);
       scrollArea.removeEventListener("wheel", handleWheel);
+      scrollArea.removeEventListener("touchstart", markUserScrollIntent);
+      scrollArea.removeEventListener("touchmove", markUserScrollIntent);
       scrollArea.removeEventListener("pointerdown", startPointerScrollIntent);
       window.removeEventListener("pointerup", endPointerScrollIntent);
       window.removeEventListener("pointercancel", endPointerScrollIntent);

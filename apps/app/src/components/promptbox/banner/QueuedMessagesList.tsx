@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -293,7 +299,7 @@ function RowAction({
           variant="ghost"
           className={cn(
             "shrink-0 text-muted-foreground",
-            destructive && "hover:text-destructive",
+            destructive && "hover:text-destructive max-md:text-destructive",
             compact ? "size-7" : "size-8",
           )}
           disabled={disabled}
@@ -303,7 +309,7 @@ function RowAction({
           <Icon name={icon} className="size-4" aria-hidden />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent className="max-md:hidden">{label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -317,6 +323,8 @@ function QueuedMessageRow({
   sendAction,
   sendDisabled,
   actionDisabled,
+  mobileActionsExpanded,
+  onExpandMobileActions,
   onSend,
   onEdit,
   onDelete,
@@ -330,11 +338,22 @@ function QueuedMessageRow({
   sendAction: QueuedMessageSendAction;
   sendDisabled: boolean;
   actionDisabled: boolean;
+  mobileActionsExpanded: boolean;
+  onExpandMobileActions: (id: string) => void;
   onSend: (id: string) => void;
   onEdit: (request: QueuedMessageEditRequest) => void;
   onDelete: (id: string) => void;
   compact: boolean;
 }) {
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const focusActionsOnExpandRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!mobileActionsExpanded || !focusActionsOnExpandRef.current) return;
+    focusActionsOnExpandRef.current = false;
+    actionsRef.current
+      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+      ?.focus({ preventScroll: true });
+  }, [mobileActionsExpanded]);
   const attachmentCount = countQueuedMessageAttachments(queuedMessage.content);
   const waitLine = waitLineOf(queuedMessage);
   const isProcessing = processingLabel !== null;
@@ -373,7 +392,7 @@ function QueuedMessageRow({
                 className={cn(
                   "ml-auto inline-flex shrink-0 items-center gap-0.5 text-2xs text-subtle-foreground opacity-70 transition-opacity duration-[120ms] ease-out",
                   !isProcessing &&
-                    "group-hover/dispatch-row:opacity-0 group-focus-within/dispatch-row:opacity-0",
+                    "group-hover/dispatch-row:opacity-0 group-focus-within/dispatch-row:opacity-0 [@media(hover:none)]:opacity-0",
                 )}
                 role="img"
                 aria-label={
@@ -461,10 +480,14 @@ function QueuedMessageRow({
         {isProcessing ? null : (
           <TooltipProvider delayDuration={300}>
             <div
+              ref={actionsRef}
               data-queued-message-actions=""
               className={cn(
                 PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
                 "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md opacity-0 transition-opacity duration-[120ms] ease-out md:flex",
+                mobileActionsExpanded
+                  ? "flex max-md:pointer-events-auto max-md:opacity-100"
+                  : "max-md:hidden",
                 "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
                 "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
               )}
@@ -509,6 +532,31 @@ function QueuedMessageRow({
               />
             </div>
           </TooltipProvider>
+        )}
+        {isProcessing ? null : (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn(
+              PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS,
+              "pointer-events-none absolute right-2.5 top-1/2 shrink-0 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity duration-[120ms] ease-out md:hidden",
+              "group-hover/dispatch-row:pointer-events-auto group-hover/dispatch-row:opacity-100",
+              "group-focus-within/dispatch-row:pointer-events-auto group-focus-within/dispatch-row:opacity-100",
+              "[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
+              compact ? "size-7" : "size-8",
+              mobileActionsExpanded && "hidden",
+            )}
+            disabled={actionDisabled}
+            aria-label={`Queued message ${index + 1} actions`}
+            aria-expanded={mobileActionsExpanded}
+            onClick={(event) => {
+              focusActionsOnExpandRef.current = event.detail === 0;
+              onExpandMobileActions(queuedMessage.id);
+            }}
+          >
+            <Icon name="MoreHorizontal" className="size-4" aria-hidden />
+          </Button>
         )}
       </div>
     </li>
@@ -570,9 +618,27 @@ function QueuedMessagesListSurface({
   const senderThreadMetadataById = useSenderThreadMetadataById();
   const getScrollElement = useBottomAnchoredScroll()?.getScrollElement;
   const [collapsedPreference, setCollapsed] = useState(false);
+  const [expandedMobileActionsId, setExpandedMobileActionsId] = useState<
+    string | null
+  >(null);
   const [editorHeight, setEditorHeight] = useState<number | null>(null);
   const surfaceRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (expandedMobileActionsId === null) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !surfaceRef.current?.contains(event.target)
+      ) {
+        setExpandedMobileActionsId(null);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [expandedMobileActionsId]);
   const {
     aboveOverflow,
     belowOverflow,
@@ -709,19 +775,23 @@ function QueuedMessagesListSurface({
                   )}
                   onClick={() => {
                     setCollapsed(!collapsed);
-                    if (!collapsed) inlineEditor?.onDismiss();
+                    if (collapsed) return;
+                    setExpandedMobileActionsId(null);
+                    inlineEditor?.onDismiss();
                   }}
                   aria-label={caretLabel}
                   aria-expanded={!collapsed}
                 >
                   <Icon
                     name={collapsed ? "ChevronUp" : "ChevronDown"}
-                    className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/queue-header:opacity-65 group-focus-within/queue-header:opacity-65"
+                    className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/queue-header:opacity-65 group-focus-within/queue-header:opacity-65 [@media(hover:none)]:opacity-45"
                     aria-hidden
                   />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{caretLabel}</TooltipContent>
+              <TooltipContent className="max-md:hidden">
+                {caretLabel}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -765,8 +835,15 @@ function QueuedMessagesListSurface({
                   sendDisabled={sendDisabled}
                   actionDisabled={actionDisabled}
                   compact={!isEditing}
+                  mobileActionsExpanded={
+                    expandedMobileActionsId === queuedMessage.id
+                  }
+                  onExpandMobileActions={setExpandedMobileActionsId}
                   onSend={onSend}
-                  onEdit={onEdit}
+                  onEdit={(request) => {
+                    setExpandedMobileActionsId(null);
+                    onEdit(request);
+                  }}
                   onDelete={onDelete}
                 />
               ),

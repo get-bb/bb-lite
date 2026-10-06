@@ -19,6 +19,12 @@ import {
   CommandSeparator,
 } from "@bb/shared-ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
+import {
+  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+  COARSE_POINTER_DOT_SIZE_CLASS,
+  COARSE_POINTER_ICON_SIZE_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
 import { REUSE_ENVIRONMENT_ICON_NAME } from "@/lib/environment-workspace-display";
@@ -213,12 +219,15 @@ export function EnvironmentPicker({
             {selectedProvider === undefined ? (
               <Icon
                 name={isLoading ? "Spinner" : trigger.icon}
-                className={cn("size-3.5 shrink-0", isLoading && "animate-spin")}
+                className={cn(
+                  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+                  isLoading && "animate-spin",
+                )}
               />
             ) : (
               <EnvironmentProviderIcon
                 provider={selectedProvider}
-                className="size-3.5 shrink-0"
+                className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
               />
             )}
             {isLoading ? (
@@ -248,7 +257,10 @@ export function EnvironmentPicker({
           {disabled ? null : (
             <Icon
               name="ChevronDown"
-              className="shrink-0 text-muted-foreground size-3.5"
+              className={cn(
+                "shrink-0 text-muted-foreground",
+                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+              )}
             />
           )}
         </Button>
@@ -256,8 +268,9 @@ export function EnvironmentPicker({
       <PopoverContent
         align="start"
         aria-label="Environment"
+        mobileTitle="Environment"
         autoFocusRef={isLoading ? undefined : searchInputRef}
-        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0"
+        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-auto max-w-80 min-w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:w-full max-md:flex-1"
       >
         {isLoading ? (
           <PickerLoadingRows
@@ -303,7 +316,7 @@ export function EnvironmentPicker({
                         onSelectHost(host.id);
                       }}
                       className={cn(
-                        "flex items-center gap-3 py-[0.3125rem] text-xs",
+                        "flex items-center gap-3 py-[0.3125rem] text-xs max-md:py-2",
                         LIST_HOVER_TRANSITION,
                         host.id === activeHost?.id &&
                           "font-medium text-foreground",
@@ -311,15 +324,17 @@ export function EnvironmentPicker({
                     >
                       <span
                         data-machine-target-content=""
-                        className="grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2 items-center"
+                        className="grid min-w-0 flex-1 grid-cols-[0.375rem_0.875rem_minmax(0,1fr)] gap-x-2 max-md:pointer-coarse:grid-cols-[0.5rem_1.25rem_minmax(0,1fr)] items-center"
                       >
                         <MachineStatusDot
                           connected={host.status === "connected"}
-                          className="size-1.5"
+                          className={COARSE_POINTER_DOT_SIZE_CLASS}
                         />
                         <span
                           data-machine-target-icon=""
-                          className="size-3.5 shrink-0"
+                          className={
+                            COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS
+                          }
                         >
                           <MachineIcon className="!size-full" />
                         </span>
@@ -336,7 +351,7 @@ export function EnvironmentPicker({
                     </CommandItem>
                   ))}
                   {filteredHosts.length === 0 ? (
-                    <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground">
+                    <div className="px-2 py-[0.3125rem] text-xs text-muted-foreground max-md:py-2">
                       No machines found
                     </div>
                   ) : null}
@@ -382,7 +397,10 @@ export function EnvironmentPicker({
                           icon={
                             <EnvironmentProviderIcon
                               provider={provider}
-                              className="mt-px text-muted-foreground size-3.5 shrink-0"
+                              className={cn(
+                                "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
+                                COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+                              )}
                             />
                           }
                           selected={isSelected(provider, activeHost.id)}
@@ -448,7 +466,10 @@ function MenuIcon({ name }: { name: IconName }) {
   return (
     <Icon
       name={name}
-      className="mt-px text-muted-foreground size-3.5 shrink-0"
+      className={cn(
+        "mt-px text-muted-foreground max-md:pointer-coarse:mt-0",
+        COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+      )}
     />
   );
 }
@@ -457,7 +478,11 @@ function CheckIcon({ visible }: { visible: boolean }) {
   return (
     <Icon
       name="Check"
-      className={cn("size-4 shrink-0", visible ? "opacity-100" : "opacity-0")}
+      className={cn(
+        COARSE_POINTER_ICON_SIZE_CLASS,
+        "shrink-0",
+        visible ? "opacity-100" : "opacity-0",
+      )}
     />
   );
 }
@@ -489,7 +514,7 @@ function EnvironmentMenuItem({
       }}
       className={cn(
         "flex items-start justify-between gap-3 whitespace-normal",
-        "py-[0.3125rem] text-xs",
+        "py-[0.3125rem] text-xs max-md:py-2",
         LIST_HOVER_TRANSITION,
       )}
     >

@@ -11,6 +11,7 @@ import {
   type HostFileTabState,
   type WorkspaceFileTabState,
 } from "@bb/client-core";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { usePublishThreadPanelOpener } from "@/components/plugin/plugin-thread-panel-navigation";
 import type {
@@ -132,7 +133,45 @@ export function useThreadPanel({
         ? THREAD_INFO_ONLY_TAB_IDS
         : THREAD_FIXED_TAB_IDS,
   });
-  const { activate, close, isOpen, open, setOpen } = tabs;
+  const {
+    activate: activateTab,
+    close,
+    open: openTab,
+    setOpen: setPersistedOpen,
+  } = tabs;
+  const isCompactViewport = useIsCompactViewport();
+  const [drawerThreadId, setDrawerThreadId] = useState<string | null>(null);
+  useEffect(() => {
+    setDrawerThreadId(null);
+  }, [threadId]);
+  useEffect(() => {
+    if (!isCompactViewport) setDrawerThreadId(null);
+  }, [isCompactViewport]);
+  const isOpen = isCompactViewport ? drawerThreadId === threadId : tabs.isOpen;
+  const openCompactDrawer = useCallback(() => {
+    if (isCompactViewport) setDrawerThreadId(threadId);
+  }, [isCompactViewport, threadId]);
+  const open = useCallback(
+    (...args: Parameters<typeof openTab>) => {
+      openTab(...args);
+      openCompactDrawer();
+    },
+    [openCompactDrawer, openTab],
+  );
+  const activate = useCallback(
+    (tabId: string) => {
+      activateTab(tabId);
+      openCompactDrawer();
+    },
+    [activateTab, openCompactDrawer],
+  );
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (isCompactViewport) setDrawerThreadId(next ? threadId : null);
+      else setPersistedOpen(next);
+    },
+    [isCompactViewport, setPersistedOpen, threadId],
+  );
   const terminalSessions = useTerminals(
     { kind: "thread", threadId },
     { enabled: isOpen },

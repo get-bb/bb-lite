@@ -74,11 +74,13 @@ function UploadPreview({ file }: { file: File }) {
 export function AttachmentPreview({
   attachments,
   pendingUploads = [],
+  compact = false,
   attachmentProjectId,
   onRemoveAttachment,
 }: {
   attachments: PromptDraftAttachment[];
   pendingUploads?: readonly PendingAttachmentUpload[];
+  compact?: boolean;
   attachmentProjectId?: string;
   onRemoveAttachment?: (path: string) => void;
 }) {
@@ -105,8 +107,36 @@ export function AttachmentPreview({
     }
   };
 
-  if (attachments.length + pendingUploads.length === 0) {
+  const attachmentCount = attachments.length;
+  const uploadingCount = pendingUploads.length;
+  if (attachmentCount + uploadingCount === 0) {
     return null;
+  }
+  if (compact) {
+    return (
+      <span
+        data-promptbox-attachments=""
+        role={uploadingCount > 0 ? "status" : "img"}
+        aria-label={[
+          attachmentCount > 0
+            ? `${attachmentCount} ${attachmentCount === 1 ? "attachment" : "attachments"}`
+            : null,
+          uploadingCount > 0 ? `${uploadingCount} uploading` : null,
+        ]
+          .filter(Boolean)
+          .join(", ")}
+        className="ml-3 inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md bg-surface-recessed px-1.5 text-xs text-muted-foreground"
+      >
+        <Icon name="Paperclip" className="size-3.5" />
+        <span aria-hidden="true">{attachmentCount + uploadingCount}</span>
+        {uploadingCount > 0 ? (
+          <Icon
+            name="Loading"
+            className="size-3.5 animate-spin motion-reduce:animate-none"
+          />
+        ) : null}
+      </span>
+    );
   }
 
   return (
@@ -139,7 +169,7 @@ export function AttachmentPreview({
                       releaseLocalAttachmentPreview(attachment.path);
                       onRemoveAttachment(attachment.path);
                     }}
-                    className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="group/attachment-remove-image absolute right-1 top-1 z-10 inline-flex size-4 items-center justify-center rounded-full text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:-right-1 max-md:pointer-coarse:-top-1 max-md:pointer-coarse:size-7"
                     aria-label={`Remove ${attachment.name}`}
                   >
                     <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/55 transition-colors group-hover/attachment-remove-image:bg-black/70">
@@ -172,7 +202,7 @@ export function AttachmentPreview({
                         event.currentTarget.blur();
                         onRemoveAttachment(attachment.path);
                       }}
-                      className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="group/attachment-remove-file absolute left-1/2 top-1/2 inline-flex size-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:size-7"
                       aria-label={`Remove ${attachment.name}`}
                     >
                       <span className="inline-flex size-4 items-center justify-center rounded transition-colors group-hover/attachment-remove-file:bg-state-hover">

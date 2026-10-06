@@ -26,12 +26,16 @@ import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
 import { PageShell } from "@/components/ui/page-shell.js";
 import { PAGE_SHELL_CONTENT_STYLE } from "@/components/ui/page-shell-content-style.js";
 import { RouteLoadingSkeleton } from "@/components/ui/route-loading-skeleton";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useCreateThread } from "@/hooks/mutations/thread-runtime-mutations";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import { useNavigateToThreadAfterCreatePreference } from "@/lib/root-compose-create-preference";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
+import { RootComposeCompactHome } from "./RootComposeCompactHome";
 import { RootComposeEmptyWelcome } from "./RootComposeEmptyWelcome";
+import { RootComposeMobileRecents } from "./RootComposeMobileRecents";
 import { usePaneContext } from "./thread-detail/PaneContext";
 
 const INITIAL_PROMPT_SEARCH_PARAM = "initialPrompt";
@@ -93,12 +97,18 @@ export function RootComposeView() {
   const [navigateToThreadAfterCreate] =
     useNavigateToThreadAfterCreatePreference();
   const quickCreateProject = useQuickCreateProjectController();
+  const isPointerCoarse = usePointerCoarse();
+  const isCompactViewport = useIsCompactViewport();
+  const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(
+    null,
+  );
   const {
     projectId,
     projects,
     currentProject,
     promptDraft,
     focusPromptBox,
+    isSubmitting,
     selectEnvironment,
     environmentProviderId,
     sidebarNavigationError,
@@ -111,6 +121,7 @@ export function RootComposeView() {
         ...request,
         ...placement,
       });
+      setLastCreatedThreadId(thread.id);
       setPlacement(DEFAULT_THREAD_CREATION_PLACEMENT);
       if (navigateToThreadAfterCreate) {
         paneContext.navigateInPane({
@@ -128,7 +139,7 @@ export function RootComposeView() {
   const showEmptyWelcome =
     !startedComposing && projects !== undefined && projects.length === 0;
   const focusSoon = useEffectEvent(() => {
-    window.requestAnimationFrame(focusPromptBox);
+    if (!isPointerCoarse) window.requestAnimationFrame(focusPromptBox);
   });
 
   useEffect(() => {
@@ -214,6 +225,23 @@ export function RootComposeView() {
     isCreating: quickCreateProject.isCreating,
   };
   const isHosted = paneContext.secondaryPanelHost !== null;
+  const isCompactHomeLayout = isCompactViewport && !showEmptyWelcome;
+  const promptBox = showEmptyWelcome
+    ? null
+    : renderPromptBox({
+        mentionMenuPlacement: isCompactHomeLayout ? "top" : "bottom",
+        createProject,
+        onRequestMachineSetup: (host) => {
+          if (!currentProject) return;
+          setMachineSetupTarget({
+            projectId,
+            projectName: currentProject.name,
+            gitRemoteUrl: currentProject.gitRemoteUrl ?? null,
+            hostId: host.id,
+            hostName: host.name,
+          });
+        },
+      });
 
   return (
     <>
@@ -242,43 +270,46 @@ export function RootComposeView() {
           )}
         >
           <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="@container/page min-h-0 flex-1 overflow-y-auto">
+            {isCompactHomeLayout ? (
               <div
-                className={cn(
-                  "mx-auto flex w-full flex-col px-4 pb-4 pt-2",
-                  "max-w-[760px]",
-                  showEmptyWelcome
-                    ? "min-h-full flex-1 items-center justify-center pb-12"
-                    : "pt-14",
-                )}
+                className="@container/page flex min-h-0 flex-1 flex-col"
                 style={PAGE_SHELL_CONTENT_STYLE}
               >
-                {showEmptyWelcome ? (
-                  <RootComposeEmptyWelcome
-                    onCompose={(prefill) => {
-                      if (prefill) promptDraft.setTextAndMentions(prefill, []);
-                      setStartedComposing(true);
-                    }}
-                    onAddProject={createProject.onCreate}
-                    addProjectDisabled={createProject.disabled}
+                <RootComposeCompactHome composer={promptBox}>
+                  <RootComposeMobileRecents
+                    highlightedThreadId={lastCreatedThreadId}
+                    showCreatingRow={isSubmitting}
                   />
-                ) : (
-                  renderPromptBox({
-                    createProject,
-                    onRequestMachineSetup: (host) => {
-                      if (!currentProject) return;
-                      setMachineSetupTarget({
-                        projectId,
-                        projectName: currentProject.name,
-                        gitRemoteUrl: currentProject.gitRemoteUrl ?? null,
-                        hostId: host.id,
-                        hostName: host.name,
-                      });
-                    },
-                  })
-                )}
+                </RootComposeCompactHome>
               </div>
-            </div>
+            ) : (
+              <div className="@container/page min-h-0 flex-1 overflow-y-auto">
+                <div
+                  className={cn(
+                    "mx-auto flex w-full flex-col px-4 pb-4 pt-2",
+                    "max-w-[760px]",
+                    showEmptyWelcome
+                      ? "min-h-full flex-1 items-center justify-center pb-12"
+                      : "pt-14",
+                  )}
+                  style={PAGE_SHELL_CONTENT_STYLE}
+                >
+                  {showEmptyWelcome ? (
+                    <RootComposeEmptyWelcome
+                      onCompose={(prefill) => {
+                        if (prefill)
+                          promptDraft.setTextAndMentions(prefill, []);
+                        setStartedComposing(true);
+                      }}
+                      onAddProject={createProject.onCreate}
+                      addProjectDisabled={createProject.disabled}
+                    />
+                  ) : (
+                    promptBox
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

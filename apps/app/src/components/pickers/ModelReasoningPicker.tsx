@@ -15,6 +15,13 @@ import {
   type ServiceTier,
 } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
+import {
+  COARSE_POINTER_ICON_SIZE_CLASS,
+  COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
+  COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS,
+  COARSE_POINTER_TEXT_SM_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import {
@@ -210,7 +217,9 @@ export function ModelReasoningPicker({
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [showMoreModels, setShowMoreModels] = useState(false);
   const [moreModelsOpen, setMoreModelsOpen] = useState(false);
+  const isCompactViewport = useIsCompactViewport();
   const [browsedProviderId, setBrowsedProviderId] =
     useState(selectedProviderId);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -226,6 +235,7 @@ export function ModelReasoningPicker({
   const paneContext = useOptionalPaneContext();
 
   const resetBrowseState = () => {
+    setShowMoreModels(false);
     setMoreModelsOpen(false);
     setSearchQuery("");
     setActiveIndex(-1);
@@ -236,7 +246,7 @@ export function ModelReasoningPicker({
   }
   const changeOpen = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (!nextOpen) resetBrowseState();
+    if (!nextOpen && !isCompactViewport) resetBrowseState();
   };
 
   const isSearching = searchQuery.trim().length > 0;
@@ -544,11 +554,17 @@ export function ModelReasoningPicker({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align={align}
+        mobileTitle="Model"
+        onMobileContentAnimationEnd={(isOpen) => {
+          if (!isOpen) resetBrowseState();
+        }}
         autoFocusRef={showSearchInput ? searchInputRef : undefined}
         className={cn(
           "flex min-h-0 flex-col p-0",
           MENU_WIDTH_CLASS_NAME,
-          "max-h-[min(var(--available-height),calc(100dvh-0.5rem))] overflow-hidden",
+          isCompactViewport
+            ? "overflow-y-hidden"
+            : "max-h-[min(var(--available-height),calc(100dvh-0.5rem))] overflow-hidden",
         )}
       >
         {showProviderTabs ? (
@@ -567,16 +583,18 @@ export function ModelReasoningPicker({
                 className={cn(
                   "flex items-center justify-center border-b-2 focus-visible:outline-none",
                   LIST_HOVER_TRANSITION,
-                  "h-7 w-6",
+                  COARSE_POINTER_PROVIDER_TAB_SIZE_CLASS,
                   option.value === selectedProviderId
                     ? "border-foreground text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 {option.icon ? (
-                  <option.icon className="size-4" />
+                  <option.icon className={COARSE_POINTER_ICON_SIZE_CLASS} />
                 ) : (
-                  <span className="font-medium text-xs">
+                  <span
+                    className={cn("font-medium", COARSE_POINTER_TEXT_SM_CLASS)}
+                  >
                     {option.label.charAt(0)}
                   </span>
                 )}
@@ -625,7 +643,10 @@ export function ModelReasoningPicker({
               role={showSearchInput ? "listbox" : undefined}
               id={showSearchInput ? listboxId : undefined}
               aria-label={showSearchInput ? "Models" : undefined}
-              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0 max-h-64"
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-1 pt-0",
+                !isCompactViewport && "max-h-64",
+              )}
             >
               {isShowingModelError ? null : (
                 <MenuSectionLabel>Model</MenuSectionLabel>
@@ -651,7 +672,28 @@ export function ModelReasoningPicker({
                       onClick={() => selectModel(option.value)}
                     />
                   ))}
-                  {!isSearching && moreModelOptions.length > 0 ? (
+                  {isSearching ||
+                  moreModelOptions.length === 0 ? null : isCompactViewport ? (
+                    <>
+                      <MoreModelsToggleRow
+                        expanded={showMoreModels}
+                        onToggle={() => setShowMoreModels(!showMoreModels)}
+                      />
+                      {showMoreModels
+                        ? moreModelOptions.map((option) => (
+                            <MenuRowButton
+                              key={option.value}
+                              label={stripModelBrandPrefix(
+                                option.label,
+                                provider?.brandPrefix,
+                              )}
+                              selected={option.value === modelValue}
+                              onClick={() => selectModel(option.value)}
+                            />
+                          ))
+                        : null}
+                    </>
+                  ) : (
                     <MoreModelsSubmenu
                       open={moreModelsOpen}
                       onOpenChange={setMoreModelsOpen}
@@ -668,16 +710,24 @@ export function ModelReasoningPicker({
                         />
                       ))}
                     </MoreModelsSubmenu>
-                  ) : null}
+                  )}
                   {isSearching && visibleModelOptions.length === 0 ? (
-                    <div className="px-2 text-xs text-muted-foreground py-[0.3125rem]">
+                    <div
+                      className={cn(
+                        "px-2 text-xs text-muted-foreground",
+                        isCompactViewport ? "py-2" : "py-[0.3125rem]",
+                      )}
+                    >
                       No models match your search
                     </div>
                   ) : null}
                 </>
               ) : (
                 <div
-                  className="px-2 text-xs leading-relaxed text-muted-foreground pb-2 pt-1.5"
+                  className={cn(
+                    "px-2 text-xs leading-relaxed text-muted-foreground",
+                    isCompactViewport ? "pb-3 pt-2" : "pb-2 pt-1.5",
+                  )}
                   title={
                     loadError
                       ? formatModelLoadErrorTitle({
@@ -728,6 +778,7 @@ export function ModelReasoningPicker({
                         aria-label={option.label}
                         className={cn(
                           "h-6 min-w-0 flex-auto shrink-0 whitespace-nowrap rounded-sm px-1 text-xs font-normal shadow-none hover:bg-state-hover hover:text-foreground data-[state=on]:bg-state-active data-[state=on]:text-foreground data-[state=on]:hover:bg-state-active",
+                          isCompactViewport && "h-9 text-sm",
                           LIST_HOVER_TRANSITION,
                         )}
                       >
@@ -777,16 +828,48 @@ function MenuSectionLabel({
   children: ReactNode;
   className?: string;
 }) {
+  const isCompactViewport = useIsCompactViewport();
   return (
     <div
       className={cn(
         "sticky top-0 z-10 bg-background px-2 text-xs font-medium text-muted-foreground",
-        "pb-[0.3125rem] pt-2",
+        isCompactViewport ? "pb-1.5 pt-2" : "pb-[0.3125rem] pt-2",
         className,
       )}
     >
       {children}
     </div>
+  );
+}
+
+function MoreModelsToggleRow({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const { hoverProps } = useMenuItemHover();
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={cn(
+        MENU_ROW_CLASS_NAME,
+        "gap-1 text-muted-foreground",
+        LIST_HOVER_TRANSITION,
+        MENU_ITEM_LAST_HOVERED_CLASS,
+        "py-2",
+      )}
+      {...hoverProps}
+    >
+      <span>{expanded ? "Fewer models" : "More models"}</span>
+      <Icon
+        name={expanded ? "ChevronUp" : "ChevronDown"}
+        className="size-3.5 shrink-0"
+      />
+    </button>
   );
 }
 
@@ -886,6 +969,7 @@ function MenuRowButton({
   role?: AriaRole;
 }) {
   const { hoverProps } = useMenuItemHover();
+  const isCompactViewport = useIsCompactViewport();
   const { base, tag } = splitModelLabelTag(label);
   return (
     <button
@@ -900,7 +984,7 @@ function MenuRowButton({
         LIST_HOVER_TRANSITION,
         MENU_ITEM_LAST_HOVERED_CLASS,
         isActive && "bg-state-active",
-        "py-[0.3125rem]",
+        isCompactViewport ? "py-2" : "py-[0.3125rem]",
       )}
       {...hoverProps}
     >
@@ -914,7 +998,7 @@ function MenuRowButton({
         <Icon
           name="Check"
           className={cn(
-            "size-4 shrink-0",
+            COARSE_POINTER_ICON_SIZE_SHRINK_CLASS,
             "text-subtle-foreground",
             selected ? "opacity-100" : "opacity-0",
           )}
