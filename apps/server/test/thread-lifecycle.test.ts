@@ -261,10 +261,14 @@ it("announces every mutation to subscribers", async () => {
   const pin = { pinnedAt: ctx.now() };
   expect(pinned).toMatchObject([["pin-state-changed"], pin]);
   await http("POST", `/threads/${other}/pin`);
-  const order = { previousThreadId: other, nextThreadId: null };
+  const byKey =
+    "SELECT id FROM threads WHERE pinned_at IS NOT NULL ORDER BY pin_sort_key";
+  const stored = ctx.db.all<{ id: string }>(byKey).map((row) => row.id);
+  expect(stored).toEqual([other, id]);
+  const order = { previousThreadId: null, nextThreadId: other };
   const [reordered, entries] = await change("PATCH", "/pin-order", order);
   const pinnedIds = entries.map((entry) => entry.id);
-  expect([reordered, pinnedIds]).toEqual([["pin-state-changed"], [other, id]]);
+  expect([reordered, pinnedIds]).toEqual([["pin-state-changed"], [id, other]]);
 
   const parent = { parentThreadId: other };
   expect((await change("PATCH", "", parent))[0]).toEqual(["parent-changed"]);

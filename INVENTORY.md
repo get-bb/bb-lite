@@ -48,6 +48,11 @@ app-server protocol. It is bb's own `ThreadEvent` dialect (bb item types, bb-min
 6. Of the expensive plugin surfaces, keep **embedded thread chat**. Cut composer customization, plugin
    file openers and voice input.
 
+7. After the rewrite was finished (2026-10-03 to 2026-10-06): remove plan mode; move the UI primitives
+   from Radix to Base UI keeping the look; and **restore mobile web responsiveness, for which the cap
+   may be exceeded** ("You can go above 150k lines to restore that"). `pnpm check:lines` now allows
+   152,000; the table below is the state at the end of the rewrite, before these.
+
 ## Keep / shrink / cut, with budgets and what was reached
 
 "Original" is non-test lines in the original. "Budget" is the plan after the first full integration;

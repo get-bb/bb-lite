@@ -9,6 +9,30 @@ A rewrite of `~/projects/bb` (frozen at `2573ad5e85`) under a hard cap of 150,00
 - Defaults differ from the original on purpose so the two can run side by side: data in `~/.bb-150k`
   (`BB_DATA_DIR`), port 48886 (`BB_SERVER_PORT`). The server refuses to open an original database.
 
+## Since this report was written
+
+The sections below describe the rewrite as it stood at 143,297 lines. Later changes, newest last:
+
+- **Plan mode removed** at the user's request: `/plan` is gone and Claude sessions start with
+  `EnterPlanMode` and `ExitPlanMode` disallowed. Plans in old threads still render.
+- **UI primitives moved from Radix to Base UI** with identical pixels. Only `cmdk` still brings Radix
+  in. External plugins receive Base UI entry points.
+- **Responses are compressed and projected timelines are cached** until the thread changes; both
+  were regressions against the original found by timing the two side by side.
+- **`BB_SERVER_ALLOWED_HOSTS`** lists extra host names the server answers to, so a local reverse proxy
+  such as `tailscale serve` can front it.
+- **Mobile web responsiveness restored** at the user's request, who lifted the line cap for it: the
+  sidebar drawer, bottom sheets, touch sizing, the collapsed composer and compact home, touch actions
+  and scrolling in the conversation, the full-screen right panel, long-press and press-and-hold drag
+  in the thread list, and on-screen keyboard handling. The specification was the original at phone
+  and tablet size; desktop stayed pixel-identical. The native mobile app, push and the features cut
+  on every platform stay cut (the collapsed composer shows a send button where the original shows a
+  microphone). The lists of visible differences below describe desktop; "mobile app and push" under
+  "What was cut" now means only the native app.
+- A newly pinned thread goes to the top of Pinned, as in the original.
+
+**Current count: about 151,150 lines; `pnpm check:lines` allows 152,000.**
+
 How the plan was made and what was decided with the user is in `INVENTORY.md`; how the pieces fit is
 in `docs/architecture.md`.
 

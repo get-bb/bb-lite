@@ -67,10 +67,10 @@ export function requireThread(db: Db, id: string): ThreadRow {
 }
 
 export function nextPinSortKey(db: Db): string {
-  const last = db.get<{ key: string | null }>(
-    "SELECT MAX(pin_sort_key) AS key FROM threads WHERE pinned_at IS NOT NULL",
+  const first = db.get<{ key: string | null }>(
+    "SELECT MIN(pin_sort_key) AS key FROM threads WHERE pinned_at IS NOT NULL",
   );
-  return orderKeyBetween(last?.key ?? null, null);
+  return orderKeyBetween(null, first?.key ?? null);
 }
 
 function syncTitleSearch(db: Db, thread: ThreadRow) {
