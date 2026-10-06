@@ -255,7 +255,7 @@ function AppearanceSettingsSection({
     {
       label: "Navigation",
       description:
-        "Choose who arranges the sidebar destinations in narrow windows on this device. Wide windows show the navigation rail.",
+        "Choose who arranges the host-owned sidebar destinations on this device.",
       atom: sidebarNavigationProviderAtom,
       slots: slots.sidebarNavigations,
       bundled: BUNDLED_NAVIGATION_PROVIDER,
@@ -263,7 +263,7 @@ function AppearanceSettingsSection({
     {
       label: "Header",
       description:
-        "Choose what appears beside the sidebar toggle in narrow windows on this device. Wide windows show New thread there.",
+        "Choose what appears beside the sidebar toggle on this device.",
       atom: sidebarHeaderProviderAtom,
       slots: slots.sidebarHeaders,
       builtIn: true,

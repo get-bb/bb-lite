@@ -78,7 +78,6 @@ export interface PluginAppHost {
   useProviders(): T.PluginProvidersState;
   useEnvironmentProviders(): T.PluginEnvironmentProvidersState;
   useSidebarNavigation(): T.SidebarNavigationState;
-  useSidebarNavigationSplit(itemId: string): T.PluginSidebarThreadSplit;
   useQuestionFormHost(): T.QuestionFormHost;
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
   ThreadChat: ComponentType<T.ThreadChatProps>;
@@ -135,7 +134,6 @@ export const useSidebarThreadShortcut = hook("useSidebarThreadShortcut");
 export const useProviders = hook("useProviders");
 export const useEnvironmentProviders = hook("useEnvironmentProviders");
 export const useSidebarNavigation = hook("useSidebarNavigation");
-export const useSidebarNavigationSplit = hook("useSidebarNavigationSplit");
 export const useQuestionFormHost = hook("useQuestionFormHost");
 export const SidebarNavigationIcon = component((h) => h.SidebarNavigationIcon);
 export const ThreadChat = component((h) => h.ThreadChat);
