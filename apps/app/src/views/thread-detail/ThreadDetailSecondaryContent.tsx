@@ -101,9 +101,12 @@ export function ThreadDetailSecondaryContent({
       <SecondaryPanelLayout
         open={panel.isOpen}
         onToggle={panel.toggle}
+        onClose={panel.close}
         panelGroupKey="thread-detail"
         resetKey={timeline.threadId}
         contentKey={timeline.threadId}
+        drawerLabel="Thread details"
+        drawerFallback={<ThreadMetadataLoadingSkeleton />}
         mainPanelId="thread-detail-timeline-panel"
         mainHeader={header}
         main={<ThreadTimelinePane {...timeline} footer={footer} />}
@@ -141,6 +144,7 @@ function markdownLinkRouting(
 
 function ThreadRightPanel(
   props: ThreadRightPanelProps & {
+    presentation: "inline" | "drawer";
     isMainCollapsed: boolean;
     onToggleMainCollapse: () => void;
     resizablePanelId?: string;
@@ -424,8 +428,11 @@ function ThreadRightPanel(
       isOpen={isOpen}
       onClose={panel.close}
       onOpenNewTab={panel.openNewTab}
-      isConversationCollapsed={props.isMainCollapsed}
+      isConversationCollapsed={
+        props.presentation === "inline" && props.isMainCollapsed
+      }
       onToggleConversationCollapse={props.onToggleMainCollapse}
+      renderAsDrawer={props.presentation === "drawer"}
       resizablePanelId={props.resizablePanelId}
     />
   );

@@ -1,8 +1,11 @@
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { atom, useAtom } from "jotai";
+import { atomFamily } from "jotai-family";
 import { Button } from "@bb/shared-ui/button";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
@@ -25,6 +28,9 @@ import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
 
 const NO_TABS: never[] = [];
+const compactDrawerOpenAtomFamily = atomFamily((_panelStateId: string) =>
+  atom(false),
+);
 
 export function PluginPanelRightPanelHost({
   children,
@@ -66,9 +72,21 @@ export function PluginPanelRightPanelHost({
     ready: panel !== null,
     defaultOpen: true,
   });
-  const isOpen = panel !== null && tabs.isOpen;
-  const togglePanel = () => tabs.setOpen(!isOpen);
-  const closePanel = () => tabs.setOpen(false);
+  const [isCompactDrawerOpen, setCompactDrawerOpen] = useAtom(
+    compactDrawerOpenAtomFamily(panelStateId),
+  );
+  const isCompactViewport = useIsCompactViewport();
+  const isOpen =
+    panel !== null && (isCompactViewport ? isCompactDrawerOpen : tabs.isOpen);
+  useEffect(() => {
+    setCompactDrawerOpen(false);
+  }, [setCompactDrawerOpen, subPath]);
+  const setOpen = (next: boolean) => {
+    if (isCompactViewport) setCompactDrawerOpen(next);
+    else tabs.setOpen(next);
+  };
+  const togglePanel = () => setOpen(!isOpen);
+  const closePanel = () => setOpen(false);
   useAppCommandHandler("panel.toggle", () => {
     if (!isFocused || panel === null) return false;
     togglePanel();
@@ -170,12 +188,16 @@ export function PluginPanelRightPanelHost({
         <SecondaryPanelLayout
           open={isOpen}
           onToggle={togglePanel}
+          onClose={closePanel}
           panelGroupKey={`plugin-panel-host:${panelHostId}`}
           resetKey={panelStateId}
           contentKey={panelStateId}
+          drawerLabel="Right panel"
+          drawerFallback={null}
           mainPanelId={`plugin-panel-main-${panelHostId}`}
           main={children}
           renderPanel={({
+            presentation,
             isMainCollapsed,
             onToggleMainCollapse,
             resizablePanelId,
@@ -188,6 +210,7 @@ export function PluginPanelRightPanelHost({
               onClose={closePanel}
               isConversationCollapsed={isMainCollapsed}
               onToggleConversationCollapse={onToggleMainCollapse}
+              renderAsDrawer={presentation === "drawer"}
               resizablePanelId={resizablePanelId}
             />
           )}

@@ -28,10 +28,14 @@ import {
   PANEL_RESIZE_HANDLE_LAYER_CLASS,
   PANEL_RESIZE_HIT_TARGET_CLASS,
 } from "./panelTransitionTokens";
-import { PANEL_SCROLL_SLOT_CLASS } from "./panelChromeClasses";
+import {
+  PANEL_SCROLL_SLOT_CLASS,
+  PANEL_TAB_CONTROL_CLASS,
+} from "./panelChromeClasses";
 import { SecondaryPanelMinimumContext } from "./secondaryPanelSizing";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "./panelToggleControlState";
 import { SecondaryPanelHostLayoutContext } from "./SecondaryPanelHostLayoutContext";
+import { MobilePanelTabPager } from "./MobilePanelTabPager";
 import {
   secondaryPanelWidthPercentAtom,
   threadSecondaryPanelResizingAtom,
@@ -82,6 +86,7 @@ export interface ThreadSecondaryPanelProps {
   onOpenNewTab?: () => void;
   isConversationCollapsed: boolean;
   onToggleConversationCollapse: () => void;
+  renderAsDrawer: boolean;
 }
 
 export function ThreadSecondaryPanel({
@@ -95,6 +100,7 @@ export function ThreadSecondaryPanel({
   onOpenNewTab,
   isConversationCollapsed,
   onToggleConversationCollapse,
+  renderAsDrawer,
 }: ThreadSecondaryPanelProps) {
   const newTabShortcut = useAppCommandShortcut("panel.newTab");
   const togglePanelShortcut = useAppCommandShortcut("panel.toggle");
@@ -211,6 +217,30 @@ export function ThreadSecondaryPanel({
   );
   useAppCommandHandler("panel.nextNewTabItem", () => navigateNewTabItem(1));
 
+  const newTabControl =
+    onOpenNewTab === undefined ? null : (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          renderAsDrawer
+            ? PANEL_TAB_CONTROL_CLASS
+            : `${COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
+          "text-muted-foreground/70 hover:text-foreground focus:ring-1 focus:ring-ring",
+        )}
+        onClick={onOpenNewTab}
+        data-panel-new-tab=""
+        aria-label={
+          newTabShortcut
+            ? `Open new tab (${newTabShortcut.label})`
+            : "Open new tab"
+        }
+        aria-keyshortcuts={newTabShortcut?.ariaKeyshortcuts}
+      >
+        <Icon name="Plus" />
+      </Button>
+    );
   const panelSurface = (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
@@ -225,86 +255,103 @@ export function ThreadSecondaryPanel({
           className={cn(
             CHROME_ROW_CLASS,
             "min-w-0 justify-between gap-2",
-            "px-4",
+            renderAsDrawer ? "px-2" : "px-4",
           )}
         >
           <div
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1",
+              renderAsDrawer && "gap-0",
               `transition-[padding] ${PANEL_COLLAPSE_TRANSITION_CLASS}`,
             )}
             role="toolbar"
             aria-label="Right panel views"
           >
-            {fixedTabs.map((fixedTab) => (
-              <Tooltip key={fixedTab.tab.id}>
-                <TooltipTrigger asChild>
-                  <div
-                    data-testid={
-                      fixedTab.label === "Info" ? "thread-info-tab" : undefined
-                    }
-                    className="shrink-0"
-                  >
-                    <TabPill
-                      label={fixedTab.label}
-                      ariaLabel={
-                        fixedTab.shortcut
-                          ? `${fixedTab.ariaLabel} (${fixedTab.shortcut.label})`
-                          : fixedTab.ariaLabel
-                      }
-                      ariaKeyshortcuts={fixedTab.shortcut?.ariaKeyshortcuts}
-                      iconOnly
-                      leadingVisual={fixedTab.leadingVisual}
-                      title={fixedTab.title}
-                      isActive={activeFixedTab?.tab.id === fixedTab.tab.id}
-                      onSelect={fixedTab.onSelect}
-                      closeAction={null}
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{fixedTab.title}</TooltipContent>
-              </Tooltip>
-            ))}
-            {tabs.length > 0 ? (
-              <SecondaryPanelTabStrip activeTabId={shownTabId} tabs={tabs} />
-            ) : null}
-            {onOpenNewTab === undefined ? null : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  `${COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
-                  "text-muted-foreground/70 hover:text-foreground focus:ring-1 focus:ring-ring",
-                )}
-                onClick={onOpenNewTab}
-                data-panel-new-tab=""
-                aria-label={
-                  newTabShortcut
-                    ? `Open new tab (${newTabShortcut.label})`
-                    : "Open new tab"
-                }
-                aria-keyshortcuts={newTabShortcut?.ariaKeyshortcuts}
-              >
-                <Icon name="Plus" />
-              </Button>
+            {renderAsDrawer ? (
+              <MobilePanelTabPager
+                activeTabId={shownTabId}
+                fixedTabs={fixedTabs.map((tab) => ({
+                  id: tab.tab.id,
+                  label: tab.label,
+                  ariaLabel: tab.ariaLabel,
+                  leadingVisual: tab.leadingVisual,
+                  onSelect: tab.onSelect,
+                }))}
+                tabs={tabs.map((tab) => ({
+                  id: tab.tab.id,
+                  label: tab.label,
+                  ariaLabel: tab.label,
+                  leadingVisual: tab.leadingVisual,
+                  onSelect: tab.onSelect,
+                  onClose: tab.onClose,
+                }))}
+                newTabControl={newTabControl}
+              />
+            ) : (
+              <>
+                {fixedTabs.map((fixedTab) => (
+                  <Tooltip key={fixedTab.tab.id}>
+                    <TooltipTrigger asChild>
+                      <div
+                        data-testid={
+                          fixedTab.label === "Info"
+                            ? "thread-info-tab"
+                            : undefined
+                        }
+                        className="shrink-0"
+                      >
+                        <TabPill
+                          label={fixedTab.label}
+                          ariaLabel={
+                            fixedTab.shortcut
+                              ? `${fixedTab.ariaLabel} (${fixedTab.shortcut.label})`
+                              : fixedTab.ariaLabel
+                          }
+                          ariaKeyshortcuts={fixedTab.shortcut?.ariaKeyshortcuts}
+                          iconOnly
+                          leadingVisual={fixedTab.leadingVisual}
+                          title={fixedTab.title}
+                          isActive={activeFixedTab?.tab.id === fixedTab.tab.id}
+                          onSelect={fixedTab.onSelect}
+                          closeAction={null}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{fixedTab.title}</TooltipContent>
+                  </Tooltip>
+                ))}
+                {tabs.length > 0 ? (
+                  <SecondaryPanelTabStrip
+                    activeTabId={shownTabId}
+                    tabs={tabs}
+                  />
+                ) : null}
+                {newTabControl}
+              </>
             )}
           </div>
           <div
-            className="flex min-w-0 shrink-0 items-center gap-1"
+            className={cn(
+              "flex min-w-0 shrink-0 items-center gap-1",
+              renderAsDrawer && "gap-0",
+            )}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <PaneArrangementButton
-              className="shrink-0"
-              isFullScreen={isConversationCollapsed}
-              onToggleFullScreen={onToggleConversationCollapse}
-            />
+            {renderAsDrawer ? null : (
+              <PaneArrangementButton
+                className="shrink-0"
+                isFullScreen={isConversationCollapsed}
+                onToggleFullScreen={onToggleConversationCollapse}
+              />
+            )}
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className={cn(
-                `${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
+                renderAsDrawer
+                  ? PANEL_TAB_CONTROL_CLASS
+                  : `${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} shrink-0 ${CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS}`,
                 CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
                 "relative",
               )}
@@ -349,6 +396,42 @@ export function ThreadSecondaryPanel({
       </div>
     </div>
   );
+
+  const asideMarkup = (
+    <aside
+      ref={panelRef}
+      aria-hidden={!isOpen}
+      inert={!isOpen}
+      style={
+        !renderAsDrawer && !isResizing
+          ? {
+              width: isConversationCollapsed
+                ? "100%"
+                : `var(--secondary-swipe-width, ${persistedWidthPercent}cqw)`,
+            }
+          : undefined
+      }
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden bg-sidebar",
+        renderAsDrawer && "min-w-0 flex-1",
+        !renderAsDrawer && [
+          "absolute inset-y-0 left-0",
+          hostLayout === null &&
+            !isConversationCollapsed &&
+            "border-l border-border-seam",
+          isResizing && "right-0",
+          !isOpen && "pointer-events-none",
+        ],
+      )}
+    >
+      {realized ? panelSurface : null}
+      <IframeDragGuardOverlay active={isResizing} cursor="col-resize" />
+    </aside>
+  );
+
+  if (renderAsDrawer) {
+    return asideMarkup;
+  }
 
   return (
     <>
@@ -421,32 +504,7 @@ export function ThreadSecondaryPanel({
           `relative transition-[flex-grow,flex-basis] ${PANEL_COLLAPSE_TRANSITION_CLASS}`,
         )}
       >
-        <aside
-          ref={panelRef}
-          aria-hidden={!isOpen}
-          inert={!isOpen}
-          style={
-            !isResizing
-              ? {
-                  width: isConversationCollapsed
-                    ? "100%"
-                    : `var(--secondary-swipe-width, ${persistedWidthPercent}cqw)`,
-                }
-              : undefined
-          }
-          className={cn(
-            "flex h-full min-h-0 flex-col overflow-hidden bg-sidebar",
-            "absolute inset-y-0 left-0",
-            hostLayout === null &&
-              !isConversationCollapsed &&
-              "border-l border-border-seam",
-            isResizing && "right-0",
-            !isOpen && "pointer-events-none",
-          )}
-        >
-          {realized ? panelSurface : null}
-          <IframeDragGuardOverlay active={isResizing} cursor="col-resize" />
-        </aside>
+        {asideMarkup}
       </Panel>
     </>
   );
