@@ -4,7 +4,14 @@ import { useRender } from "@base-ui/react/use-render";
 
 import { cn } from "../../lib/utils";
 import { usePortalScopeProps } from "../../lib/portal-scope";
+import { usePointerCoarse } from "./hooks/use-pointer-coarse.js";
 import { useLayer, useModalLayer, type OverlayLayer } from "./overlay-layer.js";
+import {
+  COMPACT_SHEET_CONTENT_STYLE,
+  MobileTrigger,
+  ResponsiveDrawerShell,
+  useResponsiveRoot,
+} from "./responsive-overlay.js";
 import {
   autoFocus,
   focusAfterClose,
@@ -25,6 +32,8 @@ const PopoverContext = React.createContext<{
   triggerRef: React.RefObject<HTMLButtonElement | null> | null;
   anchor: Element | null;
   setAnchor: (anchor: Element | null) => void;
+  isCompactViewport?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }>({
   open: false,
   modal: false,
@@ -47,7 +56,48 @@ function Popover({
   defaultOpen?: boolean;
   modal?: boolean;
 }) {
-  const state = useOverlayOpen(open, onOpenChange, defaultOpen);
+  const ctx = useResponsiveRoot(open, onOpenChange, defaultOpen);
+
+  if (ctx.isCompactViewport) {
+    return (
+      <PopoverContext.Provider
+        value={{
+          ...ctx,
+          modal,
+          layer: null,
+          triggerRef: null,
+          anchor: null,
+          setAnchor: () => {},
+        }}
+      >
+        {children}
+      </PopoverContext.Provider>
+    );
+  }
+
+  return (
+    <FloatingPopover
+      open={ctx.open}
+      onOpenChange={ctx.onOpenChange}
+      modal={modal}
+    >
+      {children}
+    </FloatingPopover>
+  );
+}
+
+function FloatingPopover({
+  children,
+  open,
+  onOpenChange,
+  modal,
+}: {
+  children?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  modal: boolean;
+}) {
+  const state = useOverlayOpen(open, onOpenChange);
   const id = React.useId();
   const layer = useLayer(state.open, modal, id, () =>
     state.onOpenChange(false),
@@ -95,7 +145,21 @@ function PopoverTrigger({
   className?: string;
   children?: React.ReactNode;
 }) {
-  const { open, layer, triggerRef } = React.useContext(PopoverContext);
+  const { open, layer, triggerRef, isCompactViewport, onOpenChange } =
+    React.useContext(PopoverContext);
+
+  if (isCompactViewport && onOpenChange) {
+    return (
+      <MobileTrigger
+        open={open}
+        onOpenChange={onOpenChange}
+        haspopup="dialog"
+        className={className}
+        {...props}
+      />
+    );
+  }
+
   return (
     <PopoverPrimitive.Trigger
       ref={triggerRef}
@@ -113,8 +177,11 @@ function PopoverAnchor({
   asChild: true;
   children: React.ReactElement<Record<string, unknown>>;
 }) {
-  const { setAnchor } = React.useContext(PopoverContext);
-  return useRender({ render: children, ref: setAnchor });
+  const { setAnchor, isCompactViewport } = React.useContext(PopoverContext);
+  return useRender({
+    render: children,
+    ref: isCompactViewport ? undefined : setAnchor,
+  });
 }
 
 function ModalParts() {
@@ -133,6 +200,9 @@ function PopoverContent({
   onCloseAutoFocus,
   autoFocusRef,
   onKeyDown,
+  mobileTitle,
+  mobileClassName,
+  onMobileContentAnimationEnd,
   children,
   ...props
 }: Omit<React.ComponentProps<typeof PopoverPrimitive.Popup>, "className"> &
@@ -141,20 +211,62 @@ function PopoverContent({
     autoFocusRef?: React.RefObject<HTMLElement | null>;
     onOpenAutoFocus?: (event: Event) => void;
     onCloseAutoFocus?: (event: Event) => void;
+    mobileTitle?: string;
+    mobileClassName?: string;
+    onMobileContentAnimationEnd?: (open: boolean) => void;
   }) {
-  const { id, open, modal, layer, triggerRef, anchor } =
-    React.useContext(PopoverContext);
+  const {
+    id,
+    open,
+    modal,
+    layer,
+    triggerRef,
+    anchor,
+    isCompactViewport,
+    onOpenChange,
+  } = React.useContext(PopoverContext);
+  const isPointerCoarse = usePointerCoarse();
   const press = layer?.press.current;
+  const scopeProps = usePortalScopeProps();
 
   React.useEffect(() => {
-    if (!open || !autoFocusRef) return;
+    if (!open || isCompactViewport || isPointerCoarse || !autoFocusRef) return;
     const frame = window.requestAnimationFrame(() => {
       const target = autoFocusRef.current;
       target?.focus();
       if (target instanceof HTMLInputElement) target.select();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [autoFocusRef, open]);
+  }, [autoFocusRef, isCompactViewport, isPointerCoarse, open]);
+
+  if (isCompactViewport && onOpenChange) {
+    const {
+      initialFocus: _initialFocus,
+      finalFocus: _finalFocus,
+      style,
+      ...domProps
+    } = props;
+    return (
+      <ResponsiveDrawerShell
+        open={open}
+        onOpenChange={onOpenChange}
+        srLabel={mobileTitle ?? "Options"}
+        contentClassName={mobileClassName}
+        onContentAnimationEnd={onMobileContentAnimationEnd}
+      >
+        <div
+          className={cn("overflow-y-auto px-4 pt-2 pb-4", className)}
+          {...(domProps as React.ComponentProps<"div">)}
+          style={{
+            ...(style as React.CSSProperties | undefined),
+            ...COMPACT_SHEET_CONTENT_STYLE,
+          }}
+        >
+          {children}
+        </div>
+      </ResponsiveDrawerShell>
+    );
+  }
 
   return (
     <PopoverPrimitive.Portal className={PORTAL_CLASS}>
@@ -164,9 +276,11 @@ function PopoverContent({
         {...popper({ side, align, sideOffset, collisionPadding })}
       >
         <PopoverPrimitive.Popup
-          {...usePortalScopeProps()}
+          {...scopeProps}
           id={id}
-          initialFocus={autoFocusRef ? false : autoFocus(onOpenAutoFocus)}
+          initialFocus={
+            isPointerCoarse || autoFocusRef ? false : autoFocus(onOpenAutoFocus)
+          }
           finalFocus={focusAfterClose(
             onCloseAutoFocus,
             () =>

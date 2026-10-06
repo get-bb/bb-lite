@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { Dialog, DialogContent } from "./dialog.js";
+import { usePointerCoarse } from "./hooks/use-pointer-coarse.js";
 
 export function useNameValidation({ emptyMessage }: { emptyMessage: string }) {
   const [validationMessage, setValidationMessage] = useState<string | null>(
@@ -28,6 +29,7 @@ export function RenameDialog({
   children: (inputRef: RefObject<HTMLInputElement | null>) => ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isPointerCoarse = usePointerCoarse();
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const capturedOpenFocusRef = useRef(false);
   return (
@@ -45,6 +47,7 @@ export function RenameDialog({
             capturedOpenFocusRef.current = true;
           }
           event.preventDefault();
+          if (isPointerCoarse) return;
           inputRef.current?.focus();
           inputRef.current?.select();
         }}

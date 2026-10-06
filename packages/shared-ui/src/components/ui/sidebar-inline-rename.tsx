@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { Icon } from "./icon.js";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "./coarse-pointer-sizing.js";
+import { useIsCompactViewport } from "./hooks/use-compact-viewport.js";
 import { cn } from "../../lib/utils";
 import { SIDEBAR_CONTROL_BUTTON_CLASS } from "./sidebar-row-classes.js";
 
@@ -151,6 +153,7 @@ export function useSidebarRenameState() {
 }
 
 export function useSidebarRename(args: SidebarRenameArgs) {
+  const compact = useIsCompactViewport();
   const pendingMenuRename = useRef<(() => void) | null>(null);
   const shared = useContext(SidebarRenameContext);
   const local = useRenameController();
@@ -187,7 +190,8 @@ export function useSidebarRename(args: SidebarRenameArgs) {
     isEditing,
     startEditing,
     startEditingFromMenu: () => {
-      pendingMenuRename.current = startEditing;
+      if (compact) startEditing();
+      else pendingMenuRename.current = startEditing;
     },
     onCloseAutoFocus: (event: Event) => {
       const begin = pendingMenuRename.current;
@@ -375,7 +379,7 @@ function SidebarRenameEditor({
             void submit(event.detail === 0, true);
           }}
         >
-          <Icon name="RotateCcw" className="size-4" />
+          <Icon name="RotateCcw" className={COARSE_POINTER_ICON_SIZE_CLASS} />
         </button>
       )}
       {session.error && (
