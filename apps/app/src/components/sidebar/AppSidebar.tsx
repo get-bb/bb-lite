@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useCloseMobileSidebar,
 } from "@/components/ui/sidebar.js";
 import { PluginThreadList } from "./PluginThreadList";
 import { SidebarPluginAttentionGlyph } from "./SidebarPluginAttentionGlyph";
@@ -74,9 +75,15 @@ function FooterItem({
         aria-keyshortcuts={ariaKeyShortcuts}
         tooltip={{ children: ariaLabel, hidden: false, side: "top" }}
         className={SIDEBAR_FOOTER_ACTION_CLASS}
-        onClick={onClick}
+        onClick={href === undefined ? onClick : undefined}
       >
-        {href === undefined ? content : <Link to={href}>{content}</Link>}
+        {href === undefined ? (
+          content
+        ) : (
+          <Link to={href} onClick={onClick}>
+            {content}
+          </Link>
+        )}
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -86,13 +93,17 @@ export function AppSidebar({
   onResizeMouseDown,
   isResizing,
   settingsRoutePath,
+  mobileHosted,
 }: {
   onResizeMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   settingsRoutePath: string;
+  mobileHosted?: { hidden: boolean };
 }) {
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
+  const closeOnMobile = useCloseMobileSidebar();
+  const isHiddenHostedBody = mobileHosted?.hidden === true;
   const [threadShortcutKeysById, setThreadShortcutKeysById] =
     useState(NO_SHORTCUT_KEYS);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
@@ -122,6 +133,7 @@ export function AppSidebar({
   }, [isModifierHeld, threadJumpShortcuts]);
 
   useIndexedAppCommandHandlers(THREAD_JUMP_APP_COMMAND_IDS, (index) => {
+    if (isHiddenHostedBody) return false;
     const target =
       shortcutTargetsRef.current[index] ??
       getSidebarThreadTargets(sidebarRef.current, 9)[index];
@@ -151,6 +163,7 @@ export function AppSidebar({
       return true;
     }
     if (!target.projectId) return false;
+    closeOnMobile();
     void navigate(
       getThreadRoutePath({
         projectId: target.projectId,
@@ -159,61 +172,83 @@ export function AppSidebar({
     );
     return true;
   };
-  useAppCommandHandler("thread.previous", () => activateAdjacentThread(-1));
-  useAppCommandHandler("thread.next", () => activateAdjacentThread(1));
+  useAppCommandHandler("thread.previous", () =>
+    isHiddenHostedBody ? false : activateAdjacentThread(-1),
+  );
+  useAppCommandHandler("thread.next", () =>
+    isHiddenHostedBody ? false : activateAdjacentThread(1),
+  );
+
+  const body = (
+    <>
+      <SidebarTopReserveRow
+        testId="app-sidebar-top-reserve-row"
+        renderHeaderSlot={(startInsetClassName) => (
+          <SidebarHeaderSlot startInsetClassName={startInsetClassName} />
+        )}
+      />
+      <SidebarNavigationRegion onNavigate={closeOnMobile} />
+      <SidebarContent>
+        <PluginThreadList onNavigate={closeOnMobile} />
+      </SidebarContent>
+      <SidebarFooter className="relative">
+        <OverflowFade placement="above" tone="sidebar" size="sm" />
+        <SidebarMenu className="flex-row items-center gap-1">
+          <SidebarMenuItem className="min-w-0 flex-1">
+            <SidebarMenu className="flex-row items-center gap-1">
+              <FooterItem
+                id="settings"
+                icon="Settings"
+                label="Settings"
+                ariaLabel={
+                  settingsShortcut
+                    ? `Settings (${settingsShortcut.label})`
+                    : "Settings"
+                }
+                ariaKeyShortcuts={settingsShortcut?.ariaKeyshortcuts}
+                href={settingsRoutePath}
+                onClick={closeOnMobile}
+              />
+              <FooterItem
+                id="report-bug"
+                icon="Bug"
+                label="Report a bug"
+                onClick={() => {
+                  closeOnMobile();
+                  openUrlInExternalBrowser(BUG_REPORT_NEW_ISSUE_URL);
+                }}
+              />
+            </SidebarMenu>
+          </SidebarMenuItem>
+          <SidebarPluginAttentionGlyph
+            className={SIDEBAR_FOOTER_ACTION_CLASS}
+            onNavigate={closeOnMobile}
+          />
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarResizeHandle
+        testId="app-sidebar-resize-handle"
+        isResizing={isResizing}
+        onMouseDown={onResizeMouseDown}
+      />
+    </>
+  );
 
   return (
     <SidebarThreadShortcutKeysContext.Provider value={threadShortcutKeysById}>
-      <SidebarNavigationModelProvider>
-        <Sidebar ref={sidebarRef}>
-          <SidebarTopReserveRow
-            testId="app-sidebar-top-reserve-row"
-            renderHeaderSlot={(startInsetClassName) => (
-              <SidebarHeaderSlot startInsetClassName={startInsetClassName} />
-            )}
-          />
-          <SidebarNavigationRegion />
-          <SidebarContent>
-            <PluginThreadList />
-          </SidebarContent>
-          <SidebarFooter className="relative">
-            <OverflowFade placement="above" tone="sidebar" size="sm" />
-            <SidebarMenu className="flex-row items-center gap-1">
-              <SidebarMenuItem className="min-w-0 flex-1">
-                <SidebarMenu className="flex-row items-center gap-1">
-                  <FooterItem
-                    id="settings"
-                    icon="Settings"
-                    label="Settings"
-                    ariaLabel={
-                      settingsShortcut
-                        ? `Settings (${settingsShortcut.label})`
-                        : "Settings"
-                    }
-                    ariaKeyShortcuts={settingsShortcut?.ariaKeyshortcuts}
-                    href={settingsRoutePath}
-                  />
-                  <FooterItem
-                    id="report-bug"
-                    icon="Bug"
-                    label="Report a bug"
-                    onClick={() =>
-                      openUrlInExternalBrowser(BUG_REPORT_NEW_ISSUE_URL)
-                    }
-                  />
-                </SidebarMenu>
-              </SidebarMenuItem>
-              <SidebarPluginAttentionGlyph
-                className={SIDEBAR_FOOTER_ACTION_CLASS}
-              />
-            </SidebarMenu>
-          </SidebarFooter>
-          <SidebarResizeHandle
-            testId="app-sidebar-resize-handle"
-            isResizing={isResizing}
-            onMouseDown={onResizeMouseDown}
-          />
-        </Sidebar>
+      <SidebarNavigationModelProvider onNavigate={closeOnMobile}>
+        {mobileHosted ? (
+          <div
+            ref={sidebarRef}
+            data-testid="app-sidebar-body"
+            hidden={mobileHosted.hidden}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            {body}
+          </div>
+        ) : (
+          <Sidebar ref={sidebarRef}>{body}</Sidebar>
+        )}
       </SidebarNavigationModelProvider>
     </SidebarThreadShortcutKeysContext.Provider>
   );
