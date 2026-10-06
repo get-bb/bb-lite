@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
 } from "react";
@@ -42,6 +43,12 @@ import {
   useAppCommandShortcut,
 } from "@/components/commands/AppCommandProvider";
 import { Button } from "@bb/shared-ui/button";
+import {
+  COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
+  COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
+  COARSE_POINTER_TEXT_BASE_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   Tooltip,
@@ -95,6 +102,9 @@ import { ComposerSendMenu } from "./ComposerSendMenu";
 
 const PROMPTBOX_MIN_HEIGHT = 68;
 const SELECTION_REVEAL_MARGIN = 12;
+const COMPACT_PROMPT_ACTION_BUTTON_CLASS =
+  "size-8 p-0 transition-all [&_[data-icon-root]]:size-4 max-md:pointer-coarse:size-10";
+const SAFARI_POST_COMPOSITION_KEYDOWN_WINDOW_MS = 500;
 const PASTE_BLOCK_TAGS =
   /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|DIV|DD|DL|DT|FIGCAPTION|FIGURE|FOOTER|FORM|H[1-6]|HEADER|HR|LI|MAIN|NAV|P|SECTION|TABLE|TBODY|TD|TFOOT|TH|THEAD|TR)$/;
 const PASTE_IGNORED_TAGS = /^(HEAD|LINK|META|NOSCRIPT|SCRIPT|STYLE|TITLE)$/;
@@ -107,7 +117,6 @@ const EDITOR_MAX_HEIGHT = {
 const INTERACTIVE_TARGET_SELECTOR =
   "a[href],button,input,select,textarea,[contenteditable='true'],[data-prompt-mention='true'],[role='button'],[role='link'],[role='menuitem'],[role='option']";
 const EDITOR_CONTENT_CLASS = cn(
-  "h-full min-h-full",
   "[&_.ProseMirror]:min-h-full [&_.ProseMirror]:leading-[1.7] [&_.ProseMirror]:outline-none",
   "[&_.ProseMirror_p]:m-0",
   "[&_.ProseMirror_blockquote]:my-1 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-surface-selected-border [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_blockquote]:text-muted-foreground",
@@ -176,6 +185,11 @@ export interface HistoryConfig {
   resetKey?: string | number;
 }
 
+interface PromptBoxCompactConfig {
+  isCompact: boolean;
+  placeholder?: string;
+}
+
 export interface PromptBoxHandle {
   focusEnd: () => void;
   captureHeightForLayoutChange: () => void;
@@ -192,6 +206,7 @@ interface PromptBoxInternalProps {
   onChange: (value: string, mentionRanges: PromptTextMention[]) => void;
   onSubmit: () => void;
   onEscape?: () => void;
+  blurOnPointerSubmit?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
   footerStart?: ReactNode;
@@ -202,6 +217,7 @@ interface PromptBoxInternalProps {
   attachments?: AttachmentsConfig;
   promptActions?: readonly PromptBoxAction[];
   editorLayout?: keyof typeof EDITOR_MAX_HEIGHT;
+  compact?: PromptBoxCompactConfig;
   containerCompactPlaceholder?: string;
   heightAnimationKey?: string | number;
   history?: HistoryConfig;
@@ -229,7 +245,11 @@ interface HistorySession {
 
 interface PromptEditorHandlers {
   placeholder: string;
-  onKeyDown: (editor: Editor, event: KeyboardEvent) => boolean;
+  onKeyDown: (
+    editor: Editor,
+    event: KeyboardEvent,
+    isIPadHardwareEnter?: boolean,
+  ) => boolean;
   onPaste: (editor: Editor, event: ClipboardEvent, slice: Slice) => boolean;
   onBlur: () => void;
   onUpdate: (editor: Editor, transaction: Transaction) => void;
@@ -370,6 +390,17 @@ function suppressAnchorActivation(event: Event): boolean {
   return true;
 }
 
+function isIPadOSWebKit(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const isAppleWebKit =
+    /Apple Computer/u.test(navigator.vendor) &&
+    /\bAppleWebKit\//u.test(navigator.userAgent);
+  const isIPad =
+    navigator.platform === "iPad" ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 2);
+  return isAppleWebKit && isIPad;
+}
+
 function focusEditorAtEnd(editor: Editor): void {
   editor.view.dispatch(
     editor.state.tr
@@ -438,6 +469,8 @@ function usePromptEditor(
 ): Editor | null {
   const latest = useRef(handlers);
   const editorRef = useRef<Editor | null>(null);
+  const compositionEndedAtRef = useRef(Number.NEGATIVE_INFINITY);
+  const postCompositionKeyDownsRef = useRef(new WeakSet<KeyboardEvent>());
   const [options] = useState(() => ({
     extensions: promptEditorExtensions(() => latest.current.placeholder),
     content: promptEditorContentFromValue(initialValue),
@@ -468,6 +501,35 @@ function usePromptEditor(
           latest.current.onBlur();
           return false;
         },
+        compositionend: (view: EditorView, event: Event) => {
+          if (view.composing) compositionEndedAtRef.current = event.timeStamp;
+          return false;
+        },
+        keydown: (view: EditorView, event: KeyboardEvent) => {
+          if (
+            !view.editable ||
+            !isIPadOSWebKit() ||
+            event.key !== "Enter" ||
+            (event.code !== "Enter" && event.code !== "NumpadEnter") ||
+            view.composing ||
+            event.isComposing ||
+            event.keyCode === 229
+          ) {
+            return false;
+          }
+          if (
+            Math.abs(event.timeStamp - compositionEndedAtRef.current) <
+            SAFARI_POST_COMPOSITION_KEYDOWN_WINDOW_MS
+          ) {
+            compositionEndedAtRef.current = Number.NEGATIVE_INFINITY;
+            postCompositionKeyDownsRef.current.add(event);
+            return false;
+          }
+          return (
+            editorRef.current !== null &&
+            latest.current.onKeyDown(editorRef.current, event, true)
+          );
+        },
       },
       handleClick: () => {
         if (editorRef.current) {
@@ -477,6 +539,7 @@ function usePromptEditor(
       },
       handleKeyDown: (_view: EditorView, event: KeyboardEvent) =>
         editorRef.current !== null &&
+        !postCompositionKeyDownsRef.current.has(event) &&
         latest.current.onKeyDown(editorRef.current, event),
       handlePaste: (_view: EditorView, event: ClipboardEvent, slice: Slice) =>
         editorRef.current !== null &&
@@ -505,24 +568,89 @@ function PromptSubmitButton({
   canSubmit,
   disabledReason,
   isBusy,
+  isCompact,
+  onClick,
+  onPointerDown,
+  onTouchSubmit,
   title,
 }: {
   canSubmit: boolean;
   disabledReason: string | undefined;
   isBusy: boolean;
+  isCompact: boolean;
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onTouchSubmit: () => void;
   title: string;
 }) {
+  const touchRef = useRef<{ pointerId: number; x: number; y: number } | null>(
+    null,
+  );
+  const suppressTouchClickRef = useRef(false);
   const button = (
     <Button
       data-promptbox-submit-action=""
       type="submit"
-      size="sm"
+      size={isCompact ? "icon" : "sm"}
       variant="default"
       aria-label={title}
       aria-busy={isBusy}
       disabled={!canSubmit}
+      onPointerDown={(event) => {
+        suppressTouchClickRef.current = false;
+        touchRef.current =
+          event.pointerType === "touch" && event.isPrimary && event.button === 0
+            ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+            : null;
+        onPointerDown(event);
+      }}
+      onPointerMove={(event) => {
+        const touch = touchRef.current;
+        if (
+          touch &&
+          touch.pointerId === event.pointerId &&
+          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > 10
+        ) {
+          touchRef.current = null;
+          suppressTouchClickRef.current = true;
+        }
+      }}
+      onPointerCancel={() => {
+        if (touchRef.current) suppressTouchClickRef.current = true;
+        touchRef.current = null;
+      }}
+      onPointerUp={(event) => {
+        const touch = touchRef.current;
+        touchRef.current = null;
+        if (!touch || touch.pointerId !== event.pointerId) return;
+        suppressTouchClickRef.current = true;
+        if (!canSubmit) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (
+          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) > 10 ||
+          event.clientX < bounds.left ||
+          event.clientX >= bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY >= bounds.bottom
+        ) {
+          return;
+        }
+        onTouchSubmit();
+      }}
       onMouseDown={(event) => event.preventDefault()}
-      className="ml-1 h-8 px-2 transition-colors"
+      onClick={(event) => {
+        if (suppressTouchClickRef.current && event.detail > 0) {
+          event.preventDefault();
+          return;
+        }
+        onClick(event);
+      }}
+      className={cn(
+        isCompact
+          ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
+          : ["ml-1", COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS],
+        "transition-colors",
+      )}
     >
       <Icon
         name={isBusy ? "Loading" : "CornerDownLeft"}
@@ -558,7 +686,9 @@ export function PromptBoxInternal({
   onChange,
   onSubmit: onDraftSubmit,
   onEscape,
-  placeholder = "Ask anything. @ to mention files, folders, or sections",
+  blurOnPointerSubmit = false,
+  placeholder:
+    expandedPlaceholder = "Ask anything. @ to mention files, folders, or sections",
   autoFocus = true,
   footerStart,
   submission = {},
@@ -568,6 +698,7 @@ export function PromptBoxInternal({
   attachments: attachmentConfig = {},
   promptActions,
   editorLayout = "thread",
+  compact,
   containerCompactPlaceholder,
   heightAnimationKey,
   history,
@@ -599,7 +730,13 @@ export function PromptBoxInternal({
     projectId: attachmentProjectId,
   } = attachmentConfig;
 
+  const isPointerCoarse = usePointerCoarse();
+  const showCompactLayout = compact?.isCompact === true;
+  const placeholder = showCompactLayout
+    ? (compact.placeholder ?? expandedPlaceholder)
+    : expandedPlaceholder;
   const formRef = useRef<HTMLFormElement>(null);
+  const blurAfterPointerSubmitRef = useRef(false);
   const typeaheadMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -646,7 +783,11 @@ export function PromptBoxInternal({
   const canSubmit = hasSubmittableInput && canPrimarySubmit;
   const showStop = Boolean(isRunning && onStop && !canSubmit && !isAttaching);
   const submitPrompt = () => {
-    if (canPrimarySubmit) onPrimarySubmit?.();
+    const blurAfterSubmit = blurAfterPointerSubmitRef.current;
+    blurAfterPointerSubmitRef.current = false;
+    if (!canPrimarySubmit) return;
+    onPrimarySubmit?.();
+    if (blurAfterSubmit) blurPromptEditor(editor);
   };
   const submitModifierPrompt = () => {
     if (canModifierSubmit) onModifierSubmit?.();
@@ -863,6 +1004,17 @@ export function PromptBoxInternal({
     }
   };
 
+  const dismissActiveTrigger = () => {
+    if (activeTrigger) {
+      dismissedTriggerRef.current = {
+        start: activeTrigger.from,
+        end: activeTrigger.to,
+        hasLeftRange: false,
+      };
+    }
+    clearTypeahead();
+  };
+
   const applyHistoryDraft = (target: Editor, draft: PromptDraftState) => {
     history?.onSelectEntry(draft);
     requestAnimationFrame(() => {
@@ -872,9 +1024,14 @@ export function PromptBoxInternal({
     });
   };
 
-  const handleKeyDown = (target: Editor, event: KeyboardEvent): boolean => {
+  const handleKeyDown = (
+    target: Editor,
+    event: KeyboardEvent,
+    isIPadHardwareEnter = false,
+  ): boolean => {
     if (event.isComposing || event.keyCode === 229) return false;
     if (dispatchAppCommandKey(event)) return true;
+    const canSubmitWithEnterKey = !isPointerCoarse || isIPadHardwareEnter;
     const cursor = target.state.selection;
     const hasModifier =
       event.shiftKey || event.altKey || event.metaKey || event.ctrlKey;
@@ -914,14 +1071,7 @@ export function PromptBoxInternal({
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        if (activeTrigger) {
-          dismissedTriggerRef.current = {
-            start: activeTrigger.from,
-            end: activeTrigger.to,
-            hasLeftRange: false,
-          };
-        }
-        clearTypeahead();
+        dismissActiveTrigger();
         return true;
       }
     }
@@ -966,23 +1116,22 @@ export function PromptBoxInternal({
       return true;
     }
     if (event.key !== "Enter") return false;
-    if (!event.shiftKey) {
-      event.preventDefault();
-      submitPrompt();
-      return true;
-    }
+    const unmodified = !event.metaKey && !event.altKey && !event.ctrlKey;
     if (
-      !event.metaKey &&
-      !event.altKey &&
-      !event.ctrlKey &&
-      (insertParagraphBeforeBlockquote(target) ||
-        exitTrailingBlockquoteBreak(target) ||
-        applyPromptParagraphNewline(target))
+      unmodified &&
+      ((event.shiftKey &&
+        (insertParagraphBeforeBlockquote(target) ||
+          exitTrailingBlockquoteBreak(target))) ||
+        ((event.shiftKey || !canSubmitWithEnterKey) &&
+          applyPromptParagraphNewline(target)))
     ) {
       event.preventDefault();
       return true;
     }
-    return false;
+    if (event.shiftKey || !canSubmitWithEnterKey) return false;
+    event.preventDefault();
+    submitPrompt();
+    return true;
   };
 
   const handlePaste = (
@@ -1125,8 +1274,8 @@ export function PromptBoxInternal({
         formRef.current?.getBoundingClientRect().height ?? null;
     },
     focusEnd: () => {
-      pendingFocusEndRef.current = editor === null;
-      if (editor) focusAtEnd(editor);
+      pendingFocusEndRef.current = editor === null && !isPointerCoarse;
+      if (editor && !isPointerCoarse) focusAtEnd(editor);
     },
   }));
 
@@ -1141,25 +1290,26 @@ export function PromptBoxInternal({
     if (!editor) return;
     if (pendingFocusEndRef.current) {
       pendingFocusEndRef.current = false;
-      focusAtEnd(editor);
+      if (!isPointerCoarse) focusAtEnd(editor);
     }
     return registerPaneComposerFocus(editor.view.dom, () => {
       if (!editor.isDestroyed) editor.view.focus();
     });
-  }, [editor]);
+  }, [editor, isPointerCoarse]);
 
   useLayoutEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
     dom.setAttribute("aria-label", placeholder);
     dom.setAttribute("data-placeholder", placeholder);
+    dom.setAttribute("enterkeyhint", isPointerCoarse ? "enter" : "send");
     if (hasModifierSubmit) {
       dom.setAttribute("aria-keyshortcuts", modifierSubmitShortcutAria());
     } else {
       dom.removeAttribute("aria-keyshortcuts");
     }
     editor.view.dispatch(editor.state.tr);
-  }, [editor, placeholder, hasModifierSubmit]);
+  }, [editor, placeholder, hasModifierSubmit, isPointerCoarse]);
 
   const focusScopeKey = history?.resetKey;
   useEffect(() => {
@@ -1170,6 +1320,7 @@ export function PromptBoxInternal({
       }
       return;
     }
+    if (isPointerCoarse) return;
     const handle = requestAnimationFrame(() => {
       if (
         !editor.isDestroyed &&
@@ -1179,7 +1330,7 @@ export function PromptBoxInternal({
       }
     });
     return () => cancelAnimationFrame(handle);
-  }, [autoFocus, editor, focusScopeKey]);
+  }, [autoFocus, editor, focusScopeKey, isPointerCoarse]);
 
   const syncAfterExternalChange = useEffectEvent((target: Editor) => {
     syncTriggerState(target);
@@ -1198,10 +1349,15 @@ export function PromptBoxInternal({
   }, [editor, mentionRanges, value]);
 
   useLayoutEffect(() => {
-    if (!editor || focusEndKey === lastFocusEndKeyRef.current) return;
+    if (focusEndKey === lastFocusEndKeyRef.current) return;
+    if (isPointerCoarse) {
+      lastFocusEndKeyRef.current = focusEndKey;
+      return;
+    }
+    if (!editor) return;
     lastFocusEndKeyRef.current = focusEndKey;
     focusAtEnd(editor);
-  }, [editor, focusEndKey]);
+  }, [editor, focusEndKey, isPointerCoarse]);
 
   useLayoutEffect(() => {
     const fromHeight = heightAnimationFromRef.current;
@@ -1219,7 +1375,7 @@ export function PromptBoxInternal({
       { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     );
     return () => animation.cancel();
-  }, [heightAnimationKey]);
+  }, [heightAnimationKey, showCompactLayout]);
 
   useLayoutEffect(() => {
     reportTypeaheadHeight?.(
@@ -1254,12 +1410,26 @@ export function PromptBoxInternal({
     event.preventDefault();
     focusAtEnd(editor);
   };
+  const handleSubmitPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.button !== 0) return;
+    if (
+      isPointerCoarse ||
+      (editor &&
+        !editor.isDestroyed &&
+        editor.view.dom.contains(editor.view.dom.ownerDocument.activeElement))
+    ) {
+      event.preventDefault();
+    }
+  };
   const attachmentUploadTitle = "Uploading attachments...";
 
   return (
     <form
       ref={formRef}
       data-promptbox=""
+      data-promptbox-compact={showCompactLayout ? "" : undefined}
       onSubmit={(event) => {
         event.preventDefault();
         submitPrompt();
@@ -1273,7 +1443,10 @@ export function PromptBoxInternal({
         event.preventDefault();
         attachFiles(event.dataTransfer?.files);
       }}
-      className="group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift"
+      className={cn(
+        "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
+        showCompactLayout && "overflow-hidden",
+      )}
     >
       <input
         ref={attachmentInputRef}
@@ -1287,28 +1460,57 @@ export function PromptBoxInternal({
       />
       <div
         data-promptbox-layout=""
-        className="grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+        className={cn(
+          "grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+          showCompactLayout && "relative",
+        )}
         style={{ gridTemplateRows: "1fr" }}
       >
         <div
           data-promptbox-main=""
-          className="min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none"
+          className={cn(
+            "min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none",
+            showCompactLayout && "relative flex h-12 items-center",
+          )}
         >
-          <div data-promptbox-input-region="" className="relative">
-            <div data-promptbox-expanded-only="">
-              <AppCommandShortcutHint
-                shortcut={focusComposerShortcut}
-                className="absolute right-2 top-2 z-20 group-focus-within/promptbox:hidden"
-              />
-            </div>
+          {showCompactLayout ? (
+            <AttachmentPreview
+              compact
+              attachments={attachments}
+              pendingUploads={pendingUploads}
+              attachmentProjectId={attachmentProjectId}
+              onRemoveAttachment={onRemoveAttachment}
+            />
+          ) : null}
+          <div
+            data-promptbox-input-region=""
+            className={cn("relative", showCompactLayout && "min-w-0 flex-1")}
+          >
+            {showCompactLayout ? null : (
+              <div data-promptbox-expanded-only="">
+                <AppCommandShortcutHint
+                  shortcut={focusComposerShortcut}
+                  className="absolute right-2 top-2 z-20 group-focus-within/promptbox:hidden"
+                />
+              </div>
+            )}
             <div
               ref={scrollRef}
               data-promptbox-editor-scroll=""
-              className="w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none text-sm leading-relaxed"
-              style={{
-                minHeight: `${minHeight}px`,
-                maxHeight: EDITOR_MAX_HEIGHT[editorLayout],
-              }}
+              className={cn(
+                "w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none",
+                COARSE_POINTER_TEXT_BASE_CLASS,
+                "leading-relaxed",
+                showCompactLayout && "h-12 overflow-hidden pb-0 pr-14 pt-0",
+              )}
+              style={
+                showCompactLayout
+                  ? { minHeight: "48px", height: "48px", maxHeight: "48px" }
+                  : {
+                      minHeight: `${minHeight}px`,
+                      maxHeight: EDITOR_MAX_HEIGHT[editorLayout],
+                    }
+              }
             >
               <PromptMentionLinkContext.Provider
                 value={mention.resolveLink ?? null}
@@ -1316,7 +1518,14 @@ export function PromptBoxInternal({
                 <EditorContent
                   editor={editor}
                   data-promptbox-editor-content=""
-                  className={EDITOR_CONTENT_CLASS}
+                  data-promptbox-compact-content={
+                    showCompactLayout ? "" : undefined
+                  }
+                  className={cn(
+                    "h-full min-h-full",
+                    showCompactLayout && "flex items-center",
+                    EDITOR_CONTENT_CLASS,
+                  )}
                 />
               </PromptMentionLinkContext.Provider>
             </div>
@@ -1339,48 +1548,56 @@ export function PromptBoxInternal({
                 onApply={(item) => {
                   if (editor) applySuggestion(editor, item);
                 }}
+                onDismiss={isPointerCoarse ? dismissActiveTrigger : undefined}
               />
             </div>
           ) : null}
 
-          <div data-promptbox-expanded-only="">
-            <AttachmentPreview
-              attachments={attachments}
-              pendingUploads={pendingUploads}
-              attachmentProjectId={attachmentProjectId}
-              onRemoveAttachment={onRemoveAttachment}
-            />
-            {attachmentError ? (
-              <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
-                {attachmentError}
-              </div>
-            ) : null}
-          </div>
+          {showCompactLayout ? null : (
+            <div data-promptbox-expanded-only="">
+              <AttachmentPreview
+                attachments={attachments}
+                pendingUploads={pendingUploads}
+                attachmentProjectId={attachmentProjectId}
+                onRemoveAttachment={onRemoveAttachment}
+              />
+              {attachmentError ? (
+                <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
+                  {attachmentError}
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <div
             data-promptbox-action-row=""
-            className="relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5"
+            className={cn(
+              "relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5",
+              showCompactLayout && "absolute inset-y-0 right-2 gap-0 p-0",
+            )}
           >
-            <div
-              data-promptbox-expanded-only=""
-              data-promptbox-standard-actions=""
-              className={cn(
-                "flex min-w-0 flex-1 flex-row items-center gap-1",
-                ACTIONS_TRANSITION_CLASS,
-              )}
-              aria-live="polite"
-            >
-              <PromptBoxActionsMenu
-                actions={promptActions}
-                onAttach={
-                  onAttachFiles
-                    ? () => attachmentInputRef.current?.click()
-                    : undefined
-                }
-                onAction={applyPromptAction}
-              />
-              {footerStart}
-            </div>
+            {showCompactLayout ? null : (
+              <div
+                data-promptbox-expanded-only=""
+                data-promptbox-standard-actions=""
+                className={cn(
+                  "flex min-w-0 flex-1 flex-row items-center gap-1",
+                  ACTIONS_TRANSITION_CLASS,
+                )}
+                aria-live="polite"
+              >
+                <PromptBoxActionsMenu
+                  actions={promptActions}
+                  onAttach={
+                    onAttachFiles
+                      ? () => attachmentInputRef.current?.click()
+                      : undefined
+                  }
+                  onAction={applyPromptAction}
+                />
+                {footerStart}
+              </div>
+            )}
             <div
               data-promptbox-standard-actions=""
               className={cn(
@@ -1414,7 +1631,11 @@ export function PromptBoxInternal({
                         onStop?.();
                       }
                     }}
-                    className="size-auto h-8 px-2 transition-all"
+                    className={
+                      showCompactLayout
+                        ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
+                        : COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS
+                    }
                   >
                     <Icon
                       name="Square"
@@ -1423,6 +1644,7 @@ export function PromptBoxInternal({
                   </Button>
                 ) : (
                   <ComposerSendMenu
+                    isPointerCoarse={isPointerCoarse}
                     queue={swapSubmitActions}
                     hasInput={hasSubmittableInput}
                     canSubmit={canSubmit}
@@ -1442,6 +1664,16 @@ export function PromptBoxInternal({
                             : submitDisabledReason
                       }
                       isBusy={isSubmitting || isAttaching}
+                      isCompact={showCompactLayout}
+                      onPointerDown={handleSubmitPointerDown}
+                      onClick={(event) => {
+                        blurAfterPointerSubmitRef.current =
+                          blurOnPointerSubmit && event.detail > 0;
+                      }}
+                      onTouchSubmit={() => {
+                        blurAfterPointerSubmitRef.current = blurOnPointerSubmit;
+                        submitPrompt();
+                      }}
                       title={
                         isAttaching
                           ? attachmentUploadTitle

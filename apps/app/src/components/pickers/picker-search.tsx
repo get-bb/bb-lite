@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import type { Host } from "@bb/domain";
 import { fuzzyMatchText } from "@bb/fuzzy-match";
 import { Skeleton } from "@bb/shared-ui/skeleton";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 export function searchPickerOptions<T>({
@@ -53,6 +54,7 @@ export function PickerLoadingRows({
   label: string;
   rowDataAttribute: `data-${string}`;
 }) {
+  const isCompactViewport = useIsCompactViewport();
   return (
     <div role="status" aria-label={label} className="pb-1">
       <span className="sr-only">{label}</span>
@@ -61,7 +63,10 @@ export function PickerLoadingRows({
           key={widthClassName}
           {...{ [rowDataAttribute]: "" }}
           aria-hidden
-          className="flex items-center rounded-sm px-2 py-[0.3125rem]"
+          className={cn(
+            "flex items-center rounded-sm px-2",
+            isCompactViewport ? "py-2" : "py-[0.3125rem]",
+          )}
         >
           <Skeleton
             className={cn("h-3 max-w-[75%] rounded-sm", widthClassName)}

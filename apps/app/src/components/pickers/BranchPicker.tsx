@@ -151,6 +151,7 @@ export function BranchPicker({
         align={popoverAlign}
         sideOffset={6}
         collisionPadding={16}
+        mobileTitle="Branch"
         autoFocusRef={inputRef}
         className={cn(BRANCH_PICKER_CONTENT_CLASS_NAME, "md:min-w-40")}
       >
