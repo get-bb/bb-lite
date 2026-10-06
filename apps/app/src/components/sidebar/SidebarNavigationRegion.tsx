@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useAtomValue } from "jotai";
 import { PluginSlotMount } from "@/plugins/mount";
 import { appToast } from "@/components/ui/app-toast";
+import { useSidebar } from "@/components/ui/sidebar";
 import { resetCrashedSlots } from "@/plugins/registry";
 import {
   readRememberedNavigationHeight,
@@ -13,9 +14,14 @@ import {
   useSidebarNavigationReplacement,
 } from "./sidebarNavigationProvider";
 
-export function SidebarNavigationRegion() {
+export function SidebarNavigationRegion({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+}) {
   const replacement = useSidebarNavigationReplacement();
   const preference = useAtomValue(sidebarNavigationProviderAtom);
+  const { isCompactViewport } = useSidebar();
   const [attempt, setAttempt] = useState(0);
   const navRef = useRef<HTMLElement>(null);
   const slot = replacement.kind === "plugin" ? replacement.slot : null;
@@ -53,6 +59,7 @@ export function SidebarNavigationRegion() {
                   }
                 : { kind: "missing" }
             }
+            {...(onNavigate ? { onNavigate } : {})}
           />
         ) : (
           <PluginSlotMount
@@ -78,7 +85,7 @@ export function SidebarNavigationRegion() {
               });
             }}
           >
-            <slot.component />
+            <slot.component isCompactViewport={isCompactViewport} />
           </PluginSlotMount>
         )}
       </div>

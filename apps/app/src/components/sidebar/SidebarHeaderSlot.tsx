@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PluginSlotMount } from "@/plugins/mount";
 import { appToast } from "@/components/ui/app-toast";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useSidebarHeaderReplacement } from "./sidebarHeaderProvider";
 
 const DEFAULT_CONTROL_SIZE = 28;
@@ -13,6 +14,7 @@ export function SidebarHeaderSlot({
   startInsetClassName: string;
 }) {
   const replacement = useSidebarHeaderReplacement();
+  const { isCompactViewport } = useSidebar();
   const slotRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({
     width: 0,
@@ -49,7 +51,7 @@ export function SidebarHeaderSlot({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isActive]);
+  }, [isActive, isCompactViewport]);
 
   if (replacement.kind !== "plugin") return null;
   const slot = replacement.slot;
@@ -75,7 +77,11 @@ export function SidebarHeaderSlot({
           });
         }}
       >
-        <slot.component width={size.width} controlSize={size.controlSize} />
+        <slot.component
+          width={size.width}
+          controlSize={size.controlSize}
+          isCompactViewport={isCompactViewport}
+        />
       </PluginSlotMount>
     </div>
   );

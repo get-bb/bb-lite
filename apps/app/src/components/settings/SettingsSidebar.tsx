@@ -18,10 +18,12 @@ export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
+  mobileHosted = false,
 }: {
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   appRoutePath: string;
+  mobileHosted?: boolean;
 }) {
   const { activePluginId, activeSection, pluginEntries } =
     useSettingsNavState();
@@ -40,6 +42,7 @@ export function SettingsSidebar({
       backLabel="Back to app"
       backTo={appRoutePath}
       isResizing={isResizing}
+      mobileHosted={mobileHosted}
       onResizeMouseDown={onResizeMouseDown}
       testIdPrefix="settings"
     >

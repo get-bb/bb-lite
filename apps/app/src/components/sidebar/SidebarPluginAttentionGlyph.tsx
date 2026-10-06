@@ -22,8 +22,10 @@ const acknowledgedAttentionKeyAtom = atomWithStorage<string | null>(
 
 export function SidebarPluginAttentionGlyph({
   className,
+  onNavigate,
 }: {
   className: string;
+  onNavigate?: () => void;
 }) {
   const plugins = pluginsNeedingAttention(
     usePluginList({ enabled: true }).data?.plugins ?? [],
@@ -58,6 +60,7 @@ export function SidebarPluginAttentionGlyph({
           to={SETTINGS_PLUGINS_ROUTE_PATH}
           onClick={() => {
             setAcknowledgedKey(key);
+            onNavigate?.();
           }}
           data-testid="sidebar-plugin-attention-glyph"
         >
