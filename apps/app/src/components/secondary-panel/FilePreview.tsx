@@ -15,6 +15,7 @@ import { useElementWidth } from "@/hooks/useElementWidth";
 import BbSourceCode from "@/components/code/BbSourceCode";
 import { hashSourceContents } from "@/components/code/source-code-budget";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CopyButton } from "@/components/ui/copy-button.js";
 import { Icon } from "@bb/shared-ui/icon";
@@ -90,8 +91,9 @@ const FILE_PREVIEW_WRAPPER_STYLE = {
 } as CSSProperties;
 const LOADING_INDICATOR_DELAY_MS = 160;
 const HEADER_ICON_BUTTON_CLASS =
-  "h-5 w-5 rounded-sm p-0 [&_[data-icon-root]]:size-3";
-const VIEW_MODE_BUTTON_CLASS = "h-5 rounded-sm px-2 text-muted-foreground";
+  "h-5 w-5 rounded-sm p-0 [&_[data-icon-root]]:size-3 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
+const VIEW_MODE_BUTTON_CLASS =
+  "h-5 rounded-sm px-2 text-muted-foreground max-md:pointer-coarse:h-9";
 
 export function resolveFilePreviewState(
   query: Pick<UseQueryResult<FilePreviewData>, "data" | "error" | "isLoading">,
@@ -277,7 +279,8 @@ function FilePreviewHeader({
 }: FilePreviewHeaderProps) {
   const openShortcut = useAppCommandShortcut("workspace.openPreferred");
   const { ref: headerRef, width } = useElementWidth();
-  const isNarrow = width > 0 && width < 560;
+  const isCompactViewport = useIsCompactViewport();
+  const isNarrow = width > 0 ? width < 560 : isCompactViewport;
   const copyContentsLabel = isMarkdown ? "Copy markdown" : "Copy file contents";
   const refreshLabel = isRefreshing ? "Refreshing file" : "Refresh file";
   const openLabel = openShortcut
@@ -454,6 +457,7 @@ function FilePreviewHeader({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
+                    mobileTitle="File actions"
                     className="[&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-sm [&_[role=menuitemcheckbox]]:min-h-11 [&_[role=menuitemcheckbox]]:text-sm"
                   >
                     <DropdownMenuLabel className="max-w-80 break-all font-mono">
