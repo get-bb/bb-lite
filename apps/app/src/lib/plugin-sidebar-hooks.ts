@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useAtomValue, useStore } from "jotai";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   getThreadListIndicatorLabel,
   isThreadRead,
@@ -11,7 +12,6 @@ import {
   type Host,
   type ThreadListEntry,
 } from "@bb/domain";
-import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import type {
   PluginAppHost,
   PluginSidebarSplitLayout,
@@ -394,11 +394,11 @@ export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
 
 function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
   const isCompact = useIsCompactViewport();
-  const panes = usePaneContentSplitPanes(isCompact ? null : content);
+  const panes = usePaneContentSplitPanes(content);
   return useMemo(
     () => ({
       isAvailable: content !== null && !isCompact,
-      layout: panes === null ? null : { panes },
+      layout: panes === null || isCompact ? null : { panes },
     }),
     [content, isCompact, panes],
   );

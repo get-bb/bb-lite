@@ -24,7 +24,7 @@ const PRIORITY_MENU_ORDER: readonly TaskPriority[] = [
   "low",
 ];
 const TRIGGER_CLASS =
-  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active";
+  "relative z-10 inline-flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-state-active max-md:pointer-coarse:size-8";
 const SHORTCUT_CLASS =
   "w-3 text-right text-2xs tabular-nums text-subtle-foreground";
 
@@ -51,6 +51,7 @@ export interface EditorKind<Value extends string> {
   labels: Readonly<Record<Value, string>>;
   icon: (value: Value) => ReactNode;
   heading: string;
+  mobileTitle?: string;
   letter: string;
   firstShortcut: number;
   width: string;
@@ -92,6 +93,7 @@ export function PropertyEditor<Value extends string>({
       <DropdownMenuContent
         align="start"
         className={kind.width}
+        mobileTitle={kind.mobileTitle}
         onKeyDown={(event) => {
           if (!/^[0-9]$/.test(event.key) || !isBareKey(event)) return;
           const index = Number(event.key) - kind.firstShortcut;
@@ -141,6 +143,7 @@ const STATUS_KIND: EditorKind<TaskStatus> = {
   labels: STATUS_LABELS,
   icon: (status) => <StatusIcon status={status} />,
   heading: "Change status…",
+  mobileTitle: "Change status",
   letter: "S",
   firstShortcut: 1,
   width: "min-w-56",
@@ -151,6 +154,7 @@ const PRIORITY_KIND: EditorKind<TaskPriority> = {
   labels: PRIORITY_LABELS,
   icon: (priority) => <PriorityIcon priority={priority} />,
   heading: "Set priority to…",
+  mobileTitle: "Set priority",
   letter: "P",
   firstShortcut: 0,
   width: "min-w-52",

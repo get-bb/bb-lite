@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,7 +136,7 @@ export function SettingsDropdown<Value extends string | boolean>({
                 className={cn(
                   "ml-auto",
                   value !== option.value && "opacity-0",
-                  "size-4",
+                  COARSE_POINTER_ICON_SIZE_CLASS,
                 )}
               />
             </DropdownMenuItem>

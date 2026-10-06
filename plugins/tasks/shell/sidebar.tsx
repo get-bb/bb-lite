@@ -23,7 +23,7 @@ function SidebarRow({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:h-9",
         "cursor-pointer",
         active
           ? "bg-sidebar-accent font-medium text-foreground"

@@ -18,7 +18,7 @@ export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted = false,
+  mobileHosted,
 }: {
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;

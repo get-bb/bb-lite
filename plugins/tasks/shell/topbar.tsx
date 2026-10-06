@@ -69,7 +69,7 @@ export function TasksTopbar({
             <Button
               variant="ghost"
               size="icon"
-              className="size-6 shrink-0"
+              className="size-6 shrink-0 max-md:pointer-coarse:size-9"
               aria-label="Back (Esc)"
               onClick={onBack}
             >
@@ -102,12 +102,12 @@ export function TasksTopbar({
   })();
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border-hairline bg-background px-3.5 text-sm">
+    <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border-hairline bg-background px-3.5 text-sm max-md:h-12 max-md:pl-12 max-md:pointer-coarse:pl-14">
       <div className="min-w-0 flex-1 overflow-hidden">{breadcrumb}</div>
       {route.kind !== "task" && route.kind !== "manage" ? (
         <Button
           size="sm"
-          className="h-7 gap-1.5"
+          className="h-7 gap-1.5 max-md:pointer-coarse:h-9"
           aria-label="New task"
           onClick={onNewTask}
         >
