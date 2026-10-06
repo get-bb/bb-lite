@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { MarkdownPreview } from "@/components/ui/markdown-preview";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { reportError } from "../shell/data.js";
 
@@ -52,6 +53,7 @@ export function MarkdownEditor({
   onUploadFile,
 }: EditorProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const isPointerCoarse = usePointerCoarse();
   useLayoutEffect(() => {
     const area = ref.current;
     if (area === null) return;
@@ -80,7 +82,7 @@ export function MarkdownEditor({
       value={value}
       placeholder={placeholder}
       autoFocus={autoFocus}
-      enterKeyHint={onSubmit ? "send" : undefined}
+      enterKeyHint={onSubmit ? (isPointerCoarse ? "enter" : "send") : undefined}
       aria-label={placeholder}
       className={cn(
         "block w-full min-w-0 resize-none bg-transparent outline-none placeholder:text-muted-foreground",
@@ -98,6 +100,7 @@ export function MarkdownEditor({
         const plain = !event.shiftKey && !event.altKey;
         const composing = event.nativeEvent.isComposing;
         if (!onSubmit || event.key !== "Enter" || !plain || composing) return;
+        if (isPointerCoarse && !event.metaKey && !event.ctrlKey) return;
         event.preventDefault();
         onSubmit();
       }}

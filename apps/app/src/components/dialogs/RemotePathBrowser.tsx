@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { normalizeProjectPathInput } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { EmptyState } from "@bb/shared-ui/empty-state";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -57,6 +58,7 @@ export function RemotePathBrowser({
   const [currentPath, setCurrentPath] = useState<string | null>(initialPath);
   const [editValue, setEditValue] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isPointerCoarse = usePointerCoarse();
   const { data, isError, error, isPlaceholderData } = useHostDirectory(
     hostId,
     currentPath,
@@ -93,7 +95,7 @@ export function RemotePathBrowser({
         {editValue !== null ? (
           <>
             <Input
-              autoFocus
+              autoFocus={!isPointerCoarse}
               aria-label="Project path"
               className="h-7 flex-1 text-xs"
               value={editValue}
@@ -182,7 +184,7 @@ export function RemotePathBrowser({
         ) : data.entries.length === 0 ? (
           <EmptyState message="This folder is empty." className="px-2 py-3" />
         ) : (
-          <ul className="grid auto-rows-[27px] items-start">
+          <ul className="grid auto-rows-[27px] items-start max-md:pointer-coarse:auto-rows-[30px]">
             {data.entries.map((entry) =>
               entry.kind === "file" ? (
                 <li
