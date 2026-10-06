@@ -57,6 +57,11 @@ export function useStickyBottomScroll<TElement extends HTMLElement>({
     };
   }, [streaming]);
 
+  const markUserScrollIntent = () => {
+    userScrollIntentUntilRef.current =
+      window.performance.now() + USER_SCROLL_INTENT_MS;
+  };
+
   return {
     ref: scrollRef,
     onPointerDown: () => {
@@ -79,9 +84,8 @@ export function useStickyBottomScroll<TElement extends HTMLElement>({
         shouldStickToBottomRef.current = false;
       }
     },
-    onWheel: () => {
-      userScrollIntentUntilRef.current =
-        window.performance.now() + USER_SCROLL_INTENT_MS;
-    },
+    onTouchMove: markUserScrollIntent,
+    onTouchStart: markUserScrollIntent,
+    onWheel: markUserScrollIntent,
   };
 }

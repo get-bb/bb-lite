@@ -129,7 +129,7 @@ function CategoryRow({
     </>
   );
   const summaryClassName = cn(
-    "flex w-full items-center gap-2 py-1.5 text-xs",
+    "flex w-full items-center gap-2 py-1.5 text-xs max-md:text-sm",
     category.kind === "used" ? "text-foreground" : "text-muted-foreground",
   );
 
@@ -155,7 +155,7 @@ function CategoryRow({
         <ContextWindowReveal id={contentId} open={expanded}>
           <div
             className={cn(
-              "space-y-1 pb-2 pl-5 pr-5 text-xs text-muted-foreground",
+              "space-y-1 pb-2 pl-5 pr-5 text-xs text-muted-foreground max-md:text-sm",
               inWindow && "pr-[4.75rem] @max-[20rem]/context-window:pr-5",
             )}
           >
@@ -195,9 +195,9 @@ export function ThreadContextWindowDetails({
 
   return (
     <div className="mt-2">
-      <div className="mx-2 border-t border-border-hairline" />
+      <div className="mx-2 border-t border-border-hairline max-md:mx-4" />
       <div className="max-h-[min(32rem,55dvh)] overflow-y-auto overscroll-contain">
-        <div className="px-2 pt-2">
+        <div className="px-2 pt-2 max-md:px-4">
           <h3 className="pb-1 text-xs font-medium text-muted-foreground">
             In context
           </h3>
