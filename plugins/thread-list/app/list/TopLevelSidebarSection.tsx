@@ -16,6 +16,7 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { Icon } from "@bb/shared-ui/icon";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
+import { COARSE_POINTER_ROW_ACTION_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import type { ConsumeDragClickSuppression } from "@bb/shared-ui/hooks/use-drag-click-suppression";
 import {
   SIDEBAR_CONTROL_STATE_CLASS,
@@ -209,7 +210,7 @@ export function TopLevelSidebarSection({
               data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
               className={cn(
                 "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-subtle-foreground",
-                "h-7 w-7",
+                COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
                 SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
               )}
             >

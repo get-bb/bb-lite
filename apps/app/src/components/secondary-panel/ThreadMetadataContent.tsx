@@ -32,6 +32,7 @@ import { useHosts } from "@/hooks/queries/host-queries";
 import { MachineLabel } from "@/components/machines/MachineLabel";
 import { formatWorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import { Button } from "@bb/shared-ui/button";
+import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CopyableInlineLabel } from "@/components/ui/copy-button.js";
 import { TruncatedList } from "@/components/ui/truncated-list.js";
 import {
@@ -107,7 +108,7 @@ function ParentSelectorRow({
         <div
           className={cn(
             "inline-flex max-w-full min-w-0 items-center gap-1 text-foreground",
-            "text-xs",
+            COARSE_POINTER_TEXT_SM_CLASS,
           )}
         >
           <Link
@@ -117,7 +118,7 @@ function ParentSelectorRow({
             })}
             className={cn(
               "block min-w-0 text-foreground no-underline transition-[text-decoration-color] duration-150 hover:underline hover:underline-offset-2",
-              "text-xs",
+              COARSE_POINTER_TEXT_SM_CLASS,
             )}
           >
             <ThreadTitle

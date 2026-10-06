@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useResponsiveOverlayBehavior } from "@bb/shared-ui/responsive-overlay";
 
 interface HoverPopoverHandlers {
   onBlur: () => void;
@@ -29,6 +30,13 @@ const preventAutoFocus = (event: Event) => {
   event.preventDefault();
 };
 
+const EMPTY_HOVER_PROPS: HoverPopoverHandlers = {
+  onBlur: noop,
+  onFocus: noop,
+  onPointerEnter: noop,
+  onPointerLeave: noop,
+};
+
 const NON_HOVERABLE_CONTENT_PROPS: HoverPopoverHandlers = {
   onBlur: noop,
   onFocus: noop,
@@ -43,6 +51,7 @@ export function useHoverPopover({
   closeDelayMs = DEFAULT_CLOSE_DELAY_MS,
   hoverableContent = true,
 }: UseHoverPopoverOptions = {}): UseHoverPopoverResult {
+  const { supportsHover } = useResponsiveOverlayBehavior();
   const [open, setOpen] = useState(false);
   const [isFocusOverTrigger, setIsFocusOverTrigger] = useState(false);
   const [isFocusOverContent, setIsFocusOverContent] = useState(false);
@@ -60,6 +69,7 @@ export function useHoverPopover({
 
   useEffect(() => {
     clearToggleTimeout();
+    if (!supportsHover) return;
 
     if (isFocusOverTrigger || isFocusOverContent) {
       if (!open) setOpen(true);
@@ -95,6 +105,7 @@ export function useHoverPopover({
     closeDelayMs,
     isFocusOverContent,
     isFocusOverTrigger,
+    supportsHover,
     isPointerOverContent,
     isPointerOverTrigger,
     open,
@@ -122,29 +133,35 @@ export function useHoverPopover({
   );
 
   const triggerHoverProps = {
-    onPointerEnter: () => {
-      setIsPointerOverTrigger(true);
-    },
-    onPointerLeave: () => {
-      setIsPointerOverTrigger(false);
-    },
+    ...(!supportsHover
+      ? EMPTY_HOVER_PROPS
+      : {
+          onPointerEnter: () => {
+            setIsPointerOverTrigger(true);
+          },
+          onPointerLeave: () => {
+            setIsPointerOverTrigger(false);
+          },
+        }),
     onFocus: () => setIsFocusOverTrigger(true),
     onBlur: () => setIsFocusOverTrigger(false),
   };
 
   const contentHoverProps = {
-    ...(hoverableContent
-      ? {
-          onPointerEnter: () => {
-            setIsPointerOverContent(true);
-          },
-          onPointerLeave: () => {
-            setIsPointerOverContent(false);
-          },
-          onOpenAutoFocus: preventAutoFocus,
-          onCloseAutoFocus: preventAutoFocus,
-        }
-      : NON_HOVERABLE_CONTENT_PROPS),
+    ...(!supportsHover
+      ? EMPTY_HOVER_PROPS
+      : hoverableContent
+        ? {
+            onPointerEnter: () => {
+              setIsPointerOverContent(true);
+            },
+            onPointerLeave: () => {
+              setIsPointerOverContent(false);
+            },
+            onOpenAutoFocus: preventAutoFocus,
+            onCloseAutoFocus: preventAutoFocus,
+          }
+        : NON_HOVERABLE_CONTENT_PROPS),
     onFocus: () => setIsFocusOverContent(true),
     onBlur: () => setIsFocusOverContent(false),
   };

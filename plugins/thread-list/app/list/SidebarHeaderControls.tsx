@@ -3,6 +3,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { SidebarSectionId } from "@bb/client-core";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,7 +220,10 @@ export function SidebarHeaderControls({
             data-sidebar-rename-anchor=""
             className={SIDEBAR_CONTROL_BUTTON_CLASS}
           >
-            <Icon name="MoreHorizontal" className="size-4" />
+            <Icon
+              name="MoreHorizontal"
+              className={COARSE_POINTER_ICON_SIZE_CLASS}
+            />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>

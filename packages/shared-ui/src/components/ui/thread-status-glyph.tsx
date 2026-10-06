@@ -50,7 +50,7 @@ export function ThreadStatusGlyph({
   if (kind === "unread-success") {
     return (
       <span
-        className="size-[5px] rounded-full bg-muted-foreground/60"
+        className="size-[5px] rounded-full bg-muted-foreground/60 max-md:pointer-coarse:size-1.5"
         aria-label={label}
       />
     );

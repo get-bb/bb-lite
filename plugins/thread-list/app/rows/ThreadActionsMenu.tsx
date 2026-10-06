@@ -21,6 +21,7 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { copyTextToClipboard } from "@bb/shared-ui/lib/clipboard";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
@@ -265,7 +266,7 @@ export function ThreadArchiveQuickAction({
         >
           <Icon
             name={isArchived ? "ArchiveRestore" : "Archive"}
-            className="size-4"
+            className={COARSE_POINTER_ICON_SIZE_CLASS}
           />
         </Button>
       </TooltipTrigger>
@@ -300,7 +301,10 @@ export function ThreadActionsMenu({
             event.stopPropagation();
           }}
         >
-          <Icon name="MoreHorizontal" className="size-4" />
+          <Icon
+            name="MoreHorizontal"
+            className={COARSE_POINTER_ICON_SIZE_CLASS}
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>

@@ -15,6 +15,11 @@ import {
 import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import { Icon } from "@bb/shared-ui/icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
+import {
+  COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
+  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+  COARSE_POINTER_ROW_HEIGHT_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import type { ConsumeDragClickSuppression } from "@bb/shared-ui/hooks/use-drag-click-suppression";
 import { cn, useComposedRefs } from "@bb/shared-ui/lib/utils";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
@@ -411,8 +416,18 @@ function ThreadRowComponent({
         ) : shortcut ? (
           <AppCommandShortcutPill shortcut={shortcut} />
         ) : (
-          <span className={cn("flex shrink-0 items-center justify-end", "h-7")}>
-            <span className={cn("relative shrink-0", "h-7 w-7")}>
+          <span
+            className={cn(
+              "flex shrink-0 items-center justify-end",
+              COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
+            )}
+          >
+            <span
+              className={cn(
+                "relative shrink-0",
+                COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+              )}
+            >
               <span
                 data-sidebar-hover-actions-open={
                   isActionsOpen ? "true" : undefined
@@ -490,7 +505,9 @@ function ThreadRowComponent({
       SIDEBAR_ROW_BASE_CLASS,
       LIST_HOVER_TRANSITION,
       parent?.stickyLevel === undefined && "relative",
-      isCompact ? "h-7" : "h-[var(--bb-sidebar-row-height)]",
+      isCompact
+        ? COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS
+        : COARSE_POINTER_ROW_HEIGHT_CLASS,
       isActive
         ? SIDEBAR_ROW_SELECTED_STATE_CLASS
         : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,

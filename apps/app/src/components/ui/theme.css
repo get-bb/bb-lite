@@ -91,6 +91,19 @@
   --text-2xs--line-height: 0.875rem;
 }
 
+@media (max-width: 767px) and (pointer: coarse) {
+  :root {
+    --text-2xs: 0.6875rem;
+    --text-2xs--line-height: 0.9375rem;
+    --text-xs: 0.875rem;
+    --text-xs--line-height: 1.25rem;
+    --text-sm: 0.9375rem;
+    --text-sm--line-height: 1.375rem;
+    --text-base: 1rem;
+    --text-base--line-height: 1.5rem;
+  }
+}
+
 @layer components {
   [data-sidebar-sticky-stack] {
     --bb-sidebar-sticky-stack-padding: 0.5rem;
@@ -250,6 +263,37 @@
     opacity: 0;
   }
 
+  @media (max-width: 767px) and (pointer: coarse) {
+    .bb-sidebar-hover-actions-row:is(:hover, :has(:focus-visible))
+      .bb-sidebar-hover-actions-inset,
+    .bb-sidebar-hover-actions-row:has(
+        .bb-sidebar-hover-actions[data-sidebar-hover-actions-open="true"]
+      )
+      .bb-sidebar-hover-actions-inset {
+      padding-right: 0;
+    }
+
+    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
+      .bb-sidebar-hover-actions:not(
+        [data-sidebar-hover-actions-open="true"]
+      ):not([data-sidebar-hover-actions-mobile="always"]) {
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .bb-sidebar-hover-actions-row:hover:not(:has(:focus-visible))
+      .bb-sidebar-hover-actions-fade:not(
+        [data-sidebar-hover-actions-open="true"]
+      ) {
+      opacity: 1;
+    }
+
+    .bb-sidebar-hover-actions[data-sidebar-hover-actions-mobile="always"] {
+      pointer-events: auto;
+      opacity: 1;
+    }
+  }
+
   [data-sidebar-sticky-stack] [data-sidebar-sticky-tier="label"] {
     --bb-sidebar-sticky-tier-top: var(--bb-sidebar-sticky-label-top);
     --bb-sidebar-sticky-tier-height: var(--bb-sidebar-sticky-label-height);
@@ -286,6 +330,12 @@
 
   [data-sidebar-sticky-stack] [data-sidebar-sticky-section] {
     --bb-sidebar-sticky-parent-base-top: var(--bb-sidebar-sticky-project-top);
+  }
+
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-sidebar-sticky-stack] {
+      --bb-sidebar-sticky-row-height: var(--bb-sidebar-row-height-coarse);
+    }
   }
 }
 
@@ -390,6 +440,7 @@
     "Courier New", monospace;
   --radius: 0.5rem;
   --bb-sidebar-row-height: 1.75rem;
+  --bb-sidebar-row-height-coarse: 2.5rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
   --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
   --shadow-sm:
@@ -553,10 +604,23 @@
   * {
     @apply border-border;
   }
-
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+  }
+
+  button,
+  a,
+  [role="button"],
+  input,
+  textarea,
+  select,
+  label {
+    touch-action: manipulation;
   }
 
   .bb-icon-stroke {

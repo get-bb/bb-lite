@@ -1,6 +1,7 @@
 import { Fragment, type ReactElement, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { buttonVariants } from "@bb/shared-ui/button";
+import { COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import {
   DropdownMenu,
@@ -54,6 +55,7 @@ export function SplitButton({
   triggerLabel = "More actions",
   primaryTooltip,
   triggerTooltip,
+  mobileTitle,
 }: {
   primaryAction: SplitButtonAction;
   secondaryActions: SplitButtonAction[];
@@ -62,10 +64,11 @@ export function SplitButton({
   triggerLabel?: string;
   primaryTooltip?: string;
   triggerTooltip?: string;
+  mobileTitle?: string;
 }) {
   const base = cn(
     buttonVariants({ variant: "outline", size: "sm" }),
-    "h-7 rounded-md border-border bg-transparent px-2 text-xs font-medium text-foreground shadow-none hover:bg-state-hover hover:text-foreground",
+    COARSE_POINTER_TOOLBAR_ACTION_BUTTON_CLASS,
     className,
   );
   const primaryButton = (
@@ -106,7 +109,11 @@ export function SplitButton({
         <OptionalTooltip content={triggerTooltip} wrapTrigger>
           {menuTrigger}
         </OptionalTooltip>
-        <DropdownMenuContent align="end" sideOffset={2}>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={2}
+          mobileTitle={mobileTitle}
+        >
           {secondaryActions.map((action, index) => {
             const previousAction = secondaryActions[index - 1];
             const showGroupLabel =
