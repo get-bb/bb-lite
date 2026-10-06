@@ -1,5 +1,6 @@
 import type { AppSettings, ProviderInfo } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -29,7 +30,10 @@ function ProviderRowIcon({
 }) {
   return (
     <span className="flex size-5 shrink-0 items-center justify-center">
-      <ProviderIcon provider={provider} className="size-4" />
+      <ProviderIcon
+        provider={provider}
+        className={COARSE_POINTER_ICON_SIZE_CLASS}
+      />
     </span>
   );
 }
@@ -61,7 +65,7 @@ function ProviderActionsMenu({
           <Icon name="MoreHorizontal" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" mobileTitle={name}>
         {enabled ? (
           <DropdownMenuCheckboxItem
             checked={isDefault}
