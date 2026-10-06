@@ -14,6 +14,10 @@ import {
   BranchPickerSectionHeader,
 } from "@bb/shared-ui/branch-picker-primitives";
 import { Button } from "@bb/shared-ui/button";
+import {
+  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { MenuHoverProvider } from "@bb/shared-ui/menu-item-hover";
@@ -131,12 +135,18 @@ function EnvironmentInputsTrigger({
         )}
       >
         <span className={OPTION_TRIGGER_CONTENT_CLASS_NAME} title={title}>
-          <Icon name="GitMerge" className="size-3.5 shrink-0" />
+          <Icon
+            name="GitMerge"
+            className={COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS}
+          />
           {children}
         </span>
         <Icon
           name="ChevronDown"
-          className="shrink-0 text-muted-foreground size-3.5"
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+          )}
         />
       </Button>
     </PopoverTrigger>
@@ -209,6 +219,7 @@ export function WorktreeInputs({
         align="start"
         sideOffset={6}
         collisionPadding={16}
+        mobileTitle="Work in:"
         autoFocusRef={picker.inputRef}
         className={cn(BRANCH_PICKER_CONTENT_CLASS_NAME, "md:w-72")}
       >
@@ -508,6 +519,7 @@ export function CheckoutInputs({
         align="start"
         sideOffset={6}
         collisionPadding={16}
+        mobileTitle="Start from:"
         autoFocusRef={showSearch ? picker.inputRef : undefined}
         className={cn(
           BRANCH_PICKER_CONTENT_CLASS_NAME,

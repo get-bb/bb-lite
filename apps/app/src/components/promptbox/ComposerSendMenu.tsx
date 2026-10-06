@@ -6,23 +6,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
+import { CompactLongPressMenu } from "@bb/shared-ui/compact-long-press-menu";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 
 export function ComposerSendMenu({
   children,
+  isPointerCoarse,
   queue,
   hasInput,
   canSubmit,
   onSubmit,
 }: {
   children: ReactNode;
+  isPointerCoarse: boolean;
   queue: boolean;
   hasInput: boolean;
   canSubmit: boolean;
   onSubmit: (() => void) | undefined;
 }) {
+  const isCompactViewport = useIsCompactViewport();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -42,6 +47,28 @@ export function ComposerSendMenu({
       {queue ? "Queue" : "Steer"}
     </DropdownMenuItem>
   ) : null;
+
+  if (isPointerCoarse && isCompactViewport) {
+    if (!canSubmit) return children;
+    return (
+      <CompactLongPressMenu
+        label="Send options"
+        onOpenChange={handleOpenChange}
+        items={items}
+      >
+        <span
+          className="inline-flex"
+          onPointerUpCapture={(event) => {
+            if (!open) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          {children}
+        </span>
+      </CompactLongPressMenu>
+    );
+  }
 
   return (
     <div
@@ -77,7 +104,7 @@ export function ComposerSendMenu({
             />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="top">
+        <DropdownMenuContent align="end" side="top" mobileTitle="Send options">
           {items}
         </DropdownMenuContent>
       </DropdownMenu>

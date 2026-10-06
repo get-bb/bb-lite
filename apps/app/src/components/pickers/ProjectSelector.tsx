@@ -21,7 +21,7 @@ import { searchPickerOptions, useResetPickerScroll } from "./picker-search";
 
 const PROJECT_SEARCH_MIN_OPTIONS = 5;
 const NO_HIGHLIGHT_VALUE = "__project-picker-idle__";
-const PROJECT_PICKER_ITEM_CLASS_NAME = "py-[0.3125rem] text-xs";
+const PROJECT_PICKER_ITEM_CLASS_NAME = "py-[0.3125rem] text-xs max-md:py-2";
 
 export interface ProjectSelectorCreateProjectConfig {
   onCreate: () => void;
@@ -128,11 +128,12 @@ export function ProjectSelector({
       <PopoverContent
         align="start"
         aria-label="Project"
+        mobileTitle="Project"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           (showSearch ? searchInputRef : commandRef).current?.focus();
         }}
-        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0"
+        className="flex max-h-[min(var(--available-height),calc(100dvh-0.5rem))] w-52 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:flex-1"
       >
         <Command
           ref={commandRef}
@@ -190,7 +191,7 @@ export function ProjectSelector({
                     </CommandItem>
                   ))}
                   {showSearch && filteredProjects.length === 0 ? (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground max-md:py-2">
                       No projects found
                     </div>
                   ) : null}

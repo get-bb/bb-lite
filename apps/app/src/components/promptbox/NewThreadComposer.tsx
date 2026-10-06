@@ -538,6 +538,7 @@ export function useNewThreadComposer({
     ) : null;
 
   const renderPromptBox = (options: {
+    mentionMenuPlacement: "top" | "bottom";
     createProject: ProjectSelectorCreateProjectConfig;
     onRequestMachineSetup: (host: Host) => void;
   }) => (
@@ -561,7 +562,7 @@ export function useNewThreadComposer({
           resetKey: projectId,
         }}
         typeahead={typeahead}
-        mentionMenuPlacement="bottom"
+        mentionMenuPlacement={options.mentionMenuPlacement}
         attachments={{
           items: promptDraft.attachments,
           pendingUploads: uploads.pendingUploads,
@@ -619,6 +620,7 @@ export function useNewThreadComposer({
     environmentProviderId: environmentProvider?.id ?? null,
     promptDraft,
     focusPromptBox,
+    isSubmitting,
     selectEnvironment,
     renderPromptBox,
   };
