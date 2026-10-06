@@ -41,6 +41,8 @@ export interface TimelineHandlers {
 }
 
 export interface TimelineContextValue extends TimelineHandlers {
+  latestActionableAssistantMessageId: string | null;
+  latestActionableUserMessageId: string | null;
   liveExpandedRowIds: ReadonlySet<string>;
   resolveSegmentLinkHref: TimelineTitleLinkResolver;
   senderThreads: ReadonlyMap<string, SenderThreadMetadata>;

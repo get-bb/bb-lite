@@ -1,4 +1,12 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { ThreadRuntimeDisplayStatus } from "@bb/domain";
 import type { TimelineRow } from "@bb/server-contract";
 import {
@@ -26,6 +34,7 @@ import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { AutoHeightContainer } from "../../ui/height-transition.js";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
 import { getThreadRoutePath } from "@/lib/route-paths";
+import { supportsScrollAnchoring } from "@/lib/scroll-anchoring-support";
 import { useThreadTimelineTurnSummaryDetails } from "@/hooks/queries/thread-queries";
 import { useSenderThreadMetadataById } from "@/hooks/useSenderThreadMetadataById";
 import {
@@ -99,6 +108,9 @@ interface TimelineRowViewProps extends Pick<
 }
 
 const PAST_ROW_DIM_CLASS_NAME = "opacity-40";
+const TOP_LEVEL_TIMELINE_ROW_INTRINSIC_SIZE_CLASS_NAME =
+  "max-md:[contain-intrinsic-block-size:auto_1.25rem]";
+const CONTENT_VISIBILITY_CLASS_NAME = "max-md:[content-visibility:auto]";
 const viewRowsCache = createTimelineViewRowsCache();
 
 function useStableSet(values: ReadonlySet<string>): ReadonlySet<string> {
@@ -139,6 +151,41 @@ function findStreamingAssistantMessageId(
     return findStreamingAssistantMessageId(lastRow.childRows);
   }
   return null;
+}
+
+function findLatestActionableMessageIds(
+  rows: readonly ThreadTimelineViewRow[],
+  canAddAttachments: boolean,
+): { assistant: string | null; user: string | null } {
+  const latest: { assistant: string | null; user: string | null } = {
+    assistant: null,
+    user: null,
+  };
+  const visitRows = (candidateRows: readonly ThreadTimelineViewRow[]): void => {
+    for (const row of candidateRows) {
+      if (row.kind === "conversation") {
+        if (row.role === "assistant") {
+          latest.assistant = row.id;
+        } else if (
+          row.initiator === "user" &&
+          (row.text.trim().length > 0 ||
+            (canAddAttachments &&
+              ((row.attachments?.localFilePaths.length ?? 0) > 0 ||
+                (row.attachments?.localImagePaths.length ?? 0) > 0)))
+        ) {
+          latest.user = row.id;
+        }
+      } else if (
+        row.kind === "turn" &&
+        row.status === "pending" &&
+        row.children !== null
+      ) {
+        visitRows(row.children);
+      }
+    }
+  };
+  visitRows(rows);
+  return latest;
 }
 
 function heightSnapRevision(rows: readonly TimelineRow[]): string {
@@ -208,13 +255,15 @@ function TimelineUnreadDivider({ autoScroll }: { autoScroll: boolean }) {
   const scrollIntoView =
     useBottomAnchoredScroll()?.scrollElementIntoViewClampedToMaxScroll;
   const dividerRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
 
   useEffect(() => {
-    if (!autoScroll || !scrollIntoView) {
+    if (!autoScroll || !scrollIntoView || hasScrolledRef.current) {
       return;
     }
     const timeoutId = window.setTimeout(() => {
       if (dividerRef.current) {
+        hasScrolledRef.current = true;
         scrollIntoView({ element: dividerRef.current });
       }
     }, 0);
@@ -539,6 +588,62 @@ const TimelineRowView = memo(function TimelineRowView({
   );
 });
 
+function timelineRowContainmentStyle(
+  row: ThreadTimelineViewRow,
+): CSSProperties | undefined {
+  if (row.kind !== "conversation") {
+    return undefined;
+  }
+  let lines = Math.max(1, Math.ceil(row.text.length / 44));
+  if (row.role === "user") {
+    lines = Math.min(lines, 15);
+  }
+  const estimate = Math.ceil((48 + lines * 23) / 24) * 24;
+  return { containIntrinsicBlockSize: `auto ${estimate}px` };
+}
+
+function TimelineRowItemWrapper({
+  children,
+  contained,
+  row,
+}: {
+  children: ReactNode;
+  contained: boolean;
+  row: ThreadTimelineViewRow;
+}) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!contained || wrapper === null || !supportsScrollAnchoring()) {
+      return;
+    }
+    let secondFrame: number | null = null;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        wrapper.classList.add(CONTENT_VISIBILITY_CLASS_NAME);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) {
+        cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [contained]);
+  return (
+    <div
+      ref={wrapperRef}
+      data-timeline-row-id={row.id}
+      className={
+        contained ? TOP_LEVEL_TIMELINE_ROW_INTRINSIC_SIZE_CLASS_NAME : undefined
+      }
+      style={contained ? timelineRowContainmentStyle(row) : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
 function findUnreadDividerIndex(
   rows: readonly ThreadTimelineViewRow[],
   placement: ThreadTimelineUnreadDividerPlacement | null | undefined,
@@ -578,6 +683,7 @@ function TimelineRowsList({
   });
   const activeLatestBundleId = findActiveLatestBundleId(rows);
   const dividerIndex = findUnreadDividerIndex(rows, unreadDivider?.placement);
+  const contained = spacing === "top-level";
   return (
     <div
       className={cn(
@@ -587,26 +693,25 @@ function TimelineRowsList({
       )}
       data-timeline-row-list={spacing}
     >
-      {rows.map((row, index) => (
-        <Fragment key={row.id}>
-          {index === dividerIndex ? (
-            <TimelineUnreadDivider
-              autoScroll={unreadDivider?.autoScroll ?? false}
-            />
-          ) : null}
-          <div data-timeline-row-id={row.id}>
-            <TimelineRowView
-              isLatestBundle={row.id === activeLatestBundleId}
-              forceExpanded={searchExpandedRowIds.has(row.id)}
-              row={row}
-              scopeActive={scopeActive}
-              showAssistantMessageActions={showAssistantMessageActions}
-              spacing={spacing}
-              compactActivityIntents={compactActivityIntents}
-            />
-          </div>
-        </Fragment>
-      ))}
+      {rows.flatMap((row, index) => [
+        index === dividerIndex ? (
+          <TimelineUnreadDivider
+            key="thread-unread-divider"
+            autoScroll={unreadDivider?.autoScroll ?? false}
+          />
+        ) : null,
+        <TimelineRowItemWrapper key={row.id} row={row} contained={contained}>
+          <TimelineRowView
+            isLatestBundle={row.id === activeLatestBundleId}
+            forceExpanded={searchExpandedRowIds.has(row.id)}
+            row={row}
+            scopeActive={scopeActive}
+            showAssistantMessageActions={showAssistantMessageActions}
+            spacing={spacing}
+            compactActivityIntents={compactActivityIntents}
+          />
+        </TimelineRowItemWrapper>,
+      ])}
     </div>
   );
 }
@@ -649,8 +754,15 @@ export const ThreadTimelineRows = memo(function ThreadTimelineRows({
   const streamingMessageId = scopeActive
     ? findStreamingAssistantMessageId(rows)
     : null;
+  const canAddToChat = onMessageAddToChat !== undefined;
+  const latestActionable = useMemo(
+    () => findLatestActionableMessageIds(rows, canAddToChat),
+    [rows, canAddToChat],
+  );
   const contextValue = useMemo<TimelineContextValue>(
     () => ({
+      latestActionableAssistantMessageId: latestActionable.assistant,
+      latestActionableUserMessageId: latestActionable.user,
       liveExpandedRowIds,
       onMessageAddToChat,
       onOpenLink,
@@ -671,6 +783,7 @@ export const ThreadTimelineRows = memo(function ThreadTimelineRows({
       workspaceRootPath,
     }),
     [
+      latestActionable,
       liveExpandedRowIds,
       onMessageAddToChat,
       onOpenLink,

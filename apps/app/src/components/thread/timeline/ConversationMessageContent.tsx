@@ -200,7 +200,8 @@ export function UserConversationMessage({
 }: {
   row: TimelineUserConversationRow;
 }) {
-  const { onMessageAddToChat, projectId } = useTimeline();
+  const { latestActionableUserMessageId, onMessageAddToChat, projectId } =
+    useTimeline();
   const linkRouting = useMessageLinkRouting(row.threadId);
   const attachmentItems = useMemo(
     () => buildAttachmentItems(row.attachments, projectId),
@@ -255,6 +256,9 @@ export function UserConversationMessage({
           <MessageActionBar
             messageText={messageText}
             alignment="end"
+            mobileActionDisplay={
+              row.id === latestActionableUserMessageId ? "inline" : "overflow"
+            }
             addToChatAttachments={attachmentItems.draftAttachments}
             copyImageUrl={attachmentItems.imageItems[0]?.src}
             onAddToChat={onMessageAddToChat}
@@ -280,6 +284,7 @@ export function AssistantConversationMessage({
   text: string;
 }) {
   const {
+    latestActionableAssistantMessageId,
     onMessageAddToChat,
     onOpenLocalFileLink,
     onOpenPluginPanel,
@@ -350,7 +355,7 @@ export function AssistantConversationMessage({
         PROSE_COLUMN_INSET_CLASS,
       )}
     >
-      <div>
+      <div data-sidebar-swipe-selectable>
         <MarkdownPreview
           allowHtml
           className={
@@ -387,6 +392,9 @@ export function AssistantConversationMessage({
         <MessageActionBar
           messageText={text}
           alignment="start"
+          mobileActionDisplay={
+            id === latestActionableAssistantMessageId ? "inline" : "overflow"
+          }
           addToChatAttachments={attachmentItems.draftAttachments}
           copyImageUrl={attachmentItems.imageItems[0]?.src}
           onAddToChat={onMessageAddToChat}

@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@bb/shared-ui/button";
+import { usePersistentOverlayFocus } from "@bb/shared-ui/responsive-overlay";
 import { usePortalScopeProps } from "@bb/shared-ui/lib/portal-scope";
 import { Icon } from "@bb/shared-ui/icon";
 
@@ -66,21 +67,20 @@ export function ImageLightbox({
 }: ImageLightboxProps) {
   const isVisible = isOpen ?? imageSrc !== null;
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+  const requestClose = useCallback(() => closeRef.current(), []);
   const titleId = useId();
   const scopeProps = usePortalScopeProps();
+  usePersistentOverlayFocus({
+    open: isVisible,
+    panelRef,
+    requestClose,
+  });
   const hasNavigation =
     hasMultipleImages && onPrevious !== undefined && onNext !== undefined;
-
-  useLayoutEffect(() => {
-    if (!isVisible) return;
-    const previousFocus = document.activeElement;
-    panelRef.current?.focus({ preventScroll: true });
-    return () => {
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-        previousFocus.focus({ preventScroll: true });
-      }
-    };
-  }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) {
