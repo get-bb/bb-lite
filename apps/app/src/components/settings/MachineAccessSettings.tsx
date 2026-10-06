@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ServerAccessStatus } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
+import { COARSE_POINTER_INPUT_HEIGHT_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { OptionPicker } from "@/components/pickers/OptionPicker";
@@ -107,7 +108,7 @@ function ServerAddress({ access }: { access: ServerAccessStatus | undefined }) {
         />
         <Button
           variant="outline"
-          className="h-9"
+          className={COARSE_POINTER_INPUT_HEIGHT_CLASS}
           disabled={disabled || draft === null || draft.trim() === value}
           onClick={commit}
         >

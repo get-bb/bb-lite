@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useAtomValue, useStore } from "jotai";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   getThreadListIndicatorLabel,
   isThreadRead,
@@ -264,6 +265,7 @@ export function useSidebarThreadEntry(
 export function useSidebarThreadActions(): PluginSidebarThreadActions {
   const navigate = useRouteNavigate();
   const store = useStore();
+  const isCompact = useIsCompactViewport();
   const setRootComposeProjectId = useSetRootComposeProjectId();
   const hostActions = useThreadActions();
   const entries = useThreadEntryMap();
@@ -282,7 +284,13 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
         if (projectId === undefined) return;
         store.set(getThreadConversationCollapsedAtom(threadId), false);
         if (options?.split)
-          openThreadInSplit({ store, navigate, projectId, threadId });
+          openThreadInSplit({
+            store,
+            navigate,
+            projectId,
+            threadId,
+            isCompact,
+          });
         else navigate(getThreadRoutePath({ projectId, threadId }));
       },
       openNewThread(options = {}) {
@@ -322,6 +330,7 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
   }, [
     entries,
     hostActions,
+    isCompact,
     navigate,
     pinThread,
     setRootComposeProjectId,
@@ -361,9 +370,11 @@ export function useSidebarThreadShortcut(
 }
 
 export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
+  const isCompact = useIsCompactViewport();
   const layout = useAtomValue(splitLayoutAtom);
   return useMemo(() => {
-    if (layout === null || countPanes(layout.root) < 2) return null;
+    if (isCompact || layout === null || countPanes(layout.root) < 2)
+      return null;
     const rects = computePaneRects(layout.root);
     return {
       panes: listPanes(layout.root).flatMap(({ paneId, content }) => {
@@ -378,17 +389,18 @@ export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
             };
       }),
     };
-  }, [layout]);
+  }, [isCompact, layout]);
 }
 
 function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
+  const isCompact = useIsCompactViewport();
   const panes = usePaneContentSplitPanes(content);
   return useMemo(
     () => ({
-      isAvailable: content !== null,
-      layout: panes === null ? null : { panes },
+      isAvailable: content !== null && !isCompact,
+      layout: panes === null || isCompact ? null : { panes },
     }),
-    [content, panes],
+    [content, isCompact, panes],
   );
 }
 

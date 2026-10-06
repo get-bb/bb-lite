@@ -8,6 +8,7 @@ import {
 import { Icon } from "@bb/shared-ui/icon";
 import { useComposedRefs } from "@bb/shared-ui/lib/utils";
 import { TooltipProvider } from "@bb/shared-ui/tooltip";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { useScrollOverflowState } from "@/components/thread/timeline/useScrollOverflowState";
 import { TabPill } from "@/components/ui/tab-pill";
 
@@ -57,6 +58,7 @@ export function PaletteShell({
   value: string;
 }) {
   const listId = useId();
+  const isCompactViewport = useIsCompactViewport();
   const inputDescriptionId = useId();
   const {
     aboveOverflow,
@@ -149,7 +151,9 @@ export function PaletteShell({
                 closeAction={{
                   onClose: () => onExitMode?.(),
                   closeLabel: "Return to commands",
-                  tooltip: "Return to commands (Esc)",
+                  tooltip: isCompactViewport
+                    ? "Return to commands"
+                    : "Return to commands (Esc)",
                 }}
               />
             </span>

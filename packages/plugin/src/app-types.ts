@@ -112,9 +112,14 @@ export interface SidebarNavigationIconProps {
   className?: string;
 }
 
+export interface SidebarNavigationProps {
+  isCompactViewport: boolean;
+}
+
 export interface SidebarHeaderProps {
   width: number;
   controlSize: number;
+  isCompactViewport: boolean;
 }
 
 export interface PluginThreadListProps {

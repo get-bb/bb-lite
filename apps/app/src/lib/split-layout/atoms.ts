@@ -143,13 +143,13 @@ export function openThreadInSplit(
     Parameters<typeof openPaneContentInSplit>[0],
     "store" | "navigate" | "state"
   > &
-    ThreadRoutePathArgs,
+    ThreadRoutePathArgs & { isCompact: boolean },
 ): void {
   const { projectId, threadId } = args;
   openPaneContentInSplit({
     ...args,
     content: { kind: "thread", projectId, threadId },
     route: getThreadRoutePath({ projectId, threadId }),
-    enabled: true,
+    enabled: !args.isCompact,
   });
 }

@@ -7,10 +7,10 @@ import { appToast } from "@/components/ui/app-toast";
 import { ThreadListPlaceholder } from "./SidebarNavigationPlaceholder";
 import { useThreadListReplacement } from "./threadListProvider";
 
-export function PluginThreadList() {
+export function PluginThreadList({ onNavigate }: { onNavigate: () => void }) {
   const replacement = useThreadListReplacement();
   const { projectId, threadId } = useRouteState();
-  const { isCompactViewport, closeMobileSidebar } = useSidebar();
+  const { isCompactViewport } = useSidebar();
   const [attempt, setAttempt] = useState(0);
 
   if (replacement.kind !== "plugin") {
@@ -51,7 +51,7 @@ export function PluginThreadList() {
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
         isCompactViewport={isCompactViewport}
-        onNavigate={closeMobileSidebar}
+        onNavigate={onNavigate}
         searchQuery=""
       />
     </PluginSlotMount>

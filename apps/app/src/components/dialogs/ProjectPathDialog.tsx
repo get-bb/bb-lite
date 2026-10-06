@@ -159,6 +159,7 @@ function ProjectPathForm({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
+              mobileTitle="Machine"
               className="max-h-72 w-[var(--anchor-width)] overflow-y-auto"
             >
               {machines.map((host) => {
