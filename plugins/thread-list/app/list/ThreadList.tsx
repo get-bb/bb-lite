@@ -226,6 +226,7 @@ interface ThreadSectionsProps {
   unavailable: boolean;
   selectedThreadId?: string;
   personalProjectId: string | null;
+  onProjectSelect?: () => void;
   onRemoveSection: (section: SidebarSectionDefinition) => void;
 }
 
@@ -235,6 +236,7 @@ function ThreadSections({
   unavailable,
   selectedThreadId,
   personalProjectId,
+  onProjectSelect,
   onRemoveSection,
 }: ThreadSectionsProps) {
   const sdk = useSdk();
@@ -264,13 +266,14 @@ function ThreadSections({
   );
   const openNewThread = useCallback(
     (projectId: string | null, sectionId: string | null, pinned: boolean) => {
+      onProjectSelect?.();
       sidebarActions.openNewThread({
         ...(projectId !== null ? { projectId } : {}),
         placement: { sectionId, pinned },
         focusPrompt: true,
       });
     },
-    [sidebarActions],
+    [onProjectSelect, sidebarActions],
   );
   const handleNewBuiltInThread = useCallback(
     (id: CollapsibleSidebarSectionId) => {
@@ -452,12 +455,14 @@ function ThreadSections({
       selectedThreadId,
       collapsedThreadIds,
       collapsedEnvironmentIds,
+      onProjectSelect,
       onToggleThreadCollapsed: toggleThreadCollapsed,
       onToggleEnvironmentCollapsed: toggleEnvironmentCollapsed,
     }),
     [
       collapsedEnvironmentIds,
       collapsedThreadIds,
+      onProjectSelect,
       selectedThreadId,
       toggleEnvironmentCollapsed,
       toggleThreadCollapsed,
@@ -546,11 +551,15 @@ function ThreadSections({
   );
 }
 
+interface ThreadListProps {
+  activeThreadId: string | null;
+  onProjectSelect?: () => void;
+}
+
 function ThreadListContent({
   activeThreadId,
-}: {
-  activeThreadId: string | null;
-}) {
+  onProjectSelect,
+}: ThreadListProps) {
   const sdk = useSdk();
   const { status, sections, threads, personalProjectId, archived } =
     useSidebarData();
@@ -661,6 +670,7 @@ function ThreadListContent({
             unavailable={status === "error"}
             selectedThreadId={activeThreadId ?? undefined}
             personalProjectId={personalProjectId}
+            onProjectSelect={onProjectSelect}
             onRemoveSection={setSectionToDelete}
           />
           {archived !== null && (
@@ -721,12 +731,14 @@ function ThreadListContent({
 
 export const ThreadList = memo(function ThreadList({
   activeThreadId,
-}: {
-  activeThreadId: string | null;
-}) {
+  onProjectSelect,
+}: ThreadListProps) {
   return (
     <SidebarRenameProvider>
-      <ThreadListContent activeThreadId={activeThreadId} />
+      <ThreadListContent
+        activeThreadId={activeThreadId}
+        onProjectSelect={onProjectSelect}
+      />
     </SidebarRenameProvider>
   );
 });

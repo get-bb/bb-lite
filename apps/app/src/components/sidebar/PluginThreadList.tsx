@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PluginSlotMount } from "@/plugins/mount";
+import { useSidebar } from "@/components/ui/sidebar.js";
 import { useRouteState } from "@/hooks/useRouteState";
 import { resetCrashedSlots } from "@/plugins/registry";
 import { appToast } from "@/components/ui/app-toast";
@@ -9,6 +10,7 @@ import { useThreadListReplacement } from "./threadListProvider";
 export function PluginThreadList() {
   const replacement = useThreadListReplacement();
   const { projectId, threadId } = useRouteState();
+  const { isCompactViewport, closeMobileSidebar } = useSidebar();
   const [attempt, setAttempt] = useState(0);
 
   if (replacement.kind !== "plugin") {
@@ -48,6 +50,8 @@ export function PluginThreadList() {
       <slot.component
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
+        isCompactViewport={isCompactViewport}
+        onNavigate={closeMobileSidebar}
         searchQuery=""
       />
     </PluginSlotMount>

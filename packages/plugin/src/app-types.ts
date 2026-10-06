@@ -120,6 +120,8 @@ export interface SidebarHeaderProps {
 export interface PluginThreadListProps {
   activeThreadId: string | null;
   activeProjectId: string | null;
+  isCompactViewport: boolean;
+  onNavigate: () => void;
   searchQuery: string;
 }
 

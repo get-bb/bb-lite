@@ -60,6 +60,7 @@ import type {
   SidebarReorderPlacement,
   ThreadRowNestDrop,
 } from "../dnd/dropDecision.js";
+import { SidebarThreadDragChip } from "../dnd/sidebarThreadDragChip.js";
 import {
   mergeThreadActivity,
   threadIndicatorState,
@@ -103,6 +104,7 @@ interface ThreadRowProps {
   thread: SidebarThread;
   crossProjectId: string | null;
   isActive: boolean;
+  onProjectSelect?: () => void;
   depth: number;
   isCompact: boolean;
   parent: ThreadRowParentOptions | null;
@@ -150,6 +152,7 @@ function ThreadRowComponent({
   thread,
   crossProjectId,
   isActive,
+  onProjectSelect,
   depth,
   isCompact,
   parent,
@@ -266,10 +269,12 @@ function ThreadRowComponent({
       <span
         className={cn(
           "relative flex min-w-0 flex-1 items-center gap-1.5 self-stretch",
+          !isActionsOpen &&
+            "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           !shortcut &&
             !isEditing &&
             (crossProjectLabel !== null || parent
-              ? "pr-(--bb-sidebar-hover-actions-inset)"
+              ? "pr-(--bb-sidebar-hover-actions-inset) max-md:pointer-coarse:pr-0"
               : SIDEBAR_HOVER_ACTIONS_INSET_CLASS),
         )}
         style={HOVER_ACTIONS_INSET_STYLE}
@@ -296,7 +301,9 @@ function ThreadRowComponent({
               event.preventDefault();
               event.stopPropagation();
               startEditing();
+              return;
             }
+            onProjectSelect?.();
           }}
           onDoubleClick={isEditing ? undefined : startTitleEditing}
           aria-label={linkLabel}
@@ -382,22 +389,31 @@ function ThreadRowComponent({
           />
         ) : null}
       </span>
+      {rowDragBindings && !rowDragBindings.disabled && !isActionsOpen ? (
+        <SidebarThreadDragChip
+          title={labelTitle}
+          visualOnly
+          className="hidden group-data-[sidebar-touch-armed=true]/thread-row:flex"
+        />
+      ) : null}
       <span
         data-sidebar-thread-trailing=""
         className={cn(
           "flex shrink-0 items-center gap-0.5",
+          !isActionsOpen &&
+            "group-data-[sidebar-touch-armed=true]/thread-row:hidden",
           isEditing && "hidden",
         )}
       >
         {thread.archivedAt !== null ? (
-          <span className="relative flex items-center">
+          <span className="relative flex items-center max-md:pointer-coarse:hidden">
             <div
               data-sidebar-hover-actions-open={
                 isActionsOpen ? "true" : undefined
               }
               className={cn(
                 SIDEBAR_HOVER_ACTIONS_CLASS,
-                "absolute right-full z-10",
+                "absolute right-full z-10 max-md:pointer-coarse:hidden",
               )}
             >
               {actionsMenu}
@@ -418,7 +434,7 @@ function ThreadRowComponent({
         ) : (
           <span
             className={cn(
-              "flex shrink-0 items-center justify-end",
+              "flex shrink-0 items-center justify-end max-md:pointer-coarse:pointer-events-none",
               COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
             )}
           >
@@ -475,7 +491,7 @@ function ThreadRowComponent({
                 }
                 className={cn(
                   SIDEBAR_HOVER_ACTIONS_CLASS,
-                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end",
+                  "absolute inset-y-0 right-0 z-10 flex items-center justify-end max-md:pointer-coarse:hidden",
                   isEditing && "invisible pointer-events-none",
                 )}
               >
@@ -515,6 +531,7 @@ function ThreadRowComponent({
       !isActive &&
         "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
       rowDragBindings && !rowDragBindings.disabled && "select-none",
+      !isActionsOpen && "data-[sidebar-touch-armed=true]:!bg-transparent",
       nestTargetState && NEST_TARGET_STATE_CLASS[nestTargetState],
       reorderPlacement && REORDER_PLACEMENT_CLASS[reorderPlacement],
     ),

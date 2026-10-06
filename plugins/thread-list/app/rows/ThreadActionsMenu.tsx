@@ -9,10 +9,13 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@bb/shared-ui/context-menu";
+import { CompactLongPressMenu } from "@bb/shared-ui/compact-long-press-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -22,6 +25,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { Button } from "@bb/shared-ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { copyTextToClipboard } from "@bb/shared-ui/lib/clipboard";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
@@ -86,10 +90,20 @@ function canMoveThreadToSection(
   );
 }
 
+type ThreadActionsCompactStep = "actions" | "move";
+
 function ThreadSectionMoveMenu({
+  drawerStep = false,
+  isDrawer,
+  onBack,
+  onOpenDrawerStep,
   surface,
   thread,
 }: {
+  drawerStep?: boolean;
+  isDrawer: boolean;
+  onBack?: () => void;
+  onOpenDrawerStep?: () => void;
   surface: ActionMenuSurface;
   thread: SidebarThread;
 }) {
@@ -97,6 +111,58 @@ function ThreadSectionMoveMenu({
   if (!canMoveThreadToSection(sectionMove, thread)) return null;
 
   const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
+  const items = sectionMove.destinations.map((destination) => {
+    const isCurrent =
+      thread.pinnedAt === null && thread.sectionId === destination.sectionId;
+    return (
+      <Item
+        key={destination.sectionId ?? "threads"}
+        aria-current={isCurrent ? "true" : undefined}
+        className="flex items-center justify-between gap-3"
+        disabled={isCurrent}
+        onSelect={() => sectionMove.moveThread(thread, destination.sectionId)}
+      >
+        <span className="min-w-0 flex-1 truncate">{destination.label}</span>
+        {isCurrent ? (
+          <Icon name="Check" className="ml-auto" aria-hidden="true" />
+        ) : null}
+      </Item>
+    );
+  });
+
+  if (isDrawer) {
+    if (!drawerStep) {
+      return (
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            onOpenDrawerStep?.();
+          }}
+        >
+          <Icon name="SectionMove" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">Move to section</span>
+          <Icon name="ChevronRight" className="ml-auto" aria-hidden="true" />
+        </DropdownMenuItem>
+      );
+    }
+    return (
+      <>
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            onBack?.();
+          }}
+        >
+          <Icon name="ChevronLeft" aria-hidden="true" />
+          Back
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Move to section</DropdownMenuLabel>
+        {items}
+      </>
+    );
+  }
+
   const Sub = surface === "context" ? ContextMenuSub : DropdownMenuSub;
   const SubTrigger =
     surface === "context" ? ContextMenuSubTrigger : DropdownMenuSubTrigger;
@@ -110,29 +176,7 @@ function ThreadSectionMoveMenu({
         Move to section
       </SubTrigger>
       <SubContent className="max-h-[min(24rem,calc(100vh-2rem))] min-w-44 overflow-y-auto">
-        {sectionMove.destinations.map((destination) => {
-          const isCurrent =
-            thread.pinnedAt === null &&
-            thread.sectionId === destination.sectionId;
-          return (
-            <Item
-              key={destination.sectionId ?? "threads"}
-              aria-current={isCurrent ? "true" : undefined}
-              className="flex items-center justify-between gap-3"
-              disabled={isCurrent}
-              onSelect={() =>
-                sectionMove.moveThread(thread, destination.sectionId)
-              }
-            >
-              <span className="min-w-0 flex-1 truncate">
-                {destination.label}
-              </span>
-              {isCurrent ? (
-                <Icon name="Check" className="ml-auto" aria-hidden="true" />
-              ) : null}
-            </Item>
-          );
-        })}
+        {items}
       </SubContent>
     </Sub>
   );
@@ -142,13 +186,35 @@ function ThreadActionsMenuItems({
   thread,
   onOpenInSplit,
   onRename,
+  compactStep = "actions",
+  onCompactStepChange,
   surface,
-}: ThreadActionsMenuBaseProps & { surface: ActionMenuSurface }) {
+}: ThreadActionsMenuBaseProps & {
+  compactStep?: ThreadActionsCompactStep;
+  onCompactStepChange?: (step: ThreadActionsCompactStep) => void;
+  surface: ActionMenuSurface;
+}) {
   const actions = useSidebarThreadActions();
   const unarchiveThread = useUnarchiveThread();
+  const isCompactViewport = useIsCompactViewport();
+  const isDrawer = surface === "dropdown" && isCompactViewport;
   const isRead = !thread.isUnread;
   const isPinned = thread.pinnedAt !== null;
   const isArchived = thread.archivedAt != null;
+
+  if (isDrawer && compactStep === "move") {
+    return (
+      <ThreadSectionMoveMenu
+        drawerStep
+        isDrawer
+        onBack={() => onCompactStepChange?.("actions")}
+        surface={surface}
+        thread={thread}
+      />
+    );
+  }
+
+  const separator = isDrawer ? null : <ActionMenuSeparator surface={surface} />;
 
   return (
     <>
@@ -161,7 +227,7 @@ function ThreadActionsMenuItems({
           >
             Open in split
           </ActionMenuItem>
-          <ActionMenuSeparator surface={surface} />
+          {separator}
         </>
       ) : null}
       <ActionMenuItem
@@ -195,11 +261,16 @@ function ThreadActionsMenuItems({
       >
         {isPinned ? "Unpin" : "Pin"}
       </ActionMenuItem>
-      <ThreadSectionMoveMenu surface={surface} thread={thread} />
+      <ThreadSectionMoveMenu
+        isDrawer={isDrawer}
+        onOpenDrawerStep={() => onCompactStepChange?.("move")}
+        surface={surface}
+        thread={thread}
+      />
       <ActionMenuItem surface={surface} icon="Edit" onSelect={onRename}>
         Rename
       </ActionMenuItem>
-      <ActionMenuSeparator surface={surface} />
+      {separator}
       <ActionMenuItem
         surface={surface}
         icon={isArchived ? "ArchiveRestore" : "Archive"}
@@ -227,6 +298,22 @@ function ThreadActionsMenuItems({
       </ActionMenuItem>
     </>
   );
+}
+
+function useThreadActionsMenuLifecycle(onOpenChange?: (open: boolean) => void) {
+  const [compactStep, setCompactStep] =
+    useState<ThreadActionsCompactStep>("actions");
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        setCompactStep("actions");
+      }
+      onOpenChange?.(open);
+    },
+    [onOpenChange],
+  );
+
+  return { compactStep, setCompactStep, handleOpenChange };
 }
 
 export function ThreadArchiveQuickAction({
@@ -283,8 +370,11 @@ export function ThreadActionsMenu({
   onOpenChange,
   triggerClassName,
 }: ThreadActionsMenuProps) {
+  const { compactStep, setCompactStep, handleOpenChange } =
+    useThreadActionsMenuLifecycle(onOpenChange);
+
   return (
-    <DropdownMenu onOpenChange={onOpenChange}>
+    <DropdownMenu onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -312,6 +402,8 @@ export function ThreadActionsMenu({
           thread={thread}
           onOpenInSplit={onOpenInSplit}
           onRename={onRename}
+          compactStep={compactStep}
+          onCompactStepChange={setCompactStep}
           surface="dropdown"
         />
       </DropdownMenuContent>
@@ -319,7 +411,49 @@ export function ThreadActionsMenu({
   );
 }
 
-export function ThreadActionsContextMenu({
+export function ThreadActionsContextMenu(props: ThreadActionsContextMenuProps) {
+  const isCompactViewport = useIsCompactViewport();
+  if (isCompactViewport) {
+    return <ThreadActionsCompactLongPressMenu {...props} />;
+  }
+  return <ThreadActionsDesktopContextMenu {...props} />;
+}
+
+function ThreadActionsCompactLongPressMenu({
+  children,
+  disabled,
+  dragging,
+  thread,
+  onOpenInSplit,
+  onOpenChange,
+  onRename,
+}: ThreadActionsContextMenuProps) {
+  const { compactStep, setCompactStep, handleOpenChange } =
+    useThreadActionsMenuLifecycle(onOpenChange);
+
+  return (
+    <CompactLongPressMenu
+      label="Thread actions"
+      disabled={disabled}
+      dragging={dragging}
+      onOpenChange={handleOpenChange}
+      items={
+        <ThreadActionsMenuItems
+          thread={thread}
+          onOpenInSplit={onOpenInSplit}
+          onRename={onRename}
+          compactStep={compactStep}
+          onCompactStepChange={setCompactStep}
+          surface="dropdown"
+        />
+      }
+    >
+      {children}
+    </CompactLongPressMenu>
+  );
+}
+
+function ThreadActionsDesktopContextMenu({
   children,
   disabled,
   dragging,
