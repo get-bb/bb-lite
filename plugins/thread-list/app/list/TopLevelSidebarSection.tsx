@@ -24,6 +24,7 @@ import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
+  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
 } from "@bb/shared-ui/sidebar-row-classes";
@@ -161,6 +162,9 @@ export function TopLevelSidebarSection({
             disabled={Boolean(labelEditor)}
             data-sidebar-rename-anchor=""
             aria-expanded={!isCollapsed}
+            data-sidebar-hover-actions-mobile={
+              SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
+            }
             aria-label={
               isCollapsed
                 ? `Expand ${label} section`
@@ -198,7 +202,7 @@ export function TopLevelSidebarSection({
         <span
           data-sidebar-trailing-controls=""
           className={cn(
-            "relative z-20 inline-flex h-7 shrink-0 items-center",
+            "relative z-20 inline-flex h-7 shrink-0 items-center max-md:pointer-coarse:h-9",
             labelEditor && "hidden",
             SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
           )}
@@ -209,7 +213,7 @@ export function TopLevelSidebarSection({
               data-sidebar-collapsed-activity-edge=""
               data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
               className={cn(
-                "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-subtle-foreground",
+                "pointer-events-none absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center text-subtle-foreground max-md:static max-md:shrink-0 max-md:translate-y-0",
                 COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
                 SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
               )}
@@ -227,10 +231,14 @@ export function TopLevelSidebarSection({
           ) : null}
           <span
             data-sidebar-hover-actions-open={actionsOpen ? "true" : undefined}
+            data-sidebar-hover-actions-mobile={
+              SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
+            }
             className={cn(
               "inline-flex shrink-0 items-center",
               SIDEBAR_HOVER_ACTIONS_GAP_CLASS,
               SIDEBAR_HOVER_ACTIONS_CLASS,
+              isCollapsed && "max-md:pointer-coarse:hidden",
             )}
           >
             {actions}

@@ -17,6 +17,8 @@ export const SIDEBAR_HOVER_ACTIONS_INSET_CLASS =
 
 export const SIDEBAR_HOVER_ACTIONS_FADE_CLASS = "bb-sidebar-hover-actions-fade";
 
+export const SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE = "always";
+
 export const SIDEBAR_ROW_BASE_CLASS =
   "flex w-full items-center gap-2 rounded-md pr-0 text-sm transition-colors";
 

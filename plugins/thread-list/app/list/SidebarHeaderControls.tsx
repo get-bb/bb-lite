@@ -1,9 +1,10 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { SidebarSectionId } from "@bb/client-core";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -200,6 +201,12 @@ export function SidebarHeaderControls({
   onCloseAutoFocus?: (event: Event) => void;
 }) {
   const creation = useContext(HeaderCreationContext);
+  const compact = useIsCompactViewport();
+  const [page, setPage] = useState<SidebarViewPage | null>(null);
+  const changeOpen = (next: boolean) => {
+    if (!next) setPage(null);
+    onOpenChange?.(next);
+  };
   return (
     <SidebarRowControls
       primaryAction={
@@ -210,7 +217,7 @@ export function SidebarHeaderControls({
         />
       }
     >
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenu open={open} onOpenChange={changeOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -226,35 +233,74 @@ export function SidebarHeaderControls({
             />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>
-          <DropdownMenuItem
-            disabled={!creation.onNewSection || creation.isCreatingSection}
-            onSelect={() => creation.onNewSection?.(sectionId)}
-          >
-            <Icon name="SectionAdd" />
-            New section
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {SIDEBAR_VIEW_PAGES.map((item) => (
-            <DropdownMenuSub key={item.page}>
-              <DropdownMenuSubTrigger>
-                <Icon name={item.icon} />
-                {item.label}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  className={
-                    item.page === "organize"
-                      ? "min-w-32"
-                      : "w-max min-w-28 max-w-64"
-                  }
-                >
-                  <SidebarViewItems page={item.page} />
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
-          ))}
-          {children}
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={onCloseAutoFocus}
+          mobileTitle={
+            SIDEBAR_VIEW_PAGES.find((item) => item.page === page)?.label ??
+            `${label} actions`
+          }
+        >
+          {compact && page ? (
+            <>
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setPage(null);
+                }}
+              >
+                <Icon name="ChevronLeft" />
+                Back
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <SidebarViewItems page={page} />
+            </>
+          ) : (
+            <>
+              <DropdownMenuItem
+                disabled={!creation.onNewSection || creation.isCreatingSection}
+                onSelect={() => creation.onNewSection?.(sectionId)}
+              >
+                <Icon name="SectionAdd" />
+                New section
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {SIDEBAR_VIEW_PAGES.map((item) =>
+                compact ? (
+                  <DropdownMenuItem
+                    key={item.page}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setPage(item.page);
+                    }}
+                  >
+                    <Icon name={item.icon} />
+                    {item.label}
+                    <Icon name="ChevronRight" className="ml-auto" />
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuSub key={item.page}>
+                    <DropdownMenuSubTrigger>
+                      <Icon name={item.icon} />
+                      {item.label}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent
+                        className={
+                          item.page === "organize"
+                            ? "min-w-32"
+                            : "w-max min-w-28 max-w-64"
+                        }
+                      >
+                        <SidebarViewItems page={item.page} />
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                ),
+              )}
+              {children}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarRowControls>

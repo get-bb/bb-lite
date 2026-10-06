@@ -50,6 +50,7 @@ import {
   SIDEBAR_GROUP_TEXT_CLASS,
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+  SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
   SIDEBAR_ROW_BASE_CLASS,
   getSidebarThreadGroupLineLeft,
@@ -122,6 +123,7 @@ const SIDEBAR_STICKY_PARENT_DEPTH_CAP = 4;
 
 interface ThreadTreeContextValue extends CollapsedTreeState {
   selectedThreadId?: string;
+  onProjectSelect?: () => void;
   onToggleThreadCollapsed: (threadId: string) => void;
   onToggleEnvironmentCollapsed: (environmentId: string) => void;
 }
@@ -339,8 +341,12 @@ const ThreadNodeRow = memo(function ThreadNodeRow({
   sortableRef,
   sortableStyle,
 }: ThreadNodeRowProps) {
-  const { collapsedThreadIds, onToggleThreadCollapsed, selectedThreadId } =
-    useContext(ThreadTreeContext);
+  const {
+    collapsedThreadIds,
+    onProjectSelect,
+    onToggleThreadCollapsed,
+    selectedThreadId,
+  } = useContext(ThreadTreeContext);
   const sectionDnd = useSectionThreadDndState();
   const { thread } = node;
   const isCollapsed = collapsedThreadIds.has(thread.id);
@@ -411,6 +417,7 @@ const ThreadNodeRow = memo(function ThreadNodeRow({
           thread.projectId !== projectId ? thread.projectId : null
         }
         isActive={selectedThreadId === thread.id}
+        onProjectSelect={onProjectSelect}
         depth={rowDepth}
         isCompact={node.depth > 0 || isEnvGrouped}
         parent={parent}
@@ -473,7 +480,7 @@ function EnvironmentThreadGroupHeader({
 }: EnvironmentThreadGroupHeaderProps) {
   const { environmentId, environmentProviderId, nodes } = group;
   const representativeThread = nodes[0].thread;
-  const { onToggleEnvironmentCollapsed, selectedThreadId } =
+  const { onProjectSelect, onToggleEnvironmentCollapsed, selectedThreadId } =
     useContext(ThreadTreeContext);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [archiveThreadsPending, setArchiveThreadsPending] = useState(false);
@@ -633,7 +640,7 @@ function EnvironmentThreadGroupHeader({
             className={cn(
               SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
               COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground",
+              "pointer-events-none absolute right-0 flex items-center justify-center text-subtle-foreground max-md:pointer-coarse:static max-md:pointer-coarse:shrink-0",
             )}
           >
             <ThreadStatusGlyph {...childActivity} />
@@ -641,11 +648,15 @@ function EnvironmentThreadGroupHeader({
         ) : null}
         <div
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+          data-sidebar-hover-actions-mobile={
+            SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE
+          }
           className={cn(
             SIDEBAR_HOVER_ACTIONS_CLASS,
             SIDEBAR_CONTROL_PAIR_SIZE_CLASS,
             "relative flex items-center justify-end",
             rename.isEditing && "hidden",
+            isCollapsed && "max-md:pointer-coarse:hidden",
           )}
         >
           <SidebarRowControls
@@ -653,14 +664,15 @@ function EnvironmentThreadGroupHeader({
               <SidebarControlButton
                 label="New thread in environment"
                 icon="MessageSquarePlus"
-                onClick={() =>
+                onClick={() => {
+                  onProjectSelect?.();
                   sidebarActions.openNewThread({
                     projectId,
                     environmentId,
                     placement: { sectionId, pinned },
                     focusPrompt: true,
-                  })
-                }
+                  });
+                }}
               />
             }
           >
@@ -682,6 +694,7 @@ function EnvironmentThreadGroupHeader({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
+                mobileTitle="Environment actions"
                 onCloseAutoFocus={rename.onCloseAutoFocus}
               >
                 <DropdownMenuItem
