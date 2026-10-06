@@ -150,10 +150,3 @@ export function TasksNavigationPanel({ subPath }: PluginNavPanelProps) {
     </div>
   );
 }
-
-export function TasksSidebarAccessory() {
-  const count = useOverview().data?.openTaskCount;
-  return count ? (
-    <span className="text-muted-foreground tabular-nums">{count}</span>
-  ) : null;
-}

@@ -10,6 +10,10 @@ import { useRouteStateHistoryNavigation } from "@/lib/app-route-history";
 const BROWSER_HEADER_SLOT_START_CLASS =
   "pl-[calc(env(safe-area-inset-left)_+_12px_+_var(--bb-sidebar-control-size)_-_4px)]";
 
+export const NAV_RAIL_WIDTH_CLASS =
+  "w-[calc(var(--bb-sidebar-control-size)_+_24px)]";
+const NAV_RAIL_HEADER_SLOT_START_CLASS = "pl-0";
+
 const HISTORY_NAV_BUTTON_CLASS = cn(
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
   "text-muted-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2",
@@ -18,9 +22,11 @@ const HISTORY_NAV_BUTTON_CLASS = cn(
 export function SidebarTopReserveRow({
   testId,
   renderHeaderSlot,
+  besideNavRail = false,
 }: {
   testId: string;
   renderHeaderSlot?: (startInsetClassName: string) => ReactNode;
+  besideNavRail?: boolean;
 }) {
   const closeOnMobile = useCloseMobileSidebar();
   const history = useRouteStateHistoryNavigation();
@@ -33,7 +39,11 @@ export function SidebarTopReserveRow({
       data-testid={testId}
       className={cn(CHROME_ROW_CLASS, "shrink-0 justify-end gap-1 px-2")}
     >
-      {renderHeaderSlot?.(BROWSER_HEADER_SLOT_START_CLASS)}
+      {renderHeaderSlot?.(
+        besideNavRail
+          ? NAV_RAIL_HEADER_SLOT_START_CLASS
+          : BROWSER_HEADER_SLOT_START_CLASS,
+      )}
       <div className="flex items-center gap-1 shrink-0">
         {buttons.map(([icon, label, enabled, go]) => (
           <Button

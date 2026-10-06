@@ -1,9 +1,4 @@
-import {
-  createContext,
-  useContext,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "jotai";
 import type {
@@ -20,14 +15,12 @@ import {
   useIsAppCommandModifierHeld,
 } from "@/components/commands/AppCommandProvider";
 import { PluginItemIcon } from "@/components/plugin/PluginIcon";
-import { PluginSlotMount } from "@/plugins/mount";
 import { useSetPluginEnabled } from "@/components/plugin/useSetPluginEnabled";
 import { appToast } from "@/components/ui/app-toast";
 import { invalidatePluginList } from "@/hooks/queries/plugin-settings-queries";
 import type { AppShortcutPresentation } from "@/lib/app-keybindings";
 import { appQueryClient } from "@/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
-import type { PluginSlot } from "@/plugins/registry";
 import {
   getPluginPanelRoutePath,
   getRootComposeRoutePath,
@@ -45,6 +38,8 @@ export interface SidebarNavigationModel {
   state: SidebarNavigationState;
   entries: readonly SidebarNavigationEntry[];
 }
+
+export const NEW_THREAD_NAVIGATION_ITEM_ID = "__bb__/new-thread";
 
 const SidebarNavigationModelContext =
   createContext<SidebarNavigationModel | null>(null);
@@ -71,30 +66,6 @@ export function SidebarNavigationIcon({
   );
 }
 
-const wrappedAccessories = new WeakMap<ComponentType, ComponentType>();
-
-function wrappedAccessory(
-  panel: PluginSlot<"navPanels">,
-): ComponentType | null {
-  const Accessory = panel.sidebarAccessory;
-  if (Accessory === undefined) return null;
-  const cached = wrappedAccessories.get(Accessory);
-  if (cached) return cached;
-  const SidebarNavigationAccessory = () => (
-    <PluginSlotMount
-      key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
-      pluginId={panel.pluginId}
-      slotKind="navPanelSidebarAccessory"
-      slotId={panel.id}
-      crashFallback={<></>}
-    >
-      <Accessory />
-    </PluginSlotMount>
-  );
-  wrappedAccessories.set(Accessory, SidebarNavigationAccessory);
-  return SidebarNavigationAccessory;
-}
-
 function hostEntry(
   action: "new-thread" | "search-threads",
   label: string,
@@ -116,7 +87,6 @@ function hostEntry(
         label: shortcut.label,
         ariaKeyShortcuts: shortcut.ariaKeyshortcuts,
       },
-      Accessory: null,
     },
     content: isNewThread ? { kind: "new-thread" } : null,
     route: isNewThread ? getRootComposeRoutePath() : null,
@@ -184,8 +154,6 @@ export function SidebarNavigationModelProvider({
         isLoading: panel === null,
         pluginId: chrome.pluginId,
         shortcut: null,
-        Accessory:
-          panel !== null && !isCompactViewport ? wrappedAccessory(panel) : null,
       },
       content: {
         kind: "plugin-panel",
