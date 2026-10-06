@@ -1,15 +1,20 @@
 import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
 import type { ReactNode } from "react";
 import { CONTEXT_SELECTION_SURFACE_CLASS } from "./context-selection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 
+const TAB_PILL_DEFAULT_LABEL_MAX_WIDTH_CLASS = "max-w-[180px]";
 const TAB_PILL_AFFORDANCE_BUTTON_BASE_CLASS =
-  "inline-flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted-foreground/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none";
-const TAB_PILL_CLOSE_BUTTON_CLASS = `pointer-events-none absolute left-1.5 top-1/2 z-10 -translate-y-1/2 ${TAB_PILL_AFFORDANCE_BUTTON_BASE_CLASS} opacity-0 hover:opacity-100 group-hover/tab-pill:pointer-events-auto group-hover/tab-pill:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 disabled:opacity-30`;
+  "inline-flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted-foreground/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none max-md:pointer-coarse:size-5";
+const TAB_PILL_AFFORDANCE_ICON_CLASS = "size-3.5 max-md:pointer-coarse:size-5";
+const TAB_PILL_CLOSE_BUTTON_CLASS = `pointer-events-none absolute left-1.5 top-1/2 z-10 -translate-y-1/2 ${TAB_PILL_AFFORDANCE_BUTTON_BASE_CLASS} opacity-0 hover:opacity-100 group-hover/tab-pill:pointer-events-auto group-hover/tab-pill:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 disabled:opacity-30 max-md:pointer-coarse:pointer-events-auto max-md:pointer-coarse:opacity-100`;
+const TAB_PILL_LARGE_COARSE_POINTER_CLOSE_BUTTON_CLASS =
+  "max-md:pointer-coarse:min-h-9 max-md:pointer-coarse:min-w-9";
 const TAB_PILL_LEADING_VISUAL_CLASS =
-  "inline-flex size-4 shrink-0 items-center justify-center [&_[data-icon-root]]:size-3.5";
+  "inline-flex size-4 shrink-0 items-center justify-center [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:size-5 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
 
 interface TabPillCloseAction {
   onClose: () => void;
@@ -17,23 +22,12 @@ interface TabPillCloseAction {
   tooltip?: string;
 }
 
-export function TabPill({
-  label,
-  ariaLabel,
-  ariaKeyshortcuts,
-  iconOnly = false,
-  leadingVisual,
-  secondaryLabel = null,
-  title,
-  isActive,
-  onSelect,
-  labelMaxWidthClass = "max-w-[180px]",
-  closeAction,
-}: {
+interface TabPillProps {
   label: string;
   ariaLabel?: string;
   ariaKeyshortcuts?: string;
   iconOnly?: boolean;
+  compact?: boolean;
   leadingVisual?: ReactNode;
   secondaryLabel?: string | null;
   title: string;
@@ -41,7 +35,24 @@ export function TabPill({
   onSelect: () => void;
   labelMaxWidthClass?: string;
   closeAction: TabPillCloseAction | null;
-}) {
+  enlargeCloseTargetOnCoarsePointer?: boolean;
+}
+
+export function TabPill({
+  label,
+  ariaLabel,
+  ariaKeyshortcuts,
+  iconOnly = false,
+  compact = false,
+  leadingVisual,
+  secondaryLabel = null,
+  title,
+  isActive,
+  onSelect,
+  labelMaxWidthClass = TAB_PILL_DEFAULT_LABEL_MAX_WIDTH_CLASS,
+  closeAction,
+  enlargeCloseTargetOnCoarsePointer = false,
+}: TabPillProps) {
   return (
     <div
       onAuxClick={(event) => {
@@ -53,8 +64,9 @@ export function TabPill({
         closeAction.onClose();
       }}
       className={cn(
-        `group/tab-pill relative inline-flex h-7 shrink-0 items-center rounded-md ${LIST_HOVER_TRANSITION}`,
-        "text-xs",
+        `group/tab-pill relative inline-flex h-7 shrink-0 items-center rounded-md ${LIST_HOVER_TRANSITION} max-md:pointer-coarse:h-9`,
+        COARSE_POINTER_TEXT_SM_CLASS,
+        compact && "max-w-full",
         isActive
           ? cn(CONTEXT_SELECTION_SURFACE_CLASS, "text-foreground")
           : "text-muted-foreground hover:bg-state-hover",
@@ -69,6 +81,19 @@ export function TabPill({
         className={cn(
           "flex h-full min-w-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           iconOnly ? "px-1.5" : "pl-1.5 pr-2",
+          !iconOnly &&
+            closeAction &&
+            enlargeCloseTargetOnCoarsePointer &&
+            "max-md:pointer-coarse:pl-3.5",
+          compact &&
+            (iconOnly
+              ? "w-7 justify-center max-md:pointer-coarse:w-9"
+              : "px-2"),
+          compact && closeAction && !leadingVisual && "pl-8",
+          compact &&
+            closeAction &&
+            enlargeCloseTargetOnCoarsePointer &&
+            "max-md:pointer-coarse:pl-9",
         )}
       >
         {leadingVisual ? (
@@ -77,7 +102,18 @@ export function TabPill({
               TAB_PILL_LEADING_VISUAL_CLASS,
               !iconOnly && "mr-1.5",
               closeAction &&
-                "group-hover/tab-pill:opacity-0 tab-pill-close-focus-visible:opacity-0",
+                (compact
+                  ? "group-hover/tab-pill:opacity-0 group-focus-within/tab-pill:opacity-0"
+                  : "group-hover/tab-pill:opacity-0 tab-pill-close-focus-visible:opacity-0 max-md:pointer-coarse:opacity-0"),
+              compact &&
+                closeAction &&
+                (isActive
+                  ? "max-md:pointer-coarse:opacity-0"
+                  : "max-md:pointer-coarse:opacity-100"),
+              compact &&
+                closeAction &&
+                enlargeCloseTargetOnCoarsePointer &&
+                "max-md:pointer-coarse:absolute max-md:pointer-coarse:left-2",
             )}
           >
             {leadingVisual}
@@ -98,26 +134,50 @@ export function TabPill({
           </span>
         ) : null}
       </button>
-      {closeAction ? <TabPillCloseButton closeAction={closeAction} /> : null}
+      {closeAction ? (
+        <TabPillCloseButton
+          closeAction={closeAction}
+          compact={compact}
+          enlargeCloseTargetOnCoarsePointer={enlargeCloseTargetOnCoarsePointer}
+          isActive={isActive}
+        />
+      ) : null}
     </div>
   );
 }
 
 function TabPillCloseButton({
   closeAction,
+  compact,
+  enlargeCloseTargetOnCoarsePointer,
+  isActive,
 }: {
   closeAction: TabPillCloseAction;
+  compact: boolean;
+  enlargeCloseTargetOnCoarsePointer: boolean;
+  isActive: boolean;
 }) {
   const button = (
     <button
       type="button"
       onMouseDown={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
       onClick={closeAction.onClose}
       aria-label={closeAction.closeLabel}
       data-tab-pill-close
-      className={cn(TAB_PILL_CLOSE_BUTTON_CLASS)}
+      className={cn(
+        TAB_PILL_CLOSE_BUTTON_CLASS,
+        compact &&
+          "left-2 top-auto z-auto translate-y-0 group-focus-within/tab-pill:pointer-events-auto group-focus-within/tab-pill:opacity-100",
+        compact && !isActive && "max-md:pointer-coarse:hidden",
+        compact &&
+          enlargeCloseTargetOnCoarsePointer &&
+          "max-md:pointer-coarse:left-0",
+        enlargeCloseTargetOnCoarsePointer &&
+          TAB_PILL_LARGE_COARSE_POINTER_CLOSE_BUTTON_CLASS,
+      )}
     >
-      <Icon name="X" className="size-3.5" />
+      <Icon name="X" className={TAB_PILL_AFFORDANCE_ICON_CLASS} />
     </button>
   );
   return closeAction.tooltip === undefined ? (

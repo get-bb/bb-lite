@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { Icon } from "@bb/shared-ui/icon";
+import { COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import type { ProviderPromptActionCommand } from "@bb/client-core";
 
@@ -61,7 +62,7 @@ export function PromptBoxActionsMenu({
           variant="ghost"
           aria-label="Prompt actions"
           className={cn(
-            "size-auto h-8 px-2 transition-all",
+            COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
             CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS,
             "-ml-1.5",
           )}

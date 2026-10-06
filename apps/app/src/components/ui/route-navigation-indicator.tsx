@@ -46,7 +46,7 @@ export function RouteNavigationIndicator() {
       data-testid="route-navigation-indicator"
       role="progressbar"
       aria-label="Loading page"
-      className="pointer-events-none fixed inset-x-0 top-0 z-100 h-0.5 overflow-hidden bg-transparent"
+      className="pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-100 h-0.5 overflow-hidden bg-transparent"
     >
       <div className="h-full w-1/3 animate-indeterminate-progress rounded-full bg-muted-foreground" />
     </div>

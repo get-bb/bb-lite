@@ -1,4 +1,9 @@
 import { LIST_HOVER_TRANSITION } from "./motion.js";
+import {
+  COARSE_POINTER_CHILD_ICON_BUTTON_CLASS,
+  COARSE_POINTER_ROW_HEIGHT_CLASS,
+  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
+} from "./coarse-pointer-sizing.js";
 import { cn } from "../../lib/utils";
 
 export const SIDEBAR_HOVER_ACTIONS_ROW_CLASS = "bb-sidebar-hover-actions-row";
@@ -37,13 +42,14 @@ export const SIDEBAR_CONTROL_STATE_CLASS = `${SIDEBAR_CONTROL_TONE_CLASS} hover:
 
 const SIDEBAR_CONTROL_BUTTON_BASE_CLASS = `${SIDEBAR_CONTROL_STATE_CLASS} relative m-0 shrink-0 cursor-pointer rounded-md p-0 outline-none`;
 
-export const SIDEBAR_CONTROL_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
+export const SIDEBAR_CONTROL_BUTTON_CLASS = `${COARSE_POINTER_ROW_ACTION_SIZE_CLASS} ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
-export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
+export const SIDEBAR_CONTROL_PRIMARY_BUTTON_CLASS = `h-7 w-7 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-8 ${SIDEBAR_CONTROL_BUTTON_BASE_CLASS}`;
 
-export const SIDEBAR_CONTROL_PAIR_GAP_CLASS = SIDEBAR_HOVER_ACTIONS_GAP_CLASS;
+export const SIDEBAR_CONTROL_PAIR_GAP_CLASS = `${SIDEBAR_HOVER_ACTIONS_GAP_CLASS} max-md:pointer-coarse:gap-0`;
 
-export const SIDEBAR_CONTROL_PAIR_SIZE_CLASS = "h-7 w-[3.625rem]";
+export const SIDEBAR_CONTROL_PAIR_SIZE_CLASS =
+  "h-7 w-[3.625rem] max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-[4.25rem]";
 
 export function getSidebarThreadRowPaddingLeft(depth: number): number {
   return (
@@ -74,19 +80,19 @@ export const SIDEBAR_SECTION_DROP_TARGET_CLASS = `${SIDEBAR_SECTION_DROP_TARGET_
 export const SIDEBAR_SECTION_DROP_TARGET_UNCHANGED_CLASS = `${SIDEBAR_SECTION_DROP_TARGET_BASE_CLASS} bg-sidebar-accent/25 ring-muted-foreground/40`;
 
 export const SIDEBAR_FOOTER_ACTION_CLASS = cn(
-  "h-[var(--bb-sidebar-row-height)]",
-  "h-8 w-8 justify-center p-0 [&>[data-icon-root]]:size-4",
+  COARSE_POINTER_ROW_HEIGHT_CLASS,
+  COARSE_POINTER_CHILD_ICON_BUTTON_CLASS,
   "text-muted-foreground hover:text-sidebar-foreground [&>[data-icon-root]]:opacity-80",
 );
 
 export const SIDEBAR_MORE_ACTION_TRIGGER_CLASS =
-  "relative m-1 h-5 w-5 after:absolute after:left-1/2 after:top-1/2 after:h-7 after:w-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']";
+  "relative m-1 h-5 w-5 after:absolute after:left-1/2 after:top-1/2 after:h-7 after:w-7 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] max-md:pointer-coarse:m-0 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:after:hidden";
 
 export const PROJECT_LIST_ACTION_BUTTON_CLASS = cn(
   SIDEBAR_ROW_BASE_CLASS,
   LIST_HOVER_TRANSITION,
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
   SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
-  "h-[var(--bb-sidebar-row-height)]",
-  "min-w-0 cursor-pointer justify-start overflow-hidden font-normal ring-sidebar-ring focus-visible:ring-2 disabled:cursor-default disabled:opacity-70",
+  COARSE_POINTER_ROW_HEIGHT_CLASS,
+  "min-w-0 cursor-pointer justify-start overflow-hidden font-normal ring-sidebar-ring focus-visible:ring-2 disabled:cursor-default disabled:opacity-70 max-md:pointer-coarse:[&_[data-icon-root]]:size-5",
 );

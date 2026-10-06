@@ -6,6 +6,11 @@ import {
   CommandItem,
   CommandList,
 } from "@bb/shared-ui/command";
+import {
+  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+  COARSE_POINTER_ICON_SIZE_CLASS,
+  COARSE_POINTER_TEXT_SM_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
@@ -64,16 +69,19 @@ export function ParentThreadPicker({
           disabled={disabled}
           className={cn(
             "-mx-1 inline-flex h-5 w-fit max-w-full min-w-0 items-center gap-1 rounded-sm px-1 leading-tight text-foreground outline-none ring-sidebar-ring transition-colors hover:bg-state-hover data-[state=open]:bg-state-hover focus-visible:ring-2 disabled:cursor-default",
-            "text-xs",
+            COARSE_POINTER_TEXT_SM_CLASS,
           )}
         >
           <ThreadTitle
             title={selectedLabel}
-            className={cn("text-foreground", "text-xs")}
+            className={cn("text-foreground", COARSE_POINTER_TEXT_SM_CLASS)}
           />
           <Icon
             name="ChevronDown"
-            className={cn("size-3.5 shrink-0", "text-muted-foreground")}
+            className={cn(
+              COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+              "text-muted-foreground",
+            )}
           />
         </button>
       </PopoverTrigger>
@@ -129,7 +137,7 @@ export function ParentThreadPicker({
                           name="Check"
                           aria-hidden
                           className={cn(
-                            "size-4",
+                            COARSE_POINTER_ICON_SIZE_CLASS,
                             value === option.value
                               ? "opacity-100"
                               : "opacity-0",

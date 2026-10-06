@@ -20,10 +20,14 @@ export function getMediaQuerySnapshot(query: string): boolean {
   return hasMatchMedia() && window.matchMedia(query).matches;
 }
 
-export function usePrefersReducedMotion(): boolean {
+export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
-    (notify) => subscribeMediaQuery(REDUCED_MOTION_QUERY, notify),
-    () => getMediaQuerySnapshot(REDUCED_MOTION_QUERY),
+    (notify) => subscribeMediaQuery(query, notify),
+    () => getMediaQuerySnapshot(query),
     () => false,
   );
+}
+
+export function usePrefersReducedMotion(): boolean {
+  return useMediaQuery(REDUCED_MOTION_QUERY);
 }

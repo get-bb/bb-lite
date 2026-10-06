@@ -12,6 +12,7 @@ const TONE_CLASSES = {
 const SIZE_CLASSES = {
   default: { height: "h-6", above: "-top-6", below: "-bottom-6", width: "w-6" },
   sm: { height: "h-2", above: "-top-2", below: "-bottom-2", width: "w-2" },
+  lg: { height: "h-24", above: "-top-24", below: "-bottom-24", width: "w-24" },
 };
 
 export function OverflowFade({

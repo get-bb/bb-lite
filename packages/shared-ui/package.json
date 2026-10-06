@@ -24,10 +24,25 @@
       "types": "./src/components/ui/chrome-style-tokens.ts",
       "default": "./src/components/ui/chrome-style-tokens.ts"
     },
+    "./coarse-pointer-sizing": {
+      "source": "./src/components/ui/coarse-pointer-sizing.ts",
+      "types": "./src/components/ui/coarse-pointer-sizing.ts",
+      "default": "./src/components/ui/coarse-pointer-sizing.ts"
+    },
+    "./coarse-pointer-visibility": {
+      "source": "./src/components/ui/coarse-pointer-visibility.ts",
+      "types": "./src/components/ui/coarse-pointer-visibility.ts",
+      "default": "./src/components/ui/coarse-pointer-visibility.ts"
+    },
     "./command": {
       "source": "./src/components/ui/command.tsx",
       "types": "./src/components/ui/command.tsx",
       "default": "./src/components/ui/command.tsx"
+    },
+    "./compact-long-press-menu": {
+      "source": "./src/components/ui/compact-long-press-menu.tsx",
+      "types": "./src/components/ui/compact-long-press-menu.tsx",
+      "default": "./src/components/ui/compact-long-press-menu.tsx"
     },
     "./context-menu": {
       "source": "./src/components/ui/context-menu.tsx",
@@ -103,6 +118,11 @@
       "source": "./src/components/ui/resource-list.tsx",
       "types": "./src/components/ui/resource-list.tsx",
       "default": "./src/components/ui/resource-list.tsx"
+    },
+    "./responsive-overlay": {
+      "source": "./src/components/ui/responsive-overlay.tsx",
+      "types": "./src/components/ui/responsive-overlay.tsx",
+      "default": "./src/components/ui/responsive-overlay.tsx"
     },
     "./select": {
       "source": "./src/components/ui/select.tsx",
@@ -184,10 +204,20 @@
       "types": "./src/components/ui/use-reorder-dnd.ts",
       "default": "./src/components/ui/use-reorder-dnd.ts"
     },
+    "./hooks/use-compact-viewport": {
+      "source": "./src/components/ui/hooks/use-compact-viewport.tsx",
+      "types": "./src/components/ui/hooks/use-compact-viewport.tsx",
+      "default": "./src/components/ui/hooks/use-compact-viewport.tsx"
+    },
     "./hooks/use-media-query": {
       "source": "./src/components/ui/hooks/use-media-query.ts",
       "types": "./src/components/ui/hooks/use-media-query.ts",
       "default": "./src/components/ui/hooks/use-media-query.ts"
+    },
+    "./hooks/use-pointer-coarse": {
+      "source": "./src/components/ui/hooks/use-pointer-coarse.ts",
+      "types": "./src/components/ui/hooks/use-pointer-coarse.ts",
+      "default": "./src/components/ui/hooks/use-pointer-coarse.ts"
     },
     "./hooks/use-drag-click-suppression": {
       "source": "./src/components/ui/hooks/use-drag-click-suppression.ts",

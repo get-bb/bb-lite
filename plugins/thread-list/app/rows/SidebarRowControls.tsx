@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
+import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import {
   SIDEBAR_CONTROL_PAIR_GAP_CLASS,
@@ -65,7 +66,7 @@ export function SidebarControlButton({
             onClick();
           }}
         >
-          <Icon name={icon} className="size-4" />
+          <Icon name={icon} className={COARSE_POINTER_ICON_SIZE_CLASS} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>

@@ -109,7 +109,7 @@ export function CollapsibleHeader({
             ? "rotate-90"
             : forceChevronVisible
               ? "opacity-100"
-              : "opacity-0 group-hover/toggle:opacity-100 group-focus-visible/toggle:opacity-100",
+              : "opacity-0 group-hover/toggle:opacity-100 group-focus-visible/toggle:opacity-100 max-md:pointer-coarse:opacity-100",
         )}
       />
     </button>

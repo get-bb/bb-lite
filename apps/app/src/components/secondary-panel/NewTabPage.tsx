@@ -1,5 +1,11 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { directoryFromPath } from "@bb/thread-view";
+import {
+  COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
+  COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
+  COARSE_POINTER_ICON_SIZE_CLASS,
+  COARSE_POINTER_TEXT_SM_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
@@ -25,7 +31,7 @@ interface NewTabPageProps {
 }
 
 const FILE_SEARCH_LIMIT = 20;
-const ROW_ICON_CLASS = `flex shrink-0 items-center justify-center overflow-hidden text-muted-foreground size-4`;
+const ROW_ICON_CLASS = `flex shrink-0 items-center justify-center overflow-hidden text-muted-foreground ${COARSE_POINTER_ICON_SIZE_CLASS}`;
 
 function SectionHeader({ label, sticky }: { label: string; sticky?: boolean }) {
   return (
@@ -54,12 +60,12 @@ function SearchMessage({
         <Icon
           name={iconName}
           className={cn(
-            "size-4",
+            COARSE_POINTER_ICON_SIZE_CLASS,
             "shrink-0",
             iconName === "Spinner" && "animate-spin",
           )}
         />
-        <p className="text-xs">{message}</p>
+        <p className={COARSE_POINTER_TEXT_SM_CLASS}>{message}</p>
       </div>
     </EmptyStatePanel>
   );
@@ -121,7 +127,13 @@ export function NewTabPage({
       : [
           {
             id: "file-search-result-start-terminal",
-            icon: <Icon name="Terminal" className="size-3.5" aria-hidden />,
+            icon: (
+              <Icon
+                name="Terminal"
+                className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
+                aria-hidden
+              />
+            ),
             label: "Start terminal",
             shortcut: terminalShortcut,
             onSelect: onStartTerminal,
@@ -133,7 +145,7 @@ export function NewTabPage({
         <PluginItemIcon
           pluginId={action.pluginId}
           icon={action.icon}
-          className="size-3.5"
+          className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
         />
       ),
       label: action.title,
@@ -151,7 +163,7 @@ export function NewTabPage({
               <div
                 key={action.id}
                 className={cn(
-                  `group flex w-full min-w-0 items-center gap-1.5 rounded px-2 py-1.5 text-left ${LIST_HOVER_TRANSITION} focus-visible:outline-none text-xs focus-visible:bg-state-hover focus-visible:text-foreground`,
+                  `group flex w-full min-w-0 items-center gap-1.5 rounded px-2 py-1.5 text-left ${LIST_HOVER_TRANSITION} focus-visible:outline-none ${COARSE_POINTER_TEXT_SM_CLASS} focus-visible:bg-state-hover focus-visible:text-foreground`,
                   "relative scroll-mt-7 focus-within:bg-state-hover focus-within:text-foreground",
                   "hover:bg-state-hover",
                 )}
@@ -189,7 +201,7 @@ export function NewTabPage({
             name="Search"
             className={cn(
               "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground",
-              "size-4",
+              COARSE_POINTER_ICON_SIZE_CLASS,
             )}
           />
           <Input
@@ -233,14 +245,17 @@ export function NewTabPage({
             placeholder={
               isUnavailable ? "No searchable source" : "Search files"
             }
-            className={cn("h-8 pl-8 pr-8 focus-visible:ring-0", "text-xs")}
+            className={cn(
+              "h-8 pl-8 pr-8 focus-visible:ring-0",
+              COARSE_POINTER_TEXT_SM_CLASS,
+            )}
           />
           {search.isDebouncing ? (
             <Icon
               name="Spinner"
               className={cn(
                 "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground",
-                "size-3.5",
+                COARSE_POINTER_COMPACT_ICON_SIZE_CLASS,
               )}
             />
           ) : null}
@@ -293,7 +308,7 @@ export function NewTabPage({
                         className={cn(
                           "w-full scroll-mt-7 rounded px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                           LIST_HOVER_TRANSITION,
-                          "text-xs",
+                          COARSE_POINTER_TEXT_SM_CLASS,
                           index === activeIndex
                             ? "bg-state-active"
                             : "hover:bg-state-hover",
@@ -305,7 +320,7 @@ export function NewTabPage({
                               suggestion.path,
                             )}
                             className={cn(
-                              "size-3.5 shrink-0",
+                              COARSE_POINTER_COMPACT_ICON_SIZE_SHRINK_CLASS,
                               "text-muted-foreground",
                             )}
                             aria-hidden

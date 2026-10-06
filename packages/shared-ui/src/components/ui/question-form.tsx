@@ -12,6 +12,7 @@ import {
 } from "./question-form-host";
 import { Button } from "./button";
 import { Icon } from "./icon";
+import { usePointerCoarse } from "./hooks/use-pointer-coarse";
 import { cn } from "../../lib/utils";
 
 const FREE_TEXT_MIN_HEIGHT = 84;
@@ -189,6 +190,7 @@ export function QuestionForm({
   const [currentIndex, setCurrentIndex] = useState(0);
   const formRef = useRef<HTMLDivElement>(null);
   const freeTextRef = useRef<HTMLTextAreaElement>(null);
+  const isPointerCoarse = usePointerCoarse();
   const { shortcuts, registerChoiceHandler } = useQuestionFormHost();
 
   const question = questions[currentIndex] ?? null;
@@ -364,7 +366,7 @@ export function QuestionForm({
               aria-label={`${question.shortLabel} answer`}
               value={state.otherText}
               rows={1}
-              autoFocus
+              autoFocus={!isPointerCoarse}
               autoComplete="off"
               onChange={(event) => {
                 const otherText = event.target.value;

@@ -1,6 +1,7 @@
 import { useContext, type ComponentProps, type ReactNode } from "react";
 import { useAtom } from "jotai";
 import { Button } from "@bb/shared-ui/button";
+import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
 import { Skeleton } from "@bb/shared-ui/skeleton";
@@ -260,7 +261,11 @@ function ThreadRightPanel(
           ...shared,
           label: session?.title ?? "Terminal",
           leadingVisual: (
-            <Icon name="Terminal" className="size-3.5" aria-hidden />
+            <Icon
+              name="Terminal"
+              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
+              aria-hidden
+            />
           ),
           statusLabel:
             session === undefined || session.status === "running"
@@ -287,7 +292,11 @@ function ThreadRightPanel(
           ...shared,
           label: "New tab",
           leadingVisual: (
-            <Icon name="NewTab" className="size-3.5" aria-hidden />
+            <Icon
+              name="NewTab"
+              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
+              aria-hidden
+            />
           ),
           renderContent: () => (
             <NewTabPage
@@ -383,7 +392,7 @@ function ThreadRightPanel(
             <PluginItemIcon
               pluginId={tab.pluginId}
               icon={action?.icon ?? null}
-              className="size-3.5"
+              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
             />
           ),
           renderContent: () => (
