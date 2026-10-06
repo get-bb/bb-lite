@@ -4,6 +4,7 @@ import type { FileContents } from "@pierre/diffs";
 import type { GitDiffFileChangeKind } from "@bb/server-contract";
 import { useIntersectionObserver } from "usehooks-ts";
 import { Button } from "@bb/shared-ui/button";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import BbDiff from "@/components/code/BbDiff";
 import type {
   DiffFullFileContents,
@@ -59,6 +60,10 @@ export function GitDiffCardBody({
   const [loadedDeletedFor, setLoadedDeletedFor] = useState<string | null>(null);
   const [loadedContext, setContext] = useState<ContextState | null>(null);
   const [contextAttempt, setContextAttempt] = useState(0);
+  const [requestedContextFor, setRequestedContextFor] = useState<string | null>(
+    null,
+  );
+  const isPointerCoarse = usePointerCoarse();
   const newPath = normalizeGitDiffPath(fileDiff.name) ?? fileDiff.name;
   const oldPath =
     changeKind === "renamed"
@@ -76,13 +81,16 @@ export function GitDiffCardBody({
   const shouldGateDeletedDiff =
     changeKind === "deleted" && loadedDeletedFor !== identity;
   const shouldRenderDiffView = hasEnteredViewport && !shouldGateDeletedDiff;
-  const shouldLoadContext =
+  const canExpandContext =
     shouldRenderDiffView &&
+    onRequestFileContents !== undefined &&
     patchText !== undefined &&
     fileDiff.hunks.length > 0 &&
     (changeKind === "modified" ||
       changeKind === "renamed" ||
       changeKind === "copied");
+  const shouldLoadContext =
+    canExpandContext && (!isPointerCoarse || requestedContextFor === identity);
   useEffect(() => {
     if (!shouldLoadContext || onRequestFileContents === undefined) return;
     const key = { identity, request: onRequestFileContents };
@@ -161,7 +169,22 @@ export function GitDiffCardBody({
             fullFileContents={context?.contents ?? null}
             {...presentation}
           />
-          {context?.status === "loading" || context?.status === "error" ? (
+          {canExpandContext && !shouldLoadContext ? (
+            <div className="flex items-center py-2 pl-2 pr-3 text-xs text-muted-foreground">
+              {gutter}
+              <span className="pl-[1ch]">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className={NOTICE_LINK_CLASS}
+                  onClick={() => setRequestedContextFor(identity)}
+                >
+                  Expand context
+                </Button>
+              </span>
+            </div>
+          ) : context?.status === "loading" || context?.status === "error" ? (
             <div className="flex items-center py-2 pl-2 pr-3 text-xs text-muted-foreground">
               {gutter}
               <span className="pl-[1ch]">

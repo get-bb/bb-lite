@@ -7,6 +7,7 @@ import {
   COARSE_POINTER_TEXT_SM_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
@@ -84,6 +85,7 @@ export function NewTabPage({
   const terminalShortcut = useAppCommandShortcut("terminal.open");
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
+  const isPointerCoarse = usePointerCoarse();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const hasQuery = query.trim().length > 0;
@@ -104,13 +106,17 @@ export function NewTabPage({
 
   useEffect(() => {
     if (!autoFocus) return;
+    if (isPointerCoarse) {
+      onAutoFocusHandled();
+      return;
+    }
     inputRef.current?.focus({ preventScroll: true });
     const frame = requestAnimationFrame(() =>
       inputRef.current?.focus({ preventScroll: true }),
     );
     onAutoFocusHandled();
     return () => cancelAnimationFrame(frame);
-  }, [autoFocus, onAutoFocusHandled]);
+  }, [autoFocus, isPointerCoarse, onAutoFocusHandled]);
   useEffect(() => {
     setActiveIndex(0);
   }, [query, suggestions.length]);
@@ -246,7 +252,7 @@ export function NewTabPage({
               isUnavailable ? "No searchable source" : "Search files"
             }
             className={cn(
-              "h-8 pl-8 pr-8 focus-visible:ring-0",
+              "h-8 pl-8 pr-8 focus-visible:ring-0 max-md:pointer-coarse:h-10",
               COARSE_POINTER_TEXT_SM_CLASS,
             )}
           />

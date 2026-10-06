@@ -6,6 +6,7 @@ import type {
   EnvironmentDiffFilesResponse,
 } from "@bb/server-contract";
 import type { EnvironmentDiffFileArgs } from "@bb/sdk/browser";
+import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -23,7 +24,7 @@ import {
   useGitDiffLineOverflowModePreference,
 } from "@/lib/git-diff-view-preferences";
 import { sdk } from "@/lib/sdk";
-import { GitDiffToolbar } from "../GitDiffToolbar";
+import { GitDiffToolbar, type GitDiffDisplayMode } from "../GitDiffToolbar";
 import { DiffFileCard } from "./DiffFileCard";
 import {
   ALL_GIT_DIFF_SELECTION,
@@ -191,9 +192,13 @@ export function useGitDiffTab({
   const [lineOverflowMode, setLineOverflowMode] =
     useGitDiffLineOverflowModePreference();
   const { ref: toolbarRef, width: panelWidth } = useElementWidth();
-  const displayMode =
-    displayModePreference ??
-    (panelWidth >= GIT_DIFF_SPLIT_VIEW_MIN_WIDTH_PX ? "split" : "unified");
+  const isCompactViewport = useIsCompactViewport();
+  const [compactDisplayMode, setCompactDisplayMode] =
+    useState<GitDiffDisplayMode | null>(null);
+  const displayMode = isCompactViewport
+    ? (compactDisplayMode ?? "unified")
+    : (displayModePreference ??
+      (panelWidth >= GIT_DIFF_SPLIT_VIEW_MIN_WIDTH_PX ? "split" : "unified"));
   const presentation = useMemo<DiffPresentation>(
     () => ({
       view: displayMode,
@@ -238,7 +243,9 @@ export function useGitDiffTab({
         setFilesCollapsed(visibleFiles, !areAllCollapsed)
       }
       displayMode={displayMode}
-      onDisplayModeChange={setDisplayModePreference}
+      onDisplayModeChange={
+        isCompactViewport ? setCompactDisplayMode : setDisplayModePreference
+      }
       lineOverflowMode={lineOverflowMode}
       onLineOverflowModeChange={setLineOverflowMode}
     />

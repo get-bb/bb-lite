@@ -130,7 +130,7 @@ function ParentSelectorRow({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-3.5 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-transparent hover:text-foreground [&_[data-icon-root]]:size-3"
+            className="size-3.5 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-transparent hover:text-foreground [&_[data-icon-root]]:size-3 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5"
             disabled={updateThreadPending}
             onClick={() => {
               onAssignParent(null);
