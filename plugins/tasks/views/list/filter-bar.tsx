@@ -24,7 +24,7 @@ import {
 
 function chipTriggerClass(active: boolean): string {
   return cn(
-    "flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs",
+    "flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs max-md:pointer-coarse:h-8",
     active
       ? "border-border bg-secondary text-foreground"
       : "border-dashed border-border text-muted-foreground hover:border-input hover:text-foreground",
@@ -70,7 +70,11 @@ function FilterChip<Value extends string>({
           ) : null}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="min-w-44">
+      <DropdownMenuContent
+        align={align}
+        className="min-w-44"
+        mobileTitle={sorting ? "Sort tasks" : undefined}
+      >
         {options.map((option) => (
           <DropdownMenuCheckboxItem
             key={option.value}
@@ -169,7 +173,7 @@ export function ListFilterBar({
           <button
             type="button"
             onClick={() => onChange(EMPTY_FILTERS)}
-            className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2.5 text-xs text-muted-foreground hover:border-input hover:text-foreground"
+            className="flex h-6 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2.5 text-xs text-muted-foreground hover:border-input hover:text-foreground max-md:pointer-coarse:h-8"
           >
             <Icon name="X" className="size-3" />
             Clear
