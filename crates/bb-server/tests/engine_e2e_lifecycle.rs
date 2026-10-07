@@ -306,3 +306,147 @@ async fn tells_a_parent_about_its_children_in_batches() {
     let completed = format!("[bb system]\n\n@thread:{one} completed:\n\nall green");
     assert_eq!(notice_texts(&server, &parent)[2], completed);
 }
+
+#[tokio::test]
+async fn archives_a_tree_keeps_turns_through_the_undo_grace_and_unarchives() {
+    let server = Server::new().await;
+    let parent = server.spawn(json!({})).await;
+    let child = server.spawn(json!({ "parentThreadId": parent })).await;
+    server.ingest(&child, vec![events::identity(), events::started("c1")]).await;
+    let terminal = server.open_terminal(&parent);
+    server.changes.lock().clear();
+
+    let archived = ops::archive(&server.ctx, &parent).await.unwrap();
+    server.settle().await;
+    assert_eq!(archived, [child.clone(), parent.clone()]);
+    let change = server.changed("archived-changed").remove(0);
+    assert_eq!(change, (json!(["archived-changed"]), json!({ "projectId": "proj_1" })));
+    server.advance(29_000).await;
+    assert_eq!(row(&server, &child)["status"], "active");
+    assert!(server.calls_to("closeTerminal").is_empty());
+    let request = json!({ "input": text("hello"), "mode": "auto" });
+    let refused = ops::send(&server.ctx, &child, serde_json::from_value(request).unwrap()).await;
+    let details = refused.unwrap_err().body.details.unwrap();
+    assert_matches(&details, json!({ "reason": "archived" }));
+
+    server.advance(1_000).await;
+    assert_eq!(row(&server, &child)["status"], "stopping");
+    assert_eq!(server.calls_to("closeTerminal"), [terminal]);
+    server.ingest(&child, vec![events::completed("c1", "interrupted")]).await;
+    ops::unarchive(&server.ctx, &child).await.unwrap();
+    server.settle().await;
+    assert_matches(&row(&server, &child), json!({ "status": "idle", "archivedAt": null }));
+    assert!(server.thread(&parent).archived_at.is_some());
+}
+
+#[tokio::test]
+async fn deletes_a_thread_once_its_storage_is_gone_retrying_from_the_sweep() {
+    let server = Server::new().await;
+    let parent = server.spawn(json!({})).await;
+    let child = server.spawn(json!({ "parentThreadId": parent })).await;
+    let refused = ops::delete(&server.ctx, &parent, false).await;
+    assert_eq!(refused.unwrap_err().status, 409);
+    let terminal = server.open_terminal(&parent);
+    let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = attempts.clone();
+    server.script("deleteThreadStorage", move |_| {
+        if counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+            return Err(bb_core::RunnerError::new(bb_core::RunnerErrorCode::Conflict, "disk busy"));
+        }
+        Ok(Value::Null)
+    });
+    server.changes.lock().clear();
+    ops::delete(&server.ctx, &parent, true).await.unwrap();
+    server.settle().await;
+    let tombstones = server.rows("SELECT id FROM threads WHERE deleted_at IS NOT NULL", &[]);
+    assert_eq!(tombstones, [json!({ "id": parent })]);
+    assert_eq!(server.changed("thread-deleted")[0].0, json!(["thread-deleted"]));
+    server.advance(10_000).await;
+    let remaining = server.rows("SELECT id, parent_thread_id FROM threads", &[]);
+    let orphan = [json!({ "id": child, "parentThreadId": null })];
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(remaining, orphan);
+    bb_server::projects::remove::remove_project(&server.ctx, "proj_1").await.unwrap();
+    for _ in 0..5 {
+        server.settle().await;
+    }
+    let released = server.calls_to("deleteThreadStorage")[2].clone();
+    assert_eq!(released, json!({ "threadId": child }));
+    assert!(server.rows("SELECT id FROM threads", &[]).is_empty());
+    assert_eq!(server.calls_to("closeTerminal"), [terminal]);
+}
+
+#[tokio::test]
+async fn reconciles_threads_when_a_runner_reconnects() {
+    let server = Server::new().await;
+    let kept = server.spawn(json!({})).await;
+    let lost = server.spawn(json!({})).await;
+    server.ingest(&kept, vec![events::identity(), events::started("k1")]).await;
+    server.ingest(&lost, vec![events::identity(), events::started("l1")]).await;
+    let snapshot = json!({
+        "sessions": [{
+            "providerId": "codex",
+            "providerThreadId": "prov-1",
+            "threadId": kept,
+            "activeTurnId": "k1",
+        }],
+        "pendingRequestIds": [],
+        "terminalIds": [],
+        "lastEventSeq": 0,
+    });
+    server.script("snapshot", move |_| Ok(snapshot.clone()));
+    server.reconnect().await;
+    let statuses = || [row(&server, &kept)["status"].clone(), row(&server, &lost)["status"].clone()];
+    assert_eq!(statuses(), [json!("active"), json!("error")]);
+    let interrupted = "system/thread/interrupted";
+    let restarted = json!({ "reason": "host-daemon-restarted", "cause": "host-connection-lost" });
+    assert_eq!(server.event_data(&lost, interrupted), [restarted]);
+    let closed = server.event_data(&lost, "turn/completed");
+    assert_eq!(closed.len(), 1);
+    assert_matches(&closed[0], json!({ "status": "interrupted" }));
+
+    let next = json!({ "instanceId": "inst-2", "homeDir": "/home/me" });
+    server.script("describe", move |_| Ok(next.clone()));
+    server.reconnect().await;
+    assert_matches(&row(&server, &kept), json!({ "status": "error", "activeTurnId": null }));
+    let restarted = json!({ "reason": "host-daemon-restarted" });
+    assert_eq!(server.event_data(&kept, interrupted), [restarted]);
+}
+
+#[tokio::test]
+async fn interrupts_threads_that_were_running_when_the_server_stopped() {
+    let clock = Arc::new(std::sync::atomic::AtomicI64::new(1_000_000));
+    let db = engine_e2e_lifecycle_support::clocked_db(&clock);
+    let seed = [
+        "INSERT INTO hosts (id, name, created_at, updated_at) VALUES ('host_local', 'h', 1, 1)",
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES ('p', 'P', 1, 1)",
+        "INSERT INTO environments (id, project_id, host_id, path, status, created_at, updated_at)
+          VALUES ('env_1', 'p', 'host_local', '/repo', 'ready', 1, 1)",
+    ];
+    for sql in seed {
+        db.run(sql, []).unwrap();
+    }
+    let insert = |id: &str, status: &str, environment: Option<&str>| {
+        let turn = (status == "active").then_some("t1");
+        let sql = "INSERT INTO threads (id, project_id, environment_id, provider_id, status,
+          active_turn_id, latest_attention_at, created_at, updated_at)
+          VALUES (?, 'p', ?, 'codex', ?, ?, 1, 1, 1)";
+        db.run(sql, bb_server::db::params![id, environment, status, turn]).unwrap();
+    };
+    insert("thr_active", "active", Some("env_1"));
+    insert("thr_idle", "idle", Some("env_1"));
+    insert("thr_starting", "starting", None);
+    let log = bb_server::log::Logger::new(bb_server::log::LogLevel::Warn);
+    let ctx = engine_e2e_lifecycle_support::context(db.clone(), log, vec![]);
+    bb_server::threads::engine::start(&ctx).unwrap();
+    bb_server::threads::engine::settled(&ctx).await;
+    let column = |sql: &str, name: &str| -> Vec<Value> {
+        db.rows(sql, []).unwrap().into_iter().map(|row| row[name].clone()).collect()
+    };
+    let statuses = column("SELECT status FROM threads ORDER BY id", "status");
+    assert_eq!(statuses, [json!("error"), json!("idle"), json!("error")]);
+    let types = column("SELECT type FROM events ORDER BY rowid", "type");
+    let interrupted = "system/thread/interrupted";
+    assert_eq!(types, [json!("turn/completed"), json!(interrupted), json!(interrupted)]);
+    bb_server::threads::engine::close(&ctx).await;
+}
