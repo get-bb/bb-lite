@@ -113,6 +113,8 @@ pub(crate) struct ProjectionState {
     pub(crate) delegated_turn_link_call_ids: HashSet<String>,
 }
 
+/// `(get, get_mut, Variant, Type)` generates both accessors; `(get_mut, Variant, Type)` only the
+/// mutable one.
 macro_rules! typed_accessors {
     ($get:ident, $get_mut:ident, $variant:ident, $ty:ty) => {
         /// The message behind `r`; panics if it is another kind (a projection bug).
@@ -123,6 +125,9 @@ macro_rules! typed_accessors {
             }
         }
 
+        typed_accessors!($get_mut, $variant, $ty);
+    };
+    ($get_mut:ident, $variant:ident, $ty:ty) => {
         /// The message behind `r`, mutably; panics if it is another kind (a projection bug).
         pub(crate) fn $get_mut(&mut self, r: MsgRef) -> &mut $ty {
             match &mut self.arena[r.0] {
@@ -166,11 +171,20 @@ impl ProjectionState {
     }
 
     typed_accessors!(assistant, assistant_mut, AssistantText, AssistantMessage);
-    typed_accessors!(exec, exec_mut, Exec, ExecMessage);
+    typed_accessors!(exec_mut, Exec, ExecMessage);
     typed_accessors!(item, item_mut, Item, ItemMessage);
     typed_accessors!(file_edit, file_edit_mut, FileEdit, FileEditMessage);
-    typed_accessors!(operation, operation_mut, Operation, OperationMessage);
-    typed_accessors!(workflow, workflow_mut, Workflow, WorkflowMessage);
+    typed_accessors!(operation_mut, Operation, OperationMessage);
+
+    /// The operation message behind `r` (read only by the operation projection tests).
+    #[cfg(test)]
+    pub(crate) fn operation(&self, r: MsgRef) -> &OperationMessage {
+        match &self.arena[r.0] {
+            Message::Operation(message) => message,
+            other => panic!("{r:?} is a {} message", other.kind()),
+        }
+    }
+    typed_accessors!(workflow_mut, Workflow, WorkflowMessage);
 
     /// The listed messages, materialized in order.
     fn into_messages(self) -> Vec<Message> {

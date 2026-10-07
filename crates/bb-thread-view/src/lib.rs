@@ -11,6 +11,7 @@ pub mod parse_operation_message;
 pub mod rows;
 pub mod text_projection;
 pub mod thread_state_extraction;
+pub mod timeline_row_title;
 pub mod timeline_view;
 pub mod tool_activity_projection;
 pub mod tool_call_parsing;
