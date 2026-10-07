@@ -17,6 +17,7 @@ use crate::error::{ApiError, ApiResult, conflict, invalid_request, not_found, no
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
 use crate::http::range::{FileResponseOptions, file_response};
 use crate::http::trust::Principal;
+use crate::http::validate::{Field, Kind, NON_EMPTY, check_object, opt, req};
 use crate::projects::attachments::{
     AttachmentUpload, UploadedPromptAttachment, attachment_mime_type, copy_attachments,
     resolve_attachment_path, store_attachment,
@@ -448,12 +449,21 @@ fn workspace_selector(query: &Map<String, Value>) -> ProjectWorkspaceSelector {
     ProjectWorkspaceSelector { host_id: text("hostId"), environment_id: text("environmentId") }
 }
 
+const WORKSPACE_PATHS_QUERY: &[Field] = &[
+    req("includeFiles", Kind::Enum(&["true", "false"])),
+    req("includeDirectories", Kind::Enum(&["true", "false"])),
+    opt("hostId", NON_EMPTY),
+    opt("query", Kind::Str { min: 1, max: Some(256) }),
+];
+
 async fn workspace_paths(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
     ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    check_object(&Value::Object(query.clone()), WORKSPACE_PATHS_QUERY, false)
+        .map_err(crate::error::invalid_request)?;
     let workspace = require_project_workspace(&ctx, &id, &workspace_selector(&query))?;
     let paths = serde_json::from_value(Value::Object(query.clone()))
         .map_err(|error| crate::error::invalid_request(error.to_string()))?;

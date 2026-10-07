@@ -6,3 +6,4 @@ pub mod range;
 pub mod routes;
 pub mod static_app;
 pub mod trust;
+pub mod validate;
