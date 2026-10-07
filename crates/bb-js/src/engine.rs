@@ -4,10 +4,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
 use parking_lot::Mutex;
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
 use rquickjs::module::Declared;
-use rquickjs::{Context, Ctx, Error as QjsError, Function, Module, Object, Runtime};
+use rquickjs::{Context, Ctx, Error as QjsError, Function, Module, Object, Runtime, TypedArray};
 use serde_json::{Value, json};
 
 use crate::{Command, ConsoleFn, JsError, JsRuntimeOptions, Registry, Reply, Target};
@@ -428,8 +429,42 @@ fn install_native<'js>(
             (0..n.max(0.0) as usize).map(|_| format!("{:02x}", rand::random::<u8>())).collect()
         })?,
     )?;
+    // Base64 of request/response bodies and `Buffer` runs natively: a
+    // JavaScript loop over a 25 MB upload outlives the run deadline.
+    native.set(
+        "base64Encode",
+        Function::new(ctx.clone(), |bytes: TypedArray<'js, u8>| -> String {
+            // SAFETY: the bytes are encoded before any JavaScript runs again,
+            // so the buffer cannot be detached or resized while borrowed.
+            BASE64_FORGIVING.encode(unsafe { bytes.as_bytes() }.unwrap_or_default())
+        })?,
+    )?;
+    native.set(
+        "base64Decode",
+        Function::new(
+            ctx.clone(),
+            |ctx: Ctx<'js>, input: String| -> rquickjs::Result<Option<TypedArray<'js, u8>>> {
+                let clean: Vec<u8> = input
+                    .bytes()
+                    .filter(|b| !matches!(b, b'\t' | b'\n' | b'\x0c' | b'\r' | b' '))
+                    .collect();
+                match BASE64_FORGIVING.decode(clean) {
+                    Ok(bytes) => TypedArray::new(ctx, bytes).map(Some),
+                    Err(_) => Ok(None),
+                }
+            },
+        )?,
+    )?;
     ctx.globals().set("__bb_native", native)
 }
+
+/// `atob` semantics: padding optional, non-zero trailing bits allowed.
+const BASE64_FORGIVING: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
+    &base64::alphabet::STANDARD,
+    base64::engine::GeneralPurposeConfig::new()
+        .with_decode_padding_mode(base64::engine::DecodePaddingMode::Indifferent)
+        .with_decode_allow_trailing_bits(true),
+);
 
 fn url_json(u: &url::Url) -> String {
     use url::quirks as q;

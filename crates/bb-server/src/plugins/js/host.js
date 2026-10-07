@@ -8,6 +8,8 @@ const controllers = new Map();
 const signals = new Map();
 
 const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
+const withoutNulls = (record) =>
+  Object.fromEntries(Object.entries(record ?? {}).filter(([, value]) => value != null));
 
 const handler = (fn) => {
   const id = `plugin:${++nextHandler}`;
@@ -202,7 +204,9 @@ function createApi(config, z) {
     cli: {
       register(registration) {
         const run = handler(({ argv, context, signal }) =>
-          withSignal(signal, (abort) => registration.run(argv, { ...context, signal: abort })),
+          withSignal(signal, (abort) =>
+            // Absent fields are `undefined` in the Node server (`cli.threadId === undefined`).
+            registration.run(argv, { ...withoutNulls(context), signal: abort })),
         );
         register("cli", {
           name: registration.name,

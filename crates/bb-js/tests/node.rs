@@ -332,3 +332,44 @@ async fn request_response_bridge() {
         ])
     );
 }
+
+#[tokio::test]
+async fn base64_is_native_forgiving_and_fast() {
+    let rt = runtime(Path::new("/work"), None).await;
+    let small = ok(
+        &rt,
+        r#"return [
+            btoa("hi"), atob("aGk="), atob("aGk"), atob(" aG\nk= "), atob("aGl="),
+            Buffer.from("aGk", "base64").toString(), Buffer.from([1, 2, 255]).toString("base64"),
+            (() => { try { atob("a"); return "no"; } catch (e) { return e.name; } })(),
+            (() => { try { atob("a*bc"); return "no"; } catch (e) { return e.name; } })(),
+        ];"#,
+    )
+    .await;
+    assert_eq!(
+        small,
+        serde_json::json!([
+            "aGk=",
+            "hi",
+            "hi",
+            "hi",
+            "hi",
+            "hi",
+            "AQL/",
+            "InvalidCharacterError",
+            "InvalidCharacterError"
+        ])
+    );
+    // 30 MB each way stays well inside the 5 s run deadline.
+    let started = std::time::Instant::now();
+    let big = ok(
+        &rt,
+        r#"const bytes = new Uint8Array(30 * 1024 * 1024).fill(7);
+           const text = Buffer.from(bytes).toString("base64");
+           const back = Buffer.from(text, "base64");
+           return [text.length, back.length, back[back.length - 1]];"#,
+    )
+    .await;
+    assert_eq!(big, serde_json::json!([41943040, 31457280, 7]));
+    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+}
