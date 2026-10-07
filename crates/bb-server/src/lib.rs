@@ -1,6 +1,8 @@
 //! The bb server. `docs/architecture.md` describes the behaviour; the module tree mirrors
 //! `apps/server/src`.
 
+#![allow(clippy::result_large_err)]
+
 pub mod config;
 pub mod context;
 pub mod db;

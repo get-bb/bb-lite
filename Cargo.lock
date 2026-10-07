@@ -210,7 +210,9 @@ dependencies = [
 name = "bb-cli"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "libc",
+ "regex",
  "serde_json",
  "ureq",
 ]
@@ -326,8 +328,10 @@ dependencies = [
  "parking_lot",
  "rand 0.10.3",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -401,11 +405,14 @@ dependencies = [
  "base64 0.23.1",
  "bb-core",
  "bb-remote",
+ "brotli",
  "bytes",
+ "flate2",
  "futures",
  "hex",
  "http",
  "http-body-util",
+ "httpdate",
  "hyper",
  "hyper-util",
  "indexmap",
