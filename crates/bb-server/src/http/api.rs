@@ -66,7 +66,12 @@ where
 }
 
 fn json_rejection(rejection: JsonRejection) -> ApiError {
-    invalid_request(rejection.body_text())
+    match rejection {
+        JsonRejection::JsonSyntaxError(_) | JsonRejection::MissingJsonContentType(_) => {
+            invalid_request("Invalid JSON request body".to_owned())
+        }
+        other => invalid_request(other.body_text()),
+    }
 }
 
 fn query_rejection(rejection: QueryRejection) -> ApiError {

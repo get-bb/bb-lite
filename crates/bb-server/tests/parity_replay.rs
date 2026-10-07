@@ -11,7 +11,9 @@ fn check(scenario: &str) {
         .diffs
         .iter()
         .filter(|d| {
-            !ALLOWED.iter().any(|(s, n, p, _)| *s == d.scenario && *n == d.step && *p == d.json_path)
+            !ALLOWED
+                .iter()
+                .any(|(s, n, p, _)| *s == d.scenario && *n == d.step && *p == d.json_path)
         })
         .collect();
     println!(

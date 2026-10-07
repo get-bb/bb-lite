@@ -42,7 +42,11 @@ impl Diff {
     pub fn line(&self) -> String {
         let short = |v: &Value| {
             let s = v.to_string();
-            if s.chars().count() > 160 { format!("{}...", s.chars().take(160).collect::<String>()) } else { s }
+            if s.chars().count() > 160 {
+                format!("{}...", s.chars().take(160).collect::<String>())
+            } else {
+                s
+            }
         };
         format!(
             "{}#{} {} {}: {} {} vs {}",
@@ -282,6 +286,28 @@ async fn replay_all() -> BTreeMap<String, ScenarioResult> {
     results
 }
 
+/// Cursors are base64, so the recorder could not replace its temp paths inside them.
+fn recorder_temp_paths(value: &Value) -> Value {
+    static TEMP: OnceLock<Regex> = OnceLock::new();
+    let temp =
+        TEMP.get_or_init(|| Regex::new(r"/tmp/bb-parity-[A-Za-z0-9]+(/data|/repo)?").unwrap());
+    match value {
+        Value::String(s) => Value::String(
+            temp.replace_all(s, |c: &regex::Captures| match c.get(1).map(|m| m.as_str()) {
+                Some("/data") => "$DATA_DIR".to_owned(),
+                Some(_) => "$REPO".to_owned(),
+                None => "$TEMP".to_owned(),
+            })
+            .into_owned(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(recorder_temp_paths).collect()),
+        Value::Object(map) => {
+            Value::Object(map.iter().map(|(k, v)| (k.clone(), recorder_temp_paths(v))).collect())
+        }
+        other => other.clone(),
+    }
+}
+
 fn split_echo_key(token: &str) -> (&str, &str) {
     if token.len() == 12 && (token.ends_with("-t") || token.ends_with("-i")) {
         token.split_at(10)
@@ -399,7 +425,10 @@ impl Replayer {
                 let av = av.map(|v| self.sanitize_value(&v));
                 let mut sub = Vec::new();
                 match (rv, av) {
-                    (Some(rv), Some(av)) => self.compare("$", &rv, &av, &mut sub),
+                    (Some(rv), Some(av)) => {
+                        let rv = recorder_temp_paths(&rv);
+                        self.compare("$", &rv, &av, &mut sub)
+                    }
                     _ => ok = false,
                 }
                 ok &= sub.is_empty();
@@ -416,7 +445,13 @@ impl Replayer {
         ok && recorded[ri..] == actual[ai..]
     }
 
-    fn compare(&mut self, path: &str, recorded: &Value, actual: &Value, out: &mut Vec<(String, Value, Value)>) {
+    fn compare(
+        &mut self,
+        path: &str,
+        recorded: &Value,
+        actual: &Value,
+        out: &mut Vec<(String, Value, Value)>,
+    ) {
         if out.len() >= MAX_DIFFS_PER_STEP {
             return;
         }
@@ -456,7 +491,13 @@ impl Replayer {
         }
     }
 
-    fn compare_step(&mut self, step: &Value, prefix: &str, recorded: &Value, actual: &Value) -> Vec<Diff> {
+    fn compare_step(
+        &mut self,
+        step: &Value,
+        prefix: &str,
+        recorded: &Value,
+        actual: &Value,
+    ) -> Vec<Diff> {
         let actual = self.sanitize_value(actual);
         let mut out = Vec::new();
         self.compare(prefix, recorded, &actual, &mut out);
@@ -506,7 +547,9 @@ impl Replayer {
         }
         let response = match builder.send().await {
             Ok(response) => response,
-            Err(error) => return vec![diff(step, "$request", Value::Null, json!(error.to_string()))],
+            Err(error) => {
+                return vec![diff(step, "$request", Value::Null, json!(error.to_string()))];
+            }
         };
         let status = response.status().as_u16();
         let content_type = response
@@ -609,7 +652,12 @@ impl Replayer {
                 break;
             }
             if Instant::now() > deadline {
-                return vec![diff(step, "$wait", json!(what), json!(format!("timed out: {}", row(&id))))];
+                return vec![diff(
+                    step,
+                    "$wait",
+                    json!(what),
+                    json!(format!("timed out: {}", row(&id))),
+                )];
             }
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
@@ -686,7 +734,8 @@ impl Replayer {
             let mut timeline = Vec::new();
             let first = self.fetch_timeline(&base, &[]).await;
             timeline.push(first.clone());
-            timeline.push(self.fetch_timeline(&base, &[("includeNestedRows", "true".into())]).await);
+            timeline
+                .push(self.fetch_timeline(&base, &[("includeNestedRows", "true".into())]).await);
             timeline.push(self.fetch_timeline(&base, &[("summaryOnly", "true".into())]).await);
             let page = self.fetch_timeline(&base, &[("segmentLimit", "2".into())]).await;
             timeline.push(page.clone());
@@ -726,7 +775,8 @@ impl Replayer {
             let file = self.fixture_dir.join(format!("threads/{name}.json"));
             let Ok(text) = std::fs::read_to_string(&file) else { continue };
             let recorded: Value = serde_json::from_str(&text).unwrap();
-            let anchor = json!({"scenario": scenario, "step": 0, "subscription": format!("fixture:{name}")});
+            let anchor =
+                json!({"scenario": scenario, "step": 0, "subscription": format!("fixture:{name}")});
             let actual = json!({"timeline": timeline, "turnSummaryDetails": details});
             let expected = json!({"timeline": recorded["timeline"], "turnSummaryDetails": recorded["turnSummaryDetails"]});
             let diffs = self.compare_step(&anchor, "$", &expected, &actual);
@@ -741,7 +791,10 @@ impl Replayer {
     async fn flush(&mut self, scenario: &str, recorded: Vec<Value>, result: &mut ScenarioResult) {
         let mut by_key: BTreeMap<String, Vec<Value>> = BTreeMap::new();
         for step in recorded {
-            by_key.entry(step["subscription"].as_str().unwrap_or_default().to_owned()).or_default().push(step);
+            by_key
+                .entry(step["subscription"].as_str().unwrap_or_default().to_owned())
+                .or_default()
+                .push(step);
         }
         let mut live: BTreeMap<String, Vec<Value>> = BTreeMap::new();
         for socket in &self.sockets {
@@ -759,11 +812,13 @@ impl Replayer {
                 continue;
             }
             result.steps += 1;
-            let anchor = rec.first().cloned().unwrap_or_else(|| {
-                json!({"scenario": scenario, "step": 0, "subscription": key})
-            });
+            let anchor = rec
+                .first()
+                .cloned()
+                .unwrap_or_else(|| json!({"scenario": scenario, "step": 0, "subscription": key}));
             let rec_msgs: Vec<Value> = rec.iter().map(|s| s["message"].clone()).collect();
-            let diffs = self.compare_step(&anchor, "$ws", &Value::Array(rec_msgs), &Value::Array(act));
+            let diffs =
+                self.compare_step(&anchor, "$ws", &Value::Array(rec_msgs), &Value::Array(act));
             if !diffs.is_empty() {
                 result.differing_steps += 1;
             }
@@ -776,8 +831,10 @@ fn mask_path_values(recorded: &Value, actual: &Value) -> Value {
     fn walk(r: &Value, a: &Value) -> Value {
         match (r, a) {
             (Value::Object(rm), Value::Object(am)) => {
-                let is_path = am.get("name").and_then(Value::as_str) == Some("PATH")
-                    || am.get("key").and_then(Value::as_str) == Some("PATH");
+                let machine_specific = |key: &str| {
+                    matches!(am.get(key).and_then(Value::as_str), Some("PATH" | "BB_CLI"))
+                };
+                let is_path = machine_specific("name") || machine_specific("key");
                 Value::Object(
                     am.iter()
                         .map(|(k, v)| {
