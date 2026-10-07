@@ -1,0 +1,401 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread-provisioning",
+    "scope": {
+     "kind": "thread"
+    },
+    "provisioningId": "tpv_1",
+    "environmentId": null,
+    "status": "active",
+    "entries": [
+     {
+      "type": "step",
+      "key": "workspace-started",
+      "status": "started",
+      "text": "Preparing workspace",
+      "startedAt": 1790000000000
+     }
+    ]
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread-provisioning",
+    "scope": {
+     "kind": "thread"
+    },
+    "provisioningId": "tpv_1",
+    "environmentId": null,
+    "status": "active",
+    "entries": [
+     {
+      "type": "step",
+      "key": "workspace-started",
+      "status": "completed",
+      "text": "Workspace ready",
+      "startedAt": 1790000000000
+     },
+     {
+      "type": "step",
+      "key": "setup",
+      "status": "started",
+      "text": "Running setup",
+      "startedAt": 1790000000000
+     }
+    ]
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread-provisioning",
+    "scope": {
+     "kind": "thread"
+    },
+    "provisioningId": "tpv_1",
+    "environmentId": null,
+    "status": "failed",
+    "entries": [
+     {
+      "type": "step",
+      "key": "setup",
+      "status": "failed",
+      "text": "Setup failed",
+      "startedAt": 1790000000000
+     }
+    ]
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread-provisioning",
+    "scope": {
+     "kind": "thread"
+    },
+    "provisioningId": "tpv_1",
+    "environmentId": null,
+    "status": "completed",
+    "entries": [
+     {
+      "type": "step",
+      "key": "late",
+      "status": "completed",
+      "text": "Late step",
+      "startedAt": 1790000000000
+     }
+    ]
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1790000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread-provisioning",
+    "scope": {
+     "kind": "thread"
+    },
+    "provisioningId": "tpv_2",
+    "environmentId": null,
+    "status": "active",
+    "entries": [
+     {
+      "type": "step",
+      "key": "other",
+      "status": "started",
+      "text": "Second provisioning",
+      "startedAt": 1790000000000
+     }
+    ]
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1790000005000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 4,
+       "createdAt": 1790000004000,
+       "startedAt": 1790000001000,
+       "completedAt": 1790000003000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread failed",
+       "status": "error",
+       "mergeKey": "tpv_1",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "workspace-started",
+         "status": "completed",
+         "text": "Workspace ready",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "setup",
+         "status": "failed",
+         "text": "Setup failed",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "late",
+         "status": "completed",
+         "text": "Late step",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 5,
+       "sourceSeqEnd": 5,
+       "createdAt": 1790000005000,
+       "startedAt": 1790000005000,
+       "completedAt": 1790000005000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread interrupted",
+       "status": "interrupted",
+       "mergeKey": "tpv_2",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "other",
+         "status": "started",
+         "text": "Second provisioning",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 4,
+       "createdAt": 1790000004000,
+       "startedAt": 1790000001000,
+       "completedAt": 1790000003000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread failed",
+       "status": "error",
+       "mergeKey": "tpv_1",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "workspace-started",
+         "status": "completed",
+         "text": "Workspace ready",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "setup",
+         "status": "failed",
+         "text": "Setup failed",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "late",
+         "status": "completed",
+         "text": "Late step",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 5,
+       "sourceSeqEnd": 5,
+       "createdAt": 1790000005000,
+       "startedAt": 1790000005000,
+       "completedAt": 1790000005000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread failed",
+       "status": "error",
+       "mergeKey": "tpv_2",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "other",
+         "status": "started",
+         "text": "Second provisioning",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 4,
+       "createdAt": 1790000004000,
+       "startedAt": 1790000001000,
+       "completedAt": 1790000003000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread failed",
+       "status": "error",
+       "mergeKey": "tpv_1",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "workspace-started",
+         "status": "completed",
+         "text": "Workspace ready",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "setup",
+         "status": "failed",
+         "text": "Setup failed",
+         "startedAt": 1790000000000
+        },
+        {
+         "type": "step",
+         "key": "late",
+         "status": "completed",
+         "text": "Late step",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-provisioning:5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 5,
+       "sourceSeqEnd": 5,
+       "createdAt": 1790000005000,
+       "startedAt": 1790000005000,
+       "completedAt": null,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioning thread",
+       "status": "pending",
+       "mergeKey": "tpv_2",
+       "transcript": [
+        {
+         "type": "step",
+         "key": "other",
+         "status": "started",
+         "text": "Second provisioning",
+         "startedAt": 1790000000000
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

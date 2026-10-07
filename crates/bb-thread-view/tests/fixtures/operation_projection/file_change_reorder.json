@@ -1,0 +1,695 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_x",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "approval",
+      "reason": "needs write",
+      "subject": {
+       "kind": "permission_grant",
+       "itemId": "item_g",
+       "toolName": "Write",
+       "permissions": {
+        "fileSystem": {
+         "write": [
+          "/tmp"
+         ]
+        }
+       },
+       "actions": []
+      }
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc1",
+     "status": "pending",
+     "changes": [
+      {
+       "path": "a.txt",
+       "kind": "update"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_y",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "approval",
+      "reason": "needs write",
+      "subject": {
+       "kind": "permission_grant",
+       "itemId": "item_g",
+       "toolName": "Write",
+       "permissions": {
+        "fileSystem": {
+         "write": [
+          "/tmp"
+         ]
+        }
+       },
+       "actions": []
+      }
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1790000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc1",
+     "status": "completed",
+     "changes": [
+      {
+       "path": "z.txt",
+       "kind": "add"
+      },
+      {
+       "path": "a.txt",
+       "kind": "update",
+       "diff": "+a"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1790000005000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc4",
+     "status": "pending",
+     "changes": []
+    }
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1790000006000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/fileChange/outputDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "itemId": "fc4",
+    "delta": "line one\nline"
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1790000007000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc4",
+     "status": "completed",
+     "changes": [
+      {
+       "path": "q.txt",
+       "kind": "add"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1790000008000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_9",
+    "seq": 9,
+    "createdAt": 1790000009000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 9,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000009000,
+       "completedAt": 1790000009000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:approval:pint_x",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 2,
+         "createdAt": 1790000002000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_x",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 3,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+a"
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "id": "thr_ops:approval:pint_y",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_y",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:z.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "z.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc4:q.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 8,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc4",
+         "changes": [
+          {
+           "path": "q.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "stdout": "line one\nline",
+         "approvalStatus": null,
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 9,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000009000,
+       "completedAt": 1790000009000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:approval:pint_x",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 2,
+         "createdAt": 1790000002000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_x",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 3,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+a"
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "id": "thr_ops:approval:pint_y",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_y",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:z.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "z.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc4:q.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 8,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc4",
+         "changes": [
+          {
+           "path": "q.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "stdout": "line one\nline",
+         "approvalStatus": null,
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 9,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000009000,
+       "completedAt": 1790000009000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:approval:pint_x",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 2,
+         "createdAt": 1790000002000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_x",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 3,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+a"
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "id": "thr_ops:approval:pint_y",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "approval",
+         "status": "pending",
+         "interactionId": "pint_y",
+         "approvalKind": "permission-grant",
+         "lifecycle": "pending",
+         "grantScope": null,
+         "statusReason": null,
+         "target": {
+          "itemId": "item_g",
+          "toolName": "Write"
+         }
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:z.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "z.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "completed"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc4:q.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 8,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc4",
+         "changes": [
+          {
+           "path": "q.txt",
+           "kind": "add",
+           "movePath": null
+          }
+         ],
+         "stdout": "line one\nline",
+         "approvalStatus": null,
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

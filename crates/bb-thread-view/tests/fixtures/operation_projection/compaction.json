@@ -1,0 +1,1133 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp1",
+     "status": "pending"
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp1",
+     "status": "completed"
+    }
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp1",
+     "status": "completed"
+    }
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1790000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1790000005000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t2"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1790000006000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t2"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp2",
+     "status": "pending"
+    }
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1790000007000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t2"
+    },
+    "providerThreadId": "p1",
+    "status": "failed",
+    "error": {
+     "message": "compaction blew up"
+    }
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1790000008000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t3"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_9",
+    "seq": 9,
+    "createdAt": 1790000009000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t3"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp3",
+     "status": "pending"
+    }
+   },
+   "meta": {
+    "id": "evt_10",
+    "seq": 10,
+    "createdAt": 1790000010000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/thread/interrupted",
+    "scope": {
+     "kind": "thread"
+    },
+    "reason": "manual-stop"
+   },
+   "meta": {
+    "id": "evt_11",
+    "seq": 11,
+    "createdAt": 1790000011000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t3"
+    },
+    "providerThreadId": "p1",
+    "status": "interrupted"
+   },
+   "meta": {
+    "id": "evt_12",
+    "seq": 12,
+    "createdAt": 1790000012000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t4"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_13",
+    "seq": 13,
+    "createdAt": 1790000013000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "thread/compacted",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t4"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_14",
+    "seq": 14,
+    "createdAt": 1790000014000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "thread/context/cleared",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t4"
+    }
+   },
+   "meta": {
+    "id": "evt_15",
+    "seq": 15,
+    "createdAt": 1790000015000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t4"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_16",
+    "seq": 16,
+    "createdAt": 1790000016000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t5"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_17",
+    "seq": 17,
+    "createdAt": 1790000017000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t5"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp5",
+     "status": "pending"
+    }
+   },
+   "meta": {
+    "id": "evt_18",
+    "seq": 18,
+    "createdAt": 1790000018000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "provider/warning",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t5"
+    },
+    "category": "compaction-skipped",
+    "summary": "Skipped",
+    "details": "too small"
+   },
+   "meta": {
+    "id": "evt_19",
+    "seq": 19,
+    "createdAt": 1790000019000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t5"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_20",
+    "seq": 20,
+    "createdAt": 1790000020000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t6"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_21",
+    "seq": 21,
+    "createdAt": 1790000021000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t6"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "contextCompaction",
+     "id": "cmp6",
+     "status": "pending"
+    }
+   },
+   "meta": {
+    "id": "evt_22",
+    "seq": 22,
+    "createdAt": 1790000022000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 5,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000005000,
+       "completedAt": 1790000005000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "completedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t2",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 6,
+       "sourceSeqEnd": 8,
+       "startedAt": 1790000006000,
+       "createdAt": 1790000008000,
+       "completedAt": 1790000008000,
+       "status": "error",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "completedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t2"
+         },
+         "opType": "compaction",
+         "title": "Context compaction failed",
+         "status": "error",
+         "detail": "compaction blew up"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t3",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 9,
+       "sourceSeqEnd": 12,
+       "startedAt": 1790000009000,
+       "createdAt": 1790000012000,
+       "completedAt": 1790000012000,
+       "status": "interrupted",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t3",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 10,
+         "sourceSeqEnd": 12,
+         "createdAt": 1790000012000,
+         "startedAt": 1790000010000,
+         "completedAt": 1790000012000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t3"
+         },
+         "opType": "compaction",
+         "title": "Context compaction interrupted",
+         "status": "interrupted"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-interrupted:11",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 11,
+       "sourceSeqEnd": 11,
+       "createdAt": 1790000011000,
+       "startedAt": 1790000011000,
+       "completedAt": 1790000011000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-interrupted",
+       "title": "Stopped manually",
+       "status": "interrupted"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t4",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 13,
+       "sourceSeqEnd": 16,
+       "startedAt": 1790000013000,
+       "createdAt": 1790000016000,
+       "completedAt": 1790000016000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t4",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 14,
+         "createdAt": 1790000014000,
+         "startedAt": 1790000014000,
+         "completedAt": 1790000014000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:context-clear:15",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 15,
+         "sourceSeqEnd": 15,
+         "createdAt": 1790000015000,
+         "startedAt": 1790000015000,
+         "completedAt": 1790000015000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "context-clear",
+         "title": "Context cleared",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 17,
+       "sourceSeqEnd": 20,
+       "startedAt": 1790000017000,
+       "createdAt": 1790000020000,
+       "completedAt": 1790000020000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t5",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1790000019000,
+         "startedAt": 1790000018000,
+         "completedAt": 1790000019000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t5"
+         },
+         "opType": "compaction",
+         "title": "Context compaction skipped",
+         "status": "completed",
+         "detail": "too small"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t6",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 21,
+       "sourceSeqEnd": 22,
+       "startedAt": 1790000021000,
+       "createdAt": 1790000022000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t6",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 22,
+         "sourceSeqEnd": 22,
+         "createdAt": 1790000022000,
+         "startedAt": 1790000022000,
+         "completedAt": 1790000022000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t6"
+         },
+         "opType": "compaction",
+         "title": "Context compaction interrupted",
+         "status": "interrupted"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 5,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000005000,
+       "completedAt": 1790000005000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "completedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t2",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 6,
+       "sourceSeqEnd": 8,
+       "startedAt": 1790000006000,
+       "createdAt": 1790000008000,
+       "completedAt": 1790000008000,
+       "status": "error",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "completedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t2"
+         },
+         "opType": "compaction",
+         "title": "Context compaction failed",
+         "status": "error",
+         "detail": "compaction blew up"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t3",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 9,
+       "sourceSeqEnd": 12,
+       "startedAt": 1790000009000,
+       "createdAt": 1790000012000,
+       "completedAt": 1790000012000,
+       "status": "interrupted",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t3",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 10,
+         "sourceSeqEnd": 12,
+         "createdAt": 1790000012000,
+         "startedAt": 1790000010000,
+         "completedAt": 1790000012000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t3"
+         },
+         "opType": "compaction",
+         "title": "Context compaction interrupted",
+         "status": "interrupted"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-interrupted:11",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 11,
+       "sourceSeqEnd": 11,
+       "createdAt": 1790000011000,
+       "startedAt": 1790000011000,
+       "completedAt": 1790000011000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-interrupted",
+       "title": "Stopped manually",
+       "status": "interrupted"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t4",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 13,
+       "sourceSeqEnd": 16,
+       "startedAt": 1790000013000,
+       "createdAt": 1790000016000,
+       "completedAt": 1790000016000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t4",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 14,
+         "createdAt": 1790000014000,
+         "startedAt": 1790000014000,
+         "completedAt": 1790000014000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:context-clear:15",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 15,
+         "sourceSeqEnd": 15,
+         "createdAt": 1790000015000,
+         "startedAt": 1790000015000,
+         "completedAt": 1790000015000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "context-clear",
+         "title": "Context cleared",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 17,
+       "sourceSeqEnd": 20,
+       "startedAt": 1790000017000,
+       "createdAt": 1790000020000,
+       "completedAt": 1790000020000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t5",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1790000019000,
+         "startedAt": 1790000018000,
+         "completedAt": 1790000019000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t5"
+         },
+         "opType": "compaction",
+         "title": "Context compaction skipped",
+         "status": "completed",
+         "detail": "too small"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t6",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 21,
+       "sourceSeqEnd": 22,
+       "startedAt": 1790000021000,
+       "createdAt": 1790000022000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t6",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 22,
+         "sourceSeqEnd": 22,
+         "createdAt": 1790000022000,
+         "startedAt": 1790000022000,
+         "completedAt": 1790000022000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t6"
+         },
+         "opType": "compaction",
+         "title": "Context compaction interrupted",
+         "status": "interrupted"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 5,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000005000,
+       "completedAt": 1790000005000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "completedAt": 1790000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t2",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 6,
+       "sourceSeqEnd": 8,
+       "startedAt": 1790000006000,
+       "createdAt": 1790000008000,
+       "completedAt": 1790000008000,
+       "status": "error",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "completedAt": 1790000008000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t2"
+         },
+         "opType": "compaction",
+         "title": "Context compaction failed",
+         "status": "error",
+         "detail": "compaction blew up"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t3",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 9,
+       "sourceSeqEnd": 12,
+       "startedAt": 1790000009000,
+       "createdAt": 1790000012000,
+       "completedAt": 1790000012000,
+       "status": "interrupted",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t3",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 10,
+         "sourceSeqEnd": 12,
+         "createdAt": 1790000012000,
+         "startedAt": 1790000010000,
+         "completedAt": 1790000012000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t3"
+         },
+         "opType": "compaction",
+         "title": "Context compaction interrupted",
+         "status": "interrupted"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_ops:op:thread-interrupted:11",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 11,
+       "sourceSeqEnd": 11,
+       "createdAt": 1790000011000,
+       "startedAt": 1790000011000,
+       "completedAt": 1790000011000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-interrupted",
+       "title": "Stopped manually",
+       "status": "interrupted"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t4",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 13,
+       "sourceSeqEnd": 16,
+       "startedAt": 1790000013000,
+       "createdAt": 1790000016000,
+       "completedAt": 1790000016000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t4",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 14,
+         "createdAt": 1790000014000,
+         "startedAt": 1790000014000,
+         "completedAt": 1790000014000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "compaction",
+         "title": "Context compacted",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:context-clear:15",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 15,
+         "sourceSeqEnd": 15,
+         "createdAt": 1790000015000,
+         "startedAt": 1790000015000,
+         "completedAt": 1790000015000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t4"
+         },
+         "opType": "context-clear",
+         "title": "Context cleared",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t5",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 17,
+       "sourceSeqEnd": 20,
+       "startedAt": 1790000017000,
+       "createdAt": 1790000020000,
+       "completedAt": 1790000020000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t5",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1790000019000,
+         "startedAt": 1790000018000,
+         "completedAt": 1790000019000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t5"
+         },
+         "opType": "compaction",
+         "title": "Context compaction skipped",
+         "status": "completed",
+         "detail": "too small"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t6",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 21,
+       "sourceSeqEnd": 22,
+       "startedAt": 1790000021000,
+       "createdAt": 1790000022000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_ops:op:compaction:t6",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 22,
+         "sourceSeqEnd": 22,
+         "createdAt": 1790000022000,
+         "startedAt": 1790000022000,
+         "completedAt": null,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t6"
+         },
+         "opType": "compaction",
+         "title": "Compacting context",
+         "status": "pending"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

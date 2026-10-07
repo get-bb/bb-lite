@@ -1,0 +1,1370 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "parent thread",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "requestId": "creq_ymrz325fis",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "spawn",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "thread-start"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_vj2qqbdfn2",
+    "seq": 1
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "initiator": "user",
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "source": "spawn",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "client/thread/start"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_sfxtvfeuc5",
+    "seq": 2
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-started",
+      "startedAt": 1800000163000,
+      "status": "started",
+      "text": "Preparing workspace",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_c2iva6zswm",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_qgj43hxegy",
+    "seq": 3
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-started",
+      "startedAt": 1800000163000,
+      "status": "started",
+      "text": "Generating title",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_c2iva6zswm",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_6crzk5m6sk",
+    "seq": 4
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-completed",
+      "metadata": {
+       "durationMs": 0,
+       "titleGenerated": false
+      },
+      "startedAt": 1800000163000,
+      "status": "completed",
+      "text": "No title generated",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_c2iva6zswm",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_yraam9bfdz",
+    "seq": 5
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-path",
+      "startedAt": 1800000163000,
+      "status": "completed",
+      "text": "Using workspace: $DATA_DIR/workspaces/thr_gxdv3fwhxj",
+      "type": "step"
+     }
+    ],
+    "environmentId": "env_jc4ara7kvk",
+    "provisioningId": "tpv_c2iva6zswm",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_iyqqvuivb7",
+    "seq": 6
+   }
+  },
+  {
+   "event": {
+    "entries": [],
+    "environmentId": "env_jc4ara7kvk",
+    "provisioningId": "tpv_c2iva6zswm",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "completed",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_24dp9jtdvr",
+    "seq": 7
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_ns69bfpyw2",
+    "seq": 8
+   }
+  },
+  {
+   "event": {
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "thread/started"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_pic3iucdin",
+    "seq": 9
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_gxdv3fwhxj"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_gxdv3fwhxj"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_jc4ara7kvk"
+     }
+    ],
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_6rj2fsxw6d",
+    "seq": 10
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_igw6n4epaj",
+    "seq": 11
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_ymrz325fis",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_iuucznuivy",
+    "seq": 12
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daed4eb588-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_69vug8brjd",
+    "seq": 13
+   }
+  },
+  {
+   "event": {
+    "delta": "Response to: parent thread",
+    "itemId": "daed4eb588-i1",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_gqeqyrn3mp",
+    "seq": 14
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daed4eb588-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Response to: parent thread",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_esv3c45mu9",
+    "seq": 15
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 113,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 113
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 113,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 113
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_hbqdbsindk",
+    "seq": 16
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 113
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_zmwuuhefcu",
+    "seq": 17
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-1",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t1"
+    },
+    "status": "completed",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000163000,
+    "id": "evt_gxykftjrf3",
+    "seq": 18
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "system",
+    "input": [
+     {
+      "mentions": [
+       {
+        "end": 35,
+        "resource": {
+         "kind": "thread",
+         "label": "thr_wkhy5ycjui",
+         "projectId": "proj_personal",
+         "threadId": "thr_wkhy5ycjui"
+        },
+        "start": 13
+       }
+      ],
+      "text": "[bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_d8u2akp7pf",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "child-completed",
+    "systemMessageSubject": {
+     "kind": "thread",
+     "outcomes": [
+      {
+       "status": "completed",
+       "threadId": "thr_wkhy5ycjui"
+      }
+     ],
+     "threadId": "thr_wkhy5ycjui",
+     "threadName": "thr_wkhy5ycjui"
+    },
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_exk338tt6k",
+    "seq": 19
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_8nyxe4zz9p",
+    "seq": 20
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_d8u2akp7pf",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_b8b3ky8rve",
+    "seq": 21
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daed4eb588-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_bjk5zbn53m",
+    "seq": 22
+   }
+  },
+  {
+   "event": {
+    "delta": "Response to: [bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+    "itemId": "daed4eb588-i2",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_ddjq4ubxzf",
+    "seq": 23
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daed4eb588-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Response to: [bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_m36k4m7shf",
+    "seq": 24
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 181,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 181
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 181,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 362
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_hwu43xifyq",
+    "seq": 25
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 181
+    },
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_v5cvwc5z8d",
+    "seq": 26
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-2",
+    "providerThreadId": "echo-thr_gxdv3fwhxj",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daed4eb588-t2"
+    },
+    "status": "completed",
+    "threadId": "thr_gxdv3fwhxj",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000164000,
+    "id": "evt_vpjivjca9q",
+    "seq": 27
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_gxdv3fwhxj:user-seed:1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "parent thread",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_gxdv3fwhxj:op:thread-provisioning:3",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000163000,
+       "startedAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_c2iva6zswm",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_gxdv3fwhxj",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 18,
+       "startedAt": 1800000163000,
+       "createdAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t1|parent:root|item:daed4eb588-i1",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000163000,
+         "startedAt": 1800000163000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t1"
+         },
+         "text": "Response to: parent thread",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t2",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 19,
+       "sourceSeqEnd": 27,
+       "startedAt": 1800000164000,
+       "createdAt": 1800000164000,
+       "completedAt": 1800000164000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "user",
+         "id": "thr_gxdv3fwhxj:user-seed:19",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 19,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "role": "user",
+         "text": "[bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "mentions": [
+          {
+           "end": 35,
+           "resource": {
+            "kind": "thread",
+            "label": "thr_wkhy5ycjui",
+            "projectId": "proj_personal",
+            "threadId": "thr_wkhy5ycjui"
+           },
+           "start": 13
+          }
+         ],
+         "attachments": {
+          "webImages": 0,
+          "localImages": 0,
+          "localFiles": 0,
+          "imageUrls": [],
+          "localImagePaths": [],
+          "localFilePaths": []
+         },
+         "initiator": "system",
+         "senderThreadId": null,
+         "systemMessageKind": "child-completed",
+         "systemMessageSubject": {
+          "kind": "thread",
+          "outcomes": [
+           {
+            "status": "completed",
+            "threadId": "thr_wkhy5ycjui"
+           }
+          ],
+          "threadId": "thr_wkhy5ycjui",
+          "threadName": "thr_wkhy5ycjui"
+         },
+         "turnRequest": {
+          "isGrouped": false,
+          "kind": "message",
+          "status": "accepted"
+         }
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t2|parent:root|item:daed4eb588-i2",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 23,
+         "sourceSeqEnd": 24,
+         "createdAt": 1800000164000,
+         "startedAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "text": "Response to: [bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_gxdv3fwhxj:user-seed:1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "parent thread",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_gxdv3fwhxj:op:thread-provisioning:3",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000163000,
+       "startedAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_c2iva6zswm",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_gxdv3fwhxj",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 18,
+       "startedAt": 1800000163000,
+       "createdAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t1|parent:root|item:daed4eb588-i1",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000163000,
+         "startedAt": 1800000163000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t1"
+         },
+         "text": "Response to: parent thread",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t2",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 19,
+       "sourceSeqEnd": 27,
+       "startedAt": 1800000164000,
+       "createdAt": 1800000164000,
+       "completedAt": 1800000164000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "user",
+         "id": "thr_gxdv3fwhxj:user-seed:19",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 19,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "role": "user",
+         "text": "[bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "mentions": [
+          {
+           "end": 35,
+           "resource": {
+            "kind": "thread",
+            "label": "thr_wkhy5ycjui",
+            "projectId": "proj_personal",
+            "threadId": "thr_wkhy5ycjui"
+           },
+           "start": 13
+          }
+         ],
+         "attachments": {
+          "webImages": 0,
+          "localImages": 0,
+          "localFiles": 0,
+          "imageUrls": [],
+          "localImagePaths": [],
+          "localFilePaths": []
+         },
+         "initiator": "system",
+         "senderThreadId": null,
+         "systemMessageKind": "child-completed",
+         "systemMessageSubject": {
+          "kind": "thread",
+          "outcomes": [
+           {
+            "status": "completed",
+            "threadId": "thr_wkhy5ycjui"
+           }
+          ],
+          "threadId": "thr_wkhy5ycjui",
+          "threadName": "thr_wkhy5ycjui"
+         },
+         "turnRequest": {
+          "isGrouped": false,
+          "kind": "message",
+          "status": "accepted"
+         }
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t2|parent:root|item:daed4eb588-i2",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 23,
+         "sourceSeqEnd": 24,
+         "createdAt": 1800000164000,
+         "startedAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "text": "Response to: [bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_gxdv3fwhxj:user-seed:1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "parent thread",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_gxdv3fwhxj:op:thread-provisioning:3",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000163000,
+       "startedAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_c2iva6zswm",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000163000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000163000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_gxdv3fwhxj",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_gxdv3fwhxj:op:provider-environment:10",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 10,
+       "sourceSeqEnd": 10,
+       "createdAt": 1800000163000,
+       "startedAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "provider-environment",
+       "title": "Provider environment resolved",
+       "detail": "PATH=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin (shell)\nBB_CLI=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb (shell)\nBB_SERVER_URL=http://127.0.0.1:0 (shell)\nBB_THREAD_STORAGE=$DATA_DIR/thread-storage/thr_gxdv3fwhxj (shell)\nBB_THREAD_ID=thr_gxdv3fwhxj (shell)\nBB_PROJECT_ID=proj_personal (shell)\nBB_ENVIRONMENT_ID=env_jc4ara7kvk (shell)",
+       "status": "completed"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t1",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 18,
+       "startedAt": 1800000163000,
+       "createdAt": 1800000163000,
+       "completedAt": 1800000163000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t1|parent:root|item:daed4eb588-i1",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000163000,
+         "startedAt": 1800000163000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t1"
+         },
+         "text": "Response to: parent thread",
+         "status": "completed"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daed4eb588-t2",
+       "threadId": "thr_gxdv3fwhxj",
+       "sourceSeqStart": 19,
+       "sourceSeqEnd": 27,
+       "startedAt": 1800000164000,
+       "createdAt": 1800000164000,
+       "completedAt": 1800000164000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "user",
+         "id": "thr_gxdv3fwhxj:user-seed:19",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 19,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "role": "user",
+         "text": "[bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "mentions": [
+          {
+           "end": 35,
+           "resource": {
+            "kind": "thread",
+            "label": "thr_wkhy5ycjui",
+            "projectId": "proj_personal",
+            "threadId": "thr_wkhy5ycjui"
+           },
+           "start": 13
+          }
+         ],
+         "attachments": {
+          "webImages": 0,
+          "localImages": 0,
+          "localFiles": 0,
+          "imageUrls": [],
+          "localImagePaths": [],
+          "localFilePaths": []
+         },
+         "initiator": "system",
+         "senderThreadId": null,
+         "systemMessageKind": "child-completed",
+         "systemMessageSubject": {
+          "kind": "thread",
+          "outcomes": [
+           {
+            "status": "completed",
+            "threadId": "thr_wkhy5ycjui"
+           }
+          ],
+          "threadId": "thr_wkhy5ycjui",
+          "threadName": "thr_wkhy5ycjui"
+         },
+         "turnRequest": {
+          "isGrouped": false,
+          "kind": "message",
+          "status": "accepted"
+         }
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_gxdv3fwhxj:assistant:kind:assistant|turn:daed4eb588-t2|parent:root|item:daed4eb588-i2",
+         "threadId": "thr_gxdv3fwhxj",
+         "sourceSeqStart": 23,
+         "sourceSeqEnd": 24,
+         "createdAt": 1800000164000,
+         "startedAt": 1800000164000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daed4eb588-t2"
+         },
+         "text": "Response to: [bb system]\n\n@thread:thr_wkhy5ycjui completed:\n\nResponse to: child work pineapple",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

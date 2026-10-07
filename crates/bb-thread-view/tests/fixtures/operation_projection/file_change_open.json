@@ -1,0 +1,225 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc1",
+     "status": "pending",
+     "changes": [
+      {
+       "path": "a.txt",
+       "kind": "update"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/fileChange/outputDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "itemId": "fc1",
+    "delta": "half"
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 3,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000003000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null
+          }
+         ],
+         "stdout": "half",
+         "approvalStatus": null,
+         "status": "interrupted"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 3,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000003000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null
+          }
+         ],
+         "stdout": "half",
+         "approvalStatus": null,
+         "status": "interrupted"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 3,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000003000,
+       "completedAt": null,
+       "status": "pending",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "pending"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}
