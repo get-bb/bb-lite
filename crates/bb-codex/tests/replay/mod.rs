@@ -5,10 +5,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bb_codex::events::{CodexTranslator, CodexTranslatorHooks, InjectedTools};
+use bb_codex::rpc::{AppServerChild, ChildExit};
 use bb_provider::{EventBuilder, EventBuilderOptions, EventSink, Presentation};
+use futures::FutureExt;
 use parking_lot::Mutex;
 use regex::Regex;
 use serde_json::Value;
+use tokio::io::{AsyncBufReadExt, BufReader, DuplexStream, WriteHalf};
+use tokio::sync::watch;
 
 pub const SCENARIOS: [&str; 11] = [
     "turn-tools",
@@ -260,4 +264,50 @@ pub fn first_difference(actual: &[Value], expected: &[Value]) -> Option<String> 
             show(expected.get(i))
         )
     })
+}
+
+pub type Stdout = Arc<tokio::sync::Mutex<Option<WriteHalf<DuplexStream>>>>;
+
+pub struct FakeAppServer {
+    pub written: Arc<Mutex<Vec<Value>>>,
+    pub stdout: Stdout,
+}
+
+/// A scripted `codex app-server`: records what the adapter writes and serves `stdout`; it exits
+/// when the adapter closes its stdin or signals it.
+pub fn fake_app_server() -> (FakeAppServer, AppServerChild) {
+    let (stdin_ours, stdin_theirs) = tokio::io::duplex(1 << 20);
+    let (stdout_ours, stdout_theirs) = tokio::io::duplex(1 << 20);
+    let (stdout_read, stdout_write) = tokio::io::split(stdout_ours);
+    drop(stdout_read);
+    let (_, stderr) = tokio::io::duplex(64);
+    let written = Arc::new(Mutex::new(Vec::new()));
+    let stdout: Stdout = Arc::new(tokio::sync::Mutex::new(Some(stdout_write)));
+    let (finished, mut exited) = watch::channel(false);
+    let finished = Arc::new(finished);
+    let (sink, out, done) = (written.clone(), stdout.clone(), finished.clone());
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdin_theirs).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if !line.is_empty() {
+                sink.lock().push(serde_json::from_str(&line).expect("adapter wrote JSON"));
+            }
+        }
+        out.lock().await.take();
+        done.send_replace(true);
+    });
+    let exit = async move {
+        let _ = exited.wait_for(|done| *done).await;
+        ChildExit { code: Some(0), signal: None, error: None }
+    };
+    let child = AppServerChild {
+        stdin: Box::new(stdin_ours),
+        stdout: Box::new(stdout_theirs),
+        stderr: Box::new(stderr),
+        exit: exit.boxed(),
+        signal: Box::new(move |_| {
+            finished.send_replace(true);
+        }),
+    };
+    (FakeAppServer { written, stdout }, child)
 }

@@ -12,10 +12,12 @@ async-trait.workspace = true
 indexmap.workspace = true
 regex.workspace = true
 futures.workspace = true
+hex.workspace = true
 libc.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
