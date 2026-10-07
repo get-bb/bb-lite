@@ -81,17 +81,19 @@ fn ok() -> Value {
 }
 
 fn parse<T: DeserializeOwned>(body: Value) -> Result<T, ApiError> {
-    serde_json::from_value(body).map_err(|_| invalid())
+    serde_json::from_value(body)
+        .map_err(|error| invalid_request(crate::http::validate::from_serde_error(&error)))
 }
 
 fn object(body: &Value) -> Result<&Map<String, Value>, ApiError> {
-    body.as_object().ok_or_else(invalid)
+    body.as_object()
+        .ok_or_else(|| invalid_request(crate::http::validate::invalid_type("object", body)))
 }
 
 fn strict(body: &Map<String, Value>, allowed: &[&str]) -> Result<(), ApiError> {
-    match body.keys().all(|key| allowed.contains(&key.as_str())) {
-        true => Ok(()),
-        false => Err(invalid()),
+    match crate::http::validate::unknown_key(body, allowed) {
+        None => Ok(()),
+        Some(message) => Err(invalid_request(message)),
     }
 }
 
