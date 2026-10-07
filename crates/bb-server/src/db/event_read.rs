@@ -705,6 +705,14 @@ impl<V: Clone> RecentCache<V> {
         self.len() == 0
     }
 
+    /// Forgets the least recently remembered entry; `false` when there is none.
+    pub fn remove_oldest(&self) -> bool {
+        let mut inner = self.inner.lock();
+        let Some((_, oldest)) = inner.order.pop_first() else { return false };
+        inner.entries.remove(&oldest);
+        true
+    }
+
     pub fn values(&self) -> Vec<V> {
         self.inner.lock().entries.values().map(|(_, value)| value.clone()).collect()
     }

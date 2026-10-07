@@ -94,6 +94,9 @@ pub const RESPONSE_BYTE_LIMIT: i64 = 4 * 1024 * 1024;
 pub const DETAIL_LEAF_LIMIT: i64 = 1_500;
 pub const SERVED_KEY_LIMIT: usize = 32;
 pub const SERVED_RING_SIZE: usize = 4;
+/// Most memory the projection cache may hold; least recently used keys go first. A long thread's
+/// projection is several megabytes, and [`SERVED_KEY_LIMIT`] rings of them is half a gigabyte.
+pub const SERVED_BYTE_BUDGET: usize = 64 * 1024 * 1024;
 const REQUESTED: &str = "client/turn/requested";
 const ACCEPTED: &str = "turn/input/accepted";
 const REJECTED: &str = "client/turn/rejected";
@@ -955,6 +958,7 @@ pub fn timeline_cache_key(thread: &ThreadListRow, request: &TimelineRequest) -> 
 struct Served {
     latest: i64,
     full: Arc<Value>,
+    bytes: usize,
 }
 
 /// `createTimelineReader`: serves timelines with a per-thread projection cache
@@ -963,11 +967,16 @@ struct Served {
 pub struct TimelineReader {
     db: Db,
     served: RecentCache<Vec<Served>>,
+    byte_budget: usize,
 }
 
 impl TimelineReader {
     pub fn new(db: Db) -> Self {
-        TimelineReader { db, served: RecentCache::new(SERVED_KEY_LIMIT) }
+        Self::with_byte_budget(db, SERVED_BYTE_BUDGET)
+    }
+
+    pub fn with_byte_budget(db: Db, byte_budget: usize) -> Self {
+        TimelineReader { db, served: RecentCache::new(SERVED_KEY_LIMIT), byte_budget }
     }
 
     /// Drops every cached projection of a thread (on `history-rewritten`).
@@ -987,31 +996,46 @@ impl TimelineReader {
         for served in rings.iter().flatten() {
             entries += 1;
             if seen.insert(Arc::as_ptr(&served.full)) {
-                bytes += crate::diagnostics::approx_heap_bytes(&served.full);
+                bytes += served.bytes;
             }
         }
         json!({
             "keys": rings.len(),
             "keyLimit": SERVED_KEY_LIMIT,
+            "byteBudget": self.byte_budget,
             "projections": entries,
             "distinctProjections": seen.len(),
             "approxBytes": bytes,
         })
     }
 
-    /// `timelines.timeline(thread, request)`: the `GET /threads/:id/timeline` response.
+    fn cached_bytes(&self) -> usize {
+        let mut seen = HashSet::new();
+        let rings = self.served.values();
+        let distinct =
+            rings.iter().flatten().filter(|served| seen.insert(Arc::as_ptr(&served.full)));
+        distinct.map(|served| served.bytes).sum()
+    }
+
+    /// `timelines.timeline(thread, request)`: the `GET /threads/:id/timeline` response. The
+    /// full projection is shared with the cache, not copied.
     pub async fn read_thread_timeline(
         &self,
         thread: &ThreadListRow,
         request: &TimelineRequest,
-    ) -> ApiResult<Value> {
+    ) -> ApiResult<Arc<Value>> {
         let key = timeline_cache_key(thread, request);
         let latest = events::latest_sequence(&self.db, &thread.thread.id)?;
         let ring = self.served.get(&key).unwrap_or_default();
-        let full = match ring.iter().find(|entry| entry.latest == latest) {
-            Some(entry) => entry.full.clone(),
-            None => Arc::new(build_thread_timeline(&self.db, thread, request).await?),
+        let current = match ring.iter().find(|entry| entry.latest == latest) {
+            Some(entry) => entry.clone(),
+            None => {
+                let full = Arc::new(build_thread_timeline(&self.db, thread, request).await?);
+                let bytes = crate::diagnostics::approx_heap_bytes(&full);
+                Served { latest, full, bytes }
+            }
         };
+        let full = current.full.clone();
         let max_seq = |value: &Value| value.get("maxSeq").and_then(Value::as_i64);
         let previous = request
             .after_sequence
@@ -1020,25 +1044,28 @@ impl TimelineReader {
         let ring = self.served.get(&key).unwrap_or(ring);
         let mut next: Vec<Served> =
             ring.into_iter().filter(|entry| max_seq(&entry.full) != max_seq(&full)).collect();
-        next.push(Served { latest, full: full.clone() });
+        next.push(current);
         let skip = next.len().saturating_sub(SERVED_RING_SIZE);
         self.served.remember(&key, next.split_off(skip));
-        let Some(previous) = previous else { return Ok((*full).clone()) };
+        while self.served.len() > 1 && self.cached_bytes() > self.byte_budget {
+            self.served.remove_oldest();
+        }
+        let Some(previous) = previous else { return Ok(full) };
         let delta = if Arc::ptr_eq(&previous.full, &full) {
             json!({ "upsertRows": [] })
         } else {
-            let rows = |value: &Value| value.get("rows").and_then(Value::as_array).cloned();
-            compute_row_delta(
-                &rows(&previous.full).unwrap_or_default(),
-                &rows(&full).unwrap_or_default(),
-            )
+            fn rows(value: &Value) -> &[Value] {
+                value.get("rows").and_then(Value::as_array).map_or(&[], Vec::as_slice)
+            }
+            compute_row_delta(rows(&previous.full), rows(&full))
         };
-        let mut response = (*full).clone();
-        if let Some(fields) = response.as_object_mut() {
-            fields.insert("rows".into(), json!([]));
-            fields.insert("delta".into(), delta);
+        let mut response = serde_json::Map::new();
+        for (name, field) in full.as_object().into_iter().flatten() {
+            let field = if name == "rows" { json!([]) } else { field.clone() };
+            response.insert(name.clone(), field);
         }
-        Ok(response)
+        response.insert("delta".into(), delta);
+        Ok(Arc::new(Value::Object(response)))
     }
 
     /// `timelines.turnDetails(thread, request)`: the turn-summary-details response.

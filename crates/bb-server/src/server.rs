@@ -129,6 +129,7 @@ impl BbServer {
         self.dispose_on_close(Disposer::Plugins);
         self.dispose_on_close(Disposer::Drop(Box::new(start_terminal_sessions(ctx)?)));
         self.dispose_on_close(Disposer::Drop(Box::new(start_workspace_watch(ctx))));
+        self.dispose_on_close(Disposer::Drop(Box::new(crate::diagnostics::start_memory_trimmer())));
         let hostname = ctx.config.bind_host.clone();
         let address = format!("{hostname}:{}", ctx.config.port);
         let listener = tokio::net::TcpListener::bind(&address)

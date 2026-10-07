@@ -2,8 +2,10 @@
 //! allocator considers in use, and what each in-memory cache accounts for.
 
 use std::mem::size_of;
+use std::time::Duration;
 
 use serde_json::{Value, json};
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::context::Ctx;
 use crate::db::event_read;
@@ -125,4 +127,38 @@ pub fn trim_memory() -> Value {
         "after": after,
         "releasedBytes": resident(&before).saturating_sub(resident(&after)),
     })
+}
+
+const TRIM_INTERVAL: Duration = Duration::from_secs(30);
+const TRIM_FREE_BYTES: u64 = 32 * 1024 * 1024;
+
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn held_free_bytes() -> u64 {
+    unsafe { libc::mallinfo2() }.fordblks as u64
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+fn held_free_bytes() -> u64 {
+    0
+}
+
+/// glibc keeps freed memory in per-thread arenas, so building a few large timelines left the
+/// process hundreds of megabytes above what it used. While the allocator holds more than
+/// [`TRIM_FREE_BYTES`] free, this hands it back every [`TRIM_INTERVAL`]. Stops when the guard
+/// is dropped.
+pub fn start_memory_trimmer() -> DropGuard {
+    let stop = CancellationToken::new();
+    let stopped = stop.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                () = stopped.cancelled() => return,
+                () = tokio::time::sleep(TRIM_INTERVAL) => {}
+            }
+            if held_free_bytes() > TRIM_FREE_BYTES {
+                let _ = tokio::task::spawn_blocking(trim_memory).await;
+            }
+        }
+    });
+    stop.drop_guard()
 }

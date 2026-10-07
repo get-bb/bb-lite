@@ -127,7 +127,7 @@ async fn real_thread_timelines_match_the_typescript_server() {
                 request.event_budget = budget;
             }
             let actual = match reader.read_thread_timeline(&thread, &request).await {
-                Ok(body) => body,
+                Ok(body) => (*body).clone(),
                 Err(error) => json!({ "status": error.status, "error": error_body(&error) }),
             };
             let expected = if recorded["status"] == 200 {

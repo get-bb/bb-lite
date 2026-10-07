@@ -473,7 +473,7 @@ async fn timeline(
     State(ctx): State<Ctx>,
     ApiPath(path): ApiPath<ThreadPath>,
     ApiQuery(query): ApiQuery<ThreadTimelineQuery>,
-) -> ApiResponse<Value> {
+) -> ApiResult<Response> {
     flag(query.include_nested_rows.as_ref())?;
     digits(query.segment_limit.as_ref())?;
     let sequence = |value: &String| {
@@ -515,7 +515,8 @@ async fn timeline(
         event_budget: TIMELINE_WINDOW_EVENT_BUDGET,
         after_sequence: integer(query.after_sequence.as_deref()),
     };
-    Ok(Json(timeline_reader(&ctx).read_thread_timeline(&thread, &request).await?))
+    let timeline = timeline_reader(&ctx).read_thread_timeline(&thread, &request).await?;
+    Ok(Json(&*timeline).into_response())
 }
 
 async fn turn_summary_details(

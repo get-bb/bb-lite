@@ -231,3 +231,31 @@ async fn turn_details_reject_inverted_ranges() {
     let error = read_turn_summary_details(&db, &thread, &request).await.unwrap_err();
     assert_eq!(error.body.message, "sourceSeqStart must be less than or equal to sourceSeqEnd");
 }
+
+#[tokio::test]
+async fn the_projection_cache_stays_within_its_byte_budget() {
+    let (_, fixture) = fixtures().into_iter().next().unwrap();
+    let variants = [json!({}), json!({ "segmentLimit": "2" }), json!({ "summaryOnly": "true" })];
+
+    let db = open();
+    let thread = load_fixture(&db, &fixture);
+    let roomy = TimelineReader::new(db);
+    for query in &variants {
+        roomy.read_thread_timeline(&thread, &request_for(query)).await.unwrap();
+    }
+    assert_eq!(roomy.cached_key_count(), 3);
+    let held = roomy.memory()["approxBytes"].as_u64().unwrap();
+    assert!(held > 0);
+
+    let db = open();
+    let thread = load_fixture(&db, &fixture);
+    let tight = TimelineReader::with_byte_budget(db, 1);
+    for query in &variants {
+        tight.read_thread_timeline(&thread, &request_for(query)).await.unwrap();
+    }
+    assert_eq!(tight.cached_key_count(), 1);
+    let first = request_for(&variants[2]);
+    let again = tight.read_thread_timeline(&thread, &first).await.unwrap();
+    let before = tight.read_thread_timeline(&thread, &first).await.unwrap();
+    assert!(std::sync::Arc::ptr_eq(&again, &before));
+}
