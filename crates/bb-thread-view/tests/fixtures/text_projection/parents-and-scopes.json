@@ -1,0 +1,291 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    }
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1800000000500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a1",
+    "delta": "child text\n",
+    "parentToolCallId": "call_1"
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1800000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "agentMessage",
+     "id": "a1",
+     "text": "child text\nend",
+     "parentToolCallId": "call_1"
+    }
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1800000001500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "child thinking"
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1800000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r1",
+     "summary": [],
+     "content": [
+      "child thinking"
+     ],
+     "parentToolCallId": "call_2"
+    }
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1800000002500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "thread"
+    },
+    "itemId": "a5",
+    "delta": "thread scoped\n"
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1800000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a2",
+    "delta": ""
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1800000003500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1800000004000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "threadStatus": "idle",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 8,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000004000,
+       "completedAt": 1800000004000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000002000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 2s",
+         "detail": "child thinking",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "active",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 8,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000004000,
+       "completedAt": 1800000004000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000002000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 2s",
+         "detail": "child thinking",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "error",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 8,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000004000,
+       "completedAt": 1800000004000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000002000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 2s",
+         "detail": "child thinking",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

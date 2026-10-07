@@ -1,0 +1,120 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    }
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1800000000500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r1",
+     "summary": [],
+     "content": []
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1800000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "  first line\nsecond  "
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1800000001500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r2",
+    "delta": "other\n"
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1800000000400
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "threadStatus": "idle",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "active",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [],
+    "activeThinking": {
+     "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r2",
+     "text": "other",
+     "startedAt": 1800000000400,
+     "updatedAt": 1800000000400
+    },
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "error",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

@@ -1,0 +1,319 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    }
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1800000000500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a1",
+    "delta": "Hello wor"
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1800000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a1",
+    "delta": "ld\nsecond"
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1800000001500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "agentMessage",
+     "id": "a1",
+     "text": "Hello world\nsecond line final"
+    }
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1800000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a1",
+    "delta": "late\n"
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1800000002500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a2",
+    "delta": "no newline yet"
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1800000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1800000003500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a3",
+    "delta": "after close\n"
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1800000004000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "threadStatus": "idle",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 7,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000003500,
+       "completedAt": 1800000003500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1800000002000,
+         "startedAt": 1800000001000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Hello world\nsecond line final",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 6,
+         "sourceSeqEnd": 6,
+         "createdAt": 1800000003000,
+         "startedAt": 1800000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "no newline yet",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "active",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 7,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000003500,
+       "completedAt": 1800000003500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1800000002000,
+         "startedAt": 1800000001000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Hello world\nsecond line final",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 6,
+         "sourceSeqEnd": 6,
+         "createdAt": 1800000003000,
+         "startedAt": 1800000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "no newline yet",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "error",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 7,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000003500,
+       "completedAt": 1800000003500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1800000002000,
+         "startedAt": 1800000001000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Hello world\nsecond line final",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 6,
+         "sourceSeqEnd": 6,
+         "createdAt": 1800000003000,
+         "startedAt": 1800000003000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "no newline yet",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

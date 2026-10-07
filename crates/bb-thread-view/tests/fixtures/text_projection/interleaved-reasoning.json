@@ -1,0 +1,591 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    }
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1800000000500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r1",
+     "summary": [],
+     "content": []
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1800000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/summaryTextDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "**Plan**\n"
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1800000001500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "Think about "
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1800000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/summaryTextDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "more summary"
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1800000002500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r1",
+    "delta": "the problem\nsecond"
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1800000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/agentMessage/delta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "a1",
+    "delta": "Answer\n"
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1800000003500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r1",
+     "summary": [
+      "**Plan**\n",
+      "more summary"
+     ],
+     "content": [
+      "Think about ",
+      "the problem\nsecond"
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1800000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r2",
+     "summary": [],
+     "content": []
+    }
+   },
+   "meta": {
+    "id": "evt_9",
+    "seq": 9,
+    "createdAt": 1800000004500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/reasoning/textDelta",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "itemId": "r2",
+    "delta": "streamed"
+   },
+   "meta": {
+    "id": "evt_10",
+    "seq": 10,
+    "createdAt": 1800000005000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r2",
+     "summary": [
+      "different final"
+     ],
+     "content": []
+    }
+   },
+   "meta": {
+    "id": "evt_11",
+    "seq": 11,
+    "createdAt": 1800000005500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r3",
+     "summary": [
+      "only at completion"
+     ],
+     "content": [
+      "!"
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_12",
+    "seq": 12,
+    "createdAt": 1800000006000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "reasoning",
+     "id": "r4",
+     "summary": [],
+     "content": []
+    }
+   },
+   "meta": {
+    "id": "evt_13",
+    "seq": 13,
+    "createdAt": 1800000006500
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "item": {
+     "type": "agentMessage",
+     "id": "a1",
+     "text": "Answer\nfull"
+    }
+   },
+   "meta": {
+    "id": "evt_14",
+    "seq": 14,
+    "createdAt": 1800000007000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_text",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_15",
+    "seq": 15,
+    "createdAt": 1800000007500
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "threadStatus": "idle",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 15,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000007500,
+       "completedAt": 1800000007500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000001000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 3s",
+         "detail": "**Plan**\nThink about more summarythe problem\nsecond",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 14,
+         "createdAt": 1800000007000,
+         "startedAt": 1800000003500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Answer\nfull",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 11,
+         "createdAt": 1800000005500,
+         "startedAt": 1800000004500,
+         "completedAt": 1800000005500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 1s",
+         "detail": "different final",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r3",
+         "threadId": "thr_text",
+         "sourceSeqStart": 12,
+         "sourceSeqEnd": 12,
+         "createdAt": 1800000006000,
+         "startedAt": 1800000006000,
+         "completedAt": 1800000006000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought",
+         "detail": "only at completion!",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "active",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 15,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000007500,
+       "completedAt": 1800000007500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000001000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 3s",
+         "detail": "**Plan**\nThink about more summarythe problem\nsecond",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 14,
+         "createdAt": 1800000007000,
+         "startedAt": 1800000003500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Answer\nfull",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 11,
+         "createdAt": 1800000005500,
+         "startedAt": 1800000004500,
+         "completedAt": 1800000005500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 1s",
+         "detail": "different final",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r3",
+         "threadId": "thr_text",
+         "sourceSeqStart": 12,
+         "sourceSeqEnd": 12,
+         "createdAt": 1800000006000,
+         "startedAt": 1800000006000,
+         "completedAt": 1800000006000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought",
+         "detail": "only at completion!",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "threadStatus": "error",
+    "threadName": "Text",
+    "includeDiagnosticOperations": false
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_text",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 15,
+       "startedAt": 1800000000500,
+       "createdAt": 1800000007500,
+       "completedAt": 1800000007500,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 8,
+         "createdAt": 1800000004000,
+         "startedAt": 1800000001000,
+         "completedAt": 1800000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 3s",
+         "detail": "**Plan**\nThink about more summarythe problem\nsecond",
+         "status": "completed"
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_text:assistant:kind:assistant|turn:t1|parent:root|item:a1",
+         "threadId": "thr_text",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 14,
+         "createdAt": 1800000007000,
+         "startedAt": 1800000003500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "text": "Answer\nfull",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r2",
+         "threadId": "thr_text",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 11,
+         "createdAt": 1800000005500,
+         "startedAt": 1800000004500,
+         "completedAt": 1800000005500,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought for 1s",
+         "detail": "different final",
+         "status": "completed"
+        },
+        {
+         "kind": "operation",
+         "id": "thr_text:op:reasoning:kind:reasoning|turn:t1|parent:root|item:r3",
+         "threadId": "thr_text",
+         "sourceSeqStart": 12,
+         "sourceSeqEnd": 12,
+         "createdAt": 1800000006000,
+         "startedAt": 1800000006000,
+         "completedAt": 1800000006000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "opType": "reasoning",
+         "title": "Thought",
+         "detail": "only at completion!",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}
