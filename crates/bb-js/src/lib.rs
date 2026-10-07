@@ -1,6 +1,9 @@
 //! An embedded QuickJS runtime on a dedicated thread with a `Send` async handle.
 
 mod engine;
+mod node;
+
+pub use node::{NodeCompatOptions, install_node_compat, register_database};
 
 use std::collections::HashMap;
 use std::sync::Arc;
