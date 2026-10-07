@@ -29,22 +29,61 @@ remain the source of truth for JSON shapes.
 
 ## Crates
 
-| Crate         | Ports                                                                  |
-| ------------- | ---------------------------------------------------------------------- |
-| `bb-core`     | `runner/src/types.ts`, `workspace/exec.ts`, `sessions/agent-env.ts`, the method table |
-| `bb-git`      | `runner/src/workspace/git.ts`                                          |
-| `bb-fs`       | `runner/src/files/{read,write,commands}.ts`                            |
-| `bb-procs`    | `runner/src/workspace/{scripts,open-targets}.ts`, `terminals/terminals.ts` |
-| `bb-provider` | `runner/src/events/event-builder.ts`, `providers/provider.ts`          |
-| `bb-codex`    | `runner/src/providers/codex*.ts`                                       |
-| `bb-remote`   | `runner/src/remote/*`, `sessions/outbox.ts`                            |
-| `bb-tunnel`   | `packages/tunnel-contract`, `packages/tunnel-client`                   |
-| `bb-pool`     | `plugins/account-pool/src`                                             |
-| `bb-js`       | new: the QuickJS plugin runtime                                        |
-| `bb-cli`      | `apps/cli/src`                                                         |
+| Crate            | Ports                                                                            |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `bb-core`        | `runner/src/types.ts`, `workspace/exec.ts`, `sessions/agent-env.ts`, the method table |
+| `bb-git`         | `runner/src/workspace/git.ts`, `workspace-types.ts`                              |
+| `bb-fs`          | `runner/src/files/{read,write,commands}.ts`                                      |
+| `bb-procs`       | `runner/src/workspace/{scripts,open-targets}.ts`, `terminals/terminals.ts`       |
+| `bb-workspace`   | `runner/src/workspace/{diff,watch,worktrees}.ts`, `files/list.ts`                |
+| `bb-provider`    | `runner/src/events/event-builder.ts`, `providers/provider.ts`                    |
+| `bb-codex`       | `runner/src/providers/codex*.ts`                                                 |
+| `bb-claude`      | `runner/src/providers/claude*.ts`, over the CLI's stream-json protocol           |
+| `bb-echo`        | `runner/src/providers/echo.ts`                                                   |
+| `bb-sessions`    | `runner/src/sessions/session-manager.ts`                                         |
+| `bb-remote`      | `runner/src/remote/*`, `sessions/outbox.ts`                                      |
+| `bb-runner`      | `runner/src/{index,local}.ts`: the local runner and the default adapters         |
+| `bb-thread-view` | `packages/thread-view` (timeline projection, view rows, row titles)              |
+| `bb-tunnel`      | `packages/tunnel-contract`, `packages/tunnel-client`                             |
+| `bb-connect`     | `plugins/connect/src` (account, hosted service, tunnel)                          |
+| `bb-pool`        | `plugins/account-pool/src` (stores, logins, the hub)                             |
+| `bb-js`          | new: the QuickJS plugin runtime with Node shims and a SQLite handle              |
+| `bb-server`      | `apps/server/src`, module for module; `plugins/native/` holds the two native plugins |
+| `bb-cli`         | `apps/cli/src`: the `bb` binary, including `bb server` and `bb runner`           |
 
-More crates are added as the port proceeds (workspace assembly, sessions, Claude, timeline
-projection, the server).
+`bb-server` has no `Engine` object: a TypeScript function that took `engine` or `ctx` takes
+`ctx: &Ctx` (`Arc<ServerContext>`), and in-memory state lives in `ctx.engine`, `ctx.environments`
+and `ctx.terminals`. Built-in TypeScript plugins are bundled by `crates/bb-server/build.rs`
+(`scripts/build-plugin-bundles.mjs`, which needs `node_modules`; set `BB_NODE_MODULES_ROOT` to a
+checkout that has them when building from a bare worktree). A plugin loaded from a directory is
+bundled at load time with the `esbuild` binary (`BB_ESBUILD_PATH`).
+
+## Running
+
+```sh
+cargo build -p bb-cli                      # target/debug/bb
+BB_DATA_DIR=/tmp/bb-rs/data BB_SERVER_PORT=58886 BB_APP_DIR=apps/app/dist \
+  BB_DEV_PROVIDERS=echo target/debug/bb server
+BB_SERVER_URL=http://127.0.0.1:58886 target/debug/bb status
+```
+
+The configuration variables, the default port and the data directory layout are those of the
+TypeScript server, so always set `BB_DATA_DIR` and `BB_SERVER_PORT` when another instance exists.
+
+## How parity is checked
+
+- **Recorded sessions.** Codex fixtures (`packages/runner/test/fixtures`) and raw Claude Code CLI
+  recordings (`crates/bb-claude/tests/fixtures/raw`, with `PROTOCOL.md`) replay through the real
+  adapters to the events the TypeScript pipeline produced.
+- **Timeline.** `scripts/rust-parity/timeline-goldens.ts` writes the TypeScript projection and rows
+  for recorded event streams; `bb-thread-view` reproduces them, and view rows, row titles and the
+  CLI log text are compared with TypeScript output case by case.
+- **Server.** `scripts/rust-parity/record-server.ts` records a conversation with the TypeScript
+  server (HTTP, waits, WebSocket messages, every thread's events and timelines) into
+  `crates/bb-server/tests/fixtures/parity`; `tests/parity_replay.rs` replays it against the Rust
+  server and `tests/timeline_parity.rs` compares the timeline responses.
+- **Ported tests.** The TypeScript test files of the server, runner, CLI and plugins are ported
+  next to the code they cover.
 
 ## Rules for code in `crates/`
 
