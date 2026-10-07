@@ -695,6 +695,20 @@ impl<V: Clone> RecentCache<V> {
     pub fn remember(&self, key: &str, value: V) -> V {
         remember_recent(self, key, value)
     }
+
+    pub fn remove_where(&self, mut matches: impl FnMut(&str) -> bool) {
+        let mut inner = self.inner.lock();
+        let doomed: Vec<(u64, String)> = inner
+            .entries
+            .iter()
+            .filter(|(key, _)| matches(key))
+            .map(|(key, (stamp, _))| (*stamp, key.clone()))
+            .collect();
+        for (stamp, key) in doomed {
+            inner.entries.remove(&key);
+            inner.order.remove(&stamp);
+        }
+    }
 }
 
 pub fn remember_recent<V: Clone>(cache: &RecentCache<V>, key: &str, value: V) -> V {
