@@ -59,8 +59,8 @@ struct Subscription {
 
 struct Stop {
     alive: Arc<AtomicBool>,
+    /// Owns the watchers, so aborting it stops the watching.
     task: tokio::task::JoinHandle<()>,
-    _watchers: Vec<RecommendedWatcher>,
 }
 
 impl Stop {
@@ -275,53 +275,155 @@ fn classify(subscription: &Subscription, relative: &str) -> &'static [Change] {
     }
 }
 
+/// Whether an event at or below `relative` (a directory of the subscription) can classify as a
+/// change. Directories that cannot are not watched at all.
+fn watches_directory(subscription: &Subscription, relative: &str) -> bool {
+    if relative.is_empty() {
+        return true;
+    }
+    match subscription.tree {
+        Tree::Directory | Tree::GitDir { shared: false } => true,
+        Tree::Workspace { .. } => !classify(subscription, relative).is_empty(),
+        Tree::GitDir { shared: true } => {
+            let first = relative.split('/').next().unwrap_or("");
+            !COMMON_DIR_IGNORED.contains(&first)
+        }
+        Tree::CommonDir => {
+            relative == "refs"
+                || [relative, "x"].join("/").starts_with("refs/heads/")
+                || [relative, "x"].join("/").starts_with("refs/remotes/")
+        }
+    }
+}
+
+fn relative_to(subscription: &Subscription, path: &Path) -> Option<String> {
+    let relative = path.strip_prefix(&subscription.root).ok()?;
+    Some(relative.to_string_lossy().replace('\\', "/"))
+}
+
+/// Watches `start` and every directory below it whose events can matter, without following
+/// symlinks. A pnpm `node_modules` reached through its symlinks is several hundred thousand
+/// directories; none of them can produce a change.
+fn watch_tree(
+    watcher: &mut RecommendedWatcher,
+    subscription: &Subscription,
+    start: &Path,
+) -> notify::Result<()> {
+    let mut paths = watcher.paths_mut();
+    let mut pending = vec![start.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        if let Err(error) = paths.add(&directory, RecursiveMode::NonRecursive) {
+            if directory == subscription.root {
+                return Err(error);
+            }
+            continue;
+        }
+        let Ok(entries) = std::fs::read_dir(&directory) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let wanted = entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && relative_to(subscription, &path)
+                    .is_some_and(|relative| watches_directory(subscription, &relative));
+            if wanted {
+                pending.push(path);
+            }
+        }
+    }
+    paths.commit()
+}
+
+enum Signal {
+    Changed(Vec<Change>),
+    /// A directory appeared in the subscription with this index and needs its own watches.
+    Created(usize, PathBuf),
+}
+
+fn signals(subscription: &Subscription, index: usize, event: notify::Event) -> Vec<Signal> {
+    use notify::EventKind;
+    use notify::event::ModifyKind;
+    if matches!(event.kind, EventKind::Access(_)) {
+        return Vec::new();
+    }
+    let appeared =
+        matches!(event.kind, EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_)));
+    let mut changes = Vec::new();
+    let mut created = Vec::new();
+    for path in event.paths {
+        let Some(relative) = relative_to(subscription, &path) else { continue };
+        changes.extend_from_slice(classify(subscription, &relative));
+        let is_directory = || std::fs::symlink_metadata(&path).is_ok_and(|stat| stat.is_dir());
+        if appeared && watches_directory(subscription, &relative) && is_directory() {
+            created.push(Signal::Created(index, path));
+        }
+    }
+    if !changes.is_empty() {
+        created.push(Signal::Changed(changes));
+    }
+    created
+}
+
 fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<Stop> {
-    let (sender, mut receiver) = mpsc::unbounded_channel::<Vec<Change>>();
-    let mut watchers = Vec::new();
-    for subscription in subscriptions {
-        let sender = sender.clone();
-        let root = subscription.root.clone();
-        let mut watcher =
-            notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
-                let changes: Vec<Change> = match result {
-                    Err(_) => vec![Change::Status, Change::Refs],
-                    Ok(event) => event
-                        .paths
-                        .iter()
-                        .filter_map(|path| path.strip_prefix(&subscription.root).ok())
-                        .flat_map(|relative| {
-                            let relative = relative.to_string_lossy().replace('\\', "/");
-                            classify(&subscription, &relative).to_vec()
-                        })
-                        .collect(),
+    let (sender, mut receiver) = mpsc::unbounded_channel::<Signal>();
+    let mut watched: Vec<(Arc<Subscription>, RecommendedWatcher)> = Vec::new();
+    for (index, subscription) in subscriptions.into_iter().enumerate() {
+        let subscription = Arc::new(subscription);
+        let (sender, seen) = (sender.clone(), subscription.clone());
+        let config = notify::Config::default().with_follow_symlinks(false);
+        let mut watcher = RecommendedWatcher::new(
+            move |result: notify::Result<notify::Event>| {
+                let found = match result {
+                    Err(_) => vec![Signal::Changed(vec![Change::Status, Change::Refs])],
+                    Ok(event) => signals(&seen, index, event),
                 };
-                if !changes.is_empty() {
-                    let _ = sender.send(changes);
+                for signal in found {
+                    let _ = sender.send(signal);
                 }
-            })
-            .ok()?;
-        watcher.watch(&root, RecursiveMode::Recursive).ok()?;
-        watchers.push(watcher);
+            },
+            config,
+        )
+        .ok()?;
+        watch_tree(&mut watcher, &subscription, &subscription.root).ok()?;
+        watched.push((subscription, watcher));
     }
     let alive = Arc::new(AtomicBool::new(true));
     let (sink, path, flag) = (ctx.sink.clone(), target.to_owned(), alive.clone());
     let task = tokio::spawn(async move {
-        while let Some(first) = receiver.recv().await {
-            let mut pending: BTreeSet<Change> = first.into_iter().collect();
-            let deadline = Instant::now() + MAX_WAIT;
-            loop {
-                let wait = (Instant::now() + DEBOUNCE).min(deadline);
-                match tokio::time::timeout_at(wait, receiver.recv()).await {
-                    Ok(Some(more)) if Instant::now() < deadline => pending.extend(more),
-                    Ok(Some(more)) => {
-                        pending.extend(more);
-                        break;
+        let mut pending: BTreeSet<Change> = BTreeSet::new();
+        let mut deadline: Option<Instant> = None;
+        loop {
+            let signal = match deadline {
+                None => receiver.recv().await,
+                Some(deadline) => {
+                    let wait = (Instant::now() + DEBOUNCE).min(deadline);
+                    match tokio::time::timeout_at(wait, receiver.recv()).await {
+                        Ok(signal) => signal,
+                        Err(_) => Some(Signal::Changed(Vec::new())),
                     }
-                    Ok(None) => return,
-                    Err(_) => break,
                 }
+            };
+            let quiet = match signal {
+                None => return,
+                Some(Signal::Created(index, directory)) => {
+                    if let Some((subscription, watcher)) = watched.get_mut(index) {
+                        let _ = watch_tree(watcher, subscription, &directory);
+                    }
+                    false
+                }
+                Some(Signal::Changed(changes)) => {
+                    let quiet = changes.is_empty();
+                    pending.extend(changes);
+                    quiet
+                }
+            };
+            if pending.is_empty() {
+                continue;
             }
-            for change in pending {
+            let due = *deadline.get_or_insert_with(|| Instant::now() + MAX_WAIT);
+            if !quiet && Instant::now() < due {
+                continue;
+            }
+            deadline = None;
+            for change in std::mem::take(&mut pending) {
                 if flag.load(Ordering::SeqCst) {
                     let body = RunnerEventBody::WorkspaceChanged {
                         path: path.clone(),
@@ -332,5 +434,5 @@ fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<St
             }
         }
     });
-    Some(Stop { alive, task, _watchers: watchers })
+    Some(Stop { alive, task })
 }

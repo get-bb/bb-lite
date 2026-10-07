@@ -268,3 +268,60 @@ async fn a_file_change_in_a_watched_workspace_signals() {
     watcher.dispose().await.unwrap();
     assert!(seen);
 }
+
+fn workspace_changes(h: &Harness) -> usize {
+    let events = h.events.lock();
+    events
+        .iter()
+        .filter(|event| matches!(&event.body, RunnerEventBody::WorkspaceChanged { .. }))
+        .count()
+}
+
+async fn changes_within(h: &Harness, wait: Duration) -> usize {
+    let before = workspace_changes(h);
+    tokio::time::sleep(wait).await;
+    workspace_changes(h) - before
+}
+
+#[tokio::test]
+async fn reading_a_watched_workspace_does_not_signal() {
+    let h = Harness::new();
+    let repo = h.repo();
+    h.write(&repo.join("src/lib.rs"), "fn main() {}\n");
+    let watcher = create_watcher(&h.ctx);
+    let args =
+        SetWatchedPathsArgs { generation: 1.0, workspaces: vec![s(&repo)], directories: vec![] };
+    watcher.set_watched_paths(args).await.unwrap();
+    changes_within(&h, Duration::from_millis(800)).await;
+    for _ in 0..5 {
+        std::fs::read(repo.join("README.md")).unwrap();
+        std::fs::read(repo.join("src/lib.rs")).unwrap();
+        assert!(std::fs::read_dir(&repo).unwrap().count() > 0);
+        assert!(std::fs::read_dir(repo.join("src")).unwrap().count() > 0);
+    }
+    assert_eq!(changes_within(&h, Duration::from_millis(800)).await, 0);
+    watcher.dispose().await.unwrap();
+}
+
+#[tokio::test]
+async fn watches_new_directories_but_not_dependency_trees() {
+    let h = Harness::new();
+    let repo = h.repo();
+    h.write(&repo.join("node_modules/pkg/index.js"), "1\n");
+    std::os::unix::fs::symlink(&repo, repo.join("node_modules/pkg/self")).unwrap();
+    let watcher = create_watcher(&h.ctx);
+    let args =
+        SetWatchedPathsArgs { generation: 1.0, workspaces: vec![s(&repo)], directories: vec![] };
+    watcher.set_watched_paths(args).await.unwrap();
+    changes_within(&h, Duration::from_millis(800)).await;
+
+    h.write(&repo.join("node_modules/pkg/index.js"), "2\n");
+    h.write(&repo.join("node_modules/pkg/nested/deep.js"), "3\n");
+    assert_eq!(changes_within(&h, Duration::from_millis(800)).await, 0);
+
+    std::fs::create_dir_all(repo.join("fresh/inner")).unwrap();
+    assert!(changes_within(&h, Duration::from_millis(800)).await > 0);
+    h.write(&repo.join("fresh/inner/file.txt"), "new\n");
+    assert!(changes_within(&h, Duration::from_millis(800)).await > 0);
+    watcher.dispose().await.unwrap();
+}
