@@ -5,6 +5,8 @@ import { WebSocket as NodeWebSocket } from "ws";
 const DEFAULT_HEARTBEAT = { intervalMs: 20_000, deadlineMs: 60_000 };
 const HEARTBEAT_LATE_TICK_GRACE_MS = 5_000;
 const UNREGISTERED_PORT_BODY = "this port is not shared";
+const SEND_BUFFER_HIGH_WATER_BYTES = 1024 * 1024;
+const SEND_BUFFER_POLL_MS = 10;
 const VIA_TUNNEL_HEADER = "x-bb-via-tunnel";
 const SKIP_REQUEST_HEADERS = ["host", "content-length", "connection"];
 
@@ -144,6 +146,17 @@ export class TunnelSession {
     }
   }
 
+  private async waitForSendBuffer(signal: AbortSignal): Promise<void> {
+    const { tunnel } = this.options;
+    while (
+      !signal.aborted &&
+      tunnel.readyState === NodeWebSocket.OPEN &&
+      tunnel.bufferedAmount > SEND_BUFFER_HIGH_WATER_BYTES
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, SEND_BUFFER_POLL_MS));
+    }
+  }
+
   private closeStream(streamId: number, code: number, reason: string): void {
     this.send({ type: "close-stream", streamId, code, reason });
   }
@@ -241,6 +254,7 @@ export class TunnelSession {
         const value =
           chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk));
         for (const frame of wire.chunkBody(streamId, value)) this.send(frame);
+        await this.waitForSendBuffer(signal);
       }
       this.send({ type: "body-end", streamId });
     } catch (e) {

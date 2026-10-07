@@ -1,6 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 import * as wire from "@bb/tunnel-contract";
-import { SESSION_COOKIE, type Env } from "./site.js";
+import {
+  CLOSE_HEADER,
+  OFFLINE_HEADER,
+  TARGET_HEADER,
+  TUNNEL_HEADER,
+  isReservedCookie,
+  type Env,
+} from "./site.js";
 
 interface HttpStream {
   respond(response: Response): void;
@@ -8,13 +15,17 @@ interface HttpStream {
   timer: ReturnType<typeof setTimeout>;
 }
 
-export const TUNNEL_HEADER = "x-relay-tunnel";
-export const TARGET_HEADER = "x-relay-target";
-export const OFFLINE_HEADER = "x-relay-offline";
-
 const TUNNEL_TAG = "tunnel";
 const VISITOR_TAG = "visitor";
 const HEAD_TIMEOUT_MS = 120_000;
+const OPENED_AT = "tunnelOpenedAt";
+const CLOSED_AT = "tunnelClosedAt";
+const LOST_AT = "tunnelLostAt";
+const VANISHED_GRACE_MS = 5_000;
+const RETURN_GRACE_MS = 15_000;
+const CLEAN_CLOSE_CODE = 1000;
+const COOKIE_DOMAIN = /;\s*domain\s*(?:=|;|$)/iu;
+const COMBINED_COOKIES = /,\s*[^\s;=,]+=/u;
 const BODYLESS_STATUSES = [101, 204, 205, 304];
 const HOP_HEADERS =
   /^(connection|keep-alive|transfer-encoding|upgrade|expect|host|content-length|sec-websocket-(key|version|extensions|accept)|x-relay-.*)$/iu;
@@ -44,16 +55,14 @@ function forwardedHeaders(request: Request): wire.HeaderPair[] {
 }
 
 function isRelayCookie(cookie: string): boolean {
-  const [pair = "", ...attributes] = cookie.split(";");
-  const [name = ""] = pair.split("=");
-  const scoped = attributes.some((attribute) =>
-    attribute.trim().toLowerCase().startsWith("domain="),
-  );
-  return scoped || name.trim() === SESSION_COOKIE;
+  const [name = ""] = cookie.split("=");
+  if (isReservedCookie(name)) return true;
+  return COOKIE_DOMAIN.test(cookie) || COMBINED_COOKIES.test(cookie);
 }
 
 export class TunnelDO extends DurableObject<Env> {
   private readonly streams = new Map<number, HttpStream>();
+  private readonly waiters = new Set<() => void>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -62,9 +71,10 @@ export class TunnelDO extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (request.headers.get(CLOSE_HEADER) === "1") return this.revoke();
     if (request.headers.get(TUNNEL_HEADER) === "1") return this.acceptTunnel();
-    const [tunnel] = this.ctx.getWebSockets(TUNNEL_TAG);
-    if (tunnel === undefined) {
+    const tunnel = this.tunnelSocket() ?? (await this.returningTunnel());
+    if (tunnel === null) {
       return plain(503, "This bb server is not connected right now.", true);
     }
     const upgrade = request.headers.get("upgrade")?.toLowerCase();
@@ -91,7 +101,7 @@ export class TunnelDO extends DurableObject<Env> {
     try {
       socket.close(relayedCloseCode(code), reason);
     } catch {}
-    if (tunnel) return this.dropStreams("tunnel closed");
+    if (tunnel) return this.tunnelClosed(socket, code);
     const closing = { code: relayedCloseCode(code), reason };
     const streamId = this.streamOf(socket);
     this.toTunnel({ type: "close-stream", streamId, ...closing });
@@ -101,13 +111,81 @@ export class TunnelDO extends DurableObject<Env> {
     this.webSocketClose(socket, 1011, "socket error");
   }
 
-  private acceptTunnel(): Response {
+  private tunnelSocket(): WebSocket | null {
+    return this.ctx.getWebSockets(TUNNEL_TAG)[0] ?? null;
+  }
+
+  private tunnelClosed(socket: WebSocket, code: number): void {
+    const others = this.ctx
+      .getWebSockets(TUNNEL_TAG)
+      .filter((other) => other !== socket);
+    if (others.length > 0) return;
+    const now = Date.now();
+    const { storage } = this.ctx;
+    void storage.put(CLOSED_AT, now);
+    if (code === CLEAN_CLOSE_CODE) void storage.delete(LOST_AT);
+    else void storage.put(LOST_AT, now);
+    this.dropStreams("tunnel closed");
+  }
+
+  private async restartIfVanished(): Promise<void> {
+    if (this.tunnelSocket() !== null) return;
+    const { storage } = this.ctx;
+    const openedAt = await storage.get<number>(OPENED_AT);
+    const closedAt = await storage.get<number>(CLOSED_AT);
+    if (openedAt === undefined) return;
+    const unclosed = closedAt === undefined || closedAt < openedAt;
+    if (!unclosed || Date.now() - openedAt <= VANISHED_GRACE_MS) return;
+    const now = Date.now();
+    await storage.put({ [CLOSED_AT]: now, [LOST_AT]: now });
+    await storage.sync();
+    this.ctx.abort("the tunnel socket disappeared without a close");
+  }
+
+  private async returningTunnel(): Promise<WebSocket | null> {
+    await this.restartIfVanished();
+    const lostAt = await this.ctx.storage.get<number>(LOST_AT);
+    const remainingMs =
+      lostAt === undefined ? 0 : lostAt + RETURN_GRACE_MS - Date.now();
+    if (remainingMs <= 0) return this.tunnelSocket();
+    await new Promise<void>((resolve) => {
+      const settle = () => {
+        clearTimeout(timer);
+        this.waiters.delete(settle);
+        resolve();
+      };
+      const timer = setTimeout(settle, remainingMs);
+      this.waiters.add(settle);
+    });
+    return this.tunnelSocket();
+  }
+
+  private async revoke(): Promise<Response> {
+    for (const tunnel of this.ctx.getWebSockets(TUNNEL_TAG)) {
+      try {
+        tunnel.close(CLEAN_CLOSE_CODE, "link revoked");
+      } catch {}
+    }
+    await this.ctx.storage.put(CLOSED_AT, Date.now());
+    await this.ctx.storage.delete(LOST_AT);
+    this.dropStreams("link revoked");
+    for (const settle of [...this.waiters]) settle();
+    return new Response(null, { status: 204 });
+  }
+
+  private async acceptTunnel(): Promise<Response> {
+    await this.restartIfVanished();
     for (const previous of this.ctx.getWebSockets(TUNNEL_TAG)) {
-      previous.close(1000, wire.TUNNEL_REPLACED_CLOSE_REASON);
+      previous.close(CLEAN_CLOSE_CODE, wire.TUNNEL_REPLACED_CLOSE_REASON);
     }
     this.dropStreams("reconnected");
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [TUNNEL_TAG]);
+    await this.ctx.storage.put(OPENED_AT, Date.now());
+    await this.ctx.storage.delete(LOST_AT);
+    setTimeout(() => {
+      for (const settle of [...this.waiters]) settle();
+    }, 0);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 

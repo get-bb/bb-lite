@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { expect, it, onTestFinished, vi } from "vitest";
+import * as wire from "@bb/tunnel-contract";
 import { WebSocket } from "ws";
 import {
   createTestServer,
@@ -247,6 +248,9 @@ async function echoServer() {
     response.setHeader("set-cookie", [
       "bbr_session=stolen; Path=/",
       `tossed=1; Domain=${BASE}; Path=/`,
+      `spaced=1; Path=/; domain =${BASE}`,
+      "first=1, second=2; Path=/",
+      "__Host-bbr_account=stolen; Path=/",
       "kept=1; Path=/",
     ]);
     response.end("shared page");
@@ -307,7 +311,7 @@ it("links a server and lets invited relay accounts in", async () => {
     hasPassword: false,
     avatarUrl,
   });
-  expect(bo.jar.size).toBe(1);
+  expect([...bo.jar.keys()].sort()).toEqual(["bbr_account", "bbr_session"]);
   const member = await bo.visit(`${bee}${session}`);
   expect(member.body.user).toMatchObject({ name: "Bo" });
   const users = await bo.visit(`${bee}/api/v1/users`);
@@ -352,10 +356,14 @@ it("keeps relay sessions away from servers and shares", async () => {
   const visited = await alice.visit(`${String(shared.url)}/page`);
   expect(visited).toMatchObject({ status: 200, text: "shared page" });
   const [headers = {}] = echo.seen;
-  expect(headers.cookie ?? "").not.toContain("bbr_session");
+  expect(headers.cookie ?? "").not.toContain("bbr_");
   expect(headers["x-bb-via-tunnel"]).toBeUndefined();
   expect(headers["x-bb-gate-user-id"]).toMatch(/^ru_/u);
-  expect([...alice.jar.keys()].sort()).toEqual(["bbr_session", "kept"]);
+  expect([...alice.jar.keys()].sort()).toEqual([
+    "bbr_account",
+    "bbr_session",
+    "kept",
+  ]);
   const bo = await account(apex, "Bo");
   const peeked = await bo.visit(`${String(shared.url)}/page`);
   expect(peeked).toMatchObject({ status: 403, body: { code: "forbidden" } });
@@ -435,4 +443,98 @@ it("signs people in with GitHub and only lets approved accounts link", async () 
   const bare = await startRelay({ GITHUB_CLIENT_SECRET: "" });
   const unset = await browser().visit(`${bare.apex}/auth/github`);
   expect(unset.status).toBe(503);
+});
+
+async function rawLink(relay: { apex: string; origin(name: string): string }) {
+  const alice = await account(relay.apex, "Alice");
+  const api = `${relay.apex}/api/account/link`;
+  const start = { json: { clientName: "raw" }, headers: { origin: "" } };
+  const begun = await browser().visit(`${api}/start`, start);
+  const approval = {
+    code: begun.body.userCode,
+    label: "raw",
+    action: "approve",
+  };
+  await alice.visit(`${relay.apex}/link`, { form: approval });
+  const poll = { json: { deviceCode: begun.body.deviceCode } };
+  const polled = await browser().visit(`${api}/poll`, poll);
+  const credential = String(polled.body.credential);
+  const address = relay.origin("raw");
+  const dial = (answers: boolean) => {
+    const url = `${address.replace("http", "ws")}/__tunnel?v=1`;
+    const headers = { authorization: `Bearer ${credential}` };
+    const tunnel = new WebSocket(url, { headers });
+    onTestFinished(() => tunnel.terminate());
+    tunnel.on("error", () => {});
+    tunnel.on("message", (data: Buffer, isBinary) => {
+      if (!isBinary || !answers) return;
+      const frame = wire.decodeFrame(data);
+      if (frame.type !== "open-http") return;
+      const { streamId } = frame;
+      const reply = Buffer.from(`served ${frame.path}`);
+      const head = { status: 200, headers: [] };
+      tunnel.send(wire.encodeFrame({ type: "resp-head", streamId, ...head }));
+      const chunk = { type: "body-chunk", streamId, data: reply } as const;
+      tunnel.send(wire.encodeFrame(chunk));
+      tunnel.send(wire.encodeFrame({ type: "body-end", streamId }));
+    });
+    return tunnel;
+  };
+  return { alice, credential, address, dial };
+}
+
+it("rides through a dropped tunnel and closes a revoked one", async () => {
+  const relay = await startRelay();
+  const { alice, credential, address, dial } = await rawLink(relay);
+  const first = dial(true);
+  await once(first, "open");
+  const served = await alice.visit(`${address}/a`);
+  expect(served).toMatchObject({ status: 200, text: "served /a" });
+  first.terminate();
+  await vi.waitFor(async () => {
+    const probe = alice.visit(`${address}/b`);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const second = dial(true);
+    await once(second, "open");
+    expect(await probe).toMatchObject({ status: 200, text: "served /b" });
+  });
+  const stale = dial(true);
+  await once(stale, "open");
+  const closed = once(stale, "close");
+  const revoke = { headers: { authorization: `Bearer ${credential}` } };
+  const revoked = await browser().visit(
+    `${relay.apex}/api/connect/disconnect`,
+    { method: "POST", ...revoke },
+  );
+  expect(revoked.body).toEqual({ ok: true });
+  expect((await closed)[1].toString()).toBe("link revoked");
+  expect((await alice.visit(`${address}/c`)).status).toBe(503);
+  const refused = dial(true);
+  const [, rejection] = (await once(refused, "unexpected-response")) as [
+    unknown,
+    IncomingMessage,
+  ];
+  expect(rejection.statusCode).toBe(401);
+});
+
+it("answers within its deadline and keeps account pages on their own cookie", async () => {
+  const relay = await startRelay({ GATE_DEADLINE_MS: "400" });
+  const { alice, address, dial } = await rawLink(relay);
+  const silent = dial(false);
+  await once(silent, "open");
+  const stalled = await alice.visit(`${address}/slow`);
+  expect(stalled).toMatchObject({
+    status: 504,
+    body: {
+      code: "gateway_timeout",
+      message: expect.stringContaining("tunnel"),
+    },
+  });
+  const shadowed = browser();
+  const session = alice.jar.get("bbr_session") ?? "";
+  shadowed.jar.set("bbr_session", session);
+  const home = await shadowed.visit(relay.apex);
+  expect(home.headers.get("location")).toContain("/login");
+  expect((await shadowed.visit(`${address}/x`)).status).not.toBe(401);
+  expect((await alice.visit(relay.apex)).text).toContain("@alice");
 });

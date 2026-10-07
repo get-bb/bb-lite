@@ -10,6 +10,7 @@ export interface Env {
   GITHUB_CLIENT_SECRET?: string;
   GITHUB_OAUTH_URL?: string;
   GITHUB_API_URL?: string;
+  GATE_DEADLINE_MS?: string;
 }
 
 export interface Site {
@@ -23,6 +24,21 @@ export interface Site {
 
 export const SESSION_COOKIE = "bbr_session";
 export const OAUTH_COOKIE = "bbr_oauth";
+export const TUNNEL_HEADER = "x-relay-tunnel";
+export const TARGET_HEADER = "x-relay-target";
+export const CLOSE_HEADER = "x-relay-close";
+export const OFFLINE_HEADER = "x-relay-offline";
+
+const ACCOUNT_COOKIE = "bbr_account";
+const RESERVED_COOKIE = /^(__(host|secure)-)?bbr_/iu;
+
+export function isReservedCookie(name: string): boolean {
+  return RESERVED_COOKIE.test(name.trim());
+}
+
+function accountCookieName(site: Site) {
+  return site.secure ? `__Host-${ACCOUNT_COOKIE}` : ACCOUNT_COOKIE;
+}
 export const MACHINE_HEADER = "x-bb-connect-machine";
 
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/u;
@@ -72,10 +88,10 @@ export function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
-export function withoutCookie(header: string | null, name: string) {
+export function withoutRelayCookies(header: string | null) {
   const kept = (header ?? "").split(";").filter((pair) => {
     const [key = ""] = pair.split("=");
-    return key.trim() !== "" && key.trim() !== name;
+    return key.trim() !== "" && !isReservedCookie(key);
   });
   return kept.map((pair) => pair.trim()).join("; ");
 }
@@ -92,6 +108,11 @@ export function sessionCookie(site: Site, token: string, maxAge: number) {
   return cookie(site, `${SESSION_COOKIE}=${token}`, scope, maxAge);
 }
 
+export function accountCookie(site: Site, token: string, maxAge: number) {
+  const pair = `${accountCookieName(site)}=${token}`;
+  return cookie(site, pair, ["Path=/"], maxAge);
+}
+
 export function oauthCookie(site: Site, value: string, maxAge: number) {
   return cookie(site, `${OAUTH_COOKIE}=${value}`, ["Path=/auth"], maxAge);
 }
@@ -99,6 +120,28 @@ export function oauthCookie(site: Site, value: string, maxAge: number) {
 export async function visitor(request: Request, site: Site) {
   const token = readCookie(request, SESSION_COOKIE);
   return token === null ? null : store.sessionUser(site.db, token);
+}
+
+export function accountToken(request: Request, site: Site) {
+  return readCookie(request, accountCookieName(site));
+}
+
+export async function accountHolder(request: Request, site: Site) {
+  const token = accountToken(request, site);
+  return token === null ? null : store.sessionUser(site.db, token);
+}
+
+export function tunnelStub(site: Site, serverId: string) {
+  const tunnels = site.env.TUNNEL_DO;
+  return tunnels.get(tunnels.idFromName(serverId));
+}
+
+export async function closeTunnel(site: Site, serverId: string) {
+  const headers = { [CLOSE_HEADER]: "1" };
+  const request = new Request("https://tunnel/close", { headers });
+  await tunnelStub(site, serverId)
+    .fetch(request)
+    .catch(() => null);
 }
 
 export function bearer(request: Request): string | null {

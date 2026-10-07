@@ -34,9 +34,14 @@ It speaks the same account API and tunnel protocol as getbb.app (`packages/tunne
 
 Every server and share is a sibling subdomain running code the relay does not control, so:
 
-- the relay cookie is removed from the `Cookie` header before anything is forwarded, and inbound
+- every `bbr_*` cookie is removed from the `Cookie` header before anything is forwarded, and inbound
   `x-bb-gate-*`, `x-bb-via-tunnel` and `x-relay-*` headers are dropped;
-- `Set-Cookie` headers from a server that name `bbr_session` or carry a `Domain` attribute are dropped;
+- a `Set-Cookie` from a server is dropped when it names a `bbr_*` cookie (with or without a `__Host-` or
+  `__Secure-` prefix), carries a `Domain` attribute in any spelling, or looks like several cookies
+  joined with a comma;
+- the account pages on the apex (`/`, `/link`, `/admin/*`, `/logout`) do not trust `bbr_session`, which
+  a page on any subdomain could shadow with a cookie of its own. They read a second, host-only cookie
+  (`__Host-bbr_account`) that only the apex can set; the gate on server addresses reads `bbr_session`;
 - a state-changing or WebSocket request whose `Origin` is not the address it was sent to is refused at
   the gate (the bb server checks the same), and account forms require the relay's own `Origin`.
 
@@ -45,9 +50,27 @@ Every server and share is a sibling subdomain running code the relay does not co
 `TunnelDO` holds the server's tunnel socket and every visitor socket through the WebSocket hibernation
 API, with the tunnel heartbeat answered by an auto-response, so an idle server costs nothing while it
 stays connected. Stream ids are random and live in socket attachments; in-flight HTTP streams are the
-only in-memory state and keep the object awake only while a response is pending. A response head must
-arrive within 120 s. Bodies pass through still encoded (`encodeBody: "manual"`). A second tunnel for
-the same server replaces the first (close 1000, "replaced by a new tunnel connection").
+only in-memory state and keep the object awake only while a response is pending. Bodies pass through
+still encoded (`encodeBody: "manual"`). A second tunnel for the same server replaces the first (close
+1000, "replaced by a new tunnel connection").
+
+Failure handling, ported from the getbb.app gate:
+
+- **A dropped tunnel.** When the tunnel closes with anything but a clean 1000, the object notes
+  `tunnelLostAt` and a visitor who arrives within 15 s waits for the server to dial back instead of
+  getting 503. A clean close (sign-out, switched off) answers 503 at once.
+- **A vanished tunnel.** The object records when a tunnel opened and closed. If a request or a new dial
+  finds no tunnel socket although the last one never closed (5 s grace), the object saves that, syncs
+  and aborts itself, so an orphaned hibernated socket is dropped and the server redials into a working
+  object. The gate retries GET and HEAD against the object twice (50 ms, 250 ms) and answers 503
+  otherwise.
+- **A revoked link.** `POST /api/connect/disconnect` and linking the same address again close the open
+  tunnel (1000, "link revoked"); the old credential is then refused on redial.
+- **Deadlines.** The gate answers 504 `gateway_timeout`, naming the stage (`routing` or `tunnel`), when
+  no response head exists 120 s after the request arrived; a response that turns up later is
+  discarded. The object has the same 120 s limit on a response head.
+- **Backpressure.** The tunnel client (`packages/tunnel-client`) stops reading a local response while
+  more than 1 MiB is waiting on the tunnel socket.
 
 ## Running it
 

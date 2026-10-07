@@ -10,9 +10,8 @@ const OAUTH_TTL_S = 600;
 const LINK_POLL_INTERVAL_MS = 2_000;
 const LINK_MIN_POLL_GAP_MS = 500;
 
-function redirect(location: string, cookie?: string): Response {
+function redirect(location: string): Response {
   const headers = new Headers({ location, "cache-control": "no-store" });
-  if (cookie !== undefined) headers.set("set-cookie", cookie);
   return new Response(null, { status: 303, headers });
 }
 
@@ -174,14 +173,18 @@ async function finishGithub(request: Request, context: Site) {
   const maxAge = store.SESSION_MAX_AGE_SECONDS;
   const headers = new Headers({ location: next, "cache-control": "no-store" });
   headers.append("set-cookie", site.sessionCookie(context, token, maxAge));
+  headers.append("set-cookie", site.accountCookie(context, token, maxAge));
   headers.append("set-cookie", site.oauthCookie(context, "", 0));
   return new Response(null, { status: 303, headers });
 }
 
 async function logOut(request: Request, context: Site) {
-  const token = site.readCookie(request, site.SESSION_COOKIE);
+  const token = site.accountToken(request, context);
   if (token !== null) await store.deleteSession(context.db, token);
-  return redirect("/login", site.sessionCookie(context, "", 0));
+  const headers = new Headers({ location: "/login" });
+  headers.append("set-cookie", site.sessionCookie(context, "", 0));
+  headers.append("set-cookie", site.accountCookie(context, "", 0));
+  return new Response(null, { status: 303, headers });
 }
 
 function slug(text: string): string {
@@ -246,6 +249,8 @@ async function linkRoute(request: Request, context: Site, user: store.User) {
     return linkView(context, user, link, "That address is taken.");
   }
   if (outcome === "stale") return expired();
+  const linked = await store.serverByLabel(context.db, label);
+  if (linked !== null) await site.closeTunnel(context, linked.id);
   const address = context.origin(label);
   return pages.notice("Connected", `Your bb server is now at ${address}.`);
 }
@@ -307,6 +312,7 @@ export async function connectApi(
   if (server === null) return unauthorized();
   if (path === "/api/connect/disconnect") {
     await store.clearServerCredential(context.db, server.id);
+    await site.closeTunnel(context, server.id);
     return site.json({ ok: true });
   }
   if (path === "/api/connect/machine-code") {
@@ -363,7 +369,7 @@ export async function apex(request: Request, context: Site): Promise<Response> {
   if (method === "POST" && !isSameOriginPost(request, context)) {
     return pages.notice("Refused", "This form came from another site.", 403);
   }
-  const user = await site.visitor(request, context);
+  const user = await site.accountHolder(request, context);
   if (reading && path === "/auth/github/callback") {
     return finishGithub(request, context);
   }
