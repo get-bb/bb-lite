@@ -110,7 +110,7 @@ pub fn require_thread(db: &Db, id: &str) -> ApiResult<ThreadRow> {
 pub fn next_pin_sort_key(db: &Db) -> ApiResult<String> {
     let first: Option<Option<String>> =
         db.scalar("SELECT MIN(pin_sort_key) AS key FROM threads WHERE pinned_at IS NOT NULL", [])?;
-    order_keys_local::order_key_between(None, first.flatten().as_deref())
+    super::order_keys::order_key_between(None, first.flatten().as_deref())
         .map_err(ApiError::internal)
 }
 
@@ -350,42 +350,8 @@ pub fn reorder_pinned_thread(
     {
         return Err(stale());
     }
-    let key = order_keys_local::order_key_between(previous.as_deref(), next.as_deref())
+    let key = super::order_keys::order_key_between(previous.as_deref(), next.as_deref())
         .map_err(ApiError::internal)?;
     patch_thread(db, id, &row! { "pinSortKey" => key }, true)?;
     Ok(())
-}
-
-/// Private copy of `db/order_keys.rs` (deduplicated at merge time).
-mod order_keys_local {
-    const DIGITS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    const LAST_DIGIT: usize = DIGITS.len() - 1;
-
-    fn digit_at(key: Option<&str>, index: usize, fallback: usize) -> Result<usize, String> {
-        let Some(key) = key else { return Ok(fallback) };
-        let Some(byte) = key.as_bytes().get(index) else { return Ok(fallback) };
-        DIGITS
-            .iter()
-            .position(|digit| digit == byte)
-            .ok_or_else(|| format!("Invalid order key '{key}'"))
-    }
-
-    pub fn order_key_between(previous: Option<&str>, next: Option<&str>) -> Result<String, String> {
-        if let (Some(previous), Some(next)) = (previous, next)
-            && previous >= next
-        {
-            return Err("Order keys must ascend".to_owned());
-        }
-        let mut prefix = String::new();
-        for index in 0.. {
-            let low = digit_at(previous, index, 0)?;
-            let high = digit_at(next, index, LAST_DIGIT)?;
-            if high > low + 1 {
-                prefix.push(char::from(DIGITS[(low + high) / 2]));
-                return Ok(prefix);
-            }
-            prefix.push(char::from(DIGITS[low]));
-        }
-        unreachable!("the key loop only ends by returning")
-    }
 }

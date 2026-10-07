@@ -270,7 +270,7 @@ pub fn find_or_create_project(db: &Db, input: &NewProject) -> ApiResult<FoundPro
         let project_id = new_id("proj");
         let previous = last.as_ref().map(|row| row.sort_key.as_str());
         let sort_key =
-            order_keys_local::order_key_between(previous, None).map_err(ApiError::internal)?;
+            super::order_keys::order_key_between(previous, None).map_err(ApiError::internal)?;
         let row = row! {
             "id" => &project_id,
             "name" => &input.name,
@@ -371,53 +371,4 @@ pub fn delete_project_source(db: &Db, source: &ProjectSource) -> ApiResult<()> {
         }
         Ok(())
     })
-}
-
-/// A private copy of `order-keys.ts` until `db::order_keys` is merged in.
-mod order_keys_local {
-    const DIGITS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    const LAST_DIGIT: isize = DIGITS.len() as isize - 1;
-
-    fn digit_at(key: Option<&str>, index: usize, fallback: isize) -> Result<isize, String> {
-        let Some(text) = key else { return Ok(fallback) };
-        let Some(&byte) = text.as_bytes().get(index) else { return Ok(fallback) };
-        DIGITS
-            .iter()
-            .position(|&digit| digit == byte)
-            .map(|digit| digit as isize)
-            .ok_or_else(|| format!("Invalid order key '{text}'"))
-    }
-
-    pub fn order_key_between(previous: Option<&str>, next: Option<&str>) -> Result<String, String> {
-        if let (Some(previous), Some(next)) = (previous, next)
-            && previous >= next
-        {
-            return Err("Order keys must ascend".to_owned());
-        }
-        let mut prefix = String::new();
-        for index in 0.. {
-            let low = digit_at(previous, index, 0)?;
-            let high = digit_at(next, index, LAST_DIGIT)?;
-            if high - low > 1 {
-                prefix.push(char::from(DIGITS[((low + high) / 2) as usize]));
-                return Ok(prefix);
-            }
-            prefix.push(char::from(DIGITS[low as usize]));
-        }
-        Err("Order keys must ascend".to_owned())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::order_key_between;
-
-        #[test]
-        fn picks_midpoints_and_appends() {
-            assert_eq!(order_key_between(None, None).unwrap(), "U");
-            assert_eq!(order_key_between(Some("V"), None).unwrap(), "k");
-            assert_eq!(order_key_between(Some("z"), None).unwrap(), "zU");
-            assert!(order_key_between(Some("b"), Some("a")).is_err());
-            assert!(order_key_between(Some("-"), None).is_err());
-        }
-    }
 }
