@@ -109,7 +109,9 @@ async fn expires_join_tokens_reissues_them_and_revokes_on_removal() {
     assert_eq!(status, StatusCode::OK, "{removed}");
     until(|| {
         let changes = changes.lock();
-        changes.iter().any(|change| change.contains(&id) && change.contains("host-disconnected"))
+        changes
+            .iter()
+            .any(|change| change.contains(&id) && change.contains("host-disconnected"))
             .then_some(())
     })
     .await;

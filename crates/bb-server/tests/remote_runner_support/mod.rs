@@ -107,8 +107,7 @@ impl TestServer {
     }
 
     pub fn host_row(&self, host_id: &str) -> Value {
-        let rows =
-            self.server.ctx.db.rows("SELECT * FROM hosts WHERE id = ?", [host_id]).unwrap();
+        let rows = self.server.ctx.db.rows("SELECT * FROM hosts WHERE id = ?", [host_id]).unwrap();
         serde_json::to_value(rows).unwrap()[0].clone()
     }
 

@@ -115,3 +115,51 @@ async fn keeps_a_turn_alive_across_a_dropped_socket_without_duplicates() {
     machine.stop().await;
     server.close().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn runs_a_thread_created_on_the_remote_machine_through_the_engine() {
+    let server = TestServer::start().await;
+    let mut machine = Machine::enroll(&server).await;
+    machine.run().await;
+    machine.connected().await;
+    let body = json!({
+        "projectId": "proj_personal",
+        "origin": "app",
+        "providerId": "echo",
+        "input": [{ "type": "text", "text": "hello remote", "mentions": [] }],
+        "environment": {
+            "type": "host", "hostId": machine.host_id, "workspace": { "type": "personal" }
+        },
+        "startedOnBehalfOf": null,
+    });
+    let (status, thread) = server.api("POST", "/threads", Some(body)).await;
+    assert_eq!(status.as_u16(), 201, "{thread}");
+    let thread_id = thread["id"].as_str().unwrap().to_owned();
+    let db = &server.server.ctx.db;
+    let read = || {
+        let thread = db.rows("SELECT * FROM threads WHERE id = ?", [&thread_id]).unwrap();
+        let events = db
+            .rows("SELECT * FROM events WHERE thread_id = ? ORDER BY sequence", [&thread_id])
+            .unwrap();
+        (serde_json::to_value(thread).unwrap()[0].clone(), serde_json::to_string(&events).unwrap())
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let events = loop {
+        let (thread, events) = read();
+        if thread["status"] == "idle" && events.contains("turn/completed") {
+            break events;
+        }
+        assert!(std::time::Instant::now() < deadline, "thread stayed {thread}: {events}");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    };
+    assert!(events.contains("hello remote"), "{events}");
+    let environment = db
+        .rows("SELECT e.* FROM environments e JOIN threads t ON t.environment_id = e.id WHERE t.id = ?", [&thread_id])
+        .unwrap();
+    let environment = serde_json::to_value(environment).unwrap();
+    assert_eq!(environment[0]["hostId"], json!(machine.host_id), "{environment}");
+    assert!(machine.types().iter().any(|kind| kind == "turn/completed"));
+    expect_consecutive(&machine);
+    machine.stop().await;
+    server.close().await;
+}
