@@ -8,8 +8,7 @@ publish.workspace = true
 [dependencies]
 bb-core.workspace = true
 bb-remote = { path = "../bb-remote" }
-bb-runner = { path = "../bb-runner" }
-bb-provider = { path = "../bb-provider" }
+bb-js = { path = "../bb-js" }
 anyhow.workspace = true
 async-compression.workspace = true
 http-body-util.workspace = true
@@ -21,9 +20,8 @@ percent-encoding.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 tokio-tungstenite.workspace = true
-aes-gcm = "0.10"
 async-trait.workspace = true
-axum = { workspace = true, features = ["multipart"] }
+axum.workspace = true
 base64.workspace = true
 brotli = "9"
 flate2 = "1"
