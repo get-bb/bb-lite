@@ -15,8 +15,15 @@ Usage: scripts/server.sh <command> [--build] [--force]
   --force   Replace a server that uses a different data directory
 
 Both servers read the same settings and the same data directory, so switching
-keeps threads and settings. Settings come from the environment and from
-.env.server at the repository root (KEY=value lines), for example:
+keeps threads and settings. A setting is taken from the first of these that has it:
+
+  1. the environment
+  2. .env.server at the repository root (KEY=value lines)
+  3. the bb server now listening on the port (so a switch keeps its settings)
+  4. the settings of the last start on that port (.tmp/server-<port>.env)
+  5. the server's own defaults
+
+The port itself comes from BB_SERVER_PORT (1 or 2), else 48886. Example .env.server:
 
   BB_DATA_DIR=/home/me/.bb-150k
   BB_SERVER_PORT=48886
@@ -49,20 +56,14 @@ for option in "$@"; do
 done
 
 port=${BB_SERVER_PORT:-48886}
-data_dir=${BB_DATA_DIR:-$HOME/.bb-150k}
-case $data_dir in
-  /*) ;;
-  *) data_dir=$PWD/$data_dir ;;
-esac
-data_dir=${data_dir%/}
-app_dir=${BB_APP_DIR:-$root/apps/app/dist}
-bind_host=${BB_SERVER_BIND_HOST:-127.0.0.1}
-case $bind_host in
-  0.0.0.0 | ::) bind_host=127.0.0.1 ;;
-esac
-url=http://$bind_host:$port
 log=${BB_SERVER_LOG:-$root/.tmp/server-$port.log}
+remembered=$root/.tmp/server-$port.env
 binary=${CARGO_TARGET_DIR:-$root/target}/release/bb
+inherited="BB_DATA_DIR BB_SERVER_BIND_HOST BB_SERVER_ALLOWED_HOSTS BB_APP_DIR BB_LOG_LEVEL"
+inherited="$inherited BB_DEV_PROVIDERS BB_CONNECT_BASE_URL BB_CLAUDE_CODE_EXECUTABLE"
+explicit_data_dir=${BB_DATA_DIR:-}
+adopted=""
+adopted_from=""
 
 die() {
   echo "server.sh: $*" >&2
@@ -87,15 +88,77 @@ kind_of() {
   esac
 }
 
+server_url() {
+  local host=${BB_SERVER_BIND_HOST:-127.0.0.1}
+  case $host in
+    0.0.0.0 | ::) host=127.0.0.1 ;;
+  esac
+  echo "http://$host:$port"
+}
+
 healthy() {
-  curl -fsS -m 2 "$url/health" >/dev/null 2>&1
+  curl -fsS -m 2 "$(server_url)/health" >/dev/null 2>&1
 }
 
 running_data_dir() {
   local config
-  config=$(curl -fsS -m 5 "$url/api/v1/system/config" 2>/dev/null || true)
+  config=$(curl -fsS -m 5 "$(server_url)/api/v1/system/config" 2>/dev/null || true)
   echo "$config" | sed -n 's/.*"dataDir":"\([^"]*\)".*/\1/p'
 }
+
+adopt() {
+  local line key
+  while IFS= read -r line; do
+    key=${line%%=*}
+    case " $inherited " in
+      *" $key "*) ;;
+      *) continue ;;
+    esac
+    [ -z "${!key+set}" ] || continue
+    export "$key=${line#*=}"
+    adopted="$adopted $key"
+  done
+}
+
+adopt_settings() {
+  local pid used
+  pid=$(listener_pid)
+  if [ -n "$pid" ] && [ "$(kind_of "$pid")" != unknown ]; then
+    adopted_from="the running server"
+    if [ -r "/proc/$pid/environ" ]; then
+      adopt < <(tr '\0' '\n' <"/proc/$pid/environ")
+    fi
+    if [ -z "${BB_DATA_DIR+set}" ]; then
+      used=$(running_data_dir)
+      if [ -n "$used" ]; then
+        export BB_DATA_DIR=$used
+        adopted="$adopted BB_DATA_DIR"
+      fi
+    fi
+  elif [ -f "$remembered" ]; then
+    adopted_from="the last start on port $port"
+    adopt <"$remembered"
+  fi
+}
+
+remember_settings() {
+  local key
+  mkdir -p "$(dirname "$remembered")"
+  : >"$remembered"
+  for key in $inherited; do
+    [ -z "${!key+set}" ] || printf '%s=%s\n' "$key" "${!key}" >>"$remembered"
+  done
+}
+
+adopt_settings
+data_dir=${BB_DATA_DIR:-$HOME/.bb-150k}
+case $data_dir in
+  /*) ;;
+  *) data_dir=$PWD/$data_dir ;;
+esac
+data_dir=${data_dir%/}
+app_dir=${BB_APP_DIR:-$root/apps/app/dist}
+url=$(server_url)
 
 describe() {
   local pid
@@ -120,10 +183,13 @@ stop_server() {
     die "port $port is held by pid $pid, which is not a bb server: $(ps -o command= -p "$pid")"
   local used
   used=$(running_data_dir)
-  if [ -n "$used" ] && [ "${used%/}" != "$data_dir" ] && [ "$force" = false ]; then
-    die "the $kind server on port $port uses $used, but this script is set to $data_dir.
-Set BB_DATA_DIR (or .env.server) to match, or pass --force to replace it anyway."
+  if [ -n "$explicit_data_dir" ] && [ -n "$used" ] && [ "${used%/}" != "$data_dir" ] &&
+    [ "$force" = false ]; then
+    die "the $kind server on port $port uses $used, but BB_DATA_DIR is set to $data_dir.
+Unset it (or fix .env.server) to keep the running server's data directory, or pass --force
+to start on $data_dir instead."
   fi
+  remember_settings
   echo "Stopping the $kind server (pid $pid)…"
   kill -TERM "$pid"
   for _ in $(seq 1 100); do
@@ -157,11 +223,15 @@ build_binary() {
 
 start_server() {
   local kind=$1
+  if [ -n "$adopted" ]; then
+    echo "Settings kept from $adopted_from:$adopted"
+  fi
   build_app
   if [ "$kind" = rust ]; then build_binary; fi
   stop_server
   mkdir -p "$(dirname "$log")"
   export BB_DATA_DIR=$data_dir BB_SERVER_PORT=$port BB_APP_DIR=$app_dir
+  remember_settings
   local detach=()
   if command -v setsid >/dev/null 2>&1; then detach=(setsid); fi
   cd "$root"

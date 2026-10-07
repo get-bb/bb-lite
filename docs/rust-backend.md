@@ -79,11 +79,16 @@ scripts/server.sh status    # which one is running, its data directory and log
 scripts/server.sh stop
 ```
 
-It reads the usual `BB_*` variables from the environment and from `.env.server` at the repository
-root, builds what is missing (`--build` rebuilds the web app and the binary), starts the server
-detached with its log in `.tmp/server-<port>.log`, and waits for `/health`. It refuses to replace
-a process on the port that is not a bb server, or one whose data directory differs from its own
-setting (`--force` overrides the second check).
+A setting comes from the first of these that has it: the environment, `.env.server` at the
+repository root, the bb server now listening on the port, the last start on that port
+(`.tmp/server-<port>.env`), the server's own defaults. So with nothing configured,
+`scripts/server.sh rust` replaces whatever bb server holds port 48886 and keeps its data
+directory, allowed hosts and dev providers. The script builds what is missing (`--build` rebuilds
+the web app and the binary), starts the server detached with its log in `.tmp/server-<port>.log`,
+and waits for `/health`. It refuses to replace a process on the port that is not a bb server, and
+refuses when `BB_DATA_DIR` is set to a different directory than the running server uses
+(`--force` starts on the configured one anyway). The new server gets the rest of its environment
+from the shell that runs the script, not from the server it replaces.
 
 ## How parity is checked
 
