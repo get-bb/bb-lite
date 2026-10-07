@@ -196,6 +196,7 @@ dependencies = [
  "futures",
  "hex",
  "indexmap",
+ "libc",
  "parking_lot",
  "regex",
  "serde",
@@ -273,6 +274,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bb-echo"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "bb-core",
+ "bb-provider",
+ "parking_lot",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "bb-fs"
 version = "0.0.1"
 dependencies = [
@@ -305,12 +319,17 @@ dependencies = [
 name = "bb-js"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "futures",
+ "indexmap",
  "parking_lot",
  "rand 0.10.3",
  "rquickjs",
+ "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "url",
@@ -435,6 +454,24 @@ dependencies = [
  "tower",
  "tower-http 0.7.1",
  "url",
+]
+
+[[package]]
+name = "bb-sessions"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "bb-core",
+ "bb-provider",
+ "bb-remote",
+ "futures",
+ "indexmap",
+ "libc",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
