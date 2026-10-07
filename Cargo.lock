@@ -187,6 +187,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "bb-claude"
+version = "0.0.1"
+dependencies = [
+ "bb-core",
+]
+
+[[package]]
 name = "bb-cli"
 version = "0.0.1"
 dependencies = [
@@ -207,6 +214,27 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "bb-connect"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "axum",
+ "bb-tunnel",
+ "futures-util",
+ "parking_lot",
+ "rand 0.10.3",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "url",
 ]
 
 [[package]]
@@ -350,17 +378,28 @@ dependencies = [
 name = "bb-server"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
+ "async-compression",
  "async-trait",
  "axum",
  "base64 0.23.1",
  "bb-core",
+ "bb-remote",
  "bytes",
  "futures",
  "hex",
  "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "indexmap",
+ "libc",
+ "mime_guess",
  "parking_lot",
+ "percent-encoding",
+ "rand 0.10.3",
  "regex",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
@@ -368,6 +407,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-tungstenite 0.30.0",
  "tokio-util",
  "tower",
  "tower-http 0.7.1",
@@ -401,7 +441,9 @@ dependencies = [
  "bb-core",
  "bb-fs",
  "bb-git",
+ "libc",
  "notify",
+ "parking_lot",
  "serde",
  "serde_json",
  "tempfile",

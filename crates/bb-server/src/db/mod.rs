@@ -1,6 +1,22 @@
 //! The SQLite connection and the generic row helpers. Query modules for each
 //! table live beside this file and take `&Db`.
 
+pub mod environments;
+pub mod event_read;
+pub mod events;
+pub mod hosts;
+pub mod order_keys;
+pub mod pending_interactions;
+pub mod plugins;
+pub mod projects;
+pub mod queued_messages;
+pub mod settings;
+pub mod terminals;
+pub mod thread_read;
+pub mod thread_search;
+pub mod thread_sections;
+pub mod threads;
+
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
