@@ -1,4 +1,5 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { AppNavRail } from "@/components/sidebar/AppNavRail";
 import { AppSidebar } from "@/components/sidebar/AppSidebar";
 import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
 import { Sidebar, useSidebar } from "@/components/ui/sidebar.js";
@@ -40,20 +41,9 @@ export function AppLayoutSidebar({
             onResizeMouseDown={onResizeMouseDown}
             isResizing={isResizing}
             appRoutePath={appRoutePath}
-            mobileHosted
           />
         ) : null}
       </Sidebar>
-    );
-  }
-
-  if (renderedMode === "settings") {
-    return (
-      <SettingsSidebar
-        onResizeMouseDown={onResizeMouseDown}
-        isResizing={isResizing}
-        appRoutePath={appRoutePath}
-      />
     );
   }
 
@@ -62,6 +52,25 @@ export function AppLayoutSidebar({
       onResizeMouseDown={onResizeMouseDown}
       isResizing={isResizing}
       settingsRoutePath={settingsRoutePath}
+      navRail={{
+        hidden: renderedMode !== "app",
+        rail: (
+          <AppNavRail
+            isAppMode={renderedMode === "app"}
+            isSettingsActive={renderedMode === "settings"}
+            settingsRoutePath={settingsRoutePath}
+          />
+        ),
+        alternateBody:
+          renderedMode === "settings" ? (
+            <SettingsSidebar
+              onResizeMouseDown={onResizeMouseDown}
+              isResizing={isResizing}
+              appRoutePath={appRoutePath}
+              navRailHosted
+            />
+          ) : null,
+      }}
     />
   );
 }

@@ -5,7 +5,6 @@ import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
-  Sidebar,
   SidebarContent,
   useCloseMobileSidebar,
 } from "@/components/ui/sidebar.js";
@@ -76,7 +75,7 @@ export function SectionSidebar({
   backTo,
   children,
   isResizing,
-  mobileHosted = false,
+  navRailHosted = false,
   onResizeMouseDown,
   testIdPrefix,
 }: {
@@ -84,22 +83,27 @@ export function SectionSidebar({
   backTo: string;
   children: ReactNode;
   isResizing: boolean;
-  mobileHosted?: boolean;
+  navRailHosted?: boolean;
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   testIdPrefix: string;
 }) {
-  const body = (
-    <>
+  return (
+    <div
+      data-testid={`${testIdPrefix}-sidebar-body`}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+    >
       <SidebarTopReserveRow
         testId={`${testIdPrefix}-sidebar-top-reserve-row`}
       />
-      <div className="shrink-0 px-2 py-2">
-        <div className="space-y-1">
-          <SectionSidebarRow active={false} label={backLabel} to={backTo}>
-            <SectionSidebarIcon name="ChevronLeft" />
-          </SectionSidebarRow>
+      {navRailHosted ? null : (
+        <div className="shrink-0 px-2 py-2">
+          <div className="space-y-1">
+            <SectionSidebarRow active={false} label={backLabel} to={backTo}>
+              <SectionSidebarIcon name="ChevronLeft" />
+            </SectionSidebarRow>
+          </div>
         </div>
-      </div>
+      )}
       <SidebarContent>
         <div className="min-w-0 px-2">{children}</div>
       </SidebarContent>
@@ -108,19 +112,6 @@ export function SectionSidebar({
         isResizing={isResizing}
         onMouseDown={onResizeMouseDown}
       />
-    </>
+    </div>
   );
-
-  if (mobileHosted) {
-    return (
-      <div
-        data-testid={`${testIdPrefix}-sidebar-body`}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        {body}
-      </div>
-    );
-  }
-
-  return <Sidebar>{body}</Sidebar>;
 }

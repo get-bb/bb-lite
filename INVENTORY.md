@@ -4,7 +4,7 @@ Source: `~/projects/bb` at `2573ad5e85` (read-only). Target: this repo, at most 
 
 ## The counting rule
 
-`node scripts/count-lines.mjs [root] [--max N]` (also `pnpm check:lines`).
+`node scripts/count-lines.mjs [root] [--max N]` (also `pnpm count`).
 
 - Counted: physical lines of `ts tsx mts cts js jsx mjs cjs css sql html`, source and tests alike, from
   files git tracks or would track (so `node_modules` and build output never count).
@@ -52,6 +52,8 @@ app-server protocol. It is bb's own `ThreadEvent` dialect (bb item types, bb-min
    from Radix to Base UI keeping the look; and **restore mobile web responsiveness, for which the cap
    may be exceeded** ("You can go above 150k lines to restore that"). `pnpm check:lines` now allows
    152,000; the table below is the state at the end of the rewrite, before these.
+8. 2026-10-07: restore the HTML file preview, and **the line cap is removed**. `pnpm check` no longer
+   counts lines; `pnpm count` still reports the total.
 
 ## Keep / shrink / cut, with budgets and what was reached
 

@@ -1,8 +1,7 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   SidebarNavigationIcon as NavigationIcon,
   useSidebarNavigation,
-  useSidebarNavigationSplit,
   type SidebarNavigationItem,
   type SidebarNavigationProps,
 } from "@bb/plugin/app";
@@ -12,14 +11,12 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@bb/shared-ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
@@ -30,7 +27,6 @@ import {
   PROJECT_LIST_ACTION_BUTTON_CLASS,
   SIDEBAR_CONTROL_STATE_CLASS,
   SIDEBAR_HOVER_ACTIONS_CLASS,
-  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
   SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
 } from "@bb/shared-ui/sidebar-row-classes";
@@ -38,80 +34,28 @@ import {
   SidebarMore,
   SidebarOverflowItem,
 } from "./ui/SidebarVisibilityControls.js";
-import { SplitPaneMiniMap } from "@bb/shared-ui/split-pane-mini-map";
 
-type MenuSurface = "context" | "dropdown";
-
-function RowMenuItems({
-  item,
-  surface,
-  canOpenInSplit,
-  disablePending,
-  onDisable,
-}: {
-  item: SidebarNavigationItem;
-  surface: MenuSurface;
-  canOpenInSplit: boolean;
-  disablePending: boolean;
-  onDisable: () => void;
-}) {
-  const { actions } = useSidebarNavigation();
-  const Item = surface === "context" ? ContextMenuItem : DropdownMenuItem;
-  const Separator =
-    surface === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
-  return (
-    <>
-      {canOpenInSplit ? (
-        <>
-          <Item
-            onSelect={() => actions.activate(item.id, { openInSplit: true })}
-          >
-            <Icon name="Columns2" aria-hidden="true" />
-            Open in split
-          </Item>
-          <Separator />
-        </>
-      ) : null}
-      <Item disabled={disablePending} onSelect={onDisable}>
-        <Icon name="Unavailable" aria-hidden="true" />
-        Disable
-      </Item>
-    </>
-  );
-}
-
-function NavigationRow({
-  item,
-  isCompactViewport,
-}: {
-  item: SidebarNavigationItem;
-  isCompactViewport: boolean;
-}) {
+function NavigationRow({ item }: { item: SidebarNavigationItem }) {
   const { activeItemId, actions, isShortcutModifierHeld } =
     useSidebarNavigation();
-  const split = useSidebarNavigationSplit(item.id);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const isActionsOpen = isDropdownOpen || isContextMenuOpen;
   const [disablePending, setDisablePending] = useState(false);
   const isActive =
     item.id === activeItemId && item.action.kind !== "new-thread";
-  const Accessory = item.Accessory;
-  const onDisable = useCallback(() => {
+  const disable = () => {
     setDisablePending(true);
     actions
       .disablePlugin(item.id)
       .catch(() => {})
       .finally(() => setDisablePending(false));
-  }, [actions, item.id]);
-  const menuItems = (surface: MenuSurface): ReactNode => (
-    <RowMenuItems
-      item={item}
-      surface={surface}
-      canOpenInSplit={split.isAvailable && !isCompactViewport}
-      disablePending={disablePending}
-      onDisable={onDisable}
-    />
+  };
+  const disableItemContent: ReactNode = (
+    <>
+      <Icon name="Unavailable" aria-hidden="true" />
+      Disable
+    </>
   );
   const shortcut = isShortcutModifierHeld ? item.shortcut : null;
   const optionsLabel = `${item.label} panel options`;
@@ -134,7 +78,6 @@ function NavigationRow({
           PROJECT_LIST_ACTION_BUTTON_CLASS,
           "group/nav-row w-full",
           shortcut ? "pr-0" : "pr-7",
-          Accessory && "pr-18",
           (isActive || isContextMenuOpen) &&
             "bg-sidebar-accent text-sidebar-foreground",
           item.isLoading &&
@@ -147,36 +90,14 @@ function NavigationRow({
         aria-label={
           item.shortcut ? `${item.label} (${item.shortcut.label})` : undefined
         }
-        onClick={(event) =>
-          actions.activate(item.id, {
-            openInSplit: event.metaKey || event.ctrlKey,
-          })
-        }
+        onClick={() => actions.activate(item.id, { openInSplit: false })}
       >
         <NavigationIcon icon={item.icon} />
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          {split.layout ? (
-            <SplitPaneMiniMap
-              slots={split.layout.panes}
-              label={`${item.label} — open in split`}
-            />
-          ) : null}
           {shortcut ? <AppCommandShortcutPill shortcut={shortcut} /> : null}
         </span>
       </Button>
-      {Accessory ? (
-        <span
-          data-plugin-nav-sidebar-accessory=""
-          data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-          className={cn(
-            SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-            "pointer-events-none absolute right-1 top-1/2 block min-w-5 max-h-5 max-w-16 -translate-y-1/2 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-center leading-5",
-          )}
-        >
-          <Accessory />
-        </span>
-      ) : null}
       {hasMenu ? (
         <div
           data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
@@ -208,7 +129,9 @@ function NavigationRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {menuItems("dropdown")}
+              <DropdownMenuItem disabled={disablePending} onSelect={disable}>
+                {disableItemContent}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -221,59 +144,16 @@ function NavigationRow({
     <ContextMenu onOpenChange={setIsContextMenuOpen}>
       <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
       <ContextMenuContent aria-label={optionsLabel}>
-        {menuItems("context")}
+        <ContextMenuItem disabled={disablePending} onSelect={disable}>
+          {disableItemContent}
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
 }
 
-function OverflowItem({
-  item,
-  isCompactViewport,
-  onClose,
-}: {
-  item: SidebarNavigationItem;
-  isCompactViewport: boolean;
-  onClose: () => void;
-}) {
-  const { actions } = useSidebarNavigation();
-  const split = useSidebarNavigationSplit(item.id);
-  const canSplit = split.isAvailable && !isCompactViewport && !item.isDisabled;
-  return (
-    <SidebarOverflowItem
-      item={{
-        id: item.id,
-        title: item.label,
-        icon: <NavigationIcon icon={item.icon} />,
-        ...(item.isDisabled ? { disabled: true } : {}),
-      }}
-      onActivate={(event) =>
-        actions.activate(item.id, {
-          openInSplit: event.metaKey || event.ctrlKey,
-        })
-      }
-      onClose={onClose}
-      additionalActions={
-        !isCompactViewport ? (
-          <DropdownMenuItem
-            className="cursor-pointer"
-            disabled={!canSplit}
-            onSelect={() => {
-              onClose();
-              actions.activate(item.id, { openInSplit: true });
-            }}
-          >
-            <Icon name="Columns2" aria-hidden="true" />
-            Open in split
-          </DropdownMenuItem>
-        ) : null
-      }
-    />
-  );
-}
-
 export function Navigation({ isCompactViewport }: SidebarNavigationProps) {
-  const { items } = useSidebarNavigation();
+  const { actions, items } = useSidebarNavigation();
   const visible = items.filter((item) => item.isVisible);
   const hidden = items.filter((item) => !item.isVisible);
 
@@ -286,11 +166,7 @@ export function Navigation({ isCompactViewport }: SidebarNavigationProps) {
         data-testid="plugin-nav-sidebar-items"
       >
         {visible.map((item) => (
-          <NavigationRow
-            key={item.id}
-            item={item}
-            isCompactViewport={isCompactViewport}
-          />
+          <NavigationRow key={item.id} item={item} />
         ))}
         {hidden.length > 0 ? (
           <SidebarMore
@@ -299,11 +175,18 @@ export function Navigation({ isCompactViewport }: SidebarNavigationProps) {
           >
             {(close) =>
               hidden.map((item) => (
-                <OverflowItem
+                <SidebarOverflowItem
                   key={item.id}
-                  item={item}
-                  isCompactViewport={isCompactViewport}
-                  onClose={close}
+                  item={{
+                    id: item.id,
+                    title: item.label,
+                    icon: <NavigationIcon icon={item.icon} />,
+                    disabled: item.isDisabled,
+                  }}
+                  onActivate={() => {
+                    close();
+                    actions.activate(item.id, { openInSplit: false });
+                  }}
                 />
               ))
             }

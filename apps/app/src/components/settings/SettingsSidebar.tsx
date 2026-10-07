@@ -18,12 +18,12 @@ export function SettingsSidebar({
   onResizeMouseDown,
   isResizing,
   appRoutePath,
-  mobileHosted,
+  navRailHosted = false,
 }: {
   onResizeMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
   appRoutePath: string;
-  mobileHosted?: boolean;
+  navRailHosted?: boolean;
 }) {
   const { activePluginId, activeSection, pluginEntries } =
     useSettingsNavState();
@@ -42,11 +42,13 @@ export function SettingsSidebar({
       backLabel="Back to app"
       backTo={appRoutePath}
       isResizing={isResizing}
-      mobileHosted={mobileHosted}
+      navRailHosted={navRailHosted}
       onResizeMouseDown={onResizeMouseDown}
       testIdPrefix="settings"
     >
-      <SectionSidebarLabel>Settings</SectionSidebarLabel>
+      {navRailHosted ? null : (
+        <SectionSidebarLabel>Settings</SectionSidebarLabel>
+      )}
       <div className="mt-1 space-y-0.5">
         {SETTINGS_NAV_SECTIONS.filter(
           (section) => section.id !== "archived",

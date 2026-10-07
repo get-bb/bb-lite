@@ -29,7 +29,6 @@ import { useAppNavigationHost } from "@/lib/url-open-routing";
 import { getPluginBoundSdk } from "@/lib/plugin-bound-sdk";
 import {
   useSidebarNavigation,
-  useSidebarNavigationSplit,
   useSidebarSplitLayout,
   useSidebarThreadActions,
   useSidebarThreadSplit,
@@ -236,7 +235,6 @@ export const pluginAppHost: PluginAppHost = {
   useProviders,
   useEnvironmentProviders,
   useSidebarNavigation,
-  useSidebarNavigationSplit,
   useQuestionFormHost,
   SidebarNavigationIcon,
   ThreadChat: PluginThreadChat,

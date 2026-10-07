@@ -66,6 +66,7 @@ export { default as Fork } from "@hugeicons/core-free-icons/GitForkIcon";
 export { default as GitBranch } from "@hugeicons/core-free-icons/GitBranchIcon";
 export { default as GitMerge } from "@hugeicons/core-free-icons/GitMergeIcon";
 export { default as Globe } from "@hugeicons/core-free-icons/InternetIcon";
+export { default as Home } from "@hugeicons/core-free-icons/Home01Icon";
 export { default as Info } from "@hugeicons/core-free-icons/InformationCircleIcon";
 export { default as Laptop } from "@hugeicons/core-free-icons/LaptopIcon";
 export { default as Layers } from "@hugeicons/core-free-icons/Layers01Icon";
