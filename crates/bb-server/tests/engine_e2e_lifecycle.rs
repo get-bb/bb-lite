@@ -548,9 +548,6 @@ async fn announces_every_mutation_to_subscribers() {
     assert!(server.queued(&id).is_empty());
 }
 
-/// The engine half of "serves a kept timeline until something it shows changes": the thread
-/// timeline service (`threads/timeline.ts`) is not ported, so this checks that every step the
-/// timeline must show advances the thread's event sequence.
 #[tokio::test]
 async fn every_change_a_timeline_shows_advances_the_event_sequence() {
     let server = Server::new().await;

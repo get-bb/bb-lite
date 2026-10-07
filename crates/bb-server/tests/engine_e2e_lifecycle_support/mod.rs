@@ -57,7 +57,7 @@ fn scripted(value: Value) -> Script {
     Arc::new(move |_| Ok(value.clone()))
 }
 
-fn default_script() -> HashMap<String, Script> {
+pub fn default_script() -> HashMap<String, Script> {
     let mut script: HashMap<String, Script> = HashMap::new();
     let started = json!({ "outcome": "started", "providerThreadId": PROVIDER_THREAD });
     let delivered = json!({ "delivered": true });
