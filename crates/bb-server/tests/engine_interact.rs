@@ -2,7 +2,6 @@
 
 mod engine_interact_support;
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -293,9 +292,7 @@ async fn ingests_a_root_turn_through_start_and_completion() {
     );
 
     let done = turn("turn/completed", "turn_1", json!({ "status": "completed" }));
-    let ingested =
-        catch_unwind(AssertUnwindSafe(|| ingest_thread_events(&fx.ctx, "thr_a", &[done])));
-    drop(ingested);
+    ingest_thread_events(&fx.ctx, "thr_a", &[done]).unwrap();
     let idle = thread(&fx.ctx, "thr_a");
     assert_eq!((idle.status, idle.active_turn_id), (ThreadStatus::Idle, None));
 }
@@ -307,9 +304,7 @@ async fn a_failed_turn_interrupts_pending_interactions_and_errors_the_thread() {
     register_provider_interaction(&fx.ctx, HOST, approval("req_1")).unwrap();
     let id = only_active(&fx.ctx);
     let failed = turn("turn/completed", "turn_1", json!({ "status": "failed" }));
-    let ingested =
-        catch_unwind(AssertUnwindSafe(|| ingest_thread_events(&fx.ctx, "thr_a", &[failed])));
-    drop(ingested);
+    ingest_thread_events(&fx.ctx, "thr_a", &[failed]).unwrap();
     assert_eq!(thread(&fx.ctx, "thr_a").status, ThreadStatus::Error);
     let row = get_pending_interaction(&fx.ctx.db, &id).unwrap().unwrap();
     let reason = "The turn ended before the interaction was resolved";

@@ -2,7 +2,6 @@
 //! `apps/server/src/threads/lifecycle.ts`.
 
 use bb_core::ids::new_id;
-use bb_core::{RunnerInfo, RunnerSnapshot};
 use serde_json::{Value, json};
 
 use super::core::Outbox;
@@ -396,18 +395,17 @@ pub async fn reconcile_host(ctx: &Ctx, host_id: &str) -> ApiResult<()> {
     let runner = ctx.runners.get(host_id)?;
     let (info, snapshot) =
         tokio::try_join!(runner.call("describe", json!({})), runner.call("snapshot", json!({})))?;
-    let info: RunnerInfo = serde_json::from_value(info)?;
-    let snapshot: RunnerSnapshot = serde_json::from_value(snapshot)?;
+    let instance_id = info["instanceId"].as_str().unwrap_or_default().to_owned();
     let restarted = {
         let mut instances = ctx.engine.host_instances.lock();
-        let previous = instances.insert(host_id.to_owned(), info.instance_id.clone());
-        previous.is_some_and(|previous| previous != info.instance_id)
+        let previous = instances.insert(host_id.to_owned(), instance_id.clone());
+        previous.is_some_and(|previous| previous != instance_id)
     };
-    let live: Vec<String> = snapshot
-        .sessions
-        .into_iter()
-        .filter(|session| session.active_turn_id.is_some())
-        .map(|session| session.thread_id)
+    let sessions = snapshot["sessions"].as_array().cloned().unwrap_or_default();
+    let live: Vec<String> = sessions
+        .iter()
+        .filter(|session| session["activeTurnId"].is_string())
+        .filter_map(|session| session["threadId"].as_str().map(str::to_owned))
         .collect();
     let statuses = [ThreadStatus::Active, ThreadStatus::Stopping];
     for thread in store::list_threads_on_host(db, host_id, &statuses)? {
