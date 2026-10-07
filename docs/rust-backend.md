@@ -70,6 +70,21 @@ BB_SERVER_URL=http://127.0.0.1:58886 target/debug/bb status
 The configuration variables, the default port and the data directory layout are those of the
 TypeScript server, so always set `BB_DATA_DIR` and `BB_SERVER_PORT` when another instance exists.
 
+`scripts/server.sh` switches one instance between the two backends on the same data directory:
+
+```sh
+scripts/server.sh rust      # stop whichever server holds the port, start the Rust one
+scripts/server.sh node      # the same, for the TypeScript one
+scripts/server.sh status    # which one is running, its data directory and log
+scripts/server.sh stop
+```
+
+It reads the usual `BB_*` variables from the environment and from `.env.server` at the repository
+root, builds what is missing (`--build` rebuilds the web app and the binary), starts the server
+detached with its log in `.tmp/server-<port>.log`, and waits for `/health`. It refuses to replace
+a process on the port that is not a bb server, or one whose data directory differs from its own
+setting (`--force` overrides the second check).
+
 ## How parity is checked
 
 - **Recorded sessions.** Codex fixtures (`packages/runner/test/fixtures`) and raw Claude Code CLI
