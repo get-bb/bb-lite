@@ -23,6 +23,7 @@ use crate::domain::pending_interaction::PendingInteraction;
 use crate::domain::project::PERSONAL_PROJECT_ID;
 use crate::error::{ApiError, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiResponse};
+use crate::http::validate::{Field, Kind, NON_EMPTY, check_object, req};
 use crate::threads::create::CreateThreadRequest;
 use crate::threads::engine::ops;
 use crate::threads::mutations::{
@@ -71,6 +72,11 @@ pub fn thread_routes() -> Router<Ctx> {
         .route("/thread-sections", post(create_section).get(list_sections).patch(update_section))
         .route("/thread-sections", delete(delete_section))
 }
+
+const PIN_ORDER: &[Field] = &[
+    req("previousThreadId", Kind::NullableStr { min: 1 }),
+    req("nextThreadId", Kind::NullableStr { min: 1 }),
+];
 
 fn invalid() -> ApiError {
     invalid_request("Invalid request")
@@ -267,6 +273,7 @@ async fn pin_order(
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Vec<ThreadListEntry>> {
+    check_object(&body, PIN_ORDER, false).map_err(invalid_request)?;
     let fields = object(&body)?;
     for key in ["previousThreadId", "nextThreadId"] {
         if !fields.contains_key(key) {
@@ -696,6 +703,7 @@ async fn create_section(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Value>,
 ) -> Created<ThreadSectionResponse> {
+    check_object(&body, &[req("name", NON_EMPTY)], false).map_err(invalid_request)?;
     let name = section_name(&section_field(&body, &["name"], "name")?)?;
     let section = sections::create_thread_section(&ctx.db, &name)?;
     announce_sections(&ctx);
@@ -706,6 +714,8 @@ async fn update_section(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<ThreadSectionMutationResponse> {
+    check_object(&body, &[req("id", NON_EMPTY), req("name", NON_EMPTY)], false)
+        .map_err(invalid_request)?;
     let id = section_field(&body, &["id", "name"], "id")?;
     let name = section_name(&section_field(&body, &["id", "name"], "name")?)?;
     let renamed = sections::rename_thread_section(&ctx.db, &id, &name)?;
@@ -717,6 +727,7 @@ async fn delete_section(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<ThreadSectionMutationResponse> {
+    check_object(&body, &[req("id", NON_EMPTY)], false).map_err(invalid_request)?;
     let id = section_field(&body, &["id"], "id")?;
     let deleted = sections::delete_thread_section(&ctx.db, &id)?;
     for thread in &deleted.threads {

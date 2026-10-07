@@ -205,7 +205,7 @@ const FILE_WRITE: &[Field] = &[
     req("content", STR),
     opt("contentEncoding", Kind::Enum(&["utf8", "base64"])),
     opt("createParents", Kind::Bool),
-    opt("expectedSha256", Kind::NullableStr),
+    opt("expectedSha256", Kind::NullableStr { min: 0 }),
     opt("mode", Kind::Int { min: Some(0), max: Some(0o777), positive: false }),
 ];
 

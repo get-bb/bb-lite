@@ -122,7 +122,7 @@ pub fn from_serde_error(error: &serde_json::Error) -> String {
 #[derive(Clone, Copy, Debug)]
 pub enum Kind {
     Str { min: usize, max: Option<usize> },
-    NullableStr,
+    NullableStr { min: usize },
     Bool,
     Int { min: Option<i64>, max: Option<i64>, positive: bool },
     Enum(&'static [&'static str]),
@@ -173,8 +173,9 @@ fn check_value(value: Option<&Value>, kind: Kind) -> Result<(), String> {
         _ => {
             let Some(value) = value else { return Err(missing()) };
             match (kind, value) {
-                (Kind::NullableStr, Value::Null | Value::String(_)) => Ok(()),
-                (Kind::NullableStr, other) => Err(invalid_type("string", other)),
+                (Kind::NullableStr { .. }, Value::Null) => Ok(()),
+                (Kind::NullableStr { min }, Value::String(text)) => check_string(text, min, None),
+                (Kind::NullableStr { .. }, other) => Err(invalid_type("string", other)),
                 (Kind::Str { min, max }, Value::String(text)) => check_string(text, min, max),
                 (Kind::Str { .. }, other) => Err(invalid_type("string", other)),
                 (Kind::Bool, Value::Bool(_)) => Ok(()),
