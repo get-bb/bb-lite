@@ -1,0 +1,3721 @@
+{
+ "cases": [
+  {
+   "source": "hand",
+   "input": "",
+   "extractShellCommandFromString": null,
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": " ",
+   "extractShellCommandFromString": null,
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "\t\n ",
+   "extractShellCommandFromString": null,
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": " ",
+   "extractShellCommandFromString": null,
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "",
+   "extractShellCommandFromString": "",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "﻿",
+   "extractShellCommandFromString": null,
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": " ls ",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": " ls ",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls -la",
+   "extractShellCommandFromString": "ls -la",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls -la",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls -la",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls -la src",
+   "extractShellCommandFromString": "ls -la src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls -la src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls -la src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls src lib",
+   "extractShellCommandFromString": "ls src lib",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls src lib",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls src lib",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls -- src",
+   "extractShellCommandFromString": "ls -- src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls -- src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls -- src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls -",
+   "extractShellCommandFromString": "ls -",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls -",
+     "path": "-"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls -",
+     "path": "-"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls ''",
+   "extractShellCommandFromString": "ls ''",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls ''",
+     "path": ""
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls ''",
+     "path": ""
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls \"\"",
+   "extractShellCommandFromString": "ls \"\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls \"\"",
+     "path": ""
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls \"\"",
+     "path": ""
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls ./",
+   "extractShellCommandFromString": "ls ./",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls ./",
+     "path": "./"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls ./",
+     "path": "./"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "/bin/ls -1 /tmp",
+   "extractShellCommandFromString": "/bin/ls -1 /tmp",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "/bin/ls -1 /tmp",
+     "path": "/tmp"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "/bin/ls -1 /tmp",
+     "path": "/tmp"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls > out.txt",
+   "extractShellCommandFromString": "ls > out.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls 2>/dev/null",
+   "extractShellCommandFromString": "ls 2>/dev/null",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 2>/dev/null",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 2>/dev/null",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >/dev/null",
+   "extractShellCommandFromString": "ls >/dev/null",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls >/dev/null",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls >/dev/null",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls 2> err.txt",
+   "extractShellCommandFromString": "ls 2> err.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 2> err.txt",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 2> err.txt",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls &> all.txt",
+   "extractShellCommandFromString": "ls &> all.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls &>> all.txt",
+   "extractShellCommandFromString": "ls &>> all.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls 1> out",
+   "extractShellCommandFromString": "ls 1> out",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls 10> out",
+   "extractShellCommandFromString": "ls 10> out",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls >",
+   "extractShellCommandFromString": "ls >",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls >",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls >",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls 2>&1",
+   "extractShellCommandFromString": "ls 2>&1",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 2>&1",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 2>&1",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls 2>&1 | head",
+   "extractShellCommandFromString": "ls 2>&1 | head",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 2>&1 | head",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 2>&1 | head",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >&2",
+   "extractShellCommandFromString": "ls >&2",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls >&2",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls >&2",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >>& x",
+   "extractShellCommandFromString": "ls >>& x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls 1>&",
+   "extractShellCommandFromString": "ls 1>&",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 1>&",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 1>&",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >| /dev/null",
+   "extractShellCommandFromString": "ls >| /dev/null",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls >| /dev/null",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls >| /dev/null",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >| file",
+   "extractShellCommandFromString": "ls >| file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls 2>| file",
+   "extractShellCommandFromString": "ls 2>| file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls <> file",
+   "extractShellCommandFromString": "ls <> file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls < input",
+   "extractShellCommandFromString": "ls < input",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls < input",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls < input",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls 0< input",
+   "extractShellCommandFromString": "ls 0< input",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls 0< input",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls 0< input",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls <<< 'hi'",
+   "extractShellCommandFromString": "ls <<< 'hi'",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls <<< 'hi'",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls <<< 'hi'",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls <(echo a) dir",
+   "extractShellCommandFromString": "ls <(echo a) dir",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo a) dir",
+     "path": "dir"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo a) dir",
+     "path": "dir"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >(cat) dir",
+   "extractShellCommandFromString": "ls >(cat) dir",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls >(cat) dir",
+     "path": "dir"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls >(cat) dir",
+     "path": "dir"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls <(echo a b c) dir",
+   "extractShellCommandFromString": "ls <(echo a b c) dir",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo a b c) dir",
+     "path": "dir"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo a b c) dir",
+     "path": "dir"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls <(echo",
+   "extractShellCommandFromString": "ls <(echo",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls <(echo",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls >> log",
+   "extractShellCommandFromString": "ls >> log",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls &>/dev/null",
+   "extractShellCommandFromString": "ls &>/dev/null",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls &>/dev/null",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls &>/dev/null",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat file.txt",
+   "extractShellCommandFromString": "cat file.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat file.txt",
+     "name": "cat",
+     "path": "file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat file.txt",
+     "name": "cat",
+     "path": "file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat -n file.txt",
+   "extractShellCommandFromString": "cat -n file.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat -n file.txt",
+     "name": "cat",
+     "path": "file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat -n file.txt",
+     "name": "cat",
+     "path": "file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat",
+   "extractShellCommandFromString": "cat",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat ''",
+   "extractShellCommandFromString": "cat ''",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat -",
+   "extractShellCommandFromString": "cat -",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat -",
+     "name": "cat",
+     "path": "-"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat -",
+     "name": "cat",
+     "path": "-"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a b",
+   "extractShellCommandFromString": "cat a b",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a b",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a b",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat < file.txt",
+   "extractShellCommandFromString": "cat < file.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat file | head -n 5",
+   "extractShellCommandFromString": "cat file | head -n 5",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat file | head -n 5",
+     "name": "cat",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat file | head -n 5",
+     "name": "cat",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat > file",
+   "extractShellCommandFromString": "cat > file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat >> file << 'EOF'\nhello\nEOF",
+   "extractShellCommandFromString": "cat >> file << 'EOF'\nhello\nEOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat <<EOF\nx\nEOF",
+   "extractShellCommandFromString": "cat <<EOF\nx\nEOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat <<-EOF\n\tx\nEOF",
+   "extractShellCommandFromString": "cat <<-EOF\n\tx\nEOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat 2<<EOF",
+   "extractShellCommandFromString": "cat 2<<EOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat &<<EOF",
+   "extractShellCommandFromString": "cat &<<EOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat \"my file.txt\"",
+   "extractShellCommandFromString": "cat \"my file.txt\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"my file.txt\"",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"my file.txt\"",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat 'my file.txt'",
+   "extractShellCommandFromString": "cat 'my file.txt'",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat 'my file.txt'",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 'my file.txt'",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat my\\ file.txt",
+   "extractShellCommandFromString": "cat my\\ file.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat my\\ file.txt",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat my\\ file.txt",
+     "name": "cat",
+     "path": "my file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"a\\\"b\"",
+   "extractShellCommandFromString": "cat \"a\\\"b\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"a\\\"b\"",
+     "name": "cat",
+     "path": "a\"b"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"a\\\"b\"",
+     "name": "cat",
+     "path": "a\"b"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"a\\nb\"",
+   "extractShellCommandFromString": "cat \"a\\nb\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"a\\nb\"",
+     "name": "cat",
+     "path": "a\\nb"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"a\\nb\"",
+     "name": "cat",
+     "path": "a\\nb"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat 'a\\nb'",
+   "extractShellCommandFromString": "cat 'a\\nb'",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat 'a\\nb'",
+     "name": "cat",
+     "path": "a\\nb"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 'a\\nb'",
+     "name": "cat",
+     "path": "a\\nb"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"$HOME/x\"",
+   "extractShellCommandFromString": "cat \"$HOME/x\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"$HOME/x\"",
+     "name": "cat",
+     "path": "$HOME/x"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"$HOME/x\"",
+     "name": "cat",
+     "path": "$HOME/x"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"\\$HOME\"",
+   "extractShellCommandFromString": "cat \"\\$HOME\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"\\$HOME\"",
+     "name": "cat",
+     "path": "$HOME"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"\\$HOME\"",
+     "name": "cat",
+     "path": "$HOME"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a\\",
+   "extractShellCommandFromString": "cat a\\",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a\\",
+     "name": "cat",
+     "path": "a\\"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a\\",
+     "name": "cat",
+     "path": "a\\"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"unterminated",
+   "extractShellCommandFromString": "cat \"unterminated",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"unterminated",
+     "name": "cat",
+     "path": "unterminated"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"unterminated",
+     "name": "cat",
+     "path": "unterminated"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat 'unterminated",
+   "extractShellCommandFromString": "cat 'unterminated",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat 'unterminated",
+     "name": "cat",
+     "path": "unterminated"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 'unterminated",
+     "name": "cat",
+     "path": "unterminated"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat x\\>y",
+   "extractShellCommandFromString": "cat x\\>y",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat x\\>y",
+     "name": "cat",
+     "path": "x>y"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat x\\>y",
+     "name": "cat",
+     "path": "x>y"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \\> y",
+   "extractShellCommandFromString": "cat \\> y",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat 1\\<\\< y",
+   "extractShellCommandFromString": "cat 1\\<\\< y",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat \\&\\>\\> y",
+   "extractShellCommandFromString": "cat \\&\\>\\> y",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "nl -ba src/main.rs",
+   "extractShellCommandFromString": "nl -ba src/main.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "nl -ba src/main.rs",
+     "name": "nl",
+     "path": "src/main.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "nl -ba src/main.rs",
+     "name": "nl",
+     "path": "src/main.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "nl",
+   "extractShellCommandFromString": "nl",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "head -n 20 file.rs",
+   "extractShellCommandFromString": "head -n 20 file.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -n 20 file.rs",
+     "name": "head",
+     "path": "file.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -n 20 file.rs",
+     "name": "head",
+     "path": "file.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "head -20 file.rs",
+   "extractShellCommandFromString": "head -20 file.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -20 file.rs",
+     "name": "head",
+     "path": "file.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -20 file.rs",
+     "name": "head",
+     "path": "file.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "head -c 100 f",
+   "extractShellCommandFromString": "head -c 100 f",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -c 100 f",
+     "name": "head",
+     "path": "f"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -c 100 f",
+     "name": "head",
+     "path": "f"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "head",
+   "extractShellCommandFromString": "head",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "head -n",
+   "extractShellCommandFromString": "head -n",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "tail -n 50 log.txt",
+   "extractShellCommandFromString": "tail -n 50 log.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "tail -n 50 log.txt",
+     "name": "tail",
+     "path": "log.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "tail -n 50 log.txt",
+     "name": "tail",
+     "path": "log.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "tail -f log.txt",
+   "extractShellCommandFromString": "tail -f log.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "tail -f log.txt",
+     "name": "tail",
+     "path": "log.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "tail -f log.txt",
+     "name": "tail",
+     "path": "log.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "tail -n +5 a.txt",
+   "extractShellCommandFromString": "tail -n +5 a.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "tail -n +5 a.txt",
+     "name": "tail",
+     "path": "a.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "tail -n +5 a.txt",
+     "name": "tail",
+     "path": "a.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed -n '1,200p' math.js",
+   "extractShellCommandFromString": "sed -n '1,200p' math.js",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "sed -n '1,200p' math.js",
+     "name": "sed",
+     "path": "math.js"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -n '1,200p' math.js",
+     "name": "sed",
+     "path": "math.js"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed -n 1,20p a.rs b.rs",
+   "extractShellCommandFromString": "sed -n 1,20p a.rs b.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "sed -n 1,20p a.rs b.rs",
+     "name": "sed",
+     "path": "a.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -n 1,20p a.rs b.rs",
+     "name": "sed",
+     "path": "a.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed -n '1p'",
+   "extractShellCommandFromString": "sed -n '1p'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed '1,5p' file",
+   "extractShellCommandFromString": "sed '1,5p' file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed -i 's/a/b/' file",
+   "extractShellCommandFromString": "sed -i 's/a/b/' file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed -i.bak 's/a/b/' f",
+   "extractShellCommandFromString": "sed -i.bak 's/a/b/' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed --in-place 's/a/b/' f",
+   "extractShellCommandFromString": "sed --in-place 's/a/b/' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed --in-place=.bak 's/a/b/' f",
+   "extractShellCommandFromString": "sed --in-place=.bak 's/a/b/' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed -i-x 's/a/b/' f",
+   "extractShellCommandFromString": "sed -i-x 's/a/b/' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed -E -n 's/x/y/p' f",
+   "extractShellCommandFromString": "sed -E -n 's/x/y/p' f",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "sed -E -n 's/x/y/p' f",
+     "name": "sed",
+     "path": "f"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -E -n 's/x/y/p' f",
+     "name": "sed",
+     "path": "f"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed \"-n\" '1p' f",
+   "extractShellCommandFromString": "sed \"-n\" '1p' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sed -n -e '1p' f",
+   "extractShellCommandFromString": "sed -n -e '1p' f",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "sed -n -e '1p' f",
+     "name": "sed",
+     "path": "f"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -n -e '1p' f",
+     "name": "sed",
+     "path": "f"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed -ni 's/a/b/' f",
+   "extractShellCommandFromString": "sed -ni 's/a/b/' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "/usr/bin/sed -n '5,10p' x.ts",
+   "extractShellCommandFromString": "/usr/bin/sed -n '5,10p' x.ts",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "/usr/bin/sed -n '5,10p' x.ts",
+     "name": "sed",
+     "path": "x.ts"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "/usr/bin/sed -n '5,10p' x.ts",
+     "name": "sed",
+     "path": "x.ts"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg foo",
+   "extractShellCommandFromString": "rg foo",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg foo",
+     "query": "foo",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo",
+     "query": "foo",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg foo src",
+   "extractShellCommandFromString": "rg foo src",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg foo src",
+     "query": "foo",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo src",
+     "query": "foo",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg foo src lib",
+   "extractShellCommandFromString": "rg foo src lib",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg foo src lib",
+     "query": "foo",
+     "path": "lib"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo src lib",
+     "query": "foo",
+     "path": "lib"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -n 'fn main' crates",
+   "extractShellCommandFromString": "rg -n 'fn main' crates",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -n 'fn main' crates",
+     "query": "fn main",
+     "path": "crates"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -n 'fn main' crates",
+     "query": "fn main",
+     "path": "crates"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -g '*.rs' foo",
+   "extractShellCommandFromString": "rg -g '*.rs' foo",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -g '*.rs' foo",
+     "query": "foo",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -g '*.rs' foo",
+     "query": "foo",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -g '*.rs' foo src",
+   "extractShellCommandFromString": "rg -g '*.rs' foo src",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -g '*.rs' foo src",
+     "query": "foo",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -g '*.rs' foo src",
+     "query": "foo",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg --glob '*.ts' -t ts bar .",
+   "extractShellCommandFromString": "rg --glob '*.ts' -t ts bar .",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg --glob '*.ts' -t ts bar .",
+     "query": "bar",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg --glob '*.ts' -t ts bar .",
+     "query": "bar",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -A 3 -B 2 needle hay",
+   "extractShellCommandFromString": "rg -A 3 -B 2 needle hay",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -A 3 -B 2 needle hay",
+     "query": "needle",
+     "path": "hay"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -A 3 -B 2 needle hay",
+     "query": "needle",
+     "path": "hay"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -C3 x y",
+   "extractShellCommandFromString": "rg -C3 x y",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -C3 x y",
+     "query": "x",
+     "path": "y"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -C3 x y",
+     "query": "x",
+     "path": "y"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg --type-not js q p",
+   "extractShellCommandFromString": "rg --type-not js q p",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg --type-not js q p",
+     "query": "q",
+     "path": "p"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg --type-not js q p",
+     "query": "q",
+     "path": "p"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -m 1 q p",
+   "extractShellCommandFromString": "rg -m 1 q p",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -m 1 q p",
+     "query": "q",
+     "path": "p"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -m 1 q p",
+     "query": "q",
+     "path": "p"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg",
+   "extractShellCommandFromString": "rg",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg",
+     "query": null,
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg",
+     "query": null,
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -l",
+   "extractShellCommandFromString": "rg -l",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -l",
+     "query": null,
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -l",
+     "query": null,
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -- -dash file",
+   "extractShellCommandFromString": "rg -- -dash file",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -- -dash file",
+     "query": "file",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -- -dash file",
+     "query": "file",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg '' file",
+   "extractShellCommandFromString": "rg '' file",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg '' file",
+     "query": "",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg '' file",
+     "query": "",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg \"\" file",
+   "extractShellCommandFromString": "rg \"\" file",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg \"\" file",
+     "query": "",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg \"\" file",
+     "query": "",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -e pat file",
+   "extractShellCommandFromString": "rg -e pat file",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -e pat file",
+     "query": "pat",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -e pat file",
+     "query": "pat",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg foo | head -n 20",
+   "extractShellCommandFromString": "rg foo | head -n 20",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg foo | head -n 20",
+     "query": "foo",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo | head -n 20",
+     "query": "foo",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg foo > out",
+   "extractShellCommandFromString": "rg foo > out",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "rg foo 2>/dev/null",
+   "extractShellCommandFromString": "rg foo 2>/dev/null",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg foo 2>/dev/null",
+     "query": "foo",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo 2>/dev/null",
+     "query": "foo",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "grep -rn TODO .",
+   "extractShellCommandFromString": "grep -rn TODO .",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "grep -rn TODO .",
+     "query": "TODO",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "grep -rn TODO .",
+     "query": "TODO",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "grep -r 'a b' src",
+   "extractShellCommandFromString": "grep -r 'a b' src",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "grep -r 'a b' src",
+     "query": "a b",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "grep -r 'a b' src",
+     "query": "a b",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "grep x",
+   "extractShellCommandFromString": "grep x",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "grep x",
+     "query": "x",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "grep x",
+     "query": "x",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "grep -i -E 'a|b' file.txt",
+   "extractShellCommandFromString": "grep -i -E 'a|b' file.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "grep -i -E 'a|b' file.txt",
+     "query": "a|b",
+     "path": "file.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "grep -i -E 'a|b' file.txt",
+     "query": "a|b",
+     "path": "file.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "grep foo file | wc -l",
+   "extractShellCommandFromString": "grep foo file | wc -l",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "grep foo file | wc -l",
+     "query": "foo",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "grep foo file | wc -l",
+     "query": "foo",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "egrep foo file",
+   "extractShellCommandFromString": "egrep foo file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "/usr/bin/grep -n x y",
+   "extractShellCommandFromString": "/usr/bin/grep -n x y",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "/usr/bin/grep -n x y",
+     "query": "x",
+     "path": "y"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "/usr/bin/grep -n x y",
+     "query": "x",
+     "path": "y"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -name '*.rs'",
+   "extractShellCommandFromString": "find . -name '*.rs'",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -name '*.rs'",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -name '*.rs'",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find src -type f",
+   "extractShellCommandFromString": "find src -type f",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find src -type f",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find src -type f",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find -name x",
+   "extractShellCommandFromString": "find -name x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "find",
+   "extractShellCommandFromString": "find",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "find '' -name x",
+   "extractShellCommandFromString": "find '' -name x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "find . -maxdepth 2 -type d",
+   "extractShellCommandFromString": "find . -maxdepth 2 -type d",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -maxdepth 2 -type d",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -maxdepth 2 -type d",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find src lib -iname '*.TS'",
+   "extractShellCommandFromString": "find src lib -iname '*.TS'",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find src lib -iname '*.TS'",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find src lib -iname '*.TS'",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -newer x",
+   "extractShellCommandFromString": "find . -newer x",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -newer x",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -newer x",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -name '*.tmp' -delete",
+   "extractShellCommandFromString": "find . -name '*.tmp' -delete",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -name '*.tmp' -delete",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -name '*.tmp' -delete",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -path ./node_modules -prune -o -print",
+   "extractShellCommandFromString": "find . -path ./node_modules -prune -o -print",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -path ./node_modules -prune -o -print",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -path ./node_modules -prune -o -print",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -size +1M -mtime -2",
+   "extractShellCommandFromString": "find . -size +1M -mtime -2",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -size +1M -mtime -2",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -size +1M -mtime -2",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -name x | xargs rm",
+   "extractShellCommandFromString": "find . -name x | xargs rm",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -name x | xargs rm",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -name x | xargs rm",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . -exec grep -l foo {} \\;",
+   "extractShellCommandFromString": "find . -exec grep -l foo {} \\;",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "find . -exec grep -l foo {} \\;",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "find . -exec grep -l foo {} \\;",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "find . > list.txt",
+   "extractShellCommandFromString": "find . > list.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git status",
+   "extractShellCommandFromString": "git status",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git diff",
+   "extractShellCommandFromString": "git diff",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git log --oneline -5",
+   "extractShellCommandFromString": "git log --oneline -5",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git show HEAD:README.md",
+   "extractShellCommandFromString": "git show HEAD:README.md",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git grep foo",
+   "extractShellCommandFromString": "git grep foo",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "git branch --show-current",
+   "extractShellCommandFromString": "git branch --show-current",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "echo hi",
+   "extractShellCommandFromString": "echo hi",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "echo hi > f",
+   "extractShellCommandFromString": "echo hi > f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "echo hi | tee f",
+   "extractShellCommandFromString": "echo hi | tee f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "echo hi | tee -a f",
+   "extractShellCommandFromString": "echo hi | tee -a f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "tee f",
+   "extractShellCommandFromString": "tee f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "/usr/bin/tee x",
+   "extractShellCommandFromString": "/usr/bin/tee x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "printf 'a' >> f",
+   "extractShellCommandFromString": "printf 'a' >> f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "touch f",
+   "extractShellCommandFromString": "touch f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "mkdir -p x",
+   "extractShellCommandFromString": "mkdir -p x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "rm -rf x",
+   "extractShellCommandFromString": "rm -rf x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "npm test",
+   "extractShellCommandFromString": "npm test",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cargo test -p x",
+   "extractShellCommandFromString": "cargo test -p x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cd src && ls",
+   "extractShellCommandFromString": "cd src && ls",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "cd src && ls",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "cd src && ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cd src && cat main.rs",
+   "extractShellCommandFromString": "cd src && cat main.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cd src && cat main.rs",
+     "name": "cat",
+     "path": "main.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cd src && cat main.rs",
+     "name": "cat",
+     "path": "main.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cd src; cat main.rs",
+   "extractShellCommandFromString": "cd src; cat main.rs",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cd src; cat main.rs",
+     "name": "cat",
+     "path": "main.rs"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cd src; cat main.rs",
+     "name": "cat",
+     "path": "main.rs"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "true || cat a",
+   "extractShellCommandFromString": "true || cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "true || cat a",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "true || cat a",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "false && rg x",
+   "extractShellCommandFromString": "false && rg x",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "false && rg x",
+     "query": "x",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "false && rg x",
+     "query": "x",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls && cat a > b",
+   "extractShellCommandFromString": "ls && cat a > b",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat a && echo x > y",
+   "extractShellCommandFromString": "cat a && echo x > y",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "echo a\nls src",
+   "extractShellCommandFromString": "echo a\nls src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "echo a\nls src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "echo a\nls src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "echo a\n\ncat b",
+   "extractShellCommandFromString": "echo a\n\ncat b",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "echo a\n\ncat b",
+     "name": "cat",
+     "path": "b"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "echo a\n\ncat b",
+     "name": "cat",
+     "path": "b"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls &",
+   "extractShellCommandFromString": "ls &",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls &",
+     "path": "&"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls &",
+     "path": "&"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls & cat a",
+   "extractShellCommandFromString": "ls & cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls & cat a",
+     "path": "&"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls & cat a",
+     "path": "&"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "a;;b",
+   "extractShellCommandFromString": "a;;b",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "|| ls",
+   "extractShellCommandFromString": "|| ls",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "|| ls",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "|| ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "&& cat x",
+   "extractShellCommandFromString": "&& cat x",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "&& cat x",
+     "name": "cat",
+     "path": "x"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "&& cat x",
+     "name": "cat",
+     "path": "x"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "; ls",
+   "extractShellCommandFromString": "; ls",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "; ls",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "; ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a |& head",
+   "extractShellCommandFromString": "cat a |& head",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a |& head",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a |& head",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls|cat",
+   "extractShellCommandFromString": "ls|cat",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls|cat",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls|cat",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls&&cat a",
+   "extractShellCommandFromString": "ls&&cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls&&cat a",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls&&cat a",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls;cat a",
+   "extractShellCommandFromString": "ls;cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls;cat a",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls;cat a",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "FOO=bar ls src",
+   "extractShellCommandFromString": "FOO=bar ls src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "FOO=bar ls src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "FOO=bar ls src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "FOO=bar BAZ=qux cat a",
+   "extractShellCommandFromString": "FOO=bar BAZ=qux cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "FOO=bar BAZ=qux cat a",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "FOO=bar BAZ=qux cat a",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "FOO=bar",
+   "extractShellCommandFromString": "FOO=bar",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "1FOO=bar ls",
+   "extractShellCommandFromString": "1FOO=bar ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "_X=1 rg q p",
+   "extractShellCommandFromString": "_X=1 rg q p",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "_X=1 rg q p",
+     "query": "q",
+     "path": "p"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "_X=1 rg q p",
+     "query": "q",
+     "path": "p"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "'FOO=bar' ls",
+   "extractShellCommandFromString": "'FOO=bar' ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "FOO=bar 'ls' src",
+   "extractShellCommandFromString": "FOO=bar 'ls' src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "FOO=bar 'ls' src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "FOO=bar 'ls' src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "\"cat\" file",
+   "extractShellCommandFromString": "\"cat\" file",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "\"cat\" file",
+     "name": "cat",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "\"cat\" file",
+     "name": "cat",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "A=1 B= rg q",
+   "extractShellCommandFromString": "A=1 B= rg q",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "A=1 B= rg q",
+     "query": "q",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "A=1 B= rg q",
+     "query": "q",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash -lc 'ls -la'",
+   "extractShellCommandFromString": "ls -la",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls -la",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash -c 'cat a'",
+   "extractShellCommandFromString": "cat a",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sh -c \"cat 'a b'\"",
+   "extractShellCommandFromString": "cat 'a b'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 'a b'",
+     "name": "cat",
+     "path": "a b"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "zsh -lc ls",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "/bin/bash -lc \"sed -n '1,200p' math.js\"",
+   "extractShellCommandFromString": "sed -n '1,200p' math.js",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -n '1,200p' math.js",
+     "name": "sed",
+     "path": "math.js"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "/usr/bin/zsh -c 'rg foo'",
+   "extractShellCommandFromString": "rg foo",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg foo",
+     "query": "foo",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "fish -c 'ls'",
+   "extractShellCommandFromString": "fish -c 'ls'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -l -c 'ls'",
+   "extractShellCommandFromString": "bash -l -c 'ls'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -lcx 'ls'",
+   "extractShellCommandFromString": "bash -lcx 'ls'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -lc",
+   "extractShellCommandFromString": "bash -lc",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -lc   ",
+   "extractShellCommandFromString": "bash -lc",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "  bash   -lc   'ls'  ",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash\t-c\t'ls'",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash -c 'ls'",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash -c 'a' extra",
+   "extractShellCommandFromString": "'a' extra",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c \"echo \\\"hi\\\" \\$x \\a\"",
+   "extractShellCommandFromString": "echo \"hi\" $x \\a",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c '",
+   "extractShellCommandFromString": "'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c \"\"",
+   "extractShellCommandFromString": "",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c ''",
+   "extractShellCommandFromString": "",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c '\"'",
+   "extractShellCommandFromString": "\"",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -c \"x'",
+   "extractShellCommandFromString": "\"x'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -lc \"a\\\\b\"",
+   "extractShellCommandFromString": "a\\b",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -lc \"a\\\nb\"",
+   "extractShellCommandFromString": "a\nb",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sh/ -c 'ls'",
+   "extractShellCommandFromString": "sh/ -c 'ls'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "/ -c x",
+   "extractShellCommandFromString": "/ -c x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash-c ls",
+   "extractShellCommandFromString": "bash-c ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash -cls",
+   "extractShellCommandFromString": "bash -cls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "bash﻿-c﻿ls",
+   "extractShellCommandFromString": "ls",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "bash -c 'cat 😀.txt'",
+   "extractShellCommandFromString": "cat 😀.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 😀.txt",
+     "name": "cat",
+     "path": "😀.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat 😀.txt",
+   "extractShellCommandFromString": "cat 😀.txt",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat 😀.txt",
+     "name": "cat",
+     "path": "😀.txt"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 😀.txt",
+     "name": "cat",
+     "path": "😀.txt"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat 𝒳",
+   "extractShellCommandFromString": "cat 𝒳",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat 𝒳",
+     "name": "cat",
+     "path": "𝒳"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat 𝒳",
+     "name": "cat",
+     "path": "𝒳"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg 'é' ünïcode/",
+   "extractShellCommandFromString": "rg 'é' ünïcode/",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg 'é' ünïcode/",
+     "query": "é",
+     "path": "ünïcode/"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg 'é' ünïcode/",
+     "query": "é",
+     "path": "ünïcode/"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls　src",
+   "extractShellCommandFromString": "ls　src",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls　src",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls　src",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "lssrc",
+   "extractShellCommandFromString": "lssrc",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat a\rb",
+   "extractShellCommandFromString": "cat a\rb",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a\rb",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a\rb",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a\u000bb",
+   "extractShellCommandFromString": "cat a\u000bb",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a\u000bb",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a\u000bb",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a\fb",
+   "extractShellCommandFromString": "cat a\fb",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a\fb",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a\fb",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat file",
+   "extractShellCommandFromString": "cat file",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat file",
+     "name": "cat",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat file",
+     "name": "cat",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "head -n 5  file",
+   "extractShellCommandFromString": "head -n 5  file",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -n 5  file",
+     "name": "head",
+     "path": "file"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -n 5  file",
+     "name": "head",
+     "path": "file"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat <<'EOF' > out.txt\nhello\nEOF",
+   "extractShellCommandFromString": "cat <<'EOF' > out.txt\nhello\nEOF",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "python3 - <<'PY'\nprint(1)\nPY",
+   "extractShellCommandFromString": "python3 - <<'PY'\nprint(1)\nPY",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat <<< \"str\" | rg x",
+   "extractShellCommandFromString": "cat <<< \"str\" | rg x",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "cat <<< \"str\" | rg x",
+     "query": "x",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "cat <<< \"str\" | rg x",
+     "query": "x",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "diff <(ls a) <(ls b)",
+   "extractShellCommandFromString": "diff <(ls a) <(ls b)",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "rg x <(cat y)",
+   "extractShellCommandFromString": "rg x <(cat y)",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg x <(cat y)",
+     "query": "x",
+     "path": null
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg x <(cat y)",
+     "query": "x",
+     "path": null
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat a 2>&1 | rg b",
+   "extractShellCommandFromString": "cat a 2>&1 | rg b",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a 2>&1 | rg b",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a 2>&1 | rg b",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg -n foo src 2> /dev/null | head",
+   "extractShellCommandFromString": "rg -n foo src 2> /dev/null | head",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg -n foo src 2> /dev/null | head",
+     "query": "foo",
+     "path": "src"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg -n foo src 2> /dev/null | head",
+     "query": "foo",
+     "path": "src"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "ls nope 2>/dev/null || echo missing",
+   "extractShellCommandFromString": "ls nope 2>/dev/null || echo missing",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls nope 2>/dev/null || echo missing",
+     "path": "nope"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls nope 2>/dev/null || echo missing",
+     "path": "nope"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat >| x",
+   "extractShellCommandFromString": "cat >| x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls &>/dev/null && cat a",
+   "extractShellCommandFromString": "ls &>/dev/null && cat a",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls &>/dev/null && cat a",
+     "path": "."
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls &>/dev/null && cat a",
+     "path": "."
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "jq '.a' file.json",
+   "extractShellCommandFromString": "jq '.a' file.json",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "wc -l file",
+   "extractShellCommandFromString": "wc -l file",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "awk '{print $1}' f",
+   "extractShellCommandFromString": "awk '{print $1}' f",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "xargs cat",
+   "extractShellCommandFromString": "xargs cat",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "sudo cat /etc/hosts",
+   "extractShellCommandFromString": "sudo cat /etc/hosts",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "env cat x",
+   "extractShellCommandFromString": "env cat x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "time rg x",
+   "extractShellCommandFromString": "time rg x",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat \"\"''",
+   "extractShellCommandFromString": "cat \"\"''",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "cat a\"\"",
+   "extractShellCommandFromString": "cat a\"\"",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat a\"\"",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat a\"\"",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"a\"b",
+   "extractShellCommandFromString": "cat \"a\"b",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat \"a\"b",
+     "name": "cat",
+     "path": "ab"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat \"a\"b",
+     "name": "cat",
+     "path": "ab"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat ''a''",
+   "extractShellCommandFromString": "cat ''a''",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat ''a''",
+     "name": "cat",
+     "path": "a"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat ''a''",
+     "name": "cat",
+     "path": "a"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "cat \"\" ''",
+   "extractShellCommandFromString": "cat \"\" ''",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "hand",
+   "input": "ls \"\" x",
+   "extractShellCommandFromString": "ls \"\" x",
+   "parseShellCommandIntents": [
+    {
+     "type": "list_files",
+     "command": "ls \"\" x",
+     "path": ""
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "list_files",
+     "command": "ls \"\" x",
+     "path": ""
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "rg '' ''",
+   "extractShellCommandFromString": "rg '' ''",
+   "parseShellCommandIntents": [
+    {
+     "type": "search",
+     "command": "rg '' ''",
+     "query": "",
+     "path": ""
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "search",
+     "command": "rg '' ''",
+     "query": "",
+     "path": ""
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "head -n '' f",
+   "extractShellCommandFromString": "head -n '' f",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -n '' f",
+     "name": "head",
+     "path": "f"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -n '' f",
+     "name": "head",
+     "path": "f"
+    }
+   ]
+  },
+  {
+   "source": "hand",
+   "input": "sed -n '' ''",
+   "extractShellCommandFromString": "sed -n '' ''",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc \"node -e 'import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))'\"",
+   "extractShellCommandFromString": "node -e 'import(\"./math.js\").then(m => console.log(m.subtract(5, 3)))'",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc \"sed -n '1p' README.md\"",
+   "extractShellCommandFromString": "sed -n '1p' README.md",
+   "parseShellCommandIntents": [],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "sed -n '1p' README.md",
+     "name": "sed",
+     "path": "README.md"
+    }
+   ]
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc 'git branch --show-current'",
+   "extractShellCommandFromString": "git branch --show-current",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc 'sleep 120'",
+   "extractShellCommandFromString": "sleep 120",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc 'sleep 2'",
+   "extractShellCommandFromString": "sleep 2",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "/bin/bash -lc 'touch ~/bb-recording-outside.txt'",
+   "extractShellCommandFromString": "touch ~/bb-recording-outside.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "cat /tmp/bb-recording-ws/math.js",
+   "extractShellCommandFromString": "cat /tmp/bb-recording-ws/math.js",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "cat /tmp/bb-recording-ws/math.js",
+     "name": "cat",
+     "path": "/tmp/bb-recording-ws/math.js"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "cat /tmp/bb-recording-ws/math.js",
+     "name": "cat",
+     "path": "/tmp/bb-recording-ws/math.js"
+    }
+   ]
+  },
+  {
+   "source": "fixture",
+   "input": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
+   "extractShellCommandFromString": "cat >> math.js << 'EOF'\n\n\nexport function subtract(a, b) {\n  return a - b;\n}\nEOF\nnode -e \"import(\\\"./math.js\\\").then(m => console.log(m.subtract(5, 3)))\"",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "curl -sI https://example.com | head -n 1",
+   "extractShellCommandFromString": "curl -sI https://example.com | head -n 1",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "head -1 /tmp/bb-recording-ws/README.md",
+   "extractShellCommandFromString": "head -1 /tmp/bb-recording-ws/README.md",
+   "parseShellCommandIntents": [
+    {
+     "type": "read",
+     "command": "head -1 /tmp/bb-recording-ws/README.md",
+     "name": "head",
+     "path": "/tmp/bb-recording-ws/README.md"
+    }
+   ],
+   "parseExtracted": [
+    {
+     "type": "read",
+     "command": "head -1 /tmp/bb-recording-ws/README.md",
+     "name": "head",
+     "path": "/tmp/bb-recording-ws/README.md"
+    }
+   ]
+  },
+  {
+   "source": "fixture",
+   "input": "sleep 2",
+   "extractShellCommandFromString": "sleep 2",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  },
+  {
+   "source": "fixture",
+   "input": "touch ~/bb-recording-outside.txt",
+   "extractShellCommandFromString": "touch ~/bb-recording-outside.txt",
+   "parseShellCommandIntents": [],
+   "parseExtracted": []
+  }
+ ]
+}
