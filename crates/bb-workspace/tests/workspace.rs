@@ -325,3 +325,58 @@ async fn watches_new_directories_but_not_dependency_trees() {
     assert!(changes_within(&h, Duration::from_millis(800)).await > 0);
     watcher.dispose().await.unwrap();
 }
+
+#[tokio::test]
+async fn git_bookkeeping_in_a_checkout_does_not_signal() {
+    let h = Harness::new();
+    let repo = h.repo();
+    let watcher = create_watcher(&h.ctx);
+    let args =
+        SetWatchedPathsArgs { generation: 1.0, workspaces: vec![s(&repo)], directories: vec![] };
+    watcher.set_watched_paths(args).await.unwrap();
+    changes_within(&h, Duration::from_millis(800)).await;
+    h.write(&repo.join(".git/objects/zz/loose-object"), "x");
+    h.write(&repo.join(".git/logs/HEAD"), "x");
+    h.write(&repo.join(".git/index.lock"), "x");
+    assert_eq!(changes_within(&h, Duration::from_millis(800)).await, 0);
+    h.write(&repo.join(".git/index"), "x");
+    assert!(changes_within(&h, Duration::from_millis(800)).await > 0);
+    watcher.dispose().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_folder_that_becomes_a_repository_is_watched_as_one() {
+    let h = Harness::new();
+    let folder = h.root.join("fresh");
+    std::fs::create_dir_all(&folder).unwrap();
+    let watcher = create_watcher(&h.ctx);
+    let args =
+        SetWatchedPathsArgs { generation: 1.0, workspaces: vec![s(&folder)], directories: vec![] };
+    watcher.set_watched_paths(args).await.unwrap();
+    changes_within(&h, Duration::from_millis(500)).await;
+
+    h.git(&folder, &["init", "-q", "-b", "main"]);
+    h.write(&folder.join("src/main.js"), "1\n");
+    changes_within(&h, Duration::from_millis(1200)).await;
+    h.write(&folder.join(".git/objects/zz/loose-object"), "x");
+    h.write(&folder.join(".git/logs/HEAD"), "x");
+    assert_eq!(changes_within(&h, Duration::from_millis(800)).await, 0);
+
+    h.events.lock().clear();
+    h.write(&folder.join(".git/HEAD"), "ref: refs/heads/other\n");
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let kinds: Vec<String> = h
+        .events
+        .lock()
+        .iter()
+        .filter_map(|event| match &event.body {
+            RunnerEventBody::WorkspaceChanged { change, .. } => Some(change.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        kinds.contains(&"refs".to_owned()) && kinds.contains(&"status".to_owned()),
+        "{kinds:?}"
+    );
+    watcher.dispose().await.unwrap();
+}

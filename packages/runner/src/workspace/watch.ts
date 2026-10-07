@@ -100,7 +100,8 @@ async function watchWorkspace(
   };
   try {
     if (layout === null) {
-      await watchTree(root, WORKSPACE_IGNORED_GLOBS, () => note("status"));
+      const plainIgnored = [".git", ...WORKSPACE_IGNORED_GLOBS];
+      await watchTree(root, plainIgnored, () => note("status"));
       return stop;
     }
     const sharedGitDir = layout.gitDir === layout.commonDir;

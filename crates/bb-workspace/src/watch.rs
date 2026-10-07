@@ -242,7 +242,7 @@ fn classify(subscription: &Subscription, relative: &str) -> &'static [Change] {
                 .ignored
                 .iter()
                 .any(|dir| relative == dir || relative.starts_with(&format!("{dir}/")));
-            if nested_git || noise || (git_aware && (first == ".git" || ignored)) {
+            if nested_git || noise || first == ".git" || (git_aware && ignored) {
                 &[]
             } else {
                 &[Change::Status]
@@ -334,11 +334,18 @@ fn watch_tree(
 
 enum Signal {
     Changed(Vec<Change>),
-    /// A directory appeared in the subscription with this index and needs its own watches.
-    Created(usize, PathBuf),
+    /// A directory appeared in the subscription with this index, in this epoch of the watch.
+    Created(u64, usize, PathBuf),
+    /// A repository appeared in a workspace that had none when this epoch of the watch began.
+    Repository(u64),
 }
 
-fn signals(subscription: &Subscription, index: usize, event: notify::Event) -> Vec<Signal> {
+fn signals(
+    subscription: &Subscription,
+    epoch: u64,
+    index: usize,
+    event: notify::Event,
+) -> Vec<Signal> {
     use notify::EventKind;
     use notify::event::ModifyKind;
     if matches!(event.kind, EventKind::Access(_)) {
@@ -346,25 +353,37 @@ fn signals(subscription: &Subscription, index: usize, event: notify::Event) -> V
     }
     let appeared =
         matches!(event.kind, EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_)));
+    let plain = matches!(subscription.tree, Tree::Workspace { git_aware: false });
     let mut changes = Vec::new();
-    let mut created = Vec::new();
+    let mut found = Vec::new();
     for path in event.paths {
         let Some(relative) = relative_to(subscription, &path) else { continue };
         changes.extend_from_slice(classify(subscription, &relative));
-        let is_directory = || std::fs::symlink_metadata(&path).is_ok_and(|stat| stat.is_dir());
-        if appeared && watches_directory(subscription, &relative) && is_directory() {
-            created.push(Signal::Created(index, path));
+        if !appeared {
+            continue;
+        }
+        if plain && relative == ".git" {
+            found.push(Signal::Repository(epoch));
+        } else if watches_directory(subscription, &relative)
+            && std::fs::symlink_metadata(&path).is_ok_and(|stat| stat.is_dir())
+        {
+            found.push(Signal::Created(epoch, index, path));
         }
     }
     if !changes.is_empty() {
-        created.push(Signal::Changed(changes));
+        found.push(Signal::Changed(changes));
     }
-    created
+    found
 }
 
-fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<Stop> {
-    let (sender, mut receiver) = mpsc::unbounded_channel::<Signal>();
-    let mut watched: Vec<(Arc<Subscription>, RecommendedWatcher)> = Vec::new();
+type Watched = Vec<(Arc<Subscription>, RecommendedWatcher)>;
+
+fn open(
+    subscriptions: Vec<Subscription>,
+    epoch: u64,
+    sender: &mpsc::UnboundedSender<Signal>,
+) -> Option<Watched> {
+    let mut watched = Vec::new();
     for (index, subscription) in subscriptions.into_iter().enumerate() {
         let subscription = Arc::new(subscription);
         let (sender, seen) = (sender.clone(), subscription.clone());
@@ -373,7 +392,7 @@ fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<St
             move |result: notify::Result<notify::Event>| {
                 let found = match result {
                     Err(_) => vec![Signal::Changed(vec![Change::Status, Change::Refs])],
-                    Ok(event) => signals(&seen, index, event),
+                    Ok(event) => signals(&seen, epoch, index, event),
                 };
                 for signal in found {
                     let _ = sender.send(signal);
@@ -385,8 +404,15 @@ fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<St
         watch_tree(&mut watcher, &subscription, &subscription.root).ok()?;
         watched.push((subscription, watcher));
     }
+    Some(watched)
+}
+
+fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<Stop> {
+    let (sender, mut receiver) = mpsc::unbounded_channel::<Signal>();
+    let mut epoch = 0;
+    let mut watched = open(subscriptions, epoch, &sender)?;
     let alive = Arc::new(AtomicBool::new(true));
-    let (sink, path, flag) = (ctx.sink.clone(), target.to_owned(), alive.clone());
+    let (ctx, path, flag) = (ctx.clone(), target.to_owned(), alive.clone());
     let task = tokio::spawn(async move {
         let mut pending: BTreeSet<Change> = BTreeSet::new();
         let mut deadline: Option<Instant> = None;
@@ -403,9 +429,23 @@ fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<St
             };
             let quiet = match signal {
                 None => return,
-                Some(Signal::Created(index, directory)) => {
-                    if let Some((subscription, watcher)) = watched.get_mut(index) {
+                Some(Signal::Created(from, index, directory)) => {
+                    if from == epoch
+                        && let Some((subscription, watcher)) = watched.get_mut(index)
+                    {
                         let _ = watch_tree(watcher, subscription, &directory);
+                    }
+                    false
+                }
+                Some(Signal::Repository(from)) => {
+                    if from == epoch
+                        && let Some(subscriptions) = watch_workspace(&ctx, &path).await
+                        && subscriptions.len() > 1
+                        && let Some(opened) = open(subscriptions, epoch + 1, &sender)
+                    {
+                        epoch += 1;
+                        watched = opened;
+                        pending.extend([Change::Status, Change::Refs]);
                     }
                     false
                 }
@@ -429,7 +469,7 @@ fn start(ctx: &Ctx, target: &str, subscriptions: Vec<Subscription>) -> Option<St
                         path: path.clone(),
                         change: change.as_str().to_owned(),
                     };
-                    sink(RunnerEvent::unsequenced(body));
+                    (ctx.sink)(RunnerEvent::unsequenced(body));
                 }
             }
         }
