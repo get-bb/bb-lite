@@ -185,6 +185,7 @@
   const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   const B64_INDEX = new Map([...B64].map((c, i) => [c, i]));
   const bytesToBase64 = (bytes) => {
+    if (bytes instanceof Uint8Array) return native.base64Encode(bytes);
     let out = "";
     for (let i = 0; i < bytes.length; i += 3) {
       const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
@@ -195,6 +196,8 @@
     return out;
   };
   const base64ToBytes = (input) => {
+    const fast = native.base64Decode(String(input));
+    if (fast !== undefined && fast !== null) return fast;
     let s = String(input).replace(/[\t\n\f\r ]/g, "");
     if (s.length % 4 === 0) s = s.replace(/==?$/, "");
     if (s.length % 4 === 1 || /[^A-Za-z0-9+/]/.test(s)) {
@@ -236,6 +239,7 @@
       },
       bytesToBase64: (bytes) => bytesToBase64(new Uint8Array(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength)),
       base64ToBytes,
+      base64Native: (input) => native.base64Decode(String(input)) ?? null,
     }),
   );
 

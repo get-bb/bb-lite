@@ -247,11 +247,7 @@ impl Bridge {
             }
             "kv.get" => {
                 let stored = self.api.kv().get(&id(0)).map_err(|e| e.to_string())?;
-                Ok(match stored {
-                    Some(Value::String(text)) => serde_json::from_str(&text).unwrap_or(Value::Null),
-                    Some(value) => value,
-                    None => Value::Null,
-                })
+                Ok(stored.unwrap_or(Value::Null))
             }
             "kv.set" => {
                 let text = at(1).as_str().map(str::to_owned);
