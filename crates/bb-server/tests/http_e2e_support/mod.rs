@@ -12,6 +12,7 @@ use bb_server::db::threads::get_thread;
 use bb_server::plugins::builtin::BuiltinPlugin;
 use bb_server::providers::catalog::enable_dev_providers_for_tests;
 use bb_server::runners::local::{LocalRunnerHandle, local_runner_for};
+use bb_server::runners::registry::RunnerFactory;
 use bb_server::server::{BbServer, CreateServerOptions, create_server};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -25,6 +26,8 @@ pub struct BootOptions {
     /// Written to the data directory's `config.json` before the server starts.
     pub config_json: Option<Value>,
     pub extra_env: Vec<(String, String)>,
+    /// Replaces the local runner (with the echo adapter) by this machine.
+    pub runner: Option<RunnerFactory>,
 }
 
 #[derive(Clone)]
@@ -51,7 +54,7 @@ pub struct Server {
     pub url: String,
     pub http: reqwest::Client,
     pub dirs: TempDir,
-    local: LocalRunnerHandle,
+    local: Option<LocalRunnerHandle>,
 }
 
 pub async fn boot() -> Server {
@@ -87,7 +90,13 @@ pub async fn boot_with(options: BootOptions) -> Server {
     env.extend(options.extra_env);
     let config = load_config(&env).unwrap();
     let adapters = bb_runner::default_adapters();
-    let (connect, local) = local_runner_for(&config, adapters);
+    let (connect, local) = match options.runner {
+        Some(runner) => (runner, None),
+        None => {
+            let (connect, local) = local_runner_for(&config, adapters);
+            (connect, Some(local))
+        }
+    };
     let mut create = CreateServerOptions::new(config, connect);
     create.now = options.clock.as_ref().map(Clock::as_fn);
     create.builtins = options.builtins;
@@ -108,7 +117,9 @@ impl Server {
 
     pub async fn close(self) {
         self.server.close().await;
-        self.local.shutdown().await;
+        if let Some(local) = self.local {
+            local.shutdown().await;
+        }
     }
 
     /// `path` is relative to `/api/v1` unless it starts with `/internal`, `/health` or `/ws`.
