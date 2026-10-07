@@ -21,6 +21,9 @@ use tokio_tungstenite::tungstenite::Message;
 
 const BASE_TIME: i64 = 1_800_000_000_000;
 const HOST_ID: &str = "host_parity000000";
+/// The recorder drops these from its thread map before their scenario ends, so it never
+/// fetched their timelines (and never advanced the clock for them).
+const UNTRACKED_THREADS: &[&str] = &["archive-delete", "delete-parent", "delete-child"];
 const MAX_DIFFS_PER_STEP: usize = 6;
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -90,6 +93,10 @@ struct Replayer {
     sockets: Vec<Socket>,
     seen_turns: HashMap<String, i64>,
     detail_names: HashMap<String, String>,
+    created: Vec<(String, String)>,
+    captured: usize,
+    pending_live: Vec<String>,
+    fixture_dir: PathBuf,
     token: Regex,
     hostname: String,
 }
@@ -210,6 +217,10 @@ async fn replay_all() -> BTreeMap<String, ScenarioResult> {
         sockets: Vec::new(),
         seen_turns: HashMap::new(),
         detail_names,
+        created: Vec::new(),
+        captured: 0,
+        pending_live: Vec::new(),
+        fixture_dir: fixture.clone(),
         token: Regex::new(
             r"\b(?:(?:thr|env|evt|proj|pint|qmsg|tpv|sec|src|creq|phist|tok|req|att|run|hst|auto|task)_[a-z0-9]{10}|[0-9a-f]{10}-[ti]|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|timeline-v3:[A-Za-z0-9_-]+)",
         )
@@ -225,6 +236,7 @@ async fn replay_all() -> BTreeMap<String, ScenarioResult> {
             if !current.is_empty() {
                 let result = results.entry(current.clone()).or_default();
                 replayer.flush(&current, std::mem::take(&mut ws_steps), result).await;
+                replayer.capture_fixtures(&current, result).await;
             }
             current = scenario.clone();
             if scenario == "thread-basics" {
@@ -255,6 +267,7 @@ async fn replay_all() -> BTreeMap<String, ScenarioResult> {
     }
     let result = results.entry(current.clone()).or_default();
     replayer.flush(&current, ws_steps, result).await;
+    replayer.capture_fixtures(&current, result).await;
     replayer.server.close().await;
     local.shutdown().await;
     drop(temp_dir);
@@ -453,6 +466,18 @@ impl Replayer {
     async fn http_step(&mut self, step: &Value) -> Vec<Diff> {
         let request = &step["request"];
         let method = request["method"].as_str().unwrap_or("GET");
+        let request_text = request.to_string();
+        let unbound: Vec<String> = self
+            .token
+            .find_iter(&request_text)
+            .map(|m| m.as_str().to_owned())
+            .filter(|t| t.starts_with("pint_") && !self.rec_to_live.contains_key(t))
+            .collect();
+        for recorded in unbound {
+            if let Some(live) = self.pending_live.first().cloned() {
+                self.bind(&recorded, &live);
+            }
+        }
         let path = self.to_live(request["path"].as_str().unwrap_or_default());
         self.clock.fetch_add(1000, Ordering::SeqCst);
         let mut target = reqwest::Url::parse(&format!("{}{path}", self.url)).unwrap();
@@ -507,11 +532,7 @@ impl Replayer {
             diffs.push(diff(step, "$status", json!(recorded_status), json!(status)));
         }
         let recorded_body = step["response"]["body"].clone();
-        let body_for_compare = if path.ends_with("/settings/machine-environment") {
-            mask_path_values(&recorded_body, &body)
-        } else {
-            body.clone()
-        };
+        let body_for_compare = mask_path_values(&recorded_body, &body);
         diffs.extend(self.compare_step(step, "$", &recorded_body, &body_for_compare));
         if method == "POST"
             && request["path"] == "/api/v1/threads"
@@ -523,6 +544,7 @@ impl Replayer {
                 .get(&rec_id)
                 .cloned()
                 .unwrap_or_else(|| format!("thread-detail:{rec_id}"));
+            self.created.push((rec_id.clone(), live_id.to_owned()));
             self.subscribe(key, json!({"kind": "thread-detail", "threadId": live_id})).await;
         }
         diffs
@@ -564,12 +586,20 @@ impl Replayer {
                 "pending-interaction" => {
                     let url = format!("{}/api/v1/threads/{id}/interactions", self.url);
                     match self.http.get(url).send().await {
-                        Ok(r) => r
-                            .json::<Value>()
-                            .await
-                            .ok()
-                            .and_then(|v| v.as_array().map(|a| !a.is_empty()))
-                            .unwrap_or_default(),
+                        Ok(r) => {
+                            let list = r.json::<Value>().await.unwrap_or_default();
+                            let ids: Vec<String> = list
+                                .as_array()
+                                .map(|a| {
+                                    a.iter()
+                                        .filter_map(|i| i["id"].as_str().map(str::to_owned))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            let found = !ids.is_empty();
+                            self.pending_live = ids;
+                            found
+                        }
                         Err(_) => false,
                     }
                 }
@@ -626,6 +656,88 @@ impl Replayer {
         self.sockets.push(Socket { key, inbox });
     }
 
+    async fn fetch_timeline(&self, path: &str, query: &[(&str, String)]) -> Value {
+        self.clock.fetch_add(1000, Ordering::SeqCst);
+        let mut target = reqwest::Url::parse(&format!("{}/api/v1{path}", self.url)).unwrap();
+        for (k, v) in query {
+            target.query_pairs_mut().append_pair(k, v);
+        }
+        let query: Map<String, Value> =
+            query.iter().map(|(k, v)| ((*k).to_owned(), json!(v))).collect();
+        match self.http.get(target).send().await {
+            Ok(r) => {
+                let status = r.status().as_u16();
+                let body = r.json::<Value>().await.unwrap_or(Value::Null);
+                json!({"query": query, "status": status, "body": body})
+            }
+            Err(e) => json!({"query": query, "status": 0, "body": e.to_string()}),
+        }
+    }
+
+    async fn capture_fixtures(&mut self, scenario: &str, result: &mut ScenarioResult) {
+        while self.captured < self.created.len() {
+            let (rec_id, id) = self.created[self.captured].clone();
+            self.captured += 1;
+            let name = self.detail_names.get(&rec_id).cloned().unwrap_or_default();
+            if UNTRACKED_THREADS.iter().any(|n| name == format!("thread-detail:{n}")) {
+                continue;
+            }
+            let base = format!("/threads/{id}/timeline");
+            let mut timeline = Vec::new();
+            let first = self.fetch_timeline(&base, &[]).await;
+            timeline.push(first.clone());
+            timeline.push(self.fetch_timeline(&base, &[("includeNestedRows", "true".into())]).await);
+            timeline.push(self.fetch_timeline(&base, &[("summaryOnly", "true".into())]).await);
+            let page = self.fetch_timeline(&base, &[("segmentLimit", "2".into())]).await;
+            timeline.push(page.clone());
+            let anchor = &page["body"]["rows"][0];
+            if let Some(seq) = anchor["sourceSeqStart"].as_i64() {
+                let anchor_id = match &anchor["id"] {
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let query = [
+                    ("segmentLimit", "2".to_owned()),
+                    ("beforeAnchorSeq", seq.to_string()),
+                    ("beforeAnchorId", anchor_id),
+                ];
+                timeline.push(self.fetch_timeline(&base, &query).await);
+            }
+            timeline.push(self.fetch_timeline(&base, &[("afterSequence", "3".into())]).await);
+            let rows = first["body"]["rows"].as_array().cloned().unwrap_or_default();
+            let summary = rows.iter().find(|r| {
+                r["sourceSeqStart"].is_number()
+                    && r["sourceSeqEnd"].is_number()
+                    && (r["kind"] == "turn"
+                        || r["kind"].as_str().is_some_and(|k| k.to_lowercase().contains("summary")))
+            });
+            let mut details = Value::Null;
+            if let Some(summary) = summary {
+                let query = [
+                    ("turnId", summary["turnId"].as_str().unwrap_or_default().to_owned()),
+                    ("sourceSeqStart", summary["sourceSeqStart"].to_string()),
+                    ("sourceSeqEnd", summary["sourceSeqEnd"].to_string()),
+                ];
+                details =
+                    self.fetch_timeline(&format!("{base}/turn-summary-details"), &query).await;
+            }
+            let Some(name) = self.detail_names.get(&rec_id).cloned() else { continue };
+            let name = name.trim_start_matches("thread-detail:").to_owned();
+            let file = self.fixture_dir.join(format!("threads/{name}.json"));
+            let Ok(text) = std::fs::read_to_string(&file) else { continue };
+            let recorded: Value = serde_json::from_str(&text).unwrap();
+            let anchor = json!({"scenario": scenario, "step": 0, "subscription": format!("fixture:{name}")});
+            let actual = json!({"timeline": timeline, "turnSummaryDetails": details});
+            let expected = json!({"timeline": recorded["timeline"], "turnSummaryDetails": recorded["turnSummaryDetails"]});
+            let diffs = self.compare_step(&anchor, "$", &expected, &actual);
+            result.steps += 1;
+            if !diffs.is_empty() {
+                result.differing_steps += 1;
+            }
+            result.diffs.extend(diffs);
+        }
+    }
+
     async fn flush(&mut self, scenario: &str, recorded: Vec<Value>, result: &mut ScenarioResult) {
         let mut by_key: BTreeMap<String, Vec<Value>> = BTreeMap::new();
         for step in recorded {
@@ -643,6 +755,9 @@ impl Replayer {
             }
             let rec = by_key.remove(&key).unwrap_or_default();
             let act = live.remove(&key).unwrap_or_default();
+            if rec.is_empty() && act.is_empty() {
+                continue;
+            }
             result.steps += 1;
             let anchor = rec.first().cloned().unwrap_or_else(|| {
                 json!({"scenario": scenario, "step": 0, "subscription": key})
