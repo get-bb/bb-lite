@@ -126,6 +126,48 @@ pub async fn register_database(
     Ok(())
 }
 
+/// A database for `__bb.openDatabase(name)` that is opened at `path` on first
+/// use, in WAL mode with `busy_timeout = 5000`, and closed by [`LazyDatabase::close`].
+#[derive(Clone)]
+pub struct LazyDatabase {
+    conn: Arc<Mutex<Option<Connection>>>,
+}
+
+impl LazyDatabase {
+    pub fn close(&self) {
+        self.conn.lock().take();
+    }
+}
+
+pub async fn register_lazy_database(runtime: &JsRuntime, name: &str, path: &Path) -> LazyDatabase {
+    let conn: Arc<Mutex<Option<Connection>>> = Arc::default();
+    let path = path.to_path_buf();
+    let slot = conn.clone();
+    runtime
+        .register_sync_op(
+            &format!("db:{name}"),
+            Arc::new(move |arg| {
+                let mut guard = slot.lock();
+                if guard.is_none() {
+                    let opened = Connection::open(&path)
+                        .and_then(|c| c.busy_timeout(std::time::Duration::from_secs(5)).map(|_| c))
+                        .and_then(|c| {
+                            c.pragma_update(None, "journal_mode", "WAL")?;
+                            Ok(c)
+                        })
+                        .map_err(|e| e.to_string())?;
+                    *guard = Some(opened);
+                }
+                match guard.as_ref() {
+                    Some(c) => db_call(c, &arg).map_err(|e| e.to_string()),
+                    None => Err("The database connection is not open".to_owned()),
+                }
+            }),
+        )
+        .await;
+    LazyDatabase { conn }
+}
+
 fn platform() -> &'static str {
     match std::env::consts::OS {
         "macos" => "darwin",

@@ -22,6 +22,29 @@ pub struct BuiltinPlugin {
     pub server: BuiltinServer,
 }
 
+macro_rules! bundle {
+    ($name:literal) => {
+        include_str!(concat!(env!("OUT_DIR"), "/plugin-bundles/", $name, ".mjs"))
+    };
+}
+
+fn plugin_directory(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plugins").join(name)
+}
+
+fn builtin(name: &str, server: BuiltinServer) -> BuiltinPlugin {
+    BuiltinPlugin { directory: plugin_directory(name), server }
+}
+
+/// In the order of `apps/server/src/plugins/builtin.ts`.
 pub fn builtin_plugins() -> Vec<BuiltinPlugin> {
-    Vec::new()
+    vec![
+        builtin("thread-list", BuiltinServer::Js(bundle!("thread-list"))),
+        builtin("navigation", BuiltinServer::None),
+        builtin("secrets", BuiltinServer::Js(bundle!("secrets"))),
+        builtin("ask-user-question", BuiltinServer::Js(bundle!("ask-user-question"))),
+        builtin("custom-instructions", BuiltinServer::Js(bundle!("custom-instructions"))),
+        // NATIVE PLUGINS: connect, then account-pool, go here (builtin.ts order).
+        builtin("tasks", BuiltinServer::Js(bundle!("tasks"))),
+    ]
 }

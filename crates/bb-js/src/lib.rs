@@ -3,7 +3,9 @@
 mod engine;
 mod node;
 
-pub use node::{NodeCompatOptions, install_node_compat, register_database};
+pub use node::{
+    LazyDatabase, NodeCompatOptions, install_node_compat, register_database, register_lazy_database,
+};
 
 use std::collections::HashMap;
 use std::sync::Arc;
