@@ -817,6 +817,18 @@ impl Replayer {
                 .cloned()
                 .unwrap_or_else(|| json!({"scenario": scenario, "step": 0, "subscription": key}));
             let rec_msgs: Vec<Value> = rec.iter().map(|s| s["message"].clone()).collect();
+            if let Ok(path) = std::env::var("PARITY_WS_DUMP") {
+                use std::io::Write as _;
+                let line = json!({"scenario": scenario, "key": key, "recorded": rec_msgs, "live": act});
+                let mut file =
+                    std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+                writeln!(file, "{line}").unwrap();
+            }
+            let (rec_msgs, act) = if key == "thread-list" {
+                (list_deterministic(rec_msgs), list_deterministic(act))
+            } else {
+                skip_subscription_race(rec_msgs, act)
+            };
             let diffs =
                 self.compare_step(&anchor, "$ws", &Value::Array(rec_msgs), &Value::Array(act));
             if !diffs.is_empty() {
@@ -825,6 +837,93 @@ impl Replayer {
             result.diffs.extend(diffs);
         }
     }
+}
+
+/// Event types that make an `events-appended` change list-relevant (hub.ts
+/// `LIST_RELEVANT_EVENT_TYPES`).
+const LIST_RELEVANT_EVENT_TYPES: [&str; 2] = ["client/turn/requested", "turn/completed"];
+
+/// The hub's `isListRelevant`: whether a thread change is routed to list
+/// subscribers at once rather than through the 1 s list-events coalescing
+/// window.
+fn list_relevant(message: &Value) -> bool {
+    if message["entity"] != "thread" {
+        return true;
+    }
+    let changes = message["changes"].as_array().cloned().unwrap_or_default();
+    if changes.iter().any(|change| change != "events-appended") {
+        return true;
+    }
+    let metadata = &message["metadata"];
+    metadata["backgroundActivityChanged"] == true
+        || !metadata["hasPendingInteraction"].is_null()
+        || !metadata["projectId"].is_null()
+        || metadata["eventTypes"].as_array().is_some_and(|types| {
+            types.iter().any(|t| LIST_RELEVANT_EVENT_TYPES.contains(&t.as_str().unwrap_or("")))
+        })
+}
+
+/// The deterministic part of the `thread-list` stream. Non-list-relevant
+/// `events-appended` changes reach list-only subscribers through the hub's
+/// wall-clock coalescing window (the first is sent at once, later ones within
+/// 1 s are merged into one message sent when the timer fires). Whether a change
+/// opens a window or is merged, which event types fall into a window, where
+/// the timer's message lands among other threads' changes, and even which
+/// scenario it lands in (the socket outlives scenarios; the recorder drained
+/// it at each scenario end while a window could still be open) all depend on
+/// how long the steps took in real time, which differs between the recorder
+/// and the replay. Every other change is routed immediately and is compared
+/// exactly, in order.
+fn list_deterministic(messages: Vec<Value>) -> Vec<Value> {
+    messages.into_iter().filter(list_relevant).collect()
+}
+
+/// A rough identity for aligning messages: entity, changes, event types and
+/// the new status, without ids or times.
+fn ws_shape(message: &Value) -> Value {
+    let metadata = &message["metadata"];
+    json!([
+        message["entity"],
+        message["changes"],
+        metadata["eventTypes"],
+        metadata["statusChange"]["status"]
+    ])
+}
+
+/// A thread-detail socket is opened only after `POST /threads` has returned
+/// (recorder and replay alike), so changes the server publishes between the
+/// response and the subscription taking effect are delivered or not depending
+/// on how far the thread's first turn has got by then (provisioning finished,
+/// runner session started, even the whole turn). One side may therefore lack a
+/// leading run of messages from that first turn. Drop such a run (it must end
+/// no later than the first turn's settling `status-changed`) when that makes
+/// the rest line up; the rest is still compared exactly.
+fn skip_subscription_race(recorded: Vec<Value>, live: Vec<Value>) -> (Vec<Value>, Vec<Value>) {
+    fn first_turn_len(messages: &[Value]) -> usize {
+        messages
+            .iter()
+            .position(|m| {
+                let status = &m["metadata"]["statusChange"]["status"];
+                status == "idle" || status == "error"
+            })
+            .map_or(0, |at| at + 1)
+    }
+    let shapes = |messages: &[Value]| messages.iter().map(ws_shape).collect::<Vec<_>>();
+    let (rec, act) = (shapes(&recorded), shapes(&live));
+    if rec == act {
+        return (recorded, live);
+    }
+    for skip in 1..=first_turn_len(&recorded) {
+        if rec[skip..] == act[..] {
+            return (recorded[skip..].to_vec(), live);
+        }
+    }
+    for skip in 1..=first_turn_len(&live) {
+        if rec[..] == act[skip..] {
+            return (recorded, live[skip..].to_vec());
+        }
+    }
+    (recorded, live)
 }
 
 fn mask_path_values(recorded: &Value, actual: &Value) -> Value {
