@@ -260,7 +260,8 @@ async fn non_git_and_unready_environments() {
     assert_eq!(body["message"], "Workspace status is not available for non-git environments");
     let patch = EnvironmentPatch { status: Some(EnvironmentStatus::Error), ..Default::default() };
     update_environment(&world.ctx.db, &id, &patch).unwrap();
-    let (status, body) = world.json("GET", &format!("/environments/{id}/paths"), None).await;
+    let paths = format!("/environments/{id}/paths?includeFiles=true&includeDirectories=true");
+    let (status, body) = world.json("GET", &paths, None).await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(body["code"], "environment_not_ready");
     assert_eq!(body["details"], json!({ "environmentStatus": "error", "hasPath": true }));

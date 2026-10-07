@@ -23,7 +23,10 @@ use crate::environments::workspace::{
 };
 use crate::error::{ApiError, ApiResult, conflict, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
-use crate::http::validate::{Field, Kind, check_object, from_serde_error, req};
+use crate::http::validate::{
+    Field, Kind, NON_EMPTY, STR, check_object, decode, from_serde_error, invalid_type, opt,
+    parse_checked, req, trim_fields,
+};
 use crate::threads::engine::ops;
 
 const COMMIT_MESSAGE: &str = "bb: automated commit";
@@ -108,10 +111,39 @@ fn page_bound(value: Option<&str>, minimum: i64, name: &str) -> ApiResult<Option
     }
 }
 
+const LIST_FIELDS: &[Field] = &[
+    opt("projectId", NON_EMPTY),
+    opt("environmentProviderId", NON_EMPTY),
+    opt("hostId", NON_EMPTY),
+    opt("instanceKey", Kind::Str { min: 1, max: Some(128) }),
+    opt("path", NON_EMPTY),
+    opt("status", Kind::Enum(&["creating", "provisioning", "ready", "error", "destroyed"])),
+    opt("limit", STR),
+    opt("offset", STR),
+];
+
+const BRANCH_QUERY: Kind = Kind::Str { min: 1, max: Some(256) };
+
+/// zod's (v3-worded) message when a discriminated union's discriminator matches no option.
+fn check_discriminator(body: &Value, key: &str, options: &[&str]) -> Result<(), String> {
+    if !body.is_object() {
+        return Err(invalid_type("object", body));
+    }
+    if body.get(key).and_then(Value::as_str).is_some_and(|value| options.contains(&value)) {
+        return Ok(());
+    }
+    let expected: Vec<String> = options.iter().map(|option| format!("'{option}'")).collect();
+    Err(format!("Invalid discriminator value. Expected {}", expected.join(" | ")))
+}
+
+const DIFF_TARGETS: &[&str] = &["uncommitted", "branch_committed", "all", "commit"];
+
 async fn list(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<ListEnvironmentsQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Vec<Environment>> {
+    let query: ListEnvironmentsQuery =
+        parse_checked(Value::Object(query), LIST_FIELDS, false).map_err(invalid_request)?;
     let filter = EnvironmentFilter {
         limit: page_bound(query.limit.as_deref(), 1, "limit")?,
         offset: page_bound(query.offset.as_deref(), 0, "offset")?,
@@ -140,8 +172,16 @@ fn nullable_text(value: &Value, name: &str) -> ApiResult<Option<String>> {
 async fn update(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(payload): ApiJson<Map<String, Value>>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<Environment> {
+    // Both fields are nullable: a null passes, so it is left out of the check.
+    let mut present = trim_fields(&payload, &["name"]);
+    if let Some(object) = present.as_object_mut() {
+        object.retain(|_, value| !value.is_null());
+    }
+    let fields = &[opt("mergeBaseBranch", STR), opt("name", Kind::Str { min: 1, max: Some(80) })];
+    check_object(&present, fields, false).map_err(invalid_request)?;
+    let payload: Map<String, Value> = decode(payload).map_err(invalid_request)?;
     let mut patch = EnvironmentPatch::default();
     if let Some(value) = payload.get("mergeBaseBranch") {
         let branch = nullable_text(value, "mergeBaseBranch")?;
@@ -220,8 +260,11 @@ async fn status(
 async fn diff_files(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiQuery(query): ApiQuery<EnvironmentDiffQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let query = Value::Object(query);
+    check_discriminator(&query, "target", DIFF_TARGETS).map_err(invalid_request)?;
+    let query: EnvironmentDiffQuery = decode(query).map_err(invalid_request)?;
     let target = diff_target(&query)?;
     let read = read_git_workspace(&ctx, &id, WorkspaceSubject::Diff, |runner, found| async move {
         let params = json!({ "path": ready_path(&found), "target": target });
@@ -253,6 +296,9 @@ async fn diff_file(
     ApiPath(id): ApiPath<String>,
     ApiQuery(file): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let file = Value::Object(file);
+    check_discriminator(&file, "target", DIFF_TARGETS).map_err(invalid_request)?;
+    let Value::Object(file) = file else { unreachable!("checked to be an object") };
     if !matches!(file.get("side").and_then(Value::as_str), Some("old" | "new")) {
         return Err(invalid_request(r#"Invalid option: expected one of "old"|"new""#));
     }
@@ -274,8 +320,11 @@ async fn diff_file(
 async fn diff_branches(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiQuery(query): ApiQuery<EnvironmentDiffBranchesQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let fields = &[opt("query", BRANCH_QUERY), opt("limit", STR), opt("selectedBranch", STR)];
+    let query: EnvironmentDiffBranchesQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     let environment = require_ready_environment(&ctx, &id)?;
     let search =
         branch_search(query.query.as_deref(), query.selected_branch, query.limit.as_deref())?;
@@ -291,8 +340,17 @@ async fn diff_branches(
 async fn paths(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiQuery(query): ApiQuery<EnvironmentPathsQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let include = Kind::Enum(&["true", "false"]);
+    let fields = &[
+        opt("query", BRANCH_QUERY),
+        opt("limit", STR),
+        req("includeFiles", include),
+        req("includeDirectories", include),
+    ];
+    let query: EnvironmentPathsQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     let environment = require_ready_environment(&ctx, &id)?;
     let path = ready_path(&environment);
     Ok(Json(search_workspace_paths(&ctx, &environment.host_id, path, &query).await?))
@@ -301,8 +359,10 @@ async fn paths(
 async fn actions(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(_action): ApiJson<EnvironmentActionRequest>,
+    ApiJson(action): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    check_discriminator(&action, "action", &["commit"]).map_err(invalid_request)?;
+    let _action: EnvironmentActionRequest = decode(action).map_err(invalid_request)?;
     let environment = require_ready_environment(&ctx, &id)?;
     let path = ready_path(&environment);
     let params = json!({ "path": path, "message": COMMIT_MESSAGE });
