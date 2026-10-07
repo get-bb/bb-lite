@@ -166,11 +166,14 @@ pub struct InteractionMessage {
 }
 
 /// `FileEditChange`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileEditChange {
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
     pub move_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub diff: Option<String>,
 }
 
