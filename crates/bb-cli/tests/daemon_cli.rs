@@ -124,7 +124,7 @@ fn runner_run_dials_a_tls_server_without_panicking() {
         "hostId": "host_1", "runnerToken": "bbr_test", "serverUrl": server_url, "headers": {},
     });
     std::fs::write(dir.join("runner.json"), credentials.to_string()).unwrap();
-    let mut child = bb(home.path())
+    let child = bb(home.path())
         .args(["runner", "run", "--data-dir", dir.to_str().unwrap()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
