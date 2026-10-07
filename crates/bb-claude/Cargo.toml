@@ -11,6 +11,7 @@ bb-provider = { path = "../bb-provider" }
 async-trait.workspace = true
 futures.workspace = true
 indexmap.workspace = true
+libc.workspace = true
 parking_lot.workspace = true
 regex.workspace = true
 serde.workspace = true
