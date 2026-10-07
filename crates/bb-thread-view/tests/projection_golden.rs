@@ -71,7 +71,6 @@ fn first_difference_reports_paths() {
 }
 
 #[test]
-#[ignore = "needs text, tool-activity and operation projection"]
 fn projection_matches_typescript() {
     let paths = fixture_paths();
     assert!(!paths.is_empty(), "no timeline fixtures");

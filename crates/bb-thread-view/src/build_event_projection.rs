@@ -8,7 +8,6 @@
 
 // Remove once text, tool-activity and operation projection are ported: until then much of the
 // shared state is only written, never read.
-#![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};
 

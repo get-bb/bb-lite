@@ -116,7 +116,6 @@ fn compare_fixtures(subdir: &str) -> (usize, Vec<String>) {
 }
 
 #[test]
-#[ignore = "needs the text and tool-activity projection ports"]
 fn operation_messages_match_typescript() {
     let mut cases = 0;
     let mut failures = Vec::new();

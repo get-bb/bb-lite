@@ -30,7 +30,6 @@ async fn stale_row_id_cursors_are_rejected_like_the_recording() {
 }
 
 #[tokio::test]
-#[ignore = "needs the projection handlers"]
 async fn timeline_responses_match_the_typescript_server() {
     for (name, fixture) in fixtures() {
         let db = open();
