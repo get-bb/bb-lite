@@ -23,6 +23,7 @@ use crate::environments::workspace::{
 };
 use crate::error::{ApiError, ApiResult, conflict, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
+use crate::http::validate::{Field, Kind, check_object, from_serde_error, req};
 use crate::threads::engine::ops;
 
 const COMMIT_MESSAGE: &str = "bb: automated commit";
@@ -62,6 +63,11 @@ pub struct EnvironmentDiffBranchesQuery {
     pub selected_branch: Option<String>,
     pub limit: Option<String>,
 }
+
+const DIFF_PATCH: &[Field] = &[
+    req("target", Kind::Object),
+    req("paths", Kind::StrArray { min_items: 1, max_items: Some(50), item_min: 0, item_max: None }),
+];
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -227,8 +233,11 @@ async fn diff_files(
 async fn diff_patch(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(body): ApiJson<EnvironmentDiffPatchRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    check_object(&body, DIFF_PATCH, true).map_err(crate::error::invalid_request)?;
+    let body: EnvironmentDiffPatchRequest = serde_json::from_value(body)
+        .map_err(|error| crate::error::invalid_request(from_serde_error(&error)))?;
     let read = read_git_workspace(&ctx, &id, WorkspaceSubject::Diff, |runner, found| async move {
         let mut params = json!({ "path": ready_path(&found), "target": body.target });
         if let Some(paths) = body.paths {

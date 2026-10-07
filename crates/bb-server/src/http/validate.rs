@@ -121,12 +121,27 @@ pub fn from_serde_error(error: &serde_json::Error) -> String {
 /// The shape of one field of a request object, checked the way the zod schema checks it.
 #[derive(Clone, Copy, Debug)]
 pub enum Kind {
-    Str { min: usize, max: Option<usize> },
-    NullableStr { min: usize },
+    Str {
+        min: usize,
+        max: Option<usize>,
+    },
+    NullableStr {
+        min: usize,
+    },
     Bool,
-    Int { min: Option<i64>, max: Option<i64>, positive: bool },
+    Int {
+        min: Option<i64>,
+        max: Option<i64>,
+        positive: bool,
+    },
     Enum(&'static [&'static str]),
-    StrArray { max_items: Option<usize>, item_min: usize, item_max: Option<usize> },
+    StrArray {
+        min_items: usize,
+        max_items: Option<usize>,
+        item_min: usize,
+        item_max: Option<usize>,
+    },
+    Object,
     Any,
 }
 
@@ -196,7 +211,15 @@ fn check_value(value: Option<&Value>, kind: Kind) -> Result<(), String> {
                     }
                 }
                 (Kind::Int { .. }, other) => Err(invalid_type("number", other)),
-                (Kind::StrArray { max_items, item_min, item_max }, Value::Array(items)) => {
+                (Kind::Object, Value::Object(_)) => Ok(()),
+                (Kind::Object, other) => Err(invalid_type("object", other)),
+                (
+                    Kind::StrArray { min_items, max_items, item_min, item_max },
+                    Value::Array(items),
+                ) => {
+                    if items.len() < min_items {
+                        return Err(too_small_array(min_items));
+                    }
                     if let Some(max) = max_items.filter(|max| items.len() > *max) {
                         return Err(too_big_array(max));
                     }

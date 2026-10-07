@@ -218,6 +218,7 @@ const FILE_LIST: &[Field] = &[
     opt(
         "excludeNames",
         Kind::StrArray {
+            min_items: 0,
             max_items: Some(FILE_LIST_EXCLUDE_NAMES_MAX),
             item_min: 1,
             item_max: Some(FILE_LIST_EXCLUDE_NAME_MAX_LENGTH),
