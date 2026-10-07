@@ -76,7 +76,7 @@ pub async fn build_session_spec(
         sections.push(format!("The following workspace instructions come from {origin}:"));
         sections.push(workspace);
     }
-    let mut env: IndexMap<String, String> = machine_env?;
+    let mut env: IndexMap<String, String> = machine_env?.into_iter().collect();
     for entry in plugin_env {
         let value = match entry.value {
             EnvValue::Literal(value) => value,

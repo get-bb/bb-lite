@@ -232,7 +232,7 @@ fn thread_list_entry(
         EnvironmentWorkspaceDisplayKind::Other
     };
     ThreadListEntry {
-        thread: row.thread.clone(),
+        thread: row.thread.thread.clone(),
         activity,
         queued_work: match failed_queue {
             None => ThreadQueuedWork::None,
@@ -281,7 +281,7 @@ fn thread_response(
     let ids = [row.id.clone()];
     let counts = active_background_task_counts(db, &ids)?.into_iter().next();
     Ok(ThreadResponse {
-        thread: row.thread.clone(),
+        thread: row.thread.thread.clone(),
         runtime: ThreadRuntimeState { display_status },
         active_background_agent_count: counts
             .map_or(0, |counts| counts.active_background_agent_count),
@@ -374,7 +374,7 @@ mod tests {
         }))
         .unwrap();
         ThreadListRow {
-            row: thread,
+            thread,
             environment_branch_name: Some("bb/x".into()),
             environment_host_id: Some("host_a".into()),
             environment_is_worktree: Some(1),
@@ -393,7 +393,7 @@ mod tests {
         let status = ThreadRuntimeDisplayStatus::WaitingForHost;
         let entry =
             serde_json::to_value(thread_list_entry(&row, activity, Some(true), status)).unwrap();
-        let mut expected = serde_json::to_value(&row.thread).unwrap();
+        let mut expected = serde_json::to_value(&row.thread.thread).unwrap();
         let extra = json!({
             "activity": {
                 "activeBackgroundAgentCount": 0, "activeBackgroundCommandCount": 0,

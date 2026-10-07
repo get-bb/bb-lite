@@ -30,12 +30,13 @@ use crate::db::environments::get_environment;
 use crate::db::event_read::last_output;
 use crate::db::events::{EventSource, append_events, last_system_error_message};
 use crate::db::queued_messages::{
-    QueuedMessageWaitingOn, list_queued_messages, parse_queued_wait, set_queued_message_wait,
+    list_queued_messages, parse_queued_wait, set_queued_message_wait,
 };
 use crate::db::thread_read::{ThreadListRow, find_thread_list_row};
 use crate::db::threads::{self as store, LifecycleOutcome, ThreadPatch, ThreadRow};
 use crate::domain::changes::{ThreadChangeKind, ThreadChangeMetadata, ThreadStatusChange};
 use crate::domain::events::thread_scope;
+use crate::domain::queued_message::QueuedMessageWaitingOn;
 use crate::domain::thread::{ThreadLifecycleEventType, ThreadStatus};
 use crate::error::{ApiError, ApiResult, thread_not_found};
 use crate::plugins::api::InputResult;
@@ -316,9 +317,8 @@ pub fn relabel_waits(
     let rows: Vec<_> = list_queued_messages(&ctx.db, thread_id)?
         .into_iter()
         .filter(|row| {
-            let wait = parse_queued_wait(row);
-            let kind = wait.as_ref().and_then(|wait| wait["kind"].as_str());
-            from.contains(&kind)
+            let wait = parse_queued_wait(row).ok().flatten();
+            from.contains(&wait.as_ref().map(|wait| wait.kind().as_str()))
         })
         .collect();
     if rows.is_empty() {

@@ -4,8 +4,8 @@
 use serde_json::Value;
 
 use crate::context::Ctx;
-use crate::db::pending_interactions::PendingInteraction;
 use crate::db::threads::ThreadRow;
+use crate::domain::pending_interaction::PendingInteraction;
 use crate::error::ApiResult;
 
 pub const NOTICE_BATCH_DELAY_MS: i64 = 2_000;

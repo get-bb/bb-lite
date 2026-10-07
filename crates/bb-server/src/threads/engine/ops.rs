@@ -8,9 +8,9 @@ use serde_json::Value;
 
 use super::{in_thread, require_thread, respond};
 use crate::context::Ctx;
-use crate::db::pending_interactions::PendingInteraction;
 use crate::db::projects::DeletedProject;
 use crate::db::threads as store;
+use crate::domain::pending_interaction::PendingInteraction;
 use crate::error::ApiResult;
 use crate::plugins::api::InputResult;
 use crate::threads::create::{self, CreateThreadRequest};

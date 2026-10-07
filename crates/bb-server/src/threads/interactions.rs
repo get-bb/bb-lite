@@ -8,8 +8,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::core::Outbox;
 use crate::context::Ctx;
-use crate::db::pending_interactions::PendingInteraction;
 use crate::db::threads::ThreadRow;
+use crate::domain::pending_interaction::PendingInteraction;
 use crate::error::ApiResult;
 use crate::plugins::api::{DescribeSubmission, InputResult};
 
