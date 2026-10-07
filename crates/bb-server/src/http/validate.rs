@@ -64,7 +64,7 @@ fn serde_type(text: &str) -> Option<&'static str> {
         "boolean" => "boolean",
         "null" | "unit" => "null",
         "sequence" | "tuple" => "array",
-        "map" | "struct" => "object",
+        "map" | "struct" | "internally" | "adjacently" => "object",
         "a" | "an" => return serde_type(text.split_once(' ')?.1),
         "borrowed" => "string",
         "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "usize"
@@ -107,12 +107,131 @@ pub fn from_serde(message: &str) -> String {
     {
         return format!("Invalid input: expected {expected}, received {received}");
     }
+    if message.starts_with("invalid length ") && message.contains(", expected struct ") {
+        return "Invalid input: expected object, received array".to_owned();
+    }
     message.to_owned()
 }
 
 /// The zod message for a serde error raised while deserializing a request.
 pub fn from_serde_error(error: &serde_json::Error) -> String {
     from_serde(&error.to_string())
+}
+
+/// The shape of one field of a request object, checked the way the zod schema checks it.
+#[derive(Clone, Copy, Debug)]
+pub enum Kind {
+    Str { min: usize, max: Option<usize> },
+    NullableStr,
+    Bool,
+    Int { min: Option<i64>, max: Option<i64>, positive: bool },
+    Enum(&'static [&'static str]),
+    StrArray { max_items: Option<usize>, item_min: usize, item_max: Option<usize> },
+    Any,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Field {
+    pub key: &'static str,
+    pub required: bool,
+    pub kind: Kind,
+}
+
+pub const fn req(key: &'static str, kind: Kind) -> Field {
+    Field { key, required: true, kind }
+}
+
+pub const fn opt(key: &'static str, kind: Kind) -> Field {
+    Field { key, required: false, kind }
+}
+
+pub const STR: Kind = Kind::Str { min: 0, max: None };
+pub const NON_EMPTY: Kind = Kind::Str { min: 1, max: None };
+
+fn js_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+fn check_string(text: &str, min: usize, max: Option<usize>) -> Result<(), String> {
+    if js_len(text) < min {
+        return Err(too_small_string(min));
+    }
+    match max {
+        Some(max) if js_len(text) > max => Err(too_big_string(max)),
+        _ => Ok(()),
+    }
+}
+
+fn check_value(value: Option<&Value>, kind: Kind) -> Result<(), String> {
+    let missing = || "Required".to_owned();
+    match kind {
+        Kind::Any => Ok(()),
+        Kind::Enum(options) => match value.and_then(Value::as_str) {
+            Some(text) if options.contains(&text) => Ok(()),
+            _ => Err(invalid_option(options)),
+        },
+        _ => {
+            let Some(value) = value else { return Err(missing()) };
+            match (kind, value) {
+                (Kind::NullableStr, Value::Null | Value::String(_)) => Ok(()),
+                (Kind::NullableStr, other) => Err(invalid_type("string", other)),
+                (Kind::Str { min, max }, Value::String(text)) => check_string(text, min, max),
+                (Kind::Str { .. }, other) => Err(invalid_type("string", other)),
+                (Kind::Bool, Value::Bool(_)) => Ok(()),
+                (Kind::Bool, other) => Err(invalid_type("boolean", other)),
+                (Kind::Int { min, max, positive }, Value::Number(number)) => {
+                    let Some(n) = number.as_i64().filter(|_| !number.is_f64()) else {
+                        return Err("Invalid input: expected int, received number".to_owned());
+                    };
+                    if positive && n <= 0 {
+                        return Err("Too small: expected number to be >0".to_owned());
+                    }
+                    if let Some(min) = min.filter(|min| n < *min) {
+                        return Err(format!("Too small: expected number to be >={min}"));
+                    }
+                    match max.filter(|max| n > *max) {
+                        Some(max) => Err(format!("Too big: expected number to be <={max}")),
+                        None => Ok(()),
+                    }
+                }
+                (Kind::Int { .. }, other) => Err(invalid_type("number", other)),
+                (Kind::StrArray { max_items, item_min, item_max }, Value::Array(items)) => {
+                    if let Some(max) = max_items.filter(|max| items.len() > *max) {
+                        return Err(too_big_array(max));
+                    }
+                    for item in items {
+                        match item {
+                            Value::String(text) => check_string(text, item_min, item_max)?,
+                            other => return Err(invalid_type("string", other)),
+                        }
+                    }
+                    Ok(())
+                }
+                (Kind::StrArray { .. }, other) => Err(invalid_type("array", other)),
+                _ => Ok(()),
+            }
+        }
+    }
+}
+
+/// Checks `body` against an object schema and returns the message of zod's first issue: the
+/// fields in schema order, then (for a strict object) the first unrecognized key.
+pub fn check_object(body: &Value, fields: &[Field], strict: bool) -> Result<(), String> {
+    let Some(object) = body.as_object() else { return Err(invalid_type("object", body)) };
+    for field in fields {
+        let value = object.get(field.key);
+        if value.is_none() && !field.required {
+            continue;
+        }
+        check_value(value, field.kind)?;
+    }
+    if strict {
+        let allowed: Vec<&str> = fields.iter().map(|field| field.key).collect();
+        if let Some(message) = unknown_key(object, &allowed) {
+            return Err(message);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -122,12 +241,18 @@ mod tests {
     #[test]
     fn rewrites_serde_categories() {
         assert_eq!(from_serde("missing field `name` at line 1 column 2"), "Required");
-        assert_eq!(from_serde("unknown field `zz`, expected `a` or `b`"), "Unrecognized key: \"zz\"");
+        assert_eq!(
+            from_serde("unknown field `zz`, expected `a` or `b`"),
+            "Unrecognized key: \"zz\""
+        );
         assert_eq!(
             from_serde("unknown variant `x`, expected `a` or `b`"),
             "Invalid option: expected one of \"a\"|\"b\""
         );
-        assert_eq!(from_serde("unknown variant `x`, expected `a`"), "Invalid input: expected \"a\"");
+        assert_eq!(
+            from_serde("unknown variant `x`, expected `a`"),
+            "Invalid input: expected \"a\""
+        );
         assert_eq!(
             from_serde("invalid type: integer `7`, expected a string at line 1 column 3"),
             "Invalid input: expected string, received number"

@@ -16,7 +16,8 @@ const ALLOWED: &[(&str, &str, &str)] = &[];
 
 #[tokio::test(flavor = "current_thread")]
 async fn invalid_requests_answer_like_zod() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/validation/corpus.json");
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/validation/corpus.json");
     let corpus: Value = serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
     let cases = corpus["cases"].as_array().unwrap();
 
@@ -58,10 +59,14 @@ async fn invalid_requests_answer_like_zod() {
     let mut allowed_hits = 0;
     for case in cases {
         let route = case["route"].as_str().unwrap();
-        let method = reqwest::Method::from_bytes(case["method"].as_str().unwrap().as_bytes()).unwrap();
-        let mut url =
-            reqwest::Url::parse(&format!("{}/api/v1{}", listening.url, case["path"].as_str().unwrap()))
-                .unwrap();
+        let method =
+            reqwest::Method::from_bytes(case["method"].as_str().unwrap().as_bytes()).unwrap();
+        let mut url = reqwest::Url::parse(&format!(
+            "{}/api/v1{}",
+            listening.url,
+            case["path"].as_str().unwrap()
+        ))
+        .unwrap();
         if let Some(query) = case["query"].as_object() {
             let mut pairs = url.query_pairs_mut();
             for (key, value) in query {
@@ -87,7 +92,10 @@ async fn invalid_requests_answer_like_zod() {
             continue;
         }
         let expected_message = expected["message"].as_str().unwrap_or_default();
-        if ALLOWED.iter().any(|(r, k, m)| *r == route && *k == case["kind"] && *m == expected_message) {
+        if ALLOWED
+            .iter()
+            .any(|(r, k, m)| *r == route && *k == case["kind"] && *m == expected_message)
+        {
             allowed_hits += 1;
             continue;
         }

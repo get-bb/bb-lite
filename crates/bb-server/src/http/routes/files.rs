@@ -22,6 +22,7 @@ use crate::http::compression::Uncompressed;
 use crate::http::file_bytes::{
     FileBytes, file_changed, file_error, relative_file_segments, revision_ref, serve_file_bytes,
 };
+use crate::http::validate::{Field, Kind, NON_EMPTY, STR, check_object, opt, req};
 use crate::runners::hosts::require_host;
 
 const HOST_ROOT: &str = "/";
@@ -190,6 +191,49 @@ async fn paths_exist(
     Ok(Json(call(&ctx, Some(&id), "pathsExist", params).await?))
 }
 
+const FILE_LIST_LIMIT_MAX: i64 = 10_000;
+const FILE_LIST_EXCLUDE_NAMES_MAX: usize = 100;
+const FILE_LIST_EXCLUDE_NAME_MAX_LENGTH: usize = 255;
+
+const FILE_READ: &[Field] =
+    &[opt("hostId", NON_EMPTY), req("path", NON_EMPTY), opt("rootPath", NON_EMPTY)];
+
+const FILE_WRITE: &[Field] = &[
+    opt("hostId", NON_EMPTY),
+    req("path", NON_EMPTY),
+    opt("rootPath", NON_EMPTY),
+    req("content", STR),
+    opt("contentEncoding", Kind::Enum(&["utf8", "base64"])),
+    opt("createParents", Kind::Bool),
+    opt("expectedSha256", Kind::NullableStr),
+    opt("mode", Kind::Int { min: Some(0), max: Some(0o777), positive: false }),
+];
+
+const FILE_LIST: &[Field] = &[
+    opt("hostId", NON_EMPTY),
+    req("path", NON_EMPTY),
+    opt("query", STR),
+    opt("limit", Kind::Int { min: None, max: Some(FILE_LIST_LIMIT_MAX), positive: true }),
+    opt("includeHidden", Kind::Bool),
+    opt(
+        "excludeNames",
+        Kind::StrArray {
+            max_items: Some(FILE_LIST_EXCLUDE_NAMES_MAX),
+            item_min: 1,
+            item_max: Some(FILE_LIST_EXCLUDE_NAME_MAX_LENGTH),
+        },
+    ),
+];
+
+fn checked(body: Map<String, Value>, fields: &[Field]) -> ApiResult<Map<String, Value>> {
+    let body = Value::Object(body);
+    check_object(&body, fields, true).map_err(invalid_request)?;
+    match body {
+        Value::Object(map) => Ok(map),
+        _ => Ok(Map::new()),
+    }
+}
+
 fn split_host(mut body: Map<String, Value>) -> ApiResult<(Option<String>, Map<String, Value>)> {
     let host_id = match body.remove("hostId") {
         None => None,
@@ -206,6 +250,7 @@ async fn read_file(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let body = checked(body, FILE_READ)?;
     let (host_id, location) = split_host(body)?;
     Ok(Json(call(&ctx, host_id.as_deref(), "readFile", Value::Object(location)).await?))
 }
@@ -214,6 +259,7 @@ async fn write_file(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let body = checked(body, FILE_WRITE)?;
     let (host_id, write) = split_host(body)?;
     Ok(Json(call(&ctx, host_id.as_deref(), "writeFile", Value::Object(write)).await?))
 }
@@ -222,6 +268,7 @@ async fn list_files(
     State(ctx): State<Ctx>,
     ApiJson(body): ApiJson<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let body = checked(body, FILE_LIST)?;
     let (host_id, mut query) = split_host(body)?;
     let root_path = query.remove("path").unwrap_or_default();
     let mut search = Map::new();

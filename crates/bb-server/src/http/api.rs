@@ -87,7 +87,8 @@ fn query_rejection(rejection: QueryRejection) -> ApiError {
     match rejection {
         QueryRejection::FailedToDeserializeQueryString(error) => {
             let text = error.body_text();
-            let message = text.strip_prefix("Failed to deserialize query string: ").unwrap_or(&text);
+            let message =
+                text.strip_prefix("Failed to deserialize query string: ").unwrap_or(&text);
             invalid_request(super::validate::from_serde(message))
         }
         other => invalid_request(other.body_text()),
