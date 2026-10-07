@@ -24,7 +24,7 @@ const HOST_ID: &str = "host_parity000000";
 /// The recorder drops these from its thread map before their scenario ends, so it never
 /// fetched their timelines (and never advanced the clock for them).
 const UNTRACKED_THREADS: &[&str] = &["archive-delete", "delete-parent", "delete-child"];
-const MAX_DIFFS_PER_STEP: usize = 6;
+const MAX_DIFFS_PER_STEP: usize = 600;
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Diff {

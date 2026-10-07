@@ -23,7 +23,10 @@ use crate::domain::pending_interaction::PendingInteraction;
 use crate::domain::project::PERSONAL_PROJECT_ID;
 use crate::error::{ApiError, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiResponse};
-use crate::http::validate::{Field, Kind, NON_EMPTY, check_object, req};
+use crate::http::validate::{
+    Field, Kind, NON_EMPTY, check_array, check_object, check_present, check_record, nullable, opt,
+    req,
+};
 use crate::threads::create::CreateThreadRequest;
 use crate::threads::engine::ops;
 use crate::threads::mutations::{
@@ -144,26 +147,62 @@ fn is_plugin_id(id: &str) -> bool {
     first_ok && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+const REASONING_LEVELS: &[&str] =
+    &["none", "low", "medium", "high", "xhigh", "ultracode", "max", "ultra"];
+const VISIBILITIES: &[&str] = &["visible", "hidden"];
+
+/// `createThreadRequestSchema` up to `pluginMetadata`, which is a record checked on its own.
+const CREATE_HEAD: &[Field] = &[
+    req("projectId", NON_EMPTY),
+    opt("providerId", NON_EMPTY),
+    req("origin", Kind::Enum(&["app", "cli", "sdk", "plugin"])),
+    opt("originPluginId", NON_EMPTY),
+];
+
+const CREATE_BEFORE_INPUT: &[Field] = &[
+    opt("lifecycleOwnerThreadId", NON_EMPTY),
+    opt("visibility", Kind::Enum(VISIBILITIES)),
+    opt("title", NON_EMPTY),
+];
+
+const CREATE_BEFORE_ENVIRONMENT: &[Field] = &[
+    opt("model", NON_EMPTY),
+    opt("serviceTier", Kind::Enum(&["fast", "default"])),
+    opt("reasoningLevel", Kind::Enum(REASONING_LEVELS)),
+    opt("permissionMode", Kind::Any),
+    opt("executionInputSources", Kind::Object),
+];
+
+const CREATE_TAIL: &[Field] = &[
+    opt("parentThreadId", NON_EMPTY),
+    opt("sectionId", Kind::NullableStr { min: 1 }),
+    opt("pinned", Kind::Bool),
+    opt("startedOnBehalfOf", Kind::Object),
+    opt("sendAt", Kind::Int { min: Some(0), max: None, positive: false }),
+    opt("pluginSubmission", Kind::Object),
+];
+
+/// The first zod issue of `createThreadRequestSchema`'s fields, in schema order; nested shapes
+/// (`input` items, `environment`, ...) are left to the typed parse.
+fn check_create_fields(body: &Value) -> Result<(), String> {
+    check_object(body, CREATE_HEAD, false)?;
+    check_record(body.get("pluginMetadata"))?;
+    check_object(body, CREATE_BEFORE_INPUT, false)?;
+    check_array(body.get("input"), 0, None)?;
+    check_object(body, CREATE_BEFORE_ENVIRONMENT, false)?;
+    check_present(body.get("environment"))?;
+    let tail: Vec<Field> = CREATE_TAIL
+        .iter()
+        .map(|field| if field.key == "startedOnBehalfOf" { nullable(body, *field) } else { *field })
+        .collect();
+    check_object(body, &tail, false)
+}
+
 fn validate_create(body: &Value) -> Result<CreateThreadRequest, ApiError> {
+    check_create_fields(body).map_err(invalid_request)?;
+    // Nested field issues come before the schema's refinements, as in zod.
+    let request = parse(body.clone())?;
     let fields = object(body)?;
-    non_empty_strings(
-        fields,
-        &[
-            "projectId",
-            "providerId",
-            "originPluginId",
-            "lifecycleOwnerThreadId",
-            "title",
-            "model",
-            "parentThreadId",
-        ],
-        false,
-    )?;
-    non_empty_strings(fields, &["sectionId"], true)?;
-    non_negative_int(fields, "sendAt", false)?;
-    if !fields.get("input").is_some_and(Value::is_array) {
-        return Err(invalid());
-    }
     let origin = fields.get("origin").and_then(Value::as_str);
     let origin_plugin_id = fields.get("originPluginId").and_then(Value::as_str);
     let is_plugin = origin == Some("plugin");
@@ -185,7 +224,7 @@ fn validate_create(body: &Value) -> Result<CreateThreadRequest, ApiError> {
     if fields.get("input").and_then(Value::as_array).is_some_and(Vec::is_empty) {
         return Err(invalid_request("input must contain at least one entry"));
     }
-    parse(body.clone())
+    Ok(request)
 }
 
 async fn create(State(ctx): State<Ctx>, ApiJson(body): ApiJson<Value>) -> Created<ThreadResponse> {
@@ -193,15 +232,28 @@ async fn create(State(ctx): State<Ctx>, ApiJson(body): ApiJson<Value>) -> Create
     Ok((StatusCode::CREATED, Json(ops::create(&ctx, request).await?)))
 }
 
+/// `updateThreadRequestSchema`: every field optional and all but `visibility` nullable.
+const UPDATE: &[Field] = &[
+    opt("title", Kind::NullableStr { min: 1 }),
+    opt("sectionId", Kind::NullableStr { min: 1 }),
+    opt("parentThreadId", Kind::NullableStr { min: 1 }),
+    opt("model", Kind::NullableStr { min: 1 }),
+    opt("reasoningLevel", Kind::Enum(REASONING_LEVELS)),
+    opt("visibility", Kind::Enum(VISIBILITIES)),
+];
+
 async fn update(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<ThreadResponse> {
+    let fields: Vec<Field> = UPDATE
+        .iter()
+        .map(|field| if field.key == "visibility" { *field } else { nullable(&body, *field) })
+        .collect();
+    check_object(&body, &fields, false).map_err(invalid_request)?;
     let fields = object(&body)?;
-    let keys = ["title", "sectionId", "parentThreadId", "model", "reasoningLevel", "visibility"];
-    non_empty_strings(fields, &keys[..4], true)?;
-    if !keys.iter().any(|key| fields.contains_key(*key)) {
+    if !UPDATE.iter().any(|field| fields.contains_key(field.key)) {
         return Err(invalid_request("At least one field must be provided"));
     }
     let patch: UpdateThreadRequest = parse(body)?;
@@ -213,6 +265,8 @@ async fn remove(
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> Ack {
+    check_object(&body, &[req("childThreadsConfirmed", Kind::Bool)], false)
+        .map_err(invalid_request)?;
     let confirmed =
         body.get("childThreadsConfirmed").and_then(Value::as_bool).ok_or_else(invalid)?;
     ops::delete(&ctx, &id, confirmed).await?;
@@ -342,12 +396,35 @@ async fn send_queued(
     Ok(Json(ops::send_queued_message_now(&ctx, &id, &queued_message_id, mode).await?))
 }
 
+/// `pendingInteractionResolutionSchema` is a plain union with a custom error: a body that no member
+/// accepts reports that one message. Members are told apart here by their discriminating key; their
+/// nested fields are checked by the resolution itself.
+fn check_resolution(body: &Value) -> Result<(), String> {
+    let text = |key: &str| body.get(key).and_then(Value::as_str);
+    let object_or_null = |key: &str| body.get(key).is_some_and(|v| v.is_object() || v.is_null());
+    let matched = match (text("decision"), text("kind")) {
+        (Some("allow_once" | "allow_for_session"), _) if object_or_null("grantedPermissions") => {
+            true
+        }
+        (Some("deny"), _) => true,
+        (_, Some("user_answer")) => body.get("answers").is_some_and(Value::is_object),
+        (_, Some("plugin_submitted")) => body.get("description").is_none_or(Value::is_object),
+        (_, Some("request_answer")) => body.get("value").is_some(),
+        _ => false,
+    };
+    if matched {
+        return Ok(());
+    }
+    Err("Invalid discriminator value. Expected 'allow_once' | 'allow_for_session' | 'deny'"
+        .to_owned())
+}
+
 async fn resolve_interaction(
     State(ctx): State<Ctx>,
     ApiPath((id, interaction_id)): ApiPath<(String, String)>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<PendingInteraction> {
-    object(&body)?;
+    check_resolution(&body).map_err(invalid_request)?;
     Ok(Json(ops::resolve_interaction(&ctx, &id, &interaction_id, body).await?))
 }
 
@@ -356,7 +433,9 @@ async fn respond_interaction(
     ApiPath((id, interaction_id)): ApiPath<(String, String)>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<PendingInteraction> {
-    let value = object(&body)?.get("value").cloned().ok_or_else(invalid)?;
+    // `value` is `jsonValueSchema`, a union: a missing value fails every member.
+    let value =
+        object(&body)?.get("value").cloned().ok_or_else(|| invalid_request("Invalid input"))?;
     let size = serde_json::to_string(&value).map_or(0, |json| json.len());
     if size > PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES {
         let message = "Interaction response exceeds 64 KiB";
@@ -372,14 +451,18 @@ async fn cancel_interaction(
     Ok(Json(ops::cancel_interaction(&ctx, &id, &interaction_id).await?))
 }
 
+const OPEN_SPLIT: Field = opt("split", Kind::Enum(&["right", "down", "left", "top", "replace"]));
+
 async fn open(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    let open_fields = [OPEN_SPLIT, nullable(&body, req("file", Kind::Object))];
+    check_object(&body, &open_fields, false).map_err(invalid_request)?;
     let fields = object(&body)?;
-    strict(fields, &["split", "file"])?;
     let file: Option<ThreadOpenFile> = parse(fields.get("file").cloned().ok_or_else(invalid)?)?;
+    strict(fields, &["split", "file"])?;
     let split: Option<ThreadOpenSplit> =
         parse(fields.get("split").cloned().unwrap_or(Value::Null))?;
     let thread = require_thread(&ctx.db, &id)?;
@@ -659,10 +742,13 @@ async fn update_tabs(
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    let revision = req("expectedRevision", Kind::Int { min: Some(0), max: None, positive: false });
+    check_object(&body, &[revision], false).map_err(invalid_request)?;
+    check_array(body.get("tabs"), 0, Some(THREAD_TAB_LIST_MAX_LENGTH)).map_err(invalid_request)?;
     let fields = object(&body)?;
-    strict(fields, &["expectedRevision", "tabs"])?;
     let expected = fields.get("expectedRevision").and_then(Value::as_u64).ok_or_else(invalid)?;
     let tabs = parse_thread_tabs(fields.get("tabs").ok_or_else(invalid)?)?;
+    strict(fields, &["expectedRevision", "tabs"])?;
     let thread = require_thread(&ctx.db, &id)?;
     let tabs_json = serde_json::to_string(&tabs).map_err(ApiError::internal)?;
     let row = RowValues::new().set("threadId", thread.id.as_str()).set("tabsJson", tabs_json);
