@@ -1,0 +1,326 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "turn/started"
+   },
+   "meta": {
+    "id": "ev1",
+    "seq": 1,
+    "createdAt": 1010
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "item/started",
+    "item": {
+     "type": "commandExecution",
+     "id": "c1",
+     "command": "sleep 100",
+     "cwd": "/w",
+     "status": "pending",
+     "approvalStatus": null
+    }
+   },
+   "meta": {
+    "id": "ev2",
+    "seq": 2,
+    "createdAt": 1020
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "item/commandExecution/outputDelta",
+    "itemId": "c1",
+    "delta": "partial no newline"
+   },
+   "meta": {
+    "id": "ev3",
+    "seq": 3,
+    "createdAt": 1030
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "item/started",
+    "item": {
+     "type": "webSearch",
+     "id": "w1",
+     "query": "q",
+     "queries": [
+      "q"
+     ],
+     "status": "inProgress"
+    }
+   },
+   "meta": {
+    "id": "ev4",
+    "seq": 4,
+    "createdAt": 1040
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "item/started",
+    "item": {
+     "type": "commandExecution",
+     "id": "c2",
+     "command": "sleep 5",
+     "cwd": "/w",
+     "status": "pending",
+     "approvalStatus": null
+    }
+   },
+   "meta": {
+    "id": "ev5",
+    "seq": 5,
+    "createdAt": 1050
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_fixture000",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "type": "turn/completed",
+    "status": "interrupted"
+   },
+   "meta": {
+    "id": "ev6",
+    "seq": 6,
+    "createdAt": 1060
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "completedTurnDisplay": "collapse",
+    "includeDiagnosticOperations": false,
+    "includeNestedRows": false,
+    "isLatestPage": true,
+    "threadName": "Fixture thread",
+    "workspaceRoot": "/tmp/ws",
+    "threadStatus": "idle"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_fixture000",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 6,
+       "startedAt": 1010,
+       "createdAt": 1060,
+       "completedAt": 1060,
+       "status": "interrupted",
+       "messages": [
+        {
+         "id": "thr_fixture000:command:c1",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1030,
+         "startedAt": 1020,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "exec",
+         "workKind": "command",
+         "status": "interrupted",
+         "callId": "c1",
+         "command": "sleep 100",
+         "cwd": "/w",
+         "source": null,
+         "output": "partial no newline",
+         "exitCode": null,
+         "completedAt": 1060,
+         "approvalStatus": null,
+         "activityIntents": []
+        },
+        {
+         "id": "thr_fixture000:web-search:w1",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 4,
+         "createdAt": 1040,
+         "startedAt": 1040,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "item",
+         "workKind": "web-search",
+         "status": "interrupted",
+         "callId": "w1",
+         "queries": [
+          "q"
+         ],
+         "completedAt": 1060
+        },
+        {
+         "id": "thr_fixture000:command:c2",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 5,
+         "createdAt": 1050,
+         "startedAt": 1050,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "exec",
+         "workKind": "command",
+         "status": "interrupted",
+         "callId": "c2",
+         "command": "sleep 5",
+         "cwd": "/w",
+         "source": null,
+         "output": "Tool execution interrupted",
+         "exitCode": null,
+         "completedAt": 1060,
+         "approvalStatus": null,
+         "activityIntents": []
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "completedTurnDisplay": "collapse",
+    "includeDiagnosticOperations": false,
+    "includeNestedRows": false,
+    "isLatestPage": true,
+    "threadName": "Fixture thread",
+    "workspaceRoot": "/tmp/ws",
+    "threadStatus": "active"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_fixture000",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 6,
+       "startedAt": 1010,
+       "createdAt": 1060,
+       "completedAt": 1060,
+       "status": "interrupted",
+       "messages": [
+        {
+         "id": "thr_fixture000:command:c1",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1030,
+         "startedAt": 1020,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "exec",
+         "workKind": "command",
+         "status": "interrupted",
+         "callId": "c1",
+         "command": "sleep 100",
+         "cwd": "/w",
+         "source": null,
+         "output": "partial no newline",
+         "exitCode": null,
+         "completedAt": 1060,
+         "approvalStatus": null,
+         "activityIntents": []
+        },
+        {
+         "id": "thr_fixture000:web-search:w1",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 4,
+         "createdAt": 1040,
+         "startedAt": 1040,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "item",
+         "workKind": "web-search",
+         "status": "interrupted",
+         "callId": "w1",
+         "queries": [
+          "q"
+         ],
+         "completedAt": 1060
+        },
+        {
+         "id": "thr_fixture000:command:c2",
+         "threadId": "thr_fixture000",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 5,
+         "createdAt": 1050,
+         "startedAt": 1050,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "exec",
+         "workKind": "command",
+         "status": "interrupted",
+         "callId": "c2",
+         "command": "sleep 5",
+         "cwd": "/w",
+         "source": null,
+         "output": "Tool execution interrupted",
+         "exitCode": null,
+         "completedAt": 1060,
+         "approvalStatus": null,
+         "activityIntents": []
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}
