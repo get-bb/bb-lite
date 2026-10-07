@@ -17,7 +17,10 @@ use crate::error::{ApiError, ApiResult, conflict, invalid_request, not_found, no
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
 use crate::http::range::{FileResponseOptions, file_response};
 use crate::http::trust::Principal;
-use crate::http::validate::{Field, Kind, NON_EMPTY, check_object, opt, req};
+use crate::http::validate::{
+    Field, Kind, NON_EMPTY, STR, check_object, decode, invalid_literal, invalid_type, opt,
+    parse_checked, req, too_small_string, unknown_key,
+};
 use crate::projects::attachments::{
     AttachmentUpload, UploadedPromptAttachment, attachment_mime_type, copy_attachments,
     resolve_attachment_path, store_attachment,
@@ -232,8 +235,12 @@ async fn record_git_remote(
 async fn list_projects(
     State(ctx): State<Ctx>,
     _principal: Principal,
-    ApiQuery(query): ApiQuery<ListQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResult<Response> {
+    let fields =
+        &[opt("include", NON_EMPTY), opt("includePersonal", Kind::Enum(&["true", "false"]))];
+    let query: ListQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     let mut projects = Vec::new();
     if query.include_personal.as_deref() == Some("true") {
         projects.push(store::require_project(&ctx.db, PERSONAL_PROJECT_ID)?);
@@ -250,8 +257,11 @@ async fn list_projects(
 async fn create_project(
     State(ctx): State<Ctx>,
     _principal: Principal,
-    ApiJson(payload): ApiJson<CreateProjectRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> Created<ProjectResponse> {
+    let fields = &[req("name", NON_EMPTY), req("source", Kind::Object)];
+    let payload: CreateProjectRequest =
+        parse_checked(payload, fields, false).map_err(invalid_request)?;
     let LocalPathSourceRequest { host_id, path, .. } = payload.source;
     require_host(&ctx, &host_id)?;
     let git_remote_url = git_remote_of(&ctx, &host_id, &path).await;
@@ -278,8 +288,10 @@ async fn update_project(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiJson(payload): ApiJson<UpdateProjectRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<ProjectResponse> {
+    let payload: UpdateProjectRequest =
+        parse_checked(payload, &[opt("name", NON_EMPTY)], false).map_err(invalid_request)?;
     let name = match payload.name {
         Some(name) if name.is_empty() => {
             return Err(invalid_request("String must contain at least 1 character(s)"));
@@ -310,8 +322,15 @@ async fn create_source(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiJson(payload): ApiJson<CreateSourceRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> Created<ProjectSource> {
+    let Some(object) = payload.as_object() else {
+        return Err(invalid_request(invalid_type("object", &payload)));
+    };
+    if !matches!(object.get("type").and_then(Value::as_str), Some("local_path" | "clone")) {
+        return Err(invalid_request("Invalid discriminator value. Expected 'local_path' | 'clone'"));
+    }
+    let payload: CreateSourceRequest = decode(payload).map_err(invalid_request)?;
     let id = store::require_standard_project(&ctx.db, &id)?.id;
     let CreateSourceRequest::LocalPath { host_id, path } = payload else {
         return Err(invalid_request(
@@ -327,18 +346,38 @@ async fn create_source(
     Ok((StatusCode::CREATED, Json(source)))
 }
 
+/// `updateProjectSourceRequestSchema`: a strict object whose `type` is the literal `local_path`, an
+/// optional trimmed non-empty `path`, an optional literal `true` `isDefault`, then the refinement.
+fn check_update_source(body: &Value) -> Result<(), String> {
+    let Some(object) = body.as_object() else { return Err(invalid_type("object", body)) };
+    if object.get("type").and_then(Value::as_str) != Some("local_path") {
+        return Err(invalid_literal(&json!("local_path")));
+    }
+    match object.get("path") {
+        Some(Value::String(path)) if path.trim().is_empty() => return Err(too_small_string(1)),
+        Some(other) if !other.is_string() => return Err(invalid_type("string", other)),
+        _ => {}
+    }
+    if object.get("isDefault").is_some_and(|value| value != &Value::Bool(true)) {
+        return Err(invalid_literal(&Value::Bool(true)));
+    }
+    if let Some(message) = unknown_key(object, &["type", "path", "isDefault"]) {
+        return Err(message);
+    }
+    if !object.contains_key("path") && !object.contains_key("isDefault") {
+        return Err("At least one field besides type must be provided".to_owned());
+    }
+    Ok(())
+}
+
 async fn update_source(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(SourcePath { id, source_id }): ApiPath<SourcePath>,
-    ApiJson(payload): ApiJson<UpdateSourceRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<ProjectSource> {
-    if payload.path.is_none() && payload.is_default.is_none() {
-        return Err(invalid_request("At least one field besides type must be provided"));
-    }
-    if payload.is_default == Some(false) {
-        return Err(invalid_request("Invalid literal value, expected true"));
-    }
+    check_update_source(&payload).map_err(invalid_request)?;
+    let payload: UpdateSourceRequest = decode(payload).map_err(invalid_request)?;
     let id = store::require_standard_project(&ctx.db, &id)?.id;
     let patch = store::ProjectSourcePatch {
         path: payload.path,
@@ -407,14 +446,12 @@ async fn copy_project_attachments(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiJson(payload): ApiJson<CopyAttachmentsRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<Ok> {
-    if payload.paths.is_empty() || payload.paths.len() > 100 {
-        return Err(invalid_request("Attachment paths must contain between 1 and 100 items"));
-    }
-    if payload.paths.iter().any(String::is_empty) {
-        return Err(invalid_request("String must contain at least 1 character(s)"));
-    }
+    let paths = Kind::StrArray { min_items: 1, max_items: Some(100), item_min: 1, item_max: None };
+    let fields = &[req("sourceProjectId", NON_EMPTY), req("paths", paths)];
+    let payload: CopyAttachmentsRequest =
+        parse_checked(payload, fields, true).map_err(invalid_request)?;
     let target = store::require_project(&ctx.db, &id)?;
     let source = store::require_project(&ctx.db, &payload.source_project_id)?;
     copy_attachments(&ctx, &source.id, &target.id, &payload.paths).await?;
@@ -425,9 +462,11 @@ async fn attachment_content(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiQuery(query): ApiQuery<AttachmentQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
+    let query: AttachmentQuery = parse_checked(Value::Object(query), &[req("path", NON_EMPTY)], false)
+        .map_err(invalid_request)?;
     let id = store::require_project(&ctx.db, &id)?.id;
     let path = resolve_attachment_path(&ctx.config.data_dir, &id, &query.path)?;
     let header = |name: &str| headers.get(name).and_then(|value| value.to_str().ok());
@@ -474,8 +513,12 @@ async fn project_commands(
     State(ctx): State<Ctx>,
     _principal: Principal,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiQuery(query): ApiQuery<CommandsQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    // `environmentId` is preprocessed from "" to undefined before its own check.
+    let fields = &[opt("hostId", NON_EMPTY), opt("environmentId", STR), req("provider", NON_EMPTY)];
+    let query: CommandsQuery =
+        parse_checked(Value::Object(query), fields, true).map_err(invalid_request)?;
     let selector = ProjectWorkspaceSelector {
         host_id: query.host_id,
         environment_id: query.environment_id.filter(|value| !value.is_empty()),
@@ -506,6 +549,13 @@ async fn project_branches(
     ApiPath(IdPath { id }): ApiPath<IdPath>,
     ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let fields = &[
+        opt("query", Kind::Str { min: 1, max: Some(256) }),
+        opt("limit", STR),
+        req("hostId", NON_EMPTY),
+        opt("selectedBranch", STR),
+    ];
+    check_object(&Value::Object(query.clone()), fields, true).map_err(invalid_request)?;
     store::require_standard_project(&ctx.db, &id)?;
     let selector = ProjectWorkspaceSelector {
         host_id: query.get("hostId").and_then(Value::as_str).map(str::to_owned),

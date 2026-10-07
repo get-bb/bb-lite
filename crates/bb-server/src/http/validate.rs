@@ -287,3 +287,24 @@ mod tests {
         );
     }
 }
+
+/// zod's message for a value that is not the schema's `z.literal(expected)`.
+pub fn invalid_literal(expected: &Value) -> String {
+    format!("Invalid input: expected {expected}")
+}
+
+/// Decodes an already checked request into its typed form; serde's message (rewritten in zod's
+/// words) only shows for input the zod-equivalent check let through.
+pub fn decode<T: serde::de::DeserializeOwned>(body: Value) -> Result<T, String> {
+    serde_json::from_value(body).map_err(|error| from_serde_error(&error))
+}
+
+/// `check_object`, then `decode`.
+pub fn parse_checked<T: serde::de::DeserializeOwned>(
+    body: Value,
+    fields: &[Field],
+    strict: bool,
+) -> Result<T, String> {
+    check_object(&body, fields, strict)?;
+    decode(body)
+}

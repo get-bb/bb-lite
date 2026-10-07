@@ -18,6 +18,7 @@ use crate::domain::settings::{
 };
 use crate::error::{ApiError, ApiResult, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiResponse};
+use crate::http::validate::{Kind, NON_EMPTY, check_object, invalid_type, req, unknown_key};
 use crate::machine_environment::{
     MachineEnvironmentList, MachineEnvironmentReplace, ProjectMachineEnvironmentList,
     machine_environment_view, project_machine_environment_view, replace_machine_environment,
@@ -226,8 +227,8 @@ async fn update_general_settings(
     State(ctx): State<Ctx>,
     ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<AppSettings> {
-    let settings = parse_settings_update(&payload)
-        .ok_or_else(|| invalid_request("Invalid general settings"))?;
+    // `appSettingsUpdateSchema` is a union; zod reports a failed union as `Invalid input`.
+    let settings = parse_settings_update(&payload).ok_or_else(|| invalid_request("Invalid input"))?;
     let stored = store::get_app_settings(&ctx.db)?;
     let Value::Object(mut merged) = serde_json::to_value(stored)? else {
         return Err(ApiError::internal("App settings are not an object"));
@@ -243,17 +244,31 @@ async fn update_keyboard_settings(
     State(ctx): State<Ctx>,
     ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<AppKeybindingOverrides> {
+    if !payload.is_array() {
+        return Err(invalid_request(invalid_type("array", &payload)));
+    }
     let overrides = parse_app_keybinding_overrides(&payload).map_err(invalid_request)?;
     store::write_setting(&ctx.db, &KEYBINDING_OVERRIDES_SETTING, &overrides)?;
     ctx.hub.system(vec![SystemChangeKind::ConfigChanged]);
     Ok(Json(overrides))
 }
 
+const APP_THEME_FIELDS: &[crate::http::validate::Field] = &[
+    req("themeId", NON_EMPTY),
+    req(
+        "faviconColor",
+        Kind::Enum(&[
+            "default", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink",
+        ]),
+    ),
+];
+
 async fn update_appearance(
     State(ctx): State<Ctx>,
     ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<AppTheme> {
-    let selection = parse_app_theme(&payload).ok_or_else(|| invalid_request("Invalid theme"))?;
+    check_object(&payload, APP_THEME_FIELDS, false).map_err(invalid_request)?;
+    let selection = parse_app_theme(&payload).ok_or_else(|| invalid_request("Invalid input"))?;
     if !is_built_in_theme_id(&selection.theme_id) {
         let message = format!("Unknown theme '{}'.", selection.theme_id);
         return Err(ApiError::new(404, "theme_not_found", message));
@@ -270,8 +285,18 @@ async fn ui_preferences(State(ctx): State<Ctx>) -> ApiResponse<UiPreferencesResp
 async fn update_ui_preference(
     State(ctx): State<Ctx>,
     ApiPath(path): ApiPath<KeyPath>,
-    ApiJson(payload): ApiJson<UpdateUiPreferenceRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<UiPreferenceResponse> {
+    let revision = Kind::Int { min: Some(0), max: None, positive: false };
+    check_object(&body, &[req("expectedRevision", revision)], false).map_err(invalid_request)?;
+    if body.get("value").is_none() {
+        return Err(invalid_request("Required"));
+    }
+    if let Some(message) = body.as_object().and_then(|o| unknown_key(o, &["expectedRevision", "value"])) {
+        return Err(invalid_request(message));
+    }
+    let payload: UpdateUiPreferenceRequest =
+        serde_json::from_value(body).map_err(|error| invalid_request(crate::http::validate::from_serde_error(&error)))?;
     let key = require_ui_preference_key(&path.key)?;
     let value = parse_ui_preference_value(key, &payload.value).map_err(|message| {
         invalid_request(format!("Invalid value for UI preference '{key}': {message}"))
