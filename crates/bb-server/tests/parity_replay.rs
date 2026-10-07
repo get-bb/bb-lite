@@ -3,7 +3,14 @@ mod parity_replay_support;
 use parity_replay_support::results;
 
 /// Differences accepted on purpose: `(scenario, step, json path, reason)`.
-const ALLOWED: &[(&str, u64, &str, &str)] = &[];
+const ALLOWED: &[(&str, u64, &str, &str)] = &[
+    ("lifecycle", 24, "$.parentThreadId", DELETED_PARENT_RACE),
+    ("lifecycle", 25, "$[0].parentThreadId", DELETED_PARENT_RACE),
+];
+
+const DELETED_PARENT_RACE: &str = "both servers hard-delete a tombstoned parent in the background \
+    as soon as the runner has removed its storage, which clears the child's parent link; the \
+    recorder's next GET arrived before that finished and the replay's arrives after";
 
 fn check(scenario: &str) {
     let result = results().get(scenario).unwrap_or_else(|| panic!("no scenario {scenario}"));
