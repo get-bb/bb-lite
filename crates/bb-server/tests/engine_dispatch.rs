@@ -101,7 +101,6 @@ async fn re_recording_a_wait_keeps_the_row_and_relabels_on_change() {
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn starts_a_turn_on_an_idle_thread_and_consumes_the_row() {
     let world = World::new();
     world.ready_thread("thr_1", "idle", None);
@@ -135,7 +134,6 @@ async fn starts_a_turn_on_an_idle_thread_and_consumes_the_row() {
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn joins_an_active_turn_by_steering_or_auto() {
     for (mode, kind) in
         [(SendMode::Steer, "steer"), (SendMode::SteerIfActive, "steer"), (SendMode::Auto, "auto")]
@@ -161,7 +159,6 @@ async fn joins_an_active_turn_by_steering_or_auto() {
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn a_rejected_steer_appends_the_rejection_without_failing_the_thread() {
     let world = World::new();
     world.ready_thread("thr_1", "active", Some("turn_1"));
@@ -205,7 +202,6 @@ fn insert_row(world: &World, id: &str, wait: Option<&str>, send_at: Option<i64>,
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn drains_the_first_eligible_row_and_records_failures() {
     let world = World::new();
     world.ready_thread("thr_1", "idle", None);
@@ -240,7 +236,6 @@ async fn a_failed_drain_marks_the_first_eligible_row_and_holds_it() {
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn send_now_skips_the_timer() {
     let world = World::new();
     world.ready_thread("thr_1", "idle", None);
@@ -304,7 +299,6 @@ async fn tool_calls_resolve_through_the_runner_once() {
 }
 
 #[tokio::test]
-#[ignore = "reaches providers::catalog / providers::settings, still todo!() on this branch"]
 async fn tool_calls_for_a_thread_resolve_through_the_runner() {
     let world = World::new();
     world.ready_thread("thr_1", "active", Some("turn_1"));

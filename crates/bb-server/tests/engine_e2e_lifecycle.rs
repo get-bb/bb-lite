@@ -50,7 +50,8 @@ fn row(server: &Server, id: &str) -> Value {
 #[tokio::test]
 async fn creates_a_thread_records_provisioning_and_submits_the_first_turn() {
     let server = Server::with_plugins(&["ask-user-question"]).await;
-    let fallback = Arc::new(|_: String, _| async { Some("  Refactor the  scheduler ".into()) }.boxed());
+    let fallback =
+        Arc::new(|_: String, _| async { Some("  Refactor the  scheduler ".into()) }.boxed());
     server.ctx.plugins.set_title_fallback(Some(fallback));
     let prompt = text("Please refactor the scheduler module today");
     let image = json!({ "type": "localImage", "path": "shot.png" });
@@ -173,7 +174,8 @@ async fn ingests_a_turn_sequences_dedupes_pruning_search_and_status() {
     let mut batch = vec![events::started("t1")];
     batch.extend(message.iter().cloned());
     batch.push(message[message.len() - 1].clone());
-    batch.push(json!({ "type": "turn/diff/updated", "scope": scope, "providerThreadId": "prov-1" }));
+    batch
+        .push(json!({ "type": "turn/diff/updated", "scope": scope, "providerThreadId": "prov-1" }));
     batch.extend([events::completed("t1", "completed"), events::completed("t1", "completed")]);
     server.ingest(&thread_id, batch).await;
 
@@ -195,7 +197,8 @@ async fn ingests_a_turn_sequences_dedupes_pruning_search_and_status() {
         .map(|row| row["sequence"].as_i64().unwrap() - base as i64)
         .collect();
     assert_eq!(sequences[base..], [1, 2, 3, 4, 8, 9]);
-    let noticed = json!({ "status": "idle", "activeTurnId": null, "latestAttentionAt": before + 5_000 });
+    let noticed =
+        json!({ "status": "idle", "activeTurnId": null, "latestAttentionAt": before + 5_000 });
     assert_matches(&row(&server, &thread_id), noticed);
     let hits = |term: &str| {
         let sql = "SELECT s.source_kind FROM thread_search_segments_fts f
@@ -225,7 +228,8 @@ async fn registers_resolves_and_refuses_provider_interactions() {
     let pending = server.rows("SELECT id, status FROM pending_interactions", &[]);
     assert_eq!(pending, [json!({ "id": pending[0]["id"], "status": "pending" })]);
     let pending_id = pending[0]["id"].as_str().unwrap();
-    let denied = json!({ "threadId": id, "requestId": "req-2", "resolution": { "decision": "deny" } });
+    let denied =
+        json!({ "threadId": id, "requestId": "req-2", "resolution": { "decision": "deny" } });
     assert_eq!(server.calls_to("resolveInteraction"), [denied]);
     let flagged = json!({ "hasPendingInteraction": true, "projectId": "proj_1" });
     let changed = server.changed("interactions-changed");
@@ -396,7 +400,8 @@ async fn reconciles_threads_when_a_runner_reconnects() {
     });
     server.script("snapshot", move |_| Ok(snapshot.clone()));
     server.reconnect().await;
-    let statuses = || [row(&server, &kept)["status"].clone(), row(&server, &lost)["status"].clone()];
+    let statuses =
+        || [row(&server, &kept)["status"].clone(), row(&server, &lost)["status"].clone()];
     assert_eq!(statuses(), [json!("active"), json!("error")]);
     let interrupted = "system/thread/interrupted";
     let restarted = json!({ "reason": "host-daemon-restarted", "cause": "host-connection-lost" });
@@ -449,4 +454,127 @@ async fn interrupts_threads_that_were_running_when_the_server_stopped() {
     let interrupted = "system/thread/interrupted";
     assert_eq!(types, [json!("turn/completed"), json!(interrupted), json!(interrupted)]);
     bb_server::threads::engine::close(&ctx).await;
+}
+
+fn first_change(server: &Server, thread_id: &str) -> Value {
+    let changes = std::mem::take(&mut *server.changes.lock());
+    let about = changes.iter().find(|message| message.to_string().contains(thread_id));
+    about.expect("a change about the thread")["changes"].clone()
+}
+
+fn parse<T: serde::de::DeserializeOwned>(value: Value) -> T {
+    serde_json::from_value(value).unwrap()
+}
+
+fn json_of<T: serde::Serialize>(value: T) -> Value {
+    serde_json::to_value(value).unwrap()
+}
+
+#[tokio::test]
+async fn announces_every_mutation_to_subscribers() {
+    let server = Server::new().await;
+    let ctx = &server.ctx;
+    let id = server.spawn(json!({})).await;
+    let other = server.spawn(json!({})).await;
+    server.changes.lock().clear();
+
+    let renamed = ops::update(ctx, &id, parse(json!({ "title": "Renamed" }))).await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["title-changed"]));
+    assert_matches(&json_of(renamed), json!({ "title": "Renamed" }));
+    let pinned = json_of(ops::pin(ctx, &id).await.unwrap());
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["pin-state-changed"]));
+    assert_matches(&pinned, json!({ "pinnedAt": ctx.now() }));
+    ops::pin(ctx, &other).await.unwrap();
+    server.settle().await;
+    let by_key = "SELECT id FROM threads WHERE pinned_at IS NOT NULL ORDER BY pin_sort_key";
+    assert_eq!(server.rows(by_key, &[]), [json!({ "id": other }), json!({ "id": id })]);
+    server.changes.lock().clear();
+    let order = parse(json!({ "previousThreadId": null, "nextThreadId": other }));
+    let entries = json_of(ops::reorder_pinned(ctx, &id, order).unwrap());
+    server.settle().await;
+    let pinned_ids: Vec<Value> =
+        entries.as_array().unwrap().iter().map(|e| e["id"].clone()).collect();
+    assert_eq!(first_change(&server, &id), json!(["pin-state-changed"]));
+    assert_eq!(pinned_ids, [json!(id), json!(other)]);
+
+    ops::update(ctx, &id, parse(json!({ "parentThreadId": other }))).await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["parent-changed"]));
+    let cycle = ops::update(ctx, &other, parse(json!({ "parentThreadId": id }))).await;
+    assert_matches(&cycle.unwrap_err().body.details.unwrap(), json!({ "reason": "cycle" }));
+    server.changes.lock().clear();
+    ops::mark_unread(ctx, &id).await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["read-state-changed"]));
+    let read = json_of(ops::mark_read(ctx, &id).await.unwrap());
+    server.settle().await;
+    assert_matches(&read, json!({ "lastReadAt": ctx.now() }));
+
+    server.changes.lock().clear();
+    let add = |message: &str| {
+        ops::create_queued_message(ctx, &id, parse(json!({ "input": text(message) })))
+    };
+    let first = add("first").await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["queue-changed"]));
+    let second = add("second").await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["queue-changed"]));
+    let first_id = first["id"].as_str().unwrap();
+    let updated_at = first["updatedAt"].as_i64().unwrap();
+    let edit = |expected: i64| {
+        let edited = json!({ "expectedUpdatedAt": expected, "input": text("first, edited") });
+        ops::update_queued_message(ctx, &id, first_id, parse(edited))
+    };
+    assert_eq!(edit(updated_at - 1).await.unwrap_err().status, 409);
+    edit(updated_at).await.unwrap();
+    let listed = server.rows("SELECT id FROM queued_thread_messages ORDER BY sort_key", &[]);
+    assert_eq!(listed, [json!({ "id": first["id"] }), json!({ "id": second["id"] })]);
+    server.changes.lock().clear();
+    ops::delete_queued_message(ctx, &id, first_id).await.unwrap();
+    server.settle().await;
+    assert_eq!(first_change(&server, &id), json!(["queue-changed"]));
+    server.ingest(&id, vec![events::identity(), events::started("t1")]).await;
+    let second_id = second["id"].as_str().unwrap();
+    let mode = parse(json!("steer"));
+    let sent = json_of(ops::send_queued_message_now(ctx, &id, second_id, mode).await.unwrap());
+    server.settle().await;
+    assert_matches(&sent, json!({ "delivery": "sent" }));
+    let last = server.submitted().last().unwrap().clone();
+    let submit = json!([last["input"][0]["text"], last["mode"]["kind"]]);
+    assert_eq!(submit, json!(["second", "steer"]));
+    assert!(server.queued(&id).is_empty());
+}
+
+/// The engine half of "serves a kept timeline until something it shows changes": the thread
+/// timeline service (`threads/timeline.ts`) is not ported, so this checks that every step the
+/// timeline must show advances the thread's event sequence.
+#[tokio::test]
+async fn every_change_a_timeline_shows_advances_the_event_sequence() {
+    let server = Server::new().await;
+    let id = server.spawn(json!({})).await;
+    let max_seq = || {
+        let sql = "SELECT MAX(sequence) AS seq FROM events WHERE thread_id = ?";
+        server.rows(sql, &[&id])[0]["seq"].as_i64().unwrap()
+    };
+    server.run_turn(&id, "t1", "first reply").await;
+    let first = max_seq();
+    server.run_turn(&id, "t2", "second reply").await;
+    let second = max_seq();
+    let replies = server.event_data(&id, "item/completed");
+    assert!(json!(replies).to_string().contains("second reply"));
+    server.ingest(&id, vec![events::started("t3")]).await;
+    server.interact(&id, "req-1", &approval(), "t3").await;
+    let asked = max_seq();
+    let pending = server.rows("SELECT id FROM pending_interactions", &[]);
+    let pending = pending[0]["id"].as_str().unwrap();
+    let deny = json!({ "decision": "deny", "grantedPermissions": null });
+    ops::resolve_interaction(&server.ctx, &id, pending, deny).await.unwrap();
+    server.settle().await;
+    let answered = max_seq();
+    assert!(first < second && second < asked && asked < answered);
+    ops::update(&server.ctx, &id, parse(json!({ "title": "Renamed" }))).await.unwrap();
+    assert_eq!(server.thread(&id).title.as_deref(), Some("Renamed"));
 }

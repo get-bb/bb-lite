@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 use async_trait::async_trait;
-use bb_core::{RunnerApi, RunnerError, RunnerErrorCode, RunnerEvent, RunnerEventSink, RunnerResult};
+use bb_core::{
+    RunnerApi, RunnerError, RunnerErrorCode, RunnerEvent, RunnerEventSink, RunnerResult,
+};
 use bb_server::config::ServerConfig;
 use bb_server::context::{Ctx, ServerContext};
 use bb_server::db::Db;
@@ -44,7 +46,9 @@ impl RunnerApi for Fake {
         let script = self.script.lock().get(method).cloned();
         match script {
             Some(answer) => answer(&params),
-            None => Err(RunnerError::new(RunnerErrorCode::InvalidPath, format!("unscripted {method}"))),
+            None => {
+                Err(RunnerError::new(RunnerErrorCode::InvalidPath, format!("unscripted {method}")))
+            }
         }
     }
 }
@@ -121,7 +125,8 @@ pub mod events {
 
     pub fn message(turn_id: &str, id: &str, reply: &str) -> Vec<Value> {
         let item = |text: &str| json!({ "type": "agentMessage", "id": id, "text": text });
-        let mut batch = vec![with(json!({ "type": "item/started", "item": item("") }), turn(turn_id))];
+        let mut batch =
+            vec![with(json!({ "type": "item/started", "item": item("") }), turn(turn_id))];
         for part in reply.split(' ') {
             let delta = json!({ "type": "item/agentMessage/delta", "itemId": id, "delta": part });
             batch.push(with(delta, turn(turn_id)));
@@ -189,8 +194,10 @@ impl Server {
 
     /// A server whose plugin host loads the named builtin plugins.
     pub async fn with_plugins(names: &[&str]) -> Self {
-        let wanted = |plugin: &BuiltinPlugin| names.iter().any(|name| plugin.directory.ends_with(name));
-        let server = Self::with_builtins(builtin_plugins().into_iter().filter(wanted).collect()).await;
+        let wanted =
+            |plugin: &BuiltinPlugin| names.iter().any(|name| plugin.directory.ends_with(name));
+        let server =
+            Self::with_builtins(builtin_plugins().into_iter().filter(wanted).collect()).await;
         server.ctx.plugins.reload(None).await.unwrap();
         server
     }
@@ -227,7 +234,11 @@ impl Server {
         server
     }
 
-    pub fn script(&self, method: &str, answer: impl Fn(&Value) -> RunnerResult<Value> + Send + Sync + 'static) {
+    pub fn script(
+        &self,
+        method: &str,
+        answer: impl Fn(&Value) -> RunnerResult<Value> + Send + Sync + 'static,
+    ) {
         self.fake.script.lock().insert(method.to_owned(), Arc::new(answer));
     }
 
@@ -270,7 +281,13 @@ impl Server {
         self.ingest(thread_id, batch).await;
     }
 
-    pub async fn interact(&self, thread_id: &str, request_id: &str, payload: &Value, turn_id: &str) {
+    pub async fn interact(
+        &self,
+        thread_id: &str,
+        request_id: &str,
+        payload: &Value,
+        turn_id: &str,
+    ) {
         self.emit(json!({
             "kind": "interaction.requested",
             "threadId": thread_id,
@@ -319,7 +336,9 @@ impl Server {
     pub fn event_data(&self, thread_id: &str, kind: &str) -> Vec<Value> {
         let sql = "SELECT data FROM events WHERE thread_id = ? AND type LIKE ? ORDER BY sequence";
         let rows = self.rows(sql, &[thread_id, kind]);
-        rows.iter().map(|row| serde_json::from_str(row["data"].as_str().unwrap()).unwrap()).collect()
+        rows.iter()
+            .map(|row| serde_json::from_str(row["data"].as_str().unwrap()).unwrap())
+            .collect()
     }
 
     pub fn event_types(&self, thread_id: &str) -> Vec<String> {
