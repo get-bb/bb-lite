@@ -12,14 +12,28 @@ use bb_server::runners::local::local_runner_for;
 use bb_server::server::{CreateServerOptions, create_server};
 use serde_json::{Value, json};
 
-const ALLOWED: &[(&str, &str, &str)] = &[];
+fn case_key(case: &Value) -> String {
+    let input = ["body", "query", "rawBody"].iter().find_map(|key| case.get(*key)).cloned();
+    format!("{} {}", case["route"].as_str().unwrap_or_default(), input.unwrap_or(Value::Null))
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn invalid_requests_answer_like_zod() {
     let fixture =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/validation/corpus.json");
-    let corpus: Value = serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
+    let corpus: Value = serde_json::from_str(&std::fs::read_to_string(&fixture).unwrap()).unwrap();
     let cases = corpus["cases"].as_array().unwrap();
+    let allowed: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.with_file_name("allowed.json")).unwrap(),
+    )
+    .unwrap();
+    let allowed: std::collections::HashSet<String> = allowed
+        .as_array()
+        .unwrap()
+        .iter()
+        .inspect(|entry| assert!(entry["reason"].as_str().is_some_and(|r| !r.is_empty())))
+        .map(case_key)
+        .collect();
 
     let temp_dir = tempfile::Builder::new().prefix("bb-validation-").tempdir().unwrap();
     let temp: PathBuf = temp_dir.path().canonicalize().unwrap();
@@ -91,11 +105,7 @@ async fn invalid_requests_answer_like_zod() {
         if &actual == expected {
             continue;
         }
-        let expected_message = expected["message"].as_str().unwrap_or_default();
-        if ALLOWED
-            .iter()
-            .any(|(r, k, m)| *r == route && *k == case["kind"] && *m == expected_message)
-        {
+        if allowed.contains(&case_key(case)) {
             allowed_hits += 1;
             continue;
         }

@@ -74,9 +74,12 @@ async fn json_bodies() {
     let ok = send(post_json(r#"{"title":"a","count":2}"#, Some("application/json"))).await;
     assert_eq!(ok, (StatusCode::OK, json!({"title": "a", "count": 2})));
     let typed = r#"{"title":"a","count":"x"}"#;
-    assert_invalid(send(post_json(typed, Some("application/json"))).await, "count");
+    assert_invalid(
+        send(post_json(typed, Some("application/json"))).await,
+        "Invalid input: expected number, received string",
+    );
     let missing = r#"{"title":"a"}"#;
-    assert_invalid(send(post_json(missing, Some("application/json"))).await, "count");
+    assert_invalid(send(post_json(missing, Some("application/json"))).await, "Required");
     assert_invalid(
         send(post_json("{", Some("application/json"))).await,
         "Invalid JSON request body",
@@ -91,7 +94,7 @@ async fn query_strings() {
     assert_eq!(ok, (StatusCode::OK, json!({"limit": 5})));
     let bad = Request::get("/page?limit=lots").body(Body::empty()).unwrap();
     assert_invalid(send(bad).await, "limit");
-    assert_invalid(send(Request::get("/page").body(Body::empty()).unwrap()).await, "limit");
+    assert_invalid(send(Request::get("/page").body(Body::empty()).unwrap()).await, "Required");
 }
 
 #[tokio::test]
