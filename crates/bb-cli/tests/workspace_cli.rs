@@ -1,0 +1,140 @@
+mod support;
+
+use bb_cli::call::CliEnv;
+use serde_json::json;
+use support::{FakeServer, Request, route, run};
+
+fn request(method: &str, path: &str, body: Option<serde_json::Value>) -> Request {
+    Request { method: method.into(), path: path.into(), body }
+}
+
+#[test]
+fn project_list_prints_sources_per_project() {
+    let projects = json!([{ "id": "proj_1", "name": "Demo",
+        "sources": [{ "hostId": "host_1", "path": "/src" }] }]);
+    let server = FakeServer::start(vec![route("GET", "/projects", projects)]);
+    let (result, printed) = run(&server, &["project", "list"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "\nID      NAME  SOURCES\nproj_1  Demo  host_1:/src\n\n");
+    assert_eq!(server.requests(), [request("GET", "/projects?includePersonal=false", None)]);
+}
+
+#[test]
+fn project_create_and_source_add_send_local_paths() {
+    let server = FakeServer::start(vec![
+        route("POST", "/projects", json!({ "id": "proj_2", "name": "Demo" })),
+        route("POST", "/projects/proj_1/sources", json!({ "id": "src_1" })),
+        route("PATCH", "/projects/proj_1/sources/src_1", json!({ "id": "src_1" })),
+    ]);
+    let words =
+        ["project", "create", "--name", "Demo", "--root", "/tmp/x/../y", "--machine", "host_1"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Project proj_2 created (Demo)\n");
+    let words = [
+        "project",
+        "source",
+        "add",
+        "proj_1",
+        "--path",
+        "/src",
+        "--machine",
+        "host_1",
+        "--default",
+    ];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Source src_1 added to project proj_1\n");
+    let source = json!({ "type": "local_path", "hostId": "host_1", "path": "/tmp/y" });
+    assert_eq!(
+        server.requests(),
+        [
+            request("POST", "/projects", Some(json!({ "name": "Demo", "source": source }))),
+            request(
+                "POST",
+                "/projects/proj_1/sources",
+                Some(json!({ "hostId": "host_1", "path": "/src", "type": "local_path" }))
+            ),
+            request(
+                "PATCH",
+                "/projects/proj_1/sources/src_1",
+                Some(json!({ "isDefault": true, "type": "local_path" }))
+            ),
+        ]
+    );
+}
+
+#[test]
+fn machine_list_shows_creating_hosts() {
+    let hosts = json!([{ "id": "host_1", "name": "box", "status": "online", "lastSeenAt": null }]);
+    let server = FakeServer::start(vec![route("GET", "/hosts", hosts)]);
+    let (result, printed) = run(&server, &["machine", "list"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "\nID      NAME  STATUS  LASTSEENAT\nhost_1  box   online  -\n\n");
+    assert_eq!(server.requests(), [request("GET", "/hosts?includeCreating=true", None)]);
+}
+
+#[test]
+fn provider_list_and_models_route_by_machine() {
+    let models = json!({ "models": [{ "model": "m1", "displayName": "M1", "isDefault": true }],
+        "modelLoadError": null });
+    let server = FakeServer::start(vec![
+        route("GET", "/system/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
+        route("GET", "/system/execution-options", models),
+    ]);
+    let (result, printed) = run(&server, &["provider", "list"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "\nID     DISPLAYNAME\ncodex  Codex\n\n");
+    let words = ["provider", "models", "codex", "--machine", "host_1"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "\nMODEL  DISPLAYNAME  ISDEFAULT\nm1     M1           true\n\n");
+    assert_eq!(
+        server.requests(),
+        [
+            request("GET", "/system/providers", None),
+            request("GET", "/system/execution-options?hostId=host_1&providerId=codex", None),
+        ]
+    );
+}
+
+#[test]
+fn env_commands_build_queries_and_bodies() {
+    let server = FakeServer::start(vec![
+        route("GET", "/environments", json!([])),
+        route("PATCH", "/environments/env_1", json!({ "id": "env_1" })),
+        route("DELETE", "/environments/env_1", json!({ "ok": true })),
+        route("GET", "/environments/env_1/status", json!({ "branch": "b" })),
+    ]);
+    let env = CliEnv::default;
+    let words = ["env", "list", "--project", "proj_1", "--status", "READY", "--limit", "5"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    assert_eq!(printed, "None found\n");
+    let (result, printed) = run(&server, &["env", "update", "env_1", "--name", "x"], env());
+    result.unwrap();
+    assert_eq!(printed, "Environment env_1 updated\n");
+    let (result, _) = run(&server, &["env", "update", "env_1"], env());
+    let error = result.unwrap_err();
+    assert_eq!(error.message, "Nothing to change; pass --name or --merge-base-branch.");
+    assert_eq!(error.code, "invalid_value");
+    let words = ["env", "update", "env_1", "--name", "x", "--clear-name"];
+    let (result, _) = run(&server, &words, env());
+    assert_eq!(result.unwrap_err().message, "Cannot combine --name with --clear-name.");
+    let (result, printed) = run(&server, &["env", "delete", "env_1", "--yes", "--json"], env());
+    result.unwrap();
+    assert_eq!(printed, "{\n  \"ok\": true,\n  \"environmentId\": \"env_1\"\n}\n");
+    let words = ["env", "status", "env_1", "--merge-base-branch", "main"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    assert_eq!(printed, "{\n  \"branch\": \"b\"\n}\n");
+    assert_eq!(
+        server.requests(),
+        [
+            request("GET", "/environments?projectId=proj_1&status=ready&limit=5", None),
+            request("PATCH", "/environments/env_1", Some(json!({ "name": "x" }))),
+            request("DELETE", "/environments/env_1", None),
+            request("GET", "/environments/env_1/status?mergeBaseBranch=main", None),
+        ]
+    );
+}
