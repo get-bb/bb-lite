@@ -11,7 +11,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bb_connect::Link;
 use bb_tunnel::contract::{HEARTBEAT_REQUEST, HEARTBEAT_RESPONSE, TUNNEL_REPLACED_CLOSE_REASON};
-use bb_tunnel::{Frame, OpenHttpFrame, chunk_body, decode_frame, encode_frame};
+use bb_tunnel::{Frame, OpenHttpFrame, OpenWsFrame, chunk_body, decode_frame, encode_frame};
 use parking_lot::Mutex;
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -264,30 +264,49 @@ async fn run_tunnel(gate: Arc<FakeGate>, mut socket: WebSocket) {
     }
 }
 
+/// The headers the gate forwards: hop and gate-owned headers dropped, its admission added.
+fn opening_headers(headers: &HeaderMap, admission: Admission) -> Vec<(String, String)> {
+    let mut forwarded = Vec::new();
+    for (name, value) in headers {
+        let name = name.as_str();
+        if is_hop(name) || GATE_HEADERS.contains(&name) {
+            continue;
+        }
+        forwarded.push((name.to_string(), value.to_str().unwrap_or_default().to_string()));
+    }
+    if let Some(auth) = admission.auth {
+        forwarded.push(("x-bb-gate-auth".to_string(), auth.to_string()));
+    }
+    if let Some(machine_id) = admission.machine_id {
+        forwarded.push(("x-bb-gate-machine-id".to_string(), machine_id));
+    }
+    forwarded
+}
+
+fn is_upgrade(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
+}
+
 async fn forward(gate: Arc<FakeGate>, request: Request) -> Response {
     let method = request.method().to_string();
     let path = request.uri().path().to_string();
     let admission = match gate.admit(&method, &path, request.headers()) {
         Ok(admission) => admission,
+        Err(status) if is_upgrade(request.headers()) => {
+            return StatusCode::from_u16(status).unwrap().into_response();
+        }
         Err(status) => return json_reply(status, json!({})),
     };
     if gate.tunnel.lock().is_none() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
-    let mut headers = Vec::new();
-    for (name, value) in request.headers() {
-        let name = name.as_str();
-        if is_hop(name) || GATE_HEADERS.contains(&name) {
-            continue;
-        }
-        headers.push((name.to_string(), value.to_str().unwrap_or_default().to_string()));
+    if is_upgrade(request.headers()) {
+        return open_visitor_socket(gate, request, admission).await;
     }
-    if let Some(auth) = admission.auth {
-        headers.push(("x-bb-gate-auth".to_string(), auth.to_string()));
-    }
-    if let Some(machine_id) = admission.machine_id {
-        headers.push(("x-bb-gate-machine-id".to_string(), machine_id));
-    }
+    let headers = opening_headers(request.headers(), admission);
     let stream_id = gate.stream_id.fetch_add(1, Ordering::SeqCst) + 1;
     let has_body = method != "GET" && method != "HEAD";
     let path_and_query = request.uri().path_and_query().map_or("/".to_string(), |p| p.to_string());
@@ -308,24 +327,136 @@ async fn forward(gate: Arc<FakeGate>, request: Request) -> Response {
         }
         gate.send(&Frame::BodyEnd { stream_id });
     }
-    let mut head = None;
-    let mut body = Vec::new();
     let wait = Duration::from_secs(5);
-    while let Ok(Some(frame)) = tokio::time::timeout(wait, rx.recv()).await {
-        match frame {
-            Frame::RespHead { status, headers, .. } => head = Some((status, headers)),
-            Frame::BodyChunk { data, .. } => body.extend(data),
-            Frame::BodyEnd { .. } | Frame::CloseStream { .. } => break,
-            _ => {}
+    let head = loop {
+        match tokio::time::timeout(wait, rx.recv()).await {
+            Ok(Some(Frame::RespHead { status, headers, .. })) => break Some((status, headers)),
+            Ok(Some(Frame::BodyEnd { .. } | Frame::CloseStream { .. })) | Ok(None) | Err(_) => {
+                break None;
+            }
+            Ok(Some(_)) => {}
+        }
+    };
+    let Some((status, headers)) = head else {
+        gate.pending.lock().remove(&stream_id);
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    // The body streams as the frames arrive, as `response.write` does in fake-gate.ts: a
+    // response without a length goes out chunked.
+    let mut response = Response::builder().status(status);
+    for (name, value) in headers.iter().filter(|(name, _)| !is_hop(name)) {
+        response = response.header(name, value);
+    }
+    let pending = Arc::downgrade(&gate);
+    let body = futures::stream::unfold(Some(rx), move |rx| {
+        let pending = pending.clone();
+        async move {
+            let mut rx = rx?;
+            loop {
+                let frame = tokio::time::timeout(wait, rx.recv()).await.ok().flatten();
+                match frame {
+                    Some(Frame::BodyChunk { data, .. }) => {
+                        return Some((Ok::<_, std::io::Error>(bytes::Bytes::from(data)), Some(rx)));
+                    }
+                    Some(Frame::BodyEnd { .. } | Frame::CloseStream { .. }) | None => {
+                        if let Some(gate) = pending.upgrade() {
+                            gate.pending.lock().remove(&stream_id);
+                        }
+                        return None;
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+    });
+    response.body(Body::from_stream(body)).unwrap()
+}
+
+/// A visitor's WebSocket, relayed over the tunnel as `open-ws`, `ws-data` and `close-stream`.
+async fn open_visitor_socket(
+    gate: Arc<FakeGate>,
+    request: Request,
+    admission: Admission,
+) -> Response {
+    let offered = request
+        .headers()
+        .get(header::SEC_WEBSOCKET_PROTOCOL)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    let protocols: Vec<String> =
+        offered.split(',').map(str::trim).filter(|p| !p.is_empty()).map(str::to_owned).collect();
+    let path = request.uri().path_and_query().map_or("/".to_string(), |p| p.to_string());
+    let headers = opening_headers(request.headers(), admission);
+    let (mut parts, _) = request.into_parts();
+    let upgrade = match WebSocketUpgrade::from_request_parts(&mut parts, &()).await {
+        Ok(upgrade) => upgrade,
+        Err(rejection) => return rejection.into_response(),
+    };
+    let stream_id = gate.stream_id.fetch_add(1, Ordering::SeqCst) + 1;
+    let (tx, rx) = mpsc::unbounded_channel();
+    gate.pending.lock().insert(stream_id, tx);
+    gate.send(&Frame::OpenWs(OpenWsFrame {
+        stream_id,
+        path,
+        headers,
+        protocols: protocols.clone(),
+        target: None,
+    }));
+    upgrade
+        .protocols(protocols)
+        .on_upgrade(move |socket| relay_visitor(gate, stream_id, socket, rx))
+}
+
+async fn relay_visitor(
+    gate: Arc<FakeGate>,
+    stream_id: u32,
+    mut socket: WebSocket,
+    mut rx: mpsc::UnboundedReceiver<Frame>,
+) {
+    loop {
+        tokio::select! {
+            frame = rx.recv() => match frame {
+                Some(Frame::WsData { is_binary, data, .. }) => {
+                    let message = if is_binary {
+                        Message::Binary(data.into())
+                    } else {
+                        Message::Text(String::from_utf8_lossy(&data).into_owned().into())
+                    };
+                    if socket.send(message).await.is_err() {
+                        break;
+                    }
+                }
+                Some(Frame::CloseStream { code, reason, .. }) => {
+                    let frame = CloseFrame { code, reason: reason.into() };
+                    let _ = socket.send(Message::Close(Some(frame))).await;
+                    break;
+                }
+                Some(_) => {}
+                None => break,
+            },
+            incoming = socket.recv() => match incoming {
+                Some(Ok(Message::Text(text))) => gate.send(&Frame::WsData {
+                    stream_id,
+                    is_binary: false,
+                    data: text.as_str().as_bytes().to_vec(),
+                }),
+                Some(Ok(Message::Binary(data))) => {
+                    gate.send(&Frame::WsData { stream_id, is_binary: true, data: data.to_vec() });
+                }
+                Some(Ok(Message::Close(frame))) => {
+                    let (code, reason) =
+                        frame.map_or((1000, String::new()), |f| (f.code, f.reason.to_string()));
+                    let code = if code == 1000 || code >= 3000 { code } else { 1000 };
+                    gate.send(&Frame::CloseStream { stream_id, code, reason });
+                    break;
+                }
+                Some(Ok(_)) => {}
+                _ => {
+                    gate.send(&Frame::CloseStream { stream_id, code: 1000, reason: String::new() });
+                    break;
+                }
+            }
         }
     }
     gate.pending.lock().remove(&stream_id);
-    let Some((status, headers)) = head else { return StatusCode::BAD_GATEWAY.into_response() };
-    let mut response = Response::builder().status(status);
-    for (name, value) in headers.iter().filter(|(name, _)| !is_hop(name)) {
-        if name != "content-length" {
-            response = response.header(name, value);
-        }
-    }
-    response.body(Body::from(body)).unwrap()
 }
