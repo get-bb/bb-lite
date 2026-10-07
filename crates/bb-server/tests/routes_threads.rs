@@ -242,13 +242,13 @@ async fn validates_thread_write_requests_before_the_engine() {
         (
             Method::POST,
             "/threads",
-            json!({ "projectId": "p", "origin": "user", "originPluginId": "x", "input": [{}], "environment": {} }),
+            json!({ "projectId": "p", "origin": "app", "originPluginId": "x", "input": [{}], "environment": {} }),
             Some(r#"originPluginId requires origin "plugin""#),
         ),
         (
             Method::POST,
             "/threads",
-            json!({ "projectId": "p", "origin": "user", "pluginMetadata": {}, "input": [{}], "environment": {} }),
+            json!({ "projectId": "p", "origin": "app", "pluginMetadata": {}, "input": [{}], "environment": {} }),
             Some(r#"pluginMetadata requires origin "plugin""#),
         ),
         (
@@ -260,13 +260,13 @@ async fn validates_thread_write_requests_before_the_engine() {
         (
             Method::POST,
             "/threads",
-            json!({ "projectId": "p", "origin": "user", "input": [], "environment": {} }),
+            json!({ "projectId": "p", "origin": "app", "input": [], "environment": {} }),
             Some("input must contain at least one entry"),
         ),
         (
             Method::POST,
             "/threads",
-            json!({ "projectId": "", "origin": "user", "input": [{}], "environment": {} }),
+            json!({ "projectId": "", "origin": "app", "input": [{}], "environment": {} }),
             None,
         ),
         (Method::PATCH, "/threads/thr_1", json!({}), Some("At least one field must be provided")),

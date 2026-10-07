@@ -200,6 +200,8 @@ fn check_create_fields(body: &Value) -> Result<(), String> {
 
 fn validate_create(body: &Value) -> Result<CreateThreadRequest, ApiError> {
     check_create_fields(body).map_err(invalid_request)?;
+    // Nested field issues come before the schema's refinements, as in zod.
+    let request = parse(body.clone())?;
     let fields = object(body)?;
     let origin = fields.get("origin").and_then(Value::as_str);
     let origin_plugin_id = fields.get("originPluginId").and_then(Value::as_str);
@@ -222,7 +224,7 @@ fn validate_create(body: &Value) -> Result<CreateThreadRequest, ApiError> {
     if fields.get("input").and_then(Value::as_array).is_some_and(Vec::is_empty) {
         return Err(invalid_request("input must contain at least one entry"));
     }
-    parse(body.clone())
+    Ok(request)
 }
 
 async fn create(State(ctx): State<Ctx>, ApiJson(body): ApiJson<Value>) -> Created<ThreadResponse> {
@@ -265,7 +267,8 @@ async fn remove(
 ) -> Ack {
     check_object(&body, &[req("childThreadsConfirmed", Kind::Bool)], false)
         .map_err(invalid_request)?;
-    let confirmed = body.get("childThreadsConfirmed").and_then(Value::as_bool).ok_or_else(invalid)?;
+    let confirmed =
+        body.get("childThreadsConfirmed").and_then(Value::as_bool).ok_or_else(invalid)?;
     ops::delete(&ctx, &id, confirmed).await?;
     Ok(Json(ok()))
 }
@@ -396,7 +399,9 @@ fn check_resolution(body: &Value) -> Result<(), String> {
     let text = |key: &str| body.get(key).and_then(Value::as_str);
     let object_or_null = |key: &str| body.get(key).is_some_and(|v| v.is_object() || v.is_null());
     let matched = match (text("decision"), text("kind")) {
-        (Some("allow_once" | "allow_for_session"), _) if object_or_null("grantedPermissions") => true,
+        (Some("allow_once" | "allow_for_session"), _) if object_or_null("grantedPermissions") => {
+            true
+        }
         (Some("deny"), _) => true,
         (_, Some("user_answer")) => body.get("answers").is_some_and(Value::is_object),
         (_, Some("plugin_submitted")) => body.get("description").is_none_or(Value::is_object),
@@ -406,7 +411,8 @@ fn check_resolution(body: &Value) -> Result<(), String> {
     if matched {
         return Ok(());
     }
-    Err("Invalid discriminator value. Expected 'allow_once' | 'allow_for_session' | 'deny'".to_owned())
+    Err("Invalid discriminator value. Expected 'allow_once' | 'allow_for_session' | 'deny'"
+        .to_owned())
 }
 
 async fn resolve_interaction(
@@ -424,7 +430,8 @@ async fn respond_interaction(
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<PendingInteraction> {
     // `value` is `jsonValueSchema`, a union: a missing value fails every member.
-    let value = object(&body)?.get("value").cloned().ok_or_else(|| invalid_request("Invalid input"))?;
+    let value =
+        object(&body)?.get("value").cloned().ok_or_else(|| invalid_request("Invalid input"))?;
     let size = serde_json::to_string(&value).map_or(0, |json| json.len());
     if size > PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES {
         let message = "Interaction response exceeds 64 KiB";
