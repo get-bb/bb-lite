@@ -227,3 +227,34 @@ async fn device_login_adopts_the_approved_link() {
     client.connected().await;
     client.tunnel.set(None);
 }
+
+#[tokio::test]
+async fn a_tls_dial_reports_an_error_instead_of_panicking() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let gate_url = format!("https://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        while let Ok((socket, _)) = listener.accept().await {
+            drop(socket);
+        }
+    });
+    let mut options = TunnelOptions::new(
+        "http://127.0.0.1:9".to_string(),
+        Arc::new(|_| false),
+        Arc::new(|_| Box::pin(async { Ok(()) })),
+        Arc::new(Quiet),
+        Arc::new(|| {}),
+    );
+    options.retry_base = Duration::from_millis(4);
+    options.retry_max = Duration::from_millis(8);
+    let tunnel = ConnectTunnel::new(options);
+    tunnel.set(Some(bb_connect::account::Link {
+        base_url: gate_url.clone(),
+        server_url: gate_url,
+        server_id: "srv_1".to_string(),
+        server_label: "test".to_string(),
+        credential: "bbc_test".to_string(),
+    }));
+    wait_for("a dial error", || tunnel.status().last_error.is_some()).await;
+    assert_ne!(tunnel.status().state, ConnectState::Connected);
+    tunnel.set(None);
+}

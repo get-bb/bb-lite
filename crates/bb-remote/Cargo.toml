@@ -21,6 +21,7 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 tokio.workspace = true
+rustls.workspace = true
 tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 url.workspace = true

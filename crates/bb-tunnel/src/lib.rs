@@ -3,6 +3,7 @@
 
 pub mod contract;
 pub mod session;
+pub mod tls;
 
 pub use contract::{
     ContractError, Frame, HeaderPair, OpenHttpFrame, OpenWsFrame, chunk_body, decode_frame,

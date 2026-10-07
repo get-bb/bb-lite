@@ -271,6 +271,7 @@ impl ConnectTunnel {
                 return self.fail(dial_id, None, format!("can't reach {host}: {error}"), None);
             }
         }
+        bb_tunnel::tls::install_crypto_provider();
         let connected =
             tokio::time::timeout(options.handshake, tokio_tungstenite::connect_async(request))
                 .await;

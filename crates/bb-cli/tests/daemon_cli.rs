@@ -105,3 +105,36 @@ fn server_listens_and_stops_on_sigterm() {
     let status = child.wait().unwrap();
     assert_eq!(status.code(), Some(0));
 }
+
+#[test]
+fn runner_run_dials_a_tls_server_without_panicking() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let server_url = format!("https://{}", listener.local_addr().unwrap());
+    let (dialed, was_dialed) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        while let Ok((socket, _)) = listener.accept() {
+            drop(socket);
+            let _ = dialed.send(());
+        }
+    });
+    let home = tempfile::tempdir().unwrap();
+    let dir = home.path().join("runner");
+    std::fs::create_dir_all(&dir).unwrap();
+    let credentials = serde_json::json!({
+        "hostId": "host_1", "runnerToken": "bbr_test", "serverUrl": server_url, "headers": {},
+    });
+    std::fs::write(dir.join("runner.json"), credentials.to_string()).unwrap();
+    let mut child = bb(home.path())
+        .args(["runner", "run", "--data-dir", dir.to_str().unwrap()])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    was_dialed
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the runner dials its server");
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
+    let output = child.wait_with_output().unwrap();
+    assert!(!stderr(&output).contains("panicked"), "{}", stderr(&output));
+}

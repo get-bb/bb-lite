@@ -497,6 +497,7 @@ async fn relay_ws(
         shared.options.log.warn(&format!("origin ws error on {path}: {message}"));
     };
     let mut buffered = Vec::new();
+    crate::tls::install_crypto_provider();
     let connect = tokio_tungstenite::connect_async(request);
     tokio::pin!(connect);
     let connected = loop {

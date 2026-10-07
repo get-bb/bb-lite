@@ -246,6 +246,9 @@ async fn dial(
     let fields = request.headers_mut();
     fields.extend(header_map(headers));
     fields.insert("authorization", HeaderValue::from_str(&format!("Bearer {token}"))?);
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    }
     let connect = tokio_tungstenite::connect_async(request);
     let timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
     let (stream, _) = tokio::time::timeout(timeout, connect)
