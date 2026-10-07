@@ -258,36 +258,6 @@ pub fn check_object(body: &Value, fields: &[Field], strict: bool) -> Result<(), 
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rewrites_serde_categories() {
-        assert_eq!(from_serde("missing field `name` at line 1 column 2"), "Required");
-        assert_eq!(
-            from_serde("unknown field `zz`, expected `a` or `b`"),
-            "Unrecognized key: \"zz\""
-        );
-        assert_eq!(
-            from_serde("unknown variant `x`, expected `a` or `b`"),
-            "Invalid option: expected one of \"a\"|\"b\""
-        );
-        assert_eq!(
-            from_serde("unknown variant `x`, expected `a`"),
-            "Invalid input: expected \"a\""
-        );
-        assert_eq!(
-            from_serde("invalid type: integer `7`, expected a string at line 1 column 3"),
-            "Invalid input: expected string, received number"
-        );
-        assert_eq!(
-            from_serde("invalid type: sequence, expected struct Body"),
-            "Invalid input: expected object, received array"
-        );
-    }
-}
-
 /// zod's message for a value that is not the schema's `z.literal(expected)`.
 pub fn invalid_literal(expected: &Value) -> String {
     format!("Invalid input: expected {expected}")
@@ -346,4 +316,54 @@ pub fn coerce_query_numbers(
         query.insert((*key).to_owned(), value);
     }
     Ok(Value::Object(query))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rewrites_serde_categories() {
+        assert_eq!(from_serde("missing field `name` at line 1 column 2"), "Required");
+        assert_eq!(
+            from_serde("unknown field `zz`, expected `a` or `b`"),
+            "Unrecognized key: \"zz\""
+        );
+        assert_eq!(
+            from_serde("unknown variant `x`, expected `a` or `b`"),
+            "Invalid option: expected one of \"a\"|\"b\""
+        );
+        assert_eq!(
+            from_serde("unknown variant `x`, expected `a`"),
+            "Invalid input: expected \"a\""
+        );
+        assert_eq!(
+            from_serde("invalid type: integer `7`, expected a string at line 1 column 3"),
+            "Invalid input: expected string, received number"
+        );
+        assert_eq!(
+            from_serde("invalid type: sequence, expected struct Body"),
+            "Invalid input: expected object, received array"
+        );
+    }
+
+    #[test]
+    fn coerces_query_numbers_like_javascript() {
+        let query: serde_json::Map<String, Value> =
+            serde_json::from_value(serde_json::json!({ "a": "7", "b": "", "c": "1.5", "d": "x" }))
+                .unwrap();
+        let coerced = coerce_query_numbers(&query, &["a", "b", "c"]).unwrap();
+        assert_eq!(coerced, serde_json::json!({ "a": 7, "b": 0, "c": 1.5, "d": "x" }));
+        assert_eq!(
+            coerce_query_numbers(&query, &["d"]).unwrap_err(),
+            "Invalid input: expected number, received NaN"
+        );
+    }
+
+    #[test]
+    fn trims_only_the_named_string_fields() {
+        let body = serde_json::json!({ "a": " x ", "b": " y ", "c": 1 });
+        let trimmed = trim_fields(&body, &["a", "c"]);
+        assert_eq!(trimmed, serde_json::json!({ "a": "x", "b": " y ", "c": 1 }));
+    }
 }

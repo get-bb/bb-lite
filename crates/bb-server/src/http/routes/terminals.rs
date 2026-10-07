@@ -53,7 +53,7 @@ const CREATE_FIELDS: &[Field] = &[
 /// `terminalDataBase64Schema`'s pattern: padded base64.
 fn is_padded_base64(text: &str) -> bool {
     let body = text.trim_end_matches('=');
-    text.len() % 4 == 0
+    text.len().is_multiple_of(4)
         && text.len() - body.len() <= 2
         && body.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/')
 }
