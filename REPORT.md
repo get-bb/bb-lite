@@ -30,8 +30,13 @@ The sections below describe the rewrite as it stood at 143,297 lines. Later chan
   microphone). The lists of visible differences below describe desktop; "mobile app and push" under
   "What was cut" now means only the native app.
 - A newly pinned thread goes to the top of Pinned, as in the original.
+- **HTML files preview as a page again**: an `.html` file in the right panel renders in a sandboxed
+  frame (scripts allowed, no access to the app's origin) with a Preview/Raw switch and "Open in
+  external browser", as in the original.
+- **The line cap is no longer enforced**, at the user's request: `pnpm check` no longer counts lines.
+  `pnpm count` still reports the total.
 
-**Current count: about 151,150 lines; `pnpm check:lines` allows 152,000.**
+**Current count: about 151,300 lines.**
 
 How the plan was made and what was decided with the user is in `INVENTORY.md`; how the pieces fit is
 in `docs/architecture.md`.
@@ -135,7 +140,7 @@ Each line is something the main user can see or reach. Nothing else differed in 
 - The panel cannot be split into tab groups; tabs cannot be dragged or reordered; no reopen closed
   tab; no "Recent" list on the new-tab page.
 - Thread storage is gone from thread info, tabs and search.
-- CSV, HTML, video and audio files show as source or as a size with a download link.
+- CSV, video and audio files show as source or as a size with a download link.
 - Image and SVG changes in a diff show "Binary file".
 - Selecting lines in a diff or preview does not offer "Add to chat".
 - Plugin pages have no terminals or file tabs. The terminal has no right-click menu.
