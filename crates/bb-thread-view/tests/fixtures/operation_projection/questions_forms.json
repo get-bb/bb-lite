@@ -1,0 +1,800 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_q",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "id": "q1",
+        "question": "Which?",
+        "options": [
+         {
+          "label": "A"
+         },
+         {
+          "label": "B"
+         }
+        ]
+       }
+      ]
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_q",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "id": "q1",
+        "question": "Which?",
+        "options": [
+         {
+          "label": "A"
+         },
+         {
+          "label": "B"
+         }
+        ]
+       }
+      ]
+     },
+     "resolution": {
+      "answers": {
+       "q1": "A"
+      }
+     },
+     "status": "resolved",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_q",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "id": "q1",
+        "question": "Which?",
+        "options": [
+         {
+          "label": "A"
+         },
+         {
+          "label": "B"
+         }
+        ]
+       }
+      ]
+     },
+     "resolution": null,
+     "status": "interrupted",
+     "statusReason": "late"
+    }
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1790000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_f",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "acme",
+      "rendererId": "color-form"
+     },
+     "payload": {
+      "kind": "plugin",
+      "title": "Pick a color",
+      "presentation": {
+       "kind": "form"
+      }
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1790000005000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_f",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "acme",
+      "rendererId": "color-form"
+     },
+     "payload": {
+      "kind": "plugin",
+      "title": "Pick a color",
+      "presentation": {
+       "kind": "form"
+      }
+     },
+     "resolution": {
+      "description": {
+       "payload": {
+        "color": "red"
+       }
+      }
+     },
+     "status": "resolved",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1790000006000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_g",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "acme",
+      "rendererId": "color-form"
+     },
+     "payload": {
+      "kind": "plugin",
+      "title": "Pick a color",
+      "presentation": {
+       "kind": "form"
+      }
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_7",
+    "seq": 7,
+    "createdAt": 1790000007000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_g",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "acme",
+      "rendererId": "color-form"
+     },
+     "payload": {
+      "kind": "plugin",
+      "title": "Pick a color",
+      "presentation": {
+       "kind": "form"
+      }
+     },
+     "resolution": null,
+     "status": "interrupted",
+     "statusReason": "cancelled by user"
+    }
+   },
+   "meta": {
+    "id": "evt_8",
+    "seq": 8,
+    "createdAt": 1790000008000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "system/interaction/lifecycle",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "interaction": {
+     "id": "pint_q2",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "r1"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "id": "q1",
+        "question": "Which?",
+        "options": [
+         {
+          "label": "A"
+         },
+         {
+          "label": "B"
+         }
+        ]
+       }
+      ]
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    }
+   },
+   "meta": {
+    "id": "evt_9",
+    "seq": 9,
+    "createdAt": 1790000009000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_10",
+    "seq": 10,
+    "createdAt": 1790000010000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 10,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000010000,
+       "completedAt": 1790000010000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:question:pint_q",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_q",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": {
+          "q1": "A"
+         },
+         "statusReason": null
+        },
+        {
+         "id": "thr_ops:form:pint_f",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 6,
+         "createdAt": 1790000006000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_f",
+         "lifecycle": "submitted",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": null,
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": {
+          "color": "red"
+         }
+        },
+        {
+         "id": "thr_ops:form:pint_g",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "interrupted",
+         "interactionId": "pint_g",
+         "lifecycle": "cancelled",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": "cancelled by user",
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": null
+        },
+        {
+         "id": "thr_ops:question:pint_q2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 9,
+         "createdAt": 1790000009000,
+         "startedAt": 1790000009000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "pending",
+         "interactionId": "pint_q2",
+         "lifecycle": "pending",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": null,
+         "statusReason": null
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 10,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000010000,
+       "completedAt": 1790000010000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:question:pint_q",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_q",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": {
+          "q1": "A"
+         },
+         "statusReason": null
+        },
+        {
+         "id": "thr_ops:form:pint_f",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 6,
+         "createdAt": 1790000006000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_f",
+         "lifecycle": "submitted",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": null,
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": {
+          "color": "red"
+         }
+        },
+        {
+         "id": "thr_ops:form:pint_g",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "interrupted",
+         "interactionId": "pint_g",
+         "lifecycle": "cancelled",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": "cancelled by user",
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": null
+        },
+        {
+         "id": "thr_ops:question:pint_q2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 9,
+         "createdAt": 1790000009000,
+         "startedAt": 1790000009000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "pending",
+         "interactionId": "pint_q2",
+         "lifecycle": "pending",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": null,
+         "statusReason": null
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 10,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000010000,
+       "completedAt": 1790000010000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_ops:question:pint_q",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 4,
+         "createdAt": 1790000004000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_q",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": {
+          "q1": "A"
+         },
+         "statusReason": null
+        },
+        {
+         "id": "thr_ops:form:pint_f",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 5,
+         "sourceSeqEnd": 6,
+         "createdAt": 1790000006000,
+         "startedAt": 1790000005000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_f",
+         "lifecycle": "submitted",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": null,
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": {
+          "color": "red"
+         }
+        },
+        {
+         "id": "thr_ops:form:pint_g",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 7,
+         "sourceSeqEnd": 8,
+         "createdAt": 1790000008000,
+         "startedAt": 1790000007000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "interrupted",
+         "interactionId": "pint_g",
+         "lifecycle": "cancelled",
+         "pluginId": "acme",
+         "rendererId": "color-form",
+         "title": "Pick a color",
+         "statusReason": "cancelled by user",
+         "presentation": {
+          "kind": "form"
+         },
+         "payload": null
+        },
+        {
+         "id": "thr_ops:question:pint_q2",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 9,
+         "sourceSeqEnd": 9,
+         "createdAt": 1790000009000,
+         "startedAt": 1790000009000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "pending",
+         "interactionId": "pint_q2",
+         "lifecycle": "pending",
+         "questions": [
+          {
+           "id": "q1",
+           "question": "Which?",
+           "options": [
+            {
+             "label": "A"
+            },
+            {
+             "label": "B"
+            }
+           ]
+          }
+         ],
+         "answers": null,
+         "statusReason": null
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

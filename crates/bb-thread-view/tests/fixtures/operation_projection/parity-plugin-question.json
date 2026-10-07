@@ -1,0 +1,1295 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "call_tool:AskUserQuestion tool_input:{\"questions\":[{\"question\":\"Pick_one?\",\"header\":\"Pick\",\"options\":[{\"label\":\"Alpha\",\"description\":\"first\"},{\"label\":\"Beta\",\"description\":\"second\"}]}]}",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "requestId": "creq_dgyzk5y8iw",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "spawn",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "thread-start"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_iazp92ebvj",
+    "seq": 1
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "initiator": "user",
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "source": "spawn",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "client/thread/start"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_bujgsuuz59",
+    "seq": 2
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-started",
+      "startedAt": 1800000110000,
+      "status": "started",
+      "text": "Preparing workspace",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_ygcsv88dnt",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_rnfg9n9nfz",
+    "seq": 3
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-started",
+      "startedAt": 1800000110000,
+      "status": "started",
+      "text": "Generating title",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_ygcsv88dnt",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_6ismkrj54m",
+    "seq": 4
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-completed",
+      "metadata": {
+       "durationMs": 0,
+       "titleGenerated": false
+      },
+      "startedAt": 1800000110000,
+      "status": "completed",
+      "text": "No title generated",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_ygcsv88dnt",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_ra9j6tbmfa",
+    "seq": 5
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-path",
+      "startedAt": 1800000110000,
+      "status": "completed",
+      "text": "Using workspace: $DATA_DIR/workspaces/thr_zkrvudd7vb",
+      "type": "step"
+     }
+    ],
+    "environmentId": "env_pie6cxizyk",
+    "provisioningId": "tpv_ygcsv88dnt",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_9dnju6ecth",
+    "seq": 6
+   }
+  },
+  {
+   "event": {
+    "entries": [],
+    "environmentId": "env_pie6cxizyk",
+    "provisioningId": "tpv_ygcsv88dnt",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "completed",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_ymj2kcd3td",
+    "seq": 7
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_36q36h89uu",
+    "seq": 8
+   }
+  },
+  {
+   "event": {
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "thread/started"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_xt9ywccw5i",
+    "seq": 9
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_zkrvudd7vb"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_zkrvudd7vb"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_pie6cxizyk"
+     }
+    ],
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_emirjh5gap",
+    "seq": 10
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_f6itc8d9za",
+    "seq": 11
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_dgyzk5y8iw",
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_2q2jaje9hx",
+    "seq": 12
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "arguments": {
+      "questions": [
+       {
+        "header": "Pick",
+        "options": [
+         {
+          "description": "first",
+          "label": "Alpha"
+         },
+         {
+          "description": "second",
+          "label": "Beta"
+         }
+        ],
+        "question": "Pick one?"
+       }
+      ]
+     },
+     "id": "da8a17cbe6-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "Toolbox"
+      },
+      "label": {
+       "completed": "Ran AskUserQuestion",
+       "pending": "Running AskUserQuestion"
+      }
+     },
+     "server": "bb",
+     "status": "pending",
+     "tool": "AskUserQuestion",
+     "type": "toolCall"
+    },
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_em3ykbk6hv",
+    "seq": 13
+   }
+  },
+  {
+   "event": {
+    "interaction": {
+     "id": "pint_8udgh4vuzn",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "ask-user-question",
+      "rendererId": "ask-user-question"
+     },
+     "payload": {
+      "kind": "plugin",
+      "presentation": {
+       "icon": {
+        "glyph": "MessageQuestion"
+       },
+       "label": {
+        "completed": "Asked",
+        "pending": "Asking a question"
+       }
+      },
+      "title": "Pick"
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/interaction/lifecycle"
+   },
+   "meta": {
+    "createdAt": 1800000110000,
+    "id": "evt_z4jn6nmnf5",
+    "seq": 14
+   }
+  },
+  {
+   "event": {
+    "interaction": {
+     "id": "pint_8udgh4vuzn",
+     "origin": {
+      "kind": "plugin",
+      "pluginId": "ask-user-question",
+      "rendererId": "ask-user-question"
+     },
+     "payload": {
+      "kind": "plugin",
+      "presentation": {
+       "icon": {
+        "glyph": "MessageQuestion"
+       },
+       "label": {
+        "completed": "Asked",
+        "pending": "Asking a question"
+       }
+      },
+      "title": "Pick"
+     },
+     "resolution": {
+      "description": {
+       "detail": "- Pick one? — no answer",
+       "title": "Answered Pick one? — no answer"
+      },
+      "kind": "plugin_submitted"
+     },
+     "status": "resolved",
+     "statusReason": null
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "system/interaction/lifecycle"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_2tsp6t98pc",
+    "seq": 15
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "arguments": {
+      "questions": [
+       {
+        "header": "Pick",
+        "options": [
+         {
+          "description": "first",
+          "label": "Alpha"
+         },
+         {
+          "description": "second",
+          "label": "Beta"
+         }
+        ],
+        "question": "Pick one?"
+       }
+      ]
+     },
+     "id": "da8a17cbe6-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "Toolbox"
+      },
+      "label": {
+       "completed": "Ran AskUserQuestion",
+       "pending": "Running AskUserQuestion"
+      }
+     },
+     "result": "The user submitted no answers. Proceed with your best judgement, or ask again in your reply.",
+     "server": "bb",
+     "status": "completed",
+     "tool": "AskUserQuestion",
+     "type": "toolCall"
+    },
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_9knpbs7gg4",
+    "seq": 16
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da8a17cbe6-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_7cz3s6ukrx",
+    "seq": 17
+   }
+  },
+  {
+   "event": {
+    "delta": "Tool called: AskUserQuestion",
+    "itemId": "da8a17cbe6-i2",
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_nztdh3kzmy",
+    "seq": 18
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da8a17cbe6-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Tool called: AskUserQuestion",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_w98pq7tw77",
+    "seq": 19
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 285,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 285
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 285,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 285
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_ba2t936seu",
+    "seq": 20
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 285
+    },
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "threadId": "thr_zkrvudd7vb",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_u2csjx5gyz",
+    "seq": 21
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-1",
+    "providerThreadId": "echo-thr_zkrvudd7vb",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da8a17cbe6-t1"
+    },
+    "status": "completed",
+    "threadId": "thr_zkrvudd7vb",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000112000,
+    "id": "evt_393nc3rhf8",
+    "seq": 22
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_zkrvudd7vb:user-seed:1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "call_tool:AskUserQuestion tool_input:{\"questions\":[{\"question\":\"Pick_one?\",\"header\":\"Pick\",\"options\":[{\"label\":\"Alpha\",\"description\":\"first\"},{\"label\":\"Beta\",\"description\":\"second\"}]}]}",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_zkrvudd7vb:op:thread-provisioning:3",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000110000,
+       "startedAt": 1800000110000,
+       "completedAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_ygcsv88dnt",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_zkrvudd7vb",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "da8a17cbe6-t1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 22,
+       "startedAt": 1800000110000,
+       "createdAt": 1800000112000,
+       "completedAt": 1800000112000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_zkrvudd7vb:tool:da8a17cbe6-i1",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 16,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "kind": "exec",
+         "workKind": "tool",
+         "status": "completed",
+         "callId": "da8a17cbe6-i1",
+         "toolName": "bb:AskUserQuestion",
+         "toolArgs": {
+          "questions": [
+           {
+            "header": "Pick",
+            "options": [
+             {
+              "description": "first",
+              "label": "Alpha"
+             },
+             {
+              "description": "second",
+              "label": "Beta"
+             }
+            ],
+            "question": "Pick one?"
+           }
+          ]
+         },
+         "output": "The user submitted no answers. Proceed with your best judgement, or ask again in your reply.",
+         "completedAt": 1800000112000,
+         "approvalStatus": null,
+         "presentation": {
+          "icon": {
+           "glyph": "Toolbox"
+          },
+          "label": {
+           "completed": "Ran AskUserQuestion",
+           "pending": "Running AskUserQuestion"
+          }
+         }
+        },
+        {
+         "id": "thr_zkrvudd7vb:form:pint_8udgh4vuzn",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "thread"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_8udgh4vuzn",
+         "lifecycle": "submitted",
+         "pluginId": "ask-user-question",
+         "rendererId": "ask-user-question",
+         "title": "Pick",
+         "statusReason": null,
+         "presentation": {
+          "icon": {
+           "glyph": "MessageQuestion"
+          },
+          "label": {
+           "completed": "Asked",
+           "pending": "Asking a question"
+          },
+          "title": "Answered Pick one? — no answer",
+          "detail": "- Pick one? — no answer"
+         },
+         "payload": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_zkrvudd7vb:assistant:kind:assistant|turn:da8a17cbe6-t1|parent:root|item:da8a17cbe6-i2",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000112000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "text": "Tool called: AskUserQuestion",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_zkrvudd7vb:user-seed:1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "call_tool:AskUserQuestion tool_input:{\"questions\":[{\"question\":\"Pick_one?\",\"header\":\"Pick\",\"options\":[{\"label\":\"Alpha\",\"description\":\"first\"},{\"label\":\"Beta\",\"description\":\"second\"}]}]}",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_zkrvudd7vb:op:thread-provisioning:3",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000110000,
+       "startedAt": 1800000110000,
+       "completedAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_ygcsv88dnt",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_zkrvudd7vb",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "da8a17cbe6-t1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 22,
+       "startedAt": 1800000110000,
+       "createdAt": 1800000112000,
+       "completedAt": 1800000112000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_zkrvudd7vb:tool:da8a17cbe6-i1",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 16,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "kind": "exec",
+         "workKind": "tool",
+         "status": "completed",
+         "callId": "da8a17cbe6-i1",
+         "toolName": "bb:AskUserQuestion",
+         "toolArgs": {
+          "questions": [
+           {
+            "header": "Pick",
+            "options": [
+             {
+              "description": "first",
+              "label": "Alpha"
+             },
+             {
+              "description": "second",
+              "label": "Beta"
+             }
+            ],
+            "question": "Pick one?"
+           }
+          ]
+         },
+         "output": "The user submitted no answers. Proceed with your best judgement, or ask again in your reply.",
+         "completedAt": 1800000112000,
+         "approvalStatus": null,
+         "presentation": {
+          "icon": {
+           "glyph": "Toolbox"
+          },
+          "label": {
+           "completed": "Ran AskUserQuestion",
+           "pending": "Running AskUserQuestion"
+          }
+         }
+        },
+        {
+         "id": "thr_zkrvudd7vb:form:pint_8udgh4vuzn",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "thread"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_8udgh4vuzn",
+         "lifecycle": "submitted",
+         "pluginId": "ask-user-question",
+         "rendererId": "ask-user-question",
+         "title": "Pick",
+         "statusReason": null,
+         "presentation": {
+          "icon": {
+           "glyph": "MessageQuestion"
+          },
+          "label": {
+           "completed": "Asked",
+           "pending": "Asking a question"
+          },
+          "title": "Answered Pick one? — no answer",
+          "detail": "- Pick one? — no answer"
+         },
+         "payload": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_zkrvudd7vb:assistant:kind:assistant|turn:da8a17cbe6-t1|parent:root|item:da8a17cbe6-i2",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000112000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "text": "Tool called: AskUserQuestion",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_zkrvudd7vb:user-seed:1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "call_tool:AskUserQuestion tool_input:{\"questions\":[{\"question\":\"Pick_one?\",\"header\":\"Pick\",\"options\":[{\"label\":\"Alpha\",\"description\":\"first\"},{\"label\":\"Beta\",\"description\":\"second\"}]}]}",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_zkrvudd7vb:op:thread-provisioning:3",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000110000,
+       "startedAt": 1800000110000,
+       "completedAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_ygcsv88dnt",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000110000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000110000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_zkrvudd7vb",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_zkrvudd7vb:op:provider-environment:10",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 10,
+       "sourceSeqEnd": 10,
+       "createdAt": 1800000110000,
+       "startedAt": 1800000110000,
+       "completedAt": 1800000110000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "provider-environment",
+       "title": "Provider environment resolved",
+       "detail": "PATH=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin (shell)\nBB_CLI=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb (shell)\nBB_SERVER_URL=http://127.0.0.1:0 (shell)\nBB_THREAD_STORAGE=$DATA_DIR/thread-storage/thr_zkrvudd7vb (shell)\nBB_THREAD_ID=thr_zkrvudd7vb (shell)\nBB_PROJECT_ID=proj_personal (shell)\nBB_ENVIRONMENT_ID=env_pie6cxizyk (shell)",
+       "status": "completed"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "da8a17cbe6-t1",
+       "threadId": "thr_zkrvudd7vb",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 22,
+       "startedAt": 1800000110000,
+       "createdAt": 1800000112000,
+       "completedAt": 1800000112000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_zkrvudd7vb:tool:da8a17cbe6-i1",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 16,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "kind": "exec",
+         "workKind": "tool",
+         "status": "completed",
+         "callId": "da8a17cbe6-i1",
+         "toolName": "bb:AskUserQuestion",
+         "toolArgs": {
+          "questions": [
+           {
+            "header": "Pick",
+            "options": [
+             {
+              "description": "first",
+              "label": "Alpha"
+             },
+             {
+              "description": "second",
+              "label": "Beta"
+             }
+            ],
+            "question": "Pick one?"
+           }
+          ]
+         },
+         "output": "The user submitted no answers. Proceed with your best judgement, or ask again in your reply.",
+         "completedAt": 1800000112000,
+         "approvalStatus": null,
+         "presentation": {
+          "icon": {
+           "glyph": "Toolbox"
+          },
+          "label": {
+           "completed": "Ran AskUserQuestion",
+           "pending": "Running AskUserQuestion"
+          }
+         }
+        },
+        {
+         "id": "thr_zkrvudd7vb:form:pint_8udgh4vuzn",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 14,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000110000,
+         "scope": {
+          "kind": "thread"
+         },
+         "kind": "interaction",
+         "workKind": "form",
+         "status": "completed",
+         "interactionId": "pint_8udgh4vuzn",
+         "lifecycle": "submitted",
+         "pluginId": "ask-user-question",
+         "rendererId": "ask-user-question",
+         "title": "Pick",
+         "statusReason": null,
+         "presentation": {
+          "icon": {
+           "glyph": "MessageQuestion"
+          },
+          "label": {
+           "completed": "Asked",
+           "pending": "Asking a question"
+          },
+          "title": "Answered Pick one? — no answer",
+          "detail": "- Pick one? — no answer"
+         },
+         "payload": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_zkrvudd7vb:assistant:kind:assistant|turn:da8a17cbe6-t1|parent:root|item:da8a17cbe6-i2",
+         "threadId": "thr_zkrvudd7vb",
+         "sourceSeqStart": 18,
+         "sourceSeqEnd": 19,
+         "createdAt": 1800000112000,
+         "startedAt": 1800000112000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "da8a17cbe6-t1"
+         },
+         "text": "Tool called: AskUserQuestion",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

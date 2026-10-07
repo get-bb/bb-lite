@@ -1,0 +1,446 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1"
+   },
+   "meta": {
+    "id": "evt_1",
+    "seq": 1,
+    "createdAt": 1790000001000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc1",
+     "status": "pending",
+     "changes": [
+      {
+       "path": "a.txt",
+       "kind": "update",
+       "diff": "+x"
+      }
+     ],
+     "approvalStatus": "waiting_for_approval"
+    }
+   },
+   "meta": {
+    "id": "evt_2",
+    "seq": 2,
+    "createdAt": 1790000002000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc1",
+     "status": "failed",
+     "changes": [
+      {
+       "path": "a.txt",
+       "kind": "update",
+       "diff": "+x"
+      }
+     ],
+     "approvalStatus": "denied"
+    }
+   },
+   "meta": {
+    "id": "evt_3",
+    "seq": 3,
+    "createdAt": 1790000003000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/started",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc2",
+     "status": "pending",
+     "changes": [
+      {
+       "path": "a.txt"
+      },
+      {
+       "path": "a.txt"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_4",
+    "seq": 4,
+    "createdAt": 1790000004000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "item/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "item": {
+     "type": "fileChange",
+     "id": "fc2",
+     "status": "failed",
+     "changes": [
+      {
+       "path": "a.txt"
+      },
+      {
+       "path": "a.txt"
+      }
+     ]
+    }
+   },
+   "meta": {
+    "id": "evt_5",
+    "seq": 5,
+    "createdAt": 1790000005000
+   }
+  },
+  {
+   "event": {
+    "threadId": "thr_ops",
+    "type": "turn/completed",
+    "scope": {
+     "kind": "turn",
+     "turnId": "t1"
+    },
+    "providerThreadId": "p1",
+    "status": "completed"
+   },
+   "meta": {
+    "id": "evt_6",
+    "seq": 6,
+    "createdAt": 1790000006000
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 6,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000006000,
+       "completedAt": 1790000006000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+x"
+          }
+         ],
+         "approvalStatus": "denied",
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt:1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 6,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000006000,
+       "completedAt": 1790000006000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+x"
+          }
+         ],
+         "approvalStatus": "denied",
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt:1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "t1",
+       "threadId": "thr_ops",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 6,
+       "startedAt": 1790000001000,
+       "createdAt": 1790000006000,
+       "completedAt": 1790000006000,
+       "status": "completed",
+       "messages": [
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc1:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 2,
+         "sourceSeqEnd": 3,
+         "createdAt": 1790000003000,
+         "startedAt": 1790000002000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc1",
+         "changes": [
+          {
+           "path": "a.txt",
+           "kind": "update",
+           "movePath": null,
+           "diff": "+x"
+          }
+         ],
+         "approvalStatus": "denied",
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        },
+        {
+         "kind": "file-edit",
+         "id": "thr_ops:file-edit:fc2:a.txt:1",
+         "threadId": "thr_ops",
+         "sourceSeqStart": 4,
+         "sourceSeqEnd": 5,
+         "createdAt": 1790000005000,
+         "startedAt": 1790000004000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "t1"
+         },
+         "callId": "fc2",
+         "changes": [
+          {
+           "path": "a.txt",
+           "movePath": null
+          }
+         ],
+         "approvalStatus": null,
+         "status": "error"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}

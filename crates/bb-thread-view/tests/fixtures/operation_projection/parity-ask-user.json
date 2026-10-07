@@ -1,0 +1,1181 @@
+{
+ "compacted": [
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "ask_user now",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "requestId": "creq_373hcvmc6f",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "spawn",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "thread-start"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_929kvnrz5s",
+    "seq": 1
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "initiator": "user",
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "source": "spawn",
+    "threadId": "thr_c6aidirhm8",
+    "type": "client/thread/start"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_nafbr27wh6",
+    "seq": 2
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-started",
+      "startedAt": 1800000108000,
+      "status": "started",
+      "text": "Preparing workspace",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_zrw3jd7emz",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_bpnv5wvvcc",
+    "seq": 3
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-started",
+      "startedAt": 1800000108000,
+      "status": "started",
+      "text": "Generating title",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_zrw3jd7emz",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_3478h2cj3u",
+    "seq": 4
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-completed",
+      "metadata": {
+       "durationMs": 0,
+       "titleGenerated": false
+      },
+      "startedAt": 1800000108000,
+      "status": "completed",
+      "text": "No title generated",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_zrw3jd7emz",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_eicyyfm94c",
+    "seq": 5
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-path",
+      "startedAt": 1800000108000,
+      "status": "completed",
+      "text": "Using workspace: $DATA_DIR/workspaces/thr_c6aidirhm8",
+      "type": "step"
+     }
+    ],
+    "environmentId": "env_6ir8g362bb",
+    "provisioningId": "tpv_zrw3jd7emz",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_8vj9qmyizy",
+    "seq": 6
+   }
+  },
+  {
+   "event": {
+    "entries": [],
+    "environmentId": "env_6ir8g362bb",
+    "provisioningId": "tpv_zrw3jd7emz",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "completed",
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_zup3a2t3bh",
+    "seq": 7
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_cfqy5fvnba",
+    "seq": 8
+   }
+  },
+  {
+   "event": {
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "thread/started"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_enw25n6hdw",
+    "seq": 9
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_c6aidirhm8"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_c6aidirhm8"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_6ir8g362bb"
+     }
+    ],
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_4bmtzsevxd",
+    "seq": 10
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_z5p65i9sse",
+    "seq": 11
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_373hcvmc6f",
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_bjj2syrdfa",
+    "seq": 12
+   }
+  },
+  {
+   "event": {
+    "interaction": {
+     "id": "pint_znsa2gqwne",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "8b49d6d7-e9cc-4393-92e6-b00a8d5c8157:3"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "allowFreeText": true,
+        "id": "turn-1:question-1",
+        "multiSelect": false,
+        "options": [
+         {
+          "description": "Deploy to staging first.",
+          "label": "Staging",
+          "value": "staging"
+         },
+         {
+          "description": "Deploy directly to production.",
+          "label": "Production",
+          "value": "production"
+         }
+        ],
+        "prompt": "Which deployment path should the echo provider use?",
+        "shortLabel": "Path"
+       }
+      ]
+     },
+     "resolution": null,
+     "status": "pending",
+     "statusReason": null
+    },
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/interaction/lifecycle"
+   },
+   "meta": {
+    "createdAt": 1800000108000,
+    "id": "evt_nkiwp7nd5c",
+    "seq": 13
+   }
+  },
+  {
+   "event": {
+    "interaction": {
+     "id": "pint_znsa2gqwne",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "8b49d6d7-e9cc-4393-92e6-b00a8d5c8157:3"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "allowFreeText": true,
+        "id": "turn-1:question-1",
+        "multiSelect": false,
+        "options": [
+         {
+          "description": "Deploy to staging first.",
+          "label": "Staging",
+          "value": "staging"
+         },
+         {
+          "description": "Deploy directly to production.",
+          "label": "Production",
+          "value": "production"
+         }
+        ],
+        "prompt": "Which deployment path should the echo provider use?",
+        "shortLabel": "Path"
+       }
+      ]
+     },
+     "resolution": {
+      "answers": {
+       "turn-1:question-1": {
+        "selected": [
+         "staging"
+        ]
+       }
+      },
+      "kind": "user_answer"
+     },
+     "status": "resolving",
+     "statusReason": null
+    },
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/interaction/lifecycle"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_gx59rgfdbi",
+    "seq": 14
+   }
+  },
+  {
+   "event": {
+    "interaction": {
+     "id": "pint_znsa2gqwne",
+     "origin": {
+      "kind": "provider",
+      "providerId": "echo",
+      "providerRequestId": "8b49d6d7-e9cc-4393-92e6-b00a8d5c8157:3"
+     },
+     "payload": {
+      "kind": "user_question",
+      "questions": [
+       {
+        "allowFreeText": true,
+        "id": "turn-1:question-1",
+        "multiSelect": false,
+        "options": [
+         {
+          "description": "Deploy to staging first.",
+          "label": "Staging",
+          "value": "staging"
+         },
+         {
+          "description": "Deploy directly to production.",
+          "label": "Production",
+          "value": "production"
+         }
+        ],
+        "prompt": "Which deployment path should the echo provider use?",
+        "shortLabel": "Path"
+       }
+      ]
+     },
+     "resolution": {
+      "answers": {
+       "turn-1:question-1": {
+        "selected": [
+         "staging"
+        ]
+       }
+      },
+      "kind": "user_answer"
+     },
+     "status": "resolved",
+     "statusReason": null
+    },
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "system/interaction/lifecycle"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_ac2ifcxa9h",
+    "seq": 15
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daf60d2f86-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_6emdb8xs6w",
+    "seq": 16
+   }
+  },
+  {
+   "event": {
+    "delta": "Question answered: staging",
+    "itemId": "daf60d2f86-i1",
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_d5d3xns9ih",
+    "seq": 17
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "daf60d2f86-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Question answered: staging",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_7gbdbmsu7g",
+    "seq": 18
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 112,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 112
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 112,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 112
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_jevsh4w4qr",
+    "seq": 19
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 112
+    },
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "threadId": "thr_c6aidirhm8",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_xidvjuakju",
+    "seq": 20
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-1",
+    "providerThreadId": "echo-thr_c6aidirhm8",
+    "scope": {
+     "kind": "turn",
+     "turnId": "daf60d2f86-t1"
+    },
+    "status": "completed",
+    "threadId": "thr_c6aidirhm8",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000109000,
+    "id": "evt_k3nsv7m4xy",
+    "seq": 21
+   }
+  }
+ ],
+ "results": [
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "idle",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_c6aidirhm8:user-seed:1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "ask_user now",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_c6aidirhm8:op:thread-provisioning:3",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000108000,
+       "startedAt": 1800000108000,
+       "completedAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_zrw3jd7emz",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_c6aidirhm8",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daf60d2f86-t1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 21,
+       "startedAt": 1800000108000,
+       "createdAt": 1800000109000,
+       "completedAt": 1800000109000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_c6aidirhm8:question:pint_znsa2gqwne",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000108000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_znsa2gqwne",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "allowFreeText": true,
+           "id": "turn-1:question-1",
+           "multiSelect": false,
+           "options": [
+            {
+             "description": "Deploy to staging first.",
+             "label": "Staging",
+             "value": "staging"
+            },
+            {
+             "description": "Deploy directly to production.",
+             "label": "Production",
+             "value": "production"
+            }
+           ],
+           "prompt": "Which deployment path should the echo provider use?",
+           "shortLabel": "Path"
+          }
+         ],
+         "answers": {
+          "turn-1:question-1": {
+           "selected": [
+            "staging"
+           ]
+          }
+         },
+         "statusReason": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_c6aidirhm8:assistant:kind:assistant|turn:daf60d2f86-t1|parent:root|item:daf60d2f86-i1",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 17,
+         "sourceSeqEnd": 18,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000109000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "text": "Question answered: staging",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": false,
+    "threadStatus": "error",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_c6aidirhm8:user-seed:1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "ask_user now",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_c6aidirhm8:op:thread-provisioning:3",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000108000,
+       "startedAt": 1800000108000,
+       "completedAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_zrw3jd7emz",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_c6aidirhm8",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daf60d2f86-t1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 21,
+       "startedAt": 1800000108000,
+       "createdAt": 1800000109000,
+       "completedAt": 1800000109000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_c6aidirhm8:question:pint_znsa2gqwne",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000108000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_znsa2gqwne",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "allowFreeText": true,
+           "id": "turn-1:question-1",
+           "multiSelect": false,
+           "options": [
+            {
+             "description": "Deploy to staging first.",
+             "label": "Staging",
+             "value": "staging"
+            },
+            {
+             "description": "Deploy directly to production.",
+             "label": "Production",
+             "value": "production"
+            }
+           ],
+           "prompt": "Which deployment path should the echo provider use?",
+           "shortLabel": "Path"
+          }
+         ],
+         "answers": {
+          "turn-1:question-1": {
+           "selected": [
+            "staging"
+           ]
+          }
+         },
+         "statusReason": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_c6aidirhm8:assistant:kind:assistant|turn:daf60d2f86-t1|parent:root|item:daf60d2f86-i1",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 17,
+         "sourceSeqEnd": 18,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000109000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "text": "Question answered: staging",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  },
+  {
+   "options": {
+    "includeDiagnosticOperations": true,
+    "threadStatus": "active",
+    "threadName": "Fixture thread"
+   },
+   "projection": {
+    "entries": [
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "user",
+       "id": "thr_c6aidirhm8:user-seed:1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 1,
+       "createdAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "role": "user",
+       "text": "ask_user now",
+       "mentions": [],
+       "attachments": {
+        "webImages": 0,
+        "localImages": 0,
+        "localFiles": 0,
+        "imageUrls": [],
+        "localImagePaths": [],
+        "localFilePaths": []
+       },
+       "initiator": "user",
+       "senderThreadId": null,
+       "systemMessageKind": "unlabeled",
+       "systemMessageSubject": null,
+       "turnRequest": {
+        "isGrouped": false,
+        "kind": "message",
+        "status": "accepted"
+       }
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_c6aidirhm8:op:thread-provisioning:3",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 3,
+       "sourceSeqEnd": 7,
+       "createdAt": 1800000108000,
+       "startedAt": 1800000108000,
+       "completedAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "thread-provisioning",
+       "title": "Provisioned thread",
+       "status": "completed",
+       "mergeKey": "tpv_zrw3jd7emz",
+       "transcript": [
+        {
+         "key": "workspace-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Preparing workspace",
+         "type": "step"
+        },
+        {
+         "key": "metadata-started",
+         "startedAt": 1800000108000,
+         "status": "started",
+         "text": "Generating title",
+         "type": "step"
+        },
+        {
+         "key": "metadata-completed",
+         "metadata": {
+          "durationMs": 0,
+          "titleGenerated": false
+         },
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "No title generated",
+         "type": "step"
+        },
+        {
+         "key": "workspace-path",
+         "startedAt": 1800000108000,
+         "status": "completed",
+         "text": "Using workspace: $DATA_DIR/workspaces/thr_c6aidirhm8",
+         "type": "step"
+        }
+       ]
+      }
+     },
+     {
+      "kind": "projected-message",
+      "message": {
+       "kind": "operation",
+       "id": "thr_c6aidirhm8:op:provider-environment:10",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 10,
+       "sourceSeqEnd": 10,
+       "createdAt": 1800000108000,
+       "startedAt": 1800000108000,
+       "completedAt": 1800000108000,
+       "scope": {
+        "kind": "thread"
+       },
+       "opType": "provider-environment",
+       "title": "Provider environment resolved",
+       "detail": "PATH=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin (shell)\nBB_CLI=/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb (shell)\nBB_SERVER_URL=http://127.0.0.1:0 (shell)\nBB_THREAD_STORAGE=$DATA_DIR/thread-storage/thr_c6aidirhm8 (shell)\nBB_THREAD_ID=thr_c6aidirhm8 (shell)\nBB_PROJECT_ID=proj_personal (shell)\nBB_ENVIRONMENT_ID=env_6ir8g362bb (shell)",
+       "status": "completed"
+      }
+     },
+     {
+      "kind": "turn",
+      "turn": {
+       "turnId": "daf60d2f86-t1",
+       "threadId": "thr_c6aidirhm8",
+       "sourceSeqStart": 1,
+       "sourceSeqEnd": 21,
+       "startedAt": 1800000108000,
+       "createdAt": 1800000109000,
+       "completedAt": 1800000109000,
+       "status": "completed",
+       "messages": [
+        {
+         "id": "thr_c6aidirhm8:question:pint_znsa2gqwne",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 13,
+         "sourceSeqEnd": 15,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000108000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "kind": "interaction",
+         "workKind": "question",
+         "status": "completed",
+         "interactionId": "pint_znsa2gqwne",
+         "lifecycle": "answered",
+         "questions": [
+          {
+           "allowFreeText": true,
+           "id": "turn-1:question-1",
+           "multiSelect": false,
+           "options": [
+            {
+             "description": "Deploy to staging first.",
+             "label": "Staging",
+             "value": "staging"
+            },
+            {
+             "description": "Deploy directly to production.",
+             "label": "Production",
+             "value": "production"
+            }
+           ],
+           "prompt": "Which deployment path should the echo provider use?",
+           "shortLabel": "Path"
+          }
+         ],
+         "answers": {
+          "turn-1:question-1": {
+           "selected": [
+            "staging"
+           ]
+          }
+         },
+         "statusReason": null
+        },
+        {
+         "kind": "assistant-text",
+         "id": "thr_c6aidirhm8:assistant:kind:assistant|turn:daf60d2f86-t1|parent:root|item:daf60d2f86-i1",
+         "threadId": "thr_c6aidirhm8",
+         "sourceSeqStart": 17,
+         "sourceSeqEnd": 18,
+         "createdAt": 1800000109000,
+         "startedAt": 1800000109000,
+         "scope": {
+          "kind": "turn",
+          "turnId": "daf60d2f86-t1"
+         },
+         "text": "Question answered: staging",
+         "status": "completed"
+        }
+       ]
+      }
+     }
+    ],
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "activeBackgroundCommands": []
+   }
+  }
+ ]
+}
