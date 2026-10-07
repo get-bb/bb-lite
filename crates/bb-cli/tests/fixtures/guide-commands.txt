@@ -1,0 +1,502 @@
+Usage: bb status [options]
+Show the current project, thread, environment and server
+JSON (--json): {project, thread, childThreads, pendingTodos, pluginsNeedingAttention, dataDir, serverUrl}
+
+Usage: bb guide [topic] [group] [options]
+Explain bb: concepts, threads, machines, commands, …
+
+Usage: bb thread spawn [options]
+Create a thread and send its first prompt
+Aliases: create, new
+Options:
+  --project <id>              Project ID (required; inside a thread: $BB_PROJECT_ID)
+  --title <title>             Thread title
+  --prompt <text>             First prompt
+  --prompt-file <path>        Read the prompt from a file (- reads stdin)
+  --parent-self               Parent the new thread to BB_THREAD_ID
+  --parent-thread <id>        Parent thread ID
+  --provider <id>             Provider ID (default: the project's remembered choice)
+  --model <model>             Model ID
+  --reasoning-level <level>   none, low, medium, high, xhigh, max, ultra, …
+  --permission-mode <mode>    accept-edits, auto or full
+  --environment <id-or-path>  Reuse an environment, or run in a directory
+  --new-environment <kind>    worktree, checkout or personal
+  --base-branch <ref>         Git ref for a new worktree (origin/<branch>)
+  --machine <id-or-name>      Machine to run on (alias --host)
+  --section <id>              Sidebar section
+  --visibility <visibility>   visible or hidden (a child inherits)
+  --file <path>               Attach a file; an absolute path here is uploaded first (repeatable)
+  --image <path>              Attach an image the same way (repeatable)
+  --send-at <when>            ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
+JSON (--json): the created thread: {id, status, title, projectId, environmentId, …}
+
+Usage: bb thread tell <id> [message] [options]
+Send a message; a busy thread queues it
+Aliases: message, send
+Options:
+  --message-file <path>      Read the message from a file (- reads stdin)
+  --mode <mode>              steer (default), queue or auto
+  --model <model>            Model ID
+  --reasoning-level <level>  none, low, medium, high, xhigh, max, ultra, …
+  --permission-mode <mode>   accept-edits, auto or full
+  --file <path>              Attach a file; an absolute path here is uploaded first (repeatable)
+  --image <path>             Attach an image the same way (repeatable)
+  --send-at <when>           ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
+JSON (--json): {threadId, delivery: "sent" | "queued", queuedMessage?, mode}
+
+Usage: bb thread wait <id> [options]
+Block until a thread reaches a status (default idle) or event
+Options:
+  --status <status>           pending, idle, starting, active, stopping or error
+  --event <type>              Wait for an event of this type instead
+  --timeout <duration>        Seconds, or 90s, 20m, 4h (default 1200s)
+  --poll-interval <duration>  Milliseconds, or 5s (default 250ms)
+JSON (--json): {threadId, matched: true, target}; exit 2 on timeout, 3 on an invalid request, 4 when the thread cannot reach the status
+
+Usage: bb thread show [id] [options]
+Show a thread, its environment and its TODOs
+Aliases: get, view, status
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+JSON (--json): {thread, environment, pendingTodos} (thread fields are under .thread)
+
+Usage: bb thread log [id] [options]
+Print the timeline, or raw events as JSON
+Aliases: messages, timeline
+Options:
+  --self             Target the current thread (BB_THREAD_ID)
+  --format <format>  minimal (default), verbose or json
+  --limit <count>    Events for json (default 100); turns otherwise (max 100)
+  --after-seq <seq>  Events after this sequence (json only)
+  --all              Page through the whole thread
+JSON (--json): [{id, seq, type, createdAt, threadId, scope, data}] oldest first
+
+Usage: bb thread output [id] [options]
+Print the final assistant message of the last turn
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+JSON (--json): {output}
+
+Usage: bb thread list [options]
+List threads
+Options:
+  --project <id>          Only this project
+  --environment <id>      Only this environment
+  --machine <id-or-name>  Only this machine (alias --host)
+  --parent-thread <id>    Only children of this thread
+  --section <id>          Only this section
+  --unsectioned           Only threads outside sections
+  --archived              Only archived threads
+  --include-hidden        Include hidden threads
+  --count                 Print only the number of matching threads
+JSON (--json): [{id, projectId, title, status, parentThreadId, …}] (bare array)
+
+Usage: bb thread update [id] [options]
+Change title, parent, section, model or visibility
+Options:
+  --self                     Target the current thread (BB_THREAD_ID)
+  --title <title>            New title
+  --parent-thread <id>       New parent thread
+  --clear-parent-thread      Remove the parent thread
+  --section <id>             Move into a section
+  --clear-section            Remove from its section
+  --model <model>            Model for the next turn
+  --reasoning-level <level>  Reasoning level for the next turn
+  --visibility <visibility>  visible or hidden
+
+Usage: bb thread stop [id] [options]
+Stop work and release the agent runtime
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread archive [id] [options]
+Archive a thread and its children
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread unarchive [id] [options]
+Unarchive a thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread compact [id] [options]
+Compact the context of an idle thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread clear [id] [options]
+Clear the model context of an idle thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread pin [id] [options]
+Pin a thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread unpin [id] [options]
+Unpin a thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread read [id] [options]
+Mark a thread read
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread unread [id] [options]
+Mark a thread unread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread delete <id> [options]
+Delete a thread permanently
+Options:
+  --yes                    Skip the confirmation prompt
+  --confirm-child-threads  Also delete its child threads
+
+Usage: bb thread search <query> [options]
+Search thread titles and messages
+Options:
+  --limit <count>  Results per group
+
+Usage: bb thread open [id] [path] [options]
+Open a thread in the app, optionally with a file
+Options:
+  --line <number>      Line to focus
+  --split <placement>  right, down, left, top or replace
+
+Usage: bb thread interactions list [id] [options]
+List approvals, questions and plugin forms
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread interactions show <interactionId> [id] [options]
+Show one interaction in full
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread interactions resolve <interactionId> [id] [options]
+Approve, deny or answer one
+Options:
+  --self                     Target the current thread (BB_THREAD_ID)
+  --approve                  Approve a command, file change or tool use
+  --deny                     Deny it
+  --grant <scope>            Grant a permission request for the turn or the session
+  --answer <question=value>  Choose an option of a question (repeatable)
+  --text <question=text>     Answer a question in free text (repeatable)
+  --value <json>             Answer a plugin form with a JSON value
+
+Usage: bb thread queue list [id] [options]
+List the queued messages of a thread
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread queue send <threadId> <messageId> [options]
+Send a queued message now
+Options:
+  --mode <mode>  auto (default) or steer
+
+Usage: bb thread queue delete <threadId> <messageId> [options]
+Delete a queued message
+
+Usage: bb thread section list [options]
+List sidebar sections
+
+Usage: bb thread section create <name> [options]
+Create a sidebar section
+
+Usage: bb thread section rename <id> <name> [options]
+Rename a sidebar section
+
+Usage: bb thread section delete <id> [options]
+Delete a section; its threads become unsectioned
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb project list [options]
+List projects
+Options:
+  --include-personal  Include the personal project
+JSON (--json): [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
+
+Usage: bb project show <id> [options]
+Show a project and its sources
+
+Usage: bb project create [options]
+Create a project from a directory on a machine
+Options:
+  --name <name>           Project name (required)
+  --root <path>           Project directory (default: the current directory)
+  --machine <id-or-name>  Machine holding it (default: this one) (alias --host)
+
+Usage: bb project update <id> [options]
+Rename a project
+Options:
+  --name <name>  New name
+
+Usage: bb project delete <id> [options]
+Delete a project and its threads
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb project source add <projectId> [options]
+Add the project's directory on another machine
+Options:
+  --path <path>           Directory of an existing checkout (required)
+  --machine <id-or-name>  Machine holding it (default: this one) (alias --host)
+  --default               Make it the default source
+
+Usage: bb project source update <projectId> <sourceId> [options]
+Change a source
+Options:
+  --path <path>  New directory
+  --default      Make it the default source
+
+Usage: bb project source delete <projectId> <sourceId> [options]
+Remove a project source
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb project attachment upload <id> [options]
+Upload a file here as a prompt attachment
+Options:
+  --client-file <path>  File to upload (required)
+  --filename <name>     Stored file name
+
+Usage: bb env list [options]
+List environments: the checkouts and worktrees threads run in
+Options:
+  --project <id>          Only this project
+  --machine <id-or-name>  Only this machine (alias --host)
+  --status <status>       ready or destroyed
+  --limit <count>         At most this many, oldest first
+JSON (--json): [{id, name, projectId, hostId, path, branchName, status}]
+
+Usage: bb env show <id> [options]
+Show an environment
+Aliases: get
+
+Usage: bb env status <id> [options]
+Show the git state of an environment
+Options:
+  --merge-base-branch <branch>  Also compare with this branch
+
+Usage: bb env commit <id> [options]
+Commit every change in an environment
+
+Usage: bb env update <id> [options]
+Rename an environment or set its merge-base branch
+Options:
+  --name <name>                 Display name
+  --clear-name                  Remove the display name
+  --merge-base-branch <branch>  Branch that diffs compare against
+  --clear-merge-base-branch     Use the default merge base again
+
+Usage: bb env delete <id> [options]
+Delete an environment that has no live threads
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb machine list [options]
+List machines
+JSON (--json): [{id, name, type, status, lifecycle, lastSeenAt}] (bare array)
+
+Usage: bb machine show <machine> [options]
+Show a machine, by ID or name
+
+Usage: bb machine add [options]
+Register a machine and print the command that joins it
+Options:
+  --name <name>  Machine name (default: its hostname)
+
+Usage: bb machine reconnect <machine> [options]
+Print a new join command for an offline machine
+
+Usage: bb machine rename <machine> <name> [options]
+Rename a machine
+
+Usage: bb machine remove <machine> [options]
+Revoke and remove a machine
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb machine env list [options]
+List variables given to agents (values stay hidden)
+Options:
+  --project <id>  Variables of one project
+
+Usage: bb machine env set <name> [options]
+Set an agent variable; the value is read from stdin
+Options:
+  --project <id>  Only for this project
+  --note <text>   What it is for
+
+Usage: bb machine env unset <name> [options]
+Remove an agent variable
+Options:
+  --project <id>  Only for this project
+
+Usage: bb provider list [options]
+List providers usable on a machine
+Options:
+  --machine <id-or-name>  Ask this machine (alias --host)
+  --environment <id>      Ask the machine of this environment
+  --all                   Show the whole catalog, disabled providers included
+JSON (--json): [{id, displayName, capabilities, …}] (bare array)
+
+Usage: bb provider models [providerId] [options]
+List the models of a provider
+Options:
+  --machine <id-or-name>  Ask this machine (alias --host)
+  --environment <id>      Ask the machine of this environment
+JSON (--json): [{id, model, displayName, isDefault, …}] (bare array)
+
+Usage: bb provider enable <providerId> [options]
+Enable a provider for new turns
+
+Usage: bb provider disable <providerId> [options]
+Disable a provider for new turns
+
+Usage: bb terminal create [command...] [options]
+Start a shell or a command
+Aliases: start
+Options:
+  --thread <id>           Terminal of a thread (inside one: $BB_THREAD_ID)
+  --environment <id>      Terminal of an environment
+  --machine <id-or-name>  Terminal on a machine (alias --host)
+  --cwd <path>            Working directory, with --machine
+  --command <command>     Shell command to run instead of a login shell
+  --title <title>         Terminal title
+  --cols <n>              Columns (default 80)
+  --rows <n>              Rows (default 24)
+JSON (--json): the session: {id, title, status, exitCode, cols, rows, …}
+
+Usage: bb terminal list [options]
+List terminals in one scope
+Options:
+  --thread <id>           Terminal of a thread (inside one: $BB_THREAD_ID)
+  --environment <id>      Terminal of an environment
+  --machine <id-or-name>  Terminal on a machine (alias --host)
+  --cwd <path>            Working directory, with --machine
+JSON (--json): {sessions: [{id, title, status, exitCode, closeReason, cols, rows}]}
+
+Usage: bb terminal output <terminalId> [options]
+Print terminal scrollback
+Aliases: read
+Options:
+  --since-seq <n>     Only chunks from this sequence
+  --tail-bytes <n>    Only the latest N bytes
+  --limit-chunks <n>  Only the latest N chunks
+JSON (--json): {chunks: [{seq, dataBase64}], nextSeq, truncated, status, exitCode, closeReason}
+
+Usage: bb terminal wait <terminalId> [options]
+Wait for output or exit (exit 124 if it ends first)
+Options:
+  --contains <text>           Wait until the output contains this text
+  --regex <pattern>           Wait until the output matches
+  --exit                      Wait until the terminal exits
+  --from-start                Search existing scrollback too
+  --timeout <duration>        Seconds, or 90s, 20m (default 30s)
+  --poll-interval <duration>  Milliseconds, or 2s (default 500ms)
+  --tail-bytes <n>            Only the latest N bytes
+  --limit-chunks <n>          Only the latest N chunks
+JSON (--json): {terminalId, matched, nextSeq, exitCode}
+
+Usage: bb terminal send <terminalId> [options]
+Send input to a terminal
+Options:
+  --text <text>  Text to send
+  --stdin        Send the bytes read from stdin
+  --enter        Append a newline
+
+Usage: bb terminal close <terminalId> [options]
+Close a terminal
+Aliases: stop
+Options:
+  --if-clean  Only if nobody typed into it
+
+Usage: bb file read <path> [options]
+Print a file from a machine
+Options:
+  --machine <id-or-name>  Machine holding the file (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+
+Usage: bb file write <path> [options]
+Write a UTF-8 file on a machine
+Options:
+  --machine <id-or-name>    Machine holding the file (default: the server's) (alias --host)
+  --content <text>          File content
+  --stdin                   Read the content from stdin
+  --root <path>             Refuse paths outside this directory
+  --create-parents          Create missing parent directories
+  --expected-sha256 <hash>  Only write when the current hash matches
+
+Usage: bb file list <path> [options]
+List files under a directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
+  --query <query>         Fuzzy path filter
+  --limit <count>         Maximum entries
+
+Usage: bb settings show [options]
+Print every setting as key = value
+
+Usage: bb settings get <key> [options]
+Print one setting
+
+Usage: bb settings set <key> <value> [options]
+Set a general setting, theme, keybinding.* or ui.*
+
+Usage: bb settings reset <key> [options]
+Restore one setting to its default
+
+Usage: bb plugin list [options]
+List plugins, their state and the commands they add
+JSON (--json): {plugins: [{id, name, enabled, status, cliCommands, …}]}
+
+Usage: bb plugin enable <id> [options]
+Enable a plugin
+
+Usage: bb plugin disable <id> [options]
+Disable a plugin
+
+Usage: bb plugin reload [id] [options]
+Reload one plugin, or rediscover and reload all of them
+
+Usage: bb plugin add <path> [options]
+Load a plugin directory (adds it to <dataDir>/config.json)
+
+Usage: bb plugin remove <path> [options]
+Stop loading a plugin directory
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb server [options]
+Run the bb server in the foreground
+
+Usage: bb server status [options]
+Check that the server answers and show its data directory
+
+Usage: bb import-legacy [options]
+Copy projects, sections, settings and threads from an old bb
+Options:
+  --from <dir>       Data directory of the original install; it is only read
+  --threads <which>  active (unarchived threads and their families), all, none
+  --dry-run          Only count what each --threads choice would import
+JSON (--json): {dryRun, dataDir, choices, counts: {<table>: {imported, skipped}}, …}
+
+Usage: bb runner join <blob> [options]
+Enrol this machine with the command bb machine add printed
+Options:
+  --header <name=value>              Header sent on every request to the server (repeatable)
+  --reuse-connect-credential [path]  Reuse an old install's connect credential
+  --data-dir <dir>                   Where to keep runner.json
+  --name <name>                      Machine name (default: the hostname)
+
+Usage: bb runner run [options]
+Run this machine's runner in the foreground
+Options:
+  --data-dir <dir>  Directory that bb runner join wrote
+
+Every command takes --json. With --json a failure prints {"ok": false, "error": {code, message, hint?}} on stdout, the readable message on stderr, and exits non-zero.

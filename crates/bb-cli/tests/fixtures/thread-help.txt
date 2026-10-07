@@ -1,0 +1,32 @@
+Usage: bb thread <command> [options]
+
+Create, message, wait on and read threads
+
+Commands:
+  spawn         Create a thread and send its first prompt
+  tell          Send a message; a busy thread queues it
+  wait          Block until a thread reaches a status (default idle) or event
+  show          Show a thread, its environment and its TODOs
+  log           Print the timeline, or raw events as JSON
+  output        Print the final assistant message of the last turn
+  list          List threads
+  update        Change title, parent, section, model or visibility
+  stop          Stop work and release the agent runtime
+  archive       Archive a thread and its children
+  unarchive     Unarchive a thread
+  compact       Compact the context of an idle thread
+  clear         Clear the model context of an idle thread
+  pin           Pin a thread
+  unpin         Unpin a thread
+  read          Mark a thread read
+  unread        Mark a thread unread
+  delete        Delete a thread permanently
+  search        Search thread titles and messages
+  open          Open a thread in the app, optionally with a file
+  interactions  Approvals, questions and plugin forms of a thread
+  queue         Messages waiting to be sent to a thread
+  section       Sidebar sections
+
+Run `bb thread <command> --help` for details and `bb guide` for concepts. Enabled plugins add commands such as `bb tasks`; see `bb plugin list`.
+
+With --json a failure prints {"ok": false, "error": {code, message, hint?}} on stdout, the readable message on stderr, and exits non-zero.

@@ -1,0 +1,40 @@
+Usage: bb machine list [options]
+List machines
+JSON (--json): [{id, name, type, status, lifecycle, lastSeenAt}] (bare array)
+
+Usage: bb machine show <machine> [options]
+Show a machine, by ID or name
+
+Usage: bb machine add [options]
+Register a machine and print the command that joins it
+Options:
+  --name <name>  Machine name (default: its hostname)
+
+Usage: bb machine reconnect <machine> [options]
+Print a new join command for an offline machine
+
+Usage: bb machine rename <machine> <name> [options]
+Rename a machine
+
+Usage: bb machine remove <machine> [options]
+Revoke and remove a machine
+Options:
+  --yes  Skip the confirmation prompt
+
+Usage: bb machine env list [options]
+List variables given to agents (values stay hidden)
+Options:
+  --project <id>  Variables of one project
+
+Usage: bb machine env set <name> [options]
+Set an agent variable; the value is read from stdin
+Options:
+  --project <id>  Only for this project
+  --note <text>   What it is for
+
+Usage: bb machine env unset <name> [options]
+Remove an agent variable
+Options:
+  --project <id>  Only for this project
+
+Every command takes --json. With --json a failure prints {"ok": false, "error": {code, message, hint?}} on stdout, the readable message on stderr, and exits non-zero.

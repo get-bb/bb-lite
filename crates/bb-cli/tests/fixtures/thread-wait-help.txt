@@ -1,0 +1,18 @@
+Usage: bb thread wait <id> [options]
+
+Block until a thread reaches a status (default idle) or event
+
+Options:
+  --status <status>           pending, idle, starting, active, stopping or error
+  --event <type>              Wait for an event of this type instead
+  --timeout <duration>        Seconds, or 90s, 20m, 4h (default 1200s)
+  --poll-interval <duration>  Milliseconds, or 5s (default 250ms)
+  --json                      Print machine-readable JSON
+  --help                      Show this help
+
+Examples:
+  bb thread wait thr_abc --status idle --timeout 25m --json
+
+JSON (--json): {threadId, matched: true, target}; exit 2 on timeout, 3 on an invalid request, 4 when the thread cannot reach the status
+
+With --json a failure prints {"ok": false, "error": {code, message, hint?}} on stdout, the readable message on stderr, and exits non-zero.
