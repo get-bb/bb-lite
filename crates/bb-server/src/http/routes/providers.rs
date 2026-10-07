@@ -12,6 +12,7 @@ use crate::context::Ctx;
 use crate::domain::changes::SystemChangeKind;
 use crate::error::{ApiError, ApiResult, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
+use crate::http::validate::{Kind, NON_EMPTY, opt, parse_checked};
 use crate::providers::catalog::{
     ProviderInfo, SystemProviderCatalogEntry, find_provider_definition, list_enabled_providers,
     list_provider_catalog, set_provider_enabled,
@@ -86,8 +87,15 @@ fn reject_multiple_workspace_selectors(
 
 async fn list_providers(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<SystemProvidersQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Vec<ProviderInfo>> {
+    let fields = &[
+        opt("hostId", NON_EMPTY),
+        opt("environmentId", NON_EMPTY),
+        opt("capability", Kind::Enum(&["usage"])),
+    ];
+    let query: SystemProvidersQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     reject_multiple_workspace_selectors(query.host_id.as_ref(), query.environment_id.as_ref())?;
     let usage_only = query.capability == Some(ProviderCapabilityFilter::Usage);
     let providers = list_enabled_providers(&ctx.db)?
@@ -139,8 +147,12 @@ async fn provider_logo(
 
 async fn execution_options(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<ExecutionOptionsQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<ExecutionOptionsResponse> {
+    let fields =
+        &[opt("hostId", NON_EMPTY), opt("environmentId", NON_EMPTY), opt("providerId", NON_EMPTY)];
+    let query: ExecutionOptionsQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     reject_multiple_workspace_selectors(query.host_id.as_ref(), query.environment_id.as_ref())?;
     require_non_empty("providerId", query.provider_id.as_ref())?;
     let catalog = model_catalog(&ctx);
@@ -151,8 +163,11 @@ async fn execution_options(
 
 async fn environment_providers(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<SystemEnvironmentProvidersQuery>,
+    ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<SystemEnvironmentProvidersResponse> {
+    let fields = &[opt("projectId", NON_EMPTY), opt("hostId", NON_EMPTY)];
+    let query: SystemEnvironmentProvidersQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     require_non_empty("projectId", query.project_id.as_ref())?;
     require_non_empty("hostId", query.host_id.as_ref())?;
     if query.host_id.is_some() && query.project_id.is_none() {

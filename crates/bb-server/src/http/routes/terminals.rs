@@ -11,14 +11,14 @@ use crate::error::ApiError;
 use crate::error::invalid_request;
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
 use crate::http::validate::{
-    Field, Kind, NON_EMPTY, check_object, coerce_query_numbers, decode, invalid_literal, req,
-    opt, trim_fields, unknown_key,
+    Field, Kind, NON_EMPTY, check_object, coerce_query_numbers, decode, invalid_literal, opt, req,
+    trim_fields, unknown_key,
 };
-use serde_json::{Map, Value};
 use crate::terminals::sessions::{
     self, CloseTerminalRequest, CreateTerminalRequest, TerminalInputRequest, TerminalListQuery,
     TerminalOutputQuery, TerminalOutputResponse, TerminalPatch, UpdateTerminalRequest,
 };
+use serde_json::{Map, Value};
 
 pub fn terminal_routes() -> Router<Ctx> {
     Router::new()

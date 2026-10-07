@@ -228,7 +228,8 @@ async fn update_general_settings(
     ApiJson(payload): ApiJson<Value>,
 ) -> ApiResponse<AppSettings> {
     // `appSettingsUpdateSchema` is a union; zod reports a failed union as `Invalid input`.
-    let settings = parse_settings_update(&payload).ok_or_else(|| invalid_request("Invalid input"))?;
+    let settings =
+        parse_settings_update(&payload).ok_or_else(|| invalid_request("Invalid input"))?;
     let stored = store::get_app_settings(&ctx.db)?;
     let Value::Object(mut merged) = serde_json::to_value(stored)? else {
         return Err(ApiError::internal("App settings are not an object"));
@@ -292,11 +293,13 @@ async fn update_ui_preference(
     if body.get("value").is_none() {
         return Err(invalid_request("Required"));
     }
-    if let Some(message) = body.as_object().and_then(|o| unknown_key(o, &["expectedRevision", "value"])) {
+    if let Some(message) =
+        body.as_object().and_then(|o| unknown_key(o, &["expectedRevision", "value"]))
+    {
         return Err(invalid_request(message));
     }
-    let payload: UpdateUiPreferenceRequest =
-        serde_json::from_value(body).map_err(|error| invalid_request(crate::http::validate::from_serde_error(&error)))?;
+    let payload: UpdateUiPreferenceRequest = serde_json::from_value(body)
+        .map_err(|error| invalid_request(crate::http::validate::from_serde_error(&error)))?;
     let key = require_ui_preference_key(&path.key)?;
     let value = parse_ui_preference_value(key, &payload.value).map_err(|message| {
         invalid_request(format!("Invalid value for UI preference '{key}': {message}"))

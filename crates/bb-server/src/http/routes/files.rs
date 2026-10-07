@@ -22,7 +22,7 @@ use crate::http::compression::Uncompressed;
 use crate::http::file_bytes::{
     FileBytes, file_changed, file_error, relative_file_segments, revision_ref, serve_file_bytes,
 };
-use crate::http::validate::{Field, Kind, NON_EMPTY, STR, check_object, opt, req};
+use crate::http::validate::{Field, Kind, NON_EMPTY, STR, check_object, opt, parse_checked, req};
 use crate::runners::hosts::require_host;
 
 const HOST_ROOT: &str = "/";
@@ -173,8 +173,11 @@ async fn host_file(
 async fn host_directory(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiQuery(query): ApiQuery<HostDirectoryQuery>,
+    ApiQuery(query): ApiQuery<serde_json::Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    let query: HostDirectoryQuery =
+        parse_checked(Value::Object(query), &[opt("path", NON_EMPTY)], false)
+            .map_err(invalid_request)?;
     let params = match query.path {
         Some(path) => json!({ "path": path }),
         None => json!({}),
@@ -185,8 +188,11 @@ async fn host_directory(
 async fn paths_exist(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(body): ApiJson<HostPathsExistRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    let paths = Kind::StrArray { min_items: 1, max_items: Some(200), item_min: 1, item_max: None };
+    let body: HostPathsExistRequest =
+        parse_checked(body, &[req("paths", paths)], false).map_err(invalid_request)?;
     let params = json!({ "paths": body.paths });
     Ok(Json(call(&ctx, Some(&id), "pathsExist", params).await?))
 }

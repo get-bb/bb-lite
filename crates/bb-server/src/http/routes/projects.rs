@@ -328,7 +328,9 @@ async fn create_source(
         return Err(invalid_request(invalid_type("object", &payload)));
     };
     if !matches!(object.get("type").and_then(Value::as_str), Some("local_path" | "clone")) {
-        return Err(invalid_request("Invalid discriminator value. Expected 'local_path' | 'clone'"));
+        return Err(invalid_request(
+            "Invalid discriminator value. Expected 'local_path' | 'clone'",
+        ));
     }
     let payload: CreateSourceRequest = decode(payload).map_err(invalid_request)?;
     let id = store::require_standard_project(&ctx.db, &id)?.id;
@@ -465,8 +467,9 @@ async fn attachment_content(
     ApiQuery(query): ApiQuery<Map<String, Value>>,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
-    let query: AttachmentQuery = parse_checked(Value::Object(query), &[req("path", NON_EMPTY)], false)
-        .map_err(invalid_request)?;
+    let query: AttachmentQuery =
+        parse_checked(Value::Object(query), &[req("path", NON_EMPTY)], false)
+            .map_err(invalid_request)?;
     let id = store::require_project(&ctx.db, &id)?.id;
     let path = resolve_attachment_path(&ctx.config.data_dir, &id, &query.path)?;
     let header = |name: &str| headers.get(name).and_then(|value| value.to_str().ok());

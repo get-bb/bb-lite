@@ -19,6 +19,9 @@ use crate::domain::host::{Host, HostType, MachinePhase, UpdateHostPermissionCeil
 use crate::error::{ApiError, ApiResult, error_message, invalid_request};
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
 use crate::http::trust::{Principal, require_owner};
+use crate::http::validate::{
+    Kind, NON_EMPTY, check_object, decode, opt, parse_checked, req, trim_fields,
+};
 use crate::runners::enrollment::{self, JoinBlob, JoinRequest, JoinToken};
 use crate::runners::hosts::{host_response, public_server_url, require_host};
 
@@ -153,8 +156,18 @@ fn owner_runner(ctx: &Ctx, principal: &Principal, id: &str) -> ApiResult<bb_core
 async fn create_host(
     State(ctx): State<Ctx>,
     Extension(pending): Extension<PendingJoins>,
-    ApiJson(payload): ApiJson<CreateMachineRequest>,
+    ApiJson(payload): ApiJson<Value>,
 ) -> Created<Host> {
+    check_object(&payload, &[req("machineProviderId", NON_EMPTY)], false)
+        .map_err(invalid_request)?;
+    // `inputs` is a nullable JSON value, a union: when it is missing zod reports `Invalid input`.
+    if payload.get("inputs").is_none() {
+        return Err(invalid_request("Invalid input"));
+    }
+    let fields =
+        &[req("machineProviderId", NON_EMPTY), req("inputs", Kind::Any), opt("key", NON_EMPTY)];
+    let payload: CreateMachineRequest =
+        parse_checked(payload, fields, true).map_err(invalid_request)?;
     if payload.machine_provider_id != MANUAL_MACHINE_PROVIDER_ID {
         return Err(ApiError::new(
             404,
@@ -190,8 +203,14 @@ async fn create_host(
 
 async fn list_hosts(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<HostListQuery>,
+    ApiQuery(query): ApiQuery<serde_json::Map<String, Value>>,
 ) -> ApiResponse<Vec<Host>> {
+    let fields = &[
+        opt("includeCreating", Kind::Enum(&["true", "false"])),
+        opt("type", Kind::Enum(&["persistent", "ephemeral"])),
+    ];
+    let query: HostListQuery =
+        parse_checked(Value::Object(query), fields, false).map_err(invalid_request)?;
     if let Some(flag) = query.include_creating.as_deref()
         && flag != "true"
         && flag != "false"
@@ -271,8 +290,12 @@ async fn reconnect_host(
 async fn rename_host(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(body): ApiJson<UpdateHostRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Host> {
+    let name = Kind::Str { min: 1, max: Some(100) };
+    check_object(&trim_fields(&body, &["name"]), &[req("name", name)], true)
+        .map_err(invalid_request)?;
+    let body: UpdateHostRequest = decode(body).map_err(invalid_request)?;
     let name = trimmed_name(&body.name)?;
     Ok(axum::Json(patch_host(&ctx, &id, &crate::row! { "name" => name.as_str() })?))
 }
@@ -280,8 +303,11 @@ async fn rename_host(
 async fn update_permission_ceiling(
     State(ctx): State<Ctx>,
     ApiPath(id): ApiPath<String>,
-    ApiJson(body): ApiJson<UpdateHostPermissionCeilingRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Host> {
+    let mode = Kind::Enum(&["accept-edits", "auto", "full"]);
+    let body: UpdateHostPermissionCeilingRequest =
+        parse_checked(body, &[req("maxPermissionMode", mode)], true).map_err(invalid_request)?;
     let patch = crate::row! { "maxPermissionMode" => body.max_permission_mode.as_str() };
     Ok(axum::Json(patch_host(&ctx, &id, &patch)?))
 }
@@ -329,8 +355,16 @@ async fn open_in_target(
     State(ctx): State<Ctx>,
     principal: Principal,
     ApiPath(id): ApiPath<String>,
-    ApiJson(body): ApiJson<HostOpenRequest>,
+    ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<OkResponse> {
+    let position = Kind::Int { min: None, max: None, positive: true };
+    let fields = &[
+        req("targetId", NON_EMPTY),
+        req("path", NON_EMPTY),
+        opt("line", position),
+        opt("column", position),
+    ];
+    let body: HostOpenRequest = parse_checked(body, fields, true).map_err(invalid_request)?;
     if body.target_id.is_empty()
         || body.path.is_empty()
         || body.line == Some(0)
