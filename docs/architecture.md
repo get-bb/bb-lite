@@ -166,6 +166,14 @@ open items when a session ends, never throwing on unknown provider traffic) are 
   an in-process SDK MCP server.
 - Echo: a scripted provider for development and tests, driven by directives in the prompt.
 
+**Custom models.** `<dataDir>/config.json` may list models the provider's own catalog does not
+offer: `customModels: [{providerId, model, displayName?, description?, env?, unsetEnv?}]`. Each is
+added to that provider's model list (hidden in streamer mode). An entry with `env` or `unsetEnv` is
+also passed to the runner in `SessionSpec.customModels`; the Claude Code adapter then sets and
+removes those variables in the agent's environment for sessions that run that model, and starts a
+new process when a turn switches to or from it. Codex and echo ignore `env` and `unsetEnv`. An
+invalid `customModels` value is logged and ignored as a whole.
+
 ## Thread engine (server)
 
 A thread's `status` is one of `pending | idle | starting | active | stopping | error`, changed only by one

@@ -275,4 +275,29 @@ describe("claude adapter", () => {
     expect(live.session.canApply(same, next)).toBe(true);
     expect(live.session.canApply({ ...same, cwd: "/b" }, next)).toBe(false);
   });
+
+  it("applies a custom model's environment to sessions on that model", async () => {
+    const model = "claude-preview-9";
+    const env = { PREVIEW_CONFIG_URL: "https://example.test/config.json" };
+    const custom = { model, env, unsetEnv: ["MAX_OUTPUT_TOKENS"] };
+    const spec = { customModels: [custom] };
+    const processEnv = { HOME: "/home/u", MAX_OUTPUT_TOKENS: "9" };
+    const tuned = claude.createClaudeHarness();
+    const live = await tuned.open(spec, { model }, { processEnv });
+    expect(live.query.args.options.env).toMatchObject(env);
+    expect(live.query.args.options.env).not.toHaveProperty("MAX_OUTPUT_TOKENS");
+    const same = { ...claude.SPEC, ...spec };
+    const options = { ...claude.OPTIONS, model };
+    expect(live.session.canApply(same, options)).toBe(true);
+    const other = { ...options, model: "opus" };
+    expect(live.session.canApply(same, other)).toBe(false);
+    const plain = claude.createClaudeHarness();
+    const usual = await plain.open(spec, { model: "opus" }, { processEnv });
+    expect(usual.query.args.options.env).toMatchObject({
+      MAX_OUTPUT_TOKENS: "9",
+    });
+    expect(usual.query.args.options.env).not.toHaveProperty(
+      "PREVIEW_CONFIG_URL",
+    );
+  });
 });

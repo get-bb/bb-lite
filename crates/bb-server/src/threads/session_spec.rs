@@ -1,3 +1,4 @@
+use bb_core::types::CustomModelSettings;
 use bb_core::{SERVER_URL_PLACEHOLDER, SessionSpec};
 use indexmap::IndexMap;
 use std::path::Path;
@@ -11,6 +12,7 @@ use crate::error::ApiResult;
 use crate::machine_environment::resolve_contributed_environment;
 use crate::plugins::api::{EnvValue, ThreadContext};
 use crate::providers::catalog::find_provider_definition;
+use crate::providers::models::read_custom_model_config;
 use crate::threads::execution::require_provider_id;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,6 +97,17 @@ pub async fn build_session_spec(
     } else {
         Vec::new()
     };
+    let custom_models = read_custom_model_config(ctx)
+        .await
+        .into_iter()
+        .filter(|custom| custom.provider_id == provider_id.as_str())
+        .filter(|custom| !custom.env.is_empty() || !custom.unset_env.is_empty())
+        .map(|custom| CustomModelSettings {
+            model: custom.model,
+            env: custom.env,
+            unset_env: custom.unset_env,
+        })
+        .collect();
     Ok(SessionSpec {
         thread_id: thread.id.clone(),
         provider_id,
@@ -104,5 +117,6 @@ pub async fn build_session_spec(
         dynamic_tools: ctx.plugins.tools_for(&scope).await,
         env,
         skill_dirs,
+        custom_models,
     })
 }

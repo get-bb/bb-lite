@@ -99,7 +99,7 @@ class ClaudeSession implements ProviderSession {
     private readonly adapter: Required<ClaudeAdapterOptions>,
   ) {
     const { events } = host;
-    this.settings = claude.claudeSettings(options);
+    this.settings = claude.claudeSettings(options, spec.customModels);
     this.signature = this.signatureOf(spec, options);
     const sandboxed = this.settings.baseMode !== "bypassPermissions";
     const labelled = spec.dynamicTools.map(
@@ -212,7 +212,7 @@ class ClaudeSession implements ProviderSession {
 
   private signatureOf(spec: SessionSpec, options: ExecutionOptions) {
     const { cwd, instructions, dynamicTools, skillDirs } = spec;
-    const { fixed } = claude.claudeSettings(options);
+    const { fixed } = claude.claudeSettings(options, spec.customModels);
     return JSON.stringify([cwd, instructions, dynamicTools, skillDirs, fixed]);
   }
 
@@ -231,7 +231,7 @@ class ClaudeSession implements ProviderSession {
   };
 
   private async applySettings(options: ExecutionOptions) {
-    const next = claude.claudeSettings(options);
+    const next = claude.claudeSettings(options, this.spec.customModels);
     const { model, flags } = this.settings;
     if (next.model !== model) {
       await this.query?.setModel(next.model || undefined);

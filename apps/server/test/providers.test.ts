@@ -25,7 +25,8 @@ it("caches model catalogs and merges custom models", async () => {
   let models = [model("gpt-5")];
   const selectedOnlyModels = [model("gpt-old")];
   runner.script.listModels = async () => ({ models, selectedOnlyModels });
-  const mine = { providerId: "codex", model: "mine", displayName: "Mine" };
+  const named = { displayName: "Mine", description: "Early access" };
+  const mine = { providerId: "codex", model: "mine", ...named };
   const promoted = { ...mine, model: "gpt-old" };
   const customModels = [promoted, mine, { ...mine, providerId: "echo" }];
   const config = join(ctx.config.dataDir, "config.json");
@@ -34,6 +35,7 @@ it("caches model catalogs and merges custom models", async () => {
   const loaded = await options();
   const names = loaded.models.map(({ displayName }) => displayName).join();
   expect(names).toBe("gpt-5,gpt-old,Mine");
+  expect(loaded.models[2]?.description).toBe("Early access");
   expect(loaded.selectedOnlyModels).toEqual([]);
   expect(loaded.modelLoadError).toBeNull();
   const providerIds = loaded.providers.map(({ id }) => id).join();

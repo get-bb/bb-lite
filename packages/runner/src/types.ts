@@ -31,6 +31,12 @@ export interface ExecutionOptions {
   providerOptions: Record<string, unknown>;
 }
 
+export interface CustomModelSettings {
+  model: string;
+  env: Record<string, string>;
+  unsetEnv: string[];
+}
+
 export interface SessionSpec {
   threadId: string;
   providerId: ProviderId;
@@ -40,6 +46,7 @@ export interface SessionSpec {
   dynamicTools: DynamicTool[];
   env: Record<string, string>;
   skillDirs: string[];
+  customModels?: CustomModelSettings[];
 }
 
 export type SubmitTurnMode =

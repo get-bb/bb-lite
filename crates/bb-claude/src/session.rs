@@ -144,7 +144,7 @@ pub struct ClaudeSession {
 }
 
 fn signature_of(spec: &SessionSpec, options: &ExecutionOptions) -> String {
-    let fixed = options::claude_settings(options).fixed();
+    let fixed = options::session_settings(spec, options).fixed();
     json!([spec.cwd, spec.instructions, spec.dynamic_tools, spec.skill_dirs, fixed]).to_string()
 }
 
@@ -294,7 +294,7 @@ impl Inner {
     }
 
     async fn apply_settings(&self, options: &ExecutionOptions) -> Result<(), String> {
-        let next = options::claude_settings(options);
+        let next = options::session_settings(&self.spec, options);
         let (model, flags) = {
             let state = self.state.lock();
             (state.settings.model.clone(), state.settings.flags.to_json())
@@ -349,7 +349,7 @@ impl Inner {
 
 impl ClaudeSession {
     fn new(spec: SessionSpec, options: ExecutionOptions, host: SessionHost) -> Self {
-        let settings = options::claude_settings(&options);
+        let settings = options::session_settings(&spec, &options);
         let signature = signature_of(&spec, &options);
         let sandboxed = settings.base_mode != ClaudePermissionMode::BypassPermissions;
         let injected: HashMap<_, _> = spec

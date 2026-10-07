@@ -203,6 +203,7 @@ impl Replay {
             dynamic_tools: serde_json::from_value(tools).expect("dynamicTools"),
             env: IndexMap::new(),
             skill_dirs: Vec::new(),
+            custom_models: Vec::new(),
         };
         self.live_ids.clear();
         self.skipped.clear();

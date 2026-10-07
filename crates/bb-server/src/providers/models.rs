@@ -5,6 +5,7 @@ use bb_core::ReasoningLevel;
 
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
+use indexmap::IndexMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -77,6 +78,14 @@ pub struct CustomModel {
     pub model: String,
     #[serde(default)]
     pub display_name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Set in the environment of sessions that run this model.
+    #[serde(default)]
+    pub env: IndexMap<String, String>,
+    /// Removed from the environment of sessions that run this model.
+    #[serde(default)]
+    pub unset_env: Vec<String>,
 }
 
 #[derive(Default)]
@@ -198,10 +207,16 @@ impl ModelCatalog {
     }
 }
 
+/// The custom models offered in pickers: none in streamer mode.
 pub async fn read_custom_models(ctx: &Ctx) -> Vec<CustomModel> {
     if get_app_settings(&ctx.db).map(|settings| settings.streamer_mode).unwrap_or(false) {
         return Vec::new();
     }
+    read_custom_model_config(ctx).await
+}
+
+/// `customModels` of the data directory's `config.json`; an invalid file counts as empty.
+pub async fn read_custom_model_config(ctx: &Ctx) -> Vec<CustomModel> {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Config {
@@ -218,6 +233,8 @@ pub async fn read_custom_models(ctx: &Ctx) -> Vec<CustomModel> {
             custom.provider_id.is_empty()
                 || custom.model.is_empty()
                 || custom.display_name.as_deref() == Some("")
+                || custom.description.as_deref() == Some("")
+                || custom.unset_env.iter().any(String::is_empty)
         });
         if empty { Err("String must contain at least 1 character(s)".into()) } else { Ok(config) }
     });
@@ -251,7 +268,8 @@ pub fn with_custom_models(
                 "id": model,
                 "model": model,
                 "displayName": custom.display_name.as_deref().unwrap_or(model),
-                "description": "Custom model from config.json",
+                "description":
+                    custom.description.as_deref().unwrap_or("Custom model from config.json"),
                 "supportedReasoningEfforts": provider.supported_reasoning_efforts,
                 "defaultReasoningEffort": "medium",
                 "isDefault": false,

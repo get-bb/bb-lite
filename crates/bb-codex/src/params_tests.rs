@@ -101,6 +101,7 @@ fn spec_from(recorded: &Value) -> (SessionSpec, EnvMap) {
         dynamic_tools: tools.collect(),
         env: EnvMap::new(),
         skill_dirs: Vec::new(),
+        custom_models: Vec::new(),
     };
     (spec, env)
 }
@@ -169,6 +170,7 @@ fn construction_params_without_memory_or_subagents() {
         dynamic_tools: Vec::new(),
         env: EnvMap::new(),
         skill_dirs: Vec::new(),
+        custom_models: Vec::new(),
     };
     let mut env = EnvMap::new();
     env.insert("BB_THREAD_ID".into(), "override".into());

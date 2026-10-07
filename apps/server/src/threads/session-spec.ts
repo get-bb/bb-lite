@@ -8,6 +8,7 @@ import type { Db } from "../db/index.js";
 import type { ThreadRow } from "../db/threads.js";
 import { resolveContributedEnvironment } from "../machine-environment.js";
 import { findProviderDefinition } from "../providers/catalog.js";
+import { readCustomModelConfig } from "../providers/models.js";
 import { requireProviderId } from "./execution.js";
 
 export interface SessionEnvironment {
@@ -55,13 +56,21 @@ export async function buildSessionSpec(
   const { hostId } = environment;
   const scope = pluginContext(ctx.db, thread, hostId);
   const providerId = requireProviderId(thread.providerId);
-  const [plugins, pluginEnv, machineEnv, user, workspace] = await Promise.all([
-    ctx.plugins.instructionsFor(scope),
-    ctx.plugins.contributedEnv(providerId, scope),
-    resolveContributedEnvironment(ctx, thread.projectId),
-    readUserInstructions(ctx.config.dataDir),
-    ctx.environments.workspaceInstructions(environment.id),
-  ]);
+  const [plugins, pluginEnv, machineEnv, user, workspace, configured] =
+    await Promise.all([
+      ctx.plugins.instructionsFor(scope),
+      ctx.plugins.contributedEnv(providerId, scope),
+      resolveContributedEnvironment(ctx, thread.projectId),
+      readUserInstructions(ctx.config.dataDir),
+      ctx.environments.workspaceInstructions(environment.id),
+      readCustomModelConfig(ctx),
+    ]);
+  const customModels = configured
+    .filter((custom) => custom.providerId === providerId)
+    .filter(
+      ({ env, unsetEnv }) => Object.keys(env).length + unsetEnv.length > 0,
+    )
+    .map(({ model, env, unsetEnv }) => ({ model, env, unsetEnv }));
   const sections = [BB_INTRODUCTION];
   if (plugins !== "") {
     sections.push("The following instructions come from BB plugins:", plugins);
@@ -99,5 +108,6 @@ export async function buildSessionSpec(
       hostId === ctx.config.hostId
         ? [join(ctx.config.cliDir, "skills"), ...ctx.plugins.skillDirs()]
         : [],
+    ...(customModels.length > 0 ? { customModels } : {}),
   };
 }

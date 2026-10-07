@@ -273,3 +273,39 @@ fn prompt_text_formats_attachments_and_skills() {
     );
     assert_eq!(prompt_text(&[]), None);
 }
+
+#[test]
+fn a_custom_model_changes_the_environment_and_needs_a_new_process() {
+    let meta = json!({"threadId": "t", "cwd": "/w", "providerThreadId": "s"});
+    let mut spec = spec(&meta, vec![], false);
+    spec.custom_models = serde_json::from_value(json!([{
+        "model": "claude-preview-9",
+        "env": {"PREVIEW_CONFIG_URL": "https://example.test/config.json", "KEPT": "new"},
+        "unsetEnv": ["DROPPED"],
+    }]))
+    .unwrap();
+    let mut options = base_options();
+    let plain = session_settings(&spec, &options);
+    assert_eq!(plain, claude_settings(&options));
+    options.model = "claude-preview-9".into();
+    let custom = session_settings(&spec, &options);
+    assert_eq!(custom.custom.as_ref(), spec.custom_models.first());
+    let (plain_fixed, custom_fixed) = (plain.fixed(), custom.fixed());
+    assert_eq!(custom_fixed.as_array().unwrap()[..4], plain_fixed.as_array().unwrap()[..]);
+    assert_eq!(custom_fixed[4]["model"], "claude-preview-9");
+
+    let inherited = [("DROPPED", "1"), ("KEPT", "old"), ("OTHER", "x")];
+    let process_env = inherited.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+    let host = LaunchHost { process_env, ..LaunchHost::default() };
+    let env = child_env(&host, &custom);
+    let value = |env: &IndexMap<String, String>, name: &str| env.get(name).cloned();
+    assert_eq!(
+        value(&env, "PREVIEW_CONFIG_URL").as_deref(),
+        Some("https://example.test/config.json")
+    );
+    assert_eq!(value(&env, "KEPT").as_deref(), Some("new"));
+    assert_eq!((value(&env, "DROPPED"), value(&env, "OTHER").as_deref()), (None, Some("x")));
+    let env = child_env(&host, &plain);
+    assert_eq!(value(&env, "PREVIEW_CONFIG_URL"), None);
+    assert_eq!(value(&env, "DROPPED").as_deref(), Some("1"));
+}

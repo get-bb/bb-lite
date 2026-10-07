@@ -74,6 +74,7 @@ fn spec(cwd: &str, provider_thread_id: Option<&str>) -> SessionSpec {
         dynamic_tools: Vec::new(),
         env: Default::default(),
         skill_dirs: Vec::new(),
+        custom_models: Vec::new(),
     }
 }
 

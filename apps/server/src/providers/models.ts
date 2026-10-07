@@ -41,6 +41,9 @@ const customModelsSchema = z.object({
         providerId: z.string().min(1),
         model: z.string().min(1),
         displayName: z.string().min(1).optional(),
+        description: z.string().min(1).optional(),
+        env: z.record(z.string(), z.string()).default({}),
+        unsetEnv: z.array(z.string().min(1)).default([]),
       }),
     )
     .default([]),
@@ -143,6 +146,10 @@ export function modelCatalog(ctx: ServerContext): ModelCatalog {
 
 async function readCustomModels(ctx: ServerContext) {
   if (getAppSettings(ctx.db).streamerMode) return [];
+  return readCustomModelConfig(ctx);
+}
+
+export async function readCustomModelConfig(ctx: ServerContext) {
   const path = dataPaths(ctx.config.dataDir).configFile;
   const text = await readFile(path, "utf8").catch(() => null);
   if (text === null) return [];
@@ -176,7 +183,7 @@ function withCustomModels(
       id: model,
       model,
       displayName: custom.displayName ?? model,
-      description: "Custom model from config.json",
+      description: custom.description ?? "Custom model from config.json",
       supportedReasoningEfforts: reasoningEffortsForLevels(
         provider.reasoningLevels,
       ),

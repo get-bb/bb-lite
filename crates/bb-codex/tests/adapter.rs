@@ -44,6 +44,7 @@ fn spec() -> SessionSpec {
         dynamic_tools: Vec::new(),
         env: IndexMap::new(),
         skill_dirs: Vec::new(),
+        custom_models: Vec::new(),
     }
 }
 

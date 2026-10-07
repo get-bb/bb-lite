@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
 use bb_core::types::{
-    AvailableModel, DynamicTool, ExecutionOptions, ModelReasoningEffort, PermissionMode,
-    ProviderModels, ReasoningLevel, ServiceTier, SessionSpec, ToolCallOutputItem, ToolCallResponse,
+    AvailableModel, CustomModelSettings, DynamicTool, ExecutionOptions, ModelReasoningEffort,
+    PermissionMode, ProviderModels, ReasoningLevel, ServiceTier, SessionSpec, ToolCallOutputItem,
+    ToolCallResponse,
 };
 use bb_core::{RunnerError, RunnerErrorCode, RunnerResult};
 use bb_provider::SessionHost;
@@ -157,13 +158,27 @@ pub struct ClaudeSettings {
     pub writable_roots: Vec<String>,
     pub base_mode: ClaudePermissionMode,
     pub flags: ClaudeFlags,
+    /// The session spec's environment changes for `model`, when it has any.
+    pub custom: Option<CustomModelSettings>,
 }
 
 impl ClaudeSettings {
-    /// `[baseMode, disable1MContext, chrome, writableRoots]`: the parts that need a new process.
+    /// `[baseMode, disable1MContext, chrome, writableRoots]`, plus the model's environment
+    /// changes when it has any: the parts that need a new process.
     pub fn fixed(&self) -> Value {
-        json!([self.base_mode, self.disable_1m_context, self.chrome, self.writable_roots])
+        let mut fixed =
+            json!([self.base_mode, self.disable_1m_context, self.chrome, self.writable_roots]);
+        if let (Some(custom), Value::Array(parts)) = (&self.custom, &mut fixed) {
+            parts.push(json!(custom));
+        }
+        fixed
     }
+}
+
+/// `claude_settings` with the spec's environment changes for the chosen model.
+pub fn session_settings(spec: &SessionSpec, options: &ExecutionOptions) -> ClaudeSettings {
+    let custom = spec.custom_models.iter().find(|custom| custom.model == options.model).cloned();
+    ClaudeSettings { custom, ..claude_settings(options) }
 }
 
 pub fn claude_settings(options: &ExecutionOptions) -> ClaudeSettings {
@@ -184,6 +199,7 @@ pub fn claude_settings(options: &ExecutionOptions) -> ClaudeSettings {
             ultracode: options.reasoning_level == ReasoningLevel::Ultracode,
             fast_mode: options.service_tier == ServiceTier::Fast,
         },
+        custom: None,
     }
 }
 
@@ -365,6 +381,12 @@ pub fn child_env(host: &LaunchHost, settings: &ClaudeSettings) -> IndexMap<Strin
     env.insert("CLAUDE_CODE_ENTRYPOINT".into(), "cli".into());
     let disable = if settings.disable_1m_context { "1" } else { "0" };
     env.insert("CLAUDE_CODE_DISABLE_1M_CONTEXT".into(), disable.into());
+    if let Some(custom) = &settings.custom {
+        env.extend(custom.env.clone());
+        for name in &custom.unset_env {
+            env.shift_remove(name);
+        }
+    }
     env.shift_remove("CLAUDE_AGENT_SDK_CLIENT_APP");
     env.shift_remove("ELECTRON_RUN_AS_NODE");
     env.insert("CLAUDE_AGENT_SDK_VERSION".into(), SDK_VERSION.into());

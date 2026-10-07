@@ -181,6 +181,18 @@ pub struct DynamicTool {
     pub presentation: Option<Value>,
 }
 
+/// Environment changes for sessions that run `model`: a `customModels` entry of the server's
+/// `config.json` that sets `env` or `unsetEnv`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomModelSettings {
+    pub model: String,
+    #[serde(default)]
+    pub env: IndexMap<String, String>,
+    #[serde(default)]
+    pub unset_env: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSpec {
@@ -195,6 +207,8 @@ pub struct SessionSpec {
     pub env: IndexMap<String, String>,
     #[serde(default)]
     pub skill_dirs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_models: Vec<CustomModelSettings>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

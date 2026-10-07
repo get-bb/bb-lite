@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createThreadServer, events, text } from "./thread-harness.js";
@@ -10,6 +11,19 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   ctx.plugins.titleFallback = async () => "  Refactor the  scheduler ";
   const pool = { name: "POOL_URL", value: { serverPath: "/pool" } };
   ctx.plugins.contributedEnv = async () => [pool];
+  const preview = { PREVIEW_CONFIG_URL: "https://example.test/config.json" };
+  const tuned = {
+    model: "gpt-preview",
+    env: preview,
+    unsetEnv: ["MAX_TOKENS"],
+  };
+  const customModels = [
+    { providerId: "codex", ...tuned },
+    { providerId: "codex", model: "gpt-plain" },
+    { providerId: "claude-code", model: "claude-other", env: { A: "1" } },
+  ];
+  const config = join(ctx.config.dataDir, "config.json");
+  writeFileSync(config, JSON.stringify({ customModels }));
   const prompt = text("Please refactor the scheduler module today");
   const image = { type: "localImage" as const, path: "shot.png" };
   const threadId = await server.spawn({ input: [...prompt, image] });
@@ -62,6 +76,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
       BB_ENVIRONMENT_ID: row.environmentId,
       POOL_URL: "{BB_SERVER_URL}/pool",
     },
+    customModels: [tuned],
   });
   expect(session.instructions).toContain("You are working inside bb");
   const tools = session.dynamicTools.map((tool) => tool.name);

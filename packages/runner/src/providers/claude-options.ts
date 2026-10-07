@@ -25,6 +25,7 @@ import {
 import { z } from "zod";
 import {
   RunnerError,
+  type CustomModelSettings,
   type ExecutionOptions,
   type ProviderModels,
   type SessionSpec,
@@ -67,9 +68,13 @@ export function startMode(mode: PermissionMode): PermissionMode {
   return refused ? "default" : mode;
 }
 
-export function claudeSettings(options: ExecutionOptions) {
+export function claudeSettings(
+  options: ExecutionOptions,
+  customModels: readonly CustomModelSettings[] = [],
+) {
   const parsed = providerOptionsSchema.safeParse(options.providerOptions);
   const custom = parsed.data ?? {};
+  const customModel = customModels.find(({ model }) => model === options.model);
   const disable1MContext = custom.disable1MContext === true;
   const chrome = custom.chromeEnabled === true;
   const writableRoots = custom.additionalWorkspaceWriteRoots ?? [];
@@ -82,7 +87,14 @@ export function claudeSettings(options: ExecutionOptions) {
     chrome,
     writableRoots,
     baseMode,
-    fixed: [baseMode, disable1MContext, chrome, writableRoots],
+    customModel,
+    fixed: [
+      baseMode,
+      disable1MContext,
+      chrome,
+      writableRoots,
+      ...(customModel ? [customModel] : []),
+    ],
     flags: {
       autoMemoryEnabled: custom.memoryEnabled !== false,
       enableWorkflows: custom.workflowsDisabled !== true,
@@ -155,7 +167,9 @@ export async function buildQueryOptions(
     ...host.env,
     CLAUDE_CODE_ENTRYPOINT: "cli",
     CLAUDE_CODE_DISABLE_1M_CONTEXT: settings.disable1MContext ? "1" : "0",
+    ...settings.customModel?.env,
   };
+  for (const name of settings.customModel?.unsetEnv ?? []) delete env[name];
   delete env.CLAUDE_AGENT_SDK_CLIENT_APP;
   delete env.ELECTRON_RUN_AS_NODE;
   const { effortLevel: effort, ...flags } = settings.flags;
