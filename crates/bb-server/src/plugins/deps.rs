@@ -10,7 +10,6 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bb_core::RunnerErrorCode;
 use serde_json::{Value, json};
-use tokio_util::sync::CancellationToken;
 
 use super::api::{
     FileRead, FileReadArgs, FileWriteArgs, FileWriteOutcome, InputRequest, InputResult,
@@ -215,31 +214,6 @@ impl PluginOutward for PluginDeps {
         let Ok(ctx) = self.ctx() else {
             return InputResult::Cancelled { reason: "The server has stopped".into() };
         };
-        let signal = CancellationToken::new();
-        let limits = {
-            let signal = signal.clone();
-            let caller = request.cancel.clone();
-            let timeout = request.timeout_ms.map(Duration::from_millis);
-            tokio::spawn(async move {
-                let cancelled = async {
-                    match caller {
-                        Some(caller) => caller.cancelled().await,
-                        None => std::future::pending().await,
-                    }
-                };
-                let expired = async {
-                    match timeout {
-                        Some(timeout) => tokio::time::sleep(timeout).await,
-                        None => std::future::pending().await,
-                    }
-                };
-                tokio::select! {
-                    _ = cancelled => {}
-                    _ = expired => {}
-                }
-                signal.cancel();
-            })
-        };
         let form = PluginInputRequest {
             thread_id: request.thread_id,
             plugin_id: self.plugin_id.clone(),
@@ -247,11 +221,11 @@ impl PluginOutward for PluginDeps {
             title: request.title,
             payload: request.payload,
             presentation: presentation(request.presentation),
-            cancel: Some(signal),
+            cancel: request.cancel,
+            timeout: request.timeout_ms.map(Duration::from_millis),
             describe_submission: request.describe_submission,
         };
         let result = ops::request_input(&ctx, form).await;
-        limits.abort();
         result.unwrap_or_else(|error| InputResult::Cancelled { reason: error.body.message })
     }
 }

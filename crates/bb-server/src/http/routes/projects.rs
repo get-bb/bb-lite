@@ -506,7 +506,8 @@ async fn project_branches(
     let mut search = Map::new();
     search.insert("path".into(), json!(workspace.path));
     let text = |key: &str| query.get(key).and_then(Value::as_str);
-    let branches = branch_search(text("query"), text("selectedBranch").map(str::to_owned), text("limit"))?;
+    let branches =
+        branch_search(text("query"), text("selectedBranch").map(str::to_owned), text("limit"))?;
     if let Value::Object(fields) = serde_json::to_value(branches)? {
         search.extend(fields);
     }

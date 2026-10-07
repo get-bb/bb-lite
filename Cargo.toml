@@ -51,7 +51,7 @@ url = "2"
 walkdir = "2"
 
 [profile.dev]
-debug = "line-tables-only"
+debug = false
 
 [profile.release]
 lto = "thin"

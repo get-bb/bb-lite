@@ -118,7 +118,8 @@ pub async fn terminal_socket(
     upgrade: WebSocketUpgrade,
 ) -> ApiResult<Response> {
     let since_seq = since_seq(&query)?;
-    Ok(upgrade.on_upgrade(move |socket| attach_terminal_socket(ctx, terminal_id, since_seq, socket)))
+    Ok(upgrade
+        .on_upgrade(move |socket| attach_terminal_socket(ctx, terminal_id, since_seq, socket)))
 }
 
 pub async fn runner_socket(

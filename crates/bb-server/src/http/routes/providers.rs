@@ -19,9 +19,7 @@ use crate::providers::catalog::{
 use crate::providers::environment_providers::{
     SystemEnvironmentProvider, SystemEnvironmentProvidersQuery, list_environment_providers,
 };
-use crate::providers::models::{
-    ExecutionOptionsQuery, ExecutionOptionsResponse,
-};
+use crate::providers::models::{ExecutionOptionsQuery, ExecutionOptionsResponse};
 use crate::providers::settings::{
     PROVIDERS_WITH_SETTINGS, ProviderSettingsView, provider_settings_view, update_provider_settings,
 };
@@ -143,7 +141,9 @@ async fn execution_options(
     reject_multiple_workspace_selectors(query.host_id.as_ref(), query.environment_id.as_ref())?;
     require_non_empty("providerId", query.provider_id.as_ref())?;
     let _ = (&ctx, &query);
-    todo!("server assembly: call providers::models::resolve_execution_options with the model catalog")
+    todo!(
+        "server assembly: call providers::models::resolve_execution_options with the model catalog"
+    )
 }
 
 async fn environment_providers(
