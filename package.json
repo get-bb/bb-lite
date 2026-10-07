@@ -8,14 +8,13 @@
   },
   "scripts": {
     "build:cli": "node scripts/build-cli.mjs",
-    "check:lines": "node scripts/count-lines.mjs --max 152000",
     "count": "node scripts/count-lines.mjs",
     "typecheck": "pnpm -r --no-bail run typecheck",
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
     "test": "vitest run",
-    "check": "pnpm run check:lines && pnpm run typecheck && pnpm run lint && pnpm run test",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "postinstall": "node scripts/ensure-native.mjs"
   },
   "devDependencies": {

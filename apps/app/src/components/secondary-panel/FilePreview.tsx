@@ -36,10 +36,12 @@ import {
 } from "@bb/shared-ui/tooltip";
 import { TruncateStart } from "@/components/ui/truncate-start.js";
 import { copyToClipboardWithToast } from "@/lib/clipboard";
+import { openUrlInExternalBrowser } from "@/lib/url-open-routing";
 import { formatByteSize } from "@/lib/format-byte-size";
 import { asHttpError, getHttpErrorMessage } from "@/lib/http-error";
 import { extractErrorMessage } from "@bb/core-ui";
 import {
+  isHtmlFilePreview,
   isMarkdownFilePreview,
   type FilePreview as FilePreviewData,
   type FilePreviewLineRange,
@@ -55,7 +57,10 @@ interface FilePreviewFile {
   cacheKey: string;
   name: string;
   contents: string;
+  url: string;
 }
+
+type RenderedFilePreviewKind = "markdown" | "html";
 
 interface UnsupportedFilePreviewFile {
   mimeType: string;
@@ -72,7 +77,11 @@ export type FilePreviewState =
   | { kind: "error"; message?: string }
   | { kind: "unsupported"; file: UnsupportedFilePreviewFile }
   | { kind: "image"; url: string }
-  | { kind: "ready"; file: FilePreviewFile; isMarkdown: boolean };
+  | {
+      kind: "ready";
+      file: FilePreviewFile;
+      rendered: RenderedFilePreviewKind | null;
+    };
 
 interface FilePreviewProps {
   state: FilePreviewState;
@@ -129,7 +138,11 @@ export function resolveFilePreviewState(
   if (data.content.length === 0) return { kind: "empty" };
   return {
     kind: "ready",
-    isMarkdown: isMarkdownFilePreview(data),
+    rendered: isHtmlFilePreview(data)
+      ? "html"
+      : isMarkdownFilePreview(data)
+        ? "markdown"
+        : null,
     file: {
       cacheKey: [
         "file-preview",
@@ -141,6 +154,7 @@ export function resolveFilePreviewState(
       ].join(":"),
       name: data.name ?? path,
       contents: data.content,
+      url: data.url,
     },
   };
 }
@@ -156,15 +170,19 @@ export function FilePreview({
   markdownLinkRouting,
   statusLabel = null,
 }: FilePreviewProps) {
-  const isMarkdown = state.kind === "ready" && state.isMarkdown;
+  const rendered = state.kind === "ready" ? state.rendered : null;
   const [isRaw, setIsRaw] = useState(false);
+  const [loadedFrameKey, setLoadedFrameKey] = useState<string | null>(null);
   const [lineOverflowMode, setLineOverflowMode] = useState<CodeOverflowMode>(
     DEFAULT_CODE_OVERFLOW_MODE,
   );
   useEffect(() => {
     setIsRaw(false);
-  }, [lineRange, path, isMarkdown]);
-  const showsCode = state.kind === "ready" && (!isMarkdown || isRaw);
+  }, [lineRange, path, rendered]);
+  const showsCode = state.kind === "ready" && (rendered === null || isRaw);
+  const htmlFile =
+    state.kind === "ready" && rendered === "html" ? state.file : null;
+  const showsFrame = htmlFile !== null && !isRaw;
   const highlightedLines = useMemo(
     () =>
       lineRange === null
@@ -184,24 +202,29 @@ export function FilePreview({
   return (
     <div
       className={
-        showsCode
+        showsCode || showsFrame
           ? "@container/page flex h-full min-h-0 flex-col"
-          : isMarkdown
+          : rendered === "markdown"
             ? "@container/page flex min-h-full flex-col"
             : "@container/page min-h-full"
       }
       style={FILE_PREVIEW_WRAPPER_STYLE}
     >
       <FilePreviewHeader
-        isLoading={state.kind === "loading" || isRefreshing}
+        isLoading={
+          state.kind === "loading" ||
+          isRefreshing ||
+          (showsFrame && loadedFrameKey !== htmlFile.cacheKey)
+        }
         path={path}
         copyPath={copyPath}
         rawContents={state.kind === "ready" ? state.file.contents : null}
+        externalUrl={htmlFile?.url ?? null}
         onOpenInEditor={onOpenInEditor}
         onRefresh={onRefresh}
         isRefreshing={isRefreshing}
         statusLabel={statusLabel}
-        isMarkdown={isMarkdown}
+        rendered={rendered}
         showLineOverflowToggle={showsCode}
         lineOverflowMode={lineOverflowMode}
         onLineOverflowModeChange={setLineOverflowMode}
@@ -223,22 +246,43 @@ export function FilePreview({
         <UnsupportedFilePreview file={state.file} />
       ) : state.kind === "image" ? (
         <FilePreviewImage url={state.url} alt={path} />
-      ) : showsCode ? (
-        <BbSourceCode
-          content={state.file.contents}
-          path={path}
-          cacheKey={state.file.cacheKey}
-          overflow={lineOverflowMode}
-          highlightedLines={highlightedLines}
-        />
       ) : (
-        <div className="flex-auto bg-background px-4 py-4">
-          <MarkdownPreview
-            allowHtml
-            content={state.file.contents}
-            linkRouting={markdownLinkRouting}
-          />
-        </div>
+        <>
+          {htmlFile === null ? null : (
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden",
+                isRaw && "hidden",
+              )}
+            >
+              <iframe
+                key={htmlFile.cacheKey}
+                title={path}
+                src={htmlFile.url}
+                sandbox="allow-scripts"
+                className="size-full border-0"
+                onLoad={() => setLoadedFrameKey(htmlFile.cacheKey)}
+              />
+            </div>
+          )}
+          {showsCode ? (
+            <BbSourceCode
+              content={state.file.contents}
+              path={path}
+              cacheKey={state.file.cacheKey}
+              overflow={lineOverflowMode}
+              highlightedLines={highlightedLines}
+            />
+          ) : rendered === "markdown" ? (
+            <div className="flex-auto bg-background px-4 py-4">
+              <MarkdownPreview
+                allowHtml
+                content={state.file.contents}
+                linkRouting={markdownLinkRouting}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -249,11 +293,12 @@ interface FilePreviewHeaderProps {
   path: string;
   copyPath: string | null;
   rawContents: string | null;
+  externalUrl: string | null;
   onOpenInEditor?: (path: string) => void;
   onRefresh?: () => void;
   isRefreshing: boolean;
   statusLabel: WorkspaceFilePreviewStatusLabel | null;
-  isMarkdown: boolean;
+  rendered: RenderedFilePreviewKind | null;
   showLineOverflowToggle: boolean;
   lineOverflowMode: CodeOverflowMode;
   onLineOverflowModeChange: (mode: CodeOverflowMode) => void;
@@ -266,11 +311,12 @@ function FilePreviewHeader({
   path,
   copyPath,
   rawContents,
+  externalUrl,
   onOpenInEditor,
   onRefresh,
   isRefreshing,
   statusLabel,
-  isMarkdown,
+  rendered,
   showLineOverflowToggle,
   lineOverflowMode,
   onLineOverflowModeChange,
@@ -281,7 +327,13 @@ function FilePreviewHeader({
   const { ref: headerRef, width } = useElementWidth();
   const isCompactViewport = useIsCompactViewport();
   const isNarrow = width > 0 ? width < 560 : isCompactViewport;
-  const copyContentsLabel = isMarkdown ? "Copy markdown" : "Copy file contents";
+  const copyContentsLabel =
+    rendered === "markdown"
+      ? "Copy markdown"
+      : rendered === "html"
+        ? "Copy HTML source"
+        : "Copy file contents";
+  const externalLabel = "Open in external browser";
   const refreshLabel = isRefreshing ? "Refreshing file" : "Refresh file";
   const openLabel = openShortcut
     ? `Open in editor (${openShortcut.label})`
@@ -387,6 +439,28 @@ function FilePreviewHeader({
                     </TooltipContent>
                   </Tooltip>
                 )}
+                {externalUrl === null ? null : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          HEADER_ICON_BUTTON_CLASS,
+                          "shrink-0 text-muted-foreground hover:bg-state-hover hover:text-foreground",
+                        )}
+                        onClick={() => openUrlInExternalBrowser(externalUrl)}
+                        aria-label={externalLabel}
+                      >
+                        <Icon name="Globe" aria-hidden />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      {externalLabel}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {onOpenInEditor ? (
                   <>
                     <Tooltip>
@@ -406,7 +480,7 @@ function FilePreviewHeader({
               </>
             )}
           </div>
-          {showLineOverflowToggle || isMarkdown || isNarrow ? (
+          {showLineOverflowToggle || rendered !== null || isNarrow ? (
             <div className="ml-auto flex shrink-0 items-center gap-1">
               {showLineOverflowToggle && !isNarrow ? (
                 <Tooltip>
@@ -433,11 +507,15 @@ function FilePreviewHeader({
                   <TooltipContent side="bottom">{wrapLabel}</TooltipContent>
                 </Tooltip>
               ) : null}
-              {isMarkdown ? (
+              {rendered !== null ? (
                 <div
                   className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
                   role="tablist"
-                  aria-label="Markdown view mode"
+                  aria-label={
+                    rendered === "html"
+                      ? "HTML view mode"
+                      : "Markdown view mode"
+                  }
                 >
                   {viewModeButton("Preview", false)}
                   {viewModeButton("Raw", true)}
@@ -485,6 +563,13 @@ function FilePreviewHeader({
                         onSelect={onRefresh}
                       >
                         <Icon name="RotateCcw" aria-hidden /> {refreshLabel}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {externalUrl !== null ? (
+                      <DropdownMenuItem
+                        onSelect={() => openUrlInExternalBrowser(externalUrl)}
+                      >
+                        <Icon name="Globe" aria-hidden /> {externalLabel}
                       </DropdownMenuItem>
                     ) : null}
                     {onOpenInEditor ? (
