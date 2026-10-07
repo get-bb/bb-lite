@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 
 use crate::call::{
     Call, CliError, CliResult, Handler, Output, confirm, duration_ms, integer, locale_date,
-    machine_flag, machine_or_this, not_implemented, now_ms, send_at_ms, text_input, thread_target,
-    usage_error, valid_id,
+    machine_flag, machine_or_this, now_ms, send_at_ms, text_input, thread_target, usage_error,
+    valid_id,
 };
 use crate::http::encode;
 use crate::render::{pending_todos_of, queue_wait, shown, text, thread_lines, todo_lines};
@@ -353,13 +353,23 @@ fn log_events(call: &mut Call, thread_id: &str) -> CliResult<Output> {
 }
 
 fn thread_log(call: &mut Call) -> CliResult<Output> {
+    use std::collections::HashSet;
+    use std::io::IsTerminal;
+
+    use bb_thread_view::rows::TimelineRow;
+
+    use crate::log_text::format_timeline_text;
+
+    const TIMELINE_TURN_LIMIT: u64 = 100;
     let thread_id = thread_target(call)?;
     let chosen = call.choice("format", &["minimal", "verbose", "json"])?;
     let format = if call.json() { "json" } else { chosen.unwrap_or("minimal") };
     let all = call.on("all")?;
-    if !all {
-        integer(call.flag("limit")?.as_deref(), "--limit", 1)?;
-    }
+    let limit = if all {
+        Some(TIMELINE_TURN_LIMIT)
+    } else {
+        integer(call.flag("limit")?.as_deref(), "--limit", 1)?
+    };
     if all && call.on("limit")? {
         return Err(usage_error("--all cannot be combined with --limit."));
     }
@@ -369,7 +379,58 @@ fn thread_log(call: &mut Call) -> CliResult<Output> {
     if format == "json" {
         return log_events(call, &thread_id);
     }
-    not_implemented(call)
+    if limit.is_some_and(|n| n > TIMELINE_TURN_LIMIT) {
+        let most = format!("--limit is at most {TIMELINE_TURN_LIMIT} for the timeline");
+        return Err(usage_error(format!("{most}; use --all for the whole thread.")));
+    }
+    let mut query: Vec<(&str, String)> = Vec::new();
+    if format == "verbose" {
+        query.push(("includeNestedRows", "true".into()));
+    }
+    if let Some(limit) = limit {
+        query.push(("segmentLimit", limit.to_string()));
+    }
+    let path = at(&thread_id, "/timeline");
+    let fetch = |call: &Call, extra: &[(&str, String)]| -> CliResult<(Vec<Value>, Value)> {
+        let pairs: Vec<(&str, &str)> =
+            query.iter().chain(extra).map(|(k, v)| (*k, v.as_str())).collect();
+        let response = call.http.get(&path, &pairs)?;
+        let rows = response.get("rows").and_then(Value::as_array).cloned().unwrap_or_default();
+        let page = response.get("timelinePage").cloned().unwrap_or(Value::Null);
+        Ok((rows, page))
+    };
+    let (mut rows, mut page) = fetch(call, &[])?;
+    let older = |page: &Value| page.get("hasOlderRows").and_then(Value::as_bool) == Some(true);
+    while all && older(&page) {
+        let Some(cursor) = page.get("olderCursor").filter(|c| !c.is_null()) else { break };
+        let extra = [
+            ("beforeAnchorSeq", text_of(cursor, "anchorSeq")),
+            ("beforeAnchorId", text_of(cursor, "anchorId")),
+        ];
+        let (older_rows, older_page) = fetch(call, &extra)?;
+        let known: HashSet<String> = rows.iter().map(|row| text_of(row, "id")).collect();
+        let mut merged: Vec<Value> =
+            older_rows.into_iter().filter(|row| !known.contains(&text_of(row, "id"))).collect();
+        merged.append(&mut rows);
+        rows = merged;
+        page = older_page;
+    }
+    let timeline: Vec<TimelineRow> = serde_json::from_value(Value::Array(rows))
+        .map_err(|error| CliError::new(format!("Unexpected timeline response: {error}")))?;
+    let no_color = std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty());
+    let color = std::io::stdout().is_terminal() && !no_color;
+    let text = format_timeline_text(&timeline, format == "verbose", color);
+    let notice = if older(&page) {
+        format!(
+            "\n\n(Showing the newest {} user-message turns; use --limit <n> (max 100) or --all for \
+             older history.)",
+            text_of(&page, "returnedSegmentCount")
+        )
+    } else {
+        String::new()
+    };
+    call.print(&format!("{text}{notice}"))?;
+    Ok(Output::Done)
 }
 
 fn thread_output(call: &mut Call) -> CliResult<Output> {

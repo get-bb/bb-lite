@@ -3,6 +3,7 @@ pub mod commands;
 pub mod engine;
 pub mod guide;
 pub mod http;
+pub mod log_text;
 pub mod paths;
 pub mod plugin_proxy;
 pub mod render;
