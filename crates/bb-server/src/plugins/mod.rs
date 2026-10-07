@@ -1,5 +1,7 @@
+pub mod api;
 pub mod builtin;
 pub mod bundle;
+pub mod cli;
 pub mod deps;
 pub mod host;
 pub mod instance;
