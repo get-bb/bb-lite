@@ -1,9 +1,6 @@
 import { definePluginApp } from "@bb/plugin/app";
 import { TasksAppShell } from "./shell/app-shell.js";
-import {
-  TasksNavigationPanel,
-  TasksSidebarAccessory,
-} from "./shell/sidebar.js";
+import { TasksNavigationPanel } from "./shell/sidebar.js";
 import { TaskDirectiveCard, TaskEmbedPanel } from "./views/embed/index.js";
 
 export default definePluginApp((app) => {
@@ -13,7 +10,6 @@ export default definePluginApp((app) => {
     icon: "ListTodo",
     path: "tasks",
     component: TasksAppShell,
-    sidebarAccessory: TasksSidebarAccessory,
     fixedTabs: [
       {
         panelId: "tasks",

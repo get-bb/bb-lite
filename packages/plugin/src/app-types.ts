@@ -80,7 +80,6 @@ export interface SidebarNavigationItem {
   isLoading: boolean;
   pluginId: string | null;
   shortcut: { label: string; ariaKeyShortcuts: string } | null;
-  Accessory: ComponentType | null;
 }
 
 export interface SidebarNavigationActions {
@@ -166,7 +165,6 @@ export interface PluginNavPanelRegistration {
   component: ComponentType<PluginNavPanelProps>;
   fixedTabs?: readonly PluginFixedTabRegistration[];
   headerContent?: ComponentType<PluginNavPanelProps>;
-  sidebarAccessory?: ComponentType;
 }
 
 export interface PluginPanelOpenOptions {

@@ -2,58 +2,26 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@bb/shared-ui/dropdown-menu";
-import {
-  COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
-  COARSE_POINTER_ICON_SIZE_CLASS,
-  COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-} from "@bb/shared-ui/coarse-pointer-sizing";
+import { COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { SIDEBAR_DISCLOSURE_ACTION_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  PROJECT_LIST_ACTION_BUTTON_CLASS,
-  SIDEBAR_HOVER_ACTIONS_CLASS,
-  SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
-} from "@bb/shared-ui/sidebar-row-classes";
-
-const OVERFLOW_ROW_BUTTON_CLASS =
-  "w-full justify-start gap-2 rounded-sm px-2 text-xs font-normal hover:bg-state-hover focus-visible:bg-state-hover";
-
-export interface SidebarVisibilityItem {
-  id: string;
-  title: string;
-  icon?: ReactNode;
-  disabled?: boolean;
-}
-
-export interface SidebarActivationModifiers {
-  metaKey: boolean;
-  ctrlKey: boolean;
-}
+import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@bb/shared-ui/sidebar-row-classes";
 
 export function SidebarMore({
-  activity,
   ariaLabel,
   children,
   listLabel,
-  testIdPrefix = "sidebar-navigation",
 }: {
-  activity?: ReactNode;
   ariaLabel: string;
   children: (close: () => void) => ReactNode;
   listLabel: string;
-  testIdPrefix?: string;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const close = useCallback(() => setIsMenuOpen(false), []);
   const contentRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div data-testid={`${testIdPrefix}-more-row`}>
+    <div data-testid="sidebar-navigation-more-row">
       <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <div>
           <PopoverTrigger asChild>
@@ -68,20 +36,10 @@ export function SidebarMore({
                 "w-full hover:text-sidebar-foreground focus-visible:text-sidebar-foreground data-[state=open]:text-sidebar-foreground",
                 isMenuOpen && "bg-sidebar-accent",
               )}
-              data-testid={`${testIdPrefix}-more-trigger`}
+              data-testid="sidebar-navigation-more-trigger"
             >
               <Icon name="MoreHorizontal" aria-hidden="true" />
               <span className="min-w-0 truncate text-left">More</span>
-              {activity ? (
-                <span
-                  className={cn(
-                    "ml-auto inline-flex shrink-0 items-center justify-center",
-                    COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-                  )}
-                >
-                  {activity}
-                </span>
-              ) : null}
             </Button>
           </PopoverTrigger>
         </div>
@@ -109,101 +67,36 @@ export function SidebarMore({
 }
 
 export function SidebarOverflowItem({
-  activity,
-  additionalActions,
   item,
   onActivate,
-  onClose,
-  testIdPrefix = "sidebar-navigation",
 }: {
-  activity?: ReactNode;
-  additionalActions?: ReactNode;
-  item: SidebarVisibilityItem;
-  onActivate?: (event: SidebarActivationModifiers) => void;
-  onClose: () => void;
-  testIdPrefix?: string;
+  item: { id: string; title: string; icon: ReactNode; disabled: boolean };
+  onActivate: () => void;
 }) {
-  const [isActionsOpen, setIsActionsOpen] = useState(false);
-
-  const actions = (
-    <DropdownMenu
-      modal={false}
-      open={isActionsOpen}
-      onOpenChange={setIsActionsOpen}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`${item.title} options`}
-          className={cn(
-            COARSE_POINTER_ROW_ACTION_SIZE_CLASS,
-            "rounded-sm p-0 hover:bg-state-hover",
-          )}
-        >
-          <Icon
-            name="MoreHorizontal"
-            className={COARSE_POINTER_ICON_SIZE_CLASS}
-          />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="right"
-        align="start"
-        sideOffset={4}
-        aria-label={`${item.title} options`}
-      >
-        {additionalActions}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
   return (
     <div role="listitem">
-      <div className={cn(SIDEBAR_HOVER_ACTIONS_ROW_CLASS, "relative")}>
+      <div className="relative">
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className={cn(
-            OVERFLOW_ROW_BUTTON_CLASS,
+            "w-full justify-start gap-2 rounded-sm px-2 text-xs font-normal hover:bg-state-hover focus-visible:bg-state-hover",
             COARSE_POINTER_COMPACT_ROW_HEIGHT_CLASS,
             "pr-9 max-md:pointer-coarse:pr-11",
           )}
           disabled={item.disabled}
           data-sidebar-overflow-item={item.id}
-          data-sidebar-navigation-more-item={
-            testIdPrefix === "sidebar-navigation" ? item.id : undefined
-          }
-          onClick={(event) => {
-            if (!onActivate) return;
-            onClose();
-            onActivate({ metaKey: event.metaKey, ctrlKey: event.ctrlKey });
-          }}
+          data-sidebar-navigation-more-item={item.id}
+          onClick={onActivate}
         >
-          {item.icon ? (
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              {item.icon}
-            </span>
-          ) : null}
+          <span className="flex size-4 shrink-0 items-center justify-center">
+            {item.icon}
+          </span>
           <span className="min-w-0 flex-1 truncate text-left">
             {item.title}
           </span>
-          {activity}
         </Button>
-        {additionalActions ? (
-          <div
-            data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
-            data-sidebar-hover-actions-mobile="always"
-            className={cn(
-              SIDEBAR_HOVER_ACTIONS_CLASS,
-              "absolute inset-y-0 right-0 flex items-center pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto",
-            )}
-          >
-            {actions}
-          </div>
-        ) : null}
       </div>
     </div>
   );

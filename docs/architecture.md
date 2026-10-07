@@ -362,7 +362,9 @@ not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
 `useRealtime`, `useSettings`, `useSdk`, `useBbContext`, `useBbNavigate`, the sidebar thread hooks; component
-`ThreadChat`. Plugin settings are `boolean` or `string` (optionally `secret` or `multiline`).
+`ThreadChat`. Plugin settings are `boolean` or `string` (optionally `secret` or `multiline`). On wide windows the
+host draws the navigation rail itself (Home, one button per `navPanel`, More, Settings) with New thread in the
+sidebar header; the `sidebarNavigation` and `sidebarHeader` slots render in the phone drawer only.
 
 Plugin commands (`bb tasks …`) are parsed and run in the server: the CLI posts
 `{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result. The

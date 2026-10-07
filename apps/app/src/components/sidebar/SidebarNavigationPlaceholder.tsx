@@ -45,8 +45,14 @@ function LoadingRow({
   return (
     <div
       data-sidebar={inset ? undefined : "navigation-loading-row"}
-      className={cn("flex h-7 items-center rounded-md", inset && "px-2")}
+      className={cn(
+        "flex h-7 items-center rounded-md",
+        inset ? "px-2" : "gap-2",
+      )}
     >
+      {inset ? null : (
+        <Skeleton className="size-4 shrink-0 rounded-md bg-sidebar-border/60" />
+      )}
       <Skeleton
         className={cn("h-3 rounded-sm bg-sidebar-border/50", widthClassName)}
       />
@@ -158,10 +164,12 @@ export function ThreadListPlaceholder({
       <div
         aria-label="Loading sidebar navigation"
         data-thread-list-placeholder="loading"
-        className="space-y-1.5 px-2 pt-1"
+        className="p-2"
       >
-        <LoadingRow inset={false} widthClassName="w-2/3" />
-        <LoadingRow inset={false} widthClassName="w-1/2" />
+        <div className="space-y-1.5 px-2 pt-1">
+          <LoadingRow inset={false} widthClassName="w-2/3" />
+          <LoadingRow inset={false} widthClassName="w-1/2" />
+        </div>
       </div>
     );
   }
