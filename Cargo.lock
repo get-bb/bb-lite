@@ -226,12 +226,14 @@ dependencies = [
  "bb-core",
  "bb-provider",
  "futures",
+ "hex",
  "indexmap",
  "libc",
  "parking_lot",
  "regex",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
 ]
@@ -340,9 +342,12 @@ name = "bb-pool"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "axum",
  "base64 0.23.1",
  "bytes",
+ "futures",
  "http",
+ "http-body-util",
  "indexmap",
  "parking_lot",
  "rand 0.10.3",
@@ -354,6 +359,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "url",
 ]
 
@@ -414,6 +420,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "bb-runner"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "bb-core",
+ "bb-echo",
+ "bb-fs",
+ "bb-git",
+ "bb-procs",
+ "bb-provider",
+ "bb-remote",
+ "bb-sessions",
+ "bb-workspace",
+ "futures",
+ "indexmap",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "bb-server"
 version = "0.0.1"
 dependencies = [
@@ -434,6 +464,8 @@ dependencies = [
  "httpdate",
  "hyper",
  "hyper-util",
+ "icu_normalizer",
+ "icu_properties",
  "indexmap",
  "libc",
  "mime_guess",

@@ -442,7 +442,6 @@ async fn worktree_for(world: &World, thread_id: &str) -> String {
 }
 
 #[tokio::test]
-#[ignore = "teardown calls terminals::sessions::close_terminals_for, still a todo!() seam stub"]
 async fn retires_an_unused_worktree_after_the_grace_period() {
     let world = World::new(true);
     let id = worktree_for(&world, "thr_1").await;
@@ -467,7 +466,6 @@ async fn retires_an_unused_worktree_after_the_grace_period() {
 }
 
 #[tokio::test]
-#[ignore = "teardown calls terminals::sessions::close_terminals_for, still a todo!() seam stub"]
 async fn retries_a_failed_teardown_five_times_in_all() {
     let world = World::new(true);
     let id = worktree_for(&world, "thr_1").await;
@@ -491,7 +489,6 @@ async fn retries_a_failed_teardown_five_times_in_all() {
 }
 
 #[tokio::test]
-#[ignore = "teardown calls terminals::sessions::close_terminals_for, still a todo!() seam stub"]
 async fn retires_at_once_when_the_last_thread_is_deleted() {
     let world = World::new(true);
     let id = worktree_for(&world, "thr_1").await;
@@ -503,7 +500,6 @@ async fn retires_at_once_when_the_last_thread_is_deleted() {
 }
 
 #[tokio::test]
-#[ignore = "teardown calls terminals::sessions::close_terminals_for, still a todo!() seam stub"]
 async fn remove_deletes_the_row_only_when_unreferenced() {
     let world = World::new(true);
     let kept = worktree_for(&world, "thr_1").await;
