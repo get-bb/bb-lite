@@ -1,7 +1,10 @@
 //! Compares the Rust timeline with responses recorded from a real TypeScript instance.
 //!
 //! A no-op unless `BB_TRIAL_DIR` points at a directory of `<thread id>.json` files in the
-//! parity fixture format (plus `display`, `environmentPath` and `turnSummaryDetailsList`).
+//! parity fixture format (plus `display`, `environmentPath`, `turnSummaryDetailsList` and,
+//! for recordings made with a non-default window, `eventBudget`). Events are the decoded
+//! `{event, meta}` entries; a `GET /threads/:id/events` row maps back as
+//! `event = {...data, type, threadId, scope}`, `meta = {id, seq, createdAt}`.
 //! The data is private and never lives in the repository. `BB_TRIAL_REPORT=<file>` writes
 //! every difference as a JSON line holding the path and a shortened value only.
 
@@ -119,6 +122,10 @@ async fn real_thread_timelines_match_the_typescript_server() {
         for recorded in fixture["timeline"].as_array().unwrap() {
             let mut request = request_for(&recorded["query"]);
             request.display = display.clone();
+            // Recordings made with a non-default window budget say which one.
+            if let Some(budget) = fixture["eventBudget"].as_i64() {
+                request.event_budget = budget;
+            }
             let actual = match reader.read_thread_timeline(&thread, &request).await {
                 Ok(body) => body,
                 Err(error) => json!({ "status": error.status, "error": error_body(&error) }),
