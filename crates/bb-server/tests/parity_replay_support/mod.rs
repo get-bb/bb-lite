@@ -24,7 +24,7 @@ const HOST_ID: &str = "host_parity000000";
 /// The recorder drops these from its thread map before their scenario ends, so it never
 /// fetched their timelines (and never advanced the clock for them).
 const UNTRACKED_THREADS: &[&str] = &["archive-delete", "delete-parent", "delete-child"];
-const MAX_DIFFS_PER_STEP: usize = 600;
+const MAX_DIFFS_PER_STEP: usize = 6;
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Diff {
@@ -445,6 +445,20 @@ impl Replayer {
         ok && recorded[ri..] == actual[ai..]
     }
 
+    /// Lists the server sorts by project id come back grouped by the ids this run generated;
+    /// regroups them in the order the recorded ids sort, keeping each group's own order.
+    fn in_recorded_project_order(&self, rows: &[Value]) -> Vec<Value> {
+        let project = |row: &Value| row.get("projectId").and_then(Value::as_str).map(str::to_owned);
+        let mut rows = rows.to_vec();
+        if rows.iter().all(|row| project(row).is_some()) {
+            rows.sort_by_key(|row| {
+                let live = project(row).unwrap_or_default();
+                self.live_to_rec.get(&live).cloned().unwrap_or(live)
+            });
+        }
+        rows
+    }
+
     fn compare(
         &mut self,
         path: &str,
@@ -462,6 +476,7 @@ impl Replayer {
                 }
             }
             (Value::Array(r), Value::Array(a)) => {
+                let a = &self.in_recorded_project_order(a);
                 if r.len() != a.len() {
                     out.push((format!("{path}.length"), json!(r.len()), json!(a.len())));
                 }
