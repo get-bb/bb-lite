@@ -258,6 +258,49 @@ pub fn check_object(body: &Value, fields: &[Field], strict: bool) -> Result<(), 
     Ok(())
 }
 
+/// `field` with its check skipped when `body` holds `null` at its key (a `.nullable()` schema).
+pub fn nullable(body: &Value, field: Field) -> Field {
+    match body.get(field.key) {
+        Some(Value::Null) => Field { kind: Kind::Any, ..field },
+        _ => field,
+    }
+}
+
+/// zod's issue for a required value that is missing, whatever its schema.
+pub fn check_present(value: Option<&Value>) -> Result<(), String> {
+    value.map(|_| ()).ok_or_else(|| "Required".to_owned())
+}
+
+/// zod's issue for an array field's own shape (type, item count); the items are the caller's.
+pub fn check_array(value: Option<&Value>, min: usize, max: Option<usize>) -> Result<(), String> {
+    match value {
+        None => Err("Required".to_owned()),
+        Some(Value::Array(items)) if items.len() < min => Err(too_small_array(min)),
+        Some(Value::Array(items)) => match max.filter(|max| items.len() > *max) {
+            Some(max) => Err(too_big_array(max)),
+            None => Ok(()),
+        },
+        Some(other) => Err(invalid_type("array", other)),
+    }
+}
+
+/// zod's issue for a `z.record(...)` field; an absent value is not checked.
+pub fn check_record(value: Option<&Value>) -> Result<(), String> {
+    match value {
+        None | Some(Value::Object(_)) => Ok(()),
+        Some(other) => Err(invalid_type("record", other)),
+    }
+}
+
+/// A query string as the JSON object of strings zod sees (Hono keeps a repeated key's first value).
+pub fn query_object(raw: Option<&str>) -> Value {
+    let mut object = serde_json::Map::new();
+    for (key, value) in url::form_urlencoded::parse(raw.unwrap_or_default().as_bytes()) {
+        object.entry(key.into_owned()).or_insert_with(|| Value::String(value.into_owned()));
+    }
+    Value::Object(object)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

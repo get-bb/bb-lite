@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::State;
+use axum::extract::{RawQuery, State};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
@@ -44,6 +44,7 @@ use crate::domain::settings::DEFAULT_COMPLETED_TURN_DISPLAY;
 use crate::error::{ApiResult, invalid_request, not_found_message, thread_not_found};
 use crate::http::api::{ApiJson, ApiPath, ApiQuery, ApiResponse};
 use crate::http::compression::Uncompressed;
+use crate::http::validate::{self, Field, Kind, check_object, opt, query_object};
 use crate::providers::catalog::find_provider_definition;
 use crate::runners::hosts::host_response;
 use crate::threads::execution::{ExecutionRequest, find_turn_execution, recorded_execution};
@@ -327,10 +328,29 @@ fn validate_list_query(query: &ThreadListQuery) -> ApiResult<()> {
     digits(query.offset.as_ref())
 }
 
-async fn list(
-    State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<ThreadListQuery>,
-) -> ApiResponse<Value> {
+const QUERY_FLAG: Kind = Kind::Enum(&["true", "false"]);
+
+/// `threadListQuerySchema` up to `includeHidden`; `limit`/`offset` are checked by
+/// `validate_list_query`.
+const LIST_QUERY: &[Field] = &[
+    opt("projectId", validate::NON_EMPTY),
+    opt("environmentId", validate::NON_EMPTY),
+    opt("hostId", validate::NON_EMPTY),
+    opt("parentThreadId", validate::NON_EMPTY),
+    opt("archived", QUERY_FLAG),
+    opt("sectionId", validate::NON_EMPTY),
+    opt("unsectioned", QUERY_FLAG),
+    opt("hasParent", QUERY_FLAG),
+    opt("originKind", Kind::Enum(&["fork"])),
+    opt("originPluginId", validate::NON_EMPTY),
+    opt("includeHidden", QUERY_FLAG),
+];
+
+async fn list(State(ctx): State<Ctx>, RawQuery(raw): RawQuery) -> ApiResponse<Value> {
+    let raw = query_object(raw.as_deref());
+    check_object(&raw, LIST_QUERY, false).map_err(invalid_request)?;
+    let query: ThreadListQuery = serde_json::from_value(raw)
+        .map_err(|error| invalid_request(crate::http::validate::from_serde_error(&error)))?;
     validate_list_query(&query)?;
     if query.section_id.is_some()
         && query.unsectioned == Some(crate::db::thread_read::QueryFlag::True)
