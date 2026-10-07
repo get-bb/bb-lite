@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Weak};
+
+use bb_core::ReasoningLevel;
 
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
@@ -8,10 +10,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::config::data_paths;
-use crate::context::Ctx;
+use crate::context::{Ctx, ServerContext};
+use crate::db::Db;
 use crate::db::settings::get_app_settings;
 use crate::domain::changes::HostChangeKind;
 use crate::error::{ApiError, ApiResult, invalid_request};
+use crate::providers::catalog::list_enabled_providers;
 use crate::runners::hosts::{require_host, resolve_lookup_host_id};
 use crate::runners::registry::Registration;
 
@@ -89,7 +93,7 @@ type Entries = Arc<Mutex<HashMap<(String, String), Entry>>>;
 /// (re)connects.
 pub struct ModelCatalog {
     entries: Entries,
-    _connected: Registration,
+    _connected: Mutex<Registration>,
 }
 
 pub fn model_load_error(provider_id: &str, error: &ApiError) -> ModelLoadError {
@@ -112,7 +116,7 @@ impl ModelCatalog {
         let connected = ctx.runners.on_connected(Arc::new(move |host_id: &str| {
             held.lock().retain(|(host, _), _| host != host_id);
         }));
-        Self { entries, _connected: connected }
+        Self { entries, _connected: Mutex::new(connected) }
     }
 
     pub async fn read(&self, ctx: &Ctx, host_id: &str, provider_id: &str) -> LoadedModels {
@@ -290,4 +294,67 @@ pub async fn resolve_execution_options(
     let custom_models = read_custom_models(ctx).await;
     let loaded = with_custom_models(loaded, provider, &custom_models);
     Ok(ExecutionOptionsResponse { providers, permission_ceiling, loaded })
+}
+
+type CatalogRegistry = Mutex<Vec<(Weak<ServerContext>, Arc<ModelCatalog>)>>;
+
+static CATALOGS: LazyLock<CatalogRegistry> = LazyLock::new(Mutex::default);
+
+/// The server's one `ModelCatalog` (`modelCatalog`), created on first use and dropped with the
+/// server context.
+pub fn model_catalog(ctx: &Ctx) -> Arc<ModelCatalog> {
+    let key = Arc::downgrade(ctx);
+    let mut catalogs = CATALOGS.lock();
+    catalogs.retain(|(owner, _)| owner.strong_count() > 0);
+    if let Some((_, catalog)) = catalogs.iter().find(|(owner, _)| owner.ptr_eq(&key)) {
+        return catalog.clone();
+    }
+    let catalog = Arc::new(ModelCatalog::new(ctx));
+    catalogs.push((key, catalog.clone()));
+    catalog
+}
+
+const REASONING_DESCRIPTIONS: [(ReasoningLevel, &str); 8] = [
+    (ReasoningLevel::None, "No extended thinking"),
+    (ReasoningLevel::Low, "Low reasoning effort"),
+    (ReasoningLevel::Medium, "Medium reasoning effort"),
+    (ReasoningLevel::High, "High reasoning effort"),
+    (ReasoningLevel::Xhigh, "Extra high reasoning effort"),
+    (
+        ReasoningLevel::Ultracode,
+        "Extra high reasoning effort plus multi-agent workflow orchestration",
+    ),
+    (ReasoningLevel::Max, "Maximum reasoning effort"),
+    (ReasoningLevel::Ultra, "Maximum reasoning with automatic task delegation"),
+];
+
+/// `reasoningEffortsForLevels`.
+pub fn reasoning_efforts_for_levels(levels: &[ReasoningLevel]) -> Vec<Value> {
+    levels
+        .iter()
+        .map(|level| {
+            let description = REASONING_DESCRIPTIONS
+                .iter()
+                .find(|(known, _)| known == level)
+                .map_or("", |(_, text)| text);
+            json!({ "reasoningEffort": level, "description": description })
+        })
+        .collect()
+}
+
+/// The enabled providers as model listing sees them (`listEnabledProviders`).
+pub fn enabled_providers(db: &Db) -> ApiResult<Vec<EnabledProvider>> {
+    let providers = list_enabled_providers(db)?;
+    providers
+        .into_iter()
+        .map(|provider| {
+            Ok(EnabledProvider {
+                id: provider.id.as_str().to_owned(),
+                info: serde_json::to_value(&provider.info)?,
+                supported_reasoning_efforts: reasoning_efforts_for_levels(
+                    &provider.reasoning_levels,
+                ),
+            })
+        })
+        .collect()
 }

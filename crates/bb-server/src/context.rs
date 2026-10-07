@@ -37,3 +37,27 @@ impl ServerContext {
         self.db.now()
     }
 }
+
+impl ServerContext {
+    /// A context whose engine, environment and terminal state start empty.
+    pub fn new(
+        config: ServerConfig,
+        db: Db,
+        hub: Hub,
+        runners: RunnerRegistry,
+        plugins: PluginHost,
+        log: Logger,
+    ) -> Self {
+        Self {
+            config,
+            db,
+            hub,
+            runners,
+            plugins,
+            log,
+            engine: EngineState::default(),
+            environments: EnvironmentsState::default(),
+            terminals: TerminalsState::default(),
+        }
+    }
+}
