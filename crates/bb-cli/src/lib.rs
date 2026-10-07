@@ -5,6 +5,7 @@ pub mod guide;
 pub mod http;
 pub mod paths;
 pub mod plugin_proxy;
+pub mod render;
 pub mod table;
 
 use serde_json::{Map, Value, json};
