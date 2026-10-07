@@ -6,5 +6,6 @@ pub mod projects;
 pub mod providers;
 pub mod settings;
 pub mod terminals;
+pub mod thread_input;
 pub mod thread_read;
 pub mod threads;

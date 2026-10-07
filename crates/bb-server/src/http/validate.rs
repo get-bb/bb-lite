@@ -287,3 +287,19 @@ mod tests {
         );
     }
 }
+
+/// Checks one field of `object` the way `check_object` checks it, for callers that interleave
+/// fields needing a custom check.
+pub fn check_field(object: &serde_json::Map<String, Value>, field: Field) -> Result<(), String> {
+    let value = object.get(field.key);
+    if value.is_none() && !field.required {
+        return Ok(());
+    }
+    check_value(value, field.kind)
+}
+
+/// zod's message for a discriminated union whose discriminator matches none of `options`.
+pub fn invalid_discriminator(options: &[&str]) -> String {
+    let quoted: Vec<String> = options.iter().map(|option| format!("'{option}'")).collect();
+    format!("Invalid discriminator value. Expected {}", quoted.join(" | "))
+}
