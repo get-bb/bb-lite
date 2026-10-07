@@ -461,3 +461,114 @@ pub fn not_implemented(call: &mut Call) -> CliResult<Output> {
     let message = format!("'bb {path}' is not implemented in the Rust CLI yet.");
     Err(CliError::new(message).code("not_implemented"))
 }
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let year_of_era = year - era * 400;
+    let day_of_year = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
+fn number(text: &str, from: usize, to: usize) -> Option<i64> {
+    let part = text.get(from..to)?;
+    part.bytes().all(|b| b.is_ascii_digit()).then(|| part.parse().ok()).flatten()
+}
+
+/// `Date.parse` of the `TIMESTAMP` shapes: local time unless a zone is given.
+pub fn timestamp_ms(text: &str) -> Option<f64> {
+    let bytes = text.as_bytes();
+    let separators = [(4, b'-'), (7, b'-'), (13, b':')];
+    if bytes.len() < 16 || separators.iter().any(|&(at, byte)| bytes[at] != byte) {
+        return None;
+    }
+    if bytes[10] != b'T' && bytes[10] != b' ' {
+        return None;
+    }
+    let (year, month, day) = (number(text, 0, 4)?, number(text, 5, 7)?, number(text, 8, 10)?);
+    let (hour, minute) = (number(text, 11, 13)?, number(text, 14, 16)?);
+    let mut rest = &text[16..];
+    let mut second = 0;
+    let mut millis = 0.0;
+    if let Some(tail) = rest.strip_prefix(':') {
+        second = number(tail, 0, 2)?;
+        rest = &tail[2..];
+        if let Some(fraction) = rest.strip_prefix('.') {
+            let digits = fraction.bytes().take_while(u8::is_ascii_digit).count();
+            if !(1..=3).contains(&digits) {
+                return None;
+            }
+            millis = format!("0.{}", &fraction[..digits]).parse::<f64>().ok()? * 1000.0;
+            rest = &fraction[digits..];
+        }
+    }
+    let valid = (1..=12).contains(&month)
+        && (1..=31).contains(&day)
+        && (hour < 24 || (hour == 24 && minute == 0 && second == 0 && millis == 0.0))
+        && minute < 60
+        && second < 60;
+    if !valid {
+        return None;
+    }
+    let offset_minutes = match rest {
+        "" => None,
+        "Z" => Some(0),
+        zone => {
+            let sign = match zone.as_bytes()[0] {
+                b'+' => 1,
+                b'-' => -1,
+                _ => return None,
+            };
+            let digits = zone[1..].replacen(':', "", usize::from(zone.len() == 6));
+            if digits.len() != 4 {
+                return None;
+            }
+            let (hours, minutes) = (number(&digits, 0, 2)?, number(&digits, 2, 4)?);
+            Some(sign * (hours * 60 + minutes))
+        }
+    };
+    let seconds = match offset_minutes {
+        Some(offset) => {
+            let days = days_from_civil(year, month, day);
+            days * 86_400 + hour * 3600 + minute * 60 + second - offset * 60
+        }
+        // SAFETY: mktime reads and normalises only the zeroed tm we pass it.
+        None => unsafe {
+            let mut tm: libc::tm = std::mem::zeroed();
+            tm.tm_year = (year - 1900) as libc::c_int;
+            tm.tm_mon = (month - 1) as libc::c_int;
+            tm.tm_mday = day as libc::c_int;
+            tm.tm_hour = hour as libc::c_int;
+            tm.tm_min = minute as libc::c_int;
+            tm.tm_sec = second as libc::c_int;
+            tm.tm_isdst = -1;
+            libc::mktime(&mut tm)
+        },
+    };
+    Some(seconds as f64 * 1000.0 + millis)
+}
+
+/// `sendAtMs`: a future timestamp or a duration from `now`, in epoch milliseconds.
+pub fn send_at_ms(value: Option<&str>, now: f64) -> CliResult<Option<f64>> {
+    let Some(value) = value else { return Ok(None) };
+    let trimmed = value.trim();
+    let relative = split_duration(trimmed).is_some_and(|(_, suffix)| !suffix.is_empty());
+    let at = if relative {
+        Some(now + duration_ms(trimmed, "--send-at", "s", false)? as f64)
+    } else {
+        timestamp_ms(trimmed)
+    };
+    match at {
+        Some(at) if at > now => Ok(Some(at)),
+        _ => Err(usage_error(format!(
+            "Invalid --send-at '{value}'. Expected a future ISO 8601 timestamp (2026-08-25T09:00) \
+             or a duration from now (30s, 10m, 2h, 7d)."
+        ))),
+    }
+}
+
+pub fn now_ms() -> f64 {
+    let elapsed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    elapsed.map(|d| d.as_millis() as f64).unwrap_or(0.0)
+}

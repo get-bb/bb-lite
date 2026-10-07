@@ -168,6 +168,10 @@ impl Http {
                 }
             }
         };
+        self.finish(result)
+    }
+
+    fn finish(&self, result: Result<Response<Body>, ureq::Error>) -> CliResult<Response<Body>> {
         let mut response = result.map_err(|error| self.transport(error))?;
         let status = response.status();
         if status.is_success() {
@@ -197,7 +201,18 @@ impl Http {
         query: &[(&str, &str)],
         body: Option<&Value>,
     ) -> CliResult<Value> {
-        let mut response = self.send(method, path, query, body)?;
+        let response = self.send(method, path, query, body)?;
+        self.read_json(response)
+    }
+
+    /// POSTs a raw body with its content type, such as a multipart form.
+    pub fn post_bytes(&self, path: &str, content_type: &str, bytes: Vec<u8>) -> CliResult<Value> {
+        let request = self.agent.post(&self.url(path, &[])).header("content-type", content_type);
+        let response = self.finish(request.send(&bytes[..]))?;
+        self.read_json(response)
+    }
+
+    fn read_json(&self, mut response: Response<Body>) -> CliResult<Value> {
         let text = response
             .body_mut()
             .with_config()

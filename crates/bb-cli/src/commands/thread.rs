@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliError, CliResult, Handler, Output, confirm, duration_ms, integer, machine_flag,
-    machine_or_this, not_implemented, text_input, thread_target, usage_error, valid_id,
+    Call, CliError, CliResult, Handler, Output, confirm, duration_ms, integer, locale_date,
+    machine_flag, machine_or_this, not_implemented, now_ms, send_at_ms, text_input, thread_target,
+    usage_error, valid_id,
 };
 use crate::http::encode;
 use crate::render::{pending_todos_of, queue_wait, shown, text, thread_lines, todo_lines};
@@ -64,12 +65,9 @@ fn execution(call: &Call, body: &mut Map<String, Value>) -> CliResult<()> {
     Ok(())
 }
 
-fn send_at(call: &Call) -> CliResult<()> {
-    if call.flag("send-at")?.is_some() {
-        let message = "--send-at is not implemented in the Rust CLI yet.";
-        return Err(CliError::new(message).code("not_implemented"));
-    }
-    Ok(())
+fn send_at(call: &Call) -> CliResult<Option<i64>> {
+    let at = send_at_ms(call.flag("send-at")?.as_deref(), now_ms())?;
+    Ok(at.map(|at| at.round() as i64))
 }
 
 fn client_path(value: &str) -> bool {
@@ -160,7 +158,7 @@ fn thread_spawn(call: &mut Call) -> CliResult<Output> {
             .hint(format!("Add --project {current}.")));
     };
     let parent_thread_id = spawn_parent(call)?;
-    send_at(call)?;
+    let scheduled = send_at(call)?;
     let mut body = Map::new();
     body.insert("projectId".into(), json!(project_id));
     body.insert("environment".into(), spawn_environment(call, &project_id)?);
@@ -175,8 +173,13 @@ fn thread_spawn(call: &mut Call) -> CliResult<Output> {
     body.insert("input".into(), input);
     body.insert("origin".into(), json!("cli"));
     body.insert("startedOnBehalfOf".into(), Value::Null);
+    put(&mut body, "sendAt", scheduled);
     let thread = call.http.post("/threads", &Value::Object(body))?;
     let mut lines = vec![format!("Thread spawned: {}", text_of(&thread, "id"))];
+    if let Some(scheduled) = scheduled {
+        let when = locale_date(scheduled as f64);
+        lines.push(format!("First message scheduled for {when}; pending until then."));
+    }
     if parent_thread_id.is_some() && parent_thread_id == call.env.thread_id {
         lines.push("You will be notified when this thread is done.".into());
     }
@@ -202,7 +205,7 @@ fn thread_tell(call: &mut Call) -> CliResult<Output> {
     execution(call, &mut body)?;
     let sender = call.env.thread_id.clone().filter(|sender| *sender != thread_id);
     put(&mut body, "senderThreadId", sender);
-    send_at(call)?;
+    put(&mut body, "sendAt", send_at(call)?);
     let response = call.http.post(&at(&thread_id, "/send"), &Value::Object(body))?;
     let outcome = if text(&response, "delivery") == Some("queued") {
         let queued = response.get("queuedMessage").cloned().unwrap_or(Value::Null);

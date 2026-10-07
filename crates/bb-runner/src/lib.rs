@@ -32,9 +32,13 @@ pub struct LocalRunnerOptions {
 
 /// The providers a machine offers when the caller does not choose.
 pub fn default_adapters() -> Vec<Arc<dyn ProviderAdapter>> {
-    // TODO(bb-codex, bb-claude): prepend `bb_codex::create_codex_adapter()` and
-    // `bb_claude::create_claude_adapter()` here, in that order, once those crates are finished.
-    vec![bb_echo::create_echo_adapter()]
+    vec![
+        bb_codex::adapter::create_codex_adapter(bb_codex::adapter::CodexAdapterOptions::default()),
+        bb_claude::session::create_claude_adapter(
+            bb_claude::session::ClaudeAdapterOptions::default(),
+        ),
+        bb_echo::create_echo_adapter(),
+    ]
 }
 
 pub struct LocalRunner {

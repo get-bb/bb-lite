@@ -1,8 +1,8 @@
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliResult, Handler, Output, clip, confirm, not_implemented, parse_json, thread_target,
-    usage_error, valid_id,
+    Call, CliResult, Handler, Output, clip, confirm, parse_json, thread_target, usage_error,
+    valid_id,
 };
 use crate::http::encode;
 use crate::render::{queue_wait, shown, text};
@@ -10,7 +10,7 @@ use crate::render::{queue_wait, shown, text};
 /// Handlers ported from `apps/cli/src/commands/thread-more.ts`.
 pub fn handlers() -> Vec<(&'static str, Handler)> {
     vec![
-        ("threadInteractionsList", not_implemented),
+        ("threadInteractionsList", thread_interactions_list),
         ("threadInteractionsShow", thread_interactions_show),
         ("threadInteractionsResolve", thread_interactions_resolve),
         ("threadQueueList", thread_queue_list),
@@ -31,6 +31,55 @@ fn interaction_path(call: &Call) -> CliResult<String> {
     let interaction_id = valid_id(call.arg("interactionId")?, "<interactionId>")?;
     let thread_id = thread_target(call)?;
     Ok(format!("/threads/{}/interactions/{}", encode(&thread_id), encode(&interaction_id)))
+}
+
+/// `formatPendingInteractionSummary` from `packages/core-ui`.
+pub fn pending_interaction_summary(interaction: &Value) -> String {
+    let payload = &interaction["payload"];
+    let string = |value: &Value| value.as_str().unwrap_or_default().to_owned();
+    match payload["kind"].as_str() {
+        Some("user_question") => {
+            let prompt = &payload["questions"][0]["prompt"];
+            if prompt.is_null() { "User answer requested".into() } else { string(prompt) }
+        }
+        Some("approval") => {
+            let reason = &payload["reason"];
+            if reason.as_str().is_some_and(|text| !text.is_empty()) {
+                return string(reason);
+            }
+            let subject = &payload["subject"];
+            match subject["kind"].as_str() {
+                Some("command") => string(&subject["command"]),
+                Some("file_change") => "File changes pending approval".into(),
+                Some("plan") => "Plan ready for review".into(),
+                Some("tool_use") if reason.is_string() => string(reason),
+                Some("tool_use") => string(&subject["presentation"]["label"]["pending"]),
+                _ => subject["toolName"].as_str().unwrap_or("Permission request").into(),
+            }
+        }
+        _ => string(&payload["title"]),
+    }
+}
+
+fn thread_interactions_list(call: &mut Call) -> CliResult<Output> {
+    let thread_id = thread_target(call)?;
+    let path = format!("/threads/{}/interactions", encode(&thread_id));
+    let interactions = call.http.get(&path, &[])?;
+    let rows: Vec<Value> = interactions
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|interaction| {
+            json!({
+                "id": interaction["id"],
+                "kind": interaction["payload"]["kind"],
+                "status": interaction["status"],
+                "summary": pending_interaction_summary(interaction),
+            })
+        })
+        .collect();
+    Ok(Output::rows(&rows, &["id", "kind", "status", "summary"], interactions))
 }
 
 fn thread_interactions_show(call: &mut Call) -> CliResult<Output> {
