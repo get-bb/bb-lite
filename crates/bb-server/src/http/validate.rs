@@ -308,3 +308,42 @@ pub fn parse_checked<T: serde::de::DeserializeOwned>(
     check_object(&body, fields, strict)?;
     decode(body)
 }
+
+/// A copy of `body` with the string `keys` trimmed, for fields whose schema is
+/// `z.string().trim()...`: zod trims before its length checks.
+pub fn trim_fields(body: &Value, keys: &[&str]) -> Value {
+    let mut body = body.clone();
+    if let Some(object) = body.as_object_mut() {
+        for key in keys {
+            if let Some(Value::String(text)) = object.get_mut(*key) {
+                *text = text.trim().to_owned();
+            }
+        }
+    }
+    body
+}
+
+/// A copy of a query with the `keys` (in schema order) coerced as `z.coerce.number()` does, with
+/// JavaScript's `Number(text)`; a value that is not a number fails as zod reports it.
+pub fn coerce_query_numbers(
+    query: &serde_json::Map<String, Value>,
+    keys: &[&str],
+) -> Result<Value, String> {
+    let mut query = query.clone();
+    for key in keys {
+        let Some(Value::String(text)) = query.get(*key) else { continue };
+        let text = text.trim();
+        let numeric = text.bytes().all(|b| b.is_ascii_digit() || b"+-.eE".contains(&b));
+        let number = if text.is_empty() { Some(0.0) } else { text.parse::<f64>().ok() };
+        let Some(number) = number.filter(|n| numeric && n.is_finite()) else {
+            return Err("Invalid input: expected number, received NaN".to_owned());
+        };
+        let value = if number.fract() == 0.0 && number.abs() < 9.0e15 {
+            Value::from(number as i64)
+        } else {
+            Value::from(number)
+        };
+        query.insert((*key).to_owned(), value);
+    }
+    Ok(Value::Object(query))
+}
