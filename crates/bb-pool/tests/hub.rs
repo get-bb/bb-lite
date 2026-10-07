@@ -427,3 +427,100 @@ async fn polls_usage_every_five_minutes() {
     poller.await.expect("poller");
     assert_eq!(hub.http.refreshes.load(Ordering::SeqCst), 0);
 }
+
+impl Harness {
+    async fn add_codex(&self, n: i64) -> String {
+        let input = NewAccount {
+            provider: PoolProvider::Codex,
+            kind: AccountKind::OAuth,
+            label: format!("acct-{n}"),
+            email: Some(format!("user{n}@example.com")),
+            account_uuid: None,
+            codex_account_id: Some(format!("chatgpt-{n}")),
+            subscription_type: Some("max".into()),
+            rate_limit_tier: None,
+            enabled: true,
+            priority: n,
+        };
+        let secret = oauth(&format!("access-{n}"), 3_600_000);
+        self.accounts.add(input, &secret).await.expect("add").id
+    }
+
+    async fn codex(&self, path: &str, token: &str, thread: &str) -> http::Response<Body> {
+        let user = json!({ "account_uuid": UUID_CLIENT, "session_id": thread }).to_string();
+        let body = json!({ "model": "claude-opus-4", "metadata": { "user_id": user } });
+        let method = if path.ends_with("/models") { "GET" } else { "POST" };
+        let mut request = http::Request::builder()
+            .method(method)
+            .uri(format!("http://127.0.0.1/api/v1/plugins/account-pool/http{path}"))
+            .header("authorization", "Bearer local-login")
+            .header("x-bb-account-pool-token", token)
+            .header("x-custom", "dropped")
+            .header("anthropic-version", "2023-06-01")
+            .header("thread-id", thread);
+        let body = if method == "POST" {
+            request = request.header("content-type", "text/plain;charset=UTF-8");
+            Body::from(body.to_string())
+        } else {
+            Body::empty()
+        };
+        self.hub.handle(request.body(body).expect("request"), PoolProvider::Codex).await
+    }
+}
+
+#[tokio::test]
+async fn routes_codex_with_chatgpt_headers_and_rotates_on_a_usage_limit_429() {
+    let hub = harness(Box::new(|request| {
+        let auth = request.headers().get("authorization").and_then(|v| v.to_str().ok());
+        if auth == Some("Bearer access-3") {
+            let limit = [
+                ("x-codex-primary-used-percent", "100"),
+                ("x-codex-primary-reset-after-seconds", "3600"),
+                ("x-codex-primary-window-minutes", "300"),
+            ];
+            reply(429, &limit, "")
+        } else {
+            reply(200, &[], "")
+        }
+    }))
+    .await;
+    let first = hub.add_codex(3).await;
+    hub.add_codex(4).await;
+    let token = hub.token.clone();
+    let url_safe = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    assert!(token.len() == 43 && token.chars().all(url_safe), "{token}");
+    for path in ["/v1/responses", "/v1/responses", "/v1/models"] {
+        assert_eq!(hub.codex(path, &token, "t1").await.status(), 200, "{path}");
+    }
+    assert_eq!(hub.upstream.tokens().join(""), "access-3access-4access-4access-4");
+    let seen: Vec<(String, http::HeaderMap)> = {
+        let seen = hub.upstream.seen.lock();
+        seen.iter().map(|r| (r.uri().path().to_owned(), r.headers().clone())).collect()
+    };
+    let paths: Vec<&str> = seen.iter().map(|(path, _)| path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "/backend-api/codex/responses",
+            "/backend-api/codex/responses",
+            "/backend-api/codex/responses",
+            "/backend-api/codex/models",
+        ]
+    );
+    let retried = &seen[1].1;
+    assert_eq!(retried["chatgpt-account-id"], "chatgpt-4");
+    assert_eq!(retried["thread-id"], "t1");
+    assert!(!retried.contains_key("x-custom"));
+    assert!(!retried.contains_key("x-bb-account-pool-token"));
+    assert_eq!(seen[0].1["chatgpt-account-id"], "chatgpt-3");
+    let summary = hub.hub.summary().await;
+    let listed = summary.iter().find(|s| s.account.id == first).expect("account");
+    assert_eq!(summary[0].account.id, first);
+    assert_eq!(listed.status, bb_pool::contract::AccountStatus::Exhausted);
+    let windows = serde_json::to_value(&listed.quota).expect("quota")["windows"].clone();
+    assert_eq!(windows.as_array().map(Vec::len), Some(1), "{windows}");
+    assert_eq!(windows[0]["key"], "primary");
+    assert_eq!(windows[0]["minutes"], 300);
+    assert_eq!(windows[0]["utilization"], 1.0);
+    assert_eq!(hub.codex("/v1/responses", "", "t1").await.status(), 401);
+}
