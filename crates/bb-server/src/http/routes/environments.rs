@@ -244,6 +244,9 @@ async fn diff_file(
     ApiPath(id): ApiPath<String>,
     ApiQuery(file): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
+    if !matches!(file.get("side").and_then(Value::as_str), Some("old" | "new")) {
+        return Err(invalid_request(r#"Invalid option: expected one of "old"|"new""#));
+    }
     let environment = require_ready_environment(&ctx, &id)?;
     let params = json!({ "path": ready_path(&environment), "file": file });
     let read = call_runner(&ctx, &environment.host_id, "gitDiffFile", params).await?;

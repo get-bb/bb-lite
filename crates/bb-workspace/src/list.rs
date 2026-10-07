@@ -46,7 +46,7 @@ pub struct WorkspacePathEntry {
     pub kind: PathKind,
     pub path: String,
     pub name: String,
-    pub score: f64,
+    pub score: i64,
     pub positions: Vec<usize>,
 }
 
@@ -231,7 +231,7 @@ pub async fn list_paths(ctx: &Ctx, args: ListPathsArgs) -> RunnerResult<Workspac
                 kind: item.kind,
                 path: item.path.clone(),
                 name: item.name.clone(),
-                score: found.score as f64,
+                score: found.score,
                 positions: found.positions,
             }
         })

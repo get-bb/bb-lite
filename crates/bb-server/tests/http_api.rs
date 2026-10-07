@@ -77,9 +77,12 @@ async fn json_bodies() {
     assert_invalid(send(post_json(typed, Some("application/json"))).await, "count");
     let missing = r#"{"title":"a"}"#;
     assert_invalid(send(post_json(missing, Some("application/json"))).await, "count");
-    assert_invalid(send(post_json("{", Some("application/json"))).await, "parse");
-    assert_invalid(send(post_json("{}", None)).await, "Content-Type");
-    assert_invalid(send(post_json("{}", Some("text/plain"))).await, "Content-Type");
+    assert_invalid(
+        send(post_json("{", Some("application/json"))).await,
+        "Invalid JSON request body",
+    );
+    assert_invalid(send(post_json("{}", None)).await, "Invalid JSON request body");
+    assert_invalid(send(post_json("{}", Some("text/plain"))).await, "Invalid JSON request body");
 }
 
 #[tokio::test]
