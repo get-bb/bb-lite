@@ -134,7 +134,7 @@ pub fn request_for(query: &Value) -> TimelineRequest {
             segment_limit,
             before_cursor: TimelinePaginationCursor {
                 anchor_seq: seq.parse().unwrap(),
-                anchor_id: id.into(),
+                anchor_id: reencode_cursor(id),
             },
         },
         _ => TimelinePage::Latest { segment_limit },
@@ -169,9 +169,41 @@ pub fn first_difference(path: &str, left: &Value, right: &Value) -> Option<Strin
             .zip(b)
             .enumerate()
             .find_map(|(i, (l, r))| first_difference(&format!("{path}[{i}]"), l, r)),
+        (Value::String(a), Value::String(b)) if a.starts_with(CURSOR_PREFIX) => {
+            (normalise_cursor(a) != normalise_cursor(b))
+                .then(|| format!("{path}: {} vs {}", normalise_cursor(a), normalise_cursor(b)))
+        }
         _ if left == right => None,
         _ => Some(format!("{path}: {left} vs {right}")),
     }
+}
+
+const CURSOR_PREFIX: &str = "timeline-v3:";
+
+/// A cursor's decoded JSON with the recorder's temp data directory replaced by `$DATA_DIR`,
+/// which the recording's normalisation could not reach inside the base64 text.
+pub fn normalise_cursor(cursor: &str) -> String {
+    use base64::Engine;
+    let Some(encoded) = cursor.strip_prefix(CURSOR_PREFIX) else { return cursor.to_owned() };
+    let Ok(bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(encoded) else {
+        return cursor.to_owned();
+    };
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    regex::Regex::new(r"/tmp/bb-parity-[A-Za-z0-9_-]+/data")
+        .unwrap()
+        .replace_all(&text, "$$DATA_DIR")
+        .into_owned()
+}
+
+/// A recorded cursor re-encoded with the normalised data directory, as this server would have
+/// issued it.
+pub fn reencode_cursor(cursor: &str) -> String {
+    use base64::Engine;
+    if !cursor.starts_with(CURSOR_PREFIX) {
+        return cursor.to_owned();
+    }
+    let text = normalise_cursor(cursor);
+    format!("{CURSOR_PREFIX}{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(text))
 }
 
 pub fn error_body(error: &bb_server::error::ApiError) -> Value {

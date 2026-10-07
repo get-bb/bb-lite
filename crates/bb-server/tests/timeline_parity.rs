@@ -50,16 +50,16 @@ async fn timeline_responses_match_the_typescript_server() {
         if details.is_null() {
             continue;
         }
-        let rows = fixture["timeline"][0]["body"]["rows"].as_array().unwrap();
-        let turn = rows.iter().find(|row| row["kind"] == "turn").unwrap();
+        let query = &details["query"];
+        let seq = |name: &str| query[name].as_str().unwrap().parse::<i64>().unwrap();
         let request = TurnDetailsRequest {
             display: display(),
-            turn_id: turn["turnId"].as_str().unwrap().into(),
-            source_seq_start: turn["sourceSeqStart"].as_i64().unwrap(),
-            source_seq_end: turn["sourceSeqEnd"].as_i64().unwrap(),
+            turn_id: query["turnId"].as_str().unwrap().into(),
+            source_seq_start: seq("sourceSeqStart"),
+            source_seq_end: seq("sourceSeqEnd"),
             before_cursor: None,
         };
         let body = reader.read_turn_summary_details(&thread, &request).await.unwrap();
-        compare(&format!("{name} turn-summary-details"), &body, details);
+        compare(&format!("{name} turn-summary-details"), &body, &details["body"]);
     }
 }

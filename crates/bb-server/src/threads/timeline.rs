@@ -23,11 +23,11 @@ use crate::db::thread_read::ThreadListRow;
 use crate::domain::changes::{ChangedMessage, ThreadChangeKind};
 use crate::domain::thread::ThreadStatus;
 use crate::error::{ApiError, invalid_request};
-use crate::ws::hub::ListenerGuard;
 use crate::threads::timeline_pages::{
     self as pages, PaginateTimelineArgs, TimelineContentCursor, TimelinePage,
     TimelinePaginationCursor, TimelineSnapshot,
 };
+use crate::ws::hub::ListenerGuard;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TimelineDisplay {
