@@ -20,7 +20,7 @@ use crate::providers::environment_providers::{
     SystemEnvironmentProvider, SystemEnvironmentProvidersQuery, list_environment_providers,
 };
 use crate::providers::models::{
-    SystemExecutionOptionsQuery, SystemExecutionOptionsResponse, resolve_execution_options,
+    ExecutionOptionsQuery, ExecutionOptionsResponse,
 };
 use crate::providers::settings::{
     PROVIDERS_WITH_SETTINGS, ProviderSettingsView, provider_settings_view, update_provider_settings,
@@ -138,11 +138,12 @@ async fn provider_logo(
 
 async fn execution_options(
     State(ctx): State<Ctx>,
-    ApiQuery(query): ApiQuery<SystemExecutionOptionsQuery>,
-) -> ApiResponse<SystemExecutionOptionsResponse> {
+    ApiQuery(query): ApiQuery<ExecutionOptionsQuery>,
+) -> ApiResponse<ExecutionOptionsResponse> {
     reject_multiple_workspace_selectors(query.host_id.as_ref(), query.environment_id.as_ref())?;
     require_non_empty("providerId", query.provider_id.as_ref())?;
-    Ok(Json(resolve_execution_options(&ctx, query).await?))
+    let _ = (&ctx, &query);
+    todo!("server assembly: call providers::models::resolve_execution_options with the model catalog")
 }
 
 async fn environment_providers(

@@ -1,0 +1,2921 @@
+{
+ "events": [
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "hold_turn first",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "requestId": "creq_g9dw3eqtgj",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "spawn",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "thread-start"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_p2st6tuijw",
+    "seq": 1
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "initiator": "user",
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "source": "spawn",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/thread/start"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_jat9bfcbs6",
+    "seq": 2
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-started",
+      "startedAt": 1800000139000,
+      "status": "started",
+      "text": "Preparing workspace",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_62caq79wxq",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_2yea8bsyim",
+    "seq": 3
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-started",
+      "startedAt": 1800000139000,
+      "status": "started",
+      "text": "Generating title",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_62caq79wxq",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_944q5byria",
+    "seq": 4
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-completed",
+      "metadata": {
+       "durationMs": 0,
+       "titleGenerated": false
+      },
+      "startedAt": 1800000139000,
+      "status": "completed",
+      "text": "No title generated",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_62caq79wxq",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_xi7pi7d8ay",
+    "seq": 5
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-path",
+      "startedAt": 1800000139000,
+      "status": "completed",
+      "text": "Using workspace: $DATA_DIR/workspaces/thr_u9bbbk5rih",
+      "type": "step"
+     }
+    ],
+    "environmentId": "env_qcrcvf6qrc",
+    "provisioningId": "tpv_62caq79wxq",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_uzivhtvshn",
+    "seq": 6
+   }
+  },
+  {
+   "event": {
+    "entries": [],
+    "environmentId": "env_qcrcvf6qrc",
+    "provisioningId": "tpv_62caq79wxq",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_642menznhv",
+    "seq": 7
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_y8jdyhufr8",
+    "seq": 8
+   }
+  },
+  {
+   "event": {
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "thread/started"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_fkzpygmuza",
+    "seq": 9
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_u9bbbk5rih"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_u9bbbk5rih"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_qcrcvf6qrc"
+     }
+    ],
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_ysv7bfms35",
+    "seq": 10
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000139000,
+    "id": "evt_6t6rvy46er",
+    "seq": 11
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "steered release_turn",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_eefniyvxsp",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "expectedTurnId": "da07bfb37f-t1",
+     "kind": "steer"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_m3prrjviba",
+    "seq": 12
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_g9dw3eqtgj",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_f9nnawp6ei",
+    "seq": 13
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_eefniyvxsp",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_ubmacip3e8",
+    "seq": 14
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_u649yjt89d",
+    "seq": 15
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Steered: steered release_turn",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_sn9tjj2pr8",
+    "seq": 16
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-1",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t1"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000140000,
+    "id": "evt_ctkus76qpb",
+    "seq": 17
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "hold_turn again",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_gdcwvun6fe",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000141000,
+    "id": "evt_3mvfa6qkda",
+    "seq": 18
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000141000,
+    "id": "evt_xbdxje99jf",
+    "seq": 19
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "queued one edited release_turn",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_wcw8irrv9i",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "expectedTurnId": "da07bfb37f-t2",
+     "kind": "steer"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_u2cggty882",
+    "seq": 20
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_gdcwvun6fe",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_e9eiz3fbmn",
+    "seq": 21
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_wcw8irrv9i",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_5u6dibexw2",
+    "seq": 22
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_kgsx3aqtac",
+    "seq": 23
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i2",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Steered: queued one edited release_turn",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_nsmuc3king",
+    "seq": 24
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-2",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t2"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_98zb9ajzfu",
+    "seq": 25
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "queued three",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_bgyph65z9h",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_ev2j3tn667",
+    "seq": 26
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_xy7xyd67j9",
+    "seq": 27
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_bgyph65z9h",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_wb8rbss56d",
+    "seq": 28
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i3",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_tj9ugpzijy",
+    "seq": 29
+   }
+  },
+  {
+   "event": {
+    "delta": "Response to: queued three",
+    "itemId": "da07bfb37f-i3",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_5gniwn4fpt",
+    "seq": 30
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i3",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Response to: queued three",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_favb4jnzjp",
+    "seq": 31
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 112,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 112
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 112,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 336
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_y4snhq448e",
+    "seq": 32
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 112
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_kisr8nsv8x",
+    "seq": 33
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-3",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t3"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000149000,
+    "id": "evt_ek2tbhkg86",
+    "seq": 34
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "hold_turn third",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_ze8phvc7nr",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000151000,
+    "id": "evt_vyijwfdhdn",
+    "seq": 35
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000151000,
+    "id": "evt_jvgy35ncre",
+    "seq": 36
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "steer if active release_turn",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_m8xvvha3w4",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "expectedTurnId": "da07bfb37f-t4",
+     "kind": "steer"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_hpk52bskfw",
+    "seq": 37
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_ze8phvc7nr",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_hrjw4aw8s8",
+    "seq": 38
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_m8xvvha3w4",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_m8p6z2x5t2",
+    "seq": 39
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i4",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_gnd9v2gqx3",
+    "seq": 40
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "da07bfb37f-i4",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Steered: steer if active release_turn",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_fus7cp7brr",
+    "seq": 41
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-4",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t4"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000152000,
+    "id": "evt_5c7kk4ytqk",
+    "seq": 42
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "hold_turn to stop",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_27zz2i7h3e",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000153000,
+    "id": "evt_rdvsftcnxm",
+    "seq": 43
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t5"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000153000,
+    "id": "evt_sxu8pb24kw",
+    "seq": 44
+   }
+  },
+  {
+   "event": {
+    "reason": "manual-stop",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "system/thread/interrupted"
+   },
+   "meta": {
+    "createdAt": 1800000154000,
+    "id": "evt_jk6hstv4mw",
+    "seq": 45
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_27zz2i7h3e",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t5"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000154000,
+    "id": "evt_gzicd2aqr9",
+    "seq": 46
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-5",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da07bfb37f-t5"
+    },
+    "status": "interrupted",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000154000,
+    "id": "evt_ymvbdq477d",
+    "seq": 47
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "after stop",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "turn/start",
+     "params": {}
+    },
+    "requestId": "creq_gqvw8pdhdn",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "tell",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "new-turn"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_ykmnfxw6ra",
+    "seq": 48
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_tsrmjn98n4",
+    "seq": 49
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_u9bbbk5rih"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_u9bbbk5rih"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_qcrcvf6qrc"
+     }
+    ],
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_p5u5zv3qsi",
+    "seq": 50
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_7k4qhxmqad",
+    "seq": 51
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_gqvw8pdhdn",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_94piy6e3dk",
+    "seq": 52
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "dabe47055d-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/started"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_bnwavuf8j9",
+    "seq": 53
+   }
+  },
+  {
+   "event": {
+    "delta": "Response to: after stop",
+    "itemId": "dabe47055d-i1",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/agentMessage/delta"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_f4kkqw6m43",
+    "seq": 54
+   }
+  },
+  {
+   "event": {
+    "item": {
+     "id": "dabe47055d-i1",
+     "presentation": {
+      "icon": {
+       "glyph": "MessageSquare"
+      },
+      "label": {
+       "completed": "Responded",
+       "pending": "Responding"
+      }
+     },
+     "text": "Response to: after stop",
+     "type": "agentMessage"
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "item/completed"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_d9yxaizgws",
+    "seq": 55
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "tokenUsage": {
+     "last": {
+      "cachedInputTokens": 0,
+      "inputTokens": 110,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 110
+     },
+     "modelContextWindow": 200000,
+     "total": {
+      "cachedInputTokens": 0,
+      "inputTokens": 110,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0,
+      "totalTokens": 660
+     }
+    },
+    "type": "thread/tokenUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_zswdsbm8dm",
+    "seq": 56
+   }
+  },
+  {
+   "event": {
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "threadId": "thr_u9bbbk5rih",
+    "type": "thread/contextWindowUsage/updated"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_iemtbt23nv",
+    "seq": 57
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-6",
+    "providerThreadId": "echo-thr_u9bbbk5rih",
+    "scope": {
+     "kind": "turn",
+     "turnId": "dabe47055d-t1"
+    },
+    "status": "completed",
+    "threadId": "thr_u9bbbk5rih",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000155000,
+    "id": "evt_krvnmdb4a7",
+    "seq": 58
+   }
+  }
+ ],
+ "thread": {
+  "activeTurnId": null,
+  "archivedAt": null,
+  "createdAt": 1800000139000,
+  "deletedAt": null,
+  "environmentId": "env_qcrcvf6qrc",
+  "id": "thr_u9bbbk5rih",
+  "lastReadAt": 1800000155000,
+  "latestAttentionAt": 1800000155000,
+  "lifecycleOwnerThreadId": null,
+  "model": "echo-1",
+  "modelOverride": null,
+  "originKind": null,
+  "originPluginId": null,
+  "parentThreadId": null,
+  "permissionMode": "auto",
+  "pinSortKey": null,
+  "pinnedAt": null,
+  "projectId": "proj_personal",
+  "providerId": "echo",
+  "providerThreadId": "echo-thr_u9bbbk5rih",
+  "reasoningLevel": "medium",
+  "reasoningLevelOverride": null,
+  "sectionId": null,
+  "serviceTier": "default",
+  "sourceThreadId": null,
+  "startupContext": null,
+  "status": "idle",
+  "storageDeletedAt": null,
+  "title": null,
+  "titleFallback": "hold_turn first",
+  "updatedAt": 1800000155000,
+  "visibility": "visible"
+ },
+ "timeline": [
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "goal": null,
+    "maxSeq": 58,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000139000,
+      "id": "thr_u9bbbk5rih:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000139000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn first",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000139000,
+      "createdAt": 1800000139000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_u9bbbk5rih",
+      "id": "thr_u9bbbk5rih:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000139000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:user-seed:12",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 14,
+      "sourceSeqStart": 14,
+      "startedAt": 1800000140000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t1|parent:root|item:da07bfb37f-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 16,
+      "sourceSeqStart": 16,
+      "startedAt": 1800000140000,
+      "text": "Steered: steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000141000,
+      "id": "thr_u9bbbk5rih:user-seed:18",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 18,
+      "sourceSeqStart": 18,
+      "startedAt": 1800000141000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn again",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:20",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 22,
+      "sourceSeqStart": 22,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t2|parent:root|item:da07bfb37f-i2",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 24,
+      "sourceSeqStart": 24,
+      "startedAt": 1800000149000,
+      "text": "Steered: queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:26",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 26,
+      "sourceSeqStart": 26,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t3|parent:root|item:da07bfb37f-i3",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 31,
+      "sourceSeqStart": 30,
+      "startedAt": 1800000149000,
+      "text": "Response to: queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000151000,
+      "id": "thr_u9bbbk5rih:user-seed:35",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 35,
+      "sourceSeqStart": 35,
+      "startedAt": 1800000151000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn third",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:user-seed:37",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 39,
+      "sourceSeqStart": 39,
+      "startedAt": 1800000152000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t4|parent:root|item:da07bfb37f-i4",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 41,
+      "sourceSeqStart": 41,
+      "startedAt": 1800000152000,
+      "text": "Steered: steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000153000,
+      "id": "thr_u9bbbk5rih:user-seed:43",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 43,
+      "sourceSeqStart": 43,
+      "startedAt": 1800000153000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn to stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t5",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000154000,
+      "createdAt": 1800000154000,
+      "detail": null,
+      "id": "thr_u9bbbk5rih:op:thread-interrupted:45",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 45,
+      "sourceSeqStart": 45,
+      "startedAt": 1800000154000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Stopped manually",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:user-seed:48",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 48,
+      "sourceSeqStart": 48,
+      "startedAt": 1800000155000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:dabe47055d-t1|parent:root|item:dabe47055d-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 55,
+      "sourceSeqStart": 54,
+      "startedAt": 1800000155000,
+      "text": "Response to: after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_u9bbbk5rih\",\"maxSeq\":58,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn first\\\",\\\"$DATA_DIR/workspaces/thr_u9bbbk5rih\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 9,
+     "segmentLimit": 20
+    }
+   },
+   "query": {},
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "goal": null,
+    "maxSeq": 58,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000139000,
+      "id": "thr_u9bbbk5rih:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000139000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn first",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000139000,
+      "createdAt": 1800000139000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_u9bbbk5rih",
+      "id": "thr_u9bbbk5rih:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000139000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:user-seed:12",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 14,
+      "sourceSeqStart": 14,
+      "startedAt": 1800000140000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t1|parent:root|item:da07bfb37f-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 16,
+      "sourceSeqStart": 16,
+      "startedAt": 1800000140000,
+      "text": "Steered: steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000141000,
+      "id": "thr_u9bbbk5rih:user-seed:18",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 18,
+      "sourceSeqStart": 18,
+      "startedAt": 1800000141000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn again",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:20",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 22,
+      "sourceSeqStart": 22,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t2|parent:root|item:da07bfb37f-i2",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 24,
+      "sourceSeqStart": 24,
+      "startedAt": 1800000149000,
+      "text": "Steered: queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:26",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 26,
+      "sourceSeqStart": 26,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t3|parent:root|item:da07bfb37f-i3",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 31,
+      "sourceSeqStart": 30,
+      "startedAt": 1800000149000,
+      "text": "Response to: queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000151000,
+      "id": "thr_u9bbbk5rih:user-seed:35",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 35,
+      "sourceSeqStart": 35,
+      "startedAt": 1800000151000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn third",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:user-seed:37",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 39,
+      "sourceSeqStart": 39,
+      "startedAt": 1800000152000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t4|parent:root|item:da07bfb37f-i4",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 41,
+      "sourceSeqStart": 41,
+      "startedAt": 1800000152000,
+      "text": "Steered: steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000153000,
+      "id": "thr_u9bbbk5rih:user-seed:43",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 43,
+      "sourceSeqStart": 43,
+      "startedAt": 1800000153000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn to stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t5",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000154000,
+      "createdAt": 1800000154000,
+      "detail": null,
+      "id": "thr_u9bbbk5rih:op:thread-interrupted:45",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 45,
+      "sourceSeqStart": 45,
+      "startedAt": 1800000154000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Stopped manually",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:user-seed:48",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 48,
+      "sourceSeqStart": 48,
+      "startedAt": 1800000155000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:dabe47055d-t1|parent:root|item:dabe47055d-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 55,
+      "sourceSeqStart": 54,
+      "startedAt": 1800000155000,
+      "text": "Response to: after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_u9bbbk5rih\",\"maxSeq\":58,\"status\":\"idle\",\"surface\":\"[false,true,32000,\\\"Echo\\\",\\\"hold_turn first\\\",\\\"$DATA_DIR/workspaces/thr_u9bbbk5rih\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 9,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "includeNestedRows": "true"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "goal": null,
+    "maxSeq": 58,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_u9bbbk5rih\",\"maxSeq\":58,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn first\\\",\\\"$DATA_DIR/workspaces/thr_u9bbbk5rih\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 9,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "summaryOnly": "true"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "goal": null,
+    "maxSeq": 58,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000153000,
+      "id": "thr_u9bbbk5rih:user-seed:43",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 43,
+      "sourceSeqStart": 43,
+      "startedAt": 1800000153000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn to stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t5",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000154000,
+      "createdAt": 1800000154000,
+      "detail": null,
+      "id": "thr_u9bbbk5rih:op:thread-interrupted:45",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 45,
+      "sourceSeqStart": 45,
+      "startedAt": 1800000154000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Stopped manually",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:user-seed:48",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 48,
+      "sourceSeqStart": 48,
+      "startedAt": 1800000155000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:dabe47055d-t1|parent:root|item:dabe47055d-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 55,
+      "sourceSeqStart": 54,
+      "startedAt": 1800000155000,
+      "text": "Response to: after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": true,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_u9bbbk5rih\",\"maxSeq\":58,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn first\\\",\\\"$DATA_DIR/workspaces/thr_u9bbbk5rih\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": {
+      "anchorId": "timeline-v3:eyJzbmFwc2hvdCI6eyJ2ZXJzaW9uIjozLCJ0aHJlYWRJZCI6InRocl91OWJiYms1cmloIiwibWF4U2VxIjo1OCwic3RhdHVzIjoiaWRsZSIsInN1cmZhY2UiOiJbZmFsc2UsZmFsc2UsMzIwMDAsXCJFY2hvXCIsXCJob2xkX3R1cm4gZmlyc3RcIixcIi90bXAvYmItcGFyaXR5LVVOWWNqVi9kYXRhL3dvcmtzcGFjZXMvdGhyX3U5YmJiazVyaWhcIixcImNvbGxhcHNlXCJdIn0sImFuY2hvclNlcSI6NDMsImFuY2hvcklkIjoidGltZWxpbmUtd2luZG93OjQzIn0",
+      "anchorSeq": 43
+     },
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 2,
+     "segmentLimit": 2
+    }
+   },
+   "query": {
+    "segmentLimit": "2"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "code": "invalid_request",
+    "message": "Timeline pagination cursor is no longer available; reload the latest page"
+   },
+   "query": {
+    "beforeAnchorId": "thr_u9bbbk5rih:user-seed:43",
+    "beforeAnchorSeq": "43",
+    "segmentLimit": "2"
+   },
+   "status": 400
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "contextWindowUsage": {
+     "estimated": false,
+     "modelContextWindow": 200000,
+     "usedTokens": 110
+    },
+    "goal": null,
+    "maxSeq": 58,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000139000,
+      "id": "thr_u9bbbk5rih:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000139000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn first",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000139000,
+      "createdAt": 1800000139000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_u9bbbk5rih",
+      "id": "thr_u9bbbk5rih:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000139000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:user-seed:12",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 14,
+      "sourceSeqStart": 14,
+      "startedAt": 1800000140000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000140000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t1|parent:root|item:da07bfb37f-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 16,
+      "sourceSeqStart": 16,
+      "startedAt": 1800000140000,
+      "text": "Steered: steered release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t1",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000141000,
+      "id": "thr_u9bbbk5rih:user-seed:18",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 18,
+      "sourceSeqStart": 18,
+      "startedAt": 1800000141000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn again",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:20",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 22,
+      "sourceSeqStart": 22,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t2|parent:root|item:da07bfb37f-i2",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 24,
+      "sourceSeqStart": 24,
+      "startedAt": 1800000149000,
+      "text": "Steered: queued one edited release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t2",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:user-seed:26",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 26,
+      "sourceSeqStart": 26,
+      "startedAt": 1800000149000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000149000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t3|parent:root|item:da07bfb37f-i3",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 31,
+      "sourceSeqStart": 30,
+      "startedAt": 1800000149000,
+      "text": "Response to: queued three",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t3",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000151000,
+      "id": "thr_u9bbbk5rih:user-seed:35",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 35,
+      "sourceSeqStart": 35,
+      "startedAt": 1800000151000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn third",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:user-seed:37",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 39,
+      "sourceSeqStart": 39,
+      "startedAt": 1800000152000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "steer",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000152000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:da07bfb37f-t4|parent:root|item:da07bfb37f-i4",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 41,
+      "sourceSeqStart": 41,
+      "startedAt": 1800000152000,
+      "text": "Steered: steer if active release_turn",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t4",
+      "turnRequest": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000153000,
+      "id": "thr_u9bbbk5rih:user-seed:43",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 43,
+      "sourceSeqStart": 43,
+      "startedAt": 1800000153000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn to stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "da07bfb37f-t5",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000154000,
+      "createdAt": 1800000154000,
+      "detail": null,
+      "id": "thr_u9bbbk5rih:op:thread-interrupted:45",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 45,
+      "sourceSeqStart": 45,
+      "startedAt": 1800000154000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_u9bbbk5rih",
+      "title": "Stopped manually",
+      "turnId": null
+     },
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:user-seed:48",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 48,
+      "sourceSeqStart": 48,
+      "startedAt": 1800000155000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "attachments": null,
+      "createdAt": 1800000155000,
+      "id": "thr_u9bbbk5rih:assistant:kind:assistant|turn:dabe47055d-t1|parent:root|item:dabe47055d-i1",
+      "kind": "conversation",
+      "role": "assistant",
+      "sourceSeqEnd": 55,
+      "sourceSeqStart": 54,
+      "startedAt": 1800000155000,
+      "text": "Response to: after stop",
+      "threadId": "thr_u9bbbk5rih",
+      "turnId": "dabe47055d-t1",
+      "turnRequest": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_u9bbbk5rih\",\"maxSeq\":58,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn first\\\",\\\"$DATA_DIR/workspaces/thr_u9bbbk5rih\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 9,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "afterSequence": "3"
+   },
+   "status": 200
+  }
+ ],
+ "turnSummaryDetails": null
+}

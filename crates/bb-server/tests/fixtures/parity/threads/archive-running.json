@@ -1,0 +1,779 @@
+{
+ "events": [
+  {
+   "event": {
+    "direction": "outbound",
+    "execution": {
+     "model": "echo-1",
+     "permissionMode": "auto",
+     "reasoningLevel": "medium",
+     "serviceTier": "default",
+     "source": "client/turn/requested"
+    },
+    "initiator": "user",
+    "input": [
+     {
+      "mentions": [],
+      "text": "hold_turn",
+      "type": "text"
+     }
+    ],
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "requestId": "creq_j9qbb2eywd",
+    "scope": {
+     "kind": "thread"
+    },
+    "senderThreadId": null,
+    "source": "spawn",
+    "systemMessageKind": "unlabeled",
+    "systemMessageSubject": null,
+    "target": {
+     "kind": "thread-start"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "client/turn/requested"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_tb3m44re2q",
+    "seq": 1
+   }
+  },
+  {
+   "event": {
+    "direction": "outbound",
+    "initiator": "user",
+    "request": {
+     "method": "thread/start",
+     "params": {}
+    },
+    "scope": {
+     "kind": "thread"
+    },
+    "source": "spawn",
+    "threadId": "thr_cm2xexi78g",
+    "type": "client/thread/start"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_qhr277aihy",
+    "seq": 2
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-started",
+      "startedAt": 1800000180000,
+      "status": "started",
+      "text": "Preparing workspace",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_m3gaepnidn",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_w2mkvzg5dy",
+    "seq": 3
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-started",
+      "startedAt": 1800000180000,
+      "status": "started",
+      "text": "Generating title",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_m3gaepnidn",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_73cmr46asc",
+    "seq": 4
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "metadata-completed",
+      "metadata": {
+       "durationMs": 0,
+       "titleGenerated": false
+      },
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "text": "No title generated",
+      "type": "step"
+     }
+    ],
+    "environmentId": null,
+    "provisioningId": "tpv_m3gaepnidn",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_hctmxpvftg",
+    "seq": 5
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "key": "workspace-path",
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "text": "Using workspace: $DATA_DIR/workspaces/thr_cm2xexi78g",
+      "type": "step"
+     }
+    ],
+    "environmentId": "env_24khszugne",
+    "provisioningId": "tpv_m3gaepnidn",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "active",
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_m6mz6w22c5",
+    "seq": 6
+   }
+  },
+  {
+   "event": {
+    "entries": [],
+    "environmentId": "env_24khszugne",
+    "provisioningId": "tpv_m3gaepnidn",
+    "scope": {
+     "kind": "thread"
+    },
+    "status": "completed",
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread-provisioning"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_qnteidk2r4",
+    "seq": 7
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_cm2xexi78g",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "thread/identity"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_bg8qmpdhgn",
+    "seq": 8
+   }
+  },
+  {
+   "event": {
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "thread/started"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_4cdwk65gsq",
+    "seq": 9
+   }
+  },
+  {
+   "event": {
+    "entries": [
+     {
+      "name": "PATH",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/projects/bb/apps/host-daemon/dist:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/projects/bb/node_modules/.bin:/snapshot/dist/node-gyp-bin:/home/sawyer/projects/bb/node_modules/.bin:/home/sawyer/.local/share/pnpm/store/v11/links/@pnpm/exe/9.15.0/0cb0bed5359cd168a914de4ae70b4e04bc16c903df0764391acdba407e24b0c2/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+     },
+     {
+      "name": "BB_CLI",
+      "source": "shell",
+      "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+     },
+     {
+      "name": "BB_SERVER_URL",
+      "source": "shell",
+      "value": "http://127.0.0.1:0"
+     },
+     {
+      "name": "BB_THREAD_STORAGE",
+      "source": "shell",
+      "value": "$DATA_DIR/thread-storage/thr_cm2xexi78g"
+     },
+     {
+      "name": "BB_THREAD_ID",
+      "source": "shell",
+      "value": "thr_cm2xexi78g"
+     },
+     {
+      "name": "BB_PROJECT_ID",
+      "source": "shell",
+      "value": "proj_personal"
+     },
+     {
+      "name": "BB_ENVIRONMENT_ID",
+      "source": "shell",
+      "value": "env_24khszugne"
+     }
+    ],
+    "providerThreadId": "echo-thr_cm2xexi78g",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "provider.env-resolved"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_3unrheiuip",
+    "seq": 10
+   }
+  },
+  {
+   "event": {
+    "providerThreadId": "echo-thr_cm2xexi78g",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da1d3a9167-t1"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "turn/started"
+   },
+   "meta": {
+    "createdAt": 1800000180000,
+    "id": "evt_nf7hcbneum",
+    "seq": 11
+   }
+  },
+  {
+   "event": {
+    "reason": "manual-stop",
+    "scope": {
+     "kind": "thread"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "system/thread/interrupted"
+   },
+   "meta": {
+    "createdAt": 1800000185000,
+    "id": "evt_utnk8wm3hz",
+    "seq": 12
+   }
+  },
+  {
+   "event": {
+    "clientRequestId": "creq_j9qbb2eywd",
+    "providerThreadId": "echo-thr_cm2xexi78g",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da1d3a9167-t1"
+    },
+    "threadId": "thr_cm2xexi78g",
+    "type": "turn/input/accepted"
+   },
+   "meta": {
+    "createdAt": 1800000185000,
+    "id": "evt_tn7qxec5gf",
+    "seq": 13
+   }
+  },
+  {
+   "event": {
+    "providerCheckpointId": "turn-1",
+    "providerThreadId": "echo-thr_cm2xexi78g",
+    "scope": {
+     "kind": "turn",
+     "turnId": "da1d3a9167-t1"
+    },
+    "status": "interrupted",
+    "threadId": "thr_cm2xexi78g",
+    "type": "turn/completed"
+   },
+   "meta": {
+    "createdAt": 1800000185000,
+    "id": "evt_ypmeetgauj",
+    "seq": 14
+   }
+  }
+ ],
+ "thread": {
+  "activeTurnId": null,
+  "archivedAt": null,
+  "createdAt": 1800000180000,
+  "deletedAt": null,
+  "environmentId": "env_24khszugne",
+  "id": "thr_cm2xexi78g",
+  "lastReadAt": 1800000180000,
+  "latestAttentionAt": 1800000180000,
+  "lifecycleOwnerThreadId": null,
+  "model": "echo-1",
+  "modelOverride": null,
+  "originKind": null,
+  "originPluginId": null,
+  "parentThreadId": null,
+  "permissionMode": "auto",
+  "pinSortKey": null,
+  "pinnedAt": null,
+  "projectId": "proj_personal",
+  "providerId": "echo",
+  "providerThreadId": "echo-thr_cm2xexi78g",
+  "reasoningLevel": "medium",
+  "reasoningLevelOverride": null,
+  "sectionId": null,
+  "serviceTier": "default",
+  "sourceThreadId": null,
+  "startupContext": null,
+  "status": "idle",
+  "storageDeletedAt": null,
+  "title": null,
+  "titleFallback": "hold_turn",
+  "updatedAt": 1800000185000,
+  "visibility": "visible"
+ },
+ "timeline": [
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "goal": null,
+    "maxSeq": 14,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000180000,
+      "id": "thr_cm2xexi78g:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000180000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn",
+      "threadId": "thr_cm2xexi78g",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000180000,
+      "createdAt": 1800000180000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_cm2xexi78g",
+      "id": "thr_cm2xexi78g:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "completedAt": 1800000185000,
+      "createdAt": 1800000185000,
+      "detail": null,
+      "id": "thr_cm2xexi78g:op:thread-interrupted:12",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 12,
+      "sourceSeqStart": 12,
+      "startedAt": 1800000185000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Stopped manually",
+      "turnId": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_cm2xexi78g\",\"maxSeq\":14,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn\\\",\\\"$DATA_DIR/workspaces/thr_cm2xexi78g\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 1,
+     "segmentLimit": 20
+    }
+   },
+   "query": {},
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "goal": null,
+    "maxSeq": 14,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000180000,
+      "id": "thr_cm2xexi78g:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000180000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn",
+      "threadId": "thr_cm2xexi78g",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000180000,
+      "createdAt": 1800000180000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_cm2xexi78g",
+      "id": "thr_cm2xexi78g:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "completedAt": 1800000185000,
+      "createdAt": 1800000185000,
+      "detail": null,
+      "id": "thr_cm2xexi78g:op:thread-interrupted:12",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 12,
+      "sourceSeqStart": 12,
+      "startedAt": 1800000185000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Stopped manually",
+      "turnId": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_cm2xexi78g\",\"maxSeq\":14,\"status\":\"idle\",\"surface\":\"[false,true,32000,\\\"Echo\\\",\\\"hold_turn\\\",\\\"$DATA_DIR/workspaces/thr_cm2xexi78g\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 1,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "includeNestedRows": "true"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "goal": null,
+    "maxSeq": 14,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_cm2xexi78g\",\"maxSeq\":14,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn\\\",\\\"$DATA_DIR/workspaces/thr_cm2xexi78g\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 1,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "summaryOnly": "true"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "goal": null,
+    "maxSeq": 14,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000180000,
+      "id": "thr_cm2xexi78g:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000180000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn",
+      "threadId": "thr_cm2xexi78g",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000180000,
+      "createdAt": 1800000180000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_cm2xexi78g",
+      "id": "thr_cm2xexi78g:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "completedAt": 1800000185000,
+      "createdAt": 1800000185000,
+      "detail": null,
+      "id": "thr_cm2xexi78g:op:thread-interrupted:12",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 12,
+      "sourceSeqStart": 12,
+      "startedAt": 1800000185000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Stopped manually",
+      "turnId": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_cm2xexi78g\",\"maxSeq\":14,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn\\\",\\\"$DATA_DIR/workspaces/thr_cm2xexi78g\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 1,
+     "segmentLimit": 2
+    }
+   },
+   "query": {
+    "segmentLimit": "2"
+   },
+   "status": 200
+  },
+  {
+   "body": {
+    "code": "invalid_request",
+    "message": "Timeline pagination cursor is no longer available; reload the latest page"
+   },
+   "query": {
+    "beforeAnchorId": "thr_cm2xexi78g:user-seed:1",
+    "beforeAnchorSeq": "1",
+    "segmentLimit": "2"
+   },
+   "status": 400
+  },
+  {
+   "body": {
+    "activeBackgroundCommands": [],
+    "activePromptMode": null,
+    "activeThinking": null,
+    "activeWorkflows": [],
+    "completedTurnDisplay": "collapse",
+    "contextBoundarySeq": null,
+    "goal": null,
+    "maxSeq": 14,
+    "modelFallback": null,
+    "pendingTodos": null,
+    "rows": [
+     {
+      "attachments": {
+       "imageUrls": [],
+       "localFilePaths": [],
+       "localFiles": 0,
+       "localImagePaths": [],
+       "localImages": 0,
+       "webImages": 0
+      },
+      "createdAt": 1800000180000,
+      "id": "thr_cm2xexi78g:user-seed:1",
+      "initiator": "user",
+      "kind": "conversation",
+      "mentions": [],
+      "role": "user",
+      "senderThreadId": null,
+      "sourceSeqEnd": 1,
+      "sourceSeqStart": 1,
+      "startedAt": 1800000180000,
+      "systemMessageKind": "unlabeled",
+      "systemMessageSubject": null,
+      "text": "hold_turn",
+      "threadId": "thr_cm2xexi78g",
+      "turnId": null,
+      "turnRequest": {
+       "isGrouped": false,
+       "kind": "message",
+       "status": "accepted"
+      }
+     },
+     {
+      "completedAt": 1800000180000,
+      "createdAt": 1800000180000,
+      "detail": "Preparing workspace\nGenerating title\nNo title generated (0ms)\nUsing workspace: $DATA_DIR/workspaces/thr_cm2xexi78g",
+      "id": "thr_cm2xexi78g:op:thread-provisioning:3",
+      "kind": "system",
+      "operationKind": "thread-provisioning",
+      "sourceSeqEnd": 7,
+      "sourceSeqStart": 3,
+      "startedAt": 1800000180000,
+      "status": "completed",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Provisioned thread",
+      "turnId": null
+     },
+     {
+      "completedAt": 1800000185000,
+      "createdAt": 1800000185000,
+      "detail": null,
+      "id": "thr_cm2xexi78g:op:thread-interrupted:12",
+      "kind": "system",
+      "operationKind": "thread-interrupted",
+      "sourceSeqEnd": 12,
+      "sourceSeqStart": 12,
+      "startedAt": 1800000185000,
+      "status": "interrupted",
+      "systemKind": "operation",
+      "threadId": "thr_cm2xexi78g",
+      "title": "Stopped manually",
+      "turnId": null
+     }
+    ],
+    "timelinePage": {
+     "hasOlderRows": false,
+     "historySnapshot": "{\"version\":3,\"threadId\":\"thr_cm2xexi78g\",\"maxSeq\":14,\"status\":\"idle\",\"surface\":\"[false,false,32000,\\\"Echo\\\",\\\"hold_turn\\\",\\\"$DATA_DIR/workspaces/thr_cm2xexi78g\\\",\\\"collapse\\\"]\"}",
+     "kind": "latest",
+     "olderCursor": null,
+     "olderRowsSourceSeqEnd": null,
+     "returnedSegmentCount": 1,
+     "segmentLimit": 20
+    }
+   },
+   "query": {
+    "afterSequence": "3"
+   },
+   "status": 200
+  }
+ ],
+ "turnSummaryDetails": null
+}

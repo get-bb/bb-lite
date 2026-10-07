@@ -455,7 +455,9 @@ async fn workspace_paths(
     ApiQuery(query): ApiQuery<Map<String, Value>>,
 ) -> ApiResponse<Value> {
     let workspace = require_project_workspace(&ctx, &id, &workspace_selector(&query))?;
-    Ok(Json(search_workspace_paths(&ctx, &workspace.host_id, &workspace.path, &query).await?))
+    let paths = serde_json::from_value(Value::Object(query.clone()))
+        .map_err(|error| crate::error::invalid_request(error.to_string()))?;
+    Ok(Json(search_workspace_paths(&ctx, &workspace.host_id, &workspace.path, &paths).await?))
 }
 
 async fn project_commands(
@@ -503,7 +505,9 @@ async fn project_branches(
     let runner = ctx.runners.get(&workspace.host_id)?;
     let mut search = Map::new();
     search.insert("path".into(), json!(workspace.path));
-    if let Value::Object(fields) = branch_search(&query) {
+    let text = |key: &str| query.get(key).and_then(Value::as_str);
+    let branches = branch_search(text("query"), text("selectedBranch").map(str::to_owned), text("limit"))?;
+    if let Value::Object(fields) = serde_json::to_value(branches)? {
         search.extend(fields);
     }
     let (source, branches) = tokio::try_join!(

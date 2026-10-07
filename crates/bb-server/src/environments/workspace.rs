@@ -276,16 +276,3 @@ pub async fn search_workspace_paths(
     params.insert("excludeNames".into(), json!(PATH_LIST_EXCLUDED_NAMES));
     call_runner(ctx, host_id, "listPaths", Value::Object(params)).await
 }
-
-pub fn branch_search(_query: &serde_json::Map<String, serde_json::Value>) -> serde_json::Value {
-    todo!("environments/workspace port")
-}
-
-pub async fn search_workspace_paths(
-    _ctx: &Ctx,
-    _host_id: &str,
-    _path: &str,
-    _query: &serde_json::Map<String, serde_json::Value>,
-) -> ApiResult<serde_json::Value> {
-    todo!("environments/workspace port")
-}
