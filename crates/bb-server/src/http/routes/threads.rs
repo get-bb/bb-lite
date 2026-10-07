@@ -224,6 +224,7 @@ async fn send(
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<SendMessageResponse> {
+    super::thread_input::check_send_request(&body).map_err(invalid_request)?;
     let fields = object(&body)?;
     non_empty_input(fields)?;
     non_empty_strings(fields, &["senderThreadId"], false)?;
@@ -301,6 +302,7 @@ async fn create_queued(
     ApiPath(id): ApiPath<String>,
     ApiJson(body): ApiJson<Value>,
 ) -> Created<Value> {
+    super::thread_input::check_create_queued_request(&body).map_err(invalid_request)?;
     let fields = object(&body)?;
     non_empty_input(fields)?;
     non_empty_strings(fields, &["senderThreadId"], false)?;
@@ -314,6 +316,7 @@ async fn update_queued(
     ApiPath((id, queued_message_id)): ApiPath<(String, String)>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<Value> {
+    super::thread_input::check_update_queued_request(&body).map_err(invalid_request)?;
     let fields = object(&body)?;
     non_empty_input(fields)?;
     non_negative_int(fields, "expectedUpdatedAt", true)?;
@@ -334,6 +337,7 @@ async fn send_queued(
     ApiPath((id, queued_message_id)): ApiPath<(String, String)>,
     ApiJson(body): ApiJson<Value>,
 ) -> ApiResponse<SendMessageResponse> {
+    super::thread_input::check_send_queued_request(&body).map_err(invalid_request)?;
     let mode: SendQueuedMessageMode = parse(body.get("mode").cloned().unwrap_or(Value::Null))?;
     Ok(Json(ops::send_queued_message_now(&ctx, &id, &queued_message_id, mode).await?))
 }
