@@ -1,5 +1,6 @@
-import { hostname } from "node:os";
-import type { Host } from "@bb/domain";
+import { hostname, userInfo } from "node:os";
+import { OWNER_USER_ID, type Host } from "@bb/domain";
+import { currentActor } from "../auth/actor.js";
 import { dataPaths } from "../config.js";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
@@ -7,6 +8,7 @@ import * as hosts from "../db/hosts.js";
 import { getAppSettings } from "../db/settings.js";
 import { ApiError } from "../http/errors.js";
 import type { Disposer } from "../server.js";
+import { canUseHost, defaultHostId } from "./access.js";
 
 export function publicServerUrl(ctx: ServerContext): string | null {
   const { machineServerUrl } = getAppSettings(ctx.db);
@@ -27,7 +29,7 @@ export function resolveLookupHostId(
   query: { hostId?: string; environmentId?: string },
 ): string {
   if (query.environmentId === undefined) {
-    return requireHost(ctx, query.hostId ?? ctx.config.hostId).id;
+    return requireHost(ctx, query.hostId ?? defaultHostId(ctx)).id;
   }
   const environment = getEnvironment(ctx.db, query.environmentId);
   if (environment === undefined) {
@@ -40,7 +42,23 @@ export function hostResponse(ctx: ServerContext, row: hosts.HostRow): Host {
   return hosts.toHost(row, {
     connected: ctx.runners.isConnected(row.id),
     local: row.id === ctx.config.hostId,
+    usable: canUseHost(row, currentActor()),
   });
+}
+
+function nameOwnerAfterOsUser(db: ServerContext["db"]) {
+  let username = "";
+  try {
+    ({ username } = userInfo());
+  } catch {
+    return;
+  }
+  if (username === "") return;
+  db.run(
+    "UPDATE users SET name = ? WHERE id = ? AND name = 'Owner'",
+    username,
+    OWNER_USER_ID,
+  );
 }
 
 export function ensureLocalHost(ctx: ServerContext): Disposer {
@@ -48,12 +66,14 @@ export function ensureLocalHost(ctx: ServerContext): Disposer {
   const { hostId: id, dataDir } = ctx.config;
   const { platform } = process;
   const threadStorageRoot = dataPaths(dataDir).threadStorage;
-  hosts.insertHost(db, { id, name: hostname(), phase: "active" });
+  const ownerUserId = OWNER_USER_ID;
+  hosts.insertHost(db, { id, name: hostname(), phase: "active", ownerUserId });
   hosts.updateHost(db, id, {
     platform,
     threadStorageRoot,
     lastSeenAt: db.now(),
   });
+  nameOwnerAfterOsUser(db);
   const offConnected = runners.onConnected((hostId) => {
     const enrolling = hosts.findHost(db, "id", hostId)?.phase === "creating";
     hosts.updateHost(db, hostId, {

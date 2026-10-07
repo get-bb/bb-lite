@@ -85,6 +85,7 @@ export interface PluginAppHost {
   ProviderIcon: ComponentType<T.ProviderIconProps>;
   UrlLink: ComponentType<T.UrlLinkProps>;
   ThreadTitle: ComponentType<{ threadId: string }>;
+  ThreadViewers: ComponentType<T.ThreadViewersProps>;
 }
 
 let installedHost: PluginAppHost | null = null;
@@ -141,3 +142,4 @@ export const Icon = component((h) => h.Icon);
 export const ProviderIcon = component((h) => h.ProviderIcon);
 export const UrlLink = component((h) => h.UrlLink);
 export const ThreadTitle = component((h) => h.ThreadTitle);
+export const ThreadViewers = component((h) => h.ThreadViewers);

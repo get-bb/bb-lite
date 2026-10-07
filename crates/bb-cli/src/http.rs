@@ -2,12 +2,14 @@ use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
 use serde_json::Value;
-use ureq::http::Response;
-use ureq::{Agent, Body};
+use ureq::http::{HeaderValue, Request, Response};
+use ureq::middleware::MiddlewareNext;
+use ureq::{Agent, Body, SendBody};
 
 use crate::call::{CliError, CliResult};
 
 pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 75_000;
+pub const THREAD_ID_HEADER: &str = "x-bb-thread-id";
 const BODY_LIMIT: u64 = 1 << 34;
 
 /// Blocking client for `<base>/api/v1`; paths passed to it start with `/` and omit `/api/v1`.
@@ -15,15 +17,22 @@ const BODY_LIMIT: u64 = 1 << 34;
 pub struct Http {
     base_url: String,
     timeout_ms: Option<u64>,
+    thread_id: Option<String>,
     agent: Agent,
 }
 
-fn agent(timeout_ms: Option<u64>) -> Agent {
-    Agent::config_builder()
+fn agent(timeout_ms: Option<u64>, thread_id: Option<&str>) -> Agent {
+    let config = Agent::config_builder()
         .timeout_global(timeout_ms.map(Duration::from_millis))
-        .http_status_as_error(false)
-        .build()
-        .into()
+        .http_status_as_error(false);
+    let Some(value) = thread_id.and_then(|id| HeaderValue::from_str(id).ok()) else {
+        return config.build().into();
+    };
+    let on_behalf_of = move |mut request: Request<SendBody>, next: MiddlewareNext| {
+        request.headers_mut().insert(THREAD_ID_HEADER, value.clone());
+        next.handle(request)
+    };
+    config.middleware(on_behalf_of).build().into()
 }
 
 pub fn timeout_message(timeout_ms: u64) -> String {
@@ -97,12 +106,18 @@ impl Http {
 
     pub fn with_timeout_ms(base_url: &str, timeout_ms: Option<u64>) -> Self {
         let base_url = base_url.trim_end_matches('/').to_string();
-        Http { base_url, timeout_ms, agent: agent(timeout_ms) }
+        Http { base_url, timeout_ms, thread_id: None, agent: agent(timeout_ms, None) }
+    }
+
+    /// A copy whose every request names the thread it is sent for (`BB_THREAD_ID`).
+    pub fn on_behalf_of(&self, thread_id: Option<&str>) -> Self {
+        let agent = agent(self.timeout_ms, thread_id);
+        Http { thread_id: thread_id.map(str::to_string), agent, ..self.clone() }
     }
 
     /// A copy with another request timeout (`None` waits forever), for long polls.
     pub fn timeout(&self, timeout_ms: Option<u64>) -> Self {
-        Self::with_timeout_ms(&self.base_url, timeout_ms)
+        Self::with_timeout_ms(&self.base_url, timeout_ms).on_behalf_of(self.thread_id.as_deref())
     }
 
     pub fn base_url(&self) -> &str {

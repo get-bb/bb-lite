@@ -2,6 +2,7 @@ import type {
   ThreadSectionMutationResponse,
   ThreadSectionResponse,
 } from "@bb/server-contract";
+import { viewerId } from "../auth/actor.js";
 import { ApiError } from "../http/errors.js";
 import { insertRow, newId, updateRow, type Db } from "./index.js";
 
@@ -13,8 +14,10 @@ const SECTION_COLUMNS = "id, name, created_at, updated_at";
 
 function findSection(db: Db, column: "id" | "name", value: string) {
   return db.get<ThreadSectionResponse>(
-    `SELECT ${SECTION_COLUMNS} FROM thread_sections WHERE ${column} = ?`,
+    `SELECT ${SECTION_COLUMNS} FROM thread_sections
+     WHERE ${column} = ? AND user_id = ?`,
     value,
+    viewerId(),
   );
 }
 
@@ -34,7 +37,9 @@ function nameTaken() {
 
 export function listThreadSections(db: Db): ThreadSectionResponse[] {
   return db.all<ThreadSectionResponse>(
-    `SELECT ${SECTION_COLUMNS} FROM thread_sections ORDER BY name, id`,
+    `SELECT ${SECTION_COLUMNS} FROM thread_sections
+     WHERE user_id = ? ORDER BY name, id`,
+    viewerId(),
   );
 }
 
@@ -46,7 +51,7 @@ export function createThreadSection(
     if (findSection(db, "name", name)) throw nameTaken();
     const at = { createdAt: db.now(), updatedAt: db.now() };
     const section = { id: newId("sec"), name, ...at };
-    insertRow(db, "thread_sections", section);
+    insertRow(db, "thread_sections", { ...section, userId: viewerId() });
     return section;
   });
 }
@@ -69,14 +74,12 @@ export function deleteThreadSection(db: Db, id: string): DeletedSection {
   return db.transaction(() => {
     const { name } = requireThreadSection(db, id);
     const threads = db.all<{ id: string; projectId: string }>(
-      "SELECT id, project_id FROM threads WHERE section_id = ?",
+      `SELECT threads.id, threads.project_id FROM thread_user_state AS s
+       JOIN threads ON threads.id = s.thread_id WHERE s.section_id = ?`,
       id,
     );
-    db.run(
-      "UPDATE threads SET section_id = NULL, updated_at = ? WHERE section_id = ?",
-      db.now(),
-      id,
-    );
+    const sql = "UPDATE thread_user_state SET section_id = NULL";
+    db.run(`${sql} WHERE section_id = ?`, id);
     db.run("DELETE FROM thread_sections WHERE id = ?", id);
     return { id, name, updatedThreadCount: threads.length, threads };
   });

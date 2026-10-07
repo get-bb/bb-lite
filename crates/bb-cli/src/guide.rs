@@ -12,6 +12,7 @@ pub const WRITTEN: &[(&str, &str)] = &[
     ("json", include_str!("../../../apps/cli/guide/json.md")),
     ("machines", include_str!("../../../apps/cli/guide/machines.md")),
     ("migrating", include_str!("../../../apps/cli/guide/migrating.md")),
+    ("people", include_str!("../../../apps/cli/guide/people.md")),
     ("plugins", include_str!("../../../apps/cli/guide/plugins.md")),
     ("threads", include_str!("../../../apps/cli/guide/threads.md")),
 ];

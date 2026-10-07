@@ -34,6 +34,8 @@ import {
   useSidebarNavigationSplit,
 } from "@/lib/plugin-sidebar-hooks";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
+import { UserAvatarStack } from "@/components/users/UserAvatar";
+import { useOtherOnlineUsers } from "@/components/users/user-attribution";
 import { NAV_RAIL_WIDTH_CLASS } from "./SidebarChrome";
 import {
   NEW_THREAD_NAVIGATION_ITEM_ID,
@@ -186,6 +188,7 @@ export function AppNavRail({
   const location = useLocation();
   const navigate = useNavigate();
   const settingsShortcut = useAppCommandShortcut("settings.open");
+  const onlineUsers = useOtherOnlineUsers();
 
   const isHomeActive =
     isAppMode &&
@@ -232,6 +235,13 @@ export function AppNavRail({
           ))}
           {hidden.length > 0 ? <RailMoreMenu hidden={hidden} /> : null}
         </div>
+        <UserAvatarStack
+          users={onlineUsers}
+          orientation="vertical"
+          label="Online now"
+          tooltipSide="right"
+          ringClassName="ring-surface-recessed"
+        />
         <RailButton
           label={
             settingsShortcut

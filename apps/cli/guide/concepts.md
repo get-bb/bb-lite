@@ -53,5 +53,6 @@ Every agent process started by bb has these variables set:
 ## More
 
 `bb guide threads`, `bb guide environments`, `bb guide machines`,
-`bb guide plugins`, `bb guide json`, and `bb guide commands [group]` for every
-command with its flags. `bb <command> --help` shows one command.
+`bb guide people`, `bb guide plugins`, `bb guide json`, and
+`bb guide commands [group]` for every command with its flags.
+`bb <command> --help` shows one command.

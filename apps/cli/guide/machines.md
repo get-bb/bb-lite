@@ -40,7 +40,8 @@ bb machine remove <machine> --yes      # revokes its credential
 
 `--machine` takes a machine ID or its unique name everywhere; `--host` is the
 same flag. A project needs a source (its directory) on each machine that runs
-its threads.
+its threads. A machine is private to its owner until `bb machine share` opens
+it to every user; see `bb guide people`.
 
 ## Variables for agents
 

@@ -24,6 +24,11 @@ interface Subscription {
   sockets: Set<HubSocket>;
 }
 
+interface Viewer {
+  userId: string | null;
+  threadIds: readonly string[];
+}
+
 interface PendingListEvents {
   eventTypes: Set<domain.ThreadEventType>;
   merged: boolean;
@@ -72,6 +77,8 @@ export class Hub {
   private readonly pendingListEvents = new Map<string, PendingListEvents>();
   private readonly subscriptionListeners = new Set<SubscriptionListener>();
   private readonly changeListeners = new Set<ChangeListener>();
+  private readonly viewers = new Map<HubSocket, Viewer>();
+  private announcedPresence = "[]";
 
   thread(
     id: string,
@@ -131,9 +138,28 @@ export class Hub {
     return this.send(this.keysBySocket.keys(), signal);
   }
 
-  threadOpen(signal: Omit<ThreadOpenSignal, "type">): number {
+  threadOpen(
+    signal: Omit<ThreadOpenSignal, "type">,
+    userId: string | null = null,
+  ): number {
     const message: ThreadOpenSignal = { type: "thread-open", ...signal };
-    return this.send(this.keysBySocket.keys(), message);
+    const own = [...this.viewers]
+      .filter(([, viewer]) => userId !== null && viewer.userId === userId)
+      .map(([socket]) => socket);
+    return this.send(own.length > 0 ? own : this.keysBySocket.keys(), message);
+  }
+
+  presence(): domain.UserPresence[] {
+    const threadsByUser = new Map<string, Set<string>>();
+    for (const { userId, threadIds } of this.viewers.values()) {
+      if (userId === null) continue;
+      const viewed = threadsByUser.get(userId) ?? new Set<string>();
+      threadsByUser.set(userId, viewed);
+      for (const threadId of threadIds) viewed.add(threadId);
+    }
+    return [...threadsByUser]
+      .map(([userId, viewed]) => ({ userId, threadIds: [...viewed].sort() }))
+      .sort((left, right) => left.userId.localeCompare(right.userId));
   }
 
   onSubscriptionChange(listener: SubscriptionListener): () => void {
@@ -146,8 +172,12 @@ export class Hub {
     return () => this.changeListeners.delete(listener);
   }
 
-  connect(socket: HubSocket): void {
+  connect(socket: HubSocket, userId: string | null = null): void {
     this.keysBySocket.set(socket, this.keysBySocket.get(socket) ?? new Set());
+    if (userId === null || this.viewers.has(socket)) return;
+    this.viewers.set(socket, { userId, threadIds: [] });
+    if (this.announcePresence()) return;
+    this.send([socket], { type: "presence", users: this.presence() });
   }
 
   disconnect(socket: HubSocket): void {
@@ -155,6 +185,7 @@ export class Hub {
       this.unsubscribe(socket, key);
     }
     this.keysBySocket.delete(socket);
+    if (this.viewers.delete(socket)) this.announcePresence();
   }
 
   receive(socket: HubSocket, raw: string): void {
@@ -165,6 +196,11 @@ export class Hub {
       this.send([socket], { type: "pong" });
     } else if (message.type === "subscribe") {
       this.subscribe(socket, message.target);
+    } else if (message.type === "presence") {
+      const viewer = this.viewers.get(socket);
+      if (viewer === undefined) return;
+      this.viewers.set(socket, { ...viewer, threadIds: message.threadIds });
+      this.announcePresence();
     } else {
       this.unsubscribe(
         socket,
@@ -178,6 +214,15 @@ export class Hub {
       clearTimeout(pending.timer);
     }
     this.pendingListEvents.clear();
+  }
+
+  private announcePresence(): boolean {
+    const users = this.presence();
+    const encoded = JSON.stringify(users);
+    if (encoded === this.announcedPresence) return false;
+    this.announcedPresence = encoded;
+    this.send([...this.viewers.keys()], { type: "presence", users });
+    return true;
   }
 
   private subscribe(

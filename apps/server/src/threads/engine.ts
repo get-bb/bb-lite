@@ -9,6 +9,7 @@ import * as queue from "../db/queued-messages.js";
 import { findThreadListRow } from "../db/thread-read.js";
 import * as store from "../db/threads.js";
 import { ApiError, threadNotFound } from "../http/errors.js";
+import { assertHostUsable } from "../runners/access.js";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
 import * as dispatching from "./dispatch.js";
@@ -247,6 +248,11 @@ export class Engine {
     out.after(() => notices.queueChildOutcome(this, child, outcome));
   }
 
+  assertWritable(thread: ThreadRow): void {
+    const hostId = this.hostOf(thread);
+    if (hostId !== null) assertHostUsable(this.ctx, hostId);
+  }
+
   requireUnarchived(threadId: string): ThreadRow {
     const thread = this.requireThread(threadId);
     if (thread.archivedAt === null) return thread;
@@ -352,6 +358,15 @@ export function createThreadEngine(ctx: ServerContext) {
     ) =>
     (threadId: string, ...args: Args) =>
       engine.inThread(threadId, () => run(engine, threadId, ...args));
+  const writes =
+    <Args extends unknown[], Result>(
+      run: (threadId: string, ...args: Args) => Result,
+    ) =>
+    (threadId: string, ...args: Args) => {
+      const thread = store.getThread(ctx.db, threadId);
+      if (thread !== undefined) engine.assertWritable(thread);
+      return run(threadId, ...args);
+    };
   return {
     start: () => engine.start(),
     close: () => engine.close(),
@@ -365,13 +380,13 @@ export function createThreadEngine(ctx: ServerContext) {
     },
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
-    send: serialized(mutations.send),
-    stop: direct(lifecycle.stopThread),
-    compact: direct(mutations.compact),
-    clearContext: serialized(lifecycle.clearContext),
-    archive: direct(lifecycle.archiveThreadTree),
-    unarchive: serialized(lifecycle.unarchiveThread),
-    delete: direct(lifecycle.deleteThreadTree),
+    send: writes(serialized(mutations.send)),
+    stop: writes(direct(lifecycle.stopThread)),
+    compact: writes(direct(mutations.compact)),
+    clearContext: writes(serialized(lifecycle.clearContext)),
+    archive: writes(direct(lifecycle.archiveThreadTree)),
+    unarchive: writes(serialized(lifecycle.unarchiveThread)),
+    delete: writes(direct(lifecycle.deleteThreadTree)),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
     update: serialized(mutations.update),
     pin: serialized(mutations.pin),
@@ -379,13 +394,15 @@ export function createThreadEngine(ctx: ServerContext) {
     reorderPinned: direct(mutations.reorderPinned),
     markRead: serialized(mutations.markRead),
     markUnread: serialized(mutations.markUnread),
-    createQueuedMessage: serialized(mutations.createQueuedMessage),
-    updateQueuedMessage: serialized(mutations.updateQueuedMessage),
-    deleteQueuedMessage: serialized(mutations.deleteQueuedMessage),
-    sendQueuedMessageNow: serialized(mutations.sendQueuedMessageNow),
-    resolveInteraction: serialized(interactions.resolveProviderInteraction),
-    respondToInteraction: serialized(interactions.respondToInteraction),
-    cancelInteraction: serialized(interactions.cancelByUser),
+    createQueuedMessage: writes(serialized(mutations.createQueuedMessage)),
+    updateQueuedMessage: writes(serialized(mutations.updateQueuedMessage)),
+    deleteQueuedMessage: writes(serialized(mutations.deleteQueuedMessage)),
+    sendQueuedMessageNow: writes(serialized(mutations.sendQueuedMessageNow)),
+    resolveInteraction: writes(
+      serialized(interactions.resolveProviderInteraction),
+    ),
+    respondToInteraction: writes(serialized(interactions.respondToInteraction)),
+    cancelInteraction: writes(serialized(interactions.cancelByUser)),
     requestInput: direct(interactions.requestInput),
   };
 }

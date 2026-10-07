@@ -1,4 +1,9 @@
-import type { Host, HostType, PermissionMode } from "@bb/domain";
+import type {
+  Host,
+  HostType,
+  MachineSharing,
+  PermissionMode,
+} from "@bb/domain";
 import { insertRow, updateRow, type Db, type RowValues } from "./index.js";
 
 export interface HostRow {
@@ -19,13 +24,20 @@ export interface HostRow {
   lastRejectedProtocolVersion: number | null;
   platform: string | null;
   threadStorageRoot: string | null;
+  ownerUserId: string | null;
+  sharing: MachineSharing;
   createdAt: number;
   updatedAt: number;
 }
 
-type HostLookup = "id" | "launch_key" | "token_hash" | "join_token_hash";
+type HostLookup =
+  | "id"
+  | "launch_key"
+  | "token_hash"
+  | "join_token_hash"
+  | "connect_machine_id";
 type NewHost = Pick<HostRow, "id" | "name" | "phase"> &
-  Partial<Pick<HostRow, "statusMessage" | "launchKey">>;
+  Partial<Pick<HostRow, "statusMessage" | "launchKey" | "ownerUserId">>;
 
 export function findHost(
   db: Db,
@@ -91,7 +103,7 @@ export function destroyHost(db: Db, id: string): void {
 
 export function toHost(
   row: HostRow,
-  status: { connected: boolean; local: boolean },
+  status: { connected: boolean; local: boolean; usable: boolean },
 ): Host {
   return {
     id: row.id,
@@ -107,6 +119,9 @@ export function toHost(
       teardown: null,
     },
     maxPermissionMode: row.maxPermissionMode,
+    ownerUserId: row.ownerUserId,
+    sharing: row.sharing,
+    usable: status.usable,
     lastSeenAt: row.lastSeenAt,
     lastRejectedProtocolVersion: row.lastRejectedProtocolVersion,
     createdAt: row.createdAt,

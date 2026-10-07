@@ -17,7 +17,7 @@ share URL, not a localhost URL.
    (`https://<label>--<port>.<base domain>`); with `--json` it prints
    `{"port": …, "url": …}`.
 3. Give that URL to the user as a markdown link. It opens for viewers signed in
-   to the owner's getbb.app account; it is not a public link.
+   to the owner's getbb.dev account; it is not a public link.
 4. When the server stops, run `bb connect unexpose <port>`. `bb connect shares`
    lists what is shared and `bb connect unexpose-all` revokes everything.
 

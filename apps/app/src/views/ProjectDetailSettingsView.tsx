@@ -47,6 +47,8 @@ import { selectHosts, useHosts } from "@/hooks/queries/host-queries";
 import { useProjectDefaultExecutionOptions } from "@/hooks/queries/project-default-execution-options-query";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { useUserDirectory } from "@/hooks/queries/user-queries";
+import { privateMachineHint } from "@/lib/machine-access";
 import { useLocalPathPicker } from "@/hooks/useLocalPathPicker";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
@@ -60,6 +62,7 @@ export function ProjectDetailSettingsView() {
   const navigation = useSidebarNavigation();
   const hostsQuery = useHosts();
   const primaryHostId = useSystemConfig().data?.primaryHostId ?? null;
+  const users = useUserDirectory();
   const defaultsQuery = useProjectDefaultExecutionOptions({ projectId });
   const { requestRename, requestDelete } = useProjectActions();
   const addLocalSource = useAddLocalProjectSource();
@@ -198,6 +201,7 @@ export function ProjectDetailSettingsView() {
                   findLocalPathProjectSourceForHost(sources, host.id) ?? null;
                 const isPickerHost = host.id === picker.hostId;
                 const connected = host.status === "connected";
+                const privateHint = privateMachineHint(host, users);
                 return (
                   <SettingsRow key={host.id} className="items-start">
                     <div className="min-w-0 flex-1 space-y-0.5">
@@ -240,7 +244,9 @@ export function ProjectDetailSettingsView() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled={pending || !connected}
+                          disabled={
+                            pending || !connected || privateHint !== null
+                          }
                           onClick={() =>
                             isPickerHost
                               ? picker.openPicker({
@@ -255,7 +261,7 @@ export function ProjectDetailSettingsView() {
                                 })
                           }
                         >
-                          {connected ? "Set up" : "Offline"}
+                          {privateHint ?? (connected ? "Set up" : "Offline")}
                         </Button>
                       ) : (
                         <ResourceOverflowMenu

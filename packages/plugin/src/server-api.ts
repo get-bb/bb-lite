@@ -186,6 +186,11 @@ export interface MachineAccessProvider {
   revoke(host: { id: string; connectMachineId: string | null }): Promise<void>;
 }
 
+export interface PluginUsers {
+  current(): Promise<Domain.User | null>;
+  list(): Promise<Domain.User[]>;
+}
+
 export interface PluginSections {
   list(): Promise<Contract.ThreadSectionResponse[]>;
   create(name: string): Promise<Contract.ThreadSectionResponse>;
@@ -252,6 +257,7 @@ export interface PluginServerApi {
   readonly threads: PluginThreads;
   readonly projects: { list(): Promise<Domain.Project[]> };
   readonly hosts: { list(): Promise<Domain.Host[]> };
+  readonly users: PluginUsers;
   readonly machines: {
     setAccessProvider(provider: MachineAccessProvider | null): void;
   };
@@ -261,6 +267,7 @@ export interface PluginServerApi {
   readonly server: {
     url: string;
     dataDir: string;
+    tunnelToken: string;
     setPublicUrl(url: string | null): void;
   };
   onDispose(dispose: () => MaybePromise<void>): void;

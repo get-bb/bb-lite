@@ -11,7 +11,7 @@ type Outcome = { text: string; json?: unknown };
 type Act = (port: number, context: Plugin.CliContext) => Promise<Outcome>;
 type StoredMachine = { machineId: string };
 
-const DEFAULT_BASE_URL = "https://getbb.app";
+const DEFAULT_BASE_URL = "https://getbb.dev";
 const STATUS_CHANNEL = "status";
 const SHARES_KEY = "shares";
 const ENABLED_KEY = "enabled";
@@ -71,6 +71,7 @@ export default async function connectPlugin(
   });
   const tunnel = new ConnectTunnel({
     loopbackUrl: bb.server.url,
+    marker: bb.server.tunnelToken,
     isShared: (port) => shares.has(port),
     confirmRefused: (credential) => account.confirmRefused(credential),
     log: bb.log,
@@ -225,9 +226,9 @@ export default async function connectPlugin(
   bb.cli.register(
     defineCli({
       name: "connect",
-      summary: "Reach this bb at its getbb.app address and share local ports",
+      summary: "Reach this bb at its getbb.dev address and share local ports",
       commands: {
-        login: command("Sign this bb in to your getbb.app account", login),
+        login: command("Sign this bb in to your getbb.dev account", login),
         status: command("Show remote-access status", show),
         logout: command("Sign out and close the tunnel", logout),
         on: command("Turn remote access on", on),

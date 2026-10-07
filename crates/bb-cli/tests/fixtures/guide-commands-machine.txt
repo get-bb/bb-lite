@@ -1,6 +1,6 @@
 Usage: bb machine list [options]
-List machines
-JSON (--json): [{id, name, type, status, lifecycle, lastSeenAt}] (bare array)
+List machines, their owners and who may use them
+JSON (--json): [{id, name, type, status, lifecycle, ownerUserId, sharing, usable, lastSeenAt}] (bare array)
 
 Usage: bb machine show <machine> [options]
 Show a machine, by ID or name
@@ -20,6 +20,12 @@ Usage: bb machine remove <machine> [options]
 Revoke and remove a machine
 Options:
   --yes  Skip the confirmation prompt
+
+Usage: bb machine share <machine> [options]
+Let every user run threads on a machine
+
+Usage: bb machine unshare <machine> [options]
+Keep a machine to its owner
 
 Usage: bb machine env list [options]
 List variables given to agents (values stay hidden)

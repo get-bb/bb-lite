@@ -22,6 +22,8 @@ pub type Route = (&'static str, String, u16, Value);
 pub struct FakeServer {
     pub url: String,
     pub requests: Arc<Mutex<Vec<Request>>>,
+    /// The `x-bb-thread-id` header of every request, in order.
+    pub thread_ids: Arc<Mutex<Vec<Option<String>>>>,
 }
 
 impl FakeServer {
@@ -30,6 +32,8 @@ impl FakeServer {
         let url = format!("http://{}", listener.local_addr().unwrap());
         let requests = Arc::new(Mutex::new(Vec::new()));
         let recorded = requests.clone();
+        let thread_ids = Arc::new(Mutex::new(Vec::new()));
+        let named = thread_ids.clone();
         std::thread::spawn(move || {
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { return };
@@ -42,6 +46,7 @@ impl FakeServer {
                 let method = parts.next().unwrap_or("").to_string();
                 let target = parts.next().unwrap_or("").to_string();
                 let mut length = 0;
+                let mut thread_id = None;
                 loop {
                     let mut header = String::new();
                     reader.read_line(&mut header).unwrap();
@@ -52,12 +57,16 @@ impl FakeServer {
                     if let Some(value) = lower.strip_prefix("content-length:") {
                         length = value.trim().parse().unwrap_or(0);
                     }
+                    if lower.starts_with("x-bb-thread-id:") {
+                        thread_id = header.split_once(':').map(|(_, id)| id.trim().to_string());
+                    }
                 }
                 let mut body = vec![0; length];
                 reader.read_exact(&mut body).unwrap();
                 let body = (length > 0).then(|| serde_json::from_slice(&body).unwrap());
                 let path = target.strip_prefix("/api/v1").unwrap_or(&target).to_string();
                 let bare = path.split('?').next().unwrap_or("").to_string();
+                named.lock().unwrap().push(thread_id);
                 recorded.lock().unwrap().push(Request { method: method.clone(), path, body });
                 let found = routes.iter().find(|(m, p, _, _)| *m == method && *p == bare);
                 let (status, answer) = match found {
@@ -72,7 +81,7 @@ impl FakeServer {
                 let _ = stream.write_all(answer.as_bytes());
             }
         });
-        FakeServer { url, requests }
+        FakeServer { url, requests, thread_ids }
     }
 
     pub fn requests(&self) -> Vec<Request> {

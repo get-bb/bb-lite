@@ -3,9 +3,11 @@ import {
   type ThreadChangeKind,
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
+import { actorUserId, viewerId } from "../auth/actor.js";
 import * as queue from "../db/queued-messages.js";
 import { listSidebarThreadRows } from "../db/thread-read.js";
 import { requireThreadSection } from "../db/thread-sections.js";
+import * as viewerState from "../db/thread-user-state.js";
 import * as store from "../db/threads.js";
 import { conflict } from "../http/errors.js";
 import { requireValidParent } from "./create.js";
@@ -34,6 +36,7 @@ export async function send(
       input: request.input,
       execution: resolveTurnExecution(engine.ctx.db, thread, request),
       senderThreadId,
+      actorUserId: actorUserId(),
       initiator: senderThreadId === null ? "user" : "agent",
       systemNotice: null,
     },
@@ -68,14 +71,16 @@ export function update(
   if (sectionId != null) requireThreadSection(db, sectionId);
   const fields: store.ThreadPatch = {};
   if (title !== undefined) fields.title = title;
-  if (sectionId !== undefined) fields.sectionId = sectionId;
   if (patch.visibility !== undefined) fields.visibility = patch.visibility;
   if (patch.model !== undefined) fields.modelOverride = patch.model;
   if (patch.reasoningLevel !== undefined) {
     fields.reasoningLevelOverride = patch.reasoningLevel;
   }
+  const shared = Object.keys(fields).length > 0 || parentThreadId != null;
+  if (shared) engine.assertWritable(thread);
   const changes: ThreadChangeKind[] = [];
-  if (Object.keys(fields).length > 0) changes.push("title-changed");
+  const listed = Object.keys(fields).length > 0 || sectionId !== undefined;
+  if (listed) changes.push("title-changed");
   const previousParentId = thread.parentThreadId;
   if (parentThreadId !== undefined && parentThreadId !== previousParentId) {
     fields.parentThreadId = parentThreadId;
@@ -84,6 +89,9 @@ export function update(
   const updated = engine.commit((out) => {
     const { projectId } = thread;
     if (changes.length > 0) out.thread(threadId, changes, { projectId });
+    if (sectionId !== undefined) {
+      viewerState.setThreadUserState(db, threadId, viewerId(), { sectionId });
+    }
     return store.patchThread(db, threadId, fields);
   });
   if (title != null && title !== thread.title) {
@@ -96,20 +104,25 @@ function patchAndAnnounce(
   engine: Engine,
   threadId: string,
   change: ThreadChangeKind,
-  patch: store.ThreadPatch,
+  patch: Partial<viewerState.ThreadUserState>,
 ) {
+  const { db } = engine.ctx;
   const { projectId } = engine.requireThread(threadId);
   engine.commit((out) => {
     out.thread(threadId, [change], { projectId });
-    store.patchThread(engine.ctx.db, threadId, patch);
+    viewerState.setThreadUserState(db, threadId, viewerId(), patch);
   });
   return engine.respond(threadId);
 }
 
 export function pin(engine: Engine, threadId: string) {
   const { db, now } = engine.ctx;
-  const pinned = engine.requireThread(threadId).pinnedAt !== null;
-  const pinning = { pinnedAt: now(), pinSortKey: store.nextPinSortKey(db) };
+  engine.requireThread(threadId);
+  const userId = viewerId();
+  const state = viewerState.getThreadUserState(db, threadId, userId);
+  const pinned = state !== undefined && state.pinnedAt !== null;
+  const pinSortKey = viewerState.nextPinSortKey(db, userId);
+  const pinning = { pinnedAt: now(), pinSortKey };
   const change = "pin-state-changed";
   return patchAndAnnounce(engine, threadId, change, pinned ? {} : pinning);
 }
@@ -127,7 +140,9 @@ export function reorderPinned(
   const { db, hub } = engine.ctx;
   const { projectId } = engine.requireThread(threadId);
   const { previousThreadId, nextThreadId } = request;
-  store.reorderPinnedThread(db, threadId, previousThreadId, nextThreadId);
+  const userId = viewerId();
+  const order = [previousThreadId, nextThreadId] as const;
+  viewerState.reorderPinnedThread(db, userId, threadId, ...order);
   hub.thread(threadId, ["pin-state-changed"], { projectId });
   const key = (row: store.ThreadRow) => row.pinSortKey ?? "";
   const pinned = listSidebarThreadRows(db)
@@ -168,6 +183,7 @@ export function createQueuedMessage(
     threadId,
     content: request.input,
     senderThreadId: engine.senderOf(thread, request.senderThreadId),
+    requestedByUserId: actorUserId(),
     systemNotice: null,
     ...resolveTurnExecution(db, thread, request),
     waitingOn: { kind: stopping ? "stopping" : "thread-busy" },

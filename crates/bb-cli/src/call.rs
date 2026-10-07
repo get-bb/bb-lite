@@ -216,7 +216,7 @@ impl<'a> Call<'a> {
         invocation: Invocation,
         env: CliEnv,
     ) -> Self {
-        let http = Http::new(&env.server_url);
+        let http = Http::new(&env.server_url).on_behalf_of(env.thread_id.as_deref());
         let stdout = Box::new(std::io::stdout());
         Call { table, spec, invocation, env, http, stdout, wrote_json: false, argv: Vec::new() }
     }

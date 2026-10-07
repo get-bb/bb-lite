@@ -58,6 +58,7 @@ export const SYSTEM_CHANGE_KINDS = [
   "config-changed",
   "plugins-changed",
   "ui-preferences-changed",
+  "users-changed",
 ] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
@@ -96,10 +97,16 @@ export const pingMessageSchema = z.object({
   type: z.literal("ping"),
 });
 
+const presenceUpdateMessageSchema = z.object({
+  type: z.literal("presence"),
+  threadIds: z.array(targetId).max(16),
+});
+
 export const clientMessageSchema = z.discriminatedUnion("type", [
   subscribeMessageSchema,
   unsubscribeMessageSchema,
   pingMessageSchema,
+  presenceUpdateMessageSchema,
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 

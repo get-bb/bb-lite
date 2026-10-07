@@ -7,7 +7,7 @@ import * as hosted from "./hosted.js";
 
 const MAX_POLL_INTERVAL_MS = 30_000;
 const UNCONFIRMED =
-  "getbb.app approved the sign-in but did not confirm the new credential. " +
+  "getbb.dev approved the sign-in but did not confirm the new credential. " +
   "Sign in again.";
 const LEGACY_CREDENTIAL = `SELECT value FROM plugin_kv
   WHERE plugin_id = 'bb-account' AND key = 'credential'`;
@@ -121,7 +121,7 @@ export class ConnectAccount {
     if (link?.credential !== credential) return;
     const profile = await hosted.fetchProfile(link.baseUrl, credential);
     if (profile !== "unauthorized" || this.link !== link) return;
-    this.options.warn("getbb.app no longer accepts this server; signed out");
+    this.options.warn("getbb.dev no longer accepts this server; signed out");
     this.adopt(null);
   }
 

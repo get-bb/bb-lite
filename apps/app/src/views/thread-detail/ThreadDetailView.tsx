@@ -78,6 +78,7 @@ import { useThreadReadTracking } from "@/hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import { isRootThread } from "./threadParentSelectorOptions";
 import { useAppCommandHandler } from "@/components/commands/AppCommandProvider";
+import { useReportViewedThread } from "@/lib/presence";
 import { usePaneContext } from "./PaneContext";
 
 type ContentProps = ComponentProps<typeof ThreadDetailSecondaryContent>;
@@ -90,6 +91,7 @@ export function ThreadDetailView({
   timelineEnabled,
 }: ThreadRoutePathArgs & { timelineEnabled: boolean }) {
   const { isFocused, navigateInPane, isBoundedPane } = usePaneContext();
+  useReportViewedThread(timelineEnabled ? threadId : null);
   const navigate = useImmediateRouteNavigate();
   const threadActions = useThreadActions();
   const systemConfigQuery = useSystemConfig();

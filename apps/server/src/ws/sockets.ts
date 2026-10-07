@@ -1,14 +1,17 @@
 import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
+import type { Actor } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
 import { trustLookups } from "../http/app.js";
 import { errorResponse } from "../http/errors.js";
 import { authorize, requestHeader, type Principal } from "../http/trust.js";
+import { THREAD_ID_HEADER, actorOf } from "../runners/access.js";
 
 export interface SocketRequest {
   url: URL;
   principal: Principal;
+  actor: Actor | null;
   header(name: string): string | undefined;
 }
 
@@ -74,6 +77,7 @@ export class SocketRegistry {
       trustLookups(this.ctx),
     );
     const header = (name: string) => requestHeader(request, name);
-    return this.resolve({ url, principal, header });
+    const actor = actorOf(this.ctx, principal, header(THREAD_ID_HEADER));
+    return this.resolve({ url, principal, actor, header });
   }
 }

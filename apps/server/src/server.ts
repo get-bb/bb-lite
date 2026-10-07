@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { serve, type ServerType } from "@hono/node-server";
 import { dataPaths, type ServerConfig } from "./config.js";
@@ -13,6 +14,7 @@ import { createEnvironments } from "./environments/manager.js";
 import { startWorkspaceWatch } from "./environments/watch.js";
 import { createHttpApp } from "./http/app.js";
 import { PluginHost, startPlugins } from "./plugins/host.js";
+import { assertHostUsable } from "./runners/access.js";
 import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
 import { startTerminalSessions } from "./terminals/sessions.js";
@@ -27,6 +29,7 @@ export interface CreateServerOptions {
   config: ServerConfig;
   localRunner: RunnerFactory<ServerRunner>;
   db?: Db;
+  tunnelToken?: string;
   now?: () => number;
   log?: Logger;
 }
@@ -46,12 +49,17 @@ export function createServer(options: CreateServerOptions): BbServer {
   const hub = new Hub();
   const { hostId: localHostId } = config;
   const { localRunner } = options;
-  const runners = new RunnerRegistry({ localHostId, localRunner, log });
+  const authorize = (hostId: string) => assertHostUsable(ctx, hostId);
+  const access = { localHostId, localRunner, log, authorize };
+  const runners = new RunnerRegistry(access);
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
-  const plugins = new PluginHost({ config, db, hub, log });
+  const tunnelToken =
+    options.tunnelToken ?? randomBytes(24).toString("base64url");
+  const plugins = new PluginHost({ config, db, hub, log, tunnelToken });
   const ctx: ServerContext = {
     config,
+    tunnelToken,
     db,
     hub,
     runners,

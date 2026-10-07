@@ -1,0 +1,12 @@
+{
+  "extends": [
+    "@bb/tsconfig/base.json",
+    "@bb/tsconfig/typecheck-overrides.json"
+  ],
+  "compilerOptions": {
+    "rootDir": "../..",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src"]
+}

@@ -1,4 +1,5 @@
 import { rm } from "node:fs/promises";
+import { asSystem } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
 import { deleteProject } from "../db/projects.js";
 import { removeProjectWorkspaces } from "../environments/manager.js";
@@ -20,8 +21,10 @@ export async function removeProject(
   await rm(attachments, { recursive: true, force: true });
   const failed = (err: unknown) =>
     ctx.log.error("Project deletion cleanup failed", { err, projectId });
-  void removeProjectWorkspaces(ctx, deleted)
-    .catch(failed)
-    .then(() => ctx.threads.releaseDeletedProject(deleted))
-    .catch(failed);
+  void asSystem(() =>
+    removeProjectWorkspaces(ctx, deleted)
+      .catch(failed)
+      .then(() => ctx.threads.releaseDeletedProject(deleted))
+      .catch(failed),
+  );
 }

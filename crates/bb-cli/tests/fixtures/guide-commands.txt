@@ -5,6 +5,10 @@ JSON (--json): {project, thread, childThreads, pendingTodos, pluginsNeedingAtten
 Usage: bb guide [topic] [group] [options]
 Explain bb: concepts, threads, machines, commands, …
 
+Usage: bb whoami [options]
+Show the user this CLI acts as
+JSON (--json): {user: {id, name, email, role, hasPassword, disabledAt, …}}
+
 Usage: bb thread spawn [options]
 Create a thread and send its first prompt
 Aliases: create, new
@@ -299,8 +303,8 @@ Options:
   --yes  Skip the confirmation prompt
 
 Usage: bb machine list [options]
-List machines
-JSON (--json): [{id, name, type, status, lifecycle, lastSeenAt}] (bare array)
+List machines, their owners and who may use them
+JSON (--json): [{id, name, type, status, lifecycle, ownerUserId, sharing, usable, lastSeenAt}] (bare array)
 
 Usage: bb machine show <machine> [options]
 Show a machine, by ID or name
@@ -321,6 +325,12 @@ Revoke and remove a machine
 Options:
   --yes  Skip the confirmation prompt
 
+Usage: bb machine share <machine> [options]
+Let every user run threads on a machine
+
+Usage: bb machine unshare <machine> [options]
+Keep a machine to its owner
+
 Usage: bb machine env list [options]
 List variables given to agents (values stay hidden)
 Options:
@@ -336,6 +346,38 @@ Usage: bb machine env unset <name> [options]
 Remove an agent variable
 Options:
   --project <id>  Only for this project
+
+Usage: bb user list [options]
+List the people who can sign in
+JSON (--json): [{id, name, email, role, hasPassword, disabledAt, createdAt}] (bare array)
+
+Usage: bb user invite [options]
+Create an invite link for a new person
+Options:
+  --name <name>    Their name
+  --email <email>  Their email address
+  --role <role>    owner or member
+JSON (--json): {id, name, email, role, createdByUserId, expiresAt, createdAt, url}
+
+Usage: bb user invites [options]
+List the invites nobody has accepted yet
+JSON (--json): [{id, name, email, role, createdByUserId, expiresAt, createdAt}]
+
+Usage: bb user revoke-invite <id> [options]
+Revoke an invite
+
+Usage: bb user sign-in-link [id] [options]
+Print a one-time sign-in link (default: for yourself)
+JSON (--json): {url, expiresAt, userId}
+
+Usage: bb user role <id> <role> [options]
+Make a user an owner or a member
+
+Usage: bb user disable <id> [options]
+Stop a user from signing in
+
+Usage: bb user enable <id> [options]
+Let a disabled user sign in again
 
 Usage: bb provider list [options]
 List providers usable on a machine

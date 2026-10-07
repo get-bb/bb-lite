@@ -1,3 +1,4 @@
+import * as people from "./commands/people.js";
 import * as system from "./commands/system.js";
 import * as terminal from "./commands/terminal.js";
 import * as threadMore from "./commands/thread-more.js";
@@ -35,6 +36,8 @@ status  Show the current project, thread, environment and server
 guide [topic] [group]  Explain bb: concepts, threads, machines, commands, …
   $ bb guide threads
   $ bb guide commands thread
+whoami  Show the user this CLI acts as
+  > {user: {id, name, email, role, hasPassword, disabledAt, …}}
 
 thread spawn|create|new  Create a thread and send its first prompt
   --project <id>  Project ID (required; inside a thread: $BB_PROJECT_ID)
@@ -202,8 +205,9 @@ env update <id>  Rename an environment or set its merge-base branch
 env delete <id>  Delete an environment that has no live threads
 ${YES}
 
-machine list  List machines
-  > [{id, name, type, status, lifecycle, lastSeenAt}] (bare array)
+machine list  List machines, their owners and who may use them
+  > [{id, name, type, status, lifecycle, ownerUserId, sharing, usable,
+    lastSeenAt}] (bare array)
 machine show <machine>  Show a machine, by ID or name
 machine add  Register a machine and print the command that joins it
   --name <name>  Machine name (default: its hostname)
@@ -211,6 +215,8 @@ machine reconnect <machine>  Print a new join command for an offline machine
 machine rename <machine> <name>  Rename a machine
 machine remove <machine>  Revoke and remove a machine
 ${YES}
+machine share <machine>  Let every user run threads on a machine
+machine unshare <machine>  Keep a machine to its owner
 machine env list  List variables given to agents (values stay hidden)
   --project <id>  Variables of one project
 machine env set <name>  Set an agent variable; the value is read from stdin
@@ -219,6 +225,25 @@ machine env set <name>  Set an agent variable; the value is read from stdin
   $ printf %s "$TOKEN" | bb machine env set NPM_TOKEN
 machine env unset <name>  Remove an agent variable
   --project <id>  Only for this project
+
+user list  List the people who can sign in
+  > [{id, name, email, role, hasPassword, disabledAt, createdAt}] (bare array)
+user invite  Create an invite link for a new person
+  --name <name>  Their name
+  --email <email>  Their email address
+  --role <role>  owner or member
+  $ bb user invite --name Ada --role member
+  > {id, name, email, role, createdByUserId, expiresAt, createdAt, url}
+user invites  List the invites nobody has accepted yet
+  > [{id, name, email, role, createdByUserId, expiresAt, createdAt}]
+user revoke-invite <id>  Revoke an invite
+user sign-in-link [id]  Print a one-time sign-in link (default: for yourself)
+  $ bb user sign-in-link
+  > {url, expiresAt, userId}
+user role <id> <role>  Make a user an owner or a member
+  $ bb user role usr_abc owner
+user disable <id>  Stop a user from signing in
+user enable <id>  Let a disabled user sign in again
 
 provider list  List providers usable on a machine
 ${ROUTING}
@@ -313,6 +338,7 @@ runner run  Run this machine's runner in the foreground
 `;
 
 export const handlers = {
+  ...people,
   ...system,
   ...thread,
   ...threadMore,
@@ -333,6 +359,7 @@ export const table: Table = {
     env: "Environments: the checkouts and worktrees threads run in",
     machine: "Machines that run threads",
     "machine env": "Environment variables given to agents",
+    user: "People who can sign in, their invites and sign-in links",
     provider: "Agent providers and their models",
     terminal: "Terminals in a thread, an environment or on a machine",
     file: "Read and write files on any machine",
@@ -352,6 +379,9 @@ export const table: Table = {
     host: "machine",
     hosts: "machine",
     machines: "machine",
+    users: "user",
+    people: "user",
+    invite: "user invite",
     providers: "provider",
     model: "provider models",
     models: "provider models",

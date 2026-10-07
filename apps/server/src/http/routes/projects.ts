@@ -29,6 +29,7 @@ import { listProjectsWithThreads } from "../../threads/thread-display.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, conflict, invalidRequest, notFound } from "../errors.js";
 import { fileResponse } from "../range.js";
+import { requireOwner } from "../trust.js";
 
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
@@ -133,6 +134,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   del(routes.delete, async (c) => {
+    requireOwner(c, "Only an owner can delete a project");
     const project = store.requireProject(db, c.req.param("id"));
     if (project.kind === "personal") {
       throw conflict("The personal project cannot be deleted");

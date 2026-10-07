@@ -65,13 +65,46 @@ fn project_create_and_source_add_send_local_paths() {
 }
 
 #[test]
-fn machine_list_shows_creating_hosts() {
-    let hosts = json!([{ "id": "host_1", "name": "box", "status": "online", "lastSeenAt": null }]);
-    let server = FakeServer::start(vec![route("GET", "/hosts", hosts)]);
+fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
+    let hosts = json!([
+        { "id": "host_1", "name": "box", "status": "online", "lastSeenAt": null,
+          "ownerUserId": "usr_1", "sharing": "shared" },
+        { "id": "host_2", "name": "lab", "status": "offline", "lastSeenAt": null,
+          "ownerUserId": "usr_9", "sharing": "private" },
+        { "id": "host_3", "name": "old", "status": "offline", "lastSeenAt": null,
+          "ownerUserId": null, "sharing": "shared" },
+    ]);
+    let users = json!([{ "id": "usr_1", "name": "Ada" }]);
+    let routes = vec![route("GET", "/hosts", hosts.clone()), route("GET", "/users", users)];
+    let server = FakeServer::start(routes);
     let (result, printed) = run(&server, &["machine", "list"], CliEnv::default());
     result.unwrap();
-    assert_eq!(printed, "\nID      NAME  STATUS  LASTSEENAT\nhost_1  box   online  -\n\n");
-    assert_eq!(server.requests(), [request("GET", "/hosts?includeCreating=true", None)]);
+    let expected = "\nID      NAME  STATUS   SHARING  OWNER  LASTSEENAT\n\
+        host_1  box   online   shared   Ada    -\n\
+        host_2  lab   offline  private  usr_9  -\n\
+        host_3  old   offline  shared   -      -\n\n";
+    assert_eq!(printed, expected);
+    let listed =
+        [request("GET", "/hosts?includeCreating=true", None), request("GET", "/users", None)];
+    assert_eq!(server.requests(), listed);
+    let forbidden = FakeServer::start(vec![route("GET", "/hosts", hosts.clone())]);
+    let (result, printed) = run(&forbidden, &["machine", "list", "--json"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&printed).unwrap(), hosts);
+}
+
+#[test]
+fn machine_share_and_unshare_patch_the_sharing_of_a_machine() {
+    let host = json!({ "id": "host_1", "sharing": "shared" });
+    let server = FakeServer::start(vec![route("PATCH", "/hosts/host_1/sharing", host)]);
+    let (result, printed) = run(&server, &["machine", "share", "host_1"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Machine host_1 is shared\n");
+    run(&server, &["machine", "unshare", "host_1"], CliEnv::default()).0.unwrap();
+    let sent = |sharing: &str| {
+        request("PATCH", "/hosts/host_1/sharing", Some(json!({ "sharing": sharing })))
+    };
+    assert_eq!(server.requests(), [sent("shared"), sent("private")]);
 }
 
 #[test]

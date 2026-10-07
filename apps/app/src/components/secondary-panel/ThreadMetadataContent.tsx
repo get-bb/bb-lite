@@ -63,6 +63,8 @@ import { getThreadRoutePath } from "@/lib/route-paths";
 import { getThreadDisplayTitle } from "@/lib/thread-title";
 import { ThreadTitle } from "@/components/thread/ThreadTitleMentions";
 import { ParentThreadPicker } from "@/components/pickers/ParentThreadPicker";
+import { UserAvatar } from "@/components/users/UserAvatar";
+import { useUserAttribution } from "@/components/users/user-attribution";
 
 function ParentSelectorRow({
   thread,
@@ -525,6 +527,21 @@ function GitStatusRow(props: ThreadMetadataContentProps) {
   );
 }
 
+function CreatedByRow({ thread }: ThreadMetadataContentProps) {
+  const creator = useUserAttribution(thread.createdByUserId);
+  if (creator === null) return null;
+  return (
+    <DetailRow label="Created by" valueClassName="min-w-0">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <UserAvatar user={creator.user} size="xs" showTooltip={false} />
+        <span className="min-w-0 truncate" title={creator.user.name}>
+          {creator.user.name}
+        </span>
+      </span>
+    </DetailRow>
+  );
+}
+
 function ArchivedRow({ thread }: ThreadMetadataContentProps) {
   const unarchiveThread = useUnarchiveThread();
   const isPending =
@@ -737,6 +754,7 @@ export function ThreadMetadataContent(props: ThreadMetadataContentProps) {
           <GitStatusRow {...props} />
         </>
       ) : null}
+      <CreatedByRow {...props} />
       <ArchivedRow {...props} />
       {isHostActive ? (
         <>

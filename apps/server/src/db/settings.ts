@@ -36,9 +36,28 @@ const generalSetting: Setting<Partial<domain.AppSettings>> = {
   fallback: {},
 };
 
-export function readSetting<T>(db: Db, setting: Setting<T>): T {
+export interface UserSetting<T> extends Setting<T> {
+  sharedKey: string;
+}
+
+export function userSetting<T>(
+  setting: Setting<T>,
+  userId: string,
+): UserSetting<T> {
+  const key = `${setting.key}@${userId}`;
+  return { ...setting, key, sharedKey: setting.key };
+}
+
+export function readSetting<T>(
+  db: Db,
+  setting: Setting<T> | UserSetting<T>,
+): T {
+  const sharedKey = "sharedKey" in setting ? setting.sharedKey : setting.key;
   const row = db.get<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
+    `SELECT value FROM settings WHERE key IN (?, ?)
+     ORDER BY key = ? DESC LIMIT 1`,
+    setting.key,
+    sharedKey,
     setting.key,
   );
   if (row === undefined) return setting.fallback;

@@ -107,6 +107,12 @@ const SYSTEM: Record<SystemChangeKind, () => Keys> = {
     qk.project(ANY, "commands"),
   ],
   "ui-preferences-changed": () => [qk.uiPreferences()],
+  "users-changed": () => [
+    qk.users(),
+    qk.userInvites(),
+    qk.authSession(),
+    qk.hosts(),
+  ],
 };
 
 function threadChanged(

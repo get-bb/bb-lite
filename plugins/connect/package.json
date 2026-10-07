@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Remote access via getbb.app: this bb becomes reachable at https://<label>.getbb.app for your browsers and machines.",
+  "description": "Remote access via getbb.dev: this bb becomes reachable at https://<label>.getbb.dev for your browsers and machines.",
   "bb": {
     "name": "bb connect",
-    "description": "Remote access via getbb.app: this bb becomes reachable at https://<label>.getbb.app for your browsers and machines.",
+    "description": "Remote access via getbb.dev: this bb becomes reachable at https://<label>.getbb.dev for your browsers and machines.",
     "icon": "ComputerCloud",
     "server": "./src/server.ts",
     "app": "./app.tsx",

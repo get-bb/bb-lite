@@ -106,6 +106,11 @@ export interface PluginSidebarThreadSplit {
   layout: { panes: readonly PluginSidebarSplitPane[] } | null;
 }
 
+export interface ThreadViewersProps {
+  threadId: string;
+  className?: string;
+}
+
 export interface SidebarNavigationIconProps {
   icon: SidebarNavigationItemIcon;
   className?: string;

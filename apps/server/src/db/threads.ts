@@ -1,5 +1,5 @@
 import * as domain from "@bb/domain";
-import { conflict, threadNotFound } from "../http/errors.js";
+import { threadNotFound } from "../http/errors.js";
 import { upsertSearchSegment } from "./events.js";
 import {
   insertRow,
@@ -8,7 +8,7 @@ import {
   type Db,
   type SqlValue,
 } from "./index.js";
-import { orderKeyBetween } from "./order-keys.js";
+import { nextPinSortKey, setThreadUserState } from "./thread-user-state.js";
 
 export interface ThreadRow extends domain.Thread {
   providerThreadId: string | null;
@@ -20,6 +20,7 @@ export interface ThreadRow extends domain.Thread {
   modelOverride: string | null;
   reasoningLevelOverride: domain.ReasoningLevel | null;
   startupContext: string | null;
+  lastActorUserId: string | null;
   pinSortKey: string | null;
   storageDeletedAt: number | null;
 }
@@ -35,16 +36,25 @@ export type NewThread = Pick<
   | "title"
   | "titleFallback"
   | "sectionId"
+  | "createdByUserId"
   | "startupContext"
   | "parentThreadId"
   | "lifecycleOwnerThreadId"
   | "originPluginId"
   | "visibility"
-> & { pinned: boolean };
+> & { pinned: boolean; viewerId: string };
 
-export type ThreadPatch = Partial<
-  Omit<ThreadRow, "id" | "projectId" | "status" | "createdAt" | "updatedAt">
->;
+type Unpatchable =
+  | "id"
+  | "projectId"
+  | "status"
+  | "createdAt"
+  | "updatedAt"
+  | "lastReadAt"
+  | "pinnedAt"
+  | "pinSortKey"
+  | "sectionId";
+export type ThreadPatch = Partial<Omit<ThreadRow, Unpatchable>>;
 
 export type LifecycleOutcome =
   | { applied: true; from: domain.ThreadStatus; thread: ThreadRow }
@@ -66,13 +76,6 @@ export function requireThread(db: Db, id: string): ThreadRow {
   throw threadNotFound();
 }
 
-export function nextPinSortKey(db: Db): string {
-  const first = db.get<{ key: string | null }>(
-    "SELECT MIN(pin_sort_key) AS key FROM threads WHERE pinned_at IS NOT NULL",
-  );
-  return orderKeyBetween(null, first?.key ?? null);
-}
-
 function syncTitleSearch(db: Db, thread: ThreadRow) {
   upsertSearchSegment(db, thread.id, "title", "title", null, thread.title);
   const fallback = thread.titleFallback;
@@ -81,19 +84,24 @@ function syncTitleSearch(db: Db, thread: ThreadRow) {
 }
 
 export function insertThread(db: Db, input: NewThread): ThreadRow {
-  const { pinned, ...columns } = input;
+  const { pinned, viewerId, sectionId, ...columns } = input;
   const now = db.now();
   const id = newId("thr");
   insertRow(db, "threads", {
     ...columns,
     id,
     status: "pending",
-    pinnedAt: pinned ? now : null,
-    pinSortKey: pinned ? nextPinSortKey(db) : null,
+    lastActorUserId: columns.createdByUserId,
     lastReadAt: now,
     latestAttentionAt: now,
     createdAt: now,
     updatedAt: now,
+  });
+  setThreadUserState(db, id, viewerId, {
+    lastReadAt: now,
+    pinnedAt: pinned ? now : null,
+    pinSortKey: pinned ? nextPinSortKey(db, viewerId) : null,
+    sectionId,
   });
   const thread = getThread(db, id);
   if (thread === undefined) throw new Error("Thread insert was lost");
@@ -233,26 +241,4 @@ export function listExpiredArchives(db: Db, archivedBefore: number) {
 
 export function deleteThreadRow(db: Db, id: string): void {
   db.run("DELETE FROM threads WHERE id = ?", id);
-}
-
-export function reorderPinnedThread(
-  db: Db,
-  id: string,
-  previousThreadId: string | null,
-  nextThreadId: string | null,
-): void {
-  const stale = conflict("Pinned order changed");
-  const keyOf = (threadId: string | null) => {
-    if (threadId === null) return null;
-    const key = getThread(db, threadId)?.pinSortKey ?? null;
-    if (threadId === id || key === null) throw stale;
-    return key;
-  };
-  if (getThread(db, id)?.pinnedAt == null) {
-    throw conflict("Thread is not pinned");
-  }
-  const previous = keyOf(previousThreadId);
-  const next = keyOf(nextThreadId);
-  if (previous !== null && next !== null && previous >= next) throw stale;
-  patchThread(db, id, { pinSortKey: orderKeyBetween(previous, next) });
 }

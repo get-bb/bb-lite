@@ -158,6 +158,7 @@ export function clientRequestUserMessages(
         (initiator === "agent"
           ? (agentEnvelope?.senderThreadId ?? null)
           : null),
+      actorUserId: decoded.actorUserId ?? null,
       systemMessageKind: decoded.systemMessageKind ?? "unlabeled",
       systemMessageSubject: decoded.systemMessageSubject ?? null,
       turnRequest: {
@@ -201,6 +202,7 @@ export function parseProviderUserMessage(
     attachments: null,
     initiator: "system",
     senderThreadId: null,
+    actorUserId: null,
     systemMessageKind: "unlabeled",
     systemMessageSubject: null,
     turnRequest: { isGrouped: false, kind: "steer", status: "accepted" },

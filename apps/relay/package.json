@@ -1,0 +1,25 @@
+{
+  "name": "@bb/relay",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/tunnel-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/server": "workspace:*",
+    "@bb/tsconfig": "workspace:*",
+    "@cloudflare/workers-types": "4.20260702.1",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.0",
+    "miniflare": "4.20260701.0",
+    "wrangler": "4.107.0",
+    "ws": "^8.19.0"
+  }
+}

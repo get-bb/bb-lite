@@ -4,6 +4,7 @@ import {
   findLocalPathProjectSourceForHost,
   type Host,
   type ProjectSource,
+  type User,
 } from "@bb/domain";
 import type { SystemEnvironmentProvider } from "@bb/server-contract";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
@@ -47,6 +48,7 @@ import {
   useResetPickerScroll,
 } from "./picker-search";
 import { MachineIcon } from "@/components/machines/MachineLabel";
+import { isHostUsable, privateMachineHint } from "@/lib/machine-access";
 
 const MACHINE_BADGE_CLASS_NAME =
   "shrink-0 rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-2xs leading-none text-subtle-foreground";
@@ -55,6 +57,7 @@ export interface EnvironmentPickerProps {
   value: string;
   sources: readonly ProjectSource[];
   hosts: readonly Host[];
+  users?: ReadonlyMap<string, User>;
   localHostId: string | null;
   primaryHostId: string | null;
   selectedProviderHostId: string | null;
@@ -80,6 +83,7 @@ export function EnvironmentPicker({
   value,
   sources,
   hosts,
+  users,
   localHostId,
   primaryHostId,
   selectedProviderHostId,
@@ -153,16 +157,18 @@ export function EnvironmentPicker({
     (left, right) =>
       Number(left.id !== localHostId) - Number(right.id !== localHostId),
   );
+  const findUsableHost = (hostId: string | null) =>
+    orderedHosts.find((host) => host.id === hostId && isHostUsable(host));
   const activeHost =
-    findHost(previewHostId) ??
-    findHost(
+    findUsableHost(previewHostId) ??
+    findUsableHost(
       parsed?.type === "provider"
         ? selectedProviderHostId
         : (selectedHost?.id ?? null),
     ) ??
-    findHost(localHostId) ??
-    findHost(primaryHostId) ??
-    orderedHosts[0];
+    findUsableHost(localHostId) ??
+    findUsableHost(primaryHostId) ??
+    orderedHosts.find(isHostUsable);
   const activeSource = activeHost
     ? findLocalPathProjectSourceForHost(sources, activeHost.id)
     : undefined;
@@ -311,7 +317,9 @@ export function EnvironmentPicker({
                       aria-current={
                         host.id === activeHost?.id ? "true" : undefined
                       }
+                      disabled={!isHostUsable(host)}
                       onSelect={() => {
+                        if (!isHostUsable(host)) return;
                         setPreviewHostId(host.id);
                         onSelectHost(host.id);
                       }}
@@ -342,7 +350,11 @@ export function EnvironmentPicker({
                           {host.name}
                         </span>
                       </span>
-                      {host.id === localHostId ? (
+                      {!isHostUsable(host) ? (
+                        <span className="shrink-0 text-2xs text-muted-foreground">
+                          {privateMachineHint(host, users)}
+                        </span>
+                      ) : host.id === localHostId ? (
                         <span className={MACHINE_BADGE_CLASS_NAME}>
                           this machine
                         </span>

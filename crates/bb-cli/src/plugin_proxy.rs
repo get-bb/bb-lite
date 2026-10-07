@@ -43,7 +43,8 @@ fn materialize_stdin_flag(argv: Vec<String>) -> CliResult<Vec<String>> {
 }
 
 pub fn find_plugin_command(env: &CliEnv, name: &str) -> CliResult<Option<String>> {
-    let contributions = Http::new(&env.server_url).get("/plugins/contributions", &[])?;
+    let http = Http::new(&env.server_url).on_behalf_of(env.thread_id.as_deref());
+    let contributions = http.get("/plugins/contributions", &[])?;
     let commands = contributions.get("cliCommands").and_then(Value::as_array);
     let found = commands
         .into_iter()
@@ -62,7 +63,7 @@ pub fn run_plugin_command(env: &CliEnv, plugin_id: &str, args: Vec<String>) -> C
     if let Some(id) = &env.project_id {
         body["projectId"] = json!(id);
     }
-    let http = Http::with_timeout_ms(&env.server_url, None);
+    let http = Http::with_timeout_ms(&env.server_url, None).on_behalf_of(env.thread_id.as_deref());
     let (status, text) = http.post_raw(&format!("/plugins/{plugin_id}/cli"), &body)?;
     let trimmed = text.trim();
     let parsed: Value = serde_json::from_str(if trimmed.is_empty() { "null" } else { trimmed })

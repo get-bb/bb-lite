@@ -40,6 +40,7 @@ async function startClient(heartbeat?: TunnelOptions["heartbeat"]) {
   });
   const tunnel = new ConnectTunnel({
     loopbackUrl,
+    marker: "1",
     isShared: () => false,
     confirmRefused: (credential) => account.confirmRefused(credential),
     log: { info: () => {}, warn: () => {} },

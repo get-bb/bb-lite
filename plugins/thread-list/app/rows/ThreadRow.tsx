@@ -50,6 +50,7 @@ import {
   useProviders,
   ProviderIcon,
   ThreadTitle,
+  ThreadViewers,
   useSidebarSplitLayout,
   useSidebarThreadDraft,
   useSidebarThreadShortcut,
@@ -396,6 +397,17 @@ function ThreadRowComponent({
           className="hidden group-data-[sidebar-touch-armed=true]/thread-row:flex"
         />
       ) : null}
+      <span
+        data-sidebar-thread-viewers=""
+        data-sidebar-hover-actions-open={isActionsOpen ? "true" : undefined}
+        className={cn(
+          SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
+          "pointer-events-none relative flex shrink-0 items-center",
+          isEditing && "hidden",
+        )}
+      >
+        <ThreadViewers threadId={thread.id} className="mr-1" />
+      </span>
       <span
         data-sidebar-thread-trailing=""
         className={cn(

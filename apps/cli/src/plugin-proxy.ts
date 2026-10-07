@@ -45,9 +45,12 @@ export async function runPluginCommand(
   const argv = await materializeStdinFlag(args);
   const { threadId, projectId } = env;
   const url = `${env.serverUrl}/api/v1/plugins/${pluginId}/cli`;
+  const { sdk } = await loadModules();
+  const headers = new Headers({ "content-type": "application/json" });
+  if (threadId !== undefined) headers.set(sdk.THREAD_ID_HEADER, threadId);
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify({ argv, cwd: process.cwd(), threadId, projectId }),
   });
   const { pluginCliResponseSchema } = await import("@bb/server-contract");

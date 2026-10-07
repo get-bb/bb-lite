@@ -22,6 +22,7 @@ import { KeyboardSettingsSection } from "@/components/settings/KeyboardSettingsS
 import { MachineAccessSettings } from "@/components/settings/MachineAccessSettings";
 import { MachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
+import { PeopleSettingsSection } from "@/components/settings/PeopleSettingsSection";
 import { ProjectsSettingsSection } from "@/components/settings/ProjectsSettingsSection";
 import { ProvidersSettingsSection } from "@/components/settings/ProvidersSettingsSection";
 import {
@@ -512,6 +513,8 @@ export function SettingsView() {
             <MachinesSettingsSection />
             <MachineAccessSettings />
           </>
+        ) : activeSection === "people" ? (
+          <PeopleSettingsSection />
         ) : activeSection === "environment-variables" ? (
           <MachineEnvironmentSettings />
         ) : activeSection === "archived" ? (

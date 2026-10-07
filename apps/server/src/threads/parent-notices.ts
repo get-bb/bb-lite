@@ -137,6 +137,7 @@ function deliverNotice(
         input,
         execution: resolveTurnExecution(db, parent, {}),
         senderThreadId: null,
+        actorUserId: null,
         initiator: "system",
         systemNotice: { kind, subject },
       },

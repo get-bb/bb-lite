@@ -9,7 +9,9 @@ import { initializePreferredTheme } from "./hooks/useTheme";
 import { initializeFavicon } from "./lib/favicon-color-preference";
 import { installForeignDomMutationGuard } from "./lib/foreign-dom-mutation-guard";
 import { appQueryClient } from "./lib/app-query-client";
+import { installUnauthenticatedHandler } from "./lib/auth-session";
 import { applyCachedAppThemeCss } from "./lib/themes";
+import { AuthGate } from "./views/auth/AuthGate";
 import "./app.css";
 
 installForeignDomMutationGuard();
@@ -19,6 +21,7 @@ Error.stackTraceLimit = 50;
 initializePreferredTheme();
 applyCachedAppThemeCss();
 initializeFavicon();
+installUnauthenticatedHandler();
 
 createRoot(document.getElementById("root")!, {
   onUncaughtError: (error, errorInfo) => {
@@ -33,7 +36,9 @@ createRoot(document.getElementById("root")!, {
     <AppErrorBoundary>
       <QueryClientProvider client={appQueryClient}>
         <BrowserRouter>
-          <App />
+          <AuthGate>
+            <App />
+          </AuthGate>
           <AppToaster />
         </BrowserRouter>
       </QueryClientProvider>

@@ -45,6 +45,10 @@ import {
   useIsOverflowing,
 } from "./conversation-message-overflow.js";
 import { useTimeline } from "./timeline-context.js";
+import {
+  UserAttributionLabel,
+  useUserAttribution,
+} from "@/components/users/user-attribution";
 
 const COLLAPSED_MESSAGE_FADE_STYLE: CSSProperties = {
   maskImage:
@@ -207,6 +211,9 @@ export function UserConversationMessage({
     () => buildAttachmentItems(row.attachments, projectId),
     [row.attachments, projectId],
   );
+  const sender = useUserAttribution(
+    row.initiator === "user" ? row.actorUserId : null,
+  );
   if (
     row.initiator === "system" ||
     (row.initiator === "agent" && row.senderThreadId !== null)
@@ -224,8 +231,11 @@ export function UserConversationMessage({
   return (
     <div className="w-full">
       <div className="group/message ml-auto flex w-fit max-w-[70%] flex-col items-end">
-        {turnRequestLabel(row.turnRequest) ? (
-          <div className="mb-1 flex items-center justify-end gap-2">
+        {sender !== null || turnRequestLabel(row.turnRequest) ? (
+          <div className="mb-1 flex max-w-full items-center justify-end gap-2">
+            {sender === null ? null : (
+              <UserAttributionLabel attribution={sender} />
+            )}
             <TurnRequestLabel
               turnRequest={row.turnRequest}
               icon="ArrowTurnForward"

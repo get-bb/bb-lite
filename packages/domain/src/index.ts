@@ -52,5 +52,6 @@ export * from "./thread-timeline-model-fallback.js";
 export * from "./thread-timeline-pending-todos.js";
 export * from "./thread-visibility.js";
 export * from "./thread.js";
+export * from "./user.js";
 
 export * from "./project-attachment.js";

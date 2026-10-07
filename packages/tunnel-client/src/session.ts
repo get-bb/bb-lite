@@ -11,6 +11,7 @@ const SKIP_REQUEST_HEADERS = ["host", "content-length", "connection"];
 function headersForLoopbackRequest(
   headers: wire.HeaderPair[],
   target: ResolvedStreamOrigin,
+  marker: string,
 ): Record<string, string> {
   const loopbackOrigin = new URL(target.origin).origin;
   const skipped = [...SKIP_REQUEST_HEADERS, VIA_TUNNEL_HEADER];
@@ -22,8 +23,8 @@ function headersForLoopbackRequest(
       lowerName === "origin" && value === target.publicOrigin;
     forwarded[name] = publicOrigin ? loopbackOrigin : value;
   }
-  forwarded[VIA_TUNNEL_HEADER] = "1";
-  if (target.host !== undefined) forwarded.Host = target.host;
+  if (target.host === undefined) forwarded[VIA_TUNNEL_HEADER] = marker;
+  else forwarded.Host = target.host;
   return forwarded;
 }
 
@@ -76,6 +77,7 @@ interface TunnelSessionOptions {
   tunnel: NodeWebSocket;
   log: { info?(message: string): void; warn(message: string): void };
   resolveOrigin: (target: string | undefined) => StreamOriginResult;
+  marker: string;
   heartbeat?: { intervalMs: number; deadlineMs: number };
 }
 
@@ -221,7 +223,8 @@ export class TunnelSession {
       return;
     }
     const { resolved } = originResult;
-    const headers = headersForLoopbackRequest(meta.headers, resolved);
+    const { marker } = this.options;
+    const headers = headersForLoopbackRequest(meta.headers, resolved, marker);
     const { signal } = stream.abort;
     try {
       const body = meta.hasBody ? Buffer.concat(stream.chunks) : undefined;
@@ -260,7 +263,8 @@ export class TunnelSession {
     }
     const { resolved } = originResult;
     const url = `${resolved.origin.replace(/^http/, "ws")}${frame.path}`;
-    const headers = headersForLoopbackRequest(frame.headers, resolved);
+    const { marker } = this.options;
+    const headers = headersForLoopbackRequest(frame.headers, resolved, marker);
     let socket: NodeWebSocket;
     try {
       socket = new NodeWebSocket(url, frame.protocols, { headers });

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Host, PermissionMode } from "@bb/domain";
+import type { Host, MachineSharing, PermissionMode } from "@bb/domain";
 import { apiClient } from "@/lib/api-server";
 import { request } from "@/lib/api";
 import { sdk } from "@/lib/sdk";
@@ -37,6 +37,12 @@ export function useUpdateHostPermissionCeiling() {
           json: { maxPermissionMode: args.maxPermissionMode },
         }),
       ),
+  );
+}
+
+export function useSetHostSharing() {
+  return useHostMutation((args: { hostId: string; sharing: MachineSharing }) =>
+    sdk.hosts.setSharing(args),
   );
 }
 

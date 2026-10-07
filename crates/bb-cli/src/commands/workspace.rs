@@ -37,6 +37,8 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("machineReconnect", machine_reconnect),
         ("machineRename", machine_rename),
         ("machineRemove", machine_remove),
+        ("machineShare", machine_share),
+        ("machineUnshare", machine_unshare),
         ("machineEnvList", machine_env_list),
         ("machineEnvSet", machine_env_set),
         ("machineEnvUnset", machine_env_unset),
@@ -327,8 +329,22 @@ fn env_delete(call: &mut Call) -> CliResult<Output> {
 
 fn machine_list(call: &mut Call) -> CliResult<Output> {
     let hosts = call.http.get("/hosts", &[("includeCreating", "true")])?;
-    let rows = hosts.as_array().cloned().unwrap_or_default();
-    Ok(Output::rows(&rows, &["id", "name", "status", "lastSeenAt"], hosts))
+    let users = call.http.get("/users", &[]).unwrap_or_default();
+    let named = |id: &Value| {
+        let found = users.as_array()?.iter().find(|user| user.get("id") == Some(id))?;
+        found.get("name").cloned()
+    };
+    let rows: Vec<Value> = hosts
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|host| {
+            let id = host.get("ownerUserId").cloned().unwrap_or_default();
+            let owner = named(&id).unwrap_or(id);
+            with(host.clone(), json!({ "owner": owner }))
+        })
+        .collect();
+    Ok(Output::rows(&rows, &["id", "name", "status", "sharing", "owner", "lastSeenAt"], hosts))
 }
 
 fn join_instructions(join: &Value) -> Vec<String> {
@@ -375,6 +391,22 @@ fn machine_reconnect(call: &mut Call) -> CliResult<Output> {
     let join = call.http.request("POST", &path, &[], None)?;
     let lines = join_instructions(&join);
     Ok(Output::lines(join, &lines))
+}
+
+fn set_sharing(call: &mut Call, sharing: &str) -> CliResult<Output> {
+    let host_id = machine_id(call, call.arg("machine")?)?;
+    let body = json!({ "sharing": sharing });
+    let host = call.http.patch(&host_path(&host_id, "/sharing"), &body)?;
+    let line = format!("Machine {} is {}", text(&host, "id"), text(&host, "sharing"));
+    Ok(Output::text(host, line))
+}
+
+fn machine_share(call: &mut Call) -> CliResult<Output> {
+    set_sharing(call, "shared")
+}
+
+fn machine_unshare(call: &mut Call) -> CliResult<Output> {
+    set_sharing(call, "private")
 }
 
 fn machine_rename(call: &mut Call) -> CliResult<Output> {

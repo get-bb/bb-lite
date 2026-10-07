@@ -31,6 +31,7 @@ import { ThreadTodoCard } from "@/components/promptbox/banner/ThreadTodoCard";
 import { ThreadWorkflowCard } from "@/components/promptbox/banner/ThreadWorkflowCard";
 import { ThreadBackgroundCommandsCard } from "@/components/promptbox/banner/ThreadBackgroundCommandsCard";
 import { ThreadModelFallbackCard } from "@/components/promptbox/banner/ThreadModelFallbackCard";
+import { ThreadPrivateMachineCard } from "@/components/promptbox/banner/ThreadPrivateMachineCard";
 import type {
   WorkspaceChangedFileSelection,
   WorkspaceChangedFilesSection,
@@ -45,7 +46,10 @@ import { ThreadEnvironmentSummary } from "@/components/promptbox/ThreadEnvironme
 import type { MachineLabelHost } from "@/components/machines/MachineLabel";
 import type { WorkspaceCheckoutDisplay } from "@/lib/workspace-checkout-display";
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
+import { useHosts } from "@/hooks/queries/host-queries";
 import { useProjectDisplayName } from "@/hooks/queries/sidebar-navigation-query";
+import { useUserDirectory } from "@/hooks/queries/user-queries";
+import { isHostUsable, privateMachineThreadNotice } from "@/lib/machine-access";
 import { useDraftAttachmentUploads } from "@/components/promptbox/useDraftAttachmentUploads";
 import { usePromptTypeahead } from "@/components/promptbox/usePromptTypeahead";
 import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
@@ -221,6 +225,15 @@ export function ThreadDetailPromptArea({
   const deleteQueuedMessage = useDeleteThreadQueuedMessage();
   const stopThread = useStopThread();
   const unarchiveThread = useUnarchiveThread();
+  const threadHost =
+    useHosts({ enabled: environmentHostId !== undefined }).data?.find(
+      (host) => host.id === environmentHostId,
+    ) ?? null;
+  const users = useUserDirectory();
+  const privateMachineNotice =
+    threadHost !== null && !isHostUsable(threadHost)
+      ? privateMachineThreadNotice(threadHost, users)
+      : null;
   const projectName = useProjectDisplayName(
     thread.projectId === PERSONAL_PROJECT_ID ? undefined : thread.projectId,
   );
@@ -282,7 +295,7 @@ export function ThreadDetailPromptArea({
     supportsServiceTier,
     executionInputSources,
   } = useThreadCreationOptions({
-    enabled: thread.archivedAt === null,
+    enabled: thread.archivedAt === null && privateMachineNotice === null,
     environmentId: thread.environmentId ?? undefined,
     environmentHostId,
     scope: "component-local",
@@ -327,7 +340,8 @@ export function ThreadDetailPromptArea({
     getLatestPendingInteraction(pendingInteractions);
   const machineGone =
     environmentGoneStatus !== null && environmentGoneStatus !== "destroyed";
-  const shouldHideComposer = machineGone || thread.archivedAt !== null;
+  const shouldHideComposer =
+    machineGone || thread.archivedAt !== null || privateMachineNotice !== null;
   const sendQueuedMessageById = (
     messageId: string,
     mode: SendQueuedMessageMode,
@@ -690,6 +704,9 @@ export function ThreadDetailPromptArea({
           )
         }
       />
+      {privateMachineNotice === null ? null : (
+        <ThreadPrivateMachineCard message={privateMachineNotice} />
+      )}
       {modelFallback ? (
         <ThreadModelFallbackCard
           key={`${thread.id}:${modelFallback.sourceSeq}`}

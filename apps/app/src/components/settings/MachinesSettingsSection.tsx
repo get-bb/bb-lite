@@ -25,7 +25,17 @@ import {
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
+import {
+  useCurrentUser,
+  useIsMultiUser,
+  useUserDirectory,
+} from "@/hooks/queries/user-queries";
 import { useLocalHostId } from "@/hooks/useOpenTargets";
+import {
+  canManageMachine,
+  isMachineOwner,
+  machineOwnerName,
+} from "@/lib/machine-access";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { pluralize } from "./ProjectsSettingsSection";
 import { getSettingsMachineRoutePath } from "@/lib/route-paths";
@@ -42,6 +52,9 @@ export function MachinesSettingsSection() {
   const systemConfig = useSystemConfig().data;
   const hosts = useHosts({ includeCreating: true }).data;
   const localHostId = useLocalHostId();
+  const currentUser = useCurrentUser();
+  const users = useUserDirectory();
+  const isMultiUser = useIsMultiUser();
   const projects = useSidebarNavigation().data?.projects ?? [];
   const dialogs = useMachineDialogs(hosts);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -107,6 +120,11 @@ export function MachinesSettingsSection() {
                   (option) => option.value === host.maxPermissionMode,
                 );
                 const detailPath = getSettingsMachineRoutePath(host.id);
+                const ownerLabel = !isMultiUser
+                  ? null
+                  : isMachineOwner(host, currentUser)
+                    ? "You"
+                    : machineOwnerName(host, users);
                 return (
                   <SettingsRow key={host.id}>
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -161,14 +179,46 @@ export function MachinesSettingsSection() {
                               >
                                 {permission?.label}
                               </span>
+                              {isMultiUser ? (
+                                <span className="inline-flex shrink-0 items-center gap-1">
+                                  {host.sharing === "shared" ? null : (
+                                    <Icon
+                                      name="Lock"
+                                      className="size-3"
+                                      aria-hidden
+                                    />
+                                  )}
+                                  {host.sharing === "shared"
+                                    ? "Shared"
+                                    : "Private"}
+                                </span>
+                              ) : null}
+                              {ownerLabel === null ? null : (
+                                <span
+                                  title={`Owner: ${ownerLabel}`}
+                                  className="inline-flex min-w-0 items-center gap-1"
+                                >
+                                  <Icon
+                                    name="UserRound"
+                                    className="size-3 shrink-0"
+                                    aria-hidden
+                                  />
+                                  <span className="sr-only">Owner:</span>
+                                  <span className="min-w-0 truncate">
+                                    {ownerLabel}
+                                  </span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </Link>
                         <div className="flex shrink-0 items-center gap-1">
-                          <ResourceOverflowMenu
-                            label={`${host.name} actions`}
-                            items={dialogs.menuItems(host, isPrimary, true)}
-                          />
+                          {canManageMachine(host, currentUser) ? (
+                            <ResourceOverflowMenu
+                              label={`${host.name} actions`}
+                              items={dialogs.menuItems(host, isPrimary, true)}
+                            />
+                          ) : null}
                           <ResourceRowDetailChevron />
                         </div>
                       </div>

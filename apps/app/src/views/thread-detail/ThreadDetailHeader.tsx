@@ -31,6 +31,8 @@ import {
   CONTEXT_INACTIVE_TEXT_CLASS,
   CONTEXT_SELECTION_SURFACE_CLASS,
 } from "@/components/ui/context-selection";
+import { UserAvatarStack } from "@/components/users/UserAvatar";
+import { useThreadViewers } from "@/lib/presence";
 import { usePaneContext } from "./PaneContext";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
 import type { ThreadHeaderGitAction } from "./useThreadGitActions";
@@ -94,6 +96,7 @@ export function ThreadDetailHeader({
     observer.observe(measured);
     return () => observer.disconnect();
   }, [isSplitPaneHeader]);
+  const viewers = useThreadViewers(threadId);
   const rightPanelLabel = isSecondaryPanelOpen
     ? "Hide right panel"
     : "Show right panel";
@@ -141,6 +144,13 @@ export function ThreadDetailHeader({
       }
       actions={
         <>
+          <UserAvatarStack
+            users={viewers}
+            max={usesActionOverflow || isCompactViewport ? 1 : 3}
+            label="Also viewing"
+            tooltipSide="bottom"
+            className="mr-1"
+          />
           <div
             className="flex items-center gap-1"
             data-thread-header-workflow-actions=""

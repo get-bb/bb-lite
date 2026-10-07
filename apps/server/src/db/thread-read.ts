@@ -6,7 +6,9 @@ import {
 } from "@bb/domain";
 import type { ThreadListQuery } from "@bb/server-contract";
 import { z } from "zod";
+import { viewerId } from "../auth/actor.js";
 import type { Db, SqlValue } from "./index.js";
+import { VIEWER_LAST_READ_AT } from "./thread-user-state.js";
 import type { ThreadRow } from "./threads.js";
 
 export interface ThreadListRow extends ThreadRow {
@@ -22,7 +24,11 @@ export interface ThreadListRow extends ThreadRow {
 
 type MentionRow = Pick<Thread, "id" | "projectId" | "title" | "titleFallback">;
 
-const THREAD_LIST_SELECT = `SELECT threads.*,
+const THREAD_LIST_SELECT = `WITH viewer (id) AS (SELECT ?)
+  SELECT threads.*,
+    ${VIEWER_LAST_READ_AT} AS last_read_at,
+    s.pinned_at AS pinned_at, s.pin_sort_key AS pin_sort_key,
+    s.section_id AS section_id,
     e.branch_name AS environment_branch_name,
     e.host_id AS environment_host_id,
     e.is_worktree AS environment_is_worktree,
@@ -32,10 +38,13 @@ const THREAD_LIST_SELECT = `SELECT threads.*,
     EXISTS (SELECT 1 FROM pending_interactions AS p
       WHERE p.thread_id = threads.id AND p.status = 'pending')
       AS has_pending_interaction
-  FROM threads LEFT JOIN environments AS e ON e.id = threads.environment_id`;
-const PINNED = "threads.pinned_at IS NOT NULL";
+  FROM threads
+  LEFT JOIN thread_user_state AS s ON s.thread_id = threads.id
+    AND s.user_id = (SELECT id FROM viewer)
+  LEFT JOIN environments AS e ON e.id = threads.environment_id`;
+const PINNED = "s.pinned_at IS NOT NULL";
 const ACTIVE_THREAD_ORDER = `threads.project_id, CASE WHEN ${PINNED} THEN 0
-    ELSE 1 END, CASE WHEN ${PINNED} THEN threads.pin_sort_key END,
+    ELSE 1 END, CASE WHEN ${PINNED} THEN s.pin_sort_key END,
   CASE WHEN ${PINNED} THEN threads.id END, threads.created_at DESC,
   threads.id DESC`;
 const IN_LIST = "IN (SELECT value FROM json_each(?))";
@@ -46,7 +55,7 @@ export function findThreadListRow(
   threadId: string,
 ): ThreadListRow | undefined {
   const sql = `${THREAD_LIST_SELECT} WHERE threads.id = ?`;
-  return db.get<ThreadListRow>(sql, threadId);
+  return db.get<ThreadListRow>(sql, viewerId(), threadId);
 }
 
 function threadFilter(
@@ -79,14 +88,14 @@ export function listThreadRows(
       "threads.environment_id": query.environmentId,
       "e.host_id": query.hostId,
       "threads.parent_thread_id": query.parentThreadId,
-      "threads.section_id": query.sectionId,
+      "s.section_id": query.sectionId,
       "threads.origin_kind": query.originKind,
       "threads.origin_plugin_id": query.originPluginId,
     },
     {
       "threads.archived_at": query.archived,
       "threads.parent_thread_id": query.hasParent,
-      "threads.section_id": query.unsectioned === "true" ? "false" : undefined,
+      "s.section_id": query.unsectioned === "true" ? "false" : undefined,
     },
     query.includeHidden,
   );
@@ -97,6 +106,7 @@ export function listThreadRows(
   return db.all<ThreadListRow>(
     `${THREAD_LIST_SELECT} WHERE ${where}
      ORDER BY ${order} LIMIT ? OFFSET ?`,
+    viewerId(),
     ...params,
     Number(query.limit ?? -1),
     Number(query.offset ?? 0),
@@ -110,6 +120,7 @@ export function listThreadRowsByIds(
   return db.all<ThreadListRow>(
     `${THREAD_LIST_SELECT}
      WHERE threads.id ${IN_LIST} AND threads.deleted_at IS NULL`,
+    viewerId(),
     JSON.stringify(threadIds),
   );
 }
@@ -120,6 +131,7 @@ export function listSidebarThreadRows(db: Db): ThreadListRow[] {
      WHERE threads.deleted_at IS NULL AND threads.archived_at IS NULL
        AND threads.visibility = 'visible'
      ORDER BY ${ACTIVE_THREAD_ORDER}`,
+    viewerId(),
   );
 }
 
@@ -183,11 +195,13 @@ export function listPromptHistoryEntries(
           scope.projectId,
         ]
       : ["h.thread_id = ? AND h.scope = 'thread'", scope.threadId];
+  const mine = "h.user_id = ?";
   const rows = db.all<{ id: string; createdAt: number; input: string }>(
     `SELECT h.id, h.created_at, h.input FROM prompt_history_entries AS h
-     WHERE ${where}
+     WHERE ${where} AND ${mine}
      ORDER BY h.created_at DESC, h.request_sequence DESC, h.id DESC LIMIT ?`,
     id,
+    viewerId(),
     limit,
   );
   return rows.flatMap((row) => {

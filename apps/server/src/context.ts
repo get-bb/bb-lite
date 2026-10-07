@@ -11,6 +11,7 @@ export type ServerRunner = Runner;
 
 export interface ServerContext {
   config: ServerConfig;
+  tunnelToken: string;
   db: Db;
   hub: Hub;
   runners: RunnerRegistry<ServerRunner>;

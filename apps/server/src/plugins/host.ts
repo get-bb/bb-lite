@@ -21,6 +21,7 @@ export interface PluginHostOptions {
   db: Db;
   hub: Hub;
   log: Logger;
+  tunnelToken: string;
   builtins?: BuiltinPlugin[];
 }
 
@@ -180,12 +181,13 @@ export class PluginHost extends PluginRegistry {
   private async start(record: PluginRecord): Promise<void> {
     await this.unload(record);
     if (!this.isEnabled(record)) return;
-    const { config, db, hub, log } = this.options;
+    const { config, db, hub, log, tunnelToken } = this.options;
     const { id, serverEntry, appEntry } = record.manifest;
     const { dataDir } = config;
     const serverUrl = loopbackUrl(config);
+    const server = { dataDir, serverUrl, tunnelToken };
     const { instance, api } = createPluginInstance(
-      { db, hub, log, dataDir, serverUrl, deps: this.deps },
+      { db, hub, log, ...server, deps: this.deps },
       id,
     );
     try {

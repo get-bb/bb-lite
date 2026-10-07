@@ -22,7 +22,15 @@ export interface RevisionWrite {
   revision: number;
 }
 
-type EntityIdPrefix = "host" | "proj" | "src" | "env" | "thr" | "sec" | "term";
+type EntityIdPrefix =
+  | "host"
+  | "proj"
+  | "src"
+  | "env"
+  | "thr"
+  | "sec"
+  | "term"
+  | "usr";
 type RecordIdPrefix =
   | "evt"
   | "phist"
@@ -30,7 +38,9 @@ type RecordIdPrefix =
   | "pint"
   | "creq"
   | "tpv"
-  | "att";
+  | "att"
+  | "uses"
+  | "uinv";
 
 export class LegacyDataDirectoryError extends Error {
   constructor(path: string) {
@@ -45,6 +55,7 @@ export class LegacyDataDirectoryError extends Error {
 }
 
 const BUSY_TIMEOUT_MS = 5_000;
+const SCHEMA_STEPS = ["./schema.sql", "./schema-users.sql"];
 
 export function refuseLegacyDatabase(path: string): void {
   if (!existsSync(path)) return;
@@ -57,8 +68,9 @@ export function refuseLegacyDatabase(path: string): void {
 }
 
 function migrate(sqlite: Database.Database) {
-  const schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
-  const steps = [schema];
+  const steps = SCHEMA_STEPS.map((file) =>
+    readFileSync(new URL(file, import.meta.url), "utf8"),
+  );
   const current = Number(sqlite.pragma("user_version", { simple: true }));
   steps.slice(current).forEach((step, offset) => {
     sqlite
@@ -211,21 +223,22 @@ export function updateRow(
 export function writeRevision(
   db: Db,
   table: string,
-  keyName: string,
-  row: RowValues,
+  key: Record<string, string>,
+  values: RowValues,
   expectedRevision: number | null,
 ): RevisionWrite {
   return db.transaction((): RevisionWrite => {
-    const column = snakeCase(keyName);
-    const sql = `SELECT revision FROM ${table} WHERE ${column} = ?`;
-    const stored = db.get<{ revision: number }>(sql, row[keyName] ?? null);
+    const columns = Object.keys(key).map(snakeCase);
+    const where = columns.map((column) => `${column} = ?`).join(" AND ");
+    const sql = `SELECT revision FROM ${table} WHERE ${where}`;
+    const stored = db.get<{ revision: number }>(sql, ...Object.values(key));
     const current = stored?.revision ?? 0;
     if (expectedRevision !== null && expectedRevision !== current) {
       return { outcome: "conflict", revision: current };
     }
     const revision = current + 1;
-    const next = { ...row, revision, updatedAt: db.now() };
-    insertRow(db, table, next, [column]);
+    const next = { ...key, ...values, revision, updatedAt: db.now() };
+    insertRow(db, table, next, columns);
     return { outcome: "updated", revision };
   });
 }

@@ -146,7 +146,7 @@ function ConnectSettingsSection() {
       </p>
       <Button type="button" asChild>
         <UrlLink href={login.verificationUrl} {...NEW_TAB}>
-          Open getbb.app
+          Open getbb.dev
           <Icon name="ExternalLink" className="size-3.5" />
         </UrlLink>
       </Button>
@@ -160,7 +160,7 @@ function ConnectSettingsSection() {
     <>
       <p className="text-sm text-muted-foreground">
         Remote access uses your bb account. Once you sign in, this bb gets a
-        private getbb.app URL for your browsers and machines. Your code and data
+        private getbb.dev URL for your browsers and machines. Your code and data
         stay on this machine.
       </p>
       {failed && <p className="text-xs text-destructive-text">{failed}</p>}
@@ -187,7 +187,7 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "remote-access",
     description:
-      "Use this bb from any device, anywhere — powered by getbb.app.",
+      "Use this bb from any device, anywhere — powered by getbb.dev.",
     component: ConnectSettingsSection,
   });
 });

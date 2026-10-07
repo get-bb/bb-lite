@@ -2,6 +2,7 @@ import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import type { Host } from "@bb/domain";
 import { sdk } from "@/lib/sdk";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { isHostUsable } from "@/lib/machine-access";
 import type { QueryOptions } from "./query-helpers";
 import { qk } from "./query-keys";
 
@@ -31,11 +32,15 @@ export function selectPrimaryHost(
   primaryHostId: string | null,
 ): Host | null {
   const available = selectHosts(hosts, "persistent");
+  const usable = available.filter(isHostUsable);
+  const firstUsable =
+    usable.find((host) => host.status === "connected") ?? usable[0] ?? null;
   if (primaryHostId !== null) {
-    return available.find((host) => host.id === primaryHostId) ?? null;
+    const primary = available.find((host) => host.id === primaryHostId);
+    if (primary === undefined) return null;
+    return isHostUsable(primary) ? primary : firstUsable;
   }
-  const connected = available.find((host) => host.status === "connected");
-  return connected ?? available[0] ?? null;
+  return firstUsable;
 }
 
 export function usePrimaryHost(options?: QueryOptions): Host | null {

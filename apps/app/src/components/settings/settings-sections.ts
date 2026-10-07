@@ -8,6 +8,7 @@ export const SETTINGS_NAV_SECTIONS = [
   { icon: "SlidersHorizontal", id: "keyboard", label: "Keyboard" },
   { icon: "FolderGit", id: "projects", label: "Projects" },
   { icon: "Laptop", id: "machines", label: "Machines" },
+  { icon: "UserRound", id: "people", label: "People" },
   {
     icon: "Lock",
     id: "environment-variables",

@@ -58,6 +58,8 @@ import {
 } from "@/hooks/queries/project-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { useUserDirectory } from "@/hooks/queries/user-queries";
+import { isHostUsable } from "@/lib/machine-access";
 import { useLocalHostId } from "@/hooks/useOpenTargets";
 import { usePromptDraftStorage } from "@/hooks/usePromptDraftStorage";
 import {
@@ -135,6 +137,7 @@ export function useNewThreadComposer({
   const systemConfigQuery = useSystemConfig();
   const configuredPrimaryHostId = systemConfigQuery.data?.primaryHostId ?? null;
   const localHostId = useLocalHostId();
+  const users = useUserDirectory();
   const primaryHostId =
     selectPrimaryHost(hosts, configuredPrimaryHostId)?.id ?? null;
   const knownHostIds = new Set(hosts.map((host) => host.id));
@@ -174,10 +177,15 @@ export function useNewThreadComposer({
         })),
     ]),
   );
+  const unusableHostIds = new Set(
+    hosts.filter((host) => !isHostUsable(host)).map((host) => host.id),
+  );
   const usableProviders = (hostId: string | null) =>
-    (hostId === null ? undefined : providersByHostId.get(hostId))?.filter(
-      (provider) => provider.availability?.status !== "unavailable",
-    ) ?? [];
+    (hostId === null || unusableHostIds.has(hostId)
+      ? undefined
+      : providersByHostId.get(hostId)
+    )?.filter((provider) => provider.availability?.status !== "unavailable") ??
+    [];
 
   const [reuseValue, setReuseValue] = useRootComposeReuseEnvironment();
   const [storedEnvironment, setStoredEnvironment] = useAtom(
@@ -500,6 +508,7 @@ export function useNewThreadComposer({
           onOpenChange={setEnvironmentPickerOpen}
           sources={projectSources}
           hosts={hosts}
+          users={users}
           localHostId={localHostId}
           primaryHostId={configuredPrimaryHostId}
           isLoading={environmentLoading}

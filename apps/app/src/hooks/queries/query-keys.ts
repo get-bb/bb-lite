@@ -73,6 +73,9 @@ export const qk = {
   machineEnvironment: (projectId?: string | null) =>
     system("machine-environment", projectId),
   uiPreferences: () => key("ui-preferences"),
+  authSession: () => key("auth-session"),
+  users: () => key("users"),
+  userInvites: () => key("user-invites"),
 
   plugins,
   pluginList: () => plugins("list"),

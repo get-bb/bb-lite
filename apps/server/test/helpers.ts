@@ -57,12 +57,15 @@ export class FakeRunner {
 }
 
 export class TestSocket {
+  readonly presence: SocketMessage[] = [];
   private readonly inbox: SocketMessage[] = [];
   private wake = (): void => {};
 
   constructor(readonly socket: WebSocket) {
     socket.on("message", (data) => {
-      this.inbox.push(JSON.parse(data.toString()) as SocketMessage);
+      const message = JSON.parse(data.toString()) as SocketMessage;
+      const lane = message.type === "presence" ? this.presence : this.inbox;
+      lane.push(message);
       this.wake();
     });
   }
@@ -160,7 +163,9 @@ export async function createTestServer(
   const runner = new FakeRunner();
   const db = openDatabase({ path: databasePath, now });
   const connect = localRunner(kind, config, runner);
-  const server = createServer({ config, now, db, localRunner: connect });
+  const tunnelToken = "1";
+  const wiring = { config, now, db, tunnelToken };
+  const server = createServer({ ...wiring, localRunner: connect });
   const { url } = await server.listen();
   onTestFinished(() => server.close());
   const request = (path: string, init: RequestInit = {}) =>

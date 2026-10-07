@@ -17,7 +17,12 @@ export interface QueuedMessageRow extends Omit<
   sortKey: string;
 }
 
-type Envelope = "threadId" | "senderThreadId" | "sendAt" | "content";
+type Envelope =
+  | "threadId"
+  | "senderThreadId"
+  | "requestedByUserId"
+  | "sendAt"
+  | "content";
 type Execution = "model" | "reasoningLevel" | "permissionMode" | "serviceTier";
 
 export interface NewQueuedMessage extends Pick<
@@ -159,6 +164,7 @@ export function toThreadQueuedMessage(
     originPluginId: row.originPluginId,
     initiator: queuedInitiator(row),
     senderThreadId: row.senderThreadId,
+    requestedByUserId: row.requestedByUserId,
     threadId: row.threadId,
     content: parseQueuedContent(row),
     model: row.model,

@@ -5,6 +5,7 @@ import {
   type UpdateThreadTabsRequest,
 } from "@bb/server-contract";
 import { expect, it } from "vitest";
+import { insertRow } from "../src/db/index.js";
 import { createTestServer, insertThread, watchChanges } from "./helpers.js";
 
 it("keeps section names unique and un-sections threads on delete", async () => {
@@ -30,12 +31,14 @@ it("keeps section names unique and un-sections threads on delete", async () => {
   expect(mutationSchema.parse(renamed)).toMatchObject(unchangedThreads);
   await changed("project", "threads-changed");
   insertThread(server, "thr_1");
-  ctx.db.run("UPDATE threads SET section_id = ?", later.id);
+  const placed = { threadId: "thr_1", sectionId: later.id };
+  insertRow(ctx.db, "thread_user_state", placed);
   const removed = await sections.$delete({ json: { id: later.id } });
   expect(mutationSchema.parse(await removed.json()).updatedThreadCount).toBe(1);
   const thread = await changed("thread", "title-changed");
   expect(thread).toMatchObject({ id: "thr_1" });
-  const unsectioned = "SELECT id FROM threads WHERE section_id IS NULL";
+  const unsectioned = `SELECT thread_id FROM thread_user_state
+    WHERE section_id IS NULL`;
   expect(ctx.db.all(unsectioned)).toHaveLength(1);
   const names = (await (await sections.$get()).json()).map(({ name }) => name);
   expect(names).toEqual(["Soon"]);

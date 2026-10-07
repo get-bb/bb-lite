@@ -9,3 +9,4 @@ export type * from "./areas/terminals.js";
 export type * from "./areas/theme.js";
 export type * from "./areas/thread-sections.js";
 export type * from "./areas/threads.js";
+export type * from "./areas/users.js";

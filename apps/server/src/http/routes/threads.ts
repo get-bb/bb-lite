@@ -8,6 +8,7 @@ import {
   type ThreadTab,
   type ThreadTabsWireResponse,
 } from "@bb/server-contract";
+import { actorUserId, viewerId } from "../../auth/actor.js";
 import type { ServerContext } from "../../context.js";
 import { writeRevision } from "../../db/index.js";
 import * as sections from "../../db/thread-sections.js";
@@ -156,15 +157,18 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
       throw invalidRequest("File path must stay inside its root.");
     }
     const split = payload.split ?? "replace";
-    const delivered = hub.threadOpen({ projectId, threadId, split, file });
+    const signal = { projectId, threadId, split, file };
+    const delivered = hub.threadOpen(signal, actorUserId());
     return c.json({ delivered });
   });
 
   get(routes.tabs, (c) => {
     const { id } = requireThread(db, c.req.param("id"));
     const stored = db.get<{ revision: number; tabsJson: string }>(
-      "SELECT revision, tabs_json FROM thread_tabs WHERE thread_id = ?",
+      `SELECT revision, tabs_json FROM thread_tabs
+       WHERE thread_id = ? AND user_id = ?`,
       id,
+      viewerId(),
     );
     if (stored === undefined) return c.json({ revision: 0, tabs: [] });
     const { revision, tabsJson } = stored;
@@ -173,9 +177,10 @@ export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
 
   put(routes.updateTabs, (c, { expectedRevision, tabs }) => {
     const { id } = requireThread(db, c.req.param("id"));
-    const row = { threadId: id, tabsJson: JSON.stringify(tabs) };
+    const key = { threadId: id, userId: viewerId() };
+    const values = { tabsJson: JSON.stringify(tabs) };
     const expected = expectedRevision;
-    const write = writeRevision(db, "thread_tabs", "threadId", row, expected);
+    const write = writeRevision(db, "thread_tabs", key, values, expected);
     const { revision } = write;
     if (write.outcome === "conflict") {
       const message = "Thread tabs changed on another client";

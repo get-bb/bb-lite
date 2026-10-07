@@ -4,6 +4,7 @@ import type {
   ThreadResponse,
 } from "@bb/server-contract";
 import type { Environment, Project } from "@bb/domain";
+import { actorUserId, viewerId } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import type { Db } from "../db/index.js";
@@ -15,6 +16,7 @@ import {
   type EnvironmentIntent,
 } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
+import { assertHostUsable, defaultHostId } from "../runners/access.js";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
@@ -62,7 +64,7 @@ function resolveIntent(
   project: Project,
   shared: Environment | undefined,
 ): EnvironmentIntent {
-  const primary = ctx.config.hostId;
+  const primary = defaultHostId(ctx);
   const personal = project.kind === "personal";
   const provided = (
     environmentProviderId: ProviderIntent["environmentProviderId"],
@@ -151,6 +153,8 @@ export async function createThread(
       : undefined;
   const intent = resolveIntent(ctx, request.environment, project, shared);
   const hostId = intentHostId(db, intent);
+  assertHostUsable(ctx, hostId);
+  const createdByUserId = actorUserId();
   const { providerId, execution } = await resolveCreateExecution(ctx, {
     request,
     projectId,
@@ -169,6 +173,8 @@ export async function createThread(
       title: title ?? null,
       titleFallback: deriveTitleFallback(request.input),
       sectionId: sectionId ?? null,
+      createdByUserId,
+      viewerId: viewerId(),
       startupContext: JSON.stringify(startup),
       parentThreadId: parent?.id ?? null,
       lifecycleOwnerThreadId: ownerId,
@@ -189,6 +195,7 @@ export async function createThread(
           input: request.input,
           execution,
           senderThreadId: null,
+          actorUserId: createdByUserId,
           initiator: "user",
           systemNotice: null,
         },

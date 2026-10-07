@@ -37,6 +37,8 @@ import { SidebarNavigationRegion } from "./SidebarNavigationRegion";
 import { SidebarNavigationModelProvider } from "./SidebarNavigationModel";
 import { SidebarHeaderSlot } from "./SidebarHeaderSlot";
 import { NavRailNewThreadButton } from "./AppNavRail";
+import { UserAvatarStack } from "@/components/users/UserAvatar";
+import { useOtherOnlineUsers } from "@/components/users/user-attribution";
 
 const BUG_REPORT_NEW_ISSUE_URL = "https://github.com/get-bb/bb/issues/new";
 const NO_SHORTCUT_KEYS: ReadonlyMap<string, AppShortcutPresentation> =
@@ -118,6 +120,7 @@ export function AppSidebar({
   );
   const isModifierHeld = useIsAppCommandModifierHeld();
   const settingsShortcut = useAppCommandShortcut("settings.open");
+  const onlineUsers = useOtherOnlineUsers();
 
   useEffect(() => {
     const targets = isModifierHeld
@@ -241,6 +244,14 @@ export function AppSidebar({
               />
             </SidebarMenu>
           </SidebarMenuItem>
+          {navRail ? null : (
+            <UserAvatarStack
+              users={onlineUsers}
+              label="Online now"
+              tooltipSide="top"
+              ringClassName="ring-sidebar"
+            />
+          )}
           <SidebarPluginAttentionGlyph
             className={SIDEBAR_FOOTER_ACTION_CLASS}
             onNavigate={closeOnMobile}

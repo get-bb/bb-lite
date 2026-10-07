@@ -6,6 +6,7 @@ import {
 import type { PluginServerApi } from "@bb/plugin";
 import { RunnerError } from "@bb/runner";
 import { createThreadRequestSchema } from "@bb/server-contract";
+import { actorUserId } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
 import { decodeEvent, lastOutput, listEvents } from "../db/event-read.js";
 import { listHosts } from "../db/hosts.js";
@@ -16,12 +17,13 @@ import {
   listThreadSections,
 } from "../db/thread-sections.js";
 
+import { getUser, listUsers, toUser } from "../db/users.js";
 import { hostResponse } from "../runners/hosts.js";
 import { toThreadListEntries } from "../threads/thread-display.js";
 
 export type PluginOutwardApi = Pick<
   PluginServerApi,
-  "threads" | "projects" | "hosts" | "sections" | "files"
+  "threads" | "projects" | "hosts" | "users" | "sections" | "files"
 > & { requestInput: PluginServerApi["ui"]["requestInput"] };
 
 export type PluginHostDeps = (pluginId: string) => PluginOutwardApi;
@@ -56,6 +58,14 @@ export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
         listHosts(db, { includeCreating: false }).map((row) =>
           hostResponse(ctx, row),
         ),
+    },
+    users: {
+      current: async () => {
+        const userId = actorUserId();
+        const user = userId === null ? undefined : getUser(db, userId);
+        return user === undefined ? null : toUser(user);
+      },
+      list: async () => listUsers(db).map(toUser),
     },
     sections: {
       list: async () => listThreadSections(db),

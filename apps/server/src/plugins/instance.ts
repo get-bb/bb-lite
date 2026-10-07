@@ -26,6 +26,7 @@ export interface PluginApiHost {
   log: Logger;
   dataDir: string;
   serverUrl: string;
+  tunnelToken: string;
   deps: PluginHostDeps;
 }
 
@@ -268,6 +269,7 @@ export function createPluginInstance(
     server: {
       url: host.serverUrl,
       dataDir: host.dataDir,
+      tunnelToken: host.tunnelToken,
       setPublicUrl: (url) => {
         instance.publicUrl = url;
       },

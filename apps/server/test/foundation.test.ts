@@ -12,7 +12,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig } from "../src/config.js";
 import { insertRow, LegacyDataDirectoryError } from "../src/db/index.js";
-import { authorize } from "../src/http/trust.js";
+import { authorize, type TrustLookups } from "../src/http/trust.js";
 import { Hub } from "../src/ws/hub.js";
 import { createTestServer, scratch } from "./helpers.js";
 
@@ -68,46 +68,97 @@ const loopback = { host: "127.0.0.1:48886" };
 const tunnel = { ...loopback, "x-bb-via-tunnel": "1" };
 const session = { ...tunnel, "x-bb-gate-auth": "session" };
 const machine = { ...tunnel, "x-bb-gate-auth": "machine" };
+const relayed = (id: string, owner = "0") => ({
+  ...session,
+  "x-bb-gate-user-id": id,
+  "x-bb-gate-owner": owner,
+});
+const proxied = { ...loopback, "x-forwarded-for": "100.64.0.7" };
 const evil = { origin: "https://evil.example" };
 const remote = "100.64.0.7";
 const enrolled = { authorization: "Bearer bbr_enrolled" };
 const revoked = { authorization: "Bearer bbr_revoked" };
 const tailnet = { host: "bee.tail0.ts.net:48886" };
-const lookups = {
+const signedIn = { ...tailnet, cookie: "theme=dark; bb_session=good" };
+const expired = { ...tailnet, cookie: "bb_session=expired" };
+const lookups: TrustLookups = {
   allowedHosts: ["bee.tail0.ts.net"],
+  sessionCookie: "bb_session",
+  tunnelToken: "1",
   publicUrl: () => "https://bee.example.test",
-  runnerMachine: (token: string) =>
-    token === "bbr_enrolled" ? { connectMachineId: null } : undefined,
+  runnerMachine: (token) =>
+    token === "bbr_enrolled"
+      ? { id: "host_1", connectMachineId: null }
+      : undefined,
+  sessionUser: (token) =>
+    token === "good" ? { id: "usr_member", role: "member" } : undefined,
+  externalUser: (id) =>
+    id === "ru_bo" ? { id: "usr_member", role: "member" } : undefined,
+  rememberAvatar: () => {},
+  ownerUser: () => ({ id: "usr_owner", role: "owner" }),
 };
 
 it.each<[string | number, Headers, string?, string?]>([
-  ["owner", loopback],
-  ["owner", { ...loopback, origin: "http://127.0.0.1:48886" }],
-  ["owner", { ...loopback, origin: "https://bee.example.test" }],
+  ["user usr_owner", loopback],
+  ["user usr_owner", { ...loopback, origin: "http://127.0.0.1:48886" }],
+  ["user usr_owner", { ...loopback, origin: "https://bee.example.test" }],
   [403, { ...loopback, ...evil }],
   [403, { ...loopback, origin: "http://127.0.0.1:3000" }],
-  [403, { host: "evil.example:48886" }],
-  ["owner", { ...tailnet, origin: "https://bee.tail0.ts.net:48886" }],
-  [403, { ...tailnet, ...evil }],
-  [404, tailnet, "GET /api/v1/threads", remote],
-  ["owner", session],
+  [401, { host: "evil.example:48886" }],
+  [401, tailnet],
+  [401, tailnet, "GET /ws"],
+  [401, tailnet, "POST /"],
+  ["anonymous", tailnet, "GET /"],
+  ["anonymous", tailnet, "GET /assets/app.js", remote],
+  ["anonymous", tailnet, "POST /api/v1/auth/login", remote],
+  ["anonymous", tailnet, "GET /api/v1/auth/session", remote],
+  [401, expired],
+  ["user usr_member", signedIn],
+  ["user usr_member", signedIn, "POST /api/v1/threads", remote],
+  [
+    "user usr_member",
+    { ...signedIn, origin: "https://bee.tail0.ts.net:48886" },
+    "POST /api/v1/threads",
+    remote,
+  ],
+  [403, { ...signedIn, ...evil }],
+  [403, { ...signedIn, ...evil }, "GET /ws", remote],
+  [401, tailnet, "GET /api/v1/threads", remote],
+  [401, proxied],
+  ["anonymous", proxied, "GET /"],
+  ["user usr_owner", session],
   [403, { ...session, ...evil }],
+  [404, { ...session, "x-bb-via-tunnel": "forged" }],
+  [404, { ...tailnet, ...session, "x-bb-via-tunnel": "forged" }, "GET /"],
+  ["user usr_owner", relayed("ru_sawyer", "1")],
+  ["user usr_member", relayed("ru_bo")],
+  [403, { ...relayed("ru_bo"), ...evil }],
+  [401, relayed("ru_stranger")],
+  ["anonymous", relayed("ru_stranger"), "GET /"],
+  ["anonymous", relayed("ru_stranger"), "POST /api/v1/auth/invites/t/accept"],
   [404, tunnel],
+  [404, tunnel, "GET /"],
   [404, session, "GET /api/v1/threads", remote],
   ["runner", machine, "POST /api/v1/threads/thr_1/send"],
   [403, machine, "POST /api/v1/hosts"],
   [403, machine, "PUT /api/v1/settings/general"],
+  [403, machine, "POST /api/v1/user-invites"],
   ["anonymous", {}, "POST /internal/runner/join", remote],
   ["runner", enrolled, "POST /api/v1/threads/thr_1/send", remote],
   [403, enrolled, "DELETE /api/v1/hosts/host_1"],
-  [404, revoked, "GET /api/v1/threads"],
+  [403, enrolled, "PATCH /api/v1/users/usr_owner"],
+  [401, revoked, "GET /api/v1/threads"],
   ["anonymous", revoked, "GET /internal/runner/ws"],
   ["runner", { ...machine, ...revoked }, "GET /api/v1/threads"],
 ])("trust guard answers %s for %j %s %s", (expected, headers, route, peer) => {
   const [method = "GET", path = "/api/v1/threads"] = route?.split(" ") ?? [];
   const socket = { remoteAddress: peer ?? "127.0.0.1" };
   const request = { method, path, headers, socket };
-  const verdict = (): string => authorize(request, lookups).kind;
+  const verdict = (): string => {
+    const principal = authorize(request, lookups);
+    const user = principal.kind === "user" ? ` ${principal.userId}` : "";
+    return `${principal.kind}${user}`;
+  };
   if (typeof expected === "string") expect(verdict()).toBe(expected);
   else expect(verdict).toThrow(expect.objectContaining({ status: expected }));
 });

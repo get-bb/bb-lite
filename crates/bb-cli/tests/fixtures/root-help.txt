@@ -3,10 +3,12 @@ Usage: bb <command> [options]
 Commands:
   status         Show the current project, thread, environment and server
   guide          Explain bb: concepts, threads, machines, commands, …
+  whoami         Show the user this CLI acts as
   thread         Create, message, wait on and read threads
   project        Projects and the directories that hold them on each machine
   env            Environments: the checkouts and worktrees threads run in
   machine        Machines that run threads
+  user           People who can sign in, their invites and sign-in links
   provider       Agent providers and their models
   terminal       Terminals in a thread, an environment or on a machine
   file           Read and write files on any machine

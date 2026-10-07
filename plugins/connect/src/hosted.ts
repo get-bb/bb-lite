@@ -4,14 +4,14 @@ const REQUEST_TIMEOUT_MS = 15_000;
 export const MACHINE_HEADER = "x-bb-connect-machine";
 
 const POLL_REFUSALS: Record<number, string> = {
-  403: "Sign-in was denied on getbb.app.",
-  404: "getbb.app no longer knows this sign-in.",
+  403: "Sign-in was denied on getbb.dev.",
+  404: "getbb.dev no longer knows this sign-in.",
   409: "This sign-in was already completed.",
   410: "The sign-in code expired.",
 };
 const MACHINE_LIMIT =
   "this account has reached its machine limit; revoke a device on the " +
-  "getbb.app dashboard, then try again";
+  "getbb.dev dashboard, then try again";
 
 const profileSchema = z.object({
   serverId: z.string().min(1),

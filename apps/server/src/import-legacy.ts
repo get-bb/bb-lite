@@ -65,6 +65,16 @@ const THREAD_LINKS = {
   source_thread_id: "threads",
   lifecycle_owner_thread_id: "threads",
 };
+const OWNED_BY_FIRST_USER = [
+  `INSERT OR IGNORE INTO thread_user_state
+     (thread_id, last_read_at, pinned_at, pin_sort_key, section_id)
+   SELECT id, last_read_at, pinned_at, pin_sort_key, section_id FROM threads`,
+  `UPDATE threads SET pinned_at = NULL, pin_sort_key = NULL,
+     section_id = NULL,
+     created_by_user_id = COALESCE(created_by_user_id, 'usr_owner'),
+     last_actor_user_id = COALESCE(last_actor_user_id, 'usr_owner')`,
+  `UPDATE hosts SET owner_user_id = COALESCE(owner_user_id, 'usr_owner')`,
+];
 const SIDEBAR_PREFERENCES = `SELECT * FROM plugin_kv
   WHERE plugin_id = 'thread-list' AND key LIKE 'preference:%'`;
 const SETTINGS = `SELECT key, value, updated_at FROM app_settings_values
@@ -162,6 +172,7 @@ function importCatalog(
     db.run(`UPDATE threads SET ${column} = NULL
       WHERE ${column} NOT IN (SELECT id FROM ${table})`);
   }
+  for (const statement of OWNED_BY_FIRST_USER) db.run(statement);
   copy("settings", SETTINGS);
   copy("ui_preferences");
   copy("plugin_kv", SIDEBAR_PREFERENCES);

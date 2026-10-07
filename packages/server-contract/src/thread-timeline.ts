@@ -100,6 +100,7 @@ export const timelineUserConversationRowSchema =
     role: z.literal("user"),
     initiator: domain.threadTurnInitiatorSchema,
     senderThreadId: z.string().nullable(),
+    actorUserId: z.string().nullable(),
     systemMessageKind: domain.systemMessageKindSchema,
     systemMessageSubject: domain.systemMessageSubjectSchema.nullable(),
     turnRequest: timelineConversationTurnRequestSchema,

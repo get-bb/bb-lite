@@ -15,6 +15,7 @@ budgets; this file has the shapes.
 | `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                             |
 | `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                    |
 | `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`)                                                                                                                              |
+| `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                |
 | `packages/plugin`                             | The plugin API (types and helpers)                                                                                                                                                                                                                |
 | `plugins/*`                                   | In-repo plugins compiled into the server and the app                                                                                                                                                                                              |
 
@@ -44,7 +45,10 @@ Tables: `hosts`, `projects`, `project_sources`, `environments`, `threads`, `even
 `queued_thread_messages`, `pending_interactions`, `thread_sections`, `thread_tabs`,
 `prompt_history_entries`, `thread_search_segments` (+ FTS5 table and triggers), `project_attachments`,
 `terminal_sessions`, `settings`, `ui_preferences`, `environment_variables`, `plugins`, `plugin_kv`,
-`plugin_settings`.
+`plugin_settings`, and from the second step (`schema-users.sql`) `users`, `user_sessions`,
+`user_invites`, `thread_user_state`. That step also re-keys `thread_sections`, `ui_preferences` and
+`thread_tabs` by user and hands everything that existed to the first owner; `threads.last_read_at`,
+`pinned_at`, `pin_sort_key` and `section_id` remain as columns but are no longer read.
 
 Differences from the original schema, chosen to delete derivation code:
 
@@ -52,7 +56,7 @@ Differences from the original schema, chosen to delete derivation code:
   `reasoning_level`, `permission_mode`, `service_tier`). The matching events are still appended, because
   the projection reads them.
 - `hosts` stores `token_hash`, `join_token_hash`, `join_expires_at`, `connect_machine_id`,
-  `last_instance_id`, `last_seen_at`. No sessions table, no `user`, no `apikey`.
+  `last_instance_id`, `last_seen_at`, `owner_user_id`, `sharing`.
 - `projects.execution_defaults` is a JSON column. Theme and keybinding overrides live in `settings`.
 - `events` keeps the original envelope and columns exactly: `(id, thread_id, environment_id, scope_kind,
 turn_id, provider_thread_id, sequence, type, item_id, item_kind, parent_tool_call_id, data, created_at)`.
@@ -62,14 +66,77 @@ Ids keep their prefixes (`thr_`, `proj_`, `env_`, `host_`, `evt_`, `qmsg_`, `pin
 
 ## Trust
 
-Principals: `owner`, `runner(hostId)`, `anonymous`.
+Principals: `user(userId, role)`, `runner(hostId)`, `anonymous`. Roles are `owner` and `member`; the
+first user (`usr_owner`, created by the schema and named after the server's OS user) is an owner.
 
-- A loopback request without the tunnel marker is the owner. If it carries an `Origin`, the origin must be
-  the server's own loopback origin or its stored public URL, and `Host` must be loopback.
-- The tunnel client adds `x-bb-via-tunnel: 1` to everything it forwards (and strips inbound copies). With
-  the marker, `x-bb-gate-auth: session` is the owner, `x-bb-gate-auth: machine` is runner-class (allowed on
-  `/internal/runner/*` and on `/api/v1/*` except machine management and settings writes), and anything
-  else is anonymous and gets 404.
+- **Implicit owner.** A loopback request without the tunnel marker whose `Host` is a loopback name
+  (`127.0.0.1`, `localhost`, `[::1]`) is the first active owner, with no sign-in: this is what keeps a
+  local install and the `bb` CLI on the server machine working with no setup. If it carries an `Origin`,
+  the origin must be the server's own loopback origin or its stored public URL.
+- **Sessions.** Anything else needs the session cookie `bb_session_<port>` (HttpOnly, SameSite=Lax, 90
+  days; the server stores only the SHA-256). That includes a loopback peer with any other `Host`, which
+  is what a reverse proxy or `tailscale serve` looks like: a name in `BB_SERVER_ALLOWED_HOSTS` no longer
+  makes a visitor the owner. A session request with an `Origin` must be same-origin (or the public URL).
+- **Getting a session.** `POST /auth/login` (email and password, scrypt, ten failures per ten minutes
+  per email); an invite link `/join?token=` (owner-created, seven days, single use, creates the account);
+  a sign-in link `/signin?token=` (fifteen minutes, single use, for an existing user: `bb user
+sign-in-link` on the server machine is how the owner signs a remote browser in the first time). Links
+  are built from the public URL, else the request's `Origin`, else the request's own address.
+- **Anonymous** requests on a direct connection may read the static app and call `/api/v1/auth/*` and
+  `/internal/runner/*`; everything else under `/api/`, `/internal/` and `/ws` answers 401
+  `unauthenticated`. Through the tunnel an anonymous request still gets 404.
+- **Tunnel.** The tunnel client (bb connect, in process) marks what it forwards to the server with
+  `x-bb-via-tunnel: <token>`, a secret the server makes at start and hands to plugins as
+  `bb.server.tunnelToken`. A request carrying the header with any other value is anonymous and gets 404,
+  so nobody who merely reaches the port can claim to be the gate. The marker is not sent to shared ports.
+  With the marker, `x-bb-gate-auth: machine` is runner-class (allowed on `/internal/runner/*` and on
+  `/api/v1/*` except writes to machines, settings, users and invites) and `x-bb-gate-auth: session` is a
+  visitor the gate signed in:
+  - no `x-bb-gate-user-id` (getbb.app, which only admits the account that owns the server), or
+    `x-bb-gate-owner: 1`: the implicit owner;
+  - a `x-bb-gate-user-id` stored as some user's `external_id`: that user;
+  - `x-bb-gate-user-avatar` (an `https` URL) is kept as the user's `avatar_url` and refreshed when it
+    changes; `User.avatarUrl` is what every avatar in the app shows, with initials as the fallback;
+  - any other id: anonymous with an identity (name and email from `x-bb-gate-user-name` /
+    `-email`), which may do what a direct anonymous request may. `GET /auth/session` then answers
+    `{user: null, identity}`, and accepting an invite needs no password: the new user is created with
+    that `external_id`. A sign-in link opened this way attaches the identity to an existing user.
+- **Proxies.** A loopback request with a loopback `Host` that carries `X-Forwarded-For`,
+  `X-Forwarded-Host`, `X-Forwarded-Proto`, `Forwarded`, `X-Real-IP`, `Via` or `Tailscale-User-Login` is
+  not the implicit owner. A reverse proxy that adds none of these and rewrites `Host` to the upstream
+  address (nginx's default `proxy_pass`) still looks local: configure it to send `X-Forwarded-For`.
+- **Owner-only:** invites, other users' roles and disabling, plugin management, general settings, the
+  shared machine environment, deleting a project. The last active owner cannot be demoted or disabled.
+
+### Actors, machines and attribution
+
+- Every request runs inside an actor (`apps/server/src/auth/actor.ts`, an `AsyncLocalStorage`): the
+  signed-in user, or for a runner-class request the user it acts for. An agent's `bb` sends
+  `x-bb-thread-id` (from `BB_THREAD_ID`); when that thread lives on the calling machine the actor is the
+  user who last sent a message there (`threads.last_actor_user_id`, else its creator), otherwise the
+  machine's owner. Work with no request behind it (runner events, sweeps, timers) has no actor.
+- A machine has `owner_user_id` (whoever added it; the server's own machine belongs to the first owner)
+  and `sharing`: `private` (default) or `shared`. `RunnerRegistry.get` refuses an actor who neither owns
+  the machine nor finds it shared with 403 `machine_not_shared`, so every route that would run something
+  there is covered at one point; the thread engine checks the same before any write to a thread on that
+  machine (send, queue, stop, archive, delete, interactions, rename), because a queued message never
+  reaches a runner. Reading a thread is always allowed; private threads do not exist yet. Renaming,
+  sharing, the permission limit, enrollment commands and removal belong to the machine's owner and to
+  owners. `Host.usable` tells a client what the signed-in user may use, and the system config's
+  `primaryHostId` is that user's default machine (their own, connected, the server's, in that order).
+- `client/turn/requested` carries `actorUserId`, timeline user rows and queued messages carry it too,
+  and `threads.created_by_user_id` records who started a thread. No actor means `null`.
+- Per-user state: read, pin and section state live in `thread_user_state` (the thread list joins the
+  viewer's row; a thread nobody touched counts as read for everyone but its creator), sections, UI
+  preferences, thread tabs and prompt history are keyed by user, and appearance and keybindings are
+  stored as `settings` rows `<key>@<userId>` that fall back to the shared row. Without an actor the
+  viewer is the first owner.
+- Presence: `/ws` sockets belong to a user; a client sends `{type:"presence", threadIds}` for the
+  threads it shows and the hub broadcasts `{type:"presence", users:[{userId, threadIds}]}` when the set
+  changes. `GET /presence` returns the same. The app shows it in three places: who is online (navigation
+  rail), who else has a thread open (its header, and its row in the sidebar through the plugin component
+  `ThreadViewers`). `thread-open` signals go to the acting user's sockets.
+
 - A runner authenticates to `/internal/runner/ws` with `Authorization: Bearer <runner token>`; the server
   stores only the SHA-256. `bb runner join <blob>` exchanges a 15-minute single-use join token for it at
   `POST /internal/runner/join`. Runner endpoints must stay under `/internal/` (the hosted gate only passes
@@ -365,7 +432,9 @@ Server API (`PluginServerApi` in `packages/plugin/src/server-api.ts`): `settings
 `ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
 `inference.register`, `threads` (spawn, send, get, list, stop, update, output, events — direct calls,
 not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`,
-`server.setPublicUrl`, `machines.setAccessProvider`.
+`server.setPublicUrl`, `machines.setAccessProvider`, `users` (`current()` is the acting user of the
+call in progress, `null` in background work; `list()`). Plugin settings and KV are still one scope for
+the whole server.
 
 App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
 `messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
@@ -403,10 +472,11 @@ materialised by the CLI before the request.
 - **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
   0600 files in `<dataDir>/plugins/<id>/secrets/` (reads return only `{set: boolean}`), the plugin's
   SQLite file at `<dataDir>/plugins/<id>/data.db`.
-- **Trust.** Every plugin route sits behind the server's trust guard, so the caller is the owner or a
-  machine credential. Machine credentials may call rpc, cli, mention search and read the list and
-  settings (agents on other machines run `bb tasks …`); only the owner may enable, disable, reload,
-  write settings or mint the plugin token. For `http.route`: `local` (default) admits only the owner,
+- **Trust.** Every plugin route sits behind the server's trust guard, so the caller is a signed-in user
+  or a machine credential. Users and machine credentials may call rpc, cli, mention search and read the
+  list and settings (agents on other machines run `bb tasks …`); only an owner may enable, disable,
+  reload, write settings or mint the plugin token. For `http.route`: `local` (default) admits only an
+  owner,
   `token` admits any admitted caller presenting the plugin token (`x-bb-plugin-token` or `?token=`),
   `none` adds no check beyond the guard. Nothing is reachable anonymously.
 - **Remote access seam.** `ctx.plugins.publicUrl()` and `ctx.plugins.machineAccess()` return what a
@@ -414,7 +484,7 @@ materialised by the CLI before the request.
   provider for `grant(hostId) → {serverUrl, headers} | null` when they build a join command (the
   headers travel in the join blob and the runner sends them on every request) and call
   `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
-  mints one getbb.app machine credential per machine and revokes it on removal.
+  mints one relay machine credential per machine and revokes it on removal.
 - **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
   `callTool`, `contributedEnv`, `emit`, `searchMentions`, `generateTitle`, `skillDirs`). Mention
   resolution and plugin-contributed environments are accepted by the plugin API but nothing in the

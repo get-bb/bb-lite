@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
+import { actorUserId, currentActor } from "../../auth/actor.js";
 import type { ServerContext } from "../../context.js";
 import { newId, type RowValues } from "../../db/index.js";
 import * as store from "../../db/hosts.js";
+import { canManageHost } from "../../runners/access.js";
 import * as enrollment from "../../runners/enrollment.js";
 import {
   hostResponse,
@@ -12,8 +14,13 @@ import {
   requireHost,
 } from "../../runners/hosts.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, errorMessage, invalidRequest } from "../errors.js";
-import { principalOf, requireOwner } from "../trust.js";
+import {
+  ApiError,
+  errorMessage,
+  forbidden,
+  invalidRequest,
+} from "../errors.js";
+import { principalOf, requireUser } from "../trust.js";
 
 interface HostRequest {
   req: { raw: Request; url: string; param(name: "id"): string };
@@ -53,15 +60,22 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     return { command, expiresAt };
   };
 
-  const patchHost = (hostId: string, patch: RowValues): Host => {
-    const { id } = requireHost(ctx, hostId);
+  const managedHost = (c: HostRequest) => {
+    requireUser(c);
+    const host = requireHost(ctx, c.req.param("id"));
+    if (canManageHost(host, currentActor())) return host;
+    throw forbidden("Only this machine's owner can manage it");
+  };
+
+  const patchHost = (c: HostRequest, patch: RowValues): Host => {
+    const { id } = managedHost(c);
     store.updateHost(db, id, patch);
     hub.host(id, ["host-connected"]);
     return hostResponse(ctx, requireHost(ctx, id));
   };
 
-  const ownerRunner = (c: HostRequest) => {
-    requireOwner(c, "Only the owner can open paths in local apps");
+  const userRunner = (c: HostRequest) => {
+    requireUser(c);
     return runners.get(requireHost(ctx, c.req.param("id")).id);
   };
 
@@ -84,6 +98,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
       phase: "creating",
       statusMessage: "Waiting for the enrollment command to run",
       launchKey,
+      ownerUserId: actorUserId(),
     });
     pendingJoins.set(id, enrollment.issueJoinToken(db, id));
     hub.host(id, ["host-connected"]);
@@ -106,8 +121,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   get(routes.enrollmentCommand, async (c) => {
-    requireOwner(c, "Machine credentials cannot read enrollment commands");
-    const host = requireHost(ctx, c.req.param("id"));
+    const host = managedHost(c);
     const pending = pendingJoins.get(host.id);
     const usable =
       pending !== undefined &&
@@ -118,7 +132,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   post(routes.reconnect, async (c) => {
-    const host = requireHost(ctx, c.req.param("id"));
+    const host = managedHost(c);
     if (host.id === ctx.config.hostId || host.phase !== "active") {
       throw new ApiError(
         409,
@@ -138,16 +152,18 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json({ ...command, hostId: host.id }, 201);
   });
 
-  patch(routes.update, (c, { name }) =>
-    c.json(patchHost(c.req.param("id"), { name })),
+  patch(routes.update, (c, { name }) => c.json(patchHost(c, { name })));
+
+  patch(routes.updateSharing, (c, { sharing }) =>
+    c.json(patchHost(c, { sharing })),
   );
 
   patch(routes.updatePermissionCeiling, (c, { maxPermissionMode }) =>
-    c.json(patchHost(c.req.param("id"), { maxPermissionMode })),
+    c.json(patchHost(c, { maxPermissionMode })),
   );
 
   del(routes.delete, async (c) => {
-    const { id, connectMachineId } = requireHost(ctx, c.req.param("id"));
+    const { id, connectMachineId } = managedHost(c);
     if (id === ctx.config.hostId) {
       throw new ApiError(
         400,
@@ -171,11 +187,11 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   get(routes.openTargets, async (c) =>
-    c.json(await ownerRunner(c).listOpenTargets()),
+    c.json(await userRunner(c).listOpenTargets()),
   );
 
   post(routes.open, async (c, { line = null, column = null, ...target }) => {
-    await ownerRunner(c).openInTarget({ ...target, line, column });
+    await userRunner(c).openInTarget({ ...target, line, column });
     return c.json({ ok: true });
   });
 }

@@ -24,11 +24,13 @@ export interface RunnerRegistryOptions<R> {
   localHostId: string;
   localRunner: RunnerFactory<R>;
   log: Logger;
+  authorize?: (hostId: string) => void;
 }
 
 export class RunnerRegistry<R extends SessionApi> {
   readonly localHostId: string;
   private readonly log: Logger;
+  private readonly authorize: (hostId: string) => void;
   private readonly connections = new Map<string, Connection<R>>();
   private readonly handlers = new Map<RunnerEventKind, Set<AnyHandler>>();
   private readonly connectListeners = new Set<HostListener>();
@@ -37,10 +39,12 @@ export class RunnerRegistry<R extends SessionApi> {
   constructor(options: RunnerRegistryOptions<R>) {
     this.localHostId = options.localHostId;
     this.log = options.log;
+    this.authorize = options.authorize ?? (() => {});
     this.connect(options.localHostId, options.localRunner);
   }
 
   get(hostId: string): R {
+    this.authorize(hostId);
     const connection = this.connections.get(hostId);
     if (connection === undefined) throw hostUnavailable();
     return connection.runner;

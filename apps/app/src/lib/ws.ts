@@ -13,6 +13,7 @@ import type {
   ThreadOpenFile,
   ThreadOpenSignal,
 } from "@bb/server-contract";
+import { presenceMessageSchema, type UserPresence } from "@bb/domain";
 import { buildBrowserWebSocketUrl } from "./browser-websocket-url";
 
 export type WebSocketConnectionState =
@@ -58,12 +59,15 @@ class WebSocketManager {
   private readonly pluginSignal = createEmitter<PluginSignal>();
   private readonly connected = createEmitter<boolean>();
   private readonly stateChanged = createEmitter<void>();
+  private readonly presence = createEmitter<UserPresence[]>();
+  private viewedThreadIds: string[] = [];
 
   readonly onChanged = this.changed.on;
   readonly onThreadOpen = this.threadOpen.on;
   readonly onPluginSignal = this.pluginSignal.on;
   readonly onConnected = this.connected.on;
   readonly onConnectionStateChange = this.stateChanged.on;
+  readonly onPresence = this.presence.on;
 
   connect(): void {
     if (this.socket) return;
@@ -89,6 +93,7 @@ class WebSocketManager {
       for (const { target } of this.targets.values()) {
         this.send({ type: "subscribe", target });
       }
+      this.send({ type: "presence", threadIds: this.viewedThreadIds });
       this.connected.emit(reconnected);
     };
     socket.onmessage = (event: MessageEvent) => {
@@ -116,6 +121,13 @@ class WebSocketManager {
       this.targets.delete(key);
       this.send({ type: "unsubscribe", target });
     };
+  }
+
+  setViewedThreads(threadIds: readonly string[]): void {
+    const next = [...new Set(threadIds)].sort().slice(0, 16);
+    if (next.join("\n") === this.viewedThreadIds.join("\n")) return;
+    this.viewedThreadIds = next;
+    this.send({ type: "presence", threadIds: next });
   }
 
   consumePendingOpenFile(threadId: string): ThreadOpenFile | null {
@@ -163,7 +175,12 @@ class WebSocketManager {
       return;
     }
     const changed = changedMessageLenientSchema.safeParse(parsed);
-    if (changed.success) this.changed.emit(changed.data);
+    if (changed.success) {
+      this.changed.emit(changed.data);
+      return;
+    }
+    const presence = presenceMessageSchema.safeParse(parsed);
+    if (presence.success) this.presence.emit(presence.data.users);
   }
 
   private send(message: ClientMessage): void {

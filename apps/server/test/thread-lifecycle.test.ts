@@ -261,8 +261,8 @@ it("announces every mutation to subscribers", async () => {
   const pin = { pinnedAt: ctx.now() };
   expect(pinned).toMatchObject([["pin-state-changed"], pin]);
   await http("POST", `/threads/${other}/pin`);
-  const byKey =
-    "SELECT id FROM threads WHERE pinned_at IS NOT NULL ORDER BY pin_sort_key";
+  const byKey = `SELECT thread_id AS id FROM thread_user_state
+    WHERE pinned_at IS NOT NULL ORDER BY pin_sort_key`;
   const stored = ctx.db.all<{ id: string }>(byKey).map((row) => row.id);
   expect(stored).toEqual([other, id]);
   const order = { previousThreadId: null, nextThreadId: other };

@@ -1,5 +1,6 @@
 import * as domain from "@bb/domain";
 import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
+import { viewerId } from "../../auth/actor.js";
 import type { ServerContext } from "../../context.js";
 import { writeRevision, type Db } from "../../db/index.js";
 import * as store from "../../db/settings.js";
@@ -9,10 +10,12 @@ import {
   replaceMachineEnvironment,
 } from "../../machine-environment.js";
 import { requireProject } from "../../db/projects.js";
+import { defaultHostId } from "../../runners/access.js";
 import { publicServerUrl } from "../../runners/hosts.js";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
 import { typedApi, type ApiApp } from "../api.js";
 import { ApiError, invalidRequest } from "../errors.js";
+import { requireOwner } from "../trust.js";
 
 interface PreferenceRow {
   key: string;
@@ -58,8 +61,9 @@ function requireUiPreferenceKey(key: string) {
 }
 
 function readUiPreferences(db: Db) {
-  const sql = "SELECT key, value_json, revision FROM ui_preferences";
-  const rows = db.all<PreferenceRow>(sql);
+  const sql = `SELECT key, value_json, revision FROM ui_preferences
+    WHERE user_id = ?`;
+  const rows = db.all<PreferenceRow>(sql, viewerId());
   const entries = domain.UI_PREFERENCE_KEYS.map((key) => {
     const row = rows.find((stored) => stored.key === key);
     const fallback = domain.getUiPreferenceDefault(key);
@@ -80,14 +84,10 @@ function writeUiPreference(
   value: unknown,
   expectedRevision: number | null,
 ) {
-  const row = { key, valueJson: JSON.stringify(value) };
-  const write = writeRevision(
-    db,
-    "ui_preferences",
-    "key",
-    row,
-    expectedRevision,
-  );
+  const owner = { userId: viewerId(), key };
+  const values = { valueJson: JSON.stringify(value) };
+  const expected = expectedRevision;
+  const write = writeRevision(db, "ui_preferences", owner, values, expected);
   if (write.outcome === "updated") return write.revision;
   const message = "UI preference changed on another client";
   const details = { currentRevision: write.revision };
@@ -98,13 +98,16 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   const { del, get, put } = typedApi(app);
   const { system: routes, projects } = publicApiRoutes;
   const { db, hub } = ctx;
-  const appearance = () => store.readSetting(db, store.appearanceSetting);
+  const personal = <T>(setting: store.Setting<T>) =>
+    store.userSetting(setting, viewerId());
+  const appearance = () =>
+    store.readSetting(db, personal(store.appearanceSetting));
 
   get(routes.config, (c) => {
     const generalSettings = store.getAppSettings(db);
     const keybindingOverrides = store.readSetting(
       db,
-      store.keybindingOverridesSetting,
+      personal(store.keybindingOverridesSetting),
     );
     const publicUrl = publicServerUrl(ctx);
     return c.json({
@@ -124,13 +127,14 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
       keybindingOverrides,
       appearance: builtInTheme(appearance()),
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
-      primaryHostId: ctx.config.hostId,
+      primaryHostId: defaultHostId(ctx),
       primaryHostPlatform: serverPlatform(),
       dataDir: ctx.config.dataDir,
     });
   });
 
   put(routes.generalSettings, (c, payload) => {
+    requireOwner(c, "Only an owner can change this bb's general settings");
     const { showUnhandledProviderEvents: _legacy, ...settings } = payload;
     const stored = store.getAppSettings(db);
     const updated = domain.appSettingsSchema.parse({ ...stored, ...settings });
@@ -140,14 +144,15 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   put(routes.keyboardSettings, (c, overrides) => {
-    store.writeSetting(db, store.keybindingOverridesSetting, overrides);
+    const setting = personal(store.keybindingOverridesSetting);
+    store.writeSetting(db, setting, overrides);
     hub.system(["config-changed"]);
     return c.json(overrides);
   });
 
   put(routes.appearance, (c, selection) => {
     requireBuiltInTheme(selection.themeId);
-    store.writeSetting(db, store.appearanceSetting, selection);
+    store.writeSetting(db, personal(store.appearanceSetting), selection);
     hub.system(["config-changed"]);
     return c.json(builtInTheme(selection));
   });
@@ -186,6 +191,7 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.machineEnvironment, (c) => c.json(machineEnvironmentView(db)));
 
   put(routes.replaceMachineEnvironment, async (c, payload) => {
+    requireOwner(c, "Only an owner can change this bb's shared environment");
     await replaceMachineEnvironment(ctx, null, payload);
     hub.system(["config-changed"]);
     return c.json(machineEnvironmentView(db));

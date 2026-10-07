@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { permissionModeSchema } from "./shared-types.js";
+import { machineSharingSchema } from "./user.js";
 export const hostStatusSchema = z.enum(["connected", "disconnected"]);
 
 export const machineLifecycleSchema = z.object({
@@ -37,6 +38,9 @@ export const hostSchema = z.object({
   machineProviderId: z.string().nullable(),
   lifecycle: machineLifecycleSchema,
   maxPermissionMode: permissionModeSchema,
+  ownerUserId: z.string().nullable(),
+  sharing: machineSharingSchema,
+  usable: z.boolean(),
   lastSeenAt: z.number().nullable(),
   lastRejectedProtocolVersion: z.number().int().positive().nullable(),
   createdAt: z.number(),

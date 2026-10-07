@@ -24,6 +24,8 @@ import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { RemotePathBrowser } from "@/components/dialogs/RemotePathBrowser";
 import { MachineStatusDot } from "@/components/machines/MachineStatusDot";
+import { useUserDirectory } from "@/hooks/queries/user-queries";
+import { isHostUsable, privateMachineHint } from "@/lib/machine-access";
 
 export type ProjectPathDialogTarget =
   | { kind: "create" }
@@ -83,13 +85,14 @@ function ProjectPathForm({
   onSubmit,
 }: ProjectPathDialogProps & { target: ProjectPathDialogTarget }) {
   const machines = target.kind === "create" ? (hosts ?? []) : [];
-  const firstConnectedId =
-    machines.find((host) => host.status === "connected")?.id ?? null;
+  const users = useUserDirectory();
+  const isSelectable = (host: Host) =>
+    host.status === "connected" && isHostUsable(host);
+  const firstConnectedId = machines.find(isSelectable)?.id ?? null;
   const [pickedHostId, setPickedHostId] = useState(hostId ?? firstConnectedId);
   const selectedHost =
-    machines.find(
-      (host) => host.id === pickedHostId && host.status === "connected",
-    ) ?? machines.find((host) => host.id === firstConnectedId);
+    machines.find((host) => host.id === pickedHostId && isSelectable(host)) ??
+    machines.find((host) => host.id === firstConnectedId);
   const selectedHostId =
     target.kind === "create" ? (selectedHost?.id ?? null) : pickedHostId;
   const selectedHostName = selectedHost?.name ?? hostName;
@@ -164,10 +167,11 @@ function ProjectPathForm({
             >
               {machines.map((host) => {
                 const connected = host.status === "connected";
+                const privateHint = privateMachineHint(host, users);
                 return (
                   <DropdownMenuItem
                     key={host.id}
-                    disabled={!connected}
+                    disabled={!connected || privateHint !== null}
                     className="flex items-center gap-2"
                     onSelect={() => {
                       setPickedHostId(host.id);
@@ -176,9 +180,9 @@ function ProjectPathForm({
                   >
                     <MachineStatusDot connected={connected} />
                     <span className="min-w-0 flex-1 truncate">{host.name}</span>
-                    {!connected ? (
+                    {privateHint !== null || !connected ? (
                       <span className="shrink-0 text-xs text-subtle-foreground">
-                        Offline
+                        {privateHint ?? "Offline"}
                       </span>
                     ) : null}
                     <Icon

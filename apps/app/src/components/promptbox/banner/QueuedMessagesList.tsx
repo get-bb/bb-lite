@@ -12,6 +12,10 @@ import {
   useSenderThreadMetadataById,
   type SenderThreadMetadata,
 } from "@/hooks/useSenderThreadMetadataById";
+import {
+  useUserAttributionLookup,
+  type UserAttributionLookup,
+} from "@/components/users/user-attribution";
 import type {
   PromptInput,
   PromptTextMention,
@@ -156,12 +160,23 @@ function waitLineOf(
   return (waitingOn && WAIT_LINES[waitingOn.kind]) ?? null;
 }
 
+function requesterNameOf(
+  queuedMessage: ThreadQueuedMessage,
+  lookupUser: UserAttributionLookup,
+): string | null {
+  if (queuedMessage.initiator !== "user") return null;
+  const requester = lookupUser(queuedMessage.requestedByUserId);
+  return requester === null || requester.isSelf ? null : requester.user.name;
+}
+
 function hasSecondLine(
   queuedMessage: ThreadQueuedMessage,
   processingMessageId: string | null,
+  lookupUser: UserAttributionLookup,
 ): boolean {
   return (
     queuedMessage.initiator !== "user" ||
+    requesterNameOf(queuedMessage, lookupUser) !== null ||
     waitLineOf(queuedMessage) !== null ||
     queuedMessage.id === processingMessageId
   );
@@ -170,12 +185,13 @@ function hasSecondLine(
 function drawerHeight(
   queuedMessages: readonly ThreadQueuedMessage[],
   processingMessageId: string | null,
+  lookupUser: UserAttributionLookup,
 ): number {
   const rowsHeight = queuedMessages.reduce(
     (total, queuedMessage) =>
       total +
       33 +
-      (!hasSecondLine(queuedMessage, processingMessageId)
+      (!hasSecondLine(queuedMessage, processingMessageId, lookupUser)
         ? 0
         : queuedMessage.initiator === "agent" &&
             queuedMessage.senderThreadId !== null
@@ -189,9 +205,12 @@ function drawerHeight(
 function senderLabelOf(
   queuedMessage: ThreadQueuedMessage,
   senderThreadMetadataById: ReadonlyMap<string, SenderThreadMetadata>,
+  lookupUser: UserAttributionLookup,
 ): string | null {
   if (queuedMessage.initiator === "system") return "System";
-  if (queuedMessage.initiator !== "agent") return null;
+  if (queuedMessage.initiator !== "agent") {
+    return requesterNameOf(queuedMessage, lookupUser);
+  }
   return (
     senderThreadMetadataById.get(queuedMessage.senderThreadId ?? "")?.title ??
     queuedMessage.senderThreadId ??
@@ -616,6 +635,7 @@ function QueuedMessagesListSurface({
   onDelete,
 }: QueuedMessagesListProps) {
   const senderThreadMetadataById = useSenderThreadMetadataById();
+  const lookupUser = useUserAttributionLookup();
   const getScrollElement = useBottomAnchoredScroll()?.getScrollElement;
   const [collapsedPreference, setCollapsed] = useState(false);
   const [expandedMobileActionsId, setExpandedMobileActionsId] = useState<
@@ -732,7 +752,7 @@ function QueuedMessagesListSurface({
     ? (editorHeight ?? EDITING_MIN_HEIGHT)
     : collapsed
       ? COLLAPSED_HEIGHT
-      : drawerHeight(queuedMessages, processingMessageId);
+      : drawerHeight(queuedMessages, processingMessageId, lookupUser);
 
   return (
     <PromptStackCard
@@ -823,6 +843,7 @@ function QueuedMessagesListSurface({
                   senderLabel={senderLabelOf(
                     queuedMessage,
                     senderThreadMetadataById,
+                    lookupUser,
                   )}
                   resolveMentionLink={resolveMentionLink}
                   index={index}

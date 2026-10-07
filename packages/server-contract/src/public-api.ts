@@ -17,6 +17,98 @@ import {
 type Path<Keys extends string> = { param: Record<Keys, string> };
 
 export const publicApiRoutes = {
+  auth: {
+    session: defineRoute({
+      path: "/auth/session",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<api.AuthSessionResponse>(),
+    }),
+    login: defineRoute({
+      path: "/auth/login",
+      method: "post",
+      request: jsonRequest<EmptyInput, api.LoginRequest>(
+        api.loginRequestSchema,
+      ),
+      response: jsonResponse<api.AuthSessionResponse>(),
+    }),
+    logout: defineRoute({
+      path: "/auth/logout",
+      method: "post",
+      request: noRequest(),
+      response: jsonResponse<{ ok: true }>(),
+    }),
+    invite: defineRoute({
+      path: "/auth/invites/:token",
+      method: "get",
+      request: noRequest<Path<"token">>(),
+      response: jsonResponse<api.InvitePreviewResponse>(),
+    }),
+    acceptInvite: defineRoute({
+      path: "/auth/invites/:token/accept",
+      method: "post",
+      request: jsonRequest<Path<"token">, api.AcceptInviteRequest>(
+        api.acceptInviteRequestSchema,
+      ),
+      response: jsonResponse<api.AuthSessionResponse>(),
+    }),
+  },
+  users: {
+    list: defineRoute({
+      path: "/users",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<domain.User[]>(),
+    }),
+    update: defineRoute({
+      path: "/users/:id",
+      method: "patch",
+      request: jsonRequest<Path<"id">, api.UpdateUserRequest>(
+        api.updateUserRequestSchema,
+      ),
+      response: jsonResponse<domain.User>(),
+    }),
+    setPassword: defineRoute({
+      path: "/users/:id/password",
+      method: "put",
+      request: jsonRequest<Path<"id">, api.SetPasswordRequest>(
+        api.setPasswordRequestSchema,
+      ),
+      response: jsonResponse<domain.User>(),
+    }),
+    createSignInLink: defineRoute({
+      path: "/users/:id/sign-in-links",
+      method: "post",
+      request: noRequest<Path<"id">>(),
+      response: jsonResponse<api.SignInLinkResponse>({ status: 201 }),
+    }),
+    invites: defineRoute({
+      path: "/user-invites",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<api.UserInvite[]>(),
+    }),
+    createInvite: defineRoute({
+      path: "/user-invites",
+      method: "post",
+      request: jsonRequest<EmptyInput, api.CreateInviteRequest>(
+        api.createInviteRequestSchema,
+      ),
+      response: jsonResponse<api.CreatedInviteResponse>({ status: 201 }),
+    }),
+    revokeInvite: defineRoute({
+      path: "/user-invites/:id",
+      method: "delete",
+      request: noRequest<Path<"id">>(),
+      response: jsonResponse<{ ok: true }>(),
+    }),
+    presence: defineRoute({
+      path: "/presence",
+      method: "get",
+      request: noRequest(),
+      response: jsonResponse<api.PresenceResponse>(),
+    }),
+  },
   projects: {
     machineEnvironment: defineRoute({
       path: "/projects/:id/machine-environment",
@@ -245,6 +337,14 @@ export const publicApiRoutes = {
       method: "patch",
       request: jsonRequest<Path<"id">, api.UpdateHostRequest>(
         api.updateHostRequestSchema,
+      ),
+      response: jsonResponse<domain.Host>(),
+    }),
+    updateSharing: defineRoute({
+      path: "/hosts/:id/sharing",
+      method: "patch",
+      request: jsonRequest<Path<"id">, api.UpdateHostSharingRequest>(
+        api.updateHostSharingRequestSchema,
       ),
       response: jsonResponse<domain.Host>(),
     }),

@@ -16,6 +16,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
 import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
 import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
+import { ThreadViewers } from "@/components/users/ThreadViewers";
 import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
 import { usePluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
@@ -242,4 +243,5 @@ export const pluginAppHost: PluginAppHost = {
   ProviderIcon,
   UrlLink: PluginUrlLink,
   ThreadTitle: PluginThreadTitle,
+  ThreadViewers,
 };

@@ -11,6 +11,7 @@ import type {
   ThreadQueuedMessage,
 } from "@bb/domain";
 import type {
+  AuthSessionResponse,
   CreateQueuedMessageRequest,
   SendQueuedMessageMode,
   SendQueuedMessageResponse,
@@ -85,6 +86,11 @@ function upsertQueued(
   });
 }
 
+function cachedUserId(client: QueryClient): string | null {
+  const session = client.getQueryData<AuthSessionResponse>(qk.authSession());
+  return session?.user?.id ?? null;
+}
+
 function insertOptimisticQueued(
   client: QueryClient,
   request: CreateQueuedMessageRequest & { id: string },
@@ -99,6 +105,7 @@ function insertOptimisticQueued(
     originPluginId: null,
     initiator: "user",
     senderThreadId: null,
+    requestedByUserId: cachedUserId(client),
     threadId: request.id,
     content: request.input,
     model: request.model ?? defaults?.model ?? "pending",
@@ -135,6 +142,7 @@ function mapTimelineRows(
 }
 
 function optimisticUserRow(
+  client: QueryClient,
   threadId: string,
   input: SendThreadMessageMutationRequest["input"],
   steer: boolean,
@@ -171,6 +179,7 @@ function optimisticUserRow(
       : null,
     initiator: "user",
     senderThreadId: null,
+    actorUserId: cachedUserId(client),
     systemMessageKind: "unlabeled",
     systemMessageSubject: null,
     turnRequest: {
@@ -204,7 +213,7 @@ function beginTurn(
     mode === "steer" ||
     mode === "steer-if-active" ||
     (mode === "auto" && previousThread?.status === "active");
-  const row = optimisticUserRow(threadId, input, steer);
+  const row = optimisticUserRow(client, threadId, input, steer);
   client.setQueryData<ThreadResponse>(
     detailKey,
     (thread) =>

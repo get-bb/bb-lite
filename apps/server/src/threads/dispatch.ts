@@ -27,6 +27,7 @@ export interface OutboundMessage {
   input: PromptInput[];
   execution: execution.ExecutionTuple;
   senderThreadId: string | null;
+  actorUserId: string | null;
   initiator: domain.ThreadTurnInitiator;
   systemNotice: domain.QueuedMessageSystemNotice | null;
 }
@@ -89,6 +90,9 @@ export function turnRequestEvent(
     source: starts ? "spawn" : "tell",
     initiator: message.initiator,
     senderThreadId: message.senderThreadId,
+    ...(message.actorUserId === null
+      ? {}
+      : { actorUserId: message.actorUserId }),
     ...(systemNotice === null
       ? {}
       : {
@@ -198,6 +202,7 @@ function recordWait(
       threadId: thread.id,
       content: message.input,
       senderThreadId: message.senderThreadId,
+      requestedByUserId: message.actorUserId,
       systemNotice: message.systemNotice,
       ...message.execution,
       waitingOn,
@@ -386,6 +391,7 @@ function dispatchRow(
     input: queue.parseQueuedContent(row),
     execution: { model, reasoningLevel, permissionMode, serviceTier },
     senderThreadId: row.senderThreadId,
+    actorUserId: row.requestedByUserId,
     initiator: queue.queuedInitiator(row),
     systemNotice: queue.parseQueuedNotice(row),
   };

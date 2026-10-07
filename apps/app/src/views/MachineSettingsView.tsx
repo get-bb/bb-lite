@@ -23,11 +23,22 @@ import {
   SettingsRowList,
   SettingsSection,
 } from "@/components/ui/settings-section";
-import { useUpdateHostPermissionCeiling } from "@/hooks/mutations/host-mutations";
+import {
+  useSetHostSharing,
+  useUpdateHostPermissionCeiling,
+} from "@/hooks/mutations/host-mutations";
 import { useHosts } from "@/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@/hooks/queries/system-queries";
+import { useCurrentUser, useUserDirectory } from "@/hooks/queries/user-queries";
 import { useLocalHostId } from "@/hooks/useOpenTargets";
+import {
+  MACHINE_SHARING_OPTIONS,
+  canManageMachine,
+  isMachineOwner,
+  machineOwnerName,
+  machineSharingDescription,
+} from "@/lib/machine-access";
 import { showMutationErrorToast } from "@/lib/mutation-errors";
 import { PERMISSION_MODE_OPTIONS } from "@/lib/permission-mode-options";
 import { formatRelativeTime } from "@/lib/relative-time";
@@ -44,6 +55,9 @@ export function MachineSettingsView() {
   const localHostId = useLocalHostId();
   const navigation = useSidebarNavigation().data;
   const updatePermissionCeiling = useUpdateHostPermissionCeiling();
+  const setSharing = useSetHostSharing();
+  const currentUser = useCurrentUser();
+  const users = useUserDirectory();
   const dialogs = useMachineDialogs(hosts, () =>
     navigate(getSettingsRoutePath("machines")),
   );
@@ -74,6 +88,25 @@ export function MachineSettingsView() {
   const projects = (navigation?.projects ?? []).filter((project) =>
     project.sources.some((source) => source.hostId === host.id),
   );
+  const canManage = canManageMachine(host, currentUser);
+  const viewerIsOwner =
+    currentUser === null || isMachineOwner(host, currentUser);
+  const otherOwnerName = viewerIsOwner ? null : machineOwnerName(host, users);
+  const describedOwnerName =
+    viewerIsOwner || (canManage && host.ownerUserId === null)
+      ? null
+      : (otherOwnerName ?? "its owner");
+  const pendingSharing = setSharing.isPending
+    ? setSharing.variables.sharing
+    : null;
+  const sharing = pendingSharing ?? host.sharing;
+  const sharingDescription = canManage
+    ? otherOwnerName === null
+      ? "Who can run threads on this machine."
+      : `Owned by ${otherOwnerName}.`
+    : otherOwnerName === null
+      ? "Only the machine's owner or an owner of this bb can change this."
+      : `Owned by ${otherOwnerName}. Only they or an owner of this bb can change this.`;
   const paired = `paired ${formatRelativeTime({ timestamp: host.createdAt, now: Date.now() })}`;
 
   return (
@@ -103,12 +136,14 @@ export function MachineSettingsView() {
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <ResourceOverflowMenu
-                label={`${host.name} actions`}
-                items={dialogs.menuItems(host, isPrimary, false)}
-              />
-            </div>
+            {canManage ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <ResourceOverflowMenu
+                  label={`${host.name} actions`}
+                  items={dialogs.menuItems(host, isPrimary, false)}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -126,7 +161,7 @@ export function MachineSettingsView() {
                       type="button"
                       role="radio"
                       aria-checked={selected}
-                      disabled={updatePermissionCeiling.isPending}
+                      disabled={!canManage || updatePermissionCeiling.isPending}
                       onClick={() => {
                         if (selected) return;
                         updatePermissionCeiling.mutate(
@@ -142,7 +177,8 @@ export function MachineSettingsView() {
                       }}
                       className={cn(
                         "flex w-full items-start gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        updatePermissionCeiling.isPending && "opacity-70",
+                        (!canManage || updatePermissionCeiling.isPending) &&
+                          "opacity-70",
                       )}
                     >
                       <span
@@ -164,6 +200,65 @@ export function MachineSettingsView() {
                             {option.description}
                           </span>
                         ) : null}
+                      </span>
+                    </button>
+                  </SettingsRow>
+                );
+              })}
+            </SettingsRowList>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="Sharing" description={sharingDescription}>
+          <div role="radiogroup" aria-label="Sharing">
+            <SettingsRowList>
+              {MACHINE_SHARING_OPTIONS.map((option) => {
+                const selected = option.value === sharing;
+                return (
+                  <SettingsRow key={option.value} className="items-start">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={!canManage || setSharing.isPending}
+                      onClick={() => {
+                        if (selected) return;
+                        setSharing.mutate(
+                          { hostId: host.id, sharing: option.value },
+                          {
+                            onError: (error) =>
+                              showMutationErrorToast({
+                                error,
+                                fallbackMessage: `Couldn't change sharing for ${host.name}.`,
+                              }),
+                          },
+                        );
+                      }}
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        (!canManage || setSharing.isPending) && "opacity-70",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                          selected ? "border-foreground" : "border-input",
+                        )}
+                      >
+                        {selected ? (
+                          <span className="size-2 rounded-full bg-foreground" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-foreground">
+                          {option.label}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-snug text-subtle-foreground/75">
+                          {machineSharingDescription(
+                            option.value,
+                            describedOwnerName,
+                          )}
+                        </span>
                       </span>
                     </button>
                   </SettingsRow>
@@ -197,28 +292,30 @@ export function MachineSettingsView() {
           </SettingsRowList>
         </SettingsSection>
 
-        <SettingsSection
-          title="Danger zone"
-          description={
-            isPrimary
-              ? SERVER_MACHINE_REMOVE_DISABLED_REASON
-              : `Revokes ${host.name}'s access to this server. ${machineRemovalConsequences(host)}`
-          }
-        >
-          <SettingsRowList>
-            <SettingsRow>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={isPrimary}
-                onClick={() => dialogs.openRemove(host)}
-              >
-                Remove machine
-              </Button>
-            </SettingsRow>
-          </SettingsRowList>
-        </SettingsSection>
+        {canManage ? (
+          <SettingsSection
+            title="Danger zone"
+            description={
+              isPrimary
+                ? SERVER_MACHINE_REMOVE_DISABLED_REASON
+                : `Revokes ${host.name}'s access to this server. ${machineRemovalConsequences(host)}`
+            }
+          >
+            <SettingsRowList>
+              <SettingsRow>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={isPrimary}
+                  onClick={() => dialogs.openRemove(host)}
+                >
+                  Remove machine
+                </Button>
+              </SettingsRow>
+            </SettingsRowList>
+          </SettingsSection>
+        ) : null}
       </div>
       {dialogs.dialogs}
     </PageShell>

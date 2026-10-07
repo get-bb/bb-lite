@@ -9,6 +9,7 @@ const STABLE_MS = 10_000;
 
 export interface TunnelOptions {
   loopbackUrl: string;
+  marker: string;
   isShared(port: number): boolean;
   confirmRefused(credential: string): Promise<void>;
   log: { info(message: string): void; warn(message: string): void };
@@ -134,7 +135,8 @@ export class ConnectTunnel {
       log.info(`tunnel connected to ${url.host}`);
       const resolveOrigin = (target?: string): client.StreamOriginResult =>
         this.resolveOrigin(link, target);
-      const session = { tunnel: socket, log, resolveOrigin, heartbeat };
+      const { marker } = this.options;
+      const session = { tunnel: socket, log, resolveOrigin, marker, heartbeat };
       this.session = new client.TunnelSession(session);
       this.session.start();
       this.options.onChange();

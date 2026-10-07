@@ -36,6 +36,9 @@ export interface HostsArea {
   openTargets(args: HostTarget): Promise<api.HostOpenTargetsResponse>;
   open(args: api.HostOpenRequest & { hostId: string }): Promise<void>;
   update(args: api.UpdateHostRequest & { hostId: string }): Promise<Host>;
+  setSharing(
+    args: api.UpdateHostSharingRequest & { hostId: string },
+  ): Promise<Host>;
 }
 
 const CREATION_POLL_MS = 1000;
@@ -90,5 +93,7 @@ export function createHostsArea(http: Http): HostsArea {
     },
     update: ({ hostId, name }) =>
       http.json(routes.update, { ...at(hostId), json: { name } }),
+    setSharing: ({ hostId, sharing }) =>
+      http.json(routes.updateSharing, { ...at(hostId), json: { sharing } }),
   };
 }

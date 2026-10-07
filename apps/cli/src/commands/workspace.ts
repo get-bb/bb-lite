@@ -164,8 +164,20 @@ export const envDelete: Run = async (c) => {
 };
 
 export const machineList: Run = async (c) => {
-  const hosts = await c.sdk.hosts.list({ includeCreating: true });
-  c.rows(hosts, ["id", "name", "status", "lastSeenAt"]);
+  const [hosts, users] = await Promise.all([
+    c.sdk.hosts.list({ includeCreating: true }),
+    c.sdk.users.list().catch(() => []),
+  ]);
+  const names = new Map(users.map((user) => [user.id, user.name]));
+  const rows = hosts.map((host) => ({
+    ...host,
+    owner: names.get(host.ownerUserId ?? "") ?? host.ownerUserId,
+  }));
+  c.rows(
+    rows,
+    ["id", "name", "status", "sharing", "owner", "lastSeenAt"],
+    hosts,
+  );
 };
 
 function joinInstructions(command: string, expiresAt: number): string[] {
@@ -217,6 +229,17 @@ export const machineRemove: Run = async (c) => {
   const result = await c.sdk.hosts.delete({ hostId });
   c.out({ ...result, hostId }, `Machine ${hostId} removed`);
 };
+
+function setSharing(sharing: "private" | "shared"): Run {
+  return async (c) => {
+    const hostId = await machineId(c, c.arg("machine"));
+    const host = await c.sdk.hosts.setSharing({ hostId, sharing });
+    c.out(host, `Machine ${host.id} is ${host.sharing}`);
+  };
+}
+
+export const machineShare = setSharing("shared");
+export const machineUnshare = setSharing("private");
 
 async function variables(c: Call, change?: "set" | "unset") {
   const { sdk } = c;

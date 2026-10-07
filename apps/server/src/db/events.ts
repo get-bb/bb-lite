@@ -1,11 +1,13 @@
-import type {
-  PromptInput,
-  ThreadEventType,
-  ThreadSearchSourceKind,
+import {
+  OWNER_USER_ID,
+  type PromptInput,
+  type ThreadEventType,
+  type ThreadSearchSourceKind,
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import { latestSequence } from "./event-read.js";
 import { insertRow, newId, type Db } from "./index.js";
+import { setThreadUserState } from "./thread-user-state.js";
 import type { ThreadRow } from "./threads.js";
 
 export type EventSource = "server" | "runner";
@@ -166,9 +168,15 @@ function recordTurnRequest(
   const key = `event:${sequence}`;
   const text = visiblePromptText(event.input);
   upsertSearchSegment(db, thread.id, "user_message", key, sequence, text);
+  const { actorUserId = null } = event;
+  if (actorUserId !== null) {
+    const sql = "UPDATE threads SET last_actor_user_id = ? WHERE id = ?";
+    db.run(sql, actorUserId, thread.id);
+  }
   if (event.initiator !== "user") return;
   const now = db.now();
-  db.run("UPDATE threads SET last_read_at = ? WHERE id = ?", now, thread.id);
+  const userId = actorUserId ?? OWNER_USER_ID;
+  setThreadUserState(db, thread.id, userId, { lastReadAt: now });
   const starts = event.target.kind === "thread-start";
   const input = visiblePromptInput(event.input);
   if (input.length === 0 || (starts && thread.parentThreadId !== null)) return;
@@ -178,6 +186,7 @@ function recordTurnRequest(
     threadId: thread.id,
     scope: starts ? "project" : "thread",
     requestSequence: sequence,
+    userId,
     input: JSON.stringify(input),
     createdAt: now,
   });
