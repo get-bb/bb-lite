@@ -819,7 +819,8 @@ impl Replayer {
             let rec_msgs: Vec<Value> = rec.iter().map(|s| s["message"].clone()).collect();
             if let Ok(path) = std::env::var("PARITY_WS_DUMP") {
                 use std::io::Write as _;
-                let line = json!({"scenario": scenario, "key": key, "recorded": rec_msgs, "live": act});
+                let line =
+                    json!({"scenario": scenario, "key": key, "recorded": rec_msgs, "live": act});
                 let mut file =
                     std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
                 writeln!(file, "{line}").unwrap();
