@@ -85,6 +85,10 @@ Failure handling, ported from the getbb.app gate:
 --remote` applies new migrations. The route only works with a proxied wildcard DNS record
   (`AAAA * 100::`) on the zone, which needs DNS edit rights. bb connect defaults to
   `https://getbb.dev`; `BB_CONNECT_BASE_URL` points a server at another relay.
+- `.github/workflows/deploy-relay.yml` does the same on every push to `main` that touches `apps/relay`
+  or `packages/tunnel-contract` (and on demand): typecheck, the relay tests, migrations, deploy, then a
+  check that `/login` answers. It needs the repository secret `CLOUDFLARE_API_TOKEN` (Workers Scripts,
+  Workers Routes and D1 edit).
 
 ## Not there yet
 

@@ -1,0 +1,68 @@
+name: Deploy relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/relay/**"
+      - "packages/tunnel-contract/**"
+      - ".github/workflows/deploy-relay.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Test and deploy bb-next to getbb.dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the relay
+        run: pnpm --filter @bb/relay typecheck
+
+      - name: Test the relay against a real bb server
+        run: pnpm exec vitest run apps/relay
+
+      - name: Require the Cloudflare token
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set the CLOUDFLARE_API_TOKEN repository secret to deploy."
+            exit 1
+          fi
+
+      - name: Apply database migrations
+        working-directory: apps/relay
+        run: pnpm exec wrangler d1 migrations apply bb-next --remote
+
+      - name: Deploy the Worker
+        working-directory: apps/relay
+        run: pnpm exec wrangler deploy
+
+      - name: Check the relay answers
+        run: |
+          for attempt in 1 2 3 4 5; do
+            status=$(curl -s -o /dev/null -m 20 -w '%{http_code}' https://getbb.dev/login)
+            if [ "$status" = "200" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::https://getbb.dev/login answered $status after the deploy."
+          exit 1
