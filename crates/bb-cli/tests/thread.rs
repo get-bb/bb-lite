@@ -352,3 +352,24 @@ fn interactions_resolve_approval_and_answers() {
     let respond = request("POST", "/threads/thr_a/interactions/pint_1/respond", "", body);
     assert_eq!(fake.only(), respond);
 }
+
+#[test]
+fn remaining_actions_post_to_their_routes() {
+    let acknowledged = [
+        ("unarchive", "/unarchive", "unarchived"),
+        ("compact", "/compact", "compaction requested"),
+        ("clear", "/context/clear", "context cleared"),
+    ];
+    for (word, tail, done) in acknowledged {
+        let fake = Fake::json(json!({}));
+        let out = ok(&fake.url, None, &["thread", word, "thr_a"]);
+        assert_eq!(fake.only(), request("POST", &format!("/threads/thr_a{tail}"), "", None));
+        assert_eq!(out, format!("Thread thr_a {done}\n"));
+    }
+    for (word, tail) in [("pin", "/pin"), ("unpin", "/unpin"), ("unread", "/unread")] {
+        let fake = Fake::json(thread("thr_a", "idle"));
+        let out = ok(&fake.url, None, &["thread", word, "thr_a", "--json"]);
+        assert_eq!(fake.only(), request("POST", &format!("/threads/thr_a{tail}"), "", None));
+        assert_eq!(serde_json::from_str::<Value>(&out).expect("json"), thread("thr_a", "idle"));
+    }
+}
