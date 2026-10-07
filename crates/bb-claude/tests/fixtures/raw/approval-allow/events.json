@@ -1,0 +1,583 @@
+[
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/identity",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": null,
+          "modelContextWindow": null,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "provider.env-resolved",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "entries": [
+          {
+            "name": "PATH",
+            "source": "shell",
+            "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/usr/local/bin:/usr/bin:/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/snap/bin"
+          },
+          {
+            "name": "BB_CLI",
+            "source": "shell",
+            "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+          },
+          {
+            "name": "BB_SERVER_URL",
+            "source": "shell",
+            "value": "http://127.0.0.1:9"
+          },
+          {
+            "name": "BB_THREAD_STORAGE",
+            "source": "shell",
+            "value": "/tmp/bb-claude-rec-data-kJF4p6/thread-storage/thr_rec_approval_allow"
+          },
+          {
+            "name": "BB_THREAD_ID",
+            "source": "shell",
+            "value": "thr_rec_approval_allow"
+          }
+        ],
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "turn/started",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 1
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "turn/input/accepted",
+        "clientRequestId": "creq_2222222223",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 2
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [],
+          "id": "da146fbc61-i1"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i1",
+        "delta": "The user wants",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 3
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i1",
+        "delta": " me to run",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 4
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i1",
+        "delta": " a simple Python command using the Bash tool and then reply with its output. This is straightforward - I just",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 5
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i1",
+        "delta": " need to execute `python3 -c 'print(1+1)'` and report the result.",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 23029,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [
+            "The user wants me to run a simple Python command using the Bash tool and then reply with its output. This is straightforward - I just need to execute `python3 -c 'print(1+1)'` and report the result."
+          ],
+          "id": "da146fbc61-i1"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 6
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 23029,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/started",
+        "item": {
+          "type": "commandExecution",
+          "command": "python3 -c 'print(1+1)'",
+          "cwd": "",
+          "id": "da146fbc61-i2",
+          "presentation": {
+            "label": {
+              "pending": "Running command",
+              "completed": "Ran command"
+            },
+            "icon": {
+              "glyph": "Terminal"
+            },
+            "title": "python3 -c 'print(1+1)'"
+          },
+          "status": "pending",
+          "approvalStatus": null
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 7
+  },
+  {
+    "kind": "interaction.requested",
+    "threadId": "thr_rec_approval_allow",
+    "turnId": "da146fbc61-t1",
+    "requestId": "990ffeef-8e20-4fdc-8114-64dc9027cff7:1",
+    "providerId": "claude-code",
+    "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+    "payload": {
+      "kind": "approval",
+      "reason": "This command requires approval",
+      "availableDecisions": [
+        "allow_once",
+        "allow_for_session",
+        "deny"
+      ],
+      "subject": {
+        "kind": "command",
+        "itemId": "da146fbc61-i2",
+        "command": "python3 -c 'print(1+1)'",
+        "cwd": null,
+        "actions": [
+          {
+            "type": "unknown",
+            "command": "python3 -c 'print(1+1)'"
+          }
+        ],
+        "sessionGrant": {
+          "network": {
+            "enabled": true
+          },
+          "fileSystem": null
+        }
+      }
+    },
+    "lane": "reliable",
+    "seq": 8
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "commandExecution",
+          "command": "python3 -c 'print(1+1)'",
+          "cwd": "",
+          "exitCode": 0,
+          "aggregatedOutput": "2",
+          "id": "da146fbc61-i2",
+          "presentation": {
+            "label": {
+              "pending": "Running command",
+              "completed": "Ran command"
+            },
+            "icon": {
+              "glyph": "Terminal"
+            },
+            "title": "python3 -c 'print(1+1)'"
+          },
+          "status": "completed",
+          "approvalStatus": null
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 9
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [],
+          "id": "da146fbc61-i3"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i3",
+        "delta": "The",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 10
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i3",
+        "delta": " command",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 11
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i3",
+        "delta": " executed successfully and returned `2`, which is the correct output of 1+1. The user",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 12
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i3",
+        "delta": " asked me to run the command and reply with its output, so",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 13
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da146fbc61-i3",
+        "delta": " I should simply provide that result.",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [
+            "The command executed successfully and returned `2`, which is the correct output of 1+1. The user asked me to run the command and reply with its output, so I should simply provide that result."
+          ],
+          "id": "da146fbc61-i3"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 14
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "agentMessage",
+          "text": "",
+          "id": "da146fbc61-i4"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/agentMessage/delta",
+        "itemId": "da146fbc61-i4",
+        "delta": "The",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/agentMessage/delta",
+        "itemId": "da146fbc61-i4",
+        "delta": " output is: **2**",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "agentMessage",
+          "text": "The output is: **2**",
+          "id": "da146fbc61-i4"
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 15
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "thread/tokenUsage/updated",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 47886,
+            "inputTokens": 18,
+            "cachedInputTokens": 47664,
+            "outputTokens": 204,
+            "reasoningOutputTokens": 0,
+            "cacheReadInputTokens": 37931,
+            "cacheWriteInputTokens": 9733
+          },
+          "last": {
+            "totalTokens": 47886,
+            "inputTokens": 18,
+            "cachedInputTokens": 47664,
+            "cacheReadInputTokens": 37931,
+            "cacheWriteInputTokens": 9733,
+            "outputTokens": 204,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 200000
+        },
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      },
+      {
+        "type": "turn/completed",
+        "status": "completed",
+        "providerCheckpointId": "5b027cda-582b-4094-b5db-9feec1084d7f",
+        "providerThreadId": "f624f0c5-672d-46f7-ab4f-6ca682f6cc74",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da146fbc61-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 16
+  }
+]

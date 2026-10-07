@@ -1,0 +1,5 @@
+{"request_id":"w8o0o96oxa","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
+{"type":"user","message":{"role":"user","content":"Use the Bash tool to run: python3 -c 'print(1+1)'. If it is denied, reply: denied."},"session_id":"60f5f7bb-8671-40ea-a235-d13f4b21cef5","uuid":"35f9fa68-fe8a-4461-9404-e5445a8c8b33","parent_tool_use_id":null}
+{"type":"control_response","response":{"subtype":"success","request_id":"c7784c0c-41dc-4ec1-9116-a2f59cdec8ab","response":{"continue":true}}}
+{"type":"control_response","response":{"subtype":"success","request_id":"bb6bf590-708d-4775-ad0a-f042981a8067","response":{"behavior":"deny","message":"Permission request denied","decisionClassification":"user_reject","toolUseID":"toolu_01ThwHBJB8DhExhEXcAAzeie"}}}
+{"request_id":"61mlltf7dy4","type":"control_request","request":{"subtype":"interrupt"}}

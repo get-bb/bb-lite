@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+// Recording wrapper for the `claude` CLI. Logs argv, selected env and every
+// stdin/stdout line, passing bytes through unchanged. The recording directory
+// is read from the file named by BB_CLAUDE_REC_POINTER (default
+// /tmp/bb-claude-rec/current). The first spawn in a directory writes there
+// directly; later spawns write to <dir>/spawn-N/.
+
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+const REAL = process.env.BB_CLAUDE_REAL ?? "/home/sawyer/.local/bin/claude";
+const pointer =
+  process.env.BB_CLAUDE_REC_POINTER ?? "/tmp/bb-claude-rec/current";
+const base = fs.readFileSync(pointer, "utf8").trim();
+fs.mkdirSync(base, { recursive: true });
+let dir = base;
+if (fs.existsSync(path.join(base, "argv.txt"))) {
+  let n = 2;
+  while (fs.existsSync(path.join(base, `spawn-${n}`))) n += 1;
+  dir = path.join(base, `spawn-${n}`);
+}
+fs.mkdirSync(dir, { recursive: true });
+
+const args = process.argv.slice(2);
+fs.writeFileSync(path.join(dir, "argv.txt"), args.map((a) => `${a}\n`).join(""));
+
+const PREFIXES = ["CLAUDE_", "MCP_", "ENABLE_", "DISABLE_", "ANTHROPIC_"];
+const NAMED = new Set([
+  "DEBUG",
+  "NODE_OPTIONS",
+  "MAX_THINKING_TOKENS",
+  "BASH_DEFAULT_TIMEOUT_MS",
+  "BASH_MAX_TIMEOUT_MS",
+  "USE_BUILTIN_RIPGREP",
+  "NO_PROXY",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+]);
+const SECRET = /KEY|TOKEN|SECRET|PASSWORD|AUTH/;
+const envLines = Object.keys(process.env)
+  .filter((k) => PREFIXES.some((p) => k.startsWith(p)) || NAMED.has(k))
+  .sort()
+  .map((k) => `${k}=${SECRET.test(k) ? "<redacted>" : process.env[k]}\n`);
+fs.writeFileSync(path.join(dir, "env.txt"), envLines.join(""));
+
+const start = performance.now();
+const files = {
+  in: fs.openSync(path.join(dir, "stdin.ndjson"), "w"),
+  out: fs.openSync(path.join(dir, "stdout.ndjson"), "w"),
+  both: fs.openSync(path.join(dir, "interleaved.ndjson"), "w"),
+};
+
+function recorder(direction) {
+  let pending = "";
+  const record = (line) => {
+    if (line.length === 0) return;
+    fs.writeSync(files[direction], `${line}\n`);
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      parsed = { unparsed: line };
+    }
+    const t = Math.round(performance.now() - start);
+    fs.writeSync(files.both, `${JSON.stringify({ dir: direction, t, line: parsed })}\n`);
+  };
+  return {
+    push(chunk) {
+      pending += chunk.toString("utf8");
+      let index = pending.indexOf("\n");
+      while (index !== -1) {
+        record(pending.slice(0, index));
+        pending = pending.slice(index + 1);
+        index = pending.indexOf("\n");
+      }
+    },
+    flush() {
+      record(pending);
+      pending = "";
+    },
+  };
+}
+
+const child = spawn(REAL, args, { stdio: ["pipe", "pipe", "inherit"] });
+const inRec = recorder("in");
+const outRec = recorder("out");
+
+process.stdin.on("data", (chunk) => {
+  inRec.push(chunk);
+  child.stdin.write(chunk);
+});
+process.stdin.on("end", () => {
+  inRec.flush();
+  child.stdin.end();
+});
+child.stdin.on("error", () => undefined);
+child.stdout.on("data", (chunk) => {
+  outRec.push(chunk);
+  process.stdout.write(chunk);
+});
+child.stdout.on("end", () => outRec.flush());
+
+for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  process.on(signal, () => child.kill(signal));
+}
+
+child.on("close", (code, signal) => {
+  inRec.flush();
+  outRec.flush();
+  const t = Math.round(performance.now() - start);
+  fs.writeFileSync(
+    path.join(dir, "exit.json"),
+    `${JSON.stringify({ code, signal, t })}\n`,
+  );
+  process.stdout.end(() => {
+    if (signal) {
+      process.removeAllListeners(signal);
+      process.kill(process.pid, signal);
+    } else {
+      process.exit(code ?? 1);
+    }
+  });
+});

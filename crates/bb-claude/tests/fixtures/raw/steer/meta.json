@@ -1,0 +1,7 @@
+{
+  "scenario": "steer",
+  "threadId": "thr_rec_steer",
+  "providerThreadId": null,
+  "cwd": "/tmp/bb-claude-rec-cwd-Q5woi1",
+  "model": "claude-haiku-4-5"
+}

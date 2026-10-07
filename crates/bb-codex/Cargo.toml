@@ -7,6 +7,10 @@ publish.workspace = true
 
 [dependencies]
 bb-core.workspace = true
+bb-provider = { path = "../bb-provider" }
+async-trait.workspace = true
+indexmap.workspace = true
+regex.workspace = true
 futures.workspace = true
 libc.workspace = true
 parking_lot.workspace = true

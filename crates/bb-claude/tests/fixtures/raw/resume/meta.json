@@ -1,0 +1,7 @@
+{
+  "scenario": "resume",
+  "threadId": "thr_rec_resume",
+  "providerThreadId": "ff329a00-62a7-487d-8ca5-79d3b2bb6eea",
+  "cwd": "/tmp/bb-claude-rec-cwd-GLntXv",
+  "model": "claude-haiku-4-5"
+}

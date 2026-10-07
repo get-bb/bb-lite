@@ -1,0 +1,4 @@
+{"request_id":"8m5bm65nrkr","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
+{"type":"user","message":{"role":"user","content":"Use the Bash tool with dangerouslyDisableSandbox set to true to run: echo hi. Then reply with its output."},"session_id":"224b3dbe-8a07-47a4-aa25-9fec302cb2ee","uuid":"d34e0578-093f-4d32-bf2c-0bb5dc51fe07","parent_tool_use_id":null}
+{"type":"control_response","response":{"subtype":"success","request_id":"e0f9d7b0-ed8d-4a67-bb9a-fc4ac3447d8c","response":{"continue":true}}}
+{"request_id":"ju4ftmpexu8","type":"control_request","request":{"subtype":"interrupt"}}

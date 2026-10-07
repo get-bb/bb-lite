@@ -1,0 +1,550 @@
+[
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/identity",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": null,
+          "modelContextWindow": null,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "provider.env-resolved",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "entries": [
+          {
+            "name": "PATH",
+            "source": "shell",
+            "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin:/home/sawyer/.local/bin:/home/sawyer/.cargo/bin:/home/sawyer/.grok/bin:/home/sawyer/.local/share/pnpm/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/home/sawyer/.local/bin:/home/sawyer/.local/bin:/usr/local/bin:/usr/bin:/bin:/home/sawyer/.nvm/versions/node/v24.18.0/bin:/snap/bin"
+          },
+          {
+            "name": "BB_CLI",
+            "source": "shell",
+            "value": "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/apps/cli/bin/bb"
+          },
+          {
+            "name": "BB_SERVER_URL",
+            "source": "shell",
+            "value": "http://127.0.0.1:9"
+          },
+          {
+            "name": "BB_THREAD_STORAGE",
+            "source": "shell",
+            "value": "/tmp/bb-claude-rec-data-wvMhKy/thread-storage/thr_rec_approval_allow"
+          },
+          {
+            "name": "BB_THREAD_ID",
+            "source": "shell",
+            "value": "thr_rec_approval_allow"
+          }
+        ],
+        "scope": {
+          "kind": "thread"
+        }
+      },
+      {
+        "type": "turn/started",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 1
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "turn/input/accepted",
+        "clientRequestId": "creq_2222222223",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 2
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [],
+          "id": "da74b6c83a-i1"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i1",
+        "delta": "The user is asking",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 3
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i1",
+        "delta": " me to run",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 4
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i1",
+        "delta": " `echo hi` using the Bash tool with `dangerouslyDisableSandbox` set to true, then",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 5
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i1",
+        "delta": " reply with its output.\n\nThis is",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 6
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i1",
+        "delta": " a straightforward request. I should use the Bash tool with the specified parameter.",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 23029,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [
+            "The user is asking me to run `echo hi` using the Bash tool with `dangerouslyDisableSandbox` set to true, then reply with its output.\n\nThis is a straightforward request. I should use the Bash tool with the specified parameter."
+          ],
+          "id": "da74b6c83a-i1"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 7
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 23029,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/started",
+        "item": {
+          "type": "commandExecution",
+          "command": "echo hi",
+          "cwd": "",
+          "id": "da74b6c83a-i2",
+          "presentation": {
+            "label": {
+              "pending": "Running command",
+              "completed": "Ran command"
+            },
+            "icon": {
+              "glyph": "Terminal"
+            },
+            "title": "echo hi",
+            "badge": {
+              "glyph": "SquareUnlock02",
+              "label": "Outside of sandbox",
+              "hint": "Outside of sandbox",
+              "tone": "destructive"
+            }
+          },
+          "status": "pending",
+          "approvalStatus": null
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "commandExecution",
+          "command": "echo hi",
+          "cwd": "",
+          "exitCode": 0,
+          "aggregatedOutput": "hi",
+          "id": "da74b6c83a-i2",
+          "presentation": {
+            "label": {
+              "pending": "Running command",
+              "completed": "Ran command"
+            },
+            "icon": {
+              "glyph": "Terminal"
+            },
+            "title": "echo hi",
+            "badge": {
+              "glyph": "SquareUnlock02",
+              "label": "Outside of sandbox",
+              "hint": "Outside of sandbox",
+              "tone": "destructive"
+            }
+          },
+          "status": "completed",
+          "approvalStatus": null
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 8
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [],
+          "id": "da74b6c83a-i3"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i3",
+        "delta": "The",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 9
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i3",
+        "delta": " command",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 10
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i3",
+        "delta": " ran successfully and output \"hi\". I should reply with that",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 11
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/reasoning/textDelta",
+        "itemId": "da74b6c83a-i3",
+        "delta": " output as requested.",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "reasoning",
+          "summary": [],
+          "content": [
+            "The command ran successfully and output \"hi\". I should reply with that output as requested."
+          ],
+          "id": "da74b6c83a-i3"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 12
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "item/started",
+        "item": {
+          "type": "agentMessage",
+          "text": "",
+          "id": "da74b6c83a-i4"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/agentMessage/delta",
+        "itemId": "da74b6c83a-i4",
+        "delta": "The",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/agentMessage/delta",
+        "itemId": "da74b6c83a-i4",
+        "delta": " output is:\n\n```\nhi\n```",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "item/completed",
+        "item": {
+          "type": "agentMessage",
+          "text": "The output is:\n\n```\nhi\n```",
+          "id": "da74b6c83a-i4"
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 13
+  },
+  {
+    "kind": "thread.events",
+    "threadId": "thr_rec_approval_allow",
+    "events": [
+      {
+        "type": "thread/contextWindowUsage/updated",
+        "contextWindowUsage": {
+          "usedTokens": 24653,
+          "modelContextWindow": 200000,
+          "estimated": true
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "thread/tokenUsage/updated",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 47865,
+            "inputTokens": 18,
+            "cachedInputTokens": 47664,
+            "outputTokens": 183,
+            "reasoningOutputTokens": 0,
+            "cacheReadInputTokens": 37931,
+            "cacheWriteInputTokens": 9733
+          },
+          "last": {
+            "totalTokens": 47865,
+            "inputTokens": 18,
+            "cachedInputTokens": 47664,
+            "cacheReadInputTokens": 37931,
+            "cacheWriteInputTokens": 9733,
+            "outputTokens": 183,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 200000
+        },
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      },
+      {
+        "type": "turn/completed",
+        "status": "completed",
+        "providerCheckpointId": "d83c29bd-4b8c-4760-9c09-22929960b816",
+        "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
+        "scope": {
+          "kind": "turn",
+          "turnId": "da74b6c83a-t1"
+        }
+      }
+    ],
+    "lane": "reliable",
+    "seq": 14
+  }
+]

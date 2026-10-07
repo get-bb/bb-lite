@@ -190,7 +190,20 @@ checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 name = "bb-claude"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "bb-core",
+ "bb-provider",
+ "futures",
+ "hex",
+ "indexmap",
+ "parking_lot",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -206,10 +219,14 @@ dependencies = [
 name = "bb-codex"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "bb-core",
+ "bb-provider",
  "futures",
+ "indexmap",
  "libc",
  "parking_lot",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
@@ -286,7 +303,6 @@ dependencies = [
 name = "bb-js"
 version = "0.0.1"
 dependencies = [
- "base64 0.23.1",
  "futures",
  "parking_lot",
  "rand 0.10.3",
@@ -412,6 +428,16 @@ dependencies = [
  "tower",
  "tower-http 0.7.1",
  "url",
+]
+
+[[package]]
+name = "bb-thread-view"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,5 @@
+{"request_id":"qdfkdobu4hk","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
+{"type":"user","message":{"role":"user","content":"Use the Bash tool to run: python3 -c 'print(1+1)'. Then reply with its output."},"session_id":"f624f0c5-672d-46f7-ab4f-6ca682f6cc74","uuid":"c46352ad-42fa-48c7-9e62-d200254002b6","parent_tool_use_id":null}
+{"type":"control_response","response":{"subtype":"success","request_id":"dad5485b-d540-4a27-be06-3e440c5978a2","response":{"continue":true}}}
+{"type":"control_response","response":{"subtype":"success","request_id":"f5faefed-1cdb-4cad-ad97-c7c9381e8c23","response":{"behavior":"allow","updatedInput":{"command":"python3 -c 'print(1+1)'","description":"Run simple Python arithmetic"},"decisionClassification":"user_temporary","toolUseID":"toolu_01DSyXcrzF4mnfavMR3EUuKi"}}}
+{"request_id":"7czqgvlmsze","type":"control_request","request":{"subtype":"interrupt"}}

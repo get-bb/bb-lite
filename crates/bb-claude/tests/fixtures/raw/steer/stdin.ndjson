@@ -1,0 +1,4 @@
+{"request_id":"owb6i4zs27r","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
+{"type":"user","message":{"role":"user","content":"Without using any tools, write a 600-word story about a lighthouse keeper."},"session_id":"41ae15bc-02aa-42e0-8f90-7f7eb4b1ea72","uuid":"d99a8247-601b-45e5-8bc4-f6e13387def5","parent_tool_use_id":null}
+{"type":"user","message":{"role":"user","content":"Stop counting now and reply with exactly: steered"},"session_id":"41ae15bc-02aa-42e0-8f90-7f7eb4b1ea72","uuid":"cd60d23a-3425-4d56-b87d-7caae43ec24c","parent_tool_use_id":null}
+{"request_id":"2c32thl3uju","type":"control_request","request":{"subtype":"interrupt"}}
