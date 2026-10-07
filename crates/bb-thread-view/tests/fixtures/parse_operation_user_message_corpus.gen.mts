@@ -1,6 +1,3 @@
-// Regenerates parse_operation_corpus.json and user_message_corpus.json from the TypeScript.
-// From packages/thread-view of a checkout with node_modules:
-//   WT=<repo with crates/> node --conditions=source --import tsx -e 'await import("<this file>")'
 import * as fs from "node:fs";
 const SRC = process.cwd() + "/src";
 const P = await import(SRC + "/parse-operation-message.ts");
@@ -14,7 +11,6 @@ let seq = 1;
 const meta = () => ({ id: `ev_${seq}`, seq: seq++, createdAt: 1700000000000 + seq * 1000 });
 const ev = (o) => ({ threadId: T, scope: th, ...o });
 
-// ---------- operation corpus ----------
 const hand = [];
 const H = (o) => hand.push(ev(o));
 H({ type: "provider/modelFallback", originalModel: "opus", fallbackModel: "sonnet", message: "Overloaded" });
@@ -98,7 +94,6 @@ for (const [ex, inc] of [[undefined, undefined], [[], []], [A, undefined], [unde
 const statusTitles = Object.fromEntries(["pending", "completed", "error", "interrupted"].map((s) => [s, P.provisioningTitleForStatus(s)]));
 fs.writeFileSync(OUT + "/parse_operation_corpus.json", JSON.stringify({ cases: opCases, merge: mergeCases, statusTitles }, null, 0));
 
-// ---------- user corpus ----------
 const txt = (text, mentions = [], visibility) => ({ type: "text", text, mentions, ...(visibility ? { visibility } : {}) });
 const inputs = [
   [txt("hello")],

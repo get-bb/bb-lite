@@ -1,7 +1,3 @@
-// Writes the fixtures of tests/operation_projection.rs: hand-written lifecycle scenarios and the
-// recorded parity thread event streams, each projected by the TypeScript buildEventProjection.
-// Run from packages/thread-view (for its node_modules):
-//   node --conditions=source --import tsx ../../crates/bb-thread-view/tests/fixtures/operation_projection/generate.ts
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { buildEventProjection } from "../../../../../packages/thread-view/src/build-event-projection.ts";
 

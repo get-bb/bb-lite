@@ -127,7 +127,6 @@ const encode = (s, e) => {
       return enc.encode(s);
     case "base64":
     case "base64url": {
-      // Plain base64 decodes natively; regex passes over megabytes outlive the run deadline.
       const fast = __bb.base64Native(s);
       if (fast != null) return fast;
       let b = s.replace(/[\s=]/g, "").replace(/-/g, "+").replace(/_/g, "/");

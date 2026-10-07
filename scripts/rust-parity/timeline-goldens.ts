@@ -107,7 +107,13 @@ for (const { name, events } of sources()) {
     };
   });
   const compacted = compactThreadTimelineSummaryEvents(decoded);
-  const body = { name, events: decoded, compacted, contextWindowEvents, results };
+  const body = {
+    name,
+    events: decoded,
+    compacted,
+    contextWindowEvents,
+    results,
+  };
   writeFileSync(join(out, `${name}.json`), JSON.stringify(body));
 }
 console.log(`wrote ${cases} cases to ${out}`);

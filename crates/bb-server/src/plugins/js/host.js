@@ -205,7 +205,6 @@ function createApi(config, z) {
       register(registration) {
         const run = handler(({ argv, context, signal }) =>
           withSignal(signal, (abort) =>
-            // Absent fields are `undefined` in the Node server (`cli.threadId === undefined`).
             registration.run(argv, { ...withoutNulls(context), signal: abort })),
         );
         register("cli", {

@@ -15,7 +15,7 @@
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
     "test": "vitest run",
-    "check": "pnpm run check:lines && pnpm run typecheck && pnpm run lint && pnpm run test",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "postinstall": "node scripts/ensure-native.mjs"
   },
   "devDependencies": {

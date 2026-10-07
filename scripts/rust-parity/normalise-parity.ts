@@ -1,22 +1,9 @@
-// Applies the replay normalisation described in
-// crates/bb-server/tests/fixtures/parity/README.md to a recording directory
-// and writes the normalised copy elsewhere, so two recordings (or a TypeScript
-// recording and a Rust replay) can be compared with `diff -r`.
-//   node --import tsx scripts/rust-parity/normalise-parity.ts <in> <out>
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw new Error("usage: normalise-parity <in> <out>");
 
-// Generated ids, each replaced by `<kind>#<n>` in first-seen order:
-// - `<prefix>_<10 lowercase alphanumerics>` from newId (thr_, evt_, proj_,
-//   env_, sec_, pint_, qmsg_, phist_, src_, creq_, tpv_, ...). Branch names
-//   embed the thread id and are covered by the same textual replacement.
-// - the echo runner's per-turn key, `<10 hex>` followed by `-t<n>`, `-i<n>`
-//   and similar suffixes (turn ids, item ids, call ids); the suffix is kept.
-// - UUIDs (provider request ids).
-// File modification times (`modifiedAtMs`) are zeroed.
 const ID =
   /\b[a-z]{2,8}_[a-z0-9]{10}\b|\b[0-9a-f]{10}(?=-[a-z]+\d)|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g;
 const mapping = new Map<string, string>();
@@ -37,8 +24,6 @@ function canonical(match: string) {
   return replaced;
 }
 
-// Timeline cursors are opaque base64url JSON that embed the thread id and the
-// workspace path; decode them so the ids inside are normalised too.
 const decodeCursor = (_match: string, encoded: string) => {
   const json = Buffer.from(encoded, "base64url")
     .toString("utf8")

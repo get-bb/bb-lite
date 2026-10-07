@@ -1,7 +1,3 @@
-// Records an HTTP + WebSocket conversation with the real TypeScript server
-// (echo provider, temp data dir, fixed clock) for the Rust port to replay.
-// Run from apps/server:
-//   node --conditions=source --import tsx ../../scripts/rust-parity/record-server.ts [outDir]
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -17,7 +13,6 @@ import { fileURLToPath } from "node:url";
 
 type Json = any;
 
-// --- environment: scrub anything that could point at a live instance -------
 for (const key of Object.keys(process.env)) {
   if (/^(BB_|ANTHROPIC_|CLAUDE_|OPENAI_|CODEX_|GIT_)/.test(key)) {
     delete process.env[key];
@@ -60,15 +55,12 @@ git("commit", "--quiet", "-m", "initial");
 
 const { loadConfig } = await import("../../apps/server/src/config.js");
 const { createServer } = await import("../../apps/server/src/server.js");
-const { localRunnerFor } = await import(
-  "../../apps/server/src/runners/local.js"
-);
-const { listEvents, decodeEvents } = await import(
-  "../../apps/server/src/db/event-read.js"
-);
-const { createEchoAdapter } = await import(
-  "../../packages/runner/src/index.js"
-);
+const { localRunnerFor } =
+  await import("../../apps/server/src/runners/local.js");
+const { listEvents, decodeEvents } =
+  await import("../../apps/server/src/db/event-read.js");
+const { createEchoAdapter } =
+  await import("../../packages/runner/src/index.js");
 
 const BASE_TIME = 1_800_000_000_000;
 let clock = BASE_TIME;
@@ -82,7 +74,6 @@ const server = createServer({
 const { url } = await server.listen();
 const { ctx } = server;
 
-// --- recording -----------------------------------------------------------
 const steps: Json[] = [];
 let scenario = "";
 let stepNo = 0;
@@ -142,7 +133,6 @@ const get = (path: string, query?: Record<string, string>) =>
   http("GET", path, undefined, query);
 const post = (path: string, body?: unknown) => http("POST", path, body ?? {});
 
-// --- websocket ------------------------------------------------------------
 const sockets: { key: string; ws: WebSocket; inbox: Json[] }[] = [];
 async function subscribe(key: string, target: Json) {
   const ws = new WebSocket(`${url.replace("http", "ws")}/ws`);
@@ -172,7 +162,6 @@ function flushSockets() {
   }
 }
 
-// --- waiting ---------------------------------------------------------------
 const threads = new Map<string, string>();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const row = (id: string) =>
@@ -239,7 +228,10 @@ async function createThread(name: string, body: Json, wait = true) {
   const id = res.body?.id as string;
   if (!id) throw new Error(`create ${name} failed: ${JSON.stringify(res)}`);
   threads.set(name, id);
-  await subscribe(`thread-detail:${name}`, { kind: "thread-detail", threadId: id });
+  await subscribe(`thread-detail:${name}`, {
+    kind: "thread-detail",
+    threadId: id,
+  });
   if (wait) await waitIdle(id);
   return id;
 }
@@ -251,7 +243,6 @@ const personal = (prompt: string) => ({
 const send = (id: string, prompt: string, mode = "auto") =>
   post(`/threads/${id}/send`, { input: text(prompt), mode });
 
-// --- scenarios ---------------------------------------------------------------
 let projectId = "";
 const scenarios: [string, () => Promise<void>][] = [
   [
@@ -265,7 +256,10 @@ const scenarios: [string, () => Promise<void>][] = [
       await get("/system/environment-providers");
       await get("/sidebar-bootstrap");
       const general = cfg.generalSettings;
-      await http("PUT", "/settings/general", { ...general, streamerMode: true });
+      await http("PUT", "/settings/general", {
+        ...general,
+        streamerMode: true,
+      });
       await http("PUT", "/settings/general", { ...general, streamerMode: "x" });
       await http("PUT", "/settings/appearance", cfg.appearance);
       await http("PUT", "/settings/appearance", { mode: "dark" });
@@ -377,7 +371,10 @@ const scenarios: [string, () => Promise<void>][] = [
         path: join(path, "notes.txt"),
         content: "parity notes\n",
       });
-      await post("/files/read", { hostId: HOST_ID, path: join(path, "notes.txt") });
+      await post("/files/read", {
+        hostId: HOST_ID,
+        path: join(path, "notes.txt"),
+      });
       await post("/files/list", { hostId: HOST_ID, path });
       await get(`/environments/${envId}/diff/files`, { target: "uncommitted" });
       await get(`/environments/${envId}/diff/file`, {
@@ -397,7 +394,9 @@ const scenarios: [string, () => Promise<void>][] = [
     async () => {
       const id = await createThread(
         "tools",
-        personal("think:pondering cmd:echo_hi edit:src/a.ts tool:search subagent:helper all tools"),
+        personal(
+          "think:pondering cmd:echo_hi edit:src/a.ts tool:search subagent:helper all tools",
+        ),
       );
       await send(id, "usage:12345 counting tokens");
       await waitIdle(id);
@@ -416,7 +415,11 @@ const scenarios: [string, () => Promise<void>][] = [
   [
     "interactions",
     async () => {
-      const allow = await createThread("approve-allow", personal("approve please"), false);
+      const allow = await createThread(
+        "approve-allow",
+        personal("approve please"),
+        false,
+      );
       let pending = await waitInteraction(allow);
       await get(`/threads/${allow}/interactions`);
       await get(`/threads/${allow}/interactions/${pending.id}`);
@@ -425,13 +428,21 @@ const scenarios: [string, () => Promise<void>][] = [
         grantedPermissions: null,
       });
       await waitIdle(allow);
-      const deny = await createThread("approve-deny", personal("approve please"), false);
+      const deny = await createThread(
+        "approve-deny",
+        personal("approve please"),
+        false,
+      );
       pending = await waitInteraction(deny);
       await post(`/threads/${deny}/interactions/${pending.id}/resolve`, {
         decision: "deny",
       });
       await waitIdle(deny);
-      const ask = await createThread("ask-user", personal("ask_user now"), false);
+      const ask = await createThread(
+        "ask-user",
+        personal("ask_user now"),
+        false,
+      );
       pending = await waitInteraction(ask);
       const qid = pending.payload?.questions?.[0]?.id ?? "q0";
       await post(`/threads/${ask}/interactions/${pending.id}/resolve`, {
@@ -468,7 +479,11 @@ const scenarios: [string, () => Promise<void>][] = [
   [
     "steering-and-queueing",
     async () => {
-      const id = await createThread("steer", personal("hold_turn first"), false);
+      const id = await createThread(
+        "steer",
+        personal("hold_turn first"),
+        false,
+      );
       await waitActive(id);
       await send(id, "steered release_turn", "steer");
       await waitIdle(id);
@@ -486,9 +501,13 @@ const scenarios: [string, () => Promise<void>][] = [
       if (second) {
         await http("DELETE", `/threads/${id}/queued-messages/${second.id}`);
       }
-      await post(`/threads/${id}/queued-messages`, { input: text("queued three") });
+      await post(`/threads/${id}/queued-messages`, {
+        input: text("queued three"),
+      });
       await get(`/threads/${id}/queued-messages`);
-      await post(`/threads/${id}/queued-messages/${queuedId}/send`, { mode: "steer" });
+      await post(`/threads/${id}/queued-messages/${queuedId}/send`, {
+        mode: "steer",
+      });
       await waitIdle(id);
       await get(`/threads/${id}/queued-messages`);
       await send(id, "hold_turn third");
@@ -523,7 +542,11 @@ const scenarios: [string, () => Promise<void>][] = [
   [
     "lifecycle",
     async () => {
-      const running = await createThread("archive-running", personal("hold_turn"), false);
+      const running = await createThread(
+        "archive-running",
+        personal("hold_turn"),
+        false,
+      );
       await waitActive(running);
       await post(`/threads/${running}/archive-all`);
       await get(`/threads/${running}`);
@@ -532,12 +555,18 @@ const scenarios: [string, () => Promise<void>][] = [
       await post(`/threads/${running}/stop`);
       await waitIdle(running);
       await get(`/threads/${running}`);
-      const gone = await createThread("archive-delete", personal("short lived"));
+      const gone = await createThread(
+        "archive-delete",
+        personal("short lived"),
+      );
       await post(`/threads/${gone}/archive-all`);
       await http("DELETE", `/threads/${gone}`);
       await http("DELETE", `/threads/${gone}`, { childThreadsConfirmed: true });
       await get(`/threads/${gone}`);
-      const parent = await createThread("delete-parent", personal("parent to delete"));
+      const parent = await createThread(
+        "delete-parent",
+        personal("parent to delete"),
+      );
       const child = await createThread("delete-child", {
         ...personal("child to delete"),
         parentThreadId: parent,
@@ -592,7 +621,6 @@ const scenarios: [string, () => Promise<void>][] = [
   ],
 ];
 
-// --- per-thread fixtures ------------------------------------------------------
 const turnSummaryRow = (rows: Json[]): Json =>
   rows.find(
     (r) =>
@@ -602,7 +630,10 @@ const turnSummaryRow = (rows: Json[]): Json =>
       (r.kind === "turn" || /summary/i.test(String(r.kind))),
   );
 async function threadFixture(id: string): Promise<Json> {
-  const fetchJson = async (path: string, query: Record<string, string> = {}) => {
+  const fetchJson = async (
+    path: string,
+    query: Record<string, string> = {},
+  ) => {
     clock += 1000;
     const target = new URL(`${url}/api/v1${path}`);
     for (const [k, v] of Object.entries(query)) target.searchParams.set(k, v);
@@ -658,7 +689,10 @@ function sortKeys(value: Json): Json {
   return value;
 }
 const writeJson = (path: string, value: Json) =>
-  writeFileSync(path, `${JSON.stringify(sortKeys(sanitize(value)), null, 1)}\n`);
+  writeFileSync(
+    path,
+    `${JSON.stringify(sortKeys(sanitize(value)), null, 1)}\n`,
+  );
 
 let exitCode = 0;
 const fixtures = new Map<string, Json>();
@@ -676,8 +710,6 @@ try {
       record({ kind: "error", message: String(error) });
     }
     flushSockets();
-    // Capture each surviving thread when its scenario ends (later scenarios
-    // delete the project, which takes its threads with it).
     for (const [threadName, id] of threads) {
       if (!fixtures.has(threadName)) {
         fixtures.set(threadName, await threadFixture(id));

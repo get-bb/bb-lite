@@ -1,7 +1,3 @@
-// Records raw `claude` stdio traffic by driving the real TypeScript runner.
-// Run from the repo root:
-//   node --conditions=source --import tsx crates/bb-claude/tests/fixtures/raw/record.ts <scenario>
-// Each scenario runs real Claude Code sessions on the current login.
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -143,7 +139,6 @@ async function session(scenario: string, policy: Policy = { approval: "allow" })
     await until(() => completedCount() > before);
   }
 
-  // Polls the wrapper's recording for streamed text from the CLI.
   let cache = "";
   async function waitForTextDelta(skip: number) {
     const file = join(out, "interleaved.ndjson");
@@ -259,9 +254,6 @@ const scenarios: Record<string, () => Promise<void>> = {
       model: SECOND_MODEL,
       reasoningLevel: "high",
     });
-    // A permissionMode change alters the adapter's session signature and
-    // respawns the CLI with --resume; it was left out to stay within the
-    // session budget (see PROTOCOL.md).
     await s.finish();
   },
   async "user-question"() {
