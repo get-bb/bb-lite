@@ -191,8 +191,8 @@ pub fn status_metadata(ctx: &Ctx, thread_id: &str) -> ApiResult<ThreadChangeMeta
     let entry = entries.into_iter().next().ok_or_else(thread_not_found)?;
     let change = ThreadStatusChange {
         status: entry.thread.status.as_str().to_owned(),
-        runtime: serde_json::to_value(&entry.runtime)?,
-        activity: serde_json::to_value(&entry.activity)?,
+        runtime: serde_json::to_value(entry.runtime)?,
+        activity: serde_json::to_value(entry.activity)?,
         latest_attention_at: entry.thread.latest_attention_at,
         updated_at: entry.thread.updated_at,
     };
