@@ -80,7 +80,8 @@ fn serve(stream: TcpStream, seen: &Mutex<Vec<Recorded>>, route: &Route) {
     }
     let mut raw = vec![0; length];
     let _ = reader.read_exact(&mut raw);
-    let body = (!raw.is_empty()).then(|| serde_json::from_slice(&raw).expect("JSON body"));
+    let text = || Value::String(String::from_utf8_lossy(&raw).into_owned());
+    let body = (!raw.is_empty()).then(|| serde_json::from_slice(&raw).unwrap_or_else(|_| text()));
     let (path, query) = target.split_once('?').unwrap_or((&target, ""));
     let path = path.strip_prefix("/api/v1").unwrap_or(path).to_string();
     let recorded = Recorded { method, path, query: query.to_string(), body };

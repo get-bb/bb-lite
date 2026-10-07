@@ -8,6 +8,8 @@ publish.workspace = true
 [dependencies]
 async-trait.workspace = true
 bb-core.workspace = true
+bb-claude = { path = "../bb-claude" }
+bb-codex = { path = "../bb-codex" }
 bb-echo = { path = "../bb-echo" }
 bb-fs = { path = "../bb-fs" }
 bb-git = { path = "../bb-git" }

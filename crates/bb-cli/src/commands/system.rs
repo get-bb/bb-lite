@@ -3,12 +3,14 @@ use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
+use crate::call::CliEnv;
 use crate::call::{
     Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, not_implemented,
     parse_json, read_stdin, usage_error,
 };
 use crate::commands::workspace::{resolve_path, text};
 use crate::http::encode;
+use crate::render::{pending_todos_of, shown, thread_lines, todo_lines};
 
 const KEYBINDING: &str = "keybinding.";
 const UI: &str = "ui.";
@@ -18,7 +20,7 @@ const MODIFIERS: [&str; 5] = ["mod", "meta", "control", "alt", "shift"];
 /// Handlers ported from `apps/cli/src/commands/system.ts`.
 pub fn handlers() -> Vec<(&'static str, Handler)> {
     vec![
-        ("status", not_implemented),
+        ("status", status),
         ("guide", crate::guide::guide),
         ("fileRead", file_read),
         ("fileWrite", file_write),
@@ -28,17 +30,110 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("pluginReload", plugin_reload),
         ("pluginAdd", plugin_add),
         ("pluginRemove", plugin_remove),
-        ("server", not_implemented),
         ("importLegacy", not_implemented),
         ("serverStatus", server_status),
-        ("runnerJoin", not_implemented),
-        ("runnerRun", not_implemented),
         ("settingsSet", settings_set),
         ("settingsReset", settings_reset),
         ("settingsGet", settings_show),
         ("pluginEnable", plugin_enable),
         ("pluginDisable", plugin_disable),
     ]
+}
+
+fn quiet(call: &Call, path: &str, query: &[(&str, &str)]) -> Value {
+    call.http.get(path, query).unwrap_or(Value::Null)
+}
+
+fn status(call: &mut Call) -> CliResult<Output> {
+    let CliEnv { project_id, thread_id, server_url, .. } = call.env.clone();
+    let config = quiet(call, "/system/config", &[]);
+    let project = match &project_id {
+        Some(id) => quiet(call, &format!("/projects/{}", encode(id)), &[]),
+        None => Value::Null,
+    };
+    let thread = match &thread_id {
+        Some(id) => quiet(call, &format!("/threads/{}", encode(id)), &[]),
+        None => Value::Null,
+    };
+    let environment = match thread["environmentId"].as_str() {
+        Some(id) => quiet(call, &format!("/environments/{}", encode(id)), &[]),
+        None => Value::Null,
+    };
+    let (children, pending_todos) = match thread["id"].as_str() {
+        Some(id) => {
+            let children = quiet(call, "/threads", &[("parentThreadId", id)]);
+            (children, pending_todos_of(call, id))
+        }
+        None => (Value::Null, Value::Null),
+    };
+    let listed = if config.is_null() { Value::Null } else { quiet(call, "/plugins", &[]) };
+    let child_threads = children.as_array().map(|rows| {
+        let pick =
+            |row: &Value| json!({"id": row["id"], "status": row["status"], "title": row["title"]});
+        rows.iter().map(pick).collect::<Vec<_>>()
+    });
+    let plugins = listed["plugins"].as_array().cloned().unwrap_or_default();
+    let needing: Vec<Value> = plugins
+        .iter()
+        .filter(|plugin| plugin["enabled"] == json!(true) && plugin["status"] != json!("running"))
+        .map(|plugin| json!({"id": plugin["id"], "status": plugin["status"]}))
+        .collect();
+    let thread_data = match &thread {
+        Value::Object(fields) => {
+            let mut fields = fields.clone();
+            fields.insert("environment".into(), environment.clone());
+            Value::Object(fields)
+        }
+        _ => Value::Null,
+    };
+    let data = json!({
+        "project": if project.is_object() {
+            json!({"id": project["id"], "name": project["name"]})
+        } else {
+            Value::Null
+        },
+        "thread": thread_data,
+        "childThreads": child_threads,
+        "pendingTodos": pending_todos,
+        "pluginsNeedingAttention": needing,
+        "dataDir": config.get("dataDir").cloned().unwrap_or(Value::Null),
+        "serverUrl": server_url,
+    });
+    let mut lines = vec![if project.is_object() {
+        format!("Project: {} ({})", shown(&project["name"]), shown(&project["id"]))
+    } else {
+        format!("Project: {}", project_id.as_deref().unwrap_or("(not set)"))
+    }];
+    lines.push(String::new());
+    if thread.is_object() {
+        lines.extend(thread_lines(&thread, &environment));
+    } else {
+        lines.push(format!("Thread: {}", thread_id.as_deref().unwrap_or("(not set)")));
+    }
+    let child_lines: Vec<String> = child_threads
+        .unwrap_or_default()
+        .iter()
+        .map(|child| {
+            let title = child["title"].as_str().unwrap_or("");
+            format!("  {}  {}  {title}", shown(&child["id"]), shown(&child["status"]))
+        })
+        .collect();
+    if !child_lines.is_empty() {
+        lines.extend([String::new(), "Child threads:".into()]);
+        lines.extend(child_lines);
+    }
+    lines.extend(todo_lines(&pending_todos));
+    lines.push(String::new());
+    lines.push(if config.is_null() {
+        format!("Server: {server_url} is not reachable")
+    } else {
+        format!("Server: {server_url} (data in {})", shown(&config["dataDir"]))
+    });
+    for plugin in &needing {
+        let (id, status) = (shown(&plugin["id"]), shown(&plugin["status"]));
+        lines.push(format!("Plugin {id} is not running ({status})."));
+    }
+    Ok(Output::lines(data, &lines))
 }
 
 fn host_path(call: &Call) -> CliResult<Map<String, Value>> {

@@ -5,7 +5,7 @@ use serde_json::{Map, Value, json};
 
 use crate::call::{
     Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, machine_id,
-    machine_or_this, not_implemented, read_stdin, usage_error, valid_id,
+    machine_or_this, read_stdin, usage_error, valid_id,
 };
 use crate::http::encode;
 
@@ -24,7 +24,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("projectSourceAdd", project_source_add),
         ("projectSourceUpdate", project_source_update),
         ("projectSourceDelete", project_source_delete),
-        ("projectAttachmentUpload", not_implemented),
+        ("projectAttachmentUpload", project_attachment_upload),
         ("envList", env_list),
         ("envShow", env_show),
         ("envStatus", env_status),
@@ -80,6 +80,51 @@ pub(crate) fn resolve_path(path: &str) -> String {
 
 fn id(call: &Call, name: &str) -> CliResult<String> {
     valid_id(call.arg(name)?, &format!("<{name}> argument"))
+}
+
+/// A `multipart/form-data` body with one `file` field, as `FormData` sends it.
+pub fn file_form(boundary: &str, filename: &str, bytes: &[u8]) -> Vec<u8> {
+    let escaped = filename.replace('"', "%22").replace('\r', "%0D").replace('\n', "%0A");
+    let head = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{escaped}\"\r\n\
+         Content-Type: application/octet-stream\r\n\r\n"
+    );
+    let mut body = head.into_bytes();
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    body
+}
+
+fn project_attachment_upload(call: &mut Call) -> CliResult<Output> {
+    let file = required(call, "client-file")?;
+    let project_id = id(call, "id")?;
+    let bytes = std::fs::read(&file).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => {
+            CliError::new(format!("ENOENT: no such file or directory, open '{file}'"))
+        }
+        _ => CliError::new(error.to_string()),
+    })?;
+    let filename = match call.flag("filename")? {
+        Some(name) => name,
+        None => Path::new(&file)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    };
+    if filename.trim().is_empty() {
+        return Err(CliError::new("Project attachment filename must not be empty"));
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let boundary = format!("----bbFormBoundary{nanos:x}{}", std::process::id());
+    let body = file_form(&boundary, &filename, &bytes);
+    let content_type = format!("multipart/form-data; boundary={boundary}");
+    let path = format!("/projects/{}/attachments", encode(&project_id));
+    let uploaded = call.http.post_bytes(&path, &content_type, body)?;
+    let shown = text(&uploaded, "path");
+    Ok(Output::text(uploaded, shown))
 }
 
 fn required(call: &Call, name: &str) -> CliResult<String> {

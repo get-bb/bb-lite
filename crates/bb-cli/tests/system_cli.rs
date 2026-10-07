@@ -147,3 +147,32 @@ fn server_status_reports_the_data_directory() {
     result.unwrap();
     assert_eq!(printed, format!("bb server at {} (data in /data)\n", server.url));
 }
+
+#[test]
+fn status_reports_project_server_and_plugins() {
+    let plugins = json!({ "plugins": [
+        { "id": "tasks", "enabled": true, "status": "error" },
+        { "id": "ok", "enabled": true, "status": "running" },
+        { "id": "off", "enabled": false, "status": "stopped" },
+    ]});
+    let server = FakeServer::start(vec![
+        route("GET", "/system/config", config("/data")),
+        route("GET", "/projects/prj_1", json!({ "id": "prj_1", "name": "Demo" })),
+        route("GET", "/plugins", plugins),
+    ]);
+    let env = CliEnv { project_id: Some("prj_1".into()), ..CliEnv::default() };
+    let (result, printed) = run(&server, &["status"], env);
+    result.unwrap();
+    let url = server.url.clone();
+    let expected = format!(
+        "Project: Demo (prj_1)\n\nThread: (not set)\n\nServer: {url} (data in /data)\n\
+         Plugin tasks is not running (error).\n"
+    );
+    assert_eq!(printed, expected);
+    let (result, printed) = run(&server, &["status", "--json"], CliEnv::default());
+    result.unwrap();
+    let data: Value = serde_json::from_str(&printed).unwrap();
+    assert_eq!(data["project"], Value::Null);
+    assert_eq!(data["pluginsNeedingAttention"], json!([{ "id": "tasks", "status": "error" }]));
+    assert_eq!(data["dataDir"], json!("/data"));
+}

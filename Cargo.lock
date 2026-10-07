@@ -247,10 +247,16 @@ dependencies = [
 name = "bb-cli"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "base64 0.23.1",
+ "bb-remote",
+ "bb-runner",
+ "bb-server",
  "libc",
  "regex",
  "serde_json",
+ "tempfile",
+ "tokio",
  "ureq",
 ]
 
@@ -461,6 +467,8 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
+ "bb-claude",
+ "bb-codex",
  "bb-core",
  "bb-echo",
  "bb-fs",
