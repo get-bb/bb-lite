@@ -212,7 +212,7 @@ pub fn respond_to_interaction(
 ) -> impl Future<Output = ApiResult<PendingInteraction>> + Send + 'static {
     let interaction = interaction_id.to_owned();
     serialized(ctx, thread_id, |ctx, id| async move {
-        interactions::respond_to_interaction(&ctx, &id, &interaction, value)
+        interactions::respond_to_interaction(&ctx, &id, &interaction, value).await
     })
 }
 
