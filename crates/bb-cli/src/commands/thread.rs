@@ -8,6 +8,7 @@ use crate::call::{
     machine_flag, machine_or_this, not_implemented, now_ms, send_at_ms, text_input, thread_target,
     usage_error, valid_id,
 };
+use crate::commands::workspace::{read_client_file, upload_attachment};
 use crate::http::encode;
 use crate::render::{pending_todos_of, queue_wait, shown, text, thread_lines, todo_lines};
 
@@ -70,19 +71,78 @@ fn send_at(call: &Call) -> CliResult<Option<i64>> {
     Ok(at.map(|at| at.round() as i64))
 }
 
-fn client_path(value: &str) -> bool {
-    Path::new(value).is_absolute() || value.to_lowercase().starts_with("file:")
+fn client_path(value: &str) -> CliResult<Option<String>> {
+    if Path::new(value).is_absolute() {
+        return Ok(Some(value.to_string()));
+    }
+    if !value.to_lowercase().starts_with("file:") {
+        return Ok(None);
+    }
+    file_url_path(&value[5..]).map(Some)
 }
 
-fn prompt_input(call: &Call, text: &str) -> CliResult<Value> {
+fn file_url_path(rest: &str) -> CliResult<String> {
+    let rest = rest.split(['?', '#']).next().unwrap_or_default();
+    let path = match rest.strip_prefix("//") {
+        Some(authority) => {
+            let (host, path) =
+                authority.find('/').map_or((authority, "/"), |at| authority.split_at(at));
+            if !host.is_empty() && !host.eq_ignore_ascii_case("localhost") {
+                let message = "File URL host must be \"localhost\" or empty on linux";
+                return Err(CliError::new(message).code("ERR_INVALID_FILE_URL_HOST"));
+            }
+            path.to_string()
+        }
+        None if rest.starts_with('/') => rest.to_string(),
+        None => format!("/{rest}"),
+    };
+    if path.to_lowercase().contains("%2f") {
+        let message = "File URL path must not include encoded / characters";
+        return Err(CliError::new(message).code("ERR_INVALID_FILE_URL_PATH"));
+    }
+    Ok(percent_decode(&path))
+}
+
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let hex = bytes.get(at + 1..at + 3).and_then(|pair| std::str::from_utf8(pair).ok());
+        match hex.and_then(|pair| u8::from_str_radix(pair, 16).ok()) {
+            Some(byte) if bytes[at] == b'%' => {
+                out.push(byte);
+                at += 3;
+            }
+            _ => {
+                out.push(bytes[at]);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn prompt_input(
+    call: &Call,
+    text: &str,
+    project_id: &dyn Fn(&Call) -> CliResult<String>,
+) -> CliResult<Value> {
     let mut input = vec![json!({ "type": "text", "text": text, "mentions": [] })];
     for (flag, kind) in [("file", "localFile"), ("image", "localImage")] {
-        for path in call.list(flag)? {
-            if client_path(&path) {
-                let message = "Uploading local attachments is not implemented in the Rust CLI yet.";
-                return Err(CliError::new(message).code("not_implemented"));
-            }
-            input.push(json!({ "type": kind, "path": path }));
+        for value in call.list(flag)? {
+            let Some(local) = client_path(&value)? else {
+                input.push(json!({ "type": kind, "path": value }));
+                continue;
+            };
+            let project_id = project_id(call)?;
+            let bytes = read_client_file(&local)?;
+            let filename = Path::new(&local)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let uploaded = upload_attachment(call, &project_id, &filename, bytes)?;
+            input.push(json!({ "type": kind, "path": uploaded["path"] }));
         }
     }
     Ok(Value::Array(input))
@@ -162,7 +222,8 @@ fn thread_spawn(call: &mut Call) -> CliResult<Output> {
     let mut body = Map::new();
     body.insert("projectId".into(), json!(project_id));
     body.insert("environment".into(), spawn_environment(call, &project_id)?);
-    let input = prompt_input(call, &text)?;
+    let known = project_id.clone();
+    let input = prompt_input(call, &text, &move |_: &Call| Ok(known.clone()))?;
     let provider = call.flag("provider")?.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
     put(&mut body, "providerId", provider);
     execution(call, &mut body)?;
@@ -199,7 +260,11 @@ fn thread_tell(call: &mut Call) -> CliResult<Output> {
     let message = text_input(call, message.as_deref(), "message-file", "<message>")?;
     let mode = call.choice("mode", &["steer", "queue", "auto"])?.unwrap_or("steer");
     let mut body = Map::new();
-    body.insert("input".into(), prompt_input(call, &message)?);
+    let project = |call: &Call| -> CliResult<String> {
+        let thread = call.http.get(&at(&thread_id, ""), &[])?;
+        Ok(text(&thread, "projectId").unwrap_or("undefined").to_string())
+    };
+    body.insert("input".into(), prompt_input(call, &message, &project)?);
     let wire = if mode == "auto" { mode.to_string() } else { format!("{mode}-if-active") };
     body.insert("mode".into(), json!(wire));
     execution(call, &mut body)?;

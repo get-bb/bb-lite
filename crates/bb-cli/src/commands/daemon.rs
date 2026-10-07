@@ -40,7 +40,11 @@ fn server(_call: &mut Call) -> CliResult<Output> {
     env.insert("BB_CLI_PATH".into(), current_exe()?.display().to_string());
     let runtime = runtime()?;
     let result: anyhow::Result<()> = runtime.block_on(async move {
-        let server = bb_server::start::start_server(bb_server::start::StartServerOptions { env, cli_dir: None }).await?;
+        let server = bb_server::start::start_server(bb_server::start::StartServerOptions {
+            env,
+            cli_dir: None,
+        })
+        .await?;
         let waited = termination().await;
         server.shutdown().await;
         Ok(waited?)

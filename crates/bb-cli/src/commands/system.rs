@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 
 use crate::call::CliEnv;
 use crate::call::{
-    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, not_implemented,
-    parse_json, read_stdin, usage_error,
+    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, parse_json,
+    read_stdin, usage_error,
 };
 use crate::commands::workspace::{resolve_path, text};
 use crate::http::encode;
@@ -30,7 +30,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("pluginReload", plugin_reload),
         ("pluginAdd", plugin_add),
         ("pluginRemove", plugin_remove),
-        ("importLegacy", not_implemented),
+        ("importLegacy", import_legacy),
         ("serverStatus", server_status),
         ("settingsSet", settings_set),
         ("settingsReset", settings_reset),
@@ -468,4 +468,28 @@ fn server_status(call: &mut Call) -> CliResult<Output> {
         "primaryHostId": config["primaryHostId"],
     });
     Ok(Output::text(data, line))
+}
+
+fn import_legacy(call: &mut Call) -> CliResult<Output> {
+    use bb_server::import_legacy::{ImportLegacyOptions, ThreadChoice, import_summary_lines};
+    let Some(from) = call.flag("from")? else {
+        return Err(usage_error("Pass --from <old data directory>."));
+    };
+    let threads = match call.choice("threads", &["active", "all", "none"])? {
+        Some("all") => ThreadChoice::All,
+        Some("none") => ThreadChoice::None,
+        _ => ThreadChoice::Active,
+    };
+    let dry_run = call.on("dry-run")?;
+    let options = ImportLegacyOptions { from: resolve_path(&from), threads, dry_run, env: None };
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| CliError::new(error.to_string()))?;
+    let summary = runtime
+        .block_on(bb_server::import_legacy::import_legacy(options))
+        .map_err(|error| CliError::new(error.to_string()))?;
+    let lines = import_summary_lines(&summary);
+    let data = serde_json::to_value(&summary).map_err(|error| CliError::new(error.to_string()))?;
+    Ok(Output::lines(data, &lines))
 }

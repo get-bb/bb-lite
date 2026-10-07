@@ -98,12 +98,7 @@ pub fn file_form(boundary: &str, filename: &str, bytes: &[u8]) -> Vec<u8> {
 fn project_attachment_upload(call: &mut Call) -> CliResult<Output> {
     let file = required(call, "client-file")?;
     let project_id = id(call, "id")?;
-    let bytes = std::fs::read(&file).map_err(|error| match error.kind() {
-        std::io::ErrorKind::NotFound => {
-            CliError::new(format!("ENOENT: no such file or directory, open '{file}'"))
-        }
-        _ => CliError::new(error.to_string()),
-    })?;
+    let bytes = read_client_file(&file)?;
     let filename = match call.flag("filename")? {
         Some(name) => name,
         None => Path::new(&file)
@@ -114,17 +109,43 @@ fn project_attachment_upload(call: &mut Call) -> CliResult<Output> {
     if filename.trim().is_empty() {
         return Err(CliError::new("Project attachment filename must not be empty"));
     }
+    let uploaded = upload_attachment(call, &project_id, &filename, bytes)?;
+    let shown = text(&uploaded, "path");
+    Ok(Output::text(uploaded, shown))
+}
+
+/// `readFile` of a local path, with Node's error text.
+pub(crate) fn read_client_file(file: &str) -> CliResult<Vec<u8>> {
+    std::fs::read(file).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => {
+            CliError::new(format!("ENOENT: no such file or directory, open '{file}'"))
+        }
+        std::io::ErrorKind::PermissionDenied => {
+            CliError::new(format!("EACCES: permission denied, open '{file}'"))
+        }
+        std::io::ErrorKind::IsADirectory => {
+            CliError::new("EISDIR: illegal operation on a directory, read")
+        }
+        _ => CliError::new(error.to_string()),
+    })
+}
+
+/// `projects.attachments.upload`: one multipart `file` field to `/projects/<id>/attachments`.
+pub(crate) fn upload_attachment(
+    call: &Call,
+    project_id: &str,
+    filename: &str,
+    bytes: Vec<u8>,
+) -> CliResult<Value> {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or_default();
     let boundary = format!("----bbFormBoundary{nanos:x}{}", std::process::id());
-    let body = file_form(&boundary, &filename, &bytes);
+    let body = file_form(&boundary, filename, &bytes);
     let content_type = format!("multipart/form-data; boundary={boundary}");
-    let path = format!("/projects/{}/attachments", encode(&project_id));
-    let uploaded = call.http.post_bytes(&path, &content_type, body)?;
-    let shown = text(&uploaded, "path");
-    Ok(Output::text(uploaded, shown))
+    let path = format!("/projects/{}/attachments", encode(project_id));
+    call.http.post_bytes(&path, &content_type, body)
 }
 
 fn required(call: &Call, name: &str) -> CliResult<String> {
