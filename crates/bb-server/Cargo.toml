@@ -8,6 +8,8 @@ publish.workspace = true
 [dependencies]
 bb-core.workspace = true
 bb-remote = { path = "../bb-remote" }
+bb-runner = { path = "../bb-runner" }
+bb-provider = { path = "../bb-provider" }
 anyhow.workspace = true
 async-compression.workspace = true
 http-body-util.workspace = true
