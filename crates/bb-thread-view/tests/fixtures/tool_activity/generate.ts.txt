@@ -1,0 +1,81 @@
+import { writeFileSync } from "node:fs";
+import { buildEventProjection } from "/home/sawyer/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_eqqr6um2j4-1/bb-150k/packages/thread-view/src/build-event-projection.ts";
+const out = process.argv[2];
+const T = "thr_fixture000";
+function build(name: string, raw: any[]) {
+  let seq = 0;
+  const compacted = raw.map((e) => {
+    seq += 1;
+    const event = { threadId: T, scope: { kind: "turn", turnId: "t1" }, ...e };
+    return { event, meta: { id: `ev${seq}`, seq, createdAt: 1000 + seq * 10 } };
+  });
+  const base = { completedTurnDisplay: "collapse", includeDiagnosticOperations: false, includeNestedRows: false, isLatestPage: true, threadName: "Fixture thread", workspaceRoot: "/tmp/ws" };
+  const results = ["idle", "active"].map((threadStatus) => {
+    const options = { ...base, threadStatus };
+    return { options, projection: JSON.parse(JSON.stringify(buildEventProjection(compacted as any, options as any))) };
+  });
+  writeFileSync(`${out}/${name}.json`, JSON.stringify({ compacted, results }, null, 1));
+}
+const started = { type: "turn/started" };
+const cmd = (type: string, id: string, extra: any = {}) => ({ type, item: { type: "commandExecution", id, command: "ls", cwd: "/w", status: "pending", approvalStatus: null, ...extra } });
+const delta = (id: string, delta: string, extra: any = {}) => ({ type: "item/commandExecution/outputDelta", itemId: id, delta, ...extra });
+build("tool-activity-explore", [
+  started,
+  { type: "item/started", item: { type: "fileRead", id: "r1", path: "/w/a.ts", status: "inProgress" } },
+  { type: "item/completed", item: { type: "fileRead", id: "r1", path: "/w/a.ts", status: "completed" } },
+  { type: "item/started", item: { type: "search", id: "s1", mode: "content", query: "foo", status: "inProgress" } },
+  { type: "item/started", item: { type: "fileRead", id: "r2", path: "/w/b.ts", status: "inProgress" } },
+  { type: "item/completed", item: { type: "search", id: "s1", mode: "content", query: "foo bar", status: "completed" } },
+  { type: "item/started", item: { type: "planSteps", id: "p1", steps: [{ step: "one", status: "pending" }], status: "inProgress" } },
+  { type: "item/completed", item: { type: "planSteps", id: "p1", steps: [{ step: "one", status: "completed" }, { step: "two", status: "pending" }], explanation: "x", status: "completed" } },
+  cmd("item/started", "c1", { command: "cat a.ts" }),
+  cmd("item/completed", "c1", { command: "cat a.ts", status: "completed", exitCode: 0, aggregatedOutput: "aaa\n" }),
+  { type: "turn/completed", status: "completed" },
+]);
+build("tool-activity-late-output", [
+  started,
+  delta("c2", "early line\npart"),
+  cmd("item/started", "c1"),
+  delta("c1", "one\ntw"),
+  delta("c1", "o\nthree"),
+  cmd("item/completed", "c1", { status: "completed", exitCode: 0 }),
+  delta("c1", "\nlate tail"),
+  cmd("item/started", "c2"),
+  delta("c2", "ial\nmore", { reset: true }),
+  cmd("item/completed", "c2", { status: "completed", exitCode: 0, aggregatedOutput: "early line\npartial\nmore\nend" }),
+  { type: "turn/completed", status: "completed" },
+]);
+build("tool-activity-approval", [
+  started,
+  cmd("item/started", "c1", { command: "rm -rf x", approvalStatus: "pending" }),
+  cmd("item/completed", "c1", { command: "rm -rf x", status: "failed", approvalStatus: "denied" }),
+  { type: "item/started", item: { type: "toolCall", id: "t1c", toolName: "mcp__x__y", arguments: { a: 1 }, status: "inProgress", approvalStatus: "pending" } },
+  { type: "item/completed", item: { type: "toolCall", id: "t1c", toolName: "mcp__x__y", arguments: { a: 1 }, status: "completed", output: "ok" } },
+  { type: "turn/completed", status: "completed" },
+]);
+build("tool-activity-interrupt", [
+  started,
+  cmd("item/started", "c1", { command: "sleep 100" }),
+  delta("c1", "partial no newline"),
+  { type: "item/started", item: { type: "webSearch", id: "w1", query: "q", queries: ["q"], status: "inProgress" } },
+  cmd("item/started", "c2", { command: "sleep 5" }),
+  { type: "turn/completed", status: "interrupted" },
+]);
+build("tool-activity-workflow", [
+  started,
+  { type: "item/started", item: { type: "backgroundTask", id: "bt1", taskType: "local_workflow", skipTranscript: false, workflowName: "wf", description: "Run wf", status: "inProgress", taskStatus: "running", workflow: { phases: [{ title: "a", status: "running" }] } } },
+  { type: "item/backgroundTask/progress", item: { type: "backgroundTask", id: "bt1", taskType: "local_workflow", skipTranscript: false, workflowName: "wf", description: "Run wf", status: "inProgress", taskStatus: "running", workflow: { phases: [{ title: "a", status: "done" }, { title: "b", status: "running" }] }, usage: { totalTokens: 10 } } },
+  cmd("item/started", "c1"),
+  { type: "item/backgroundTask/completed", item: { type: "backgroundTask", id: "bt1", taskType: "local_workflow", skipTranscript: false, workflowName: "wf", description: "Run wf", status: "completed", taskStatus: "completed", summary: "done", usage: { totalTokens: 20 } } },
+  cmd("item/completed", "c1", { status: "completed", exitCode: 0 }),
+  { type: "turn/completed", status: "completed" },
+]);
+build("tool-activity-delegation", [
+  started,
+  { type: "item/started", item: { type: "delegation", id: "d1", description: "Explore", subagentType: "Explore", status: "inProgress" } },
+  { ...cmd("item/started", "dc1"), parentToolCallId: "d1" },
+  { ...cmd("item/completed", "dc1", { status: "completed", exitCode: 0, aggregatedOutput: "x\n" }), parentToolCallId: "d1" },
+  { type: "item/started", item: { type: "fileRead", id: "dr1", path: "/w/c.ts", status: "inProgress" }, parentToolCallId: "d1" },
+  { type: "item/completed", item: { type: "delegation", id: "d1", description: "Explore", subagentType: "Explore", status: "completed", output: "found" } },
+  { type: "turn/completed", status: "completed" },
+]);
