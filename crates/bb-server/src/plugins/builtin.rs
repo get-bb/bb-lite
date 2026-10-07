@@ -45,6 +45,10 @@ pub fn builtin_plugins() -> Vec<BuiltinPlugin> {
         builtin("ask-user-question", BuiltinServer::Js(bundle!("ask-user-question"))),
         builtin("custom-instructions", BuiltinServer::Js(bundle!("custom-instructions"))),
         // NATIVE PLUGINS: connect, then account-pool, go here (builtin.ts order).
+        builtin(
+            "account-pool",
+            BuiltinServer::Native(Arc::new(super::native::pool::AccountPoolPlugin::default())),
+        ),
         builtin("tasks", BuiltinServer::Js(bundle!("tasks"))),
     ]
 }
