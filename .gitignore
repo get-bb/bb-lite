@@ -13,3 +13,5 @@ coverage
 bundle-stats.json
 .claude/
 /.qa/
+
+/target/
