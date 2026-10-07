@@ -23,7 +23,7 @@ reqwest.workspace = true
 tokio-tungstenite.workspace = true
 aes-gcm = "0.10"
 async-trait.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["multipart"] }
 base64.workspace = true
 brotli = "9"
 flate2 = "1"
