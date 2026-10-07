@@ -5,12 +5,7 @@ use serde_json::{Map, Value};
 pub const MANAGED_BRANCH_PREFIX_MAX_LENGTH: usize = 64;
 pub const DEFAULT_MANAGED_BRANCH_PREFIX: &str = "bb/";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CompletedTurnDisplay {
-    Collapse,
-    Flat,
-}
+pub use bb_thread_view::group_turns::CompletedTurnDisplay;
 
 pub const DEFAULT_COMPLETED_TURN_DISPLAY: CompletedTurnDisplay = CompletedTurnDisplay::Collapse;
 

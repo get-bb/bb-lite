@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Weak};
 
 use bb_thread_view::build_thread_timeline::{
     ThreadTimelineArgs, ThreadTimelineOptions, ThreadTimelineResult,
@@ -10,16 +10,20 @@ use bb_thread_view::group_turns::{
 };
 use bb_thread_view::thread_state_extraction::compact_thread_timeline_summary_events;
 use bb_thread_view::types::{EventMeta, ThreadEventWithMeta};
+use parking_lot::Mutex;
 use serde_json::{Value, json};
 
+use crate::context::{Ctx, ServerContext};
 use crate::db::Db;
 use crate::db::event_read::{
     self as events, EventOutputs, EventQuery, HeadState, RecentCache, SortOrder, StoredEventRow,
     TimelineFilter,
 };
 use crate::db::thread_read::ThreadListRow;
+use crate::domain::changes::{ChangedMessage, ThreadChangeKind};
 use crate::domain::thread::ThreadStatus;
 use crate::error::{ApiError, invalid_request};
+use crate::ws::hub::ListenerGuard;
 use crate::threads::timeline_pages::{
     self as pages, PaginateTimelineArgs, TimelineContentCursor, TimelinePage,
     TimelinePaginationCursor, TimelineSnapshot,
@@ -1043,4 +1047,37 @@ pub async fn read_turn_summary_details(
     request: &TurnDetailsRequest,
 ) -> ApiResult<Value> {
     build_turn_details(db, thread, request).await
+}
+
+struct ServerReader {
+    owner: Weak<ServerContext>,
+    reader: Arc<TimelineReader>,
+    _listener: ListenerGuard,
+}
+
+static READERS: LazyLock<Mutex<Vec<ServerReader>>> = LazyLock::new(Mutex::default);
+
+/// The server's one [`TimelineReader`], created on first use and dropped with the server
+/// context. A thread's cached projections are forgotten when its history is rewritten.
+pub fn timeline_reader(ctx: &Ctx) -> Arc<TimelineReader> {
+    let key = Arc::downgrade(ctx);
+    let mut readers = READERS.lock();
+    readers.retain(|entry| entry.owner.strong_count() > 0);
+    if let Some(entry) = readers.iter().find(|entry| entry.owner.ptr_eq(&key)) {
+        return entry.reader.clone();
+    }
+    let reader = Arc::new(TimelineReader::new(ctx.db.clone()));
+    let listener = {
+        let reader = Arc::downgrade(&reader);
+        ctx.hub.on_changed(move |message| {
+            if let ChangedMessage::Thread { id, changes, .. } = message
+                && changes.contains(&ThreadChangeKind::HistoryRewritten)
+                && let Some(reader) = reader.upgrade()
+            {
+                reader.forget_thread(id);
+            }
+        })
+    };
+    readers.push(ServerReader { owner: key, reader: reader.clone(), _listener: listener });
+    reader
 }
