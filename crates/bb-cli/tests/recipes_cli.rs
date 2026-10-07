@@ -237,7 +237,6 @@ fn reports_failures_as_a_json_envelope_with_the_documented_exit_codes() {
 }
 
 #[test]
-#[ignore = "the Rust server fails to start the echo fixture plugin: cannot read property 'define' of undefined"]
 fn dispatches_plugin_commands_to_the_server_and_returns_their_exit_code() {
     let bb = Bb::start();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))

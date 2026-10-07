@@ -30,7 +30,7 @@ use super::api::{
 use super::instance::{PluginApi, SettingsHandle};
 
 const GLUE: &str = include_str!("js/host.js");
-const GLUE_MODULE: &str = "bb:plugin-host";
+const GLUE_MODULE: &str = super::bundle::PLUGIN_HOST_MODULE;
 const PLUGIN_MODULE: &str = "bb:plugin";
 const DATABASE: &str = "plugin";
 const MEMORY_LIMIT: usize = 1024 * 1024 * 1024;

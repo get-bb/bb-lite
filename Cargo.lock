@@ -254,6 +254,7 @@ dependencies = [
  "bb-server",
  "libc",
  "regex",
+ "rusqlite",
  "serde_json",
  "tempfile",
  "tokio",

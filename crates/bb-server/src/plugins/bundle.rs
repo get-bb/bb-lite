@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt;
 
 use super::api::{PluginError, PluginResult};
 
@@ -79,6 +80,15 @@ fn common_args(entry: &Path) -> Vec<String> {
 }
 
 async fn run_esbuild(args: Vec<String>) -> PluginResult<String> {
+    run_esbuild_with(args, None).await
+}
+
+/// Runs esbuild; with `stdin`, bundles that source as the entry, resolving its imports from
+/// the given directory.
+async fn run_esbuild_with(
+    args: Vec<String>,
+    stdin: Option<(String, &Path)>,
+) -> PluginResult<String> {
     let binary = esbuild_path();
     if !binary.exists() {
         return Err(PluginError::new(format!(
@@ -90,16 +100,31 @@ async fn run_esbuild(args: Vec<String>) -> PluginResult<String> {
     let node_path =
         std::env::join_paths([root.join("apps/server/node_modules"), root.join("node_modules")])
             .map_err(|error| PluginError::new(error.to_string()))?;
-    let output = tokio::process::Command::new(&binary)
+    let mut command = tokio::process::Command::new(&binary);
+    command
         .args(&args)
         .env("NODE_PATH", node_path)
-        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|error| io_error("esbuild could not start", error))?;
+        .kill_on_drop(true);
+    let output = match stdin {
+        None => command.stdin(Stdio::null()).output().await,
+        Some((source, resolve_dir)) => {
+            let mut child = command
+                .current_dir(resolve_dir)
+                .stdin(Stdio::piped())
+                .spawn()
+                .map_err(|error| io_error("esbuild could not start", error))?;
+            if let Some(mut input) = child.stdin.take() {
+                input
+                    .write_all(source.as_bytes())
+                    .await
+                    .map_err(|error| io_error("esbuild could not read its input", error))?;
+            }
+            child.wait_with_output().await
+        }
+    }
+    .map_err(|error| io_error("esbuild could not start", error))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         return Err(PluginError::new(format!("Build failed: {stderr}")));
@@ -107,17 +132,31 @@ async fn run_esbuild(args: Vec<String>) -> PluginResult<String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Bundles a server entry to one ES module, writes it to `<cache_dir>/server.<hash>.mjs` and
-/// returns the source.
+/// The module the QuickJS bridge provides to every plugin bundle.
+pub const PLUGIN_HOST_MODULE: &str = "bb:plugin-host";
+
+/// Bundles a server entry to one ES module whose default export takes the plugin host
+/// configuration (the same wrapper the built-in bundles get at build time), writes it to
+/// `<cache_dir>/server.<hash>.mjs` and returns the source.
 pub async fn bundle_server_entry(entry: &Path, cache_dir: &Path) -> PluginResult<String> {
-    let mut args = common_args(entry);
+    let mut args = common_args(entry).split_off(1);
     args.extend([
         "--platform=node".to_owned(),
         "--format=esm".to_owned(),
         "--target=es2022".to_owned(),
         "--external:better-sqlite3".to_owned(),
+        format!("--external:{PLUGIN_HOST_MODULE}"),
     ]);
-    let code = run_esbuild(args).await?;
+    let quoted = |text: &str| serde_json::to_string(text).unwrap_or_default();
+    let stub = [
+        format!("import plugin from {};", quoted(&entry.to_string_lossy())),
+        "import { z } from \"zod\";".to_owned(),
+        format!("import {{ start }} from {};", quoted(PLUGIN_HOST_MODULE)),
+        "export default (config) => start(plugin, z, config);".to_owned(),
+    ]
+    .join("\n");
+    let resolve_dir = entry.parent().unwrap_or(Path::new("."));
+    let code = run_esbuild_with(args, Some((stub, resolve_dir))).await?;
     let file = cache_dir.join(format!("server.{}.mjs", content_hash(&code)));
     tokio::fs::create_dir_all(cache_dir)
         .await
