@@ -285,6 +285,12 @@ pub trait ClaudeHandlers: Send + Sync {
     /// Every stdout line that is not a control message, in order.
     fn on_message(&self, message: Value);
     async fn can_use_tool(&self, request: CanUseToolRequest) -> PermissionDecision;
+    /// The whole `can_use_tool` response body; override when a `PermissionDecision` cannot
+    /// express the answer (an absent `decisionClassification`).
+    async fn can_use_tool_response(&self, request: CanUseToolRequest) -> Value {
+        let tool_use_id = request.tool_use_id.clone();
+        self.can_use_tool(request).await.to_response(tool_use_id.as_deref())
+    }
     /// `Err(message)` becomes an error control_response.
     async fn hook_callback(
         &self,
@@ -698,9 +704,7 @@ impl ClaudeClient {
                 let mut parsed: CanUseToolRequest =
                     serde_json::from_value(request.clone()).map_err(|error| error.to_string())?;
                 parsed.raw = request.clone();
-                let tool_use_id = parsed.tool_use_id.clone();
-                let decision = self.inner.handlers.can_use_tool(parsed).await;
-                Ok(decision.to_response(tool_use_id.as_deref()))
+                Ok(self.inner.handlers.can_use_tool_response(parsed).await)
             }
             "hook_callback" => {
                 let callback_id = text("callback_id").unwrap_or_default();
