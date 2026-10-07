@@ -246,3 +246,27 @@ async fn runs_echo_turns_and_announces_thread_changes() {
     assert!(events.contains("Response to: second"), "{events}");
     server.running.shutdown().await;
 }
+
+#[tokio::test]
+async fn reports_memory_and_cache_sizes() {
+    let server = boot().await;
+    let thread_id = server.create_thread("measure me").await;
+    server.wait_idle(&thread_id, 1).await;
+    let (status, timeline) = server.get(&format!("/api/v1/threads/{thread_id}/timeline")).await;
+    assert_eq!(status, StatusCode::OK, "{timeline}");
+
+    let (status, report) = server.get("/internal/diagnostics/memory").await;
+    assert_eq!(status, StatusCode::OK, "{report}");
+    assert!(report["process"]["rssBytes"].as_u64().unwrap() > 1_000_000, "{report}");
+    assert!(report["allocator"]["inUseBytes"].as_u64().unwrap() > 0, "{report}");
+    let timelines = &report["caches"]["timelines"];
+    assert_eq!(json!([timelines["keys"], timelines["projections"]]), json!([1, 1]), "{report}");
+    assert!(timelines["approxBytes"].as_u64().unwrap() > 100, "{report}");
+    assert!(report["caches"]["events"]["decodedEvents"]["entries"].as_u64().unwrap() > 0);
+
+    let (status, trimmed) = server.request("POST", "/internal/diagnostics/memory/trim", None).await;
+    assert_eq!(status, StatusCode::OK, "{trimmed}");
+    assert!(trimmed["after"]["rssBytes"].as_u64().unwrap() > 0, "{trimmed}");
+    assert!(trimmed["releasedBytes"].is_u64(), "{trimmed}");
+    server.running.shutdown().await;
+}

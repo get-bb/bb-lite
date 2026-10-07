@@ -662,6 +662,19 @@ fn decode_event_with_meta(row: &StoredEventRow) -> EventWithMeta {
     }
 }
 
+/// What this database's event caches hold, for the memory diagnostics.
+pub fn cache_memory(db: &Db) -> Value {
+    let caches = db_caches(db);
+    let decoded = caches.decoded.values();
+    let decoded_bytes: usize =
+        decoded.iter().map(|entry| crate::diagnostics::approx_heap_bytes(&entry.event)).sum();
+    let kept = caches.kept.lock();
+    json!({
+        "decodedEvents": { "entries": decoded.len(), "limit": DECODED_EVENT_CACHE_LIMIT, "approxBytes": decoded_bytes },
+        "keptRows": { "entries": kept.rows.len(), "dataBytes": kept.chars, "limitBytes": KEPT_ROWS_MAX_CHARS },
+    })
+}
+
 struct RecentEntries<V> {
     entries: HashMap<String, (u64, V)>,
     order: BTreeMap<u64, String>,
@@ -690,6 +703,10 @@ impl<V: Clone> RecentCache<V> {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn values(&self) -> Vec<V> {
+        self.inner.lock().entries.values().map(|(_, value)| value.clone()).collect()
     }
 
     pub fn remember(&self, key: &str, value: V) -> V {

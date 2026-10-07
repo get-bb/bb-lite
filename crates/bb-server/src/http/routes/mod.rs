@@ -1,3 +1,4 @@
+pub mod diagnostics;
 pub mod environments;
 pub mod files;
 pub mod hosts;

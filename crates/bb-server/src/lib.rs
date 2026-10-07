@@ -6,6 +6,7 @@
 pub mod config;
 pub mod context;
 pub mod db;
+pub mod diagnostics;
 pub mod domain;
 pub mod environments;
 pub mod error;

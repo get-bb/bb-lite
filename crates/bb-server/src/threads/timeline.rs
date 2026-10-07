@@ -979,6 +979,26 @@ impl TimelineReader {
         self.served.len()
     }
 
+    /// What the projection cache holds, for the memory diagnostics.
+    pub fn memory(&self) -> Value {
+        let rings = self.served.values();
+        let mut seen = HashSet::new();
+        let (mut entries, mut bytes) = (0usize, 0usize);
+        for served in rings.iter().flatten() {
+            entries += 1;
+            if seen.insert(Arc::as_ptr(&served.full)) {
+                bytes += crate::diagnostics::approx_heap_bytes(&served.full);
+            }
+        }
+        json!({
+            "keys": rings.len(),
+            "keyLimit": SERVED_KEY_LIMIT,
+            "projections": entries,
+            "distinctProjections": seen.len(),
+            "approxBytes": bytes,
+        })
+    }
+
     /// `timelines.timeline(thread, request)`: the `GET /threads/:id/timeline` response.
     pub async fn read_thread_timeline(
         &self,

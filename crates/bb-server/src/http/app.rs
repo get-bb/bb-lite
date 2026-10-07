@@ -77,7 +77,9 @@ async fn log_failures(State(ctx): State<Ctx>, request: Request, next: Next) -> R
 pub fn create_http_app(ctx: &Ctx, shutdown: SocketShutdown) -> Router {
     let version = ctx.config.version.clone();
     let api = public_api().fallback(api_not_found).layer(from_fn(compress_json));
-    let internal = routes::hosts::register_runner_routes().fallback(api_not_found);
+    let internal = routes::hosts::register_runner_routes()
+        .merge(routes::diagnostics::diagnostics_routes())
+        .fallback(api_not_found);
     Router::new()
         .route(
             "/health",
