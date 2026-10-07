@@ -392,7 +392,8 @@ pub enum ProjectionEntry {
 }
 
 /// `Projection`; `active_thinking` is the domain `ActiveThinking` JSON.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Projection {
     pub entries: Vec<ProjectionEntry>,
     pub active_thinking: Option<Value>,
