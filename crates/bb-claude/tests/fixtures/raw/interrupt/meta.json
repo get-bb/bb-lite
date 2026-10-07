@@ -1,7 +1,0 @@
-{
-  "scenario": "interrupt",
-  "threadId": "thr_rec_interrupt",
-  "providerThreadId": "7c931671-4b1d-4bf2-8782-cb9555b4bddb",
-  "cwd": "/tmp/bb-claude-rec-cwd-2INYib",
-  "model": "claude-haiku-4-5"
-}

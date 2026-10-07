@@ -1,9 +1,0 @@
-{"request_id":"4zcg0knrxsf","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"sdkMcpServers":["bb-bridge"],"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
-{"type":"user","message":{"role":"user","content":"Call the lookup tool with key \"a\", then reply with the result."},"session_id":"ed979837-def2-471e-984b-b8da78009180","uuid":"4a2894d9-2945-46c6-a2e3-882610b38d0f","parent_tool_use_id":null}
-{"type":"control_response","response":{"subtype":"success","request_id":"782d85a3-6d76-4383-8b34-bf367baea5fe","response":{"mcp_response":{"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"bb-bridge","version":"1.0.0"}},"jsonrpc":"2.0","id":0}}}}
-{"type":"control_response","response":{"subtype":"success","request_id":"3d5ed049-0571-4a99-b64c-e4e207a69cae","response":{"mcp_response":{"jsonrpc":"2.0","result":{},"id":0}}}}
-{"type":"control_response","response":{"subtype":"success","request_id":"a16df309-4719-47a1-815e-b27a1d99d392","response":{"mcp_response":{"result":{"tools":[{"name":"lookup","description":"Look up a value","inputSchema":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}]},"jsonrpc":"2.0","id":1}}}}
-{"type":"control_response","response":{"subtype":"success","request_id":"d3af0fbd-3df9-4952-b891-e4af9333956b","response":{"continue":true}}}
-{"type":"control_response","response":{"subtype":"success","request_id":"248253f3-a157-4351-bec3-07d65c8317ac","response":{"continue":true}}}
-{"type":"control_response","response":{"subtype":"success","request_id":"8b838a30-ce63-4f62-b663-47228af26012","response":{"mcp_response":{"result":{"content":[{"type":"text","text":"value-of-a=42"}]},"jsonrpc":"2.0","id":2}}}}
-{"request_id":"jfwaxyuo1ba","type":"control_request","request":{"subtype":"interrupt"}}

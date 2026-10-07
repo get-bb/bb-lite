@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::call::Handler;
 
-pub mod daemon;
+pub mod node;
 pub mod system;
 pub mod terminal;
 pub mod thread;
@@ -13,7 +13,7 @@ pub mod workspace;
 pub fn handlers() -> HashMap<&'static str, Handler> {
     [
         system::handlers(),
-        daemon::handlers(),
+        node::handlers(),
         thread::handlers(),
         thread_more::handlers(),
         workspace::handlers(),

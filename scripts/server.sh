@@ -5,21 +5,19 @@ usage() {
   cat <<'EOF'
 Usage: scripts/server.sh <command> [--build] [--force]
 
-  node      Stop the running server and start the TypeScript one
-  rust      Stop the running server and start the Rust one
+  start     Stop the running server and start it again (alias: node)
   stop      Stop the running server
-  status    Show which server is running
+  status    Show whether the server is running
   logs      Follow the server log
 
-  --build   Rebuild the web app (and, for rust, the bb binary) before starting
+  --build   Rebuild the web app and the native bb CLI before starting
   --force   Replace a server that uses a different data directory
 
-Both servers read the same settings and the same data directory, so switching
-keeps threads and settings. A setting is taken from the first of these that has it:
+A setting is taken from the first of these that has it:
 
   1. the environment
   2. .env.server at the repository root (KEY=value lines)
-  3. the bb server now listening on the port (so a switch keeps its settings)
+  3. the bb server now listening on the port (so a restart keeps its settings)
   4. the settings of the last start on that port (.tmp/server-<port>.env)
   5. the server's own defaults
 
@@ -58,7 +56,6 @@ done
 port=${BB_SERVER_PORT:-48886}
 log=${BB_SERVER_LOG:-$root/.tmp/server-$port.log}
 remembered=$root/.tmp/server-$port.env
-binary=${CARGO_TARGET_DIR:-$root/target}/release/bb
 inherited="BB_DATA_DIR BB_SERVER_BIND_HOST BB_SERVER_ALLOWED_HOSTS BB_APP_DIR BB_LOG_LEVEL"
 inherited="$inherited BB_DEV_PROVIDERS BB_CONNECT_BASE_URL BB_CLAUDE_CODE_EXECUTABLE"
 explicit_data_dir=${BB_DATA_DIR:-}
@@ -82,8 +79,7 @@ listener_pid() {
 
 kind_of() {
   case $(ps -o command= -p "$1" 2>/dev/null) in
-    *"bb server"*) echo rust ;;
-    *"apps/server/src/main.ts"* | *"src/main.ts"*) echo node ;;
+    *"bb server"* | *"apps/server/src/main.ts"* | *"src/main.ts"* | *"dist/bb.mjs server"*) echo bb ;;
     *) echo unknown ;;
   esac
 }
@@ -169,7 +165,7 @@ describe() {
   fi
   local state=starting
   if healthy; then state=healthy; fi
-  echo "$(kind_of "$pid") server on $url (pid $pid, $state)"
+  echo "bb server on $url (pid $pid, $state)"
   echo "  data: $(running_data_dir)"
   echo "  log:  $log"
 }
@@ -185,12 +181,12 @@ stop_server() {
   used=$(running_data_dir)
   if [ -n "$explicit_data_dir" ] && [ -n "$used" ] && [ "${used%/}" != "$data_dir" ] &&
     [ "$force" = false ]; then
-    die "the $kind server on port $port uses $used, but BB_DATA_DIR is set to $data_dir.
+    die "the server on port $port uses $used, but BB_DATA_DIR is set to $data_dir.
 Unset it (or fix .env.server) to keep the running server's data directory, or pass --force
 to start on $data_dir instead."
   fi
   remember_settings
-  echo "Stopping the $kind server (pid $pid)…"
+  echo "Stopping the server (pid $pid)…"
   kill -TERM "$pid"
   for _ in $(seq 1 100); do
     kill -0 "$pid" 2>/dev/null || return 0
@@ -208,26 +204,28 @@ build_app() {
   fi
 }
 
-build_binary() {
-  if [ "$build" = false ] && [ -x "$binary" ]; then
+build_native_cli() {
+  if [ "$build" = false ]; then
     return
   fi
   if ! command -v cargo >/dev/null 2>&1 && [ -f "$HOME/.cargo/env" ]; then
     # shellcheck disable=SC1091
     . "$HOME/.cargo/env"
   fi
-  command -v cargo >/dev/null 2>&1 || die "cargo was not found; install Rust with rustup."
-  echo "Building the bb binary…"
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "cargo was not found; agents will use the Node bb CLI."
+    return
+  fi
+  echo "Building the native bb CLI…"
   (cd "$root" && cargo build --release -p bb-cli)
 }
 
 start_server() {
-  local kind=$1
   if [ -n "$adopted" ]; then
     echo "Settings kept from $adopted_from:$adopted"
   fi
   build_app
-  if [ "$kind" = rust ]; then build_binary; fi
+  build_native_cli
   stop_server
   mkdir -p "$(dirname "$log")"
   export BB_DATA_DIR=$data_dir BB_SERVER_PORT=$port BB_APP_DIR=$app_dir
@@ -235,12 +233,8 @@ start_server() {
   local detach=()
   if command -v setsid >/dev/null 2>&1; then detach=(setsid); fi
   cd "$root"
-  echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) starting the $kind server ---" >>"$log"
-  if [ "$kind" = rust ]; then
-    ${detach[@]+"${detach[@]}"} nohup "$binary" server >>"$log" 2>&1 &
-  else
-    ${detach[@]+"${detach[@]}"} nohup node --conditions=source --import tsx apps/server/src/main.ts >>"$log" 2>&1 &
-  fi
+  echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) starting the server ---" >>"$log"
+  ${detach[@]+"${detach[@]}"} nohup node --conditions=source --import tsx apps/server/src/main.ts >>"$log" 2>&1 &
   local started=$!
   for _ in $(seq 1 150); do
     if healthy; then
@@ -249,16 +243,16 @@ start_server() {
     fi
     if ! kill -0 "$started" 2>/dev/null && [ -z "$(listener_pid)" ]; then
       tail -n 20 "$log" >&2
-      die "the $kind server exited while starting; the end of $log is above."
+      die "the server exited while starting; the end of $log is above."
     fi
     sleep 0.2
   done
   tail -n 20 "$log" >&2
-  die "the $kind server did not answer on $url within 30 seconds."
+  die "the server did not answer on $url within 30 seconds."
 }
 
 case $command in
-  node | rust) start_server "$command" ;;
+  start | node) start_server ;;
   stop)
     stop_server
     describe

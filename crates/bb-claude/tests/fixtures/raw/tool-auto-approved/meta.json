@@ -1,7 +1,0 @@
-{
-  "scenario": "approval-allow",
-  "threadId": "thr_rec_approval_allow",
-  "providerThreadId": "224b3dbe-8a07-47a4-aa25-9fec302cb2ee",
-  "cwd": "/tmp/bb-claude-rec-cwd-gtfY9N",
-  "model": "claude-haiku-4-5"
-}

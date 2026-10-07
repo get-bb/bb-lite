@@ -35,6 +35,8 @@ export interface Watcher {
   dispose(): Promise<void>;
 }
 
+type GitLayout = NonNullable<Awaited<ReturnType<typeof gitLayout>>>;
+
 async function gitLayout(root: string) {
   const dotGit = path.join(root, ".git");
   const stat = await fs.lstat(dotGit).catch(() => null);
@@ -81,9 +83,13 @@ async function watchWorkspace(
     scheduler.schedule();
   };
   const subscriptions: AsyncSubscription[] = [];
+  let stopped = false;
+  const unsubscribeAll = () =>
+    Promise.allSettled(subscriptions.splice(0).map((sub) => sub.unsubscribe()));
   const stop: Stop = async () => {
+    stopped = true;
     scheduler.dispose();
-    await Promise.allSettled(subscriptions.map((sub) => sub.unsubscribe()));
+    await unsubscribeAll();
   };
   const watchTree = async (
     directory: string,
@@ -96,30 +102,55 @@ async function watchWorkspace(
         onPath(path.relative(directory, event.path).split(path.sep).join("/"));
       }
     };
-    subscriptions.push(await subscribe(directory, onEvents, { ignore }));
+    const subscription = await subscribe(directory, onEvents, { ignore });
+    if (stopped) await subscription.unsubscribe().catch(() => undefined);
+    else subscriptions.push(subscription);
   };
-  try {
-    if (layout === null) {
-      const plainIgnored = [".git", ...WORKSPACE_IGNORED_GLOBS];
-      await watchTree(root, plainIgnored, () => note("status"));
-      return stop;
-    }
-    const sharedGitDir = layout.gitDir === layout.commonDir;
+  const watchRepository = async (found: GitLayout) => {
+    const sharedGitDir = found.gitDir === found.commonDir;
     const ignored = await ignoredDirectories(ctx, root);
     const workIgnored = [".git", ...WORKSPACE_IGNORED_GLOBS, ...ignored];
     await watchTree(root, workIgnored, () => note("status"));
     const gitIgnored = sharedGitDir ? COMMON_DIR_IGNORED : [];
-    await watchTree(layout.gitDir, gitIgnored, (relativePath) => {
+    await watchTree(found.gitDir, gitIgnored, (relativePath) => {
       if (GIT_DIR_NOISE.test(relativePath)) return;
       const sharedRef = sharedGitDir && SHARED_REF.test(relativePath);
       if (relativePath === "HEAD" || sharedRef) note("status", "refs");
       else note("status");
     });
-    if (sharedGitDir) return stop;
-    await watchTree(layout.commonDir, COMMON_DIR_IGNORED, (relativePath) => {
+    if (sharedGitDir) return;
+    await watchTree(found.commonDir, COMMON_DIR_IGNORED, (relativePath) => {
       const lock = relativePath.endsWith(".lock");
       if (SHARED_REF.test(relativePath) && !lock) note("refs");
     });
+  };
+  let promoting = false;
+  const promoteToRepository = async () => {
+    const found = await gitLayout(root).catch(() => null);
+    if (found === null || stopped) return false;
+    await unsubscribeAll();
+    await watchRepository(found);
+    note("status", "refs");
+    return true;
+  };
+  const onPlainPath = (relativePath: string) => {
+    const insideDotGit =
+      relativePath === ".git" || relativePath.startsWith(".git/");
+    if (!insideDotGit) return note("status");
+    if (promoting) return;
+    promoting = true;
+    void promoteToRepository()
+      .catch(() => false)
+      .then((promoted) => {
+        promoting = promoted;
+      });
+  };
+  try {
+    if (layout === null) {
+      await watchTree(root, WORKSPACE_IGNORED_GLOBS, onPlainPath);
+      return stop;
+    }
+    await watchRepository(layout);
     return stop;
   } catch (error) {
     await stop();

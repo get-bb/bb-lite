@@ -50,6 +50,7 @@ fn report(failure: &CliError, envelope: bool) -> i32 {
 }
 
 fn dispatch(table: &Table, argv: &[String], env: &CliEnv) -> CliResult<i32> {
+    let whole = argv.to_vec();
     let asks_help = argv.first().is_some_and(|a| a == "help");
     let found = resolve_command(table, if asks_help { &argv[1..] } else { argv });
     match found {
@@ -60,6 +61,7 @@ fn dispatch(table: &Table, argv: &[String], env: &CliEnv) -> CliResult<i32> {
                 return Ok(0);
             };
             let mut call = Call::new(table, spec, invocation, env.clone());
+            call.argv = whole;
             let result = (spec.run)(&mut call).and_then(|output| call.emit(output));
             match result {
                 Ok(()) => Ok(0),

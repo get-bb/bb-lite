@@ -1,7 +1,0 @@
-{
-  "scenario": "dynamic-tool",
-  "threadId": "thr_rec_dynamic_tool",
-  "providerThreadId": "ed979837-def2-471e-984b-b8da78009180",
-  "cwd": "/tmp/bb-claude-rec-cwd-MD68P1",
-  "model": "claude-haiku-4-5"
-}

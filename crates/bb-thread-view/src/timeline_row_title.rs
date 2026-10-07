@@ -997,15 +997,13 @@ fn map_work_title(row: &WorkRow) -> TimelineTitle {
             make_title(segments, duration_decorations(timed(w.completed_at), false))
         }
         WorkDetail::Workflow(w) => {
-            let verbs =
-                if crate::build_event_projection::is_background_command_task_type(&w.task_type) {
-                    &BACKGROUND_COMMAND_VERBS
-                } else if crate::build_event_projection::is_background_agent_task_type(&w.task_type)
-                {
-                    &BACKGROUND_AGENT_VERBS
-                } else {
-                    &WORKFLOW_VERBS
-                };
+            let verbs = if is_background_command_task_type(&w.task_type) {
+                &BACKGROUND_COMMAND_VERBS
+            } else if is_background_agent_task_type(&w.task_type) {
+                &BACKGROUND_AGENT_VERBS
+            } else {
+                &WORKFLOW_VERBS
+            };
             let is_workflow = std::ptr::eq(verbs, &WORKFLOW_VERBS);
             let subject = if is_workflow {
                 w.workflow_name.as_deref().unwrap_or(&w.description)
@@ -1210,4 +1208,14 @@ pub fn build_timeline_row_title(row: &ViewRow, options: &TimelineTitleOptions) -
         ViewRow::Summary(summary) => map_work_summary_title(summary, options),
         ViewRow::Turn(turn) => map_turn_title(&turn.row),
     }
+}
+
+/// `isBackgroundCommandTaskType` (`LOCAL_BASH_TASK_TYPE` from `@bb/domain`).
+fn is_background_command_task_type(task_type: &str) -> bool {
+    task_type == "local_bash"
+}
+
+/// `isBackgroundAgentTaskType` (`LOCAL_AGENT_TASK_TYPE`, `LOCAL_SUBAGENT_TASK_TYPE`).
+fn is_background_agent_task_type(task_type: &str) -> bool {
+    task_type == "local_agent" || task_type == "local_subagent"
 }

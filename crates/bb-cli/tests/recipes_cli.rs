@@ -51,10 +51,6 @@ fn command(home: &Path) -> Command {
         .env("BB_SERVER_PORT", "0")
         .env("BB_DEV_PROVIDERS", "echo")
         .env("BB_SERVER_URL", "http://127.0.0.1:9");
-    if let Some(root) = option_env!("BB_NODE_MODULES_ROOT") {
-        command.env("BB_NODE_MODULES_ROOT", root);
-        command.env("BB_ESBUILD_PATH", format!("{root}/node_modules/.bin/esbuild"));
-    }
     command
 }
 
@@ -149,12 +145,9 @@ fn runs_the_canonical_agent_recipes_against_the_echo_provider() {
     let child = spawned.stdout.split("Thread spawned: ").nth(1).unwrap_or_default();
     let child: String = child.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
     assert!(child.starts_with("thr_"), "{spawned:?}");
-    let database = bb.home.path().join("data").join("bb.db");
-    let turn = "SELECT active_turn_id FROM threads WHERE id = ?";
     wait_for("the child turn", || {
-        let db = rusqlite::Connection::open(&database).unwrap();
-        let active: Option<String> = db.query_row(turn, [&child], |row| row.get(0)).unwrap();
-        active.is_some()
+        let events = bb.run(&["thread", "log", &child, "--format", "json"]);
+        events.stdout.contains("turn/started")
     });
     let tell = ["thread", "tell", &child];
     let later = bb.run_with(

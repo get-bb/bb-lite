@@ -438,6 +438,9 @@ providerCapabilities}`; a tool's `enabledFor` gates on it (ask-user-question is 
 
 `apps/cli` is one table and one engine.
 
+`apps/cli/bin/bb` runs the native build of this CLI (`crates/bb-cli`, see `docs/native-cli.md`)
+when one exists and this Node CLI otherwise; the Node CLI is the reference for both.
+
 - **The table** (`src/table.ts`) is text in the shape of help output: one line per command
   (`thread tell|message|send <id> [message]  Summary`), then indented lines for its flags
   (`--mode <mode>  Help`; `<v>...` repeats, `[v]` is optional, `--machine|host` declares an alias),

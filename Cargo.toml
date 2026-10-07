@@ -9,47 +9,13 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
-bb-core = { path = "crates/bb-core" }
-
-anyhow = "1"
-async-compression = { version = "0.4", features = ["tokio", "brotli", "gzip"] }
-async-trait = "0.1"
-axum = { version = "0.8", features = ["ws", "macros"] }
 base64 = "0.23"
-bytes = "1"
-futures = "0.3"
-futures-util = "0.3"
-hex = "0.4"
-http = "1"
-http-body-util = "0.1"
-hyper = { version = "1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
 indexmap = { version = "2", features = ["serde"] }
 libc = "0.2"
-mime_guess = "2"
-nix = { version = "0.31", features = ["signal", "process", "fs", "user"] }
-notify = "8"
-parking_lot = "0.12"
-percent-encoding = "2"
-portable-pty = "0.9"
-rand = "0.10"
 regex = "1"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
-rquickjs = { version = "0.14", features = ["futures", "macro", "loader", "array-buffer"] }
-rusqlite = { version = "0.40", features = ["bundled", "serde_json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-sha2 = "0.11"
 tempfile = "3"
-thiserror = "2"
-tokio = { version = "1", features = ["full"] }
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
-tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
-tokio-util = { version = "0.7", features = ["full"] }
-tower = "0.5"
-tower-http = { version = "0.7", features = ["full"] }
-url = "2"
-walkdir = "2"
 
 [profile.dev]
 debug = false
@@ -57,4 +23,4 @@ debug = false
 [profile.release]
 lto = "thin"
 codegen-units = 4
-strip = "debuginfo"
+strip = true

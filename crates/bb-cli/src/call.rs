@@ -205,6 +205,8 @@ pub struct Call<'a> {
     pub http: Http,
     pub stdout: Box<dyn Write + 'a>,
     pub wrote_json: bool,
+    /// The whole command line after `bb`, for commands handed to the Node CLI.
+    pub argv: Vec<String>,
 }
 
 impl<'a> Call<'a> {
@@ -216,7 +218,7 @@ impl<'a> Call<'a> {
     ) -> Self {
         let http = Http::new(&env.server_url);
         let stdout = Box::new(std::io::stdout());
-        Call { table, spec, invocation, env, http, stdout, wrote_json: false }
+        Call { table, spec, invocation, env, http, stdout, wrote_json: false, argv: Vec::new() }
     }
 
     /// An optional or required positional argument by its name in the table (`<id>` → `id`).

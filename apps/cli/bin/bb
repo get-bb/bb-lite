@@ -8,6 +8,13 @@ while [ -L "$self" ]; do
   esac
 done
 root=$(CDPATH= cd -- "$(dirname -- "$self")/.." && pwd -P)
+if [ "${BB_CLI_NATIVE:-1}" != 0 ]; then
+  for native in "$root/native/bb" "$root/../../target/release/bb"; do
+    if [ -x "$native" ]; then
+      BB_CLI_ROOT=$root exec "$native" "$@"
+    fi
+  done
+fi
 if [ -f "$root/dist/bb.mjs" ]; then
   exec node "$root/dist/bb.mjs" "$@"
 fi

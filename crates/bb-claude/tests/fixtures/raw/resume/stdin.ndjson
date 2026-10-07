@@ -1,3 +1,0 @@
-{"request_id":"7r0lerzvm9f","type":"control_request","request":{"subtype":"initialize","hooks":{"PreToolUse":[{"hookCallbackIds":["hook_0"]}]},"appendSystemPrompt":"You are being recorded for a protocol test. Be brief."}}
-{"type":"user","message":{"role":"user","content":"What did I ask you to reply with before? Answer in three words or fewer."},"session_id":"ff329a00-62a7-487d-8ca5-79d3b2bb6eea","uuid":"72528d6d-58b4-46c7-80ca-9a28f13be6b6","parent_tool_use_id":null}
-{"request_id":"vqz6rhv0q1","type":"control_request","request":{"subtype":"interrupt"}}
