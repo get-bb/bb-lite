@@ -24,7 +24,7 @@ export default function machinesPlugin(bb: PluginServerApi): void {
       hostResponse(bb, row),
     ),
   );
-  bb.add(machines.usable, (hostId) => assertHostUsable(bb, hostId));
+  bb.add(machines.guard, (hostId) => assertHostUsable(bb, hostId));
   provideMachines(bb);
   bb.onStart(() => ensureLocalHost(bb));
 }

@@ -116,9 +116,15 @@ export interface ShellApi {
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
 }
 
+export interface PartsBag {
+  plugin: string;
+  parts: Readonly<Record<string, unknown>>;
+}
+
 export const app = contract("app", {
   root: service<ComponentType>(),
   icon: slot<T.AppIcon>({ key: "name" }),
+  parts: slot<PartsBag>({ key: "plugin" }),
 });
 
 export const shell = contract("shell", {

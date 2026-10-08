@@ -26,7 +26,6 @@ import {
   getSettingsRoutePath,
   getThreadRoutePath,
 } from "@bb/app-kit/lib/route-paths";
-import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
 
 const splitWorkspaceRouteModule = import("./app/views/SplitWorkspaceRoute");
@@ -188,7 +187,7 @@ const api: ShellApi = {
 };
 
 export default function shellApp(bb: PluginAppApi): void {
-  bb.add(appParts.parts, { plugin: "shell", parts });
+  bb.add(app.parts, { plugin: "shell", parts });
   bb.add(app.root, ShellRoot);
   bb.add(shell.api, api);
   for (const route of ROUTES) bb.add(shell.route, route);

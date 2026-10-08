@@ -1,4 +1,5 @@
 import {
+  app,
   composer,
   type ComposerContext,
   type ComposerFooterControlProps,
@@ -13,7 +14,6 @@ import {
   composerSendHost,
 } from "./app/components/promptbox/composer-slots";
 import { ThreadContextWindowIndicator } from "bb-plugin-thread-view/contract";
-import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
 import { useComposer, useComposers } from "./app/lib/composers";
 
@@ -47,7 +47,7 @@ function ContextWindowControl({ context }: ComposerFooterControlProps) {
 }
 
 export default function composerApp(bb: PluginAppApi): void {
-  bb.add(appParts.parts, { plugin: "composer", parts });
+  bb.add(app.parts, { plugin: "composer", parts });
   bb.add(composer.api, { useComposer, useComposers });
   bb.add(composer.menuItem, {
     id: "attach",

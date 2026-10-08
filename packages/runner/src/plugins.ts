@@ -32,11 +32,11 @@ export interface PluginRunnerApi extends PluginBase {
   signal(name: string, payload?: unknown): void;
 }
 
-export type RunnerPluginEntry = (bb: PluginRunnerApi) => void | Promise<void>;
+export type PluginRunnerEntry = (bb: PluginRunnerApi) => void | Promise<void>;
 
 export interface RunnerPart {
   id: string;
-  entry: RunnerPluginEntry;
+  entry: PluginRunnerEntry;
   tier?: Tier;
 }
 
@@ -185,7 +185,7 @@ export function createRunnerPlugins(options: {
           if (typeof module.default !== "function") {
             throw new Error("the runner part has no default export");
           }
-          const entry = module.default as RunnerPluginEntry;
+          const entry = module.default as PluginRunnerEntry;
           await start({ id, entry, tier: "installed" });
           shipped.set(id, hash);
           result.loaded.push(id);

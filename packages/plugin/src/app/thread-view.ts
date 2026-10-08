@@ -75,7 +75,7 @@ export interface ThreadViewApi {
   ThreadTitle: ComponentType<{ threadId: string }>;
 }
 
-export const threadView = contract("thread-view", {
+export const threadView = contract("threadView", {
   api: service<ThreadViewApi>(),
   row: slot<TimelineRowRenderer>({ key: "kind" }),
   rowDetail: slot<TimelineRowDetailRenderer>({ key: "kind" }),

@@ -427,7 +427,7 @@ export function createEnvironments(bb: PluginServerApi) {
     const teardownAttempt = (found.lifecycle.teardown?.attempt ?? 0) + 1;
     const running = { teardownStatus: "running", teardownAttempt } as const;
     patch(id, { status: "error", teardownMessage: null, ...running });
-    bb.emit(environmentKinds.released, {
+    bb.emit(environmentKinds.destroyed, {
       environmentId: id,
       reason: "environment-destroyed",
     });

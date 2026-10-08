@@ -64,7 +64,7 @@ export function createServer(options: CreateServerOptions): BbServer {
   const hub = new Hub();
   const { hostId: localHostId } = config;
   const { localRunner } = options;
-  const authorize = (hostId: string) => kernel.pick(machines.usable)?.(hostId);
+  const authorize = (hostId: string) => kernel.pick(machines.guard)?.(hostId);
   const access = { localHostId, localRunner, log, authorize };
   const runners = new RunnerRegistry(access);
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));

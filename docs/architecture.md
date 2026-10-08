@@ -6,21 +6,21 @@ budgets; this file has the shapes.
 
 ## Packages
 
-| Package                                       | Role                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/server`                                 | The only stateful process, reduced to a host: the kernel, the plugin loader, the HTTP and WebSocket shells and the static web app. It names no feature                                                                                                                                                                                                                                                |
-| `packages/server-kit`                         | What server parts of core plugins share: the SQLite data layer, auth, the hub, HTTP helpers and trust, the runner registry. Its functions take the handles a plugin has on `bb` (`db`, `config`, `runners`, `realtime`); there is no server context object                                                                                                                                            |
-| `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine                                                                                                                                                     |
-| `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                                                                                                                                                                            |
-| `apps/app`                                    | Web UI host: the entry point, the route outlet and the loader for app parts. It names no screen                                                                                                                                                                                                                                                                                                       |
-| `packages/app-kit`                            | What app parts of core plugins share: the client data layer and hooks, UI primitives, the app's plugin runtime (registry, slots, parts) and components more than one feature uses. A file only one screen plugin uses lives in that plugin. Imported as `@bb/app-kit/<path>`                                                                                                                          |
-| `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                                                                                                                                                                                 |
-| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                                                                                                                                                                        |
-| `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `packages/app-kit/lib/ws.ts`)                                                                                                                                                                                                                                                                              |
-| `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                                                                                                                                                                    |
-| `packages/plugin`                             | The kernel and the plugin API: contracts, operations, slots, core contracts, app hooks                                                                                                                                                                                                                                                                                                                |
-| `plugins/*`                                   | In-repo plugins. Core: eleven server plugins (`identity`, `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`, `interactions`, `audit-log`) and five app plugins (`shell`, `thread-view`, `composer`, `side-panel`, and the app part of `settings`). The rest are providers and add-ons (thread list, tasks, connect, audit, plugin tools and others) |
-| `profiles/default`                            | Which in-repo plugins make up the product, as one table per runtime (`server.ts`, `runner.ts`, `app.ts`) and named profiles                                                                                                                                                                                                                                                                           |
+| Package                                       | Role                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/server`                                 | The only stateful process, reduced to a host: the kernel, the plugin loader, the HTTP and WebSocket shells and the static web app. It names no feature                                                                                                                                                                                                                             |
+| `packages/server-kit`                         | What server parts of core plugins share: the SQLite data layer, auth, the hub, HTTP helpers and trust, the runner registry. Its functions take the handles a plugin has on `bb` (`db`, `config`, `runners`, `realtime`); there is no server context object                                                                                                                         |
+| `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine                                                                                                                                  |
+| `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                                                                                                                                                         |
+| `apps/app`                                    | Web UI host: the entry point, the route outlet and the loader for app parts. It names no screen                                                                                                                                                                                                                                                                                    |
+| `packages/app-kit`                            | What app parts of core plugins share: the client data layer and hooks, UI primitives, the app's plugin runtime (registry, slots, parts) and components more than one feature uses. A file only one screen plugin uses lives in that plugin. Imported as `@bb/app-kit/<path>`                                                                                                       |
+| `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                                                                                                                                                              |
+| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                                                                                                                                                     |
+| `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `packages/app-kit/lib/ws.ts`)                                                                                                                                                                                                                                                           |
+| `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                                                                                                                                                 |
+| `packages/plugin`                             | The kernel and the plugin API: contracts, operations, slots, core contracts, app hooks                                                                                                                                                                                                                                                                                             |
+| `plugins/*`                                   | In-repo plugins. Core: ten server plugins (`identity`, `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`, `audit-log`) and five app plugins (`shell`, `thread-view`, `composer`, `side-panel`, and the app part of `settings`). The rest are providers and add-ons (thread list, tasks, connect, audit, plugin tools and others) |
+| `profiles/default`                            | Which in-repo plugins make up the product, as one table per runtime (`server.ts`, `runner.ts`, `app.ts`) and named profiles                                                                                                                                                                                                                                                        |
 
 Dependency direction: `domain` ← `server-contract` ← `thread-view`, `sdk`, `runner` ← `server-kit` ←
 `plugins/*` ← `profiles/default` ← `server` ← `cli`; in the browser `client-core`, `shared-ui` ←
@@ -304,9 +304,9 @@ How the engine is built (`plugins/threads`):
   to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
 - Seams: the engine calls `environments.ensure` and `environments.instructions`, `sessions.instructions`,
   `sessions.env`, `sessions.tools`, `sessions.skillDirs` and `sessions.title`, and
-  `plugins.callAgentTool` for a tool call. It emits the thread events and `threads.released`
+  `plugins.callAgentTool` for a tool call. It emits the thread events and `threads.retired`
   (terminals close on it), and listens to `projects.deleted`. Other plugins reach it through the
-  `threads` operations, including `threads.workspace` and `threads.requestInput`. Startup order is
+  `threads` operations, including `threads.workspace`, and it implements the `interactions` contract. Startup order is
   local host, personal project, engine, then plugins.
 
 ## Environments (server)
@@ -489,8 +489,9 @@ hold one kernel.
 - **CLI.** Operations with `doors.cli` (`path`, `summary`, `positionals`, `print`) owned by a plugin
   become that plugin's `bb <first word> …` command: flags come from the input schema (camelCase to
   kebab, booleans are switches, arrays repeat, objects take JSON, `cwd` is filled from the caller),
-  `--json` prints the output. A plugin that also calls `bb.cli.register` keeps that CLI instead.
-- **Machines.** `bb.machine(hostId).call(op, input)` calls an operation a runner part implements
+  `--json` prints the output. A plugin that also calls `bb.cli.register` gets both: its own commands
+  and the door commands.
+- **Machines.** `bb.runners.call(hostId, op, input)` calls an operation a runner part implements
   (`Runner.callOp`), validating input and output on the server.
 
 ### Core plugins (server)
@@ -498,12 +499,12 @@ hold one kernel.
 The server's own features are plugins in `plugins/`, listed as `corePlugins` in
 `profiles/default/server.ts` and loaded by the same loader as every other plugin: `identity`,
 `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`,
-`interactions`, `audit-log`. Each is a directory with a manifest and a `server.ts` that receives the
+`audit-log`. Each is a directory with a manifest and a `server.ts` that receives the
 ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel scope `plugins`: the
 `plugins.*` operations and the `/plugins` and `/kernel` routes).
 
 - **Nothing beyond the plugin API.** A core plugin receives `bb` and nothing else. The host's
-  services are members of it for every plugin: `bb.db`, `bb.realtime`, `bb.runners`, `bb.config`,
+  services are members of it for every plugin: `bb.db`, `bb.realtime`, `bb.runners`, `bb.server`,
   `bb.now`, `bb.http.api(routes)` (Hono routes under `/api/v1` or `/internal`) and
   `bb.http.socket(resolver)` (a WebSocket endpoint). Each registration is removed when the plugin
   unloads; the HTTP app is assembled again from the current routes on the next request.
@@ -516,7 +517,7 @@ ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel sco
 - **What the host still does.** Loads plugins, stores their settings and tables, assembles HTTP and
   sockets, writes the audit record, and turns operations into agent tools and CLI commands
   (`plugins.agentTools`, `plugins.callAgentTool`). It asks `server.authenticator` (identity) who a
-  request is from and `machines.usable` (machines) whether the caller may use a machine.
+  request is from and `machines.guard` (machines) whether the caller may use a machine.
 - **Machines a plugin makes.** `plugins/machines/provided.ts` implements `machines.enroll`
   (a host row in `creating` with `machine_provider_id` and `resource`, plus a join command),
   `waitConnected`, `update`, `suspend` and `resume` (through the `machines.provider` entry, setting
@@ -527,7 +528,7 @@ ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel sco
   `plugin_row`; the projection (`packages/thread-view`) carries `plugin: { id, kind, data }` on the
   generic operation row and replaces the row when the same operation id arrives again.
 - **Order.** Plugins load in table order refined by `requires` (`threads` needs `machines` and
-  `projects`; `environments` and `interactions` need `threads`; `workspace` needs `terminals`).
+  `projects`; `environments` needs `threads`; `workspace` needs `terminals`).
   Every entry runs first; then each plugin's `bb.onStart` callbacks run in the same order (local
   host, personal project, engine, environments, terminals, workspace watch), then add-on services.
 - **Always on.** A core plugin cannot be disabled; `InstalledPlugin.core` marks it and Settings
@@ -628,22 +629,33 @@ remove({hostId, path})}`) is a managed environment owned by its thread: `create`
 
 ### App
 
-- The app's registry is a kernel too (`packages/app-kit/plugins/registry.ts`). `definePluginApp` /
-  `plugin` receive the verbs plus `slots.*` and `commands.register` (short forms for the ten `shell`
-  slots that validate and stamp the plugin id). `bb.call` and `callOp` run an operation the app
-  implements, else `POST /ops/<name>`.
+- The app's registry is a kernel too (`packages/app-kit/plugins/registry.ts`). An app part is a
+  plain function that receives the same handle shape as a server part: the verbs, `pluginId`,
+  `log`, `onStart` (run once plugins have settled) and `onDispose`. There are no slot shorthands:
+  every slot is filled with `bb.add`. `bb.call` and `callOp` run an operation the app implements,
+  else `POST /ops/<name>`.
+- **Slots and their readers.** A slot is declared in the contract of the plugin that reads it
+  (`shell`, `threadView`, `composer`, `sidePanel`, `settings`, `app` in `packages/plugin/src`). A
+  slot may carry a `check` that the kernel runs on `add`; the id-bearing shell slots use it to
+  refuse malformed, duplicate or view-less entries. Readers that need the owner use
+  `useOwned(slot)` (`packages/app-kit/plugins/slots.tsx`).
+- **Feature hooks.** `useSidebarThreads`, `ThreadChat`, `useComposer` and the rest in
+  `@bb/plugin/app` forward to typed services (`shell.api`, `threadView.api`, `composer.api`) that
+  those plugins provide. The host table (`apps/app/src/plugins/host.tsx`) holds only what the
+  host itself owns: routing, the client, settings, library components.
 - **Core app plugins.** The screens are five plugins, listed as `coreAppPlugins` in
   `profiles/default/app.ts` and registered before the first render: `shell` (layout, sidebar,
   command palette, routes, navigation rail items, thread actions), `thread-view` (the thread page,
   timeline rows and row details), `composer` (prompt box, pickers, new-thread screen, "+" menu and
   footer controls), `side-panel` (tab kinds, files, diffs, plugin panels) and `settings` (pages and
   the settings routes). Each is `plugins/<id>/app.tsx` plus `plugins/<id>/app/`. `apps/app/src` is
-  the entry, `App.tsx` (renders `shell.route` entries inside the shell's layout) and the loader.
+  the entry, `App.tsx` (providers, then whatever provides `app.root`; the shell does, and it renders
+  `shell.route` entries inside its layout) and the loader.
 - **Parts.** A feature never imports another feature's files. What others need is published in
   `plugins/<id>/contract.ts` as typed parts: `part<typeof Module.Component>("<id>", "Component")`
   for a component and `callPart<typeof Module.useHook>(…)` for a hook or function
   (`packages/app-kit/plugins/parts.ts`). `plugins/<id>/parts.ts` re-exports the implementations and
-  the entry adds them to the `app.parts` slot. A part resolves when it renders or is called, so
+  the entry adds them to the `app.parts` slot (`bb.add(app.parts, { plugin, parts })`). A part resolves when it renders or is called, so
   whichever plugin currently provides `<id>` is used; nothing renders while none does. Consumers
   import `bb-plugin-<id>/contract`; lint rejects any other path into another plugin.
 - **What is in the kit.** Anything two features or the host share, and anything that must be one

@@ -681,16 +681,15 @@
               <td>Server subsystems as plugins</td>
               <td>Built</td>
               <td>
-                Eleven core plugins in <code>plugins/</code> (identity,
-                settings, projects, machines, sessions, threads, environments,
-                terminals, workspace, interactions, audit log), loaded by the
-                same loader as add-ons and given the same <code>bb</code> and
-                nothing else. The database, realtime, runners, configuration and
-                route mounting are members of <code>bb</code> for every plugin,
-                and core plugins reach each other only through operations,
-                events and services. Sign-in is a service the identity plugin
-                provides. The server is a kernel, the loader and the HTTP and
-                socket shells.
+                Ten core plugins in <code>plugins/</code> (identity, settings,
+                projects, machines, sessions, threads, environments, terminals,
+                workspace, audit log), loaded by the same loader as add-ons and
+                given the same <code>bb</code> and nothing else. The database,
+                realtime, runners, configuration and route mounting are members
+                of <code>bb</code> for every plugin, and core plugins reach each
+                other only through operations, events and services. Sign-in is a
+                service the identity plugin provides. The server is a kernel,
+                the loader and the HTTP and socket shells.
               </td>
             </tr>
             <tr>
@@ -700,8 +699,8 @@
               </td>
               <td>Built</td>
               <td>
-                Eleven core server plugins and five core app plugins (shell,
-                thread view, composer, side panel, settings) live in
+                Ten core server plugins and five core app plugins (shell, thread
+                view, composer, side panel, settings) live in
                 <code>plugins/</code> and import only the plugin API, the shared
                 schemas and two kits: <code>@bb/server-kit</code> (data layer,
                 helpers) and <code>@bb/app-kit</code> (client data layer, UI

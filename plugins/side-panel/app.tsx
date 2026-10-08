@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from "react";
 import {
+  app,
   sidePanel,
   type SidePanelTabProps,
   type PluginAppApi,
@@ -12,7 +13,6 @@ import {
   fileTabTitle,
   pluginPanelTabTitle,
 } from "./app/components/secondary-panel/SidePanelTabChrome";
-import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
 
 type Views =
@@ -27,7 +27,7 @@ function view(name: keyof Views): ComponentType<SidePanelTabProps> {
 }
 
 export default function sidePanelApp(bb: PluginAppApi): void {
-  bb.add(appParts.parts, { plugin: "side-panel", parts });
+  bb.add(app.parts, { plugin: "side-panel", parts });
   bb.add(sidePanel.tab, {
     kind: "new-tab",
     title: () => "New tab",

@@ -20,10 +20,10 @@ import {
 const TERMINAL_PATH = /^\/ws\/terminals\/([^/]+)$/u;
 
 export default function terminals(bb: PluginServerApi): void {
-  bb.on(threads.released, ({ threadId, reason }) =>
+  bb.on(threads.retired, ({ threadId, reason }) =>
     closeTerminalsFor(bb, "thread_id", threadId, reason),
   );
-  bb.on(environments.released, ({ environmentId, reason }) =>
+  bb.on(environments.destroyed, ({ environmentId, reason }) =>
     closeTerminalsFor(bb, "environment_id", environmentId, reason),
   );
   bb.http.api((app) => registerTerminalRoutes(app, bb));

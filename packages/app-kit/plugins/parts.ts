@@ -1,18 +1,9 @@
 import { createElement, useSyncExternalStore, type ComponentType } from "react";
-import { contract, slot } from "@bb/plugin/app";
+import { app } from "@bb/plugin/app";
 import { slotItems, watchSlots } from "./registry";
 
-export interface PartsBag {
-  plugin: string;
-  parts: Readonly<Record<string, unknown>>;
-}
-
-export const appParts = contract("app", {
-  parts: slot<PartsBag>({ key: "plugin" }),
-});
-
 function partOf(plugin: string, name: string): unknown {
-  const bags = slotItems(appParts.parts);
+  const bags = slotItems(app.parts);
   return bags.filter((bag) => bag.plugin === plugin).at(-1)?.parts[name];
 }
 

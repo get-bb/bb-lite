@@ -203,7 +203,7 @@ async function finalizeDeletion(engine: Engine, threadId: string) {
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
-    engine.bb.emit(threads.released, { threadId, reason: "thread-deleted" });
+    engine.bb.emit(threads.retired, { threadId, reason: "thread-deleted" });
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
@@ -373,7 +373,7 @@ export function sweep(engine: Engine): void {
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
   for (const { id, status } of store.listExpiredArchives(db, expired)) {
-    engine.bb.emit(threads.released, {
+    engine.bb.emit(threads.retired, {
       threadId: id,
       reason: "thread-archived",
     });

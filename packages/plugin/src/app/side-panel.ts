@@ -41,7 +41,7 @@ export interface FileViewer {
   view: ComponentType<FileViewerProps>;
 }
 
-export const sidePanel = contract("side-panel", {
+export const sidePanel = contract("sidePanel", {
   tab: slot<SidePanelTabKind>({ key: "kind" }),
   fileViewer: slot<FileViewer>(),
   panel: slot<SidePanelPanel>({ check: identified("view") }),

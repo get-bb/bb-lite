@@ -2,13 +2,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
 import {
+  app,
   composer,
   shell,
   type ComposerHandle,
   type PluginAppEntry,
 } from "@bb/plugin/app";
 import * as composers from "../../../plugins/composer/app/lib/composers";
-import { appParts, callPart, part } from "@bb/app-kit/plugins/parts";
+import { callPart, part } from "@bb/app-kit/plugins/parts";
 import {
   appKernel,
   registerPluginApp,
@@ -25,10 +26,10 @@ function provide(
   tier?: "installed",
   plugin = "greeter",
 ) {
-  const app: PluginAppEntry = (bb) => {
-    bb.add(appParts.parts, { plugin, parts });
+  const entry: PluginAppEntry = (bb) => {
+    bb.add(app.parts, { plugin, parts });
   };
-  expect(registerPluginApp(id, app, tier)).toBeNull();
+  expect(registerPluginApp(id, entry, tier)).toBeNull();
 }
 
 it("resolves a part at use, so a replacement takes over without a new import", () => {
@@ -64,7 +65,7 @@ it("resolves a part at use, so a replacement takes over without a new import", (
 
 it("adds shell extras and row statuses as slot entries that leave with the plugin", () => {
   const ran: string[] = [];
-  const app: PluginAppEntry = (bb) => {
+  const entry: PluginAppEntry = (bb) => {
     bb.add(shell.sidebarFooter, {
       id: "docs",
       label: "Docs",
@@ -74,7 +75,7 @@ it("adds shell extras and row statuses as slot entries that leave with the plugi
     const running = { icon: "Loader", label: "Building" };
     bb.add(shell.threadRowStatus, { threadId: "thr_1", ...running });
   };
-  expect(registerPluginApp("extras", app, "installed")).toBeNull();
+  expect(registerPluginApp("extras", entry, "installed")).toBeNull();
   slotItems(shell.sidebarFooter)[0]?.run?.();
   expect(ran).toEqual(["docs"]);
   const statuses = slotItems(shell.threadRowStatus);

@@ -6,20 +6,36 @@ each place it runs code. `docs/plugin-api-proposal.html` explains why the API ha
 
 ```
 plugins/notes/
-  package.json     "bb": { "name", "description", "icon", "server", "app", "runner", "requires", "skills" }
+  package.json     "bb": { "name", "description", "icon", "server", "app", "runner", "requires", "skills", "themes" }
   contract.ts      names and schemas only; imported by every part and by other plugins
-  server.ts        export default function plugin(bb: PluginServerApi) { ... }
-  app.tsx          export default plugin((bb) => { ... })      from "@bb/plugin/app"
-  runner.ts        export default function plugin(bb: PluginRunnerApi) { ... }
+  server.ts        export default function server(bb: PluginServerApi) { ... }
+  app.tsx          export default function app(bb: PluginAppApi) { ... }
+  runner.ts        export default function runner(bb: PluginRunnerApi) { ... }
 ```
 
 `requires` lists plugin ids that must be running first. A plugin id is the package name without
 scope and without `bb-plugin-`.
 
+## The rules the API follows
+
+1. **A part is a plain function that takes `bb`.** The server, the app and each machine get the same
+   handle shape: the verbs, `pluginId`, `log`, `onStart` and `onDispose`. Each side adds only what
+   that side's host provides.
+2. **`bb` holds verbs and host services, never a feature.** Everything a feature offers is a member
+   of a contract: an operation, an event, a slot, a service, a live value or a table.
+3. **One way to do each thing.** A slot is filled with `bb.add`, whoever declared it. An operation is
+   called with `bb.call`. The shared database is `bb.db`.
+4. **A slot is declared in the contract of the plugin that reads it.** Its entries name their
+   component `view`.
+5. **Names.** Operations use `create`, `get`, `list`, `update`, `delete`, or a noun for what a read
+   returns. Events are named for what happened (`created`, `deleted`, `connected`) or the state
+   entered (`active`, `idle`). Inputs are one object with named fields.
+6. **Core has no private API.** The built-in plugins are written with exactly what is described here.
+
 ## The contract
 
 ```ts
-import { contract, event, live, op, service, slot } from "@bb/plugin";
+import { contract, event, live, op, service, slot, table } from "@bb/plugin";
 import { z } from "zod";
 
 export const notes = contract("notes", {
@@ -27,7 +43,7 @@ export const notes = contract("notes", {
     input: z.object({ projectId: z.string() }),
     output: z.array(Note),
   }),
-  add: op({
+  create: op({
     input: z.object({ projectId: z.string(), text: z.string() }),
     output: Note,
     kind: "write",
@@ -43,42 +59,64 @@ export const notes = contract("notes", {
       },
     },
   }),
-  added: event(z.object({ note: Note })),
+  created: event(z.object({ note: Note })),
   count: live(z.number()),
   exporter: slot<{ id: string; label: string; run(notes: Note[]): string }>({
     key: "id",
   }),
   store: service<{ all(projectId: string): Note[] }>(),
+  rows: table<{ projectId: string; text: string }>(),
 });
 ```
 
 - `op` options: `input`, `output` (zod), `kind` (`"read"` default, `"write"` is recorded in the audit
   log), `hooks` (what another plugin's hook may do: `"observe"`, `"rewrite"` default, `"answer"`),
   `allow` (`"member"` default, `"owner"`), `secret` (input field names kept out of the audit log),
-  `doors`.
+  `internal` (not callable over HTTP; use it when the schema cannot validate the input), `doors`.
 - `event(schema)`: something that happened. `live(schema)`: a value the server holds and pushes.
-- `slot<Item>({ key?, pick? })`: a list other plugins add to. `key` names the field that identifies an
-  item (one winner per key). `pick: "one"` has one winner. `service<Interface>()` is a pick-one slot
-  that holds an object.
+- `slot<Item>({ key?, pick?, check? })`: a list other plugins add to. `key` names the field that
+  identifies an item (one winner per key). `pick: "one"` has one winner. `check(item, mine)` returns
+  a message to refuse an entry; `mine` is what the same plugin already added.
+- `service<Interface>()` is a pick-one slot that holds an object. `table<Row>()` names a database
+  table other plugins may join.
+- Any plugin can declare any of these. The kernel creates each one the first time it is used.
 - Contract files import only `@bb/plugin`, `zod` and types. Apps import the same file, so nothing in
   it may touch Node or the DOM. In an app part import the helpers from `@bb/plugin/app`.
 
-## Server part
+## What every part has
 
-`bb` has the kernel verbs and a few primitives.
+| Member                                        | Meaning                                                                                                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bb.pluginId`, `bb.log`                       | The plugin's id; `log.debug`, `info`, `warn`, `error(message, fields?)`                                                                        |
+| `bb.onStart(start)`                           | Runs once every plugin's entry has run. A function it returns runs on unload                                                                   |
+| `bb.onDispose(stop)`                          | Runs on unload. Only for resources of your own; everything registered through a verb is undone for you                                         |
+| `implement(op, run)`                          | This plugin is the operation's one implementation. `run(input, { caller, signal })`                                                            |
+| `call(op, input, { signal? })`                | Call any operation. The call is attributed to this plugin (`caller.via`), unless it is the plugin's own operation                              |
+| `on(op, [matcher], hook)`                     | Wrap an operation. `hook(input, next)`; `next(changedInput?)` runs the rest; `next.origin` is the caller. `.failClosed()` makes a crash refuse |
+| `on(event, listener)`, `emit(event, payload)` | Listen, and tell listeners                                                                                                                     |
+| `add(slot, item)`                             | Add to a slot; returns a function that removes it                                                                                              |
+| `wrap(slot, matcher, change)`                 | Change items others added: `change(item) => item`                                                                                              |
+| `read` / `entries` / `find` / `pick` / `use`  | Read a slot: items, items with their plugin, by key, the winner or null, the winner or throw                                                   |
+| `provide(live, initial)`, `value(live)`       | Hold a live value (`{ get, set, update }`; setting it pushes to apps), or read one                                                             |
+| `changed(op or live)`                         | Tell apps that what an operation returns has changed; `useOp` refetches                                                                        |
+
+Also exported: `deny(reason)` to refuse from a hook, `toolError(text)` to fail an agent tool call,
+`OpError`.
+
+## Server part
 
 ```ts
 import { deny, sessions, threads, type PluginServerApi } from "@bb/plugin";
 import { notes } from "./contract.js";
 
-export default function plugin(bb: PluginServerApi): void {
+export default function server(bb: PluginServerApi): void {
   const count = bb.provide(notes.count, 0);
 
-  bb.implement(notes.add, async ({ projectId, text }, { caller, signal }) => {
+  bb.implement(notes.create, async ({ projectId, text }, { caller }) => {
     const note = insert(projectId, text, caller.user);
     count.update((n) => n + 1);
     bb.changed(notes.list);
-    bb.emit(notes.added, { note });
+    bb.emit(notes.created, { note });
     return note;
   });
   bb.implement(notes.list, ({ projectId }) => all(projectId));
@@ -91,64 +129,41 @@ export default function plugin(bb: PluginServerApi): void {
   bb.on(threads.send, { threadId }, () => deny("Not now")).failClosed();
 
   bb.add(notes.store, { all });
-  const thread = await bb.call(threads.get, { threadId });
 }
 ```
 
-| Verb                                         | Meaning                                                                                                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `implement(op, run)`                         | This plugin is the operation's one implementation. `run(input, { caller, signal })`.                                                            |
-| `call(op, input, { signal? })`               | Call any operation. The call is attributed to this plugin (`caller.via`).                                                                       |
-| `on(op, [matcher], hook)`                    | Wrap an operation. `hook(input, next)`; `next(changedInput?)` runs the rest; `next.origin` is the caller. `.failClosed()` makes a crash refuse. |
-| `on(event, listener)`                        | Listen.                                                                                                                                         |
-| `emit(event, payload)`                       | Tell listeners.                                                                                                                                 |
-| `add(slot, item)`                            | Add to a slot; returns a function that removes it.                                                                                              |
-| `wrap(slot, matcher, change)`                | Change items others added: `change(item) => item`.                                                                                              |
-| `read` / `entries` / `find` / `pick` / `use` | Read a slot: items, items with their plugin, by key, the winner or null, the winner or throw.                                                   |
-| `provide(live, initial)`                     | Hold a live value: `{ get, set, update }`. Setting it pushes to apps.                                                                           |
-| `changed(op or live)`                        | Tell apps that what an operation returns has changed; `useOp` refetches.                                                                        |
-| `value(live)`                                | Read a live value another plugin provides.                                                                                                      |
+### What the server's host provides
 
-Primitives that stay as they were: `bb.pluginId`, `bb.log`, `bb.dataDir`, `bb.settings.define`,
-`bb.storage.kv`, `bb.storage.database()` / `migrate`, `bb.http.route` (raw `Request` to `Response`, for
-bytes and webhooks), `bb.background.service`, `bb.status.needsConfiguration`, `bb.onDispose`,
-`bb.server.url|dataDir|tunnelToken`, and `bb.cli.register(defineCli(...))` for a CLI that needs its own
-argument parsing or output (its handlers should `bb.call` the plugin's operations).
+| Member                                   | What it is                                                                                                                         |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `bb.server`                              | The server's configuration (`dataDir`, `hostId`, `version`, `port`, …) plus `url` and `tunnelToken`                                |
+| `bb.now()`                               | The server's clock                                                                                                                 |
+| `bb.db`                                  | The shared SQLite database: `get`, `all`, `run`, `transaction`, `now`. Core tables are read through `@bb/server-kit/db/*`          |
+| `bb.realtime`                            | Tells connected apps what changed: `thread`, `project`, `environment`, `host`, `system`, `threadOpen`, `presence`, `onChanged`     |
+| `bb.runners`                             | Every connected machine: `get(hostId)` is its `Runner`; `call(hostId, op, input)` calls a runner part; `isConnected`, `onEvent`, … |
+| `bb.http.api(routes, { internal? })`     | Mounts Hono routes under `/api/v1` (or `/internal`), beside core's own                                                             |
+| `bb.http.route(method, path, handler)`   | A raw `Request` to `Response` handler under `/api/v1/plugins/<id>/http/`, with `auth: "local" \| "token" \| "none"`                |
+| `bb.http.socket(resolver)`               | Answers a WebSocket upgrade for a path                                                                                             |
+| `bb.dataDir`, `bb.storage`               | The plugin's own directory and storage (below)                                                                                     |
+| `bb.settings.define(fields, { scope })`  | Settings: `string` (`secret`, `multiline`), `boolean`, `select`, `number`. `scope: "user"` keeps a value per person                |
+| `bb.background.service(name, { start })` | A supervised long-running task. `bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron                      |
+| `bb.cli.register(defineCli(...))`        | A hand-written CLI, for commands that are not one operation. It is merged with the plugin's `doors.cli` commands                   |
+| `bb.status.needsConfiguration(message)`  | Shows the plugin as waiting for setup                                                                                              |
+| `bb.sdk`                                 | The typed client the app and CLI use, in-process and attributed to the plugin. For what core has no operation for                  |
 
-`bb.settings.define(fields, { scope: "user" })` keeps a value per person (a member may change their
-own; the default scope, `"workspace"`, is one value changed by an owner). `bb.machine(hostId).call(op,
-input)` calls an operation that a runner part implements on that machine.
+Storage is in two places, by who owns the data:
 
-Everything a plugin registers through a verb is undone when it unloads. `onDispose` is only for
-resources of its own (timers, sockets). `bb.onStart(start)` runs `start` once every plugin's entry has
-run, so it may rely on what other plugins registered; a function it returns runs on unload.
-
-### Host services
-
-Core plugins are written against this same `bb`; there is no private context. What the host itself
-provides is on every plugin's handle:
-
-| Member                               | What it is                                                                                                                     |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `bb.db`                              | The shared SQLite database: `get`, `all`, `run`, `transaction`, `now`. Core tables are read through `@bb/server-kit/db/*`      |
-| `bb.realtime`                        | Tells connected apps what changed: `thread`, `project`, `environment`, `host`, `system`, `threadOpen`, `presence`, `onChanged` |
-| `bb.runners`                         | Every connected machine: `get(hostId)` returns its `Runner`; `isConnected`, `onEvent`, `onConnected`, `onDisconnected`         |
-| `bb.config`, `bb.now()`              | Server configuration (data directory, host id, version) and the server's clock                                                 |
-| `bb.http.api(routes, { internal? })` | Mounts Hono routes under `/api/v1` (or `/internal`), beside core's own                                                         |
-| `bb.http.socket(resolver)`           | Answers a WebSocket upgrade for a path                                                                                         |
+- **Yours.** `bb.storage.kv` for small values; `bb.storage.database(migrations?)` for a private
+  SQLite file; `bb.storage.tables` for tables of your own in the shared database.
+- **Everyone's.** `bb.db` queries the shared database, including tables other plugins published.
 
 Prefer an operation to a route when another plugin might want to hook or call it; core's routes call
-their own operations for that reason. A plugin reaches another plugin only through a contract: an
-operation, an event, a slot or a service. Sign-in is a service too: the host asks
-`server.authenticator` who a request is from, the identity plugin provides it, and a plugin that adds
-its own takes over.
-
-`internal: true` on an operation keeps it off the app door: only server code can call it. Use it when
-the input cannot be validated by the schema alone.
+their own operations for that reason. A plugin reaches another plugin only through a contract.
 
 ### Doors
 
-- Every operation is callable from an app (`POST /api/v1/ops/<name>`, `useOp`, `useCall`).
+- Every operation that is not `internal` is callable from an app (`POST /api/v1/ops/<name>`, `useOp`,
+  `useCall`).
 - `doors.agent` offers it to agents as a tool: `{ name, description, instructions?, presentation?,
 enabledFor?(context) }`. The implementation sees `caller.thread` (the calling thread) and
   `caller.door === "agent"`. A string result is returned as is, anything else as JSON.
@@ -159,29 +174,28 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
 
 ### What core offers (`packages/plugin/src/core-contracts.ts`)
 
-| Contract                        | Operations                                                                                                                                                                                                                                                                               | Events, slots, tables                                                                                                                                                                                                          |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `threads`                       | `create`, `send`, `stop`, `archive`, `unarchive`, `delete`, `get`, `list`, `output`, `events`, `update`, `compact`, `clearContext`, the queue writes, `addRow`, `hold` (hook it to keep a message queued), `release`, `storageLocation`, `workspace`, `requestInput`, `settled`, `sweep` | events `created`, `active`, `idle`, `failed` (with `failure: { code, message, detail }`), `archived`, `unarchived`, `deleted`, `appended`, `messageQueued`, `messageDispatched`, `messageCancelled`, `released`; table `table` |
-| `sessions`                      | `instructions`, `env`, `skillDirs`, `tools` (hook these to contribute or filter); `providers`, `executionOptions` (read); `title`, `searchMentions`, `resolveMention`                                                                                                                    | slots `provider`, `mention`, `inference`, `usage`                                                                                                                                                                              |
-| `interactions`                  | `ask` (ask the user through a thread), `resolve`, `respond`, `cancel`                                                                                                                                                                                                                    | `pending`                                                                                                                                                                                                                      |
-| `files`                         | `read`, `write`, `list`, `mkdir`, `remove`, `move` (in a thread's workspace)                                                                                                                                                                                                             |                                                                                                                                                                                                                                |
-| `machines`                      | `list`; `enroll`, `waitConnected`, `update`, `suspend`, `resume`, `remove`                                                                                                                                                                                                               | events `connected`, `disconnected`, `removed`, `signal`; slot `provider`; services `access`, `usable`                                                                                                                          |
-| `environments`                  | `get`, `list`, `instructions`, `remove`, `sweep`                                                                                                                                                                                                                                         | slot `kind`; event `released`                                                                                                                                                                                                  |
-| `projects`, `users`, `sections` | `list`; `users.current`; `sections.create`                                                                                                                                                                                                                                               | table `projects.table`; event `projects.deleted`                                                                                                                                                                               |
-| `terminals`                     | `resize`                                                                                                                                                                                                                                                                                 | event `input`                                                                                                                                                                                                                  |
-| `appearance`                    |                                                                                                                                                                                                                                                                                          | slot `theme` (filled from `bb.themes` in each manifest)                                                                                                                                                                        |
-| `plugins`                       | `inspect`, `describe`, `install`, `uninstall`, `reload`; `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                        |                                                                                                                                                                                                                                |
-| `server`                        |                                                                                                                                                                                                                                                                                          | services `publicUrl`, `authenticator`                                                                                                                                                                                          |
-| `audit`                         | `list`                                                                                                                                                                                                                                                                                   |                                                                                                                                                                                                                                |
+| Contract                        | Operations                                                                                                                                                                                                                                                                                                                                           | Events, slots, services, tables                                                                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threads`                       | `create`, `get`, `list`, `update`, `delete`, `send`, `stop`, `archive`, `unarchive`, `compact`, `clearContext`, `output`, `events`, `workspace`, `storageLocation`, `addRow`, `createQueuedMessage`, `updateQueuedMessage`, `deleteQueuedMessage`, `sendQueuedMessage`, `hold` (hook it to keep a message queued), `release`, `waitSettled`, `sweep` | events `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted`, `retired`, `appended`, `messageQueued`, `messageDispatched`, `messageDeleted`; table `table` |
+| `interactions`                  | `ask` (ask the user through a thread), `resolve`, `respond`, `cancel`                                                                                                                                                                                                                                                                                | event `pending`                                                                                                                                                                 |
+| `sessions`                      | `instructions`, `env`, `tools`, `skillDirs` (hook these to contribute or filter per thread); `providers`, `executionOptions`, `title`, `searchMentions`, `resolveMention`                                                                                                                                                                            | slots `provider`, `mention`, `inference`, `usage`; service `titleFallback`                                                                                                      |
+| `files`                         | `read`, `write`, `list`, `mkdir`, `delete`, `move` (in a thread's workspace)                                                                                                                                                                                                                                                                         |                                                                                                                                                                                 |
+| `machines`                      | `list`, `enroll`, `waitConnected`, `update`, `suspend`, `resume`, `delete`                                                                                                                                                                                                                                                                           | events `connected`, `disconnected`, `deleted`, `signaled`; slot `provider`; services `access`, `guard`                                                                          |
+| `environments`                  | `get`, `list`, `instructions`, `delete`, `sweep`; `ensure` in `bb-plugin-environments/contract`                                                                                                                                                                                                                                                      | slot `kind`; event `destroyed`                                                                                                                                                  |
+| `terminals`                     | `resize`                                                                                                                                                                                                                                                                                                                                             | event `inputReceived`                                                                                                                                                           |
+| `projects`, `users`, `sections` | `projects.list`; `users.current`, `users.list`; `sections.list`, `sections.create`                                                                                                                                                                                                                                                                   | table `projects.table`; event `projects.deleted`                                                                                                                                |
+| `plugins`                       | `inspect`, `describe`, `install`, `uninstall`, `reload`; `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                                                                                    |                                                                                                                                                                                 |
+| `server`, `appearance`, `audit` | `audit.list`                                                                                                                                                                                                                                                                                                                                         | services `server.publicUrl`, `server.authenticator`; slot `appearance.theme`                                                                                                    |
 
-`threads.create` takes a `CreateThreadRequest`; a plugin sets `origin: "plugin"` and
-`originPluginId`. `threads.send` takes `{ threadId, request }`. The remaining thread and interaction
-writes take `{ threadId, args: [...] }`.
-
-`bb.sdk` is the same typed client the app and the CLI use (`threads`, `projects`, `environments`,
-`hosts`, `providers`, `system`, `terminals`, `files`, and the rest). Calls run in-process as whoever
-called your plugin, and the audit record names your plugin, so use it for anything core has no
-operation for.
+- `threads.create` takes a `CreateThreadRequest`; a plugin sets `origin: "plugin"` and
+  `originPluginId`. `threads.send` takes `{ threadId, request }`; `threads.update` takes
+  `{ threadId, patch }`. The queue operations take `{ threadId, queuedMessageId, … }` and the
+  interaction operations `{ threadId, interactionId, … }`.
+- Contributions that depend on the thread are hooks on an operation (`sessions.instructions`,
+  `env`, `tools`, `skillDirs`): the hook gets the thread's context and may filter what others added.
+  Registrations that do not are slot entries (`sessions.provider`, `mention`, `inference`, `usage`).
+- Sign-in is a service: the host asks `server.authenticator` who a request is from. The identity
+  plugin provides it, and a plugin that adds its own takes over.
 
 ### Timeline rows
 
@@ -200,8 +214,8 @@ The key is `<plugin id>/<kind>`. The CLI shows the title.
 
 ### Shared tables
 
-A plugin's own SQLite file (`bb.storage.database()`) cannot be joined with anything else. For data
-that other plugins should read, or that you want to join with threads, use tables in the main
+A plugin's private database (`bb.storage.database()`) cannot be joined with anything else. For data
+that other plugins should read, or that you want to join with threads, keep tables in the shared
 database:
 
 ```ts
@@ -209,41 +223,36 @@ const items = bb.storage.tables.name("items");
 bb.storage.tables.migrate([
   `CREATE TABLE ${items} (thread_id TEXT NOT NULL, note TEXT)`,
 ]);
-bb.storage.tables.run(
-  `INSERT INTO ${items} VALUES (?, ?)`,
-  threadId,
-  "ship it",
-);
 bb.storage.tables.publish(tracker.items, "items");
+bb.db.run(`INSERT INTO ${items} VALUES (?, ?)`, threadId, "ship it");
 ```
 
 - Your tables are named `p_<plugin id>_<name>`. Migrations are an append-only list, checked by hash,
   and may only create, alter or drop your own tables, indexes and views.
-- `run` writes only to your own tables. `all` and `get` take a `SELECT`, which may join anything
-  published.
 - Publish through the contract: `items: table<{ threadId: string; note: string }>()`, then
   `tables.publish(contract.items, "items")`. Another plugin joins with
-  `tables.of(tracker.items)`.
+  `bb.storage.tables.of(tracker.items)` in a `bb.db` query.
 - Core publishes `threads.table` and `projects.table`, read-only views of live threads and projects.
 - Column names are snake_case in SQL; rows come back with camelCase keys.
 
 ### Machines and environments
 
 An environment kind is `bb.add(environments.kind, { id, displayName, icon, inputs?, validate?,
-create(context), remove(context) })`.
+create(context), delete(context) })`.
 
 - `create(context)` receives `thread`, `project`, `host`, `checkoutPath`, `branchName`, the user's
   `inputs`, the `machine` request if the user asked for a new machine, the `resource` you stored
   before, `report(text, status?)` for progress lines and a `signal`. It returns `{ path }` and
   optionally `hostId` (the machine it created), `resource` (JSON to keep) and `branchName`.
-- `remove({ hostId, path, resource })` undoes it. `validate(inputs, { projectId, hostId })` returns a
+- `delete({ hostId, path, resource })` undoes it. `validate(inputs, { projectId, hostId })` returns a
   message to refuse a thread before it is created.
 - Give the kind `inputs` (any non-null JSON) and add a form in the app part:
   `bb.add(composer.environmentInputs, { kind: "<id>", view })`. The view gets `value`, `onChange`,
   `projectId` and `hostId`.
+- Using a built-in id (`git-worktree`, `personal-workspace`, `project-checkout`) replaces that kind.
 
 To create machines (a sandbox, a VM), add a `machines.provider` (`{ id, displayName, suspend?,
-resume?, remove? }`) and use the machine operations:
+resume?, delete? }`) and use the machine operations:
 
 ```ts
 const { hostId, command } = await bb.call(machines.enroll, {
@@ -257,9 +266,9 @@ return { path: "/workspace", hostId, resource: { box } };
 ```
 
 `command` is the `bb runner join …` line to run on the new machine; `bb` must be installed there.
-`machines.suspend`, `resume` and `remove` call your provider and update the machine;
-`machines.connected` and `disconnected` are events. Hook `threads.send` to resume a suspended
-machine before a message is delivered.
+`machines.suspend`, `resume` and `delete` call your provider and update the machine;
+`machines.connected`, `disconnected` and `deleted` are events. Hook `threads.send` to resume a
+suspended machine before a message is delivered.
 
 ### Providers
 
@@ -268,81 +277,85 @@ that adds a `ProviderDeclaration` to `sessions.provider`. The declaration may se
 and `modelCatalogScope`; it defaults to all modes and a per-machine catalog. Add a
 `sessions.usage` source to report quota. To configure the runner part (for example a list of agents
 to launch), keep the configuration in settings, implement an operation in the runner part that
-takes it, and call it with `bb.machine(hostId).call(...)` on `machines.connected` and when the
-setting changes. A runner part reports back with `bb.signal(name, payload)`, which arrives as the
-`machines.signal` event.
-
-### Settings, schedules
-
-`bb.settings.define` takes `string` (optionally `secret` or `multiline`), `boolean`, `select`
-(`options: [{ value, label }]`) and `number` (`min`, `max`, `integer`).
-`bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron in the server's
-time zone.
+takes it, and call it with `bb.runners.call(hostId, op, input)` on `machines.connected` and when the
+setting changes.
 
 ## App part
 
 ```tsx
-import { plugin, useCall, useLive, useOp, useSlot } from "@bb/plugin/app";
+import {
+  shell,
+  useCall,
+  useLive,
+  useOp,
+  useSlot,
+  type PluginAppApi,
+} from "@bb/plugin/app";
 import { notes } from "./contract";
 
-export default plugin((bb) => {
-  bb.slots.navPanel({
+export default function app(bb: PluginAppApi): void {
+  bb.add(shell.navPanel, {
     id: "notes",
     title: "Notes",
     icon: "ListTodo",
     path: "notes",
-    component: Notes,
+    view: Notes,
   });
-});
+}
 
 function Notes() {
   const list = useOp(notes.list, { projectId });
-  const add = useCall(notes.add);
+  const create = useCall(notes.create);
   const count = useLive(notes.count);
   const exporters = useSlot(notes.exporter);
 }
 ```
 
-- `bb` has the same verbs. `bb.slots.*` and `bb.commands.register` are short forms for the `shell`
-  slots that also check the registration and stamp the plugin id; prefer them for those ten slots.
-- `bb.call(op, input)` and `callOp(op, input)` run an operation the app implements locally, else on
-  the server.
-- Hooks: `useOp(op, input, { enabled? })` gives `{ status, data, error, refetch }` and refetches when
-  the server calls `bb.changed(op)`; `useCall(op)`; `useLive(live)`; `useChanged(member, handler)`;
-  `useSlot(slot)`, `useSlotEntries(slot)` (with the plugin id), `useSlotEntry(slot, key)`.
-- Wrap what a slot's owner draws in `<SlotMount pluginId slot id>` so a crash in one entry is contained.
-- App slots, all filled by core through this same API and open to `add` and `wrap`:
+`bb` in an app part is the shared handle and nothing more. `bb.call(op, input)` and
+`callOp(op, input)` run an operation the app implements locally, else on the server.
 
-  | Contract     | Slots                                                                                                                                               |
-  | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `shell`      | `route`, `navItem`, `threadAction`, `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`, `messageDirective`, `command` |
-  | `shell`      | pick-one: `threadList`, `sidebarNavigation`, `sidebarHeader`                                                                                        |
-  | `threadView` | `row` (a renderer per timeline row kind), `rowDetail` (per work-row kind), `pluginRow` (rows a plugin stored), `messageAction`                      |
-  | `composer`   | `menuItem` (the "+" menu), `footerControl`, `sendMenuItem`, `banner`, `textEffect`, `environmentInputs`                                             |
-  | `sidePanel`  | `tab` (per tab kind: body, icon, title), `fileViewer` (per file extension)                                                                          |
-  | `settings`   | `page`                                                                                                                                              |
+### Slots
 
-  For example `bb.wrap(threadView.row, { kind: "work" }, (item) => ({ ...item, view: Wrapped }))`.
+Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills them the same way.
 
-- More slots: `shell.threadHeader` (a component in the thread header, given `threadId`),
-  `shell.sidebarFooter` (`{ id, label, icon, run }`), `shell.homeSection` (a component on the home
-  screen), `composer.environmentInputs` and `threadView.pluginRow` (above).
-- `bb.onMount(({ signal }) => cleanup)` runs while the plugin is loaded, for work that is not tied
-  to a component.
-- `bb.setThreadRowStatus(threadId, { icon, label, tone } | null)` shows a status on a thread's row
-  in the sidebar. `bb.icons.register({ Name: Component })` adds icons usable wherever an icon name
-  is taken. `useBbNavigate().openFile({ threadId, path })` opens a file in the thread's side panel.
-- A `shell.sidebarFooter` entry is `{ id, label, icon, run }` or `{ id, label, icon, view }` for a
-  component of its own.
+| Contract     | Slots                                                                                                                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shell`      | `route`, `navItem`, `navPanel`, `overlay`, `command`, `threadAction`, `sidebarFooter`, `threadRowStatus`; providers the user picks between: `threadList`, `sidebarNavigation`, `sidebarHeader`                                                 |
+| `threadView` | `row` (a renderer per timeline row kind), `rowDetail` (per work-row kind), `pluginRow` (rows a plugin stored), `messageAction`, `header` (a component in the thread header), `interaction` (a form for `interactions.ask`), `messageDirective` |
+| `composer`   | `menuItem` (the "+" menu), `footerControl`, `sendMenuItem`, `banner`, `textEffect`, `environmentInputs`, `homeSection`                                                                                                                         |
+| `sidePanel`  | `tab` (per tab kind: body, icon, title), `fileViewer` (per file extension), `panel` (a plugin's own panel and the action that opens it)                                                                                                        |
+| `settings`   | `page`, `section` (a section on the plugin's own settings page)                                                                                                                                                                                |
+| `app`        | `icon` (`{ name, view }`, usable wherever an icon name is taken); `parts` (a plugin's published components); `root` is the service that draws the screen, provided by the shell                                                                |
+
+- An entry's component is always `view`. Entries with an `id` are checked when added: the id must
+  match `[a-zA-Z0-9_-]+`, be unique within the plugin and come with its `view` (or `run`, for a
+  command).
+- `bb.add(shell.threadRowStatus, { threadId, icon, label, tone? })` shows a status on a thread's row
+  in the sidebar; call the function it returns to clear it.
 - `bb.add(sidePanel.fileViewer, { id, extensions: ["pdf"], view })` draws files with those
   extensions; the view gets `{ path, name, url, mimeType, content, refresh }`.
 - `bb.add(threadView.messageAction, { id, label, icon, run(message) })` adds a button under a
   message.
-- The composer's pickers are parts: `ModelReasoningPicker`, `PermissionModePicker`, `BranchPicker`
-  and `useNewThreadComposer` from `bb-plugin-composer/contract`. Diff and code views are in
-  `@bb/app-kit/components/code` and `@bb/app-kit/components/git-diff`.
-- Components from `@bb/plugin/app`: `ThreadChat`, `ThreadTitle`, `ThreadViewers`, `Markdown`,
-  `ImageLightbox`, `Icon`, `ProviderIcon`, `UrlLink`.
+- A `shell.sidebarFooter` entry is `{ id, label, icon, run }` or `{ id, label, icon, view }`.
+- For example `bb.wrap(threadView.row, { kind: "work" }, (item) => ({ ...item, view: Wrapped }))`.
+- Wrap what a slot's owner draws in `<SlotMount pluginId slot id>` so a crash in one entry is
+  contained.
+
+### Hooks and components from `@bb/plugin/app`
+
+| Group                | Names                                                                                                                                                                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operations and slots | `useOp(op, input, { enabled? })` gives `{ status, data, error, refetch }` and refetches on `bb.changed(op)`; `useCall(op)`; `callOp`; `useLive(live)`; `useChanged(member, handler)`; `useSlot`, `useSlotEntries` (with the plugin id), `useSlotEntry(slot, key)`; `SlotMount`               |
+| The host             | `usePluginId`, `useSdk`, `useSettings`, `useRealtimeConnectionState`, `useBbContext`, `useBbNavigate` (`toThread`, `toProject`, `toPluginPanel`, `toCompose`, `openThreadPanel`, `openUrl`, `openFile`), `useProviders`, `useEnvironmentProviders`, `useQuestionFormHost`                    |
+| Components           | `Icon`, `ProviderIcon`, `UrlLink`, `Markdown`, `ImageLightbox`, `ThreadViewers`                                                                                                                                                                                                              |
+| From the shell       | `useSidebarThreads`, `useSidebarThreadActions`, `useSidebarThreadSplit`, `useSidebarNavigationSplit`, `useSidebarSplitLayout`, `useSidebarThreadShortcut`, `useSidebarThreadDraft`, `useSidebarThreadDraftIds`, `useSidebarThreadRowStatus`, `useSidebarNavigation`, `SidebarNavigationIcon` |
+| From the thread view | `ThreadChat`, `ThreadTitle`                                                                                                                                                                                                                                                                  |
+| From the composer    | `useComposer`, `useComposers`                                                                                                                                                                                                                                                                |
+
+The last three rows are services (`shell.api`, `threadView.api`, `composer.api`) that those plugins
+provide and `@bb/plugin/app` forwards to. Each has a typed interface (`ShellApi`, `ThreadViewApi`,
+`ComposerApi`), so a plugin that replaces the shell must supply the same hooks. The app host itself
+knows no feature: it renders whatever provides `app.root`.
 
 ### The composer
 
@@ -359,7 +372,8 @@ control), or the focused one elsewhere; `useComposers()` gives every composer on
 | `setInputLock(locked)`, `setTextEffect({ className } \| null)`                                  | Stop editing, or put a class on the whole editor                                            |
 | `submit()`, `onSubmitted(listener)`                                                             | Send, and hear about each send                                                              |
 
-`bb.add(composer.banner, { id, view })` draws a component above the editor; it receives
+Menu items, send-menu items and footer controls receive a context: `{ surface, threadId, projectId,
+composer }`. `bb.add(composer.banner, { id, view })` draws a component above the editor; it receives
 `{ composer }`. `bb.add(composer.textEffect, { id, className, match })` paints parts of the draft:
 `match(text, { offset })` is called for each run of text with its offset in the draft and returns
 `{ from, to }` ranges within that run. The text itself is never changed.
@@ -382,6 +396,23 @@ and the rest, under `:root, .light` and `.dark`). The theme appears in Settings 
 `plugin:<plugin id>:<theme id>` and is listed on `bb.sdk.system.config().themes`. `codeTheme` takes
 names of syntax themes bb already has, not files.
 
+### Using another feature's components
+
+Beyond the public hooks above, a screen plugin publishes its own components as parts.
+`plugins/composer/contract.ts` exports `FollowUpPromptBox`, `ModelReasoningPicker`,
+`PermissionModePicker`, `BranchPicker`, `useNewThreadComposer`, the draft storage hooks and more.
+Import them from `bb-plugin-composer/contract` and use them like the originals. A part is a thin
+stand-in that finds the current provider when it renders (a component) or is called (a hook or
+function), so it renders nothing, or throws when called, while no plugin provides it. To publish one
+of your own: export it from `parts.ts`, declare it in `contract.ts` with
+`part<typeof Module.Name>("<your id>", "Name")` or `callPart<…>`, and keep
+`bb.add(app.parts, { plugin: "<your id>", parts })` in `app.tsx`. Values that are not functions
+(atoms, contexts, constants) cannot be parts; they belong in a kit.
+
+A part is typed by its current implementation; a service is typed by an interface. Use a service
+for something others depend on, a part for a component you are sharing as it is. Diff and code views
+are library code in `@bb/app-kit/components/code` and `@bb/app-kit/components/git-diff`.
+
 ## Runner part
 
 Code that must run on the machine (a provider, anything touching its files or processes).
@@ -390,29 +421,31 @@ Code that must run on the machine (a provider, anything touching its files or pr
 import { runner, type PluginRunnerApi } from "@bb/runner";
 import { probe } from "./contract.js";
 
-export default function plugin(bb: PluginRunnerApi): void {
+export default function part(bb: PluginRunnerApi): void {
   bb.add(runner.provider, adapter);
   bb.implement(probe.diskFree, () => freeBytes());
 }
 ```
 
-`bb` has the kernel verbs plus `pluginId`, `dataDir`, `log` and `signal(name, payload)`. `runner.provider` takes a
-`ProviderAdapter` (`packages/runner/src/providers/provider.ts`); a provider plugin also adds a
-`ProviderDeclaration` to `sessions.provider` in its server part. The server sends an external
-plugin's runner part to every machine when it connects and when the plugin changes; a machine's own
-operations are reached from the server part with `bb.machine(hostId).call(op, input)`.
+`bb` is the shared handle plus `dataDir` and `signal(name, payload)`. `runner.provider` takes a
+`ProviderAdapter` (`packages/runner/src/providers/provider.ts`). The server sends an external
+plugin's runner part to every machine when it connects and when the plugin changes.
 
-An environment kind needs only a server part: `bb.add(environments.kind, { id, displayName, icon,
-create(context), remove({ hostId, path }) })`. `create` returns `{ path }` and may itself call a
-runner operation to make the directory. Using a built-in id (`git-worktree`, `personal-workspace`,
-`project-checkout`) replaces that kind.
+How the three sides reach each other:
+
+| From   | To     | How                                                                |
+| ------ | ------ | ------------------------------------------------------------------ |
+| app    | server | `useOp`, `useCall`, `callOp`                                       |
+| server | app    | `bb.changed(op)`, a live value, `bb.realtime`                      |
+| server | runner | `bb.runners.call(hostId, op, input)`                               |
+| runner | server | `bb.signal(name, payload)`, heard as the `machines.signaled` event |
 
 ## Forking a built-in plugin
 
-`bb dev fork <id> [path]` copies a plugin from `plugins/` to a directory of yours and loads the copy
-in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings the
-original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the eleven core
-server plugins and the five core app plugins.
+`bb dev fork <id> [--path <dir>]` copies a plugin from `plugins/` to a directory of yours and loads
+the copy in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings
+the original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the ten
+core server plugins and the five core app plugins.
 
 - The copy keeps the original's id, so its contract names, settings and data carry over and it
   takes the original's place.
@@ -423,42 +456,21 @@ server plugins and the five core app plugins.
 - `bb.forkOf` in the copy's `package.json` names the original. The copy's `node_modules` holds links
   to the packages the original uses, so it builds and typechecks (`tsc -p .`, or an editor) without
   an install. Installing packages of your own there is fine; existing links are left alone.
-- A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`,
+- A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`, `@bb/app-kit/*`,
   `@bb/client-core`, `@bb/core-ui`, `@tanstack/react-query`, `jotai` and `react-router-dom` resolve
-  to the app's own copies (`PLUGIN_HOST_MODULES`), loaded on demand.
+  to the app's own copies, loaded on demand.
 - Tailwind classes in an external app part work. Classes the app does not already ship are compiled
   by the server into one utilities sheet for the app and every external plugin together, so the
   order of responsive and state variants is the same as in a single build. A plugin's own imported
   `.css` files are served separately and unlayered rules in them win over utilities.
 - `import.meta.url` in a server or runner part still points at the source file, so reading files
   beside the source (`new URL("./logo.svg", import.meta.url)`) works from a fork.
-- Core server features fork the same way: `bb dev fork threads` gives you the thread engine,
-  `environments`, `terminals`, `machines`, `sessions`, `projects`, `identity`, `settings`,
-  `workspace`, `interactions` and `audit-log` likewise. They import the data layer and helpers from
-  `@bb/server-kit/*`, which a fork shares with the running server.
-- The app's screens fork too: `shell`, `thread-view`, `composer`, `side-panel` and `settings`. They
-  import shared client code from `@bb/app-kit/*` (the running app's own modules) and each other's
-  components through `bb-plugin-<id>/contract`, so a forked composer is the one the thread page
-  shows.
-- What does not fork: the two kits (`packages/server-kit`, `packages/app-kit`). They hold the data
-  layer, shared state and the components several features use; change those in the repository.
-  The app kit holds only what two or more screen plugins use. Anything one plugin alone uses lives
-  in that plugin, and what a plugin owns but others read is published from its contract: the
-  composer publishes the composer list (`useComposer`, `useComposers`), draft storage
-  (`usePromptDraftStorage`, `getPromptDraftAccessor`, `usePromptDraftHasInput`,
-  `usePromptDraftInputThreadIds`), prompt history and pane focus, so a fork of the composer decides
-  how drafts are kept.
-
-### Using another feature's components
-
-`plugins/composer/contract.ts` exports parts such as `FollowUpPromptBox` and `usePromptTypeahead`.
-Import them from `bb-plugin-composer/contract` and use them like the originals. A part is a thin
-stand-in that finds the current provider when it renders (a component) or is called (a hook or
-function), so it renders nothing, or throws when called, while no plugin provides it. To publish one
-of your own: export it from `parts.ts`, declare it in `contract.ts` with
-`part<typeof Module.Name>("<your id>", "Name")` or `callPart<…>`, and keep
-`bb.add(appParts.parts, { plugin: "<your id>", parts })` in `app.tsx`. Values that are not functions
-(atoms, contexts, constants) cannot be parts; they belong in a kit.
+- Core server features fork the same way: `threads`, `environments`, `terminals`, `machines`,
+  `sessions`, `projects`, `identity`, `settings`, `workspace` and `audit-log`. They use the host
+  services above and library code from `@bb/server-kit/*`, which a fork shares with the running
+  server.
+- What does not fork: the two kits (`packages/server-kit`, `packages/app-kit`). They are libraries:
+  the data layer and helpers. The app kit holds only what two or more screen plugins use.
 
 ## Tools
 
@@ -469,38 +481,17 @@ manifest and lists what the source implements, hooks, calls and adds, and where 
 `bb dev types <dir>` links bb's packages into the plugin's `node_modules` and writes
 `.bb/tsconfig.json`, so an editor resolves bb's types.
 `bb dev install <git:url[#ref] | npm:spec | dir>` fetches and loads a plugin (owner only).
-`bb dev fork <id> [path] [--as <new-id>]` copies a built-in plugin and runs the copy in its place, or
-beside it under a new id (owner only).
+`bb dev fork <id> [--path <dir>] [--as <new-id>]` copies a built-in plugin and runs the copy in its
+place, or beside it under a new id (owner only).
 `bb dev port <dir>` reads a plugin written for the original bb, without running it, and lists every
 call it makes with what that call is now: unchanged, renamed, works differently, needs a feature
-this bb does not have, or has no counterpart.
+this bb does not have, or has no counterpart. `docs/plugin-migration-gaps.md` has the totals.
 `bb audit list --plugin <id>` shows what a plugin did for whom.
 
 `createPluginHarness()` from `@bb/plugin/testing` loads a server part against a bare kernel for unit
-tests: `harness.load(id, entry)`, `harness.stub(op, run)` for core operations the plugin calls,
-`harness.as(caller, work)`, and the audit `records`.
-
-## Moving a plugin off the old API
-
-The old names are gone; this table is for porting a plugin that was written against the previous
-API in this repository. For a plugin written for the original bb, run `bb dev port <dir>`;
-`docs/plugin-migration-gaps.md` has the totals.
-
-| Old                                                                                  | New                                                                                                        |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `bb.rpc.register(contract, handlers)` and `useRpc().call`                            | Operations in `contract.ts`; `bb.implement`; `useOp` for reads, `useCall` / `callOp` for writes            |
-| `bb.agents.registerTool`                                                             | An operation with `doors.agent`                                                                            |
-| `bb.agents.contributeInstructions`                                                   | `bb.on(sessions.instructions, …)`                                                                          |
-| `bb.providers.contributeEnv(providerId, fn)`                                         | `bb.on(sessions.env, { providerId }, async (context, next) => [...mine, ...(await next())])`               |
-| `bb.events.on("thread.idle", fn)`                                                    | `bb.on(threads.idle, fn)`                                                                                  |
-| `bb.threads.spawn/send/get/list/stop/update/output/events`                           | `bb.call(threads.create                                                                                    | send          | get           | list       | stop          | update          | output     | events, …)`      |
-| `bb.projects.list()`, `bb.hosts.list()`, `bb.users.*`, `bb.sections.*`, `bb.files.*` | `bb.call(projects.list                                                                                     | machines.list | users.current | users.list | sections.list | sections.create | files.read | files.write, …)` |
-| `bb.ui.requestInput(request)`                                                        | `bb.call(interactions.ask, request)`                                                                       |
-| `bb.ui.registerMentionProvider`, `bb.inference.register`                             | `bb.add(sessions.mention, provider)`, `bb.add(sessions.inference, service)`                                |
-| `bb.machines.setAccessProvider`, `bb.server.setPublicUrl`                            | `bb.add(machines.access, provider)`, `bb.add(server.publicUrl, () => url)` (keep the remover to change it) |
-| `bb.realtime.publish` and `useRealtime`                                              | `bb.changed(op)` with `useOp`, or a `live` value with `useLive`, or `useChanged`                           |
-| `bb.cli.register` with simple commands                                               | `doors.cli`                                                                                                |
-| `definePluginApp((app) => app.slots.x(...))`                                         | `plugin((bb) => bb.slots.x(...))` (the same function under its new name)                                   |
+tests: `harness.load(id, entry, options)`, `harness.stub(op, run)` for core operations the plugin
+calls, `harness.as(caller, work)`, and the audit `records`. Pass `db`, `realtime`, `runners` or
+`server` in the options when the part uses them.
 
 ## Conventions
 

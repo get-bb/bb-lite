@@ -275,7 +275,7 @@ export const threads = contract("threads", {
   }),
   waitSettled: op({ input: none, output: nothing, internal: true }),
   sweep: op({ input: none, output: nothing, kind: "write", internal: true }),
-  released: event(
+  retired: event(
     threadRef.extend({
       reason: z.enum(["thread-deleted", "thread-archived"]),
     }),
@@ -462,7 +462,7 @@ const MACHINE_WAIT_MAX_MS = 600_000;
 export const machines = contract("machines", {
   list: op({ input: none, output: z.array(z.custom<Domain.Host>()) }),
   access: service<MachineAccessProvider>(),
-  usable: service<(hostId: string) => void>(),
+  guard: service<(hostId: string) => void>(),
   provider: slot<MachineProvider>({ key: "id" }),
   enroll: op({
     input: z.object({
@@ -648,7 +648,7 @@ export const environments = contract("environments", {
     internal: true,
   }),
   sweep: op({ input: none, output: nothing, kind: "write", internal: true }),
-  released: event(
+  destroyed: event(
     environmentRef.extend({ reason: z.literal("environment-destroyed") }),
   ),
   get: op({

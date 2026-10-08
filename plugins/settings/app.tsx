@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from "react";
 import {
+  app,
   settings,
   shell,
   type ShellRoute,
@@ -13,7 +14,6 @@ import {
   SETTINGS_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,
 } from "@bb/app-kit/lib/route-paths";
-import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
 
 function page<Module, Name extends keyof Module>(
@@ -72,7 +72,7 @@ const ROUTES: readonly ShellRoute[] = [
 ];
 
 export default function settingsApp(bb: PluginAppApi): void {
-  bb.add(appParts.parts, { plugin: "settings", parts });
+  bb.add(app.parts, { plugin: "settings", parts });
   for (const route of ROUTES) bb.add(shell.route, route);
   const pages = [
     {

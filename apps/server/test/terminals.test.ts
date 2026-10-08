@@ -110,7 +110,7 @@ it("runs terminals through attach, replay, exit and a lost machine", async () =>
 
   const doomed = await open();
   const released = { threadId: "thr_demo", reason: "thread-archived" } as const;
-  ctx.kernel.emit(threads.released, released);
+  ctx.kernel.emit(threads.retired, released);
   const archived = { status: "exited", closeReason: "thread-archived" };
   await matches(`/terminals/${doomed.id}`, archived);
 });
