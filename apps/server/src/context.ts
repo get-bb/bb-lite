@@ -1,3 +1,4 @@
+import type { Kernel } from "@bb/plugin";
 import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
@@ -15,6 +16,7 @@ export interface ServerContext {
   db: Db;
   hub: Hub;
   runners: RunnerRegistry<ServerRunner>;
+  kernel: Kernel;
   plugins: PluginHost;
   log: Logger;
   now: () => number;

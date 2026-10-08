@@ -46,7 +46,10 @@ export async function runPluginCommand(
   const { threadId, projectId } = env;
   const url = `${env.serverUrl}/api/v1/plugins/${pluginId}/cli`;
   const { sdk } = await loadModules();
-  const headers = new Headers({ "content-type": "application/json" });
+  const headers = new Headers({
+    "content-type": "application/json",
+    "x-bb-door": "cli",
+  });
   if (threadId !== undefined) headers.set(sdk.THREAD_ID_HEADER, threadId);
   const response = await fetch(url, {
     method: "POST",

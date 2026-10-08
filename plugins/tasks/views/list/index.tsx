@@ -1,11 +1,11 @@
+import { callOp } from "@bb/plugin/app";
 import { useCallback, useMemo, useState } from "react";
-import type { Task } from "../../shared/contract.js";
+import { tasks as ops, type Task } from "../../shared/contract.js";
 import {
   reportError,
   useLabels,
   useOverview,
   useTasksQuery,
-  useTasksRpc,
 } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
 import { EmptyState } from "../../components/common.js";
@@ -34,7 +34,6 @@ export function ListView({
   onNewTask: () => void;
 }) {
   const navigation = useTasksNavigation();
-  const rpc = useTasksRpc();
   const overview = useOverview();
   const labels = useLabels(projectId ?? undefined);
   const scope =
@@ -67,10 +66,7 @@ export function ListView({
     parentTaskId: null,
     sort,
   };
-  const query = useTasksQuery(
-    (client) => client.call("listTasks", filters),
-    [filters],
-  );
+  const query = useTasksQuery(() => callOp(ops.listTasks, filters), [filters]);
   const awaitingLabels = labelNames.length > 0 && labels.data === undefined;
   const tasks = awaitingLabels ? undefined : query.data?.tasks;
   const groups = useMemo(() => groupTasksByStatus(tasks ?? []), [tasks]);
@@ -87,12 +83,11 @@ export function ListView({
       const others = (ids: ReadonlySet<string>) =>
         [...ids].filter((id) => id !== task.id);
       setPending((current) => new Set([...current, task.id]));
-      rpc
-        .call("updateTask", { taskId: task.id, ...patch })
+      callOp(ops.updateTask, { taskId: task.id, ...patch })
         .then(refresh, reportError)
         .finally(() => setPending((current) => new Set(others(current))));
     },
-    [rpc, refresh],
+    [refresh],
   );
   const openTask = useCallback(
     (taskKey: string) => navigation.go({ kind: "task", taskKey }),

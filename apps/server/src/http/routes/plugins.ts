@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
-import type { RpcError } from "@bb/plugin";
 import {
   pluginCliRequestSchema,
   pluginMentionSearchQuerySchema,
@@ -8,12 +7,11 @@ import {
   pluginTokenRequestSchema,
 } from "@bb/server-contract";
 import type { Context } from "hono";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { contentType } from "mime-types";
 import type { z } from "zod";
+import { actorUserId } from "../../auth/actor.js";
 import type { ServerContext } from "../../context.js";
-import type { PluginHost } from "../../plugins/host.js";
-import type { PluginInstance } from "../../plugins/instance.js";
+import { asPlugin } from "../../kernel/caller.js";
 import { resolveInside } from "../../plugins/manifest.js";
 import type { ApiApp, AppEnv } from "../api.js";
 import { ApiError, errorMessage, invalidRequest, notFound } from "../errors.js";
@@ -24,11 +22,6 @@ type RouteContext = Context<AppEnv>;
 const CLI_KEEPALIVE_MS = 10_000;
 const ASSET_FILE_PATTERN = /\.(?:svg|png|webp)$/iu;
 const IMMUTABLE = "public, max-age=31536000, immutable";
-
-interface RpcOutcome {
-  status: ContentfulStatusCode;
-  body: { ok: true; result: unknown } | { ok: false; error: RpcError };
-}
 
 function parseJson(text: string): unknown {
   try {
@@ -42,53 +35,6 @@ async function jsonBody<T>(c: RouteContext, schema: z.ZodType<T>) {
   const parsed = schema.safeParse(parseJson(await c.req.text()) ?? {});
   if (parsed.success) return parsed.data;
   throw invalidRequest(parsed.error.issues[0]?.message ?? "Invalid request");
-}
-
-function rpcError(
-  status: ContentfulStatusCode,
-  code: RpcError["code"],
-  problem: string | z.ZodError,
-): RpcOutcome {
-  if (typeof problem === "string") {
-    return { status, body: { ok: false, error: { code, message: problem } } };
-  }
-  const issues = problem.issues.map(({ message, path }) => ({ message, path }));
-  const error = { code, message: issues[0]?.message ?? code, issues };
-  return { status, body: { ok: false, error } };
-}
-
-async function callRpc(
-  plugins: PluginHost,
-  id: string,
-  method: string,
-  body: string,
-): Promise<RpcOutcome> {
-  let input: unknown;
-  let entry: ReturnType<PluginInstance["rpc"]["get"]>;
-  try {
-    input = parseJson(body);
-    entry = plugins.running(id).rpc.get(method);
-  } catch (error) {
-    if (!(error instanceof ApiError)) throw error;
-    const unavailable = error.status !== 400;
-    const code = unavailable ? "plugin_unavailable" : "invalid_json";
-    return rpcError(error.status, code, error.message);
-  }
-  if (entry === undefined) {
-    const message = `Plugin "${id}" has no rpc method "${method}"`;
-    return rpcError(404, "unknown_method", message);
-  }
-  const accepted = await entry.contract.input.safeParseAsync(input);
-  if (!accepted.success) return rpcError(400, "invalid_input", accepted.error);
-  let result: unknown;
-  try {
-    result = await entry.handler(accepted.data);
-  } catch (error) {
-    return rpcError(500, "handler_error", errorMessage(error));
-  }
-  const produced = await entry.contract.output.safeParseAsync(result);
-  if (!produced.success) return rpcError(500, "invalid_output", produced.error);
-  return { status: 200, body: { ok: true, result: produced.data } };
 }
 
 function keepAliveJson(result: Promise<unknown>) {
@@ -118,7 +64,7 @@ function keepAliveJson(result: Promise<unknown>) {
 }
 
 export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
-  const { plugins, log } = ctx;
+  const { plugins } = ctx;
   const requireManager = (c: RouteContext) =>
     requireOwner(c, "Only the owner can manage plugins");
 
@@ -149,14 +95,18 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
     });
   }
 
-  app.get("/plugins/:id/settings", async (c) =>
-    c.json({ ok: true, ...(await plugins.settings(c.req.param("id"))) }),
-  );
+  app.get("/plugins/:id/settings", async (c) => {
+    const id = c.req.param("id");
+    const view = await plugins.settings(id, undefined, actorUserId());
+    return c.json({ ok: true, ...view });
+  });
 
   app.put("/plugins/:id/settings", async (c) => {
-    requireManager(c);
+    const id = c.req.param("id");
     const { values } = await jsonBody(c, pluginSettingsUpdateRequestSchema);
-    const view = await plugins.settings(c.req.param("id"), values);
+    const personal = plugins.hasPersonalSettings(id, Object.keys(values));
+    if (!personal) requireManager(c);
+    const view = await plugins.settings(id, values, actorUserId());
     return c.json({ ok: true, ...view });
   });
 
@@ -167,24 +117,15 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
     return c.json({ ok: true, token });
   });
 
-  app.post("/plugins/:id/rpc/:method", async (c) => {
-    const { id, method } = c.req.param();
-    const outcome = await callRpc(plugins, id, method, await c.req.text());
-    if (!outcome.body.ok && outcome.status === 500) {
-      log.warn("Plugin rpc failed", { pluginId: id, method, ...outcome.body });
-    }
-    c.header("cache-control", "no-store");
-    return c.json(outcome.body, outcome.status);
-  });
-
   app.post("/plugins/:id/cli", async (c) => {
     const id = c.req.param("id");
     const { argv, ...scope } = await jsonBody(c, pluginCliRequestSchema);
     const run = async () => {
-      const { cli } = plugins.running(id);
+      plugins.running(id);
+      const cli = plugins.cliOf(id);
       if (cli === null) throw new Error(`Plugin "${id}" has no CLI command`);
       const context = { ...scope, signal: c.req.raw.signal };
-      const result = await cli.run(argv, context);
+      const result = await asPlugin(id, () => cli.run(argv, context));
       const { exitCode, stdout = "", stderr = "" } = result;
       return { exitCode, stdout, stderr };
     };

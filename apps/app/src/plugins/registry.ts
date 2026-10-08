@@ -1,4 +1,16 @@
 import { useSyncExternalStore } from "react";
+import {
+  createKernel,
+  shell,
+  type Caller,
+  type Kernel,
+  type Op,
+  type PluginScope,
+  type PluginVerbs,
+  type Slot,
+  type SlotEntryView,
+  type Tier,
+} from "@bb/plugin/app";
 import type {
   PluginAppApi,
   PluginAppDefinition,
@@ -14,6 +26,7 @@ import type {
   SidebarHeaderProps,
   SidebarNavigationProps,
 } from "@bb/plugin/app";
+import { callRemoteOp } from "./ops";
 
 export interface PluginRegistrations {
   navPanels: PluginNavPanelRegistration[];
@@ -40,18 +53,20 @@ export type PluginSlots = {
   readonly [Kind in SlotKind]: readonly PluginSlot<Kind>[];
 };
 
-const SLOT_KINDS: readonly SlotKind[] = [
-  "navPanels",
-  "threadPanels",
-  "settingsSections",
-  "appOverlays",
-  "pendingInteractions",
-  "messageDirectives",
-  "threadLists",
-  "sidebarNavigations",
-  "sidebarHeaders",
-  "commands",
-];
+const SLOT_DEFS = {
+  navPanels: shell.navPanel,
+  threadPanels: shell.threadPanel,
+  settingsSections: shell.settingsSection,
+  appOverlays: shell.appOverlay,
+  pendingInteractions: shell.pendingInteraction,
+  messageDirectives: shell.messageDirective,
+  threadLists: shell.threadList,
+  sidebarNavigations: shell.sidebarNavigation,
+  sidebarHeaders: shell.sidebarHeader,
+  commands: shell.command,
+} as const;
+
+const SLOT_KINDS = Object.keys(SLOT_DEFS) as SlotKind[];
 
 const SLOT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -75,8 +90,45 @@ function slotRecord<Slots>(listFor: (kind: SlotKind) => object[]): Slots {
   return record as Slots;
 }
 
-export function collectPluginApp(
+const APP_CALLER: Caller = {
+  user: null,
+  role: "member",
+  door: "app",
+  thread: null,
+  via: [],
+};
+
+function newKernel(): Kernel {
+  return createKernel({
+    currentCaller: () => APP_CALLER,
+    enter: (_caller, work) => work(),
+    record: () => {},
+    now: Date.now,
+    warn: (message, fields) => console.warn(`[plugin] ${message}`, fields),
+  });
+}
+
+let kernel = newKernel();
+
+export function appKernel(): Kernel {
+  return kernel;
+}
+
+function hasLocalOwner(op: Op): boolean {
+  return kernel
+    .ops()
+    .some((entry) => entry.op.name === op.name && entry.owner !== null);
+}
+
+export function callOp(op: Op, input: unknown): Promise<unknown> {
+  if (hasLocalOwner(op)) return kernel.call(op, input);
+  return callRemoteOp(op.name, input);
+}
+
+function collect(
   definition: PluginAppDefinition,
+  verbs: PluginVerbs,
+  pluginId: string,
 ): PluginRegistrations {
   const collected = slotRecord<PluginRegistrations>(() => []);
   const add =
@@ -104,6 +156,12 @@ export function collectPluginApp(
       list.push({ ...registration });
     };
   const app: PluginAppApi = {
+    ...verbs,
+    call: ((op: Op, input: unknown) =>
+      hasLocalOwner(op)
+        ? verbs.call(op, input)
+        : callRemoteOp(op.name, input)) as PluginVerbs["call"],
+    pluginId,
     slots: {
       navPanel: add("navPanels", "navPanel"),
       threadPanel: add("threadPanels", "threadPanel"),
@@ -121,9 +179,20 @@ export function collectPluginApp(
   return collected;
 }
 
+export function collectPluginApp(
+  definition: PluginAppDefinition,
+): PluginRegistrations {
+  const { dispose, ...verbs } = newKernel().scope("collect", "product");
+  try {
+    return collect(definition, verbs, "collect");
+  } finally {
+    dispose();
+  }
+}
+
 const EMPTY_SLOTS = slotRecord<PluginSlots>(() => []);
 
-const slotsByPluginId = new Map<string, PluginSlots>();
+const scopes = new Map<string, PluginScope>();
 const generationByPluginId = new Map<string, number>();
 const crashedSlotKeys = new Set<string>();
 const listeners = new Set<() => void>();
@@ -134,13 +203,27 @@ function notify(): void {
   for (const listener of [...listeners]) listener();
 }
 
+function byPlugin<Entry>(
+  entries: readonly Entry[],
+  pluginOf: (entry: Entry) => string,
+): Entry[] {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        pluginOf(a.entry).localeCompare(pluginOf(b.entry)) || a.index - b.index,
+    )
+    .map(({ entry }) => entry);
+}
+
 function publish(): void {
-  const pluginIds = [...slotsByPluginId.keys()].sort();
   const next = { ...snapshot };
   for (const kind of SLOT_KINDS) {
-    const slots = pluginIds.flatMap<unknown>(
-      (pluginId) => slotsByPluginId.get(pluginId)?.[kind] ?? [],
-    );
+    const definition: Slot<{ pluginId: string }> = SLOT_DEFS[kind];
+    const owned = kernel.read(definition);
+    const slots = byPlugin<unknown>(owned, (slot) => {
+      return (slot as { pluginId: string }).pluginId;
+    });
     const previous: readonly unknown[] = snapshot[kind];
     if (
       slots.length !== previous.length ||
@@ -153,37 +236,84 @@ function publish(): void {
   notify();
 }
 
+interface SortedSlot {
+  version: number;
+  views: SlotEntryView<unknown>[];
+  items: unknown[];
+}
+
+const sortedSlots = new Map<string, SortedSlot>();
+
+function sortedSlot(slot: Slot<unknown>): SortedSlot {
+  const version = kernel.version();
+  const cached = sortedSlots.get(slot.name);
+  if (cached?.version === version) return cached;
+  const entries = kernel.entries(slot);
+  const views = byPlugin(entries, ({ plugin }) => plugin);
+  const unchanged =
+    cached !== undefined &&
+    cached.views.length === views.length &&
+    views.every((view, index) => view === cached.views[index]);
+  const sorted = unchanged
+    ? { ...cached, version }
+    : { version, views, items: views.map(({ item }) => item) };
+  sortedSlots.set(slot.name, sorted);
+  return sorted;
+}
+
+export function slotEntries<Item>(
+  slot: Slot<Item>,
+): readonly SlotEntryView<Item>[] {
+  const { views } = sortedSlot(slot);
+  return views as SlotEntryView<Item>[];
+}
+
+export function slotItems<Item>(slot: Slot<Item>): readonly Item[] {
+  return sortedSlot(slot).items as Item[];
+}
+
+export function watchSlots(listener: () => void): () => void {
+  return kernel.watch(listener);
+}
+
 export function registerPluginApp(
   pluginId: string,
   definition: PluginAppDefinition,
+  tier: Tier = "product",
 ): Error | null {
+  scopes.get(pluginId)?.dispose();
+  scopes.delete(pluginId);
+  const scope = kernel.scope(pluginId, tier);
+  const { dispose, ...verbs } = scope;
   let collected: PluginRegistrations;
   try {
-    collected = collectPluginApp(definition);
+    collected = collect(definition, verbs, pluginId);
   } catch (error) {
     console.warn(`[plugin:${pluginId}] app registration failed`, error);
-    unregisterPluginApp(pluginId);
+    dispose();
+    publish();
     return error instanceof Error ? error : new Error(String(error));
   }
   const generation = (generationByPluginId.get(pluginId) ?? 0) + 1;
   generationByPluginId.set(pluginId, generation);
-  slotsByPluginId.set(
-    pluginId,
-    slotRecord((kind) =>
-      collected[kind].map((registration) => ({
-        ...registration,
-        pluginId,
-        generation,
-      })),
-    ),
-  );
+  for (const kind of SLOT_KINDS) {
+    const definitionOf: Slot<object> = SLOT_DEFS[kind];
+    for (const registration of collected[kind]) {
+      scope.add(definitionOf, { ...registration, pluginId, generation });
+    }
+  }
+  scopes.set(pluginId, scope);
   resetCrashedSlots(pluginId);
   publish();
   return null;
 }
 
 export function unregisterPluginApp(pluginId: string): void {
-  if (slotsByPluginId.delete(pluginId)) publish();
+  const scope = scopes.get(pluginId);
+  if (scope === undefined) return;
+  scope.dispose();
+  scopes.delete(pluginId);
+  publish();
 }
 
 export function markPluginsSettled(): void {
@@ -299,7 +429,9 @@ export function resolveMessageDirectives(
 }
 
 export function resetPluginRegistryForTest(): void {
-  slotsByPluginId.clear();
+  kernel = newKernel();
+  scopes.clear();
+  sortedSlots.clear();
   generationByPluginId.clear();
   crashedSlotKeys.clear();
   settled = false;

@@ -34,7 +34,7 @@ import {
   buildPluginSettingsEntries,
   type PluginSettingsCandidate,
 } from "@/components/settings/plugin-settings-entries";
-import { SETTINGS_NAV_SECTIONS } from "@/components/settings/settings-sections";
+import { useSettingsPages } from "@/components/settings/settings-sections";
 import { appQueryClient } from "@/lib/app-query-client";
 import {
   PALETTE_SECTION_LABEL_CLASS,
@@ -71,6 +71,7 @@ export function CommandPalette({
   >([]);
   const [recents, setRecents] = useState<readonly string[]>(readPaletteRecents);
   const pluginSlots = usePluginSlots();
+  const settingsPages = useSettingsPages();
   const pluginCommandIds = useMemo(
     () =>
       pluginSlots.commands.map((command) =>
@@ -154,7 +155,7 @@ export function CommandPalette({
           installedPlugins,
           settingsSections: pluginSlots.settingsSections,
         }),
-        sections: SETTINGS_NAV_SECTIONS,
+        sections: settingsPages,
         panels: pluginSlots.navPanels,
       }),
     ],

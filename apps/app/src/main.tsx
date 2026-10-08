@@ -11,6 +11,7 @@ import { installForeignDomMutationGuard } from "./lib/foreign-dom-mutation-guard
 import { appQueryClient } from "./lib/app-query-client";
 import { installUnauthenticatedHandler } from "./lib/auth-session";
 import { applyCachedAppThemeCss } from "./lib/themes";
+import { registerCorePlugins } from "./plugins/core";
 import { AuthGate } from "./views/auth/AuthGate";
 import "./app.css";
 
@@ -22,6 +23,7 @@ initializePreferredTheme();
 applyCachedAppThemeCss();
 initializeFavicon();
 installUnauthenticatedHandler();
+registerCorePlugins();
 
 createRoot(document.getElementById("root")!, {
   onUncaughtError: (error, errorInfo) => {

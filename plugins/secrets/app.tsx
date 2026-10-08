@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  definePluginApp,
-  type PluginPendingInteractionProps,
-} from "@bb/plugin/app";
+import { plugin, type PluginPendingInteractionProps } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Input } from "@bb/shared-ui/input";
 import { Label } from "@bb/shared-ui/label";
@@ -209,8 +206,8 @@ function SecretRequestInteraction({
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.pendingInteraction({
+export default plugin((bb) => {
+  bb.slots.pendingInteraction({
     id: SECRET_REQUEST_RENDERER_ID,
     component: SecretRequestInteraction,
   });

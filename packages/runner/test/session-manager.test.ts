@@ -8,7 +8,6 @@ import {
   Outbox,
   RunnerError,
   buildAgentEnv,
-  createEchoAdapter,
   createSessionApi,
   parseShellPath,
   type ExecutionOptions,
@@ -17,6 +16,7 @@ import {
   type SessionTiming,
   type SubmitTurnArgs,
 } from "@bb/runner";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { until } from "./kit.js";
 
 type Kind = RunnerEvent["kind"];

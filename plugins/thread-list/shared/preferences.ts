@@ -60,5 +60,3 @@ export function parsePreferences(source: unknown): Partial<PreferenceValues> {
   }
   return values as Partial<PreferenceValues>;
 }
-
-export const PREFERENCES_CHANGED_CHANNEL = "preferences";

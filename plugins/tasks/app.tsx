@@ -1,10 +1,10 @@
-import { definePluginApp } from "@bb/plugin/app";
+import { plugin } from "@bb/plugin/app";
 import { TasksAppShell } from "./shell/app-shell.js";
 import { TasksNavigationPanel } from "./shell/sidebar.js";
 import { TaskDirectiveCard, TaskEmbedPanel } from "./views/embed/index.js";
 
-export default definePluginApp((app) => {
-  app.slots.navPanel({
+export default plugin((bb) => {
+  bb.slots.navPanel({
     id: "tasks",
     title: "Tasks",
     icon: "ListTodo",
@@ -21,11 +21,11 @@ export default definePluginApp((app) => {
       },
     ],
   });
-  app.slots.threadPanel({
+  bb.slots.threadPanel({
     id: "task",
     title: "Task",
     icon: "ListTodo",
     component: TaskEmbedPanel,
   });
-  app.slots.messageDirective({ id: "task", component: TaskDirectiveCard });
+  bb.slots.messageDirective({ id: "task", component: TaskDirectiveCard });
 });

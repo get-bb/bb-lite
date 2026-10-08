@@ -372,11 +372,8 @@ export const runnerRun: Run = async (c) => {
     const message = "This machine has not joined exactly one server.";
     throw usageError(message, `Pass --data-dir <dir>. Joined: ${found}`);
   }
-  const dev = (process.env.BB_DEV_PROVIDERS ?? "").split(",");
-  const adapters = runner
-    .defaultAdapters()
-    .filter((adapter) => adapter.id !== "echo" || dev.includes("echo"));
-  const running = await runner.runRunner({ dataDir, bbCliPath, adapters });
+  const { runnerParts: parts } = await import("@bb/profile-default/runner");
+  const running = await runner.runRunner({ dataDir, bbCliPath, parts });
   console.error(`bb runner started (data in ${dataDir})`);
   await running.stopped;
 };

@@ -1,4 +1,5 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
+import type { IconName } from "@bb/shared-ui/icon";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import {
   SectionSidebar,
@@ -9,8 +10,8 @@ import {
 import { getPluginConfigurationRoutePath } from "@/lib/route-paths";
 import { useSettingsNavState } from "./settings-nav";
 import {
-  SETTINGS_NAV_SECTIONS,
   getSettingsSectionRoutePath,
+  useSettingsPages,
   type SettingsNavSection,
 } from "./settings-sections";
 
@@ -27,6 +28,7 @@ export function SettingsSidebar({
 }) {
   const { activePluginId, activeSection, pluginEntries } =
     useSettingsNavState();
+  const pages = useSettingsPages();
   const sectionRow = (section: SettingsNavSection) => (
     <SectionSidebarRow
       key={section.id}
@@ -34,7 +36,7 @@ export function SettingsSidebar({
       label={section.label}
       to={getSettingsSectionRoutePath(section.id)}
     >
-      <SectionSidebarIcon name={section.icon} />
+      <SectionSidebarIcon name={section.icon as IconName} />
     </SectionSidebarRow>
   );
   return (
@@ -50,9 +52,7 @@ export function SettingsSidebar({
         <SectionSidebarLabel>Settings</SectionSidebarLabel>
       )}
       <div className="mt-1 space-y-0.5">
-        {SETTINGS_NAV_SECTIONS.filter(
-          (section) => section.id !== "archived",
-        ).map(sectionRow)}
+        {pages.filter((page) => page.group !== "archived").map(sectionRow)}
       </div>
       {pluginEntries.length > 0 ? (
         <>
@@ -82,9 +82,7 @@ export function SettingsSidebar({
         <SectionSidebarLabel>Archived</SectionSidebarLabel>
       </div>
       <div className="mt-1 space-y-0.5">
-        {SETTINGS_NAV_SECTIONS.filter(
-          (section) => section.id === "archived",
-        ).map(sectionRow)}
+        {pages.filter((page) => page.group === "archived").map(sectionRow)}
       </div>
     </SectionSidebar>
   );

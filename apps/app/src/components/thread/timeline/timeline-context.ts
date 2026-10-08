@@ -1,6 +1,7 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, type ComponentType } from "react";
 import type { ThreadOriginKind } from "@bb/domain";
 import type { PromptDraftAttachment } from "@bb/client-core";
+import type { TimelineRowDetailProps, TimelineRowProps } from "@bb/plugin/app";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import type { MarkdownPreviewLinkHandler } from "@/components/ui/markdown-link.js";
 import type {
@@ -45,6 +46,8 @@ export interface TimelineContextValue extends TimelineHandlers {
   latestActionableUserMessageId: string | null;
   liveExpandedRowIds: ReadonlySet<string>;
   resolveSegmentLinkHref: TimelineTitleLinkResolver;
+  rowDetailViews: ReadonlyMap<string, ComponentType<TimelineRowDetailProps>>;
+  rowViews: ReadonlyMap<string, ComponentType<TimelineRowProps>>;
   senderThreads: ReadonlyMap<string, SenderThreadMetadata>;
   streamingMessageId: string | null;
   terminalExpandedRowIds: ReadonlySet<string>;

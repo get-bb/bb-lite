@@ -1,0 +1,12 @@
+{
+  "name": "bb-plugin-machine-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bb": {
+    "name": "Machine probe",
+    "description": "Answers from the machine it was shipped to.",
+    "server": "./server.ts",
+    "runner": "./runner.ts"
+  }
+}

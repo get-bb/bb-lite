@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { ImageLightbox } from "@bb/plugin/app";
 import {
   attachmentDownloadUrl,
   type Attachment,

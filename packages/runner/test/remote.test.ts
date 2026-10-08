@@ -11,7 +11,6 @@ import {
   FILE_PAYLOAD_MAX_BYTES,
   LIVE_OUTPUT_KEEP_NEWEST,
   connectRemoteRunner,
-  createEchoAdapter,
   createLocalRunner,
   serveRunner,
   startCliProxy,
@@ -19,6 +18,7 @@ import {
   type RunnerEventSink,
   type RunnerServing,
 } from "@bb/runner";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { until } from "./kit.js";
 
 const MIB = 1024 * 1024;

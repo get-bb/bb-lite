@@ -12,7 +12,18 @@ import type {
   ToolCallResponse,
 } from "@bb/domain";
 
-export type ProviderId = "codex" | "claude-code" | "echo";
+export type ProviderId = string;
+
+export interface RunnerPartBundle {
+  id: string;
+  hash: string;
+  code: string;
+}
+
+export interface LoadPluginsResult {
+  loaded: string[];
+  failed: { id: string; message: string }[];
+}
 
 export const SERVER_URL_PLACEHOLDER = "{BB_SERVER_URL}";
 
@@ -220,4 +231,8 @@ export interface SessionApi {
   }): Promise<{ delivered: boolean }>;
   renameSession(args: { threadId: string; title: string }): Promise<void>;
   deleteThreadStorage(args: { threadId: string }): Promise<void>;
+  loadPlugins(args: {
+    plugins: RunnerPartBundle[];
+  }): Promise<LoadPluginsResult>;
+  callOp(args: { name: string; input: unknown }): Promise<unknown>;
 }

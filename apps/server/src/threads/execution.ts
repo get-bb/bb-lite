@@ -8,6 +8,7 @@ import { getProjectExecutionDefaults } from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
+import { listProviderDefinitions } from "../providers/catalog.js";
 import { providerOptionsFor } from "../providers/settings.js";
 
 export type ExecutionTuple = Omit<
@@ -36,13 +37,10 @@ interface TurnOptionsSource {
   initiator: domain.ThreadTurnInitiator;
 }
 
-const PROVIDER_IDS: readonly ProviderId[] = ["codex", "claude-code", "echo"];
-
-export function requireProviderId(value: string): ProviderId {
-  const known = PROVIDER_IDS.find((providerId) => providerId === value);
-  if (known !== undefined) return known;
-  const names = PROVIDER_IDS.join(", ");
-  throw invalidRequest(`Unknown provider "${value}". Use ${names}.`);
+export function requireProviderId(db: Db, value: string): ProviderId {
+  const ids = listProviderDefinitions(db).map(({ id }) => id);
+  if (ids.includes(value)) return value;
+  throw invalidRequest(`Unknown provider "${value}". Use ${ids.join(", ")}.`);
 }
 
 function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
@@ -165,6 +163,7 @@ export async function resolveCreateExecution(
   const { request, projectId, hostId, parent } = args;
   const { db } = ctx;
   const providerId = requireProviderId(
+    db,
     request.providerId ??
       getProjectExecutionDefaults(db, projectId)?.providerId ??
       getAppSettings(db).defaultProviderId ??

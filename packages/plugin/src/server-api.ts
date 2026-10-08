@@ -3,7 +3,8 @@ import type * as Contract from "@bb/server-contract";
 import type Database from "better-sqlite3";
 import type { z } from "zod";
 import type { CliRegistration } from "./cli.js";
-import type { RpcContract, RpcHandlers } from "./rpc.js";
+import type { Op } from "./contract.js";
+import type { PluginVerbs } from "./kernel.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type Thread = Contract.ThreadResponse;
@@ -23,6 +24,8 @@ export type SettingValues<D extends SettingDescriptors> = {
 };
 type SettingsUpdate<D> = { [Key in keyof D]?: ValueOf<D[Key]> | null };
 type SettingsListener<Values> = (next: Values, previous: Values) => void;
+export type SettingScope = "workspace" | "user";
+
 export interface SettingsHandle<D extends SettingDescriptors> {
   get(): Promise<SettingValues<D>>;
   set(values: SettingsUpdate<D>): Promise<SettingValues<D>>;
@@ -59,20 +62,6 @@ export interface ThreadContext {
   hostId: string | null;
   providerId: string;
   providerCapabilities?: Domain.ProviderCapabilities;
-}
-
-export type AgentToolResult = string | { text: string; isError: boolean };
-export interface AgentTool<Schema extends z.ZodType = z.ZodType> {
-  name: string;
-  description: string;
-  instructions?: string;
-  presentation?: Presentation;
-  parameters: Schema;
-  enabledFor?(context: ThreadContext): boolean;
-  execute(
-    input: z.output<Schema>,
-    context: ThreadContext & { signal: AbortSignal },
-  ): MaybePromise<AgentToolResult>;
 }
 
 export interface InputRequest {
@@ -122,10 +111,20 @@ export interface EnvironmentContext {
   branchName: string;
   signal: AbortSignal;
 }
+export interface EnvironmentRequirements {
+  projectCheckout: boolean;
+  gitCheckout: boolean;
+  gitRemote: boolean;
+  projectless: boolean;
+}
+
 export interface EnvironmentDefinition {
   id: string;
   displayName: string;
+  description?: string;
   icon?: string;
+  requires?: EnvironmentRequirements;
+  inputs?: Domain.JsonValue | null;
   create(context: EnvironmentContext): Promise<{ path: string }>;
   remove(context: { hostId: string; path: string }): Promise<void>;
 }
@@ -134,30 +133,6 @@ export interface InferenceService {
   id: string;
   displayName: string;
   complete(prompt: string, options: { signal: AbortSignal }): Promise<string>;
-}
-
-export type SpawnThreadRequest = Omit<
-  z.input<typeof Contract.createThreadRequestSchema>,
-  "origin" | "originPluginId"
->;
-export interface PluginThreads {
-  spawn(request: SpawnThreadRequest): Promise<Thread>;
-  send(
-    threadId: string,
-    request: Contract.SendMessageRequest,
-  ): Promise<Contract.SendMessageResponse>;
-  get(threadId: string): Promise<Thread | null>;
-  list(query?: Contract.ThreadListQuery): Promise<Contract.ThreadListResponse>;
-  stop(threadId: string): Promise<void>;
-  update(
-    threadId: string,
-    patch: Contract.UpdateThreadRequest,
-  ): Promise<Thread>;
-  output(threadId: string): Promise<string | null>;
-  events(
-    threadId: string,
-    afterSequence?: number,
-  ): Promise<Domain.ThreadEvent[]>;
 }
 
 export interface FileReadArgs {
@@ -170,12 +145,6 @@ export interface FileWriteArgs extends FileReadArgs {
   expectedSha256?: string | null;
   mode?: number;
 }
-export interface PluginFiles {
-  read(args: FileReadArgs): Promise<{ content: string; sha256: string } | null>;
-  write(
-    args: FileWriteArgs,
-  ): Promise<{ outcome: "written"; sha256: string } | { outcome: "conflict" }>;
-}
 
 export interface MachineAccess {
   serverUrl: string;
@@ -186,33 +155,27 @@ export interface MachineAccessProvider {
   revoke(host: { id: string; connectMachineId: string | null }): Promise<void>;
 }
 
-export interface PluginUsers {
-  current(): Promise<Domain.User | null>;
-  list(): Promise<Domain.User[]>;
+export interface MachineCalls {
+  call<O extends Op>(
+    op: O,
+    input: z.input<O["input"]>,
+  ): Promise<z.output<O["output"]>>;
 }
 
-export interface PluginSections {
-  list(): Promise<Contract.ThreadSectionResponse[]>;
-  create(name: string): Promise<Contract.ThreadSectionResponse>;
-}
-
-export interface PluginServerApi {
+export interface PluginServerApi extends PluginVerbs {
   readonly pluginId: string;
   readonly log: Record<LogLevel, (message: string) => void>;
   readonly dataDir: string;
   readonly settings: {
-    define<D extends SettingDescriptors>(descriptors: D): SettingsHandle<D>;
+    define<D extends SettingDescriptors>(
+      descriptors: D,
+      options?: { scope?: SettingScope },
+    ): SettingsHandle<D>;
   };
   readonly storage: {
     kv: PluginKv;
     database(): Database.Database;
     migrate(database: Database.Database, statements: string[]): void;
-  };
-  readonly rpc: {
-    register<Methods extends RpcContract>(
-      contract: Methods,
-      handlers: RpcHandlers<Methods>,
-    ): void;
   };
   readonly http: {
     route(
@@ -222,7 +185,6 @@ export interface PluginServerApi {
       options?: { auth?: HttpAuth },
     ): void;
   };
-  readonly realtime: { publish(channel: string, payload: unknown): void };
   readonly background: {
     service(
       name: string,
@@ -230,45 +192,12 @@ export interface PluginServerApi {
     ): void;
   };
   readonly cli: { register(registration: CliRegistration): void };
-  readonly events: {
-    on<Name extends keyof PluginEvents>(
-      name: Name,
-      handler: (payload: PluginEvents[Name]) => MaybePromise<void>,
-    ): void;
-  };
-  readonly agents: {
-    registerTool<Schema extends z.ZodType>(tool: AgentTool<Schema>): void;
-    contributeInstructions(
-      contribute: (context: ThreadContext) => MaybePromise<string | null>,
-    ): void;
-  };
-  readonly ui: {
-    requestInput(request: InputRequest): Promise<InputResult>;
-    registerMentionProvider(provider: MentionProvider): void;
-  };
-  readonly providers: {
-    contributeEnv(
-      providerId: string,
-      contribute: (context: ThreadContext) => MaybePromise<ProviderEnvEntry[]>,
-    ): void;
-  };
-  readonly environments: { register(definition: EnvironmentDefinition): void };
-  readonly inference: { register(service: InferenceService): void };
-  readonly threads: PluginThreads;
-  readonly projects: { list(): Promise<Domain.Project[]> };
-  readonly hosts: { list(): Promise<Domain.Host[]> };
-  readonly users: PluginUsers;
-  readonly machines: {
-    setAccessProvider(provider: MachineAccessProvider | null): void;
-  };
-  readonly sections: PluginSections;
-  readonly files: PluginFiles;
+  machine(hostId: string): MachineCalls;
   readonly status: { needsConfiguration(message: string): void };
   readonly server: {
     url: string;
     dataDir: string;
     tunnelToken: string;
-    setPublicUrl(url: string | null): void;
   };
   onDispose(dispose: () => MaybePromise<void>): void;
 }

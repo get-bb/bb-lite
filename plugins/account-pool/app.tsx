@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import {
-  definePluginApp,
-  useBbNavigate,
-  useRealtime,
-  useRpc,
-} from "@bb/plugin/app";
+import { callOp, plugin, useBbNavigate, useChanged } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import {
   Dialog,
@@ -25,13 +20,12 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { ResourceRowDetailChevron } from "@bb/shared-ui/resource-list";
 import { Switch } from "@bb/shared-ui/switch";
 import {
-  ACCOUNTS_CHANGED,
+  pool,
   type AccountSummary,
   type LimitWindow,
   type LoginStart,
   type PoolProvider,
   type PoolStatus,
-  type poolRpc,
 } from "./src/contract.js";
 
 type DialogState =
@@ -308,7 +302,6 @@ function LoginSteps(props: {
 }
 
 function AccountPoolSettings() {
-  const rpc = useRpc<typeof poolRpc>();
   const { openUrl } = useBbNavigate();
   const [status, setStatus] = useState<PoolStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -321,13 +314,13 @@ function AccountPoolSettings() {
   const fail = (failure: unknown) =>
     setError(failure instanceof Error ? failure.message : String(failure));
   const refresh = useCallback(async () => {
-    const next = await rpc.call("status").catch(fail);
+    const next = await callOp(pool.status, {}).catch(fail);
     if (next === undefined) return;
     setStatus(next);
     setThreshold(String(next.config.switchThreshold));
-  }, [rpc]);
+  }, []);
   useEffect(() => void refresh(), [refresh]);
-  useRealtime(ACCOUNTS_CHANGED, () => void refresh());
+  useChanged(pool.status, () => void refresh());
   const run = async (action: () => Promise<unknown>) => {
     if (pending) return;
     setPending(true);
@@ -341,7 +334,7 @@ function AccountPoolSettings() {
   useEffect(() => {
     if (session === undefined || interval === undefined) return;
     const timer = window.setInterval(async () => {
-      const result = await rpc.call("login.poll", { sessionId: session });
+      const result = await callOp(pool.loginPoll, { sessionId: session });
       if (result.status === "pending") return;
       setLogin(null);
       if (result.status === "error") return setError(result.message);
@@ -349,12 +342,12 @@ function AccountPoolSettings() {
       await refresh();
     }, interval);
     return () => window.clearInterval(timer);
-  }, [session, interval, rpc, refresh]);
+  }, [session, interval, refresh]);
   const startLogin = (provider: PoolProvider) => {
     setDialog({ kind: "login", provider });
     setConnected(null);
     setCode("");
-    void run(async () => setLogin(await rpc.call("login.start", { provider })));
+    void run(async () => setLogin(await callOp(pool.loginStart, { provider })));
   };
   const closeDialog = () => {
     setDialog(null);
@@ -363,7 +356,7 @@ function AccountPoolSettings() {
   const saveThreshold = () => {
     const switchThreshold = Number(threshold);
     if (switchThreshold === limit) return;
-    void run(() => rpc.call("config.set", { switchThreshold }));
+    void run(() => callOp(pool.configSet, { switchThreshold }));
   };
   const limit = status?.config.switchThreshold ?? 0.98;
   const accounts = status?.accounts ?? [];
@@ -406,7 +399,7 @@ function AccountPoolSettings() {
             icon: "Download",
             title: "Import from this machine",
             hint: `Copies the server host's ${title} login`,
-            run: () => void run(() => rpc.call("account.add", imported)),
+            run: () => void run(() => callOp(pool.accountAdd, imported)),
           },
         ];
         return (
@@ -427,7 +420,7 @@ function AccountPoolSettings() {
                   aria-label={`Route ${title} threads`}
                   onCheckedChange={(enabled) =>
                     void run(() =>
-                      rpc.call("routing.set", { provider, enabled }),
+                      callOp(pool.routingSet, { provider, enabled }),
                     )
                   }
                 />
@@ -443,7 +436,7 @@ function AccountPoolSettings() {
               {listed.map((account) => {
                 const { id, enabled } = account;
                 const update = (patch: { enabled: boolean }) =>
-                  void run(() => rpc.call("account.update", { id, ...patch }));
+                  void run(() => callOp(pool.accountUpdate, { id, ...patch }));
                 const menu: Menu = [
                   {
                     icon: enabled ? "Circle" : "CircleCheck",
@@ -454,7 +447,7 @@ function AccountPoolSettings() {
                     icon: "RotateCcw",
                     title: "Refresh usage",
                     run: () =>
-                      void run(() => rpc.call("account.refresh", { id })),
+                      void run(() => callOp(pool.accountRefresh, { id })),
                   },
                 ];
                 const onOpen = () => setDialog({ kind: "account", id });
@@ -515,7 +508,7 @@ function AccountPoolSettings() {
                   void run(async () => {
                     const { sessionId } = login;
                     const input = { sessionId, code };
-                    const added = await rpc.call("login.complete", input);
+                    const added = await callOp(pool.loginComplete, input);
                     setLogin(null);
                     setConnected(added.label);
                   })
@@ -531,6 +524,6 @@ function AccountPoolSettings() {
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.settingsSection({ id: "accounts", component: AccountPoolSettings });
+export default plugin((bb) => {
+  bb.slots.settingsSection({ id: "accounts", component: AccountPoolSettings });
 });

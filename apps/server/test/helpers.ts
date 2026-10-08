@@ -13,12 +13,12 @@ import {
   type RealtimeSubscriptionTarget,
 } from "@bb/domain";
 import {
-  createEchoAdapter,
   createWorkspaceApi,
   RunnerError,
   type RunnerEventSink,
 } from "@bb/runner";
 import { createApiClient } from "@bb/server-contract";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { expect, onTestFinished } from "vitest";
 import { WebSocket } from "ws";
 import { loadConfig, type ServerConfig } from "../src/config.js";
@@ -130,7 +130,7 @@ export function commitAll(repo: string): void {
 
 function localRunner(kind: RunnerKind, config: ServerConfig, fake: FakeRunner) {
   if (kind === "echo") {
-    const local = localRunnerFor(config, [createEchoAdapter()]);
+    const local = localRunnerFor(config, { adapters: [createEchoAdapter()] });
     onTestFinished(local.shutdown);
     return local.connect;
   }

@@ -1,12 +1,8 @@
+import { callOp } from "@bb/plugin/app";
 import { useState } from "react";
-import {
-  errorMessage,
-  useOverview,
-  useTasksQuery,
-  useTasksRpc,
-} from "../../shell/data.js";
+import { errorMessage, useOverview, useTasksQuery } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
-import { PROJECT_PREFIX_PATTERN } from "../../shared/contract.js";
+import { tasks, PROJECT_PREFIX_PATTERN } from "../../shared/contract.js";
 import {
   Dialog,
   DialogContent,
@@ -26,11 +22,10 @@ import {
 } from "./shared.js";
 
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
-  const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
   const projects = useOverview().data?.projects ?? [];
   const bbProjects = useTasksQuery(
-    async (client) => (await client.call("listBbProjects")).bbProjects,
+    async () => (await callOp(tasks.listBbProjects, {})).bbProjects,
   );
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
@@ -63,7 +58,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       const input = { name: name.trim(), prefix, color, linkedBbProjectId };
-      const { project } = await rpc.call("createProject", input);
+      const { project } = await callOp(tasks.createProject, input);
       onClose();
       navigation.go({ kind: "project", projectId: project.id });
     } catch (submitError) {

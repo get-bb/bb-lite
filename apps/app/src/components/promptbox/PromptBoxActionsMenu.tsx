@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
@@ -8,10 +7,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
 import type { ProviderPromptActionCommand } from "@bb/client-core";
+import { composer, type ComposerContext } from "@bb/plugin/app";
+import { Fragment, useRef } from "react";
+import { useComposerItems } from "./composer-slots";
 
 export interface PromptBoxAction {
   kind: "skills" | "goal";
@@ -19,28 +21,17 @@ export interface PromptBoxAction {
   command?: ProviderPromptActionCommand;
 }
 
-const PROMPT_ACTIONS = [
-  { kind: "skills", label: "Skills", icon: "Zap" },
-] as const;
+const DEFAULT_GROUP = "actions";
 
 export function PromptBoxActionsMenu({
-  actions = [],
-  onAttach,
-  onAction,
+  context,
 }: {
-  actions?: readonly PromptBoxAction[];
-  onAttach?: () => void;
-  onAction: (action: PromptBoxAction) => void;
+  context: ComposerContext;
 }) {
   const selectedItemRef = useRef(false);
-  const visibleActions = PROMPT_ACTIONS.flatMap((presentation) => {
-    const action = actions.find(
-      (candidate) => candidate.kind === presentation.kind,
-    );
-    return action && action.text.length > 0 ? [{ action, presentation }] : [];
-  });
+  const items = useComposerItems(composer.menuItem, context);
 
-  if (visibleActions.length === 0 && !onAttach) {
+  if (items.length === 0) {
     return null;
   }
 
@@ -83,40 +74,30 @@ export function PromptBoxActionsMenu({
           }
         }}
       >
-        {onAttach ? (
-          <>
-            <DropdownMenuItem
-              onSelect={() => {
-                selectedItemRef.current = true;
-                onAttach();
-              }}
-            >
-              <Icon
-                name="Paperclip"
-                className="size-4 text-muted-foreground"
-                aria-hidden
-              />
-              Attach files
-            </DropdownMenuItem>
-            {visibleActions.length > 0 ? <DropdownMenuSeparator /> : null}
-          </>
-        ) : null}
-        {visibleActions.map(({ action, presentation }) => (
-          <DropdownMenuItem
-            key={action.kind}
-            onSelect={() => {
-              selectedItemRef.current = true;
-              onAction(action);
-            }}
-          >
-            <Icon
-              name={presentation.icon}
-              className="size-4 text-muted-foreground"
-              aria-hidden
-            />
-            {presentation.label}
-          </DropdownMenuItem>
-        ))}
+        {items.map((item, index) => {
+          const previous = items[index - 1];
+          const startsGroup =
+            previous !== undefined &&
+            (previous.group ?? DEFAULT_GROUP) !== (item.group ?? DEFAULT_GROUP);
+          return (
+            <Fragment key={item.id}>
+              {startsGroup ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                onSelect={() => {
+                  selectedItemRef.current = true;
+                  item.run(context);
+                }}
+              >
+                <Icon
+                  name={item.icon as IconName}
+                  className="size-4 text-muted-foreground"
+                  aria-hidden
+                />
+                {item.label}
+              </DropdownMenuItem>
+            </Fragment>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

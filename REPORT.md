@@ -41,6 +41,12 @@ The sections below describe the rewrite as it stood at 143,297 lines. Later chan
 How the plan was made and what was decided with the user is in `INVENTORY.md`; how the pieces fit is
 in `docs/architecture.md`.
 
+- **The plugin API was rebuilt on a kernel** (operations, hooks, slots, live values, an audit log) and
+  the API described under "The new plugin API" below no longer exists. Providers are plugins, the
+  server is assembled from core plugins, and the app's main lists are slots. See
+  `docs/plugin-api.md` (how to write one), `docs/architecture.md` "Plugins" (exact behaviour) and the
+  status table in `docs/plugin-api-proposal.html` (what is and is not built).
+
 ## Line count per area
 
 | Area                                                                        |       Lines | Of which tests |

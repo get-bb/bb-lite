@@ -2,7 +2,13 @@ import { cpSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import type { PluginServerApi } from "@bb/plugin";
+import {
+  contract,
+  op,
+  sessions,
+  threads,
+  type PluginServerApi,
+} from "@bb/plugin";
 import type { InstalledPlugin, ThreadResponse } from "@bb/server-contract";
 import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
@@ -12,13 +18,27 @@ import { createTestServer, scratch } from "./helpers.js";
 
 type Listing = { plugins: InstalledPlugin[] };
 type Contributions = { cliCommands: unknown[] };
-type RpcBody = { result?: unknown; error?: { code: string; issues?: unknown } };
+type OpBody = { result?: unknown; code?: string; message?: string };
 type CliBody = { stderr: string };
 
 const FIXTURE = fileURLToPath(
   new URL("./fixtures/echo-plugin", import.meta.url),
 );
 const MACHINE = { "x-bb-via-tunnel": "1", "x-bb-gate-auth": "machine" };
+const probe = contract("probe", {
+  shout: op({
+    input: z.object({ text: z.string() }),
+    output: z.string(),
+    doors: {
+      agent: {
+        name: "Shout",
+        description: "Shouts",
+        instructions: "Use Shout sparingly.",
+        enabledFor: ({ providerId }) => providerId === "codex",
+      },
+    },
+  }),
+});
 
 async function serverWithEcho(directory = FIXTURE) {
   const server = await createTestServer();
@@ -37,17 +57,22 @@ async function serverWithEcho(directory = FIXTURE) {
     const headers = { "content-type": "application/json", ...extra };
     return request(path, { method, headers, body: JSON.stringify(body) });
   };
-  const rpc = async (path: string, input: unknown) => {
-    const { status, body } = await send(`/${path}`, input);
-    const { result, error } = body as RpcBody;
-    return [status, result ?? error?.code];
+  const answer = async (name: string, input: unknown, extra = {}) => {
+    const headers = { "content-type": "application/json", ...extra };
+    const init = { method: "POST", headers, body: JSON.stringify(input) };
+    const response = await server.request(`/ops/${name}`, init);
+    return { status: response.status, ...((await response.json()) as OpBody) };
+  };
+  const call = async (name: string, input: unknown) => {
+    const { status, result, code } = await answer(name, input);
+    return [status, result ?? code];
   };
   const kv = (key: string) =>
     ctx.db.get<{ value: string }>(
       "SELECT value FROM plugin_kv WHERE plugin_id = 'echo' AND key = ?",
       key,
     )?.value;
-  return { ...server, configFile, request, send, rpc, kv };
+  return { ...server, configFile, request, send, answer, call, kv };
 }
 
 it("loads the builtin table and the directories named in config.json", async () => {
@@ -76,32 +101,37 @@ it("loads the builtin table and the directories named in config.json", async () 
   expect(ctx.plugins.skillDirs()).toContainEqual(skills);
 });
 
-it("validates rpc calls, stores data and broadcasts realtime signals", async () => {
-  const { send, rpc, socket, kv } = await serverWithEcho();
+it("validates operation calls, stores data and signals changes", async () => {
+  const { answer, call, socket, kv } = await serverWithEcho();
   const client = await socket();
   const echoed = { text: "hello there", calls: 1 };
-  expect(await rpc("echo/rpc/echo", { text: "there" })).toEqual([200, echoed]);
-  const payload = { text: "there" };
-  const signal = { type: "plugin-signal", pluginId: "echo", channel: "echoed" };
-  expect(await client.next()).toEqual({ ...signal, payload });
+  expect(await call("echo.echo", { text: "there" })).toEqual([200, echoed]);
+  const signal = { type: "plugin-signal", pluginId: "kernel" };
+  const payload = { name: "echo.echo" };
+  expect(await client.next()).toEqual({
+    ...signal,
+    channel: "changed",
+    payload,
+  });
   expect(kv("last")).toBe('"there"');
-  const invalidInput = [400, "invalid_input"];
-  expect(await rpc("echo/rpc/echo", { text: 1 })).toEqual(invalidInput);
-  expect(await rpc("echo/rpc/absent", null)).toEqual([404, "unknown_method"]);
-  expect(await rpc("echo/rpc/fail", null)).toEqual([500, "handler_error"]);
-  expect(await rpc("absent/rpc/echo", {})).toEqual([404, "plugin_unavailable"]);
-  const invalid = (await send("/echo/rpc/echo", {})).body as RpcBody;
-  expect(invalid.error?.issues).toMatchObject([{ path: ["text"] }]);
+  const invalidRequest = [400, "invalid_request"];
+  expect(await call("echo.echo", { text: 1 })).toEqual(invalidRequest);
+  expect(await call("echo.absent", {})).toEqual([404, "not_found"]);
+  expect(await call("echo.later", {})).toEqual([501, "unimplemented"]);
+  expect(await call("echo.fail", {})).toEqual([500, "handler_error"]);
+  expect(await call("absent.echo", {})).toEqual([404, "not_found"]);
+  const invalid = await answer("echo.echo", {});
+  expect(invalid.message).toContain("text");
 });
 
 it("guards plugin http routes by their declared auth mode", async () => {
-  const { request, send } = await serverWithEcho();
+  const { request, send, answer } = await serverWithEcho();
   const status = async (path: string, headers = {}) =>
     (await request(`/echo/http/${path}`, { headers })).status;
   expect((await request("/echo/http/local")).body).toEqual({ auth: "local" });
   expect(await status("local", MACHINE)).toBe(403);
   expect(await status("none", MACHINE)).toBe(200);
-  const fromMachine = await send("/echo/rpc/echo", { text: "m" }, MACHINE);
+  const fromMachine = await answer("echo.echo", { text: "m" }, MACHINE);
   expect(fromMachine.status).toBe(200);
   expect(await status("token")).toBe(401);
   expect((await send("/echo/token", {}, MACHINE)).status).toBe(403);
@@ -115,7 +145,7 @@ it("guards plugin http routes by their declared auth mode", async () => {
 });
 
 it("stores settings and never returns a secret", async () => {
-  const { request, send, rpc, ctx } = await serverWithEcho();
+  const { request, send, call, ctx } = await serverWithEcho();
   const save = (values: object, headers = {}) =>
     send("/echo/settings", { values }, headers, "PUT");
   expect((await request("/echo/settings")).body).toMatchObject({
@@ -132,13 +162,13 @@ it("stores settings and never returns a secret", async () => {
   expect(readFileSync(file, "utf8")).toBe("s3cret");
   expect(statSync(file).mode & 0o777).toBe(0o600);
   const greeted = { text: "hi you", calls: 1 };
-  expect(await rpc("echo/rpc/echo", { text: "you" })).toEqual([200, greeted]);
+  expect(await call("echo.echo", { text: "you" })).toEqual([200, greeted]);
   expect((await save({ greeting: 5 })).status).toBe(400);
   expect((await save({ unknown: "x" })).status).toBe(400);
 });
 
 it("restarts a crashed service and disposes a disabled plugin", async () => {
-  const { send, request, rpc, kv } = await serverWithEcho();
+  const { send, request, call, kv } = await serverWithEcho();
   await vi.waitFor(() => expect(kv("starts")).toBe("2"), { timeout: 5_000 });
   expect(kv("disposed")).toBeUndefined();
   expect((await send("/echo/disable", {}, MACHINE)).status).toBe(403);
@@ -146,32 +176,32 @@ it("restarts a crashed service and disposes a disabled plugin", async () => {
   const disabled = await send("/echo/disable", {});
   expect(disabled.body).toMatchObject({ ok: true, plugin });
   expect(kv("disposed")).toBe("true");
-  const unavailable = [503, "plugin_unavailable"];
-  expect(await rpc("echo/rpc/echo", { text: "x" })).toEqual(unavailable);
+  const unimplemented = [501, "unimplemented"];
+  expect(await call("echo.echo", { text: "x" })).toEqual(unimplemented);
   expect((await request("/echo/http/none")).status).toBe(503);
   const scope = { argv: ["say", "x"], cwd: "/work", threadId: "thr_1" };
   const { stderr } = (await send("/echo/cli", scope)).body as CliBody;
   expect(stderr).toContain("not running");
   const enabled = await send("/echo/enable", {});
   expect(enabled.body).toMatchObject({ plugin: { status: "running" } });
-  expect((await rpc("echo/rpc/echo", { text: "x" }))[0]).toBe(200);
+  expect((await call("echo.echo", { text: "x" }))[0]).toBe(200);
 });
 
 it("reloads a changed external plugin and refuses rewritten migrations", async () => {
   const directory = join(scratch(), "echo");
   cpSync(FIXTURE, directory, { recursive: true });
-  const { send, rpc, configFile } = await serverWithEcho(directory);
+  const { send, call, configFile } = await serverWithEcho(directory);
   const source = join(directory, "server.ts");
   const edit = (from: string, to: string) =>
     writeFileSync(source, readFileSync(source, "utf8").replace(from, to));
   const reload = async (query = ""): Promise<InstalledPlugin[]> =>
     ((await send(`/reload${query}`, {})).body as Listing).plugins;
-  await rpc("echo/rpc/echo", { text: "a" });
+  await call("echo.echo", { text: "a" });
   edit('default: "hello"', 'default: "howdy"');
   edit('NOT NULL)"]', 'NOT NULL)", "CREATE TABLE extra (id INTEGER)"]');
   await reload("?id=echo");
   const echoed = { text: "howdy b", calls: 2 };
-  expect(await rpc("echo/rpc/echo", { text: "b" })).toEqual([200, echoed]);
+  expect(await call("echo.echo", { text: "b" })).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
   const statusMessage = expect.stringContaining("Migration 1 changed");
   const failed = { status: "error", statusMessage };
@@ -193,53 +223,56 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   const jsx = (type: unknown, props: unknown): unknown => ({ type, props });
   const useState = (value: number) => [value];
   const clsx = (...names: string[]) => names.join(" ");
+  const callOp = vi.fn();
   const sandbox = {
     module: { exports: {} as { default?: { setup(app: unknown): void } } },
     __bbPluginRuntime: {
       react: { default: { useState }, useState },
       "react/jsx-runtime": { jsx },
       clsx: { default: clsx, clsx },
-      "@bb/plugin/app": { definePluginApp: (setup: unknown) => ({ setup }) },
+      "@bb/plugin/app": { plugin: (setup: unknown) => ({ setup }), callOp },
     },
   };
   vm.runInNewContext(code, sandbox);
-  const panels: { component(): unknown }[] = [];
+  type Rendered = { props: { onClick(): void } };
+  const panels: { component(): Rendered }[] = [];
   const slots = { navPanel: (panel: (typeof panels)[0]) => panels.push(panel) };
   sandbox.module.exports.default?.setup({ slots });
-  const props = { className: "echo-panel flex", children: 2 };
-  expect(panels[0]?.component()).toEqual({ type: "div", props });
+  const props = { className: "echo-panel flex", children: 3 };
+  const rendered = panels[0]?.component();
+  expect(rendered).toMatchObject({ type: "div", props });
+  rendered?.props.onClick();
+  const called = expect.objectContaining({ name: "echo.echo", kind: "write" });
+  expect(callOp).toHaveBeenCalledWith(called, { text: "panel" });
 });
 
-it("answers the thread engine's queries from plugin registrations", async () => {
+it("answers the thread engine's queries from what plugins register", async () => {
   const { ctx } = await createTestServer();
   const directory = scratch();
   const manifest = { name: "bb-plugin-probe", bb: { name: "Probe" } };
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
   const idleTexts: (string | null)[] = [];
   const server = (bb: PluginServerApi) => {
-    bb.agents.registerTool({
-      name: "Shout",
-      description: "Shouts",
-      instructions: "Use Shout sparingly.",
-      parameters: z.object({ text: z.string() }),
-      enabledFor: ({ providerId }) => providerId === "codex",
-      execute: ({ text }) => text.toUpperCase(),
+    bb.implement(probe.shout, ({ text }) => text.toUpperCase());
+    bb.on(sessions.instructions, async ({ threadId }, next) => {
+      const own = { source: bb.pluginId, text: `Thread ${threadId}` };
+      return [...(await next()), own];
     });
-    bb.agents.contributeInstructions(({ threadId }) => `Thread ${threadId}`);
-    bb.providers.contributeEnv("codex", ({ hostId }) => [
-      { name: "POOL_URL", value: { serverPath: `/pool/${hostId}` } },
-    ]);
-    bb.events.on("thread.idle", ({ lastAssistantText }) => {
+    bb.on(sessions.env, { providerId: "codex" }, async ({ hostId }, next) => {
+      const value = { serverPath: `/pool/${hostId}` };
+      return [{ name: "POOL_URL", value }, ...(await next())];
+    });
+    bb.on(threads.idle, ({ lastAssistantText }) => {
       idleTexts.push(lastAssistantText);
     });
-    bb.ui.registerMentionProvider({
+    bb.add(sessions.mention, {
       id: "note",
       label: "Notes",
       search: ({ query }) => [{ id: "n1", title: `Note ${query}` }],
       resolve: (id) => ({ context: `Body of ${id}` }),
     });
     const complete = async (prompt: string) => ` ${prompt.slice(0, 5)} `;
-    bb.inference.register({ id: "tiny", displayName: "Tiny", complete });
+    bb.add(sessions.inference, { id: "tiny", displayName: "Tiny", complete });
     bb.status.needsConfiguration("Sign in first");
   };
   const plugins = new PluginHost({ ...ctx, builtins: [{ directory, server }] });

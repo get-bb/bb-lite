@@ -1,7 +1,6 @@
-import type { RpcContract } from "@bb/plugin";
+import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
-export const ACCOUNTS_CHANGED = "accounts-changed";
 export const HUB_PATH = "/api/v1/plugins/account-pool/http";
 
 export const providerSchema = z.enum(["claude", "codex"]);
@@ -118,24 +117,38 @@ const accountPatch = z.object({
   priority: wholeNumber.optional(),
 });
 const done = z.null();
+const write = "write" as const;
 
-export const poolRpc = {
-  status: { input: z.null(), output: statusSchema },
-  "account.add": { input: accountAddSchema, output: accountSchema },
-  "account.update": {
+export const pool = contract("account-pool", {
+  status: op({ input: z.object({}), output: statusSchema }),
+  accountAdd: op({
+    input: accountAddSchema,
+    output: accountSchema,
+    kind: write,
+    secret: ["apiKey"],
+  }),
+  accountUpdate: op({
     input: accountId.extend(accountPatch.shape),
-    output: done,
-  },
-  "account.refresh": { input: accountId, output: done },
-  "routing.set": {
+    output: accountSchema,
+    kind: write,
+  }),
+  accountRefresh: op({ input: accountId, output: done, kind: write }),
+  routingSet: op({
     input: provider.extend({ enabled: z.boolean() }),
     output: done,
-  },
-  "config.set": { input: z.object({ switchThreshold }), output: done },
-  "login.start": { input: provider, output: loginStartSchema },
-  "login.complete": {
+    kind: write,
+  }),
+  configSet: op({
+    input: z.object({ switchThreshold }),
+    output: done,
+    kind: write,
+  }),
+  loginStart: op({ input: provider, output: loginStartSchema, kind: write }),
+  loginComplete: op({
     input: session.extend({ code: z.string().trim().min(1) }),
     output: accountSchema,
-  },
-  "login.poll": { input: session, output: loginPollSchema },
-} satisfies RpcContract;
+    kind: write,
+    secret: ["code"],
+  }),
+  loginPoll: op({ input: session, output: loginPollSchema }),
+});

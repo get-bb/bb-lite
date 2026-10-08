@@ -3,6 +3,7 @@ import type {
   SystemEnvironmentProvider,
   SystemEnvironmentProvidersQuery,
 } from "@bb/server-contract";
+import { environments } from "@bb/plugin";
 import { z } from "zod";
 import type { ServerContext } from "../context.js";
 import { listHosts } from "../db/hosts.js";
@@ -20,6 +21,7 @@ interface EnvironmentProviderDefinition {
   inputs: JsonValue | null;
 }
 
+const CORE_PLUGIN = "environments";
 const NO_REQUIREMENTS = {
   projectCheckout: false,
   gitCheckout: false,
@@ -59,7 +61,7 @@ function inputsJsonSchema(schema: z.ZodType) {
   return jsonValueSchema.parse(z.toJSONSchema(schema, { io: "input" }));
 }
 
-const ENVIRONMENT_PROVIDERS: EnvironmentProviderDefinition[] = [
+export const BUILTIN_ENVIRONMENT_KINDS: EnvironmentProviderDefinition[] = [
   {
     id: "project-checkout",
     displayName: "Project checkout",
@@ -131,10 +133,27 @@ export async function listEnvironmentProviders(
       ? null
       : requireProject(ctx.db, query.projectId);
   const providers: SystemEnvironmentProvider[] = [];
-  for (const definition of ENVIRONMENT_PROVIDERS) {
-    const { id, requires } = definition;
+  const kinds = ctx.kernel
+    .entries(environments.kind)
+    .map(({ plugin, item }) => {
+      const core = plugin === CORE_PLUGIN;
+      return {
+        id: item.id,
+        displayName: item.displayName,
+        description: item.description ?? "",
+        icon: item.icon ?? "Folder",
+        requires: item.requires ?? NO_REQUIREMENTS,
+        inputs: item.inputs ?? null,
+        placed: item.requires !== undefined,
+        pluginId: core ? `environment-${item.id}` : plugin,
+      };
+    });
+  for (const { placed, ...definition } of kinds) {
+    const { requires } = definition;
     const personal = project?.kind === "personal";
-    if (project !== null && requires.projectless !== personal) continue;
+    if (placed && project !== null && requires.projectless !== personal) {
+      continue;
+    }
     const machines =
       project === null
         ? {}
@@ -147,7 +166,6 @@ export async function listEnvironmentProviders(
       machineProviderId: null,
       ...definition,
       logoUrl: null,
-      pluginId: `environment-${id}`,
       acceptsEmptyInputs: true,
       availability: hostId === undefined ? null : (machines[hostId] ?? null),
       machineAvailability: machines,

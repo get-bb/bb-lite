@@ -1,6 +1,8 @@
-import type {
-  PluginMessageDirectiveProps,
-  PluginThreadPanelProps,
+import { tasks } from "../../shared/contract.js";
+import {
+  callOp,
+  type PluginMessageDirectiveProps,
+  type PluginThreadPanelProps,
 } from "@bb/plugin/app";
 import { useBbNavigate } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
@@ -52,7 +54,7 @@ function TaskCard({
 }) {
   const navigate = useBbNavigate();
   const query = useTasksQuery(
-    async (rpc) => (await rpc.call("getTaskByKey", { taskKey })).task,
+    async () => (await callOp(tasks.getTaskByKey, { taskKey })).task,
     [taskKey],
   );
   const task = query.data;

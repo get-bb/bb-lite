@@ -1,11 +1,32 @@
 import type { ComponentType, ReactElement } from "react";
 import type { BbSdkAreas } from "@bb/sdk";
+import type { z } from "zod";
 import type * as T from "./app-types.js";
+import type { Live, Op, Slot } from "./contract.js";
+import type { PluginVerbs, SlotEntryView } from "./kernel.js";
 
 export type * from "./app-types.js";
+export * from "./app-contracts.js";
+export * from "./app/composer.js";
+export * from "./app/side-panel.js";
+export * from "./app/thread-view.js";
+export * from "./contract.js";
+export { createKernel, deny, OpError } from "./kernel.js";
+export type * from "./kernel.js";
 export * from "./shared-modules.js";
 
-export interface PluginAppApi {
+export interface OpState<Output> {
+  status: "loading" | "ready" | "error";
+  data: Output | undefined;
+  error: Error | null;
+  refetch(): void;
+}
+
+type OpInput<O extends Op> = z.input<O["input"]>;
+type OpOutput<O extends Op> = z.output<O["output"]>;
+
+export interface PluginAppApi extends PluginVerbs {
+  readonly pluginId: string;
   slots: {
     navPanel(registration: T.PluginNavPanelRegistration): void;
     threadPanel(registration: T.PluginThreadPanelRegistration): void;
@@ -44,15 +65,13 @@ export function definePluginApp(
   return Object.freeze({ __bbPluginApp: true as const, setup });
 }
 
+export const plugin = definePluginApp;
+
 export interface PluginAppHost {
   createElement<Props extends object>(
     type: ComponentType<Props>,
     props: Props,
   ): ReactElement;
-  useRpc<
-    Contract extends T.PluginRpcContract = T.PluginRpcContract,
-  >(): T.PluginRpcClient<Contract>;
-  useRealtime(channel: string, handler: (payload: unknown) => void): void;
   useRealtimeConnectionState(): T.PluginRealtimeConnectionState;
   useSettings(): T.PluginSettingsState;
   useSdk(): BbSdkAreas;
@@ -79,6 +98,19 @@ export interface PluginAppHost {
   useEnvironmentProviders(): T.PluginEnvironmentProvidersState;
   useSidebarNavigation(): T.SidebarNavigationState;
   useQuestionFormHost(): T.QuestionFormHost;
+  useSlot<Item>(slot: Slot<Item>): readonly Item[];
+  useSlotEntries<Item>(slot: Slot<Item>): readonly SlotEntryView<Item>[];
+  useSlotEntry<Item>(slot: Slot<Item>, key: string): Item | null;
+  useOp<O extends Op>(
+    op: O,
+    input: OpInput<O>,
+    options?: { enabled?: boolean },
+  ): OpState<OpOutput<O>>;
+  useCall<O extends Op>(op: O): (input: OpInput<O>) => Promise<OpOutput<O>>;
+  useLive<L extends Live>(live: L): z.output<L["value"]> | undefined;
+  useChanged(member: Op | Live, handler: () => void): void;
+  callOp<O extends Op>(op: O, input: OpInput<O>): Promise<OpOutput<O>>;
+  SlotMount: ComponentType<T.SlotMountProps>;
   SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
   ThreadChat: ComponentType<T.ThreadChatProps>;
   Icon: ComponentType<T.IconProps>;
@@ -86,6 +118,8 @@ export interface PluginAppHost {
   UrlLink: ComponentType<T.UrlLinkProps>;
   ThreadTitle: ComponentType<{ threadId: string }>;
   ThreadViewers: ComponentType<T.ThreadViewersProps>;
+  ImageLightbox: ComponentType<T.ImageLightboxProps>;
+  Markdown: ComponentType<T.MarkdownProps>;
 }
 
 let installedHost: PluginAppHost | null = null;
@@ -115,8 +149,6 @@ function component<Props extends object>(
   return (props: Props) => host().createElement(pick(host()), props);
 }
 
-export const useRpc = hook("useRpc");
-export const useRealtime = hook("useRealtime");
 export const useRealtimeConnectionState = hook("useRealtimeConnectionState");
 export const useSettings = hook("useSettings");
 export const useSdk = hook("useSdk");
@@ -136,6 +168,15 @@ export const useProviders = hook("useProviders");
 export const useEnvironmentProviders = hook("useEnvironmentProviders");
 export const useSidebarNavigation = hook("useSidebarNavigation");
 export const useQuestionFormHost = hook("useQuestionFormHost");
+export const useSlot = hook("useSlot");
+export const useSlotEntries = hook("useSlotEntries");
+export const useSlotEntry = hook("useSlotEntry");
+export const useOp = hook("useOp");
+export const useCall = hook("useCall");
+export const useLive = hook("useLive");
+export const useChanged = hook("useChanged");
+export const callOp = hook("callOp");
+export const SlotMount = component((h) => h.SlotMount);
 export const SidebarNavigationIcon = component((h) => h.SidebarNavigationIcon);
 export const ThreadChat = component((h) => h.ThreadChat);
 export const Icon = component((h) => h.Icon);
@@ -143,3 +184,5 @@ export const ProviderIcon = component((h) => h.ProviderIcon);
 export const UrlLink = component((h) => h.UrlLink);
 export const ThreadTitle = component((h) => h.ThreadTitle);
 export const ThreadViewers = component((h) => h.ThreadViewers);
+export const ImageLightbox = component((h) => h.ImageLightbox);
+export const Markdown = component((h) => h.Markdown);

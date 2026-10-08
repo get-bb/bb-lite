@@ -68,7 +68,7 @@ it("disables providers and turns their toggles into options", async () => {
   const saved = await fetch(settings, { method: "PUT", body });
   const { values } = pluginSettingsResponseSchema.parse(await saved.json());
   expect(values).toEqual({ memoryEnabled: true, subagentsDisabled: true });
-  await changed("system", "config-changed");
+  await changed("system", "plugins-changed");
   const updated = { ...defaults, providerSubagentsEnabled: false };
   expect(providerOptionsFor(ctx.db, "codex")).toEqual(updated);
 });

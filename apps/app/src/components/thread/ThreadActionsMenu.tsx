@@ -3,7 +3,13 @@ import {
   ActionMenuSeparator,
 } from "@/components/ui/action-menu-items";
 import type { Thread } from "@bb/domain";
-import { useState } from "react";
+import {
+  shell,
+  type ThreadAction,
+  type ThreadActionChoice,
+  type ThreadActionContext,
+} from "@bb/plugin/app";
+import { Fragment, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +26,7 @@ import { Button } from "@bb/shared-ui/button";
 import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { isThreadRead } from "@bb/client-core";
-import { copyToClipboardWithToast } from "@/lib/clipboard";
-import { getThreadRoutePath } from "@/lib/route-paths";
+import { useSlot } from "@/plugins/slots";
 import { useThreadActions } from "./ThreadActionsProvider";
 
 export interface ThreadActionsMenuResponsiveAction {
@@ -31,39 +35,65 @@ export interface ThreadActionsMenuResponsiveAction {
   onSelect: () => void | Promise<void>;
 }
 
-function ThreadSectionMoveMenu({
+const UNORDERED = 1_000;
+const DEFAULT_GROUP = "";
+
+function grouped(
+  actions: readonly ThreadAction[],
+  context: ThreadActionContext,
+): ThreadAction[][] {
+  const sorted = actions
+    .map((action, index) => ({ action, index }))
+    .filter(({ action }) => action.isAvailable?.(context) ?? true)
+    .sort(
+      (a, b) =>
+        (a.action.order ?? UNORDERED) - (b.action.order ?? UNORDERED) ||
+        a.index - b.index,
+    );
+  const groups = new Map<string, ThreadAction[]>();
+  for (const { action } of sorted) {
+    const group = action.group ?? DEFAULT_GROUP;
+    groups.set(group, [...(groups.get(group) ?? []), action]);
+  }
+  return [...groups.values()];
+}
+
+function resolve(
+  value: string | ((context: ThreadActionContext) => string),
+  context: ThreadActionContext,
+): string {
+  return typeof value === "string" ? value : value(context);
+}
+
+function ThreadActionChoices({
+  choices,
   drawerStep = false,
+  icon,
   isDrawer,
+  label,
   onBack,
   onOpenDrawerStep,
-  thread,
 }: {
+  choices: readonly ThreadActionChoice[];
   drawerStep?: boolean;
+  icon: IconName;
   isDrawer: boolean;
+  label: string;
   onBack?: () => void;
   onOpenDrawerStep?: () => void;
-  thread: Thread;
 }) {
-  const { sectionDestinations, moveToSection } = useThreadActions();
-  const isCurrent = (sectionId: string | null) =>
-    thread.pinnedAt === null && thread.sectionId === sectionId;
-  if (
-    thread.parentThreadId !== null ||
-    thread.archivedAt !== null ||
-    sectionDestinations.every(({ sectionId }) => isCurrent(sectionId))
-  ) {
-    return null;
-  }
-  const items = sectionDestinations.map(({ sectionId, label }) => (
+  const items = choices.map((choice) => (
     <DropdownMenuItem
-      key={sectionId ?? "threads"}
-      aria-current={isCurrent(sectionId) ? "true" : undefined}
+      key={choice.id}
+      aria-current={choice.isCurrent ? "true" : undefined}
       className="flex items-center justify-between gap-3"
-      disabled={isCurrent(sectionId)}
-      onSelect={() => moveToSection(thread, sectionId)}
+      disabled={choice.isCurrent}
+      onSelect={() => {
+        void choice.run();
+      }}
     >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {isCurrent(sectionId) ? (
+      <span className="min-w-0 flex-1 truncate">{choice.label}</span>
+      {choice.isCurrent ? (
         <Icon name="Check" className="ml-auto" aria-hidden="true" />
       ) : null}
     </DropdownMenuItem>
@@ -77,8 +107,8 @@ function ThreadSectionMoveMenu({
             onOpenDrawerStep?.();
           }}
         >
-          <Icon name="SectionMove" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate">Move to section</span>
+          <Icon name={icon} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">{label}</span>
           <Icon name="ChevronRight" className="ml-auto" aria-hidden="true" />
         </DropdownMenuItem>
       );
@@ -95,7 +125,7 @@ function ThreadSectionMoveMenu({
           Back
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Move to section</DropdownMenuLabel>
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
         {items}
       </>
     );
@@ -103,8 +133,8 @@ function ThreadSectionMoveMenu({
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <Icon name="SectionMove" aria-hidden="true" />
-        Move to section
+        <Icon name={icon} aria-hidden="true" />
+        {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-h-[min(24rem,calc(100vh-2rem))] min-w-44 overflow-y-auto">
         {items}
@@ -123,18 +153,18 @@ export function ThreadActionsMenu({
   responsiveActions?: readonly ThreadActionsMenuResponsiveAction[];
 }) {
   const actions = useThreadActions();
+  const registered = useSlot(shell.threadAction);
   const isDrawer = useIsCompactViewport();
-  const [compactStep, setCompactStep] = useState<"actions" | "move">("actions");
-  const isRead = isThreadRead(thread);
-  const isArchived = thread.archivedAt != null;
-  const isPinned = thread.pinnedAt !== null;
-  const afterMenuCloses = (run: (thread: Thread) => void) => () => {
-    window.setTimeout(() => run(thread), 0);
-  };
+  const [compactStep, setCompactStep] = useState<string | null>(null);
+  const context: ThreadActionContext = { thread, actions };
+  const groups = grouped(registered, context);
+  const stepAction = isDrawer
+    ? groups.flat().find((action) => action.id === compactStep)
+    : undefined;
   return (
     <DropdownMenu
       onOpenChange={(open) => {
-        if (!open) setCompactStep("actions");
+        if (!open) setCompactStep(null);
       }}
     >
       <DropdownMenuTrigger asChild>
@@ -159,12 +189,14 @@ export function ThreadActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {isDrawer && compactStep === "move" ? (
-          <ThreadSectionMoveMenu
+        {stepAction?.choices !== undefined ? (
+          <ThreadActionChoices
+            choices={stepAction.choices(context)}
             drawerStep
+            icon={resolve(stepAction.icon, context) as IconName}
             isDrawer
-            onBack={() => setCompactStep("actions")}
-            thread={thread}
+            label={resolve(stepAction.label, context)}
+            onBack={() => setCompactStep(null)}
           />
         ) : (
           <>
@@ -179,70 +211,42 @@ export function ThreadActionsMenu({
                 {action.label}
               </ActionMenuItem>
             ))}
-            {responsiveActions.length > 0 && !isDrawer ? (
-              <ActionMenuSeparator />
-            ) : null}
-            <ActionMenuItem
-              icon="Copy"
-              onSelect={() => {
-                void copyToClipboardWithToast(
-                  new URL(
-                    getThreadRoutePath({
-                      projectId: thread.projectId,
-                      threadId: thread.id,
-                    }),
-                    window.location.origin,
-                  ).toString(),
-                  {
-                    successMessage: "Thread link copied",
-                    errorMessage: "Failed to copy thread link",
-                  },
-                );
-              }}
-            >
-              Copy thread link
-            </ActionMenuItem>
-            <ActionMenuItem
-              icon={isRead ? "Mail" : "MailOpen"}
-              onSelect={() => actions.toggleRead(thread)}
-            >
-              {isRead ? "Mark unread" : "Mark read"}
-            </ActionMenuItem>
-            <ActionMenuItem
-              icon={isPinned ? "PinOff" : "Pin"}
-              onSelect={() => actions.togglePin(thread)}
-            >
-              {isPinned ? "Unpin" : "Pin"}
-            </ActionMenuItem>
-            <ThreadSectionMoveMenu
-              isDrawer={isDrawer}
-              onOpenDrawerStep={() => setCompactStep("move")}
-              thread={thread}
-            />
-            <ActionMenuItem
-              icon="Edit"
-              onSelect={afterMenuCloses(actions.requestRename)}
-            >
-              Rename
-            </ActionMenuItem>
-            {isDrawer ? null : <ActionMenuSeparator />}
-            <ActionMenuItem
-              icon={isArchived ? "ArchiveRestore" : "Archive"}
-              onSelect={
-                isArchived
-                  ? () => actions.unarchiveThread(thread)
-                  : afterMenuCloses(actions.requestArchive)
-              }
-            >
-              {isArchived ? "Unarchive" : "Archive"}
-            </ActionMenuItem>
-            <ActionMenuItem
-              icon="Trash2"
-              variant="destructive"
-              onSelect={afterMenuCloses(actions.requestDelete)}
-            >
-              Delete
-            </ActionMenuItem>
+            {groups.map((group, groupIndex) => (
+              <Fragment key={group[0]?.id}>
+                {(groupIndex > 0 || responsiveActions.length > 0) &&
+                !isDrawer ? (
+                  <ActionMenuSeparator />
+                ) : null}
+                {group.map((action) => {
+                  const icon = resolve(action.icon, context) as IconName;
+                  const label = resolve(action.label, context);
+                  if (action.choices !== undefined) {
+                    return (
+                      <ThreadActionChoices
+                        key={action.id}
+                        choices={action.choices(context)}
+                        icon={icon}
+                        isDrawer={isDrawer}
+                        label={label}
+                        onOpenDrawerStep={() => setCompactStep(action.id)}
+                      />
+                    );
+                  }
+                  return (
+                    <ActionMenuItem
+                      key={action.id}
+                      icon={icon}
+                      variant={action.variant}
+                      onSelect={() => {
+                        void action.run(context);
+                      }}
+                    >
+                      {label}
+                    </ActionMenuItem>
+                  );
+                })}
+              </Fragment>
+            ))}
           </>
         )}
       </DropdownMenuContent>

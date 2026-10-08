@@ -1,4 +1,4 @@
-import type { PluginServerApi } from "@bb/plugin";
+import { threads, type PluginServerApi } from "@bb/plugin";
 import type { z } from "zod";
 import type { TasksStore } from "../db/store.js";
 import {
@@ -8,7 +8,8 @@ import {
   type DisplayComment,
   type Task,
   type TaskDetail,
-  type TASK_CHANNELS,
+  TASK_CHANGES,
+  type TaskChange,
   type updateTaskInputSchema,
 } from "../shared/contract.js";
 
@@ -93,15 +94,9 @@ export function taskBrief(
   return `${[`# ${task.key} · ${task.title}`, ...body].join("\n\n")}\n`;
 }
 
-export function publish(
-  { bb, store }: TasksContext,
-  taskId: string,
-  ...channels: (typeof TASK_CHANNELS)[number][]
-): void {
-  const projectId = store.getTask(taskId)?.projectId ?? null;
-  for (const channel of channels) {
-    bb.realtime.publish(channel, { taskId, projectId });
-  }
+export function publish({ bb }: TasksContext, ...changes: TaskChange[]): void {
+  const ops = new Set(changes.map((change) => TASK_CHANGES[change]));
+  for (const changed of ops) bb.changed(changed);
 }
 
 export function requireTask(store: TasksStore, taskId: string): Task {
@@ -153,7 +148,7 @@ export function createTask(
   checkParent(ctx.store, projectId, fields.parentTaskId);
   checkLabels(ctx.store, projectId, fields.labelIds);
   const task = ctx.store.createTask(projectId, fields);
-  publish(ctx, task.id, "tasks:changed");
+  publish(ctx, "tasks");
   return task;
 }
 
@@ -192,8 +187,8 @@ export function updateTask(
     }
     return updated;
   });
-  publish(ctx, taskId, "tasks:changed");
-  if (notes.length > 0) publish(ctx, taskId, "comments:changed");
+  publish(ctx, "tasks");
+  if (notes.length > 0) publish(ctx, "comments");
   return task;
 }
 
@@ -210,7 +205,8 @@ async function notifyLatestAgent(
     `reply via bb tasks comment ${key} when relevant.`;
   try {
     const input = [{ type: "text" as const, text, mentions: [] }];
-    await bb.threads.send(threadId, { input, mode: "steer-if-active" });
+    const request = { input, mode: "steer-if-active" as const };
+    await bb.call(threads.send, { threadId, request });
     return 1;
   } catch (error) {
     const reason = errorMessage(error);
@@ -231,7 +227,7 @@ export async function createComment(
     comment.notifiedCount = await notifyLatestAgent(ctx, comment);
     ctx.store.setNotifiedCount(comment.id, comment.notifiedCount);
   }
-  publish(ctx, input.taskId, "comments:changed");
+  publish(ctx, "comments");
   return comment;
 }
 
@@ -243,17 +239,19 @@ export async function displayComments(
   const authors = comments.flatMap((comment) =>
     comment.kind === "agent" && comment.threadId ? [comment.threadId] : [],
   );
-  const threads = new Map(
+  const authored = new Map(
     await Promise.all(
       [...new Set(authors)].map(async (threadId) => {
-        const thread = await bb.threads.get(threadId).catch(() => null);
+        const thread = await bb
+          .call(threads.get, { threadId })
+          .catch(() => null);
         return [threadId, thread] as const;
       }),
     ),
   );
   return comments.map((comment) => {
     const thread =
-      comment.kind === "agent" ? threads.get(comment.threadId ?? "") : null;
+      comment.kind === "agent" ? authored.get(comment.threadId ?? "") : null;
     if (!thread) return { ...comment, threadTitle: null, provider: null };
     const title = thread.title?.trim() || thread.titleFallback?.trim() || null;
     const provider = { id: thread.providerId, name: thread.providerId };

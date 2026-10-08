@@ -1,8 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  definePluginApp,
-  type PluginPendingInteractionProps,
-} from "@bb/plugin/app";
+import { plugin, type PluginPendingInteractionProps } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { QuestionForm } from "@bb/shared-ui/question-form";
 import {
@@ -52,8 +49,8 @@ function AskUserQuestionInteraction({
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.pendingInteraction({
+export default plugin((bb) => {
+  bb.slots.pendingInteraction({
     id: ASK_USER_QUESTION_RENDERER_ID,
     component: AskUserQuestionInteraction,
   });

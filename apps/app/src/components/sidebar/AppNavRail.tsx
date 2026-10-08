@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -7,7 +8,12 @@ import {
   type Ref,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import type { SidebarNavigationItem } from "@bb/plugin/app";
+import {
+  shell,
+  type ShellNavContext,
+  type ShellNavItem,
+  type SidebarNavigationItem,
+} from "@bb/plugin/app";
 import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import { Button } from "@bb/shared-ui/button";
 import {
@@ -23,17 +29,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@bb/shared-ui/dropdown-menu";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@bb/shared-ui/sidebar-row-classes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
-import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
+import { useAppCommandShortcuts } from "@/components/commands/AppCommandProvider";
 import { CHROME_ROW_HEIGHT_CLASS } from "@/lib/chrome-row";
 import {
   useSidebarNavigation,
   useSidebarNavigationSplit,
 } from "@/lib/plugin-sidebar-hooks";
 import { getRootComposeRoutePath } from "@/lib/route-paths";
+import { useSlot } from "@/plugins/slots";
 import { UserAvatarStack } from "@/components/users/UserAvatar";
 import { useOtherOnlineUsers } from "@/components/users/user-attribution";
 import { NAV_RAIL_WIDTH_CLASS } from "./SidebarChrome";
@@ -175,6 +182,70 @@ function RailMoreMenu({
   );
 }
 
+const UNORDERED = 1_000;
+
+function ordered(
+  items: readonly ShellNavItem[],
+  position: ShellNavItem["position"],
+): ShellNavItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.position === position)
+    .sort(
+      (a, b) =>
+        (a.item.order ?? UNORDERED) - (b.item.order ?? UNORDERED) ||
+        a.index - b.index,
+    )
+    .map(({ item }) => item);
+}
+
+function isHostItemActive(
+  item: ShellNavItem,
+  context: ShellNavContext,
+): boolean {
+  if (item.isActive !== undefined) return item.isActive(context);
+  if (typeof item.to !== "string") return false;
+  return (
+    context.pathname === item.to || context.pathname.startsWith(`${item.to}/`)
+  );
+}
+
+function HostRailItem({
+  item,
+  context,
+}: {
+  item: ShellNavItem;
+  context: ShellNavContext;
+}) {
+  const command = item.command;
+  const commands = useMemo(
+    () => (command === undefined ? [] : [command]),
+    [command],
+  );
+  const shortcuts = useAppCommandShortcuts(commands);
+  const shortcut = command === undefined ? undefined : shortcuts.get(command);
+  const active = isHostItemActive(item, context);
+  return (
+    <RailButton
+      label={shortcut ? `${item.label} (${shortcut.label})` : item.label}
+      active={active}
+      aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
+      onClick={() => {
+        if (item.run !== undefined) {
+          item.run(context);
+          return;
+        }
+        if (active || item.to === undefined) return;
+        context.navigate(
+          typeof item.to === "string" ? item.to : item.to(context),
+        );
+      }}
+    >
+      <Icon name={item.icon as IconName} aria-hidden="true" />
+    </RailButton>
+  );
+}
+
 export function AppNavRail({
   isAppMode,
   isSettingsActive,
@@ -187,7 +258,7 @@ export function AppNavRail({
   const { items, activeItemId } = useSidebarNavigation();
   const location = useLocation();
   const navigate = useNavigate();
-  const settingsShortcut = useAppCommandShortcut("settings.open");
+  const hostItems = useSlot(shell.navItem);
   const onlineUsers = useOtherOnlineUsers();
 
   const isHomeActive =
@@ -200,6 +271,21 @@ export function AppNavRail({
   useEffect(() => {
     if (isHomeActive) homeRoutePathRef.current = currentRoutePath;
   }, [currentRoutePath, isHomeActive]);
+
+  const context: ShellNavContext = {
+    pathname: location.pathname,
+    isHomeActive,
+    isSettingsActive,
+    get homeRoutePath() {
+      return homeRoutePathRef.current;
+    },
+    settingsRoutePath,
+    navigate: (path) => {
+      void navigate(path);
+    },
+  };
+  const topItems = ordered(hostItems, "top");
+  const bottomItems = ordered(hostItems, "bottom");
 
   const destinations = items.filter(
     (item) => item.action.kind !== "new-thread",
@@ -221,15 +307,9 @@ export function AppNavRail({
         className="flex min-h-0 flex-1 flex-col items-center gap-2.5 bg-surface-recessed pb-2.5"
       >
         <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5 overflow-y-auto py-0.5 [scrollbar-width:none]">
-          <RailButton
-            label="Home"
-            active={isHomeActive}
-            onClick={() => {
-              if (!isHomeActive) void navigate(homeRoutePathRef.current);
-            }}
-          >
-            <Icon name="Home" aria-hidden="true" />
-          </RailButton>
+          {topItems.map((item) => (
+            <HostRailItem key={item.id} item={item} context={context} />
+          ))}
           {visible.map((item) => (
             <RailItem key={item.id} item={item} />
           ))}
@@ -242,20 +322,9 @@ export function AppNavRail({
           tooltipSide="right"
           ringClassName="ring-surface-recessed"
         />
-        <RailButton
-          label={
-            settingsShortcut
-              ? `Settings (${settingsShortcut.label})`
-              : "Settings"
-          }
-          active={isSettingsActive}
-          aria-keyshortcuts={settingsShortcut?.ariaKeyshortcuts}
-          onClick={() => {
-            if (!isSettingsActive) void navigate(settingsRoutePath);
-          }}
-        >
-          <Icon name="Settings" aria-hidden="true" />
-        </RailButton>
+        {bottomItems.map((item) => (
+          <HostRailItem key={item.id} item={item} context={context} />
+        ))}
       </nav>
     </div>
   );

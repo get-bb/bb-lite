@@ -4,6 +4,7 @@ import type {
   ThreadResponse,
 } from "@bb/server-contract";
 import type { Environment, Project } from "@bb/domain";
+import { environments as environmentKinds } from "@bb/plugin";
 import { actorUserId, viewerId } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
@@ -11,10 +12,7 @@ import type { Db } from "../db/index.js";
 import { requireProject, setProjectExecutionDefaults } from "../db/projects.js";
 import { requireThreadSection } from "../db/thread-sections.js";
 import * as store from "../db/threads.js";
-import {
-  environmentProviderIdSchema,
-  type EnvironmentIntent,
-} from "../environments/types.js";
+import type { EnvironmentIntent } from "../environments/types.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 import { assertHostUsable, defaultHostId } from "../runners/access.js";
 import { dispatchMessage } from "./dispatch.js";
@@ -89,14 +87,13 @@ function resolveIntent(
       return { type: "reuse", environmentId: environment.id };
     }
     case "provider": {
-      const provider = environmentProviderIdSchema.safeParse(
-        args.environmentProviderId,
-      );
-      if (!provider.success || args.machine?.type === "new") {
+      const id = args.environmentProviderId;
+      const known = ctx.kernel.find(environmentKinds.kind, id) !== null;
+      if (!known || args.machine?.type === "new") {
         throw invalidRequest("unknown environment provider");
       }
       const hostId = args.machine?.hostId ?? primary;
-      return provided(provider.data, hostId, args.inputs);
+      return provided(id, hostId, args.inputs);
     }
     case "host": {
       const hostId = args.hostId ?? primary;

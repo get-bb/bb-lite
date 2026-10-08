@@ -3,6 +3,7 @@ import type {
   SidebarBootstrapResponse,
   ThreadTimelineResponse as Timeline,
 } from "@bb/server-contract";
+import { threads } from "@bb/plugin";
 import { expect, it, vi } from "vitest";
 import type { ThreadRow } from "../src/db/threads.js";
 import { createEchoServer } from "./helpers.js";
@@ -72,12 +73,12 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   expect(await prompts(path)).toEqual(steers);
   const started = ["delay:5000 first"];
   expect(await prompts(`/projects/${project.id}`)).toEqual(started);
-  const plugin = ctx.plugins.deps("probe").threads;
+  const plugin = ctx.kernel.scope("probe", "product");
   const query = { projectId: project.id };
-  expect(await plugin.list(query)).toEqual([await listed()]);
-  const types = (await plugin.events(id, timeline.maxSeq)).map(
-    ({ type }) => type,
-  );
+  expect(await plugin.call(threads.list, query)).toEqual([await listed()]);
+  const after = { threadId: id, after: timeline.maxSeq };
+  const recorded = await plugin.call(threads.events, after);
+  const types = recorded.map(({ type }) => type);
   expect(types).toContain("turn/completed");
   expect(types).not.toContain("client/thread/start");
 });

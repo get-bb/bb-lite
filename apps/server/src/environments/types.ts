@@ -2,18 +2,11 @@ import { jsonValueSchema, type ProvisioningTranscriptEntry } from "@bb/domain";
 import { z } from "zod";
 import type { ThreadRow } from "../db/threads.js";
 
-export const ENVIRONMENT_PROVIDER_IDS = [
-  "project-checkout",
-  "git-worktree",
-  "personal-workspace",
-] as const;
-export const environmentProviderIdSchema = z.enum(ENVIRONMENT_PROVIDER_IDS);
-
 export const environmentIntentSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("reuse"), environmentId: z.string().min(1) }),
   z.object({
     type: z.literal("provider"),
-    environmentProviderId: environmentProviderIdSchema,
+    environmentProviderId: z.string().min(1),
     hostId: z.string().min(1),
     inputs: jsonValueSchema.nullable(),
   }),

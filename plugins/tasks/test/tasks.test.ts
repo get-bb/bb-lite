@@ -28,22 +28,25 @@ const ulid = (suffix: string): string => `01J8ZZZZZZZZZZZZZZZZZZZZ${suffix}`;
 async function tasksServer() {
   const server = await createThreadServer();
   const base = `${server.url}/api/v1/plugins/tasks`;
-  const post = (path: string, body: unknown = {}): Promise<Response> =>
-    fetch(`${base}${path}`, {
+  const send = (url: string, body: unknown): Promise<Response> =>
+    fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+  const post = (path: string, body: unknown = {}): Promise<Response> =>
+    send(`${base}${path}`, body);
   const rpc = async <Result = Row>(
     method: string,
-    input: unknown = null,
+    input: unknown = {},
   ): Promise<Result> => {
-    const response = await post(`/rpc/${method}`, input);
+    const url = `${server.url}/api/v1/ops/tasks.${method}`;
+    const response = await send(url, input);
     const body = (await response.json()) as {
       result: Result;
-      error?: { message: string };
+      message?: string;
     };
-    if (body.error) throw new Error(body.error.message);
+    if (!response.ok) throw new Error(body.message);
     return body.result;
   };
   const cli = async (line: string, scope: Row = {}) => {
@@ -77,7 +80,11 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   const { project, label, task } = await seed();
   expect(task).toMatchObject({ key: "BB-1", status: "backlog", number: 1 });
   const signal = await client.next(({ type }) => type === "plugin-signal");
-  expect(signal).toMatchObject({ pluginId: "tasks" });
+  expect(signal).toMatchObject({
+    pluginId: "kernel",
+    channel: "changed",
+    payload: { name: "tasks.overview" },
+  });
 
   const child = { projectId: project.id, parentTaskId: task.id };
   const part = { ...child, title: "Part one", status: "todo" };

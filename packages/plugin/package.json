@@ -13,6 +13,11 @@
       "source": "./src/app.ts",
       "types": "./src/app.ts",
       "default": "./src/app.ts"
+    },
+    "./testing": {
+      "source": "./src/testing.ts",
+      "types": "./src/testing.ts",
+      "default": "./src/testing.ts"
     }
   },
   "types": "./src/index.ts",

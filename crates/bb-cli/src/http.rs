@@ -10,6 +10,7 @@ use crate::call::{CliError, CliResult};
 
 pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 75_000;
 pub const THREAD_ID_HEADER: &str = "x-bb-thread-id";
+pub const DOOR_HEADER: &str = "x-bb-door";
 const BODY_LIMIT: u64 = 1 << 34;
 
 /// Blocking client for `<base>/api/v1`; paths passed to it start with `/` and omit `/api/v1`.
@@ -25,14 +26,16 @@ fn agent(timeout_ms: Option<u64>, thread_id: Option<&str>) -> Agent {
     let config = Agent::config_builder()
         .timeout_global(timeout_ms.map(Duration::from_millis))
         .http_status_as_error(false);
-    let Some(value) = thread_id.and_then(|id| HeaderValue::from_str(id).ok()) else {
-        return config.build().into();
-    };
-    let on_behalf_of = move |mut request: Request<SendBody>, next: MiddlewareNext| {
-        request.headers_mut().insert(THREAD_ID_HEADER, value.clone());
+    let thread = thread_id.and_then(|id| HeaderValue::from_str(id).ok());
+    let stamp = move |mut request: Request<SendBody>, next: MiddlewareNext| {
+        let headers = request.headers_mut();
+        headers.insert(DOOR_HEADER, HeaderValue::from_static("cli"));
+        if let Some(value) = &thread {
+            headers.insert(THREAD_ID_HEADER, value.clone());
+        }
         next.handle(request)
     };
-    config.middleware(on_behalf_of).build().into()
+    config.middleware(stamp).build().into()
 }
 
 pub fn timeout_message(timeout_ms: u64) -> String {

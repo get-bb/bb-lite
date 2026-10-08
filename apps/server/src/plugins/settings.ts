@@ -4,6 +4,7 @@ import type { JsonValue } from "@bb/domain";
 import type {
   SettingDescriptor,
   SettingDescriptors,
+  SettingScope,
   SettingValue,
 } from "@bb/plugin";
 import type { Db } from "../db/index.js";
@@ -29,6 +30,7 @@ function accepted(
 export class PluginSettings {
   descriptors: SettingDescriptors = {};
   readonly listeners: SettingsListener[] = [];
+  private readonly personal = new Set<string>();
 
   constructor(
     private readonly db: Db,
@@ -36,23 +38,39 @@ export class PluginSettings {
     private readonly secretsDir: string,
   ) {}
 
-  define(descriptors: SettingDescriptors): void {
+  define(descriptors: SettingDescriptors, scope: SettingScope): void {
     this.descriptors = { ...this.descriptors, ...descriptors };
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (scope === "user" && !isSecret(descriptor)) this.personal.add(key);
+    }
   }
 
-  async read(): Promise<SettingRecord> {
+  isPersonal(keys: readonly string[]): boolean {
+    return keys.length > 0 && keys.every((key) => this.personal.has(key));
+  }
+
+  private rowKey(key: string, userId: string | null): string {
+    const own = userId !== null && this.personal.has(key);
+    return own ? `${key}@${userId}` : key;
+  }
+
+  async read(userId: string | null = null): Promise<SettingRecord> {
     const rows = readPluginRows(this.db, "plugin_settings", this.pluginId);
     const values: SettingRecord = {};
     for (const [key, descriptor] of Object.entries(this.descriptors)) {
+      const own = rows.get(this.rowKey(key, userId)) ?? rows.get(key);
       const stored: unknown = isSecret(descriptor)
         ? await readFile(join(this.secretsDir, key), "utf8").catch(() => null)
-        : JSON.parse(rows.get(key) ?? "null");
+        : JSON.parse(own ?? "null");
       values[key] = accepted(descriptor, stored) ?? descriptor.default;
     }
     return values;
   }
 
-  async write(update: Record<string, unknown>): Promise<SettingRecord> {
+  async write(
+    update: Record<string, unknown>,
+    userId: string | null = null,
+  ): Promise<SettingRecord> {
     const entries = Object.entries(update).map(([key, value]) => {
       const descriptor = this.descriptors[key];
       if (descriptor === undefined) {
@@ -63,11 +81,12 @@ export class PluginSettings {
       }
       return { key, value, secret: isSecret(descriptor) };
     });
-    const previous = await this.read();
+    const previous = await this.read(userId);
     for (const { key, value, secret } of entries) {
       if (!secret) {
         const stored = value === null ? null : JSON.stringify(value);
-        writePluginRow(this.db, "plugin_settings", this.pluginId, key, stored);
+        const row = this.rowKey(key, userId);
+        writePluginRow(this.db, "plugin_settings", this.pluginId, row, stored);
       } else if (value === null) {
         await rm(join(this.secretsDir, key), { force: true });
       } else {
@@ -77,15 +96,17 @@ export class PluginSettings {
         await chmod(file, SECRET_FILE_MODE);
       }
     }
-    const next = await this.read();
+    const next = await this.read(userId);
     if (JSON.stringify(next) !== JSON.stringify(previous)) {
       for (const listener of this.listeners) listener(next, previous);
     }
     return next;
   }
 
-  async publicValues(): Promise<Record<string, JsonValue>> {
-    const values = await this.read();
+  async publicValues(
+    userId: string | null = null,
+  ): Promise<Record<string, JsonValue>> {
+    const values = await this.read(userId);
     const visible: Record<string, JsonValue> = {};
     for (const [key, descriptor] of Object.entries(this.descriptors)) {
       const value = values[key];

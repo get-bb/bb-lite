@@ -1,40 +1,19 @@
 import { Hono } from "hono";
+import { DOOR_HEADER } from "@bb/plugin";
 import { runAs } from "../auth/actor.js";
 import type { ServerContext } from "../context.js";
+import type { CorePlugin } from "../core/plugins.js";
 import { findExternalUser, findSessionUser, patchUser } from "../db/users.js";
 import { THREAD_ID_HEADER, actorOf, ownerUser } from "../runners/access.js";
+import { declaredDoor, throughDoor } from "../kernel/caller.js";
 import { findRunnerHost } from "../runners/enrollment.js";
 import { publicServerUrl } from "../runners/hosts.js";
 import type { ApiApp, AppEnv, RouteGroup } from "./api.js";
 import { compressJson } from "./compression.js";
 import { errorResponse, notFound } from "./errors.js";
-import { registerEnvironmentRoutes } from "./routes/environments.js";
-import { registerFileRoutes } from "./routes/files.js";
-import { registerHostRoutes, registerRunnerRoutes } from "./routes/hosts.js";
-import { registerPluginRoutes } from "./routes/plugins.js";
-import { registerProjectRoutes } from "./routes/projects.js";
-import { registerProviderRoutes } from "./routes/providers.js";
-import { registerSettingsRoutes } from "./routes/settings.js";
-import { registerTerminalRoutes } from "./routes/terminals.js";
-import { registerThreadReadRoutes } from "./routes/thread-read.js";
-import { registerThreadRoutes } from "./routes/threads.js";
-import { registerUserRoutes, sessionCookieName } from "./routes/users.js";
+import { sessionCookieName } from "./routes/users.js";
 import { registerStaticApp } from "./static.js";
 import { authorize, principals, type TrustLookups } from "./trust.js";
-
-const publicApiRouteGroups: RouteGroup[] = [
-  registerUserRoutes,
-  registerSettingsRoutes,
-  registerProjectRoutes,
-  registerHostRoutes,
-  registerProviderRoutes,
-  registerPluginRoutes,
-  registerEnvironmentRoutes,
-  registerFileRoutes,
-  registerTerminalRoutes,
-  registerThreadRoutes,
-  registerThreadReadRoutes,
-];
 
 export function trustLookups(ctx: ServerContext): TrustLookups {
   return {
@@ -56,7 +35,7 @@ export function trustLookups(ctx: ServerContext): TrustLookups {
 function mount(
   app: ApiApp,
   prefix: string,
-  groups: RouteGroup[],
+  groups: readonly RouteGroup[],
   ctx: ServerContext,
 ) {
   const scoped = new Hono<AppEnv>();
@@ -67,7 +46,10 @@ function mount(
   });
 }
 
-export function createHttpApp(ctx: ServerContext): ApiApp {
+export function createHttpApp(
+  ctx: ServerContext,
+  core: readonly CorePlugin[],
+): ApiApp {
   const app = new Hono<AppEnv>();
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
@@ -77,12 +59,17 @@ export function createHttpApp(ctx: ServerContext): ApiApp {
     const principal = authorize(request, trustLookups(ctx));
     principals.set(c.req.raw, principal);
     const threadId = c.req.header(THREAD_ID_HEADER);
-    await runAs(actorOf(ctx, principal, threadId), next);
+    const door = declaredDoor(c.req.header(DOOR_HEADER));
+    const actor = actorOf(ctx, principal, threadId);
+    const machine = principal.kind === "runner";
+    await runAs(actor, () => throughDoor(door, machine, next));
   });
   app.use("/api/v1/*", compressJson);
   app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
-  mount(app, "/api/v1", publicApiRouteGroups, ctx);
-  mount(app, "/internal", [registerRunnerRoutes], ctx);
+  const routes = core.flatMap((plugin) => plugin.routes ?? []);
+  const internal = core.flatMap((plugin) => plugin.internalRoutes ?? []);
+  mount(app, "/api/v1", routes, ctx);
+  mount(app, "/internal", internal, ctx);
   registerStaticApp(app, ctx.config.appDir);
   return app;
 }

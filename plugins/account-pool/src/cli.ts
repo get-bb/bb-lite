@@ -6,14 +6,15 @@ import {
   type CliResult,
   type PluginServerApi,
 } from "@bb/plugin";
+import { z } from "zod";
 import {
+  pool,
   providerSchema,
   type Account,
   type AccountSummary,
   type LimitWindow,
   type PoolStatus,
 } from "./contract.js";
-import type { Pool } from "./server.js";
 
 const json = { type: "boolean", description: "Emit JSON" } as const;
 const session = {
@@ -29,6 +30,8 @@ const ACCOUNT_ID = {
 } as const;
 const ADD_DESCRIPTION =
   "--login prints the browser or device step and exits; finish it with `bb pool account login-complete` (Claude) or `bb pool account login-poll` (Codex).\n--import reads the provider's existing login on this bb server host (~/.claude or ~/.codex).";
+
+type AccountPatch = { enabled?: boolean; priority?: number };
 
 function invalid(message: string): never {
   throw new PluginCliError(message, { code: "invalid_value" });
@@ -73,8 +76,16 @@ function formatStatus(status: PoolStatus): string {
   return [...head, "", formatAccounts(accounts)].join("\n");
 }
 
-export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
-  const { logins } = pool;
+export function registerPoolCli(
+  bb: PluginServerApi,
+  remove: (id: string) => Promise<void>,
+): void {
+  const known = (id: string) => {
+    if (z.uuid().safeParse(id).success) return id;
+    throw new Error(`Account ${id} does not exist.`);
+  };
+  const update = (id: string, patch: AccountPatch) =>
+    bb.call(pool.accountUpdate, { id: known(id), ...patch });
   const accountCommand = (
     summary: string,
     done: string,
@@ -91,7 +102,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
       },
     });
   const showConfig = async (asJson: boolean) => {
-    const { config } = await pool.status();
+    const { config } = await bb.call(pool.status, {});
     const lines = Object.entries(config).map(
       ([key, value]) => `${key}: ${value}`,
     );
@@ -103,7 +114,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
       summary: "Show hub, routing, machine token and account status",
       options: { json },
       async run({ options }) {
-        const status = await pool.status();
+        const status = await bb.call(pool.status, {});
         return reply(options.json, status, formatStatus(status));
       },
     }),
@@ -111,7 +122,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
       summary: "List pool accounts and observed quota",
       options: { json },
       async run({ options }) {
-        const { accounts } = await pool.status();
+        const { accounts } = await bb.call(pool.status, {});
         return reply(options.json, { accounts }, formatAccounts(accounts));
       },
     }),
@@ -152,9 +163,9 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
         }
         if (!options.login) {
           const input = { provider, apiKey, label, priority };
-          return added(options.json, await pool.add(input));
+          return added(options.json, await bb.call(pool.accountAdd, input));
         }
-        const login = await logins.start(provider);
+        const login = await bb.call(pool.loginStart, { provider });
         const { sessionId, url, device } = login;
         const finish =
           device === null
@@ -183,19 +194,20 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
         },
         json,
       },
-      run: async ({ options }) =>
-        added(
-          options.json,
-          await logins.complete(options.session, options.code),
-        ),
+      async run({ options }) {
+        const { session: sessionId, code } = options;
+        const input = { sessionId, code };
+        return added(options.json, await bb.call(pool.loginComplete, input));
+      },
     }),
     "account login-poll": cliCommand({
       summary: "Wait for a Codex device-code login to complete",
       options: { session, json },
       async run({ options }, { signal }) {
+        const { session: sessionId } = options;
         for (;;) {
           await sleep(LOGIN_POLL_MS, undefined, { signal });
-          const result = await logins.poll(options.session);
+          const result = await bb.call(pool.loginPoll, { sessionId });
           if (result.status === "complete") {
             return added(options.json, result.account);
           }
@@ -207,15 +219,15 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
     "account remove": accountCommand(
       "Remove an account and its secret token file",
       "Removed",
-      (id) => pool.remove(id),
+      remove,
     ),
     "account enable": accountCommand(
       "Enable an account and clear its error",
       "Enabled",
-      (id) => pool.update(id, { enabled: true }),
+      (id) => update(id, { enabled: true }),
     ),
     "account disable": accountCommand("Disable an account", "Disabled", (id) =>
-      pool.update(id, { enabled: false }),
+      update(id, { enabled: false }),
     ),
     "account priority": cliCommand({
       summary: "Set an account's position in the failover order",
@@ -227,7 +239,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
       async run({ positionals, options }) {
         const priority = Number(positionals.priority);
         if (!Number.isInteger(priority)) invalid("Priority is a whole number.");
-        const account = await pool.update(positionals.id, { priority });
+        const account = await update(positionals.id, { priority });
         const text = `Set ${account.label} priority to ${priority}.`;
         return reply(options.json, { ok: true, account }, text);
       },
@@ -246,7 +258,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
         if (provider === undefined)
           return invalid("Provider is claude or codex.");
         const enabled = !options.off;
-        await pool.setRouting(provider, enabled);
+        await bb.call(pool.routingSet, { provider, enabled });
         const text = `${enabled ? "Enabled" : "Disabled"} ${provider} routing.`;
         return reply(options.json, { ok: true, provider, enabled }, text);
       },
@@ -272,7 +284,7 @@ export function registerPoolCli(bb: PluginServerApi, pool: Pool): void {
             "Use: bb pool config set switchThreshold <above 0, at most 1>",
           );
         }
-        await pool.setThreshold(value);
+        await bb.call(pool.configSet, { switchThreshold: value });
         return showConfig(options.json);
       },
     }),

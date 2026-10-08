@@ -1,7 +1,5 @@
 import { dirname } from "node:path";
-import { createClaudeAdapter } from "./providers/claude.js";
-import { createCodexAdapter } from "./providers/codex.js";
-import { createEchoAdapter } from "./providers/echo.js";
+import { createRunnerPlugins, runner, type RunnerPart } from "./plugins.js";
 import type { ProviderAdapter } from "./providers/provider.js";
 import { loginShellEnv } from "./sessions/agent-env.js";
 import { Outbox } from "./sessions/outbox.js";
@@ -18,15 +16,13 @@ export interface LocalRunnerOptions {
   bbCliPath: string;
   sink: RunnerEventSink;
   adapters?: ProviderAdapter[];
+  parts?: RunnerPart[];
+  log?: (message: string) => void;
 }
 
 export interface LocalRunner extends Runner {
   outbox: Outbox;
   shutdown(): Promise<void>;
-}
-
-export function defaultAdapters(): ProviderAdapter[] {
-  return [createCodexAdapter(), createClaudeAdapter(), createEchoAdapter()];
 }
 
 export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
@@ -40,19 +36,32 @@ export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
     sink: (event) =>
       event.kind === "script.output" ? outbox.emit(event) : options.sink(event),
   });
+  const { dataDir, log } = options;
+  const plugins = createRunnerPlugins({ dataDir, log });
+  const given = options.adapters ?? [];
+  plugins.load({
+    id: "runner",
+    entry(bb) {
+      for (const adapter of given) bb.add(runner.provider, adapter);
+    },
+  });
+  for (const part of options.parts ?? []) plugins.load(part);
   const sessions = createSessionApi({
     ...options,
     outbox,
-    adapters: options.adapters ?? defaultAdapters(),
+    adapters: plugins.adapters,
     terminalIds: workspace.terminalIds,
   });
   return {
     ...sessions,
     ...workspace.api,
+    loadPlugins: (args) => plugins.sync(args.plugins),
+    callOp: ({ name, input }) => plugins.callOp(name, input),
     outbox,
     shutdown: async () => {
       await sessions.shutdown();
       await workspace.dispose();
+      plugins.dispose();
     },
   };
 }

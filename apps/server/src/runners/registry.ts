@@ -50,6 +50,10 @@ export class RunnerRegistry<R extends SessionApi> {
     return connection.runner;
   }
 
+  connectedHostIds(): string[] {
+    return [...this.connections.keys()];
+  }
+
   isConnected(hostId: string): boolean {
     return this.connections.has(hostId);
   }

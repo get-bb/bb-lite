@@ -747,6 +747,7 @@ export function ThreadDetailPromptArea({
   return (
     <FollowUpPromptBox
       id={THREAD_DETAIL_COMPOSER_TEXTAREA_ID}
+      threadId={thread.id}
       attachments={{
         items: currentPromptDraft.attachments,
         projectId,

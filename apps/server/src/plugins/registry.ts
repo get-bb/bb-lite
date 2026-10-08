@@ -1,13 +1,21 @@
 import type { DynamicTool, ToolCallResponse } from "@bb/domain";
+import {
+  machines,
+  pluginEventDefs,
+  server,
+  sessions,
+  type EventDef,
+  type Kernel,
+} from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
 import type {
   PluginContributionsResponse,
   PluginMentionGroup,
 } from "@bb/server-contract";
-import { z } from "zod";
 import type { Logger } from "../context.js";
-import { ApiError, errorMessage, notFound } from "../http/errors.js";
+import { ApiError, notFound } from "../http/errors.js";
 import type { AppBundle } from "./bundle.js";
+import { callDoorTool, doorCli, doorTools } from "./doors.js";
 import type { PluginInstance } from "./instance.js";
 import type { PluginManifest } from "./manifest.js";
 
@@ -15,6 +23,7 @@ export interface PluginRecord {
   manifest: PluginManifest;
   server: plugin.PluginServerEntry | null;
   external: boolean;
+  watch: boolean;
   configEnabled: boolean;
   instance: PluginInstance | null;
   app: AppBundle | null;
@@ -26,16 +35,14 @@ function toolResponse(text: string, success: boolean): ToolCallResponse {
   return { contentItems: [{ type: "inputText", text }], success };
 }
 
-type TitleFallback = (
-  task: string,
-  signal: AbortSignal,
-) => Promise<string | null>;
-
 export class PluginRegistry {
   protected readonly records = new Map<string, PluginRecord>();
-  titleFallback: TitleFallback | null = null;
+  titleFallback: plugin.TitleFallback | null = null;
 
-  constructor(protected readonly log: Logger) {}
+  constructor(
+    protected readonly log: Logger,
+    protected readonly kernel: Kernel,
+  ) {}
 
   record(id: string): PluginRecord {
     const record = this.records.get(id);
@@ -52,27 +59,19 @@ export class PluginRegistry {
   }
 
   async instructionsFor(context: plugin.ThreadContext): Promise<string> {
-    const parts: (string | null | undefined)[] = [];
-    for (const [id, instance] of this.active()) {
-      for (const tool of this.tools(instance, context)) {
-        parts.push(tool.instructions);
-      }
-      for (const contribute of instance.instructions) {
-        parts.push(await this.attempt(id, "instructions", contribute, context));
-      }
-    }
-    return parts.filter((part) => part?.trim()).join("\n\n");
+    const sections = await this.kernel.call(sessions.instructions, context);
+    return sections.map(({ text }) => text).join("\n\n");
   }
 
   toolsFor(context: plugin.ThreadContext): DynamicTool[] {
-    return this.active().flatMap(([, instance]) =>
-      this.tools(instance, context).map((tool) => {
-        const { name, description, presentation, parameters } = tool;
-        const inputSchema = z.toJSONSchema(parameters);
-        const base = { name, description, inputSchema };
-        return presentation === undefined ? base : { ...base, presentation };
-      }),
-    );
+    return doorTools(this.kernel, context);
+  }
+
+  cliOf(id: string): plugin.CliRegistration | null {
+    const { instance, manifest } = this.record(id);
+    if (instance === null) return null;
+    const { description } = manifest;
+    return instance.cli ?? doorCli(this.kernel, id, description);
   }
 
   async callTool(
@@ -80,112 +79,85 @@ export class PluginRegistry {
     input: unknown,
     context: plugin.ThreadContext & { signal: AbortSignal },
   ): Promise<ToolCallResponse> {
-    const tool = this.active()
-      .flatMap(([, instance]) => this.tools(instance, context))
-      .find((candidate) => candidate.name === name);
-    if (tool === undefined)
-      return toolResponse(`Unknown tool "${name}"`, false);
-    const parsed = await tool.parameters.safeParseAsync(input);
-    if (!parsed.success) {
-      return toolResponse(`Invalid arguments: ${parsed.error.message}`, false);
-    }
-    try {
-      const result = await tool.execute(parsed.data, context);
-      return typeof result === "string"
-        ? toolResponse(result, true)
-        : toolResponse(result.text, !result.isError);
-    } catch (error) {
-      this.log.warn("Plugin tool failed", { tool: name, err: error });
-      return toolResponse(`Tool failed: ${errorMessage(error)}`, false);
-    }
+    const answered = await callDoorTool(this.kernel, name, input, context);
+    return answered ?? toolResponse(`Unknown tool "${name}"`, false);
   }
 
   async contributedEnv(
     providerId: string,
     context: plugin.ThreadContext,
   ): Promise<plugin.ProviderEnvEntry[]> {
-    const entries: plugin.ProviderEnvEntry[] = [];
-    for (const [id, instance] of this.active()) {
-      for (const [contributorProviderId, contribute] of instance.env) {
-        if (contributorProviderId !== providerId) continue;
-        const added = await this.attempt(id, "env", contribute, context);
-        entries.push(...(added ?? []));
-      }
-    }
-    return entries;
+    return this.kernel.call(sessions.env, { ...context, providerId });
   }
 
   emit<Name extends keyof plugin.PluginEvents>(
     name: Name,
     payload: plugin.PluginEvents[Name],
   ): void {
-    for (const [id, instance] of this.active()) {
-      for (const [listened, handler] of instance.listeners) {
-        if (listened !== name) continue;
-        void this.attempt(id, `${name} handler`, handler, payload);
-      }
-    }
+    const event: EventDef = pluginEventDefs[name];
+    this.kernel.emit(event, payload);
   }
 
   async searchMentions(
     query: plugin.MentionQuery,
   ): Promise<PluginMentionGroup[]> {
     const groups: PluginMentionGroup[] = [];
-    const sources = query.query === "" ? [] : this.active();
-    for (const [pluginId, instance] of sources) {
-      for (const provider of instance.mentionProviders) {
-        if (!(provider.triggers ?? ["@"]).includes(query.trigger)) continue;
-        const search = provider.search.bind(provider);
-        const found = await this.attempt(pluginId, "mentions", search, query);
-        if (found === undefined || found.length === 0) continue;
-        const items = found.map((item) => ({
-          itemId: `${provider.id}:${item.id}`,
-          title: item.title,
-          subtitle: item.subtitle ?? null,
-          icon: item.icon ?? null,
-        }));
-        const { id: providerId, label } = provider;
-        groups.push({ pluginId, providerId, label, items });
-      }
+    const sources =
+      query.query === "" ? [] : this.kernel.entries(sessions.mention);
+    for (const { plugin: pluginId, item: provider } of sources) {
+      if (!(provider.triggers ?? ["@"]).includes(query.trigger)) continue;
+      const search = provider.search.bind(provider);
+      const found = await this.attempt(pluginId, "mentions", search, query);
+      if (found === undefined || found.length === 0) continue;
+      const items = found.map((item) => ({
+        itemId: `${provider.id}:${item.id}`,
+        title: item.title,
+        subtitle: item.subtitle ?? null,
+        icon: item.icon ?? null,
+      }));
+      const { id: providerId, label } = provider;
+      groups.push({ pluginId, providerId, label, items });
     }
     return groups;
   }
 
   async resolveMention(pluginId: string, itemId: string): Promise<string> {
     const [providerId, ...rest] = itemId.split(":");
-    const provider = this.running(pluginId).mentionProviders.find(
-      (candidate) => candidate.id === providerId,
-    );
-    if (provider === undefined) {
+    this.running(pluginId);
+    const found = this.kernel
+      .entries(sessions.mention)
+      .find(
+        ({ plugin, item }) => plugin === pluginId && item.id === providerId,
+      );
+    if (found === undefined) {
       throw notFound(`Unknown mention provider "${providerId}"`);
     }
-    return (await provider.resolve(rest.join(":"))).context;
+    return (await found.item.resolve(rest.join(":"))).context;
   }
 
   async generateTitle(
     prompt: string,
     signal: AbortSignal,
   ): Promise<string | null> {
-    const services = this.active().flatMap(([id, instance]) =>
-      instance.inference.map((service) => ({ id, service })),
-    );
-    for (const { id, service } of services) {
+    const services = this.kernel.entries(sessions.inference);
+    for (const { plugin: id, item: service } of services) {
       const complete = service.complete.bind(service, prompt, { signal });
       const text = await this.attempt(id, "inference", complete, undefined);
       if (text !== undefined && text.trim() !== "") return text.trim();
     }
-    const fallback = this.titleFallback;
+    const fallback =
+      this.titleFallback ?? this.kernel.pick(sessions.titleFallback);
     if (services.length > 0 || fallback === null) return null;
     const title = (task: string) => fallback(task, signal);
     return (await this.attempt("core", "title", title, prompt)) ?? null;
   }
 
   publicUrl(): string | null {
-    return this.firstSet((instance) => instance.publicUrl);
+    return this.kernel.pick(server.publicUrl)?.() ?? null;
   }
 
   machineAccess(): plugin.MachineAccessProvider | null {
-    return this.firstSet((instance) => instance.machineAccess);
+    return this.kernel.pick(machines.access);
   }
 
   skillDirs(): string[] {
@@ -197,39 +169,23 @@ export class PluginRegistry {
   contributions(): PluginContributionsResponse {
     const active = this.active();
     return {
-      cliCommands: active.flatMap(([pluginId, { cli }]) => {
+      cliCommands: active.flatMap(([pluginId]) => {
+        const cli = this.cliOf(pluginId);
         if (cli === null) return [];
         const { name, summary, commands = [] } = cli;
         return [{ pluginId, name, summary, commands }];
       }),
-      mentionProviders: active.flatMap(([pluginId, instance]) =>
-        instance.mentionProviders.map(({ id, label, triggers = ["@"] }) => {
+      mentionProviders: this.kernel
+        .entries(sessions.mention)
+        .map(({ plugin: pluginId, item: { id, label, triggers = ["@"] } }) => {
           return { pluginId, id, label, triggers: [...triggers] };
         }),
-      ),
     };
   }
 
   private active(): [id: string, instance: PluginInstance][] {
     return [...this.records].flatMap(([id, { instance }]) =>
       instance === null ? [] : [[id, instance]],
-    );
-  }
-
-  private firstSet<T>(pick: (instance: PluginInstance) => T | null): T | null {
-    for (const [, instance] of this.active()) {
-      const value = pick(instance);
-      if (value !== null) return value;
-    }
-    return null;
-  }
-
-  private tools(
-    instance: PluginInstance,
-    context: plugin.ThreadContext,
-  ): plugin.AgentTool[] {
-    return instance.tools.filter(
-      (tool) => tool.enabledFor?.(context) !== false,
     );
   }
 

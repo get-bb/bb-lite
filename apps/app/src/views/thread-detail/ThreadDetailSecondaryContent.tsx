@@ -1,26 +1,31 @@
-import { useContext, type ComponentProps, type ReactNode } from "react";
+import {
+  useContext,
+  useMemo,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { useAtom } from "jotai";
 import { Button } from "@bb/shared-ui/button";
-import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Icon } from "@bb/shared-ui/icon";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandShortcut } from "@/components/commands/AppCommandProvider";
-import { PluginItemIcon } from "@/components/plugin/PluginIcon";
-import {
-  PluginPanelTabContent,
-  usePluginPanelActions,
-} from "@/components/plugin/PluginPanelActions";
+import { usePluginPanelActions } from "@/components/plugin/PluginPanelActions";
 import type { PromptMentionLinkResolver } from "@/components/promptbox/editor/prompt-mention-link";
 import { useGitDiffTab } from "@/components/secondary-panel/git-diff/GitDiffTab";
-import { NewTabPage } from "@/components/secondary-panel/NewTabPage";
 import {
   GIT_DIFF_TAB_ID,
   THREAD_INFO_TAB_ID,
 } from "@/components/secondary-panel/panelTabs";
-import { RightPanelFileTabIcon } from "@/components/secondary-panel/RightPanelFileTabIcon";
 import { SecondaryPanelHostLayoutContext } from "@/components/secondary-panel/SecondaryPanelHostLayoutContext";
+import { SidePanelHostContext } from "@/components/secondary-panel/SidePanelHostContext";
+import {
+  SidePanelTabBody,
+  SidePanelTabIcon,
+  findSidePanelTabKind,
+  useSidePanelTabKinds,
+} from "@/components/secondary-panel/SidePanelTabChrome";
 import { SecondaryPanelLayout } from "@/components/secondary-panel/SecondaryPanelLayout";
 import {
   ThreadMetadataCard,
@@ -33,28 +38,11 @@ import {
   type SecondaryPanelFixedTab,
   type SecondaryPanelRenderableTab,
 } from "@/components/secondary-panel/ThreadSecondaryPanel";
-import {
-  HostFilePreviewTabContent,
-  WorkspaceFilePreviewTabContent,
-} from "@/components/secondary-panel/ThreadSecondaryPanelTabContent";
 import { getThreadConversationCollapsedAtom } from "@/components/secondary-panel/threadSecondaryPanelAtoms";
-import {
-  openThreadLink,
-  type ThreadPanelController,
-} from "@/components/secondary-panel/useThreadPanel";
-import { ThreadTerminalPanel } from "@/components/thread/terminal/ThreadTerminalPanel";
-import { ThreadTimelineNavigationProvider } from "@/components/thread/timeline/ThreadTimelineNavigationContext";
+import type { ThreadPanelController } from "@/components/secondary-panel/useThreadPanel";
 import { DETAIL_GRID_CLASS } from "@/components/ui/detail-card.js";
-import {
-  MarkdownLocalFileContextMenuContext,
-  type MarkdownLinkRouting,
-} from "@/components/ui/markdown-link-routing";
+import { MarkdownLocalFileContextMenuContext } from "@/components/ui/markdown-link-routing";
 import { useThreads } from "@/hooks/queries/thread-queries";
-import {
-  getAbsoluteDirname,
-  isAbsoluteFilePathWithinRoot,
-  resolveAbsoluteFilePath,
-} from "@/lib/absolute-file-path";
 import { usePluginSlots } from "@/plugins/registry";
 import { ThreadTimelinePane } from "./ThreadTimelinePane";
 
@@ -123,25 +111,6 @@ export function ThreadDetailSecondaryContent({
   );
 }
 
-function markdownLinkRouting(
-  panel: ThreadPanelController,
-  baseDir: string | undefined,
-  rootPath: string | null,
-): MarkdownLinkRouting {
-  const onOpenLink = openThreadLink;
-  if (rootPath === null) return { onOpenLink };
-  return {
-    onOpenLink,
-    localFile: {
-      absoluteLinks: { kind: "contained", rootPath },
-      onOpenLink: panel.openLocalFileLink,
-      ...(baseDir === undefined
-        ? {}
-        : { relativeLinks: { baseDir, rootPath } }),
-    },
-  };
-}
-
 function ThreadRightPanel(
   props: ThreadRightPanelProps & {
     presentation: "inline" | "drawer";
@@ -152,10 +121,11 @@ function ThreadRightPanel(
 ) {
   const { panel, metadata } = props;
   const { thread, projectId } = metadata;
-  const { tabs, isOpen, gitDiffTabStatus, openInPreferredFileTarget } = panel;
+  const { tabs, isOpen, gitDiffTabStatus } = panel;
   const hostLayout = useContext(SecondaryPanelHostLayoutContext);
   const diffShortcut = useAppCommandShortcut("diff.toggle");
   const { threadPanels } = usePluginSlots();
+  const kinds = useSidePanelTabKinds();
   const pluginActions = usePluginPanelActions({
     openPluginPanel: panel.openPluginPanel,
     threadId: thread.id,
@@ -248,175 +218,61 @@ function ThreadRightPanel(
     });
   }
 
-  const fileName = (path: string) => path.split("/").at(-1) ?? path;
+  const host = useMemo(
+    () => ({
+      panel,
+      pluginActions,
+      resolveMentionLink: props.resolveMentionLink,
+    }),
+    [panel, pluginActions, props.resolveMentionLink],
+  );
   const panelTabs = tabs.state.tabs.map((tab): SecondaryPanelRenderableTab => {
-    const shared = {
+    const kind = findSidePanelTabKind(kinds, tab.kind);
+    const session =
+      tab.kind === "terminal"
+        ? panel.terminalSessions?.find((item) => item.id === tab.terminalId)
+        : undefined;
+    const action =
+      tab.kind === "plugin-panel"
+        ? threadPanels.find(
+            (item) =>
+              item.pluginId === tab.pluginId && item.id === tab.actionId,
+          )
+        : undefined;
+    return {
       tab,
-      statusLabel: null,
-      onClose: () => tabs.close(tab.id),
-      onSelect: () => tabs.activate(tab.id),
+      contentFillsRegion: action?.layout === "flush",
+      label: session?.title ?? kind?.title?.(tab) ?? tab.kind,
+      leadingVisual: <SidePanelTabIcon tab={tab} />,
+      statusLabel:
+        tab.kind === "terminal"
+          ? session === undefined || session.status === "running"
+            ? null
+            : session.status
+          : tab.kind === "workspace-file-preview"
+            ? tab.statusLabel
+            : null,
+      onSelect: () => {
+        if (tab.kind === "terminal") panel.setFocusRequest("terminal");
+        tabs.activate(tab.id);
+      },
+      onClose: () =>
+        tab.kind === "terminal"
+          ? panel.closeTerminal(tab.terminalId)
+          : tabs.close(tab.id),
+      renderContent: () => (
+        <SidePanelHostContext.Provider value={host}>
+          <SidePanelTabBody
+            tab={tab}
+            threadId={thread.id}
+            projectId={projectId}
+            environmentId={thread.environmentId ?? null}
+            workspaceRootPath={workspaceRootPath}
+            isPanelOpen={isOpen}
+          />
+        </SidePanelHostContext.Provider>
+      ),
     };
-    switch (tab.kind) {
-      case "terminal": {
-        const session = panel.terminalSessions?.find(
-          (item) => item.id === tab.terminalId,
-        );
-        return {
-          ...shared,
-          label: session?.title ?? "Terminal",
-          leadingVisual: (
-            <Icon
-              name="Terminal"
-              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-              aria-hidden
-            />
-          ),
-          statusLabel:
-            session === undefined || session.status === "running"
-              ? null
-              : session.status,
-          onSelect: () => {
-            panel.setFocusRequest("terminal");
-            tabs.activate(tab.id);
-          },
-          onClose: () => panel.closeTerminal(tab.terminalId),
-          renderContent: () => (
-            <ThreadTerminalPanel
-              autoFocus={panel.focusRequest === "terminal"}
-              isPanelOpen={isOpen}
-              onAutoFocusHandled={() => panel.setFocusRequest(null)}
-              onOpenLink={openThreadLink}
-              session={session}
-            />
-          ),
-        };
-      }
-      case "new-tab":
-        return {
-          ...shared,
-          label: "New tab",
-          leadingVisual: (
-            <Icon
-              name="NewTab"
-              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-              aria-hidden
-            />
-          ),
-          renderContent: () => (
-            <NewTabPage
-              autoFocus={panel.focusRequest === "new-tab"}
-              projectId={projectId}
-              environmentId={thread.environmentId ?? null}
-              onAutoFocusHandled={() => panel.setFocusRequest(null)}
-              onSelect={(path) => panel.previewWorkspaceFile(path, true)}
-              onStartTerminal={
-                panel.canCreateTerminal ? panel.startTerminal : undefined
-              }
-              pluginActions={pluginActions}
-            />
-          ),
-        };
-      case "workspace-file-preview": {
-        const copyPath = resolveAbsoluteFilePath({
-          path: tab.path,
-          rootPath: workspaceRootPath,
-        });
-        return {
-          ...shared,
-          label: fileName(tab.path),
-          leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
-          statusLabel: tab.statusLabel,
-          renderContent: () => (
-            <WorkspaceFilePreviewTabContent
-              activePath={tab.path}
-              copyPath={copyPath}
-              environmentId={tab.environmentId ?? ""}
-              isPanelOpen={isOpen}
-              lineRange={tab.lineRange}
-              markdownLinkRouting={markdownLinkRouting(
-                panel,
-                copyPath ? getAbsoluteDirname({ path: copyPath }) : undefined,
-                workspaceRootPath,
-              )}
-              onOpenInEditor={panel.openFileInEditor}
-              source={tab.source}
-              statusLabel={tab.statusLabel}
-              threadId={thread.id}
-            />
-          ),
-        };
-      }
-      case "host-file-preview": {
-        const baseDir = getAbsoluteDirname({ path: tab.path });
-        const isInWorkspace =
-          baseDir !== undefined &&
-          workspaceRootPath !== null &&
-          isAbsoluteFilePathWithinRoot({
-            candidatePath: baseDir,
-            rootPath: workspaceRootPath,
-          });
-        return {
-          ...shared,
-          label: fileName(tab.path),
-          leadingVisual: <RightPanelFileTabIcon path={tab.path} />,
-          renderContent: () => (
-            <HostFilePreviewTabContent
-              activePath={tab.path}
-              copyPath={tab.path}
-              environmentId={tab.environmentId}
-              isPanelOpen={isOpen}
-              lineRange={tab.lineRange}
-              markdownLinkRouting={markdownLinkRouting(
-                panel,
-                baseDir,
-                isInWorkspace ? workspaceRootPath : null,
-              )}
-              onOpenInEditor={
-                openInPreferredFileTarget &&
-                ((path) =>
-                  openInPreferredFileTarget({
-                    lineNumber: tab.lineRange?.startLineNumber ?? null,
-                    path,
-                  }))
-              }
-              threadId={thread.id}
-            />
-          ),
-        };
-      }
-      case "plugin-panel": {
-        const action = threadPanels.find(
-          (item) => item.pluginId === tab.pluginId && item.id === tab.actionId,
-        );
-        return {
-          ...shared,
-          contentFillsRegion: action?.layout === "flush",
-          label: tab.title,
-          leadingVisual: (
-            <PluginItemIcon
-              pluginId={tab.pluginId}
-              icon={action?.icon ?? null}
-              className={COARSE_POINTER_COMPACT_ICON_SIZE_CLASS}
-            />
-          ),
-          renderContent: () => (
-            <ThreadTimelineNavigationProvider
-              environmentId={thread.environmentId}
-              onOpenLink={openThreadLink}
-              onOpenLocalFileLink={panel.openLocalFileLink}
-              resolveMentionLink={props.resolveMentionLink}
-              threadId={thread.id}
-              workspaceRootPath={workspaceRootPath ?? undefined}
-            >
-              <PluginPanelTabContent
-                tab={tab}
-                context={{ kind: "thread", threadId: thread.id }}
-              />
-            </ThreadTimelineNavigationProvider>
-          ),
-        };
-      }
-    }
   });
 
   return (

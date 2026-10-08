@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { useBbNavigate } from "@bb/plugin/app";
-import type { LiveStatus, Preset, TaskThread } from "../../shared/contract.js";
-import { reportError, useTasksRpc } from "../../shell/data.js";
+import { callOp, useBbNavigate } from "@bb/plugin/app";
+import {
+  tasks,
+  type LiveStatus,
+  type Preset,
+  type TaskThread,
+} from "../../shared/contract.js";
+import { reportError } from "../../shell/data.js";
 import { ConfirmDialog } from "../../components/common.js";
 import { Button } from "@bb/shared-ui/button";
 import {
@@ -55,7 +60,6 @@ export function DispatchControl({
   align?: "start" | "end";
   className?: string;
 }) {
-  const rpc = useTasksRpc();
   const [dispatching, setDispatching] = useState(false);
   const [lastPresetId, setLastPresetId] = useState(readLastPresetId);
 
@@ -65,8 +69,7 @@ export function DispatchControl({
       window.localStorage.setItem(LAST_PRESET_STORAGE_KEY, preset.id);
     } catch {}
     setDispatching(true);
-    rpc
-      .call("dispatch", { taskId, presetId: preset.id })
+    callOp(tasks.dispatch, { taskId, presetId: preset.id })
       .catch(reportError)
       .finally(() => setDispatching(false));
   };
@@ -146,7 +149,6 @@ export function ThreadsSection({
   taskId: string;
   threads: TaskThread[];
 }) {
-  const rpc = useTasksRpc();
   const navigate = useBbNavigate();
   const [confirm, setConfirm] = useState<TaskThread | null>(null);
   const activeCount = threads.filter(isActiveThread).length;
@@ -217,7 +219,7 @@ export function ThreadsSection({
         onConfirm={() => {
           if (!confirm) return;
           const { threadId } = confirm;
-          rpc.call("detachThread", { taskId, threadId }).catch(reportError);
+          callOp(tasks.detachThread, { taskId, threadId }).catch(reportError);
         }}
       />
     </section>

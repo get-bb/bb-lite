@@ -19,6 +19,7 @@
     "@bb/fuzzy-match": "workspace:*",
     "@bb/hono-typed-routes": "workspace:*",
     "@bb/plugin": "workspace:*",
+    "@bb/profile-default": "workspace:*",
     "@bb/runner": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/thread-view": "workspace:*",

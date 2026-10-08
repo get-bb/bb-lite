@@ -27,6 +27,8 @@ const REQUEST_TIMEOUT_MS = {
   resolveToolCall: QUICK_MS,
   renameSession: QUICK_MS,
   deleteThreadStorage: STANDARD_MS,
+  loadPlugins: STANDARD_MS,
+  callOp: LONG_MS,
   inspectPath: STANDARD_MS,
   inspectGitSource: STANDARD_MS,
   listBranches: STANDARD_MS,

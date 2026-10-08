@@ -1,3 +1,4 @@
+import { sessions } from "@bb/plugin";
 import { taskBrief, type TasksContext } from "../api/index.js";
 import { displayName, type Task } from "../shared/contract.js";
 
@@ -5,7 +6,7 @@ const SEARCH_LIMIT = 10;
 
 export function registerMentions(ctx: TasksContext): void {
   const { bb, store } = ctx;
-  bb.ui.registerMentionProvider({
+  bb.add(sessions.mention, {
     id: "task",
     label: "Tasks",
     search({ query, projectId }) {

@@ -17,7 +17,8 @@ import { pluginListQueryOptions } from "@/hooks/queries/plugin-settings-queries"
 import { appQueryClient } from "@/lib/app-query-client";
 import { setPluginBranding } from "@/lib/plugin-logos";
 import { BUILTIN_PLUGINS, type BuiltinPlugin } from "./builtin";
-import { pluginAppHost } from "./host";
+import { wsManager } from "@/lib/ws";
+import { OP_QUERY_KEY, pluginAppHost } from "./host";
 import {
   isPluginAppDefinition,
   markPluginsSettled,
@@ -47,6 +48,7 @@ const RUNTIME_MODULES: Record<
 };
 
 const CSS_ATTRIBUTE = "data-bb-plugin-css";
+const KERNEL_SIGNAL = "kernel";
 const disabledBuiltinIds = new Set<string>();
 const externalHashes = new Map<string, string>();
 let boot: Promise<void> | null = null;
@@ -123,7 +125,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
         throw new Error("the default export is not definePluginApp(...)");
       }
       applyCss(plugin.id, app.cssUrl);
-      const failure = registerPluginApp(plugin.id, module.default);
+      const failure = registerPluginApp(plugin.id, module.default, "installed");
       if (failure !== null) throw failure;
       externalHashes.set(plugin.id, app.hash);
     } catch (error) {
@@ -137,6 +139,12 @@ async function syncPlugins(refetch: boolean): Promise<void> {
 export function bootPlugins(): Promise<void> {
   boot ??= (async () => {
     pluginApp.installPluginAppHost(pluginAppHost);
+    wsManager.onPluginSignal(({ pluginId, channel, payload }) => {
+      if (pluginId !== KERNEL_SIGNAL || channel !== "changed") return;
+      const { name } = payload as { name?: unknown };
+      const queryKey = [OP_QUERY_KEY, name];
+      void appQueryClient.invalidateQueries({ queryKey });
+    });
     Object.assign(globalThis, {
       [pluginApp.PLUGIN_RUNTIME_GLOBAL]: RUNTIME_MODULES,
     });

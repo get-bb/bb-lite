@@ -92,6 +92,14 @@ function onBehalfOf(
   return userId === null ? undefined : enabled(getUser(db, userId));
 }
 
+export function agentActor(db: Db, threadId: string): Actor | null {
+  const thread = getThread(db, threadId);
+  const userId = thread?.lastActorUserId ?? thread?.createdByUserId ?? null;
+  const user = userId === null ? undefined : enabled(getUser(db, userId));
+  if (user === undefined) return null;
+  return { userId: user.id, role: user.role, agentThreadId: threadId };
+}
+
 export function actorOf(
   ctx: ServerContext,
   principal: Principal,

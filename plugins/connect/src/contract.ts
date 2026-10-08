@@ -1,4 +1,4 @@
-import { defineRpcContract } from "@bb/plugin";
+import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
 const loginViewSchema = z.object({
@@ -22,16 +22,15 @@ const statusSchema = z.object({
 });
 export type ConnectStatus = z.infer<typeof statusSchema>;
 
+const noInput = z.object({}).strict();
 const portInput = z.object({ port: z.number() }).strict();
-const noInput = { input: z.null(), output: statusSchema };
+const enabledInput = z.object({ enabled: z.boolean() }).strict();
+const write = { output: statusSchema, kind: "write" } as const;
 
-export const connectRpcContract = defineRpcContract({
-  status: noInput,
-  login: noInput,
-  logout: noInput,
-  setEnabled: {
-    input: z.object({ enabled: z.boolean() }).strict(),
-    output: statusSchema,
-  },
-  unexpose: { input: portInput, output: statusSchema },
+export const connect = contract("connect", {
+  status: op({ input: noInput, output: statusSchema }),
+  login: op({ input: noInput, ...write }),
+  logout: op({ input: noInput, ...write }),
+  setEnabled: op({ input: enabledInput, ...write }),
+  unexpose: op({ input: portInput, ...write }),
 });

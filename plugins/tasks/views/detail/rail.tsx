@@ -1,13 +1,15 @@
+import { callOp } from "@bb/plugin/app";
 import { useState, type ReactNode } from "react";
-import type {
-  Label,
-  Preset,
-  Project,
-  Task,
-  TaskThread,
-  UpdateTaskInput,
+import {
+  tasks,
+  type Label,
+  type Preset,
+  type Project,
+  type Task,
+  type TaskThread,
+  type UpdateTaskInput,
 } from "../../shared/contract.js";
-import { reportError, useTasksQuery, useTasksRpc } from "../../shell/data.js";
+import { reportError, useTasksQuery } from "../../shell/data.js";
 import { PriorityEditor, StatusEditor } from "../list/property-menus.js";
 import { BbProjectLinkPicker, DEFAULT_COLOR } from "../manage/shared.js";
 import { DispatchControl, isActiveThread } from "./threads.js";
@@ -41,7 +43,6 @@ export function LabelPicker({
   onChange: (labelIds: string[]) => void;
   children: ReactNode;
 }) {
-  const rpc = useTasksRpc();
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const name = query.trim();
@@ -54,8 +55,7 @@ export function LabelPicker({
   const create = () => {
     if (!name || creating || projectId === undefined) return;
     setCreating(true);
-    rpc
-      .call("createLabel", { projectId, name, color: DEFAULT_COLOR })
+    callOp(tasks.createLabel, { projectId, name, color: DEFAULT_COLOR })
       .then(({ label }) => {
         onChange([...selectedIds, label.id]);
         setQuery("");
@@ -117,9 +117,8 @@ export function LabelPicker({
 }
 
 function DispatchTarget({ project }: { project: Project }) {
-  const rpc = useTasksRpc();
   const bbProjects = useTasksQuery(
-    async (client) => (await client.call("listBbProjects")).bbProjects,
+    async () => (await callOp(tasks.listBbProjects, {})).bbProjects,
   );
   return (
     <BbProjectLinkPicker
@@ -127,7 +126,7 @@ function DispatchTarget({ project }: { project: Project }) {
       bbProjects={bbProjects.data ?? []}
       onChange={(linkedBbProjectId) => {
         const input = { projectId: project.id, linkedBbProjectId };
-        rpc.call("updateProject", input).catch(reportError);
+        callOp(tasks.updateProject, input).catch(reportError);
       }}
     />
   );

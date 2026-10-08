@@ -1,33 +1,32 @@
-import type { IconName } from "@bb/shared-ui/icon";
+import { settings, type SettingsPage } from "@bb/plugin/app";
+import { useMemo } from "react";
 import { SETTINGS_ROUTE_PATH, getSettingsRoutePath } from "@/lib/route-paths";
+import { slotItems } from "@/plugins/registry";
+import { useSlot } from "@/plugins/slots";
 
-export const SETTINGS_NAV_SECTIONS = [
-  { icon: "Settings", id: "general", label: "General" },
-  { icon: "Bot", id: "providers", label: "Providers" },
-  { icon: "Palette", id: "appearance", label: "Appearance" },
-  { icon: "SlidersHorizontal", id: "keyboard", label: "Keyboard" },
-  { icon: "FolderGit", id: "projects", label: "Projects" },
-  { icon: "Laptop", id: "machines", label: "Machines" },
-  { icon: "UserRound", id: "people", label: "People" },
-  {
-    icon: "Lock",
-    id: "environment-variables",
-    label: "Environment variables",
-  },
-  { icon: "Plug02", id: "plugins", label: "Installed plugins" },
-  { icon: "Archive", id: "archived", label: "Archived threads" },
-] as const satisfies readonly {
-  icon: IconName;
-  id: string;
-  label: string;
-}[];
+export type SettingsNavSection = SettingsPage;
+export type SettingsSectionId = string;
 
-export type SettingsNavSection = (typeof SETTINGS_NAV_SECTIONS)[number];
+const UNORDERED = 1_000;
 
-export type SettingsSectionId = SettingsNavSection["id"];
+function ordered(pages: readonly SettingsPage[]): SettingsPage[] {
+  return pages
+    .map((page, index) => ({ page, index }))
+    .sort(
+      (a, b) =>
+        (a.page.order ?? UNORDERED) - (b.page.order ?? UNORDERED) ||
+        a.index - b.index,
+    )
+    .map(({ page }) => page);
+}
 
-export function isSettingsSectionId(value: string): value is SettingsSectionId {
-  return SETTINGS_NAV_SECTIONS.some((section) => section.id === value);
+export function useSettingsPages(): readonly SettingsPage[] {
+  const pages = useSlot(settings.page);
+  return useMemo(() => ordered(pages), [pages]);
+}
+
+export function isSettingsSectionId(value: string): boolean {
+  return slotItems(settings.page).some((page) => page.id === value);
 }
 
 export function getSettingsSectionRoutePath(

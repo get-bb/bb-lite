@@ -1,6 +1,8 @@
 import type { ToolCallResponse } from "@bb/domain";
+import { runAs } from "../auth/actor.js";
 import { getThread } from "../db/threads.js";
 import { errorMessage } from "../http/errors.js";
+import { agentActor } from "../runners/access.js";
 import type { RunnerEventOf } from "../runners/registry.js";
 import type { Engine } from "./engine.js";
 import { pluginContext } from "./session-spec.js";
@@ -21,7 +23,10 @@ async function runTool(
   const thread = getThread(db, event.threadId);
   if (thread === undefined) return reply(false, "Thread not found.");
   const scope = pluginContext(db, thread, engine.hostOf(thread));
-  return plugins.callTool(tool, input, { ...scope, signal });
+  const actor = agentActor(db, event.threadId);
+  return runAs(actor, () =>
+    plugins.callTool(tool, input, { ...scope, signal }),
+  );
 }
 
 export function startToolCall(

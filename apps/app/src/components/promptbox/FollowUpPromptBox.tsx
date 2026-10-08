@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import type { PromptTextMention, ThreadRuntimeDisplayStatus } from "@bb/domain";
+import type { ComposerContext } from "@bb/plugin/app";
 import {
   useAppCommandContext,
   useAppCommandHandler,
@@ -25,18 +26,21 @@ import {
   type PromptBoxHandle,
   type TypeaheadConfig,
 } from "@/components/promptbox/PromptBoxInternal";
-import { PermissionModePicker } from "@/components/pickers/PermissionModePicker";
-import {
-  ModelReasoningPicker,
-  type ExecutionControlsProps,
-  type ExecutionPermissionConfig,
+import type {
+  ExecutionControlsProps,
+  ExecutionPermissionConfig,
 } from "@/components/pickers/ModelReasoningPicker";
+import {
+  ComposerFooterControls,
+  type ComposerFooterHost,
+  type ComposerScope,
+} from "@/components/promptbox/composer-slots";
 import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-body.js";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { ThreadTimelineScrollToBottomButton } from "@/views/thread-detail/ThreadTimelineScrollToBottomButton";
 import { useOptionalPaneContext } from "@/views/thread-detail/PaneContext";
-import { ThreadContextWindowIndicator } from "@/components/thread/timeline";
+import type { ThreadContextWindowIndicator } from "@/components/thread/timeline";
 import {
   PROMPT_STACK_CARD_ROW_HEIGHT,
   PROMPT_STACK_TRACK_CLASS,
@@ -77,6 +81,7 @@ export interface FollowUpComposerProps {
 
 export interface FollowUpPromptBoxProps {
   id?: string;
+  threadId?: string | null;
   attachments: AttachmentsConfig;
   stack: ReactNode | null;
   composer: FollowUpComposerProps | null;
@@ -130,6 +135,7 @@ function waitForKeyboardViewport(
 
 function FollowUpPromptBoxWithComposer({
   id,
+  threadId = null,
   attachments,
   stack,
   composer,
@@ -352,6 +358,31 @@ function FollowUpPromptBoxWithComposer({
     scheduleFocusLoss();
   };
 
+  const composerScope: ComposerScope = {
+    surface: "follow-up",
+    threadId,
+    projectId: attachments.projectId ?? null,
+  };
+  const footerHost: ComposerFooterHost = {
+    model: {
+      ...execution,
+      muted: true,
+      disabled: executionReadOnly || hasPendingInteraction,
+    },
+    permission: {
+      value: permission.value,
+      options: permission.options,
+      onChange: permission.onChange,
+      supported: permission.supported,
+      disabled: permissionReadOnly || hasPendingInteraction,
+      className: "h-6",
+    },
+    project: null,
+    environment: environmentSummary,
+    contextWindowUsage,
+  };
+  const footerContext: ComposerContext = { ...composerScope, host: footerHost };
+
   return (
     <>
       {showScrollToBottomButton ? (
@@ -449,11 +480,12 @@ function FollowUpPromptBoxWithComposer({
                     }
                   : undefined
               }
+              composerScope={composerScope}
               footerStart={
-                <ModelReasoningPicker
-                  {...execution}
-                  muted
-                  disabled={executionReadOnly || hasPendingInteraction}
+                <ComposerFooterControls
+                  row="actions"
+                  side="start"
+                  context={footerContext}
                 />
               }
             />
@@ -463,20 +495,18 @@ function FollowUpPromptBoxWithComposer({
                 className="mt-1 flex min-h-6 max-h-6 select-none items-center justify-between gap-2 overflow-hidden pl-[15px] pr-3.5 opacity-100 transition-[max-height,min-height,margin-top,opacity] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                  {environmentSummary}
+                  <ComposerFooterControls
+                    row="status"
+                    side="start"
+                    context={footerContext}
+                  />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <PermissionModePicker
-                    value={permission.value}
-                    options={permission.options}
-                    onChange={permission.onChange}
-                    supported={permission.supported}
-                    disabled={permissionReadOnly || hasPendingInteraction}
-                    className="h-6"
+                  <ComposerFooterControls
+                    row="status"
+                    side="end"
+                    context={footerContext}
                   />
-                  {contextWindowUsage ? (
-                    <ThreadContextWindowIndicator usage={contextWindowUsage} />
-                  ) : null}
                 </div>
               </div>
             )}

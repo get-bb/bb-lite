@@ -8,10 +8,7 @@ import {
   type JsonValue,
 } from "@bb/domain";
 import type { SystemEnvironmentProvider } from "@bb/server-contract";
-import {
-  ProjectSelector,
-  type ProjectSelectorCreateProjectConfig,
-} from "@/components/pickers/ProjectSelector";
+import type { ProjectSelectorCreateProjectConfig } from "@/components/pickers/ProjectSelector";
 import {
   encodeReuseValue,
   encodeProviderValue,
@@ -25,13 +22,17 @@ import {
 } from "@/components/pickers/EnvironmentInputs";
 import { EnvironmentPicker } from "@/components/pickers/EnvironmentPicker";
 import { formatModelLoadErrorText } from "@/components/pickers/model-load-error-message";
-import { PermissionModePicker } from "@/components/pickers/PermissionModePicker";
 import { ReuseEnvironmentPicker } from "@/components/pickers/ReuseEnvironmentPicker";
 import {
   useAppCommandContext,
   useAppCommandHandler,
 } from "@/components/commands/AppCommandProvider";
-import { ModelReasoningPicker } from "@/components/pickers/ModelReasoningPicker";
+import type { ComposerContext } from "@bb/plugin/app";
+import {
+  ComposerFooterControls,
+  type ComposerFooterHost,
+  type ComposerScope,
+} from "@/components/promptbox/composer-slots";
 import {
   PromptBoxInternal,
   type PromptBoxHandle,
@@ -550,76 +551,108 @@ export function useNewThreadComposer({
     mentionMenuPlacement: "top" | "bottom";
     createProject: ProjectSelectorCreateProjectConfig;
     onRequestMachineSetup: (host: Host) => void;
-  }) => (
-    <div
-      data-app-composer=""
-      data-app-composer-role="primary"
-      data-promptbox-shell=""
-      className="w-full pt-2"
-    >
-      <PromptBoxInternal
-        id="root-compose-prompt"
-        promptBoxRef={promptBoxRef}
-        value={promptDraft.text}
-        mentionRanges={promptDraft.mentions}
-        onChange={promptDraft.setTextAndMentions}
-        onSubmit={() => void submitDraft()}
-        history={{
-          currentDraft,
-          entries: promptHistoryEntriesToDrafts(promptHistory),
-          onSelectEntry: promptDraft.setDraft,
-          resetKey: projectId,
-        }}
-        typeahead={typeahead}
-        mentionMenuPlacement={options.mentionMenuPlacement}
-        attachments={{
-          items: promptDraft.attachments,
-          pendingUploads: uploads.pendingUploads,
-          projectId,
-          onAttachFiles: uploads.handleAttachFiles,
-          onRemove: promptDraft.removeAttachment,
-          isAttaching: uploads.isAttachingFiles || isCopyingAttachments,
-          error: uploads.attachmentError,
-        }}
-        promptActions={promptActions}
-        submission={{
-          isSubmitting,
-          disabled: submitDisabledReason !== null,
-          disabledReason: submitDisabledReason ?? undefined,
-          title: isSubmitting
-            ? "Submitting..."
-            : isLoadingModels
-              ? "Loading models..."
-              : "Submit (Enter)",
-        }}
-        autoFocus
-        editorLayout="root-compose"
-        minHeight={80}
-        placeholder={
-          isProjectless
-            ? "Ask anything."
-            : "Ask anything. @ to mention files, folders, or sections"
-        }
-        footerStart={<ModelReasoningPicker {...execution} muted />}
-      />
-      <div className="mt-1 flex select-none items-center justify-between gap-2 px-3.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1">
-          <ProjectSelector
-            projects={projects ?? []}
-            value={isProjectless ? null : projectId}
-            onChange={(nextProjectId) => void changeProject(nextProjectId)}
-            createProject={options.createProject}
-            disabled={isProjectChangeLocked}
-            isLoading={!navigationSettled}
-          />
-          {renderEnvironmentControls(options.onRequestMachineSetup)}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <PermissionModePicker {...permission} />
+  }) => {
+    const composerScope: ComposerScope = {
+      surface: "new-thread",
+      threadId: null,
+      projectId: isProjectless ? null : projectId,
+    };
+    const footerHost: ComposerFooterHost = {
+      model: { ...execution, muted: true },
+      permission,
+      project: {
+        projects: projects ?? [],
+        value: isProjectless ? null : projectId,
+        onChange: (nextProjectId) => void changeProject(nextProjectId),
+        createProject: options.createProject,
+        disabled: isProjectChangeLocked,
+        isLoading: !navigationSettled,
+      },
+      environment: renderEnvironmentControls(options.onRequestMachineSetup),
+      contextWindowUsage: null,
+    };
+    const footerContext: ComposerContext = {
+      ...composerScope,
+      host: footerHost,
+    };
+    return (
+      <div
+        data-app-composer=""
+        data-app-composer-role="primary"
+        data-promptbox-shell=""
+        className="w-full pt-2"
+      >
+        <PromptBoxInternal
+          id="root-compose-prompt"
+          promptBoxRef={promptBoxRef}
+          value={promptDraft.text}
+          mentionRanges={promptDraft.mentions}
+          onChange={promptDraft.setTextAndMentions}
+          onSubmit={() => void submitDraft()}
+          history={{
+            currentDraft,
+            entries: promptHistoryEntriesToDrafts(promptHistory),
+            onSelectEntry: promptDraft.setDraft,
+            resetKey: projectId,
+          }}
+          typeahead={typeahead}
+          mentionMenuPlacement={options.mentionMenuPlacement}
+          attachments={{
+            items: promptDraft.attachments,
+            pendingUploads: uploads.pendingUploads,
+            projectId,
+            onAttachFiles: uploads.handleAttachFiles,
+            onRemove: promptDraft.removeAttachment,
+            isAttaching: uploads.isAttachingFiles || isCopyingAttachments,
+            error: uploads.attachmentError,
+          }}
+          promptActions={promptActions}
+          submission={{
+            isSubmitting,
+            disabled: submitDisabledReason !== null,
+            disabledReason: submitDisabledReason ?? undefined,
+            title: isSubmitting
+              ? "Submitting..."
+              : isLoadingModels
+                ? "Loading models..."
+                : "Submit (Enter)",
+          }}
+          autoFocus
+          editorLayout="root-compose"
+          minHeight={80}
+          placeholder={
+            isProjectless
+              ? "Ask anything."
+              : "Ask anything. @ to mention files, folders, or sections"
+          }
+          composerScope={composerScope}
+          footerStart={
+            <ComposerFooterControls
+              row="actions"
+              side="start"
+              context={footerContext}
+            />
+          }
+        />
+        <div className="mt-1 flex select-none items-center justify-between gap-2 px-3.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <ComposerFooterControls
+              row="status"
+              side="start"
+              context={footerContext}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ComposerFooterControls
+              row="status"
+              side="end"
+              context={footerContext}
+            />
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return {
     projectId,

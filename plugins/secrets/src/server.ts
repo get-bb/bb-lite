@@ -3,6 +3,8 @@ import {
   PluginCliError,
   cliCommand,
   defineCli,
+  files,
+  interactions,
   type CliContext,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -53,10 +55,10 @@ async function requestSecrets(
   }
   const file = { threadId, path: path.resolve(cwd, options["write-env"]) };
   const read = async () =>
-    (await bb.files.read(file)) ?? { content: "", sha256: null };
+    (await bb.call(files.read, file)) ?? { content: "", sha256: null };
   assertReconcilable((await read()).content, names);
   const listed = names.join(", ");
-  const result = await bb.ui.requestInput({
+  const result = await bb.call(interactions.ask, {
     threadId,
     signal,
     timeoutMs: 10 * 60 * 1000,
@@ -94,7 +96,8 @@ async function requestSecrets(
   const { content, ...counts } = reconcileDotenv(current.content, data.values);
   const expectedSha256 = current.sha256;
   const target = { ...file, content, expectedSha256, mode: 0o600 };
-  if ((await bb.files.write(target)).outcome === "conflict") {
+  const written = await bb.call(files.write, target);
+  if (written.outcome === "conflict") {
     reject("The dotenv file changed mid-write; run the request again.", "busy");
   }
   const report = { path: file.path, names, ...counts };

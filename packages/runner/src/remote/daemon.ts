@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { WebSocket } from "ws";
 import { z } from "zod";
 import { createLocalRunner } from "../local.js";
+import type { RunnerPart } from "../plugins.js";
 import type { ProviderAdapter } from "../providers/provider.js";
 import { startCliProxy } from "./cli-proxy.js";
 import { REPLACED_CLOSE_CODE } from "./protocol.js";
@@ -48,6 +49,7 @@ export interface RunOptions {
   dataDir: string;
   bbCliPath: string;
   adapters?: ProviderAdapter[];
+  parts?: RunnerPart[];
   log?: (message: string) => void;
 }
 
@@ -135,6 +137,8 @@ export async function runRunner(options: RunOptions): Promise<RunningRunner> {
     serverUrl: proxy.url,
     bbCliPath: options.bbCliPath,
     adapters: options.adapters,
+    parts: options.parts,
+    log,
     sink: (event) => serving?.deliver(event),
   });
 

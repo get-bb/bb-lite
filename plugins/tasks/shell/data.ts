@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  useRealtime,
-  useRealtimeConnectionState,
-  useRpc,
-} from "@bb/plugin/app";
+import { callOp, useChanged, useRealtimeConnectionState } from "@bb/plugin/app";
 import { toast } from "sonner";
-import type { TasksRpcContract } from "../shared/contract.js";
+import { tasks } from "../shared/contract.js";
 
 const SIGNAL_BATCH_MS = 50;
-
-export function useTasksRpc() {
-  return useRpc<TasksRpcContract>();
-}
-
-export type TasksRpc = ReturnType<typeof useTasksRpc>;
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -24,10 +14,9 @@ export function reportError(error: unknown): void {
 }
 
 export function useTasksQuery<T>(
-  fetcher: (rpc: TasksRpc) => Promise<T>,
+  fetcher: () => Promise<T>,
   deps: readonly unknown[] = [],
 ) {
-  const rpc = useTasksRpc();
   const key = JSON.stringify(deps);
   const initial = { key, data: undefined as T | undefined, error: "" };
   const [state, setState] = useState(initial);
@@ -36,7 +25,7 @@ export function useTasksQuery<T>(
   const sequence = useRef(0);
   const load = useCallback(() => {
     const current = (sequence.current += 1);
-    fetcherRef.current(rpc).then(
+    fetcherRef.current().then(
       (data) => {
         if (current === sequence.current) setState({ key, data, error: "" });
       },
@@ -49,7 +38,7 @@ export function useTasksQuery<T>(
         }));
       },
     );
-  }, [rpc, key]);
+  }, [key]);
   useEffect(load, [load]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,10 +57,9 @@ export function useTasksQuery<T>(
     },
     [],
   );
-  useRealtime("tasks:changed", refresh);
-  useRealtime("projects:changed", refresh);
-  useRealtime("comments:changed", refresh);
-  useRealtime("threads:changed", refresh);
+  useChanged(tasks.listTasks, refresh);
+  useChanged(tasks.overview, refresh);
+  useChanged(tasks.taskDetail, refresh);
 
   const connection = useRealtimeConnectionState();
   const dropped = useRef(false);
@@ -92,17 +80,19 @@ export function useTasksQuery<T>(
 }
 
 export function useOverview() {
-  return useTasksQuery((rpc) => rpc.call("overview"));
+  return useTasksQuery(() => callOp(tasks.overview, {}));
 }
 
 export function useLabels(projectId?: string) {
   return useTasksQuery(
-    async (rpc) =>
-      (await rpc.call("listLabels", projectId ? { projectId } : {})).labels,
+    async () =>
+      (await callOp(tasks.listLabels, projectId ? { projectId } : {})).labels,
     [projectId],
   );
 }
 
 export function usePresets() {
-  return useTasksQuery(async (rpc) => (await rpc.call("listPresets")).presets);
+  return useTasksQuery(
+    async () => (await callOp(tasks.listPresets, {})).presets,
+  );
 }

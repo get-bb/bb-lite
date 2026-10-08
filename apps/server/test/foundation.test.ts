@@ -306,6 +306,7 @@ it("compresses large JSON answers and leaves streams and small ones alone", asyn
   const stdout = "x".repeat(5_000);
   const run = async () => held.then(() => ({ exitCode: 0, stdout }));
   ctx.plugins.running = () => ({ cli: { run } }) as never;
+  ctx.plugins.cliOf = () => ({ run }) as never;
   vi.useFakeTimers({ toFake: ["setInterval"] });
   onTestFinished(() => void vi.useRealTimers());
   const scope = { argv: [], cwd: "/" };

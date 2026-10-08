@@ -1,4 +1,9 @@
-import { cliCommand, defineCli, type PluginServerApi } from "@bb/plugin";
+import {
+  cliCommand,
+  defineCli,
+  sessions,
+  type PluginServerApi,
+} from "@bb/plugin";
 
 export default function plugin(bb: PluginServerApi): void {
   const settings = bb.settings.define({
@@ -12,9 +17,11 @@ export default function plugin(bb: PluginServerApi): void {
     },
   });
 
-  bb.agents.contributeInstructions(async () => {
-    const { instructions } = await settings.get();
-    return instructions.trim() === "" ? null : instructions;
+  bb.on(sessions.instructions, async (_context, next) => {
+    const { instructions: text } = await settings.get();
+    const rest = await next();
+    if (text.trim() === "") return rest;
+    return [{ source: bb.pluginId, text }, ...rest];
   });
 
   const replace = async (instructions: string, done: string) => {

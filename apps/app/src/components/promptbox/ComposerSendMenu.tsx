@@ -8,25 +8,26 @@ import {
 } from "@bb/shared-ui/dropdown-menu";
 import { CompactLongPressMenu } from "@bb/shared-ui/compact-long-press-menu";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { CONTROL_HOVER_TRANSITION } from "@bb/shared-ui/motion";
+import { composer, type ComposerContext } from "@bb/plugin/app";
+import { useComposerItems } from "./composer-slots";
 
 export function ComposerSendMenu({
   children,
   isPointerCoarse,
-  queue,
+  context,
   hasInput,
   canSubmit,
-  onSubmit,
 }: {
   children: ReactNode;
   isPointerCoarse: boolean;
-  queue: boolean;
+  context: ComposerContext;
   hasInput: boolean;
   canSubmit: boolean;
-  onSubmit: (() => void) | undefined;
 }) {
+  const available = useComposerItems(composer.sendMenuItem, context);
   const isCompactViewport = useIsCompactViewport();
   const [open, setOpen] = useState(false);
 
@@ -36,17 +37,23 @@ export function ComposerSendMenu({
   const handleOpenChange = (nextOpen: boolean) =>
     setOpen(nextOpen && canSubmit);
 
-  if (!onSubmit) return children;
+  if (available.length === 0) return children;
 
-  const items = canSubmit ? (
-    <DropdownMenuItem disabled={!canSubmit} onSelect={onSubmit}>
-      <Icon
-        name={queue ? "ListEnd" : "CornerDownRight"}
-        className={cn("size-4", queue && "-scale-x-100")}
-      />
-      {queue ? "Queue" : "Steer"}
-    </DropdownMenuItem>
-  ) : null;
+  const items = canSubmit
+    ? available.map((item) => (
+        <DropdownMenuItem
+          key={item.id}
+          disabled={!canSubmit}
+          onSelect={() => item.run(context)}
+        >
+          <Icon
+            name={item.icon as IconName}
+            className={cn("size-4", item.iconClassName)}
+          />
+          {item.label}
+        </DropdownMenuItem>
+      ))
+    : null;
 
   if (isPointerCoarse && isCompactViewport) {
     if (!canSubmit) return children;

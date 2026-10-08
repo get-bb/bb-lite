@@ -2,28 +2,25 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import type { Kernel, Tier } from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
 import Database from "better-sqlite3";
 import type { Logger } from "../context.js";
 import type { Db } from "../db/index.js";
 import { readPluginRows, writePluginRow } from "../db/plugins.js";
 import { errorMessage } from "../http/errors.js";
+import { currentCaller } from "../kernel/caller.js";
 import type { Hub } from "../ws/hub.js";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 
-type MaybePromise<T> = T | Promise<T>;
-type Contributor<T> = (context: plugin.ThreadContext) => MaybePromise<T>;
-type EventHandler = (
-  payload: plugin.PluginEvents[keyof plugin.PluginEvents],
-) => unknown;
-type RpcHandler = (input: unknown) => unknown;
 type Service = Parameters<plugin.PluginServerApi["background"]["service"]>;
 
 export interface PluginApiHost {
   db: Db;
   hub: Hub;
   log: Logger;
+  kernel: Kernel;
   dataDir: string;
   serverUrl: string;
   tunnelToken: string;
@@ -37,29 +34,15 @@ const SERVICE_RESTART_BASE_MS = 1_000;
 const SERVICE_HEALTHY_MS = 60_000;
 
 export class PluginInstance {
-  readonly rpc = new Map<
-    string,
-    { contract: plugin.RpcMethodContract; handler: RpcHandler }
-  >();
   readonly routes = new Map<
     string,
     { handler: plugin.HttpHandler; auth: plugin.HttpAuth }
   >();
   cli: plugin.CliRegistration | null = null;
-  readonly tools: plugin.AgentTool[] = [];
-  readonly instructions: Contributor<string | null>[] = [];
-  readonly env: [providerId: string, Contributor<plugin.ProviderEnvEntry[]>][] =
-    [];
-  readonly mentionProviders: plugin.MentionProvider[] = [];
-  readonly environments: plugin.EnvironmentDefinition[] = [];
-  readonly inference: plugin.InferenceService[] = [];
-  readonly listeners: [name: string, handler: EventHandler][] = [];
   readonly services: Service[] = [];
   readonly disposers: (() => unknown)[] = [];
   readonly stopping = new AbortController();
   needsConfiguration: string | null = null;
-  publicUrl: string | null = null;
-  machineAccess: plugin.MachineAccessProvider | null = null;
 
   constructor(
     readonly settings: PluginSettings,
@@ -135,6 +118,7 @@ function migrate(database: Database.Database, statements: string[]) {
 export function createPluginInstance(
   host: PluginApiHost,
   pluginId: string,
+  tier: Tier,
 ): { instance: PluginInstance; api: plugin.PluginServerApi } {
   const { db, hub } = host;
   const dataDir = join(host.dataDir, "plugins", pluginId);
@@ -149,22 +133,29 @@ export function createPluginInstance(
   };
   const settings = new PluginSettings(db, pluginId, join(dataDir, "secrets"));
   const instance = new PluginInstance(settings, log);
-  const { requestInput, ...outward } = host.deps(pluginId);
+  const outward = host.deps(pluginId);
+  const { dispose: release, ...verbs } = host.kernel.scope(pluginId, tier);
+  instance.disposers.push(release);
   let database: Database.Database | undefined;
 
   const api: plugin.PluginServerApi = {
     ...outward,
+    ...verbs,
     pluginId,
     log,
     dataDir,
     settings: {
-      define<D extends plugin.SettingDescriptors>(descriptors: D) {
-        settings.define(descriptors);
+      define<D extends plugin.SettingDescriptors>(
+        descriptors: D,
+        { scope = "workspace" }: { scope?: plugin.SettingScope } = {},
+      ) {
+        settings.define(descriptors, scope);
+        const user = () => currentCaller().user;
         const typed = (values: SettingRecord) =>
           values as plugin.SettingValues<D>;
         const handle: plugin.SettingsHandle<D> = {
-          get: async () => typed(await settings.read()),
-          set: async (values) => typed(await settings.write(values)),
+          get: async () => typed(await settings.read(user())),
+          set: async (values) => typed(await settings.write(values, user())),
           onChange: (listener) => {
             settings.listeners.push((next, previous) => {
               try {
@@ -209,21 +200,12 @@ export function createPluginInstance(
       },
       migrate,
     },
-    rpc: {
-      register(contract, handlers) {
-        for (const [method, methodContract] of Object.entries(contract)) {
-          const handler = handlers[method] as RpcHandler;
-          instance.rpc.set(method, { contract: methodContract, handler });
-        }
-      },
-    },
     http: {
       route(method, path, handler, { auth = "local" } = {}) {
         const key = `${method.toUpperCase()} ${path}`;
         instance.routes.set(key, { handler, auth });
       },
     },
-    realtime: { publish: hub.pluginSignal.bind(hub, pluginId) },
     background: {
       service: (...service) => {
         instance.services.push(service);
@@ -235,44 +217,16 @@ export function createPluginInstance(
         instance.cli = registration;
       },
     },
-    events: {
-      on: (name, handler) => {
-        instance.listeners.push([name, handler as EventHandler]);
-      },
-    },
-    agents: {
-      registerTool: collect(instance.tools),
-      contributeInstructions: collect(instance.instructions),
-    },
-    ui: {
-      requestInput,
-      registerMentionProvider: collect(instance.mentionProviders),
-    },
-    providers: {
-      contributeEnv: (providerId, contribute) => {
-        instance.env.push([providerId, contribute]);
-      },
-    },
-    environments: { register: collect(instance.environments) },
-    inference: { register: collect(instance.inference) },
     status: {
       needsConfiguration(message) {
         instance.needsConfiguration = message;
         hub.system(["plugins-changed"]);
       },
     },
-    machines: {
-      setAccessProvider: (provider) => {
-        instance.machineAccess = provider;
-      },
-    },
     server: {
       url: host.serverUrl,
       dataDir: host.dataDir,
       tunnelToken: host.tunnelToken,
-      setPublicUrl: (url) => {
-        instance.publicUrl = url;
-      },
     },
     onDispose: collect(instance.disposers),
   };

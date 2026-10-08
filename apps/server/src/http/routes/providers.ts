@@ -1,7 +1,4 @@
-import {
-  pluginSettingsUpdateRequestSchema,
-  publicApiRoutes,
-} from "@bb/server-contract";
+import { publicApiRoutes } from "@bb/server-contract";
 import type { ServerContext } from "../../context.js";
 import {
   findProviderDefinition,
@@ -11,13 +8,8 @@ import {
 } from "../../providers/catalog.js";
 import { listEnvironmentProviders } from "../../providers/environment-providers.js";
 import { resolveExecutionOptions } from "../../providers/models.js";
-import {
-  PROVIDERS_WITH_SETTINGS,
-  providerSettingsView,
-  updateProviderSettings,
-} from "../../providers/settings.js";
 import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
+import { ApiError } from "../errors.js";
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
@@ -76,19 +68,4 @@ export function registerProviderRoutes(app: ApiApp, ctx: ServerContext): void {
   get(routes.environmentProviders, async (c, query) =>
     c.json({ providers: await listEnvironmentProviders(ctx, query) }),
   );
-
-  for (const id of PROVIDERS_WITH_SETTINGS) {
-    const path = `/plugins/provider-${id}/settings`;
-    app.get(path, (c) => c.json(providerSettingsView(db, id)));
-    app.put(path, async (c) => {
-      const raw: unknown = await c.req.json().catch(() => null);
-      const body = pluginSettingsUpdateRequestSchema.safeParse(raw);
-      if (!body.success) {
-        throw invalidRequest("Expected { values: Record<string, unknown> }");
-      }
-      updateProviderSettings(db, id, body.data.values);
-      hub.system(["config-changed"]);
-      return c.json(providerSettingsView(db, id));
-    });
-  }
 }

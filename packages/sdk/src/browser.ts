@@ -5,10 +5,17 @@ export interface CreateBrowserBbSdkArgs {
   fetch?: typeof fetch;
 }
 
+const DOOR_HEADER = "x-bb-door";
+
 export function createBrowserBbSdk(args: CreateBrowserBbSdkArgs = {}): BbSdk {
+  const send = args.fetch ?? fetch;
   return createBbSdk({
     baseUrl: args.baseUrl ?? "",
-    fetch: args.fetch ?? fetch,
+    fetch: (input, init) => {
+      const headers = new Headers(init?.headers);
+      headers.set(DOOR_HEADER, "app");
+      return send(input, { ...init, headers });
+    },
   });
 }
 

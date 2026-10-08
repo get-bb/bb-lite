@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import { environments as environmentKinds } from "@bb/plugin";
 import type {
   CreateThreadRequest,
   UnmanagedBranchSpec,
@@ -212,4 +213,98 @@ it("gives personal threads a scratch workspace and removes it on request", async
   expect(await remove()).toBe(200);
   const left = [getEnvironment(db, environmentId)?.status, existsSync(path)];
   expect(left).toEqual(["destroyed", false]);
+});
+
+it("runs a thread in an environment kind a plugin contributed", async () => {
+  const world = await createWorld();
+  const { ctx, db, hostId, reaches, root } = world;
+  const made: string[] = [];
+  const removed: string[] = [];
+  const plugin = ctx.kernel.scope("scratch-dirs", "installed");
+  plugin.add(environmentKinds.kind, {
+    id: "scratch-dir",
+    displayName: "Scratch directory",
+    async create({ thread, host, checkoutPath, branchName }) {
+      const path = join(root, `scratch-${thread.id}`);
+      mkdirSync(path);
+      made.push(`${host.id} ${checkoutPath} ${branchName}`);
+      return { path };
+    },
+    async remove({ path }) {
+      rmSync(path, { recursive: true });
+      removed.push(path);
+    },
+  });
+  const listed = await world.api.system["environment-providers"].$get({
+    query: { projectId: world.project.id },
+  });
+  const { providers } = await listed.json();
+  expect(providers.map(({ id, pluginId }) => [id, pluginId])).toContainEqual([
+    "scratch-dir",
+    "scratch-dirs",
+  ]);
+  const machine = { type: "existing", hostId } as const;
+  const kind = { environmentProviderId: "scratch-dir", machine };
+  const id = await world.spawn({ type: "provider", ...kind, inputs: null });
+  await reaches(id, "idle");
+  const path = join(root, `scratch-${id}`);
+  const ready = { status: "ready", path, managed: true };
+  expect(world.environmentOf(id)).toMatchObject({
+    ...ready,
+    environmentProviderId: "scratch-dir",
+  });
+  expect(made).toEqual([`${hostId} ${world.repo} bb/build-the-widget-${id}`]);
+  expect(world.stored(id, "item/completed").join()).toContain(path);
+  const environmentId = getThread(db, id)?.environmentId ?? "";
+  await ctx.threads.delete(id, { childThreadsConfirmed: true });
+  await ctx.environments.remove(environmentId).catch(() => {});
+  await vi.waitFor(() => expect(removed).toEqual([path]), WAIT);
+  expect(existsSync(path)).toBe(false);
+  const unknown = { ...kind, environmentProviderId: "nope" };
+  const refused = await world.api.threads.$post({
+    json: {
+      projectId: world.project.id,
+      input: text("hi"),
+      environment: { type: "provider", ...unknown, inputs: null },
+      origin: "app",
+      providerId: "echo",
+      startedOnBehalfOf: null,
+    },
+  });
+  expect(refused.status).toBe(400);
+});
+
+it("lets a plugin replace a built-in environment kind", async () => {
+  const world = await createWorld();
+  const { ctx, reaches, root } = world;
+  const plugin = ctx.kernel.scope("copy-on-write", "installed");
+  plugin.add(environmentKinds.kind, {
+    id: "git-worktree",
+    displayName: "Copy-on-write clone",
+    async create({ thread }) {
+      const path = join(root, `cow-${thread.id}`);
+      mkdirSync(path);
+      return { path };
+    },
+    async remove({ path }) {
+      rmSync(path, { recursive: true });
+    },
+  });
+  const replaced = await world.spawn({ type: "project-default" });
+  await reaches(replaced, "idle");
+  expect(world.environmentOf(replaced)).toMatchObject({
+    environmentProviderId: "git-worktree",
+    path: join(root, `cow-${replaced}`),
+    status: "ready",
+  });
+  plugin.dispose();
+  const restored = await world.spawn(world.worktree);
+  await reaches(restored, "idle");
+  const builtin = join(
+    ctx.config.dataDir,
+    "worktrees",
+    `${restored}-1`,
+    "repo",
+  );
+  expect(world.environmentOf(restored)).toMatchObject({ path: builtin });
 });

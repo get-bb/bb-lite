@@ -1,14 +1,15 @@
-import { createElement, useEffect, useMemo, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { createElement, useCallback, useEffect, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type {
   BbContext,
   BbNavigate,
+  Live,
+  Op,
+  OpState,
   PluginAppHost,
   PluginEnvironmentProvidersState,
   PluginProvidersState,
-  PluginRpcClient,
-  PluginRpcContract,
   PluginSettingsState,
   PluginSidebarThreadRowStatus,
 } from "@bb/plugin/app";
@@ -16,6 +17,8 @@ import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
 import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
 import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+import { MarkdownPreview } from "@/components/ui/markdown-preview";
 import { ThreadViewers } from "@/components/users/ThreadViewers";
 import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
 import { ProviderIcon } from "@/components/plugin/ProviderIcon";
@@ -47,67 +50,67 @@ import {
 import { sdk } from "@/lib/sdk";
 import { wsManager } from "@/lib/ws";
 import { usePluginId } from "./context";
+import { callRemoteOp } from "./ops";
+import { callOp } from "./registry";
+import { SlotMount, useSlot, useSlotEntries, useSlotEntry } from "./slots";
 
-async function callPluginRpc(
-  pluginId: string,
-  method: string,
+export const OP_QUERY_KEY = "op";
+
+function useOp<O extends Op>(
+  op: O,
   input: unknown,
-): Promise<unknown> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/${encodeURIComponent(method)}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input ?? null),
-    },
-  );
-  const body = (await response.json().catch(() => null)) as {
-    ok?: unknown;
-    result?: unknown;
-    error?: string | { message?: unknown; code?: unknown; issues?: unknown };
-  } | null;
-  if (response.ok && body?.ok === true) return body.result;
-  const failure = body?.error;
-  const { message, code, issues } =
-    typeof failure === "object" ? failure : { message: failure };
-  const fallback = `rpc "${method}" failed (HTTP ${response.status})`;
-  throw Object.assign(
-    new Error(typeof message === "string" ? message : fallback),
-    typeof code === "string" ? { code } : {},
-    Array.isArray(issues) ? { issues } : {},
-  );
-}
-
-function useRpc<
-  Contract extends PluginRpcContract = PluginRpcContract,
->(): PluginRpcClient<Contract> {
-  const pluginId = usePluginId();
-  const client = useMemo(
+  options: { enabled?: boolean } = {},
+): OpState<never> {
+  const query = useQuery({
+    queryKey: [OP_QUERY_KEY, op.name, input],
+    queryFn: () => callOp(op, input),
+    enabled: options.enabled ?? true,
+  });
+  const { data, error, status, refetch } = query;
+  return useMemo(
     () => ({
-      call: (method: string, input?: unknown) =>
-        callPluginRpc(pluginId, method, input),
+      status:
+        status === "pending"
+          ? "loading"
+          : status === "error"
+            ? "error"
+            : "ready",
+      data: data as never,
+      error,
+      refetch: () => void refetch(),
     }),
-    [pluginId],
+    [data, error, status, refetch],
   );
-  return client as PluginRpcClient<Contract>;
 }
 
-function useRealtime(
-  channel: string,
-  handler: (payload: unknown) => void,
-): void {
-  const pluginId = usePluginId();
+function useCall<O extends Op>(op: O) {
+  return useCallback(
+    (input: unknown) => callOp(op, input) as Promise<never>,
+    [op],
+  );
+}
+
+function useLive<L extends Live>(live: L) {
+  const query = useQuery({
+    queryKey: [OP_QUERY_KEY, live.name],
+    queryFn: () => callRemoteOp(live.name, {}),
+  });
+  return query.data as never;
+}
+
+function useChanged(member: Op | Live, handler: () => void): void {
   const handlerRef = useRef(handler);
   useEffect(() => {
     handlerRef.current = handler;
   });
+  const { name } = member;
   useEffect(
     () =>
-      wsManager.onPluginSignal((signal) => {
-        if (signal.pluginId !== pluginId || signal.channel !== channel) return;
-        handlerRef.current(signal.payload);
+      wsManager.onPluginSignal(({ pluginId, channel, payload }) => {
+        if (pluginId !== "kernel" || channel !== "changed") return;
+        if ((payload as { name?: unknown }).name === name) handlerRef.current();
       }),
-    [pluginId, channel],
+    [name],
   );
 }
 
@@ -216,8 +219,6 @@ const NO_ROW_STATUSES: ReadonlyMap<string, PluginSidebarThreadRowStatus> =
 
 export const pluginAppHost: PluginAppHost = {
   createElement,
-  useRpc,
-  useRealtime,
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
   useSdk,
@@ -237,6 +238,15 @@ export const pluginAppHost: PluginAppHost = {
   useEnvironmentProviders,
   useSidebarNavigation,
   useQuestionFormHost,
+  useSlot,
+  useSlotEntries,
+  useSlotEntry,
+  useOp,
+  useCall,
+  useLive,
+  useChanged,
+  callOp: (op, input) => callOp(op, input) as Promise<never>,
+  SlotMount,
   SidebarNavigationIcon,
   ThreadChat: PluginThreadChat,
   Icon,
@@ -244,4 +254,6 @@ export const pluginAppHost: PluginAppHost = {
   UrlLink: PluginUrlLink,
   ThreadTitle: PluginThreadTitle,
   ThreadViewers,
+  ImageLightbox,
+  Markdown: MarkdownPreview,
 };

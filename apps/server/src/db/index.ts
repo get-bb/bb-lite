@@ -55,7 +55,12 @@ export class LegacyDataDirectoryError extends Error {
 }
 
 const BUSY_TIMEOUT_MS = 5_000;
-const SCHEMA_STEPS = ["./schema.sql", "./schema-users.sql"];
+const SCHEMA_STEPS = [
+  "./schema.sql",
+  "./schema-users.sql",
+  "./schema-audit.sql",
+  "./schema-provider-settings.sql",
+];
 
 export function refuseLegacyDatabase(path: string): void {
   if (!existsSync(path)) return;

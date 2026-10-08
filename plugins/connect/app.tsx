@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { definePluginApp, UrlLink, useRealtime, useRpc } from "@bb/plugin/app";
+import { callOp, plugin, UrlLink, useChanged } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Switch } from "@bb/shared-ui/switch";
-import type { ConnectStatus, connectRpcContract } from "./src/contract.js";
+import { connect, type ConnectStatus } from "./src/contract.js";
 
 const DOT_CLASS = {
   ok: "bg-success shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_18%,transparent)]",
@@ -32,7 +32,6 @@ const NEW_TAB = { target: "_blank", rel: "noreferrer" };
 const QUIET = { type: "button", variant: "ghost", size: "sm" } as const;
 
 function ConnectSettingsSection() {
-  const rpc = useRpc<typeof connectRpcContract>();
   const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,10 +44,10 @@ function ConnectSettingsSection() {
     }
   }, []);
   const refresh = useCallback(() => {
-    void show(rpc.call("status"));
-  }, [rpc, show]);
+    void show(callOp(connect.status, {}));
+  }, [show]);
   useEffect(refresh, [refresh]);
-  useRealtime("status", refresh);
+  useChanged(connect.status, refresh);
   const act = (work: Promise<ConnectStatus>) => {
     setBusy(true);
     void show(work).finally(() => setBusy(false));
@@ -81,7 +80,7 @@ function ConnectSettingsSection() {
           checked={status.enabled}
           disabled={busy}
           onCheckedChange={(enabled) =>
-            act(rpc.call("setEnabled", { enabled }))
+            act(callOp(connect.setEnabled, { enabled }))
           }
         />
       </div>
@@ -108,7 +107,7 @@ function ConnectSettingsSection() {
                   {...QUIET}
                   className={DANGER_QUIET_CLASS}
                   disabled={busy}
-                  onClick={() => act(rpc.call("unexpose", { port }))}
+                  onClick={() => act(callOp(connect.unexpose, { port }))}
                 >
                   Revoke
                 </Button>
@@ -126,7 +125,7 @@ function ConnectSettingsSection() {
           {...QUIET}
           className={DANGER_QUIET_CLASS}
           disabled={busy}
-          onClick={() => act(rpc.call("logout"))}
+          onClick={() => act(callOp(connect.logout, {}))}
         >
           Sign out
         </Button>
@@ -168,7 +167,7 @@ function ConnectSettingsSection() {
         type="button"
         className="h-auto min-h-9 max-w-full whitespace-normal"
         disabled={busy}
-        onClick={() => act(rpc.call("login"))}
+        onClick={() => act(callOp(connect.login, {}))}
       >
         {failed === null ? "Sign in to your bb account" : "Try again"}
       </Button>
@@ -183,8 +182,8 @@ function ConnectSettingsSection() {
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.settingsSection({
+export default plugin((bb) => {
+  bb.slots.settingsSection({
     id: "remote-access",
     description:
       "Use this bb from any device, anywhere — powered by getbb.dev.",

@@ -8,6 +8,11 @@ import {
   PLUGIN_SHARED_MODULES,
   type PluginServerEntry,
 } from "@bb/plugin";
+import {
+  RUNNER_RUNTIME_GLOBAL,
+  RUNNER_SHARED_MODULES,
+  type RunnerPartBundle,
+} from "@bb/runner";
 import { build, type BuildOptions, type Plugin } from "esbuild";
 
 export interface AppBundle {
@@ -65,6 +70,41 @@ const sharedModules: Plugin = {
     }));
   },
 };
+
+const RUNNER_NAMESPACE = "bb-runner-shared";
+
+const runnerSharedModules: Plugin = {
+  name: "bb-runner-shared-modules",
+  setup(esbuild) {
+    const shared: readonly string[] = RUNNER_SHARED_MODULES;
+    esbuild.onResolve({ filter: /^@bb\// }, ({ path }) =>
+      shared.includes(path) ? { path, namespace: RUNNER_NAMESPACE } : null,
+    );
+    esbuild.onLoad({ filter: /.*/, namespace: RUNNER_NAMESPACE }, (args) => ({
+      contents: `module.exports = globalThis.${RUNNER_RUNTIME_GLOBAL}[${JSON.stringify(args.path)}];`,
+      loader: "js",
+    }));
+  },
+};
+
+export async function bundleRunnerPart(
+  id: string,
+  entry: string,
+): Promise<RunnerPartBundle> {
+  const { alias: _alias, ...common } = COMMON;
+  const result = await build({
+    ...common,
+    entryPoints: [entry],
+    platform: "node",
+    format: "esm",
+    target: "node22",
+    banner: { js: REQUIRE_BANNER },
+    plugins: [runnerSharedModules],
+  });
+  const code = result.outputFiles?.[0]?.text ?? "";
+  const hash = createHash("sha256").update(code).digest("hex");
+  return { id, hash, code };
+}
 
 function contentHash(text: string) {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);

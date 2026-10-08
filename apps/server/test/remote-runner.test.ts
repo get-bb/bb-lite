@@ -4,12 +4,8 @@ import net, { type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodeClientTurnRequestIdNumber } from "@bb/domain";
-import {
-  createEchoAdapter,
-  joinServer,
-  runRunner,
-  type SubmitTurnArgs,
-} from "@bb/runner";
+import { joinServer, runRunner, type SubmitTurnArgs } from "@bb/runner";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { expect, it, onTestFinished } from "vitest";
 import { createTestServer, type TestServer } from "./helpers.js";
 
@@ -179,4 +175,44 @@ it("keeps a turn alive across a dropped socket without duplicates", async () => 
   expectConsecutive(machine.seen);
   const lastSeq = machine.seen.at(-1)?.seq;
   await until(() => machine.row()?.lastEventSeq === lastSeq);
+});
+
+it("ships a plugin's runner part to a machine and calls it there", async () => {
+  const server = await createTestServer();
+  const { ctx } = server;
+  const machine = await enrollMachine(server);
+  await machine.run();
+  await machine.connected();
+  const fixture = new URL("./fixtures/machine-plugin", import.meta.url);
+  const plugins = [{ path: fixture.pathname }];
+  const configFile = join(ctx.config.dataDir, "config.json");
+  fs.writeFileSync(configFile, JSON.stringify({ plugins }));
+  await ctx.plugins.reload();
+  const providers = async () => {
+    const listed = await machine.remote().listProviders();
+    return listed.map(({ providerId }) => providerId);
+  };
+  const settled = async (wanted: string[]) => {
+    for (const deadline = Date.now() + 10_000; ;) {
+      const found = await providers();
+      if (JSON.stringify(found) === JSON.stringify(wanted)) return found;
+      if (Date.now() > deadline) return found;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  };
+  expect(await settled(["echo", "probe"])).toEqual(["echo", "probe"]);
+  const asked = await server.send("/ops/machine-probe.where", {
+    hostId: machine.hostId,
+  });
+  const cached = join(machine.dataDir, "plugins", "machine-probe");
+  expect(await asked.json()).toEqual({
+    ok: true,
+    result: { dataDir: cached, sum: 5 },
+  });
+  await ctx.plugins.setEnabled("machine-probe", false);
+  expect(await settled(["echo"])).toEqual(["echo"]);
+  const gone = await server.send("/ops/machine-probe.where", {
+    hostId: machine.hostId,
+  });
+  expect(gone.status).toBe(501);
 });

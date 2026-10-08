@@ -55,7 +55,7 @@ export async function buildSessionSpec(
 ): Promise<SessionSpec> {
   const { hostId } = environment;
   const scope = pluginContext(ctx.db, thread, hostId);
-  const providerId = requireProviderId(thread.providerId);
+  const providerId = requireProviderId(ctx.db, thread.providerId);
   const [plugins, pluginEnv, machineEnv, user, workspace, configured] =
     await Promise.all([
       ctx.plugins.instructionsFor(scope),

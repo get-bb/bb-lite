@@ -1,0 +1,31 @@
+{
+  "name": "bb-plugin-plugin-dev",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Write, check, inspect and install bb plugins.",
+  "bb": {
+    "name": "Plugin tools",
+    "description": "Write, check, inspect and install bb plugins.",
+    "icon": "Plug02",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

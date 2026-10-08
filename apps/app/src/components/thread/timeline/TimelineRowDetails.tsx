@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import type { ThreadEventPlanStep } from "@bb/domain";
+import type { TimelineRowDetailProps } from "@bb/plugin/app";
 import type { TimelineRowPresentation } from "@bb/server-contract";
 import {
   assertNever,
@@ -292,61 +293,73 @@ function QuestionWorkRowBody({ row }: { row: WorkRow<"question"> }) {
   );
 }
 
-export function WorkRowBody({ row }: { row: TimelineViewWorkRow }) {
+function FileChangeWorkRowBody({ row }: { row: WorkRow<"file-change"> }) {
   const { workspaceRootPath } = useTimeline();
-  switch (row.workKind) {
-    case "command":
-      return <CommandWorkRowBody row={row} />;
-    case "tool":
-      return <ToolWorkRowBody row={row} />;
-    case "file-change":
-      return (
-        <div className="space-y-2">
-          <TimelineFileDiffBlock
-            change={row.change}
-            workspaceRootPath={workspaceRootPath}
-          />
-          {row.stderr ? (
-            <TimelineDetailScroll
-              size="base"
-              contentKey={row.stderr}
-              className="rounded-md"
-            >
-              <EventCodeBlock
-                tone="danger"
-                className="rounded-none border-0 px-2 py-1.5"
-              >
-                {row.stderr}
-              </EventCodeBlock>
-            </TimelineDetailScroll>
-          ) : null}
-        </div>
-      );
-    case "question":
-      return <QuestionWorkRowBody row={row} />;
-    case "form":
-    case "extension":
-      return <PresentationDetail presentation={row.presentation} />;
-    case "workflow":
-      return (
-        <div className="space-y-2">
-          <PresentationDetail presentation={row.presentation} />
-          <WorkflowWorkRowBody row={row} />
-        </div>
-      );
-    case "plan-steps":
-      return <PlanStepsWorkRowBody row={row} />;
-    case "image-generation":
-    case "image-view":
-      return <ImageWorkRowBody row={row} />;
-    case "delegation":
-    case "approval":
-    case "web-search":
-    case "web-fetch":
-    case "file-read":
-    case "search":
-      return null;
-    default:
-      return assertNever(row);
+  return (
+    <div className="space-y-2">
+      <TimelineFileDiffBlock
+        change={row.change}
+        workspaceRootPath={workspaceRootPath}
+      />
+      {row.stderr ? (
+        <TimelineDetailScroll
+          size="base"
+          contentKey={row.stderr}
+          className="rounded-md"
+        >
+          <EventCodeBlock
+            tone="danger"
+            className="rounded-none border-0 px-2 py-1.5"
+          >
+            {row.stderr}
+          </EventCodeBlock>
+        </TimelineDetailScroll>
+      ) : null}
+    </div>
+  );
+}
+
+function PresentationWorkRowBody({
+  row,
+}: {
+  row: WorkRow<"form" | "extension">;
+}) {
+  return <PresentationDetail presentation={row.presentation} />;
+}
+
+function WorkflowDetailWorkRowBody({ row }: { row: WorkRow<"workflow"> }) {
+  return (
+    <div className="space-y-2">
+      <PresentationDetail presentation={row.presentation} />
+      <WorkflowWorkRowBody row={row} />
+    </div>
+  );
+}
+
+function EmptyWorkRowBody(_props: { row: TimelineViewWorkRow }) {
+  return null;
+}
+
+function detailView<Row extends TimelineViewWorkRow>(
+  view: ComponentType<{ row: Row }>,
+): ComponentType<TimelineRowDetailProps> {
+  return view as ComponentType<TimelineRowDetailProps>;
+}
+
+export const CommandWorkRowDetail = detailView(CommandWorkRowBody);
+export const ToolWorkRowDetail = detailView(ToolWorkRowBody);
+export const FileChangeWorkRowDetail = detailView(FileChangeWorkRowBody);
+export const QuestionWorkRowDetail = detailView(QuestionWorkRowBody);
+export const PresentationWorkRowDetail = detailView(PresentationWorkRowBody);
+export const WorkflowWorkRowDetail = detailView(WorkflowDetailWorkRowBody);
+export const PlanStepsWorkRowDetail = detailView(PlanStepsWorkRowBody);
+export const ImageWorkRowDetail = detailView(ImageWorkRowBody);
+export const EmptyWorkRowDetail = detailView(EmptyWorkRowBody);
+
+export function WorkRowBody({ row }: { row: TimelineViewWorkRow }) {
+  const View = useTimeline().rowDetailViews.get(row.workKind);
+  if (View === undefined) {
+    return assertNever(row as never);
   }
+  return <View row={row} />;
 }

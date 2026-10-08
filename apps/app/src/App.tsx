@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Suspense, useEffect, useMemo } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
+import { shell, type ShellRoute, type SlotEntryView } from "@bb/plugin/app";
 import { AppLayout } from "./components/layout/AppLayout";
 import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
@@ -8,37 +9,42 @@ import { UiPreferencesSync } from "@/lib/ui-preferences";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useFaviconColorSync } from "./lib/favicon-color-preference";
 import { bootPlugins } from "@/plugins/external";
+import { SlotMount, useSlotEntries } from "@/plugins/slots";
 import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "./hooks/useWebSocket";
-import {
-  PROJECTLESS_ARCHIVED_ROUTE_PATH,
-  SETTINGS_PLUGIN_ROUTE_PATH,
-  SETTINGS_PLUGINS_ROUTE_PATH,
-  SETTINGS_MACHINE_ROUTE_PATH,
-  SETTINGS_PROJECT_ROUTE_PATH,
-  SETTINGS_ROUTE_PATH,
-  SETTINGS_SECTION_ROUTE_PATH,
-  getSettingsRoutePath,
-} from "./lib/route-paths";
 import { AppCommandProvider } from "./components/commands/AppCommandProvider";
-import { RouteLoadingSkeleton } from "./components/ui/route-loading-skeleton";
 
-const SettingsView = lazy(() =>
-  import("./views/SettingsView").then((m) => ({ default: m.SettingsView })),
-);
-const ProjectDetailSettingsView = lazy(() =>
-  import("./views/ProjectDetailSettingsView").then((m) => ({
-    default: m.ProjectDetailSettingsView,
-  })),
-);
-const MachineSettingsView = lazy(() =>
-  import("./views/MachineSettingsView").then((m) => ({
-    default: m.MachineSettingsView,
-  })),
-);
-const splitWorkspaceRouteModule = import("./views/SplitWorkspaceRoute");
-splitWorkspaceRouteModule.catch(() => {});
-const SplitWorkspaceRoute = lazy(() => splitWorkspaceRouteModule);
+const CORE_PLUGIN_ID = "shell";
+const UNORDERED = 1_000;
+
+type RouteEntry = SlotEntryView<ShellRoute>;
+
+function ordered(entries: readonly RouteEntry[]): RouteEntry[] {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        Number(a.entry.item.path === "*") - Number(b.entry.item.path === "*") ||
+        (a.entry.item.order ?? UNORDERED) - (b.entry.item.order ?? UNORDERED) ||
+        a.index - b.index,
+    )
+    .map(({ entry }) => entry);
+}
+
+function useShellRoutes(): readonly RouteEntry[] {
+  const entries = useSlotEntries(shell.route);
+  return useMemo(() => ordered(entries), [entries]);
+}
+
+function ShellRouteElement({ plugin, item }: RouteEntry) {
+  const View = item.view;
+  if (plugin === CORE_PLUGIN_ID) return <View />;
+  return (
+    <SlotMount pluginId={plugin} slot={shell.route.name} id={item.id}>
+      <View />
+    </SlotMount>
+  );
+}
 
 function HashNavigationScroll() {
   const location = useLocation();
@@ -81,7 +87,7 @@ export function App() {
     void bootPlugins();
   }, []);
   useRememberPluginNavPanelChrome();
-  const settings = <SettingsView />;
+  const routes = useShellRoutes();
 
   return (
     <QuickCreateProjectProvider>
@@ -93,34 +99,13 @@ export function App() {
           <AppLayout>
             <Suspense fallback={null}>
               <Routes>
-                <Route path={SETTINGS_ROUTE_PATH} element={settings} />
-                <Route path={SETTINGS_SECTION_ROUTE_PATH} element={settings} />
-                <Route path={SETTINGS_PLUGINS_ROUTE_PATH} element={settings} />
-                <Route path={SETTINGS_PLUGIN_ROUTE_PATH} element={settings} />
-                <Route
-                  path={SETTINGS_MACHINE_ROUTE_PATH}
-                  element={<MachineSettingsView />}
-                />
-                <Route
-                  path={SETTINGS_PROJECT_ROUTE_PATH}
-                  element={<ProjectDetailSettingsView />}
-                />
-                <Route
-                  path={PROJECTLESS_ARCHIVED_ROUTE_PATH}
-                  element={
-                    <Navigate to={getSettingsRoutePath("archived")} replace />
-                  }
-                />
-                <Route
-                  path="*"
-                  element={
-                    <Suspense
-                      fallback={<RouteLoadingSkeleton isBoundedPane={false} />}
-                    >
-                      <SplitWorkspaceRoute />
-                    </Suspense>
-                  }
-                />
+                {routes.map((entry) => (
+                  <Route
+                    key={entry.item.id}
+                    path={entry.item.path}
+                    element={<ShellRouteElement {...entry} />}
+                  />
+                ))}
               </Routes>
             </Suspense>
           </AppLayout>

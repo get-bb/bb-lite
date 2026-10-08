@@ -1,3 +1,4 @@
+import { OpError, type OpErrorCode } from "@bb/plugin";
 import { RunnerError, type RunnerErrorCode } from "@bb/runner";
 import type {
   ApiError as ApiErrorBody,
@@ -61,6 +62,17 @@ export function hostUnavailable(): ApiError {
   });
 }
 
+const OP_ERROR_RESPONSES: Record<
+  OpErrorCode,
+  [status: ContentfulStatusCode, code: string]
+> = {
+  denied: [403, "denied_by_plugin"],
+  forbidden: [403, "forbidden"],
+  unimplemented: [501, "unimplemented"],
+  invalid_input: [400, "invalid_request"],
+  invalid_output: [500, "internal_error"],
+};
+
 function runnerErrorStatus(code: RunnerErrorCode): ContentfulStatusCode {
   if (code.endsWith("_not_found")) return 404;
   if (code === "unavailable") return 503;
@@ -76,6 +88,12 @@ export function toApiError(error: unknown): ApiError | null {
       error.message,
       { retryable: error.retryable },
     );
+  }
+  if (error instanceof OpError) {
+    const [status, code] = OP_ERROR_RESPONSES[error.code];
+    const details =
+      error.plugin === null ? undefined : { plugin: error.plugin };
+    return new ApiError(status, code, error.message, { details });
   }
   if (error instanceof HTTPException && error.status < 500) {
     return new ApiError(error.status, "invalid_request", error.message);

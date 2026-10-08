@@ -1,6 +1,15 @@
 import * as domain from "@bb/domain";
+import {
+  interactions as interactionOps,
+  threads as threadOps,
+  type ThreadWriteOp,
+} from "@bb/plugin";
 import type { RunnerThreadEvent } from "@bb/runner";
-import type { ThreadResponse } from "@bb/server-contract";
+import type {
+  CreateThreadRequest,
+  SendMessageRequest,
+  ThreadResponse,
+} from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import { lastOutput } from "../db/event-read.js";
@@ -24,6 +33,7 @@ import { cancelToolCall, startToolCall } from "./tool-calls.js";
 
 type ThreadRow = store.ThreadRow;
 type Outbox = core.Outbox;
+type DeleteConfirmation = { childThreadsConfirmed: boolean };
 
 interface ThreadFailure {
   code: string;
@@ -342,6 +352,8 @@ export class Engine {
 
 export function createThreadEngine(ctx: ServerContext) {
   const engine = new Engine(ctx);
+  const { kernel } = ctx;
+  const own = kernel.scope("threads", "product");
   const direct =
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,
@@ -367,12 +379,35 @@ export function createThreadEngine(ctx: ServerContext) {
       if (thread !== undefined) engine.assertWritable(thread);
       return run(threadId, ...args);
     };
+  const create = direct(createThread);
+  const send = writes(serialized(mutations.send));
+  const stop = writes(direct(lifecycle.stopThread));
+  const archive = writes(direct(lifecycle.archiveThreadTree));
+  const unarchive = writes(serialized(lifecycle.unarchiveThread));
+  const remove = writes(direct(lifecycle.deleteThreadTree));
+  own.implement(threadOps.create, (request) => create(request));
+  own.implement(threadOps.send, (input) => send(input.threadId, input.request));
+  own.implement(threadOps.stop, ({ threadId }) => stop(threadId));
+  own.implement(threadOps.archive, ({ threadId }) => archive(threadId));
+  own.implement(threadOps.unarchive, ({ threadId }) => unarchive(threadId));
+  own.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
+    remove(threadId, confirmation),
+  );
+  const routed = <Args extends unknown[], Result>(
+    op: ThreadWriteOp,
+    run: (threadId: string, ...args: Args) => Result,
+  ) => {
+    own.implement(op, ({ threadId, args }) => run(threadId, ...(args as Args)));
+    return (threadId: string, ...args: Args) =>
+      kernel.call(op, { threadId, args }) as Promise<Awaited<Result>>;
+  };
   return {
     start: () => engine.start(),
     close: () => engine.close(),
     settled: () => engine.settled(),
     sweep: direct(lifecycle.sweep),
-    create: direct(createThread),
+    create: (request: CreateThreadRequest) =>
+      kernel.call(threadOps.create, request),
     get: (threadId: string) => {
       const thread = store.getThread(ctx.db, threadId);
       const gone = thread === undefined || thread.deletedAt !== null;
@@ -380,29 +415,54 @@ export function createThreadEngine(ctx: ServerContext) {
     },
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
-    send: writes(serialized(mutations.send)),
-    stop: writes(direct(lifecycle.stopThread)),
-    compact: writes(direct(mutations.compact)),
-    clearContext: writes(serialized(lifecycle.clearContext)),
-    archive: writes(direct(lifecycle.archiveThreadTree)),
-    unarchive: writes(serialized(lifecycle.unarchiveThread)),
-    delete: writes(direct(lifecycle.deleteThreadTree)),
+    send: (threadId: string, request: SendMessageRequest) =>
+      kernel.call(threadOps.send, { threadId, request }),
+    stop: (threadId: string) => kernel.call(threadOps.stop, { threadId }),
+    compact: routed(threadOps.compact, writes(direct(mutations.compact))),
+    clearContext: routed(
+      threadOps.clearContext,
+      writes(serialized(lifecycle.clearContext)),
+    ),
+    archive: (threadId: string) => kernel.call(threadOps.archive, { threadId }),
+    unarchive: (threadId: string) =>
+      kernel.call(threadOps.unarchive, { threadId }),
+    delete: (threadId: string, confirmation: DeleteConfirmation) =>
+      kernel.call(threadOps.delete, { threadId, ...confirmation }),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
-    update: serialized(mutations.update),
+    update: routed(threadOps.update, serialized(mutations.update)),
     pin: serialized(mutations.pin),
     unpin: serialized(mutations.unpin),
     reorderPinned: direct(mutations.reorderPinned),
     markRead: serialized(mutations.markRead),
     markUnread: serialized(mutations.markUnread),
-    createQueuedMessage: writes(serialized(mutations.createQueuedMessage)),
-    updateQueuedMessage: writes(serialized(mutations.updateQueuedMessage)),
-    deleteQueuedMessage: writes(serialized(mutations.deleteQueuedMessage)),
-    sendQueuedMessageNow: writes(serialized(mutations.sendQueuedMessageNow)),
-    resolveInteraction: writes(
-      serialized(interactions.resolveProviderInteraction),
+    createQueuedMessage: routed(
+      threadOps.queueMessage,
+      writes(serialized(mutations.createQueuedMessage)),
     ),
-    respondToInteraction: writes(serialized(interactions.respondToInteraction)),
-    cancelInteraction: writes(serialized(interactions.cancelByUser)),
+    updateQueuedMessage: routed(
+      threadOps.editQueuedMessage,
+      writes(serialized(mutations.updateQueuedMessage)),
+    ),
+    deleteQueuedMessage: routed(
+      threadOps.dropQueuedMessage,
+      writes(serialized(mutations.deleteQueuedMessage)),
+    ),
+    sendQueuedMessageNow: routed(
+      threadOps.sendQueuedMessage,
+      writes(serialized(mutations.sendQueuedMessageNow)),
+    ),
+    resolveInteraction: routed(
+      interactionOps.resolve,
+      writes(serialized(interactions.resolveProviderInteraction)),
+    ),
+    respondToInteraction: routed(
+      interactionOps.respond,
+      writes(serialized(interactions.respondToInteraction)),
+    ),
+    cancelInteraction: routed(
+      interactionOps.cancel,
+      writes(serialized(interactions.cancelByUser)),
+    ),
     requestInput: direct(interactions.requestInput),
   };
 }

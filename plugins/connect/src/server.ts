@@ -1,9 +1,16 @@
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
-import { cliCommand, defineCli, PluginCliError } from "@bb/plugin";
+import {
+  cliCommand,
+  defineCli,
+  machines,
+  PluginCliError,
+  server,
+  sessions,
+} from "@bb/plugin";
 import type * as Plugin from "@bb/plugin";
 import { ConnectAccount, legacyLink, shareUrl, type Link } from "./account.js";
-import { connectRpcContract, type ConnectStatus } from "./contract.js";
+import { connect, type ConnectStatus } from "./contract.js";
 import { FrpTunnel } from "./frp.js";
 import { watchActivity } from "./activity.js";
 import {
@@ -19,7 +26,6 @@ type Act = (port: number, context: Plugin.CliContext) => Promise<Outcome>;
 type StoredMachine = { machineId: string };
 
 const DEFAULT_BASE_URL = "https://getbb.dev";
-const STATUS_CHANNEL = "status";
 const SHARES_KEY = "shares";
 const ENABLED_KEY = "enabled";
 const JSON_OPTION = {
@@ -63,13 +69,15 @@ export default async function connectPlugin(
   const { kv } = bb.storage;
   let enabled = (await kv.get<boolean>(ENABLED_KEY)) ?? true;
   const shares = new Set((await kv.get<number[]>(SHARES_KEY)) ?? []);
-  const hosts = await bb.hosts.list();
+  const hosts = await bb.call(machines.list, {});
   const serverHost = hosts.find((host) => host.machineProviderId === null);
   const remoteThreads = new Set<string>();
   const grants = new Map<string, Promise<Plugin.MachineAccess>>();
   let grantsCredential: string | undefined;
+  let publicUrl: string | null = null;
+  let removePublicUrl: (() => void) | null = null;
 
-  const publish = (): void => bb.realtime.publish(STATUS_CHANNEL, null);
+  const publish = (): void => bb.changed(connect.status);
   const account = new ConnectAccount({
     file: join(bb.server.dataDir, "connect.json"),
     provisioned: process.env.BB_CONNECT_LINK,
@@ -100,13 +108,20 @@ export default async function connectPlugin(
         });
   const activeLink = (): Link | null => (enabled ? account.link : null);
 
+  function advertise(url: string | null): void {
+    if (url === publicUrl) return;
+    removePublicUrl?.();
+    publicUrl = url;
+    removePublicUrl = url === null ? null : bb.add(server.publicUrl, () => url);
+  }
+
   function sync(): void {
     const link = activeLink();
     if (account.link?.credential !== grantsCredential) grants.clear();
     grantsCredential = account.link?.credential;
     tunnel.set(link);
     frp?.set(link);
-    bb.server.setPublicUrl(link?.serverUrl ?? null);
+    advertise(link?.serverUrl ?? null);
     publish();
   }
 
@@ -165,7 +180,7 @@ export default async function connectPlugin(
     await kv.set(key, { machineId: machine.machineId });
     return { serverUrl, headers: { [MACHINE_HEADER]: machine.credential } };
   };
-  bb.machines.setAccessProvider({
+  bb.add(machines.access, {
     async grant(hostId) {
       const link = activeLink();
       if (link === null) return null;
@@ -189,7 +204,7 @@ export default async function connectPlugin(
     },
   });
 
-  bb.agents.contributeInstructions(({ threadId, hostId }) => {
+  const instructions = (threadId: string, hostId: string | null) => {
     const elsewhere = hostId !== null && hostId !== serverHost?.id;
     if (elsewhere) remoteThreads.add(threadId);
     else remoteThreads.delete(threadId);
@@ -201,14 +216,29 @@ export default async function connectPlugin(
       "and give them the URL it prints as a markdown link; a localhost URL " +
       "does not open remotely."
     );
+  };
+  bb.on(sessions.instructions, async ({ threadId, hostId }, next) => {
+    const text = instructions(threadId, hostId);
+    const rest = await next();
+    return text ? [{ source: bb.pluginId, text }, ...rest] : rest;
   });
 
-  bb.rpc.register(connectRpcContract, {
-    status,
-    login: async () => (await account.startLogin(), status()),
-    logout: async () => (await account.logout(), status()),
-    setEnabled: async (input) => (await setEnabled(input.enabled), status()),
-    unexpose: async ({ port }) => (await unexpose([port]), status()),
+  bb.implement(connect.status, status);
+  bb.implement(connect.login, async () => {
+    await account.startLogin();
+    return status();
+  });
+  bb.implement(connect.logout, async () => {
+    await account.logout();
+    return status();
+  });
+  bb.implement(connect.setEnabled, async (input) => {
+    await setEnabled(input.enabled);
+    return status();
+  });
+  bb.implement(connect.unexpose, async ({ port }) => {
+    await unexpose([port]);
+    return status();
   });
 
   const command = (
@@ -226,23 +256,30 @@ export default async function connectPlugin(
         return reply(input.options.json, json, text);
       },
     });
-  const after = (work: () => Promise<unknown>) => async () => {
-    await work();
-    return { text: describe(status()) };
+  const told = (current: ConnectStatus): Outcome => {
+    return { text: describe(current), json: current };
   };
-  const login = after(() => account.startLogin());
-  const logout = after(() => account.logout());
-  const show = after(async () => {});
-  const on = after(() => setEnabled(true));
-  const off = after(() => setEnabled(false));
-  const unshare: Act = (port) => unexpose([port]);
-  const unshareAll: Act = () => unexpose([...shares]);
+  const login = async () => told(await bb.call(connect.login, {}));
+  const logout = async () => told(await bb.call(connect.logout, {}));
+  const show = async () => told(await bb.call(connect.status, {}));
+  const turn = (enabled: boolean) => async () =>
+    told(await bb.call(connect.setEnabled, { enabled }));
+  const revoke = async (ports: number[]): Promise<Outcome> => {
+    const held = ports.filter((port) => shares.has(port));
+    for (const port of held) await bb.call(connect.unexpose, { port });
+    if (held.length === 0) await saveShares();
+    const removed = held.length;
+    return { text: `Revoked ${removed} shared ports.`, json: { removed } };
+  };
+  const unshare: Act = (port) => revoke([port]);
+  const unshareAll: Act = () => revoke([...shares]);
   const share: Act = async (port, { threadId }) => {
     const url = await expose(port, threadId);
     return { text: url, json: { port, url } };
   };
   const list: Act = async () => {
-    return { text: describe(status()), json: status().shares };
+    const current = await bb.call(connect.status, {});
+    return { text: describe(current), json: current.shares };
   };
 
   bb.cli.register(
@@ -253,8 +290,8 @@ export default async function connectPlugin(
         login: command("Sign this bb in to your getbb.dev account", login),
         status: command("Show remote-access status", show),
         logout: command("Sign out and close the tunnel", logout),
-        on: command("Turn remote access on", on),
-        off: command("Turn remote access off and stay signed in", off),
+        on: command("Turn remote access on", turn(true)),
+        off: command("Turn remote access off and stay signed in", turn(false)),
         expose: command("Share a port of the server machine", share, PORT),
         unexpose: command("Stop sharing a port", unshare, PORT),
         "unexpose-all": command("Stop sharing every port", unshareAll),

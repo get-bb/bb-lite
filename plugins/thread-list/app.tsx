@@ -1,4 +1,4 @@
-import { definePluginApp, type PluginThreadListProps } from "@bb/plugin/app";
+import { plugin, type PluginThreadListProps } from "@bb/plugin/app";
 import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { TooltipProvider } from "@bb/shared-ui/tooltip";
 import { PreferencesSync } from "./app/preferences.js";
@@ -24,8 +24,8 @@ function ThreadListSlot({
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.threadList({
+export default plugin((bb) => {
+  bb.slots.threadList({
     id: "thread-list",
     title: "Thread list",
     description: "Pinned threads, custom sections, and nested threads.",

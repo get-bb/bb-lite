@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useAtom, type WritableAtom } from "jotai";
 import { Navigate } from "react-router-dom";
 import {
@@ -13,23 +13,17 @@ import {
 } from "@bb/domain";
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
-import {
-  InstalledPluginsSettingsSection,
-  PluginSettingsPage,
-} from "@/components/plugin/PluginSettings";
-import { ArchivedThreadsSettingsSection } from "@/components/settings/ArchivedThreadsSettingsSection";
-import { KeyboardSettingsSection } from "@/components/settings/KeyboardSettingsSection";
+import { PluginSettingsPage } from "@/components/plugin/PluginSettings";
 import { MachineAccessSettings } from "@/components/settings/MachineAccessSettings";
-import { MachineEnvironmentSettings } from "@/components/settings/MachineEnvironmentSettings";
 import { MachinesSettingsSection } from "@/components/settings/MachinesSettingsSection";
-import { PeopleSettingsSection } from "@/components/settings/PeopleSettingsSection";
-import { ProjectsSettingsSection } from "@/components/settings/ProjectsSettingsSection";
 import { ProvidersSettingsSection } from "@/components/settings/ProvidersSettingsSection";
 import {
   SettingsDropdown,
   SettingsSwitch,
 } from "@/components/settings/SettingsDropdown";
+import { settings as settingsSlots } from "@bb/plugin/app";
 import { useSettingsNavState } from "@/components/settings/settings-nav";
+import { SlotMount, useSlotEntries } from "@/plugins/slots";
 import { sidebarHeaderProviderAtom } from "@/components/sidebar/sidebarHeaderProvider";
 import {
   BUNDLED_NAVIGATION_PROVIDER,
@@ -476,55 +470,69 @@ function GeneralSettingsSection({
   );
 }
 
-export function SettingsView() {
+function useGeneralSettingsControls() {
   const config = useSystemConfig().data;
   const updateGeneralSettings = useUpdateGeneralSettings();
-  const { activePluginId, activeSection, hasUnknownSection } =
-    useSettingsNavState();
-  if (hasUnknownSection) return <Navigate to={SETTINGS_ROUTE_PATH} replace />;
   const settings = config?.generalSettings ?? defaultAppSettings;
   const disabled = config === undefined || updateGeneralSettings.isPending;
   const update: UpdateSettings = (patch, options) =>
     updateGeneralSettings.mutate({ ...settings, ...patch }, options);
+  return { config, settings, disabled, update };
+}
+
+export function GeneralSettingsPage() {
+  const { settings, disabled, update } = useGeneralSettingsControls();
+  const controls = { settings, disabled, update };
+  return <GeneralSettingsSection {...controls} />;
+}
+
+export function ProvidersSettingsPage() {
+  const { settings, disabled, update } = useGeneralSettingsControls();
+  const controls = { settings, disabled, update };
+  return <ProvidersSettingsSection {...controls} />;
+}
+
+export function AppearanceSettingsPage() {
+  const config = useSystemConfig().data;
+  return (
+    <AppearanceSettingsSection
+      appearance={config?.appearance ?? defaultAppTheme}
+      disabled={config === undefined}
+    />
+  );
+}
+
+export function MachinesSettingsPage() {
+  return (
+    <>
+      <MachinesSettingsSection />
+      <MachineAccessSettings />
+    </>
+  );
+}
+
+export function SettingsView() {
+  const { activePluginId, activeSection, hasUnknownSection } =
+    useSettingsNavState();
+  const entries = useSlotEntries(settingsSlots.page);
+  if (hasUnknownSection) return <Navigate to={SETTINGS_ROUTE_PATH} replace />;
+  const active = entries.find(({ item }) => item.id === activeSection);
+  const Page = active?.item.view;
   return (
     <PageShell contentClassName="pt-4 md:pt-5">
       <div className="mx-auto w-full max-w-3xl space-y-10">
         {activePluginId !== null ? (
           <PluginSettingsPage pluginId={activePluginId} />
-        ) : activeSection === "plugins" ? (
-          <InstalledPluginsSettingsSection />
-        ) : activeSection === "providers" ? (
-          <ProvidersSettingsSection
-            disabled={disabled}
-            settings={settings}
-            update={update}
-          />
-        ) : activeSection === "appearance" ? (
-          <AppearanceSettingsSection
-            appearance={config?.appearance ?? defaultAppTheme}
-            disabled={config === undefined}
-          />
-        ) : activeSection === "keyboard" ? (
-          <KeyboardSettingsSection />
-        ) : activeSection === "projects" ? (
-          <ProjectsSettingsSection />
-        ) : activeSection === "machines" ? (
-          <>
-            <MachinesSettingsSection />
-            <MachineAccessSettings />
-          </>
-        ) : activeSection === "people" ? (
-          <PeopleSettingsSection />
-        ) : activeSection === "environment-variables" ? (
-          <MachineEnvironmentSettings />
-        ) : activeSection === "archived" ? (
-          <ArchivedThreadsSettingsSection />
-        ) : (
-          <GeneralSettingsSection
-            disabled={disabled}
-            settings={settings}
-            update={update}
-          />
+        ) : active === undefined || Page === undefined ? null : (
+          <SlotMount
+            pluginId={active.plugin}
+            slot={settingsSlots.page.name}
+            id={active.item.id}
+          >
+            <Suspense fallback={null}>
+              <Page />
+            </Suspense>
+          </SlotMount>
         )}
       </div>
     </PageShell>

@@ -61,7 +61,13 @@ import {
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
 import { cn } from "@bb/shared-ui/lib/utils";
+import type { ComposerContext } from "@bb/plugin/app";
 import { AttachmentPreview } from "./AttachmentPreview";
+import type {
+  ComposerMenuHost,
+  ComposerScope,
+  ComposerSendHost,
+} from "./composer-slots";
 import {
   PromptBoxActionsMenu,
   type PromptBoxAction,
@@ -210,6 +216,7 @@ interface PromptBoxInternalProps {
   placeholder?: string;
   autoFocus?: boolean;
   footerStart?: ReactNode;
+  composerScope: ComposerScope;
   submission?: PromptBoxSubmissionConfig;
   minHeight?: number;
   typeahead: TypeaheadConfig;
@@ -691,6 +698,7 @@ export function PromptBoxInternal({
     expandedPlaceholder = "Ask anything. @ to mention files, folders, or sections",
   autoFocus = true,
   footerStart,
+  composerScope,
   submission = {},
   minHeight = PROMPTBOX_MIN_HEIGHT,
   typeahead,
@@ -1425,6 +1433,23 @@ export function PromptBoxInternal({
   };
   const attachmentUploadTitle = "Uploading attachments...";
 
+  const menuHost: ComposerMenuHost = {
+    attach: onAttachFiles
+      ? () => attachmentInputRef.current?.click()
+      : undefined,
+    actions: promptActions ?? [],
+    applyAction: applyPromptAction,
+  };
+  const menuContext: ComposerContext = { ...composerScope, host: menuHost };
+  const sendHost: ComposerSendHost = {
+    queue: swapSubmitActions,
+    submit:
+      showModifierSubmitAction && onModifierSubmit
+        ? submitModifierPrompt
+        : undefined,
+  };
+  const sendContext: ComposerContext = { ...composerScope, host: sendHost };
+
   return (
     <form
       ref={formRef}
@@ -1586,15 +1611,7 @@ export function PromptBoxInternal({
                 )}
                 aria-live="polite"
               >
-                <PromptBoxActionsMenu
-                  actions={promptActions}
-                  onAttach={
-                    onAttachFiles
-                      ? () => attachmentInputRef.current?.click()
-                      : undefined
-                  }
-                  onAction={applyPromptAction}
-                />
+                <PromptBoxActionsMenu context={menuContext} />
                 {footerStart}
               </div>
             )}
@@ -1645,14 +1662,9 @@ export function PromptBoxInternal({
                 ) : (
                   <ComposerSendMenu
                     isPointerCoarse={isPointerCoarse}
-                    queue={swapSubmitActions}
+                    context={sendContext}
                     hasInput={hasSubmittableInput}
                     canSubmit={canSubmit}
-                    onSubmit={
-                      showModifierSubmitAction && onModifierSubmit
-                        ? submitModifierPrompt
-                        : undefined
-                    }
                   >
                     <PromptSubmitButton
                       canSubmit={canSubmit}

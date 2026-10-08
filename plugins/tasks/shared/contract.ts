@@ -1,4 +1,4 @@
-import { defineRpcContract } from "@bb/plugin";
+import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
 export const TASK_STATUSES = [
@@ -41,13 +41,6 @@ export const SERVICE_TIERS = ["default", "fast"] as const;
 export const ULID_PATTERN = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 export const PROJECT_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{0,9}$/;
 export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
-export const TASK_CHANNELS = [
-  "tasks:changed",
-  "projects:changed",
-  "comments:changed",
-  "threads:changed",
-] as const;
-
 export function attachmentDownloadUrl(attachmentId: string): string {
   return `/api/v1/plugins/tasks/http/attachments/download?attachmentId=${encodeURIComponent(attachmentId)}`;
 }
@@ -211,9 +204,9 @@ export const updateTaskInputSchema = z.object({
   authorName: text.default("You"),
 });
 
-export const tasksRpcContract = defineRpcContract({
-  overview: {
-    input: z.null(),
+export const tasks = contract("tasks", {
+  overview: op({
+    input: z.object({}),
     output: z.object({
       projects: z.array(project),
       summaries: z.array(
@@ -226,8 +219,8 @@ export const tasksRpcContract = defineRpcContract({
       activeTaskCount: z.number().int(),
       openTaskCount: z.number().int(),
     }),
-  },
-  createProject: {
+  }),
+  createProject: op({
     input: z.object({
       name: text,
       prefix,
@@ -235,8 +228,9 @@ export const tasksRpcContract = defineRpcContract({
       linkedBbProjectId: bbProjectId.nullable().default(null),
     }),
     output: z.object({ project }),
-  },
-  updateProject: {
+    kind: "write",
+  }),
+  updateProject: op({
     input: z.object({
       projectId: id,
       name: text.optional(),
@@ -244,77 +238,100 @@ export const tasksRpcContract = defineRpcContract({
       linkedBbProjectId: bbProjectId.nullable().optional(),
     }),
     output: z.object({ project }),
-  },
-  listBbProjects: {
-    input: z.null(),
+    kind: "write",
+  }),
+  listBbProjects: op({
+    input: z.object({}),
     output: z.object({
       bbProjects: z.array(z.object({ id: bbProjectId, name: z.string() })),
     }),
-  },
-  listTasks: {
+  }),
+  listTasks: op({
     input: taskFiltersSchema,
     output: z.object({
       tasks: z.array(task),
       activeThreads: z.record(z.string(), z.array(liveStatus)),
     }),
-  },
-  getTaskByKey: {
+  }),
+  getTaskByKey: op({
     input: z.object({ taskKey: text }),
     output: z.object({ task: task.nullable() }),
-  },
-  taskDetail: {
+  }),
+  taskDetail: op({
     input: z.object({ taskKey: text }),
     output: z.object({ detail: taskDetail.nullable() }),
-  },
-  createTask: { input: createTaskInputSchema, output: z.object({ task }) },
-  updateTask: { input: updateTaskInputSchema, output: z.object({ task }) },
-  listLabels: {
+  }),
+  createTask: op({
+    input: createTaskInputSchema,
+    output: z.object({ task }),
+    kind: "write",
+  }),
+  updateTask: op({
+    input: updateTaskInputSchema,
+    output: z.object({ task }),
+    kind: "write",
+  }),
+  listLabels: op({
     input: z.object({ projectId: id.optional() }),
     output: z.object({ labels: z.array(label) }),
-  },
-  createLabel: {
+  }),
+  createLabel: op({
     input: z.object({ projectId: id, name: text, color: text }),
     output: z.object({ label }),
-  },
-  updateLabel: {
+    kind: "write",
+  }),
+  updateLabel: op({
     input: z.object({
       labelId: id,
       name: text.optional(),
       color: text.optional(),
     }),
     output: z.object({ label }),
-  },
-  deleteLabel: {
+    kind: "write",
+  }),
+  deleteLabel: op({
     input: z.object({ labelId: id }),
     output: z.object({ deleted: z.boolean() }),
-  },
-  createComment: {
+    kind: "write",
+  }),
+  createComment: op({
     input: z.object({ taskId: id, body: z.string(), notify: z.boolean() }),
     output: z.object({ comment }),
-  },
-  deleteAttachment: {
+    kind: "write",
+  }),
+  deleteAttachment: op({
     input: z.object({ attachmentId: id }),
     output: z.object({ deleted: z.boolean() }),
-  },
-  listPresets: {
-    input: z.null(),
+    kind: "write",
+  }),
+  listPresets: op({
+    input: z.object({}),
     output: z.object({ presets: z.array(preset) }),
-  },
-  dispatch: {
+  }),
+  dispatch: op({
     input: z.object({
       taskId: id,
       presetId: id,
       extraInstructions: z.string().optional(),
     }),
     output: z.object({ threadId }),
-  },
-  detachThread: {
+    kind: "write",
+  }),
+  detachThread: op({
     input: z.object({ taskId: id, threadId }),
     output: z.object({ threadId }),
-  },
+    kind: "write",
+  }),
 });
 
-export type TasksRpcContract = typeof tasksRpcContract;
+export const TASK_CHANGES = {
+  tasks: tasks.listTasks,
+  projects: tasks.overview,
+  comments: tasks.taskDetail,
+  threads: tasks.taskDetail,
+} as const;
+export type TaskChange = keyof typeof TASK_CHANGES;
+
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type TaskSort = (typeof TASK_SORTS)[number];
@@ -332,4 +349,4 @@ export type TaskDetail = z.infer<typeof taskDetail>;
 export type TaskFilters = z.input<typeof taskFiltersSchema>;
 export type CreateTaskInput = z.input<typeof createTaskInputSchema>;
 export type UpdateTaskInput = z.input<typeof updateTaskInputSchema>;
-export type Overview = z.infer<(typeof tasksRpcContract)["overview"]["output"]>;
+export type Overview = z.infer<(typeof tasks)["overview"]["output"]>;

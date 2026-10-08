@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import * as domain from "@bb/domain";
-import type { ProviderId } from "@bb/runner";
+import { sessions, type Kernel, type ProviderDeclaration } from "@bb/plugin";
 import type { SystemProviderCatalogEntry } from "@bb/server-contract";
 import type { Db } from "../db/index.js";
 import * as store from "../db/settings.js";
@@ -12,29 +11,11 @@ export interface ProviderLogo {
 }
 
 export interface ProviderDefinition {
-  id: ProviderId;
+  id: string;
   info: domain.ProviderInfo;
   pluginName: string;
   reasoningLevels: domain.ReasoningLevel[];
   logo: ProviderLogo | null;
-}
-
-interface ProviderSeed extends Pick<
-  domain.ProviderInfo,
-  "displayName" | "completedTurnDisplay"
-> {
-  id: ProviderId;
-  logoFile: string | null;
-  reasoningLevels: domain.ReasoningLevel[];
-  composerCommands: "goal"[];
-  capabilities: Omit<
-    domain.ProviderInfo["capabilities"],
-    "permissionModes" | "modelCatalogScope"
-  >;
-  optional: Pick<
-    domain.ProviderInfo,
-    "strings" | "serviceTiers" | "extensionKinds"
-  >;
 }
 
 const PERMISSION_MODES: domain.PermissionMode[] = [
@@ -56,8 +37,6 @@ const LEVEL_DESCRIPTIONS: Partial<Record<domain.ReasoningLevel, string>> = {
   ultracode: "Extra-high effort plus standing workflow orchestration.",
   ultra: "Max effort plus automatic task delegation.",
 };
-const CLAUDE_FAST_TIER =
-  "Faster responses on supported Opus models at a higher cost per token.";
 
 const disabledProvidersSetting: store.Setting<string[]> = {
   key: "disabledProviderIds",
@@ -65,10 +44,20 @@ const disabledProvidersSetting: store.Setting<string[]> = {
   fallback: [],
 };
 
-function loadLogo(file: string): ProviderLogo {
-  const content = readFileSync(new URL(`./logos/${file}`, import.meta.url));
+const kernels = new WeakMap<Db, Kernel>();
+const defined = new WeakMap<ProviderDeclaration, ProviderDefinition>();
+
+export function bindProviderCatalog(db: Db, kernel: Kernel): void {
+  kernels.set(db, kernel);
+}
+
+export function providerDeclarations(db: Db): ProviderDeclaration[] {
+  return kernels.get(db)?.read(sessions.provider) ?? [];
+}
+
+function loadLogo(content: Uint8Array): ProviderLogo {
   const digest = createHash("sha256").update(content).digest("hex");
-  return { content, hash: digest.slice(0, 16) };
+  return { content: Buffer.from(content), hash: digest.slice(0, 16) };
 }
 
 function levelDescriptor(
@@ -85,9 +74,11 @@ function slashCommand(name: "goal"): domain.ProviderComposerAction {
   return { kind: name, command: { trigger: "/", name, trailingText: " " } };
 }
 
-function defineProvider(seed: ProviderSeed): ProviderDefinition {
+function defineProvider(seed: ProviderDeclaration): ProviderDefinition {
+  const known = defined.get(seed);
+  if (known !== undefined) return known;
   const { id, reasoningLevels } = seed;
-  const logo = seed.logoFile === null ? null : loadLogo(seed.logoFile);
+  const logo = seed.logo === null ? null : loadLogo(seed.logo);
   const logoPath = `/api/v1/system/providers/${id}/logo`;
   const info: domain.ProviderInfo = {
     id,
@@ -111,90 +102,9 @@ function defineProvider(seed: ProviderSeed): ProviderDefinition {
     ...seed.optional,
   };
   const pluginName = `${seed.displayName} provider`;
-  return { id, info, pluginName, reasoningLevels, logo };
-}
-
-const CODEX = defineProvider({
-  id: "codex",
-  displayName: "Codex",
-  logoFile: "codex.svg",
-  completedTurnDisplay: "collapse",
-  reasoningLevels: ["low", "medium", "high", "xhigh", "max", "ultra"],
-  composerCommands: ["goal"],
-  capabilities: {
-    supportsThreadArchive: true,
-    supportsThreadRename: true,
-    supportsServiceTier: true,
-    supportsNativeUserQuestion: false,
-    supportsSessionRewind: true,
-  },
-  optional: {
-    strings: {
-      signInHint: "Run `codex` on the machine to sign in.",
-      expiredHint: "Your Codex session expired. Run `codex`, then reload.",
-      installUrl: "https://developers.openai.com/codex/cli",
-      brandPrefix: "GPT-",
-    },
-    serviceTiers: [
-      { id: "default", label: "Default" },
-      { id: "fast", label: "Fast" },
-    ],
-    extensionKinds: {
-      "provider-codex/goal": { item: false, state: true },
-      "provider-codex/macos-permission": { item: true, state: false },
-    },
-  },
-});
-
-const CLAUDE_CODE = defineProvider({
-  id: "claude-code",
-  displayName: "Claude Code",
-  logoFile: "claude-code.svg",
-  completedTurnDisplay: "flat",
-  reasoningLevels: ["low", "medium", "high", "xhigh", "ultracode", "max"],
-  composerCommands: [],
-  capabilities: {
-    supportsThreadArchive: false,
-    supportsThreadRename: false,
-    supportsServiceTier: true,
-    supportsNativeUserQuestion: true,
-    supportsSessionRewind: true,
-  },
-  optional: {
-    strings: {
-      signInHint: "Run `claude` on the machine to sign in.",
-      expiredHint: "Your Claude session expired. Run `claude`, then reload.",
-      installUrl: "https://claude.com/claude-code",
-      brandPrefix: "Claude ",
-      iconTint: { light: "#D97757", dark: "#D97757" },
-    },
-    serviceTiers: [
-      { id: "default", label: "Default" },
-      { id: "fast", label: "Fast", description: CLAUDE_FAST_TIER },
-    ],
-  },
-});
-
-const ECHO = defineProvider({
-  id: "echo",
-  displayName: "Echo",
-  logoFile: null,
-  completedTurnDisplay: "collapse",
-  reasoningLevels: ["low", "medium", "high"],
-  composerCommands: [],
-  capabilities: {
-    supportsThreadArchive: false,
-    supportsThreadRename: false,
-    supportsServiceTier: false,
-    supportsNativeUserQuestion: false,
-    supportsSessionRewind: false,
-  },
-  optional: {},
-});
-
-function devProviderEnabled(id: string, env = process.env) {
-  if (env.VITEST === "true") return true;
-  return (env.BB_DEV_PROVIDERS ?? "").split(",").includes(id);
+  const definition = { id, info, pluginName, reasoningLevels, logo };
+  defined.set(seed, definition);
+  return definition;
 }
 
 export function listProviderDefinitions(db: Db): ProviderDefinition[] {
@@ -203,8 +113,7 @@ export function listProviderDefinitions(db: Db): ProviderDefinition[] {
     const index = providerOrder.indexOf(id);
     return index < 0 ? providerOrder.length : index;
   };
-  const providers = [CODEX, CLAUDE_CODE];
-  if (devProviderEnabled(ECHO.id)) providers.push(ECHO);
+  const providers = providerDeclarations(db).map(defineProvider);
   return providers.sort((left, right) => rank(left) - rank(right));
 }
 

@@ -9,25 +9,29 @@ import {
   type ServerRunner,
 } from "./context.js";
 import { openDatabase, type Db } from "./db/index.js";
-import { ensurePersonalProject } from "./db/projects.js";
-import { createEnvironments } from "./environments/manager.js";
-import { startWorkspaceWatch } from "./environments/watch.js";
+import {
+  corePlugins,
+  inStartOrder,
+  type CorePlugin,
+  type Disposer,
+} from "./core/plugins.js";
 import { createHttpApp } from "./http/app.js";
-import { PluginHost, startPlugins } from "./plugins/host.js";
+import { createServerKernel } from "./kernel/index.js";
+import type { BuiltinPlugin } from "./plugins/builtin.js";
+import { PluginHost } from "./plugins/host.js";
 import { assertHostUsable } from "./runners/access.js";
-import { ensureLocalHost } from "./runners/hosts.js";
 import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
-import { startTerminalSessions } from "./terminals/sessions.js";
-import { createThreadEngine } from "./threads/engine.js";
 import { socketResolver } from "./ws/endpoints.js";
 import { Hub } from "./ws/hub.js";
 import { SocketRegistry } from "./ws/sockets.js";
 
-export type Disposer = () => void | Promise<void>;
+export type { Disposer } from "./core/plugins.js";
 
 export interface CreateServerOptions {
   config: ServerConfig;
   localRunner: RunnerFactory<ServerRunner>;
+  corePlugins?: readonly CorePlugin[];
+  builtins?: BuiltinPlugin[];
   db?: Db;
   tunnelToken?: string;
   now?: () => number;
@@ -56,26 +60,18 @@ export function createServer(options: CreateServerOptions): BbServer {
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
   const tunnelToken =
     options.tunnelToken ?? randomBytes(24).toString("base64url");
-  const plugins = new PluginHost({ config, db, hub, log, tunnelToken });
-  const ctx: ServerContext = {
-    config,
-    tunnelToken,
-    db,
-    hub,
-    runners,
-    plugins,
-    log,
-    now,
-    get environments() {
-      return environments;
-    },
-    get threads() {
-      return threads;
-    },
-  };
-  const environments = createEnvironments(ctx);
-  const threads = createThreadEngine(ctx);
-  const app = createHttpApp(ctx);
+  const kernel = createServerKernel({ db, hub, log, now });
+  const { builtins } = options;
+  const host = { config, db, hub, log, tunnelToken, kernel, builtins };
+  const plugins = new PluginHost(host);
+  const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
+  const ctx = { ...shared, log, now } as ServerContext;
+  const core = options.corePlugins ?? corePlugins;
+  for (const plugin of core) {
+    const bb = kernel.scope(plugin.id, "product");
+    plugin.setup?.(ctx, bb);
+  }
+  const app = createHttpApp(ctx, core);
   const sockets = new SocketRegistry(ctx, socketResolver(ctx));
   const disposers: Disposer[] = [];
   let http: ServerType | undefined;
@@ -83,12 +79,10 @@ export function createServer(options: CreateServerOptions): BbServer {
   return {
     ctx,
     async listen() {
-      disposers.push(ensureLocalHost(ctx));
-      ensurePersonalProject(db);
-      threads.start();
-      disposers.push(() => threads.close(), environments.start());
-      disposers.push(await startPlugins(ctx));
-      disposers.push(startTerminalSessions(ctx), startWorkspaceWatch(ctx));
+      for (const plugin of inStartOrder(core)) {
+        const stop = await plugin.start?.(ctx);
+        if (stop !== undefined) disposers.push(stop);
+      }
       const { port, bindHost: hostname } = config;
       http = serve({ fetch: app.fetch, port, hostname });
       http.on("upgrade", sockets.handleUpgrade);

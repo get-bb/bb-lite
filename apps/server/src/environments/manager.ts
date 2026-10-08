@@ -1,16 +1,27 @@
-import type { Environment } from "@bb/domain";
+import type { Environment, JsonValue } from "@bb/domain";
+import {
+  environments as environmentKinds,
+  type EnvironmentDefinition,
+} from "@bb/plugin";
 import type { z } from "zod";
 import type { ServerContext, ServerRunner } from "../context.js";
 import * as store from "../db/environments.js";
-import { getProjectSource, type DeletedProject } from "../db/projects.js";
+import { findHost } from "../db/hosts.js";
+import {
+  getProjectSource,
+  requireProject,
+  type DeletedProject,
+} from "../db/projects.js";
 import { getAppSettings } from "../db/settings.js";
 import { getThread, type ThreadRow } from "../db/threads.js";
 import {
+  BUILTIN_ENVIRONMENT_KINDS,
   checkoutInputsSchema,
   worktreeInputsSchema,
 } from "../providers/environment-providers.js";
 import { closeTerminalsFor } from "../terminals/sessions.js";
 import { errorMessage } from "../http/errors.js";
+import { hostResponse } from "../runners/hosts.js";
 import { ThreadSerial } from "../threads/core.js";
 import { createLifecycleScripts, notReady, step } from "./scripts.js";
 import type {
@@ -18,6 +29,24 @@ import type {
   ThreadEnvironment,
 } from "./types.js";
 import { requireEnvironment } from "./workspace.js";
+
+interface BuiltinKind extends EnvironmentDefinition {
+  resolve(
+    job: Job,
+    hostId: string,
+    inputs: JsonValue | null,
+  ): Promise<ThreadEnvironment>;
+  materialize?(
+    found: Environment,
+    runner: ServerRunner,
+    job: Job,
+    base: string | null,
+  ): Promise<string>;
+}
+
+function isBuiltin(kind: EnvironmentDefinition): kind is BuiltinKind {
+  return "resolve" in kind;
+}
 
 type CheckoutInputs = z.infer<typeof checkoutInputsSchema>;
 type CheckoutBranch = NonNullable<CheckoutInputs["branch"]>;
@@ -38,6 +67,8 @@ const IN_USE = {
   teardownMessage: null,
 } as const;
 const NO_CHECKOUT = "This project has no checkout on the chosen machine.";
+const KIND_GONE =
+  "The plugin that provides this kind of environment is not running.";
 const SHARED_CHECKOUT =
   "Cannot checkout branch while another thread is using this workspace";
 
@@ -54,7 +85,7 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
 export type Environments = ReturnType<typeof createEnvironments>;
 
 export function createEnvironments(ctx: ServerContext) {
-  const { db, hub, log, now, runners } = ctx;
+  const { db, hub, kernel, log, now, runners } = ctx;
   const scripts = createLifecycleScripts(ctx);
   const queue = new ThreadSerial();
   const retiring = new Set<string>();
@@ -126,6 +157,34 @@ export function createEnvironments(ctx: ServerContext) {
     return made.path;
   }
 
+  function kindOf(found: Environment): EnvironmentDefinition | null {
+    const id = found.environmentProviderId;
+    return id === null ? null : kernel.find(environmentKinds.kind, id);
+  }
+
+  async function createWith(
+    kind: EnvironmentDefinition,
+    found: Environment,
+    job: Job,
+  ) {
+    const { hostId, projectId } = found;
+    const thread = ctx.threads.get(job.thread.id);
+    const host = findHost(db, "id", hostId);
+    if (thread === null || host === undefined) {
+      throw notReady("The thread or its machine no longer exists.");
+    }
+    const source = getProjectSource(db, projectId, { hostId });
+    const made = await kind.create({
+      thread,
+      project: requireProject(db, projectId),
+      host: hostResponse(ctx, host),
+      checkoutPath: source?.path ?? null,
+      branchName: branchNameFor(job.thread),
+      signal: job.signal,
+    });
+    return made.path;
+  }
+
   async function materialize(
     found: Environment,
     runner: ServerRunner,
@@ -135,11 +194,13 @@ export function createEnvironments(ctx: ServerContext) {
     const { id, hostId, projectId } = found;
     job.signal.throwIfAborted();
     patch(id, { status: "creating", statusMessage: null, ...IN_USE });
-    const key = found.environmentProviderInstanceKey ?? id;
+    const kind = kindOf(found);
+    if (kind === null) throw notReady(KIND_GONE);
+    const made = isBuiltin(kind) ? kind.materialize : undefined;
     const path =
-      found.environmentProviderId === "git-worktree"
-        ? await addWorktree(found, runner, job, base)
-        : (await runner.ensurePersonalWorkspace({ key })).path;
+      made === undefined
+        ? await createWith(kind, found, job)
+        : await made(found, runner, job, base);
     patch(id, { path, status: "provisioning" });
     job.signal.throwIfAborted();
     await scripts.setup({ id, hostId, projectId, path }, job);
@@ -260,26 +321,71 @@ export function createEnvironments(ctx: ServerContext) {
     const environmentProviderId = provided
       ? intent.environmentProviderId
       : await defaultKind(projectId, hostId);
-    if (environmentProviderId === "project-checkout") {
-      const checkout = checkoutInputsSchema.parse(inputs ?? {});
-      return attachCheckout(job, hostId, checkout);
-    }
-    const worktree =
-      environmentProviderId === "git-worktree"
-        ? worktreeInputsSchema.parse(inputs ?? undefined)
-        : null;
-    if (worktree !== null && "kind" in worktree) {
-      return attachCheckout(job, hostId, { path: worktree.path });
-    }
-    const personal = worktree === null;
-    const instanceKey = personal ? ownerThreadId : `${ownerThreadId}-1`;
-    const owned = { ownerThreadId, instanceKey, path: null };
-    const fresh = { projectId, hostId, environmentProviderId, ...owned };
-    const target =
-      store.findEnvironment(db, OWNED_BY, ownerThreadId) ?? create(fresh);
-    const branch = worktree?.branch;
-    return prepare(target, job, branch?.kind === "named" ? branch.name : null);
+    const kind = kernel.find(environmentKinds.kind, environmentProviderId);
+    if (kind === null) throw notReady(KIND_GONE);
+    if (isBuiltin(kind)) return kind.resolve(job, hostId, inputs);
+    return owned(job, hostId, environmentProviderId, ownerThreadId, null);
   }
+
+  function owned(
+    job: Job,
+    hostId: string,
+    environmentProviderId: string,
+    instanceKey: string,
+    base: string | null,
+  ): Promise<ThreadEnvironment> {
+    const { id: ownerThreadId, projectId } = job.thread;
+    const held = { ownerThreadId, instanceKey, path: null };
+    const fresh = { projectId, hostId, environmentProviderId, ...held };
+    const kept = store.findEnvironment(db, OWNED_BY, ownerThreadId);
+    return prepare(kept ?? create(fresh), job, base);
+  }
+
+  const [checkoutKind, worktreeKind, personalKind] = BUILTIN_ENVIRONMENT_KINDS;
+  const attached = async (): Promise<never> => {
+    throw notReady("This kind of environment attaches to an existing path.");
+  };
+  const removeManaged = async (target: { hostId: string; path: string }) => {
+    await runners.get(target.hostId).removeWorktree({ path: target.path });
+  };
+  const builtins: BuiltinKind[] = [
+    {
+      ...checkoutKind,
+      create: attached,
+      remove: async () => {},
+      resolve: (job, hostId, inputs) =>
+        attachCheckout(job, hostId, checkoutInputsSchema.parse(inputs ?? {})),
+    },
+    {
+      ...worktreeKind,
+      create: attached,
+      remove: removeManaged,
+      materialize: addWorktree,
+      resolve(job, hostId, inputs) {
+        const worktree = worktreeInputsSchema.parse(inputs ?? undefined);
+        if ("kind" in worktree) {
+          return attachCheckout(job, hostId, { path: worktree.path });
+        }
+        const { branch } = worktree;
+        const base = branch.kind === "named" ? branch.name : null;
+        const key = `${job.thread.id}-1`;
+        return owned(job, hostId, worktreeKind.id, key, base);
+      },
+    },
+    {
+      ...personalKind,
+      create: attached,
+      remove: removeManaged,
+      async materialize(found, runner) {
+        const key = found.environmentProviderInstanceKey ?? found.id;
+        return (await runner.ensurePersonalWorkspace({ key })).path;
+      },
+      resolve: (job, hostId) =>
+        owned(job, hostId, personalKind.id, job.thread.id, null),
+    },
+  ];
+  const own = kernel.scope("environments", "product");
+  for (const builtin of builtins) own.add(environmentKinds.kind, builtin);
 
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
@@ -309,7 +415,8 @@ export function createEnvironments(ctx: ServerContext) {
     try {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });
-        await runners.get(hostId).removeWorktree({ path });
+        const remove = kindOf(found)?.remove ?? removeManaged;
+        await remove({ hostId, path });
       }
       const removed = { teardownStatus: "removed", retireAt: null } as const;
       patch(id, { status: "destroyed", ...removed });

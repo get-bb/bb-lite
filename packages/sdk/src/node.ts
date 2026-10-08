@@ -12,13 +12,14 @@ export interface CreateNodeBbSdkArgs {
 
 const DEFAULT_BB_SERVER_URL = "http://127.0.0.1:48886";
 export const THREAD_ID_HEADER = "x-bb-thread-id";
+const DOOR_HEADER = "x-bb-door";
 
 function onBehalfOfThread(send: FetchImplementation): FetchImplementation {
   const threadId = process.env.BB_THREAD_ID;
-  if (threadId === undefined || threadId === "") return send;
   return (input, init) => {
     const headers = new Headers(init?.headers);
-    headers.set(THREAD_ID_HEADER, threadId);
+    headers.set(DOOR_HEADER, "cli");
+    if (threadId) headers.set(THREAD_ID_HEADER, threadId);
     return send(input, { ...init, headers });
   };
 }

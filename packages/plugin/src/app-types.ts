@@ -13,6 +13,35 @@ import type {
   ThreadStatus,
 } from "@bb/domain";
 
+export interface SlotMountProps {
+  pluginId: string;
+  slot: string;
+  id: string;
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+export interface ImageLightboxProps {
+  hasMultipleImages?: boolean;
+  previousDisabled?: boolean;
+  nextDisabled?: boolean;
+  navigationStatus?: string;
+  imageAlt: string;
+  imageSrc: string | null;
+  isOpen?: boolean;
+  onClose: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  title: string;
+}
+
+export interface MarkdownProps {
+  content: string;
+  className?: string;
+  allowHtml?: boolean;
+  sourcePrefix?: string;
+}
+
 export interface PluginNavPanelProps {
   subPath: string;
 }
@@ -368,35 +397,6 @@ export interface PluginEnvironmentProvider {
 export interface PluginEnvironmentProvidersState {
   status: "loading" | "ready" | "error";
   providers: readonly PluginEnvironmentProvider[];
-}
-
-interface SchemaLike {
-  readonly "~standard": {
-    readonly types?: { readonly input: unknown; readonly output: unknown };
-  };
-}
-
-type SchemaInput<Schema extends SchemaLike> = NonNullable<
-  Schema["~standard"]["types"]
->["input"];
-
-type SchemaOutput<Schema extends SchemaLike> = NonNullable<
-  Schema["~standard"]["types"]
->["output"];
-
-export type PluginRpcContract = Readonly<
-  Record<string, { readonly input: SchemaLike; readonly output: SchemaLike }>
->;
-
-export interface PluginRpcClient<
-  Contract extends PluginRpcContract = PluginRpcContract,
-> {
-  call<Method extends Extract<keyof Contract, string>>(
-    method: Method,
-    ...args: null extends SchemaInput<Contract[Method]["input"]>
-      ? [input?: SchemaInput<Contract[Method]["input"]>]
-      : [input: SchemaInput<Contract[Method]["input"]>]
-  ): Promise<SchemaOutput<Contract[Method]["output"]>>;
 }
 
 export interface PluginSettingsState {

@@ -11,6 +11,7 @@ export interface ServerConfig {
   port: number;
   bindHost: string;
   allowedHosts: string[];
+  profile: string;
   appDir: string;
   cliDir: string;
   version: string;
@@ -31,6 +32,7 @@ const envSchema = z.object({
   BB_SERVER_PORT: z.coerce.number().int().min(0).max(65_535).optional(),
   BB_SERVER_BIND_HOST: z.string().min(1).optional(),
   BB_SERVER_ALLOWED_HOSTS: z.string().optional(),
+  BB_PROFILE: z.string().min(1).optional(),
   BB_APP_DIR: z.string().min(1).optional(),
   BB_LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 });
@@ -97,6 +99,7 @@ export function loadConfig(env: ServerEnv = process.env): ServerConfig {
     port: parsed.BB_SERVER_PORT ?? DEFAULT_PORT,
     bindHost: parsed.BB_SERVER_BIND_HOST ?? DEFAULT_BIND_HOST,
     allowedHosts: hostnames(parsed.BB_SERVER_ALLOWED_HOSTS ?? ""),
+    profile: parsed.BB_PROFILE ?? "default",
     appDir: resolve(parsed.BB_APP_DIR ?? fileURLToPath(DEFAULT_APP_DIR)),
     cliDir: fileURLToPath(DEFAULT_CLI_DIR),
     version: readVersion(),
