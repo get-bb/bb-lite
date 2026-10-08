@@ -13,10 +13,12 @@ type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type SettingDescriptor = Contract.PluginSettingDescriptor;
 export type SettingDescriptors = Record<string, SettingDescriptor>;
-export type SettingValue = string | boolean;
+export type SettingValue = string | boolean | number;
 type ValueOf<Descriptor> = Descriptor extends { type: "boolean" }
   ? boolean
-  : string;
+  : Descriptor extends { type: "number" }
+    ? number
+    : string;
 export type SettingValues<D extends SettingDescriptors> = {
   [Key in keyof D]: D[Key] extends { default: SettingValue }
     ? ValueOf<D[Key]>
@@ -42,11 +44,21 @@ export interface PluginKv {
 export type HttpAuth = "local" | "token" | "none";
 export type HttpHandler = (request: Request) => MaybePromise<Response>;
 
+export interface ThreadFailure {
+  code: string | null;
+  message: string;
+  detail: string | null;
+}
+
 export interface PluginEvents {
   "thread.created": { thread: Thread };
   "thread.active": { thread: Thread };
   "thread.idle": { thread: Thread; lastAssistantText: string | null };
-  "thread.failed": { thread: Thread; error: string | null };
+  "thread.failed": {
+    thread: Thread;
+    error: string | null;
+    failure: ThreadFailure | null;
+  };
   "thread.archived": { thread: Thread };
   "thread.unarchived": { thread: Thread };
   "thread.deleted": { thread: Thread };

@@ -400,7 +400,7 @@ export interface PluginEnvironmentProvidersState {
 }
 
 export interface PluginSettingsState {
-  values: Record<string, string | boolean> | undefined;
+  values: Record<string, string | boolean | number> | undefined;
   isLoading: boolean;
 }
 

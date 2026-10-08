@@ -89,8 +89,8 @@ function defineProvider(seed: ProviderDeclaration): ProviderDefinition {
     logoUrl: logo === null ? null : `${logoPath}?h=${logo.hash}`,
     capabilities: {
       ...seed.capabilities,
-      permissionModes: PERMISSION_MODES,
-      modelCatalogScope: "host",
+      permissionModes: seed.permissionModes ?? PERMISSION_MODES,
+      modelCatalogScope: seed.modelCatalogScope ?? "host",
     },
     composerActions: [
       { kind: "skills", trigger: "/" },

@@ -262,6 +262,26 @@ export function lastSystemErrorMessage(
   return row?.message ?? null;
 }
 
+export function lastSystemError(
+  db: Db,
+  threadId: string,
+): { code: string | null; message: string; detail: string | null } | null {
+  const row = db.get<{
+    code: string | null;
+    message: string | null;
+    detail: string | null;
+  }>(
+    `SELECT json_extract(data, '$.code') AS code,
+       json_extract(data, '$.message') AS message,
+       json_extract(data, '$.detail') AS detail FROM events
+     WHERE thread_id = ? AND type = 'system/error'
+     ORDER BY sequence DESC LIMIT 1`,
+    threadId,
+  );
+  if (row === undefined || row.message === null) return null;
+  return { code: row.code, message: row.message, detail: row.detail };
+}
+
 export function isQueueAutoSendPaused(db: Db, threadId: string): boolean {
   const stop = db.get<{ sequence: number; reason: string | null }>(
     `SELECT sequence, json_extract(data, '$.reason') AS reason FROM events

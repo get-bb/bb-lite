@@ -24,6 +24,16 @@ function accepted(
   descriptor: SettingDescriptor,
   value: unknown,
 ): SettingValue | undefined {
+  if (descriptor.type === "select") {
+    const known = descriptor.options.some((option) => option.value === value);
+    return known ? (value as string) : undefined;
+  }
+  if (descriptor.type === "number") {
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+    const { min = -Infinity, max = Infinity, integer = false } = descriptor;
+    const whole = !integer || Number.isInteger(value);
+    return whole && value >= min && value <= max ? value : undefined;
+  }
   return typeof value === descriptor.type ? (value as SettingValue) : undefined;
 }
 

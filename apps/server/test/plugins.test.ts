@@ -14,6 +14,7 @@ import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { PluginHost } from "../src/plugins/host.js";
+import { PluginSettings } from "../src/plugins/settings.js";
 import { createTestServer, scratch } from "./helpers.js";
 
 type Listing = { plugins: InstalledPlugin[] };
@@ -328,4 +329,47 @@ it("answers the thread engine's queries from what plugins register", async () =>
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
   plugins.titleFallback = async () => "Unused";
   expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
+});
+
+it("accepts select and number settings and refuses values outside them", async () => {
+  const { ctx } = await createTestServer();
+  const settings = new PluginSettings(ctx.db, "tuner", join(scratch(), "s"));
+  settings.define(
+    {
+      mode: {
+        type: "select",
+        label: "Mode",
+        options: [
+          { value: "fast", label: "Fast" },
+          { value: "careful", label: "Careful" },
+        ],
+        default: "fast",
+      },
+      retries: {
+        type: "number",
+        label: "Retries",
+        min: 0,
+        max: 5,
+        integer: true,
+      },
+    },
+    "workspace",
+  );
+  expect(await settings.read()).toEqual({ mode: "fast", retries: undefined });
+  await settings.write({ mode: "careful", retries: 3 });
+  expect(await settings.read()).toEqual({ mode: "careful", retries: 3 });
+  for (const bad of [{ mode: "reckless" }, { retries: 9 }, { retries: 1.5 }]) {
+    await expect(settings.write(bad)).rejects.toThrow("Invalid value");
+  }
+});
+
+it("lists providers and execution options to plugins", async () => {
+  const { ctx } = await createTestServer({}, "echo");
+  const probe = ctx.kernel.scope("probe", "installed");
+  const providers = await probe.call(sessions.providers, {});
+  expect(providers.map(({ id }) => id)).toContain("echo");
+  const options = await probe.call(sessions.executionOptions, {
+    providerId: "echo",
+  });
+  expect(options).toHaveProperty("models");
 });

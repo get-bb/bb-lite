@@ -30,6 +30,26 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       default: z.boolean().optional(),
     })
     .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("select"),
+      options: z
+        .array(z.object({ value: z.string().min(1), label: z.string().min(1) }))
+        .min(1),
+      default: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("number"),
+      min: z.number().optional(),
+      max: z.number().optional(),
+      integer: z.boolean().optional(),
+      default: z.number().optional(),
+    })
+    .strict(),
 ]);
 export type PluginSettingDescriptor = z.infer<
   typeof pluginSettingDescriptorSchema

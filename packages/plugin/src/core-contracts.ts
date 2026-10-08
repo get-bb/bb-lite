@@ -47,7 +47,14 @@ export interface ProviderDeclaration {
     Domain.ProviderInfo,
     "strings" | "serviceTiers" | "extensionKinds"
   >;
+  permissionModes?: Domain.ProviderInfo["capabilities"]["permissionModes"];
+  modelCatalogScope?: Domain.ProviderInfo["capabilities"]["modelCatalogScope"];
   settings?: Record<string, ProviderToggle>;
+}
+
+export interface UsageSource {
+  providerId: string;
+  read(options: { hostId: string | null }): Promise<Domain.JsonValue>;
 }
 
 export type TitleFallback = (
@@ -124,6 +131,15 @@ export const sessions = contract("sessions", {
   mention: slot<MentionProvider>(),
   inference: slot<InferenceService>(),
   provider: slot<ProviderDeclaration>({ key: "id" }),
+  usage: slot<UsageSource>({ key: "providerId" }),
+  providers: op({
+    input: none,
+    output: z.array(z.custom<Domain.ProviderInfo>()),
+  }),
+  executionOptions: op({
+    input: z.custom<Contract.SystemExecutionOptionsQuery>(),
+    output: z.custom<Contract.SystemExecutionOptionsResponse>(),
+  }),
   titleFallback: service<TitleFallback>(),
 });
 

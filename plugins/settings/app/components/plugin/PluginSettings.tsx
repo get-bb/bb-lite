@@ -8,6 +8,13 @@ import {
   ResourceDetailStack,
 } from "@bb/shared-ui/resource-list";
 import { Skeleton } from "@bb/shared-ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bb/shared-ui/select";
 import { Switch } from "@bb/shared-ui/switch";
 import { Textarea } from "@bb/shared-ui/textarea";
 import { PluginIcon } from "@bb/app-kit/components/plugin/PluginIcon";
@@ -51,7 +58,7 @@ function PluginSetting({
   const [draft, setDraft] = useState<string | null>(null);
   const save = useMutation({
     scope: { id: `plugin-setting:${pluginId}:${settingKey}` },
-    mutationFn: (value: string | boolean) =>
+    mutationFn: (value: string | boolean | number) =>
       updatePluginSettings(pluginId, { [settingKey]: value }),
     onSuccess: (view) => {
       applyPluginSettingsView({ queryClient, pluginId, view });
@@ -107,6 +114,47 @@ function PluginSetting({
             checked={stored === true}
             onCheckedChange={(checked) => save.mutate(checked)}
             {...aria}
+          />
+        ) : descriptor.type === "select" ? (
+          <Select
+            value={typeof stored === "string" ? stored : ""}
+            onValueChange={(value) => {
+              if (value !== null) save.mutate(value);
+            }}
+          >
+            <SelectTrigger {...aria} className="h-7 w-full text-xs sm:w-64">
+              <SelectValue>
+                {descriptor.options.find(({ value }) => value === stored)
+                  ?.label ?? "Choose"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {descriptor.options.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : descriptor.type === "number" ? (
+          <Input
+            {...aria}
+            type="number"
+            min={descriptor.min}
+            max={descriptor.max}
+            step={descriptor.integer === true ? 1 : "any"}
+            value={draft ?? (typeof stored === "number" ? String(stored) : "")}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              if (!save.isPending) save.reset();
+            }}
+            onBlur={() => {
+              if (draft === null) return;
+              const parsed = Number(draft);
+              if (draft.trim() === "" || parsed === storedValue) setDraft(null);
+              else save.mutate(parsed);
+            }}
+            className="h-7 w-full text-xs sm:w-32"
           />
         ) : multiline ? (
           <Textarea

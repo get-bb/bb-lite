@@ -162,8 +162,9 @@ export class Engine {
       const payload = { thread: response, lastAssistantText: text };
       plugins.emit("thread.idle", payload);
     } else if (thread.status === "error") {
-      const error = eventLog.lastSystemErrorMessage(db, thread.id);
-      plugins.emit("thread.failed", { thread: response, error });
+      const failure = eventLog.lastSystemError(db, thread.id);
+      const error = failure?.message ?? null;
+      plugins.emit("thread.failed", { thread: response, error, failure });
     }
   }
 
