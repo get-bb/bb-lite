@@ -12,16 +12,64 @@ the reference for the API itself.
 | Marketplace (`get-bb/marketplace`)                     | 341 entries, all fetched (256 repositories, 13 npm packages) | Static tally of SDK calls over each plugin's import graph; nothing was run |
 
 Nothing was ported. Verdicts come from comparing what each plugin calls with what exists here, and
-from tests of the new primitives, not from a working port of each plugin. Marketplace counts are from
-a pattern match and are close, not exact; they were taken before the additions below and were not
-recomputed.
+from tests of the new primitives, not from a working port of each plugin. Counts are from a pattern
+match over each plugin's source and are close, not exact.
 
-## Before the additions
+## Where it stands
 
-Of the 341 marketplace plugins, 22 needed only mechanical changes, 57 needed changes, and 262 used
-at least one capability that had no counterpart. No original plugin loads unmodified in any case:
-the package name (`@get-bb/plugin-sdk`) and the RPC style (`rpc.register`, `useRpc`) are both
-replaced, as the table at the end of `docs/plugin-api.md` describes.
+`bb dev port <dir>` holds the comparison: for each of the 579 calls and manifest fields of the
+original SDK that any of these plugins uses, it names what that call is here. Run over every plugin,
+the worst answer each one gets is:
+
+| Worst answer for the plugin                                   | Marketplace (341) | Bundled (41 that use the SDK) |
+| ------------------------------------------------------------- | ----------------- | ----------------------------- |
+| Renamed only                                                  | 29                | 3                             |
+| Works differently (a rewrite of those calls, nothing missing) | 276               | 31                            |
+| Needs a feature this bb does not have                         | 35                | 7                             |
+| No counterpart                                                | 1                 | 0                             |
+
+Before the additions listed under "Closed", 262 marketplace plugins used something with no
+counterpart.
+
+No original plugin loads unmodified: the package name (`@get-bb/plugin-sdk`) and the RPC style
+(`rpc.register`, `useRpc`) are both replaced, so every plugin is at least "works differently" unless
+it has no server calls at all. A theme-only plugin is the exception that needs almost nothing: its
+manifest is read as written.
+
+### Needs a feature this bb does not have
+
+These are not gaps in the plugin API. The original bb has the feature in its core and this
+repository does not, so a plugin that leans on it has nothing to call until the feature exists. Each
+could itself be written as a plugin that publishes a contract.
+
+| Feature                                                              | Marketplace plugins | Bundled plugins   |
+| -------------------------------------------------------------------- | ------------------- | ----------------- |
+| Pull-request status and actions                                      | 11                  | github, tasks     |
+| A skills browser and registry                                        | 7                   |                   |
+| The marketplace, plugin catalog and updates                          | 5                   | plugin-api-docs   |
+| Voice input                                                          | 3                   | plugin-api-docs   |
+| Fork and message editing (providers here cannot rewind)              | 3                   | side-chat         |
+| A stored order for projects                                          | 2                   |                   |
+| Health of a provider's environment                                   | 1                   | account-pool      |
+| Port sharing from machines other than the server's                   | 1                   | connect           |
+| An in-app browser; desktop browsers                                  | 2                   | agent-annotations |
+| Reordering queued messages; provider CLI install status; experiments | 3                   |                   |
+
+### No counterpart
+
+One call: `threads.paneAction`, which lets a server plugin act on the pane a thread is shown in.
+One marketplace plugin (`handsfree`) uses it.
+
+### The larger rewrites
+
+"Works differently" covers a wide range. The two heaviest:
+
+- **Providers.** The original runs a bridge subprocess that speaks JSON-RPC; here a provider is a
+  `ProviderAdapter` object in a runner part. The translation is written again, not moved. The
+  original SDK also shipped an ACP client and a bridge test harness; neither exists here, so an ACP
+  plugin adds `@agentclientprotocol/sdk` to its runner part. Nine plugins are affected.
+- **Composer popups.** The original host placed popups for the plugin. Here a plugin draws its own
+  from a banner or footer control.
 
 ## Closed
 
@@ -44,6 +92,16 @@ replaced, as the table at the end of `docs/plugin-api.md` describes.
 | Provider declaration limits                                                  | acp, pi                                        | `permissionModes`, `modelCatalogScope` on the declaration                                                         |
 | `select` and `number` settings                                               | retry, modal, acp                              | added                                                                                                             |
 | Model, permission and branch pickers for add-ons                             | 25 and 6                                       | parts in `bb-plugin-composer/contract`                                                                            |
+| Themes in the manifest                                                       | 14                                             | `bb.themes` is read as written; slot `appearance.theme`                                                           |
+| Composer: draft, pickers, banners, text effects, submit state                | 58; drafts, scheduled-send, prompt-library     | `useComposer()` handle, `composer.banner`, `composer.textEffect`                                                  |
+| File viewers by extension, opening a file                                    | 11; monaco-editor, pdf-preview, docs           | `sidePanel.fileViewer`, `useBbNavigate().openFile`                                                                |
+| Message actions                                                              | 12; side-chat                                  | `threadView.messageAction`                                                                                        |
+| Holding a message and rechecking                                             | concurrency-limit, drafts                      | hook `threads.hold`; `threads.release`                                                                            |
+| Choosing a session's tools                                                   | part of `agents.configure` (52)                | hook `sessions.tools`                                                                                             |
+| Thread storage, file changes, terminal size                                  | several                                        | `threads.storageLocation`; `files.list`, `mkdir`, `remove`, `move`; `terminals.resize`                            |
+| Sidebar row statuses, icons, footer components, navigation split             | 13 and more                                    | `bb.setThreadRowStatus`, `bb.icons.register`, `shell.sidebarFooter` views, `useSidebarNavigationSplit`            |
+| `host.deleted` and `terminal.input` events                                   | modal                                          | `machines.removed`, `terminals.input`                                                                             |
+| The original manifest names                                                  | all                                            | `bb.branding.icon` and `bb.host` are accepted                                                                     |
 
 ## The plugins asked about
 
@@ -52,9 +110,8 @@ enrolment, an environment could not choose its machine, and no machine lifecycle
 exist now, and a test runs a thread in an environment kind that enrols and connects its own
 machine, stores state, suspends, resumes and removes it. Differences a port must handle: the
 original installed the daemon into the sandbox through the plugin's exec channel, while here the
-plugin runs the returned `bb runner join` command itself and `bb` must already be in the image;
-there is no terminal-input event to drive idle hibernation, so idleness has to come from
-`threads.idle`, `threads.appended` and a schedule.
+plugin runs the returned `bb runner join` command itself and `bb` must already be in the image.
+Idle hibernation can use `terminals.input` with `threads.idle` and a schedule.
 
 **environment-git-worktree, project-checkout, personal-workspace.** These are built in here. A
 plugin can replace one by id, and now gets inputs, validation, progress and state. Still private to
@@ -79,28 +136,16 @@ for sources (`sessions.usage`) but core shows nothing from it yet.
 
 ## Still missing
 
-Ordered by how many plugins need each.
-
-| Gap                                                                                                                                                                       | Needed by                                                    | Smallest addition                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Old package name and RPC style                                                                                                                                            | all 341                                                      | A port per plugin; a compatibility package was not built                                                              |
-| Install from the marketplace: semver ranges, tag prefixes, subdirectories, an engine version check                                                                        | all 341                                                      | `bb dev install` takes `git:url#ref`, `npm:` or a directory only; add `#ref:subdir`, range resolution and `bb.engine` |
-| Icon files and `branding.logo` in the manifest                                                                                                                            | 164                                                          | The manifest has one `icon` string                                                                                    |
-| Composer access: read and change the draft, submit with options, banners, popups                                                                                          | 58; drafts, scheduled-send, prompt-library, automations      | A typed draft handle on `ComposerContext` and a `composer.banner` slot                                                |
-| Choosing other plugins' tools per thread                                                                                                                                  | part of 52                                                   | Only a plugin's own tools (`enabledFor`) and skills can be chosen                                                     |
-| App client methods for features that do not exist here: pull-request status, usage limits, file previews, plugin metadata on threads, voice transcription, plugin updates | 72                                                           | These are product features, not API                                                                                   |
-| File openers by extension                                                                                                                                                 | 11; monaco-editor, pdf-preview, docs                         | `sidePanel.fileViewer` and a way to open a file from a plugin                                                         |
-| Message actions                                                                                                                                                           | 12; side-chat                                                | `threadView.messageAction`                                                                                            |
-| Holding a message ("not yet", then recheck)                                                                                                                               | some of the 13 that hook dispatch; concurrency-limit, drafts | A hook on dispatch that can answer "wait"                                                                             |
-| Themes in the manifest, theme catalog                                                                                                                                     | 14                                                           | `bb.themes` and theme operations                                                                                      |
-| New-thread panel actions, provider icons, an icon registry                                                                                                                | 9, 6, 13                                                     | Slots                                                                                                                 |
-| Fork, message editing, rewind                                                                                                                                             | side-chat, pi, acp, codex                                    | Not in this repository at all                                                                                         |
-| Provider installation, native roots, an ACP library                                                                                                                       | acp, pi                                                      | Optional adapter methods; a helper package                                                                            |
-| Sidebar navigation: reorder, hide, accessories, split                                                                                                                     | navigation                                                   | Actions on `SidebarNavigationActions`                                                                                 |
-| Port tunnels from enrolled machines; "setup required" for server access                                                                                                   | connect                                                      | Runner part work                                                                                                      |
-| Transcription and status on inference services                                                                                                                            | bb-ai                                                        | Optional methods                                                                                                      |
-| Per-project settings                                                                                                                                                      | several                                                      | A third scope                                                                                                         |
-| In-app browser toolbar, desktop browsers                                                                                                                                  | agent-annotations, browser-automation                        | No in-app browser exists here                                                                                         |
+| Gap                                                                                                | Needed by                 | Smallest addition                                                                                                     |
+| -------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Old package name and RPC style                                                                     | all 341                   | A port per plugin; a compatibility package was not built                                                              |
+| Install from the marketplace: semver ranges, tag prefixes, subdirectories, an engine version check | all 341                   | `bb dev install` takes `git:url#ref`, `npm:` or a directory only; add `#ref:subdir`, range resolution and `bb.engine` |
+| An ACP client and a provider test harness                                                          | acp and 8 marketplace     | A helper package beside `ProviderAdapter`                                                                             |
+| Host-placed composer popups                                                                        | 2                         | A `composer.popup` slot                                                                                               |
+| Acting on a thread's pane from the server                                                          | 1                         | An event the app listens to                                                                                           |
+| Code themes from a file                                                                            | 4 of the 8 that set one   | Load a theme file named by `codeTheme`                                                                                |
+| Per-project settings                                                                               | several                   | A third scope                                                                                                         |
+| The features in the table above                                                                    | 35 marketplace, 7 bundled | Product work, each possible as a plugin                                                                               |
 
 ## Things the audit found in existing ports
 

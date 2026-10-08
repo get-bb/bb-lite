@@ -482,7 +482,9 @@ it("offers the themes a plugin's manifest declares", async () => {
     bb: Record<string, unknown>;
   };
   const codeTheme = { dark: "nord" };
-  const dusk = { id: "dusk", name: "Dusk", css: "./dusk.css", codeTheme };
+  const declared = { ...codeTheme, light: "./themes/light-code.json" };
+  const theme = { id: "dusk", name: "Dusk", css: "./dusk.css" };
+  const dusk = { ...theme, codeTheme: declared };
   manifest.bb.themes = [dusk];
   writeFileSync(file, JSON.stringify(manifest));
   writeFileSync(join(directory, "dusk.css"), ":root { --canvas: #111; }");

@@ -74,6 +74,15 @@ export interface ManifestTheme {
   codeTheme: { dark?: string; light?: string } | null;
 }
 
+function namedCodeTheme(
+  declared: { dark?: string; light?: string } | undefined,
+): ManifestTheme["codeTheme"] {
+  if (declared === undefined) return null;
+  const named = (name: string | undefined) =>
+    name === undefined || /[./\\]/u.test(name) ? undefined : name;
+  return { dark: named(declared.dark), light: named(declared.light) };
+}
+
 export function resolveInside(directory: string, path: string): string | null {
   const resolved = resolve(directory, path);
   return resolved.startsWith(directory + sep) ? resolved : null;
@@ -101,10 +110,10 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     requires: bb.requires,
     forkOf: bb.forkOf ?? null,
     skillDirs: bb.skills.map(inside),
-    themes: bb.themes.map(({ css, codeTheme = null, ...theme }) => ({
+    themes: bb.themes.map(({ css, codeTheme, ...theme }) => ({
       ...theme,
       cssFile: inside(css),
-      codeTheme,
+      codeTheme: namedCodeTheme(codeTheme),
     })),
   };
 }
