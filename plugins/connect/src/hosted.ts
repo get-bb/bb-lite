@@ -114,6 +114,11 @@ export async function disconnectServer(serverUrl: string, credential: string) {
   reply.read(z.unknown(), "when signing out");
 }
 
+export async function reportActivity(origin: string, credential: string) {
+  const reply = await call(origin, "/api/connect/activity", { credential });
+  reply.read(z.unknown(), "when reporting activity");
+}
+
 export async function mintMachine(origin: string, credential: string) {
   const minting = "/api/connect/machine-code";
   const minted = await call(origin, minting, { credential });

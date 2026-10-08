@@ -1,4 +1,5 @@
 import { apex, connectApi } from "./account.js";
+import * as hosted from "./hosted.js";
 import * as pages from "./pages.js";
 import * as site from "./site.js";
 import * as store from "./store.js";
@@ -228,7 +229,22 @@ async function gate(
   if (user.avatar_url !== null) {
     identity["x-bb-gate-user-avatar"] = encodeURIComponent(user.avatar_url);
   }
-  return forward(request, context, server, port, identity, progress);
+  if (server.hosted_state === null || port !== null) {
+    return forward(request, context, server, port, identity, progress);
+  }
+  const page = wantsPage(request);
+  const held = hosted.hold(request, context, server, owner, page, ctx);
+  if (held !== null) return held;
+  const answer = await forward(
+    request,
+    context,
+    server,
+    null,
+    identity,
+    progress,
+  );
+  if (answer.headers.get(site.OFFLINE_HEADER) !== "1") return answer;
+  return hosted.offline(context, server, owner, page, ctx) ?? answer;
 }
 
 export default {
@@ -251,5 +267,8 @@ export default {
     return withinDeadline(context, ctx, (progress) =>
       gate(request, context, address, ctx, progress),
     );
+  },
+  async scheduled(_event, env): Promise<void> {
+    await hosted.sweep(env);
   },
 } satisfies ExportedHandler<site.Env>;

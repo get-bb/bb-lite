@@ -1,0 +1,56 @@
+name: Build the hosted server image
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: hosted-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and push bb-next-image to Fly
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_ORG: bb-953
+      IMAGE: registry.fly.io/bb-next-image
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the Fly token
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Set the FLY_API_TOKEN repository secret to push the image."
+            exit 1
+          fi
+
+      - name: Make sure the app that holds the image exists
+        run: |
+          case $FLY_API_TOKEN in
+            "FlyV1 "*) authorization=$FLY_API_TOKEN ;;
+            *) authorization="Bearer $FLY_API_TOKEN" ;;
+          esac
+          status=$(curl -s -o /tmp/app.json -m 30 -w '%{http_code}' \
+            -H "Authorization: $authorization" \
+            https://api.machines.dev/v1/apps/bb-next-image)
+          if [ "$status" = "200" ]; then exit 0; fi
+          curl -fsS -m 30 -X POST https://api.machines.dev/v1/apps \
+            -H "Authorization: $authorization" \
+            -H "Content-Type: application/json" \
+            -d "{\"app_name\":\"bb-next-image\",\"org_slug\":\"$FLY_ORG\"}"
+
+      - name: Sign in to the Fly registry
+        run: echo "$FLY_API_TOKEN" | docker login registry.fly.io -u x --password-stdin
+
+      - name: Build the image
+        run: docker build -f hosted/Dockerfile -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+
+      - name: Push the image
+        run: |
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"

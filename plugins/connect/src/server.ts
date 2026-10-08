@@ -4,7 +4,13 @@ import { cliCommand, defineCli, PluginCliError } from "@bb/plugin";
 import type * as Plugin from "@bb/plugin";
 import { ConnectAccount, legacyLink, shareUrl, type Link } from "./account.js";
 import { connectRpcContract, type ConnectStatus } from "./contract.js";
-import { MACHINE_HEADER, mintMachine, revokeMachine } from "./hosted.js";
+import { watchActivity } from "./activity.js";
+import {
+  MACHINE_HEADER,
+  mintMachine,
+  reportActivity,
+  revokeMachine,
+} from "./hosted.js";
 import { ConnectTunnel } from "./tunnel.js";
 
 type Outcome = { text: string; json?: unknown };
@@ -24,6 +30,7 @@ const LEGACY_WARNING =
   "STOP THE ORIGINAL bb SERVER FIRST. getbb.app allows one tunnel per " +
   "server label: while the original server runs, this one and that one " +
   "keep disconnecting each other and every machine with them.";
+const BUSY_STATUSES = ["starting", "active", "stopping"];
 const REMOTE_THREAD =
   "This thread runs on another machine. bb connect only shares ports of " +
   "the machine that runs the bb server.";
@@ -64,6 +71,7 @@ export default async function connectPlugin(
   const publish = (): void => bb.realtime.publish(STATUS_CHANNEL, null);
   const account = new ConnectAccount({
     file: join(bb.server.dataDir, "connect.json"),
+    provisioned: process.env.BB_CONNECT_LINK,
     baseUrl: process.env.BB_CONNECT_BASE_URL ?? DEFAULT_BASE_URL,
     clientName: hostname().slice(0, 100),
     warn: bb.log.warn,
@@ -260,6 +268,21 @@ export default async function connectPlugin(
       },
     }),
   );
+
+  if (process.env.BB_CONNECT_LINK !== undefined) {
+    const busy = async () => {
+      const threads = await bb.threads.list({ archived: "false" });
+      return threads.some((thread) => BUSY_STATUSES.includes(thread.status));
+    };
+    const report = async () => {
+      const link = activeLink();
+      if (link !== null) await reportActivity(link.baseUrl, link.credential);
+    };
+    const { warn } = bb.log;
+    bb.background.service("activity", {
+      start: (signal) => watchActivity({ signal, busy, report, warn }),
+    });
+  }
 
   bb.onDispose(() => {
     account.stop();

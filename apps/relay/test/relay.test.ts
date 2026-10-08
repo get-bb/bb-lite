@@ -143,7 +143,8 @@ async function startRelay(overrides: Record<string, string> = {}) {
   }
   const apex = `http://${baseHost}`;
   const origin = (name: string) => `http://${name}.${baseHost}`;
-  return { apex, origin, baseHost, github };
+  const sweep = async () => void (await (await relay.getWorker()).scheduled());
+  return { apex, origin, baseHost, github, database, sweep };
 }
 
 function browser() {
@@ -537,4 +538,162 @@ it("answers within its deadline and keeps account pages on their own cookie", as
   expect(home.headers.get("location")).toContain("/login");
   expect((await shadowed.visit(`${address}/x`)).status).not.toBe(401);
   expect((await alice.visit(relay.apex)).text).toContain("@alice");
+});
+
+async function fakeFly() {
+  const calls: string[] = [];
+  const machine = {
+    config: {} as Json,
+    off: async () => {},
+    on: async () => {},
+  };
+  const boot = async (env: Record<string, string>) => {
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    onTestFinished(() => void vi.unstubAllEnvs());
+    const { ctx, url } = await createTestServer();
+    ctx.config.port = Number(new URL(url).port);
+    await ctx.plugins.reload("connect");
+    const cli = async (verb: string) => {
+      const body = JSON.stringify({ argv: [verb], cwd: tmpdir() });
+      const headers = { "content-type": "application/json" };
+      const init = { method: "POST", headers, body };
+      await fetch(`${url}/api/v1/plugins/connect/cli`, init);
+    };
+    machine.off = () => cli("off");
+    machine.on = () => cli("on");
+  };
+  const fly = createServer((request, response) => {
+    const { pathname } = new URL(request.url ?? "/", "http://fly.test");
+    const call = `${request.method} ${pathname}`;
+    calls.push(call);
+    let sent = "";
+    request.on("data", (chunk: Buffer) => (sent += chunk.toString()));
+    request.on("end", () => {
+      const reply = (status: number, body: unknown) => {
+        response.writeHead(status, { "content-type": "application/json" });
+        response.end(JSON.stringify(body));
+      };
+      const work = async () => {
+        if (request.headers.authorization !== "Bearer fly-token") {
+          return reply(401, { error: "unauthorized" });
+        }
+        if (call === "POST /apps") return reply(201, { id: "app_1" });
+        if (call.endsWith("/volumes")) return reply(200, { id: "vol_1" });
+        if (call.endsWith("/machines")) {
+          machine.config = (JSON.parse(sent) as { config: Json }).config;
+          await boot(machine.config.env as Record<string, string>);
+          return reply(200, { id: "mach_1" });
+        }
+        if (call.endsWith("/start")) await machine.on();
+        else await machine.off();
+        reply(request.method === "DELETE" ? 202 : 200, { ok: true });
+      };
+      work().catch((error: unknown) => reply(500, { error: String(error) }));
+    });
+  }).listen(0, "127.0.0.1");
+  onTestFinished(() => void fly.close());
+  await once(fly, "listening");
+  const url = `http://127.0.0.1:${(fly.address() as AddressInfo).port}`;
+  return { url, calls, machine };
+}
+
+it("creates a hosted server, puts it to sleep and wakes it on a visit", async () => {
+  const fly = await fakeFly();
+  const relay = await startRelay({
+    FLY_API_URL: fly.url,
+    FLY_API_TOKEN: "fly-token",
+    FLY_ORG: "bb-next",
+    FLY_IMAGE: "registry.test/bb:1",
+    HOSTED_IDLE_HOURS: "0.000001",
+    HOSTED_DELETE_DAYS: "0.00000001",
+  });
+  const { apex, database } = relay;
+  const cloud = relay.origin("cloud");
+  const session = `${cloud}/api/v1/auth/session`;
+  const page = { headers: { accept: "text/html" } };
+  const row = () =>
+    database
+      .prepare("SELECT * FROM servers WHERE label = 'cloud'")
+      .first<Json>();
+  const alice = await account(apex, "Alice");
+  const bo = await account(apex, "Bo");
+  expect((await alice.visit(apex)).text).toContain('action="/hosted/create"');
+  expect((await bo.visit(apex)).text).not.toContain("/hosted/create");
+  const wanted = { form: { label: "cloud" } };
+  const refused = await bo.visit(`${apex}/hosted/create`, wanted);
+  expect(refused.status).toBe(403);
+
+  const created = await alice.visit(`${apex}/hosted/create`, wanted);
+  expect(created.status, created.text).toBe(303);
+  expect(created.headers.get("location")).toBe(cloud);
+  const app = String((await row())?.hosted_app);
+  expect(app).toMatch(/^bb-next-[a-z0-9]{12}$/u);
+  expect(fly.calls).toEqual([
+    "POST /apps",
+    `POST /apps/${app}/volumes`,
+    `POST /apps/${app}/machines`,
+  ]);
+  expect(fly.machine.config).toMatchObject({
+    image: "registry.test/bb:1",
+    guest: { cpu_kind: "shared", cpus: 4, memory_mb: 8192 },
+    mounts: [{ volume: "vol_1", path: "/data" }],
+    env: { BB_CONNECT_BASE_URL: apex },
+  });
+  await vi.waitFor(
+    async () => {
+      const owner = await alice.visit(session);
+      expect(owner.body.user).toMatchObject({ id: "usr_owner", role: "owner" });
+    },
+    { timeout: 10_000, interval: 200 },
+  );
+  const second = await alice.visit(`${apex}/hosted/create`, {
+    form: { label: "other" },
+  });
+  expect(second.status).toBe(409);
+
+  const env = fly.machine.config.env as Record<string, string>;
+  const { credential } = JSON.parse(env.BB_CONNECT_LINK ?? "{}") as Json;
+  await database.prepare("UPDATE servers SET active_at = 1").run();
+  const busy = { headers: { authorization: `Bearer ${String(credential)}` } };
+  const noted = await browser().visit(`${apex}/api/connect/activity`, {
+    method: "POST",
+    ...busy,
+  });
+  expect(noted.body).toEqual({ ok: true });
+  expect(Number((await row())?.active_at)).toBeGreaterThan(1);
+
+  const home = await alice.visit(apex);
+  expect(home.text).toContain("Put to sleep");
+  const serverId = /name="serverId" value="(srv_[a-z0-9]+)"/u.exec(
+    home.text,
+  )?.[1];
+  const mine = { form: { serverId } };
+  expect((await bo.visit(`${apex}/hosted/stop`, mine)).status).toBe(403);
+  expect((await alice.visit(`${apex}/hosted/stop`, mine)).status).toBe(303);
+  expect(fly.calls.at(-1)).toBe(`POST /apps/${app}/machines/mach_1/stop`);
+  expect(await alice.visit(session)).toMatchObject({
+    status: 503,
+    body: { code: "server_asleep" },
+  });
+  const knocked = await bo.visit(`${cloud}/`, page);
+  expect(knocked.status).toBe(503);
+  expect(knocked.text).toContain("starts again when its owner opens it");
+  expect(fly.calls.at(-1)).toContain("/stop");
+
+  const woken = await alice.visit(`${cloud}/`, page);
+  expect(woken.status).toBe(503);
+  expect(woken.text).toContain("Starting your bb server");
+  await vi.waitFor(
+    async () => expect((await alice.visit(session)).status).toBe(200),
+    { timeout: 10_000, interval: 200 },
+  );
+  expect(fly.calls.at(-1)).toBe(`POST /apps/${app}/machines/mach_1/start`);
+
+  await relay.sweep();
+  expect(fly.calls.at(-1)).toContain("/stop");
+  expect((await row())?.hosted_state).toBe("stopped");
+  await relay.sweep();
+  expect(fly.calls.at(-1)).toBe(`DELETE /apps/${app}`);
+  expect(await row()).toBeNull();
+  expect((await alice.visit(`${cloud}/`, page)).status).toBe(404);
 });

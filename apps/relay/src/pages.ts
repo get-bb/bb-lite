@@ -81,8 +81,7 @@ export function linkPage(
 ): Response {
   const code = escapeHtml(link.userCode);
   const label = escapeHtml(link.suggestedLabel);
-  const pattern = "[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?";
-  const attributes = `value="${label}" pattern="${pattern}" maxlength="32"`;
+  const attributes = `value="${label}" pattern="${LABEL_PATTERN}" maxlength="32"`;
   const body = `<h1>Connect a bb server</h1>
 <p class="dim"><code>${escapeHtml(link.clientName)}</code> wants to be reachable
 through this relay. Only approve if you just ran <code>bb connect login</code>
@@ -103,17 +102,82 @@ export function notice(title: string, message: string, status = 200) {
   return page(title, body, status);
 }
 
+export function startingPage(): Response {
+  const title = "Starting your bb server";
+  const body = `<h1>${title}</h1>
+<p class="dim">This takes a few seconds. The page reloads by itself.</p>
+<meta http-equiv="refresh" content="3">`;
+  const response = page(title, body, 503);
+  response.headers.set("retry-after", "3");
+  return response;
+}
+
+export interface HostingView {
+  baseHost: string;
+  canCreate: boolean;
+  suggestedLabel: string;
+  deleteAfterMs: number;
+}
+
+const LABEL_PATTERN = "[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?";
+
+function hostedAction(server: Server, action: string, label: string) {
+  const confirm =
+    action === "delete"
+      ? ` onsubmit="return confirm('Delete this server and everything on it?')"`
+      : "";
+  return `<form method="post" action="/hosted/${action}"${confirm}>
+<input type="hidden" name="serverId" value="${escapeHtml(server.id)}">
+<button class="quiet" type="submit">${label}</button></form>`;
+}
+
+function hostedRow(server: Server, deleteAfterMs: number) {
+  const state = server.hosted_state;
+  if (state === null) return "";
+  const removal = new Date((server.stopped_at ?? 0) + deleteAfterMs);
+  const day = removal.toISOString().slice(0, 10);
+  const note = {
+    creating: "Starting for the first time.",
+    running: "Hosted. It goes to sleep after a day without a visit.",
+    stopped: `Asleep. It is deleted on ${day} unless it is opened.`,
+    failed: `Did not start: ${server.hosted_error ?? "unknown error"}`,
+  }[state];
+  const toggle =
+    state === "running"
+      ? hostedAction(server, "stop", "Put to sleep")
+      : state === "stopped"
+        ? hostedAction(server, "start", "Wake")
+        : "";
+  return `<p class="dim">${escapeHtml(note)}</p>
+<div class="row">${toggle}${hostedAction(server, "delete", "Delete")}</div>`;
+}
+
+function createForm(hosting: HostingView) {
+  if (!hosting.canCreate) return "";
+  const label = escapeHtml(hosting.suggestedLabel);
+  const attributes = `value="${label}" pattern="${LABEL_PATTERN}" maxlength="32"`;
+  const address = `Address (.${escapeHtml(hosting.baseHost)})`;
+  return `<form class="card" method="post" action="/hosted/create">
+<strong>Create a hosted server</strong>
+<p class="dim">A bb server that runs in the cloud, at an address of yours.</p>
+${field(address, "label", attributes)}
+<button type="submit">Create</button></form>`;
+}
+
 export function dashboard(
   user: User,
   servers: Server[],
   users: User[],
   origin: (label: string) => string,
+  view: HostingView,
 ): Response {
   const rows = servers.map((server) => {
     const url = origin(server.label);
-    const state = server.credential_hash === null ? "signed out" : "linked";
+    const linked = server.credential_hash === null ? "signed out" : "linked";
+    const state = server.hosted_state ?? linked;
     return `<div class="row"><a href="${url}">${escapeHtml(url)}</a>
-<span class="dim">${state}</span></div>`;
+<span class="dim">${state}</span></div>
+${hostedRow(server, view.deleteAfterMs)}`;
   });
   const hosting =
     user.can_host === 1
@@ -140,7 +204,7 @@ ${other.id === user.id ? '<span class="dim">you</span>' : action}</div>`;
 (@${escapeHtml(user.login)}).</p>
 <section><strong>Your servers</strong>
 ${rows.join("") || '<p class="dim">None yet.</p>'}
-<p class="dim">${hosting}</p></section>${admin}
+<p class="dim">${hosting}</p></section>${createForm(view)}${admin}
 <form method="post" action="/logout"><button class="quiet" type="submit">
 Sign out</button></form>`;
   return page("bb-next", body);

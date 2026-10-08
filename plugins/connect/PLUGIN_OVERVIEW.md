@@ -14,6 +14,9 @@ Open your bb from another computer and let your other machines reach it. Once th
 `bb connect off` or the switch closes the tunnel and keeps this bb signed in; `bb connect on` reopens it. `bb connect logout` revokes the credential. `bb connect import-legacy --db <old bb.db> --yes` adopts the credential of an original bb install; stop that install first, because getbb.dev allows one tunnel per label.
 
 `BB_CONNECT_BASE_URL` points the plugin at another account site (development).
+`BB_CONNECT_LINK` holds a ready-made link (the JSON `connect.json` stores) that the plugin uses when
+the server has none of its own; a hosted server gets it from the relay (`docs/hosted.md`) and then also
+reports running threads to the relay so it is not put to sleep mid-turn.
 
 ## For agents
 

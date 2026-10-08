@@ -16,6 +16,8 @@ export type GithubProfile = Pick<
   "github_id" | "login" | "name" | "email" | "avatar_url"
 >;
 
+export type HostedState = "creating" | "running" | "stopped" | "failed";
+
 export interface Server {
   id: string;
   user_id: string;
@@ -24,6 +26,13 @@ export interface Server {
   client_name: string | null;
   last_seen_at: number | null;
   created_at: number;
+  hosted_state: HostedState | null;
+  hosted_app: string | null;
+  hosted_machine: string | null;
+  hosted_error: string | null;
+  active_at: number | null;
+  stopped_at: number | null;
+  wake_at: number | null;
 }
 
 export interface LinkCode {
@@ -302,4 +311,114 @@ export async function machineByCredential(db: D1Database, credential: string) {
 export function revokeMachine(db: D1Database, serverId: string, id: string) {
   const sql = "DELETE FROM machines WHERE id = ? AND server_id = ?";
   return run(db, sql, id, serverId);
+}
+
+export function serverById(db: D1Database, id: string) {
+  return one<Server>(db, "SELECT * FROM servers WHERE id = ?", id);
+}
+
+export async function createHosted(db: D1Database, owner: User, label: string) {
+  const credential = newToken("bbcred");
+  const id = newId("srv");
+  const app = `bb-next-${id.slice(id.indexOf("_") + 1)}`;
+  const now = Date.now();
+  const created = await run(
+    db,
+    `INSERT INTO servers (id, user_id, label, credential_hash, client_name,
+       created_at, hosted_state, hosted_app, active_at)
+     VALUES (?, ?, ?, ?, 'hosted', ?, 'creating', ?, ?)
+     ON CONFLICT (label) DO NOTHING`,
+    id,
+    owner.id,
+    label,
+    await sha256Hex(credential),
+    now,
+    app,
+    now,
+  );
+  return created === 1 ? { id, app, credential } : null;
+}
+
+export function hostedMachineReady(
+  db: D1Database,
+  id: string,
+  machine: string,
+) {
+  const now = Date.now();
+  return run(
+    db,
+    `UPDATE servers SET hosted_state = 'running', hosted_machine = ?,
+       active_at = ?, wake_at = ? WHERE id = ?`,
+    machine,
+    now,
+    now,
+    id,
+  );
+}
+
+export function failHosted(db: D1Database, id: string, error: string) {
+  const sql = `UPDATE servers SET hosted_state = 'failed', hosted_error = ?
+    WHERE id = ?`;
+  return run(db, sql, error.slice(0, 500), id);
+}
+
+export function noteActive(db: D1Database, id: string) {
+  const sql = `UPDATE servers SET active_at = ?
+    WHERE id = ? AND hosted_state = 'running'`;
+  return run(db, sql, Date.now(), id);
+}
+
+export async function claimWake(db: D1Database, id: string, retryMs: number) {
+  const now = Date.now();
+  const claimed = await run(
+    db,
+    `UPDATE servers SET hosted_state = 'running', stopped_at = NULL,
+       active_at = ?, wake_at = ?
+     WHERE id = ? AND hosted_machine IS NOT NULL AND (hosted_state = 'stopped'
+       OR (hosted_state = 'running' AND COALESCE(wake_at, 0) < ?))`,
+    now,
+    now,
+    id,
+    now - retryMs,
+  );
+  return claimed === 1;
+}
+
+export async function claimStop(
+  db: D1Database,
+  id: string,
+  idleBefore: number | null,
+) {
+  const claimed = await run(
+    db,
+    `UPDATE servers SET hosted_state = 'stopped', stopped_at = ?
+     WHERE id = ? AND hosted_state = 'running'
+       AND COALESCE(active_at, 0) < ?`,
+    Date.now(),
+    id,
+    idleBefore ?? Number.MAX_SAFE_INTEGER,
+  );
+  return claimed === 1;
+}
+
+export function unclaimStop(db: D1Database, id: string) {
+  const sql = `UPDATE servers SET hosted_state = 'running', stopped_at = NULL
+    WHERE id = ? AND hosted_state = 'stopped'`;
+  return run(db, sql, id);
+}
+
+export function idleHosted(db: D1Database, before: number) {
+  const sql = `SELECT * FROM servers WHERE hosted_state = 'running'
+    AND COALESCE(active_at, 0) < ?`;
+  return all<Server>(db, sql, before);
+}
+
+export function expiredHosted(db: D1Database, before: number) {
+  const sql = `SELECT * FROM servers WHERE hosted_state = 'stopped'
+    AND COALESCE(stopped_at, 0) < ?`;
+  return all<Server>(db, sql, before);
+}
+
+export function deleteServer(db: D1Database, id: string) {
+  return run(db, "DELETE FROM servers WHERE id = ?", id);
 }

@@ -27,6 +27,8 @@ It speaks the same account API and tunnel protocol as getbb.app (`packages/tunne
   `x-bb-gate-user-id`, `-name`, `-email`, `-avatar` and `x-bb-gate-owner`; the bb server maps the id to a member,
   or shows "not a member yet" until they open an invite link (`docs/architecture.md`, Trust).
 - **Shares** (`<label>--<port>.<domain>`, `bb connect expose`) are for the server's owner only.
+- **Hosted servers.** An account that may host can create a bb server on Fly from the dashboard; the
+  relay starts, stops and deletes it (`docs/hosted.md`).
 - **Machines.** A runner on another machine carries `x-bb-connect-machine`; the relay checks the
   credential belongs to that server and forwards with `x-bb-gate-auth: machine`.
 

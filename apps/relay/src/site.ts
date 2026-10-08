@@ -11,6 +11,18 @@ export interface Env {
   GITHUB_OAUTH_URL?: string;
   GITHUB_API_URL?: string;
   GATE_DEADLINE_MS?: string;
+  FLY_API_TOKEN?: string;
+  FLY_API_URL?: string;
+  FLY_ORG?: string;
+  FLY_IMAGE?: string;
+  FLY_REGION?: string;
+  FLY_CPU_KIND?: string;
+  FLY_CPUS?: string;
+  FLY_MEMORY_MB?: string;
+  FLY_VOLUME_GB?: string;
+  HOSTED_IDLE_HOURS?: string;
+  HOSTED_DELETE_DAYS?: string;
+  HOSTED_PER_ACCOUNT?: string;
 }
 
 export interface Site {
@@ -55,8 +67,8 @@ const RESERVED_LABELS = [
   "assets",
 ];
 
-export function siteOf(request: Request, env: Env): Site {
-  const { protocol } = new URL(request.url);
+export function siteOf(request: Request | null, env: Env): Site {
+  const { protocol } = new URL(request?.url ?? "https://relay");
   const baseHost = env.BASE_DOMAIN.toLowerCase();
   return {
     env,

@@ -16,7 +16,17 @@
     "BASE_DOMAIN": "getbb.dev",
     "HOSTING": "approved",
     "ADMIN_LOGIN": "SawyerHood",
+    "FLY_ORG": "bb-953",
+    "FLY_IMAGE": "registry.fly.io/bb-next-image:latest",
+    "FLY_REGION": "iad",
+    "FLY_CPU_KIND": "shared",
+    "FLY_CPUS": "4",
+    "FLY_MEMORY_MB": "8192",
+    "FLY_VOLUME_GB": "20",
+    "HOSTED_IDLE_HOURS": "24",
+    "HOSTED_DELETE_DAYS": "30",
   },
+  "triggers": { "crons": ["*/15 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",

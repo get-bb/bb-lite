@@ -24,6 +24,7 @@ export type Link = z.infer<typeof linkSchema>;
 
 export interface AccountOptions {
   file: string;
+  provisioned?: string;
   baseUrl: string;
   clientName: string;
   warn(message: string): void;
@@ -52,17 +53,25 @@ export function legacyLink(databasePath: string): Link {
   }
 }
 
+function parseLink(read: () => string): Link | null {
+  try {
+    return linkSchema.parse(JSON.parse(read()));
+  } catch {
+    return null;
+  }
+}
+
 export class ConnectAccount {
   link: Link | null = null;
   login: LoginView | null = null;
   private attempt = 0;
 
   constructor(private readonly options: AccountOptions) {
-    try {
-      const stored: unknown = JSON.parse(fs.readFileSync(options.file, "utf8"));
-      this.link = linkSchema.parse(stored);
-    } catch {
-      this.link = null;
+    const { file, provisioned } = options;
+    this.link = parseLink(() => fs.readFileSync(file, "utf8"));
+    if (this.link === null && provisioned !== undefined) {
+      this.link = parseLink(() => provisioned);
+      if (this.link === null) options.warn("BB_CONNECT_LINK is not a link");
     }
   }
 

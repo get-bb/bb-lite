@@ -1,4 +1,5 @@
 import { newToken } from "./crypto.js";
+import * as hosted from "./hosted.js";
 import * as pages from "./pages.js";
 import * as site from "./site.js";
 import * as store from "./store.js";
@@ -315,6 +316,10 @@ export async function connectApi(
     await site.closeTunnel(context, server.id);
     return site.json({ ok: true });
   }
+  if (path === "/api/connect/activity") {
+    await store.noteActive(context.db, server.id);
+    return site.json({ ok: true });
+  }
   if (path === "/api/connect/machine-code") {
     const code = await store.mintMachineCode(context.db, server.id);
     if (code !== null) return site.json({ code });
@@ -359,6 +364,49 @@ async function setHosting(request: Request, context: Site, user: store.User) {
   return redirect("/");
 }
 
+async function hostedRoute(
+  request: Request,
+  context: Site,
+  user: store.User,
+  action: string,
+) {
+  if (!canHost(context, user)) {
+    const message = "Ask this relay's admin to allow hosting on your account.";
+    return pages.notice("This account cannot host servers", message, 403);
+  }
+  const fields = await formFields(request);
+  if (action === "create") {
+    const label = (fields.label ?? "").trim().toLowerCase();
+    if (!site.isValidLabel(label)) {
+      const rule = "Use 1 to 32 letters, digits or single dashes.";
+      return pages.notice("That address cannot be used", rule, 400);
+    }
+    const owned = await store.serversOf(context.db, user.id);
+    const count = owned.filter((server) => server.hosted_state !== null).length;
+    if (count >= hosted.perAccount(context.env)) {
+      const message = "Delete your hosted server before creating another.";
+      return pages.notice("You already have a hosted server", message, 409);
+    }
+    const failure = await hosted.create(context, user, label);
+    if (failure !== null) return pages.notice("Not created", failure, 502);
+    return redirect(context.origin(label));
+  }
+  const server = await store.serverById(context.db, fields.serverId ?? "");
+  if (server?.user_id !== user.id || server.hosted_state === null) {
+    return pages.notice("Not found", "", 404);
+  }
+  if (action === "start") await hosted.wake(context, server);
+  else if (action === "stop") await hosted.stop(context, server);
+  else if (action === "delete") {
+    const removed = await hosted.remove(context, server);
+    if (!removed) {
+      const message = "The server could not be deleted. Try again.";
+      return pages.notice("Not deleted", message, 502);
+    }
+  } else return pages.notice("Not found", "", 404);
+  return redirect("/");
+}
+
 export async function apex(request: Request, context: Site): Promise<Response> {
   const url = new URL(request.url);
   const { pathname: path } = url;
@@ -389,9 +437,21 @@ export async function apex(request: Request, context: Site): Promise<Response> {
   if (path === "/admin/hosting" && method === "POST") {
     return setHosting(request, context, user);
   }
+  if (path.startsWith("/hosted/") && method === "POST") {
+    return hostedRoute(request, context, user, path.slice("/hosted/".length));
+  }
   if (path !== "/" || !reading) return pages.notice("Not found", "", 404);
   const servers = await store.serversOf(context.db, user.id);
   const admin = isAdmin(context, user);
   const users = admin ? await store.listUsers(context.db) : [];
-  return pages.dashboard(user, servers, users, context.origin);
+  const count = servers.filter((server) => server.hosted_state !== null).length;
+  const { env, baseHost } = context;
+  const canCreate =
+    hosted.isAvailable(env) &&
+    canHost(context, user) &&
+    count < hosted.perAccount(env);
+  const suggestedLabel = slug(user.login);
+  const deleteAfterMs = hosted.deleteMs(env);
+  const view = { baseHost, canCreate, suggestedLabel, deleteAfterMs };
+  return pages.dashboard(user, servers, users, context.origin, view);
 }
