@@ -44,7 +44,7 @@ import { getThreadRoutePath } from "@bb/app-kit/lib/route-paths";
 import { supportsScrollAnchoring } from "@bb/app-kit/lib/scroll-anchoring-support";
 import { useThreadTimelineTurnSummaryDetails } from "@bb/app-kit/hooks/queries/thread-queries";
 import { useSenderThreadMetadataById } from "@bb/app-kit/hooks/useSenderThreadMetadataById";
-import { useSlot } from "@bb/app-kit/plugins/slots";
+import { SlotMount, useSlot, useSlotEntries } from "@bb/app-kit/plugins/slots";
 import {
   AssistantConversationMessage,
   UserConversationMessage,
@@ -596,7 +596,39 @@ function timelineRowView<Row extends ThreadTimelineViewRow>(
 
 export const TurnTimelineRow = timelineRowView(TurnRowBody);
 export const WorkTimelineRow = timelineRowView(WorkRowBody);
-export const SystemTimelineRow = timelineRowView(SystemRowBody);
+const DefaultSystemTimelineRow = timelineRowView(SystemRowBody);
+
+export function SystemTimelineRow(props: TimelineRowProps) {
+  const row = props.row as TimelineViewRowOfKind<"system">;
+  const plugin =
+    row.systemKind === "operation" && "plugin" in row ? row.plugin : undefined;
+  const kind = plugin === undefined ? "" : `${plugin.id}/${plugin.kind}`;
+  const renderers = useSlotEntries(threadView.pluginRow);
+  const found = renderers.filter(({ item }) => item.kind === kind).at(-1);
+  if (plugin === undefined || found === undefined) {
+    return <DefaultSystemTimelineRow {...props} />;
+  }
+  const View = found.item.view;
+  const { title, detail, status } = row;
+  const padding = props.spacing === "bundle" ? "px-0" : "px-2";
+  return (
+    <SlotMount
+      pluginId={found.plugin}
+      slot={threadView.pluginRow.name}
+      id={kind}
+    >
+      <div className={cn("w-full", padding)} data-plugin-row={kind}>
+        <View
+          row={row}
+          title={title}
+          detail={detail}
+          status={status}
+          data={plugin.data}
+        />
+      </div>
+    </SlotMount>
+  );
+}
 export const SummaryTimelineRow = timelineRowView(SummaryRowBody);
 const UnknownTimelineRow = timelineRowView(UnknownRowBody);
 

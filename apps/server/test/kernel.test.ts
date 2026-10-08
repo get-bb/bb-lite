@@ -394,3 +394,51 @@ it("keeps a per-user plugin setting apart for each person", async () => {
   });
   expect(await own.json()).toMatchObject({ layout: "board" });
 });
+
+it("lets a plugin add a timeline row of its own kind and update it", async () => {
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const threadId = await server.spawn();
+  const builds = ctx.kernel.scope("builds", "installed");
+  const first = await builds.call(threadOps.addRow, {
+    threadId,
+    kind: "ci-run",
+    title: "CI running",
+    status: "pending",
+    data: { passed: 3, total: 10 },
+  });
+  await builds.call(threadOps.addRow, {
+    threadId,
+    id: first.id,
+    kind: "ci-run",
+    title: "CI passed",
+    detail: "10 of 10 checks",
+    data: { passed: 10, total: 10 },
+  });
+  type Row = { kind: string; children?: Row[] | null; plugin?: object };
+  const timeline = await server.read<{ rows: Row[] }>(
+    `/threads/${threadId}/timeline`,
+  );
+  const flat = (rows: Row[]): Row[] =>
+    rows.flatMap((row) => [row, ...flat(row.children ?? [])]);
+  const mine = flat(timeline.rows).filter((row) => row.plugin !== undefined);
+  expect(mine).toEqual([
+    expect.objectContaining({
+      kind: "system",
+      systemKind: "operation",
+      title: "CI passed",
+      detail: "10 of 10 checks",
+      status: "completed",
+      plugin: {
+        id: "builds",
+        kind: "ci-run",
+        data: { passed: 10, total: 10 },
+      },
+    }),
+  ]);
+  const headers = { "content-type": "application/json" };
+  const body = JSON.stringify({ threadId, kind: "ci-run", title: "x" });
+  const posted = { method: "POST", headers, body };
+  const direct = await server.request("/ops/threads.addRow", posted);
+  expect(direct.status).toBe(403);
+});

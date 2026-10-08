@@ -118,6 +118,7 @@ export function createPluginHarness(): PluginHarness {
       const logs: string[] = [];
       const routes: LoadedPlugin["routes"] = new Map();
       const services: LoadedPlugin["services"] = new Map();
+      const starters: Parameters<PluginServerApi["onStart"]>[0][] = [];
       let descriptors: SettingDescriptors = {};
       const listeners: ((next: object, previous: object) => void)[] = [];
       const values = () =>
@@ -217,11 +218,16 @@ export function createPluginHarness(): PluginHarness {
           dataDir: "/tmp/bb-test",
           tunnelToken: "test",
         },
+        onStart: (start) => void starters.push(start),
         onDispose: (stop) => void disposers.push(stop),
       };
       loaded.api = api;
       try {
         await entry(api);
+        for (const start of starters) {
+          const stop = await start();
+          if (typeof stop === "function") disposers.push(stop);
+        }
       } catch (error) {
         await loaded.unload();
         throw error;

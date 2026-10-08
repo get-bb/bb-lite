@@ -397,6 +397,15 @@ export function createThreadEngine(ctx: ServerContext, own: PluginVerbs) {
   own.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
     remove(threadId, confirmation),
   );
+  own.implement(threadOps.addRow, (input, { caller }) => {
+    const pluginId = caller.via.at(-1);
+    if (pluginId === undefined) {
+      throw new ApiError(400, "not_a_plugin", "Only a plugin can add a row");
+    }
+    return engine.inThread(input.threadId, () =>
+      mutations.addPluginRow(engine, pluginId, input),
+    );
+  });
   const routed = <Args extends unknown[], Result>(
     op: ThreadWriteOp,
     run: (threadId: string, ...args: Args) => Result,

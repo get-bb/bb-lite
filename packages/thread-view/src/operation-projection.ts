@@ -83,6 +83,12 @@ function mergeOperation(
   existing: OperationMessage,
   incoming: OperationMessage,
 ): void {
+  if (incoming.plugin !== undefined) {
+    const { title, detail, status, plugin } = incoming;
+    const completedAt = status === "pending" ? null : incoming.createdAt;
+    Object.assign(existing, { title, detail, status, plugin, completedAt });
+    return;
+  }
   const settles =
     existing.status === "pending" && incoming.status !== "pending";
   if (settles) {

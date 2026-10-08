@@ -30,7 +30,21 @@ export interface TimelineRowDetailRenderer {
   view: ComponentType<TimelineRowDetailProps>;
 }
 
+export interface PluginRowProps {
+  row: TimelineRowData;
+  title: string;
+  detail: string | null;
+  status: "pending" | "completed" | "error" | "interrupted" | null;
+  data: unknown;
+}
+
+export interface PluginRowRenderer {
+  kind: string;
+  view: ComponentType<PluginRowProps>;
+}
+
 export const threadView = contract("thread-view", {
   row: slot<TimelineRowRenderer>({ key: "kind" }),
   rowDetail: slot<TimelineRowDetailRenderer>({ key: "kind" }),
+  pluginRow: slot<PluginRowRenderer>({ key: "kind" }),
 });

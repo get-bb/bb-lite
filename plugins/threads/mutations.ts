@@ -1,9 +1,13 @@
 import {
+  PLUGIN_ROW_OPERATION,
   createStandaloneBuiltinCompactCommandInput,
+  threadScope,
+  type JsonValue,
   type ThreadChangeKind,
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
+import { newId } from "@bb/server-kit/db/index";
 import * as queue from "@bb/server-kit/db/queued-messages";
 import { listSidebarThreadRows } from "@bb/server-kit/db/thread-read";
 import { requireThreadSection } from "@bb/server-kit/db/thread-sections";
@@ -231,4 +235,36 @@ export async function sendQueuedMessageNow(
   const id = queuedMessageId;
   const sent = dispatching.sendQueuedMessageNow(engine, threadId, id, mode);
   return toSendResponse(await sent);
+}
+
+export interface PluginRowInput {
+  threadId: string;
+  kind: string;
+  title: string;
+  detail?: string;
+  status: "pending" | "completed" | "error";
+  data: JsonValue;
+  id?: string;
+}
+
+export function addPluginRow(
+  engine: Engine,
+  pluginId: string,
+  input: PluginRowInput,
+): { id: string } {
+  const thread = engine.requireThread(input.threadId);
+  const { kind, title, detail, data } = input;
+  const id = input.id ?? newId("evt");
+  const status = input.status === "error" ? "failed" : input.status;
+  const plugin = { id: pluginId, kind, data };
+  const metadata: Record<string, JsonValue> = { plugin };
+  if (detail !== undefined) metadata.detail = detail;
+  const operation = PLUGIN_ROW_OPERATION;
+  const operationId = `${pluginId}:${id}`;
+  const row = { operation, operationId, status, message: title, metadata };
+  engine.commit((out) => {
+    const type = "system/operation";
+    engine.append(out, thread, [{ type, scope: threadScope(), ...row }]);
+  });
+  return { id };
 }

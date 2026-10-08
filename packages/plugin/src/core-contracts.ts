@@ -1,4 +1,4 @@
-import type * as Domain from "@bb/domain";
+import * as Domain from "@bb/domain";
 import type * as Contract from "@bb/server-contract";
 import { z } from "zod";
 import { contract, event, op, service, slot } from "./contract.js";
@@ -62,6 +62,7 @@ const instructionSectionSchema = z.object({
 export type InstructionSection = z.infer<typeof instructionSectionSchema>;
 
 const threadRef = z.object({ threadId: z.string() });
+const ROW_KIND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
 const nothing = z.void();
 const none = z.object({});
 const threadWrite = () =>
@@ -169,6 +170,19 @@ export const threads = contract("threads", {
   events: op({
     input: threadRef.extend({ after: z.number().optional() }),
     output: z.array(z.custom<Domain.ThreadEvent>()),
+  }),
+  addRow: op({
+    input: threadRef.extend({
+      kind: z.string().regex(ROW_KIND),
+      title: z.string().min(1),
+      detail: z.string().optional(),
+      status: z.enum(["pending", "completed", "error"]).default("completed"),
+      data: Domain.jsonValueSchema.default(null),
+      id: z.string().min(1).optional(),
+    }),
+    output: z.object({ id: z.string() }),
+    kind: "write",
+    internal: true,
   }),
   update: threadWrite(),
   compact: threadWrite(),

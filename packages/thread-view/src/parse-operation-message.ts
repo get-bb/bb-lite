@@ -1,5 +1,8 @@
 import {
+  PLUGIN_ROW_OPERATION,
   THREAD_CONTEXT_CLEAR_OPERATION,
+  pluginRowSchema,
+  type PluginRow,
   isApprovalInteractionLifecycle,
   isPluginInteractionLifecycle,
   isUserQuestionInteractionLifecycle,
@@ -109,12 +112,38 @@ function ownershipChangeTitle(
   );
 }
 
+function operationStatus(status: string): TimelineRowStatus {
+  if (status === "completed" || status === "noop") return "completed";
+  return status === "failed" ? "error" : "pending";
+}
+
+function pluginRowMessage(
+  decoded: EventOfType<"system/operation">,
+  meta: EventMeta,
+  plugin: PluginRow,
+): OperationMessage {
+  const detail = decoded.metadata?.detail;
+  return op(decoded, meta, {
+    opType: "operation",
+    title: decoded.message,
+    detail: typeof detail === "string" && detail !== "" ? detail : undefined,
+    status: operationStatus(decoded.status),
+    mergeKey: decoded.operationId,
+    plugin,
+  });
+}
+
 function threadOperationMessage(
   decoded: EventOfType<"system/operation">,
   meta: EventMeta,
   threadName: string,
 ): OperationMessage {
   const { operation, status } = decoded;
+  const plugin =
+    operation === PLUGIN_ROW_OPERATION
+      ? pluginRowSchema.safeParse(decoded.metadata?.plugin)
+      : null;
+  if (plugin?.success) return pluginRowMessage(decoded, meta, plugin.data);
   const ownershipChange = operation === "ownership_change";
   const parsed =
     ownershipChange && decoded.metadata
@@ -136,12 +165,7 @@ function threadOperationMessage(
     opType: "operation",
     title,
     detail: detailParts.length > 0 ? detailParts.join(" • ") : undefined,
-    status:
-      status === "completed" || status === "noop"
-        ? "completed"
-        : status === "failed"
-          ? "error"
-          : "pending",
+    status: operationStatus(status),
     mergeKey: decoded.operationId,
     parentChange: metadata && {
       action: metadata.action,
