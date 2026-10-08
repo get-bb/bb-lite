@@ -639,8 +639,7 @@ remove({hostId, path})}`) is a managed environment owned by its thread: `create`
 
 `plugins/plugin-dev` adds `bb dev …` through CLI doors: `inspect [name]`, `new <id>`,
 `watch <dir>`, `validate <dir>` (manifest check plus what the source implements, hooks, calls, adds,
-and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (a tsconfig whose paths
-resolve bb's types from this install), `install <git:url[#ref] | npm:spec | dir>` (fetched under
+and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (links the packages bb shares into the plugin's `node_modules` and writes a tsconfig), `install <git:url[#ref] | npm:spec | dir>` (fetched under
 `<dataDir>/plugins-src`). `fork <id> [path]` copies a builtin's directory
 (without `node_modules`, tests or caches), marks it `forkOf`, writes its types and loads it
 watched; a test forks every builtin and checks each copy runs. With `--as <new-id>` the copy is

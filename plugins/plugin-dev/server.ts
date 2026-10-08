@@ -1,11 +1,14 @@
 import { execFile } from "node:child_process";
 import {
   cp,
+  lstat,
   mkdir,
   readdir,
   readFile,
+  realpath,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
@@ -59,40 +62,56 @@ function describe(inspection: KernelInspection, name: string): string {
 
 const NOT_COPIED = new Set(["node_modules", "test", "dist", ".cache", ".bb"]);
 
-function tsconfigFor(original: string | null = null): object {
-  const at = (...parts: string[]) => join(REPO, ...parts);
-  const types = at("apps", "app", "node_modules", "@types");
-  const roots = [
-    ...(original === null ? [] : [join(original, "node_modules")]),
-    at("apps", "app", "node_modules"),
-    at("apps", "server", "node_modules"),
-  ];
-  return {
-    compilerOptions: {
-      strict: true,
-      target: "ES2022",
-      module: "ESNext",
-      moduleResolution: "bundler",
-      lib: ["ES2022", "DOM"],
-      jsx: "react-jsx",
-      noEmit: true,
-      skipLibCheck: true,
-      customConditions: ["source"],
-      typeRoots: [types, at("apps", "server", "node_modules", "@types")],
-      types: ["node"],
-      paths: {
-        "@bb/plugin": [at("packages", "plugin", "src", "index.ts")],
-        "@bb/plugin/app": [at("packages", "plugin", "src", "app.ts")],
-        "@bb/runner": [at("packages", "runner", "src", "index.ts")],
-        "@bb/server-kit/*": [at("packages", "server-kit", "src", "*")],
-        "@bb/app-kit/*": [at("packages", "app-kit", "*")],
-        zod: [at("apps", "server", "node_modules", "zod")],
-        react: [join(types, "react")],
-        "react/jsx-runtime": [join(types, "react", "jsx-runtime")],
-        "*": roots.map((root) => join(root, "*")),
-      },
-    },
-  };
+const VITE_TYPES = join(REPO, "apps", "app", "src", "vite-env.d.ts");
+const HOST_PACKAGES = [
+  join(REPO, "apps", "app", "node_modules"),
+  join(REPO, "apps", "server", "node_modules"),
+];
+const TSCONFIG = {
+  compilerOptions: {
+    strict: true,
+    target: "ES2022",
+    module: "ESNext",
+    moduleResolution: "bundler",
+    lib: ["ES2022", "DOM", "DOM.Iterable"],
+    jsx: "react-jsx",
+    noEmit: true,
+    skipLibCheck: true,
+    customConditions: ["source"],
+    types: ["node"],
+  },
+  files: [VITE_TYPES],
+};
+
+async function packagesIn(root: string): Promise<string[]> {
+  const listed = await readdir(root).catch(() => []);
+  const names: string[] = [];
+  for (const name of listed) {
+    if (name.startsWith(".")) continue;
+    if (!name.startsWith("@")) names.push(name);
+    else {
+      const scoped = await readdir(join(root, name)).catch(() => []);
+      names.push(...scoped.map((inner) => `${name}/${inner}`));
+    }
+  }
+  return names;
+}
+
+async function linkPackages(
+  directory: string,
+  original: string | null,
+): Promise<void> {
+  const own = original === null ? [] : [join(original, "node_modules")];
+  for (const root of [...own, ...HOST_PACKAGES]) {
+    for (const name of await packagesIn(root)) {
+      const link = join(directory, "node_modules", name);
+      if ((await lstat(link).catch(() => null)) !== null) continue;
+      const target = await realpath(join(root, name)).catch(() => null);
+      if (target === null) continue;
+      await mkdir(dirname(link), { recursive: true });
+      await symlink(target, link, "dir");
+    }
+  }
 }
 
 async function writeTypes(
@@ -101,8 +120,8 @@ async function writeTypes(
 ): Promise<string> {
   const file = join(directory, ".bb", "tsconfig.json");
   await mkdir(dirname(file), { recursive: true });
-  const config = tsconfigFor(original);
-  await writeFile(file, `${JSON.stringify(config, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(TSCONFIG, null, 2)}\n`);
+  await linkPackages(directory, original);
   return file;
 }
 
@@ -191,8 +210,8 @@ async function copyPlugin(
   };
   const text = `${JSON.stringify(tsconfig, null, 2)}\n`;
   await writeFile(join(target, "tsconfig.json"), text);
-  await writeTypes(target, source);
   if (as !== null) await renamePlugin(target, id, as);
+  await writeTypes(target, source);
 }
 
 async function exists(path: string): Promise<boolean> {

@@ -150,7 +150,8 @@ export const pluginDev = contract("plugin-dev", {
     doors: {
       cli: {
         path: "dev types",
-        summary: "Write a tsconfig that resolves bb's types for a plugin",
+        summary:
+          "Link bb's packages and write a tsconfig so an editor resolves them",
         positionals: ["path"],
         print: ({ file }) => `Wrote ${file}`,
       },

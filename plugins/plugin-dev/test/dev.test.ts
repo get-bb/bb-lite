@@ -1,5 +1,8 @@
+import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
 import {
   commitAll,
@@ -217,6 +220,19 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
     source: "custom-instructions",
     text: "Use pnpm",
   });
+  const tsc = fileURLToPath(
+    new URL("../../../node_modules/.bin/tsc", import.meta.url),
+  );
+  for (const id of ["threads", "composer"]) {
+    const checked = promisify(execFile)(tsc, ["--noEmit", "-p", "."], {
+      cwd: join(cwd, id),
+    });
+    const problems = await checked.then(
+      () => "",
+      (error: { stdout?: string }) => error.stdout ?? String(error),
+    );
+    expect([id, problems.slice(0, 600)]).toEqual([id, ""]);
+  }
   await op("plugins.uninstall", { path: join(cwd, "tasks") });
   const restored = await op("plugins.describe", { id: "tasks" });
   expect(restored.result).toMatchObject({ builtin: true });

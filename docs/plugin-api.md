@@ -244,8 +244,9 @@ server plugins and the five core app plugins.
   runs beside the original. Its package name, contract id, parts, CLI name and agent tool names are
   renamed for you. Check anything else it shares with the original, such as a pick-one slot both
   fill.
-- `bb.forkOf` in the copy's `package.json` names the original. Imports the copy does not install
-  itself resolve from the original's `node_modules`, so a fork needs no `pnpm install`.
+- `bb.forkOf` in the copy's `package.json` names the original. The copy's `node_modules` holds links
+  to the packages the original uses, so it builds and typechecks (`tsc -p .`, or an editor) without
+  an install. Installing packages of your own there is fine; existing links are left alone.
 - A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`,
   `@bb/client-core`, `@bb/core-ui`, `@tanstack/react-query`, `jotai` and `react-router-dom` resolve
   to the app's own copies (`PLUGIN_HOST_MODULES`), loaded on demand.
@@ -283,7 +284,8 @@ of your own: export it from `parts.ts`, declare it in `contract.ts` with
 `bb dev new <id>` writes a working plugin. `bb dev watch <dir>` loads a directory and reloads it when
 a file changes (`bb plugin add <dir>` loads it without watching). `bb dev validate <dir>` checks the
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
-`bb dev types <dir>` writes `.bb/tsconfig.json` so an editor resolves bb's types.
+`bb dev types <dir>` links bb's packages into the plugin's `node_modules` and writes
+`.bb/tsconfig.json`, so an editor resolves bb's types.
 `bb dev install <git:url[#ref] | npm:spec | dir>` fetches and loads a plugin (owner only).
 `bb dev fork <id> [path] [--as <new-id>]` copies a built-in plugin and runs the copy in its place, or
 beside it under a new id (owner only).
