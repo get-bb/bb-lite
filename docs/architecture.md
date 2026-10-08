@@ -9,7 +9,7 @@ budgets; this file has the shapes.
 | Package                                       | Role                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/server`                                 | The only stateful process, reduced to a host: the kernel, the plugin loader, the HTTP and WebSocket shells and the static web app. It names no feature                                                                                                                                                                                                                                                |
-| `packages/server-kit`                         | What server parts of core plugins share: the SQLite data layer, auth, the hub, HTTP helpers and trust, the runner registry, `ServerContext` and the interfaces core plugins provide to each other (`services.ts`), and the host services contract (`host.ts`)                                                                                                                                         |
+| `packages/server-kit`                         | What server parts of core plugins share: the SQLite data layer, auth, the hub, HTTP helpers and trust, the runner registry. Its functions take the handles a plugin has on `bb` (`db`, `config`, `runners`, `realtime`); there is no server context object                                                                                                                                            |
 | `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine                                                                                                                                                     |
 | `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                                                                                                                                                                            |
 | `apps/app`                                    | Web UI host: the entry point, the route outlet and the loader for app parts. It names no screen                                                                                                                                                                                                                                                                                                       |
@@ -302,11 +302,12 @@ How the engine is built (`plugins/threads`):
   cleared; rows whose drain failed carry `failure_reason` and wait for "Send now".
 - `status` is `starting` only while a workspace is being prepared. A send to a ready thread moves it straight
   to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
-- Seams on `ServerContext`: `threads` (the public operations, also for plugins), `environments`
-  (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; see "Environments" below),
-  `plugins` (the plugin host: the engine asks it for instructions, tools, env, skill directories and
-  titles, which it answers by calling the `sessions` operations and reading the `sessions` slots, and
-  it emits thread events through the kernel). Startup order is local host, personal project, engine, then plugins.
+- Seams: the engine calls `environments.ensure` and `environments.instructions`, `sessions.instructions`,
+  `sessions.env`, `sessions.tools`, `sessions.skillDirs` and `sessions.title`, and
+  `plugins.callAgentTool` for a tool call. It emits the thread events and `threads.released`
+  (terminals close on it), and listens to `projects.deleted`. Other plugins reach it through the
+  `threads` operations, including `threads.workspace` and `threads.requestInput`. Startup order is
+  local host, personal project, engine, then plugins.
 
 ## Environments (server)
 
@@ -501,17 +502,21 @@ The server's own features are plugins in `plugins/`, listed as `corePlugins` in
 ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel scope `plugins`: the
 `plugins.*` operations and the `/plugins` and `/kernel` routes).
 
-- **What a core plugin gets beyond the plugin API.** `coreOf(bb)` from `@bb/server-kit/host` reads
-  the `host.services` service and returns `ctx` (`ServerContext`), `routes(...groups)` and
-  `internalRoutes(...groups)` (Hono route groups under `/api/v1` and `/internal`) and
-  `sockets(resolver)` (a WebSocket endpoint). Each registration is removed when the plugin unloads;
-  the HTTP app is assembled again from the current route groups on the next request.
-- **Shared state.** `ServerContext` carries `config`, `db`, `hub`, `runners`, `kernel`, `log`, `now`
-  and the plugin queries, plus three services core plugins provide to each other, typed by
-  interfaces in `packages/server-kit/src/services.ts`: `ctx.threads` (set by `threads`),
-  `ctx.environments` (`environments`) and `ctx.terminals` (`terminals`). Each is a stable handle
-  that forwards to whichever implementation is loaded, so a reference taken before a reload keeps
-  working after it.
+- **Nothing beyond the plugin API.** A core plugin receives `bb` and nothing else. The host's
+  services are members of it for every plugin: `bb.db`, `bb.realtime`, `bb.runners`, `bb.config`,
+  `bb.now`, `bb.http.api(routes)` (Hono routes under `/api/v1` or `/internal`) and
+  `bb.http.socket(resolver)` (a WebSocket endpoint). Each registration is removed when the plugin
+  unloads; the HTTP app is assembled again from the current routes on the next request.
+- **Between core plugins.** There is no shared context object. `threads`, `environments`,
+  `terminals`, `sessions`, `projects`, `machines` and `identity` reach each other through
+  operations, events and services in `packages/plugin/src/core-contracts.ts` (and
+  `plugins/environments/contract.ts` for `environments.ensure`, whose types live in the kit). A
+  call from one plugin to another is recorded with the calling plugin in its chain; a plugin
+  calling its own operation adds nothing.
+- **What the host still does.** Loads plugins, stores their settings and tables, assembles HTTP and
+  sockets, writes the audit record, and turns operations into agent tools and CLI commands
+  (`plugins.agentTools`, `plugins.callAgentTool`). It asks `server.authenticator` (identity) who a
+  request is from and `machines.usable` (machines) whether the caller may use a machine.
 - **Machines a plugin makes.** `plugins/machines/provided.ts` implements `machines.enroll`
   (a host row in `creating` with `machine_provider_id` and `resource`, plus a join command),
   `waitConnected`, `update`, `suspend` and `resume` (through the `machines.provider` entry, setting
@@ -536,8 +541,9 @@ What core offers to plugins is `packages/plugin/src/core-contracts.ts`: `threads
 `get`, `list`, `output`, `events` and the lifecycle events), `sessions` (`instructions`, `env`, and
 the slots `provider`, `mention`, `inference`, `titleFallback`), `interactions`, `files`, `projects`,
 `machines` (`list`, the `access` service), `users`, `sections`, `environments.kind`,
-`server.publicUrl`, `plugins` (`inspect`, `install`, `uninstall`, `reload`), `audit.list`. Every
-`ctx.threads` write goes through its operation, so routes and plugins share one hook chain.
+`server.publicUrl`, `server.authenticator`, `plugins` (`inspect`, `install`, `uninstall`, `reload`,
+the agent-tool operations), `audit.list`. Every thread write goes through its operation, so routes
+and plugins share one hook chain.
 
 ### Plugin host (server)
 

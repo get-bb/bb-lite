@@ -684,8 +684,13 @@
                 Eleven core plugins in <code>plugins/</code> (identity,
                 settings, projects, machines, sessions, threads, environments,
                 terminals, workspace, interactions, audit log), loaded by the
-                same loader as add-ons. The server is a kernel, the loader and
-                the HTTP and socket shells.
+                same loader as add-ons and given the same <code>bb</code> and
+                nothing else. The database, realtime, runners, configuration and
+                route mounting are members of <code>bb</code> for every plugin,
+                and core plugins reach each other only through operations,
+                events and services. Sign-in is a service the identity plugin
+                provides. The server is a kernel, the loader and the HTTP and
+                socket shells.
               </td>
             </tr>
             <tr>
