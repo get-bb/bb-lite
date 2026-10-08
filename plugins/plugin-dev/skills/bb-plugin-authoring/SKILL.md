@@ -21,6 +21,12 @@ already running before you write anything.
    adds, and where it reaches outside bb (Node built-ins, network, environment variables).
 5. `bb audit list --plugin <id>` shows what the plugin did on someone's behalf.
 
+To change something bb already does instead of starting empty, copy it: `bb dev fork <id>` copies any
+built-in plugin (`bb plugin list` names them, core ones such as `threads`, `composer` and
+`thread-view` included) into `./<id>` and runs the copy in the original's place, reloading on save.
+`bb plugin remove <dir> --yes` brings the original back. `bb dev fork <id> --as <new-id>` makes a
+renamed copy that runs beside the original.
+
 ## The pieces
 
 - **Operation**: a named, typed function. `bb.implement(op, run)` makes this plugin its one
