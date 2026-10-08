@@ -45,7 +45,7 @@ import { useArchivedThreads } from "@bb/app-kit/hooks/queries/thread-queries";
 import {
   usePromptDraftHasInput,
   usePromptDraftInputThreadIds,
-} from "@bb/app-kit/hooks/usePromptDraftStorage";
+} from "bb-plugin-composer/contract";
 import { useSetRootComposeProjectId } from "@bb/app-kit/lib/root-compose-selection";
 import {
   getProjectComposeRoutePath,

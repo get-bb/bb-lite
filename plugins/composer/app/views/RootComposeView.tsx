@@ -31,7 +31,7 @@ import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useCreateThread } from "@bb/app-kit/hooks/mutations/thread-runtime-mutations";
 import { useQuickCreateProjectController } from "@bb/app-kit/hooks/useQuickCreateProject";
-import { useNavigateToThreadAfterCreatePreference } from "@bb/app-kit/lib/root-compose-create-preference";
+import { useNavigateToThreadAfterCreatePreference } from "../lib/root-compose-create-preference";
 import { getRootComposeRoutePath } from "@bb/app-kit/lib/route-paths";
 import { RootComposeCompactHome } from "./RootComposeCompactHome";
 import { RootComposeEmptyWelcome } from "./RootComposeEmptyWelcome";

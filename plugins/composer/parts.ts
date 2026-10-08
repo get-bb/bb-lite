@@ -25,3 +25,16 @@ export {
 export { ModelReasoningPicker } from "./app/components/pickers/ModelReasoningPicker";
 export { PermissionModePicker } from "./app/components/pickers/PermissionModePicker";
 export { useNewThreadComposer } from "./app/components/promptbox/NewThreadComposer";
+export { useComposer, useComposers } from "./app/lib/composers";
+export {
+  getPromptDraftAccessor,
+  usePromptDraftStorage,
+  usePromptDraftHasInput,
+  usePromptDraftInputThreadIds,
+} from "./app/hooks/usePromptDraftStorage";
+export { promptHistoryEntriesToDrafts } from "./app/lib/prompt-history";
+export {
+  registerPaneComposerFocus,
+  focusPaneComposer,
+} from "./app/lib/pane-composer-focus";
+export { useNavigateToThreadAfterCreatePreference } from "./app/lib/root-compose-create-preference";

@@ -60,14 +60,14 @@ import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";
 import { useUserDirectory } from "@bb/app-kit/hooks/queries/user-queries";
 import { isHostUsable } from "@bb/app-kit/lib/machine-access";
 import { useLocalHostId } from "@bb/app-kit/hooks/useOpenTargets";
-import { usePromptDraftStorage } from "@bb/app-kit/hooks/usePromptDraftStorage";
+import { usePromptDraftStorage } from "../../hooks/usePromptDraftStorage";
 import {
   storedEnvironmentAtomFamily,
   storedMachineAtomFamily,
 } from "../../hooks/thread-creation-options/persisted-selection-fields";
 import { useThreadCreationOptions } from "../../hooks/useThreadCreationOptions";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
-import { promptHistoryEntriesToDrafts } from "@bb/app-kit/lib/prompt-history";
+import { promptHistoryEntriesToDrafts } from "../../lib/prompt-history";
 import { useRootComposeReuseEnvironment } from "@bb/app-kit/lib/root-compose-selection";
 import {
   getProjectComposeRoutePath,

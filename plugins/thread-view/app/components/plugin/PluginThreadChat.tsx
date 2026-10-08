@@ -28,7 +28,7 @@ import {
   useThreadPendingInteractions,
 } from "@bb/app-kit/hooks/queries/thread-queries";
 import { useLocalHostId } from "@bb/app-kit/hooks/useOpenTargets";
-import { getPromptDraftAccessor } from "@bb/app-kit/hooks/usePromptDraftStorage";
+import { getPromptDraftAccessor } from "bb-plugin-composer/contract";
 import { useThreadReadTracking } from "../../hooks/useThreadReadTracking";
 import {
   findEnvironmentDisplayProvider,

@@ -18,6 +18,11 @@ import type * as ModelReasoningPickerModule from "./app/components/pickers/Model
 import type * as PermissionModePickerModule from "./app/components/pickers/PermissionModePicker";
 import type * as NewThreadComposerModule from "./app/components/promptbox/NewThreadComposer";
 
+import type * as ComposersModule from "./app/lib/composers";
+import type * as UsepromptdraftstorageModule from "./app/hooks/usePromptDraftStorage";
+import type * as PromptHistoryModule from "./app/lib/prompt-history";
+import type * as PaneComposerFocusModule from "./app/lib/pane-composer-focus";
+import type * as RootComposeCreatePreferenceModule from "./app/lib/root-compose-create-preference";
 export type { FollowUpPromptBoxProps } from "./app/components/promptbox/FollowUpPromptBox";
 export type {
   QueuedMessageEditRequest,
@@ -96,3 +101,36 @@ export const PermissionModePicker = part<
 export const useNewThreadComposer = callPart<
   typeof NewThreadComposerModule.useNewThreadComposer
 >("composer", "useNewThreadComposer");
+
+export const useComposer = callPart<typeof ComposersModule.useComposer>(
+  "composer",
+  "useComposer",
+);
+export const useComposers = callPart<typeof ComposersModule.useComposers>(
+  "composer",
+  "useComposers",
+);
+export const getPromptDraftAccessor = callPart<
+  typeof UsepromptdraftstorageModule.getPromptDraftAccessor
+>("composer", "getPromptDraftAccessor");
+export const usePromptDraftStorage = callPart<
+  typeof UsepromptdraftstorageModule.usePromptDraftStorage
+>("composer", "usePromptDraftStorage");
+export const usePromptDraftHasInput = callPart<
+  typeof UsepromptdraftstorageModule.usePromptDraftHasInput
+>("composer", "usePromptDraftHasInput");
+export const usePromptDraftInputThreadIds = callPart<
+  typeof UsepromptdraftstorageModule.usePromptDraftInputThreadIds
+>("composer", "usePromptDraftInputThreadIds");
+export const promptHistoryEntriesToDrafts = callPart<
+  typeof PromptHistoryModule.promptHistoryEntriesToDrafts
+>("composer", "promptHistoryEntriesToDrafts");
+export const registerPaneComposerFocus = callPart<
+  typeof PaneComposerFocusModule.registerPaneComposerFocus
+>("composer", "registerPaneComposerFocus");
+export const focusPaneComposer = callPart<
+  typeof PaneComposerFocusModule.focusPaneComposer
+>("composer", "focusPaneComposer");
+export const useNavigateToThreadAfterCreatePreference = callPart<
+  typeof RootComposeCreatePreferenceModule.useNavigateToThreadAfterCreatePreference
+>("composer", "useNavigateToThreadAfterCreatePreference");

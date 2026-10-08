@@ -58,7 +58,7 @@ import {
   localhostLinkRewriteDescription,
   useRewriteLocalhostLinksPreference,
 } from "@bb/app-kit/lib/localhost-link-rewrite-preference";
-import { useNavigateToThreadAfterCreatePreference } from "@bb/app-kit/lib/root-compose-create-preference";
+import { useNavigateToThreadAfterCreatePreference } from "bb-plugin-composer/contract";
 import { SETTINGS_ROUTE_PATH } from "@bb/app-kit/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@bb/app-kit/lib/split-layout/atoms";
 import {

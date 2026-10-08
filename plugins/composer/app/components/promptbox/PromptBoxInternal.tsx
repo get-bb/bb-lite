@@ -1,4 +1,4 @@
-import { registerPaneComposerFocus } from "@bb/app-kit/lib/pane-composer-focus";
+import { registerPaneComposerFocus } from "../../lib/pane-composer-focus";
 import type { PendingAttachmentUpload } from "./useDraftAttachmentUploads";
 import type {
   PromptMentionCommandTrigger,
@@ -72,7 +72,7 @@ import {
   composerSubmitted,
   onComposerSubmitted,
   showComposer,
-} from "@bb/app-kit/plugins/composers";
+} from "../../lib/composers";
 import { AttachmentPreview } from "./AttachmentPreview";
 import {
   ComposerBanners,

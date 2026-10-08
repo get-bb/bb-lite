@@ -50,7 +50,7 @@ import {
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
-import { useComposer, useComposers } from "@bb/app-kit/plugins/composers";
+import { useComposer, useComposers } from "bb-plugin-composer/contract";
 import {
   useThreadRowStatus,
   useThreadRowStatuses,

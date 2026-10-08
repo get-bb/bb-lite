@@ -1,7 +1,9 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
-import { definePluginApp, shell } from "@bb/plugin/app";
+import { definePluginApp, shell, type ComposerHandle } from "@bb/plugin/app";
+import { useComposers } from "bb-plugin-composer/contract";
+import * as composers from "../../../plugins/composer/app/lib/composers";
 import { appParts, callPart, part } from "@bb/app-kit/plugins/parts";
 import {
   registerPluginApp,
@@ -16,9 +18,10 @@ function provide(
   id: string,
   parts: Record<string, unknown>,
   tier?: "installed",
+  plugin = "greeter",
 ) {
   const app = definePluginApp((bb) => {
-    bb.add(appParts.parts, { plugin: "greeter", parts });
+    bb.add(appParts.parts, { plugin, parts });
   });
   expect(registerPluginApp(id, app, tier)).toBeNull();
 }
@@ -76,4 +79,31 @@ it("registers mount scripts and shell extras through the same slots", () => {
   expect(ran).toEqual(["mounted", "docs", "unmounted"]);
   unregisterPluginApp("extras");
   expect(slotItems(shell.mount)).toEqual([]);
+});
+
+it("gets the composers on screen from whichever plugin is the composer", () => {
+  function Keys() {
+    return useComposers()
+      .map(({ key }) => key)
+      .join(",");
+  }
+  const render = () => renderToStaticMarkup(createElement(Keys));
+  expect(render).toThrow("Nothing provides composer.useComposers");
+
+  const { useComposer, useComposers: listed, showComposer } = composers;
+  provide(
+    "composer",
+    { useComposer, useComposers: listed },
+    undefined,
+    "composer",
+  );
+  const handle = { key: "follow-up:thr_1" } as ComposerHandle;
+  const hide = showComposer(handle);
+  expect(render()).toBe("follow-up:thr_1");
+  hide();
+  expect(render()).toBe("");
+
+  const forked = () => [{ key: "from-a-fork" }];
+  provide("my-composer", { useComposers: forked }, "installed", "composer");
+  expect(render()).toBe("from-a-fork");
 });

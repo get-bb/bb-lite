@@ -29,7 +29,7 @@ import { OverflowFade } from "@bb/app-kit/components/ui/overflow-fade";
 import { useSystemEnvironmentProviders } from "@bb/app-kit/hooks/queries/environment-provider-queries";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
-import { usePromptDraftInputThreadIds } from "@bb/app-kit/hooks/usePromptDraftStorage";
+import { usePromptDraftInputThreadIds } from "../hooks/usePromptDraftStorage";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentLabelIconName,

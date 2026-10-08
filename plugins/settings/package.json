@@ -21,6 +21,7 @@
     "@bb/server-kit": "workspace:*",
     "@bb/shared-ui": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
+    "bb-plugin-composer": "workspace:*",
     "jotai": "^2.19.0",
     "nanoid": "^5.1.6",
     "react": "^19.0.0",

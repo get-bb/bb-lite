@@ -34,7 +34,7 @@ import {
   useThreadDetailBootstrap,
   useThreadPendingInteractions,
 } from "@bb/app-kit/hooks/queries/thread-queries";
-import { getPromptDraftAccessor } from "@bb/app-kit/hooks/usePromptDraftStorage";
+import { getPromptDraftAccessor } from "bb-plugin-composer/contract";
 import { ThreadGitActionDialog } from "../../components/dialogs/ThreadGitActionDialog";
 import { PageShell } from "@bb/app-kit/components/ui/page-shell";
 import { RouteLoadingSkeleton } from "@bb/app-kit/components/ui/route-loading-skeleton";

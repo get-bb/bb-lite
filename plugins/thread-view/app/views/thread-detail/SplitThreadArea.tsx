@@ -1,4 +1,4 @@
-import { focusPaneComposer } from "@bb/app-kit/lib/pane-composer-focus";
+import { focusPaneComposer } from "bb-plugin-composer/contract";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import {

@@ -55,7 +55,7 @@ import {
 } from "@bb/app-kit/lib/machine-access";
 import { useDraftAttachmentUploads } from "bb-plugin-composer/contract";
 import { usePromptTypeahead } from "bb-plugin-composer/contract";
-import { usePromptDraftStorage } from "@bb/app-kit/hooks/usePromptDraftStorage";
+import { usePromptDraftStorage } from "bb-plugin-composer/contract";
 import {
   useCreateThreadQueuedMessage,
   useDeleteThreadQueuedMessage,
@@ -72,7 +72,7 @@ import {
 import { useThreadDefaultExecutionOptions } from "../../hooks/queries/thread-default-execution-options-query";
 import { showMutationErrorToast } from "@bb/app-kit/lib/mutation-errors";
 import { BbHttpError } from "@bb/app-kit/lib/sdk";
-import { promptHistoryEntriesToDrafts } from "@bb/app-kit/lib/prompt-history";
+import { promptHistoryEntriesToDrafts } from "bb-plugin-composer/contract";
 import {
   FollowUpPromptBox,
   type FollowUpPromptBoxProps,
