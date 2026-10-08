@@ -12,7 +12,8 @@ import {
   plugins as hostOps,
 } from "@bb/plugin";
 import { createThreadRequestSchema } from "@bb/server-contract";
-import { expect, it } from "vitest";
+import { createRunnerPlugins } from "@bb/runner";
+import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { runAs } from "@bb/server-kit/auth/actor";
 import { insertRow } from "@bb/server-kit/db/index";
@@ -555,4 +556,67 @@ it("gives a plugin the full client, acting as whoever called it", async () => {
     outcome: "ok",
   });
   await host.stop();
+});
+
+it("names every core contract member after its export and by one set of verbs", async () => {
+  const server = await import("@bb/plugin");
+  const app = await import("@bb/plugin/app");
+  const exported = Object.entries({ ...server, ...app });
+  const kinds = ["op", "event", "slot", "live"];
+  type Member = { type: string; name: string };
+  const membersOf = (value: unknown): [string, Member][] => {
+    if (typeof value !== "object" || value === null) return [];
+    const entries = Object.entries(value as Record<string, Member>);
+    const isContract =
+      entries.length > 0 &&
+      entries.every(([, member]) => kinds.includes(member?.type));
+    return isContract ? entries : [];
+  };
+  const misnamed: string[] = [];
+  let checked = 0;
+  for (const [contractName, value] of exported) {
+    for (const [key, member] of membersOf(value)) {
+      checked += 1;
+      const expected = `${contractName}.${key}`;
+      if (member.name !== expected)
+        misnamed.push(`${member.name} is exported as ${expected}`);
+      const oldVerb = member.type === "op" && /^(remove|drop|edit)/u.test(key);
+      const noun = member.type === "event" && ["signal", "input"].includes(key);
+      if (oldVerb || noun)
+        misnamed.push(`${member.name} breaks the naming rule`);
+    }
+  }
+  expect(misnamed).toEqual([]);
+  expect(checked).toBeGreaterThan(120);
+});
+
+it("gives a runner part the same handle as the other parts", async () => {
+  const lines: string[] = [];
+  const runners = createRunnerPlugins({
+    dataDir: scratch(),
+    log: (line) => void lines.push(line),
+  });
+  const ran: string[] = [];
+  const part = contract("part", {
+    ping: op({ input: z.object({}), output: z.string() }),
+  });
+  runners.load({
+    id: "probe",
+    entry(bb) {
+      bb.implement(part.ping, () => `pong from ${bb.pluginId}`);
+      bb.log.info("loaded", { at: 1 });
+      bb.onStart(() => {
+        ran.push("started");
+        return () => void ran.push("stopped");
+      });
+      bb.onDispose(() => void ran.push("disposed"));
+    },
+  });
+  await vi.waitFor(() => expect(ran).toEqual(["started"]));
+  expect(await runners.callOp("part.ping", {})).toBe("pong from probe");
+  expect(lines).toContain('[probe] info: loaded {"at":1}');
+  runners.dispose();
+  await vi.waitFor(() =>
+    expect(ran).toEqual(["started", "stopped", "disposed"]),
+  );
 });

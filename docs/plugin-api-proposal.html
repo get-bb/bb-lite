@@ -721,6 +721,18 @@
               </td>
             </tr>
             <tr>
+              <td>One API on every side</td>
+              <td>Built</td>
+              <td>
+                A part is a plain function that takes <code>bb</code>. The
+                server, the app and each machine get the same handle shape, and
+                <code>bb</code> carries no feature shorthands: every slot is
+                filled with <code>bb.add</code>. A slot is declared where it is
+                read, operations share one set of verbs, and the rules are
+                listed at the top of <code>docs/plugin-api.md</code>.
+              </td>
+            </tr>
+            <tr>
               <td>Tooling</td>
               <td>Built</td>
               <td>
