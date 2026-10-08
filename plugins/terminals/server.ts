@@ -1,4 +1,4 @@
-import type { PluginServerApi } from "@bb/plugin";
+import { terminals as terminalOps, type PluginServerApi } from "@bb/plugin";
 import { terminalWebSocketQuerySchema } from "@bb/server-contract";
 import { getTerminal } from "@bb/server-kit/db/terminals";
 import { coreOf } from "@bb/server-kit/host";
@@ -8,6 +8,8 @@ import { registerTerminalRoutes } from "./routes.js";
 import {
   attachTerminalSocket,
   closeTerminalsFor,
+  requireTerminal,
+  resizeTerminal,
   startTerminalSessions,
 } from "./sessions.js";
 
@@ -19,6 +21,9 @@ export default function terminals(bb: PluginServerApi): void {
     closeFor: (owner, id, reason) => closeTerminalsFor(ctx, owner, id, reason),
   };
   routes(registerTerminalRoutes);
+  bb.implement(terminalOps.resize, async ({ terminalId, ...size }) => {
+    await resizeTerminal(ctx, requireTerminal(ctx, terminalId), size);
+  });
   sockets(({ url, actor }) => {
     const terminal = TERMINAL_PATH.exec(url.pathname);
     if (terminal === null) return null;

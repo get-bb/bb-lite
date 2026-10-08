@@ -3,7 +3,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { createBbSdk } from "../../../packages/sdk/src/core.js";
 import { expect, it, vi } from "vitest";
+import { methodsOf, pathFor } from "../port.js";
 import {
   commitAll,
   createProject,
@@ -12,6 +14,8 @@ import {
 } from "../../../apps/server/test/helpers.js";
 
 type Body = Record<string, unknown>;
+
+const HERE = fileURLToPath(new URL(".", import.meta.url));
 
 async function world() {
   const server = await createTestServer();
@@ -286,3 +290,63 @@ it("copies a plugin under a new id that runs beside the original", async () => {
   const invalid = await fork({ id: "audit", as: "Not Valid" });
   expect(invalid.message).toContain("lower-case");
 }, 120_000);
+
+it("reports what a plugin written for the original bb uses and what each call is now", async () => {
+  const { cli } = await world();
+  const directory = join(scratch(), "old-plugin");
+  mkdirSync(directory);
+  const themes = [{ id: "dusk", name: "Dusk", css: "./dusk.css" }];
+  const bb = { name: "Old", server: "./server.ts", app: "./app.tsx", themes };
+  const manifest = { name: "bb-plugin-old", engines: { bb: ">=0.1" }, bb };
+  writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+  const server = [
+    'import type { BbPluginApi } from "@get-bb/plugin-sdk";',
+    "export default async function plugin(bb: BbPluginApi) {",
+    '  bb.rpc.register("ping", async () => "pong");',
+    '  await bb.sdk.files.mkdir({ rootPath: "/tmp", path: "a" });',
+    '  await bb.sdk.environments.pullRequest({ environmentId: "env" });',
+    '  await bb.sdk.threads.paneAction({ threadId: "t", action: "x" });',
+    "}",
+  ];
+  writeFileSync(join(directory, "server.ts"), server.join("\n"));
+  const app = [
+    'import { definePluginApp, useComposer } from "@get-bb/plugin-sdk/app";',
+    "export default definePluginApp((bb) => {",
+    '  bb.slots.messageAction({ id: "copy", label: "Copy", run() {} });',
+    "});",
+    "export function Lock() {",
+    "  const composer = useComposer();",
+    '  composer?.setTextEffect({ className: "dim" });',
+    "  return null;",
+    "}",
+  ];
+  writeFileSync(join(directory, "app.tsx"), app.join("\n"));
+  const { stdout } = await cli("plugin-dev", ["port", directory]);
+  const section = (heading: string) => {
+    const from = stdout.indexOf(heading);
+    const rest = stdout.slice(from + heading.length);
+    const next = rest.search(/\n\S/u);
+    return from < 0 ? "" : rest.slice(0, next < 0 ? undefined : next);
+  };
+  const missing = section("No counterpart");
+  expect(missing).toContain("server.sdk.threads.paneAction");
+  const feature = section("Needs a feature this bb does not have");
+  expect(feature).toContain("server.sdk.environments.pullRequest");
+  expect(section("Renamed")).toContain("bb.call(files.mkdir");
+  expect(section("Renamed")).toContain("threadView.messageAction");
+  expect(section("Works differently")).toContain("server.rpc.register");
+  const unchanged = section("Unchanged");
+  expect(unchanged).toContain("manifest.themes");
+  expect(unchanged).toContain("app.useComposer.setTextEffect");
+});
+
+it("has a path for all but a known few of the original calls plugins use", async () => {
+  const text = readFileSync(join(HERE, "..", "old-sdk.json"), "utf8");
+  const used = JSON.parse(text) as { id: string }[];
+  const methods = methodsOf(createBbSdk({ baseUrl: "http://bb.test" }));
+  const none = used
+    .filter(({ id }) => pathFor(id, methods).status === "none")
+    .map(({ id }) => id);
+  expect(used.length).toBe(579);
+  expect(none).toEqual(["server.sdk.threads.paneAction"]);
+});

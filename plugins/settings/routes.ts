@@ -1,4 +1,5 @@
 import * as domain from "@bb/domain";
+import { appearance as appearanceSlots } from "@bb/plugin";
 import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
 import { viewerId } from "@bb/server-kit/auth/actor";
 import type { ServerContext } from "@bb/server-kit/context";
@@ -30,20 +31,6 @@ const DIRECT_ACCESS: ServerAccessStatus["providers"][number] = {
   pluginId: null,
   availability: null,
 };
-
-function builtInTheme(selection: domain.AppTheme): domain.AppTheme {
-  const { themeId, faviconColor } = selection;
-  const known = domain.isBuiltInThemeId(themeId);
-  return {
-    themeId: known ? themeId : domain.defaultAppTheme.themeId,
-    faviconColor,
-  };
-}
-
-function requireBuiltInTheme(themeId: string) {
-  if (domain.isBuiltInThemeId(themeId)) return;
-  throw new ApiError(404, "theme_not_found", `Unknown theme '${themeId}'.`);
-}
 
 function serverPlatform() {
   const { platform } = process;
@@ -100,6 +87,19 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   const { db, hub } = ctx;
   const personal = <T>(setting: store.Setting<T>) =>
     store.userSetting(setting, viewerId());
+  const themes = () =>
+    ctx.kernel.entries(appearanceSlots.theme).map(({ item }) => item);
+  const isKnownTheme = (themeId: string) =>
+    domain.isBuiltInThemeId(themeId) ||
+    themes().some(({ id }) => id === themeId);
+  const knownTheme = (selection: domain.AppTheme): domain.AppTheme => {
+    const { themeId, faviconColor } = selection;
+    const fallback = domain.defaultAppTheme.themeId;
+    return {
+      themeId: isKnownTheme(themeId) ? themeId : fallback,
+      faviconColor,
+    };
+  };
   const appearance = () =>
     store.readSetting(db, personal(store.appearanceSetting));
 
@@ -125,7 +125,8 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
       ),
       defaultKeybindings: DEFAULT_APP_KEYBINDINGS,
       keybindingOverrides,
-      appearance: builtInTheme(appearance()),
+      appearance: knownTheme(appearance()),
+      themes: themes(),
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
       primaryHostId: defaultHostId(ctx),
       primaryHostPlatform: serverPlatform(),
@@ -151,10 +152,13 @@ export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 
   put(routes.appearance, (c, selection) => {
-    requireBuiltInTheme(selection.themeId);
+    if (!isKnownTheme(selection.themeId)) {
+      const message = `Unknown theme '${selection.themeId}'.`;
+      throw new ApiError(404, "theme_not_found", message);
+    }
     store.writeSetting(db, personal(store.appearanceSetting), selection);
     hub.system(["config-changed"]);
-    return c.json(builtInTheme(selection));
+    return c.json(knownTheme(selection));
   });
 
   get(routes.uiPreferences, (c) =>

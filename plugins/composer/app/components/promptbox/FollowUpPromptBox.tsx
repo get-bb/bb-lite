@@ -481,6 +481,7 @@ function FollowUpPromptBoxWithComposer({
                   : undefined
               }
               composerScope={composerScope}
+              pickers={footerHost}
               footerStart={
                 <ComposerFooterControls
                   row="actions"

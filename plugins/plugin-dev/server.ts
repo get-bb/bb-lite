@@ -20,6 +20,7 @@ import {
   type PluginServerApi,
 } from "@bb/plugin";
 import { pluginDev } from "./contract.js";
+import { methodsOf, portReport } from "./port.js";
 import { templates } from "./templates.js";
 import { validatePlugin } from "./validate.js";
 
@@ -265,6 +266,10 @@ export default function plugin(bb: PluginServerApi): void {
   );
 
   bb.implement(pluginDev.validate, (input) => validatePlugin(located(input)));
+
+  bb.implement(pluginDev.port, (input) =>
+    portReport(located(input), methodsOf(bb.sdk)),
+  );
 
   bb.implement(pluginDev.scaffold, async ({ name, path, cwd }) => {
     if (!PLUGIN_ID.test(name)) {

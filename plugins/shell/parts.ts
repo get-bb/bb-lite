@@ -8,6 +8,7 @@ export {
   useSidebarThreadDraftIds,
   useSidebarThreadEntry,
   useSidebarThreadShortcut,
+  useSidebarNavigationSplit,
   useSidebarThreadSplit,
   useSidebarThreads,
 } from "./app/lib/plugin-sidebar-hooks";

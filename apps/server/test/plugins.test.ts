@@ -1,5 +1,6 @@
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   statSync,
@@ -10,8 +11,10 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import {
   contract,
+  files,
   op,
   sessions,
+  terminals,
   threads,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -80,7 +83,7 @@ async function serverWithEcho(directory = FIXTURE) {
       "SELECT value FROM plugin_kv WHERE plugin_id = 'echo' AND key = ?",
       key,
     )?.value;
-  return { ...server, configFile, request, send, answer, call, kv };
+  return { ...server, server, configFile, request, send, answer, call, kv };
 }
 
 it("loads the builtin table and the directories named in config.json", async () => {
@@ -469,4 +472,86 @@ it("lets a plugin hold a message until it releases the thread", async () => {
   });
   const where = await limiter.call(threads.storageLocation, { threadId: id });
   expect(where?.path.endsWith(id)).toBe(true);
+});
+
+it("offers the themes a plugin's manifest declares", async () => {
+  const directory = join(scratch(), "echo");
+  cpSync(FIXTURE, directory, { recursive: true });
+  const file = join(directory, "package.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as {
+    bb: Record<string, unknown>;
+  };
+  const codeTheme = { dark: "nord" };
+  const dusk = { id: "dusk", name: "Dusk", css: "./dusk.css", codeTheme };
+  manifest.bb.themes = [dusk];
+  writeFileSync(file, JSON.stringify(manifest));
+  writeFileSync(join(directory, "dusk.css"), ":root { --canvas: #111; }");
+  const started = await serverWithEcho(directory);
+  const { request, read, server, configFile, ctx } = started;
+  type Config = { themes: unknown[]; appearance: { themeId: string } };
+  const config = () => read<Config>("/system/config");
+  const cssUrl = "/api/v1/plugins/echo/themes/dusk.css";
+  const id = "plugin:echo:dusk";
+  const listed = { id, pluginId: "echo", name: "Dusk", cssUrl, codeTheme };
+  expect((await config()).themes).toEqual([{ ...listed, description: "" }]);
+  const css = await request("/echo/themes/dusk.css");
+  expect(css.response.headers.get("content-type")).toContain("text/css");
+  expect(css.text).toContain("--canvas: #111");
+  expect((await request("/echo/themes/dawn.css")).status).toBe(404);
+  const choose = (themeId: string) => {
+    const selection = { themeId, faviconColor: "default" };
+    return server.send("/settings/appearance", selection, "PUT");
+  };
+  expect((await choose("plugin:echo:dawn")).status).toBe(404);
+  expect((await choose(id)).status).toBe(200);
+  expect((await config()).appearance.themeId).toBe(id);
+  writeFileSync(configFile, JSON.stringify({ plugins: [] }));
+  await ctx.plugins.reload();
+  expect(await config()).toMatchObject({
+    themes: [],
+    appearance: { themeId: "default" },
+  });
+});
+
+it("lists, creates, moves and removes files in a thread's workspace", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const directory = join(ctx.config.dataDir, "repo");
+  mkdirSync(directory);
+  writeFileSync(join(directory, "notes.md"), "hello");
+  const project = await createProject(server, "echo", directory);
+  const spawned = await server.send("/threads", {
+    projectId: project.id,
+    origin: "app",
+    providerId: "echo",
+    input: [{ type: "text", text: "files" }],
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  const { id: threadId } = (await spawned.json()) as { id: string };
+  await vi.waitFor(async () => {
+    const reply = { output: "Response to: files" };
+    expect(await server.read(`/threads/${threadId}/output`)).toEqual(reply);
+  });
+  const plugin = ctx.kernel.scope("filer", "installed");
+  const names = async (path?: string) => {
+    const listed = await plugin.call(files.list, { threadId, path });
+    return listed.paths.map(({ name }) => name).sort();
+  };
+  expect(await names()).toEqual(["notes.md"]);
+  await plugin.call(files.mkdir, { threadId, path: "drafts/old" });
+  await plugin.call(files.move, {
+    threadId,
+    from: "notes.md",
+    to: "drafts/notes.md",
+  });
+  expect(await names("drafts")).toEqual(["notes.md"]);
+  expect(existsSync(join(directory, "drafts", "old"))).toBe(true);
+  const old = { threadId, path: "drafts/old" };
+  await plugin.call(files.remove, { ...old, recursive: true });
+  expect(existsSync(join(directory, "drafts", "old"))).toBe(false);
+  const missing = { terminalId: "term_missing", cols: 80, rows: 24 };
+  await expect(plugin.call(terminals.resize, missing)).rejects.toThrow(
+    "Terminal session not found",
+  );
 });

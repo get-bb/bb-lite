@@ -118,6 +118,7 @@ export const systemConfigResponseSchema = z.object({
   defaultKeybindings: domain.appDefaultKeybindingsSchema,
   keybindingOverrides: domain.appKeybindingOverridesSchema,
   appearance: domain.appThemeSchema,
+  themes: z.array(domain.pluginThemeSchema),
   featureFlags: domain.featureFlagsSchema,
   serverUrl: z.string().url(),
   primaryHostId: z.string().nullable(),

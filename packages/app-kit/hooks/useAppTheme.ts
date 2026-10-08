@@ -4,14 +4,18 @@ import {
   applyAppTheme,
   getAppThemeEpoch,
   previewAppTheme,
+  setPluginThemes,
   subscribeAppThemeChange,
 } from "../lib/themes";
 
 export function useAppTheme(): void {
-  const themeId = useSystemConfig().data?.appearance.themeId;
+  const config = useSystemConfig().data;
+  const themeId = config?.appearance.themeId;
+  const themes = config?.themes;
   useLayoutEffect(() => {
+    if (themes !== undefined) setPluginThemes(themes);
     if (themeId !== undefined) applyAppTheme(themeId);
-  }, [themeId]);
+  }, [themeId, themes]);
 }
 
 export function useAppThemeEpoch(): number {

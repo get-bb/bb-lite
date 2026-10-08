@@ -31,6 +31,9 @@ export const useSidebarThreadEntry = callPart<
 export const useSidebarThreadShortcut = callPart<
   typeof PluginSidebarHooksModule.useSidebarThreadShortcut
 >("shell", "useSidebarThreadShortcut");
+export const useSidebarNavigationSplit = callPart<
+  typeof PluginSidebarHooksModule.useSidebarNavigationSplit
+>("shell", "useSidebarNavigationSplit");
 export const useSidebarThreadSplit = callPart<
   typeof PluginSidebarHooksModule.useSidebarThreadSplit
 >("shell", "useSidebarThreadSplit");

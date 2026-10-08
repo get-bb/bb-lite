@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./workspace-types.js";
 export { createWorkspaceApi } from "./workspace/index.js";
+export { killProcessesWithCwdUnder } from "./workspace/worktrees.js";
 export * from "./events/event-builder.js";
 export * from "./sessions/agent-env.js";
 export { Outbox } from "./sessions/outbox.js";

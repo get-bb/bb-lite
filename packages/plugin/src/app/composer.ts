@@ -1,5 +1,23 @@
+import type { PermissionMode, ReasoningLevel, ServiceTier } from "@bb/domain";
 import type { ComponentType } from "react";
 import { contract, slot } from "../contract.js";
+
+export interface ComposerSelection {
+  providerId?: string;
+  model?: string;
+  reasoningLevel?: ReasoningLevel;
+  serviceTier?: ServiceTier;
+  permissionMode?: PermissionMode;
+}
+
+export interface ComposerTextEffect {
+  id: string;
+  className: string;
+  match(
+    text: string,
+    run: { offset: number },
+  ): readonly { from: number; to: number }[];
+}
 
 export interface ComposerHandle {
   readonly key: string;
@@ -9,6 +27,13 @@ export interface ComposerHandle {
   readonly text: string;
   readonly isEmpty: boolean;
   readonly isRunning: boolean;
+  readonly isSubmittingBlocked: boolean;
+  readonly submittingBlockedReason: string | null;
+  readonly attachmentCount: number;
+  readonly layout: "expanded" | "compact";
+  readonly selection: ComposerSelection | null;
+  setSelection(selection: ComposerSelection): void;
+  setTextEffect(effect: { className: string } | null): void;
   setText(text: string): void;
   updateText(update: (current: string) => string): void;
   insert(text: string): void;
@@ -91,4 +116,5 @@ export const composer = contract("composer", {
   sendMenuItem: slot<ComposerSendMenuItem>({ key: "id" }),
   environmentInputs: slot<EnvironmentInputsForm>({ key: "kind" }),
   banner: slot<ComposerBanner>(),
+  textEffect: slot<ComposerTextEffect>({ key: "id" }),
 });

@@ -60,6 +60,48 @@ export function printReport(report: Report): string {
   return [...head, ...body, ...problems].join("\n");
 }
 
+export const portStatusSchema = z.enum([
+  "same",
+  "renamed",
+  "changed",
+  "feature",
+  "none",
+]);
+export type PortStatus = z.infer<typeof portStatusSchema>;
+
+export const portFindingSchema = z.object({
+  id: z.string(),
+  status: portStatusSchema,
+  now: z.string(),
+});
+export type PortFinding = z.infer<typeof portFindingSchema>;
+
+const PORT_HEADINGS: [PortStatus, string][] = [
+  ["none", "No counterpart"],
+  ["feature", "Needs a feature this bb does not have"],
+  ["changed", "Works differently"],
+  ["renamed", "Renamed"],
+  ["same", "Unchanged"],
+];
+
+export function printPortReport(findings: readonly PortFinding[]): string {
+  if (findings.length === 0) {
+    return "No use of the original bb plugin SDK found.";
+  }
+  const lines: string[] = [];
+  for (const [status, heading] of PORT_HEADINGS) {
+    const group = findings.filter((finding) => finding.status === status);
+    if (group.length === 0) continue;
+    lines.push(`${heading} (${group.length})`);
+    if (status === "same") {
+      lines.push(`  ${group.map(({ id }) => id).join(", ")}`);
+    } else {
+      for (const { id, now } of group) lines.push(`  ${id}\n    ${now}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 export const pluginDev = contract("plugin-dev", {
   inspect: op({
     input: z.object({
@@ -86,6 +128,19 @@ export const pluginDev = contract("plugin-dev", {
         summary: "Check a plugin directory and list what it touches",
         positionals: ["path"],
         print: printReport,
+      },
+    },
+  }),
+  port: op({
+    input: z.object(located),
+    output: z.array(portFindingSchema),
+    doors: {
+      cli: {
+        path: "dev port",
+        summary:
+          "List what a plugin written for the original bb uses and what each call is now",
+        positionals: ["path"],
+        print: printPortReport,
       },
     },
   }),

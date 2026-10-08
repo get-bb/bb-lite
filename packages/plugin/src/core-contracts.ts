@@ -303,6 +303,46 @@ export const files = contract("files", {
     secret: ["content"],
     internal: true,
   }),
+  list: op({
+    input: z.object({
+      threadId: z.string(),
+      path: z.string().optional(),
+      query: z.string().optional(),
+      limit: z.number().int().positive().max(5_000).default(1_000),
+      directories: z.boolean().default(false),
+    }),
+    output: z.object({
+      paths: z.array(z.object({ path: z.string(), name: z.string() })),
+      truncated: z.boolean(),
+    }),
+    internal: true,
+  }),
+  mkdir: op({
+    input: z.object({ threadId: z.string(), path: z.string() }),
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  remove: op({
+    input: z.object({
+      threadId: z.string(),
+      path: z.string(),
+      recursive: z.boolean().default(false),
+    }),
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  move: op({
+    input: z.object({
+      threadId: z.string(),
+      from: z.string(),
+      to: z.string(),
+    }),
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
 });
 
 export interface ProjectTableRow {
@@ -456,6 +496,16 @@ export const plugins = contract("plugins", {
 });
 
 export const terminals = contract("terminals", {
+  resize: op({
+    input: z.object({
+      terminalId: z.string(),
+      cols: z.number().int().positive(),
+      rows: z.number().int().positive(),
+    }),
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
   input: event(
     z.object({
       terminalId: z.string(),
@@ -463,6 +513,10 @@ export const terminals = contract("terminals", {
       threadId: z.string().nullable(),
     }),
   ),
+});
+
+export const appearance = contract("appearance", {
+  theme: slot<Domain.PluginTheme>({ key: "id" }),
 });
 
 export const server = contract("server", {

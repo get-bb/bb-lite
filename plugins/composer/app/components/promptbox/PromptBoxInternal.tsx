@@ -62,7 +62,11 @@ import {
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type { ComposerContext, ComposerHandle } from "@bb/plugin/app";
+import type {
+  ComposerContext,
+  ComposerHandle,
+  ComposerSelection,
+} from "@bb/plugin/app";
 import {
   BoundComposer,
   composerSubmitted,
@@ -73,6 +77,7 @@ import { AttachmentPreview } from "./AttachmentPreview";
 import {
   ComposerBanners,
   composerKeyOf,
+  type ComposerFooterHost,
   type ComposerMenuHost,
   type ComposerScope,
   type ComposerSendHost,
@@ -226,6 +231,7 @@ interface PromptBoxInternalProps {
   autoFocus?: boolean;
   footerStart?: ReactNode;
   composerScope: ComposerScope;
+  pickers?: Pick<ComposerFooterHost, "model" | "permission">;
   submission?: PromptBoxSubmissionConfig;
   minHeight?: number;
   typeahead: TypeaheadConfig;
@@ -708,6 +714,7 @@ export function PromptBoxInternal({
   autoFocus = true,
   footerStart,
   composerScope,
+  pickers,
   submission = {},
   minHeight = PROMPTBOX_MIN_HEIGHT,
   typeahead,
@@ -1443,10 +1450,71 @@ export function PromptBoxInternal({
   };
   const attachmentUploadTitle = "Uploading attachments...";
 
-  const composerLatest = useRef({ value, onChange, editor, submitPrompt });
+  const [textEffect, setTextEffect] = useState<string | null>(null);
+  const pickedProviderId = pickers?.model.provider.selectedId;
+  const pickedModel = pickers?.model.model.selected;
+  const pickedReasoning = pickers?.model.reasoning.value;
+  const pickedTier = pickers?.model.serviceTier?.value;
+  const pickedPermission = pickers?.permission.value;
+  const hasPickers = pickers !== undefined;
+  const selection = useMemo<ComposerSelection | null>(
+    () =>
+      hasPickers
+        ? {
+            providerId: pickedProviderId,
+            model: pickedModel,
+            reasoningLevel: pickedReasoning,
+            serviceTier: pickedTier,
+            permissionMode: pickedPermission,
+          }
+        : null,
+    [
+      hasPickers,
+      pickedProviderId,
+      pickedModel,
+      pickedReasoning,
+      pickedTier,
+      pickedPermission,
+    ],
+  );
+  const pendingSelection = useRef<ComposerSelection | null>(null);
+  const applySelection = (next: ComposerSelection) => {
+    if (pickers === undefined) return;
+    const { model, permission } = pickers;
+    const { providerId } = next;
+    if (providerId !== undefined && providerId !== pickedProviderId) {
+      const listed = model.provider.options?.some(
+        (option) => option.value === providerId,
+      );
+      if (listed !== true) return;
+      pendingSelection.current = next;
+      model.provider.onChange?.(providerId);
+      return;
+    }
+    pendingSelection.current = null;
+    if (next.model !== undefined) model.model.onChange(next.model);
+    if (next.reasoningLevel !== undefined) {
+      model.reasoning.onChange(next.reasoningLevel);
+    }
+    if (next.serviceTier !== undefined && model.serviceTier?.supported) {
+      model.serviceTier.onChange(next.serviceTier);
+    }
+    if (next.permissionMode !== undefined && permission.supported) {
+      permission.onChange(next.permissionMode);
+    }
+  };
+  const composerNow = { value, onChange, editor, submitPrompt, applySelection };
+  const composerLatest = useRef(composerNow);
   useLayoutEffect(() => {
-    composerLatest.current = { value, onChange, editor, submitPrompt };
+    composerLatest.current = composerNow;
   });
+  useEffect(() => {
+    const pending = pendingSelection.current;
+    if (pending === null || pending.providerId !== pickedProviderId) return;
+    composerLatest.current.applySelection(pending);
+  }, [pickedProviderId]);
+  const blockedReason = canSubmit ? null : (submitDisabledReason ?? null);
+  const attachmentCount = attachments.length;
   const { surface, threadId: composerThreadId, projectId } = composerScope;
   const composerKey = composerKeyOf(composerScope);
   const composerHandle = useMemo<ComposerHandle>(() => {
@@ -1460,6 +1528,13 @@ export function PromptBoxInternal({
       text: value,
       isEmpty: value.trim() === "",
       isRunning,
+      isSubmittingBlocked: !canSubmit,
+      submittingBlockedReason: blockedReason,
+      attachmentCount,
+      layout: showCompactLayout ? "compact" : "expanded",
+      selection,
+      setSelection: (next) => now().applySelection(next),
+      setTextEffect: (effect) => setTextEffect(effect?.className ?? null),
       setText,
       updateText: (update) => setText(update(now().value)),
       insert(text) {
@@ -1492,7 +1567,19 @@ export function PromptBoxInternal({
       submit: () => now().submitPrompt(),
       onSubmitted: (listener) => onComposerSubmitted(composerKey, listener),
     };
-  }, [composerKey, surface, composerThreadId, projectId, value, isRunning]);
+  }, [
+    composerKey,
+    surface,
+    composerThreadId,
+    projectId,
+    value,
+    isRunning,
+    canSubmit,
+    blockedReason,
+    attachmentCount,
+    showCompactLayout,
+    selection,
+  ]);
   useEffect(() => showComposer(composerHandle), [composerHandle]);
   const menuHost: ComposerMenuHost = {
     attach: onAttachFiles
@@ -1619,6 +1706,7 @@ export function PromptBoxInternal({
                     }
                     className={cn(
                       "h-full min-h-full",
+                      textEffect,
                       showCompactLayout && "flex items-center",
                       EDITOR_CONTENT_CLASS,
                     )}

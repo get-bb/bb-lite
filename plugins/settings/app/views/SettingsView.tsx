@@ -9,6 +9,7 @@ import {
   managedBranchPrefixSchema,
   type AppSettings,
   type AppTheme,
+  type PluginTheme,
   type FaviconColorPreference,
 } from "@bb/domain";
 import { Input } from "@bb/shared-ui/input";
@@ -222,9 +223,11 @@ function ProviderChoice({
 
 function AppearanceSettingsSection({
   appearance,
+  themes,
   disabled,
 }: {
   appearance: AppTheme;
+  themes: readonly PluginTheme[];
   disabled: boolean;
 }) {
   const themePreference = useThemePreference();
@@ -235,10 +238,12 @@ function AppearanceSettingsSection({
   );
   const slots = usePluginSlots();
   const paletteSelectedRef = useRef(false);
-  const palettes = builtInThemes.map((entry) => ({
+  const palettes = [...builtInThemes, ...themes].map((entry) => ({
     value: entry.id,
     content: entry.name,
   }));
+  const paletteName = (themeId: string) =>
+    palettes.find((entry) => entry.value === themeId)?.content ?? themeId;
   const providerChoices: ProviderChoiceProps[] = [
     {
       label: "Sidebar",
@@ -285,8 +290,7 @@ function AppearanceSettingsSection({
             disabled={pending}
             trigger={
               <span className="min-w-0 truncate">
-                {builtInThemes.find((entry) => entry.id === appearance.themeId)
-                  ?.name ?? appearance.themeId}
+                {paletteName(appearance.themeId)}
               </span>
             }
             value={appearance.themeId}
@@ -497,6 +501,7 @@ export function AppearanceSettingsPage() {
   return (
     <AppearanceSettingsSection
       appearance={config?.appearance ?? defaultAppTheme}
+      themes={config?.themes ?? []}
       disabled={config === undefined}
     />
   );

@@ -17,6 +17,25 @@ const packageSchema = z.object({
     requires: z.array(z.string().min(1)).default([]),
     forkOf: z.string().min(1).optional(),
     skills: z.array(z.string().min(1)).default([]),
+    themes: z
+      .array(
+        z.object({
+          id: z
+            .string()
+            .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u)
+            .max(64),
+          name: z.string().min(1),
+          description: z.string().default(""),
+          css: z.string().min(1),
+          codeTheme: z
+            .object({
+              dark: z.string().optional(),
+              light: z.string().optional(),
+            })
+            .optional(),
+        }),
+      )
+      .default([]),
   }),
 });
 
@@ -44,6 +63,15 @@ export interface PluginManifest {
   requires: string[];
   forkOf: string | null;
   skillDirs: string[];
+  themes: ManifestTheme[];
+}
+
+export interface ManifestTheme {
+  id: string;
+  name: string;
+  description: string;
+  cssFile: string;
+  codeTheme: { dark?: string; light?: string } | null;
 }
 
 export function resolveInside(directory: string, path: string): string | null {
@@ -73,6 +101,11 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     requires: bb.requires,
     forkOf: bb.forkOf ?? null,
     skillDirs: bb.skills.map(inside),
+    themes: bb.themes.map(({ css, codeTheme = null, ...theme }) => ({
+      ...theme,
+      cssFile: inside(css),
+      codeTheme,
+    })),
   };
 }
 

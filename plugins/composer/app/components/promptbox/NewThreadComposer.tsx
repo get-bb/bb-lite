@@ -626,6 +626,7 @@ export function useNewThreadComposer({
               : "Ask anything. @ to mention files, folders, or sections"
           }
           composerScope={composerScope}
+          pickers={footerHost}
           footerStart={
             <ComposerFooterControls
               row="actions"

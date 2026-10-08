@@ -96,6 +96,7 @@ export interface PluginAppHost {
   }): T.PluginSidebarThreadsState;
   useSidebarThreadActions(): T.PluginSidebarThreadActions;
   useSidebarThreadSplit(threadId: string): T.PluginSidebarThreadSplit;
+  useSidebarNavigationSplit(itemId: string): T.PluginSidebarThreadSplit;
   useSidebarThreadDraft(threadId: string): T.PluginSidebarThreadDraftState;
   useSidebarThreadDraftIds(): ReadonlySet<string>;
   useSidebarThreadRowStatus(
@@ -173,6 +174,7 @@ export const useBbNavigate = hook("useBbNavigate");
 export const useSidebarThreads = hook("useSidebarThreads");
 export const useSidebarThreadActions = hook("useSidebarThreadActions");
 export const useSidebarThreadSplit = hook("useSidebarThreadSplit");
+export const useSidebarNavigationSplit = hook("useSidebarNavigationSplit");
 export const useSidebarThreadDraft = hook("useSidebarThreadDraft");
 export const useSidebarThreadDraftIds = hook("useSidebarThreadDraftIds");
 export const useSidebarThreadRowStatus = hook("useSidebarThreadRowStatus");

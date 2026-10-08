@@ -185,6 +185,16 @@ export function registerPluginRoutes(app: ApiApp, shared: ServerContext): void {
     });
   });
 
+  app.get("/plugins/:id/themes/:theme", async (c) => {
+    const { themes } = plugins.record(c.req.param("id")).manifest;
+    const wanted = c.req.param("theme");
+    const theme = themes.find(({ id }) => `${id}.css` === wanted);
+    const content = await readFile(theme?.cssFile ?? "").catch(() => null);
+    if (content === null) throw notFound();
+    const headers = { "content-type": "text/css", "cache-control": "no-cache" };
+    return c.body(new Uint8Array(content), 200, headers);
+  });
+
   app.get("/plugins/:id/assets/*", async (c) => {
     const id = c.req.param("id");
     const { directory } = plugins.record(id).manifest;
