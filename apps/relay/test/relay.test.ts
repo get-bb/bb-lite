@@ -16,6 +16,7 @@ import {
   TestSocket,
   type Json,
 } from "../../server/test/helpers.js";
+import { relayAccounts } from "../../tunnel/src/relay-accounts.js";
 import { startTunnel } from "../../tunnel/src/tunnel.js";
 
 type Init = { method?: string; json?: unknown; form?: Json; headers?: Json };
@@ -910,8 +911,10 @@ it.skipIf(FRP_BIN === undefined)(
         const tunnel = await startTunnel({
           baseHost: `fly.${BASE}:${web}`,
           secure: false,
-          relayUrl: relay.apex,
-          relaySecret: secret,
+          accounts: relayAccounts({
+            relayUrl: relay.apex,
+            relaySecret: secret,
+          }),
           frps: join(bin, "frps"),
           bindHost: "127.0.0.1",
           ports: { web, frp, vhost, hooks },

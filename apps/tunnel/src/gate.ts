@@ -1,40 +1,25 @@
 import * as http from "node:http";
 import type { Duplex } from "node:stream";
+import {
+  header,
+  plain,
+  type Accounts,
+  type Admitted,
+  type Refusal,
+} from "./accounts.js";
 
 export interface GateOptions {
   baseHost: string;
   secure: boolean;
-  relayUrl: string;
-  relaySecret: string;
+  accounts: Accounts;
   upstream: { host: string; port: number };
   log(message: string): void;
-  cacheMs?: number;
   headTimeoutMs?: number;
-}
-
-interface Visitor {
-  id: string;
-  name: string;
-  email: string | null;
-  avatarUrl: string | null;
-}
-
-interface Resolution {
-  server: { id: string; label: string; ownerId: string } | null;
-  address?: string;
-  user?: Visitor | null;
-  linked?: boolean;
-  machineId?: string | null;
-}
-
-interface Refusal {
-  status: number;
-  headers: Record<string, string>;
-  body: string;
 }
 
 interface Admission {
   headers: http.OutgoingHttpHeaders;
+  responseHeaders: Record<string, string>;
 }
 
 interface PluginCall {
@@ -49,214 +34,104 @@ interface PluginCall {
   };
 }
 
-const SESSION_COOKIE = "bbr_session";
-const MACHINE_HEADER = "x-bb-connect-machine";
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/u;
-const MACHINE_PATH = /^\/(internal(\/|$)|api\/v1(\/|$))/u;
-const STRIPPED_HEADERS = /^(x-bb-gate-.*|x-bb-via-tunnel|x-relay-.*)$/u;
+const SHARE = /^(.+)--(\d{1,5})$/u;
 const HOP_HEADERS =
   /^(connection|keep-alive|proxy-connection|transfer-encoding|upgrade)$/iu;
-const RESERVED_COOKIE = /^(__(host|secure)-)?bbr_/iu;
 const COOKIE_DOMAIN = /;\s*domain\s*(?:=|;|$)/iu;
 const COMBINED_COOKIES = /,\s*[^\s;=,]+=/u;
-const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
-const DEFAULT_CACHE_MS = 60_000;
-const MISS_CACHE_MS = 5_000;
-const CACHE_LIMIT = 20_000;
 const DEFAULT_HEAD_TIMEOUT_MS = 120_000;
 const OFFLINE = "This bb server is not connected right now.\n";
 
-function header(request: http.IncomingMessage, name: string) {
-  const value = request.headers[name];
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function readCookie(cookies: string, name: string): string | null {
-  for (const pair of cookies.split(";")) {
-    const separator = pair.indexOf("=");
-    if (separator < 0 || pair.slice(0, separator).trim() !== name) continue;
-    return pair.slice(separator + 1).trim();
-  }
-  return null;
-}
-
-function withoutRelayCookies(cookies: string) {
-  const kept = cookies.split(";").filter((pair) => {
-    const [key = ""] = pair.split("=");
-    return key.trim() !== "" && !RESERVED_COOKIE.test(key.trim());
-  });
-  return kept.map((pair) => pair.trim()).join("; ");
-}
-
-function isRelayCookie(cookie: string): boolean {
-  const [name = ""] = cookie.split("=");
-  if (RESERVED_COOKIE.test(name.trim())) return true;
-  return COOKIE_DOMAIN.test(cookie) || COMBINED_COOKIES.test(cookie);
-}
-
-function plain(status: number, body: string): Refusal {
-  const headers = { "content-type": "text/plain; charset=utf-8" };
-  return { status, headers, body };
-}
-
-function refuse(status: number, code: string, message: string): Refusal {
-  const headers = {
-    "content-type": "application/json",
-    "cache-control": "no-store",
-  };
-  return { status, headers, body: JSON.stringify({ code, message }) };
-}
-
-function relayedHeaders(upstream: http.IncomingMessage): string[] {
-  const raw = upstream.rawHeaders;
-  const kept: string[] = [];
-  for (let index = 0; index + 1 < raw.length; index += 2) {
-    const name = raw[index] ?? "";
-    const value = raw[index + 1] ?? "";
-    const cookie = name.toLowerCase() === "set-cookie";
-    if (HOP_HEADERS.test(name) || (cookie && isRelayCookie(value))) continue;
-    kept.push(name, value);
-  }
-  return kept;
-}
-
 export function createGate(options: GateOptions) {
-  const { baseHost, upstream, log } = options;
+  const { accounts, baseHost, upstream, log } = options;
   const [subdomainHost = baseHost] = baseHost.split(":");
   const scheme = options.secure ? "https" : "http";
-  const cacheMs = options.cacheMs ?? DEFAULT_CACHE_MS;
   const headTimeoutMs = options.headTimeoutMs ?? DEFAULT_HEAD_TIMEOUT_MS;
   const agent = new http.Agent({ keepAlive: true, maxSockets: Infinity });
-  const known = new Map<
-    string,
-    { until: number; found: Promise<Resolution> }
-  >();
   const online = new Map<string, Set<string>>();
 
-  function labelOf(host: string | undefined): string | null {
+  function addressOf(host: string | undefined) {
     const name = host?.toLowerCase() ?? "";
     if (!name.endsWith(`.${baseHost}`)) return null;
-    const label = name.slice(0, -baseHost.length - 1);
-    return LABEL.test(label) && !label.includes("--") ? label : null;
+    const first = name.slice(0, -baseHost.length - 1);
+    const share = SHARE.exec(first);
+    const [label = first, target = null] = share === null ? [] : share.slice(1);
+    if (!LABEL.test(label) || label.includes("--")) return null;
+    return target !== null && !accounts.shares ? null : { label, target };
   }
 
-  async function ask(body: Record<string, string>): Promise<Resolution> {
-    const response = await fetch(`${options.relayUrl}/api/gate/resolve`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${options.relaySecret}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
+  function withoutPlatformCookies(cookies: string) {
+    const kept = cookies.split(";").filter((pair) => {
+      const [key = ""] = pair.split("=");
+      return key.trim() !== "" && !accounts.isPlatformCookie(key.trim());
     });
-    if (!response.ok) throw new Error(`the relay answered ${response.status}`);
-    return (await response.json()) as Resolution;
+    return kept.map((pair) => pair.trim()).join("; ");
   }
 
-  function resolve(body: Record<string, string>): Promise<Resolution> {
-    const key = JSON.stringify(body);
-    const now = Date.now();
-    const cached = known.get(key);
-    if (cached !== undefined && cached.until > now) return cached.found;
-    if (known.size > CACHE_LIMIT) known.clear();
-    const found = ask(body);
-    const entry = { until: now + cacheMs, found };
-    known.set(key, entry);
-    found.then(
-      (resolution) => {
-        const missed = resolution.server === null || resolution.user === null;
-        if (missed) entry.until = now + Math.min(cacheMs, MISS_CACHE_MS);
-      },
-      () => known.delete(key),
-    );
-    return found;
+  function isPlatformSetCookie(cookie: string): boolean {
+    const [name = ""] = cookie.split("=");
+    if (accounts.isPlatformCookie(name.trim())) return true;
+    return COOKIE_DOMAIN.test(cookie) || COMBINED_COOKIES.test(cookie);
+  }
+
+  function relayedHeaders(
+    answer: http.IncomingMessage,
+    replaced: Record<string, string> = {},
+  ): string[] {
+    const raw = answer.rawHeaders;
+    const kept: string[] = [];
+    for (let index = 0; index + 1 < raw.length; index += 2) {
+      const name = raw[index] ?? "";
+      const value = raw[index + 1] ?? "";
+      const lower = name.toLowerCase();
+      if (HOP_HEADERS.test(name) || lower in replaced) continue;
+      if (lower === "set-cookie" && isPlatformSetCookie(value)) continue;
+      kept.push(name, value);
+    }
+    return [...kept, ...Object.entries(replaced).flat()];
   }
 
   function forwarded(
     request: http.IncomingMessage,
     label: string,
-    address: string,
-    identity: Record<string, string>,
+    own: string,
+    admitted: Admitted,
   ): http.OutgoingHttpHeaders {
     const headers: http.OutgoingHttpHeaders = {};
     for (const [name, value] of Object.entries(request.headers)) {
       if (value === undefined || HOP_HEADERS.test(name)) continue;
-      if (STRIPPED_HEADERS.test(name) || name === MACHINE_HEADER) continue;
+      if (accounts.isPrivateHeader(name)) continue;
       headers[name] = value;
     }
-    const cookies = withoutRelayCookies(header(request, "cookie") ?? "");
+    const cookies = withoutPlatformCookies(header(request, "cookie") ?? "");
     if (cookies === "") delete headers.cookie;
     else headers.cookie = cookies;
-    if (headers.origin !== undefined) headers.origin = new URL(address).origin;
+    if (headers.origin === own) {
+      headers.origin = new URL(admitted.address).origin;
+    }
     headers.host = `${label}.${subdomainHost}`;
-    return { ...headers, ...identity };
+    return { ...headers, ...admitted.identity };
   }
 
   async function admit(
     request: http.IncomingMessage,
   ): Promise<Refusal | Admission> {
     const host = header(request, "host");
-    const label = labelOf(host);
+    const address = addressOf(host);
+    if (address === null) return plain(404, "This is not a bb-next address.\n");
+    const { label, target } = address;
     const path = request.url ?? "/";
     const method = request.method ?? "GET";
-    if (label === null) return plain(404, "This is not a bb-next address.\n");
-    const machine = header(request, MACHINE_HEADER);
-    const cookies = header(request, "cookie") ?? "";
-    const session = readCookie(cookies, SESSION_COOKIE);
-    const byMachine = MACHINE_PATH.test(path) && machine !== undefined;
-    const credential: Record<string, string> = byMachine
-      ? { machine }
-      : session === null
-        ? {}
-        : { session };
-    const found = await resolve({ label, ...credential });
-    const { server, address } = found;
-    if (server === null || address === undefined) {
-      return plain(404, "Nothing is linked to this address.\n");
-    }
-    const identity: Record<string, string> = {};
-    if (byMachine) {
-      if (found.machineId == null) {
-        return refuse(403, "forbidden", "This machine is not authorized here");
-      }
-      identity["x-bb-gate-auth"] = "machine";
-      identity["x-bb-gate-machine-id"] = found.machineId;
-    } else {
-      if (path.startsWith("/internal")) {
-        return refuse(403, "forbidden", "This machine is not authorized here");
-      }
-      const user = found.user ?? null;
-      const own = `${scheme}://${host}`;
-      if (user === null) {
-        const accept = header(request, "accept") ?? "";
-        if (method !== "GET" || !accept.includes("text/html")) {
-          return refuse(401, "unauthenticated", "Sign in to the relay first");
-        }
-        const next = encodeURIComponent(`${own}${path}`);
-        const location = `${options.relayUrl}/login?next=${next}`;
-        return { status: 302, headers: { location }, body: "" };
-      }
-      const origin = header(request, "origin");
-      const upgrade = header(request, "upgrade") !== undefined;
-      const guarded = !READ_METHODS.includes(method) || upgrade;
-      if (origin !== undefined && guarded && origin !== own) {
-        const message = "This request came from another site";
-        return refuse(403, "forbidden_origin", message);
-      }
-      identity["x-bb-gate-auth"] = "session";
-      identity["x-bb-gate-user-id"] = user.id;
-      identity["x-bb-gate-user-name"] = encodeURIComponent(user.name);
-      identity["x-bb-gate-owner"] = user.id === server.ownerId ? "1" : "0";
-      if (user.email !== null) {
-        identity["x-bb-gate-user-email"] = encodeURIComponent(user.email);
-      }
-      if (user.avatarUrl !== null) {
-        identity["x-bb-gate-user-avatar"] = encodeURIComponent(user.avatarUrl);
-      }
-    }
+    const own = `${scheme}://${host}`;
+    const visit = { request, label, target, method, path, own };
+    const outcome = await accounts.admit(visit);
+    if ("status" in outcome) return outcome;
     if ((online.get(label)?.size ?? 0) === 0) return plain(503, OFFLINE);
-    return { headers: forwarded(request, label, address, identity) };
+    return {
+      headers: forwarded(request, label, own, outcome),
+      responseHeaders: outcome.responseHeaders ?? {},
+    };
   }
 
   function isRefusal(outcome: Refusal | Admission): outcome is Refusal {
@@ -283,11 +158,12 @@ export function createGate(options: GateOptions) {
       return;
     }
     const { method, url: path } = request;
-    const { headers } = outcome;
+    const { headers, responseHeaders } = outcome;
     const target = { ...upstream, method, path, headers, agent };
     const outgoing = http.request(target, (answer) => {
       clearTimeout(deadline);
-      response.writeHead(answer.statusCode ?? 502, relayedHeaders(answer));
+      const relayed = relayedHeaders(answer, responseHeaders);
+      response.writeHead(answer.statusCode ?? 502, relayed);
       answer.pipe(response);
     });
     const giveUp = (status: number, message: string) => {
@@ -371,15 +247,16 @@ export function createGate(options: GateOptions) {
     if (op === "Login") {
       const credential = content.metas?.credential ?? "";
       if (credential === "") return reject("missing credential");
-      const found = await ask({ label, credential });
-      return found.linked === true ? accept : reject("credential refused");
+      const linked = await accounts.linked(label, credential);
+      return linked ? accept : reject("credential refused");
     }
     const runId = (typeof user === "string" ? undefined : user?.run_id) ?? "";
     if (op === "NewProxy") {
       const domains = content.custom_domains ?? [];
       const own = content.proxy_type === "http" && content.subdomain === label;
-      if (!own || domains.length > 0)
+      if (!own || domains.length > 0) {
         return reject("not this server's address");
+      }
       online.set(label, (online.get(label) ?? new Set()).add(runId));
       log(`${label} connected`);
       return accept;

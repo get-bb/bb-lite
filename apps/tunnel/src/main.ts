@@ -1,3 +1,6 @@
+import type { Accounts } from "./accounts.js";
+import { bbAccounts } from "./bb-accounts.js";
+import { relayAccounts } from "./relay-accounts.js";
 import { startTunnel } from "./tunnel.js";
 
 function setting(name: string, fallback?: string): string {
@@ -8,19 +11,33 @@ function setting(name: string, fallback?: string): string {
   return value;
 }
 
+function accountsFromEnv(secure: boolean): Accounts {
+  if (setting("ACCOUNTS", "relay") !== "bb") {
+    return relayAccounts({
+      relayUrl: setting("RELAY_URL").replace(/\/+$/u, ""),
+      relaySecret: setting("RELAY_SECRET"),
+    });
+  }
+  return bbAccounts({
+    accountUrl: setting("ACCOUNT_URL"),
+    serverBase: setting("SERVER_BASE").toLowerCase(),
+    secureCookies: secure,
+  });
+}
+
 const log = (message: string) => console.log(message);
+const secure = setting("PUBLIC_SCHEME", "https") === "https";
 const tunnel = await startTunnel({
   baseHost: setting("BASE_DOMAIN").toLowerCase(),
-  secure: setting("PUBLIC_SCHEME", "https") === "https",
-  relayUrl: setting("RELAY_URL").replace(/\/+$/u, ""),
-  relaySecret: setting("RELAY_SECRET"),
+  secure,
+  accounts: accountsFromEnv(secure),
   frps: setting("FRPS", "frps"),
-  bindHost: "0.0.0.0",
+  bindHost: setting("BIND_HOST", "0.0.0.0"),
   ports: {
     web: Number(setting("PORT", "8080")),
     frp: Number(setting("FRP_PORT", "7000")),
-    vhost: 8081,
-    hooks: 8082,
+    vhost: Number(setting("VHOST_PORT", "8081")),
+    hooks: Number(setting("HOOKS_PORT", "8082")),
   },
   logLevel: setting("FRP_LOG_LEVEL", "info"),
   log,

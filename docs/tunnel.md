@@ -26,6 +26,28 @@ once, with the same accounts.
 its label and sends the server's link credential, the gate checks both with the relay, and a client
 may only claim its own subdomain. The gate answers 503 for a server with no client connected.
 
+## Two account systems
+
+The gate's rules for who may come in live behind one interface (`src/accounts.ts`):
+
+- `ACCOUNTS=relay` (the default, `src/relay-accounts.ts`) is the bb-next relay, as described above.
+- `ACCOUNTS=bb` (`src/bb-accounts.ts`) is the original bb's cloud, for trying frp with the original
+  bb. It needs no secret and no change to that cloud: a visitor's `better-auth` session cookie is
+  sent to `<label>.<SERVER_BASE>/api/connect/servers`, and only an account that lists the label may
+  enter; an frp client's credential is checked with `ACCOUNT_URL/api/account/me`. Answers are kept
+  for 20 s. It serves `<label>--<port>` share addresses by sending the port in `x-bb-tunnel-target`,
+  lets anyone fetch the install files, and refuses machine credentials and `/internal`.
+
+In both modes the gate rewrites `Origin` only when it is the address the visitor used, so a request
+from another site reaches the server with its real origin and is refused there.
+
+To try the original bb locally: start its `pnpm cloud:dev`, start this gate with `ACCOUNTS=bb`,
+`ACCOUNT_URL=http://bb.localhost:<cloud port>`, `SERVER_BASE=bb.localhost:<cloud port>`,
+`BASE_DOMAIN=fly.bb.localhost:<port>`, `PUBLIC_SCHEME=http` and free `PORT`, `FRP_PORT`, `VHOST_PORT`
+and `HOOKS_PORT`, then start `pnpm dev` there with `BB_CONNECT_FRP_SERVER=tcp://127.0.0.1:<FRP_PORT>`
+and `BB_CONNECT_FRPC=<path to frpc>`. Clear every `BB_*` variable first when starting it from inside
+a bb thread, or its CLI talks to the bb that runs the thread.
+
 ## The server's side
 
 `BB_CONNECT_FRP=tls://bb-next-tunnel.fly.dev:7000` makes the connect plugin start `frpc` next to its
@@ -36,7 +58,8 @@ gate's certificate against Node's root certificates.
 
 ## Running it
 
-- Tests: `FRP_BIN_DIR=<folder with frps and frpc> pnpm exec vitest run apps/relay` adds a run of the
+- Tests: `pnpm exec vitest run apps/tunnel` covers the gate's rules for the original bb's accounts
+  against stand-in servers. `FRP_BIN_DIR=<folder with frps and frpc> pnpm exec vitest run apps/relay` adds a run of the
   real binaries against the relay in Miniflare and a real bb server. Without `FRP_BIN_DIR` that test is
   skipped.
 - Deploy: `.github/workflows/deploy-tunnel.yml` runs on every push to `main` that touches

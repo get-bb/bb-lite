@@ -3,13 +3,13 @@ import { once } from "node:events";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Accounts } from "./accounts.js";
 import { createGate } from "./gate.js";
 
 export interface TunnelOptions {
   baseHost: string;
   secure: boolean;
-  relayUrl: string;
-  relaySecret: string;
+  accounts: Accounts;
   frps: string;
   bindHost: string;
   ports: { web: number; frp: number; vhost: number; hooks: number };
@@ -22,8 +22,7 @@ export async function startTunnel(options: TunnelOptions) {
   const gate = createGate({
     baseHost,
     secure: options.secure,
-    relayUrl: options.relayUrl,
-    relaySecret: options.relaySecret,
+    accounts: options.accounts,
     upstream: { host: "127.0.0.1", port: ports.vhost },
     log,
   });
