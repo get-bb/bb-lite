@@ -49,6 +49,7 @@ export interface PluginAppApi extends PluginVerbs {
     ): void;
   };
   commands: { register(registration: T.PluginCommandRegistration): void };
+  onMount(run: (context: { signal: AbortSignal }) => void | (() => void)): void;
 }
 
 export interface PluginAppDefinition {

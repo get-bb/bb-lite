@@ -1,3 +1,5 @@
+import { shell } from "@bb/plugin/app";
+import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 import {
   useContext,
   useLayoutEffect,
@@ -36,6 +38,28 @@ import { useThreadViewers } from "@bb/app-kit/lib/presence";
 import { usePaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import { PaneMaximizeButton } from "./PaneMaximizeButton";
 import type { ThreadHeaderGitAction } from "./useThreadGitActions";
+
+const UNORDERED_HEADER_ITEM = 1_000;
+
+function ThreadHeaderItems({ threadId }: { threadId: string }) {
+  const entries = useSlotEntries(shell.threadHeader);
+  const ordered = [...entries].sort(
+    (left, right) =>
+      (left.item.order ?? UNORDERED_HEADER_ITEM) -
+      (right.item.order ?? UNORDERED_HEADER_ITEM),
+  );
+  return ordered.map(({ plugin, item }) => (
+    <SlotMount
+      key={`${plugin}/${item.id}`}
+      pluginId={plugin}
+      slot={shell.threadHeader.name}
+      id={item.id}
+      fallback={null}
+    >
+      <item.view threadId={threadId} />
+    </SlotMount>
+  ));
+}
 
 const NARROW_SPLIT_HEADER_MAX_WIDTH = 560;
 
@@ -189,6 +213,7 @@ export function ThreadDetailHeader({
             className="ml-1 flex items-center gap-0.5"
             data-thread-header-pane-actions=""
           >
+            <ThreadHeaderItems threadId={threadId} />
             <PaneMaximizeButton />
             {pane.onRequestClose ? (
               <Button

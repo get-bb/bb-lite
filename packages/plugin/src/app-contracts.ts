@@ -85,6 +85,31 @@ export type ThreadAction = ThreadActionBase &
       }
   );
 
+export interface ShellMount {
+  id: string;
+  run(context: { signal: AbortSignal }): void | (() => void);
+}
+
+export interface ThreadHeaderItem {
+  id: string;
+  order?: number;
+  view: ComponentType<{ threadId: string }>;
+}
+
+export interface SidebarFooterItem {
+  id: string;
+  label: string;
+  icon: string;
+  order?: number;
+  run(): void;
+}
+
+export interface HomeSection {
+  id: string;
+  order?: number;
+  view: ComponentType;
+}
+
 export const shell = contract("shell", {
   navPanel: slot<Owned<T.PluginNavPanelRegistration>>(),
   threadPanel: slot<Owned<T.PluginThreadPanelRegistration>>(),
@@ -99,6 +124,10 @@ export const shell = contract("shell", {
   route: slot<ShellRoute>({ key: "id" }),
   navItem: slot<ShellNavItem>({ key: "id" }),
   threadAction: slot<ThreadAction>({ key: "id" }),
+  mount: slot<ShellMount>(),
+  threadHeader: slot<ThreadHeaderItem>(),
+  sidebarFooter: slot<SidebarFooterItem>(),
+  homeSection: slot<HomeSection>(),
 });
 
 export interface SettingsPage {

@@ -1,5 +1,7 @@
 import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { shell } from "@bb/plugin/app";
 import { bbLogoUrl } from "@bb/app-kit/lib/brand";
+import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 
 interface RootComposeEmptyWelcomeProps {
   onCompose: (prompt?: string) => void;
@@ -53,6 +55,10 @@ export function RootComposeEmptyWelcome({
   onAddProject,
   addProjectDisabled,
 }: RootComposeEmptyWelcomeProps) {
+  const entries = useSlotEntries(shell.homeSection);
+  const sections = [...entries].sort(
+    (left, right) => (left.item.order ?? 1_000) - (right.item.order ?? 1_000),
+  );
   return (
     <div className="flex flex-col items-center gap-12 duration-500 animate-in fade-in-0 slide-in-from-bottom-2">
       <div role="img" aria-label="bb" className="h-24 w-28 select-none">
@@ -91,6 +97,19 @@ export function RootComposeEmptyWelcome({
           onClick={() => onCompose(LEARN_PROMPT)}
         />
       </div>
+      {sections.map(({ plugin, item }) => (
+        <SlotMount
+          key={`${plugin}/${item.id}`}
+          pluginId={plugin}
+          slot={shell.homeSection.name}
+          id={item.id}
+          fallback={null}
+        >
+          <div className="w-full max-w-[360px]">
+            <item.view />
+          </div>
+        </SlotMount>
+      ))}
     </div>
   );
 }

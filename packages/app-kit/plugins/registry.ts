@@ -155,6 +155,7 @@ function collect(
       }
       list.push({ ...registration });
     };
+  let mounts = 0;
   const app: PluginAppApi = {
     ...verbs,
     call: ((op: Op, input: unknown) =>
@@ -174,6 +175,10 @@ function collect(
       sidebarHeader: add("sidebarHeaders", "sidebarHeader"),
     },
     commands: { register: add("commands", "commands.register", "run") },
+    onMount(run) {
+      mounts += 1;
+      verbs.add(shell.mount, { id: `mount-${mounts}`, run });
+    },
   };
   definition.setup(app);
   return collected;

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { THREAD_JUMP_APP_COMMAND_IDS } from "@bb/domain";
 import { Link, useNavigate } from "react-router-dom";
+import { shell } from "@bb/plugin/app";
+import { useSlotEntries } from "@bb/app-kit/plugins/slots";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { OverflowFade } from "@bb/app-kit/components/ui/overflow-fade";
 import {
@@ -112,6 +114,10 @@ export function AppSidebar({
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
   const closeOnMobile = useCloseMobileSidebar();
+  const footerEntries = useSlotEntries(shell.sidebarFooter);
+  const footerItems = [...footerEntries].sort(
+    (left, right) => (left.item.order ?? 1_000) - (right.item.order ?? 1_000),
+  );
   const isHiddenHostedBody =
     mobileHosted?.hidden === true || navRail?.hidden === true;
   const [threadShortcutKeysById, setThreadShortcutKeysById] =
@@ -236,6 +242,18 @@ export function AppSidebar({
                   onClick={closeOnMobile}
                 />
               )}
+              {footerItems.map(({ plugin, item }) => (
+                <FooterItem
+                  key={`${plugin}/${item.id}`}
+                  id={`${plugin}-${item.id}`}
+                  icon={item.icon as IconName}
+                  label={item.label}
+                  onClick={() => {
+                    closeOnMobile();
+                    item.run();
+                  }}
+                />
+              ))}
               <FooterItem
                 id="report-bug"
                 icon="Bug"

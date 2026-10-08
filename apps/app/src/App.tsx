@@ -1,6 +1,11 @@
 import { Suspense, useEffect, useMemo } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
-import { shell, type ShellRoute, type SlotEntryView } from "@bb/plugin/app";
+import {
+  shell,
+  type ShellMount,
+  type ShellRoute,
+  type SlotEntryView,
+} from "@bb/plugin/app";
 import { AppLayout } from "bb-plugin-shell/contract";
 import { QuickCreateProjectProvider } from "@bb/app-kit/hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "@bb/app-kit/components/ui/app-route-anchor";
@@ -85,6 +90,33 @@ function HashNavigationScroll() {
   return null;
 }
 
+function MountedScript({ item }: SlotEntryView<ShellMount>) {
+  useEffect(() => {
+    const controller = new AbortController();
+    const stop = item.run({ signal: controller.signal });
+    return () => {
+      controller.abort();
+      if (typeof stop === "function") stop();
+    };
+  }, [item]);
+  return null;
+}
+
+function PluginMounts() {
+  const entries = useSlotEntries(shell.mount);
+  return entries.map((entry) => (
+    <SlotMount
+      key={`${entry.plugin}/${entry.item.id}`}
+      pluginId={entry.plugin}
+      slot={shell.mount.name}
+      id={entry.item.id}
+      fallback={null}
+    >
+      <MountedScript {...entry} />
+    </SlotMount>
+  ));
+}
+
 export function App() {
   useWebSocket();
   useAppTheme();
@@ -102,6 +134,7 @@ export function App() {
           <RouteNavigationIndicator />
           <HashNavigationScroll />
           <UiPreferencesSync />
+          <PluginMounts />
           <AppLayout>
             <Suspense fallback={null}>
               <Routes>
