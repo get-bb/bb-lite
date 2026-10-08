@@ -22,19 +22,19 @@ const INTERNAL_ERROR_CLOSE_CODE = 1011;
 const LAST_SEEN_INTERVAL_MS = 30_000;
 const streams = new WeakMap<PluginServerApi, Map<string, EventStream>>();
 
-function resumeStream(ctx: PluginServerApi, hostId: string, hello: Hello) {
-  const byHost = streams.get(ctx) ?? new Map<string, EventStream>();
-  streams.set(ctx, byHost);
+function resumeStream(bb: PluginServerApi, hostId: string, hello: Hello) {
+  const byHost = streams.get(bb) ?? new Map<string, EventStream>();
+  streams.set(bb, byHost);
   const { instanceId } = hello;
   const live = byHost.get(hostId);
   if (live?.instanceId === instanceId) return live;
-  const stored = findHost(ctx.db, "id", hostId);
+  const stored = findHost(bb.db, "id", hostId);
   if (stored === undefined) throw new Error("Host was removed");
   const known = stored.lastInstanceId === instanceId;
   const deliveredSeq = known ? stored.lastEventSeq : (hello.lastAckedSeq ?? 0);
   if (!known) {
     const cursor = { lastInstanceId: instanceId, lastEventSeq: deliveredSeq };
-    updateHost(ctx.db, hostId, cursor);
+    updateHost(bb.db, hostId, cursor);
   }
   const stream = { instanceId, deliveredSeq };
   byHost.set(hostId, stream);
@@ -42,18 +42,18 @@ function resumeStream(ctx: PluginServerApi, hostId: string, hello: Hello) {
 }
 
 export function attachRemoteRunner(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   hostId: string,
   socket: WebSocket,
 ): void {
-  const { db, log, runners } = ctx;
+  const { db, log, runners } = bb;
   let deliver: RunnerEventSink = () => {};
   let seenAt = 0;
   const remote = connectRemoteRunner(socket, (event) => deliver(event));
 
   socket.on("message", () => {
-    if (ctx.now() - seenAt < LAST_SEEN_INTERVAL_MS) return;
-    seenAt = ctx.now();
+    if (bb.now() - seenAt < LAST_SEEN_INTERVAL_MS) return;
+    seenAt = bb.now();
     updateHost(db, hostId, { lastSeenAt: seenAt });
   });
 
@@ -61,7 +61,7 @@ export function attachRemoteRunner(
     const hello = await Promise.race([remote.hello, remote.closed]);
     if (hello === undefined) return;
     const { platform, threadStorageRoot } = await remote.runner.describe();
-    const stream = resumeStream(ctx, hostId, hello);
+    const stream = resumeStream(bb, hostId, hello);
     updateHost(db, hostId, { platform, threadStorageRoot });
     const runner: ServerRunner = {
       ...remote.runner,

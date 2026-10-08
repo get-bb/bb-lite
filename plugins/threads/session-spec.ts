@@ -46,28 +46,28 @@ export function pluginContext(
 }
 
 export async function buildSessionSpec(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   thread: ThreadRow,
   environment: SessionEnvironment,
 ): Promise<SessionSpec> {
   const { hostId } = environment;
-  const scope = pluginContext(ctx.db, thread, hostId);
-  const providerId = requireProviderId(ctx.db, thread.providerId);
+  const scope = pluginContext(bb.db, thread, hostId);
+  const providerId = requireProviderId(bb.db, thread.providerId);
   const [plugins, pluginEnv, machineEnv, user, workspace, configured] =
     await Promise.all([
-      ctx
+      bb
         .call(sessionOps.instructions, scope)
         .then((found) => found.map(({ text }) => text).join("\n\n")),
-      ctx.call(sessionOps.env, { ...scope, providerId }),
-      resolveContributedEnvironment(ctx, thread.projectId),
-      readUserInstructions(ctx.config.dataDir),
-      ctx.call(environmentOps.instructions, { environmentId: environment.id }),
-      readCustomModelConfig(ctx),
+      bb.call(sessionOps.env, { ...scope, providerId }),
+      resolveContributedEnvironment(bb, thread.projectId),
+      readUserInstructions(bb.config.dataDir),
+      bb.call(environmentOps.instructions, { environmentId: environment.id }),
+      readCustomModelConfig(bb),
     ]);
-  const dynamicTools = await ctx.call(sessionOps.tools, scope);
+  const dynamicTools = await bb.call(sessionOps.tools, scope);
   const skillDirs =
-    hostId === ctx.config.hostId
-      ? await ctx.call(sessionOps.skillDirs, scope)
+    hostId === bb.config.hostId
+      ? await bb.call(sessionOps.skillDirs, scope)
       : [];
   const customModels = configured
     .filter((custom) => custom.providerId === providerId)

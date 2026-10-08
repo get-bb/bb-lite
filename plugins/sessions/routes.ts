@@ -12,13 +12,10 @@ import { ApiError } from "@bb/server-kit/http/errors";
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
-export function registerProviderRoutes(
-  app: ApiApp,
-  ctx: PluginServerApi,
-): void {
+export function registerProviderRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { get, put } = typedApi(app);
   const routes = publicApiRoutes.system;
-  const { db, realtime: hub } = ctx;
+  const { db, realtime: hub } = bb;
 
   get(routes.providers, (c, query) => {
     const providers = listEnabledProviders(db).map(({ info }) => info);
@@ -64,6 +61,6 @@ export function registerProviderRoutes(
   });
 
   get(routes.executionOptions, async (c, query) =>
-    c.json(await resolveExecutionOptions(ctx, query)),
+    c.json(await resolveExecutionOptions(bb, query)),
   );
 }

@@ -39,7 +39,7 @@ export async function send(
   const outcome = await dispatching.dispatchMessage(engine, threadId, {
     message: {
       input: request.input,
-      execution: resolveTurnExecution(engine.ctx.db, thread, request),
+      execution: resolveTurnExecution(engine.bb.db, thread, request),
       senderThreadId,
       actorUserId: actorUserId(),
       initiator: senderThreadId === null ? "user" : "agent",
@@ -69,7 +69,7 @@ export function update(
   threadId: string,
   patch: contract.UpdateThreadRequest,
 ) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const thread = engine.requireThread(threadId);
   const { parentThreadId, sectionId, title } = patch;
   if (parentThreadId != null) requireValidParent(db, parentThreadId, thread);
@@ -111,7 +111,7 @@ function patchAndAnnounce(
   change: ThreadChangeKind,
   patch: Partial<viewerState.ThreadUserState>,
 ) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { projectId } = engine.requireThread(threadId);
   engine.commit((out) => {
     out.thread(threadId, [change], { projectId });
@@ -121,7 +121,7 @@ function patchAndAnnounce(
 }
 
 export function pin(engine: Engine, threadId: string) {
-  const { db, now } = engine.ctx;
+  const { db, now } = engine.bb;
   engine.requireThread(threadId);
   const userId = viewerId();
   const state = viewerState.getThreadUserState(db, threadId, userId);
@@ -142,7 +142,7 @@ export function reorderPinned(
   threadId: string,
   request: contract.ReorderPinnedThreadRequest,
 ) {
-  const { db, realtime: hub } = engine.ctx;
+  const { db, realtime: hub } = engine.bb;
   const { projectId } = engine.requireThread(threadId);
   const { previousThreadId, nextThreadId } = request;
   const userId = viewerId();
@@ -153,11 +153,11 @@ export function reorderPinned(
   const pinned = listSidebarThreadRows(db)
     .filter((row) => row.pinnedAt !== null && row.parentThreadId === null)
     .sort((left, right) => (key(left) < key(right) ? -1 : 1));
-  return toThreadListEntries(engine.ctx, pinned);
+  return toThreadListEntries(engine.bb, pinned);
 }
 
 export function markRead(engine: Engine, threadId: string) {
-  const read = { lastReadAt: engine.ctx.now() };
+  const read = { lastReadAt: engine.bb.now() };
   return patchAndAnnounce(engine, threadId, "read-state-changed", read);
 }
 
@@ -167,13 +167,13 @@ export function markUnread(engine: Engine, threadId: string) {
 }
 
 function requireQueuedMessage(engine: Engine, threadId: string, id: string) {
-  const row = queue.getQueuedMessage(engine.ctx.db, threadId, id);
+  const row = queue.getQueuedMessage(engine.bb.db, threadId, id);
   if (row !== undefined) return row;
   throw queue.queuedMessageNotFound();
 }
 
 function queueChanged(engine: Engine, threadId: string) {
-  engine.ctx.realtime.thread(threadId, ["queue-changed"]);
+  engine.bb.realtime.thread(threadId, ["queue-changed"]);
 }
 
 export function createQueuedMessage(
@@ -181,7 +181,7 @@ export function createQueuedMessage(
   threadId: string,
   request: contract.CreateQueuedMessageRequest,
 ) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const thread = engine.requireUnarchived(threadId);
   const stopping = thread.status === "stopping";
   const row = queue.insertQueuedMessage(db, {
@@ -211,7 +211,7 @@ export function updateQueuedMessage(
   if (row.updatedAt !== request.expectedUpdatedAt) {
     throw conflict("Queued message changed since editing began");
   }
-  queue.updateQueuedMessageContent(engine.ctx.db, row, request.input);
+  queue.updateQueuedMessageContent(engine.bb.db, row, request.input);
   queueChanged(engine, threadId);
   const updated = requireQueuedMessage(engine, threadId, queuedMessageId);
   return queue.toThreadQueuedMessage(updated);
@@ -223,7 +223,7 @@ export function deleteQueuedMessage(
   queuedMessageId: string,
 ): void {
   requireQueuedMessage(engine, threadId, queuedMessageId);
-  queue.deleteQueuedMessages(engine.ctx.db, [queuedMessageId]);
+  queue.deleteQueuedMessages(engine.bb.db, [queuedMessageId]);
   queueChanged(engine, threadId);
   engine.announceMessage(threads.messageCancelled, threadId, queuedMessageId);
 }

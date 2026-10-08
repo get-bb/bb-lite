@@ -89,11 +89,11 @@ export const BUILTIN_ENVIRONMENT_KINDS: EnvironmentProviderDefinition[] = [
 ];
 
 async function gitCheckoutAvailability(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   hostId: string,
   path: string,
 ): Promise<Availability> {
-  const inspection = await inspectProjectPath(ctx, hostId, path);
+  const inspection = await inspectProjectPath(bb, hostId, path);
   if (inspection === null) return null;
   if (inspection.isGitRepo) return { status: "available" };
   const message = "This project checkout has no usable git branch.";
@@ -101,11 +101,11 @@ async function gitCheckoutAvailability(
 }
 
 async function machineAvailability(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   definition: EnvironmentProviderDefinition,
   query: { projectId: string; hostId?: string },
 ) {
-  const { db } = ctx;
+  const { db } = bb;
   const { projectId } = query;
   const { hostId: only } = query;
   const hosts = listHosts(db, { includeCreating: false });
@@ -117,23 +117,23 @@ async function machineAvailability(
     if (projectCheckout && source === undefined) continue;
     available[hostId] =
       gitCheckout && source !== undefined
-        ? await gitCheckoutAvailability(ctx, hostId, source.path)
+        ? await gitCheckoutAvailability(bb, hostId, source.path)
         : null;
   }
   return available;
 }
 
 export async function listEnvironmentProviders(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   query: SystemEnvironmentProvidersQuery,
 ): Promise<SystemEnvironmentProvider[]> {
   const { hostId } = query;
   const project =
     query.projectId === undefined
       ? null
-      : requireProject(ctx.db, query.projectId);
+      : requireProject(bb.db, query.projectId);
   const providers: SystemEnvironmentProvider[] = [];
-  const kinds = ctx.entries(environments.kind).map(({ plugin, item }) => {
+  const kinds = bb.entries(environments.kind).map(({ plugin, item }) => {
     const core = plugin === CORE_PLUGIN;
     return {
       id: item.id,
@@ -155,7 +155,7 @@ export async function listEnvironmentProviders(
     const machines =
       project === null
         ? {}
-        : await machineAvailability(ctx, definition, {
+        : await machineAvailability(bb, definition, {
             projectId: project.id,
             hostId,
           });

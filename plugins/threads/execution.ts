@@ -119,13 +119,13 @@ export function resolveTurnExecution(
 }
 
 async function firstInstalledProvider(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   hostId: string,
 ): Promise<string> {
-  const { providerOrder } = getAppSettings(ctx.db);
+  const { providerOrder } = getAppSettings(bb.db);
   const rank = (providerId: string) =>
     (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
-  const [first] = (await ctx.runners.get(hostId).listProviders())
+  const [first] = (await bb.runners.get(hostId).listProviders())
     .filter((provider) => provider.installed)
     .map((provider) => provider.providerId)
     .sort((left, right) => rank(left) - rank(right));
@@ -139,11 +139,11 @@ async function firstInstalledProvider(
 }
 
 async function catalogDefaultModel(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   hostId: string,
   providerId: ProviderId,
 ) {
-  const runner = ctx.runners.get(hostId);
+  const runner = bb.runners.get(hostId);
   const { models } = await runner.listModels({ providerId, cwd: null });
   const model = models.find((candidate) => candidate.isDefault) ?? models.at(0);
   if (model !== undefined) return model.model;
@@ -157,17 +157,17 @@ async function catalogDefaultModel(
 }
 
 export async function resolveCreateExecution(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   args: CreateExecutionArgs,
 ): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
   const { request, projectId, hostId, parent } = args;
-  const { db } = ctx;
+  const { db } = bb;
   const providerId = requireProviderId(
     db,
     request.providerId ??
       getProjectExecutionDefaults(db, projectId)?.providerId ??
       getAppSettings(db).defaultProviderId ??
-      (await firstInstalledProvider(ctx, hostId)),
+      (await firstInstalledProvider(bb, hostId)),
   );
   const asked = namedFields(request);
   const defaults: Stored = projectDefaults(db, projectId, providerId);
@@ -175,7 +175,7 @@ export async function resolveCreateExecution(
   const model =
     asked.model ??
     defaults.model ??
-    (await catalogDefaultModel(ctx, hostId, providerId));
+    (await catalogDefaultModel(bb, hostId, providerId));
   const layers = [asked, inherited, defaults];
   return { providerId, execution: resolve(db, hostId, model, layers) };
 }

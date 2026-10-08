@@ -25,12 +25,12 @@ const LIST_DEFAULTS = {
   excludeNames: PATH_LIST_EXCLUDED_NAMES,
 };
 
-export function registerFileRoutes(app: ApiApp, ctx: PluginServerApi): void {
+export function registerFileRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { get, post } = typedApi(app);
   const { environments, files, hosts, threads } = publicApiRoutes;
 
   const runnerOf = (hostId: string | undefined) =>
-    ctx.runners.get(requireHost(ctx, hostId ?? ctx.config.hostId).id);
+    bb.runners.get(requireHost(bb, hostId ?? bb.config.hostId).id);
 
   const serve = (
     c: FileRequest,
@@ -40,20 +40,20 @@ export function registerFileRoutes(app: ApiApp, ctx: PluginServerApi): void {
     const segments = relativeFileSegments(c.req.param("filePath"));
     const { hostId, path: rootPath } = root;
     const target = { hostId, rootPath, segments, gitRef };
-    return serveFileBytes(ctx, c.req.raw, target);
+    return serveFileBytes(bb, c.req.raw, target);
   };
 
   get(environments.file, (c) =>
-    serve(c, requireReadyEnvironment(ctx, c.req.param("id"))),
+    serve(c, requireReadyEnvironment(bb, c.req.param("id"))),
   );
 
   get(environments.revisionFile, (c) => {
     const gitRef = revisionRef(c.req.param("ref"));
-    return serve(c, requireReadyEnvironment(ctx, c.req.param("id")), gitRef);
+    return serve(c, requireReadyEnvironment(bb, c.req.param("id")), gitRef);
   });
 
   get(threads.hostFile, (c) => {
-    const { hostId } = requireThreadEnvironment(ctx, c.req.param("id"));
+    const { hostId } = requireThreadEnvironment(bb, c.req.param("id"));
     return serve(c, { hostId, path: HOST_ROOT });
   });
 

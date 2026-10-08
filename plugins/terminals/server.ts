@@ -20,7 +20,6 @@ import {
 const TERMINAL_PATH = /^\/ws\/terminals\/([^/]+)$/u;
 
 export default function terminals(bb: PluginServerApi): void {
-  const ctx = bb;
   bb.on(threads.released, ({ threadId, reason }) =>
     closeTerminalsFor(bb, "thread_id", threadId, reason),
   );
@@ -29,7 +28,7 @@ export default function terminals(bb: PluginServerApi): void {
   );
   bb.http.api((app) => registerTerminalRoutes(app, bb));
   bb.implement(terminalOps.resize, async ({ terminalId, ...size }) => {
-    await resizeTerminal(ctx, requireTerminal(ctx, terminalId), size);
+    await resizeTerminal(bb, requireTerminal(bb, terminalId), size);
   });
   bb.http.socket(({ url, actor }) => {
     const terminal = TERMINAL_PATH.exec(url.pathname);
@@ -44,10 +43,10 @@ export default function terminals(bb: PluginServerApi): void {
       );
     }
     const terminalId = decodeURIComponent(terminal[1] ?? "");
-    const session = getTerminal(ctx.db, terminalId);
-    if (session !== undefined) assertHostUsable(ctx, session.hostId, actor);
+    const session = getTerminal(bb.db, terminalId);
+    if (session !== undefined) assertHostUsable(bb, session.hostId, actor);
     return (socket) =>
-      attachTerminalSocket(ctx, terminalId, query.data.sinceSeq, socket);
+      attachTerminalSocket(bb, terminalId, query.data.sinceSeq, socket);
   });
-  bb.onStart(() => startTerminalSessions(ctx));
+  bb.onStart(() => startTerminalSessions(bb));
 }

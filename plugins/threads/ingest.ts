@@ -51,7 +51,7 @@ function onRootTurnStarted(
     (pendingStart === null || pendingStart === cancelledStart);
   runtime.pendingStart = null;
   runtime.cancelledStart = null;
-  patchThread(engine.ctx.db, thread.id, { activeTurnId: turnId }, false);
+  patchThread(engine.bb.db, thread.id, { activeTurnId: turnId }, false);
   if (abandoned) {
     out.after(() =>
       engine.tell(thread, "interrupt turn", (runner, threadId) =>
@@ -72,7 +72,7 @@ function onTurnCompleted(
 ) {
   const { scope, status } = event;
   if (scope.kind !== "turn" || scope.turnId !== thread.activeTurnId) return;
-  patchThread(engine.ctx.db, thread.id, { activeTurnId: null }, false);
+  patchThread(engine.bb.db, thread.id, { activeTurnId: null }, false);
   const stopped = status === "interrupted" && thread.status === "stopping";
   const reason = stopped ? STOPPED_REASON : TURN_ENDED_REASON;
   if (status !== "completed") interruptAll(engine, out, thread, reason);
@@ -99,7 +99,7 @@ function adoptProviderThread(
   providerThreadId: string,
 ) {
   if (thread.providerThreadId === providerThreadId) return;
-  patchThread(engine.ctx.db, thread.id, { providerThreadId }, false);
+  patchThread(engine.bb.db, thread.id, { providerThreadId }, false);
   const { title } = thread;
   if (title !== null) out.after(() => engine.renameSession(thread, title));
 }
@@ -110,7 +110,7 @@ function applyEffect(
   threadId: string,
   event: RunnerThreadEvent,
 ) {
-  const thread = getThread(engine.ctx.db, threadId);
+  const thread = getThread(engine.bb.db, threadId);
   if (thread === undefined) return;
   switch (event.type) {
     case "thread/identity":
@@ -146,7 +146,7 @@ export function ingestThreadEvents(
   threadId: string,
   events: readonly RunnerThreadEvent[],
 ): void {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   engine.commit((out) => {

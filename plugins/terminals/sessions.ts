@@ -42,17 +42,17 @@ const POLICY_VIOLATION_CLOSE_CODE = 1008;
 const OPEN_ON_RUNNER = "status IN ('starting', 'running')";
 const liveByContext = new WeakMap<PluginServerApi, Live>();
 
-function liveOf(ctx: PluginServerApi) {
-  const live = liveByContext.get(ctx) ?? {
+function liveOf(bb: PluginServerApi) {
+  const live = liveByContext.get(bb) ?? {
     clients: new Map<string, Set<Client>>(),
     resizeOwners: new Map<string, Client>(),
   };
-  liveByContext.set(ctx, live);
+  liveByContext.set(bb, live);
   return live;
 }
 
-function clientsOf(ctx: PluginServerApi, terminalId: string) {
-  return [...(liveOf(ctx).clients.get(terminalId) ?? [])];
+function clientsOf(bb: PluginServerApi, terminalId: string) {
+  return [...(liveOf(bb).clients.get(terminalId) ?? [])];
 }
 
 function errorFrame(error: unknown): { code: string; message: string } {
@@ -60,49 +60,49 @@ function errorFrame(error: unknown): { code: string; message: string } {
   return toApiError(error)?.body ?? { code: "terminal_socket_error", message };
 }
 
-function announce(ctx: PluginServerApi, session: contract.TerminalSession) {
+function announce(bb: PluginServerApi, session: contract.TerminalSession) {
   if (session.threadId !== null) {
-    ctx.realtime.thread(session.threadId, ["terminals-changed"]);
+    bb.realtime.thread(session.threadId, ["terminals-changed"]);
   }
   const type = session.status === "exited" ? "exited" : "session-updated";
-  for (const client of clientsOf(ctx, session.id)) {
+  for (const client of clientsOf(bb, session.id)) {
     client.send({ type, session });
   }
   return session;
 }
 
 export function changeTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   patch: RowValues,
 ): contract.TerminalSession {
-  const current = getTerminal(ctx.db, session.id) ?? session;
+  const current = getTerminal(bb.db, session.id) ?? session;
   if (current.status === "exited" && "status" in patch) return current;
-  const changed = updateTerminal(ctx.db, session.id, patch);
-  return changed === undefined ? session : announce(ctx, changed);
+  const changed = updateTerminal(bb.db, session.id, patch);
+  return changed === undefined ? session : announce(bb, changed);
 }
 
 function finish(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
   exitCode: number | null = null,
 ): contract.TerminalSession {
   const exited = { status: "exited", closeReason, exitCode };
-  return changeTerminal(ctx, session, exited);
+  return changeTerminal(bb, session, exited);
 }
 
 function endTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
 ): contract.TerminalSession {
   const { hostId, id: terminalId } = session;
-  if (session.status !== "exited" && ctx.runners.isConnected(hostId)) {
-    const closing = ctx.runners.get(hostId).closeTerminal({ terminalId });
+  if (session.status !== "exited" && bb.runners.isConnected(hostId)) {
+    const closing = bb.runners.get(hostId).closeTerminal({ terminalId });
     closing.catch(() => undefined);
   }
-  return finish(ctx, session, closeReason);
+  return finish(bb, session, closeReason);
 }
 
 function deliver(client: Client, chunk: contract.TerminalOutputChunk) {
@@ -112,7 +112,7 @@ function deliver(client: Client, chunk: contract.TerminalOutputChunk) {
 }
 
 async function replay(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   client: Client,
   greeting: boolean,
@@ -121,7 +121,7 @@ async function replay(
   const tailBytes = TERMINAL_REPLAY_MAX_BYTES;
   client.replaying = true;
   try {
-    const runner = ctx.runners.get(hostId);
+    const runner = bb.runners.get(hostId);
     const sinceSeq = client.nextSeq;
     const page = await runner.attachTerminal({
       terminalId,
@@ -129,7 +129,7 @@ async function replay(
       tailBytes,
     });
     const { replayStartSeq, nextSeq } = page;
-    const current = getTerminal(ctx.db, terminalId) ?? session;
+    const current = getTerminal(bb.db, terminalId) ?? session;
     const attached = { type: "attached", session: current } as const;
     if (greeting) client.send({ ...attached, replayStartSeq, nextSeq });
     client.replaying = false;
@@ -140,19 +140,19 @@ async function replay(
     client.replaying = false;
     const { code, message } = errorFrame(error);
     const lost = error instanceof RunnerError && code === "terminal_not_found";
-    if (lost) finish(ctx, session, "daemon-disconnect");
+    if (lost) finish(bb, session, "daemon-disconnect");
     client.fail(code, message);
   }
 }
 
-function resume(ctx: PluginServerApi, session: contract.TerminalSession) {
-  for (const client of clientsOf(ctx, session.id)) {
-    void replay(ctx, session, client, false);
+function resume(bb: PluginServerApi, session: contract.TerminalSession) {
+  for (const client of clientsOf(bb, session.id)) {
+    void replay(bb, session, client, false);
   }
 }
 
-async function reconcile(ctx: PluginServerApi, hostId: string) {
-  const { db, runners } = ctx;
+async function reconcile(bb: PluginServerApi, hostId: string) {
+  const { db, runners } = bb;
   const lost = "host_id = ? AND status = 'disconnected'";
   const stale = selectTerminals(db, lost, hostId);
   if (stale.length === 0 || !runners.isConnected(hostId)) return;
@@ -163,17 +163,17 @@ async function reconcile(ctx: PluginServerApi, hostId: string) {
   if (snapshot === null) return;
   for (const session of stale) {
     if (snapshot.terminalIds.includes(session.id)) {
-      resume(ctx, changeTerminal(ctx, session, { status: "running" }));
+      resume(bb, changeTerminal(bb, session, { status: "running" }));
     } else {
-      finish(ctx, session, "daemon-disconnect");
+      finish(bb, session, "daemon-disconnect");
     }
   }
 }
 
-export function startTerminalSessions(ctx: PluginServerApi): Disposer {
-  const { db, runners, log } = ctx;
+export function startTerminalSessions(bb: PluginServerApi): Disposer {
+  const { db, runners, log } = bb;
   const reattach = (hostId: string) => {
-    reconcile(ctx, hostId).catch((error: unknown) => {
+    reconcile(bb, hostId).catch((error: unknown) => {
       log.warn("Terminal reconciliation failed", { err: error, hostId });
     });
   };
@@ -184,7 +184,7 @@ export function startTerminalSessions(ctx: PluginServerApi): Disposer {
   const stops = [
     runners.onEvent("terminal.output", ({ terminalId, seq, dataBase64 }) => {
       const chunk = { seq, dataBase64 };
-      for (const client of clientsOf(ctx, terminalId)) {
+      for (const client of clientsOf(bb, terminalId)) {
         if (client.replaying) client.backlog.push(chunk);
         else deliver(client, chunk);
       }
@@ -192,25 +192,25 @@ export function startTerminalSessions(ctx: PluginServerApi): Disposer {
     runners.onEvent("terminal.exited", ({ terminalId, exitCode }, hostId) => {
       const session = getTerminal(db, terminalId);
       if (session?.hostId !== hostId) return;
-      finish(ctx, session, "process-exit", exitCode);
+      finish(bb, session, "process-exit", exitCode);
     }),
     runners.onDisconnected((hostId) => {
       const open = `host_id = ? AND ${OPEN_ON_RUNNER}`;
       for (const session of selectTerminals(db, open, hostId)) {
-        changeTerminal(ctx, session, { status: "disconnected" });
+        changeTerminal(bb, session, { status: "disconnected" });
       }
     }),
     runners.onConnected(reattach),
   ];
-  reattach(ctx.config.hostId);
+  reattach(bb.config.hostId);
   return () => stops.forEach((stop) => stop());
 }
 
 export function requireTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   terminalId: string,
 ): contract.TerminalSession {
-  const session = getTerminal(ctx.db, terminalId);
+  const session = getTerminal(bb.db, terminalId);
   if (session === undefined) {
     throw new ApiError(404, "terminal_not_found", "Terminal session not found");
   }
@@ -222,17 +222,17 @@ function notRunning() {
   return new ApiError(409, "terminal_not_running", message);
 }
 
-export function requireRunning(ctx: PluginServerApi, terminalId: string) {
-  const session = requireTerminal(ctx, terminalId);
+export function requireRunning(bb: PluginServerApi, terminalId: string) {
+  const session = requireTerminal(bb, terminalId);
   if (session.status === "running") return session;
   throw notRunning();
 }
 
 export function listTerminalSessions(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   query: contract.TerminalListQuery,
 ): contract.TerminalSession[] {
-  const { db } = ctx;
+  const { db } = bb;
   const { threadId, environmentId, hostId = "", cwd = null } = query;
   const open = "status <> 'exited'";
   if (threadId !== undefined) {
@@ -241,29 +241,29 @@ export function listTerminalSessions(
   }
   const unowned = `thread_id IS NULL AND ${open}`;
   if (environmentId !== undefined) {
-    const { id } = requireEnvironment(ctx, environmentId);
+    const { id } = requireEnvironment(bb, environmentId);
     return selectTerminals(db, `environment_id = ? AND ${unowned}`, id);
   }
-  const { id } = requireHost(ctx, hostId);
+  const { id } = requireHost(bb, hostId);
   const onHost = `host_id = ? AND environment_id IS NULL AND ${unowned}
     AND (? IS NULL OR initial_cwd = ?)`;
   return selectTerminals(db, onHost, id, cwd, cwd);
 }
 
 function launchTarget(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   target: contract.TerminalCreateTarget,
 ) {
   if (target.kind === "host_path") {
-    const { id: hostId } = requireHost(ctx, target.hostId);
+    const { id: hostId } = requireHost(bb, target.hostId);
     const unowned = { threadId: null, environmentId: null, projectId: null };
     return { ...unowned, hostId, cwd: target.cwd };
   }
   const threadId = target.kind === "thread" ? target.threadId : null;
   const environment = requireReadyEnvironment(
-    ctx,
+    bb,
     target.kind === "thread"
-      ? requireThreadEnvironment(ctx, target.threadId).id
+      ? requireThreadEnvironment(bb, target.threadId).id
       : target.environmentId,
   );
   const { id: environmentId, hostId, projectId, path: cwd } = environment;
@@ -271,111 +271,111 @@ function launchTarget(
 }
 
 export async function createTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   payload: contract.CreateTerminalRequest,
 ): Promise<contract.TerminalSession> {
-  const { projectId, cwd, ...owner } = launchTarget(ctx, payload.target);
-  const runner = ctx.runners.get(owner.hostId);
+  const { projectId, cwd, ...owner } = launchTarget(bb, payload.target);
+  const runner = bb.runners.get(owner.hostId);
   const { cols, rows, start = { mode: "shell" } } = payload;
   const title = payload.title ?? "Terminal";
   const initialCwd = cwd ?? HOME_CWD;
   const size = { cols, rows };
   const starting = announce(
-    ctx,
-    insertTerminal(ctx.db, { ...owner, ...size, title, initialCwd }),
+    bb,
+    insertTerminal(bb.db, { ...owner, ...size, title, initialCwd }),
   );
   const terminalId = starting.id;
   try {
-    const env = await resolveContributedEnvironment(ctx, projectId);
+    const env = await resolveContributedEnvironment(bb, projectId);
     const launch = { terminalId, cwd, ...size, start, env };
     const opened = await runner.openTerminal(launch);
-    const current = requireTerminal(ctx, terminalId);
+    const current = requireTerminal(bb, terminalId);
     if (current.status !== "starting") {
       runner.closeTerminal({ terminalId }).catch(() => undefined);
       return current;
     }
-    const running = changeTerminal(ctx, current, {
+    const running = changeTerminal(bb, current, {
       status: "running",
       cols: opened.cols,
       rows: opened.rows,
       initialCwd: opened.initialCwd,
       title: payload.title ?? opened.title,
     });
-    resume(ctx, running);
+    resume(bb, running);
     return running;
   } catch (error) {
-    finish(ctx, starting, "process-exit");
+    finish(bb, starting, "process-exit");
     throw error;
   }
 }
 
 export function closeTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   terminalId: string,
   request: contract.CloseTerminalRequest,
 ): contract.TerminalSession {
-  const session = requireTerminal(ctx, terminalId);
+  const session = requireTerminal(bb, terminalId);
   const dirty = session.lastUserInputAt !== null;
   if (request.mode === "if-clean" && dirty) return session;
-  return endTerminal(ctx, session, request.reason);
+  return endTerminal(bb, session, request.reason);
 }
 
 export function closeTerminalsFor(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   owner: "thread_id" | "environment_id",
   ownerId: string,
   closeReason: TerminalSessionCloseReason,
 ): void {
   const open = `${owner} = ? AND status <> 'exited'`;
-  for (const session of selectTerminals(ctx.db, open, ownerId)) {
-    endTerminal(ctx, session, closeReason);
+  for (const session of selectTerminals(bb.db, open, ownerId)) {
+    endTerminal(bb, session, closeReason);
   }
 }
 
 export async function writeTerminalInput(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   dataBase64: string,
 ): Promise<contract.TerminalSession> {
   const { id: terminalId, hostId } = session;
   const marked =
     session.lastUserInputAt === null
-      ? changeTerminal(ctx, session, { lastUserInputAt: ctx.now() })
+      ? changeTerminal(bb, session, { lastUserInputAt: bb.now() })
       : session;
-  await ctx.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
+  await bb.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
   const { threadId } = session;
-  ctx.emit(terminalEvents.input, { terminalId, hostId, threadId });
+  bb.emit(terminalEvents.input, { terminalId, hostId, threadId });
   return marked;
 }
 
 export async function resizeTerminal(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   session: contract.TerminalSession,
   { cols, rows }: contract.TerminalResizeRequest,
 ): Promise<contract.TerminalSession> {
   const { id: terminalId, hostId } = session;
   const same = session.cols === cols && session.rows === rows;
-  const resized = same ? session : changeTerminal(ctx, session, { cols, rows });
-  await ctx.runners.get(hostId).resizeTerminal({ terminalId, cols, rows });
+  const resized = same ? session : changeTerminal(bb, session, { cols, rows });
+  await bb.runners.get(hostId).resizeTerminal({ terminalId, cols, rows });
   return resized;
 }
 
 export async function readTerminalOutput(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   terminalId: string,
   query: contract.TerminalOutputQuery,
 ): Promise<contract.TerminalOutputResponse> {
-  const session = requireTerminal(ctx, terminalId);
+  const session = requireTerminal(bb, terminalId);
   const { status, exitCode, closeReason, hostId } = session;
   const unavailable = (reason: string) =>
     new ApiError(409, "terminal_output_unavailable", reason);
   if (status !== "running" && status !== "exited") {
     throw unavailable("Terminal output can only be read once it has started");
   }
-  if (!ctx.runners.isConnected(hostId)) {
+  if (!bb.runners.isConnected(hostId)) {
     throw unavailable("The machine that ran this terminal is not connected");
   }
-  const runner = ctx.runners.get(hostId);
+  const runner = bb.runners.get(hostId);
   const sinceSeq = query.sinceSeq ?? 0;
   const tailBytes = query.tailBytes ?? OUTPUT_READ_MAX_BYTES;
   const chunks: contract.TerminalOutputChunk[] = [];
@@ -399,7 +399,7 @@ export async function readTerminalOutput(
 }
 
 function receive(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   terminalId: string,
   client: Client,
   raw: string,
@@ -413,25 +413,25 @@ function receive(
     client.send({ type: "pong" });
     return;
   }
-  const session = getTerminal(ctx.db, terminalId);
+  const session = getTerminal(bb.db, terminalId);
   if (session === undefined || session.status === "exited") {
     client.send({ type: "error", ...notRunning().body });
     return;
   }
   if (session.status !== "running") return;
-  const owner = liveOf(ctx).resizeOwners.get(terminalId) === client;
+  const owner = liveOf(bb).resizeOwners.get(terminalId) === client;
   if (message.type === "resize" && !owner) return;
   const work =
     message.type === "input"
-      ? writeTerminalInput(ctx, session, message.dataBase64)
-      : resizeTerminal(ctx, session, message);
+      ? writeTerminalInput(bb, session, message.dataBase64)
+      : resizeTerminal(bb, session, message);
   work.catch((error: unknown) => {
     client.send({ type: "error", ...errorFrame(error) });
   });
 }
 
 export function attachTerminalSocket(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   terminalId: string,
   sinceSeq: number,
   socket: WebSocket,
@@ -443,14 +443,14 @@ export function attachTerminalSocket(
     send({ type: "error", code, message });
     socket.close(POLICY_VIOLATION_CLOSE_CODE, code);
   };
-  const session = getTerminal(ctx.db, terminalId);
+  const session = getTerminal(bb.db, terminalId);
   if (session === undefined) {
     fail("terminal_not_found", "Terminal session not found");
     return;
   }
   const state = { nextSeq: sinceSeq, replaying: false, backlog: [] };
   const client: Client = { send, fail, ...state };
-  const { clients, resizeOwners } = liveOf(ctx);
+  const { clients, resizeOwners } = liveOf(bb);
   const attached = clients.get(terminalId) ?? new Set<Client>();
   clients.set(terminalId, attached.add(client));
   resizeOwners.set(terminalId, client);
@@ -466,10 +466,10 @@ export function attachTerminalSocket(
   socket.on("close", detach);
   socket.on("error", detach);
   socket.on("message", (data) => {
-    receive(ctx, terminalId, client, data.toString());
+    receive(bb, terminalId, client, data.toString());
   });
   if (session.status === "running") {
-    void replay(ctx, session, client, true);
+    void replay(bb, session, client, true);
     return;
   }
   const held = session.status === "exited" ? 0 : sinceSeq;

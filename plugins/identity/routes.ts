@@ -45,11 +45,11 @@ function emailTaken() {
   return new ApiError(409, "email_taken", message);
 }
 
-export function registerUserRoutes(app: ApiApp, ctx: PluginServerApi): void {
+export function registerUserRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { del, get, patch, post, put } = typedApi(app);
   const { auth, users: routes } = publicApiRoutes;
-  const { db, realtime: hub } = ctx;
-  const cookieName = sessionCookieName(ctx.config);
+  const { db, realtime: hub } = bb;
+  const cookieName = sessionCookieName(bb.config);
   const attempts = new Map<string, Attempts>();
 
   const setCookie = (c: RequestContext, value: string, maxAge: number) => {
@@ -74,19 +74,19 @@ export function registerUserRoutes(app: ApiApp, ctx: PluginServerApi): void {
   };
 
   const linkBase = (c: RequestContext) =>
-    publicServerUrl(ctx) ?? c.req.header("origin") ?? new URL(c.req.url).origin;
+    publicServerUrl(bb) ?? c.req.header("origin") ?? new URL(c.req.url).origin;
 
   const throttled = (email: string) => {
     const entry = attempts.get(email);
-    if (entry === undefined || entry.resetAt <= ctx.now()) return false;
+    if (entry === undefined || entry.resetAt <= bb.now()) return false;
     return entry.failures >= LOGIN_MAX_FAILURES;
   };
 
   const recordFailure = (email: string) => {
     const entry = attempts.get(email);
-    const live = entry !== undefined && entry.resetAt > ctx.now();
+    const live = entry !== undefined && entry.resetAt > bb.now();
     const failures = live ? entry.failures + 1 : 1;
-    const resetAt = live ? entry.resetAt : ctx.now() + LOGIN_WINDOW_MS;
+    const resetAt = live ? entry.resetAt : bb.now() + LOGIN_WINDOW_MS;
     attempts.set(email, { failures, resetAt });
   };
 
@@ -213,7 +213,7 @@ export function registerUserRoutes(app: ApiApp, ctx: PluginServerApi): void {
       if (demoted) assertNotLastOwner(target);
       if (email != null) assertEmailFree(email, target.id);
       const disabledAt =
-        disabled === undefined ? undefined : disabled ? ctx.now() : null;
+        disabled === undefined ? undefined : disabled ? bb.now() : null;
       if (disabled === true) store.deleteUserSessions(db, target.id);
       return store.patchUser(db, target.id, { name, email, role, disabledAt });
     });

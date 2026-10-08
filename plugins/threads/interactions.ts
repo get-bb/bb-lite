@@ -54,7 +54,7 @@ function announce(
   const lifecycle = domain.toInteractionLifecycle(interaction);
   const type = "system/interaction/lifecycle";
   engine.append(out, thread, [{ type, scope, interaction: lifecycle }]);
-  const active = pending.listActiveInteractions(engine.ctx.db, thread.id);
+  const active = pending.listActiveInteractions(engine.bb.db, thread.id);
   out.thread(thread.id, ["interactions-changed"], {
     hasPendingInteraction: active.length > 0,
     projectId: thread.projectId,
@@ -83,7 +83,7 @@ function settle(
   next: InteractionSettlement,
   answer?: PluginInputResult,
 ) {
-  const row = pending.settleInteraction(engine.ctx.db, id, from, next);
+  const row = pending.settleInteraction(engine.bb.db, id, from, next);
   if (row === undefined) return null;
   const reason = next.statusReason ?? "thread-stopped";
   const cancelled = { outcome: "cancelled" as const, reason };
@@ -101,7 +101,7 @@ export function interruptAll(
   statusReason: string,
 ): void {
   const next = { status: "interrupted" as const, statusReason };
-  for (const row of pending.listActiveInteractions(engine.ctx.db, thread.id)) {
+  for (const row of pending.listActiveInteractions(engine.bb.db, thread.id)) {
     settle(engine, out, thread, row.id, ACTIVE, next);
   }
 }
@@ -119,7 +119,7 @@ export function registerProviderInteraction(
   hostId: string,
   event: RunnerEventOf<"interaction.requested">,
 ): void {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { threadId, requestId, payload } = event;
   const thread = getThread(db, threadId);
   const active = pending.listActiveInteractions(db, threadId);
@@ -147,7 +147,7 @@ export function registerProviderInteraction(
     const interaction = announce(engine, out, thread, row);
     out.after(() => {
       const response = engine.respond(thread.id);
-      engine.ctx.emit(interactionOps.pending, {
+      engine.bb.emit(interactionOps.pending, {
         thread: response,
         interaction,
       });
@@ -160,7 +160,7 @@ export function cancelProviderInteraction(
   engine: Engine,
   event: RunnerEventOf<"interaction.cancelled">,
 ): void {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const thread = getThread(db, event.threadId);
   const row = pending.findProviderInteraction(
     db,
@@ -176,7 +176,7 @@ export function cancelProviderInteraction(
 }
 
 function requireInteraction(engine: Engine, threadId: string, id: string) {
-  const row = pending.getPendingInteraction(engine.ctx.db, id);
+  const row = pending.getPendingInteraction(engine.bb.db, id);
   if (row === undefined || row.threadId !== threadId) {
     const message = "Pending interaction not found";
     throw new ApiError(404, "invalid_request", message);
@@ -216,7 +216,7 @@ function finishResolution(
   interactionId: string,
   delivered: boolean,
 ) {
-  const thread = getThread(engine.ctx.db, threadId);
+  const thread = getThread(engine.bb.db, threadId);
   if (thread === undefined) return;
   engine.commit((out) => {
     const next: InteractionSettlement = delivered
@@ -233,7 +233,7 @@ export function resolveProviderInteraction(
   interactionId: string,
   resolution: domain.PendingInteractionResolution,
 ): PendingInteraction {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const row = requireInteraction(engine, threadId, interactionId);
   const thread = getThread(db, threadId);
   if (thread === undefined) throw threadNotFound();
@@ -278,7 +278,7 @@ function settlePluginInteraction(
   next: InteractionSettlement,
   result: PluginInputResult,
 ) {
-  const thread = getThread(engine.ctx.db, row.threadId);
+  const thread = getThread(engine.bb.db, row.threadId);
   if (thread === undefined) throw threadNotFound();
   return engine.commit((out) => {
     const settled = settle(engine, out, thread, row.id, ACTIVE, next, result);
@@ -339,7 +339,7 @@ export function cancelPluginInteraction(
 }
 
 function openPluginInteraction(engine: Engine, request: PluginInputRequest) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { threadId, signal } = request;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) throw threadNotFound();
@@ -358,7 +358,7 @@ function openPluginInteraction(engine: Engine, request: PluginInputRequest) {
     const interaction = announce(engine, out, thread, created);
     const response = engine.respond(thread.id);
     out.after(() =>
-      engine.ctx.emit(interactionOps.pending, {
+      engine.bb.emit(interactionOps.pending, {
         thread: response,
         interaction,
       }),

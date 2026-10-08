@@ -54,13 +54,13 @@ function storedWireTabs(tabsJson: string): WireTab[] {
 
 export function registerThreadRoutes(
   app: ApiApp,
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   threads: ThreadEngine,
 ): void {
   const { del, get, patch, post, put } = typedApi(app);
   const routes = publicApiRoutes.threads;
   const sectionRoutes = publicApiRoutes.threadSections;
-  const { db, realtime: hub } = ctx;
+  const { db, realtime: hub } = bb;
   const announceSections = () =>
     hub.project(PERSONAL_PROJECT_ID, ["threads-changed"]);
 

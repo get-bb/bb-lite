@@ -43,15 +43,15 @@ function pageBound(value: string | undefined, minimum: number, name: string) {
 
 export function registerEnvironmentRoutes(
   app: ApiApp,
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
 ): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.environments;
-  const { db, realtime: hub, runners } = ctx;
+  const { db, realtime: hub, runners } = bb;
   const { system } = publicApiRoutes;
 
   get(system.environmentProviders, async (c, query) =>
-    c.json({ providers: await listEnvironmentProviders(ctx, query) }),
+    c.json({ providers: await listEnvironmentProviders(bb, query) }),
   );
 
   get(routes.list, (c, query) => {
@@ -63,41 +63,41 @@ export function registerEnvironmentRoutes(
     return c.json(listEnvironments(db, { ...filter, ...page }));
   });
 
-  get(routes.get, (c) => c.json(requireEnvironment(ctx, c.req.param("id"))));
+  get(routes.get, (c) => c.json(requireEnvironment(bb, c.req.param("id"))));
 
   patch(routes.update, (c, payload) => {
-    const { id } = requireEnvironment(ctx, c.req.param("id"));
+    const { id } = requireEnvironment(bb, c.req.param("id"));
     updateEnvironment(db, id, payload);
     hub.environment(id, ["metadata-changed"]);
-    return c.json(requireEnvironment(ctx, id));
+    return c.json(requireEnvironment(bb, id));
   });
 
   del(routes.delete, async (c) => {
-    const { id } = requireEnvironment(ctx, c.req.param("id"));
+    const { id } = requireEnvironment(bb, c.req.param("id"));
     if (listEnvironmentThreadIds(db, id, "unarchived").length > 0) {
       throw conflict("Environment still has live threads");
     }
-    await ctx.call(environmentOps.remove, { environmentId: id });
+    await bb.call(environmentOps.remove, { environmentId: id });
     return c.json({ ok: true });
   });
 
   post(routes.archiveThreads, async (c) => {
-    const { id } = requireEnvironment(ctx, c.req.param("id"));
+    const { id } = requireEnvironment(bb, c.req.param("id"));
     const archivedThreadIds = listEnvironmentThreadIds(db, id, "unarchived");
     for (const threadId of archivedThreadIds) {
-      await ctx.call(threadOps.archive, { threadId });
+      await bb.call(threadOps.archive, { threadId });
     }
     return c.json({ ok: true, archivedThreadIds });
   });
 
   get(routes.status, async (c, { mergeBaseBranch }) => {
     const id = c.req.param("id");
-    const read = readGitWorkspace(ctx, id, "status", async (runner, found) => {
+    const read = readGitWorkspace(bb, id, "status", async (runner, found) => {
       const { path } = found;
       const workspace = await runner.gitStatus({ path, mergeBaseBranch });
       const { currentBranch: branchName, defaultBranch } = workspace.branch;
       const observed = { branchName, defaultBranch: defaultBranch || null };
-      recordWorkspaceMetadata(ctx, found, observed);
+      recordWorkspaceMetadata(bb, found, observed);
       return { workspace };
     });
     return c.json(await read);
@@ -106,7 +106,7 @@ export function registerEnvironmentRoutes(
   get(routes.diffFiles, async (c, query) => {
     const target = diffTarget(query);
     const id = c.req.param("id");
-    const read = readGitWorkspace(ctx, id, "diff", (runner, { path }) =>
+    const read = readGitWorkspace(bb, id, "diff", (runner, { path }) =>
       runner.gitDiffFiles({ path, target }),
     );
     return c.json(await read);
@@ -114,14 +114,14 @@ export function registerEnvironmentRoutes(
 
   post(routes.diffPatch, async (c, { target, paths }) => {
     const id = c.req.param("id");
-    const read = readGitWorkspace(ctx, id, "diff", (runner, { path }) =>
+    const read = readGitWorkspace(bb, id, "diff", (runner, { path }) =>
       runner.gitDiffPatch({ path, target, paths }),
     );
     return c.json(await read);
   });
 
   get(routes.diffFile, async (c, file) => {
-    const { hostId, path } = requireReadyEnvironment(ctx, c.req.param("id"));
+    const { hostId, path } = requireReadyEnvironment(bb, c.req.param("id"));
     const read = await runners.get(hostId).gitDiffFile({ path, file });
     const { content, contentEncoding, mimeType, sizeBytes } = read;
     const described = mimeType === undefined ? {} : { mimeType };
@@ -130,22 +130,19 @@ export function registerEnvironmentRoutes(
   });
 
   get(routes.diffBranches, async (c, query) => {
-    const { hostId, path } = requireReadyEnvironment(ctx, c.req.param("id"));
+    const { hostId, path } = requireReadyEnvironment(bb, c.req.param("id"));
     const runner = runners.get(hostId);
     const search = { path, ...branchSearch(query) };
     return c.json(await runner.listBranches(search));
   });
 
   get(routes.paths, async (c, query) => {
-    const environment = requireReadyEnvironment(ctx, c.req.param("id"));
-    return c.json(await searchWorkspacePaths(ctx, environment, query));
+    const environment = requireReadyEnvironment(bb, c.req.param("id"));
+    return c.json(await searchWorkspacePaths(bb, environment, query));
   });
 
   post(routes.actions, async (c) => {
-    const { id, hostId, path } = requireReadyEnvironment(
-      ctx,
-      c.req.param("id"),
-    );
+    const { id, hostId, path } = requireReadyEnvironment(bb, c.req.param("id"));
     try {
       const runner = runners.get(hostId);
       const commit = await runner.gitCommit({ path, message: COMMIT_MESSAGE });

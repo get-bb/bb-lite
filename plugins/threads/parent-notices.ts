@@ -126,7 +126,7 @@ function deliverNotice(
   parentThreadId: string,
   notice: SystemNotice,
 ) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { input, kind, subject } = notice;
   engine.later(parentThreadId, "parent notice", async () => {
     const parent = getThread(db, parentThreadId);
@@ -170,7 +170,7 @@ export function queueChildOutcome(
 ): void {
   const parentThreadId = child.parentThreadId;
   if (parentThreadId === null || child.originKind !== null) return;
-  const { db, now } = engine.ctx;
+  const { db, now } = engine.bb;
   const completed = outcome.status === "completed";
   const output = completed ? lastOutput(db, child.id) : null;
   const item: OutcomeItem = { ...outcome, child, output };

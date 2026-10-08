@@ -62,7 +62,7 @@ export class Engine {
   private readonly pending = new Set<Promise<unknown>>();
   private readonly disposers: (() => void)[] = [];
 
-  constructor(readonly ctx: PluginServerApi) {}
+  constructor(readonly bb: PluginServerApi) {}
 
   inThread<T>(threadId: string, work: () => T | Promise<T>): Promise<T> {
     return this.serial.run(threadId, work);
@@ -71,7 +71,7 @@ export class Engine {
   background(label: string, work: Promise<unknown>): void {
     const tracked = work
       .catch((error: unknown) => {
-        this.ctx.log.error("Thread engine work failed", { err: error, label });
+        this.bb.log.error("Thread engine work failed", { err: error, label });
       })
       .finally(() => this.pending.delete(tracked));
     this.pending.add(tracked);
@@ -85,13 +85,13 @@ export class Engine {
     hostId: string,
     call: (runner: ServerRunner) => Promise<T>,
   ): Promise<T> {
-    return Promise.resolve().then(() => call(this.ctx.runners.get(hostId)));
+    return Promise.resolve().then(() => call(this.bb.runners.get(hostId)));
   }
 
   commit<T>(work: (out: Outbox) => T): T {
-    const out = new core.Outbox(this.ctx.realtime);
-    const result = this.ctx.db.transaction(() => work(out));
-    out.flush((err) => this.ctx.log.error("Thread follow-up failed", { err }));
+    const out = new core.Outbox(this.bb.realtime);
+    const result = this.bb.db.transaction(() => work(out));
+    out.flush((err) => this.bb.log.error("Thread follow-up failed", { err }));
     return result;
   }
 
@@ -109,29 +109,29 @@ export class Engine {
   }
 
   requireThread(threadId: string): ThreadRow {
-    return store.requireThread(this.ctx.db, threadId);
+    return store.requireThread(this.bb.db, threadId);
   }
 
   hostOf(thread: ThreadRow): string | null {
     const { environmentId } = thread;
     if (environmentId === null) return null;
-    return getEnvironment(this.ctx.db, environmentId)?.hostId ?? null;
+    return getEnvironment(this.bb.db, environmentId)?.hostId ?? null;
   }
 
   connectedHostOf(thread: ThreadRow): string | null {
     const hostId = this.hostOf(thread);
-    const online = hostId !== null && this.ctx.runners.isConnected(hostId);
+    const online = hostId !== null && this.bb.runners.isConnected(hostId);
     return online ? hostId : null;
   }
 
   private listed(threadId: string) {
-    const row = findThreadListRow(this.ctx.db, threadId);
+    const row = findThreadListRow(this.bb.db, threadId);
     if (row === undefined) throw threadNotFound();
     return row;
   }
 
   statusMetadata(threadId: string): domain.ThreadChangeMetadata {
-    const [entry] = toThreadListEntries(this.ctx, [this.listed(threadId)]);
+    const [entry] = toThreadListEntries(this.bb, [this.listed(threadId)]);
     const { projectId, status, runtime, activity } = entry;
     const { latestAttentionAt, updatedAt } = entry;
     const times = { latestAttentionAt, updatedAt };
@@ -139,17 +139,17 @@ export class Engine {
   }
 
   announceStatus(threadId: string): void {
-    if (store.getThread(this.ctx.db, threadId) === undefined) return;
+    if (store.getThread(this.bb.db, threadId) === undefined) return;
     const metadata = this.statusMetadata(threadId);
-    this.ctx.realtime.thread(threadId, ["status-changed"], metadata);
+    this.bb.realtime.thread(threadId, ["status-changed"], metadata);
   }
 
   respond(threadId: string): ThreadResponse {
-    return toThreadResponse(this.ctx, this.listed(threadId));
+    return toThreadResponse(this.bb, this.listed(threadId));
   }
 
   append(out: Outbox, thread: ThreadRow, events: RunnerThreadEvent[]): void {
-    eventLog.appendEvents(this.ctx.db, thread, events, "server");
+    eventLog.appendEvents(this.bb.db, thread, events, "server");
     const eventTypes = [...new Set(events.map((event) => event.type))];
     out.thread(thread.id, ["events-appended"], { eventTypes });
     out.after(() => this.announce(threadOps.appended, thread.id, eventTypes));
@@ -160,7 +160,7 @@ export class Engine {
     threadId: string,
     types: string[],
   ): void {
-    this.ctx.emit(event, { threadId, types });
+    this.bb.emit(event, { threadId, types });
   }
 
   announceMessage(
@@ -171,22 +171,22 @@ export class Engine {
     threadId: string,
     queuedMessageId: string,
   ): void {
-    this.ctx.emit(event, { threadId, queuedMessageId });
+    this.bb.emit(event, { threadId, queuedMessageId });
   }
 
   private emitStatus(thread: ThreadRow): void {
-    const { db } = this.ctx;
+    const { db } = this.bb;
     const response = this.respond(thread.id);
     if (thread.status === "active") {
-      this.ctx.emit(threadOps.active, { thread: response });
+      this.bb.emit(threadOps.active, { thread: response });
     } else if (thread.status === "idle") {
       const text = lastOutput(db, thread.id);
       const payload = { thread: response, lastAssistantText: text };
-      this.ctx.emit(threadOps.idle, payload);
+      this.bb.emit(threadOps.idle, payload);
     } else if (thread.status === "error") {
       const failure = eventLog.lastSystemError(db, thread.id);
       const error = failure?.message ?? null;
-      this.ctx.emit(threadOps.failed, { thread: response, error, failure });
+      this.bb.emit(threadOps.failed, { thread: response, error, failure });
     }
   }
 
@@ -195,7 +195,7 @@ export class Engine {
     threadId: string,
     type: domain.ThreadLifecycleEventType,
   ): store.LifecycleOutcome {
-    const outcome = store.applyLifecycleEvent(this.ctx.db, threadId, type);
+    const outcome = store.applyLifecycleEvent(this.bb.db, threadId, type);
     if (!outcome.applied) return outcome;
     const { thread } = outcome;
     out.thread(threadId, ["status-changed"], this.statusMetadata(threadId));
@@ -225,7 +225,7 @@ export class Engine {
     from: readonly (domain.QueuedMessageWaitingOnKind | null)[],
     to: domain.QueuedMessageWaitingOn | null,
   ): void {
-    const { db } = this.ctx;
+    const { db } = this.bb;
     const rows = queue
       .listQueuedMessages(db, threadId)
       .filter((row) => from.includes(queue.parseQueuedWait(row)?.kind ?? null));
@@ -235,7 +235,7 @@ export class Engine {
   }
 
   setTitle(out: Outbox, thread: ThreadRow, title: string | null): void {
-    store.patchThread(this.ctx.db, thread.id, { title });
+    store.patchThread(this.bb.db, thread.id, { title });
     const { projectId } = thread;
     out.thread(thread.id, ["title-changed"], { projectId });
   }
@@ -258,7 +258,7 @@ export class Engine {
   }
 
   adoptTitle(threadId: string, title: string): void {
-    const thread = store.getThread(this.ctx.db, threadId);
+    const thread = store.getThread(this.bb.db, threadId);
     if (thread === undefined || thread.title !== null) return;
     this.commit((out) => this.setTitle(out, thread, title));
     if (thread.providerThreadId !== null) this.renameSession(thread, title);
@@ -288,7 +288,7 @@ export class Engine {
 
   assertWritable(thread: ThreadRow): void {
     const hostId = this.hostOf(thread);
-    if (hostId !== null) assertHostUsable(this.ctx, hostId);
+    if (hostId !== null) assertHostUsable(this.bb, hostId);
   }
 
   requireUnarchived(threadId: string): ThreadRow {
@@ -301,7 +301,7 @@ export class Engine {
     if (senderThreadId === undefined || senderThreadId === thread.id) {
       return null;
     }
-    const sender = store.getThread(this.ctx.db, senderThreadId);
+    const sender = store.getThread(this.bb.db, senderThreadId);
     if (sender !== undefined && sender.deletedAt === null) return sender.id;
     const reason = sender === undefined ? "not_found" : "deleted";
     const details = { reason, subject: "sender" };
@@ -310,7 +310,7 @@ export class Engine {
   }
 
   start(): void {
-    const { runners } = this.ctx;
+    const { runners } = this.bb;
     this.disposers.push(
       runners.onEvent("thread.events", (event) =>
         this.inThread(event.threadId, () =>
@@ -378,10 +378,8 @@ export class Engine {
   }
 }
 
-export function createThreadEngine(ctx: PluginServerApi) {
-  const engine = new Engine(ctx);
-  const kernel = ctx;
-  const own = ctx;
+export function createThreadEngine(bb: PluginServerApi) {
+  const engine = new Engine(bb);
   const direct =
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,
@@ -403,7 +401,7 @@ export function createThreadEngine(ctx: PluginServerApi) {
       run: (threadId: string, ...args: Args) => Result,
     ) =>
     (threadId: string, ...args: Args) => {
-      const thread = store.getThread(ctx.db, threadId);
+      const thread = store.getThread(bb.db, threadId);
       if (thread !== undefined) engine.assertWritable(thread);
       return run(threadId, ...args);
     };
@@ -413,29 +411,27 @@ export function createThreadEngine(ctx: PluginServerApi) {
   const archive = writes(direct(lifecycle.archiveThreadTree));
   const unarchive = writes(serialized(lifecycle.unarchiveThread));
   const remove = writes(direct(lifecycle.deleteThreadTree));
-  own.implement(threadOps.create, (request) => create(request));
-  own.implement(threadOps.send, (input) => send(input.threadId, input.request));
-  own.implement(threadOps.stop, ({ threadId }) => stop(threadId));
-  own.implement(threadOps.archive, ({ threadId }) => archive(threadId));
-  own.implement(threadOps.unarchive, ({ threadId }) => unarchive(threadId));
-  own.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
+  bb.implement(threadOps.create, (request) => create(request));
+  bb.implement(threadOps.send, (input) => send(input.threadId, input.request));
+  bb.implement(threadOps.stop, ({ threadId }) => stop(threadId));
+  bb.implement(threadOps.archive, ({ threadId }) => archive(threadId));
+  bb.implement(threadOps.unarchive, ({ threadId }) => unarchive(threadId));
+  bb.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
     remove(threadId, confirmation),
   );
-  own.implement(threadOps.hold, () => null);
-  own.implement(threadOps.release, ({ threadId }) => {
+  bb.implement(threadOps.hold, () => null);
+  bb.implement(threadOps.release, ({ threadId }) => {
     engine.scheduleDrain(threadId);
   });
-  own.implement(threadOps.storageLocation, ({ threadId }) => {
+  bb.implement(threadOps.storageLocation, ({ threadId }) => {
     const hostId = engine.hostOf(engine.requireThread(threadId));
     const root =
-      hostId === null
-        ? null
-        : findHost(ctx.db, "id", hostId)?.threadStorageRoot;
+      hostId === null ? null : findHost(bb.db, "id", hostId)?.threadStorageRoot;
     return root == null || hostId === null
       ? null
       : { hostId, path: join(root, threadId) };
   });
-  own.implement(threadOps.addRow, (input, { caller }) => {
+  bb.implement(threadOps.addRow, (input, { caller }) => {
     const pluginId = caller.via.at(-1);
     if (pluginId === undefined) {
       throw new ApiError(400, "not_a_plugin", "Only a plugin can add a row");
@@ -448,9 +444,9 @@ export function createThreadEngine(ctx: PluginServerApi) {
     op: ThreadWriteOp,
     run: (threadId: string, ...args: Args) => Result,
   ) => {
-    own.implement(op, ({ threadId, args }) => run(threadId, ...(args as Args)));
+    bb.implement(op, ({ threadId, args }) => run(threadId, ...(args as Args)));
     return (threadId: string, ...args: Args) =>
-      kernel.call(op, { threadId, args }) as Promise<Awaited<Result>>;
+      bb.call(op, { threadId, args }) as Promise<Awaited<Result>>;
   };
   return {
     start: () => engine.start(),
@@ -458,27 +454,26 @@ export function createThreadEngine(ctx: PluginServerApi) {
     settled: () => engine.settled(),
     sweep: direct(lifecycle.sweep),
     create: (request: CreateThreadRequest) =>
-      kernel.call(threadOps.create, request),
+      bb.call(threadOps.create, request),
     get: (threadId: string) => {
-      const thread = store.getThread(ctx.db, threadId);
+      const thread = store.getThread(bb.db, threadId);
       const gone = thread === undefined || thread.deletedAt !== null;
       return gone ? null : engine.respond(threadId);
     },
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
     send: (threadId: string, request: SendMessageRequest) =>
-      kernel.call(threadOps.send, { threadId, request }),
-    stop: (threadId: string) => kernel.call(threadOps.stop, { threadId }),
+      bb.call(threadOps.send, { threadId, request }),
+    stop: (threadId: string) => bb.call(threadOps.stop, { threadId }),
     compact: routed(threadOps.compact, writes(direct(mutations.compact))),
     clearContext: routed(
       threadOps.clearContext,
       writes(serialized(lifecycle.clearContext)),
     ),
-    archive: (threadId: string) => kernel.call(threadOps.archive, { threadId }),
-    unarchive: (threadId: string) =>
-      kernel.call(threadOps.unarchive, { threadId }),
+    archive: (threadId: string) => bb.call(threadOps.archive, { threadId }),
+    unarchive: (threadId: string) => bb.call(threadOps.unarchive, { threadId }),
     delete: (threadId: string, confirmation: DeleteConfirmation) =>
-      kernel.call(threadOps.delete, { threadId, ...confirmation }),
+      bb.call(threadOps.delete, { threadId, ...confirmation }),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
     update: routed(threadOps.update, serialized(mutations.update)),
     pin: serialized(mutations.pin),

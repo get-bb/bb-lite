@@ -83,11 +83,9 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
 
 export type Environments = ReturnType<typeof createEnvironments>;
 
-export function createEnvironments(ctx: PluginServerApi) {
-  const { db, realtime: hub, log, now, runners } = ctx;
-  const kernel = ctx;
-  const own = ctx;
-  const scripts = createLifecycleScripts(ctx);
+export function createEnvironments(bb: PluginServerApi) {
+  const { db, realtime: hub, log, now, runners } = bb;
+  const scripts = createLifecycleScripts(bb);
   const queue = new ThreadSerial();
   const retiring = new Set<string>();
 
@@ -95,13 +93,13 @@ export function createEnvironments(ctx: PluginServerApi) {
     store.updateEnvironment(db, id, changes);
     const moved = changes.status !== undefined;
     hub.environment(id, [moved ? "status-changed" : "metadata-changed"]);
-    return requireEnvironment(ctx, id);
+    return requireEnvironment(bb, id);
   }
 
   function create(input: store.NewEnvironment): Environment {
     const id = store.insertEnvironment(db, input);
     hub.environment(id, ["environment-created"]);
-    return requireEnvironment(ctx, id);
+    return requireEnvironment(bb, id);
   }
 
   function discard(id: string) {
@@ -160,7 +158,7 @@ export function createEnvironments(ctx: PluginServerApi) {
 
   function kindOf(found: Environment): EnvironmentDefinition | null {
     const id = found.environmentProviderId;
-    return id === null ? null : kernel.find(environmentKinds.kind, id);
+    return id === null ? null : bb.find(environmentKinds.kind, id);
   }
 
   async function createWith(
@@ -169,7 +167,7 @@ export function createEnvironments(ctx: PluginServerApi) {
     job: Job,
   ) {
     const { hostId, projectId } = found;
-    const thread = await ctx.call(threads.get, { threadId: job.thread.id });
+    const thread = await bb.call(threads.get, { threadId: job.thread.id });
     const host = findHost(db, "id", hostId);
     if (thread === null || host === undefined) {
       throw notReady("The thread or its machine no longer exists.");
@@ -183,7 +181,7 @@ export function createEnvironments(ctx: PluginServerApi) {
     const made = await kind.create({
       thread,
       project: requireProject(db, projectId),
-      host: hostResponse(ctx, host),
+      host: hostResponse(bb, host),
       checkoutPath: source?.path ?? null,
       branchName: branchNameFor(job.thread),
       inputs: intent.type === "provider" ? intent.inputs : null,
@@ -244,7 +242,7 @@ export function createEnvironments(ctx: PluginServerApi) {
   ): Promise<ThreadEnvironment> {
     const { id: environmentId } = target;
     return queue.run(environmentId, async () => {
-      const found = requireEnvironment(ctx, environmentId);
+      const found = requireEnvironment(bb, environmentId);
       const runner = runners.get(found.hostId);
       if (found.status === "ready" && found.path !== null) {
         if (found.lifecycle.retireAt !== null) patch(environmentId, IN_USE);
@@ -331,7 +329,7 @@ export function createEnvironments(ctx: PluginServerApi) {
   async function ensureForThread(job: Job): Promise<ThreadEnvironment> {
     const { intent, thread } = job;
     if (intent.type === "reuse") {
-      return prepare(requireEnvironment(ctx, intent.environmentId), job);
+      return prepare(requireEnvironment(bb, intent.environmentId), job);
     }
     const { hostId } = intent;
     const { id: ownerThreadId, projectId } = thread;
@@ -340,7 +338,7 @@ export function createEnvironments(ctx: PluginServerApi) {
     const environmentProviderId = provided
       ? intent.environmentProviderId
       : await defaultKind(projectId, hostId);
-    const kind = kernel.find(environmentKinds.kind, environmentProviderId);
+    const kind = bb.find(environmentKinds.kind, environmentProviderId);
     if (kind === null) throw notReady(KIND_GONE);
     if (isBuiltin(kind)) return kind.resolve(job, hostId, inputs);
     return owned(job, hostId, environmentProviderId, ownerThreadId, null);
@@ -403,7 +401,7 @@ export function createEnvironments(ctx: PluginServerApi) {
         owned(job, hostId, personalKind.id, job.thread.id, null),
     },
   ];
-  for (const builtin of builtins) own.add(environmentKinds.kind, builtin);
+  for (const builtin of builtins) bb.add(environmentKinds.kind, builtin);
 
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
@@ -429,7 +427,7 @@ export function createEnvironments(ctx: PluginServerApi) {
     const teardownAttempt = (found.lifecycle.teardown?.attempt ?? 0) + 1;
     const running = { teardownStatus: "running", teardownAttempt } as const;
     patch(id, { status: "error", teardownMessage: null, ...running });
-    ctx.emit(environmentKinds.released, {
+    bb.emit(environmentKinds.released, {
       environmentId: id,
       reason: "environment-destroyed",
     });

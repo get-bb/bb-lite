@@ -26,8 +26,8 @@ const RETARGETING_CHANGES: ReadonlySet<string> = new Set([
   "thread-deleted",
 ]);
 
-export function startWorkspaceWatch(ctx: PluginServerApi): Disposer {
-  const { db, realtime: hub, runners, log } = ctx;
+export function startWorkspaceWatch(bb: PluginServerApi): Disposer {
+  const { db, realtime: hub, runners, log } = bb;
   type Target = Extract<RealtimeSubscriptionTarget, { environmentId: string }>;
   const targets = new Map<string, Target>();
   type Sent = { fingerprint: string; set: EnvironmentIdsByPath };
@@ -79,14 +79,12 @@ export function startWorkspaceWatch(ctx: PluginServerApi): Disposer {
     if (found?.status !== "ready" || !found.path) return;
     if (!refs && found.isGitRepo) return;
     const { path } = found;
-    refreshWorkspaceMetadata(ctx, { ...found, path }).catch(
-      (error: unknown) => {
-        log.warn("Could not refresh workspace metadata", {
-          err: error,
-          environmentId,
-        });
-      },
-    );
+    refreshWorkspaceMetadata(bb, { ...found, path }).catch((error: unknown) => {
+      log.warn("Could not refresh workspace metadata", {
+        err: error,
+        environmentId,
+      });
+    });
   };
 
   const stops = [

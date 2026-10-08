@@ -34,12 +34,12 @@ async function copyToHost(runner: ServerRunner, source: string, path: string) {
 }
 
 export async function deliverAttachments(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   { hostId, runner, thread }: AttachmentTarget,
   input: PromptInput[],
 ): Promise<PromptInput[]> {
   if (!input.some(isStored)) return input;
-  const { dataDir, hostId: localHostId } = ctx.config;
+  const { dataDir, hostId: localHostId } = bb.config;
   const root =
     hostId === localHostId ? null : (await runner.describe()).threadStorageRoot;
   const delivered: PromptInput[] = [];

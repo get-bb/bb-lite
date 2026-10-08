@@ -1,5 +1,5 @@
 import type { HostContext } from "../host-context.js";
-import type { SocketOpen, SocketResolver } from "@bb/server-kit/host";
+import type { SocketOpen, SocketResolver } from "@bb/plugin";
 import { notFound } from "@bb/server-kit/http/errors";
 
 export type RequiredSocketResolver = (

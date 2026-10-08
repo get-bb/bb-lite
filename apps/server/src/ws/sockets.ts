@@ -2,7 +2,7 @@ import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
 import type { HostContext } from "../host-context.js";
-import type { SocketOpen } from "@bb/server-kit/host";
+import type { SocketOpen } from "@bb/plugin";
 import { trustLookups } from "../http/app.js";
 import type { RequiredSocketResolver } from "./endpoints.js";
 import { errorResponse } from "@bb/server-kit/http/errors";

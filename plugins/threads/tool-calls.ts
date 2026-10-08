@@ -19,7 +19,7 @@ async function runTool(
   event: ToolCallEvent,
   signal: AbortSignal,
 ): Promise<ToolCallResponse> {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { arguments: input, tool } = event;
   const thread = getThread(db, event.threadId);
   if (thread === undefined) return reply(false, "Thread not found.");
@@ -27,7 +27,7 @@ async function runTool(
   const actor = agentActor(db, event.threadId);
   const call = { name: tool, input, context: scope };
   return runAs(actor, () =>
-    engine.ctx.call(plugins.callAgentTool, call, { signal }),
+    engine.bb.call(plugins.callAgentTool, call, { signal }),
   );
 }
 
@@ -43,7 +43,7 @@ export function startToolCall(
   const settled = runTool(engine, event, abort.signal)
     .catch((error: unknown) => reply(false, errorMessage(error)))
     .then((result) =>
-      engine.ctx.runners
+      engine.bb.runners
         .get(hostId)
         .resolveToolCall({ threadId, requestId, result }),
     )

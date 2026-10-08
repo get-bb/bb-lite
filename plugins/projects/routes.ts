@@ -49,11 +49,11 @@ function defaultWorktreeBaseBranch(source: GitSourceInspection) {
   return localIsAhead ? defaultBranch : originDefaultBranch;
 }
 
-export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
+export function registerProjectRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.projects;
-  const { db, realtime: hub, runners } = ctx;
-  const { dataDir } = ctx.config;
+  const { db, realtime: hub, runners } = bb;
+  const { dataDir } = bb.config;
 
   const projectResponse = (projectId: string) => {
     const [response] = store.withSources(db, [
@@ -74,7 +74,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
     query: ProjectBranchesQuery,
   ): Promise<ProjectBranchesResponse> => {
     store.requireStandardProject(db, projectId);
-    const { hostId, path } = requireProjectWorkspace(ctx, projectId, {
+    const { hostId, path } = requireProjectWorkspace(bb, projectId, {
       hostId: query.hostId,
     });
     const runner = runners.get(hostId);
@@ -88,7 +88,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
   };
 
   const gitRemoteOf = async (hostId: string, path: string) =>
-    (await inspectProjectPath(ctx, hostId, path))?.remoteUrl ?? null;
+    (await inspectProjectPath(bb, hostId, path))?.remoteUrl ?? null;
 
   const recordGitRemote = async (
     projectId: string,
@@ -111,12 +111,12 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
     if (query.include?.split(",").includes("threads") !== true) {
       return c.json(store.withSources(db, projects));
     }
-    return c.json(listProjectsWithThreads(ctx, projects));
+    return c.json(listProjectsWithThreads(bb, projects));
   });
 
   post(routes.create, async (c, payload) => {
     const { hostId, path } = payload.source;
-    requireHost(ctx, hostId);
+    requireHost(bb, hostId);
     const gitRemoteUrl = await gitRemoteOf(hostId, path);
     const source = { hostId, path };
     const { name } = payload;
@@ -144,7 +144,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
     if (project.kind === "personal") {
       throw conflict("The personal project cannot be deleted");
     }
-    await removeProject(ctx, project.id);
+    await removeProject(bb, project.id);
     return c.json({ ok: true });
   });
 
@@ -157,7 +157,7 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
       );
     }
     const { hostId, path } = payload;
-    requireHost(ctx, hostId);
+    requireHost(bb, hostId);
     const source = store.addProjectSource(db, id, { hostId, path });
     hub.project(id, ["project-sources-changed"]);
     await recordGitRemote(id, hostId, path);
@@ -199,13 +199,13 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
     if (file.name.trim() === "") {
       throw invalidRequest("Attachment filename is required");
     }
-    return c.json(await storeAttachment(ctx, id, file), 201);
+    return c.json(await storeAttachment(bb, id, file), 201);
   });
 
   post(routes.copyAttachments, async (c, payload) => {
     const target = store.requireProject(db, c.req.param("id"));
     const source = store.requireProject(db, payload.sourceProjectId);
-    await copyAttachments(ctx, source.id, target.id, payload.paths);
+    await copyAttachments(bb, source.id, target.id, payload.paths);
     return c.json({ ok: true });
   });
 
@@ -223,13 +223,13 @@ export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
   });
 
   get(routes.paths, async (c, query) => {
-    const workspace = requireProjectWorkspace(ctx, c.req.param("id"), query);
-    return c.json(await searchWorkspacePaths(ctx, workspace, query));
+    const workspace = requireProjectWorkspace(bb, c.req.param("id"), query);
+    return c.json(await searchWorkspacePaths(bb, workspace, query));
   });
 
   get(routes.commands, async (c, query) => {
     const projectId = c.req.param("id");
-    const { hostId, path: cwd } = findProjectWorkspace(ctx, projectId, query);
+    const { hostId, path: cwd } = findProjectWorkspace(bb, projectId, query);
     const provider = findProviderDefinition(db, query.provider);
     if (provider === undefined) return c.json({ commands: [] });
     const providerId = provider.id;

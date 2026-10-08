@@ -81,17 +81,14 @@ function writeUiPreference(
   throw new ApiError(409, "ui_preference_conflict", message, { details });
 }
 
-export function registerSettingsRoutes(
-  app: ApiApp,
-  ctx: PluginServerApi,
-): void {
+export function registerSettingsRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { del, get, put } = typedApi(app);
   const { system: routes, projects } = publicApiRoutes;
-  const { db, realtime: hub } = ctx;
+  const { db, realtime: hub } = bb;
   const personal = <T>(setting: store.Setting<T>) =>
     store.userSetting(setting, viewerId());
   const themes = () =>
-    ctx.entries(appearanceSlots.theme).map(({ item }) => item);
+    bb.entries(appearanceSlots.theme).map(({ item }) => item);
   const isKnownTheme = (themeId: string) =>
     domain.isBuiltInThemeId(themeId) ||
     themes().some(({ id }) => id === themeId);
@@ -112,7 +109,7 @@ export function registerSettingsRoutes(
       db,
       personal(store.keybindingOverridesSetting),
     );
-    const publicUrl = publicServerUrl(ctx);
+    const publicUrl = publicServerUrl(bb);
     return c.json({
       featureFlags: domain.defaultFeatureFlags,
       serverAccess: {
@@ -131,9 +128,9 @@ export function registerSettingsRoutes(
       appearance: knownTheme(appearance()),
       themes: themes(),
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
-      primaryHostId: defaultHostId(ctx),
+      primaryHostId: defaultHostId(bb),
       primaryHostPlatform: serverPlatform(),
-      dataDir: ctx.config.dataDir,
+      dataDir: bb.config.dataDir,
     });
   });
 
@@ -199,7 +196,7 @@ export function registerSettingsRoutes(
 
   put(routes.replaceMachineEnvironment, async (c, payload) => {
     requireOwner(c, "Only an owner can change this bb's shared environment");
-    await replaceMachineEnvironment(ctx, null, payload);
+    await replaceMachineEnvironment(bb, null, payload);
     hub.system(["config-changed"]);
     return c.json(machineEnvironmentView(db));
   });
@@ -211,7 +208,7 @@ export function registerSettingsRoutes(
 
   put(projects.replaceMachineEnvironment, async (c, payload) => {
     const { id } = requireProject(db, c.req.param("id"));
-    await replaceMachineEnvironment(ctx, id, payload);
+    await replaceMachineEnvironment(bb, id, payload);
     hub.system(["config-changed"]);
     return c.json(projectMachineEnvironmentView(db, id));
   });

@@ -124,7 +124,7 @@ export function consumeRows(
 ): void {
   if (rows.length === 0) return;
   const ids = rows.map((row) => row.id);
-  queue.deleteQueuedMessages(engine.ctx.db, ids);
+  queue.deleteQueuedMessages(engine.bb.db, ids);
   out.thread(thread.id, ["queue-changed"]);
   out.after(() => {
     for (const id of ids) {
@@ -137,7 +137,7 @@ export function sessionEnvironmentOf(
   engine: Engine,
   thread: ThreadRow,
 ): SessionEnvironment {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const row =
     thread.environmentId === null
       ? undefined
@@ -158,7 +158,7 @@ export function sessionEnvironmentOf(
 function hasReadyWorkspace(engine: Engine, thread: ThreadRow) {
   const { environmentId } = thread;
   if (environmentId === null) return false;
-  return getEnvironment(engine.ctx.db, environmentId)?.status === "ready";
+  return getEnvironment(engine.bb.db, environmentId)?.status === "ready";
 }
 
 function currentWait(
@@ -166,7 +166,7 @@ function currentWait(
   thread: ThreadRow,
   args: DispatchArgs,
 ): domain.QueuedMessageWaitingOn | null {
-  const { db, now, runners } = engine.ctx;
+  const { db, now, runners } = engine.bb;
   const { mode, sendAt, sendNow } = args;
   if (!sendNow && sendAt !== null && sendAt > now()) return { kind: "time" };
   if (thread.status === "stopping") return { kind: "stopping" };
@@ -203,7 +203,7 @@ async function heldBy(
 ): Promise<domain.QueuedMessageWaitingOn | null> {
   const { id: threadId, projectId, providerId } = thread;
   const asked = { threadId, projectId, providerId, sendNow };
-  const held = await engine.ctx.call(threads.hold, asked);
+  const held = await engine.bb.call(threads.hold, asked);
   return held === null ? null : { kind: "plugin", ...held };
 }
 
@@ -213,7 +213,7 @@ function recordWait(
   args: DispatchArgs,
   waitingOn: domain.QueuedMessageWaitingOn,
 ) {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const { message, rows, sendAt } = args;
   const [lead] = rows;
   const encoded = JSON.stringify(waitingOn);
@@ -251,7 +251,7 @@ function settleRejectedTurn(
   const runtime = engine.runtimeOf(threadId);
   if (runtime.pendingStart === requestId) runtime.pendingStart = null;
   if (runtime.cancelledStart === requestId) runtime.cancelledStart = null;
-  const thread = getThread(engine.ctx.db, threadId);
+  const thread = getThread(engine.bb.db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
   const reason = error instanceof RunnerError ? error.code : "failed";
   const message = errorMessage(error);
@@ -278,12 +278,12 @@ export function submitToRunner(
   const { id: threadId } = thread;
   const requestId = args.clientRequestId;
   const { kind } = args.mode;
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   if (kind === "start") engine.runtimeOf(threadId).pendingStart = requestId;
   const accepted = engine
     .onHost(hostId, async (runner) => {
       const target = { hostId, runner, thread };
-      const input = await deliverAttachments(engine.ctx, target, args.input);
+      const input = await deliverAttachments(engine.bb, target, args.input);
       return runner.submitTurn({ ...args, input });
     })
     .then(
@@ -307,7 +307,7 @@ async function submitTurn(
   thread: ThreadRow,
   args: DispatchArgs,
 ) {
-  const { ctx } = engine;
+  const { bb } = engine;
   const { mode } = args;
   const joins = thread.status === "active";
   if (thread.status === "error" && mode === "steer") {
@@ -316,7 +316,7 @@ async function submitTurn(
   const environment = sessionEnvironmentOf(engine, thread);
   const message = attributedMessage(args.message);
   const { execution: tuple, input } = message;
-  const session = await buildSessionSpec(ctx, thread, environment);
+  const session = await buildSessionSpec(bb, thread, environment);
   const requestId = newId("creq");
   const expectedTurnId = thread.activeTurnId;
   const steers = joins && mode !== "auto" && expectedTurnId !== null;
@@ -331,10 +331,10 @@ async function submitTurn(
   engine.commit((out) => {
     consumeRows(engine, out, thread, args.rows);
     engine.append(out, thread, [turnRequestEvent(message, requestId, target)]);
-    patchThread(ctx.db, thread.id, tuple, false);
+    patchThread(bb.db, thread.id, tuple, false);
     if (!joins) engine.transition(out, thread.id, "run.started");
     const options = execution.toRunnerOptions(
-      ctx.db,
+      bb.db,
       thread.providerId,
       message,
     );
@@ -349,7 +349,7 @@ export async function dispatchMessage(
   threadId: string,
   args: DispatchArgs,
 ): Promise<Delivery> {
-  const thread = getThread(engine.ctx.db, threadId);
+  const thread = getThread(engine.bb.db, threadId);
   if (thread === undefined) throw threadNotFound();
   if (thread.deletedAt !== null) {
     throw core.notWritable(thread, "deleted", "Thread is deleted");
@@ -379,7 +379,7 @@ export async function dispatchMessage(
 }
 
 function nextEligible(engine: Engine, thread: ThreadRow) {
-  const { db, now, runners } = engine.ctx;
+  const { db, now, runners } = engine.bb;
   const rows = queue.listQueuedMessages(db, thread.id);
   if (rows.length === 0) return null;
   const paused = isQueueAutoSendPaused(db, thread.id);
@@ -435,7 +435,7 @@ function recordDrainFailure(
   row: QueuedMessageRow,
   error: unknown,
 ) {
-  const { db, log } = engine.ctx;
+  const { db, log } = engine.bb;
   const { threadId } = row;
   log.warn("Queued message dispatch failed", { err: error, threadId });
   db.run(
@@ -443,7 +443,7 @@ function recordDrainFailure(
     errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
     row.id,
   );
-  engine.ctx.realtime.thread(threadId, ["queue-changed"]);
+  engine.bb.realtime.thread(threadId, ["queue-changed"]);
 }
 
 export async function drainQueue(
@@ -451,7 +451,7 @@ export async function drainQueue(
   threadId: string,
 ): Promise<void> {
   for (let round = 0; round < MAX_DRAIN_ROUNDS; round += 1) {
-    const thread = getThread(engine.ctx.db, threadId);
+    const thread = getThread(engine.bb.db, threadId);
     if (thread === undefined || thread.status === "stopping") return;
     if (thread.archivedAt !== null || thread.deletedAt !== null) return;
     const row = nextEligible(engine, thread);
@@ -472,7 +472,7 @@ export async function sendQueuedMessageNow(
   queuedMessageId: string,
   mode: "auto" | "steer",
 ): Promise<Delivery> {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const row = queue.getQueuedMessage(db, threadId, queuedMessageId);
   if (row === undefined) throw queue.queuedMessageNotFound();
   db.run(

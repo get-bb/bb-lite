@@ -22,8 +22,8 @@ export function notReady(message: string): ApiError {
   return new ApiError(409, "environment_not_ready", message);
 }
 
-export function createLifecycleScripts(ctx: PluginServerApi) {
-  const { log, now, runners } = ctx;
+export function createLifecycleScripts(bb: PluginServerApi) {
+  const { log, now, runners } = bb;
   const listeners = new Map<string, (line: string) => void>();
   runners.onEvent("script.output", ({ operationId, text }) => {
     const listener = listeners.get(operationId);
@@ -45,7 +45,7 @@ export function createLifecycleScripts(ctx: PluginServerApi) {
     listeners.set(operationId, onLine);
     signal?.addEventListener("abort", cancel, { once: true });
     try {
-      const env = await resolveContributedEnvironment(ctx, projectId);
+      const env = await resolveContributedEnvironment(bb, projectId);
       const timeoutMs = SCRIPT_TIMEOUT_MS;
       const script = { operationId, path, kind, timeoutMs, env };
       return await runner.runLifecycleScript(script);

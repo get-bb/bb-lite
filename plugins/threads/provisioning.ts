@@ -95,7 +95,7 @@ async function generateTitle(
   job: ProvisioningJob,
   record: Recorder,
 ) {
-  const { now } = engine.ctx;
+  const { now } = engine.bb;
   const startedAt = now();
   record([step("metadata-started", "Generating title", "started", startedAt)]);
   const prompt = titlePrompt(job.message.input);
@@ -105,7 +105,7 @@ async function generateTitle(
     prompt === null
       ? null
       : await Promise.race([
-          engine.ctx.call(sessions.title, { prompt }, { signal }),
+          engine.bb.call(sessions.title, { prompt }, { signal }),
           timeout,
         ]);
   const title = sanitizeTitle(generated);
@@ -123,8 +123,8 @@ async function completeProvisioning(
   job: ProvisioningJob,
   environment: ThreadEnvironment,
 ) {
-  const { ctx } = engine;
-  const { db } = ctx;
+  const { bb } = engine;
+  const { db } = bb;
   const { environmentId, path } = environment;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) return;
@@ -138,7 +138,7 @@ async function completeProvisioning(
     if (!current) return next;
     const keys = domain.WORKSPACE_PROVISIONING_STEP_KEYS;
     const { branchName } = row;
-    const at = ctx.now();
+    const at = bb.now();
     const workspace = `Using workspace: ${path}`;
     const entries = [step(keys.workspacePath, workspace, "completed", at)];
     if (branchName !== null) {
@@ -152,7 +152,7 @@ async function completeProvisioning(
   if (!current) return;
   const { input } = job.message;
   const host = { id: environmentId, hostId: row.hostId, path };
-  const session = await buildSessionSpec(ctx, attached, host);
+  const session = await buildSessionSpec(bb, attached, host);
   engine.commit((out) => {
     appendProvisioning(engine, out, attached, job.id, "completed", []);
     const starting = { kind: "turn-starting" as const };
@@ -174,7 +174,7 @@ function failProvisioning(
   job: ProvisioningJob,
   error: unknown,
 ) {
-  const { db, log, now } = engine.ctx;
+  const { db, log, now } = engine.bb;
   const thread = getThread(db, threadId);
   if (thread === undefined || !isCurrent(engine, thread, job)) return;
   log.warn("Thread provisioning failed", { err: error, threadId });
@@ -198,7 +198,7 @@ async function runProvisioning(
   threadId: string,
   job: ProvisioningJob,
 ) {
-  const { db, now } = engine.ctx;
+  const { db, now } = engine.bb;
   const runtime = engine.runtimeOf(threadId);
   const abort = new AbortController();
   runtime.provisioning = { id: job.id, abort };
@@ -225,7 +225,7 @@ async function runProvisioning(
     const { signal } = abort;
     const onProgress = record;
     const request = { thread, intent, signal, onProgress };
-    const environment = await engine.ctx.call(
+    const environment = await engine.bb.call(
       environmentRuntime.ensure,
       request,
     );
@@ -259,7 +259,7 @@ export function beginProvisioning(
   thread: ThreadRow,
   args: dispatching.DispatchArgs,
 ): void {
-  const { db } = engine.ctx;
+  const { db } = engine.bb;
   const startup = startupOf(thread);
   const message = dispatching.attributedMessage(args.message);
   const requestId = newId("creq");
@@ -295,7 +295,7 @@ export function cancelProvisioning(
   runtime.provisioning = null;
   running.abort.abort();
   const text = "Provisioning stopped by user request";
-  const at = engine.ctx.now();
+  const at = engine.bb.now();
   const stopped = [step("provisioning-stopped", text, "completed", at)];
   appendProvisioning(engine, out, thread, running.id, "cancelled", stopped);
   engine.relabelWaits(out, thread.id, ["provisioning"], null);

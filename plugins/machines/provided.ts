@@ -13,31 +13,30 @@ function resourceOf(row: store.HostRow): JsonValue | null {
 }
 
 export async function destroyMachine(
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
   host: store.HostRow,
 ): Promise<void> {
-  const { db, realtime: hub, runners, log } = ctx;
+  const { db, realtime: hub, runners, log } = bb;
   const { id, connectMachineId } = host;
   const wasConnected = runners.isConnected(id);
   store.destroyHost(db, id);
   runners.disconnect(id);
   if (!wasConnected) hub.host(id, ["host-disconnected"]);
-  const revoking = ctx.pick(machines.access)?.revoke({ id, connectMachineId });
+  const revoking = bb.pick(machines.access)?.revoke({ id, connectMachineId });
   await revoking?.catch((error: unknown) => {
     log.warn("Machine access was not revoked", { hostId: id, err: error });
   });
-  ctx.emit(machines.removed, { hostId: id });
+  bb.emit(machines.removed, { hostId: id });
 }
 
-export function providerOf(ctx: PluginServerApi, host: store.HostRow) {
+export function providerOf(bb: PluginServerApi, host: store.HostRow) {
   const id = host.machineProviderId;
-  const provider = id === null ? null : ctx.find(machines.provider, id);
+  const provider = id === null ? null : bb.find(machines.provider, id);
   return { provider, machine: { hostId: host.id, resource: resourceOf(host) } };
 }
 
-export function provideMachines(ctx: PluginServerApi): void {
-  const bb = ctx;
-  const { db, realtime: hub, runners } = ctx;
+export function provideMachines(bb: PluginServerApi): void {
+  const { db, realtime: hub, runners } = bb;
 
   bb.implement(machines.enroll, async ({ name, providerId, resource }) => {
     const id = newId("host");
@@ -51,9 +50,9 @@ export function provideMachines(ctx: PluginServerApi): void {
       resource: resource === undefined ? null : JSON.stringify(resource),
     });
     const { joinToken, expiresAt } = enrollment.issueJoinToken(db, id);
-    const access = await ctx.pick(machines.access)?.grant(id);
+    const access = await bb.pick(machines.access)?.grant(id);
     const serverUrl =
-      access?.serverUrl ?? publicServerUrl(ctx) ?? loopbackUrl(ctx.config);
+      access?.serverUrl ?? publicServerUrl(bb) ?? loopbackUrl(bb.config);
     const headers = access?.headers;
     const blob = { serverUrl, hostId: id, joinToken, headers };
     hub.host(id, ["host-connected"]);
@@ -77,7 +76,7 @@ export function provideMachines(ctx: PluginServerApi): void {
   });
 
   bb.implement(machines.update, ({ hostId, name, resource }) => {
-    requireHost(ctx, hostId);
+    requireHost(bb, hostId);
     const renamed = name === undefined ? {} : { name };
     const kept =
       resource === undefined ? {} : { resource: JSON.stringify(resource) };
@@ -86,8 +85,8 @@ export function provideMachines(ctx: PluginServerApi): void {
   });
 
   const lifecycle = async (hostId: string, step: "suspend" | "resume") => {
-    const host = requireHost(ctx, hostId);
-    const { provider, machine } = providerOf(ctx, host);
+    const host = requireHost(bb, hostId);
+    const { provider, machine } = providerOf(bb, host);
     const run = provider?.[step];
     if (run === undefined) {
       const message = `This machine's provider cannot ${step} it`;
@@ -99,7 +98,7 @@ export function provideMachines(ctx: PluginServerApi): void {
       const message = `Could not ${step} the machine: ${errorMessage(error)}`;
       throw new ApiError(502, "machine_provider_failed", message);
     }
-    const suspendedAt = step === "suspend" ? ctx.now() : null;
+    const suspendedAt = step === "suspend" ? bb.now() : null;
     store.updateHost(db, hostId, { suspendedAt });
     hub.host(hostId, ["host-connected"]);
   };
@@ -107,11 +106,11 @@ export function provideMachines(ctx: PluginServerApi): void {
   bb.implement(machines.resume, ({ hostId }) => lifecycle(hostId, "resume"));
 
   bb.implement(machines.remove, async ({ hostId }) => {
-    if (hostId === ctx.config.hostId) {
+    if (hostId === bb.config.hostId) {
       const message = "The server's own machine cannot be removed";
       throw new ApiError(400, "primary_host_removal_refused", message);
     }
-    await destroyMachine(ctx, requireHost(ctx, hostId));
+    await destroyMachine(bb, requireHost(bb, hostId));
   });
 
   bb.onDispose(

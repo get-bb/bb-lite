@@ -25,7 +25,6 @@ import * as dbUsers from "@bb/server-kit/db/users";
 import * as doors from "@bb/server-kit/doors";
 import * as environmentsTypes from "@bb/server-kit/environments/types";
 import * as environmentsWorkspace from "@bb/server-kit/environments/workspace";
-import * as host from "@bb/server-kit/host";
 import * as httpApi from "@bb/server-kit/http/api";
 import * as httpErrors from "@bb/server-kit/http/errors";
 import * as httpFileBytes from "@bb/server-kit/http/file-bytes";
@@ -78,7 +77,6 @@ export const SERVER_RUNTIME_MODULES: Record<string, object> = {
   "@bb/server-kit/doors": doors,
   "@bb/server-kit/environments/types": environmentsTypes,
   "@bb/server-kit/environments/workspace": environmentsWorkspace,
-  "@bb/server-kit/host": host,
   "@bb/server-kit/http/api": httpApi,
   "@bb/server-kit/http/errors": httpErrors,
   "@bb/server-kit/http/file-bytes": httpFileBytes,

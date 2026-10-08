@@ -66,15 +66,15 @@ function bounded(value: number, name: string, max: number) {
 
 export function registerThreadReadRoutes(
   app: ApiApp,
-  ctx: PluginServerApi,
+  bb: PluginServerApi,
 ): void {
   const { get, post } = typedApi(app);
-  const { db } = ctx;
+  const { db } = bb;
   const { threads, projects } = publicApiRoutes;
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
-  ctx.realtime.onChanged((message) => {
+  bb.realtime.onChanged((message) => {
     if (message.entity !== "thread") return;
     const { id, changes } = message;
     if (id === undefined) return;
@@ -120,7 +120,7 @@ export function registerThreadReadRoutes(
   function searchGroup(group: ThreadSearchGroup) {
     const threadIds = group.hits.map((hit) => hit.threadId);
     const rows = store.listThreadRowsByIds(db, threadIds);
-    const entries = toThreadListEntries(ctx, rows);
+    const entries = toThreadListEntries(bb, rows);
     const results = group.hits.flatMap(({ threadId, matches }) => {
       const thread = entries.find((entry) => entry.id === threadId);
       return thread === undefined ? [] : [{ thread, matches }];
@@ -146,7 +146,7 @@ export function registerThreadReadRoutes(
   get(projects.sidebarBootstrap, (c) => {
     const personal = requireProject(db, domain.PERSONAL_PROJECT_ID);
     const listed = [personal, ...listStandardProjects(db)];
-    const [personalProject, ...rest] = listProjectsWithThreads(ctx, listed);
+    const [personalProject, ...rest] = listProjectsWithThreads(bb, listed);
     const sections = listThreadSections(db);
     return c.json({ sections, projects: rest, personalProject });
   });
@@ -170,7 +170,7 @@ export function registerThreadReadRoutes(
     if (sectionId !== undefined) requireThreadSection(db, sectionId);
     if (query.limit !== undefined) positive(query.limit, "limit", 1);
     const rows = store.listThreadRows(db, query);
-    return c.json(toThreadListEntries(ctx, rows));
+    return c.json(toThreadListEntries(bb, rows));
   });
 
   get(threads.search, (c, query) => {
@@ -213,7 +213,7 @@ export function registerThreadReadRoutes(
   get(threads.get, (c, query) => {
     const thread = requireThread(c);
     const includes = new Set(query?.include?.split(","));
-    const response: ThreadWithIncludesResponse = toThreadResponse(ctx, thread);
+    const response: ThreadWithIncludesResponse = toThreadResponse(bb, thread);
     const { environmentId } = thread;
     const environment =
       includes.size === 0 || environmentId === null
@@ -223,7 +223,7 @@ export function registerThreadReadRoutes(
     if (includes.has("host")) {
       const hostId = environment?.hostId ?? "";
       const host = findHost(db, "id", hostId);
-      response.host = host === undefined ? null : hostResponse(ctx, host);
+      response.host = host === undefined ? null : hostResponse(bb, host);
       response.environmentHostName = findHostName(db, hostId);
     }
     return c.json(response);
