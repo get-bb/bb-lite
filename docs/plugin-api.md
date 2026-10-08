@@ -120,7 +120,12 @@ own; the default scope, `"workspace"`, is one value changed by an owner). `bb.ma
 input)` calls an operation that a runner part implements on that machine.
 
 Everything a plugin registers through a verb is undone when it unloads. `onDispose` is only for
-resources of its own (timers, sockets).
+resources of its own (timers, sockets). `bb.onStart(start)` runs `start` once every plugin's entry has
+run, so it may rely on what other plugins registered; a function it returns runs on unload.
+
+A core plugin (or a fork of one) may also call `coreOf(bb)` from `@bb/server-kit/host` for the shared
+`ServerContext` and for mounting HTTP route groups and WebSocket endpoints on the server's own paths.
+Add-ons should stay on operations and `bb.http.route`.
 
 `internal: true` on an operation keeps it off the app door: only server code can call it. Use it when
 the input cannot be validated by the schema alone.
@@ -230,7 +235,8 @@ runner operation to make the directory. Using a built-in id (`git-worktree`, `pe
 
 `bb dev fork <id> [path]` copies a plugin from `plugins/` to a directory of yours and loads the copy
 in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings the
-original back. All fourteen plugins in `plugins/` fork this way, including the providers.
+original back. Every plugin in `plugins/` forks this way: the providers, the add-ons and the eleven
+core server plugins.
 
 - The copy keeps the original's id, so its contract names, settings and data carry over. To run it
   beside the original instead, change `bb.id` in `package.json` and the id in `contract.ts`.
@@ -245,8 +251,13 @@ original back. All fourteen plugins in `plugins/` fork this way, including the p
   `.css` files are served separately and unlayered rules in them win over utilities.
 - `import.meta.url` in a server or runner part still points at the source file, so reading files
   beside the source (`new URL("./logo.svg", import.meta.url)`) works from a fork.
-- What does not fork: core itself. The engine, the database modules and the app's own screens are
-  in `apps/` and are extended through operations, hooks and slots, not copied.
+- Core server features fork the same way: `bb dev fork threads` gives you the thread engine,
+  `environments`, `terminals`, `machines`, `sessions`, `projects`, `identity`, `settings`,
+  `workspace`, `interactions` and `audit-log` likewise. They import the data layer and helpers from
+  `@bb/server-kit/*`, which a fork shares with the running server.
+- What does not fork yet: the app's own screens (the shell, thread view, composer, side panel and
+  settings pages in `apps/app/src`), and the data layer itself (`packages/server-kit`). Extend those
+  through operations, hooks and slots.
 
 ## Tools
 
