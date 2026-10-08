@@ -1,20 +1,26 @@
 import { Suspense, useEffect, useMemo } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { shell, type ShellRoute, type SlotEntryView } from "@bb/plugin/app";
-import { AppLayout } from "./components/layout/AppLayout";
-import { QuickCreateProjectProvider } from "./hooks/useQuickCreateProject";
-import { RouteNavigationProvider } from "./components/ui/app-route-anchor";
-import { RouteNavigationIndicator } from "./components/ui/route-navigation-indicator";
-import { UiPreferencesSync } from "@/lib/ui-preferences";
-import { useAppTheme } from "./hooks/useAppTheme";
-import { useFaviconColorSync } from "./lib/favicon-color-preference";
-import { bootPlugins } from "@/plugins/external";
-import { SlotMount, useSlotEntries } from "@/plugins/slots";
-import { useRememberPluginNavPanelChrome } from "@/lib/plugin-nav-panel-chrome";
-import { useWebSocket } from "./hooks/useWebSocket";
-import { AppCommandProvider } from "./components/commands/AppCommandProvider";
+import { AppLayout } from "bb-plugin-shell/contract";
+import { QuickCreateProjectProvider } from "@bb/app-kit/hooks/useQuickCreateProject";
+import { RouteNavigationProvider } from "@bb/app-kit/components/ui/app-route-anchor";
+import { RouteNavigationIndicator } from "@bb/app-kit/components/ui/route-navigation-indicator";
+import { UiPreferencesSync } from "@bb/app-kit/lib/ui-preferences";
+import { useAppTheme } from "@bb/app-kit/hooks/useAppTheme";
+import { useFaviconColorSync } from "@bb/app-kit/lib/favicon-color-preference";
+import { bootPlugins } from "./plugins/external";
+import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
+import { useRememberPluginNavPanelChrome } from "@bb/app-kit/lib/plugin-nav-panel-chrome";
+import { useWebSocket } from "@bb/app-kit/hooks/useWebSocket";
+import { AppCommandProvider } from "@bb/app-kit/components/commands/AppCommandProvider";
 
-const CORE_PLUGIN_ID = "shell";
+const CORE_PLUGIN_IDS: readonly string[] = [
+  "shell",
+  "thread-view",
+  "composer",
+  "side-panel",
+  "settings",
+];
 const UNORDERED = 1_000;
 
 type RouteEntry = SlotEntryView<ShellRoute>;
@@ -38,7 +44,7 @@ function useShellRoutes(): readonly RouteEntry[] {
 
 function ShellRouteElement({ plugin, item }: RouteEntry) {
   const View = item.view;
-  if (plugin === CORE_PLUGIN_ID) return <View />;
+  if (CORE_PLUGIN_IDS.includes(plugin)) return <View />;
   return (
     <SlotMount pluginId={plugin} slot={shell.route.name} id={item.id}>
       <View />

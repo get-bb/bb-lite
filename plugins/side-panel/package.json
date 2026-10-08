@@ -1,0 +1,44 @@
+{
+  "name": "bb-plugin-side-panel",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "The panel beside a thread: files, diffs, terminal, details and plugin panels.",
+  "bb": {
+    "name": "Side panel",
+    "description": "The panel beside a thread: files, diffs, terminal, details and plugin panels.",
+    "app": "./app.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/client-core": "workspace:*",
+    "@bb/core-ui": "workspace:*",
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/sdk": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "@bb/thread-view": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "bb-plugin-composer": "workspace:*",
+    "bb-plugin-thread-view": "workspace:*",
+    "jotai": "^2.19.0",
+    "jotai-family": "^1.0.1",
+    "picomatch": "^4.0.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-resizable-panels": "^2.1.7",
+    "react-router-dom": "^7.1.0",
+    "usehooks-ts": "^3.1.1"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/picomatch": "^4.0.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

@@ -14,7 +14,7 @@ import {
   resolveProvider,
   slotInstanceKey,
   unregisterPluginApp,
-} from "../src/plugins/registry";
+} from "@bb/app-kit/plugins/registry";
 
 const component = () => null;
 const bundled = "thread-list/thread-list";

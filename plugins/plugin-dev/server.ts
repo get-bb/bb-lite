@@ -77,6 +77,7 @@ function tsconfigFor(original: string | null = null): object {
         "@bb/plugin/app": [at("packages", "plugin", "src", "app.ts")],
         "@bb/runner": [at("packages", "runner", "src", "index.ts")],
         "@bb/server-kit/*": [at("packages", "server-kit", "src", "*")],
+        "@bb/app-kit/*": [at("packages", "app-kit", "*")],
         zod: [at("apps", "server", "node_modules", "zod")],
         react: [join(types, "react")],
         "react/jsx-runtime": [join(types, "react", "jsx-runtime")],

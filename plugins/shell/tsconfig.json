@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "@bb/tsconfig/base.json",
+    "@bb/tsconfig/typecheck-overrides.json"
+  ],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "rootDir": "../..",
+    "types": ["node", "react", "react-dom"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../apps/app/src/vite-env.d.ts"],
+  "exclude": ["node_modules"]
+}

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@bb/app-kit": "workspace:*",
     "@bb/client-core": "workspace:*",
     "@bb/core-ui": "workspace:*",
     "@bb/domain": "workspace:*",
@@ -43,6 +44,8 @@
     "@xterm/addon-webgl": "0.20.0-beta.291",
     "@xterm/xterm": "6.1.0-beta.292",
     "ansi-to-html": "^0.7.2",
+    "bb-plugin-shell": "workspace:*",
+    "bb-plugin-thread-view": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jotai": "^2.19.0",

@@ -158,6 +158,13 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   }
   expect(facts["thread-list"]).toContain("@bb/client-core");
   expect(facts.tasks).toContain("@bb/shared-ui/button");
+  for (const id of ["shell", "thread-view", "composer", "side-panel"]) {
+    expect([id, facts[id]]).toEqual([
+      id,
+      expect.arrayContaining(["@bb/app-kit/plugins/parts"]),
+    ]);
+  }
+  expect(facts.settings).toContain("@bb/app-kit/plugins/slots");
   expect(ctx.plugins.utilities).toBeNull();
   const parts = await ctx.plugins.runnerParts();
   expect(parts.map(({ id }) => id).sort()).toEqual([

@@ -27,7 +27,10 @@ export const PLUGIN_HOST_MODULES = [
   "react-router-dom",
 ] as const;
 
-export const PLUGIN_HOST_MODULE_PREFIXES = ["@bb/shared-ui/"] as const;
+export const PLUGIN_HOST_MODULE_PREFIXES = [
+  "@bb/shared-ui/",
+  "@bb/app-kit/",
+] as const;
 
 export function isHostModule(specifier: string): boolean {
   const names: readonly string[] = [

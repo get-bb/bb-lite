@@ -1,5 +1,5 @@
 @import "@fontsource-variable/inter";
-@import "@/components/ui/theme.css";
+@import "../../../packages/app-kit/components/ui/theme.css";
 
 @layer base {
   :root {

@@ -15,22 +15,22 @@ import type {
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
-import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
-import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
-import { ImageLightbox } from "@/components/ui/image-lightbox";
-import { MarkdownPreview } from "@/components/ui/markdown-preview";
-import { ThreadViewers } from "@/components/users/ThreadViewers";
-import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
-import { ProviderIcon } from "@/components/plugin/ProviderIcon";
-import { usePluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
-import { SidebarNavigationIcon } from "@/components/sidebar/SidebarNavigationModel";
-import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { usePluginSettingsView } from "@/hooks/queries/plugin-settings-queries";
-import { useSystemProviders } from "@/hooks/queries/system-queries";
-import { useRouteState } from "@/hooks/useRouteState";
-import { useServerConnectionState } from "@/hooks/useServerConnectionState";
-import { useAppNavigationHost } from "@/lib/url-open-routing";
-import { getPluginBoundSdk } from "@/lib/plugin-bound-sdk";
+import { PluginThreadChat } from "bb-plugin-thread-view/contract";
+import { PluginThreadTitle } from "bb-plugin-thread-view/contract";
+import { ImageLightbox } from "@bb/app-kit/components/ui/image-lightbox";
+import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
+import { ThreadViewers } from "@bb/app-kit/components/users/ThreadViewers";
+import { PluginUrlLink } from "@bb/app-kit/components/plugin/PluginUrlLink";
+import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
+import { usePluginThreadPanelOpenHandler } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
+import { SidebarNavigationIcon } from "bb-plugin-shell/contract";
+import { useSystemEnvironmentProviders } from "@bb/app-kit/hooks/queries/environment-provider-queries";
+import { usePluginSettingsView } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
+import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
+import { useRouteState } from "@bb/app-kit/hooks/useRouteState";
+import { useServerConnectionState } from "@bb/app-kit/hooks/useServerConnectionState";
+import { useAppNavigationHost } from "@bb/app-kit/lib/url-open-routing";
+import { getPluginBoundSdk } from "@bb/app-kit/lib/plugin-bound-sdk";
 import {
   useSidebarNavigation,
   useSidebarSplitLayout,
@@ -40,19 +40,24 @@ import {
   useSidebarThreadDraftIds,
   useSidebarThreadShortcut,
   useSidebarThreads,
-} from "@/lib/plugin-sidebar-hooks";
+} from "bb-plugin-shell/contract";
 import {
   getPluginPanelRoutePath,
   getProjectComposeRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
-} from "@/lib/route-paths";
-import { sdk } from "@/lib/sdk";
-import { wsManager } from "@/lib/ws";
-import { usePluginId } from "./context";
-import { callRemoteOp } from "./ops";
-import { callOp } from "./registry";
-import { SlotMount, useSlot, useSlotEntries, useSlotEntry } from "./slots";
+} from "@bb/app-kit/lib/route-paths";
+import { sdk } from "@bb/app-kit/lib/sdk";
+import { wsManager } from "@bb/app-kit/lib/ws";
+import { usePluginId } from "@bb/app-kit/plugins/context";
+import { callRemoteOp } from "@bb/app-kit/plugins/ops";
+import { callOp } from "@bb/app-kit/plugins/registry";
+import {
+  SlotMount,
+  useSlot,
+  useSlotEntries,
+  useSlotEntry,
+} from "@bb/app-kit/plugins/slots";
 
 export const OP_QUERY_KEY = "op";
 

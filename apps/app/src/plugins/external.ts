@@ -13,18 +13,19 @@ import * as clsx from "clsx";
 import * as tailwindMerge from "tailwind-merge";
 import * as classVarianceAuthority from "class-variance-authority";
 import * as pluginApp from "@bb/plugin/app";
-import { pluginListQueryOptions } from "@/hooks/queries/plugin-settings-queries";
-import { appQueryClient } from "@/lib/app-query-client";
-import { setPluginBranding } from "@/lib/plugin-logos";
-import { BUILTIN_PLUGINS, type BuiltinPlugin } from "./builtin";
-import { wsManager } from "@/lib/ws";
+import { pluginListQueryOptions } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
+import { appQueryClient } from "@bb/app-kit/lib/app-query-client";
+import { setPluginBranding } from "@bb/app-kit/lib/plugin-logos";
+import { onPluginsChanged } from "@bb/app-kit/lib/plugin-reload";
+import { BUILTIN_PLUGINS, CORE_PLUGINS, type BuiltinPlugin } from "./builtin";
+import { wsManager } from "@bb/app-kit/lib/ws";
 import { OP_QUERY_KEY, pluginAppHost } from "./host";
 import {
   isPluginAppDefinition,
   markPluginsSettled,
   registerPluginApp,
   unregisterPluginApp,
-} from "./registry";
+} from "@bb/app-kit/plugins/registry";
 
 const BOOT_MODULES: Record<
   (typeof pluginApp.PLUGIN_SHARED_MODULES)[number],
@@ -74,9 +75,26 @@ const HOST_LOADERS: Record<
   "react-router-dom": () => import("react-router-dom"),
 };
 
+const APP_KIT_ROOT = "../../../../packages/app-kit";
+const APP_KIT_PREFIX = "@bb/app-kit/";
+const APP_KIT_SUFFIXES = [".ts", ".tsx", "/index.ts", "/index.tsx"];
+const appKitFiles: Record<string, Loader> = import.meta.glob([
+  "../../../../packages/app-kit/**/*.{ts,tsx}",
+  "!**/node_modules/**",
+]);
+
+function appKitLoader(specifier: string): Loader | undefined {
+  const path = `${APP_KIT_ROOT}/${specifier.slice(APP_KIT_PREFIX.length)}`;
+  const file = APP_KIT_SUFFIXES.map((suffix) => path + suffix).find(
+    (candidate) => candidate in appKitFiles,
+  );
+  return file === undefined ? undefined : appKitFiles[file];
+}
+
 function hostLoader(specifier: string): Loader | undefined {
   const named: Record<string, Loader | undefined> = HOST_LOADERS;
   const prefix = "@bb/shared-ui/";
+  if (specifier.startsWith(APP_KIT_PREFIX)) return appKitLoader(specifier);
   if (!specifier.startsWith(prefix)) return named[specifier];
   const entry = sharedUiExports[`./${specifier.slice(prefix.length)}`];
   const source = entry?.source;
@@ -101,6 +119,13 @@ const disabledBuiltinIds = new Set<string>();
 const externalHashes = new Map<string, string>();
 let boot: Promise<void> | null = null;
 let syncQueue: Promise<void> = Promise.resolve();
+
+export function registerCorePlugins(): void {
+  for (const { id, app } of CORE_PLUGINS) {
+    const failure = registerPluginApp(id, app);
+    if (failure !== null) throw failure;
+  }
+}
 
 async function loadBuiltin(plugin: BuiltinPlugin): Promise<void> {
   try {
@@ -168,7 +193,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
   }
   setPluginBranding(plugins);
   const pluginsById = new Map(plugins.map((plugin) => [plugin.id, plugin]));
-  const builtinLoads = BUILTIN_PLUGINS.map((plugin) => {
+  const builtinLoads = [...CORE_PLUGINS, ...BUILTIN_PLUGINS].map((plugin) => {
     const listed = pluginsById.get(plugin.id);
     const replaced = listed?.app?.kind === "external";
     if (listed?.enabled === false || replaced) {
@@ -215,6 +240,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
 export function bootPlugins(): Promise<void> {
   boot ??= (async () => {
     pluginApp.installPluginAppHost(pluginAppHost);
+    onPluginsChanged(reloadPlugins);
     wsManager.onPluginSignal(({ pluginId, channel, payload }) => {
       if (pluginId !== KERNEL_SIGNAL || channel !== "changed") return;
       const { name } = payload as { name?: unknown };

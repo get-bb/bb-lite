@@ -47,6 +47,10 @@ export const corePlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("workspace"), server: workspace },
   { directory: pluginDirectory("interactions"), server: interactions },
   { directory: pluginDirectory("audit-log"), server: auditLog },
+  { directory: pluginDirectory("shell"), server: null },
+  { directory: pluginDirectory("thread-view"), server: null },
+  { directory: pluginDirectory("composer"), server: null },
+  { directory: pluginDirectory("side-panel"), server: null },
 ];
 
 export const serverPlugins: BuiltinPlugin[] = [

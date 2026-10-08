@@ -33,7 +33,10 @@ const APP_NODE_MODULES = fileURLToPath(
   new URL("../../../app/node_modules", import.meta.url),
 );
 const APP_THEME = fileURLToPath(
-  new URL("../../../app/src/components/ui/theme.css", import.meta.url),
+  new URL(
+    "../../../../packages/app-kit/components/ui/theme.css",
+    import.meta.url,
+  ),
 );
 const STYLED_SOURCES = "**/*.{ts,tsx,js,jsx,mts,mjs}";
 const SHARED_NAMESPACE = "bb-shared";
