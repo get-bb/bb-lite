@@ -49,6 +49,7 @@ import {
 } from "@bb/app-kit/lib/route-paths";
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { wsManager } from "@bb/app-kit/lib/ws";
+import { useComposer, useComposers } from "@bb/app-kit/plugins/composers";
 import { usePluginId } from "@bb/app-kit/plugins/context";
 import { callRemoteOp } from "@bb/app-kit/plugins/ops";
 import { callOp } from "@bb/app-kit/plugins/registry";
@@ -227,6 +228,8 @@ export const pluginAppHost: PluginAppHost = {
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
   useSdk,
+  useComposer,
+  useComposers,
   usePluginId,
   useBbContext,
   useBbNavigate,

@@ -24,6 +24,22 @@ export interface SidePanelTabKind {
   title?: (tab: SidePanelTab) => string;
 }
 
+export interface FileViewerProps {
+  path: string;
+  name: string;
+  url: string | null;
+  mimeType: string | null;
+  content: string | null;
+  refresh(): void;
+}
+
+export interface FileViewer {
+  id: string;
+  extensions: readonly string[];
+  view: ComponentType<FileViewerProps>;
+}
+
 export const sidePanel = contract("side-panel", {
   tab: slot<SidePanelTabKind>({ key: "kind" }),
+  fileViewer: slot<FileViewer>(),
 });

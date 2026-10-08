@@ -1,3 +1,5 @@
+import { sidePanel } from "@bb/plugin/app";
+import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { MarkdownLinkRouting } from "@bb/app-kit/components/ui/markdown-link-routing";
 import {
@@ -45,6 +47,31 @@ function QueryFilePreview({
   query,
   statusLabel,
 }: QueryFilePreviewProps) {
+  const viewers = useSlotEntries(sidePanel.fileViewer);
+  const extension = activePath.split(".").at(-1)?.toLowerCase() ?? "";
+  const viewer = viewers
+    .filter(({ item }) => item.extensions.includes(extension))
+    .at(-1);
+  const { data } = query;
+  if (viewer !== undefined && data?.path === activePath) {
+    const View = viewer.item.view;
+    return (
+      <SlotMount
+        pluginId={viewer.plugin}
+        slot={sidePanel.fileViewer.name}
+        id={viewer.item.id}
+      >
+        <View
+          path={activePath}
+          name={data.name ?? activePath}
+          url={data.url ?? null}
+          mimeType={data.mimeType ?? null}
+          content={data.kind === "text" ? data.content : null}
+          refresh={() => void query.refetch()}
+        />
+      </SlotMount>
+    );
+  }
   return (
     <FilePreview
       path={activePath}

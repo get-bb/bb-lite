@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { CopyButton } from "@bb/app-kit/components/ui/copy-button";
-import { Icon } from "@bb/shared-ui/icon";
+import { Icon, type IconName } from "@bb/shared-ui/icon";
+import { threadView, type TimelineMessage } from "@bb/plugin/app";
+import { useSlot } from "@bb/app-kit/plugins/slots";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
@@ -12,7 +20,10 @@ import {
 } from "@bb/shared-ui/tooltip";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { PromptDraftAttachment } from "@bb/client-core";
-import type { ThreadTimelineAddToChatHandler } from "./timeline-context";
+import {
+  TimelineContext,
+  type ThreadTimelineAddToChatHandler,
+} from "./timeline-context";
 
 export type MobileActionDisplay = "inline" | "overflow";
 
@@ -84,6 +95,15 @@ export function MessageActionBar({
   const isCompactViewport = useIsCompactViewport();
   const isPointerCoarse = usePointerCoarse();
   const useMobileActions = isCompactViewport && isPointerCoarse;
+  const threadId = useContext(TimelineContext)?.threadId ?? null;
+  const message: TimelineMessage = {
+    threadId,
+    role: alignment === "end" ? "user" : "assistant",
+    text: messageText,
+  };
+  const pluginActions = useSlot(threadView.messageAction)
+    .filter((action) => action.isAvailable?.(message) ?? true)
+    .sort((left, right) => (left.order ?? 1_000) - (right.order ?? 1_000));
   const hasCopy = messageText.length > 0 || copyImageUrl !== undefined;
   const hasAddToChat =
     (hasCopy || addToChatAttachments.length > 0) && onAddToChat !== undefined;
@@ -139,7 +159,7 @@ export function MessageActionBar({
     return () => window.clearTimeout(timeoutId);
   }, [copiedFromRow]);
 
-  if (!hasCopy && !hasAddToChat) {
+  if (!hasCopy && !hasAddToChat && pluginActions.length === 0) {
     return null;
   }
 
@@ -202,6 +222,17 @@ export function MessageActionBar({
             <Icon name="MessageSquarePlus" className="size-3" />
           </button>
         ) : null,
+        ...pluginActions.map((action) => (
+          <button
+            key={`plugin-${action.id}`}
+            type="button"
+            className={mobileActionClass}
+            onClick={() => action.run(message)}
+            aria-label={action.label}
+          >
+            <Icon name={action.icon as IconName} className="size-3" />
+          </button>
+        )),
       ].filter((action) => action !== null);
     const actionCount = mobileActions().length;
     const inlineCount =
@@ -294,6 +325,26 @@ export function MessageActionBar({
               </TooltipContent>
             </Tooltip>
           ) : null}
+          {pluginActions.map((action) => (
+            <Tooltip key={action.id}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(ACTION_BUTTON_CLASS, HOVER_REVEAL_CLASS)}
+                  onClick={() => action.run(message)}
+                  aria-label={action.label}
+                >
+                  <Icon name={action.icon as IconName} className="size-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="bottom"
+                collisionBoundary={collisionBoundary}
+              >
+                {action.label}
+              </TooltipContent>
+            </Tooltip>
+          ))}
         </div>
       </div>
     </TooltipProvider>

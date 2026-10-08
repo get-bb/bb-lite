@@ -3,6 +3,7 @@ import {
   composer,
   type ComposerContext,
   type ComposerFooterControl,
+  type ComposerHandle,
   type Slot,
   type SlotEntryView,
 } from "@bb/plugin/app";
@@ -112,4 +113,34 @@ export function ComposerFooterControls({
       </SlotMount>
     );
   });
+}
+
+export function ComposerBanners({
+  composer: handle,
+}: {
+  composer: ComposerHandle;
+}) {
+  const entries = useSlotEntries(composer.banner);
+  const shown = [...entries]
+    .sort(
+      (left, right) =>
+        (left.item.order ?? UNORDERED) - (right.item.order ?? UNORDERED),
+    )
+    .filter(({ item }) => item.isAvailable?.(handle) ?? true);
+  if (shown.length === 0) return null;
+  return (
+    <div data-promptbox-banners="" className="border-b border-border">
+      {shown.map(({ plugin, item }) => (
+        <SlotMount
+          key={`${plugin}/${item.id}`}
+          pluginId={plugin}
+          slot={composer.banner.name}
+          id={item.id}
+          fallback={null}
+        >
+          <item.view composer={handle} />
+        </SlotMount>
+      ))}
+    </div>
+  );
 }

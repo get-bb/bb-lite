@@ -43,8 +43,24 @@ export interface PluginRowRenderer {
   view: ComponentType<PluginRowProps>;
 }
 
+export interface TimelineMessage {
+  threadId: string | null;
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface MessageAction {
+  id: string;
+  label: string;
+  icon: string;
+  order?: number;
+  isAvailable?(message: TimelineMessage): boolean;
+  run(message: TimelineMessage): void;
+}
+
 export const threadView = contract("thread-view", {
   row: slot<TimelineRowRenderer>({ key: "kind" }),
   rowDetail: slot<TimelineRowDetailRenderer>({ key: "kind" }),
   pluginRow: slot<PluginRowRenderer>({ key: "kind" }),
+  messageAction: slot<MessageAction>(),
 });

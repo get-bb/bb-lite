@@ -1,11 +1,34 @@
 import type { ComponentType } from "react";
 import { contract, slot } from "../contract.js";
 
+export interface ComposerHandle {
+  readonly key: string;
+  readonly surface: "new-thread" | "follow-up";
+  readonly threadId: string | null;
+  readonly projectId: string | null;
+  readonly text: string;
+  readonly isEmpty: boolean;
+  setText(text: string): void;
+  updateText(update: (current: string) => string): void;
+  insert(text: string): void;
+  clear(): void;
+  focus(): void;
+  submit(): void;
+}
+
 export interface ComposerContext {
   surface: "new-thread" | "follow-up";
   threadId: string | null;
   projectId: string | null;
   host: unknown;
+  composer?: ComposerHandle;
+}
+
+export interface ComposerBanner {
+  id: string;
+  order?: number;
+  isAvailable?(composer: ComposerHandle): boolean;
+  view: ComponentType<{ composer: ComposerHandle }>;
 }
 
 export interface ComposerMenuItem {
@@ -62,4 +85,5 @@ export const composer = contract("composer", {
   footerControl: slot<ComposerFooterControl>({ key: "id" }),
   sendMenuItem: slot<ComposerSendMenuItem>({ key: "id" }),
   environmentInputs: slot<EnvironmentInputsForm>({ key: "kind" }),
+  banner: slot<ComposerBanner>(),
 });

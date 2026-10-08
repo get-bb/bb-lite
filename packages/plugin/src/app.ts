@@ -2,6 +2,7 @@ import type { ComponentType, ReactElement } from "react";
 import type { BbSdkAreas } from "@bb/sdk";
 import type { z } from "zod";
 import type * as T from "./app-types.js";
+import type { ComposerHandle } from "./app/composer.js";
 import type { Live, Op, Slot } from "./contract.js";
 import type { PluginVerbs, SlotEntryView } from "./kernel.js";
 
@@ -76,6 +77,8 @@ export interface PluginAppHost {
   useRealtimeConnectionState(): T.PluginRealtimeConnectionState;
   useSettings(): T.PluginSettingsState;
   useSdk(): BbSdkAreas;
+  useComposer(): ComposerHandle | null;
+  useComposers(): readonly ComposerHandle[];
   usePluginId(): string;
   useBbContext(): T.BbContext;
   useBbNavigate(): T.BbNavigate;
@@ -153,6 +156,8 @@ function component<Props extends object>(
 export const useRealtimeConnectionState = hook("useRealtimeConnectionState");
 export const useSettings = hook("useSettings");
 export const useSdk = hook("useSdk");
+export const useComposer = hook("useComposer");
+export const useComposers = hook("useComposers");
 export const usePluginId = hook("usePluginId");
 export const useBbContext = hook("useBbContext");
 export const useBbNavigate = hook("useBbNavigate");
