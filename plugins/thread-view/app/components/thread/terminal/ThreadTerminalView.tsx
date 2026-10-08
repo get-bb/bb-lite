@@ -17,7 +17,7 @@ import {
   openUrlInExternalBrowser,
   useAppNavigationHost,
 } from "@bb/app-kit/lib/url-open-routing";
-import { decodeBase64Bytes } from "@bb/app-kit/lib/base64-bytes";
+import { decodeBase64Bytes } from "../../../lib/base64-bytes";
 import { buildBrowserWebSocketUrl } from "@bb/app-kit/lib/browser-websocket-url";
 
 const TERMINAL_TOUCH_FOCUS_MAX_DURATION_MS = 700;

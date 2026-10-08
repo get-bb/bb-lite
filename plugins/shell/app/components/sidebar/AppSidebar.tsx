@@ -29,7 +29,7 @@ import {
   getSidebarThreadTargets,
   SidebarThreadShortcutKeysContext,
   type SidebarThreadShortcutTarget,
-} from "@bb/app-kit/components/sidebar/sidebarThreadShortcuts";
+} from "./sidebarThreadShortcuts";
 import {
   useAppCommandHandler,
   useAppCommandShortcut,

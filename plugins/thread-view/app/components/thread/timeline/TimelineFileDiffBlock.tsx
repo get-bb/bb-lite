@@ -7,7 +7,7 @@ import {
   type RenderablePatchText,
 } from "@bb/client-core";
 import { GitDiffCard } from "@bb/app-kit/components/git-diff/GitDiffCard";
-import { EventCodeBlock } from "@bb/app-kit/components/ui/event-code-block";
+import { EventCodeBlock } from "../../ui/event-code-block";
 import type { DiffPresentation } from "@bb/app-kit/components/code/code-rendering";
 import { TimelineDetailScroll } from "./TimelineDetailScroll";
 

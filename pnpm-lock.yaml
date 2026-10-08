@@ -1171,6 +1171,9 @@ importers:
       jotai:
         specifier: ^2.19.0
         version: 2.19.0(@babel/core@7.29.0)(@babel/template@7.29.7)(@types/react@19.2.13)(react@19.2.4)
+      jotai-family:
+        specifier: ^1.0.1
+        version: 1.0.1(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.29.7)(@types/react@19.2.13)(react@19.2.4))
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6
@@ -1673,9 +1676,15 @@ importers:
       '@bb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bb/fuzzy-match':
+        specifier: workspace:*
+        version: link:../../packages/fuzzy-match
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
+      '@bb/server-contract':
+        specifier: workspace:*
+        version: link:../../packages/server-contract
       '@bb/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui

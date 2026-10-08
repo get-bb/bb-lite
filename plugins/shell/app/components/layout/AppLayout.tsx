@@ -84,7 +84,7 @@ import { wsManager } from "@bb/app-kit/lib/ws";
 import { splitLayoutAtom } from "@bb/app-kit/lib/split-layout/atoms";
 import { findPaneByContent } from "@bb/app-kit/lib/split-layout";
 import { applyThreadOpenToLayout } from "@bb/app-kit/views/thread-detail/splitThreadNavigation";
-import { useAppSettingsRouteMemory } from "@bb/app-kit/hooks/useAppSettingsRouteMemory";
+import { useAppSettingsRouteMemory } from "../../hooks/useAppSettingsRouteMemory";
 import { useSetRootComposeProjectId } from "@bb/app-kit/lib/root-compose-selection";
 
 function clampSidebarWidth(value: number) {

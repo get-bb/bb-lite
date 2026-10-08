@@ -5,7 +5,7 @@ import type { PanelTab } from "../secondary-panel/panelTabs";
 import {
   parsePersistedPluginPanelParams,
   serializePluginPanelParams,
-} from "@bb/app-kit/lib/plugin-json-value";
+} from "../../lib/plugin-json-value";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 import { usePluginSlots, type PluginSlot } from "@bb/app-kit/plugins/registry";
 

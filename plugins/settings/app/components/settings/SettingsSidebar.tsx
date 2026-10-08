@@ -6,7 +6,7 @@ import {
   SectionSidebarIcon,
   SectionSidebarLabel,
   SectionSidebarRow,
-} from "@bb/app-kit/components/sidebar/SectionSidebar";
+} from "../sidebar/SectionSidebar";
 import { getPluginConfigurationRoutePath } from "@bb/app-kit/lib/route-paths";
 import { useSettingsNavState } from "./settings-nav";
 import {

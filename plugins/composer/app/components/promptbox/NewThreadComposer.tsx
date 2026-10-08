@@ -64,7 +64,7 @@ import { usePromptDraftStorage } from "@bb/app-kit/hooks/usePromptDraftStorage";
 import {
   storedEnvironmentAtomFamily,
   storedMachineAtomFamily,
-} from "@bb/app-kit/hooks/thread-creation-options/persisted-selection-fields";
+} from "../../hooks/thread-creation-options/persisted-selection-fields";
 import { useThreadCreationOptions } from "../../hooks/useThreadCreationOptions";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import { promptHistoryEntriesToDrafts } from "@bb/app-kit/lib/prompt-history";

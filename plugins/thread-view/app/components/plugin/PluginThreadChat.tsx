@@ -29,7 +29,7 @@ import {
 } from "@bb/app-kit/hooks/queries/thread-queries";
 import { useLocalHostId } from "@bb/app-kit/hooks/useOpenTargets";
 import { getPromptDraftAccessor } from "@bb/app-kit/hooks/usePromptDraftStorage";
-import { useThreadReadTracking } from "@bb/app-kit/hooks/useThreadReadTracking";
+import { useThreadReadTracking } from "../../hooks/useThreadReadTracking";
 import {
   findEnvironmentDisplayProvider,
   getEnvironmentSummaryChrome,

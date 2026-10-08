@@ -18,7 +18,7 @@ import { Button } from "@bb/shared-ui/button";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { EventCodeBlock } from "@bb/app-kit/components/ui/event-code-block";
+import { EventCodeBlock } from "../../ui/event-code-block";
 import { ImageLightbox } from "@bb/app-kit/components/ui/image-lightbox";
 import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
 import { buildThreadHostFileContentUrl } from "@bb/app-kit/lib/file-content-urls";

@@ -11,7 +11,7 @@ import {
 } from "@bb/shared-ui/dialog";
 import { Icon } from "@bb/shared-ui/icon";
 import type { ResourceOverflowMenuItem } from "@bb/shared-ui/resource-list";
-import { MachineLaunchCommand } from "@bb/app-kit/components/dialogs/AddMachineDialog";
+import { MachineLaunchCommand } from "../dialogs/AddMachineDialog";
 import { ConfirmDeleteDialog } from "@bb/shared-ui/confirm-delete-dialog";
 import { RenameDialog } from "@bb/app-kit/components/dialogs/RenameDialog";
 import { MachineStatusDot } from "@bb/app-kit/components/machines/MachineStatusDot";
@@ -19,7 +19,7 @@ import {
   useReconnectHost,
   useRemoveHost,
   useRenameHost,
-} from "@bb/app-kit/hooks/mutations/host-mutations";
+} from "../../hooks/mutations/host-mutations";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import { formatRelativeTime } from "@bb/app-kit/lib/relative-time";
 

@@ -14,7 +14,7 @@ import {
 import { parseGitDiffFiles } from "@bb/app-kit/components/git-diff/git-diff-parsing";
 import { Button } from "@bb/shared-ui/button";
 import { FilePathLink } from "@bb/app-kit/components/ui/file-path-link";
-import type { DiffPatchState } from "@bb/app-kit/hooks/queries/use-environment-diff-patches";
+import type { DiffPatchState } from "../../../hooks/queries/use-environment-diff-patches";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 interface DiffFileCardProps {

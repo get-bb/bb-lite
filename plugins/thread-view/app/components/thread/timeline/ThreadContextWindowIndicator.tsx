@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import type { ThreadContextWindowUsage } from "@bb/server-contract";
-import { useHoverPopover } from "@bb/app-kit/components/ui/hooks/use-hover-popover";
+import { useHoverPopover } from "../../ui/hooks/use-hover-popover";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 import {

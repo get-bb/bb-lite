@@ -3,7 +3,7 @@ import { cn, useComposedRefs } from "@bb/shared-ui/lib/utils";
 import {
   getDetailScrollMaxHeightClass,
   type DetailScrollSize,
-} from "@bb/app-kit/components/ui/detail-scroll-size";
+} from "../../ui/detail-scroll-size";
 import { useStickyBottomScroll } from "./useStickyBottomScroll";
 import { useScrollOverflowState } from "@bb/app-kit/components/thread/timeline/useScrollOverflowState";
 

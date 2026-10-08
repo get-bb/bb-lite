@@ -14,7 +14,7 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../ui/settings-section";
 import { selectHosts, useHosts } from "@bb/app-kit/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 import { useQuickCreateProjectController } from "@bb/app-kit/hooks/useQuickCreateProject";

@@ -17,12 +17,12 @@ import {
   useEnvironmentWorkStatus,
 } from "@bb/app-kit/hooks/queries/environment-queries";
 import { environmentDiffFileQueryKey } from "@bb/app-kit/hooks/queries/query-keys";
-import { useEnvironmentDiffPatches } from "@bb/app-kit/hooks/queries/use-environment-diff-patches";
-import { useElementWidth } from "@bb/app-kit/hooks/useElementWidth";
+import { useEnvironmentDiffPatches } from "../../../hooks/queries/use-environment-diff-patches";
+import { useElementWidth } from "../../../hooks/useElementWidth";
 import {
   useGitDiffDisplayModePreference,
   useGitDiffLineOverflowModePreference,
-} from "@bb/app-kit/lib/git-diff-view-preferences";
+} from "../../../lib/git-diff-view-preferences";
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { GitDiffToolbar, type GitDiffDisplayMode } from "../GitDiffToolbar";
 import { DiffFileCard } from "./DiffFileCard";

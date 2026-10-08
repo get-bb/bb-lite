@@ -23,7 +23,7 @@ import {
   useEnvironment,
   useEnvironmentWorkStatus,
 } from "@bb/app-kit/hooks/queries/environment-queries";
-import { useChildThreadPendingAttention } from "@bb/app-kit/hooks/queries/child-thread-pending-interactions";
+import { useChildThreadPendingAttention } from "../../hooks/queries/child-thread-pending-interactions";
 import {
   didThreadDetailBootstrapRefreshAfterMount,
   getLatestPendingInteraction,
@@ -35,7 +35,7 @@ import {
   useThreadPendingInteractions,
 } from "@bb/app-kit/hooks/queries/thread-queries";
 import { getPromptDraftAccessor } from "@bb/app-kit/hooks/usePromptDraftStorage";
-import { ThreadGitActionDialog } from "@bb/app-kit/components/dialogs/ThreadGitActionDialog";
+import { ThreadGitActionDialog } from "../../components/dialogs/ThreadGitActionDialog";
 import { PageShell } from "@bb/app-kit/components/ui/page-shell";
 import { RouteLoadingSkeleton } from "@bb/app-kit/components/ui/route-loading-skeleton";
 import { HEADER_ICON_BUTTON_CLASS } from "@bb/app-kit/components/layout/AppPageHeader";
@@ -59,7 +59,7 @@ import { formatWorkspaceCheckoutDisplay } from "@bb/app-kit/lib/workspace-checko
 import { getGitStatusDisplay } from "@bb/app-kit/components/workspace/workspace-status";
 import { selectWorkspaceChangedFilesSection } from "@bb/app-kit/components/workspace/workspace-change-summary";
 import { getThreadDisplayTitle } from "@bb/app-kit/lib/thread-title";
-import { hasThreadProvisioningFailure } from "@bb/app-kit/lib/thread-provisioning-failure";
+import { hasThreadProvisioningFailure } from "../../lib/thread-provisioning-failure";
 import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
@@ -74,7 +74,7 @@ import type { PromptMentionLinkResolver } from "@bb/app-kit/components/promptbox
 import { useEnvironmentMergeBase } from "bb-plugin-side-panel/contract";
 import { openThreadLink, useThreadPanel } from "bb-plugin-side-panel/contract";
 import { useThreadGitActions } from "./useThreadGitActions";
-import { useThreadReadTracking } from "@bb/app-kit/hooks/useThreadReadTracking";
+import { useThreadReadTracking } from "../../hooks/useThreadReadTracking";
 import { useThreadUnreadDividerState } from "./useThreadUnreadDividerState";
 import { isRootThread } from "@bb/app-kit/views/thread-detail/threadParentSelectorOptions";
 import { useAppCommandHandler } from "@bb/app-kit/components/commands/AppCommandProvider";

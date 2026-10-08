@@ -36,16 +36,16 @@ import {
 } from "@bb/app-kit/hooks/queries/thread-terminal-queries";
 import type { useOpenTargets } from "@bb/app-kit/hooks/useOpenTargets";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
-import { getFileBasename } from "@bb/app-kit/lib/live-file-navigation";
-import { serializePluginPanelParams } from "@bb/app-kit/lib/plugin-json-value";
-import { resolveThreadLocalFileLink } from "@bb/app-kit/lib/thread-local-file-links";
+import { getFileBasename } from "../../lib/live-file-navigation";
+import { serializePluginPanelParams } from "../../lib/plugin-json-value";
+import { resolveThreadLocalFileLink } from "../../lib/thread-local-file-links";
 import { openHttpUrlInExternalBrowser } from "@bb/app-kit/lib/url-open-routing";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import {
   buildOpenInEditorHandler,
   resolveWorkspaceChangedFileOpenTarget,
-} from "@bb/app-kit/views/thread-detail/threadWorkspaceOpenPath";
+} from "../../views/thread-detail/threadWorkspaceOpenPath";
 import { resolveGitDiffTabStatus } from "./gitDiffTabEligibility";
 import {
   GIT_DIFF_TAB_ID,

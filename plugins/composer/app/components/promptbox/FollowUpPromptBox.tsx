@@ -38,7 +38,7 @@ import {
 import { useBottomAnchoredScroll } from "@bb/app-kit/components/ui/bottom-anchored-scroll-body";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
-import { ThreadTimelineScrollToBottomButton } from "@bb/app-kit/views/thread-detail/ThreadTimelineScrollToBottomButton";
+import { ThreadTimelineScrollToBottomButton } from "../../views/thread-detail/ThreadTimelineScrollToBottomButton";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import type { ThreadContextWindowIndicator } from "bb-plugin-thread-view/contract";
 import {

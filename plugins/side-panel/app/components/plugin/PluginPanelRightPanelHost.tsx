@@ -13,7 +13,7 @@ import { useAppCommandHandler } from "@bb/app-kit/components/commands/AppCommand
 import { PluginItemIcon } from "@bb/app-kit/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@bb/app-kit/components/secondary-panel/panelToggleControlState";
-import { PANEL_SCROLL_SLOT_CLASS } from "@bb/app-kit/components/secondary-panel/panelChromeClasses";
+import { PANEL_SCROLL_SLOT_CLASS } from "../secondary-panel/panelChromeClasses";
 import { panelTabId, usePanelTabs } from "../secondary-panel/panelTabs";
 import { SecondaryPanelLayout } from "../secondary-panel/SecondaryPanelLayout";
 import {
@@ -22,7 +22,7 @@ import {
 } from "../secondary-panel/ThreadSecondaryPanel";
 import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
-import { getPluginPagePanelStateId } from "@bb/app-kit/components/plugin/plugin-page-panel-state";
+import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
 
 const NO_TABS: never[] = [];
 const compactDrawerOpenAtomFamily = atomFamily((_panelStateId: string) =>

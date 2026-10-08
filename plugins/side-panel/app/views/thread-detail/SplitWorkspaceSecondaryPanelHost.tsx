@@ -29,7 +29,7 @@ import { secondaryPanelWidthPercentAtom } from "@bb/app-kit/components/secondary
 import {
   SecondaryPanelMinimumContext,
   useSecondaryPanelSizing,
-} from "@bb/app-kit/components/secondary-panel/secondaryPanelSizing";
+} from "../../components/secondary-panel/secondaryPanelSizing";
 import {
   SecondaryPanelHostLayoutContext,
   type SecondaryPanelHostLayout,

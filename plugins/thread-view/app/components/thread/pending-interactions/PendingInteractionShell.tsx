@@ -11,7 +11,7 @@ import {
 import { NavLink } from "react-router-dom";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { ExpandableLine } from "@bb/app-kit/components/ui/expandable-line";
+import { ExpandableLine } from "../../ui/expandable-line";
 
 export interface PendingInteractionSourceThread {
   href: string;

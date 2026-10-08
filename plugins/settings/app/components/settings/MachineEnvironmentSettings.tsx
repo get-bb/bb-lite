@@ -11,11 +11,11 @@ import { Icon } from "@bb/shared-ui/icon";
 import { Input } from "@bb/shared-ui/input";
 import { OptionPicker } from "@bb/app-kit/components/pickers/OptionPicker";
 import { getSettingsSectionRoutePath } from "@bb/app-kit/components/settings/settings-sections";
-import { SettingsSection } from "@bb/app-kit/components/ui/settings-section";
+import { SettingsSection } from "../ui/settings-section";
 import {
   invalidateMachineEnvironment,
   invalidateSystemConfig,
-} from "@bb/app-kit/hooks/mutations/settings-mutations";
+} from "../../hooks/mutations/settings-mutations";
 import { machineEnvironmentQueryKey } from "@bb/app-kit/hooks/queries/query-keys";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 import { sdk } from "@bb/app-kit/lib/sdk";

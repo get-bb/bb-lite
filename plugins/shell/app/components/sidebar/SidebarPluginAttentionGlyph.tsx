@@ -12,7 +12,7 @@ import { usePluginList } from "@bb/app-kit/hooks/queries/plugin-settings-queries
 import {
   pluginAttentionLabel,
   pluginsNeedingAttention,
-} from "@bb/app-kit/hooks/usePluginAttention";
+} from "../../hooks/usePluginAttention";
 import { createJsonLocalStorage } from "@bb/app-kit/lib/browser-storage";
 import { SETTINGS_PLUGINS_ROUTE_PATH } from "@bb/app-kit/lib/route-paths";
 

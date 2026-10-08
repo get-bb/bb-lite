@@ -11,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@bb/shared-ui/dropdown-menu";
-import { useElementWidth } from "@bb/app-kit/hooks/useElementWidth";
+import { useElementWidth } from "../../hooks/useElementWidth";
 import BbSourceCode from "@bb/app-kit/components/code/BbSourceCode";
 import { hashSourceContents } from "@bb/app-kit/components/code/source-code-budget";
 import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
@@ -37,7 +37,7 @@ import {
 import { TruncateStart } from "@bb/app-kit/components/ui/truncate-start";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
 import { openUrlInExternalBrowser } from "@bb/app-kit/lib/url-open-routing";
-import { formatByteSize } from "@bb/app-kit/lib/format-byte-size";
+import { formatByteSize } from "../../lib/format-byte-size";
 import { asHttpError, getHttpErrorMessage } from "@bb/app-kit/lib/http-error";
 import { extractErrorMessage } from "@bb/core-ui";
 import {

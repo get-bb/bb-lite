@@ -14,7 +14,7 @@ import {
   CollapsibleHeader,
   ExpandablePanel,
   getCollapsibleHeaderToneClass,
-} from "@bb/app-kit/components/ui/disclosure";
+} from "../../ui/disclosure";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {

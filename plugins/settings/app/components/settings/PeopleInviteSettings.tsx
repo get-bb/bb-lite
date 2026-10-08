@@ -24,11 +24,11 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../ui/settings-section";
 import {
   useCreateUserInvite,
   useRevokeUserInvite,
-} from "@bb/app-kit/hooks/mutations/user-mutations";
+} from "../../hooks/mutations/user-mutations";
 import { useUserInvites } from "@bb/app-kit/hooks/queries/user-queries";
 import {
   PeopleField,

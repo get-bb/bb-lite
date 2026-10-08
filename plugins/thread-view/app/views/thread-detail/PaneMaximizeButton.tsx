@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@bb/shared-ui/tooltip";
 import { useAppCommandShortcut } from "@bb/app-kit/components/commands/AppCommandProvider";
 import { HEADER_PANE_ACTION_ICON_BUTTON_CLASS } from "@bb/app-kit/components/layout/AppPageHeader";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";
-import { useHoverPopover } from "@bb/app-kit/components/ui/hooks/use-hover-popover";
+import { useHoverPopover } from "../../components/ui/hooks/use-hover-popover";
 import type { AppShortcutPresentation } from "@bb/app-kit/lib/app-keybindings";
 import { useRef } from "react";
 import type { SplitSide } from "@bb/app-kit/lib/split-layout";

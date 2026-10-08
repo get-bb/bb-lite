@@ -6,8 +6,8 @@ import type {
 import { buildProviderPromptActionProps } from "@bb/client-core";
 import type { TypeaheadConfig } from "./PromptBoxInternal";
 import type { PromptMentionLinkResolver } from "@bb/app-kit/components/promptbox/editor/prompt-mention-link";
-import { useCommandSuggestions } from "@bb/app-kit/hooks/useCommandSuggestions";
-import { usePromptMentions } from "@bb/app-kit/hooks/usePromptMentions";
+import { useCommandSuggestions } from "../../hooks/useCommandSuggestions";
+import { usePromptMentions } from "../../hooks/usePromptMentions";
 
 export function usePromptTypeahead({
   projectId,

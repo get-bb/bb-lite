@@ -17,7 +17,7 @@ import {
   HEADER_ICON_BUTTON_CLASS,
   HEADER_PANE_ACTION_ICON_BUTTON_CLASS,
 } from "@bb/app-kit/components/layout/AppPageHeader";
-import type { ThreadGitActionDialogTarget } from "@bb/app-kit/components/dialogs/ThreadGitActionDialog";
+import type { ThreadGitActionDialogTarget } from "../../components/dialogs/ThreadGitActionDialog";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useAppCommandShortcut } from "@bb/app-kit/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@bb/app-kit/components/commands/AppCommandShortcutHint";

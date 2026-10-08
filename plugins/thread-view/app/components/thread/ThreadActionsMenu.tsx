@@ -1,7 +1,4 @@
-import {
-  ActionMenuItem,
-  ActionMenuSeparator,
-} from "@bb/app-kit/components/ui/action-menu-items";
+import { ActionMenuItem, ActionMenuSeparator } from "../ui/action-menu-items";
 import type { Thread } from "@bb/domain";
 import {
   shell,

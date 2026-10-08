@@ -22,11 +22,11 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../components/ui/settings-section";
 import {
   useSetHostSharing,
   useUpdateHostPermissionCeiling,
-} from "@bb/app-kit/hooks/mutations/host-mutations";
+} from "../hooks/mutations/host-mutations";
 import { useHosts } from "@bb/app-kit/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";

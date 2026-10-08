@@ -14,14 +14,11 @@ import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { AppCommandShortcutPill } from "@bb/shared-ui/app-command-shortcut-pill";
 import { SettingsSwitch } from "./SettingsDropdown";
-import {
-  SettingsBadge,
-  SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+import { SettingsBadge, SettingsSection } from "../ui/settings-section";
 import {
   useUpdateGeneralSettings,
   useUpdateKeyboardSettings,
-} from "@bb/app-kit/hooks/mutations/settings-mutations";
+} from "../../hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";
 import { usePluginCommandBindings } from "@bb/app-kit/hooks/usePluginCommandBindings";
 import { APP_COMMAND_GROUPS } from "@bb/app-kit/lib/app-command-metadata";

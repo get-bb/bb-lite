@@ -31,7 +31,7 @@ import {
   buildPaletteThreadSearchRows,
   windowPaletteThreadSearchText,
   type PaletteThreadSearchRow,
-} from "@bb/app-kit/lib/command-palette";
+} from "../../lib/command-palette";
 import {
   PALETTE_SECTION_LABEL_CLASS,
   PaletteShell,

@@ -25,8 +25,8 @@ import {
   SettingsRowList,
   SettingsSection,
   SettingsWithControl,
-} from "@bb/app-kit/components/ui/settings-section";
-import { useSetProviderEnabled } from "@bb/app-kit/hooks/mutations/provider-mutations";
+} from "../ui/settings-section";
+import { useSetProviderEnabled } from "../../hooks/mutations/provider-mutations";
 import {
   applyPluginSettingsView,
   invalidatePluginList,

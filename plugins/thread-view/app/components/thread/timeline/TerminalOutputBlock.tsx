@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import Convert from "ansi-to-html";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { getDetailScrollMaxHeightClass } from "@bb/app-kit/components/ui/detail-scroll-size";
+import { getDetailScrollMaxHeightClass } from "../../ui/detail-scroll-size";
 import { TimelineDetailScroll } from "./TimelineDetailScroll";
 
 interface TerminalOutputBlockProps {

@@ -31,8 +31,8 @@ import {
 import {
   PANEL_SCROLL_SLOT_CLASS,
   PANEL_TAB_CONTROL_CLASS,
-} from "@bb/app-kit/components/secondary-panel/panelChromeClasses";
-import { SecondaryPanelMinimumContext } from "@bb/app-kit/components/secondary-panel/secondaryPanelSizing";
+} from "./panelChromeClasses";
+import { SecondaryPanelMinimumContext } from "./secondaryPanelSizing";
 import { RIGHT_PANEL_TOGGLE_ICON_NAME } from "@bb/app-kit/components/secondary-panel/panelToggleControlState";
 import { SecondaryPanelHostLayoutContext } from "@bb/app-kit/components/secondary-panel/SecondaryPanelHostLayoutContext";
 import { MobilePanelTabPager } from "./MobilePanelTabPager";

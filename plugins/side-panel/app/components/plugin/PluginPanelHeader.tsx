@@ -4,7 +4,7 @@ import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 import type { PluginSlot } from "@bb/app-kit/plugins/registry";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import { PluginItemIcon } from "@bb/app-kit/components/plugin/PluginIcon";
-import { getPluginPagePanelStateId } from "@bb/app-kit/components/plugin/plugin-page-panel-state";
+import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
 
 export function PluginPanelHeaderCenter({
   chrome,

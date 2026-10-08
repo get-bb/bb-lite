@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HostOpenTarget } from "@bb/server-contract";
-import { SplitButton } from "@bb/app-kit/components/ui/split-button";
+import { SplitButton } from "../ui/split-button";
 import { useAppCommandShortcut } from "@bb/app-kit/components/commands/AppCommandProvider";
 import { AppCommandShortcutHint } from "@bb/app-kit/components/commands/AppCommandShortcutHint";
 import { CHROME_SUBTLE_ICON_BUTTON_FOREGROUND_CLASS } from "@bb/shared-ui/chrome-style-tokens";

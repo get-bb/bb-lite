@@ -26,7 +26,7 @@ import {
   recordPaletteRecent,
   type PaletteAction,
   type RankedPaletteAction,
-} from "@bb/app-kit/lib/command-palette";
+} from "../../lib/command-palette";
 import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { getActiveThreadPanelOpener } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
 import { pluginListQueryOptions } from "@bb/app-kit/hooks/queries/plugin-settings-queries";

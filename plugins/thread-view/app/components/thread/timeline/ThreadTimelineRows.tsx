@@ -38,7 +38,7 @@ import {
 } from "@bb/client-core";
 import { Button } from "@bb/shared-ui/button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { AutoHeightContainer } from "@bb/app-kit/components/ui/height-transition";
+import { AutoHeightContainer } from "../../ui/height-transition";
 import { useBottomAnchoredScroll } from "@bb/app-kit/components/ui/bottom-anchored-scroll-body";
 import { getThreadRoutePath } from "@bb/app-kit/lib/route-paths";
 import { supportsScrollAnchoring } from "@bb/app-kit/lib/scroll-anchoring-support";

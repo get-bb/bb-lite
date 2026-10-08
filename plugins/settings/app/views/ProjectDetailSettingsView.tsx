@@ -33,7 +33,7 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../components/ui/settings-section";
 import {
   useAddLocalProjectSource,
   useDeleteLocalProjectSource,

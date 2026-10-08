@@ -1,9 +1,9 @@
 import { createElement } from "react";
 import { appToast } from "@bb/app-kit/components/ui/app-toast";
-import { AppToastCommitDescription } from "@bb/app-kit/components/ui/app-toast-descriptions";
+import { AppToastCommitDescription } from "../../components/ui/app-toast-descriptions";
 import type { Environment, Thread, WorkspaceStatus } from "@bb/domain";
 import { useDialogState } from "@bb/app-kit/hooks/useDialogState";
-import type { ThreadGitActionDialogTarget } from "@bb/app-kit/components/dialogs/ThreadGitActionDialog";
+import type { ThreadGitActionDialogTarget } from "../../components/dialogs/ThreadGitActionDialog";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import type { RequestEnvironmentActionMutationLike } from "./threadDetailMutationTypes";
 

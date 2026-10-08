@@ -5,7 +5,7 @@ import type { PromptMentionLinkResolver } from "@bb/app-kit/components/promptbox
 import {
   getFollowUpPromptPlaceholder,
   getCompactFollowUpPromptPlaceholder,
-} from "@bb/app-kit/components/promptbox/follow-up-placeholder";
+} from "../../components/promptbox/follow-up-placeholder";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import type {
   PendingInteraction,
@@ -18,7 +18,7 @@ import type {
   ThreadTimelineResponse,
   TimelineWorkflowWorkRow,
 } from "@bb/server-contract";
-import type { ChildThreadPendingAttention } from "@bb/app-kit/hooks/queries/child-thread-pending-interactions";
+import type { ChildThreadPendingAttention } from "../../hooks/queries/child-thread-pending-interactions";
 import { ThreadPendingInteractionBanner } from "../../components/thread/pending-interactions/ThreadPendingInteractionBanner";
 import {
   ThreadPromptContextBanner,
@@ -69,7 +69,7 @@ import {
   useThreadQueuedMessages,
   useThreadPromptHistory,
 } from "@bb/app-kit/hooks/queries/thread-queries";
-import { useThreadDefaultExecutionOptions } from "@bb/app-kit/hooks/queries/thread-default-execution-options-query";
+import { useThreadDefaultExecutionOptions } from "../../hooks/queries/thread-default-execution-options-query";
 import { showMutationErrorToast } from "@bb/app-kit/lib/mutation-errors";
 import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import { promptHistoryEntriesToDrafts } from "@bb/app-kit/lib/prompt-history";

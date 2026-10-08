@@ -26,7 +26,7 @@ import {
   type CodeOverflowModeChangeHandler,
 } from "@bb/app-kit/lib/code-overflow-mode";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type { GitDiffDisplayMode } from "@bb/app-kit/lib/git-diff-view-preferences";
+import type { GitDiffDisplayMode } from "../../lib/git-diff-view-preferences";
 import type { GitDiffStats } from "@bb/app-kit/components/git-diff/git-diff-parsing";
 
 const GIT_DIFF_SELECTOR_MENU_MIN_WIDTH = "20rem";

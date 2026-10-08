@@ -14,9 +14,9 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../ui/settings-section";
 import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
-import { useSetProviderEnabled } from "@bb/app-kit/hooks/mutations/provider-mutations";
+import { useSetProviderEnabled } from "../../hooks/mutations/provider-mutations";
 import {
   useSystemProviderCatalog,
   useSystemProviders,

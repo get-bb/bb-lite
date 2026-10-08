@@ -8,7 +8,7 @@ import {
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { TabPill } from "@bb/app-kit/components/ui/tab-pill";
-import { PANEL_TAB_CONTROL_CLASS } from "@bb/app-kit/components/secondary-panel/panelChromeClasses";
+import { PANEL_TAB_CONTROL_CLASS } from "./panelChromeClasses";
 
 const MAX_TAB_WIDTH_PX = 144;
 const TAB_GAP_PX = 4;

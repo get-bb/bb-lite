@@ -15,7 +15,7 @@ import {
 import { Input } from "@bb/shared-ui/input";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PluginSettingsPage } from "../components/plugin/PluginSettings";
-import { MachineAccessSettings } from "@bb/app-kit/components/settings/MachineAccessSettings";
+import { MachineAccessSettings } from "../components/settings/MachineAccessSettings";
 import { MachinesSettingsSection } from "../components/settings/MachinesSettingsSection";
 import { ProvidersSettingsSection } from "../components/settings/ProvidersSettingsSection";
 import {
@@ -38,11 +38,11 @@ import { PageShell } from "@bb/app-kit/components/ui/page-shell";
 import {
   SettingsSection,
   SettingsWithControl,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../components/ui/settings-section";
 import {
   useUpdateAppearance,
   useUpdateGeneralSettings,
-} from "@bb/app-kit/hooks/mutations/settings-mutations";
+} from "../hooks/mutations/settings-mutations";
 import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";
 import { useAppThemePreview } from "@bb/app-kit/hooks/useAppTheme";
 import {

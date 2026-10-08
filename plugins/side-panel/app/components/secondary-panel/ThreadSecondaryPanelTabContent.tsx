@@ -17,7 +17,7 @@ import type {
   FilePreviewLineRange,
   WorkspaceFilePreviewStatusLabel,
 } from "@bb/client-core";
-import { buildMarkdownFileImageRouting } from "@bb/app-kit/components/ui/markdown-file-image-routing";
+import { buildMarkdownFileImageRouting } from "../ui/markdown-file-image-routing";
 import { getAbsoluteDirname } from "@bb/app-kit/lib/absolute-file-path";
 import { FilePreview, resolveFilePreviewState } from "./FilePreview";
 

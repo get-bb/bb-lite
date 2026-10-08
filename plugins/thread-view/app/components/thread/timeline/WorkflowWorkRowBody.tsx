@@ -1,6 +1,6 @@
 import { isSettledWorkflowAgentState } from "@bb/domain";
 import type { TimelineViewWorkflowWorkRow } from "@bb/thread-view";
-import type { DetailScrollSize } from "@bb/app-kit/components/ui/detail-scroll-size";
+import type { DetailScrollSize } from "../../ui/detail-scroll-size";
 
 export function WorkflowWorkRowBody({
   row,

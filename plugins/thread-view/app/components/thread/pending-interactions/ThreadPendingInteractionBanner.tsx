@@ -20,9 +20,9 @@ import {
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
-import { getDetailScrollMaxHeightClass } from "@bb/app-kit/components/ui/detail-scroll-size";
+import { getDetailScrollMaxHeightClass } from "../../ui/detail-scroll-size";
 import { UserQuestionAnswerForm } from "../user-questions/UserQuestionInteractionContent";
-import { useResolveThreadPendingInteraction } from "@bb/app-kit/hooks/mutations/thread-interaction-mutations";
+import { useResolveThreadPendingInteraction } from "../../../hooks/mutations/thread-interaction-mutations";
 import { PluginPendingInteractionComposer } from "../../plugin/PluginPendingInteractionComposer";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import {

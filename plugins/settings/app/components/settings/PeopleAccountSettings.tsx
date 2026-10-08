@@ -2,16 +2,13 @@ import { useState } from "react";
 import type { User } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
 import { appToast } from "@bb/app-kit/components/ui/app-toast";
-import {
-  SettingsSection,
-  SettingsWithControl,
-} from "@bb/app-kit/components/ui/settings-section";
+import { SettingsSection, SettingsWithControl } from "../ui/settings-section";
 import {
   useCreateSignInLink,
   useSetUserPassword,
   useSignOut,
   useUpdateUser,
-} from "@bb/app-kit/hooks/mutations/user-mutations";
+} from "../../hooks/mutations/user-mutations";
 import {
   PeopleField,
   ShareLinkDialog,

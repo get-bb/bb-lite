@@ -3,7 +3,7 @@ import { isRunningThreadRuntimeDisplayStatus } from "@bb/client-core";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import type { PromptMentionLinkResolver } from "@bb/app-kit/components/promptbox/editor/prompt-mention-link";
-import { ConversationTimeline } from "@bb/app-kit/components/ui/conversation";
+import { ConversationTimeline } from "../../ui/conversation";
 import { useThread } from "@bb/app-kit/hooks/queries/thread-queries";
 import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import {

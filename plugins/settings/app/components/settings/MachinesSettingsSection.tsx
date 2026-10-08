@@ -9,7 +9,7 @@ import {
   ResourceRowDetailChevron,
   targetsResourceAction,
 } from "@bb/shared-ui/resource-list";
-import { AddMachineDialog } from "@bb/app-kit/components/dialogs/AddMachineDialog";
+import { AddMachineDialog } from "../dialogs/AddMachineDialog";
 import { MachineLabel } from "@bb/app-kit/components/machines/MachineLabel";
 import { MachineStatusDot } from "@bb/app-kit/components/machines/MachineStatusDot";
 import {
@@ -21,7 +21,7 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../ui/settings-section";
 import { useHosts } from "@bb/app-kit/hooks/queries/host-queries";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";

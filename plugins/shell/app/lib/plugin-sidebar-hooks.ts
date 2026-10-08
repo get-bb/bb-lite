@@ -25,8 +25,8 @@ import type {
 } from "@bb/plugin/app";
 import { getThreadConversationCollapsedAtom } from "@bb/app-kit/components/secondary-panel/threadSecondaryPanelAtoms";
 import { useSidebarNavigationModel } from "../components/sidebar/SidebarNavigationModel";
-import { usePaneContentSplitPanes } from "@bb/app-kit/components/sidebar/paneContentSplitIndicator";
-import { useSidebarThreadShortcut as useHostSidebarThreadShortcut } from "@bb/app-kit/components/sidebar/sidebarThreadShortcuts";
+import { usePaneContentSplitPanes } from "../components/sidebar/paneContentSplitIndicator";
+import { useSidebarThreadShortcut as useHostSidebarThreadShortcut } from "../components/sidebar/sidebarThreadShortcuts";
 import { useThreadActions } from "@bb/app-kit/components/thread/ThreadActionsProvider";
 import {
   resolveThreadTitleDisplayText,

@@ -36,7 +36,7 @@ import {
 import {
   SecondaryPanelMinimumContext,
   useSecondaryPanelSizing,
-} from "@bb/app-kit/components/secondary-panel/secondaryPanelSizing";
+} from "./secondaryPanelSizing";
 
 const FULL_PANEL_SIZE_PERCENT = 100;
 

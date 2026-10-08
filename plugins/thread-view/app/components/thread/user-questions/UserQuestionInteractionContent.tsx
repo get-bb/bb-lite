@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import type { PendingInteractionUserQuestionQuestion } from "@bb/domain";
 import { QuestionForm } from "@bb/shared-ui/question-form";
-import { useResolveThreadPendingInteraction } from "@bb/app-kit/hooks/mutations/thread-interaction-mutations";
+import { useResolveThreadPendingInteraction } from "../../../hooks/mutations/thread-interaction-mutations";
 import { useStopThread } from "@bb/app-kit/hooks/mutations/thread-runtime-mutations";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import { useStickyFooterAvailableHeight } from "./useStickyFooterAvailableHeight";

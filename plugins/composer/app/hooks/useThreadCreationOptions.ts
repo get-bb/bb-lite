@@ -21,11 +21,11 @@ import type {
   ProviderPickerOption,
 } from "../components/pickers/ModelReasoningPicker";
 import { PERMISSION_MODE_OPTIONS } from "@bb/app-kit/lib/permission-mode-options";
-import { getProviderIconInfo } from "@bb/app-kit/lib/provider-icon";
+import { getProviderIconInfo } from "../lib/provider-icon";
 import {
   fastServiceTierLabel,
   reasoningLevelLabel,
-} from "@bb/app-kit/lib/reasoning-labels";
+} from "../lib/reasoning-labels";
 import {
   selectPrimaryHost,
   useHosts,
@@ -41,7 +41,7 @@ import {
   storedProviderIdAtom,
   storedReasoningLevelAtomFamily,
   storedServiceTierAtom,
-} from "@bb/app-kit/hooks/thread-creation-options/persisted-selection-fields";
+} from "./thread-creation-options/persisted-selection-fields";
 
 const PERMISSION_CEILING_REASON =
   "Above the selected machine's permission limit. Change it in Settings → Machines.";

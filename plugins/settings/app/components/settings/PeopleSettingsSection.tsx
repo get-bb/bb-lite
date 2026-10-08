@@ -7,12 +7,12 @@ import {
   SettingsRow,
   SettingsRowList,
   SettingsSection,
-} from "@bb/app-kit/components/ui/settings-section";
+} from "../ui/settings-section";
 import { UserAvatar } from "@bb/app-kit/components/users/UserAvatar";
 import {
   useCreateSignInLink,
   useUpdateUser,
-} from "@bb/app-kit/hooks/mutations/user-mutations";
+} from "../../hooks/mutations/user-mutations";
 import {
   useCurrentUser,
   useUsers,

@@ -12,7 +12,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { Switch } from "@bb/shared-ui/switch";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { PageShell } from "@bb/app-kit/components/ui/page-shell";
-import { SettingsWithControl } from "@bb/app-kit/components/ui/settings-section";
+import { SettingsWithControl } from "../ui/settings-section";
 import { getSettingsSectionRoutePath } from "@bb/app-kit/components/settings/settings-sections";
 
 export function SettingsDetailShell({
