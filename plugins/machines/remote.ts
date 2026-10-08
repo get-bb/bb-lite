@@ -1,3 +1,4 @@
+import type { PluginServerApi } from "@bb/plugin";
 import {
   REPLACED_CLOSE_CODE,
   connectRemoteRunner,
@@ -5,7 +6,7 @@ import {
   type RunnerEventSink,
 } from "@bb/runner";
 import type { WebSocket } from "ws";
-import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import type { ServerRunner } from "@bb/server-kit/context";
 import {
   advanceHostEventCursor,
   findHost,
@@ -19,9 +20,9 @@ interface EventStream {
 
 const INTERNAL_ERROR_CLOSE_CODE = 1011;
 const LAST_SEEN_INTERVAL_MS = 30_000;
-const streams = new WeakMap<ServerContext, Map<string, EventStream>>();
+const streams = new WeakMap<PluginServerApi, Map<string, EventStream>>();
 
-function resumeStream(ctx: ServerContext, hostId: string, hello: Hello) {
+function resumeStream(ctx: PluginServerApi, hostId: string, hello: Hello) {
   const byHost = streams.get(ctx) ?? new Map<string, EventStream>();
   streams.set(ctx, byHost);
   const { instanceId } = hello;
@@ -41,7 +42,7 @@ function resumeStream(ctx: ServerContext, hostId: string, hello: Hello) {
 }
 
 export function attachRemoteRunner(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   hostId: string,
   socket: WebSocket,
 ): void {

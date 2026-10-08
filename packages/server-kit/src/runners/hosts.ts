@@ -1,5 +1,6 @@
 import { hostname, userInfo } from "node:os";
 import { OWNER_USER_ID, type Host } from "@bb/domain";
+import { server } from "@bb/plugin";
 import { currentActor } from "../auth/actor.js";
 import { dataPaths } from "../config.js";
 import type { Disposer, ServerContext } from "../context.js";
@@ -11,7 +12,7 @@ import { canUseHost, defaultHostId } from "./access.js";
 
 export function publicServerUrl(ctx: ServerContext): string | null {
   const { machineServerUrl } = getAppSettings(ctx.db);
-  const url = ctx.plugins.publicUrl() ?? machineServerUrl;
+  const url = ctx.pick(server.publicUrl)?.() ?? machineServerUrl;
   return url?.replace(/\/+$/u, "") ?? null;
 }
 

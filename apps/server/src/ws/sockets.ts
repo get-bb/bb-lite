@@ -1,7 +1,7 @@
 import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
-import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
 import type { SocketOpen } from "@bb/server-kit/host";
 import { trustLookups } from "../http/app.js";
 import type { RequiredSocketResolver } from "./endpoints.js";
@@ -27,7 +27,7 @@ export class SocketRegistry {
   private readonly server = new WebSocketServer({ noServer: true });
 
   constructor(
-    private readonly ctx: ServerContext,
+    private readonly ctx: HostContext,
     private readonly resolve: RequiredSocketResolver,
   ) {}
 

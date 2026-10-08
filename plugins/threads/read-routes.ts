@@ -1,10 +1,10 @@
+import type { PluginServerApi } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import {
   publicApiRoutes,
   THREAD_EVENT_LIST_PAGE_SIZE,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
-import type { ServerContext } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import * as events from "@bb/server-kit/db/event-read";
 import { findHost, findHostName } from "@bb/server-kit/db/hosts";
@@ -66,7 +66,7 @@ function bounded(value: number, name: string, max: number) {
 
 export function registerThreadReadRoutes(
   app: ApiApp,
-  ctx: ServerContext,
+  ctx: PluginServerApi,
 ): void {
   const { get, post } = typedApi(app);
   const { db } = ctx;
@@ -74,7 +74,7 @@ export function registerThreadReadRoutes(
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
-  ctx.hub.onChanged((message) => {
+  ctx.realtime.onChanged((message) => {
     if (message.entity !== "thread") return;
     const { id, changes } = message;
     if (id === undefined) return;

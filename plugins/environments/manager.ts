@@ -3,10 +3,11 @@ import type { Environment, JsonValue } from "@bb/domain";
 import {
   environments as environmentKinds,
   type EnvironmentDefinition,
+  threads,
 } from "@bb/plugin";
 import type { z } from "zod";
-import type { EnvironmentContext, PluginVerbs } from "@bb/plugin";
-import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import type { EnvironmentContext, PluginServerApi } from "@bb/plugin";
+import type { ServerRunner } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/environments";
 import { findHost } from "@bb/server-kit/db/hosts";
 import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
@@ -82,8 +83,10 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
 
 export type Environments = ReturnType<typeof createEnvironments>;
 
-export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
-  const { db, hub, kernel, log, now, runners } = ctx;
+export function createEnvironments(ctx: PluginServerApi) {
+  const { db, realtime: hub, log, now, runners } = ctx;
+  const kernel = ctx;
+  const own = ctx;
   const scripts = createLifecycleScripts(ctx);
   const queue = new ThreadSerial();
   const retiring = new Set<string>();
@@ -166,7 +169,7 @@ export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
     job: Job,
   ) {
     const { hostId, projectId } = found;
-    const thread = ctx.threads.get(job.thread.id);
+    const thread = await ctx.call(threads.get, { threadId: job.thread.id });
     const host = findHost(db, "id", hostId);
     if (thread === null || host === undefined) {
       throw notReady("The thread or its machine no longer exists.");
@@ -426,7 +429,10 @@ export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
     const teardownAttempt = (found.lifecycle.teardown?.attempt ?? 0) + 1;
     const running = { teardownStatus: "running", teardownAttempt } as const;
     patch(id, { status: "error", teardownMessage: null, ...running });
-    ctx.terminals.closeFor("environment_id", id, "environment-destroyed");
+    ctx.emit(environmentKinds.released, {
+      environmentId: id,
+      reason: "environment-destroyed",
+    });
     try {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });

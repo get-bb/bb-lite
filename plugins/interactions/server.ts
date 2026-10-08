@@ -1,9 +1,7 @@
 import { threadEventItemPresentationSchema } from "@bb/domain";
-import { interactions, type PluginServerApi } from "@bb/plugin";
-import { coreOf } from "@bb/server-kit/host";
+import { interactions, threads, type PluginServerApi } from "@bb/plugin";
 
 export default function interactionsPlugin(bb: PluginServerApi): void {
-  const { ctx } = coreOf(bb);
   bb.implement(interactions.ask, (request, { caller }) => {
     const { threadId, rendererId, title, payload, timeoutMs } = request;
     const timeout =
@@ -19,6 +17,6 @@ export default function interactionsPlugin(bb: PluginServerApi): void {
     const form = { threadId, rendererId, title, payload, presentation };
     const pluginId = caller.via.at(-1) ?? "core";
     const origin = { pluginId, signal, describeSubmission };
-    return ctx.threads.requestInput({ ...form, ...origin });
+    return bb.call(threads.requestInput, { ...form, ...origin });
   });
 }

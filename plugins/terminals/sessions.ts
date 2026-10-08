@@ -1,9 +1,10 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { terminals as terminalEvents } from "@bb/plugin";
 import type { TerminalSessionCloseReason } from "@bb/domain";
 import { RunnerError, TERMINAL_REPLAY_MAX_BYTES } from "@bb/runner";
 import * as contract from "@bb/server-contract";
 import type { WebSocket } from "ws";
-import type { Disposer, ServerContext } from "@bb/server-kit/context";
+import type { Disposer } from "@bb/server-kit/context";
 import {
   getTerminal,
   insertTerminal,
@@ -39,9 +40,9 @@ const OUTPUT_READ_MAX_BYTES = 4 * 1024 * 1024;
 const HOME_CWD = "~";
 const POLICY_VIOLATION_CLOSE_CODE = 1008;
 const OPEN_ON_RUNNER = "status IN ('starting', 'running')";
-const liveByContext = new WeakMap<ServerContext, Live>();
+const liveByContext = new WeakMap<PluginServerApi, Live>();
 
-function liveOf(ctx: ServerContext) {
+function liveOf(ctx: PluginServerApi) {
   const live = liveByContext.get(ctx) ?? {
     clients: new Map<string, Set<Client>>(),
     resizeOwners: new Map<string, Client>(),
@@ -50,7 +51,7 @@ function liveOf(ctx: ServerContext) {
   return live;
 }
 
-function clientsOf(ctx: ServerContext, terminalId: string) {
+function clientsOf(ctx: PluginServerApi, terminalId: string) {
   return [...(liveOf(ctx).clients.get(terminalId) ?? [])];
 }
 
@@ -59,9 +60,9 @@ function errorFrame(error: unknown): { code: string; message: string } {
   return toApiError(error)?.body ?? { code: "terminal_socket_error", message };
 }
 
-function announce(ctx: ServerContext, session: contract.TerminalSession) {
+function announce(ctx: PluginServerApi, session: contract.TerminalSession) {
   if (session.threadId !== null) {
-    ctx.hub.thread(session.threadId, ["terminals-changed"]);
+    ctx.realtime.thread(session.threadId, ["terminals-changed"]);
   }
   const type = session.status === "exited" ? "exited" : "session-updated";
   for (const client of clientsOf(ctx, session.id)) {
@@ -71,7 +72,7 @@ function announce(ctx: ServerContext, session: contract.TerminalSession) {
 }
 
 export function changeTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   patch: RowValues,
 ): contract.TerminalSession {
@@ -82,7 +83,7 @@ export function changeTerminal(
 }
 
 function finish(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
   exitCode: number | null = null,
@@ -92,7 +93,7 @@ function finish(
 }
 
 function endTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   closeReason: TerminalSessionCloseReason,
 ): contract.TerminalSession {
@@ -111,7 +112,7 @@ function deliver(client: Client, chunk: contract.TerminalOutputChunk) {
 }
 
 async function replay(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   client: Client,
   greeting: boolean,
@@ -144,13 +145,13 @@ async function replay(
   }
 }
 
-function resume(ctx: ServerContext, session: contract.TerminalSession) {
+function resume(ctx: PluginServerApi, session: contract.TerminalSession) {
   for (const client of clientsOf(ctx, session.id)) {
     void replay(ctx, session, client, false);
   }
 }
 
-async function reconcile(ctx: ServerContext, hostId: string) {
+async function reconcile(ctx: PluginServerApi, hostId: string) {
   const { db, runners } = ctx;
   const lost = "host_id = ? AND status = 'disconnected'";
   const stale = selectTerminals(db, lost, hostId);
@@ -169,7 +170,7 @@ async function reconcile(ctx: ServerContext, hostId: string) {
   }
 }
 
-export function startTerminalSessions(ctx: ServerContext): Disposer {
+export function startTerminalSessions(ctx: PluginServerApi): Disposer {
   const { db, runners, log } = ctx;
   const reattach = (hostId: string) => {
     reconcile(ctx, hostId).catch((error: unknown) => {
@@ -206,7 +207,7 @@ export function startTerminalSessions(ctx: ServerContext): Disposer {
 }
 
 export function requireTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   terminalId: string,
 ): contract.TerminalSession {
   const session = getTerminal(ctx.db, terminalId);
@@ -221,14 +222,14 @@ function notRunning() {
   return new ApiError(409, "terminal_not_running", message);
 }
 
-export function requireRunning(ctx: ServerContext, terminalId: string) {
+export function requireRunning(ctx: PluginServerApi, terminalId: string) {
   const session = requireTerminal(ctx, terminalId);
   if (session.status === "running") return session;
   throw notRunning();
 }
 
 export function listTerminalSessions(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   query: contract.TerminalListQuery,
 ): contract.TerminalSession[] {
   const { db } = ctx;
@@ -250,7 +251,7 @@ export function listTerminalSessions(
 }
 
 function launchTarget(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   target: contract.TerminalCreateTarget,
 ) {
   if (target.kind === "host_path") {
@@ -270,7 +271,7 @@ function launchTarget(
 }
 
 export async function createTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   payload: contract.CreateTerminalRequest,
 ): Promise<contract.TerminalSession> {
   const { projectId, cwd, ...owner } = launchTarget(ctx, payload.target);
@@ -309,7 +310,7 @@ export async function createTerminal(
 }
 
 export function closeTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   terminalId: string,
   request: contract.CloseTerminalRequest,
 ): contract.TerminalSession {
@@ -320,7 +321,7 @@ export function closeTerminal(
 }
 
 export function closeTerminalsFor(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   owner: "thread_id" | "environment_id",
   ownerId: string,
   closeReason: TerminalSessionCloseReason,
@@ -332,7 +333,7 @@ export function closeTerminalsFor(
 }
 
 export async function writeTerminalInput(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   dataBase64: string,
 ): Promise<contract.TerminalSession> {
@@ -343,12 +344,12 @@ export async function writeTerminalInput(
       : session;
   await ctx.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
   const { threadId } = session;
-  ctx.kernel.emit(terminalEvents.input, { terminalId, hostId, threadId });
+  ctx.emit(terminalEvents.input, { terminalId, hostId, threadId });
   return marked;
 }
 
 export async function resizeTerminal(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   session: contract.TerminalSession,
   { cols, rows }: contract.TerminalResizeRequest,
 ): Promise<contract.TerminalSession> {
@@ -360,7 +361,7 @@ export async function resizeTerminal(
 }
 
 export async function readTerminalOutput(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   terminalId: string,
   query: contract.TerminalOutputQuery,
 ): Promise<contract.TerminalOutputResponse> {
@@ -398,7 +399,7 @@ export async function readTerminalOutput(
 }
 
 function receive(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   terminalId: string,
   client: Client,
   raw: string,
@@ -430,7 +431,7 @@ function receive(
 }
 
 export function attachTerminalSocket(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   terminalId: string,
   sinceSeq: number,
   socket: WebSocket,

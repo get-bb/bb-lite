@@ -1,9 +1,9 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_ENV_SETUP_SCRIPT_NAME as SETUP_SCRIPT,
   type Environment,
 } from "@bb/domain";
-import type { ServerContext } from "@bb/server-kit/context";
 import { ApiError } from "@bb/server-kit/http/errors";
 import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
 import {
@@ -22,7 +22,7 @@ export function notReady(message: string): ApiError {
   return new ApiError(409, "environment_not_ready", message);
 }
 
-export function createLifecycleScripts(ctx: ServerContext) {
+export function createLifecycleScripts(ctx: PluginServerApi) {
   const { log, now, runners } = ctx;
   const listeners = new Map<string, (line: string) => void>();
   runners.onEvent("script.output", ({ operationId, text }) => {

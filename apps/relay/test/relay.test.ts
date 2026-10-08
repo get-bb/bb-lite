@@ -1,3 +1,4 @@
+import { server as serverSlots } from "../../../packages/plugin/src/index.js";
 import dns from "node:dns";
 import { once } from "node:events";
 import { readdirSync, readFileSync } from "node:fs";
@@ -295,7 +296,7 @@ async function echoServer() {
 it("links a server and lets invited relay accounts in", async () => {
   const linked = await startLinkedServer();
   const { alice, apex, bee, ctx } = linked;
-  expect(ctx.plugins.publicUrl()).toBe(bee);
+  expect(ctx.kernel.pick(serverSlots.publicUrl)?.()).toBe(bee);
   const session = "/api/v1/auth/session";
 
   const stranger = browser();
@@ -429,7 +430,7 @@ it("keeps relay sessions away from servers and shares", async () => {
     IncomingMessage,
   ];
   expect(rejection.statusCode).toBe(401);
-  expect(ctx.plugins.publicUrl()).toBe(bee);
+  expect(ctx.kernel.pick(serverSlots.publicUrl)?.()).toBe(bee);
 
   await cli("logout", "--json");
   await vi.waitFor(async () => {

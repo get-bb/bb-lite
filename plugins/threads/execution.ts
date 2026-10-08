@@ -1,6 +1,6 @@
+import type { PluginServerApi } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import type { ExecutionOptions, ProviderId } from "@bb/runner";
-import type { ServerContext } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import { findHost } from "@bb/server-kit/db/hosts";
 import type { Db } from "@bb/server-kit/db/index";
@@ -119,7 +119,7 @@ export function resolveTurnExecution(
 }
 
 async function firstInstalledProvider(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(ctx.db);
@@ -139,7 +139,7 @@ async function firstInstalledProvider(
 }
 
 async function catalogDefaultModel(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   hostId: string,
   providerId: ProviderId,
 ) {
@@ -157,7 +157,7 @@ async function catalogDefaultModel(
 }
 
 export async function resolveCreateExecution(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   args: CreateExecutionArgs,
 ): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
   const { request, projectId, hostId, parent } = args;

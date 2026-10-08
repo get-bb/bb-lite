@@ -1,7 +1,7 @@
+import type { PluginServerApi } from "@bb/plugin";
 import type { User } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { hashPassword, verifyPassword } from "@bb/server-kit/auth/passwords";
-import type { ServerContext } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/users";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
@@ -45,10 +45,10 @@ function emailTaken() {
   return new ApiError(409, "email_taken", message);
 }
 
-export function registerUserRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerUserRoutes(app: ApiApp, ctx: PluginServerApi): void {
   const { del, get, patch, post, put } = typedApi(app);
   const { auth, users: routes } = publicApiRoutes;
-  const { db, hub } = ctx;
+  const { db, realtime: hub } = ctx;
   const cookieName = sessionCookieName(ctx.config);
   const attempts = new Map<string, Attempts>();
 

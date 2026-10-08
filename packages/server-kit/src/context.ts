@@ -1,33 +1,20 @@
-import type { Kernel, LogFields, LogLevel, Logger } from "@bb/plugin";
-import type { Runner } from "@bb/runner";
-import type { ServerConfig } from "./config.js";
-import type { Db } from "./db/index.js";
-import type { RunnerRegistry } from "./runners/registry.js";
 import type {
-  Environments,
-  PluginQueries,
-  Terminals,
-  ThreadEngine,
-} from "./services.js";
-import type { Hub } from "./ws/hub.js";
+  LogFields,
+  LogLevel,
+  Logger,
+  OpCalls,
+  PluginServerApi,
+} from "@bb/plugin";
+import type { Runner } from "@bb/runner";
 
 export type ServerRunner = Runner;
 export type Disposer = () => void | Promise<void>;
 
-export interface ServerContext {
-  config: ServerConfig;
-  tunnelToken: string;
-  db: Db;
-  hub: Hub;
-  runners: RunnerRegistry<ServerRunner>;
-  kernel: Kernel;
-  plugins: PluginQueries;
-  log: Logger;
-  now: () => number;
-  environments: Environments;
-  threads: ThreadEngine;
-  terminals: Terminals;
-}
+export type ServerContext = Pick<
+  PluginServerApi,
+  "config" | "db" | "realtime" | "runners" | "log" | "now"
+> &
+  OpCalls;
 
 export const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
 export type { LogFields, LogLevel, Logger };

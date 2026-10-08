@@ -1,3 +1,4 @@
+import { sessions } from "@bb/plugin";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -8,9 +9,10 @@ it("creates a thread, records provisioning and submits the first turn", async ()
   const { ctx, eventData, hostId, rows, submitted, thread } = server;
   const client = await server.socket();
   await client.subscribe({ kind: "thread-list" });
-  ctx.plugins.titleFallback = async () => "  Refactor the  scheduler ";
+  const probe = ctx.kernel.scope("probe", "product");
+  probe.add(sessions.titleFallback, async () => "  Refactor the  scheduler ");
   const pool = { name: "POOL_URL", value: { serverPath: "/pool" } };
-  ctx.plugins.contributedEnv = async () => [pool];
+  probe.on(sessions.env, async (_scope, next) => [pool, ...(await next())]);
   const preview = { PREVIEW_CONFIG_URL: "https://example.test/config.json" };
   const tuned = {
     model: "gpt-preview",

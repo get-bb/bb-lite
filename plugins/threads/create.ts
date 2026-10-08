@@ -1,3 +1,4 @@
+import type { PluginServerApi } from "@bb/plugin";
 import type {
   CreateThreadRequest,
   ParentThreadInvalidErrorDetails,
@@ -7,9 +8,9 @@ import type { Environment, Project } from "@bb/domain";
 import {
   environments as environmentKinds,
   machines as machineOps,
+  threads,
 } from "@bb/plugin";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import type { Db } from "@bb/server-kit/db/index";
 import {
@@ -63,7 +64,7 @@ export function requireValidParent(
 }
 
 function resolveIntent(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   args: EnvironmentArgs,
   project: Project,
   shared: Environment | undefined,
@@ -95,13 +96,13 @@ function resolveIntent(
     }
     case "provider": {
       const id = args.environmentProviderId;
-      const known = ctx.kernel.find(environmentKinds.kind, id) !== null;
+      const known = ctx.find(environmentKinds.kind, id) !== null;
       if (!known) throw invalidRequest("unknown environment provider");
       if (args.machine?.type !== "new") {
         return provided(id, args.machine?.hostId ?? primary, args.inputs);
       }
       const { machineProviderId: providerId, inputs } = args.machine;
-      if (ctx.kernel.find(machineOps.provider, providerId) === null) {
+      if (ctx.find(machineOps.provider, providerId) === null) {
         throw invalidRequest("unknown machine provider");
       }
       const machine = { providerId, inputs };
@@ -147,7 +148,7 @@ export async function createThread(
   request: CreateThreadRequest,
 ): Promise<ThreadResponse> {
   const { ctx } = engine;
-  const { db, plugins } = ctx;
+  const { db } = ctx;
   const { projectId, sectionId, title } = request;
   const project = requireProject(db, projectId);
   if (sectionId != null) requireThreadSection(db, sectionId);
@@ -164,7 +165,7 @@ export async function createThread(
   const intent = resolveIntent(ctx, request.environment, project, shared);
   if (intent.type === "provider") {
     const { environmentProviderId, inputs } = intent;
-    const kind = ctx.kernel.find(environmentKinds.kind, environmentProviderId);
+    const kind = ctx.find(environmentKinds.kind, environmentProviderId);
     const place = { projectId, hostId: intent.hostId };
     const refused = await kind?.validate?.(inputs, place);
     if (typeof refused === "string") throw invalidRequest(refused);
@@ -202,7 +203,7 @@ export async function createThread(
     out.thread(row.id, ["thread-created"], { projectId });
     out.project(projectId, ["threads-changed"]);
     const response = engine.respond(row.id);
-    out.after(() => plugins.emit("thread.created", { thread: response }));
+    out.after(() => ctx.emit(threads.created, { thread: response }));
     return row;
   });
   try {
@@ -224,7 +225,7 @@ export async function createThread(
     );
   } catch (error) {
     store.deleteThreadRow(db, thread.id);
-    ctx.hub.thread(thread.id, ["thread-deleted"], { projectId });
+    ctx.realtime.thread(thread.id, ["thread-deleted"], { projectId });
     throw error;
   }
   if (request.origin === "app" && request.environment.type !== "reuse") {

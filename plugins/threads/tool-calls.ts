@@ -1,3 +1,4 @@
+import { plugins } from "@bb/plugin";
 import type { ToolCallResponse } from "@bb/domain";
 import { runAs } from "@bb/server-kit/auth/actor";
 import { getThread } from "@bb/server-kit/db/threads";
@@ -18,14 +19,15 @@ async function runTool(
   event: ToolCallEvent,
   signal: AbortSignal,
 ): Promise<ToolCallResponse> {
-  const { db, plugins } = engine.ctx;
+  const { db } = engine.ctx;
   const { arguments: input, tool } = event;
   const thread = getThread(db, event.threadId);
   if (thread === undefined) return reply(false, "Thread not found.");
   const scope = pluginContext(db, thread, engine.hostOf(thread));
   const actor = agentActor(db, event.threadId);
+  const call = { name: tool, input, context: scope };
   return runAs(actor, () =>
-    plugins.callTool(tool, input, { ...scope, signal }),
+    engine.ctx.call(plugins.callAgentTool, call, { signal }),
   );
 }
 

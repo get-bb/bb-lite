@@ -10,7 +10,7 @@ import type {
 } from "@bb/server-contract";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { ApiError } from "@bb/server-kit/http/errors";
-import type { Hub } from "@bb/server-kit/ws/hub";
+import type { Realtime } from "@bb/plugin";
 
 export interface ThreadRuntime {
   provisioning: { id: string; abort: AbortController } | null;
@@ -21,7 +21,7 @@ export interface ThreadRuntime {
 export class Outbox {
   private readonly actions: (() => void)[] = [];
 
-  constructor(private readonly hub: Hub) {}
+  constructor(private readonly hub: Realtime) {}
 
   thread(
     id: string,

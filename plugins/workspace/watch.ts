@@ -1,9 +1,10 @@
+import type { PluginServerApi } from "@bb/plugin";
 import {
   realtimeSubscriptionTargetKey as targetKey,
   type EnvironmentChangeKind,
   type RealtimeSubscriptionTarget,
 } from "@bb/domain";
-import type { Disposer, ServerContext } from "@bb/server-kit/context";
+import type { Disposer } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import { refreshWorkspaceMetadata } from "@bb/server-kit/environments/workspace";
 
@@ -25,8 +26,8 @@ const RETARGETING_CHANGES: ReadonlySet<string> = new Set([
   "thread-deleted",
 ]);
 
-export function startWorkspaceWatch(ctx: ServerContext): Disposer {
-  const { db, hub, runners, log } = ctx;
+export function startWorkspaceWatch(ctx: PluginServerApi): Disposer {
+  const { db, realtime: hub, runners, log } = ctx;
   type Target = Extract<RealtimeSubscriptionTarget, { environmentId: string }>;
   const targets = new Map<string, Target>();
   type Sent = { fingerprint: string; set: EnvironmentIdsByPath };

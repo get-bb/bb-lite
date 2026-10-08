@@ -1,5 +1,5 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext } from "@bb/server-kit/context";
 import {
   PATH_LIST_EXCLUDED_NAMES,
   PATH_LIST_LIMIT_DEFAULT,
@@ -25,7 +25,7 @@ const LIST_DEFAULTS = {
   excludeNames: PATH_LIST_EXCLUDED_NAMES,
 };
 
-export function registerFileRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerFileRoutes(app: ApiApp, ctx: PluginServerApi): void {
   const { get, post } = typedApi(app);
   const { environments, files, hosts, threads } = publicApiRoutes;
 

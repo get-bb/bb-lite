@@ -1,3 +1,4 @@
+import { interactions as interactionOps } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import type {
   InputRequest,
@@ -118,7 +119,7 @@ export function registerProviderInteraction(
   hostId: string,
   event: RunnerEventOf<"interaction.requested">,
 ): void {
-  const { db, plugins } = engine.ctx;
+  const { db } = engine.ctx;
   const { threadId, requestId, payload } = event;
   const thread = getThread(db, threadId);
   const active = pending.listActiveInteractions(db, threadId);
@@ -146,7 +147,10 @@ export function registerProviderInteraction(
     const interaction = announce(engine, out, thread, row);
     out.after(() => {
       const response = engine.respond(thread.id);
-      plugins.emit("interaction.pending", { thread: response, interaction });
+      engine.ctx.emit(interactionOps.pending, {
+        thread: response,
+        interaction,
+      });
       notifyParentBlocked(engine, thread, interaction);
     });
   });
@@ -335,7 +339,7 @@ export function cancelPluginInteraction(
 }
 
 function openPluginInteraction(engine: Engine, request: PluginInputRequest) {
-  const { db, plugins } = engine.ctx;
+  const { db } = engine.ctx;
   const { threadId, signal } = request;
   const thread = getThread(db, threadId);
   if (thread === undefined || thread.deletedAt !== null) throw threadNotFound();
@@ -354,7 +358,10 @@ function openPluginInteraction(engine: Engine, request: PluginInputRequest) {
     const interaction = announce(engine, out, thread, created);
     const response = engine.respond(thread.id);
     out.after(() =>
-      plugins.emit("interaction.pending", { thread: response, interaction }),
+      engine.ctx.emit(interactionOps.pending, {
+        thread: response,
+        interaction,
+      }),
     );
     return created;
   });

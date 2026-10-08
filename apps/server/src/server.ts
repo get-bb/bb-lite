@@ -10,7 +10,6 @@ import {
 } from "@bb/server-kit/context";
 import { openDatabase, type OpenDatabase } from "@bb/server-kit/db/index";
 import type { ApiRoutes, SocketResolver } from "@bb/plugin";
-import { host } from "@bb/server-kit/host";
 import { assertHostUsable } from "@bb/server-kit/runners/access";
 import {
   RunnerRegistry,
@@ -52,30 +51,6 @@ export interface BbServer {
 }
 
 const HOST_PLUGIN_ID = "plugins";
-const PROVIDED = ["threads", "environments", "terminals"] as const;
-
-function forwarded(ctx: object, name: string): void {
-  let current: object | undefined;
-  const face = new Proxy(
-    {},
-    {
-      get(_target, key) {
-        if (current === undefined) throw new Error(`${name} is not running`);
-        return Reflect.get(current, key) as unknown;
-      },
-      set(_target, key, value) {
-        if (current === undefined) throw new Error(`${name} is not running`);
-        return Reflect.set(current, key, value);
-      },
-    },
-  );
-  Object.defineProperty(ctx, name, {
-    get: () => face,
-    set(provided: object) {
-      current = provided;
-    },
-  });
-}
 
 export function createServer(options: CreateServerOptions): BbServer {
   const { config } = options;
@@ -108,16 +83,9 @@ export function createServer(options: CreateServerOptions): BbServer {
   };
   const services = { config, db, hub, log, tunnelToken, kernel, runners, now };
   const plugins = new PluginHost({ ...services, ...mounting, builtins });
-  const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
-  const ctx = { ...shared, log, now } as unknown as HostContext;
-  for (const name of PROVIDED) forwarded(ctx, name);
   const own = kernel.scope(HOST_PLUGIN_ID, "product");
-  own.add(host.services, {
-    context: ctx,
-    routes: (group, { internal = false } = {}) =>
-      table.add((app) => group(app, ctx), internal),
-    sockets: mounting.sockets,
-  });
+  const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
+  const ctx: HostContext = { ...own, ...shared, realtime: hub, log, now };
   hostOps(ctx, own);
   table.add((app) => registerPluginRoutes(app, ctx));
   table.add((app) => registerKernelRoutes(app, ctx));

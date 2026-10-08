@@ -2,7 +2,6 @@ import type { JsonValue } from "@bb/domain";
 import { machines, type PluginServerApi } from "@bb/plugin";
 import { actorUserId } from "@bb/server-kit/auth/actor";
 import { loopbackUrl } from "@bb/server-kit/config";
-import type { ServerContext } from "@bb/server-kit/context";
 import { newId } from "@bb/server-kit/db/index";
 import * as store from "@bb/server-kit/db/hosts";
 import { ApiError, errorMessage } from "@bb/server-kit/http/errors";
@@ -14,30 +13,31 @@ function resourceOf(row: store.HostRow): JsonValue | null {
 }
 
 export async function destroyMachine(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   host: store.HostRow,
 ): Promise<void> {
-  const { db, hub, plugins, runners, log } = ctx;
+  const { db, realtime: hub, runners, log } = ctx;
   const { id, connectMachineId } = host;
   const wasConnected = runners.isConnected(id);
   store.destroyHost(db, id);
   runners.disconnect(id);
   if (!wasConnected) hub.host(id, ["host-disconnected"]);
-  const revoking = plugins.machineAccess()?.revoke({ id, connectMachineId });
+  const revoking = ctx.pick(machines.access)?.revoke({ id, connectMachineId });
   await revoking?.catch((error: unknown) => {
     log.warn("Machine access was not revoked", { hostId: id, err: error });
   });
-  ctx.kernel.emit(machines.removed, { hostId: id });
+  ctx.emit(machines.removed, { hostId: id });
 }
 
-export function providerOf(ctx: ServerContext, host: store.HostRow) {
+export function providerOf(ctx: PluginServerApi, host: store.HostRow) {
   const id = host.machineProviderId;
-  const provider = id === null ? null : ctx.kernel.find(machines.provider, id);
+  const provider = id === null ? null : ctx.find(machines.provider, id);
   return { provider, machine: { hostId: host.id, resource: resourceOf(host) } };
 }
 
-export function provideMachines(ctx: ServerContext, bb: PluginServerApi): void {
-  const { db, hub, plugins, runners } = ctx;
+export function provideMachines(ctx: PluginServerApi): void {
+  const bb = ctx;
+  const { db, realtime: hub, runners } = ctx;
 
   bb.implement(machines.enroll, async ({ name, providerId, resource }) => {
     const id = newId("host");
@@ -51,7 +51,7 @@ export function provideMachines(ctx: ServerContext, bb: PluginServerApi): void {
       resource: resource === undefined ? null : JSON.stringify(resource),
     });
     const { joinToken, expiresAt } = enrollment.issueJoinToken(db, id);
-    const access = await plugins.machineAccess()?.grant(id);
+    const access = await ctx.pick(machines.access)?.grant(id);
     const serverUrl =
       access?.serverUrl ?? publicServerUrl(ctx) ?? loopbackUrl(ctx.config);
     const headers = access?.headers;

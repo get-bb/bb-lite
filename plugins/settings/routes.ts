@@ -1,8 +1,8 @@
+import type { PluginServerApi } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import { appearance as appearanceSlots } from "@bb/plugin";
 import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
 import { viewerId } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
 import { writeRevision, type Db } from "@bb/server-kit/db/index";
 import * as store from "@bb/server-kit/db/settings";
 import {
@@ -81,14 +81,17 @@ function writeUiPreference(
   throw new ApiError(409, "ui_preference_conflict", message, { details });
 }
 
-export function registerSettingsRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerSettingsRoutes(
+  app: ApiApp,
+  ctx: PluginServerApi,
+): void {
   const { del, get, put } = typedApi(app);
   const { system: routes, projects } = publicApiRoutes;
-  const { db, hub } = ctx;
+  const { db, realtime: hub } = ctx;
   const personal = <T>(setting: store.Setting<T>) =>
     store.userSetting(setting, viewerId());
   const themes = () =>
-    ctx.kernel.entries(appearanceSlots.theme).map(({ item }) => item);
+    ctx.entries(appearanceSlots.theme).map(({ item }) => item);
   const isKnownTheme = (themeId: string) =>
     domain.isBuiltInThemeId(themeId) ||
     themes().some(({ id }) => id === themeId);

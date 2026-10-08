@@ -1,7 +1,8 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathLooksRuntimeReadable, type PromptInput } from "@bb/domain";
-import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import type { ServerRunner } from "@bb/server-kit/context";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { resolveAttachmentPath } from "@bb/server-kit/projects/attachments";
 
@@ -33,7 +34,7 @@ async function copyToHost(runner: ServerRunner, source: string, path: string) {
 }
 
 export async function deliverAttachments(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   { hostId, runner, thread }: AttachmentTarget,
   input: PromptInput[],
 ): Promise<PromptInput[]> {

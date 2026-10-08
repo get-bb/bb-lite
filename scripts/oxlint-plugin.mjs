@@ -29,7 +29,7 @@ const PLUGINS_ROOT = resolve(
 const CONTRACT_FILE = /(^|[\\/])contracts?(\.[cm]?[jt]sx?)?$/u;
 const PRIVATE_PACKAGES = ["@bb/server", "@bb/profile-default", "@bb/cli"];
 const OTHER_PLUGIN = /^bb-plugin-[a-z0-9-]+\//u;
-const CONTRACT_SPECIFIER = /^bb-plugin-[a-z0-9-]+\/contract$/u;
+const CONTRACT_SPECIFIER = /^bb-plugin-[a-z0-9-]+\/contract(\.js)?$/u;
 const REASON =
   "A plugin may import its own files, libraries, @bb/plugin and another " +
   "plugin's contract. It may not reach into apps/ or another plugin.";

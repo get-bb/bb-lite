@@ -613,7 +613,8 @@ export function createKernel(options: KernelOptions): Kernel {
         { signal = NEVER_ABORTED }: CallOptions = {},
       ) {
         alive();
-        const caller = through();
+        const mine = ops.get(op.name)?.owner?.plugin === plugin;
+        const caller = mine ? options.currentCaller() : through();
         const work = () => run(op, input, caller, signal) as Promise<Out<O>>;
         return options.enter(caller, work);
       },

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import * as domain from "@bb/domain";
-import { sessions, type Kernel, type ProviderDeclaration } from "@bb/plugin";
+import { sessions, type OpCalls, type ProviderDeclaration } from "@bb/plugin";
 import type { SystemProviderCatalogEntry } from "@bb/server-contract";
 import type { Db } from "../db/index.js";
 import * as store from "../db/settings.js";
@@ -44,10 +44,13 @@ const disabledProvidersSetting: store.Setting<string[]> = {
   fallback: [],
 };
 
-const kernels = new WeakMap<Db, Kernel>();
+const kernels = new WeakMap<Db, Pick<OpCalls, "read">>();
 const defined = new WeakMap<ProviderDeclaration, ProviderDefinition>();
 
-export function bindProviderCatalog(db: Db, kernel: Kernel): void {
+export function bindProviderCatalog(
+  db: Db,
+  kernel: Pick<OpCalls, "read">,
+): void {
   kernels.set(db, kernel);
 }
 

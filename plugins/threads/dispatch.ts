@@ -137,7 +137,7 @@ export function sessionEnvironmentOf(
   engine: Engine,
   thread: ThreadRow,
 ): SessionEnvironment {
-  const { db, environments } = engine.ctx;
+  const { db } = engine.ctx;
   const row =
     thread.environmentId === null
       ? undefined
@@ -146,7 +146,7 @@ export function sessionEnvironmentOf(
     const reason = "never_attached";
     throw core.environmentUnavailable({ reason, environmentStatus: null });
   }
-  const path = row.status === "ready" ? environments.pathFor(row.id) : null;
+  const path = row.status === "ready" ? row.path : null;
   if (path === null) {
     const reason = row.status === "destroyed" ? "destroyed" : "provisioning";
     const details = { reason, environmentStatus: row.status } as const;
@@ -203,7 +203,7 @@ async function heldBy(
 ): Promise<domain.QueuedMessageWaitingOn | null> {
   const { id: threadId, projectId, providerId } = thread;
   const asked = { threadId, projectId, providerId, sendNow };
-  const held = await engine.ctx.kernel.call(threads.hold, asked);
+  const held = await engine.ctx.call(threads.hold, asked);
   return held === null ? null : { kind: "plugin", ...held };
 }
 
@@ -443,7 +443,7 @@ function recordDrainFailure(
     errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
     row.id,
   );
-  engine.ctx.hub.thread(threadId, ["queue-changed"]);
+  engine.ctx.realtime.thread(threadId, ["queue-changed"]);
 }
 
 export async function drainQueue(

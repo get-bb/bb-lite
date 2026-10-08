@@ -1,3 +1,9 @@
+import {
+  environments as environmentOps,
+  threads as threadOps,
+} from "@bb/plugin";
+import type { SendMessageRequest } from "@bb/server-contract";
+import type { HostContext } from "../src/host-context.js";
 import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
@@ -153,6 +159,30 @@ function localRunner(kind: RunnerKind, config: ServerConfig, fake: FakeRunner) {
   };
 }
 
+function facades({ kernel }: HostContext) {
+  const threads = {
+    get: (threadId: string) => kernel.call(threadOps.get, { threadId }),
+    send: (threadId: string, request: SendMessageRequest) =>
+      kernel.call(threadOps.send, { threadId, request }),
+    stop: (threadId: string) => kernel.call(threadOps.stop, { threadId }),
+    archive: (threadId: string) => kernel.call(threadOps.archive, { threadId }),
+    unarchive: (threadId: string) =>
+      kernel.call(threadOps.unarchive, { threadId }),
+    delete: (threadId: string, confirmed: { childThreadsConfirmed: boolean }) =>
+      kernel.call(threadOps.delete, { threadId, ...confirmed }),
+    settled: () => kernel.call(threadOps.settled, {}),
+    sweep: () => kernel.call(threadOps.sweep, {}),
+  };
+  const environments = {
+    workspaceInstructions: (environmentId: string) =>
+      kernel.call(environmentOps.instructions, { environmentId }),
+    sweep: () => kernel.call(environmentOps.sweep, {}),
+    remove: (environmentId: string) =>
+      kernel.call(environmentOps.remove, { environmentId }),
+  };
+  return { threads, environments };
+}
+
 export async function createTestServer(
   overrides: Partial<ServerConfig> = {},
   kind: RunnerKind = "fake",
@@ -181,7 +211,7 @@ export async function createTestServer(
   const read = async <Body = Json>(path: string) =>
     (await (await request(path)).json()) as Body;
   return {
-    ctx: server.ctx,
+    ctx: Object.assign(server.ctx, facades(server.ctx)),
     url,
     api: createApiClient(url).api.v1,
     runner,

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { DOOR_HEADER, type Caller } from "@bb/plugin";
 import { currentActor, runAs, type Actor } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
 import {
   findExternalUser,
   findSessionUser,
@@ -33,7 +33,7 @@ import {
   type TrustLookups,
 } from "@bb/server-kit/http/trust";
 
-export function trustLookups(ctx: ServerContext): TrustLookups {
+export function trustLookups(ctx: HostContext): TrustLookups {
   return {
     allowedHosts: ctx.config.allowedHosts,
     sessionCookie: sessionCookieName(ctx.config),
@@ -92,7 +92,7 @@ function mount(app: ApiApp, prefix: string, groups: readonly ApiRoutes[]) {
   });
 }
 
-function assemble(ctx: ServerContext, table: RouteTable): ApiApp {
+function assemble(ctx: HostContext, table: RouteTable): ApiApp {
   const app = new Hono<AppEnv>();
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
@@ -125,7 +125,7 @@ export interface HttpApp extends Pick<ApiApp, "fetch"> {
   inner(request: Request): Promise<Response>;
 }
 
-export function createHttpApp(ctx: ServerContext, table: RouteTable): HttpApp {
+export function createHttpApp(ctx: HostContext, table: RouteTable): HttpApp {
   let built: { version: number; app: ApiApp } | undefined;
   const current = (): ApiApp => {
     if (built?.version !== table.version) {

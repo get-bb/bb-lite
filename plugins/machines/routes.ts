@@ -1,9 +1,10 @@
+import { machines } from "@bb/plugin";
+import type { PluginServerApi } from "@bb/plugin";
 import { randomUUID } from "node:crypto";
 import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
 import { actorUserId, currentActor } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
 import { newId, type RowValues } from "@bb/server-kit/db/index";
 import * as store from "@bb/server-kit/db/hosts";
 import { canManageHost } from "@bb/server-kit/runners/access";
@@ -33,10 +34,10 @@ const joinBodySchema = z
   .object({ hostName: z.string().trim().min(1).max(100).optional() })
   .strict();
 
-export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerHostRoutes(app: ApiApp, ctx: PluginServerApi): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.hosts;
-  const { db, hub, plugins, runners } = ctx;
+  const { db, realtime: hub, runners } = ctx;
   const pendingJoins = new Map<string, enrollment.JoinToken>();
 
   const commandFor = async (
@@ -44,7 +45,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
     hostId: string,
     { joinToken, expiresAt }: enrollment.JoinToken,
   ) => {
-    const granting = plugins.machineAccess()?.grant(hostId);
+    const granting = ctx.pick(machines.access)?.grant(hostId);
     const access = await granting?.catch((error: unknown) => {
       const code = "machine_access_unavailable";
       throw new ApiError(502, code, errorMessage(error));
@@ -195,7 +196,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   });
 }
 
-export function registerRunnerRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerRunnerRoutes(app: ApiApp, ctx: PluginServerApi): void {
   app.post("/runner/join", async (c) => {
     const raw: unknown = await c.req.json().catch(() => ({}));
     const body = joinBodySchema.safeParse(raw);

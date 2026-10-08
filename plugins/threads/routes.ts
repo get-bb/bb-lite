@@ -1,3 +1,5 @@
+import type { ThreadEngine } from "./engine.js";
+import type { PluginServerApi } from "@bb/plugin";
 import {
   PERSONAL_PROJECT_ID,
   PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES,
@@ -9,7 +11,6 @@ import {
   type ThreadTabsWireResponse,
 } from "@bb/server-contract";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
 import { writeRevision } from "@bb/server-kit/db/index";
 import * as sections from "@bb/server-kit/db/thread-sections";
 import { requireThread } from "@bb/server-kit/db/threads";
@@ -51,11 +52,15 @@ function storedWireTabs(tabsJson: string): WireTab[] {
   });
 }
 
-export function registerThreadRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerThreadRoutes(
+  app: ApiApp,
+  ctx: PluginServerApi,
+  threads: ThreadEngine,
+): void {
   const { del, get, patch, post, put } = typedApi(app);
   const routes = publicApiRoutes.threads;
   const sectionRoutes = publicApiRoutes.threadSections;
-  const { db, hub, threads } = ctx;
+  const { db, realtime: hub } = ctx;
   const announceSections = () =>
     hub.project(PERSONAL_PROJECT_ID, ["threads-changed"]);
 

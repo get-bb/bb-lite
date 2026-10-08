@@ -1,32 +1,35 @@
 import { join } from "node:path";
-import { sessions, type PluginServerApi } from "@bb/plugin";
-import { doorInstructions } from "@bb/server-kit/doors";
-import { coreOf } from "@bb/server-kit/host";
+import { plugins, sessions, type PluginServerApi } from "@bb/plugin";
 import {
   bindProviderCatalog,
   listEnabledProviders,
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { registerProviderRoutes } from "./routes.js";
+import { generateTitle } from "./title.js";
 
 export default function sessionsPlugin(bb: PluginServerApi): void {
-  const { ctx, routes } = coreOf(bb);
-  const { db, kernel } = ctx;
-  bindProviderCatalog(db, kernel);
-  routes(registerProviderRoutes);
+  const { db } = bb;
+  bindProviderCatalog(db, bb);
+  bb.http.api((app) => registerProviderRoutes(app, bb));
   bb.implement(sessions.instructions, (context) =>
-    doorInstructions(kernel, context),
+    bb.call(plugins.agentInstructions, context),
   );
   bb.implement(sessions.env, () => []);
-  bb.implement(sessions.tools, (context) => ctx.plugins.toolsFor(context));
-  bb.implement(sessions.skillDirs, () => [
-    join(ctx.config.cliDir, "skills"),
-    ...ctx.plugins.skillDirs(),
+  bb.implement(sessions.tools, (context) =>
+    bb.call(plugins.agentTools, context),
+  );
+  bb.implement(sessions.skillDirs, async () => [
+    join(bb.config.cliDir, "skills"),
+    ...(await bb.call(plugins.skillDirs, {})),
   ]);
+  bb.implement(sessions.title, ({ prompt }, { signal }) =>
+    generateTitle(bb, prompt, signal),
+  );
   bb.implement(sessions.providers, () =>
     listEnabledProviders(db).map(({ info }) => info),
   );
   bb.implement(sessions.executionOptions, (query) =>
-    resolveExecutionOptions(ctx, query),
+    resolveExecutionOptions(bb, query),
   );
 }

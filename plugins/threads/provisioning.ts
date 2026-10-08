@@ -1,3 +1,5 @@
+import { environmentRuntime } from "bb-plugin-environments/contract.js";
+import { sessions } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -93,7 +95,7 @@ async function generateTitle(
   job: ProvisioningJob,
   record: Recorder,
 ) {
-  const { plugins, now } = engine.ctx;
+  const { now } = engine.ctx;
   const startedAt = now();
   record([step("metadata-started", "Generating title", "started", startedAt)]);
   const prompt = titlePrompt(job.message.input);
@@ -102,7 +104,10 @@ async function generateTitle(
   const generated =
     prompt === null
       ? null
-      : await Promise.race([plugins.generateTitle(prompt, signal), timeout]);
+      : await Promise.race([
+          engine.ctx.call(sessions.title, { prompt }, { signal }),
+          timeout,
+        ]);
   const title = sanitizeTitle(generated);
   const titleGenerated = title !== null;
   const text = titleGenerated ? "Generated title" : "No title generated";
@@ -193,7 +198,7 @@ async function runProvisioning(
   threadId: string,
   job: ProvisioningJob,
 ) {
-  const { db, environments, now } = engine.ctx;
+  const { db, now } = engine.ctx;
   const runtime = engine.runtimeOf(threadId);
   const abort = new AbortController();
   runtime.provisioning = { id: job.id, abort };
@@ -220,7 +225,10 @@ async function runProvisioning(
     const { signal } = abort;
     const onProgress = record;
     const request = { thread, intent, signal, onProgress };
-    const environment = await environments.ensureForThread(request);
+    const environment = await engine.ctx.call(
+      environmentRuntime.ensure,
+      request,
+    );
     await engine.inThread(threadId, () =>
       completeProvisioning(engine, threadId, job, environment),
     );

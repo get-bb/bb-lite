@@ -23,7 +23,10 @@ async function echoServer() {
     return String(thread.id);
   };
   const idle = (id: string) =>
-    vi.waitFor(() => expect(ctx.threads.get(id)?.status).toBe("idle"), 5_000);
+    vi.waitFor(
+      async () => expect((await ctx.threads.get(id))?.status).toBe("idle"),
+      5_000,
+    );
   const pending = (id: string) =>
     vi.waitFor(() => {
       const [row] = interactions.listActiveInteractions(ctx.db, id);

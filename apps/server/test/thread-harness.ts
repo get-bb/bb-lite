@@ -1,3 +1,4 @@
+import { environmentRuntime } from "../../../plugins/environments/contract.js";
 import type { PendingInteractionPayload, PromptInput } from "@bb/domain";
 import type {
   RunnerEvent,
@@ -187,7 +188,7 @@ export async function createThreadServer() {
   };
   const advance = async (ms: number) => {
     server.clock.now += ms;
-    ctx.threads.sweep();
+    await ctx.threads.sweep();
     await settle();
   };
   const reconnect = async () => {
@@ -199,11 +200,14 @@ export async function createThreadServer() {
   };
   const deferEnvironment = () => {
     let release = () => {};
-    const { ensureForThread } = ctx.environments;
-    ctx.environments.ensureForThread = (args) =>
-      new Promise<ThreadEnvironment>((resolve, reject) => {
-        release = () => void ensureForThread(args).then(resolve, reject);
-      });
+    const policy = ctx.kernel.scope("deferred-environments", "policy");
+    policy.on(
+      environmentRuntime.ensure,
+      (_job, next) =>
+        new Promise<ThreadEnvironment>((resolve, reject) => {
+          release = () => void next().then(resolve, reject);
+        }),
+    );
     return () => release();
   };
   const changes = async (client: TestSocket, kind?: string) => {

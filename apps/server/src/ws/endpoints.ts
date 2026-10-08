@@ -1,4 +1,4 @@
-import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
 import type { SocketOpen, SocketResolver } from "@bb/server-kit/host";
 import { notFound } from "@bb/server-kit/http/errors";
 
@@ -7,7 +7,7 @@ export type RequiredSocketResolver = (
 ) => SocketOpen;
 
 export function socketResolver(
-  ctx: ServerContext,
+  ctx: HostContext,
   resolvers: ReadonlySet<SocketResolver>,
 ): RequiredSocketResolver {
   const { hub } = ctx;

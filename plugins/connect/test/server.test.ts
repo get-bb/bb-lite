@@ -1,3 +1,4 @@
+import { server } from "@bb/plugin";
 import { once } from "node:events";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,7 +44,7 @@ async function startServer() {
 
 it("serves gate-authenticated visitors through the tunnel", async () => {
   const { ctx, gate } = await startServer();
-  expect(ctx.plugins.publicUrl()).toBe(gate.gateUrl);
+  expect(ctx.kernel.pick(server.publicUrl)?.()).toBe(gate.gateUrl);
   const ownerJson = { ...OWNER, ...JSON_BODY, origin: gate.gateUrl };
   const hostPath = `/api/v1/hosts/${ctx.config.hostId}`;
   const code = async (path: string, init: Parameters<typeof visit>[2] = {}) => {

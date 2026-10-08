@@ -1,10 +1,14 @@
+import {
+  environments as environmentOps,
+  threads as threadOps,
+} from "@bb/plugin";
+import type { PluginServerApi } from "@bb/plugin";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import {
   publicApiRoutes,
   type EnvironmentDiffQuery,
 } from "@bb/server-contract";
-import type { ServerContext } from "@bb/server-kit/context";
 import {
   listEnvironments,
   listEnvironmentThreadIds,
@@ -39,11 +43,11 @@ function pageBound(value: string | undefined, minimum: number, name: string) {
 
 export function registerEnvironmentRoutes(
   app: ApiApp,
-  ctx: ServerContext,
+  ctx: PluginServerApi,
 ): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.environments;
-  const { db, hub, runners, threads } = ctx;
+  const { db, realtime: hub, runners } = ctx;
   const { system } = publicApiRoutes;
 
   get(system.environmentProviders, async (c, query) =>
@@ -73,14 +77,16 @@ export function registerEnvironmentRoutes(
     if (listEnvironmentThreadIds(db, id, "unarchived").length > 0) {
       throw conflict("Environment still has live threads");
     }
-    await ctx.environments.remove(id);
+    await ctx.call(environmentOps.remove, { environmentId: id });
     return c.json({ ok: true });
   });
 
   post(routes.archiveThreads, async (c) => {
     const { id } = requireEnvironment(ctx, c.req.param("id"));
     const archivedThreadIds = listEnvironmentThreadIds(db, id, "unarchived");
-    for (const threadId of archivedThreadIds) await threads.archive(threadId);
+    for (const threadId of archivedThreadIds) {
+      await ctx.call(threadOps.archive, { threadId });
+    }
     return c.json({ ok: true, archivedThreadIds });
   });
 

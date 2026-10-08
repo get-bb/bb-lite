@@ -11,8 +11,8 @@ import type {
   SendMessageRequest,
   ThreadResponse,
 } from "@bb/server-contract";
-import type { PluginVerbs } from "@bb/plugin";
-import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import type { PluginServerApi } from "@bb/plugin";
+import type { ServerRunner } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import { findHost } from "@bb/server-kit/db/hosts";
 import { lastOutput } from "@bb/server-kit/db/event-read";
@@ -62,7 +62,7 @@ export class Engine {
   private readonly pending = new Set<Promise<unknown>>();
   private readonly disposers: (() => void)[] = [];
 
-  constructor(readonly ctx: ServerContext) {}
+  constructor(readonly ctx: PluginServerApi) {}
 
   inThread<T>(threadId: string, work: () => T | Promise<T>): Promise<T> {
     return this.serial.run(threadId, work);
@@ -89,7 +89,7 @@ export class Engine {
   }
 
   commit<T>(work: (out: Outbox) => T): T {
-    const out = new core.Outbox(this.ctx.hub);
+    const out = new core.Outbox(this.ctx.realtime);
     const result = this.ctx.db.transaction(() => work(out));
     out.flush((err) => this.ctx.log.error("Thread follow-up failed", { err }));
     return result;
@@ -141,7 +141,7 @@ export class Engine {
   announceStatus(threadId: string): void {
     if (store.getThread(this.ctx.db, threadId) === undefined) return;
     const metadata = this.statusMetadata(threadId);
-    this.ctx.hub.thread(threadId, ["status-changed"], metadata);
+    this.ctx.realtime.thread(threadId, ["status-changed"], metadata);
   }
 
   respond(threadId: string): ThreadResponse {
@@ -160,7 +160,7 @@ export class Engine {
     threadId: string,
     types: string[],
   ): void {
-    this.ctx.kernel.emit(event, { threadId, types });
+    this.ctx.emit(event, { threadId, types });
   }
 
   announceMessage(
@@ -171,22 +171,22 @@ export class Engine {
     threadId: string,
     queuedMessageId: string,
   ): void {
-    this.ctx.kernel.emit(event, { threadId, queuedMessageId });
+    this.ctx.emit(event, { threadId, queuedMessageId });
   }
 
   private emitStatus(thread: ThreadRow): void {
-    const { db, plugins } = this.ctx;
+    const { db } = this.ctx;
     const response = this.respond(thread.id);
     if (thread.status === "active") {
-      plugins.emit("thread.active", { thread: response });
+      this.ctx.emit(threadOps.active, { thread: response });
     } else if (thread.status === "idle") {
       const text = lastOutput(db, thread.id);
       const payload = { thread: response, lastAssistantText: text };
-      plugins.emit("thread.idle", payload);
+      this.ctx.emit(threadOps.idle, payload);
     } else if (thread.status === "error") {
       const failure = eventLog.lastSystemError(db, thread.id);
       const error = failure?.message ?? null;
-      plugins.emit("thread.failed", { thread: response, error, failure });
+      this.ctx.emit(threadOps.failed, { thread: response, error, failure });
     }
   }
 
@@ -378,9 +378,10 @@ export class Engine {
   }
 }
 
-export function createThreadEngine(ctx: ServerContext, own: PluginVerbs) {
+export function createThreadEngine(ctx: PluginServerApi) {
   const engine = new Engine(ctx);
-  const { kernel } = ctx;
+  const kernel = ctx;
+  const own = ctx;
   const direct =
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,

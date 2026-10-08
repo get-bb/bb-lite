@@ -154,6 +154,11 @@ export const sessions = contract("sessions", {
     output: z.custom<Contract.SystemExecutionOptionsResponse>(),
   }),
   titleFallback: service<TitleFallback>(),
+  title: op({
+    input: z.object({ prompt: z.string() }),
+    output: z.string().nullable(),
+    internal: true,
+  }),
 });
 
 export interface ThreadTableRow {
@@ -252,6 +257,29 @@ export const threads = contract("threads", {
     kind: "write",
     internal: true,
   }),
+  workspace: op({
+    input: threadRef,
+    output: z.object({ id: z.string(), hostId: z.string(), path: z.string() }),
+    internal: true,
+  }),
+  requestInput: op({
+    input: z.custom<
+      Omit<InputRequest, "presentation" | "timeoutMs"> & {
+        pluginId: string;
+        presentation?: Domain.ThreadEventItemPresentation;
+      }
+    >(),
+    output: z.custom<InputResult>(),
+    kind: "write",
+    internal: true,
+  }),
+  settled: op({ input: none, output: nothing, internal: true }),
+  sweep: op({ input: none, output: nothing, kind: "write", internal: true }),
+  released: event(
+    threadRef.extend({
+      reason: z.enum(["thread-deleted", "thread-archived"]),
+    }),
+  ),
   update: threadWrite(),
   compact: threadWrite(),
   clearContext: threadWrite(),
@@ -353,9 +381,21 @@ export interface ProjectTableRow {
   updatedAt: number;
 }
 
+export interface ProjectDeletion {
+  projectId: string;
+  threadIds: string[];
+  environments: {
+    id: string;
+    hostId: string;
+    path: string | null;
+    providerOwnsPath: number;
+  }[];
+}
+
 export const projects = contract("projects", {
   list: op({ input: none, output: z.array(z.custom<Domain.Project>()) }),
   table: table<ProjectTableRow>(),
+  deleted: event(z.custom<ProjectDeletion>()),
 });
 
 export interface MachineRef {
@@ -493,6 +533,28 @@ export const plugins = contract("plugins", {
     kind: "write",
     allow: "owner",
   }),
+  agentInstructions: op({
+    input: threadContextSchema,
+    output: z.array(instructionSectionSchema),
+    internal: true,
+  }),
+  agentTools: op({
+    input: threadContextSchema,
+    output: z.array(z.custom<Domain.DynamicTool>()),
+    internal: true,
+  }),
+  callAgentTool: op({
+    input: z.object({
+      name: z.string(),
+      input: z.unknown(),
+      context: threadContextSchema,
+    }),
+    output: z.custom<Domain.ToolCallResponse>(),
+    kind: "write",
+    hooks: "observe",
+    internal: true,
+  }),
+  skillDirs: op({ input: none, output: z.array(z.string()), internal: true }),
 });
 
 export const terminals = contract("terminals", {
@@ -523,8 +585,25 @@ export const server = contract("server", {
   publicUrl: service<() => string | null>(),
 });
 
+const environmentRef = z.object({ environmentId: z.string() });
+
 export const environments = contract("environments", {
   kind: slot<EnvironmentDefinition>({ key: "id" }),
+  instructions: op({
+    input: environmentRef,
+    output: z.string().nullable(),
+    internal: true,
+  }),
+  remove: op({
+    input: environmentRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  sweep: op({ input: none, output: nothing, kind: "write", internal: true }),
+  released: event(
+    environmentRef.extend({ reason: z.literal("environment-destroyed") }),
+  ),
   get: op({
     input: z.object({ environmentId: z.string() }),
     output: z.custom<Domain.Environment>().nullable(),

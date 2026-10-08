@@ -23,6 +23,7 @@
     "@bb/server-contract": "workspace:*",
     "@bb/server-kit": "workspace:*",
     "@bb/thread-view": "workspace:*",
+    "bb-plugin-environments": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {

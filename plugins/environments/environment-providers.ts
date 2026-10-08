@@ -1,3 +1,4 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { jsonValueSchema, type JsonValue } from "@bb/domain";
 import type {
   SystemEnvironmentProvider,
@@ -5,7 +6,6 @@ import type {
 } from "@bb/server-contract";
 import { environments } from "@bb/plugin";
 import { z } from "zod";
-import type { ServerContext } from "@bb/server-kit/context";
 import { listHosts } from "@bb/server-kit/db/hosts";
 import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
 import { inspectProjectPath } from "@bb/server-kit/projects/workspace";
@@ -89,7 +89,7 @@ export const BUILTIN_ENVIRONMENT_KINDS: EnvironmentProviderDefinition[] = [
 ];
 
 async function gitCheckoutAvailability(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   hostId: string,
   path: string,
 ): Promise<Availability> {
@@ -101,7 +101,7 @@ async function gitCheckoutAvailability(
 }
 
 async function machineAvailability(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   definition: EnvironmentProviderDefinition,
   query: { projectId: string; hostId?: string },
 ) {
@@ -124,7 +124,7 @@ async function machineAvailability(
 }
 
 export async function listEnvironmentProviders(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   query: SystemEnvironmentProvidersQuery,
 ): Promise<SystemEnvironmentProvider[]> {
   const { hostId } = query;
@@ -133,21 +133,19 @@ export async function listEnvironmentProviders(
       ? null
       : requireProject(ctx.db, query.projectId);
   const providers: SystemEnvironmentProvider[] = [];
-  const kinds = ctx.kernel
-    .entries(environments.kind)
-    .map(({ plugin, item }) => {
-      const core = plugin === CORE_PLUGIN;
-      return {
-        id: item.id,
-        displayName: item.displayName,
-        description: item.description ?? "",
-        icon: item.icon ?? "Folder",
-        requires: item.requires ?? NO_REQUIREMENTS,
-        inputs: item.inputs ?? null,
-        placed: item.requires !== undefined,
-        pluginId: core ? `environment-${item.id}` : plugin,
-      };
-    });
+  const kinds = ctx.entries(environments.kind).map(({ plugin, item }) => {
+    const core = plugin === CORE_PLUGIN;
+    return {
+      id: item.id,
+      displayName: item.displayName,
+      description: item.description ?? "",
+      icon: item.icon ?? "Folder",
+      requires: item.requires ?? NO_REQUIREMENTS,
+      inputs: item.inputs ?? null,
+      placed: item.requires !== undefined,
+      pluginId: core ? `environment-${item.id}` : plugin,
+    };
+  });
   for (const { placed, ...definition } of kinds) {
     const { requires } = definition;
     const personal = project?.kind === "personal";

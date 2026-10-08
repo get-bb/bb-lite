@@ -142,7 +142,7 @@ export function reorderPinned(
   threadId: string,
   request: contract.ReorderPinnedThreadRequest,
 ) {
-  const { db, hub } = engine.ctx;
+  const { db, realtime: hub } = engine.ctx;
   const { projectId } = engine.requireThread(threadId);
   const { previousThreadId, nextThreadId } = request;
   const userId = viewerId();
@@ -173,7 +173,7 @@ function requireQueuedMessage(engine: Engine, threadId: string, id: string) {
 }
 
 function queueChanged(engine: Engine, threadId: string) {
-  engine.ctx.hub.thread(threadId, ["queue-changed"]);
+  engine.ctx.realtime.thread(threadId, ["queue-changed"]);
 }
 
 export function createQueuedMessage(

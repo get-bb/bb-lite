@@ -2093,6 +2093,9 @@ importers:
       '@bb/thread-view':
         specifier: workspace:*
         version: link:../../packages/thread-view
+      bb-plugin-environments:
+        specifier: workspace:*
+        version: link:../environments
       zod:
         specifier: 4.6.5
         version: 4.6.5

@@ -1,3 +1,4 @@
+import { sessions } from "@bb/plugin";
 import { once } from "node:events";
 import fs from "node:fs";
 import http, { type IncomingHttpHeaders, type ServerResponse } from "node:http";
@@ -111,7 +112,7 @@ async function seed(server: TestServer, upstream: string, accounts: object[]) {
   const env = async (providerId: string, hostId = ctx.config.hostId) => {
     const scope = { threadId: "thr_1", projectId: "proj_1" };
     const thread = { ...scope, hostId, providerId };
-    const entries = await ctx.plugins.contributedEnv(providerId, thread);
+    const entries = await ctx.kernel.call(sessions.env, thread);
     return Object.fromEntries(entries.map(({ name, value }) => [name, value]));
   };
   const cli = async (...argv: string[]) => {

@@ -1,3 +1,4 @@
+import { threads } from "@bb/plugin";
 import * as domain from "@bb/domain";
 import { newId } from "@bb/server-kit/db/index";
 import * as pending from "@bb/server-kit/db/pending-interactions";
@@ -14,6 +15,12 @@ import { cancelProvisioning } from "./provisioning.js";
 type ThreadRow = store.ThreadRow;
 type Interruption = NonNullable<domain.ChildThreadOutcome["interruption"]>;
 type MembershipEvent = `thread.${"archived" | "unarchived" | "deleted"}`;
+
+const MEMBERSHIP = {
+  "thread.archived": threads.archived,
+  "thread.unarchived": threads.unarchived,
+  "thread.deleted": threads.deleted,
+};
 
 const ARCHIVE_UNDO_GRACE_MS = 30_000;
 const STOPPED_REASON = "Thread stopped by user request";
@@ -137,15 +144,14 @@ function changeMembership(
   change: domain.ThreadChangeKind,
   event: MembershipEvent,
 ) {
-  const { db, environments, plugins } = engine.ctx;
+  const { db } = engine.ctx;
   const { id, projectId } = thread;
   engine.commit((out) => {
     store.patchThread(db, id, patch);
     out.thread(id, [change], { projectId });
     out.project(projectId, ["threads-changed"]);
     out.after(() => {
-      plugins.emit(event, { thread: engine.respond(id) });
-      environments.onThreadDetached(id);
+      engine.ctx.emit(MEMBERSHIP[event], { thread: engine.respond(id) });
     });
   });
 }
@@ -197,7 +203,7 @@ async function finalizeDeletion(engine: Engine, threadId: string) {
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
-    engine.ctx.terminals.closeFor("thread_id", threadId, "thread-deleted");
+    engine.ctx.emit(threads.released, { threadId, reason: "thread-deleted" });
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
@@ -367,7 +373,10 @@ export function sweep(engine: Engine): void {
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
   for (const { id, status } of store.listExpiredArchives(db, expired)) {
-    engine.ctx.terminals.closeFor("thread_id", id, "thread-archived");
+    engine.ctx.emit(threads.released, {
+      threadId: id,
+      reason: "thread-archived",
+    });
     if (status !== "starting" && status !== "active") continue;
     engine.background("stop archived thread", stopThread(engine, id));
   }

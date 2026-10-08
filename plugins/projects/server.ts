@@ -3,7 +3,6 @@ import {
   ensurePersonalProject,
   listStandardProjects,
 } from "@bb/server-kit/db/projects";
-import { coreOf } from "@bb/server-kit/host";
 import { registerProjectRoutes } from "./routes.js";
 
 const PROJECTS_VIEW = `CREATE VIEW p_projects_projects AS
@@ -11,9 +10,8 @@ const PROJECTS_VIEW = `CREATE VIEW p_projects_projects AS
   FROM projects WHERE deleted_at IS NULL`;
 
 export default function projectsPlugin(bb: PluginServerApi): void {
-  const { ctx, routes } = coreOf(bb);
-  const { db } = ctx;
-  routes(registerProjectRoutes);
+  const { db } = bb;
+  bb.http.api((app) => registerProjectRoutes(app, bb));
   bb.storage.tables.migrate([PROJECTS_VIEW]);
   bb.storage.tables.publish(projects.table, "projects");
   bb.implement(projects.list, () => listStandardProjects(db));

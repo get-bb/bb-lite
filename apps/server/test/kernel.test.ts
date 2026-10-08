@@ -9,6 +9,7 @@ import {
   table,
   threads as threadOps,
   type PluginServerApi,
+  plugins as hostOps,
 } from "@bb/plugin";
 import { createThreadRequestSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
@@ -80,15 +81,19 @@ it("records who changed a thread, through which door and which plugin", async ()
     entry.via.join(">"),
     entry.outcome,
   ]);
+  const ensured = "tasks>threads";
   expect(trail).toEqual([
     ["threads.create", "usr_owner", "http", null, "", "ok"],
+    ["environments.ensure", "usr_owner", "http", null, "threads", "ok"],
     ["threads.send", "usr_owner", "app", null, "", "ok"],
     ["threads.create", "usr_owner", "agent", threadId, "tasks", "ok"],
+    ["environments.ensure", "usr_owner", "agent", threadId, ensured, "ok"],
   ]);
-  const [, send] = await auditOf(server);
+  const [, , send] = await auditOf(server);
   expect(send.input).toContain(threadId);
   const byPlugin = await auditOf(server, { plugin: "tasks" });
-  expect(byPlugin.map(({ op }) => op)).toEqual(["threads.create"]);
+  const viaTasks = ["threads.create", "environments.ensure"];
+  expect(byPlugin.map(({ op }) => op)).toEqual(viaTasks);
   expect(spawned.originPluginId).toBe("tasks");
   const cli = { argv: ["list", "--op", "threads.send"], cwd: "/" };
   const listed = await server.http("POST", "/plugins/audit/cli", cli);
@@ -164,6 +169,7 @@ it("shows a member only their own records", async () => {
   const everything = await auditOf(server);
   expect(everything.map(({ op }) => op)).toEqual([
     "threads.create",
+    "environments.ensure",
     "threads.stop",
   ]);
 });
@@ -282,23 +288,30 @@ it("offers one operation to agents and the CLI, and pushes changes", async () =>
   const threadId = await server.spawn();
   const scope = { threadId, projectId: "proj_1", hostId: null };
   const codex = { ...scope, providerId: "codex" };
-  const tools = host.toolsFor(codex).map(({ name }) => name);
-  expect(tools).toContain("AddNote");
-  const claude = host.toolsFor({ ...scope, providerId: "claude-code" });
-  expect(claude.map(({ name }) => name)).not.toContain("AddNote");
-  expect(await host.instructionsFor(codex)).toContain("Use AddNote");
-  const signal = new AbortController().signal;
+  const { kernel } = ctx;
+  const offered = await kernel.call(sessions.tools, codex);
+  expect(offered.map(({ name }) => name)).toContain("AddNote");
+  const claude = { ...scope, providerId: "claude-code" };
+  const elsewhere = await kernel.call(sessions.tools, claude);
+  expect(elsewhere.map(({ name }) => name)).not.toContain("AddNote");
+  const guidance = await kernel.call(sessions.instructions, codex);
+  expect(guidance.map(({ text }) => text).join("\n")).toContain("Use AddNote");
   const agent = { userId: "usr_owner", role: "owner", agentThreadId: threadId };
+  const addNote = (input: unknown) =>
+    kernel.call(hostOps.callAgentTool, {
+      name: "AddNote",
+      input,
+      context: codex,
+    });
   const called = await runAs({ ...agent, role: "owner" }, () =>
-    host.callTool("AddNote", { text: "ship on friday" }, { ...codex, signal }),
+    addNote({ text: "ship on friday" }),
   );
   const done = '{"id":1,"text":"ship on friday"}';
   expect(called).toEqual({
     success: true,
     contentItems: [{ type: "inputText", text: done }],
   });
-  const refused = await host.callTool("AddNote", {}, { ...codex, signal });
-  expect(refused.success).toBe(false);
+  expect((await addNote({})).success).toBe(false);
   const cli = host.cliOf("notes");
   expect(host.contributions().cliCommands).toContainEqual({
     pluginId: "notes",
@@ -306,7 +319,7 @@ it("offers one operation to agents and the CLI, and pushes changes", async () =>
     summary: "",
     commands: [{ name: "add", summary: "Remember a note" }],
   });
-  const context = { signal };
+  const context = { signal: new AbortController().signal };
   const argv = ["add", "buy", "--tags", "a", "--tags", "b", "--pinned"];
   expect(await cli?.run(argv, context)).toEqual({
     exitCode: 0,

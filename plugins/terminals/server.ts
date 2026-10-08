@@ -1,7 +1,11 @@
-import { terminals as terminalOps, type PluginServerApi } from "@bb/plugin";
+import {
+  environments,
+  terminals as terminalOps,
+  threads,
+  type PluginServerApi,
+} from "@bb/plugin";
 import { terminalWebSocketQuerySchema } from "@bb/server-contract";
 import { getTerminal } from "@bb/server-kit/db/terminals";
-import { coreOf } from "@bb/server-kit/host";
 import { ApiError } from "@bb/server-kit/http/errors";
 import { assertHostUsable } from "@bb/server-kit/runners/access";
 import { registerTerminalRoutes } from "./routes.js";
@@ -16,15 +20,18 @@ import {
 const TERMINAL_PATH = /^\/ws\/terminals\/([^/]+)$/u;
 
 export default function terminals(bb: PluginServerApi): void {
-  const { ctx, routes, sockets } = coreOf(bb);
-  ctx.terminals = {
-    closeFor: (owner, id, reason) => closeTerminalsFor(ctx, owner, id, reason),
-  };
-  routes(registerTerminalRoutes);
+  const ctx = bb;
+  bb.on(threads.released, ({ threadId, reason }) =>
+    closeTerminalsFor(bb, "thread_id", threadId, reason),
+  );
+  bb.on(environments.released, ({ environmentId, reason }) =>
+    closeTerminalsFor(bb, "environment_id", environmentId, reason),
+  );
+  bb.http.api((app) => registerTerminalRoutes(app, bb));
   bb.implement(terminalOps.resize, async ({ terminalId, ...size }) => {
     await resizeTerminal(ctx, requireTerminal(ctx, terminalId), size);
   });
-  sockets(({ url, actor }) => {
+  bb.http.socket(({ url, actor }) => {
     const terminal = TERMINAL_PATH.exec(url.pathname);
     if (terminal === null) return null;
     const sinceSeq = url.searchParams.get("sinceSeq") ?? undefined;

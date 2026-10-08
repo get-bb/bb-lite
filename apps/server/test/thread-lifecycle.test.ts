@@ -1,3 +1,4 @@
+import { threads } from "@bb/plugin";
 import type { PendingInteractionPayload } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
 import { expect, it } from "vitest";
@@ -229,7 +230,7 @@ it("interrupts threads that were running when the server stopped", async () => {
   const runner = new FakeRunner();
   const server = createServer({ config, db, localRunner: () => runner.api });
   await server.listen();
-  await server.ctx.threads.settled();
+  await server.ctx.kernel.call(threads.settled, {});
   const column = <Row>(sql: string, pick: (row: Row) => string) =>
     db.all<Row>(sql).map(pick);
   const statuses = "SELECT status FROM threads ORDER BY id";

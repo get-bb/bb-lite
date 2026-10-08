@@ -1,11 +1,11 @@
 import type { PluginServerApi } from "@bb/plugin";
-import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
 
 export type PluginOutwardApi = Pick<PluginServerApi, "machine">;
 
 export type PluginHostDeps = (pluginId: string) => PluginOutwardApi;
 
-export function createPluginHostDeps(ctx: ServerContext): PluginHostDeps {
+export function createPluginHostDeps(ctx: HostContext): PluginHostDeps {
   return () => ({
     machine: (hostId) => ({
       async call(op, input) {

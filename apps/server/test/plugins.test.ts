@@ -13,6 +13,7 @@ import {
   contract,
   files,
   op,
+  plugins as hostOps,
   sessions,
   terminals,
   threads,
@@ -318,21 +319,28 @@ it("answers the thread engine's queries from what plugins register", async () =>
   const status = "needs-configuration";
   const waiting = { id: "probe", status, statusMessage: "Sign in first" };
   expect(plugins.list()).toMatchObject([waiting]);
-  const instructions = "Use Shout sparingly.\n\nThread thr_1";
-  expect(await plugins.instructionsFor(codex)).toBe(instructions);
-  expect(plugins.toolsFor({ ...codex, providerId: "claude-code" })).toEqual([]);
+  const { kernel } = ctx;
+  const sections = await kernel.call(sessions.instructions, codex);
+  const instructions = ["Use Shout sparingly.", "Thread thr_1"];
+  expect(sections.map(({ text }) => text)).toEqual(instructions);
+  const claude = { ...codex, providerId: "claude-code" };
+  expect(await kernel.call(sessions.tools, claude)).toEqual([]);
   const inputSchema = { type: "object", required: ["text"] };
   const tool = { name: "Shout", inputSchema };
-  expect(plugins.toolsFor(codex)).toMatchObject([tool]);
+  expect(await kernel.call(sessions.tools, codex)).toMatchObject([tool]);
   const contentItems = [{ type: "inputText", text: "HI" }];
-  const shouted = await plugins.callTool("Shout", { text: "hi" }, codex);
-  expect(shouted).toEqual({ contentItems, success: true });
-  const refused = await plugins.callTool("Shout", {}, codex);
-  expect(refused.success).toBe(false);
+  const shout = (input: unknown) =>
+    kernel.call(hostOps.callAgentTool, {
+      name: "Shout",
+      input,
+      context: codex,
+    });
+  expect(await shout({ text: "hi" })).toEqual({ contentItems, success: true });
+  expect((await shout({})).success).toBe(false);
   const env = [{ name: "POOL_URL", value: { serverPath: "/pool/host_1" } }];
-  expect(await plugins.contributedEnv("codex", codex)).toEqual(env);
+  expect(await kernel.call(sessions.env, codex)).toEqual(env);
   const idle = { thread: {} as ThreadResponse, lastAssistantText: "done" };
-  plugins.emit("thread.idle", idle);
+  kernel.emit(threads.idle, idle);
   expect(idleTexts).toEqual(["done"]);
   const query = { query: "x", projectId: null, threadId: null };
   const item = { itemId: "note:n1", title: "Note x", subtitle: null };
@@ -340,8 +348,8 @@ it("answers the thread engine's queries from what plugins register", async () =>
   const found = await plugins.searchMentions({ trigger: "@", ...query });
   expect(found).toMatchObject([{ ...group, items: [item] }]);
   expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
-  plugins.titleFallback = async () => "Unused";
-  expect(await plugins.generateTitle("Hello world", signal)).toBe("Hello");
+  const titled = await kernel.call(sessions.title, { prompt: "Hello world" });
+  expect(titled).toBe("Hello");
 });
 
 it("accepts select and number settings and refuses values outside them", async () => {

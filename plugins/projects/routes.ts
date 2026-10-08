@@ -1,10 +1,10 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { PERSONAL_PROJECT_ID, type GitSourceInspection } from "@bb/domain";
 import {
   publicApiRoutes,
   type ProjectBranchesQuery,
   type ProjectBranchesResponse,
 } from "@bb/server-contract";
-import type { ServerContext } from "@bb/server-kit/context";
 import { updateRow } from "@bb/server-kit/db/index";
 import * as store from "@bb/server-kit/db/projects";
 import {
@@ -49,10 +49,10 @@ function defaultWorktreeBaseBranch(source: GitSourceInspection) {
   return localIsAhead ? defaultBranch : originDefaultBranch;
 }
 
-export function registerProjectRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerProjectRoutes(app: ApiApp, ctx: PluginServerApi): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.projects;
-  const { db, hub, runners } = ctx;
+  const { db, realtime: hub, runners } = ctx;
   const { dataDir } = ctx.config;
 
   const projectResponse = (projectId: string) => {

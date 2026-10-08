@@ -1,5 +1,5 @@
+import type { PluginServerApi } from "@bb/plugin";
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext } from "@bb/server-kit/context";
 import {
   findProviderDefinition,
   listEnabledProviders,
@@ -12,10 +12,13 @@ import { ApiError } from "@bb/server-kit/http/errors";
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
-export function registerProviderRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerProviderRoutes(
+  app: ApiApp,
+  ctx: PluginServerApi,
+): void {
   const { get, put } = typedApi(app);
   const routes = publicApiRoutes.system;
-  const { db, hub } = ctx;
+  const { db, realtime: hub } = ctx;
 
   get(routes.providers, (c, query) => {
     const providers = listEnabledProviders(db).map(({ info }) => info);

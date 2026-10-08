@@ -131,7 +131,7 @@ export class ModelCatalog {
     entry.loadedAt = this.ctx.now();
     const changed = JSON.stringify(previous) !== JSON.stringify(entry.models);
     if (previous !== null && changed) {
-      this.ctx.hub.host(hostId, ["provider-model-catalog-changed"]);
+      this.ctx.realtime.host(hostId, ["provider-model-catalog-changed"]);
     }
   }
 }

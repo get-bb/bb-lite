@@ -142,7 +142,7 @@ export function recordWorkspaceMetadata(
   );
   if (!differs) return;
   updateEnvironment(ctx.db, environment.id, observed);
-  ctx.hub.environment(environment.id, ["metadata-changed"]);
+  ctx.realtime.environment(environment.id, ["metadata-changed"]);
 }
 
 export async function refreshWorkspaceMetadata(

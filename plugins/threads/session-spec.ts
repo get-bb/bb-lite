@@ -1,9 +1,11 @@
-import { sessions as sessionOps } from "@bb/plugin";
+import {
+  environments as environmentOps,
+  sessions as sessionOps,
+} from "@bb/plugin";
 import { readFile } from "node:fs/promises";
-import type { ThreadContext } from "@bb/plugin";
+import type { PluginServerApi, ThreadContext } from "@bb/plugin";
 import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
 import { dataPaths } from "@bb/server-kit/config";
-import type { ServerContext } from "@bb/server-kit/context";
 import type { SessionEnvironment } from "@bb/server-kit/services";
 import type { Db } from "@bb/server-kit/db/index";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
@@ -44,7 +46,7 @@ export function pluginContext(
 }
 
 export async function buildSessionSpec(
-  ctx: ServerContext,
+  ctx: PluginServerApi,
   thread: ThreadRow,
   environment: SessionEnvironment,
 ): Promise<SessionSpec> {
@@ -53,17 +55,19 @@ export async function buildSessionSpec(
   const providerId = requireProviderId(ctx.db, thread.providerId);
   const [plugins, pluginEnv, machineEnv, user, workspace, configured] =
     await Promise.all([
-      ctx.plugins.instructionsFor(scope),
-      ctx.plugins.contributedEnv(providerId, scope),
+      ctx
+        .call(sessionOps.instructions, scope)
+        .then((found) => found.map(({ text }) => text).join("\n\n")),
+      ctx.call(sessionOps.env, { ...scope, providerId }),
       resolveContributedEnvironment(ctx, thread.projectId),
       readUserInstructions(ctx.config.dataDir),
-      ctx.environments.workspaceInstructions(environment.id),
+      ctx.call(environmentOps.instructions, { environmentId: environment.id }),
       readCustomModelConfig(ctx),
     ]);
-  const dynamicTools = await ctx.kernel.call(sessionOps.tools, scope);
+  const dynamicTools = await ctx.call(sessionOps.tools, scope);
   const skillDirs =
     hostId === ctx.config.hostId
-      ? await ctx.kernel.call(sessionOps.skillDirs, scope)
+      ? await ctx.call(sessionOps.skillDirs, scope)
       : [];
   const customModels = configured
     .filter((custom) => custom.providerId === providerId)

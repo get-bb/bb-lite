@@ -10,7 +10,6 @@ import type { Context } from "hono";
 import { contentType } from "mime-types";
 import type { z } from "zod";
 import { actorUserId } from "@bb/server-kit/auth/actor";
-import type { ServerContext } from "@bb/server-kit/context";
 import type { HostContext } from "../../host-context.js";
 import { asPlugin } from "@bb/server-kit/kernel/caller";
 import { resolveInside } from "../../plugins/manifest.js";
@@ -69,7 +68,7 @@ function keepAliveJson(result: Promise<unknown>) {
   });
 }
 
-export function registerPluginRoutes(app: ApiApp, shared: ServerContext): void {
+export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   const ctx = shared as HostContext;
   const { plugins } = ctx;
   const requireManager = (c: RouteContext) =>
