@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import type { PluginSidebarSplitPane } from "@bb/plugin/app";
+import type { SidebarSplitPane } from "@bb/plugin/app";
 import { splitLayoutAtom } from "@bb/app-kit/lib/split-layout/atoms";
 import {
   computePaneRects,
@@ -10,7 +10,7 @@ import {
 
 export function usePaneContentSplitPanes(
   content: PaneContent | null,
-): readonly PluginSidebarSplitPane[] | null {
+): readonly SidebarSplitPane[] | null {
   const layout = useAtomValue(splitLayoutAtom);
   if (content === null || layout === null) return null;
   const panes = listPanes(layout.root);

@@ -25,7 +25,7 @@ export function PluginThreadList({ onNavigate }: { onNavigate: () => void }) {
   const slot = replacement.slot;
   return (
     <PluginSlotMount
-      key={`${slot.pluginId}/${slot.id}/${slot.generation}/${attempt}`}
+      key={`${slot.pluginId}/${slot.id}/${attempt}`}
       pluginId={slot.pluginId}
       slotKind="threadList"
       slotId={slot.id}
@@ -47,7 +47,7 @@ export function PluginThreadList({ onNavigate }: { onNavigate: () => void }) {
         });
       }}
     >
-      <slot.component
+      <slot.view
         activeThreadId={threadId ?? null}
         activeProjectId={projectId ?? null}
         isCompactViewport={isCompactViewport}

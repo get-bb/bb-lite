@@ -54,7 +54,7 @@ import {
   useSidebarSplitLayout,
   useSidebarThreadDraft,
   useSidebarThreadShortcut,
-  type PluginSidebarSplitPane,
+  type SidebarSplitPane,
 } from "@bb/plugin/app";
 import type {
   SidebarNestTargetState,
@@ -135,11 +135,11 @@ const HOVER_ACTIONS_INSET_STYLE = {
 
 function useThreadSplitMiniMap(
   threadId: string,
-): readonly PluginSidebarSplitPane[] | null {
+): readonly SidebarSplitPane[] | null {
   const layout = useSidebarSplitLayout();
   return useMemo(() => {
     if (layout === null) return null;
-    const slots = layout.panes.map<PluginSidebarSplitPane>((pane) => ({
+    const slots = layout.panes.map<SidebarSplitPane>((pane) => ({
       paneId: pane.paneId,
       rect: pane.rect,
       isMe: pane.threadId === threadId,

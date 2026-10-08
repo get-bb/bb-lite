@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
 import type { ThreadTab } from "@bb/server-contract";
+import { identified } from "../app-contracts.js";
+import type { SidePanelPanel } from "../app-types.js";
 import { contract, slot } from "../contract.js";
 
 export type SidePanelTab = ThreadTab;
@@ -42,4 +44,5 @@ export interface FileViewer {
 export const sidePanel = contract("side-panel", {
   tab: slot<SidePanelTabKind>({ key: "kind" }),
   fileViewer: slot<FileViewer>(),
+  panel: slot<SidePanelPanel>({ check: identified("view") }),
 });

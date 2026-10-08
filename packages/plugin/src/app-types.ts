@@ -42,16 +42,16 @@ export interface MarkdownProps {
   sourcePrefix?: string;
 }
 
-export interface PluginNavPanelProps {
+export interface ShellNavPanelProps {
   subPath: string;
 }
 
-export interface PluginThreadPanelProps {
+export interface SidePanelPanelProps {
   threadId: string;
   params: JsonValue | null;
 }
 
-export interface PluginPendingInteractionView {
+export interface InteractionView {
   id: string;
   threadId: string;
   title: string;
@@ -60,8 +60,8 @@ export interface PluginPendingInteractionView {
   expiresAt: number | null;
 }
 
-export interface PluginPendingInteractionProps {
-  interaction: PluginPendingInteractionView;
+export interface InteractionProps {
+  interaction: InteractionView;
   submit(value: JsonValue): Promise<void>;
   cancel(): Promise<void>;
 }
@@ -76,17 +76,17 @@ export interface QuestionFormHost {
   registerChoiceHandler(handler: (index: number) => boolean): () => void;
 }
 
-export interface PluginMessageDirectiveMessage {
+export interface MessageDirectiveMessage {
   id: string;
   threadId: string;
   turnId: string | null;
   projectId: string | null;
 }
 
-export interface PluginMessageDirectiveProps {
+export interface MessageDirectiveProps {
   attributes: Readonly<Record<string, string>>;
   source: string;
-  message: PluginMessageDirectiveMessage;
+  message: MessageDirectiveMessage;
   openWorkspaceFile: ((path: string) => boolean) | null;
 }
 
@@ -123,16 +123,16 @@ export interface SidebarNavigationState {
   actions: SidebarNavigationActions;
 }
 
-export interface PluginSidebarSplitPane {
+export interface SidebarSplitPane {
   paneId: string;
   rect: { x: number; y: number; width: number; height: number };
   isMe: boolean;
   isFocused: boolean;
 }
 
-export interface PluginSidebarThreadSplit {
+export interface SidebarSplit {
   isAvailable: boolean;
-  layout: { panes: readonly PluginSidebarSplitPane[] } | null;
+  layout: { panes: readonly SidebarSplitPane[] } | null;
 }
 
 export interface ThreadViewersProps {
@@ -155,7 +155,7 @@ export interface SidebarHeaderProps {
   isCompactViewport: boolean;
 }
 
-export interface PluginThreadListProps {
+export interface ShellThreadListProps {
   activeThreadId: string | null;
   activeProjectId: string | null;
   isCompactViewport: boolean;
@@ -163,74 +163,84 @@ export interface PluginThreadListProps {
   searchQuery: string;
 }
 
-export interface PluginSettingsSectionRegistration {
+export interface SettingsPageSection {
   id: string;
   title?: string;
   description?: string;
-  component: ComponentType;
+  view: ComponentType;
 }
 
-export interface PluginComponentRegistration<Props = object> {
+export interface ShellOverlay {
   id: string;
-  component: ComponentType<Props>;
+  view: ComponentType;
 }
 
-export interface PluginProviderRegistration<Props = object> {
+export interface InteractionRenderer {
+  id: string;
+  view: ComponentType<InteractionProps>;
+}
+
+export interface MessageDirective {
+  id: string;
+  view: ComponentType<MessageDirectiveProps>;
+}
+
+export interface ShellProvider<Props = object> {
   id: string;
   title: string;
   description?: string;
-  component: ComponentType<Props>;
+  view: ComponentType<Props>;
 }
 
-export interface PluginFixedTabRegistration {
+export interface ShellNavPanelTab {
   panelId: string;
   id: string;
   title: string;
   icon: string;
-  component: ComponentType<PluginNavPanelProps>;
+  view: ComponentType<ShellNavPanelProps>;
   layout?: "padded" | "flush";
 }
 
-export interface PluginNavPanelRegistration {
+export interface ShellNavPanel {
   id: string;
   title: string;
   icon: string;
   path: string;
-  component: ComponentType<PluginNavPanelProps>;
-  fixedTabs?: readonly PluginFixedTabRegistration[];
-  headerContent?: ComponentType<PluginNavPanelProps>;
+  view: ComponentType<ShellNavPanelProps>;
+  fixedTabs?: readonly ShellNavPanelTab[];
+  headerView?: ComponentType<ShellNavPanelProps>;
 }
 
-export interface PluginPanelOpenOptions {
+export interface PanelOpenOptions {
   title?: string;
   params?: JsonValue;
 }
 
-export interface PluginTargetedPanelOpenOptions extends PluginPanelOpenOptions {
+export interface TargetedPanelOpenOptions extends PanelOpenOptions {
   actionId: string;
 }
 
-export interface PluginThreadPanelContext {
+export interface SidePanelPanelContext {
   threadId: string;
-  openPanel(options?: PluginPanelOpenOptions): boolean;
+  openPanel(options?: PanelOpenOptions): boolean;
 }
 
-export interface PluginThreadPanelRegistration {
+export interface SidePanelPanel {
   id: string;
   title: string;
   icon?: string;
-  component: ComponentType<PluginThreadPanelProps>;
+  view: ComponentType<SidePanelPanelProps>;
   layout?: "padded" | "flush";
-  run?(context: PluginThreadPanelContext): void | Promise<void>;
+  run?(context: SidePanelPanelContext): void | Promise<void>;
 }
 
-export interface PluginCommandContext {
+export interface CommandContext {
   threadId: string | null;
   projectId: string | null;
-  openPanel(options: PluginTargetedPanelOpenOptions): boolean;
+  openPanel(options: TargetedPanelOpenOptions): boolean;
 }
 
-export interface PluginCommandShortcut {
+export interface CommandShortcut {
   key: string;
   mod?: boolean;
   meta?: boolean;
@@ -239,15 +249,15 @@ export interface PluginCommandShortcut {
   shift?: boolean;
 }
 
-export interface PluginCommandRegistration {
+export interface ShellCommand {
   id: string;
   title: string;
-  defaultShortcut?: PluginCommandShortcut;
-  isAvailable?(context: PluginCommandContext): boolean;
-  run(context: PluginCommandContext): void | Promise<void>;
+  defaultShortcut?: CommandShortcut;
+  isAvailable?(context: CommandContext): boolean;
+  run(context: CommandContext): void | Promise<void>;
 }
 
-export type PluginSidebarThreadIndicator =
+export type SidebarThreadIndicator =
   | "unread-error"
   | "waiting-for-input"
   | "working-draft"
@@ -262,14 +272,14 @@ export type PluginSidebarThreadIndicator =
   | "queued-waiting"
   | "none";
 
-export interface PluginSidebarThreadActivity {
+export interface SidebarThreadActivity {
   workflows: number;
   backgroundAgents: number;
   backgroundCommands: number;
   goals: number;
 }
 
-export interface PluginSidebarThread {
+export interface SidebarThread {
   id: string;
   projectId: string;
   title: string | null;
@@ -286,8 +296,8 @@ export interface PluginSidebarThread {
   runtimeStatus: ThreadRuntimeDisplayStatus;
   queuedWork: ThreadQueuedWork;
   hasPendingInteraction: boolean;
-  activity: PluginSidebarThreadActivity;
-  indicator: PluginSidebarThreadIndicator;
+  activity: SidebarThreadActivity;
+  indicator: SidebarThreadIndicator;
   indicatorLabel: string | null;
   isUnread: boolean;
   isPinned: boolean;
@@ -313,7 +323,7 @@ export interface PluginSidebarThread {
   latestAttentionAt: number;
 }
 
-export interface PluginSidebarProject {
+export interface SidebarProject {
   id: string;
   name: string;
   isPersonal: boolean;
@@ -321,14 +331,14 @@ export interface PluginSidebarProject {
   settingsHref: string;
 }
 
-export interface PluginSidebarSection {
+export interface SidebarSection {
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
 }
 
-export interface PluginSidebarThreadsState {
+export interface SidebarThreadsState {
   archived: {
     status: "loading" | "ready" | "error";
     hasNextPage: boolean;
@@ -337,13 +347,13 @@ export interface PluginSidebarThreadsState {
     fetchNextPage(): Promise<void>;
   } | null;
   status: "loading" | "ready" | "error";
-  threads: readonly PluginSidebarThread[];
+  threads: readonly SidebarThread[];
   hosts?: readonly { id: string; name: string }[];
-  projects: readonly PluginSidebarProject[];
-  sections: readonly PluginSidebarSection[];
+  projects: readonly SidebarProject[];
+  sections: readonly SidebarSection[];
 }
 
-export interface PluginSidebarThreadActions {
+export interface SidebarThreadActions {
   open(threadId: string, options?: { split?: boolean }): void;
   openNewThread(options?: {
     projectId?: string;
@@ -360,17 +370,26 @@ export interface PluginSidebarThreadActions {
   requestDelete(threadId: string): void;
 }
 
-export interface PluginSidebarThreadDraftState {
+export interface SidebarThreadDraftState {
   hasUnsubmittedDraft: boolean;
 }
 
-export interface PluginSidebarThreadRowStatus {
+export interface ThreadRowStatus {
   icon: string;
   label: string;
   tone?: "default" | "running" | "success" | "error";
 }
 
-export interface PluginSidebarSplitLayout {
+export interface ThreadRowStatusEntry extends ThreadRowStatus {
+  threadId: string;
+}
+
+export interface AppIcon {
+  name: string;
+  view: ComponentType<{ className?: string }>;
+}
+
+export interface SidebarSplitLayout {
   panes: readonly {
     paneId: string;
     rect: { x: number; y: number; width: number; height: number };
@@ -379,12 +398,12 @@ export interface PluginSidebarSplitLayout {
   }[];
 }
 
-export interface PluginProvidersState {
+export interface ProvidersState {
   status: "loading" | "ready" | "error";
   providers: readonly ProviderInfo[];
 }
 
-export interface PluginEnvironmentProvider {
+export interface EnvironmentProviderInfo {
   id: string;
   displayName: string;
   description: string | null;
@@ -394,17 +413,17 @@ export interface PluginEnvironmentProvider {
   machineProviderId: string | null;
 }
 
-export interface PluginEnvironmentProvidersState {
+export interface EnvironmentProvidersState {
   status: "loading" | "ready" | "error";
-  providers: readonly PluginEnvironmentProvider[];
+  providers: readonly EnvironmentProviderInfo[];
 }
 
-export interface PluginSettingsState {
+export interface SettingsState {
   values: Record<string, string | boolean | number> | undefined;
   isLoading: boolean;
 }
 
-export type PluginRealtimeConnectionState =
+export type RealtimeConnectionState =
   | "connecting"
   | "connected"
   | "reconnecting";
@@ -422,7 +441,7 @@ export interface BbNavigate {
     options?: { subPath?: string; replace?: boolean },
   ): void;
   toCompose(options?: { initialPrompt?: string; focusPrompt?: boolean }): void;
-  openThreadPanel(options: PluginTargetedPanelOpenOptions): boolean;
+  openThreadPanel(options: TargetedPanelOpenOptions): boolean;
   openUrl(url: string): boolean;
   openFile(options: { threadId: string; path: string }): boolean;
 }

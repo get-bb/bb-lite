@@ -1,8 +1,8 @@
 import { lazy, type ComponentType } from "react";
 import {
-  definePluginApp,
   sidePanel,
   type SidePanelTabProps,
+  type PluginAppApi,
 } from "@bb/plugin/app";
 import {
   FileTabIcon,
@@ -26,7 +26,7 @@ function view(name: keyof Views): ComponentType<SidePanelTabProps> {
   });
 }
 
-export default definePluginApp((bb) => {
+export default function sidePanelApp(bb: PluginAppApi): void {
   bb.add(appParts.parts, { plugin: "side-panel", parts });
   bb.add(sidePanel.tab, {
     kind: "new-tab",
@@ -58,4 +58,4 @@ export default definePluginApp((bb) => {
     icon: PluginPanelTabIcon,
     view: view("PluginPanelTabView"),
   });
-});
+}

@@ -1,10 +1,9 @@
+import { shell } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { PageShell } from "@bb/app-kit/components/ui/page-shell";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
-import {
-  usePluginSlots,
-  usePluginsSettled,
-} from "@bb/app-kit/plugins/registry";
+import { usePluginsSettled } from "@bb/app-kit/plugins/registry";
 
 export function PluginPanelView({
   pluginId,
@@ -15,7 +14,7 @@ export function PluginPanelView({
   panelPath: string;
   subPath: string;
 }) {
-  const { navPanels } = usePluginSlots();
+  const navPanels = useOwned(shell.navPanel);
   const pluginsSettled = usePluginsSettled();
   const panel = navPanels.find(
     (candidate) =>
@@ -39,12 +38,12 @@ export function PluginPanelView({
       data-testid="plugin-panel-body"
     >
       <PluginSlotMount
-        key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
+        key={`${panel.pluginId}/${panel.id}`}
         pluginId={panel.pluginId}
         slotKind="navPanel"
         slotId={panel.id}
       >
-        <panel.component subPath={subPath} />
+        <panel.view subPath={subPath} />
       </PluginSlotMount>
     </div>
   );

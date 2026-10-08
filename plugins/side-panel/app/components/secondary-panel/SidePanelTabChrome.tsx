@@ -9,12 +9,12 @@ import {
 import { COARSE_POINTER_COMPACT_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
 import { Icon } from "@bb/shared-ui/icon";
 import { PluginItemIcon } from "@bb/app-kit/components/plugin/PluginIcon";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 import {
   useSlot,
   useSlotEntries,
   useSlotEntry,
+  useOwned,
 } from "@bb/app-kit/plugins/slots";
 import { RightPanelFileTabIcon } from "./RightPanelFileTabIcon";
 
@@ -88,7 +88,7 @@ export function pluginPanelTabTitle(tab: SidePanelTab): string {
 }
 
 export function PluginPanelTabIcon({ tab }: SidePanelTabIconProps) {
-  const { threadPanels } = usePluginSlots();
+  const threadPanels = useOwned(sidePanel.panel);
   if (tab.kind !== "plugin-panel") return null;
   const action = threadPanels.find(
     (item) => item.pluginId === tab.pluginId && item.id === tab.actionId,

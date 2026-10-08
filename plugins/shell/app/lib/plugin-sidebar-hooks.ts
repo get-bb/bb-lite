@@ -13,13 +13,13 @@ import {
   type ThreadListEntry,
 } from "@bb/domain";
 import type {
-  PluginAppHost,
-  PluginSidebarSplitLayout,
-  PluginSidebarThread,
-  PluginSidebarThreadActions,
-  PluginSidebarThreadDraftState,
-  PluginSidebarThreadSplit,
-  PluginSidebarThreadsState,
+  ShellApi,
+  SidebarSplitLayout,
+  SidebarThread,
+  SidebarThreadActions,
+  SidebarThreadDraftState,
+  SidebarSplit,
+  SidebarThreadsState,
   ShortcutHint,
   SidebarNavigationState,
 } from "@bb/plugin/app";
@@ -77,7 +77,7 @@ function toPluginSidebarThread(
   entry: ThreadListEntry,
   hostNames: HostNames,
   titleResources: ThreadTitleMentionResources,
-): PluginSidebarThread {
+): SidebarThread {
   const indicator = resolveThreadListIndicator(
     threadListIndicatorStateForThread(entry, false),
   );
@@ -138,12 +138,12 @@ function hostNamesFor(hosts: readonly Host[] | undefined): HostNames {
 
 const threadByEntry = new WeakMap<
   ThreadListEntry,
-  { key: readonly unknown[]; thread: PluginSidebarThread }
+  { key: readonly unknown[]; thread: SidebarThread }
 >();
 
 export function useSidebarThreads(
-  options?: Parameters<PluginAppHost["useSidebarThreads"]>[0],
-): PluginSidebarThreadsState {
+  options?: Parameters<ShellApi["useSidebarThreads"]>[0],
+): SidebarThreadsState {
   const lifecycles = options?.lifecycles;
   const active = !lifecycles?.length || lifecycles.includes("active");
   const includeArchived = lifecycles?.includes("archived") ?? false;
@@ -155,7 +155,7 @@ export function useSidebarThreads(
       : archived.isLoadingError
         ? "error"
         : "loading";
-  const archiveState = useMemo<PluginSidebarThreadsState["archived"]>(
+  const archiveState = useMemo<SidebarThreadsState["archived"]>(
     () =>
       includeArchived
         ? {
@@ -180,7 +180,7 @@ export function useSidebarThreads(
   const { data: hosts } = useHosts();
   const hostNames = hostNamesFor(hosts);
   const titleResources = useThreadTitleMentionResources();
-  return useMemo<PluginSidebarThreadsState>(() => {
+  return useMemo<SidebarThreadsState>(() => {
     if (data === undefined) {
       return {
         archived: archiveState,
@@ -265,7 +265,7 @@ export function useSidebarThreadEntry(
   return useThreadEntryMap().get(threadId) ?? null;
 }
 
-export function useSidebarThreadActions(): PluginSidebarThreadActions {
+export function useSidebarThreadActions(): SidebarThreadActions {
   const navigate = useRouteNavigate();
   const store = useStore();
   const isCompact = useIsCompactViewport();
@@ -275,7 +275,7 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
   const { mutateAsync: pinThread } = usePinThread();
   const { mutateAsync: unpinThread } = useUnpinThread();
   const { mutateAsync: updateThread } = useUpdateThread();
-  return useMemo<PluginSidebarThreadActions>(() => {
+  return useMemo<SidebarThreadActions>(() => {
     const requireEntry = (threadId: string): ThreadListEntry => {
       const entry = entries.get(threadId);
       if (entry === undefined) throw new Error(`Unknown thread: ${threadId}`);
@@ -343,13 +343,13 @@ export function useSidebarThreadActions(): PluginSidebarThreadActions {
   ]);
 }
 
-const NO_DRAFT: PluginSidebarThreadDraftState = { hasUnsubmittedDraft: false };
-const HAS_DRAFT: PluginSidebarThreadDraftState = { hasUnsubmittedDraft: true };
+const NO_DRAFT: SidebarThreadDraftState = { hasUnsubmittedDraft: false };
+const HAS_DRAFT: SidebarThreadDraftState = { hasUnsubmittedDraft: true };
 const NO_DRAFT_IDS: ReadonlySet<string> = new Set();
 
 export function useSidebarThreadDraft(
   threadId: string,
-): PluginSidebarThreadDraftState {
+): SidebarThreadDraftState {
   const entry = useSidebarThreadEntry(threadId);
   const hasDraft = usePromptDraftHasInput({
     kind: "thread",
@@ -372,7 +372,7 @@ export function useSidebarThreadShortcut(
   return useHostSidebarThreadShortcut(threadId) ?? null;
 }
 
-export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
+export function useSidebarSplitLayout(): SidebarSplitLayout | null {
   const isCompact = useIsCompactViewport();
   const layout = useAtomValue(splitLayoutAtom);
   return useMemo(() => {
@@ -395,7 +395,7 @@ export function useSidebarSplitLayout(): PluginSidebarSplitLayout | null {
   }, [isCompact, layout]);
 }
 
-function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
+function useSplit(content: PaneContent | null): SidebarSplit {
   const isCompact = useIsCompactViewport();
   const panes = usePaneContentSplitPanes(content);
   return useMemo(
@@ -407,9 +407,7 @@ function useSplit(content: PaneContent | null): PluginSidebarThreadSplit {
   );
 }
 
-export function useSidebarThreadSplit(
-  threadId: string,
-): PluginSidebarThreadSplit {
+export function useSidebarThreadSplit(threadId: string): SidebarSplit {
   const projectId = useSidebarThreadEntry(threadId)?.projectId ?? null;
   const content = useMemo<PaneContent | null>(
     () => (projectId === null ? null : { kind: "thread", projectId, threadId }),
@@ -434,9 +432,7 @@ export function useSidebarNavigation(): SidebarNavigationState {
   );
 }
 
-export function useSidebarNavigationSplit(
-  itemId: string,
-): PluginSidebarThreadSplit {
+export function useSidebarNavigationSplit(itemId: string): SidebarSplit {
   const entry = useSidebarNavigationModel()?.entries.find(
     (candidate) => candidate.item.id === itemId,
   );

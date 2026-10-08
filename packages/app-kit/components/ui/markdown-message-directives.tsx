@@ -1,7 +1,9 @@
+import { threadView, type MessageDirective } from "@bb/plugin/app";
+import { useOwned } from "../../plugins/slots";
 import { createContext, useContext } from "react";
 import type { Nodes, Paragraph, Parent, RootContent } from "mdast";
 import type {} from "mdast-util-to-hast";
-import type { BbNavigate, PluginMessageDirectiveProps } from "@bb/plugin/app";
+import type { BbNavigate, MessageDirectiveProps } from "@bb/plugin/app";
 import { SKIP, visit } from "unist-util-visit";
 import type {} from "remark-parse";
 import { directive as directiveSyntax } from "micromark-extension-directive";
@@ -11,8 +13,7 @@ import { PluginSlotMount } from "../../plugins/mount";
 import { PluginThreadPanelNavigationProvider } from "../plugin/plugin-thread-panel-navigation";
 import {
   resolveMessageDirectives,
-  usePluginSlots,
-  type PluginSlot,
+  type Owned,
   type ResolvedMessageDirective,
 } from "../../plugins/registry";
 
@@ -26,7 +27,7 @@ export type MessageDirectiveRegistry = ReadonlyMap<
 export interface MountedMessageDirective {
   attributes: Readonly<Record<string, string>>;
   index: number;
-  slot: PluginSlot<"messageDirectives">;
+  slot: Owned<MessageDirective>;
   source: string;
 }
 
@@ -38,8 +39,8 @@ export type MarkdownMessageDirectiveOpenThreadPanel = (
 
 export interface MarkdownMessageDirectives {
   registry: MessageDirectiveRegistry;
-  message: PluginMessageDirectiveProps["message"];
-  openWorkspaceFile: PluginMessageDirectiveProps["openWorkspaceFile"];
+  message: MessageDirectiveProps["message"];
+  openWorkspaceFile: MessageDirectiveProps["openWorkspaceFile"];
   openThreadPanel: MarkdownMessageDirectiveOpenThreadPanel | null;
 }
 
@@ -62,12 +63,12 @@ declare module "react" {
 }
 
 const registryBySlots = new WeakMap<
-  readonly PluginSlot<"messageDirectives">[],
+  readonly Owned<MessageDirective>[],
   MessageDirectiveRegistry
 >();
 
 export function useMessageDirectiveRegistry(): MessageDirectiveRegistry {
-  const slots = usePluginSlots().messageDirectives;
+  const slots = useOwned(threadView.messageDirective);
   let registry = registryBySlots.get(slots);
   if (registry === undefined) {
     registry = resolveMessageDirectives(slots);
@@ -295,7 +296,7 @@ export function MessageDirectiveElement(props: {
   }
   const { slot, attributes, source } = mount;
   const { message, openThreadPanel, openWorkspaceFile } = context.directives;
-  const Component = slot.component;
+  const Component = slot.view;
   const element = (
     <Component
       attributes={attributes}
@@ -306,7 +307,7 @@ export function MessageDirectiveElement(props: {
   );
   return (
     <PluginSlotMount
-      key={`${slot.pluginId}/${slot.id}/${slot.generation}`}
+      key={`${slot.pluginId}/${slot.id}`}
       pluginId={slot.pluginId}
       slotKind="messageDirective"
       slotId={slot.id}

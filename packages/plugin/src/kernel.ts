@@ -679,6 +679,13 @@ export function createKernel(options: KernelOptions): Kernel {
       add(slot, item) {
         alive();
         const state = slotOf(slot);
+        if (slot.check !== null) {
+          const mine = state.entries
+            .filter((entry) => entry.plugin === plugin)
+            .map((entry) => entry.item as typeof item);
+          const problem = slot.check(item, mine);
+          if (problem !== null) throw new Error(`${slot.name}: ${problem}`);
+        }
         order += 1;
         const entry: SlotEntry = { plugin, tier, order, item };
         state.entries.push(entry);

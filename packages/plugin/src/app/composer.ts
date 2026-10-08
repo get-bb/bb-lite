@@ -1,6 +1,6 @@
 import type { PermissionMode, ReasoningLevel, ServiceTier } from "@bb/domain";
 import type { ComponentType } from "react";
-import { contract, slot } from "../contract.js";
+import { contract, service, slot } from "../contract.js";
 
 export interface ComposerSelection {
   providerId?: string;
@@ -110,11 +110,24 @@ export interface EnvironmentInputsForm {
   view: ComponentType<EnvironmentInputsProps>;
 }
 
+export interface HomeSection {
+  id: string;
+  order?: number;
+  view: ComponentType;
+}
+
+export interface ComposerApi {
+  useComposer(): ComposerHandle | null;
+  useComposers(): readonly ComposerHandle[];
+}
+
 export const composer = contract("composer", {
+  api: service<ComposerApi>(),
   menuItem: slot<ComposerMenuItem>({ key: "id" }),
   footerControl: slot<ComposerFooterControl>({ key: "id" }),
   sendMenuItem: slot<ComposerSendMenuItem>({ key: "id" }),
   environmentInputs: slot<EnvironmentInputsForm>({ key: "kind" }),
   banner: slot<ComposerBanner>(),
   textEffect: slot<ComposerTextEffect>({ key: "id" }),
+  homeSection: slot<HomeSection>(),
 });

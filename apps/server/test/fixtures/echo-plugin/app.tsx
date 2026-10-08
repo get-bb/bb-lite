@@ -1,4 +1,4 @@
-import { callOp, plugin } from "@bb/plugin/app";
+import { callOp, type PluginAppApi, shell } from "@bb/plugin/app";
 import clsx from "clsx";
 import { useState } from "react";
 import "./app.css";
@@ -14,6 +14,7 @@ function EchoPanel() {
   );
 }
 
-export default plugin((bb) => {
-  bb.slots.navPanel({ id: "echo", title: "Echo", component: EchoPanel });
-});
+export default function echoPluginApp(bb: PluginAppApi): void {
+  const panel = { id: "echo", title: "Echo", icon: "Radio", path: "echo" };
+  bb.add(shell.navPanel, { ...panel, view: EchoPanel });
+}

@@ -1,10 +1,11 @@
+import { type ShellCommand, type ShellNavPanel } from "@bb/plugin/app";
 import { fuzzyMatchText } from "@bb/fuzzy-match";
 import {
   PERSONAL_PROJECT_ID,
   type AppCommandId,
   type ThreadListEntry,
 } from "@bb/domain";
-import type { PluginCommandContext } from "@bb/plugin/app";
+import type { CommandContext } from "@bb/plugin/app";
 import type {
   ThreadSearchMatch,
   ThreadSearchResponse,
@@ -15,7 +16,7 @@ import {
   getSettingsSectionRoutePath,
   type SettingsNavSection,
 } from "@bb/app-kit/components/settings/settings-sections";
-import type { PluginSlot } from "@bb/app-kit/plugins/registry";
+import type { Owned } from "@bb/app-kit/plugins/registry";
 import { APP_COMMAND_GROUPS } from "@bb/app-kit/lib/app-command-metadata";
 import type { AppShortcutPresentation } from "@bb/app-kit/lib/app-keybindings";
 import { getPluginDisplayName } from "@bb/app-kit/lib/plugin-logos";
@@ -80,7 +81,7 @@ export function buildAppCommandActions(args: {
 }
 
 export function buildPluginPaletteActions(args: {
-  slots: readonly PluginSlot<"commands">[];
+  slots: readonly Owned<ShellCommand>[];
   threadId: string | null;
   projectId: string | null;
   openThreadPanel: PluginThreadPanelOpenHandler | null;
@@ -91,7 +92,7 @@ export function buildPluginPaletteActions(args: {
       console.warn(
         `${name} ${what}: ${error instanceof Error ? error.message : String(error)}`,
       );
-    const context: PluginCommandContext = {
+    const context: CommandContext = {
       threadId: args.threadId,
       projectId: args.projectId,
       openPanel: (options) => {
@@ -138,7 +139,7 @@ export function buildNavigationPaletteActions(args: {
   navigate: (path: string) => void;
   sections: readonly SettingsNavSection[];
   pluginEntries: readonly PluginSettingsEntry[];
-  panels: readonly PluginSlot<"navPanels">[];
+  panels: readonly Owned<ShellNavPanel>[];
 }): PaletteAction[] {
   const action = (
     bucket: PaletteAction["bucket"],

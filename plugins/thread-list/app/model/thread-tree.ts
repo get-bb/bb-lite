@@ -5,10 +5,10 @@ import {
   type SidebarSectionDefinition,
   type ThreadListIndicatorState,
 } from "@bb/client-core";
-import type { PluginSidebarThread } from "@bb/plugin/app";
+import type { SidebarThread } from "@bb/plugin/app";
 import { rollupThreadActivity } from "./thread-activity.js";
 
-export type SidebarThread = PluginSidebarThread;
+export type { SidebarThread };
 
 export interface ThreadNode {
   thread: SidebarThread;

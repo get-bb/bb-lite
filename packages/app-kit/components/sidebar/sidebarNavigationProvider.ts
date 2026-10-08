@@ -1,10 +1,15 @@
+import {
+  shell,
+  type ShellProvider,
+  type SidebarNavigationProps,
+} from "@bb/plugin/app";
+import { useOwned } from "../../plugins/slots";
 import { useAtomValue } from "jotai";
 import { createSyncedPreferenceAtom } from "../../lib/ui-preferences";
 import {
   resolveProvider,
-  usePluginSlots,
   usePluginsSettled,
-  type PluginSlot,
+  type Owned,
   type ResolvedProvider,
 } from "../../plugins/registry";
 
@@ -15,9 +20,9 @@ export const sidebarNavigationProviderAtom = createSyncedPreferenceAtom(
 );
 
 export function useSidebarNavigationReplacement(): ResolvedProvider<
-  PluginSlot<"sidebarNavigations">
+  Owned<ShellProvider<SidebarNavigationProps>>
 > {
-  const { sidebarNavigations } = usePluginSlots();
+  const sidebarNavigations = useOwned(shell.sidebarNavigation);
   const preference = useAtomValue(sidebarNavigationProviderAtom);
   const settled = usePluginsSettled();
   return resolveProvider(sidebarNavigations, preference, {

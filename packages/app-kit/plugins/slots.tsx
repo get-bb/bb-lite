@@ -1,7 +1,13 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { Slot, SlotEntryView, SlotMountProps } from "@bb/plugin/app";
 import { PluginSlotMount } from "./mount";
-import { slotEntries, slotItems, watchSlots } from "./registry";
+import {
+  ownedItems,
+  slotEntries,
+  slotItems,
+  watchSlots,
+  type Owned,
+} from "./registry";
 
 export function useSlot<Item>(slot: Slot<Item>): readonly Item[] {
   return useSyncExternalStore(watchSlots, () => slotItems(slot));
@@ -23,6 +29,12 @@ export function useSlotEntry<Item>(slot: Slot<Item>, key: string): Item | null {
     );
     return matching.at(-1) ?? null;
   }, [items, field, key]);
+}
+
+export function useOwned<Item extends object>(
+  slot: Slot<Item>,
+): readonly Owned<Item>[] {
+  return useSyncExternalStore(watchSlots, () => ownedItems(slot));
 }
 
 export function useSlotOwner<Item>(slot: Slot<Item>, item: Item): string {

@@ -1,14 +1,23 @@
+import { ShellRoot } from "./app/ShellRoot";
+import * as sidebar from "./app/lib/plugin-sidebar-hooks";
+import {
+  useSidebarThreadRowStatus,
+  useSidebarThreadRowStatuses,
+} from "./app/lib/thread-row-status";
+import { SidebarNavigationIcon } from "./app/components/sidebar/SidebarNavigationModel";
 import { lazy, Suspense } from "react";
 import { Navigate } from "react-router-dom";
 import { isThreadRead } from "@bb/client-core";
 import type { Thread } from "@bb/domain";
 import {
-  definePluginApp,
+  app,
   shell,
+  type ShellApi,
   type ShellNavItem,
   type ShellRoute,
   type ThreadAction,
   type ThreadActionContext,
+  type PluginAppApi,
 } from "@bb/plugin/app";
 import { RouteLoadingSkeleton } from "@bb/app-kit/components/ui/route-loading-skeleton";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
@@ -163,9 +172,26 @@ const THREAD_ACTIONS: readonly ThreadAction[] = [
   },
 ];
 
-export default definePluginApp((bb) => {
+const api: ShellApi = {
+  useSidebarThreads: sidebar.useSidebarThreads,
+  useSidebarThreadActions: sidebar.useSidebarThreadActions,
+  useSidebarThreadSplit: sidebar.useSidebarThreadSplit,
+  useSidebarNavigationSplit: sidebar.useSidebarNavigationSplit,
+  useSidebarThreadDraft: sidebar.useSidebarThreadDraft,
+  useSidebarThreadDraftIds: sidebar.useSidebarThreadDraftIds,
+  useSidebarSplitLayout: sidebar.useSidebarSplitLayout,
+  useSidebarThreadShortcut: sidebar.useSidebarThreadShortcut,
+  useSidebarNavigation: sidebar.useSidebarNavigation,
+  useSidebarThreadRowStatus,
+  useSidebarThreadRowStatuses,
+  SidebarNavigationIcon,
+};
+
+export default function shellApp(bb: PluginAppApi): void {
   bb.add(appParts.parts, { plugin: "shell", parts });
+  bb.add(app.root, ShellRoot);
+  bb.add(shell.api, api);
   for (const route of ROUTES) bb.add(shell.route, route);
   for (const item of NAV_ITEMS) bb.add(shell.navItem, item);
   for (const action of THREAD_ACTIONS) bb.add(shell.threadAction, action);
-});
+}

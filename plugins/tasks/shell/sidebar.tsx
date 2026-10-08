@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { PluginNavPanelProps } from "@bb/plugin/app";
+import type { ShellNavPanelProps } from "@bb/plugin/app";
 import { useOverview } from "./data.js";
 import { parseTasksRoute, useTasksNavigation } from "./routes.js";
 import { NewProjectDialog } from "../views/manage/new-project-dialog.js";
@@ -53,7 +53,7 @@ function RowCount({ value }: { value: number }) {
   );
 }
 
-export function TasksNavigationPanel({ subPath }: PluginNavPanelProps) {
+export function TasksNavigationPanel({ subPath }: ShellNavPanelProps) {
   const route = parseTasksRoute(subPath);
   const navigation = useTasksNavigation();
   const overview = useOverview();

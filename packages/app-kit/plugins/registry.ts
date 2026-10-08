@@ -1,96 +1,24 @@
 import { registerIcons } from "@bb/shared-ui/icon";
-import { clearThreadRowStatuses, setThreadRowStatus } from "./row-status";
 import { useSyncExternalStore } from "react";
 import {
+  app,
   createKernel,
-  shell,
   type Caller,
   type Kernel,
+  type MessageDirective,
   type Op,
+  type PluginAppApi,
+  type PluginAppEntry,
   type PluginScope,
   type PluginVerbs,
   type Slot,
   type SlotEntryView,
+  type Stop,
   type Tier,
-} from "@bb/plugin/app";
-import type {
-  PluginAppApi,
-  PluginAppDefinition,
-  PluginCommandRegistration,
-  PluginComponentRegistration,
-  PluginMessageDirectiveProps,
-  PluginNavPanelRegistration,
-  PluginPendingInteractionProps,
-  PluginProviderRegistration,
-  PluginSettingsSectionRegistration,
-  PluginThreadListProps,
-  PluginThreadPanelRegistration,
-  SidebarHeaderProps,
-  SidebarNavigationProps,
 } from "@bb/plugin/app";
 import { callRemoteOp } from "./ops";
 
-export interface PluginRegistrations {
-  navPanels: PluginNavPanelRegistration[];
-  threadPanels: PluginThreadPanelRegistration[];
-  settingsSections: PluginSettingsSectionRegistration[];
-  appOverlays: PluginComponentRegistration[];
-  pendingInteractions: PluginComponentRegistration<PluginPendingInteractionProps>[];
-  messageDirectives: PluginComponentRegistration<PluginMessageDirectiveProps>[];
-  threadLists: PluginProviderRegistration<PluginThreadListProps>[];
-  sidebarNavigations: PluginProviderRegistration<SidebarNavigationProps>[];
-  sidebarHeaders: PluginProviderRegistration<SidebarHeaderProps>[];
-  commands: PluginCommandRegistration[];
-}
-
-type SlotKind = keyof PluginRegistrations;
-
-export type PluginSlot<Kind extends SlotKind> =
-  PluginRegistrations[Kind][number] & {
-    pluginId: string;
-    generation: number;
-  };
-
-export type PluginSlots = {
-  readonly [Kind in SlotKind]: readonly PluginSlot<Kind>[];
-};
-
-const SLOT_DEFS = {
-  navPanels: shell.navPanel,
-  threadPanels: shell.threadPanel,
-  settingsSections: shell.settingsSection,
-  appOverlays: shell.appOverlay,
-  pendingInteractions: shell.pendingInteraction,
-  messageDirectives: shell.messageDirective,
-  threadLists: shell.threadList,
-  sidebarNavigations: shell.sidebarNavigation,
-  sidebarHeaders: shell.sidebarHeader,
-  commands: shell.command,
-} as const;
-
-const SLOT_KINDS = Object.keys(SLOT_DEFS) as SlotKind[];
-
-const SLOT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-export function isPluginAppDefinition(
-  value: unknown,
-): value is PluginAppDefinition {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__bbPluginApp" in value &&
-    value.__bbPluginApp === true &&
-    "setup" in value &&
-    typeof value.setup === "function"
-  );
-}
-
-function slotRecord<Slots>(listFor: (kind: SlotKind) => object[]): Slots {
-  const record: object = Object.fromEntries(
-    SLOT_KINDS.map((kind) => [kind, listFor(kind)]),
-  );
-  return record as Slots;
-}
+export type Owned<Item> = Item & { pluginId: string };
 
 const APP_CALLER: Caller = {
   user: null,
@@ -127,86 +55,15 @@ export function callOp(op: Op, input: unknown): Promise<unknown> {
   return callRemoteOp(op.name, input);
 }
 
-function collect(
-  definition: PluginAppDefinition,
-  verbs: PluginVerbs,
-  pluginId: string,
-): PluginRegistrations {
-  const collected = slotRecord<PluginRegistrations>(() => []);
-  const add =
-    <Kind extends SlotKind>(
-      kind: Kind,
-      slot: string,
-      body: "component" | "run" = "component",
-    ) =>
-    (registration: PluginRegistrations[Kind][number]): void => {
-      const id: unknown = registration?.id;
-      if (typeof id !== "string" || !SLOT_ID_PATTERN.test(id)) {
-        throw new Error(`${slot}: "id" must match ${SLOT_ID_PATTERN}`);
-      }
-      const list: { id: string }[] = collected[kind];
-      if (list.some((existing) => existing.id === id)) {
-        throw new Error(`${slot}: duplicate id "${id}"`);
-      }
-      const value: unknown = Reflect.get(registration, body);
-      if (
-        typeof value !== "function" &&
-        (body === "run" || typeof value !== "object" || value === null)
-      ) {
-        throw new Error(`${slot} "${id}": missing ${body}`);
-      }
-      list.push({ ...registration });
-    };
-  let mounts = 0;
-  const app: PluginAppApi = {
-    ...verbs,
-    call: ((op: Op, input: unknown) =>
-      hasLocalOwner(op)
-        ? verbs.call(op, input)
-        : callRemoteOp(op.name, input)) as PluginVerbs["call"],
-    pluginId,
-    slots: {
-      navPanel: add("navPanels", "navPanel"),
-      threadPanel: add("threadPanels", "threadPanel"),
-      settingsSection: add("settingsSections", "settingsSection"),
-      appOverlay: add("appOverlays", "appOverlay"),
-      pendingInteraction: add("pendingInteractions", "pendingInteraction"),
-      messageDirective: add("messageDirectives", "messageDirective"),
-      threadList: add("threadLists", "threadList"),
-      sidebarNavigation: add("sidebarNavigations", "sidebarNavigation"),
-      sidebarHeader: add("sidebarHeaders", "sidebarHeader"),
-    },
-    commands: { register: add("commands", "commands.register", "run") },
-    setThreadRowStatus: (threadId, status) =>
-      setThreadRowStatus(pluginId, threadId, status),
-    icons: { register: registerIcons },
-    onMount(run) {
-      mounts += 1;
-      verbs.add(shell.mount, { id: `mount-${mounts}`, run });
-    },
-  };
-  definition.setup(app);
-  return collected;
+interface Running {
+  scope: PluginScope;
+  stops: Stop[];
+  starters: Parameters<PluginAppApi["onStart"]>[0][];
 }
 
-export function collectPluginApp(
-  definition: PluginAppDefinition,
-): PluginRegistrations {
-  const { dispose, ...verbs } = newKernel().scope("collect", "product");
-  try {
-    return collect(definition, verbs, "collect");
-  } finally {
-    dispose();
-  }
-}
-
-const EMPTY_SLOTS = slotRecord<PluginSlots>(() => []);
-
-const scopes = new Map<string, PluginScope>();
-const generationByPluginId = new Map<string, number>();
+const running = new Map<string, Running>();
 const crashedSlotKeys = new Set<string>();
 const listeners = new Set<() => void>();
-let snapshot = EMPTY_SLOTS;
 let settled = false;
 
 function notify(): void {
@@ -226,35 +83,16 @@ function byPlugin<Entry>(
     .map(({ entry }) => entry);
 }
 
-function publish(): void {
-  const next = { ...snapshot };
-  for (const kind of SLOT_KINDS) {
-    const definition: Slot<{ pluginId: string }> = SLOT_DEFS[kind];
-    const owned = kernel.read(definition);
-    const slots = byPlugin<unknown>(owned, (slot) => {
-      return (slot as { pluginId: string }).pluginId;
-    });
-    const previous: readonly unknown[] = snapshot[kind];
-    if (
-      slots.length !== previous.length ||
-      slots.some((slot, index) => slot !== previous[index])
-    ) {
-      Object.assign(next, { [kind]: slots });
-    }
-  }
-  snapshot = next;
-  notify();
-}
-
 interface SortedSlot {
   version: number;
   views: SlotEntryView<unknown>[];
   items: unknown[];
+  owned: unknown[] | null;
 }
 
 const sortedSlots = new Map<string, SortedSlot>();
 
-function sortedSlot(slot: Slot<unknown>): SortedSlot {
+function sortedSlot<Item>(slot: Slot<Item>): SortedSlot {
   const version = kernel.version();
   const cached = sortedSlots.get(slot.name);
   if (cached?.version === version) return cached;
@@ -266,7 +104,7 @@ function sortedSlot(slot: Slot<unknown>): SortedSlot {
     views.every((view, index) => view === cached.views[index]);
   const sorted = unchanged
     ? { ...cached, version }
-    : { version, views, items: views.map(({ item }) => item) };
+    : { version, views, items: views.map(({ item }) => item), owned: null };
   sortedSlots.set(slot.name, sorted);
   return sorted;
 }
@@ -282,67 +120,119 @@ export function slotItems<Item>(slot: Slot<Item>): readonly Item[] {
   return sortedSlot(slot).items as Item[];
 }
 
+export function ownedItems<Item extends object>(
+  slot: Slot<Item>,
+): readonly Owned<Item>[] {
+  const sorted = sortedSlot(slot);
+  sorted.owned ??= sorted.views.map(({ plugin, item }) => ({
+    ...(item as object),
+    pluginId: plugin,
+  }));
+  return sorted.owned as Owned<Item>[];
+}
+
 export function watchSlots(listener: () => void): () => void {
   return kernel.watch(listener);
 }
 
+function logger(pluginId: string): PluginAppApi["log"] {
+  const tag = `[plugin:${pluginId}]`;
+  return {
+    debug: (message, fields) => console.debug(tag, message, fields ?? ""),
+    info: (message, fields) => console.info(tag, message, fields ?? ""),
+    warn: (message, fields) => console.warn(tag, message, fields ?? ""),
+    error: (message, fields) => console.error(tag, message, fields ?? ""),
+  };
+}
+
+function start(pluginId: string, entry: Running): void {
+  for (const begin of entry.starters.splice(0)) {
+    Promise.resolve()
+      .then(begin)
+      .then((stop) => {
+        if (typeof stop !== "function") return;
+        if (running.get(pluginId) === entry) entry.stops.push(stop);
+        else void stop();
+      })
+      .catch((error: unknown) => {
+        console.warn(`[plugin:${pluginId}] onStart failed`, error);
+      });
+  }
+}
+
+function stop(pluginId: string): void {
+  const entry = running.get(pluginId);
+  if (entry === undefined) return;
+  running.delete(pluginId);
+  for (const end of entry.stops.splice(0).reverse()) {
+    Promise.resolve()
+      .then(end)
+      .catch((error: unknown) => {
+        console.warn(`[plugin:${pluginId}] onDispose failed`, error);
+      });
+  }
+  entry.scope.dispose();
+}
+
+let iconsVersion = -1;
+
+function syncIcons(): void {
+  if (iconsVersion === kernel.version()) return;
+  iconsVersion = kernel.version();
+  const icons = kernel.read(app.icon).map(({ name, view }) => [name, view]);
+  registerIcons(Object.fromEntries(icons));
+}
+
 export function registerPluginApp(
   pluginId: string,
-  definition: PluginAppDefinition,
+  setup: PluginAppEntry,
   tier: Tier = "product",
 ): Error | null {
-  scopes.get(pluginId)?.dispose();
-  scopes.delete(pluginId);
+  stop(pluginId);
   const scope = kernel.scope(pluginId, tier);
-  const { dispose, ...verbs } = scope;
-  let collected: PluginRegistrations;
+  const { dispose: _, ...verbs } = scope;
+  const entry: Running = { scope, stops: [], starters: [] };
+  const call = (op: Op, input: unknown) =>
+    hasLocalOwner(op) ? verbs.call(op, input) : callRemoteOp(op.name, input);
+  const bb: PluginAppApi = {
+    ...verbs,
+    call: call as PluginVerbs["call"],
+    pluginId,
+    log: logger(pluginId),
+    onStart: (begin) => void entry.starters.push(begin),
+    onDispose: (end) => void entry.stops.push(end),
+  };
   try {
-    collected = collect(definition, verbs, pluginId);
+    setup(bb);
   } catch (error) {
     console.warn(`[plugin:${pluginId}] app registration failed`, error);
-    dispose();
-    publish();
+    scope.dispose();
+    notify();
     return error instanceof Error ? error : new Error(String(error));
   }
-  const generation = (generationByPluginId.get(pluginId) ?? 0) + 1;
-  generationByPluginId.set(pluginId, generation);
-  for (const kind of SLOT_KINDS) {
-    const definitionOf: Slot<object> = SLOT_DEFS[kind];
-    for (const registration of collected[kind]) {
-      scope.add(definitionOf, { ...registration, pluginId, generation });
-    }
-  }
-  scopes.set(pluginId, scope);
+  running.set(pluginId, entry);
   resetCrashedSlots(pluginId);
-  publish();
+  syncIcons();
+  if (settled) start(pluginId, entry);
+  notify();
   return null;
 }
 
 export function unregisterPluginApp(pluginId: string): void {
-  clearThreadRowStatuses(pluginId);
-  const scope = scopes.get(pluginId);
-  if (scope === undefined) return;
-  scope.dispose();
-  scopes.delete(pluginId);
-  publish();
+  if (!running.has(pluginId)) return;
+  stop(pluginId);
+  notify();
 }
 
 export function markPluginsSettled(): void {
   settled = true;
+  for (const [pluginId, entry] of running) start(pluginId, entry);
   notify();
 }
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => void listeners.delete(listener);
-}
-
-export function getPluginSlots(): PluginSlots {
-  return snapshot;
-}
-
-export function usePluginSlots(): PluginSlots {
-  return useSyncExternalStore(subscribe, getPluginSlots);
 }
 
 export function usePluginsSettled(): boolean {
@@ -411,13 +301,13 @@ export function resolveProvider<Slot extends ProviderIdentity>(
 }
 
 export type ResolvedMessageDirective =
-  | { status: "ok"; slot: PluginSlot<"messageDirectives"> }
+  | { status: "ok"; slot: Owned<MessageDirective> }
   | { status: "collision"; pluginIds: readonly string[] };
 
 export function resolveMessageDirectives(
-  slots: PluginSlots["messageDirectives"],
+  slots: readonly Owned<MessageDirective>[],
 ): ReadonlyMap<string, ResolvedMessageDirective> {
-  const claimants = new Map<string, PluginSlot<"messageDirectives">[]>();
+  const claimants = new Map<string, Owned<MessageDirective>[]>();
   for (const slot of slots) {
     claimants.set(slot.id, [...(claimants.get(slot.id) ?? []), slot]);
   }
@@ -440,11 +330,10 @@ export function resolveMessageDirectives(
 }
 
 export function resetPluginRegistryForTest(): void {
+  for (const pluginId of [...running.keys()]) stop(pluginId);
   kernel = newKernel();
-  scopes.clear();
   sortedSlots.clear();
-  generationByPluginId.clear();
   crashedSlotKeys.clear();
   settled = false;
-  snapshot = EMPTY_SLOTS;
+  iconsVersion = -1;
 }

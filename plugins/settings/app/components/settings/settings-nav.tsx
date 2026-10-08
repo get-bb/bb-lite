@@ -1,3 +1,5 @@
+import { settings } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { matchPath, useLocation } from "react-router-dom";
 import { usePluginList } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
 import {
@@ -6,10 +8,7 @@ import {
   SETTINGS_PROJECT_ROUTE_PATH,
   SETTINGS_SECTION_ROUTE_PATH,
 } from "@bb/app-kit/lib/route-paths";
-import {
-  usePluginSlots,
-  usePluginsSettled,
-} from "@bb/app-kit/plugins/registry";
+import { usePluginsSettled } from "@bb/app-kit/plugins/registry";
 import {
   buildPluginSettingsEntries,
   type PluginSettingsEntry,
@@ -26,7 +25,7 @@ export function useSettingsNavState(): {
   pluginEntries: readonly PluginSettingsEntry[];
 } {
   const { pathname } = useLocation();
-  const { settingsSections } = usePluginSlots();
+  const settingsSections = useOwned(settings.section);
   const pages = useSettingsPages();
   const settled = usePluginsSettled();
   const isPage = (id: string) => pages.some((page) => page.id === id);

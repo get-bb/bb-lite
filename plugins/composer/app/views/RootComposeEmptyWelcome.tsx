@@ -1,5 +1,5 @@
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { shell } from "@bb/plugin/app";
+import { composer } from "@bb/plugin/app";
 import { bbLogoUrl } from "@bb/app-kit/lib/brand";
 import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 
@@ -55,7 +55,7 @@ export function RootComposeEmptyWelcome({
   onAddProject,
   addProjectDisabled,
 }: RootComposeEmptyWelcomeProps) {
-  const entries = useSlotEntries(shell.homeSection);
+  const entries = useSlotEntries(composer.homeSection);
   const sections = [...entries].sort(
     (left, right) => (left.item.order ?? 1_000) - (right.item.order ?? 1_000),
   );
@@ -101,7 +101,7 @@ export function RootComposeEmptyWelcome({
         <SlotMount
           key={`${plugin}/${item.id}`}
           pluginId={plugin}
-          slot={shell.homeSection.name}
+          slot={composer.homeSection.name}
           id={item.id}
           fallback={null}
         >

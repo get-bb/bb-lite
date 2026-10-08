@@ -1,4 +1,4 @@
-import { shell } from "@bb/plugin/app";
+import { threadView } from "@bb/plugin/app";
 import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 import {
   useContext,
@@ -42,7 +42,7 @@ import type { ThreadHeaderGitAction } from "./useThreadGitActions";
 const UNORDERED_HEADER_ITEM = 1_000;
 
 function ThreadHeaderItems({ threadId }: { threadId: string }) {
-  const entries = useSlotEntries(shell.threadHeader);
+  const entries = useSlotEntries(threadView.header);
   const ordered = [...entries].sort(
     (left, right) =>
       (left.item.order ?? UNORDERED_HEADER_ITEM) -
@@ -52,7 +52,7 @@ function ThreadHeaderItems({ threadId }: { threadId: string }) {
     <SlotMount
       key={`${plugin}/${item.id}`}
       pluginId={plugin}
-      slot={shell.threadHeader.name}
+      slot={threadView.header.name}
       id={item.id}
       fallback={null}
     >

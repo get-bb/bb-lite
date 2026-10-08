@@ -1,3 +1,5 @@
+import { sidePanel } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import {
   useContext,
   useMemo,
@@ -43,7 +45,6 @@ import type { ThreadPanelController } from "../../components/secondary-panel/use
 import { DETAIL_GRID_CLASS } from "@bb/app-kit/components/ui/detail-card";
 import { MarkdownLocalFileContextMenuContext } from "@bb/app-kit/components/ui/markdown-link-routing";
 import { useThreads } from "@bb/app-kit/hooks/queries/thread-queries";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { ThreadTimelinePane } from "bb-plugin-thread-view/contract";
 
 interface ThreadRightPanelProps {
@@ -124,7 +125,7 @@ function ThreadRightPanel(
   const { tabs, isOpen, gitDiffTabStatus } = panel;
   const hostLayout = useContext(SecondaryPanelHostLayoutContext);
   const diffShortcut = useAppCommandShortcut("diff.toggle");
-  const { threadPanels } = usePluginSlots();
+  const threadPanels = useOwned(sidePanel.panel);
   const kinds = useSidePanelTabKinds();
   const pluginActions = usePluginPanelActions({
     openPluginPanel: panel.openPluginPanel,

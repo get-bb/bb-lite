@@ -1,7 +1,11 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
-import { definePluginApp, shell, type ComposerHandle } from "@bb/plugin/app";
+import {
+  shell,
+  type ComposerHandle,
+  type PluginAppEntry,
+} from "@bb/plugin/app";
 import { useComposers } from "bb-plugin-composer/contract";
 import * as composers from "../../../plugins/composer/app/lib/composers";
 import { appParts, callPart, part } from "@bb/app-kit/plugins/parts";
@@ -20,9 +24,9 @@ function provide(
   tier?: "installed",
   plugin = "greeter",
 ) {
-  const app = definePluginApp((bb) => {
+  const app: PluginAppEntry = (bb) => {
     bb.add(appParts.parts, { plugin, parts });
-  });
+  };
   expect(registerPluginApp(id, app, tier)).toBeNull();
 }
 
@@ -57,28 +61,26 @@ it("resolves a part at use, so a replacement takes over without a new import", (
   expect(shout("hi")).toBe("hi!");
 });
 
-it("registers mount scripts and shell extras through the same slots", () => {
+it("adds shell extras and row statuses as slot entries that leave with the plugin", () => {
   const ran: string[] = [];
-  const app = definePluginApp((bb) => {
-    bb.onMount(() => {
-      ran.push("mounted");
-      return () => void ran.push("unmounted");
-    });
+  const app: PluginAppEntry = (bb) => {
     bb.add(shell.sidebarFooter, {
       id: "docs",
       label: "Docs",
       icon: "Book",
       run: () => void ran.push("docs"),
     });
-  });
+    const running = { icon: "Loader", label: "Building" };
+    bb.add(shell.threadRowStatus, { threadId: "thr_1", ...running });
+  };
   expect(registerPluginApp("extras", app, "installed")).toBeNull();
-  const [mount] = slotItems(shell.mount);
-  const stop = mount?.run({ signal: new AbortController().signal });
   slotItems(shell.sidebarFooter)[0]?.run?.();
-  if (typeof stop === "function") stop();
-  expect(ran).toEqual(["mounted", "docs", "unmounted"]);
+  expect(ran).toEqual(["docs"]);
+  const statuses = slotItems(shell.threadRowStatus);
+  expect(statuses).toMatchObject([{ threadId: "thr_1", label: "Building" }]);
   unregisterPluginApp("extras");
-  expect(slotItems(shell.mount)).toEqual([]);
+  expect(slotItems(shell.threadRowStatus)).toEqual([]);
+  expect(slotItems(shell.sidebarFooter)).toEqual([]);
 });
 
 it("gets the composers on screen from whichever plugin is the composer", () => {

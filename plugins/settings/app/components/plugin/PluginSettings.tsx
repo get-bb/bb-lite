@@ -1,3 +1,5 @@
+import { settings } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,7 +42,6 @@ import { useSystemProviderCatalog } from "@bb/app-kit/hooks/queries/system-queri
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import { getPluginConfigurationRoutePath } from "@bb/app-kit/lib/route-paths";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 
 function PluginSetting({
   descriptor,
@@ -414,7 +415,7 @@ function SettingsPageFrame({
 }
 
 function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
-  const sections = usePluginSlots().settingsSections.filter(
+  const sections = useOwned(settings.section).filter(
     (section) => section.pluginId === plugin.id,
   );
   const toggle = usePluginEnabledMutation(plugin);
@@ -446,10 +447,7 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
           {available && sections.length > 0 ? (
             <div className="space-y-6" data-testid="plugin-settings-sections">
               {sections.map((section) => (
-                <div
-                  key={`${section.id}/${section.generation}`}
-                  className="space-y-3"
-                >
+                <div key={`${section.id}`} className="space-y-3">
                   {section.title === undefined ? null : (
                     <h3 className="text-xs font-medium text-foreground">
                       {section.title}
@@ -465,7 +463,7 @@ function PluginSettingsContent({ plugin }: { plugin: PluginListItem }) {
                     slotKind="settingsSection"
                     slotId={section.id}
                   >
-                    <section.component />
+                    <section.view />
                   </PluginSlotMount>
                 </div>
               ))}

@@ -1,9 +1,9 @@
 import { lazy, type ComponentType } from "react";
 import {
-  definePluginApp,
   settings,
   shell,
   type ShellRoute,
+  type PluginAppApi,
 } from "@bb/plugin/app";
 import {
   SETTINGS_MACHINE_ROUTE_PATH,
@@ -71,7 +71,7 @@ const ROUTES: readonly ShellRoute[] = [
   },
 ];
 
-export default definePluginApp((bb) => {
+export default function settingsApp(bb: PluginAppApi): void {
   bb.add(appParts.parts, { plugin: "settings", parts });
   for (const route of ROUTES) bb.add(shell.route, route);
   const pages = [
@@ -159,4 +159,4 @@ export default definePluginApp((bb) => {
       "ArchivedThreadsSettingsSection",
     ),
   });
-});
+}

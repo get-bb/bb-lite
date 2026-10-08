@@ -1,3 +1,5 @@
+import { threadView } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useState } from "react";
 import type { JsonValue, PendingInteraction } from "@bb/domain";
 import { Button } from "@bb/shared-ui/button";
@@ -10,10 +12,7 @@ import { useStopThread } from "@bb/app-kit/hooks/mutations/thread-runtime-mutati
 import { usePluginDisplayName } from "@bb/app-kit/lib/plugin-logos";
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
-import {
-  usePluginSlots,
-  usePluginsSettled,
-} from "@bb/app-kit/plugins/registry";
+import { usePluginsSettled } from "@bb/app-kit/plugins/registry";
 
 export interface PluginPendingInteractionRequest {
   pluginId: string;
@@ -36,7 +35,7 @@ export function PluginPendingInteractionComposer({
   origin: "plugin" | "provider";
   sourceThread?: PendingInteractionSourceThread;
 }) {
-  const slot = usePluginSlots().pendingInteractions.find(
+  const slot = useOwned(threadView.interaction).find(
     (candidate) =>
       candidate.pluginId === request.pluginId &&
       candidate.id === request.rendererId,
@@ -105,7 +104,7 @@ export function PluginPendingInteractionComposer({
               crashFallback={dismiss("crashed")}
             >
               <fieldset disabled={submitting}>
-                <slot.component
+                <slot.view
                   interaction={{
                     id: interactionId,
                     threadId,

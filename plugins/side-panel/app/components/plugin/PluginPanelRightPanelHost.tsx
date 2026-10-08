@@ -1,3 +1,5 @@
+import { shell } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { atom, useAtom } from "jotai";
@@ -20,7 +22,6 @@ import {
   ThreadSecondaryPanel,
   type SecondaryPanelFixedTab,
 } from "../secondary-panel/ThreadSecondaryPanel";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
 
@@ -42,7 +43,7 @@ export function PluginPanelRightPanelHost({
   subPath: string;
   flushPageInsets?: boolean;
 }) {
-  const { navPanels } = usePluginSlots();
+  const navPanels = useOwned(shell.navPanel);
   const panel =
     navPanels.find(
       (candidate) =>
@@ -108,7 +109,7 @@ export function PluginPanelRightPanelHost({
 
   const fixedTabs = (panel?.fixedTabs ?? []).map(
     (registration, index): SecondaryPanelFixedTab => {
-      const FixedTabComponent = registration.component;
+      const FixedTabComponent = registration.view;
       const id = fixedTabIds[index] ?? registration.id;
       return {
         ariaLabel: registration.title,
@@ -133,7 +134,7 @@ export function PluginPanelRightPanelHost({
           >
             {isOpen && panel !== null ? (
               <PluginSlotMount
-                key={`${pluginId}/${panel.id}/${registration.id}/${panel.generation}`}
+                key={`${pluginId}/${panel.id}/${registration.id}`}
                 pluginId={pluginId}
                 slotKind="navPanelFixedTab"
                 slotId={registration.id}

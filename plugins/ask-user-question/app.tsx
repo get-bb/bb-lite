@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { plugin, type PluginPendingInteractionProps } from "@bb/plugin/app";
+import {
+  type InteractionProps,
+  type PluginAppApi,
+  threadView,
+} from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { QuestionForm } from "@bb/shared-ui/question-form";
 import {
@@ -11,7 +15,7 @@ function AskUserQuestionInteraction({
   interaction,
   submit,
   cancel,
-}: PluginPendingInteractionProps) {
+}: InteractionProps) {
   const parsed = useMemo(
     () => interactionPayloadSchema.safeParse(interaction.payload),
     [interaction.payload],
@@ -49,9 +53,9 @@ function AskUserQuestionInteraction({
   );
 }
 
-export default plugin((bb) => {
-  bb.slots.pendingInteraction({
+export default function askUserQuestionApp(bb: PluginAppApi): void {
+  bb.add(threadView.interaction, {
     id: ASK_USER_QUESTION_RENDERER_ID,
-    component: AskUserQuestionInteraction,
+    view: AskUserQuestionInteraction,
   });
-});
+}

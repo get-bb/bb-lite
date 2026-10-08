@@ -1,7 +1,8 @@
+import { type ShellNavPanel } from "@bb/plugin/app";
 import type { ReactNode } from "react";
 import type { PluginNavPanelChrome } from "@bb/app-kit/lib/plugin-nav-panel-chrome";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
-import type { PluginSlot } from "@bb/app-kit/plugins/registry";
+import type { Owned } from "@bb/app-kit/plugins/registry";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import { PluginItemIcon } from "@bb/app-kit/components/plugin/PluginIcon";
 import { getPluginPagePanelStateId } from "./plugin-page-panel-state";
@@ -28,17 +29,17 @@ export function PluginPanelHeaderActions({
   subPath,
   paneActions,
 }: {
-  panel: PluginSlot<"navPanels">;
+  panel: Owned<ShellNavPanel>;
   subPath: string;
   paneActions?: ReactNode;
 }) {
   const paneContext = useOptionalPaneContext();
-  const HeaderContent = panel.headerContent;
+  const HeaderContent = panel.headerView;
   return (
     <div className="flex shrink-0 items-center gap-2">
       {HeaderContent === undefined ? null : (
         <PluginSlotMount
-          key={`${panel.pluginId}/${panel.id}/${panel.generation}`}
+          key={`${panel.pluginId}/${panel.id}`}
           pluginId={panel.pluginId}
           slotKind="navPanelHeader"
           slotId={panel.id}

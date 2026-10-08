@@ -22,9 +22,9 @@ import {
   SettingsDropdown,
   SettingsSwitch,
 } from "../components/settings/SettingsDropdown";
-import { settings as settingsSlots } from "@bb/plugin/app";
+import { settings as settingsSlots, shell } from "@bb/plugin/app";
 import { useSettingsNavState } from "../components/settings/settings-nav";
-import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
+import { SlotMount, useSlotEntries, useOwned } from "@bb/app-kit/plugins/slots";
 import { sidebarHeaderProviderAtom } from "@bb/app-kit/components/sidebar/sidebarHeaderProvider";
 import {
   BUNDLED_NAVIGATION_PROVIDER,
@@ -66,7 +66,6 @@ import {
   NO_PROVIDER,
   findAutomaticProvider,
   providerKey,
-  usePluginSlots,
 } from "@bb/app-kit/plugins/registry";
 
 const THEME_PREFERENCES: readonly ThemePreference[] = [
@@ -236,7 +235,9 @@ function AppearanceSettingsSection({
   const [dimsInactiveSplits, setDimsInactiveSplits] = useAtom(
     dimInactiveSplitsAtom,
   );
-  const slots = usePluginSlots();
+  const threadLists = useOwned(shell.threadList);
+  const sidebarNavigations = useOwned(shell.sidebarNavigation);
+  const sidebarHeaders = useOwned(shell.sidebarHeader);
   const paletteSelectedRef = useRef(false);
   const palettes = [...builtInThemes, ...themes].map((entry) => ({
     value: entry.id,
@@ -249,7 +250,7 @@ function AppearanceSettingsSection({
       label: "Sidebar",
       description: "Choose the plugin that renders your sidebar thread list.",
       atom: threadListProviderAtom,
-      slots: slots.threadLists,
+      slots: threadLists,
       bundled: BUNDLED_THREAD_LIST_PROVIDER,
     },
     {
@@ -257,7 +258,7 @@ function AppearanceSettingsSection({
       description:
         "Choose who arranges the host-owned sidebar destinations on this device.",
       atom: sidebarNavigationProviderAtom,
-      slots: slots.sidebarNavigations,
+      slots: sidebarNavigations,
       bundled: BUNDLED_NAVIGATION_PROVIDER,
     },
     {
@@ -265,7 +266,7 @@ function AppearanceSettingsSection({
       description:
         "Choose what appears beside the sidebar toggle on this device.",
       atom: sidebarHeaderProviderAtom,
-      slots: slots.sidebarHeaders,
+      slots: sidebarHeaders,
       builtIn: true,
     },
   ].filter((choice) => choice.slots.length + (choice.builtIn ? 1 : 0) > 1);

@@ -238,22 +238,26 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   const useState = (value: number) => [value];
   const clsx = (...names: string[]) => names.join(" ");
   const callOp = vi.fn();
+  type Rendered = { props: { onClick(): void } };
+  type Panel = { view(): Rendered };
+  const navPanel = { name: "shell.navPanel" };
   const sandbox = {
-    module: { exports: {} as { default?: { setup(app: unknown): void } } },
+    module: { exports: {} as { default?: (bb: unknown) => void } },
     __bbPluginRuntime: {
       react: { default: { useState }, useState },
       "react/jsx-runtime": { jsx },
       clsx: { default: clsx, clsx },
-      "@bb/plugin/app": { plugin: (setup: unknown) => ({ setup }), callOp },
+      "@bb/plugin/app": { shell: { navPanel }, callOp },
     },
   };
   vm.runInNewContext(code, sandbox);
-  type Rendered = { props: { onClick(): void } };
-  const panels: { component(): Rendered }[] = [];
-  const slots = { navPanel: (panel: (typeof panels)[0]) => panels.push(panel) };
-  sandbox.module.exports.default?.setup({ slots });
+  const panels: Panel[] = [];
+  const add = (slot: unknown, panel: Panel) => {
+    if (slot === navPanel) panels.push(panel);
+  };
+  sandbox.module.exports.default?.({ add });
   const props = { className: "echo-panel flex", children: 3 };
-  const rendered = panels[0]?.component();
+  const rendered = panels[0]?.view();
   expect(rendered).toMatchObject({ type: "div", props });
   rendered?.props.onClick();
   const called = expect.objectContaining({ name: "echo.echo", kind: "write" });

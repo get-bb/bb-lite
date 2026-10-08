@@ -1,3 +1,5 @@
+import { settings, shell } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { lazy, Suspense, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,7 +29,6 @@ import {
   type PaletteAction,
   type RankedPaletteAction,
 } from "../../lib/command-palette";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import { getActiveThreadPanelOpener } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
 import { pluginListQueryOptions } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
 import {
@@ -70,17 +71,17 @@ export function CommandPalette({
     readonly PluginSettingsCandidate[]
   >([]);
   const [recents, setRecents] = useState<readonly string[]>(readPaletteRecents);
-  const pluginSlots = usePluginSlots();
+  const commands = useOwned(shell.command);
+  const settingsSections = useOwned(settings.section);
+  const navPanels = useOwned(shell.navPanel);
   const settingsPages = useSettingsPages();
   const pluginCommandIds = useMemo(
     () =>
-      pluginSlots.commands.map((command) =>
-        pluginCommandId(command.pluginId, command.id),
-      ),
-    [pluginSlots.commands],
+      commands.map((command) => pluginCommandId(command.pluginId, command.id)),
+    [commands],
   );
   const pluginShortcuts = useAppCommandShortcuts(pluginCommandIds);
-  const pluginActions = (slots: typeof pluginSlots.commands) =>
+  const pluginActions = (slots: typeof commands) =>
     buildPluginPaletteActions({
       slots,
       threadId,
@@ -88,7 +89,7 @@ export function CommandPalette({
       openThreadPanel: getActiveThreadPanelOpener(),
     });
   useIndexedAppCommandHandlers(pluginCommandIds, (index) => {
-    const slot = pluginSlots.commands[index];
+    const slot = commands[index];
     const action = slot && pluginActions([slot])[0];
     action?.run();
     return action !== undefined;
@@ -107,7 +108,7 @@ export function CommandPalette({
         dispatch: runner.dispatch,
         shortcuts,
       }),
-      ...pluginActions(pluginSlots.commands).map((action) => ({
+      ...pluginActions(commands).map((action) => ({
         ...action,
         shortcut:
           pluginShortcuts.get(pluginCommandIdSchema.parse(action.id)) ?? null,
@@ -153,10 +154,10 @@ export function CommandPalette({
         navigate: goTo,
         pluginEntries: buildPluginSettingsEntries({
           installedPlugins,
-          settingsSections: pluginSlots.settingsSections,
+          settingsSections,
         }),
         sections: settingsPages,
-        panels: pluginSlots.navPanels,
+        panels: navPanels,
       }),
     ],
     query: commandQuery,

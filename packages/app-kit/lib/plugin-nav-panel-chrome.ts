@@ -1,11 +1,9 @@
+import { shell, type ShellNavPanel } from "@bb/plugin/app";
+import { useOwned } from "../plugins/slots";
 import { useEffect, useMemo } from "react";
 import { z } from "zod";
 import { createLastKnownCache } from "./last-known-cache";
-import {
-  usePluginSlots,
-  usePluginsSettled,
-  type PluginSlot,
-} from "../plugins/registry";
+import { usePluginsSettled, type Owned } from "../plugins/registry";
 
 const chromeSchema = z.object({
   pluginId: z.string().min(1),
@@ -19,7 +17,7 @@ export type PluginNavPanelChrome = z.infer<typeof chromeSchema>;
 
 interface PluginNavPanelChromeEntry {
   chrome: PluginNavPanelChrome;
-  panel: PluginSlot<"navPanels"> | null;
+  panel: Owned<ShellNavPanel> | null;
 }
 
 const chromeCache = createLastKnownCache({
@@ -34,7 +32,7 @@ const keyOf = (chrome: { pluginId: string; id: string }) =>
 
 export function usePluginNavPanelChrome(): PluginNavPanelChromeEntry[] {
   const settled = usePluginsSettled();
-  const { navPanels } = usePluginSlots();
+  const navPanels = useOwned(shell.navPanel);
   return useMemo(() => {
     const live = navPanels.map((panel) => ({ chrome: panel, panel }));
     const remembered = settled ? [] : (chromeCache.read(CACHE_KEY) ?? []);
@@ -54,7 +52,7 @@ export function usePluginNavPanelChrome(): PluginNavPanelChromeEntry[] {
 
 export function useRememberPluginNavPanelChrome(): void {
   const settled = usePluginsSettled();
-  const { navPanels } = usePluginSlots();
+  const navPanels = useOwned(shell.navPanel);
   useEffect(() => {
     if (!settled) return;
     chromeCache.write(

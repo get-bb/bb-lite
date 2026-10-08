@@ -66,7 +66,7 @@ export function SidebarHeaderSlot({
       )}
     >
       <PluginSlotMount
-        key={`${slot.pluginId}/${slot.id}/${slot.generation}`}
+        key={`${slot.pluginId}/${slot.id}`}
         pluginId={slot.pluginId}
         slotKind="sidebarHeader"
         slotId={slot.id}
@@ -77,7 +77,7 @@ export function SidebarHeaderSlot({
           });
         }}
       >
-        <slot.component
+        <slot.view
           width={size.width}
           controlSize={size.controlSize}
           isCompactViewport={isCompactViewport}

@@ -1,12 +1,6 @@
-import { Suspense, useEffect, useMemo } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
-import {
-  shell,
-  type ShellMount,
-  type ShellRoute,
-  type SlotEntryView,
-} from "@bb/plugin/app";
-import { AppLayout } from "bb-plugin-shell/contract";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { app } from "@bb/plugin/app";
 import { QuickCreateProjectProvider } from "@bb/app-kit/hooks/useQuickCreateProject";
 import { RouteNavigationProvider } from "@bb/app-kit/components/ui/app-route-anchor";
 import { RouteNavigationIndicator } from "@bb/app-kit/components/ui/route-navigation-indicator";
@@ -14,48 +8,10 @@ import { UiPreferencesSync } from "@bb/app-kit/lib/ui-preferences";
 import { useAppTheme } from "@bb/app-kit/hooks/useAppTheme";
 import { useFaviconColorSync } from "@bb/app-kit/lib/favicon-color-preference";
 import { bootPlugins } from "./plugins/external";
-import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
+import { useSlot } from "@bb/app-kit/plugins/slots";
 import { useRememberPluginNavPanelChrome } from "@bb/app-kit/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "@bb/app-kit/hooks/useWebSocket";
 import { AppCommandProvider } from "@bb/app-kit/components/commands/AppCommandProvider";
-
-const CORE_PLUGIN_IDS: readonly string[] = [
-  "shell",
-  "thread-view",
-  "composer",
-  "side-panel",
-  "settings",
-];
-const UNORDERED = 1_000;
-
-type RouteEntry = SlotEntryView<ShellRoute>;
-
-function ordered(entries: readonly RouteEntry[]): RouteEntry[] {
-  return entries
-    .map((entry, index) => ({ entry, index }))
-    .sort(
-      (a, b) =>
-        Number(a.entry.item.path === "*") - Number(b.entry.item.path === "*") ||
-        (a.entry.item.order ?? UNORDERED) - (b.entry.item.order ?? UNORDERED) ||
-        a.index - b.index,
-    )
-    .map(({ entry }) => entry);
-}
-
-function useShellRoutes(): readonly RouteEntry[] {
-  const entries = useSlotEntries(shell.route);
-  return useMemo(() => ordered(entries), [entries]);
-}
-
-function ShellRouteElement({ plugin, item }: RouteEntry) {
-  const View = item.view;
-  if (CORE_PLUGIN_IDS.includes(plugin)) return <View />;
-  return (
-    <SlotMount pluginId={plugin} slot={shell.route.name} id={item.id}>
-      <View />
-    </SlotMount>
-  );
-}
 
 function HashNavigationScroll() {
   const location = useLocation();
@@ -90,33 +46,6 @@ function HashNavigationScroll() {
   return null;
 }
 
-function MountedScript({ item }: SlotEntryView<ShellMount>) {
-  useEffect(() => {
-    const controller = new AbortController();
-    const stop = item.run({ signal: controller.signal });
-    return () => {
-      controller.abort();
-      if (typeof stop === "function") stop();
-    };
-  }, [item]);
-  return null;
-}
-
-function PluginMounts() {
-  const entries = useSlotEntries(shell.mount);
-  return entries.map((entry) => (
-    <SlotMount
-      key={`${entry.plugin}/${entry.item.id}`}
-      pluginId={entry.plugin}
-      slot={shell.mount.name}
-      id={entry.item.id}
-      fallback={null}
-    >
-      <MountedScript {...entry} />
-    </SlotMount>
-  ));
-}
-
 export function App() {
   useWebSocket();
   useAppTheme();
@@ -125,7 +54,7 @@ export function App() {
     void bootPlugins();
   }, []);
   useRememberPluginNavPanelChrome();
-  const routes = useShellRoutes();
+  const Root = useSlot(app.root).at(-1);
 
   return (
     <QuickCreateProjectProvider>
@@ -134,20 +63,7 @@ export function App() {
           <RouteNavigationIndicator />
           <HashNavigationScroll />
           <UiPreferencesSync />
-          <PluginMounts />
-          <AppLayout>
-            <Suspense fallback={null}>
-              <Routes>
-                {routes.map((entry) => (
-                  <Route
-                    key={entry.item.id}
-                    path={entry.item.path}
-                    element={<ShellRouteElement {...entry} />}
-                  />
-                ))}
-              </Routes>
-            </Suspense>
-          </AppLayout>
+          {Root === undefined ? null : <Root />}
         </RouteNavigationProvider>
       </AppCommandProvider>
     </QuickCreateProjectProvider>

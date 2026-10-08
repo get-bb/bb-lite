@@ -1,10 +1,15 @@
+import {
+  shell,
+  type ShellProvider,
+  type ShellThreadListProps,
+} from "@bb/plugin/app";
+import { useOwned } from "../../plugins/slots";
 import { useAtomValue } from "jotai";
 import { createSyncedPreferenceAtom } from "../../lib/ui-preferences";
 import {
   resolveProvider,
-  usePluginSlots,
   usePluginsSettled,
-  type PluginSlot,
+  type Owned,
   type ResolvedProvider,
 } from "../../plugins/registry";
 
@@ -15,9 +20,9 @@ export const threadListProviderAtom = createSyncedPreferenceAtom(
 );
 
 export function useThreadListReplacement(): ResolvedProvider<
-  PluginSlot<"threadLists">
+  Owned<ShellProvider<ShellThreadListProps>>
 > {
-  const { threadLists } = usePluginSlots();
+  const threadLists = useOwned(shell.threadList);
   const preference = useAtomValue(threadListProviderAtom);
   const settled = usePluginsSettled();
   return resolveProvider(threadLists, preference, {

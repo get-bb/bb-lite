@@ -1,5 +1,11 @@
 import type { ComponentType } from "react";
-import { contract, slot } from "../contract.js";
+import { identified } from "../app-contracts.js";
+import type {
+  InteractionRenderer,
+  MessageDirective,
+  ThreadChatProps,
+} from "../app-types.js";
+import { contract, service, slot } from "../contract.js";
 
 export interface TimelineRowData {
   readonly id: string;
@@ -58,9 +64,24 @@ export interface MessageAction {
   run(message: TimelineMessage): void;
 }
 
+export interface ThreadHeaderItem {
+  id: string;
+  order?: number;
+  view: ComponentType<{ threadId: string }>;
+}
+
+export interface ThreadViewApi {
+  ThreadChat: ComponentType<ThreadChatProps>;
+  ThreadTitle: ComponentType<{ threadId: string }>;
+}
+
 export const threadView = contract("thread-view", {
+  api: service<ThreadViewApi>(),
   row: slot<TimelineRowRenderer>({ key: "kind" }),
   rowDetail: slot<TimelineRowDetailRenderer>({ key: "kind" }),
   pluginRow: slot<PluginRowRenderer>({ key: "kind" }),
   messageAction: slot<MessageAction>(),
+  header: slot<ThreadHeaderItem>(),
+  interaction: slot<InteractionRenderer>({ check: identified("view") }),
+  messageDirective: slot<MessageDirective>({ check: identified("view") }),
 });

@@ -21,7 +21,6 @@ import { BUILTIN_PLUGINS, CORE_PLUGINS, type BuiltinPlugin } from "./builtin";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { OP_QUERY_KEY, pluginAppHost } from "./host";
 import {
-  isPluginAppDefinition,
   markPluginsSettled,
   registerPluginApp,
   unregisterPluginApp,
@@ -218,11 +217,13 @@ async function syncPlugins(refetch: boolean): Promise<void> {
     try {
       await shareWithPlugins(app.shared ?? []);
       const module: { default?: unknown } = await import(app.jsUrl);
-      if (!isPluginAppDefinition(module.default)) {
-        throw new Error("the default export is not definePluginApp(...)");
+      const entry = module.default;
+      if (typeof entry !== "function") {
+        throw new Error("the default export is not a function");
       }
       applyCss(plugin.id, app.cssUrl);
-      const failure = registerPluginApp(plugin.id, module.default, "installed");
+      const setup = entry as pluginApp.PluginAppEntry;
+      const failure = registerPluginApp(plugin.id, setup, "installed");
       if (failure !== null) throw failure;
       externalHashes.set(plugin.id, app.hash);
     } catch (error) {

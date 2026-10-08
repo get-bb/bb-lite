@@ -1,5 +1,7 @@
+import { sidePanel, type SidePanelPanel } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useMemo } from "react";
-import type { PluginPanelOpenOptions } from "@bb/plugin/app";
+import type { PanelOpenOptions } from "@bb/plugin/app";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import type { PanelTab } from "../secondary-panel/panelTabs";
 import {
@@ -7,7 +9,7 @@ import {
   serializePluginPanelParams,
 } from "../../lib/plugin-json-value";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
-import { usePluginSlots, type PluginSlot } from "@bb/app-kit/plugins/registry";
+import type { Owned } from "@bb/app-kit/plugins/registry";
 
 export interface OpenPluginPanelArgs {
   pluginId: string;
@@ -27,7 +29,7 @@ export interface PluginPanelActionEntry {
 }
 
 function runPanelAction(
-  action: PluginSlot<"threadPanels">,
+  action: Owned<SidePanelPanel>,
   threadId: string,
   openPluginPanel: (args: OpenPluginPanelArgs) => void,
 ): void {
@@ -36,7 +38,7 @@ function runPanelAction(
     console.warn(
       `[plugin:${pluginId}] threadPanel "${id}" ${what}: ${error instanceof Error ? error.message : String(error)}`,
     );
-  const openPanel = (options?: PluginPanelOpenOptions) => {
+  const openPanel = (options?: PanelOpenOptions) => {
     try {
       const paramsJson = serializePluginPanelParams(options?.params);
       const panelTitle = options?.title ?? title;
@@ -70,7 +72,7 @@ export function usePluginPanelActions({
   openPluginPanel: (args: OpenPluginPanelArgs) => void;
   threadId: string | null | undefined;
 }): readonly PluginPanelActionEntry[] {
-  const { threadPanels } = usePluginSlots();
+  const threadPanels = useOwned(sidePanel.panel);
   return useMemo(
     () =>
       threadPanels.flatMap((action) =>
@@ -95,7 +97,7 @@ export function PluginPanelTabContent({
   tab: PluginPanelFixedPanelTab;
   context: { kind: "thread"; threadId: string } | { kind: "new-thread" };
 }) {
-  const action = usePluginSlots().threadPanels.find(
+  const action = useOwned(sidePanel.panel).find(
     (candidate) =>
       candidate.pluginId === tab.pluginId && candidate.id === tab.actionId,
   );
@@ -123,12 +125,12 @@ export function PluginPanelTabContent({
       data-testid="plugin-panel-tab-content"
     >
       <PluginSlotMount
-        key={`thread/${action.pluginId}/${action.id}/${action.generation}`}
+        key={`thread/${action.pluginId}/${action.id}`}
         pluginId={action.pluginId}
         slotKind="threadPanelAction"
         slotId={action.id}
       >
-        <action.component threadId={context.threadId} params={params} />
+        <action.view threadId={context.threadId} params={params} />
       </PluginSlotMount>
     </div>
   );

@@ -54,11 +54,17 @@ export interface EventDef<Payload extends z.ZodType = z.ZodType> {
   readonly payload: Payload;
 }
 
+export type SlotCheck<Item> = (
+  item: Item,
+  mine: readonly Item[],
+) => string | null;
+
 export interface Slot<Item = unknown> {
   readonly type: "slot";
   readonly name: string;
   readonly key: string | null;
   readonly pick: "one" | "many";
+  readonly check: SlotCheck<Item> | null;
   readonly item?: Item;
 }
 
@@ -73,6 +79,7 @@ export interface SlotShape {
   readonly name: string;
   readonly key: string | null;
   readonly pick: "one" | "many";
+  readonly check: SlotCheck<never> | null;
 }
 
 export type ContractMember = Op | EventDef | SlotShape | Live;
@@ -106,14 +113,18 @@ export function event<Payload extends z.ZodType>(
 }
 
 export function slot<Item>(
-  options: { key?: keyof Item & string; pick?: "one" | "many" } = {},
+  options: {
+    key?: keyof Item & string;
+    pick?: "one" | "many";
+    check?: SlotCheck<Item>;
+  } = {},
 ): Slot<Item> {
-  const { key = null, pick = "many" } = options;
-  return { type: "slot", name: "", key, pick };
+  const { key = null, pick = "many", check = null } = options;
+  return { type: "slot", name: "", key, pick, check };
 }
 
 export function service<Interface>(): Slot<Interface> {
-  return { type: "slot", name: "", key: null, pick: "one" };
+  return { type: "slot", name: "", key: null, pick: "one", check: null };
 }
 
 export interface TableRef<Row = unknown> {
@@ -122,7 +133,7 @@ export interface TableRef<Row = unknown> {
 }
 
 export function table<Row>(): Slot<TableRef<Row>> {
-  return { type: "slot", name: "", key: null, pick: "one" };
+  return { type: "slot", name: "", key: null, pick: "one", check: null };
 }
 
 export function live<Value extends z.ZodType>(value: Value): Live<Value> {

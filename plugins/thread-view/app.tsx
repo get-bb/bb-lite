@@ -1,4 +1,4 @@
-import { definePluginApp, threadView } from "@bb/plugin/app";
+import { threadView, type PluginAppApi } from "@bb/plugin/app";
 import {
   ConversationTimelineRow,
   DelegationWorkRowDetail,
@@ -20,9 +20,14 @@ import {
 } from "./app/components/thread/timeline/TimelineRowDetails";
 import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
+import { PluginThreadChat, PluginThreadTitle } from "./parts";
 
-export default definePluginApp((bb) => {
+export default function threadViewApp(bb: PluginAppApi): void {
   bb.add(appParts.parts, { plugin: "thread-view", parts });
+  bb.add(threadView.api, {
+    ThreadChat: PluginThreadChat,
+    ThreadTitle: PluginThreadTitle,
+  });
   bb.add(threadView.row, {
     kind: "conversation",
     view: ConversationTimelineRow,
@@ -80,4 +85,4 @@ export default definePluginApp((bb) => {
   ]) {
     bb.add(threadView.rowDetail, { kind, view: EmptyWorkRowDetail });
   }
-});
+}

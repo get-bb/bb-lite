@@ -1,8 +1,8 @@
 import {
   composer,
-  definePluginApp,
   type ComposerContext,
   type ComposerFooterControlProps,
+  type PluginAppApi,
 } from "@bb/plugin/app";
 import { ModelReasoningPicker } from "./app/components/pickers/ModelReasoningPicker";
 import { PermissionModePicker } from "./app/components/pickers/PermissionModePicker";
@@ -15,6 +15,7 @@ import {
 import { ThreadContextWindowIndicator } from "bb-plugin-thread-view/contract";
 import { appParts } from "@bb/app-kit/plugins/parts";
 import * as parts from "./parts";
+import { useComposer, useComposers } from "./app/lib/composers";
 
 function skillsAction(context: ComposerContext) {
   const action = composerMenuHost(context).actions.find(
@@ -45,8 +46,9 @@ function ContextWindowControl({ context }: ComposerFooterControlProps) {
   return usage ? <ThreadContextWindowIndicator usage={usage} /> : null;
 }
 
-export default definePluginApp((bb) => {
+export default function composerApp(bb: PluginAppApi): void {
   bb.add(appParts.parts, { plugin: "composer", parts });
+  bb.add(composer.api, { useComposer, useComposers });
   bb.add(composer.menuItem, {
     id: "attach",
     label: "Attach files",
@@ -126,4 +128,4 @@ export default definePluginApp((bb) => {
     },
     run: (context) => composerSendHost(context).submit?.(),
   });
-});
+}

@@ -1,3 +1,5 @@
+import { sidePanel } from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
 import {
   useCallback,
   useEffect,
@@ -41,7 +43,6 @@ import { serializePluginPanelParams } from "../../lib/plugin-json-value";
 import { resolveThreadLocalFileLink } from "../../lib/thread-local-file-links";
 import { openHttpUrlInExternalBrowser } from "@bb/app-kit/lib/url-open-routing";
 import { wsManager } from "@bb/app-kit/lib/ws";
-import { usePluginSlots } from "@bb/app-kit/plugins/registry";
 import {
   buildOpenInEditorHandler,
   resolveWorkspaceChangedFileOpenTarget,
@@ -189,7 +190,7 @@ export function useThreadPanel({
   const [focusRequest, setFocusRequest] = useState<
     "new-tab" | "terminal" | null
   >(null);
-  const { threadPanels } = usePluginSlots();
+  const threadPanels = useOwned(sidePanel.panel);
 
   const openWorkspaceFile = useCallback(
     (file: WorkspaceFileTabState, replaceNewTab = false) => {

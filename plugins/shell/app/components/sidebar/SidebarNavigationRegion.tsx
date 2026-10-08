@@ -63,7 +63,7 @@ export function SidebarNavigationRegion({
           />
         ) : (
           <PluginSlotMount
-            key={`${slot.pluginId}/${slot.id}/${slot.generation}/${attempt}`}
+            key={`${slot.pluginId}/${slot.id}/${attempt}`}
             pluginId={slot.pluginId}
             slotKind="sidebarNavigation"
             slotId={slot.id}
@@ -85,7 +85,7 @@ export function SidebarNavigationRegion({
               });
             }}
           >
-            <slot.component isCompactViewport={isCompactViewport} />
+            <slot.view isCompactViewport={isCompactViewport} />
           </PluginSlotMount>
         )}
       </div>

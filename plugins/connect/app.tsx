@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { callOp, plugin, UrlLink, useChanged } from "@bb/plugin/app";
+import {
+  callOp,
+  UrlLink,
+  useChanged,
+  type PluginAppApi,
+  settings,
+} from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -182,11 +188,11 @@ function ConnectSettingsSection() {
   );
 }
 
-export default plugin((bb) => {
-  bb.slots.settingsSection({
+export default function connectApp(bb: PluginAppApi): void {
+  bb.add(settings.section, {
     id: "remote-access",
     description:
       "Use this bb from any device, anywhere — powered by getbb.dev.",
-    component: ConnectSettingsSection,
+    view: ConnectSettingsSection,
   });
-});
+}

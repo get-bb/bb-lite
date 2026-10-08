@@ -1,12 +1,16 @@
 import type { ComponentType, ReactElement } from "react";
 import type { BbSdkAreas } from "@bb/sdk";
 import type { z } from "zod";
+import { shell } from "./app-contracts.js";
 import type * as T from "./app-types.js";
-import type { ComposerHandle } from "./app/composer.js";
+import { composer } from "./app/composer.js";
+import { threadView } from "./app/thread-view.js";
+import type { PluginBase } from "./base.js";
 import type { Live, Op, Slot } from "./contract.js";
-import type { PluginVerbs, SlotEntryView } from "./kernel.js";
+import type { SlotEntryView } from "./kernel.js";
 
 export type * from "./app-types.js";
+export type * from "./base.js";
 export * from "./app-contracts.js";
 export * from "./app/composer.js";
 export * from "./app/side-panel.js";
@@ -26,91 +30,24 @@ export interface OpState<Output> {
 type OpInput<O extends Op> = z.input<O["input"]>;
 type OpOutput<O extends Op> = z.output<O["output"]>;
 
-export interface PluginAppApi extends PluginVerbs {
-  readonly pluginId: string;
-  slots: {
-    navPanel(registration: T.PluginNavPanelRegistration): void;
-    threadPanel(registration: T.PluginThreadPanelRegistration): void;
-    settingsSection(registration: T.PluginSettingsSectionRegistration): void;
-    appOverlay(registration: T.PluginComponentRegistration): void;
-    pendingInteraction(
-      registration: T.PluginComponentRegistration<T.PluginPendingInteractionProps>,
-    ): void;
-    messageDirective(
-      registration: T.PluginComponentRegistration<T.PluginMessageDirectiveProps>,
-    ): void;
-    threadList(
-      registration: T.PluginProviderRegistration<T.PluginThreadListProps>,
-    ): void;
-    sidebarNavigation(
-      registration: T.PluginProviderRegistration<T.SidebarNavigationProps>,
-    ): void;
-    sidebarHeader(
-      registration: T.PluginProviderRegistration<T.SidebarHeaderProps>,
-    ): void;
-  };
-  commands: { register(registration: T.PluginCommandRegistration): void };
-  onMount(run: (context: { signal: AbortSignal }) => void | (() => void)): void;
-  setThreadRowStatus(
-    threadId: string,
-    status: T.PluginSidebarThreadRowStatus | null,
-  ): void;
-  icons: {
-    register(
-      icons: Record<string, ComponentType<{ className?: string }>>,
-    ): void;
-  };
-}
+export type PluginAppApi = PluginBase;
 
-export interface PluginAppDefinition {
-  readonly __bbPluginApp: true;
-  readonly setup: (app: PluginAppApi) => void;
-}
-
-export function definePluginApp(
-  setup: PluginAppDefinition["setup"],
-): PluginAppDefinition {
-  if (typeof setup !== "function") {
-    throw new Error("definePluginApp expects a setup function");
-  }
-  return Object.freeze({ __bbPluginApp: true as const, setup });
-}
-
-export const plugin = definePluginApp;
+export type PluginAppEntry = (bb: PluginAppApi) => void;
 
 export interface PluginAppHost {
   createElement<Props extends object>(
     type: ComponentType<Props>,
     props: Props,
   ): ReactElement;
-  useRealtimeConnectionState(): T.PluginRealtimeConnectionState;
-  useSettings(): T.PluginSettingsState;
+  use<Item>(slot: Slot<Item>): Item;
+  useRealtimeConnectionState(): T.RealtimeConnectionState;
+  useSettings(): T.SettingsState;
   useSdk(): BbSdkAreas;
-  useComposer(): ComposerHandle | null;
-  useComposers(): readonly ComposerHandle[];
   usePluginId(): string;
   useBbContext(): T.BbContext;
   useBbNavigate(): T.BbNavigate;
-  useSidebarThreads(options?: {
-    lifecycles: readonly ("active" | "archived")[];
-  }): T.PluginSidebarThreadsState;
-  useSidebarThreadActions(): T.PluginSidebarThreadActions;
-  useSidebarThreadSplit(threadId: string): T.PluginSidebarThreadSplit;
-  useSidebarNavigationSplit(itemId: string): T.PluginSidebarThreadSplit;
-  useSidebarThreadDraft(threadId: string): T.PluginSidebarThreadDraftState;
-  useSidebarThreadDraftIds(): ReadonlySet<string>;
-  useSidebarThreadRowStatus(
-    threadId: string,
-  ): T.PluginSidebarThreadRowStatus | null;
-  useSidebarThreadRowStatuses(): ReadonlyMap<
-    string,
-    T.PluginSidebarThreadRowStatus
-  >;
-  useSidebarSplitLayout(): T.PluginSidebarSplitLayout | null;
-  useSidebarThreadShortcut(threadId: string): T.ShortcutHint | null;
-  useProviders(): T.PluginProvidersState;
-  useEnvironmentProviders(): T.PluginEnvironmentProvidersState;
-  useSidebarNavigation(): T.SidebarNavigationState;
+  useProviders(): T.ProvidersState;
+  useEnvironmentProviders(): T.EnvironmentProvidersState;
   useQuestionFormHost(): T.QuestionFormHost;
   useSlot<Item>(slot: Slot<Item>): readonly Item[];
   useSlotEntries<Item>(slot: Slot<Item>): readonly SlotEntryView<Item>[];
@@ -125,12 +62,9 @@ export interface PluginAppHost {
   useChanged(member: Op | Live, handler: () => void): void;
   callOp<O extends Op>(op: O, input: OpInput<O>): Promise<OpOutput<O>>;
   SlotMount: ComponentType<T.SlotMountProps>;
-  SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
-  ThreadChat: ComponentType<T.ThreadChatProps>;
   Icon: ComponentType<T.IconProps>;
   ProviderIcon: ComponentType<T.ProviderIconProps>;
   UrlLink: ComponentType<T.UrlLinkProps>;
-  ThreadTitle: ComponentType<{ threadId: string }>;
   ThreadViewers: ComponentType<T.ThreadViewersProps>;
   ImageLightbox: ComponentType<T.ImageLightboxProps>;
   Markdown: ComponentType<T.MarkdownProps>;
@@ -166,24 +100,11 @@ function component<Props extends object>(
 export const useRealtimeConnectionState = hook("useRealtimeConnectionState");
 export const useSettings = hook("useSettings");
 export const useSdk = hook("useSdk");
-export const useComposer = hook("useComposer");
-export const useComposers = hook("useComposers");
 export const usePluginId = hook("usePluginId");
 export const useBbContext = hook("useBbContext");
 export const useBbNavigate = hook("useBbNavigate");
-export const useSidebarThreads = hook("useSidebarThreads");
-export const useSidebarThreadActions = hook("useSidebarThreadActions");
-export const useSidebarThreadSplit = hook("useSidebarThreadSplit");
-export const useSidebarNavigationSplit = hook("useSidebarNavigationSplit");
-export const useSidebarThreadDraft = hook("useSidebarThreadDraft");
-export const useSidebarThreadDraftIds = hook("useSidebarThreadDraftIds");
-export const useSidebarThreadRowStatus = hook("useSidebarThreadRowStatus");
-export const useSidebarThreadRowStatuses = hook("useSidebarThreadRowStatuses");
-export const useSidebarSplitLayout = hook("useSidebarSplitLayout");
-export const useSidebarThreadShortcut = hook("useSidebarThreadShortcut");
 export const useProviders = hook("useProviders");
 export const useEnvironmentProviders = hook("useEnvironmentProviders");
-export const useSidebarNavigation = hook("useSidebarNavigation");
 export const useQuestionFormHost = hook("useQuestionFormHost");
 export const useSlot = hook("useSlot");
 export const useSlotEntries = hook("useSlotEntries");
@@ -194,12 +115,64 @@ export const useLive = hook("useLive");
 export const useChanged = hook("useChanged");
 export const callOp = hook("callOp");
 export const SlotMount = component((h) => h.SlotMount);
-export const SidebarNavigationIcon = component((h) => h.SidebarNavigationIcon);
-export const ThreadChat = component((h) => h.ThreadChat);
 export const Icon = component((h) => h.Icon);
 export const ProviderIcon = component((h) => h.ProviderIcon);
 export const UrlLink = component((h) => h.UrlLink);
-export const ThreadTitle = component((h) => h.ThreadTitle);
 export const ThreadViewers = component((h) => h.ThreadViewers);
 export const ImageLightbox = component((h) => h.ImageLightbox);
 export const Markdown = component((h) => h.Markdown);
+
+function provided<Api extends object, Name extends keyof Api>(
+  slot: Slot<Api>,
+  name: Name,
+): Api[Name] {
+  const forward = (...args: unknown[]) =>
+    (host().use(slot)[name] as (...args: unknown[]) => unknown)(...args);
+  return forward as Api[Name];
+}
+
+export const useSidebarThreads = provided(shell.api, "useSidebarThreads");
+export const useSidebarThreadActions = provided(
+  shell.api,
+  "useSidebarThreadActions",
+);
+export const useSidebarThreadSplit = provided(
+  shell.api,
+  "useSidebarThreadSplit",
+);
+export const useSidebarNavigationSplit = provided(
+  shell.api,
+  "useSidebarNavigationSplit",
+);
+export const useSidebarThreadDraft = provided(
+  shell.api,
+  "useSidebarThreadDraft",
+);
+export const useSidebarThreadDraftIds = provided(
+  shell.api,
+  "useSidebarThreadDraftIds",
+);
+export const useSidebarThreadRowStatus = provided(
+  shell.api,
+  "useSidebarThreadRowStatus",
+);
+export const useSidebarThreadRowStatuses = provided(
+  shell.api,
+  "useSidebarThreadRowStatuses",
+);
+export const useSidebarSplitLayout = provided(
+  shell.api,
+  "useSidebarSplitLayout",
+);
+export const useSidebarThreadShortcut = provided(
+  shell.api,
+  "useSidebarThreadShortcut",
+);
+export const useSidebarNavigation = provided(shell.api, "useSidebarNavigation");
+export const useComposer = provided(composer.api, "useComposer");
+export const useComposers = provided(composer.api, "useComposers");
+export const SidebarNavigationIcon = component(
+  (h) => h.use(shell.api).SidebarNavigationIcon,
+);
+export const ThreadChat = component((h) => h.use(threadView.api).ThreadChat);
+export const ThreadTitle = component((h) => h.use(threadView.api).ThreadTitle);

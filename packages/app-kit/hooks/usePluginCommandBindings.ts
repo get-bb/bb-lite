@@ -1,3 +1,5 @@
+import { shell } from "@bb/plugin/app";
+import { useOwned } from "../plugins/slots";
 import { useMemo } from "react";
 import {
   applyAppKeybindingOverrides,
@@ -6,7 +8,6 @@ import {
   type AppKeybindingOverrides,
 } from "@bb/domain";
 import { useSystemConfig } from "./queries/system-queries";
-import { usePluginSlots } from "../plugins/registry";
 import {
   browserPlatform,
   resolvePluginCommandDefaults,
@@ -17,7 +18,7 @@ const NO_OVERRIDES: AppKeybindingOverrides = [];
 
 export function usePluginCommandBindings() {
   const { data } = useSystemConfig();
-  const { commands } = usePluginSlots();
+  const commands = useOwned(shell.command);
   const builtInDefaults = data?.defaultKeybindings ?? NO_DEFAULTS;
   const builtInBindings = data?.keybindings;
   const overrides = data?.keybindingOverrides ?? NO_OVERRIDES;

@@ -1,8 +1,8 @@
 import { tasks } from "../../shared/contract.js";
 import {
   callOp,
-  type PluginMessageDirectiveProps,
-  type PluginThreadPanelProps,
+  type MessageDirectiveProps,
+  type SidePanelPanelProps,
 } from "@bb/plugin/app";
 import { useBbNavigate } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
@@ -162,7 +162,7 @@ function TaskCard({
   );
 }
 
-export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
+export function TaskDirectiveCard({ attributes }: MessageDirectiveProps) {
   const taskKey = attributes.key?.trim() ?? "";
   const title = attributes.title?.trim() || null;
   if (TASK_KEY_PATTERN.test(taskKey)) {
@@ -175,7 +175,7 @@ export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
   );
 }
 
-export function TaskEmbedPanel({ params }: PluginThreadPanelProps) {
+export function TaskEmbedPanel({ params }: SidePanelPanelProps) {
   const given: unknown =
     typeof params === "object" && params !== null
       ? Reflect.get(params, "taskKey")

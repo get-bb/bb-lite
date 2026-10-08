@@ -1,15 +1,20 @@
 import type { KeyboardCommandId, Thread } from "@bb/domain";
 import type { ComponentType } from "react";
-import { contract, slot } from "./contract.js";
+import { contract, service, slot } from "./contract.js";
 import type * as T from "./app-types.js";
 
-export type Owned<Registration> = Registration & {
-  pluginId: string;
-  generation: number;
-};
+const ID = /^[a-zA-Z0-9_-]+$/u;
 
-type ComponentSlot<Props> = Owned<T.PluginComponentRegistration<Props>>;
-type ProviderSlot<Props> = Owned<T.PluginProviderRegistration<Props>>;
+export function identified<Item extends { id: string }>(
+  body: keyof Item & string,
+) {
+  return (item: Item, mine: readonly Item[]): string | null => {
+    const { id } = item;
+    if (typeof id !== "string" || !ID.test(id)) return `"id" must match ${ID}`;
+    if (mine.some((other) => other.id === id)) return `duplicate id "${id}"`;
+    return typeof item[body] === "function" ? null : `"${id}": missing ${body}`;
+  };
+}
 
 export interface ShellRoute {
   id: string;
@@ -85,17 +90,6 @@ export type ThreadAction = ThreadActionBase &
       }
   );
 
-export interface ShellMount {
-  id: string;
-  run(context: { signal: AbortSignal }): void | (() => void);
-}
-
-export interface ThreadHeaderItem {
-  id: string;
-  order?: number;
-  view: ComponentType<{ threadId: string }>;
-}
-
 export interface SidebarFooterItem {
   id: string;
   label: string;
@@ -105,30 +99,47 @@ export interface SidebarFooterItem {
   view?: ComponentType;
 }
 
-export interface HomeSection {
-  id: string;
-  order?: number;
-  view: ComponentType;
+export interface ShellApi {
+  useSidebarThreads(options?: {
+    lifecycles: readonly ("active" | "archived")[];
+  }): T.SidebarThreadsState;
+  useSidebarThreadActions(): T.SidebarThreadActions;
+  useSidebarThreadSplit(threadId: string): T.SidebarSplit;
+  useSidebarNavigationSplit(itemId: string): T.SidebarSplit;
+  useSidebarThreadDraft(threadId: string): T.SidebarThreadDraftState;
+  useSidebarThreadDraftIds(): ReadonlySet<string>;
+  useSidebarThreadRowStatus(threadId: string): T.ThreadRowStatus | null;
+  useSidebarThreadRowStatuses(): ReadonlyMap<string, T.ThreadRowStatus>;
+  useSidebarSplitLayout(): T.SidebarSplitLayout | null;
+  useSidebarThreadShortcut(threadId: string): T.ShortcutHint | null;
+  useSidebarNavigation(): T.SidebarNavigationState;
+  SidebarNavigationIcon: ComponentType<T.SidebarNavigationIconProps>;
 }
 
+export const app = contract("app", {
+  root: service<ComponentType>(),
+  icon: slot<T.AppIcon>({ key: "name" }),
+});
+
 export const shell = contract("shell", {
-  navPanel: slot<Owned<T.PluginNavPanelRegistration>>(),
-  threadPanel: slot<Owned<T.PluginThreadPanelRegistration>>(),
-  settingsSection: slot<Owned<T.PluginSettingsSectionRegistration>>(),
-  appOverlay: slot<Owned<T.PluginComponentRegistration>>(),
-  pendingInteraction: slot<ComponentSlot<T.PluginPendingInteractionProps>>(),
-  messageDirective: slot<ComponentSlot<T.PluginMessageDirectiveProps>>(),
-  threadList: slot<ProviderSlot<T.PluginThreadListProps>>(),
-  sidebarNavigation: slot<ProviderSlot<T.SidebarNavigationProps>>(),
-  sidebarHeader: slot<ProviderSlot<T.SidebarHeaderProps>>(),
-  command: slot<Owned<T.PluginCommandRegistration>>(),
+  api: service<ShellApi>(),
   route: slot<ShellRoute>({ key: "id" }),
   navItem: slot<ShellNavItem>({ key: "id" }),
+  navPanel: slot<T.ShellNavPanel>({ check: identified("view") }),
+  overlay: slot<T.ShellOverlay>({ check: identified("view") }),
+  command: slot<T.ShellCommand>({ check: identified("run") }),
   threadAction: slot<ThreadAction>({ key: "id" }),
-  mount: slot<ShellMount>(),
-  threadHeader: slot<ThreadHeaderItem>(),
+  threadList: slot<T.ShellProvider<T.ShellThreadListProps>>({
+    check: identified("view"),
+  }),
+  sidebarNavigation: slot<T.ShellProvider<T.SidebarNavigationProps>>({
+    check: identified("view"),
+  }),
+  sidebarHeader: slot<T.ShellProvider<T.SidebarHeaderProps>>({
+    check: identified("view"),
+  }),
   sidebarFooter: slot<SidebarFooterItem>(),
-  homeSection: slot<HomeSection>(),
+  threadRowStatus: slot<T.ThreadRowStatusEntry>(),
 });
 
 export interface SettingsPage {
@@ -142,4 +153,5 @@ export interface SettingsPage {
 
 export const settings = contract("settings", {
   page: slot<SettingsPage>({ key: "id" }),
+  section: slot<T.SettingsPageSection>({ check: identified("view") }),
 });

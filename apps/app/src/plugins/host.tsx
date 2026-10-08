@@ -8,21 +8,18 @@ import type {
   Op,
   OpState,
   PluginAppHost,
-  PluginEnvironmentProvidersState,
-  PluginProvidersState,
-  PluginSettingsState,
+  EnvironmentProvidersState,
+  ProvidersState,
+  SettingsState,
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
-import { PluginThreadChat } from "bb-plugin-thread-view/contract";
-import { PluginThreadTitle } from "bb-plugin-thread-view/contract";
 import { ImageLightbox } from "@bb/app-kit/components/ui/image-lightbox";
 import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
 import { ThreadViewers } from "@bb/app-kit/components/users/ThreadViewers";
 import { PluginUrlLink } from "@bb/app-kit/components/plugin/PluginUrlLink";
 import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
 import { usePluginThreadPanelOpenHandler } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
-import { SidebarNavigationIcon } from "bb-plugin-shell/contract";
 import { useSystemEnvironmentProviders } from "@bb/app-kit/hooks/queries/environment-provider-queries";
 import { usePluginSettingsView } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
 import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
@@ -30,17 +27,6 @@ import { useRouteState } from "@bb/app-kit/hooks/useRouteState";
 import { useServerConnectionState } from "@bb/app-kit/hooks/useServerConnectionState";
 import { useAppNavigationHost } from "@bb/app-kit/lib/url-open-routing";
 import { getPluginBoundSdk } from "@bb/app-kit/lib/plugin-bound-sdk";
-import {
-  useSidebarNavigation,
-  useSidebarSplitLayout,
-  useSidebarThreadActions,
-  useSidebarNavigationSplit,
-  useSidebarThreadSplit,
-  useSidebarThreadDraft,
-  useSidebarThreadDraftIds,
-  useSidebarThreadShortcut,
-  useSidebarThreads,
-} from "bb-plugin-shell/contract";
 import {
   getPluginPanelRoutePath,
   getProjectComposeRoutePath,
@@ -50,14 +36,9 @@ import {
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
-import { useComposer, useComposers } from "bb-plugin-composer/contract";
-import {
-  useThreadRowStatus,
-  useThreadRowStatuses,
-} from "@bb/app-kit/plugins/row-status";
 import { usePluginId } from "@bb/app-kit/plugins/context";
 import { callRemoteOp } from "@bb/app-kit/plugins/ops";
-import { callOp } from "@bb/app-kit/plugins/registry";
+import { appKernel, callOp } from "@bb/app-kit/plugins/registry";
 import {
   SlotMount,
   useSlot,
@@ -125,7 +106,7 @@ function useChanged(member: Op | Live, handler: () => void): void {
   );
 }
 
-function useSettings(): PluginSettingsState {
+function useSettings(): SettingsState {
   const query = usePluginSettingsView(usePluginId(), { enabled: true });
   const stored = query.data?.values;
   const values = useMemo(() => {
@@ -142,10 +123,10 @@ function useSettings(): PluginSettingsState {
 
 const EMPTY_PROVIDERS: readonly never[] = [];
 
-function useProviders(): PluginProvidersState {
+function useProviders(): ProvidersState {
   const query = useSystemProviders();
   const providers = query.data;
-  return useMemo<PluginProvidersState>(
+  return useMemo<ProvidersState>(
     () =>
       providers === undefined
         ? {
@@ -163,9 +144,9 @@ function useSdk() {
   return getPluginBoundSdk(pluginId, queryClient);
 }
 
-function useEnvironmentProviders(): PluginEnvironmentProvidersState {
+function useEnvironmentProviders(): EnvironmentProvidersState {
   const { providers } = useSystemEnvironmentProviders();
-  return useMemo<PluginEnvironmentProvidersState>(
+  return useMemo<EnvironmentProvidersState>(
     () =>
       providers === undefined
         ? { status: "loading", providers: EMPTY_PROVIDERS }
@@ -228,27 +209,15 @@ function useBbNavigate(): BbNavigate {
 
 export const pluginAppHost: PluginAppHost = {
   createElement,
+  use: (slot) => appKernel().use(slot),
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
   useSdk,
-  useComposer,
-  useComposers,
   usePluginId,
   useBbContext,
   useBbNavigate,
-  useSidebarThreads,
-  useSidebarThreadActions,
-  useSidebarNavigationSplit,
-  useSidebarThreadSplit,
-  useSidebarThreadDraft,
-  useSidebarThreadDraftIds,
-  useSidebarThreadRowStatus: useThreadRowStatus,
-  useSidebarThreadRowStatuses: useThreadRowStatuses,
-  useSidebarSplitLayout,
-  useSidebarThreadShortcut,
   useProviders,
   useEnvironmentProviders,
-  useSidebarNavigation,
   useQuestionFormHost,
   useSlot,
   useSlotEntries,
@@ -259,12 +228,9 @@ export const pluginAppHost: PluginAppHost = {
   useChanged,
   callOp: (op, input) => callOp(op, input) as Promise<never>,
   SlotMount,
-  SidebarNavigationIcon,
-  ThreadChat: PluginThreadChat,
   Icon,
   ProviderIcon,
   UrlLink: PluginUrlLink,
-  ThreadTitle: PluginThreadTitle,
   ThreadViewers,
   ImageLightbox,
   Markdown: MarkdownPreview,

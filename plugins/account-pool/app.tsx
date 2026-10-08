@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { callOp, plugin, useBbNavigate, useChanged } from "@bb/plugin/app";
+import {
+  callOp,
+  useBbNavigate,
+  useChanged,
+  type PluginAppApi,
+  settings,
+} from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import {
   Dialog,
@@ -524,6 +530,6 @@ function AccountPoolSettings() {
   );
 }
 
-export default plugin((bb) => {
-  bb.slots.settingsSection({ id: "accounts", component: AccountPoolSettings });
-});
+export default function accountPoolApp(bb: PluginAppApi): void {
+  bb.add(settings.section, { id: "accounts", view: AccountPoolSettings });
+}

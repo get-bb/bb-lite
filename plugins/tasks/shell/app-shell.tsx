@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PluginNavPanelProps } from "@bb/plugin/app";
+import type { ShellNavPanelProps } from "@bb/plugin/app";
 import { useOverview } from "./data.js";
 import {
   parseTasksRoute,
@@ -29,7 +29,7 @@ function isPlainShortcut(event: KeyboardEvent): boolean {
   return !editing && overlay === null && !modified && !event.defaultPrevented;
 }
 
-export function TasksAppShell({ subPath }: PluginNavPanelProps) {
+export function TasksAppShell({ subPath }: ShellNavPanelProps) {
   const route = parseTasksRoute(subPath);
   const navigation = useTasksNavigation();
   const overview = useOverview();
