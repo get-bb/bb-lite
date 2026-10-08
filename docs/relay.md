@@ -32,6 +32,12 @@ It speaks the same account API and tunnel protocol as getbb.app (`packages/tunne
 - **Machines.** A runner on another machine carries `x-bb-connect-machine`; the relay checks the
   credential belongs to that server and forwards with `x-bb-gate-auth: machine`.
 
+- **Lookups for another gate.** `POST /api/gate/resolve` on the apex answers, for a label, the server
+  and its relay address, the account behind a `session` token, whether a `credential` links that
+  server, and the id of a `machine` credential. It needs `Authorization: Bearer <GATE_SECRET>` and
+  answers 404 without the Worker secret `GATE_SECRET` or with a wrong one. The frp gate on Fly uses it
+  (`docs/tunnel.md`).
+
 ## Isolation
 
 Every server and share is a sibling subdomain running code the relay does not control, so:

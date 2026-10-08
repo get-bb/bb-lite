@@ -229,8 +229,14 @@ async function account(apex: string, name: string) {
   return { ...person, email: PEOPLE[login]?.email ?? null };
 }
 
-async function startLinkedServer() {
-  const relay = await startRelay();
+type Relay = Awaited<ReturnType<typeof startRelay>>;
+
+async function startLinkedServer(
+  overrides: Record<string, string> = {},
+  prepare: (relay: Relay) => Promise<void> = async () => {},
+) {
+  const relay = await startRelay(overrides);
+  await prepare(relay);
   vi.stubEnv("BB_CONNECT_BASE_URL", relay.apex);
   onTestFinished(() => void vi.unstubAllEnvs());
   const server = await createTestServer();
@@ -475,6 +481,47 @@ it("signs people in with GitHub and only lets approved accounts link", async () 
   const bare = await startRelay({ GITHUB_CLIENT_SECRET: "" });
   const unset = await browser().visit(`${bare.apex}/auth/github`);
   expect(unset.status).toBe(503);
+});
+
+it("tells a gate that holds the secret who a session and a credential are", async () => {
+  const secret = "gate-secret";
+  const relay = await startRelay({ GATE_SECRET: secret });
+  const { alice, credential, address } = await rawLink(relay);
+  const resolve = async (bearer: string, asked: Json, apex = relay.apex) => {
+    const response = await fetch(`${apex}/api/gate/resolve`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bearer}` },
+      body: JSON.stringify({ label: "raw", ...asked }),
+    });
+    return { status: response.status, body: (await response.json()) as Json };
+  };
+  expect((await resolve("guess", {})).status).toBe(404);
+  expect((await resolve("", {})).status).toBe(404);
+  const closed = await startRelay();
+  expect((await resolve("", {}, closed.apex)).status).toBe(404);
+  const server = { label: "raw", id: expect.stringMatching(/^srv_/u) };
+  expect((await resolve(secret, {})).body).toMatchObject({
+    server,
+    address,
+    user: null,
+    linked: false,
+    machineId: null,
+  });
+  const session = alice.jar.get("bbr_session");
+  const known = await resolve(secret, { session, credential });
+  expect(known.body).toMatchObject({
+    server: { ownerId: (known.body.user as Json).id },
+    user: { name: "Alice", email: alice.email },
+    linked: true,
+  });
+  const wrong = { session: "bbrs_nope", credential: "bbcred_nope" };
+  expect((await resolve(secret, wrong)).body).toMatchObject({
+    user: null,
+    linked: false,
+  });
+  expect((await resolve(secret, { label: "nobody" })).body).toEqual({
+    server: null,
+  });
 });
 
 async function rawLink(relay: { apex: string; origin(name: string): string }) {

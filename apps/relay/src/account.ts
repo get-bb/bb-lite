@@ -1,4 +1,4 @@
-import { newToken } from "./crypto.js";
+import { newToken, sha256Hex } from "./crypto.js";
 import { dashboardApi } from "./dashboard.js";
 import * as pages from "./pages.js";
 import * as site from "./site.js";
@@ -232,6 +232,42 @@ export async function connectApi(
   return site.json({ error: "not found" }, 404);
 }
 
+async function holdsGateSecret(request: Request, context: Site) {
+  const secret = context.env.GATE_SECRET ?? "";
+  const offered = site.bearer(request) ?? "";
+  if (secret === "" || offered === "") return false;
+  return (await sha256Hex(offered)) === (await sha256Hex(secret));
+}
+
+async function resolveForGate(request: Request, context: Site) {
+  if (!(await holdsGateSecret(request, context))) {
+    return site.json({ error: "not found" }, 404);
+  }
+  const asked = await jsonBody(request);
+  const { label = "", session = "", credential = "", machine = "" } = asked;
+  const { db } = context;
+  const server = await store.serverByLabel(db, label);
+  if (server === null) return site.json({ server: null });
+  const [user, linked, runner] = await Promise.all([
+    session === "" ? null : store.sessionUser(db, session),
+    credential === "" ? null : store.serverByCredential(db, credential),
+    machine === "" ? null : store.machineByCredential(db, machine),
+  ]);
+  const visitor = user && {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatarUrl: user.avatar_url,
+  };
+  return site.json({
+    server: { id: server.id, label: server.label, ownerId: server.user_id },
+    address: context.origin(server.label),
+    user: visitor,
+    linked: linked?.id === server.id,
+    machineId: runner?.server_id === server.id ? runner.id : null,
+  });
+}
+
 async function accountApi(request: Request, context: Site, path: string) {
   const { method } = request;
   if (path === "/api/account/me" && method === "GET") {
@@ -242,6 +278,7 @@ async function accountApi(request: Request, context: Site, path: string) {
     return site.json({ serverId, serverLabel, serverUrl });
   }
   if (method !== "POST") return site.json({ error: "not found" }, 404);
+  if (path === "/api/gate/resolve") return resolveForGate(request, context);
   if (path === "/api/account/link/start") return startLink(request, context);
   if (path === "/api/account/link/poll") return pollLink(request, context);
   if (path.startsWith("/api/connect/")) {

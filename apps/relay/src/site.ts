@@ -11,6 +11,7 @@ export interface Env {
   GITHUB_OAUTH_URL?: string;
   GITHUB_API_URL?: string;
   GATE_DEADLINE_MS?: string;
+  GATE_SECRET?: string;
   FLY_API_TOKEN?: string;
   FLY_API_URL?: string;
   FLY_ORG?: string;
