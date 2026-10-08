@@ -13,6 +13,7 @@ const packageSchema = z.object({
     app: z.string().min(1).optional(),
     runner: z.string().min(1).optional(),
     requires: z.array(z.string().min(1)).default([]),
+    forkOf: z.string().min(1).optional(),
     skills: z.array(z.string().min(1)).default([]),
   }),
 });
@@ -39,6 +40,7 @@ export interface PluginManifest {
   appEntry: string | null;
   runnerEntry: string | null;
   requires: string[];
+  forkOf: string | null;
   skillDirs: string[];
 }
 
@@ -66,6 +68,7 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     appEntry: bb.app === undefined ? null : inside(bb.app),
     runnerEntry: bb.runner === undefined ? null : inside(bb.runner),
     requires: bb.requires,
+    forkOf: bb.forkOf ?? null,
     skillDirs: bb.skills.map(inside),
   };
 }

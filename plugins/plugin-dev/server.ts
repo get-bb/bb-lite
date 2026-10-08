@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
@@ -49,9 +49,16 @@ function describe(inspection: KernelInspection, name: string): string {
   return lines.length === 0 ? `Nothing is named ${name}*` : lines.join("\n");
 }
 
-function tsconfigFor(): object {
+const NOT_COPIED = new Set(["node_modules", "test", "dist", ".cache", ".bb"]);
+
+function tsconfigFor(original: string | null = null): object {
   const at = (...parts: string[]) => join(REPO, ...parts);
   const types = at("apps", "app", "node_modules", "@types");
+  const roots = [
+    ...(original === null ? [] : [join(original, "node_modules")]),
+    at("apps", "app", "node_modules"),
+    at("apps", "server", "node_modules"),
+  ];
   return {
     compilerOptions: {
       strict: true,
@@ -72,16 +79,61 @@ function tsconfigFor(): object {
         zod: [at("apps", "server", "node_modules", "zod")],
         react: [join(types, "react")],
         "react/jsx-runtime": [join(types, "react", "jsx-runtime")],
+        "*": roots.map((root) => join(root, "*")),
       },
     },
   };
 }
 
-async function writeTypes(directory: string): Promise<string> {
+async function writeTypes(
+  directory: string,
+  original: string | null = null,
+): Promise<string> {
   const file = join(directory, ".bb", "tsconfig.json");
   await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(tsconfigFor(), null, 2)}\n`);
+  const config = tsconfigFor(original);
+  await writeFile(file, `${JSON.stringify(config, null, 2)}\n`);
   return file;
+}
+
+interface Manifest {
+  name?: string;
+  bb?: Record<string, unknown>;
+  scripts?: unknown;
+  devDependencies?: unknown;
+  dependencies?: Record<string, string>;
+}
+
+async function copyPlugin(
+  id: string,
+  source: string,
+  target: string,
+): Promise<void> {
+  const copied = (path: string) => {
+    const parts = relative(source, path).split(sep);
+    return !parts.some((part) => NOT_COPIED.has(part));
+  };
+  await cp(source, target, { recursive: true, filter: copied });
+  const file = join(target, "package.json");
+  const manifest = JSON.parse(await readFile(file, "utf8")) as Manifest;
+  const { scripts: _scripts, devDependencies: _dev, ...kept } = manifest;
+  const own = Object.entries(manifest.dependencies ?? {}).filter(
+    ([, range]) => !range.startsWith("workspace:"),
+  );
+  const forked = {
+    ...kept,
+    bb: { ...manifest.bb, forkOf: id },
+    dependencies: Object.fromEntries(own),
+  };
+  await writeFile(file, `${JSON.stringify(forked, null, 2)}\n`);
+  const tsconfig = {
+    extends: "./.bb/tsconfig.json",
+    include: ["**/*.ts", "**/*.tsx"],
+    exclude: ["node_modules"],
+  };
+  const text = `${JSON.stringify(tsconfig, null, 2)}\n`;
+  await writeFile(join(target, "tsconfig.json"), text);
+  await writeTypes(target, source);
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -151,6 +203,26 @@ export default function plugin(bb: PluginServerApi): void {
     }
     await writeTypes(directory);
     return { path: directory, files: files.map(([file]) => file) };
+  });
+
+  bb.implement(pluginDev.fork, async ({ id, path, cwd }) => {
+    const found = await bb.call(plugins.describe, { id });
+    const source = found?.original ?? null;
+    if (source === null) {
+      const known = found === null ? "is not a plugin" : "is not built in";
+      throw new Error(`"${id}" ${known}, so there is nothing to fork`);
+    }
+    const target = resolve(cwd ?? process.cwd(), path ?? id);
+    if (await exists(target)) {
+      throw new Error(`${target} already exists`);
+    }
+    try {
+      await copyPlugin(id, source, target);
+      return await bb.call(plugins.install, { path: target, watch: true });
+    } catch (error) {
+      await rm(target, { recursive: true, force: true });
+      throw error;
+    }
   });
 
   bb.implement(pluginDev.types, async (input) => {

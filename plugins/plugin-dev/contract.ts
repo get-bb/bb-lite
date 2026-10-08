@@ -108,6 +108,27 @@ export const pluginDev = contract("plugin-dev", {
       },
     },
   }),
+  fork: op({
+    input: z.object({
+      id: z.string().describe("The built-in plugin to copy"),
+      path: z.string().optional().describe("Where to put the copy"),
+      cwd: located.cwd,
+    }),
+    output: z.object({ id: z.string().nullable(), path: z.string() }),
+    kind: "write",
+    allow: "owner",
+    doors: {
+      cli: {
+        path: "dev fork",
+        summary: "Copy a built-in plugin and run your copy in its place",
+        positionals: ["id"],
+        print: ({ id, path }) =>
+          `Forked ${id ?? "plugin"} to ${path}. Your copy now runs in its ` +
+          "place and reloads when its files change. `bb plugin remove " +
+          `${path}\` brings the original back.`,
+      },
+    },
+  }),
   types: op({
     input: z.object(located),
     output: z.object({ file: z.string() }),

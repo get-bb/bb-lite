@@ -26,7 +26,7 @@ import {
   unregisterPluginApp,
 } from "./registry";
 
-const RUNTIME_MODULES: Record<
+const BOOT_MODULES: Record<
   (typeof pluginApp.PLUGIN_SHARED_MODULES)[number],
   unknown
 > = {
@@ -46,6 +46,54 @@ const RUNTIME_MODULES: Record<
   "tailwind-merge": tailwindMerge,
   "class-variance-authority": classVarianceAuthority,
 };
+
+const RUNTIME_MODULES: Record<string, unknown> = { ...BOOT_MODULES };
+
+type Loader = () => Promise<unknown>;
+type PackageExports = Record<string, { source?: string } | undefined>;
+
+const SHARED_UI_ROOT = "../../../../packages/shared-ui";
+const sharedUiFiles: Record<string, Loader> = import.meta.glob(
+  "../../../../packages/shared-ui/src/**/*.{ts,tsx}",
+);
+const sharedUiManifests: Record<string, PackageExports> = import.meta.glob(
+  "../../../../packages/shared-ui/package.json",
+  { eager: true, import: "exports" },
+);
+const sharedUiExports = Object.values(sharedUiManifests)[0] ?? {};
+
+const HOST_LOADERS: Record<
+  (typeof pluginApp.PLUGIN_HOST_MODULES)[number],
+  Loader
+> = {
+  "@bb/client-core": () => import("@bb/client-core"),
+  "@bb/core-ui": () => import("@bb/core-ui"),
+  "@tanstack/react-query": () => import("@tanstack/react-query"),
+  jotai: () => import("jotai"),
+  "jotai/utils": () => import("jotai/utils"),
+  "react-router-dom": () => import("react-router-dom"),
+};
+
+function hostLoader(specifier: string): Loader | undefined {
+  const named: Record<string, Loader | undefined> = HOST_LOADERS;
+  const prefix = "@bb/shared-ui/";
+  if (!specifier.startsWith(prefix)) return named[specifier];
+  const entry = sharedUiExports[`./${specifier.slice(prefix.length)}`];
+  const source = entry?.source;
+  if (source === undefined) return undefined;
+  return sharedUiFiles[`${SHARED_UI_ROOT}/${source.replace(/^\.\//u, "")}`];
+}
+
+async function shareWithPlugins(specifiers: readonly string[]): Promise<void> {
+  for (const specifier of specifiers) {
+    if (specifier in RUNTIME_MODULES) continue;
+    const load = hostLoader(specifier);
+    if (load === undefined) {
+      throw new Error(`this bb does not share "${specifier}" with plugins`);
+    }
+    RUNTIME_MODULES[specifier] = await load();
+  }
+}
 
 const CSS_ATTRIBUTE = "data-bb-plugin-css";
 const KERNEL_SIGNAL = "kernel";
@@ -79,6 +127,25 @@ function applyCss(pluginId: string, cssUrl: string | null): void {
   for (const link of stale) link.remove();
 }
 
+const UTILITIES_ATTRIBUTE = "data-bb-plugin-utilities";
+
+function applyUtilities(url: string | null): void {
+  const selector = `link[${UTILITIES_ATTRIBUTE}]`;
+  const current = document.head.querySelector<HTMLLinkElement>(selector);
+  if (current?.getAttribute("href") === url) return;
+  if (url === null) {
+    current?.remove();
+    return;
+  }
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = url;
+  link.setAttribute(UTILITIES_ATTRIBUTE, "");
+  link.addEventListener("load", () => current?.remove(), { once: true });
+  link.addEventListener("error", () => link.remove(), { once: true });
+  document.head.append(link);
+}
+
 function dropExternal(pluginId: string): void {
   unregisterPluginApp(pluginId);
   applyCss(pluginId, null);
@@ -102,9 +169,13 @@ async function syncPlugins(refetch: boolean): Promise<void> {
   setPluginBranding(plugins);
   const pluginsById = new Map(plugins.map((plugin) => [plugin.id, plugin]));
   const builtinLoads = BUILTIN_PLUGINS.map((plugin) => {
-    if (pluginsById.get(plugin.id)?.enabled === false) {
-      disabledBuiltinIds.add(plugin.id);
-      unregisterPluginApp(plugin.id);
+    const listed = pluginsById.get(plugin.id);
+    const replaced = listed?.app?.kind === "external";
+    if (listed?.enabled === false || replaced) {
+      if (!disabledBuiltinIds.has(plugin.id)) {
+        disabledBuiltinIds.add(plugin.id);
+        unregisterPluginApp(plugin.id);
+      }
       return null;
     }
     return disabledBuiltinIds.delete(plugin.id) ? loadBuiltin(plugin) : null;
@@ -120,6 +191,7 @@ async function syncPlugins(refetch: boolean): Promise<void> {
     if (!plugin.enabled || app?.kind !== "external") return;
     if (externalHashes.get(plugin.id) === app.hash) return;
     try {
+      await shareWithPlugins(app.shared ?? []);
       const module: { default?: unknown } = await import(app.jsUrl);
       if (!isPluginAppDefinition(module.default)) {
         throw new Error("the default export is not definePluginApp(...)");
@@ -133,6 +205,10 @@ async function syncPlugins(refetch: boolean): Promise<void> {
       dropExternal(plugin.id);
     }
   });
+  const styled = plugins.flatMap(({ enabled, app }) =>
+    enabled && app?.kind === "external" ? [app.utilitiesUrl ?? null] : [],
+  );
+  applyUtilities(styled.find((url) => url !== null) ?? null);
   await Promise.all([...builtinLoads, ...externalLoads]);
 }
 

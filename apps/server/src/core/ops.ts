@@ -132,16 +132,19 @@ export function pluginOps(ctx: ServerContext, bb: PluginScope): void {
   const { kernel } = ctx;
   const { configFile } = dataPaths(ctx.config.dataDir);
   bb.implement(plugins.inspect, () => kernel.inspect());
+  bb.implement(plugins.describe, ({ id }) => ctx.plugins.locate(id));
   bb.implement(plugins.reload, ({ id }) => ctx.plugins.reload(id));
   bb.implement(plugins.install, async ({ path, watch }) => {
-    await readManifest(path);
+    const { id } = await readManifest(path);
     await writeExternalPluginEntry(configFile, path, { watch });
-    await ctx.plugins.reload();
+    await ctx.plugins.refresh(id);
     return { id: ctx.plugins.idOfDirectory(path), path: resolve(path) };
   });
   bb.implement(plugins.uninstall, async ({ path }) => {
+    const id = ctx.plugins.idOfDirectory(path);
     await writeExternalPluginEntry(configFile, path, null);
-    await ctx.plugins.reload();
+    if (id === null) await ctx.plugins.reload();
+    else await ctx.plugins.refresh(id);
   });
 }
 

@@ -121,3 +121,78 @@ it("installs a plugin from a git repository", async () => {
   const empty = await op("plugin-dev.install", { source: scratch() });
   expect(empty.body).toMatchObject({ code: "handler_error" });
 });
+
+it("forks every built-in plugin into a copy that runs in its place", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const op = async (name: string, input: unknown = {}) => {
+    const response = await server.send(`/ops/${name}`, input);
+    const body = (await response.json()) as Body;
+    return { status: response.status, body, result: body.result };
+  };
+  const cwd = scratch();
+  const builtins = ctx.plugins.list().map(({ id }) => id);
+  expect(builtins).toContain("thread-list");
+  const facts: Record<string, unknown> = {};
+  for (const id of builtins) {
+    const forked = await op("plugin-dev.fork", { id, cwd });
+    expect([id, forked.status, forked.body.message]).toEqual([
+      id,
+      200,
+      undefined,
+    ]);
+    const listed = ctx.plugins.list().find((plugin) => plugin.id === id);
+    const failure = listed?.status === "error" ? listed.statusMessage : null;
+    expect([id, failure]).toEqual([id, null]);
+    const located = await op("plugins.describe", { id });
+    expect(located.result).toMatchObject({
+      builtin: false,
+      directory: join(cwd, id),
+    });
+    if (listed?.app?.kind === "external") {
+      const script = await server.request(`/plugins/${id}/app.js`);
+      expect([id, script.status]).toEqual([id, 200]);
+      facts[id] = listed.app.shared.filter((name) => name.startsWith("@bb/"));
+    }
+  }
+  expect(facts["thread-list"]).toContain("@bb/client-core");
+  expect(facts.tasks).toContain("@bb/shared-ui/button");
+  expect(ctx.plugins.utilities).toBeNull();
+  const parts = await ctx.plugins.runnerParts();
+  expect(parts.map(({ id }) => id).sort()).toEqual([
+    "provider-claude-code",
+    "provider-codex",
+    "provider-echo",
+  ]);
+  const providers = await ctx.runners.get(ctx.config.hostId).listProviders();
+  expect(providers.map(({ providerId }) => providerId)).toContain("echo");
+  const again = await op("plugin-dev.fork", { id: "tasks", cwd });
+  expect(again.status).toBe(500);
+  const core = await op("plugin-dev.fork", { id: "threads", cwd });
+  expect(core.body.message).toContain("nothing to fork");
+
+  const file = join(cwd, "custom-instructions", "server.ts");
+  const source = readFileSync(file, "utf8");
+  writeFileSync(file, source.replace("return [{", "return [{ forked: true,"));
+  await op("plugins.reload", { id: "custom-instructions" });
+  await server.send("/plugins/custom-instructions/settings", {
+    values: { instructions: "Use pnpm" },
+  });
+  await fetch(`${server.url}/api/v1/plugins/custom-instructions/settings`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ values: { instructions: "Use pnpm" } }),
+  });
+  const scope = { threadId: "t", projectId: "p", hostId: null };
+  const sections = await op("sessions.instructions", {
+    ...scope,
+    providerId: "codex",
+  });
+  expect(sections.result).toContainEqual({
+    source: "custom-instructions",
+    text: "Use pnpm",
+  });
+  await op("plugins.uninstall", { path: join(cwd, "tasks") });
+  const restored = await op("plugins.describe", { id: "tasks" });
+  expect(restored.result).toMatchObject({ builtin: true });
+}, 120_000);

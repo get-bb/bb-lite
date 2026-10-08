@@ -154,6 +154,16 @@ export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
     return route.handler(c.req.raw);
   });
 
+  app.get("/plugin-utilities.css", (c) => {
+    const sheet = plugins.utilities;
+    if (sheet === null) throw notFound("No plugin adds styles");
+    const fresh = c.req.query("h") === sheet.hash;
+    return c.body(sheet.css, 200, {
+      "content-type": "text/css; charset=utf-8",
+      "cache-control": fresh ? IMMUTABLE : "no-cache",
+    });
+  });
+
   app.get("/plugins/:id/:file{app\\.(?:js|css)}", (c) => {
     const { id, file } = c.req.param();
     const bundle = plugins.record(id).app;

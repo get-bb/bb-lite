@@ -246,6 +246,26 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
   expect(callOp).toHaveBeenCalledWith(called, { text: "panel" });
 });
 
+it("compiles the classes an external app adds into one sheet with the host's", async () => {
+  const stock = await serverWithEcho();
+  const listed = ((await stock.request("")).body as Listing).plugins.at(-1);
+  expect(listed?.app).toMatchObject({ kind: "external", utilitiesUrl: null });
+  const directory = join(scratch(), "echo");
+  cpSync(FIXTURE, directory, { recursive: true });
+  const source = join(directory, "app.tsx");
+  const added = '"flex", "bg-fuchsia-300", "md:bg-fuchsia-400"';
+  writeFileSync(source, readFileSync(source, "utf8").replace('"flex"', added));
+  const { request, url } = await serverWithEcho(directory);
+  const app = ((await request("")).body as Listing).plugins.at(-1)?.app;
+  if (app?.kind !== "external") throw new Error("echo has no external app");
+  const sheet = await (await fetch(`${url}${app.utilitiesUrl}`)).text();
+  const wide = sheet.indexOf(".md\\:bg-fuchsia-400");
+  expect(sheet).toContain(".flex {");
+  expect(sheet.indexOf(".bg-fuchsia-300")).toBeGreaterThan(0);
+  expect(wide).toBeGreaterThan(sheet.indexOf(".bg-fuchsia-300"));
+  expect(wide).toBeGreaterThan(sheet.lastIndexOf("\n  .flex {"));
+});
+
 it("answers the thread engine's queries from what plugins register", async () => {
   const { ctx } = await createTestServer();
   const directory = scratch();

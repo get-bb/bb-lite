@@ -84,6 +84,7 @@ export function createRunnerPlugins(options: {
   });
   const scopes = new Map<string, PluginScope>();
   const shipped = new Map<string, string>();
+  const builtin = new Map<string, RunnerPart>();
 
   const start = async (part: RunnerPart): Promise<void> => {
     scopes.get(part.id)?.dispose();
@@ -106,18 +107,23 @@ export function createRunnerPlugins(options: {
     }
   };
 
+  const failed = (id: string) => (error: unknown) => {
+    log(`[${id}] runner part failed to load: ${messageOf(error)}`);
+  };
+
   const unload = (id: string) => {
     scopes.get(id)?.dispose();
     scopes.delete(id);
     shipped.delete(id);
+    const original = builtin.get(id);
+    if (original !== undefined) start(original).catch(failed(id));
   };
 
   return {
     kernel,
     load(part) {
-      start(part).catch((error: unknown) => {
-        log(`[${part.id}] runner part failed to load: ${messageOf(error)}`);
-      });
+      builtin.set(part.id, part);
+      start(part).catch(failed(part.id));
     },
     async sync(bundles) {
       const result: LoadPluginsResult = { loaded: [], failed: [] };

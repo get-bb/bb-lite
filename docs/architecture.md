@@ -513,10 +513,21 @@ the slots `provider`, `mention`, `inference`, `titleFallback`), `interactions`, 
   `plugins: [{path, enabled, watch}]`. An external server entry is bundled by esbuild to
   `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` and imported; the app entry is bundled in memory
   and served at `/api/v1/plugins/<id>/app.js|app.css?h=`. An external plugin with a builtin's id
-  replaces it. Plugins load in `requires` order; a plugin whose requirement is not running is in
+  replaces it on the server, in the app and on every runner; removing it restores the builtin.
+  `bb.forkOf` names the builtin a copy came from, whose `node_modules` then back the copy's imports. Plugins load in `requires` order; a plugin whose requirement is not running is in
   `error`. `watch: true` reloads a plugin 200 ms after a file in its directory changes.
 - **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` resolves to a shim
-  over `globalThis.__bbPluginRuntime`, which the app fills before importing any bundle.
+  over `globalThis.__bbPluginRuntime`, which the app fills before importing any bundle. Host modules
+  (`PLUGIN_HOST_MODULES` and `@bb/shared-ui/*`) resolve the same way but are imported by the app only
+  when a bundle lists them in `shared`.
+- **Styles.** A bundle's imported `.css` is served as `app.css`. Tailwind classes are handled once
+  for all external plugins: each bundle records the candidates the app's own sources do not contain,
+  and when that set changes the host compiles the app's candidates plus the added ones against
+  `apps/app/src/components/ui/theme.css` into `/api/v1/plugin-utilities.css?h=`. The app loads that
+  sheet after its own, so it supersedes the built utilities layer with the same rules in one order.
+  With no added classes there is no sheet.
+- **Own location.** In server and runner bundles `import.meta.url` is rewritten per source file to
+  that file's URL.
 - **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled`.
   Status is `disabled`, `error`, `needs-configuration` or `running`. Enable, disable and reload
   dispose the old instance (services aborted, `onDispose` hooks in reverse order, the kernel scope
@@ -584,7 +595,9 @@ remove({hostId, path})}`) is a managed environment owned by its thread: `create`
 `watch <dir>`, `validate <dir>` (manifest check plus what the source implements, hooks, calls, adds,
 and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (a tsconfig whose paths
 resolve bb's types from this install), `install <git:url[#ref] | npm:spec | dir>` (fetched under
-`<dataDir>/plugins-src`). It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
+`<dataDir>/plugins-src`). `fork <id> [path]` copies a builtin's directory
+(without `node_modules`, tests or caches), marks it `forkOf`, writes its types and loads it
+watched; a test forks every builtin and checks each copy runs. It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
 keeps files under `plugins/` (tests excepted) from importing `@/…`, `@bb/server`, the profile, or
 another plugin's files other than its contract.
 

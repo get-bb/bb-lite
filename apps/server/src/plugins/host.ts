@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { watch as watchDirectory, type FSWatcher } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { derivePluginId } from "@bb/domain";
 import type { Kernel } from "@bb/plugin";
 import type { RunnerPartBundle } from "@bb/runner";
 import type { InstalledPlugin, PluginApp } from "@bb/server-contract";
@@ -13,11 +14,21 @@ import type { ServerContext } from "../context.js";
 import type { Disposer } from "../server.js";
 import type { Hub } from "../ws/hub.js";
 import { builtinPlugins, type BuiltinPlugin } from "./builtin.js";
-import { bundleApp, bundleRunnerPart, importServerEntry } from "./bundle.js";
+import {
+  bundleApp,
+  bundleRunnerPart,
+  contentHash,
+  importServerEntry,
+  utilitiesWith,
+} from "./bundle.js";
 import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
 import { errorMessage } from "../http/errors.js";
 import { createPluginInstance } from "./instance.js";
-import { readExternalPluginEntries, readManifest } from "./manifest.js";
+import {
+  readExternalPluginEntries,
+  readManifest,
+  type PluginManifest,
+} from "./manifest.js";
 import { PluginRegistry, type PluginRecord } from "./registry.js";
 
 export interface PluginHostOptions {
@@ -36,6 +47,7 @@ type PluginOrigin = Pick<
 >;
 
 const WATCH_DEBOUNCE_MS = 200;
+const UTILITIES_PATH = "/api/v1/plugin-utilities.css";
 const UNWATCHED = /(^|[\\/])(node_modules|\.cache|\.git|\.bb|dist)([\\/]|$)/u;
 
 const UNLOADED = { instance: null, app: null, error: null, token: null };
@@ -48,6 +60,8 @@ export class PluginHost extends PluginRegistry {
   private settled: Promise<void> = Promise.resolve();
   private readonly runnerBundles = new Map<string, RunnerPartBundle>();
   private readonly watchers = new Map<string, FSWatcher>();
+  utilities: { css: string; hash: string } | null = null;
+  private styled = "";
 
   constructor(private readonly options: PluginHostOptions) {
     super(options.log, options.kernel);
@@ -58,8 +72,14 @@ export class PluginHost extends PluginRegistry {
     const targets =
       id === undefined ? this.inDependencyOrder() : [this.record(id)];
     for (const record of targets) await this.load(record);
-    this.options.hub.system(["plugins-changed"]);
-    this.onChanged();
+    await this.announce();
+  }
+
+  async refresh(id: string): Promise<void> {
+    await this.discover();
+    const record = this.records.get(id);
+    if (record !== undefined) await this.load(record);
+    await this.announce();
   }
 
   async runnerParts(): Promise<RunnerPartBundle[]> {
@@ -68,7 +88,8 @@ export class PluginHost extends PluginRegistry {
       const { id, runnerEntry } = manifest;
       if (instance === null || !external || runnerEntry === null) continue;
       try {
-        const bundle = await bundleRunnerPart(id, runnerEntry);
+        const fallbacks = this.fallbacks(manifest);
+        const bundle = await bundleRunnerPart(id, runnerEntry, fallbacks);
         this.runnerBundles.set(id, bundle);
         bundles.push(bundle);
       } catch (error) {
@@ -93,9 +114,30 @@ export class PluginHost extends PluginRegistry {
     const record = this.record(id);
     setPluginEnabled(this.options.db, id, enabled);
     await this.load(record);
+    await this.announce();
+    return this.describe(record);
+  }
+
+  private async announce(): Promise<void> {
+    await this.restyle();
     this.options.hub.system(["plugins-changed"]);
     this.onChanged();
-    return this.describe(record);
+  }
+
+  private async restyle(): Promise<void> {
+    const records = [...this.records.values()];
+    const classes = records.flatMap((record) => record.app?.classes ?? []);
+    const wanted = [...new Set(classes)].sort();
+    const key = wanted.join(" ");
+    if (key === this.styled) return;
+    this.styled = key;
+    try {
+      const css = await utilitiesWith(wanted);
+      this.utilities = css === null ? null : { css, hash: contentHash(css) };
+    } catch (error) {
+      this.utilities = null;
+      this.options.log.error("Plugin styles failed to build", { err: error });
+    }
   }
 
   list(): InstalledPlugin[] {
@@ -196,10 +238,13 @@ export class PluginHost extends PluginRegistry {
     if (record.manifest.appEntry === null) return null;
     if (!record.external) return { kind: "builtin" };
     if (record.app === null) return null;
-    const { hash, css } = record.app;
+    const { hash, css, shared } = record.app;
     const jsUrl = `${base}/app.js?h=${hash}`;
     const cssUrl = css === null ? null : `${base}/app.css?h=${hash}`;
-    return { kind: "external", jsUrl, cssUrl, hash };
+    const sheet = this.utilities;
+    const utilitiesUrl =
+      sheet === null ? null : `${UTILITIES_PATH}?h=${sheet.hash}`;
+    return { kind: "external", jsUrl, cssUrl, utilitiesUrl, hash, shared };
   }
 
   private async discover(): Promise<void> {
@@ -257,18 +302,20 @@ export class PluginHost extends PluginRegistry {
       id,
       record.external ? "installed" : "product",
     );
+    const fallbacks = this.fallbacks(record.manifest);
     try {
       for (const required of record.manifest.requires) {
         if (this.records.get(required)?.instance != null) continue;
         throw new Error(`requires "${required}", which is not running`);
       }
       if (record.external && appEntry !== null) {
-        record.app = await bundleApp(appEntry);
+        const { directory } = record.manifest;
+        record.app = await bundleApp(appEntry, directory, fallbacks);
       }
       const cacheDir = join(dataPaths(dataDir).plugins, id, ".cache");
       const entry =
         record.external && serverEntry !== null
-          ? await importServerEntry(serverEntry, cacheDir)
+          ? await importServerEntry(serverEntry, cacheDir, fallbacks)
           : record.server;
       await entry?.(api);
       record.instance = instance;
@@ -278,6 +325,27 @@ export class PluginHost extends PluginRegistry {
       record.error = errorMessage(error);
       log.error("Plugin failed to load", { pluginId: id, err: error });
     }
+  }
+
+  builtinDirectory(id: string): string | null {
+    const { builtins = builtinPlugins } = this.options;
+    const found = builtins.find(
+      ({ directory }) => derivePluginId(basename(directory)) === id,
+    );
+    return found?.directory ?? null;
+  }
+
+  locate(id: string) {
+    const record = this.records.get(id);
+    const original = this.builtinDirectory(id);
+    if (record === undefined && original === null) return null;
+    const directory = record?.manifest.directory ?? original ?? "";
+    return { id, directory, builtin: record?.external !== true, original };
+  }
+
+  private fallbacks({ id, forkOf }: PluginManifest): string[] {
+    const original = this.builtinDirectory(forkOf ?? id);
+    return original === null ? [] : [join(original, "node_modules")];
   }
 
   idOfDirectory(path: string): string | null {

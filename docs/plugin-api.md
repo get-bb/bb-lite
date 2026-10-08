@@ -226,6 +226,28 @@ create(context), remove({ hostId, path }) })`. `create` returns `{ path }` and m
 runner operation to make the directory. Using a built-in id (`git-worktree`, `personal-workspace`,
 `project-checkout`) replaces that kind.
 
+## Forking a built-in plugin
+
+`bb dev fork <id> [path]` copies a plugin from `plugins/` to a directory of yours and loads the copy
+in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings the
+original back. All fourteen plugins in `plugins/` fork this way, including the providers.
+
+- The copy keeps the original's id, so its contract names, settings and data carry over. To run it
+  beside the original instead, change `bb.id` in `package.json` and the id in `contract.ts`.
+- `bb.forkOf` in the copy's `package.json` names the original. Imports the copy does not install
+  itself resolve from the original's `node_modules`, so a fork needs no `pnpm install`.
+- A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`,
+  `@bb/client-core`, `@bb/core-ui`, `@tanstack/react-query`, `jotai` and `react-router-dom` resolve
+  to the app's own copies (`PLUGIN_HOST_MODULES`), loaded on demand.
+- Tailwind classes in an external app part work. Classes the app does not already ship are compiled
+  by the server into one utilities sheet for the app and every external plugin together, so the
+  order of responsive and state variants is the same as in a single build. A plugin's own imported
+  `.css` files are served separately and unlayered rules in them win over utilities.
+- `import.meta.url` in a server or runner part still points at the source file, so reading files
+  beside the source (`new URL("./logo.svg", import.meta.url)`) works from a fork.
+- What does not fork: core itself. The engine, the database modules and the app's own screens are
+  in `apps/` and are extended through operations, hooks and slots, not copied.
+
 ## Tools
 
 `bb dev inspect [name]` lists live operations, events, slots, live values and plugins.
@@ -234,6 +256,7 @@ a file changes (`bb plugin add <dir>` loads it without watching). `bb dev valida
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
 `bb dev types <dir>` writes `.bb/tsconfig.json` so an editor resolves bb's types.
 `bb dev install <git:url[#ref] | npm:spec | dir>` fetches and loads a plugin (owner only).
+`bb dev fork <id> [path]` copies a built-in plugin and runs the copy in its place (owner only).
 `bb audit list --plugin <id>` shows what a plugin did for whom.
 
 `createPluginHarness()` from `@bb/plugin/testing` loads a server part against a bare kernel for unit

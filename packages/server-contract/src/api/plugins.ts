@@ -46,7 +46,9 @@ export const pluginAppSchema = z.discriminatedUnion("kind", [
     kind: z.literal("external"),
     jsUrl: z.string(),
     cssUrl: z.string().nullable(),
+    utilitiesUrl: z.string().nullable().default(null),
     hash: z.string(),
+    shared: z.array(z.string()).default([]),
   }),
 ]);
 export type PluginApp = z.infer<typeof pluginAppSchema>;

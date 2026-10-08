@@ -245,6 +245,17 @@ export const sections = contract("sections", {
 
 export const plugins = contract("plugins", {
   inspect: op({ input: none, output: z.custom<KernelInspection>() }),
+  describe: op({
+    input: z.object({ id: z.string() }),
+    output: z
+      .object({
+        id: z.string(),
+        directory: z.string(),
+        builtin: z.boolean(),
+        original: z.string().nullable(),
+      })
+      .nullable(),
+  }),
   install: op({
     input: z.object({ path: z.string(), watch: z.boolean().default(false) }),
     output: z.object({ id: z.string().nullable(), path: z.string() }),

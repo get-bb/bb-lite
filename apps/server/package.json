@@ -24,6 +24,8 @@
     "@bb/server-contract": "workspace:*",
     "@bb/thread-view": "workspace:*",
     "@hono/node-server": "^1.19.11",
+    "@tailwindcss/node": "^4.3.0",
+    "@tailwindcss/oxide": "^4.3.0",
     "better-sqlite3": "12.10.0",
     "esbuild": "^0.28.0",
     "hono": "^4.7.0",
