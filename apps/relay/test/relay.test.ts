@@ -30,6 +30,42 @@ const PEOPLE: Record<string, { id: number; email: string | null }> = {
   guest: { id: 3, email: null },
 };
 
+const BUILT = process.env.RELAY_BUILT === "1";
+const DIST = fileURLToPath(new URL("../dist", import.meta.url));
+
+async function sourceWorker() {
+  const bundle = await build({
+    entryPoints: [WORKER],
+    bundle: true,
+    format: "esm",
+    write: false,
+    conditions: ["source"],
+    external: ["cloudflare:workers"],
+    target: "es2022",
+    logLevel: "silent",
+  });
+  const contents = bundle.outputFiles[0]?.text ?? "";
+  const worker = { type: "ESModule", path: "worker.mjs", contents } as const;
+  return { modules: [worker] };
+}
+
+function builtWorker() {
+  return {
+    modules: true,
+    modulesRoot: join(DIST, "server"),
+    scriptPath: join(DIST, "server/index.js"),
+    modulesRules: [{ type: "ESModule", include: ["**/*.js"] }] as const,
+    assets: {
+      directory: join(DIST, "client"),
+      binding: "ASSETS",
+      routerConfig: {
+        has_user_worker: true,
+        invoke_user_worker_ahead_of_assets: true,
+      },
+    },
+  };
+}
+
 const lookup = dns.lookup.bind(dns) as (...args: unknown[]) => void;
 
 function resolveRelayNamesLocally() {
@@ -93,27 +129,11 @@ async function fakeGithub() {
 
 async function startRelay(overrides: Record<string, string> = {}) {
   resolveRelayNamesLocally();
-  const bundle = await build({
-    entryPoints: [WORKER],
-    bundle: true,
-    format: "esm",
-    write: false,
-    conditions: ["source"],
-    external: ["cloudflare:workers"],
-    target: "es2022",
-    logLevel: "silent",
-  });
   const port = await freePort();
   const baseHost = `${BASE}:${port}`;
   const github = await fakeGithub();
   const relay = new Miniflare({
-    modules: [
-      {
-        type: "ESModule",
-        path: "worker.mjs",
-        contents: bundle.outputFiles[0]?.text ?? "",
-      },
-    ],
+    ...(BUILT ? builtWorker() : await sourceWorker()),
     compatibilityDate: "2026-06-11",
     compatibilityFlags: ["nodejs_compat"],
     durableObjects: { TUNNEL_DO: { className: "TunnelDO", useSQLite: true } },
@@ -229,11 +249,13 @@ async function startLinkedServer() {
   const alice = await account(relay.apex, "Alice");
   const started = await cli("login", "--json");
   const { userCode, verificationUrl } = started.login as Record<string, string>;
-  const consent = await alice.visit(verificationUrl ?? "");
-  expect(consent.text).toContain(userCode);
+  const dashboard = `${relay.apex}/api/dashboard`;
+  const { search } = new URL(verificationUrl ?? "");
+  const consent = await alice.visit(`${dashboard}/link${search}`);
+  expect(consent.body).toMatchObject({ userCode, suggestedLabel: "alice" });
   const approval = { code: userCode, label: "bee", action: "approve" };
-  const approved = await alice.visit(`${relay.apex}/link`, { form: approval });
-  expect(approved.text).toContain("Connected");
+  const approved = await alice.visit(`${dashboard}/link`, { json: approval });
+  expect(approved.body).toEqual({ url: relay.origin("bee") });
   await vi.waitFor(
     async () => expect((await cli("status", "--json")).state).toBe("connected"),
     { timeout: 10_000, interval: 200 },
@@ -410,33 +432,42 @@ it("keeps relay sessions away from servers and shares", async () => {
 it("signs people in with GitHub and only lets approved accounts link", async () => {
   const relay = await startRelay();
   const { apex } = relay;
-  const login = await browser().visit(`${apex}/login?next=/link`);
-  expect(login.text).toContain('href="/auth/github?next=%2Flink"');
+  const dashboard = `${apex}/api/dashboard`;
   const forged = browser();
   await forged.visit(`${apex}/auth/github`);
   const replay = `${apex}/auth/github/callback?code=alice&state=st_guessed`;
-  expect((await forged.visit(replay)).status).toBe(400);
-  expect((await signIn(browser(), apex, "nobody")).status).toBe(502);
+  const replayed = await forged.visit(replay);
+  expect(replayed.headers.get("location")).toBe("/login?error=expired");
+  const unknown = await signIn(browser(), apex, "nobody");
+  expect(unknown.headers.get("location")).toBe("/login?error=github");
   const admin = await account(apex, "Alice");
   const guest = await account(apex, "Guest");
   const again = await account(apex, "Guest");
-  expect((await again.visit(apex)).text).toContain("@guest");
+  expect((await again.visit(dashboard)).body).toMatchObject({
+    viewer: { login: "guest", admin: false, canHost: false },
+    people: [],
+  });
   const start = { json: { clientName: "laptop" }, headers: { origin: "" } };
   const begun = await browser().visit(`${apex}/api/account/link/start`, start);
-  const verificationUrl = String(begun.body.verificationUrl);
-  expect((await guest.visit(verificationUrl)).status).toBe(403);
-  const signedOut = await browser().visit(verificationUrl);
-  expect(signedOut.headers.get("location")).toContain("/login?next=");
-  const home = await admin.visit(apex);
-  expect(home.text.match(/name="userId"/gu)).toHaveLength(1);
-  const guestId = /name="userId" value="(ru_[a-z0-9]+)"/u.exec(home.text)?.[1];
-  const grant = { userId: guestId, allow: "1" };
-  const denied = await guest.visit(`${apex}/admin/hosting`, { form: grant });
-  expect(denied.status).toBe(403);
-  await admin.visit(`${apex}/admin/hosting`, { form: grant });
-  expect((await guest.visit(verificationUrl)).status).toBe(200);
+  const { search } = new URL(String(begun.body.verificationUrl));
+  const consent = `${dashboard}/link${search}`;
+  expect((await guest.visit(consent)).status).toBe(403);
+  expect((await browser().visit(consent)).status).toBe(401);
+  const home = await admin.visit(dashboard);
+  const people = home.body.people as Json[];
+  const others = people.filter((person) => person.self === false);
+  expect(others).toMatchObject([{ login: "guest", canHost: false }]);
+  const grant = `${dashboard}/people/${String(others[0]?.id)}`;
+  const allowed = { json: { canHost: true } };
+  expect((await guest.visit(grant, allowed)).status).toBe(403);
+  const elsewhere = { ...allowed, headers: { origin: "https://evil.test" } };
+  expect((await admin.visit(grant, elsewhere)).status).toBe(403);
+  expect((await admin.visit(grant, allowed)).status).toBe(200);
+  expect((await guest.visit(consent)).body).toMatchObject({
+    clientName: "laptop",
+  });
   const taken = { code: begun.body.userCode, label: "www", action: "approve" };
-  const reserved = await guest.visit(`${apex}/link`, { form: taken });
+  const reserved = await guest.visit(`${dashboard}/link`, { json: taken });
   expect(reserved.status).toBe(400);
   const poll = { json: { deviceCode: begun.body.deviceCode } };
   const pending = await browser().visit(`${apex}/api/account/link/poll`, poll);
@@ -456,7 +487,7 @@ async function rawLink(relay: { apex: string; origin(name: string): string }) {
     label: "raw",
     action: "approve",
   };
-  await alice.visit(`${relay.apex}/link`, { form: approval });
+  await alice.visit(`${relay.apex}/api/dashboard/link`, { json: approval });
   const poll = { json: { deviceCode: begun.body.deviceCode } };
   const polled = await browser().visit(`${api}/poll`, poll);
   const credential = String(polled.body.credential);
@@ -534,10 +565,11 @@ it("answers within its deadline and keeps account pages on their own cookie", as
   const shadowed = browser();
   const session = alice.jar.get("bbr_session") ?? "";
   shadowed.jar.set("bbr_session", session);
-  const home = await shadowed.visit(relay.apex);
-  expect(home.headers.get("location")).toContain("/login");
+  const home = await shadowed.visit(`${relay.apex}/api/dashboard`);
+  expect(home.status).toBe(401);
   expect((await shadowed.visit(`${address}/x`)).status).not.toBe(401);
-  expect((await alice.visit(relay.apex)).text).toContain("@alice");
+  const mine = await alice.visit(`${relay.apex}/api/dashboard`);
+  expect(mine.body.viewer).toMatchObject({ login: "alice" });
 });
 
 async function fakeFly() {
@@ -633,15 +665,21 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
       .first<Json>();
   const alice = await account(apex, "Alice");
   const bo = await account(apex, "Bo");
-  expect((await alice.visit(apex)).text).toContain('action="/hosted/create"');
-  expect((await bo.visit(apex)).text).not.toContain("/hosted/create");
-  const wanted = { form: { label: "cloud" } };
-  const refused = await bo.visit(`${apex}/hosted/create`, wanted);
+  const dashboard = `${apex}/api/dashboard`;
+  const hosted = async (person = alice) =>
+    (await person.visit(dashboard)).body as {
+      hosting: Json;
+      servers: Json[];
+    };
+  expect((await hosted()).hosting).toMatchObject({ canCreate: true });
+  expect((await hosted(bo)).hosting).toMatchObject({ canCreate: false });
+  const wanted = { json: { label: "cloud" } };
+  const refused = await bo.visit(`${dashboard}/servers`, wanted);
   expect(refused.status).toBe(403);
 
-  const created = await alice.visit(`${apex}/hosted/create`, wanted);
-  expect(created.status, created.text).toBe(303);
-  expect(created.headers.get("location")).toBe(cloud);
+  const created = await alice.visit(`${dashboard}/servers`, wanted);
+  expect(created.status, created.text).toBe(200);
+  expect(created.body).toEqual({ url: cloud });
   const app = String((await row())?.hosted_app);
   expect(app).toMatch(/^bb-next-[a-z0-9]{12}$/u);
   expect(fly.calls).toEqual([
@@ -662,9 +700,8 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
     },
     { timeout: 10_000, interval: 200 },
   );
-  const second = await alice.visit(`${apex}/hosted/create`, {
-    form: { label: "other" },
-  });
+  const other = { json: { label: "other" } };
+  const second = await alice.visit(`${dashboard}/servers`, other);
   expect(second.status).toBe(409);
 
   const env = fly.machine.config.env as Record<string, string>;
@@ -678,14 +715,19 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
   expect(noted.body).toEqual({ ok: true });
   expect(Number((await row())?.active_at)).toBeGreaterThan(1);
 
-  const home = await alice.visit(apex);
-  expect(home.text).toContain("Put to sleep");
-  const serverId = /name="serverId" value="(srv_[a-z0-9]+)"/u.exec(
-    home.text,
-  )?.[1];
-  const mine = { form: { serverId } };
-  expect((await bo.visit(`${apex}/hosted/stop`, mine)).status).toBe(403);
-  expect((await alice.visit(`${apex}/hosted/stop`, mine)).status).toBe(303);
+  const [listed] = (await hosted()).servers;
+  expect(listed).toMatchObject({
+    label: "cloud",
+    hosted: true,
+    state: "running",
+    version: "1",
+    update: null,
+  });
+  const server = `${dashboard}/servers/${String(listed?.id)}`;
+  const act = (action: string, person = alice) =>
+    person.visit(`${server}/${action}`, { json: {} });
+  expect((await act("sleep", bo)).status).toBe(404);
+  expect((await act("sleep")).status).toBe(200);
   expect(fly.calls.at(-1)).toBe(`POST /apps/${app}/machines/mach_1/stop`);
   expect(await alice.visit(session)).toMatchObject({
     status: 503,
@@ -716,10 +758,10 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
       .prepare("INSERT OR REPLACE INTO settings VALUES ('hosted_image', ?)")
       .bind(image)
       .run();
-  expect((await alice.visit(apex)).text).not.toContain("Update now");
+  expect((await hosted()).servers).toMatchObject([{ update: null }]);
   await publish("registry.test/bb:2");
-  expect((await alice.visit(apex)).text).toContain("Update now");
-  expect((await alice.visit(`${apex}/hosted/update`, mine)).status).toBe(303);
+  expect((await hosted()).servers).toMatchObject([{ update: "2" }]);
+  expect((await act("update")).status).toBe(200);
   expect(fly.calls.slice(-2)).toEqual([
     `GET /apps/${app}/machines/mach_1`,
     `POST /apps/${app}/machines/mach_1`,
@@ -755,4 +797,33 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
   expect(fly.calls.at(-1)).toBe(`DELETE /apps/${app}`);
   expect(await row()).toBeNull();
   expect((await alice.visit(`${cloud}/`, page)).status).toBe(404);
+});
+
+it.runIf(BUILT)("serves the app from the deployed bundle", async () => {
+  const linked = await startLinkedServer();
+  const { alice, apex, bee } = linked;
+  const page = { headers: { accept: "text/html" } };
+  const login = await browser().visit(`${apex}/login?next=/link`, page);
+  expect(login.status).toBe(200);
+  expect(login.text).toContain("Continue with GitHub");
+  expect(login.text).toContain('href="/auth/github?next=%2Flink"');
+  const stylesheet = /href="(\/assets\/[^"]+\.css)"/u.exec(login.text)?.[1];
+  const styles = await browser().visit(`${apex}${stylesheet}`);
+  expect(styles.headers.get("content-type")).toContain("text/css");
+  const elsewhere = await alice.visit(`${bee}${stylesheet}`);
+  expect(elsewhere.headers.get("content-type") ?? "").not.toContain("text/css");
+  const signedOut = await browser().visit(apex, page);
+  expect(signedOut.headers.get("location")).toBe("/login");
+  const home = await alice.visit(apex, page);
+  expect(home.status).toBe(200);
+  expect(home.text).toContain("Alice");
+  expect(home.text).toContain("Linked from");
+  const begun = await browser().visit(`${apex}/api/account/link/start`, {
+    json: { clientName: "laptop" },
+    headers: { origin: "" },
+  });
+  const consent = await alice.visit(String(begun.body.verificationUrl), page);
+  expect(consent.text).toContain(String(begun.body.userCode));
+  const missing = await alice.visit(`${apex}/nowhere`, page);
+  expect(missing.status).toBe(404);
 });

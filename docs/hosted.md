@@ -23,7 +23,7 @@ code it runs that a self-hosted one does not is in the connect plugin (below).
 
 `servers.hosted_state` is `NULL` for a server someone linked themselves, else:
 
-- `creating` → `running`. `POST /hosted/create` (dashboard form) checks the account may host and has
+- `creating` → `running`. `POST /api/dashboard/servers` (the dashboard's form) checks the account may host and has
   fewer than `HOSTED_PER_ACCOUNT` hosted servers, inserts the server with a fresh credential, then asks
   Fly for the app, the volume and the machine. The machine's environment carries `BB_CONNECT_LINK`, the
   link `bb connect login` would have produced, so the server dials the relay on its first start. The

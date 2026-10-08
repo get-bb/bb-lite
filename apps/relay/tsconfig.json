@@ -8,5 +8,6 @@
     "lib": ["ES2022"],
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/server.ts"]
 }

@@ -16,6 +16,7 @@
     ".codex/",
     ".claude/",
     "pnpm-lock.yaml",
+    "routeTree.gen.ts",
     "plugins/provider-codex/src/generated/",
     "packages/plugin-registry/r/",
     ".bb/skills/verify-bb/inventory.json",

@@ -68,8 +68,9 @@ async function toTunnel(
   const replayable = REPLAYABLE_METHODS.includes(request.method);
   for (let attempt = 0; ; attempt += 1) {
     const stub = site.tunnelStub(context, serverId);
+    const outgoing = replayable ? new Request(request) : request;
     try {
-      return await stub.fetch(replayable ? request.clone() : request);
+      return await stub.fetch(outgoing);
     } catch {
       const delay = TUNNEL_RETRY_DELAYS_MS[attempt];
       if (!replayable || delay === undefined) return offline();
@@ -167,11 +168,8 @@ async function gate(
   const { label, port } = address;
   const server = await store.serverByLabel(context.db, label);
   if (server === null) {
-    return pages.notice(
-      "No bb server here",
-      "Nothing is linked to this address.",
-      404,
-    );
+    const message = "Nothing is linked to this address.";
+    return pages.notice("No bb server here", message, 404, context.apexOrigin);
   }
   if (path === "/__tunnel" && port === null) {
     return openTunnel(request, context, server, ctx, progress);
@@ -247,28 +245,34 @@ async function gate(
   return hosted.offline(context, server, owner, page, ctx) ?? answer;
 }
 
+export async function route(
+  request: Request,
+  env: site.Env,
+  ctx: ExecutionContext,
+): Promise<Response | null> {
+  const context = site.siteOf(request, env);
+  const host = new URL(request.url).host.toLowerCase();
+  const { baseHost, apexOrigin } = context;
+  if (host === baseHost) return apex(request, context);
+  if (host === `www.${baseHost}`) return Response.redirect(apexOrigin, 302);
+  const address = addressOf(host, baseHost);
+  if (address === null) {
+    const message = "This is not a bb-next address.";
+    return pages.notice("Not found", message, 404, apexOrigin);
+  }
+  return withinDeadline(context, ctx, (progress) =>
+    gate(request, context, address, ctx, progress),
+  );
+}
+
+export async function scheduled(env: site.Env): Promise<void> {
+  await hosted.sweep(env);
+}
+
 export default {
-  async fetch(
-    request: Request,
-    env: site.Env,
-    ctx: ExecutionContext,
-  ): Promise<Response> {
-    const context = site.siteOf(request, env);
-    const host = new URL(request.url).host.toLowerCase();
-    const { baseHost } = context;
-    if (host === baseHost) return apex(request, context);
-    if (host === `www.${baseHost}`) {
-      return Response.redirect(context.apexOrigin, 302);
-    }
-    const address = addressOf(host, baseHost);
-    if (address === null) {
-      return pages.notice("Not found", "This is not a bb-next address.", 404);
-    }
-    return withinDeadline(context, ctx, (progress) =>
-      gate(request, context, address, ctx, progress),
-    );
+  async fetch(request, env, ctx): Promise<Response> {
+    const answer = await route(request, env, ctx);
+    return answer ?? site.json({ error: "not_found" }, 404);
   },
-  async scheduled(_event, env): Promise<void> {
-    await hosted.sweep(env);
-  },
+  scheduled: (_event, env) => scheduled(env),
 } satisfies ExportedHandler<site.Env>;

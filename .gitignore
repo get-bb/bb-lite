@@ -16,3 +16,4 @@ bundle-stats.json
 
 /target/
 .wrangler/
+.dev.vars

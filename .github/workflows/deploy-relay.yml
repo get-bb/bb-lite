@@ -6,6 +6,7 @@ on:
     paths:
       - "apps/relay/**"
       - "packages/tunnel-contract/**"
+      - "packages/shared-ui/**"
       - ".github/workflows/deploy-relay.yml"
   workflow_dispatch:
 
@@ -42,6 +43,12 @@ jobs:
       - name: Test the relay against a real bb server
         run: pnpm exec vitest run apps/relay
 
+      - name: Build the Worker and its app
+        run: pnpm --filter @bb/relay build
+
+      - name: Test the built Worker
+        run: RELAY_BUILT=1 pnpm exec vitest run apps/relay
+
       - name: Require the Cloudflare token
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
@@ -51,7 +58,7 @@ jobs:
 
       - name: Apply database migrations
         working-directory: apps/relay
-        run: pnpm exec wrangler d1 migrations apply bb-next --remote
+        run: pnpm exec wrangler d1 migrations apply bb-next --remote --config wrangler.jsonc
 
       - name: Deploy the Worker
         working-directory: apps/relay

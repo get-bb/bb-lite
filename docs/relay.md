@@ -74,24 +74,48 @@ Failure handling, ported from the getbb.app gate:
 - **Backpressure.** The tunnel client (`packages/tunnel-client`) stops reading a local response while
   more than 1 MiB is waiting on the tunnel socket.
 
+## The app
+
+The pages on the apex (`/`, `/login`, `/link`) are a TanStack Start app in `apps/relay/app`, rendered
+on the Worker and hydrated in the browser. It uses the bb app's components (`@bb/shared-ui`) and its
+theme (`packages/shared-ui/src/theme.css`, which `apps/app` imports too) and follows the system's
+light or dark setting.
+
+- `src/server.ts` is the Worker's entry. It asks the relay first (`route` in `src/worker.ts`: every
+  server address, `/api/*`, `/auth/github*`), then the app's static assets, then the Start handler.
+  Assets are served by the Worker, not ahead of it (`run_worker_first`), so a request for `/assets/…`
+  on a server's address still reaches that server.
+- The app reads through server functions (`app/data.ts`) that call the relay's own code, and writes
+  with `fetch` to the dashboard API below, then reloads its route.
+- `/api/dashboard` (`src/dashboard.ts`) is the account API the app and the tests share: `GET` answers
+  the signed-in account's servers, people (admin only) and what it may create; `GET /link?code=` and
+  `POST /link` show and answer a `bb connect login` request; `POST /servers` creates a hosted server
+  and `POST /servers/<id>/{wake,sleep,update,delete}` acts on one; `POST /people/<id>` lets the admin
+  allow or revoke hosting; `POST /logout` signs out. It trusts only the host-only account cookie, and a
+  `POST` must carry the apex as its `Origin`.
+- The pages the gate answers with on a server's address (starting, asleep, nothing here) cannot load
+  the app, so `src/pages.ts` keeps them as self-contained HTML in the same colours.
+
 ## Running it
 
-- Tests: `pnpm exec vitest run apps/relay` bundles the Worker, runs it in Miniflare and drives it with a
-  real bb server and the real connect plugin.
-- Locally: `wrangler d1 migrations apply bb-next --local`, then
-  `wrangler dev --port 8799 --var BASE_DOMAIN:relay.localhost:8799`, and start a bb server with
-  `BB_CONNECT_BASE_URL=http://relay.localhost:8799`.
+- Tests: `pnpm exec vitest run apps/relay` bundles the relay without its app, runs it in Miniflare and
+  drives it with a real bb server and the real connect plugin. After `pnpm --filter @bb/relay build`,
+  `RELAY_BUILT=1 pnpm exec vitest run apps/relay` runs the same tests against the built Worker, plus
+  one that loads the app's pages.
+- Locally: `wrangler d1 migrations apply bb-next --local --config wrangler.jsonc`, put
+  `BASE_DOMAIN=localhost:5173` (and GitHub or Fly settings to try those) in `apps/relay/.dev.vars`, then
+  `pnpm --filter @bb/relay dev`. Start a bb server with `BB_CONNECT_BASE_URL=http://localhost:5173`.
 - Deployed as the Worker `bb-next` with the D1 database `bb-next` on `getbb.dev`
   (`apps/relay/wrangler.jsonc`): the apex is a custom domain and `*.getbb.dev/*` is a zone route.
-  `wrangler deploy` from `apps/relay` ships a new version; `wrangler d1 migrations apply bb-next
---remote` applies new migrations. The route only works with a proxied wildcard DNS record
-  (`AAAA * 100::`) on the zone, which needs DNS edit rights. bb connect defaults to
+  `pnpm --filter @bb/relay run deploy` builds and ships a new version; `wrangler d1 migrations apply
+bb-next --remote --config wrangler.jsonc` applies new migrations. The route only works with a proxied
+  wildcard DNS record (`AAAA * 100::`) on the zone, which needs DNS edit rights. bb connect defaults to
   `https://getbb.dev`; `BB_CONNECT_BASE_URL` points a server at another relay.
-- `.github/workflows/deploy-relay.yml` does the same on every push to `main` that touches `apps/relay`
-  or `packages/tunnel-contract` (and on demand): typecheck, the relay tests, migrations, deploy, then a
-  check that `/login` answers. It needs the repository secret `CLOUDFLARE_API_TOKEN` (Workers Scripts,
-  Workers Routes and D1 edit).
+- `.github/workflows/deploy-relay.yml` does the same on every push to `main` that touches `apps/relay`,
+  `packages/tunnel-contract` or `packages/shared-ui` (and on demand): typecheck, the relay tests, the
+  build, the tests again on the built Worker, migrations, deploy, then a check that `/login` answers.
+  It needs the repository secret `CLOUDFLARE_API_TOKEN` (Workers Scripts, Workers Routes and D1 edit).
 
 ## Not there yet
 
-Other sign-in providers; public or member-visible shares; an account page beyond the server list.
+Other sign-in providers; public or member-visible shares.

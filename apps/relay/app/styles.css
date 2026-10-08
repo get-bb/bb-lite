@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../../../packages/shared-ui/src/theme.css";
+@import "@fontsource-variable/inter";
+@source ".";
+@source "../../../packages/shared-ui/src";
+
+@layer base {
+  html,
+  body {
+    min-height: 100dvh;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss03";
+  }
+}

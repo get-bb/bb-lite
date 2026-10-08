@@ -1,31 +1,30 @@
-import type { Server, User } from "./store.js";
-
 const STYLE = `
-  :root { color-scheme: light dark; --line: #8884; --dim: #888; }
+  :root { color-scheme: light dark; --canvas: #fff; --ink: #333;
+    --dim: #5c5c5c; --line: #dedede; }
+  @media (prefers-color-scheme: dark) { :root { --canvas: #161616;
+    --ink: #c8c8c8; --dim: #939393; --line: #333; } }
   * { box-sizing: border-box; }
-  body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 48px 20px;
-    display: flex; justify-content: center; }
-  main { width: 100%; max-width: 420px; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  p { margin: 0 0 16px; } .dim { color: var(--dim); }
-  form.card, section { border: 1px solid var(--line); border-radius: 10px;
-    padding: 16px; margin: 0 0 16px; }
-  label { display: block; font-weight: 600; margin: 0 0 12px; }
-  input { display: block; width: 100%; font: inherit; padding: 8px 10px;
-    margin-top: 4px; border: 1px solid var(--line); border-radius: 8px;
-    background: transparent; color: inherit; }
-  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 0;
-    background: #222; color: #fff; cursor: pointer; }
-  a.button { display: block; text-align: center; text-decoration: none;
-    padding: 8px 14px; border-radius: 8px; background: #222; color: #fff; }
-  button.quiet { background: transparent; color: inherit;
-    border: 1px solid var(--line); }
-  @media (prefers-color-scheme: dark) {
-    button, a.button { background: #eee; color: #111; } }
-  .error { color: #c33; } .row { display: flex; gap: 8px; align-items: center;
-    justify-content: space-between; padding: 6px 0; }
-  code { font-size: 13px; } a { color: inherit; }
+  html, body { height: 100%; }
+  body { margin: 0; padding: 48px 20px; display: grid; place-items: center;
+    background: var(--canvas); color: var(--ink);
+    font: 14px/1.5 "Inter Variable", Inter, ui-sans-serif, system-ui,
+      -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  main { width: 100%; max-width: 384px; }
+  .mark { display: block; height: 24px; width: auto; margin: 0 0 24px; }
+  h1 { font-size: 20px; line-height: 1.3; font-weight: 600;
+    letter-spacing: -0.015em; margin: 0 0 8px; }
+  p { margin: 0; color: var(--dim); }
+  a { color: var(--ink); text-underline-offset: 4px; }
+  .foot { margin-top: 24px; }
+  .spinner { width: 20px; height: 20px; margin: 24px 0 0; border-radius: 50%;
+    border: 2px solid var(--line); border-top-color: var(--ink);
+    animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 `;
+const MARK = `<svg class="mark" viewBox="-8 -8 507 405" aria-hidden="true">
+<path fill="currentColor" fill-rule="evenodd" d="M243.173 132.901C209.16 110.325 161.732 109.355 117.39 127.537L138.53 49.419C143.962 29.344 132.062 8.673 111.974 3.291 91.943-2.077 71.348 9.793 65.95 29.816L8.449 243.115 8.431 243.11C-5.35 287.398 2.824 332.057 34.741 360.27 81.38 401.497 162.048 392.94 221.66 343.061 226.111 349.8 231.053 354.963 237.39 360.565 287.404 404.775 376.886 391.327 437.242 330.885 497.598 270.443 506.288 185.578 456.275 141.368 422.463 111.479 370.582 107.952 321.904 127.469L342.81 49.115C348.113 29.238 336.312 8.822 316.441 3.498 296.555-1.831 276.113 9.971 270.785 29.857L243.173 132.901ZM279.815 258.612C282.467 247.201 289.832 224.61 297.282 213.521 323.555 175.201 369.028 158.632 398.847 176.515 428.666 194.398 431.54 239.961 405.266 278.281L404.647 279.174C378.283 316.857 333.288 333.029 303.702 315.286 285.262 304.227 277.126 282.582 279.815 258.612ZM219.168 226.258C218.73 242.98 212.813 261.289 201.226 278.189L200.608 279.083C174.244 316.766 129.249 332.936 99.663 315.193 70.077 297.449 67.626 251.559 93.243 213.428 119.516 175.108 164.988 158.541 194.807 176.423 210.476 185.82 218.698 206.643 219.168 226.258Z"/>
+</svg>`;
 
 export function escapeHtml(text: string): string {
   return text
@@ -36,11 +35,11 @@ export function escapeHtml(text: string): string {
     .replace(/'/gu, "&#39;");
 }
 
-export function page(title: string, body: string, status = 200): Response {
+function page(title: string, head: string, body: string, status: number) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">${head}
 <title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
-<body><main>${body}</main></body></html>`;
+<body><main>${MARK}${body}</main></body></html>`;
   const headers = {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
@@ -50,183 +49,28 @@ export function page(title: string, body: string, status = 200): Response {
   return new Response(html, { status, headers });
 }
 
-function field(label: string, name: string, attributes: string) {
-  return `<label>${label}<input name="${name}" ${attributes} required></label>`;
-}
-
-function failure(error: string | null) {
-  return error === null ? "" : `<p class="error">${escapeHtml(error)}</p>`;
-}
-
-export function signInPage(
-  next: string,
-  error: string | null = null,
+export function notice(
+  title: string,
+  message: string,
   status = 200,
-): Response {
-  const title = "Sign in to bb-next";
-  const query = next === "" ? "" : `?next=${encodeURIComponent(next)}`;
-  const body = `<h1>${title}</h1>
-<p class="dim">One account for every bb server you reach through getbb.dev.</p>
-${failure(error)}
-<section><a class="button" href="/auth/github${escapeHtml(query)}">
-Continue with GitHub</a></section>`;
-  return page(title, body, status);
-}
-
-export function linkPage(
-  link: { userCode: string; clientName: string; suggestedLabel: string },
-  baseHost: string,
-  error: string | null = null,
-  status = 200,
-): Response {
-  const code = escapeHtml(link.userCode);
-  const label = escapeHtml(link.suggestedLabel);
-  const attributes = `value="${label}" pattern="${LABEL_PATTERN}" maxlength="32"`;
-  const body = `<h1>Connect a bb server</h1>
-<p class="dim"><code>${escapeHtml(link.clientName)}</code> wants to be reachable
-through this relay. Only approve if you just ran <code>bb connect login</code>
-and it shows the code <code>${code}</code>.</p>
-${failure(error)}
-<form class="card" method="post" action="/link">
-<input type="hidden" name="code" value="${code}">
-${field(`Address (.${escapeHtml(baseHost)})`, "label", attributes)}
-<div class="row"><button type="submit" name="action" value="approve">Approve
-</button><button class="quiet" type="submit" name="action" value="deny"
-formnovalidate>Deny</button></div></form>`;
-  return page("Connect a bb server", body, status);
-}
-
-export function notice(title: string, message: string, status = 200) {
+  home: string | null = null,
+) {
+  const foot =
+    home === null
+      ? ""
+      : `<p class="foot"><a href="${escapeHtml(home)}">Your servers</a></p>`;
   const body = `<h1>${escapeHtml(title)}</h1>
-<p class="dim">${escapeHtml(message)}</p><p><a href="/">Back</a></p>`;
-  return page(title, body, status);
+<p>${escapeHtml(message)}</p>${foot}`;
+  return page(title, "", body, status);
 }
 
 export function startingPage(): Response {
   const title = "Starting your bb server";
   const body = `<h1>${title}</h1>
-<p class="dim">This takes a few seconds. The page reloads by itself.</p>
-<meta http-equiv="refresh" content="3">`;
-  const response = page(title, body, 503);
+<p>This takes a few seconds. The page reloads by itself.</p>
+<div class="spinner" role="status" aria-label="Starting"></div>`;
+  const refresh = '<meta http-equiv="refresh" content="3">';
+  const response = page(title, refresh, body, 503);
   response.headers.set("retry-after", "3");
   return response;
-}
-
-export interface HostingView {
-  baseHost: string;
-  canCreate: boolean;
-  suggestedLabel: string;
-  deleteAfterMs: number;
-  image: string;
-}
-
-const LABEL_PATTERN = "[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?";
-
-function hostedAction(server: Server, action: string, label: string) {
-  const confirm =
-    action === "delete"
-      ? ` onsubmit="return confirm('Delete this server and everything on it?')"`
-      : action === "update"
-        ? ` onsubmit="return confirm('Restart this server on the new version?')"`
-        : "";
-  return `<form method="post" action="/hosted/${action}"${confirm}>
-<input type="hidden" name="serverId" value="${escapeHtml(server.id)}">
-<button class="quiet" type="submit">${label}</button></form>`;
-}
-
-function versionOf(image: string | null) {
-  const tag = /[:@]([^:@/]+)$/u.exec(image ?? "")?.[1] ?? "unknown";
-  return /^[0-9a-f]{40}$/u.test(tag) ? tag.slice(0, 7) : tag;
-}
-
-function hostedRow(server: Server, view: HostingView) {
-  const { deleteAfterMs, image } = view;
-  const state = server.hosted_state;
-  if (state === null) return "";
-  const settled = state === "running" || state === "stopped";
-  const outdated = settled && server.hosted_image !== image;
-  const version = `Version ${versionOf(server.hosted_image)}.`;
-  const upgrade = outdated
-    ? `<p class="dim">${escapeHtml(version)} Version
-${escapeHtml(versionOf(image))} is installed the next time it wakes, or now;
-the disk is kept.</p>`
-    : settled
-      ? `<p class="dim">${escapeHtml(version)}</p>`
-      : "";
-  const update = outdated ? hostedAction(server, "update", "Update now") : "";
-  const removal = new Date((server.stopped_at ?? 0) + deleteAfterMs);
-  const day = removal.toISOString().slice(0, 10);
-  const note = {
-    creating: "Starting for the first time.",
-    running: "Hosted. It goes to sleep after a day without a visit.",
-    stopped: `Asleep. It is deleted on ${day} unless it is opened.`,
-    failed: `Did not start: ${server.hosted_error ?? "unknown error"}`,
-  }[state];
-  const toggle =
-    state === "running"
-      ? hostedAction(server, "stop", "Put to sleep")
-      : state === "stopped"
-        ? hostedAction(server, "start", "Wake")
-        : "";
-  return `<p class="dim">${escapeHtml(note)}</p>${upgrade}
-<div class="row">${toggle}${update}${hostedAction(server, "delete", "Delete")}
-</div>`;
-}
-
-function createForm(hosting: HostingView) {
-  if (!hosting.canCreate) return "";
-  const label = escapeHtml(hosting.suggestedLabel);
-  const attributes = `value="${label}" pattern="${LABEL_PATTERN}" maxlength="32"`;
-  const address = `Address (.${escapeHtml(hosting.baseHost)})`;
-  return `<form class="card" method="post" action="/hosted/create">
-<strong>Create a hosted server</strong>
-<p class="dim">A bb server that runs in the cloud, at an address of yours.</p>
-${field(address, "label", attributes)}
-<button type="submit">Create</button></form>`;
-}
-
-export function dashboard(
-  user: User,
-  servers: Server[],
-  users: User[],
-  origin: (label: string) => string,
-  view: HostingView,
-): Response {
-  const rows = servers.map((server) => {
-    const url = origin(server.label);
-    const linked = server.credential_hash === null ? "signed out" : "linked";
-    const state = server.hosted_state ?? linked;
-    return `<div class="row"><a href="${url}">${escapeHtml(url)}</a>
-<span class="dim">${state}</span></div>
-${hostedRow(server, view)}`;
-  });
-  const hosting =
-    user.can_host === 1
-      ? "Run <code>bb connect login</code> on a bb server to link it."
-      : "This account can open bb servers it is invited to. Ask the relay's " +
-        "admin if you want to link a server of your own.";
-  const people = users.map((other) => {
-    const allowed = other.can_host === 1;
-    const action = `<form method="post" action="/admin/hosting">
-<input type="hidden" name="userId" value="${escapeHtml(other.id)}">
-<input type="hidden" name="allow" value="${allowed ? "0" : "1"}">
-<button class="quiet" type="submit">${allowed ? "Revoke" : "Allow"} hosting
-</button></form>`;
-    return `<div class="row"><span>${escapeHtml(other.name)}
-<span class="dim">@${escapeHtml(other.login)}</span></span>
-${other.id === user.id ? '<span class="dim">you</span>' : action}</div>`;
-  });
-  const admin =
-    users.length === 0
-      ? ""
-      : `<section><strong>People</strong>${people.join("")}</section>`;
-  const body = `<h1>bb-next</h1>
-<p class="dim">Signed in as ${escapeHtml(user.name)}
-(@${escapeHtml(user.login)}).</p>
-<section><strong>Your servers</strong>
-${rows.join("") || '<p class="dim">None yet.</p>'}
-<p class="dim">${hosting}</p></section>${createForm(view)}${admin}
-<form method="post" action="/logout"><button class="quiet" type="submit">
-Sign out</button></form>`;
-  return page("bb-next", body);
 }
