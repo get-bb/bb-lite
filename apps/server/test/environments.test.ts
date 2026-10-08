@@ -1,17 +1,24 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
-import { environments as environmentKinds } from "@bb/plugin";
+import {
+  environments as environmentKinds,
+  machines as machineOps,
+} from "@bb/plugin";
 import type {
   CreateThreadRequest,
   UnmanagedBranchSpec,
 } from "@bb/server-contract";
-import { expect, it, vi } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import {
   getEnvironment,
+  getEnvironmentResource,
   listEnvironments,
 } from "@bb/server-kit/db/environments";
+import { updateHost } from "@bb/server-kit/db/hosts";
 import { getThread } from "@bb/server-kit/db/threads";
+import { localRunnerFor } from "@bb/server-kit/runners/local";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import * as helpers from "./helpers.js";
 import { text } from "./thread-harness.js";
 
@@ -310,4 +317,101 @@ it("lets a plugin replace a built-in environment kind", async () => {
     "repo",
   );
   expect(world.environmentOf(restored)).toMatchObject({ path: builtin });
+});
+
+it("lets a plugin kind create its own machine, take inputs and keep state", async () => {
+  const world = await createWorld();
+  const { ctx, db, hostId, reaches, root } = world;
+  const plugin = ctx.kernel.scope("sandboxes", "installed");
+  const seen: string[] = [];
+  plugin.on(machineOps.connected, ({ hostId: id }) => void seen.push(id));
+  const lifecycle: string[] = [];
+  plugin.add(machineOps.provider, {
+    id: "sandbox",
+    displayName: "Sandbox",
+    suspend: ({ resource }) =>
+      void lifecycle.push(`suspend ${String(resource)}`),
+    resume: ({ resource }) => void lifecycle.push(`resume ${String(resource)}`),
+  });
+  const removed: unknown[] = [];
+  plugin.add(environmentKinds.kind, {
+    id: "sandbox",
+    displayName: "Sandbox",
+    validate: (inputs) =>
+      (inputs as { size?: string } | null)?.size === "huge"
+        ? "That size is not offered"
+        : null,
+    async create({ thread, inputs, resource, report }) {
+      report("Starting a sandbox");
+      const enrolled = await plugin.call(machineOps.enroll, {
+        name: `Sandbox for ${thread.id}`,
+        providerId: "sandbox",
+        resource: "box-1",
+      });
+      expect(enrolled.command).toContain("bb runner join");
+      updateHost(db, enrolled.hostId, { phase: "active" });
+      const local = localRunnerFor(ctx.config, {
+        adapters: [createEchoAdapter()],
+      });
+      onTestFinished(local.shutdown);
+      const waiting = plugin.call(machineOps.waitConnected, {
+        hostId: enrolled.hostId,
+      });
+      ctx.runners.connect(enrolled.hostId, local.connect);
+      expect(await waiting).toBe(true);
+      const path = join(root, `sandbox-${thread.id}`);
+      mkdirSync(path);
+      const kept = { inputs, previous: resource, box: "box-1" };
+      return { path, hostId: enrolled.hostId, resource: kept };
+    },
+    async remove(target) {
+      removed.push(target.resource);
+      await plugin.call(machineOps.remove, { hostId: target.hostId });
+    },
+  });
+  const machine = { type: "existing", hostId } as const;
+  const kind = { environmentProviderId: "sandbox", machine };
+  const huge = await world.api.threads.$post({
+    json: {
+      projectId: world.project.id,
+      input: text("hi"),
+      environment: { type: "provider", ...kind, inputs: { size: "huge" } },
+      origin: "app",
+      providerId: "echo",
+      startedOnBehalfOf: null,
+    },
+  });
+  expect(huge.status).toBe(400);
+  const inputs = { size: "small" };
+  const id = await world.spawn({ type: "provider", ...kind, inputs });
+  await reaches(id, "idle");
+  const environment = world.environmentOf(id);
+  const sandboxHost = environment?.hostId ?? "";
+  expect(sandboxHost).not.toBe(hostId);
+  expect(seen).toEqual([sandboxHost]);
+  expect(environment).toMatchObject({ status: "ready", managed: true });
+  const stored = { inputs, previous: null, box: "box-1" };
+  expect(getEnvironmentResource(db, environment?.id ?? "")).toEqual(stored);
+  expect(world.stored(id, "system/thread-provisioning").join()).toContain(
+    "Starting a sandbox",
+  );
+  const got = await plugin.call(environmentKinds.get, {
+    environmentId: environment?.id ?? "",
+  });
+  expect(got?.hostId).toBe(sandboxHost);
+  const hosts = await plugin.call(machineOps.list, {});
+  const listed = hosts.find((host) => host.id === sandboxHost);
+  expect(listed).toMatchObject({ machineProviderId: "sandbox" });
+  await plugin.call(machineOps.suspend, { hostId: sandboxHost });
+  const suspended = (await plugin.call(machineOps.list, {})).find(
+    (host) => host.id === sandboxHost,
+  );
+  expect(suspended?.lifecycle.phase).toBe("suspended");
+  await plugin.call(machineOps.resume, { hostId: sandboxHost });
+  expect(lifecycle).toEqual(["suspend box-1", "resume box-1"]);
+  await ctx.threads.delete(id, { childThreadsConfirmed: true });
+  await ctx.environments.remove(environment?.id ?? "").catch(() => {});
+  await vi.waitFor(() => expect(removed).toEqual([stored]), WAIT);
+  const left = (await plugin.call(machineOps.list, {})).map((host) => host.id);
+  expect(left).not.toContain(sandboxHost);
 });

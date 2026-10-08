@@ -41,8 +41,25 @@ export interface ComposerSendMenuItem {
   run(context: ComposerContext): void;
 }
 
+export type EnvironmentInputsChange =
+  | { status: "ready"; value: unknown }
+  | { status: "blocked"; reason: string };
+
+export interface EnvironmentInputsProps {
+  projectId: string | null;
+  hostId: string | null;
+  value: unknown;
+  onChange(next: EnvironmentInputsChange): void;
+}
+
+export interface EnvironmentInputsForm {
+  kind: string;
+  view: ComponentType<EnvironmentInputsProps>;
+}
+
 export const composer = contract("composer", {
   menuItem: slot<ComposerMenuItem>({ key: "id" }),
   footerControl: slot<ComposerFooterControl>({ key: "id" }),
   sendMenuItem: slot<ComposerSendMenuItem>({ key: "id" }),
+  environmentInputs: slot<EnvironmentInputsForm>({ key: "kind" }),
 });

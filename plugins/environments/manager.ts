@@ -1,10 +1,11 @@
+import { randomUUID } from "node:crypto";
 import type { Environment, JsonValue } from "@bb/domain";
 import {
   environments as environmentKinds,
   type EnvironmentDefinition,
 } from "@bb/plugin";
 import type { z } from "zod";
-import type { PluginVerbs } from "@bb/plugin";
+import type { EnvironmentContext, PluginVerbs } from "@bb/plugin";
 import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/environments";
 import { findHost } from "@bb/server-kit/db/hosts";
@@ -171,15 +172,32 @@ export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
       throw notReady("The thread or its machine no longer exists.");
     }
     const source = getProjectSource(db, projectId, { hostId });
+    const { intent, onProgress } = job;
+    const report: EnvironmentContext["report"] = (text, status = "started") => {
+      const key = `environment-${randomUUID()}`;
+      onProgress([step(key, text, status, now())]);
+    };
     const made = await kind.create({
       thread,
       project: requireProject(db, projectId),
       host: hostResponse(ctx, host),
       checkoutPath: source?.path ?? null,
       branchName: branchNameFor(job.thread),
+      inputs: intent.type === "provider" ? intent.inputs : null,
+      machine: intent.type === "provider" ? intent.machine : null,
+      resource: store.getEnvironmentResource(db, found.id),
+      report,
       signal: job.signal,
     });
-    return made.path;
+    const moved = made.hostId === undefined ? {} : { hostId: made.hostId };
+    const kept =
+      made.resource === undefined
+        ? {}
+        : { resource: JSON.stringify(made.resource) };
+    const named =
+      made.branchName === undefined ? {} : { branchName: made.branchName };
+    store.updateEnvironment(db, found.id, { ...moved, ...kept, ...named });
+    return { path: made.path, hostId: made.hostId ?? hostId };
   }
 
   async function materialize(
@@ -194,13 +212,14 @@ export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
     const kind = kindOf(found);
     if (kind === null) throw notReady(KIND_GONE);
     const made = isBuiltin(kind) ? kind.materialize : undefined;
-    const path =
+    const placed =
       made === undefined
         ? await createWith(kind, found, job)
-        : await made(found, runner, job, base);
+        : { path: await made(found, runner, job, base), hostId };
+    const { path } = placed;
     patch(id, { path, status: "provisioning" });
     job.signal.throwIfAborted();
-    await scripts.setup({ id, hostId, projectId, path }, job);
+    await scripts.setup({ id, hostId: placed.hostId, projectId, path }, job);
     return path;
   }
 
@@ -412,7 +431,8 @@ export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });
         const remove = kindOf(found)?.remove ?? removeManaged;
-        await remove({ hostId, path });
+        const resource = store.getEnvironmentResource(db, id);
+        await remove({ hostId, path, resource });
       }
       const removed = { teardownStatus: "removed", retireAt: null } as const;
       patch(id, { status: "destroyed", ...removed });

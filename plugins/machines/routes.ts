@@ -21,6 +21,7 @@ import {
   invalidRequest,
 } from "@bb/server-kit/http/errors";
 import { principalOf, requireUser } from "@bb/server-kit/http/trust";
+import { destroyMachine, providerOf } from "./provided.js";
 
 interface HostRequest {
   req: { raw: Request; url: string; param(name: "id"): string };
@@ -163,7 +164,7 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
   );
 
   del(routes.delete, async (c) => {
-    const { id, connectMachineId } = managedHost(c);
+    const { id } = managedHost(c);
     if (id === ctx.config.hostId) {
       throw new ApiError(
         400,
@@ -171,18 +172,16 @@ export function registerHostRoutes(app: ApiApp, ctx: ServerContext): void {
         "The server's own machine cannot be removed",
       );
     }
-    const wasConnected = runners.isConnected(id);
-    store.destroyHost(db, id);
+    const host = requireHost(ctx, id);
+    const { provider, machine } = providerOf(ctx, host);
+    await Promise.resolve(provider?.remove?.(machine)).catch(
+      (error: unknown) => {
+        const message = `The machine's provider could not remove it: ${errorMessage(error)}`;
+        throw new ApiError(502, "machine_provider_failed", message);
+      },
+    );
     pendingJoins.delete(id);
-    runners.disconnect(id);
-    if (!wasConnected) hub.host(id, ["host-disconnected"]);
-    const revoking = plugins.machineAccess()?.revoke({ id, connectMachineId });
-    await revoking?.catch((error: unknown) => {
-      ctx.log.warn("Machine access was not revoked", {
-        hostId: id,
-        err: error,
-      });
-    });
+    await destroyMachine(ctx, host);
     return c.json({ ok: true });
   });
 

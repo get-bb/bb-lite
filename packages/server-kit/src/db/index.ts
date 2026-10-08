@@ -60,6 +60,7 @@ const SCHEMA_STEPS = [
   "./schema-users.sql",
   "./schema-audit.sql",
   "./schema-provider-settings.sql",
+  "./schema-machine-providers.sql",
 ];
 
 export function refuseLegacyDatabase(path: string): void {

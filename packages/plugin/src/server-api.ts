@@ -109,8 +109,26 @@ export interface EnvironmentContext {
   host: Domain.Host;
   checkoutPath: string | null;
   branchName: string;
+  inputs: Domain.JsonValue | null;
+  machine: { providerId: string; inputs: Domain.JsonValue | null } | null;
+  resource: Domain.JsonValue | null;
+  report(text: string, status?: "started" | "completed" | "failed"): void;
   signal: AbortSignal;
 }
+
+export interface EnvironmentResult {
+  path: string;
+  hostId?: string;
+  resource?: Domain.JsonValue;
+  branchName?: string;
+}
+
+export interface EnvironmentRemoval {
+  hostId: string;
+  path: string;
+  resource: Domain.JsonValue | null;
+}
+
 export interface EnvironmentRequirements {
   projectCheckout: boolean;
   gitCheckout: boolean;
@@ -125,8 +143,12 @@ export interface EnvironmentDefinition {
   icon?: string;
   requires?: EnvironmentRequirements;
   inputs?: Domain.JsonValue | null;
-  create(context: EnvironmentContext): Promise<{ path: string }>;
-  remove(context: { hostId: string; path: string }): Promise<void>;
+  validate?(
+    inputs: Domain.JsonValue | null,
+    context: { projectId: string; hostId: string },
+  ): MaybePromise<string | null>;
+  create(context: EnvironmentContext): Promise<EnvironmentResult>;
+  remove(context: EnvironmentRemoval): Promise<void>;
 }
 
 export interface InferenceService {

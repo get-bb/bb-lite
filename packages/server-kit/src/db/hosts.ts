@@ -26,6 +26,9 @@ export interface HostRow {
   threadStorageRoot: string | null;
   ownerUserId: string | null;
   sharing: MachineSharing;
+  machineProviderId: string | null;
+  resource: string | null;
+  suspendedAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -37,7 +40,16 @@ type HostLookup =
   | "join_token_hash"
   | "connect_machine_id";
 type NewHost = Pick<HostRow, "id" | "name" | "phase"> &
-  Partial<Pick<HostRow, "statusMessage" | "launchKey" | "ownerUserId">>;
+  Partial<
+    Pick<
+      HostRow,
+      | "statusMessage"
+      | "launchKey"
+      | "ownerUserId"
+      | "machineProviderId"
+      | "resource"
+    >
+  >;
 
 export function findHost(
   db: Db,
@@ -110,10 +122,15 @@ export function toHost(
     name: row.name,
     type: row.type,
     status: status.connected ? "connected" : "disconnected",
-    machineProviderId: status.local ? null : "manual",
+    machineProviderId: status.local
+      ? null
+      : (row.machineProviderId ?? "manual"),
     lifecycle: {
-      phase: row.phase,
-      suspendedAt: null,
+      phase:
+        row.phase === "active" && row.suspendedAt !== null
+          ? "suspended"
+          : row.phase,
+      suspendedAt: row.suspendedAt,
       message: row.statusMessage,
       pendingLog: "",
       teardown: null,

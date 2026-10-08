@@ -37,6 +37,8 @@ type EnvironmentFilter = Omit<ListEnvironmentsQuery, Page> &
   Partial<Record<Page, number>>;
 
 export type EnvironmentPatch = {
+  hostId?: string;
+  resource?: string | null;
   name?: string | null;
   path?: string | null;
   isGitRepo?: boolean;
@@ -258,4 +260,13 @@ export function hasOtherLiveThread(
     threadId,
   );
   return other !== undefined;
+}
+
+export function getEnvironmentResource(
+  db: Db,
+  id: string,
+): domain.JsonValue | null {
+  const sql = "SELECT resource FROM environments WHERE id = ?";
+  const text = db.get<{ resource: string | null }>(sql, id)?.resource;
+  return text == null ? null : (JSON.parse(text) as domain.JsonValue);
 }

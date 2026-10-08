@@ -9,6 +9,13 @@ export const environmentIntentSchema = z.discriminatedUnion("type", [
     environmentProviderId: z.string().min(1),
     hostId: z.string().min(1),
     inputs: jsonValueSchema.nullable(),
+    machine: z
+      .object({
+        providerId: z.string().min(1),
+        inputs: jsonValueSchema.nullable(),
+      })
+      .nullable()
+      .default(null),
   }),
   z.object({ type: z.literal("project-default"), hostId: z.string().min(1) }),
 ]);

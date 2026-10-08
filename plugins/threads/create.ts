@@ -4,7 +4,10 @@ import type {
   ThreadResponse,
 } from "@bb/server-contract";
 import type { Environment, Project } from "@bb/domain";
-import { environments as environmentKinds } from "@bb/plugin";
+import {
+  environments as environmentKinds,
+  machines as machineOps,
+} from "@bb/plugin";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
 import type { ServerContext } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
@@ -75,7 +78,8 @@ function resolveIntent(
     if (environmentProviderId === "personal-workspace" && shared && personal) {
       return { type: "reuse", environmentId: shared.id };
     }
-    return { type: "provider", environmentProviderId, hostId, inputs };
+    const machine = null;
+    return { type: "provider", environmentProviderId, hostId, inputs, machine };
   };
   switch (args.type) {
     case "reuse": {
@@ -92,11 +96,17 @@ function resolveIntent(
     case "provider": {
       const id = args.environmentProviderId;
       const known = ctx.kernel.find(environmentKinds.kind, id) !== null;
-      if (!known || args.machine?.type === "new") {
-        throw invalidRequest("unknown environment provider");
+      if (!known) throw invalidRequest("unknown environment provider");
+      if (args.machine?.type !== "new") {
+        return provided(id, args.machine?.hostId ?? primary, args.inputs);
       }
-      const hostId = args.machine?.hostId ?? primary;
-      return provided(id, hostId, args.inputs);
+      const { machineProviderId: providerId, inputs } = args.machine;
+      if (ctx.kernel.find(machineOps.provider, providerId) === null) {
+        throw invalidRequest("unknown machine provider");
+      }
+      const machine = { providerId, inputs };
+      const base = { type: "provider", environmentProviderId: id } as const;
+      return { ...base, hostId: primary, inputs: args.inputs, machine };
     }
     case "host": {
       const hostId = args.hostId ?? primary;
@@ -152,6 +162,13 @@ export async function createThread(
       ? getEnvironment(db, parent.environmentId)
       : undefined;
   const intent = resolveIntent(ctx, request.environment, project, shared);
+  if (intent.type === "provider") {
+    const { environmentProviderId, inputs } = intent;
+    const kind = ctx.kernel.find(environmentKinds.kind, environmentProviderId);
+    const place = { projectId, hostId: intent.hostId };
+    const refused = await kind?.validate?.(inputs, place);
+    if (typeof refused === "string") throw invalidRequest(refused);
+  }
   const hostId = intentHostId(db, intent);
   assertHostUsable(ctx, hostId);
   const createdByUserId = actorUserId();

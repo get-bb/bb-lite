@@ -3,6 +3,7 @@ import { listHosts } from "@bb/server-kit/db/hosts";
 import { coreOf } from "@bb/server-kit/host";
 import { authenticateRunner } from "@bb/server-kit/runners/enrollment";
 import { ensureLocalHost, hostResponse } from "@bb/server-kit/runners/hosts";
+import { provideMachines } from "./provided.js";
 import { attachRemoteRunner } from "./remote.js";
 import { registerHostRoutes, registerRunnerRoutes } from "./routes.js";
 
@@ -24,5 +25,6 @@ export default function machinesPlugin(bb: PluginServerApi): void {
       hostResponse(ctx, row),
     ),
   );
+  provideMachines(ctx, bb);
   bb.onStart(() => ensureLocalHost(ctx));
 }

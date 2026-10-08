@@ -258,9 +258,83 @@ export const projects = contract("projects", {
   table: table<ProjectTableRow>(),
 });
 
+export interface MachineRef {
+  hostId: string;
+  resource: Domain.JsonValue | null;
+}
+
+export interface MachineProvider {
+  id: string;
+  displayName: string;
+  remove?(machine: MachineRef): void | Promise<void>;
+  suspend?(machine: MachineRef): void | Promise<void>;
+  resume?(machine: MachineRef): void | Promise<void>;
+}
+
+const machineRef = z.object({ hostId: z.string() });
+const MACHINE_WAIT_MAX_MS = 600_000;
+
 export const machines = contract("machines", {
   list: op({ input: none, output: z.array(z.custom<Domain.Host>()) }),
   access: service<MachineAccessProvider>(),
+  provider: slot<MachineProvider>({ key: "id" }),
+  enroll: op({
+    input: z.object({
+      name: z.string().min(1),
+      providerId: z.string().min(1).optional(),
+      resource: Domain.jsonValueSchema.optional(),
+    }),
+    output: z.object({
+      hostId: z.string(),
+      command: z.string(),
+      serverUrl: z.string(),
+      expiresAt: z.number(),
+    }),
+    kind: "write",
+    internal: true,
+  }),
+  waitConnected: op({
+    input: machineRef.extend({
+      timeoutMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(MACHINE_WAIT_MAX_MS)
+        .default(120_000),
+    }),
+    output: z.boolean(),
+    hooks: "observe",
+    internal: true,
+  }),
+  update: op({
+    input: machineRef.extend({
+      name: z.string().min(1).optional(),
+      resource: Domain.jsonValueSchema.optional(),
+    }),
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  suspend: op({
+    input: machineRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  resume: op({
+    input: machineRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  remove: op({
+    input: machineRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  connected: event(machineRef),
+  disconnected: event(machineRef),
 });
 
 export const users = contract("users", {
@@ -319,6 +393,17 @@ export const server = contract("server", {
 
 export const environments = contract("environments", {
   kind: slot<EnvironmentDefinition>({ key: "id" }),
+  get: op({
+    input: z.object({ environmentId: z.string() }),
+    output: z.custom<Domain.Environment>().nullable(),
+  }),
+  list: op({
+    input: z.object({
+      projectId: z.string().optional(),
+      hostId: z.string().optional(),
+    }),
+    output: z.array(z.custom<Domain.Environment>()),
+  }),
 });
 
 export const pluginEventDefs = {

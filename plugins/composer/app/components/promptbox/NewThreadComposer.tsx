@@ -27,7 +27,8 @@ import {
   useAppCommandContext,
   useAppCommandHandler,
 } from "@bb/app-kit/components/commands/AppCommandProvider";
-import type { ComposerContext } from "@bb/plugin/app";
+import { composer, type ComposerContext } from "@bb/plugin/app";
+import { useSlot } from "@bb/app-kit/plugins/slots";
 import {
   ComposerFooterControls,
   type ComposerFooterHost,
@@ -239,6 +240,7 @@ export function useNewThreadComposer({
     if (provider) selectEnvironment(encodeProviderValue(provider.id), hostId);
   };
 
+  const pluginInputs = useSlot(composer.environmentInputs);
   const inputsScopeKey = `${projectId}\0${environmentValue}\0${providerHostId ?? ""}`;
   const [inputsState, setInputsState] = useState<{
     scopeKey: string;
@@ -254,7 +256,8 @@ export function useNewThreadComposer({
         ? WorktreeInputs
         : environmentProvider.id === PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID
           ? CheckoutInputs
-          : undefined;
+          : (pluginInputs.find(({ kind }) => kind === environmentProvider.id)
+              ?.view as typeof CheckoutInputs | undefined);
   const providerInputs: JsonValue | null =
     InputsControl === undefined
       ? null
