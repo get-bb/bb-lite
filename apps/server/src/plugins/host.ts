@@ -61,6 +61,9 @@ export class PluginHost extends PluginRegistry {
     throw new Error("The plugin host has not started");
   };
   onChanged: () => void = () => {};
+  fetch: (request: Request) => Promise<Response> = async () => {
+    throw new Error("The plugin host has not started");
+  };
   private settled: Promise<void> = Promise.resolve();
   private readonly runnerBundles = new Map<string, RunnerPartBundle>();
   private readonly watchers = new Map<string, FSWatcher>();
@@ -339,7 +342,7 @@ export class PluginHost extends PluginRegistry {
     const serverUrl = loopbackUrl(config);
     const server = { dataDir, serverUrl, tunnelToken };
     const { instance, api } = createPluginInstance(
-      { db, hub, log, kernel, ...server, deps: this.deps },
+      { db, hub, log, kernel, ...server, deps: this.deps, fetch: this.fetch },
       id,
       record.external ? "installed" : "product",
     );

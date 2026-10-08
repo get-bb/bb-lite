@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Kernel, Tier } from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
+import { createBbSdk } from "@bb/sdk/core";
 import Database from "better-sqlite3";
 import type { Logger } from "@bb/server-kit/context";
 import type { Db } from "@bb/server-kit/db/index";
 import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
 import { errorMessage } from "@bb/server-kit/http/errors";
-import { currentCaller } from "@bb/server-kit/kernel/caller";
+import { asPlugin, currentCaller } from "@bb/server-kit/kernel/caller";
 import type { Hub } from "@bb/server-kit/ws/hub";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
@@ -27,7 +28,10 @@ export interface PluginApiHost {
   serverUrl: string;
   tunnelToken: string;
   deps: PluginHostDeps;
+  fetch(request: Request): Promise<Response>;
 }
+
+const INNER_ORIGIN = "http://bb.internal";
 
 const KV_VALUE_MAX_BYTES = 256 * 1024;
 const MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS _bb_migrations
@@ -236,6 +240,11 @@ export function createPluginInstance(
       dataDir: host.dataDir,
       tunnelToken: host.tunnelToken,
     },
+    sdk: createBbSdk({
+      baseUrl: INNER_ORIGIN,
+      fetch: (input, init) =>
+        asPlugin(pluginId, () => host.fetch(new Request(input, init))),
+    }),
     onStart: collect(instance.starters),
     onDispose: collect(instance.disposers),
   };

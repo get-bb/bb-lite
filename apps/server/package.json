@@ -21,6 +21,7 @@
     "@bb/plugin": "workspace:*",
     "@bb/profile-default": "workspace:*",
     "@bb/runner": "workspace:*",
+    "@bb/sdk": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/server-kit": "workspace:*",
     "@bb/thread-view": "workspace:*",

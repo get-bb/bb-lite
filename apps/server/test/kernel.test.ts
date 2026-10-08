@@ -509,3 +509,46 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
   expect(kept).toEqual([{ note: "ship it" }]);
   await host.stop();
 });
+
+it("gives a plugin the full client, acting as whoever called it", async () => {
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const threadId = await server.spawn();
+  await server.settle();
+  const helper = contract("helper", {
+    tidy: op({
+      input: z.object({ threadId: z.string() }),
+      output: z.number(),
+      kind: "write",
+    }),
+  });
+  const entry = (bb: PluginServerApi) => {
+    bb.implement(helper.tidy, async (input) => {
+      const projects = await bb.sdk.projects.list();
+      await bb.sdk.threads.archive({ threadId: input.threadId });
+      return projects.length;
+    });
+  };
+  const directory = join(scratch(), "helper");
+  mkdirSync(directory);
+  const manifest = { name: "bb-plugin-helper", bb: { name: "Helper" } };
+  writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+  const host = new PluginHost({
+    ...ctx,
+    builtins: [{ directory, server: entry }],
+  });
+  host.deps = ctx.plugins.deps;
+  host.fetch = ctx.plugins.fetch;
+  await host.reload();
+  const called = await server.http("POST", "/ops/helper.tidy", { threadId });
+  expect(called).toMatchObject({ status: 200, body: { result: 1 } });
+  const archived = (await auditOf(server)).find(
+    (entry) => entry.op === "threads.archive",
+  );
+  expect(archived).toMatchObject({
+    userId: "usr_owner",
+    via: ["helper"],
+    outcome: "ok",
+  });
+  await host.stop();
+});

@@ -1,4 +1,5 @@
 import type * as Domain from "@bb/domain";
+import type { BbSdkAreas } from "@bb/sdk";
 import type * as Contract from "@bb/server-contract";
 import type Database from "better-sqlite3";
 import type { z } from "zod";
@@ -246,6 +247,7 @@ export interface PluginServerApi extends PluginVerbs {
     dataDir: string;
     tunnelToken: string;
   };
+  readonly sdk: BbSdkAreas;
   onStart(start: () => MaybePromise<void | (() => MaybePromise<void>)>): void;
   onDispose(dispose: () => MaybePromise<void>): void;
 }

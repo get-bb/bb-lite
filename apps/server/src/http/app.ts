@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { DOOR_HEADER } from "@bb/plugin";
-import { runAs } from "@bb/server-kit/auth/actor";
+import { DOOR_HEADER, type Caller } from "@bb/plugin";
+import { currentActor, runAs, type Actor } from "@bb/server-kit/auth/actor";
 import type { ServerContext } from "@bb/server-kit/context";
 import {
   findExternalUser,
@@ -12,7 +12,12 @@ import {
   actorOf,
   ownerUser,
 } from "@bb/server-kit/runners/access";
-import { declaredDoor, throughDoor } from "@bb/server-kit/kernel/caller";
+import {
+  currentCaller,
+  declaredDoor,
+  enterCaller,
+  throughDoor,
+} from "@bb/server-kit/kernel/caller";
 import { findRunnerHost } from "@bb/server-kit/runners/enrollment";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 import type { ApiApp, AppEnv, RouteGroup } from "@bb/server-kit/http/api";
@@ -23,6 +28,7 @@ import {
   authorize,
   principals,
   sessionCookieName,
+  type Principal,
   type TrustLookups,
 } from "@bb/server-kit/http/trust";
 
@@ -64,6 +70,18 @@ export class RouteTable {
   }
 }
 
+interface InnerCall {
+  principal: Principal;
+  actor: Actor | null;
+  caller: Caller;
+}
+
+const innerCalls = new WeakMap<Request, InnerCall>();
+
+function identityOf({ userId, role }: Actor) {
+  return { userId, role };
+}
+
 function mount(
   app: ApiApp,
   prefix: string,
@@ -82,6 +100,12 @@ function assemble(ctx: ServerContext, table: RouteTable): ApiApp {
   const app = new Hono<AppEnv>();
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
+    const inner = innerCalls.get(c.req.raw);
+    if (inner !== undefined) {
+      principals.set(c.req.raw, inner.principal);
+      await runAs(inner.actor, () => enterCaller(inner.caller, next));
+      return;
+    }
     const { headers, socket } = c.env.incoming;
     const { method, path } = c.req;
     const request = { method, path, headers, socket };
@@ -101,17 +125,29 @@ function assemble(ctx: ServerContext, table: RouteTable): ApiApp {
   return app;
 }
 
-export function createHttpApp(
-  ctx: ServerContext,
-  table: RouteTable,
-): Pick<ApiApp, "fetch"> {
+export interface HttpApp extends Pick<ApiApp, "fetch"> {
+  inner(request: Request): Promise<Response>;
+}
+
+export function createHttpApp(ctx: ServerContext, table: RouteTable): HttpApp {
   let built: { version: number; app: ApiApp } | undefined;
+  const current = (): ApiApp => {
+    if (built?.version !== table.version) {
+      built = { version: table.version, app: assemble(ctx, table) };
+    }
+    return built.app;
+  };
   return {
-    fetch: (...request) => {
-      if (built?.version !== table.version) {
-        built = { version: table.version, app: assemble(ctx, table) };
-      }
-      return built.app.fetch(...request);
+    fetch: (...request) => current().fetch(...request),
+    async inner(request) {
+      const actor = currentActor();
+      const owner = trustLookups(ctx).ownerUser();
+      const principal: Principal =
+        actor === null
+          ? { kind: "user", userId: owner.id, role: owner.role, implicit: true }
+          : { kind: "user", ...identityOf(actor), implicit: false };
+      innerCalls.set(request, { principal, actor, caller: currentCaller() });
+      return current().fetch(request);
     },
   };
 }
