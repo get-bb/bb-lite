@@ -1,7 +1,6 @@
 import type { User } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { hashPassword, verifyPassword } from "@bb/server-kit/auth/passwords";
-import type { ServerConfig } from "@bb/server-kit/config";
 import type { ServerContext } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/users";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
@@ -16,6 +15,7 @@ import {
   requestCookie,
   requireOwner,
   requireUser,
+  sessionCookieName,
 } from "@bb/server-kit/http/trust";
 
 interface RequestContext {
@@ -31,10 +31,6 @@ interface Attempts {
 const OK = { ok: true } as const;
 const LOGIN_WINDOW_MS = 10 * 60_000;
 const LOGIN_MAX_FAILURES = 10;
-
-export function sessionCookieName(config: ServerConfig): string {
-  return `bb_session_${config.port}`;
-}
 
 function inviteNotFound() {
   return new ApiError(

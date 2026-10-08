@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { closeTerminalsFor } from "../src/terminals/sessions.js";
+import { closeTerminalsFor } from "../../../plugins/terminals/sessions.js";
 import * as helpers from "./helpers.js";
 
 type Chunk = { seq: number; dataBase64: string };

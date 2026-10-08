@@ -15,6 +15,7 @@ import {
   type RunnerPartBundle,
 } from "@bb/runner";
 import { build, type BuildOptions, type Loader, type Plugin } from "esbuild";
+import { SERVER_RUNTIME_GLOBAL, SERVER_RUNTIME_MODULES } from "./runtime.js";
 
 export interface AppBundle {
   js: string;
@@ -213,6 +214,23 @@ const ownLocation: Plugin = {
   },
 };
 
+const SERVER_NAMESPACE = "bb-server-shared";
+
+const hostServerModules: Plugin = {
+  name: "bb-host-server-modules",
+  setup(esbuild) {
+    esbuild.onResolve({ filter: /^@bb\// }, ({ path }) =>
+      path in SERVER_RUNTIME_MODULES
+        ? { path, namespace: SERVER_NAMESPACE }
+        : null,
+    );
+    esbuild.onLoad({ filter: /.*/, namespace: SERVER_NAMESPACE }, (args) => ({
+      contents: `module.exports = globalThis.${SERVER_RUNTIME_GLOBAL}[${JSON.stringify(args.path)}];`,
+      loader: "js",
+    }));
+  },
+};
+
 export function contentHash(text: string) {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
@@ -231,13 +249,16 @@ export async function importServerEntry(
     target: "node22",
     banner: { js: REQUIRE_BANNER },
     define: { "import.meta.url": MODULE_URL },
-    plugins: [hostNativeModules, ownLocation],
+    plugins: [hostNativeModules, hostServerModules, ownLocation],
   });
   const code = result.outputFiles?.[0]?.text ?? "";
   const file = join(cacheDir, `server.${contentHash(code)}.mjs`);
   await mkdir(cacheDir, { recursive: true });
   await writeFile(file, code);
   importCount += 1;
+  Object.assign(globalThis, {
+    [SERVER_RUNTIME_GLOBAL]: SERVER_RUNTIME_MODULES,
+  });
   const url = `${pathToFileURL(file).href}?load=${importCount}`;
   const module: { default?: unknown } = await import(url);
   if (typeof module.default !== "function") {

@@ -1,19 +1,18 @@
-import { terminalWebSocketQuerySchema } from "@bb/server-contract";
 import type { ServerContext } from "@bb/server-kit/context";
-import { getTerminal } from "@bb/server-kit/db/terminals";
-import { ApiError, notFound } from "@bb/server-kit/http/errors";
-import { assertHostUsable } from "@bb/server-kit/runners/access";
-import { authenticateRunner } from "@bb/server-kit/runners/enrollment";
-import { attachRemoteRunner } from "../runners/remote.js";
-import { attachTerminalSocket } from "../terminals/sessions.js";
-import type { SocketResolver } from "./sockets.js";
+import type { SocketOpen, SocketResolver } from "@bb/server-kit/host";
+import { notFound } from "@bb/server-kit/http/errors";
 
-const TERMINAL_PATH = /^\/ws\/terminals\/([^/]+)$/u;
+export type RequiredSocketResolver = (
+  request: Parameters<SocketResolver>[0],
+) => SocketOpen;
 
-export function socketResolver(ctx: ServerContext): SocketResolver {
+export function socketResolver(
+  ctx: ServerContext,
+  resolvers: ReadonlySet<SocketResolver>,
+): RequiredSocketResolver {
   const { hub } = ctx;
-  return ({ url, principal, actor, header }) => {
-    const terminal = TERMINAL_PATH.exec(url.pathname);
+  return (request) => {
+    const { url, actor } = request;
     if (url.pathname === "/ws") {
       return (socket) => {
         hub.connect(socket, actor?.userId ?? null);
@@ -22,25 +21,10 @@ export function socketResolver(ctx: ServerContext): SocketResolver {
         socket.on("error", () => hub.disconnect(socket));
       };
     }
-    if (url.pathname === "/internal/runner/ws") {
-      const authorization = header("authorization");
-      const host = authenticateRunner(ctx.db, { authorization, principal });
-      return (socket) => attachRemoteRunner(ctx, host.id, socket);
+    for (const resolve of resolvers) {
+      const open = resolve(request);
+      if (open !== null) return open;
     }
-    if (terminal === null) throw notFound();
-    const sinceSeq = url.searchParams.get("sinceSeq") ?? undefined;
-    const query = terminalWebSocketQuerySchema.safeParse({ sinceSeq });
-    if (!query.success) {
-      throw new ApiError(
-        400,
-        "invalid_terminal_socket_query",
-        "Terminal websocket sinceSeq must be a non-negative integer",
-      );
-    }
-    const terminalId = decodeURIComponent(terminal[1] ?? "");
-    const session = getTerminal(ctx.db, terminalId);
-    if (session !== undefined) assertHostUsable(ctx, session.hostId, actor);
-    return (socket) =>
-      attachTerminalSocket(ctx, terminalId, query.data.sinceSeq, socket);
+    throw notFound();
   };
 }

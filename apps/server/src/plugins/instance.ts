@@ -15,6 +15,7 @@ import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 
 type Service = Parameters<plugin.PluginServerApi["background"]["service"]>;
+type Starter = Parameters<plugin.PluginServerApi["onStart"]>[0];
 
 export interface PluginApiHost {
   db: Db;
@@ -40,6 +41,7 @@ export class PluginInstance {
   >();
   cli: plugin.CliRegistration | null = null;
   readonly services: Service[] = [];
+  readonly starters: Starter[] = [];
   readonly disposers: (() => unknown)[] = [];
   readonly stopping = new AbortController();
   needsConfiguration: string | null = null;
@@ -49,7 +51,11 @@ export class PluginInstance {
     readonly log: plugin.PluginServerApi["log"],
   ) {}
 
-  startServices(): void {
+  async start(): Promise<void> {
+    for (const start of this.starters) {
+      const stop = await start();
+      if (typeof stop === "function") this.disposers.push(stop);
+    }
     for (const service of this.services) void this.supervise(service);
   }
 
@@ -228,6 +234,7 @@ export function createPluginInstance(
       dataDir: host.dataDir,
       tunnelToken: host.tunnelToken,
     },
+    onStart: collect(instance.starters),
     onDispose: collect(instance.disposers),
   };
   return { instance, api };

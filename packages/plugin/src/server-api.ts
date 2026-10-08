@@ -199,6 +199,7 @@ export interface PluginServerApi extends PluginVerbs {
     dataDir: string;
     tunnelToken: string;
   };
+  onStart(start: () => MaybePromise<void | (() => MaybePromise<void>)>): void;
   onDispose(dispose: () => MaybePromise<void>): void;
 }
 

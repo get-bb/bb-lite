@@ -292,3 +292,7 @@ export function requireOwner(
   if (principal.kind === "user" && principal.role === "owner") return;
   throw forbidden(refusal);
 }
+
+export function sessionCookieName(config: { port: number }): string {
+  return `bb_session_${config.port}`;
+}

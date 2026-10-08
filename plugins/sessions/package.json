@@ -1,0 +1,24 @@
+{
+  "name": "bb-plugin-sessions",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "What a provider session starts from: providers, models and their settings.",
+  "bb": {
+    "name": "Sessions",
+    "description": "What a provider session starts from: providers, models and their settings.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

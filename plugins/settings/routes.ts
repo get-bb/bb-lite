@@ -12,7 +12,7 @@ import {
 import { requireProject } from "@bb/server-kit/db/projects";
 import { defaultHostId } from "@bb/server-kit/runners/access";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
-import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
+import { DEFAULT_APP_KEYBINDINGS } from "./keybindings.js";
 import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
 import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { requireOwner } from "@bb/server-kit/http/trust";

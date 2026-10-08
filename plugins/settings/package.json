@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-settings",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "General settings, appearance, keybindings and preferences.",
+  "bb": {
+    "name": "Settings",
+    "description": "General settings, appearance, keybindings and preferences.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

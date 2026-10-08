@@ -26,7 +26,7 @@ import {
   utilitiesWith,
 } from "./bundle.js";
 import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
-import { errorMessage } from "@bb/server-kit/http/errors";
+import { ApiError, errorMessage } from "@bb/server-kit/http/errors";
 import { createPluginInstance } from "./instance.js";
 import {
   readExternalPluginEntries,
@@ -66,6 +66,8 @@ export class PluginHost extends PluginRegistry {
   private readonly watchers = new Map<string, FSWatcher>();
   utilities: { css: string; hash: string } | null = null;
   private styled = "";
+  private booting = false;
+  private readonly coreIds = new Set<string>();
 
   constructor(private readonly options: PluginHostOptions) {
     super(options.log, options.kernel);
@@ -73,10 +75,30 @@ export class PluginHost extends PluginRegistry {
 
   async reload(id?: string): Promise<void> {
     await this.discover();
-    const targets =
-      id === undefined ? this.inDependencyOrder() : [this.record(id)];
-    for (const record of targets) await this.load(record);
+    if (id !== undefined) await this.load(this.record(id));
+    else await this.inOrder(() => this.loadAll());
     await this.announce();
+  }
+
+  private async loadAll(): Promise<void> {
+    const targets = this.inDependencyOrder();
+    this.booting = true;
+    try {
+      for (const record of targets) await this.start(record);
+    } finally {
+      this.booting = false;
+    }
+    for (const record of targets) {
+      const { instance, manifest } = record;
+      try {
+        await instance?.start();
+      } catch (error) {
+        await this.unload(record);
+        record.error = errorMessage(error);
+        const fields = { pluginId: manifest.id, err: error };
+        this.options.log.error("Plugin failed to start", fields);
+      }
+    }
   }
 
   async refresh(id: string): Promise<void> {
@@ -108,7 +130,7 @@ export class PluginHost extends PluginRegistry {
     return this.inOrder(async () => {
       for (const watcher of this.watchers.values()) watcher.close();
       this.watchers.clear();
-      for (const record of [...this.records.values()].reverse()) {
+      for (const record of this.inDependencyOrder().reverse()) {
         await this.unload(record);
       }
     });
@@ -116,6 +138,10 @@ export class PluginHost extends PluginRegistry {
 
   async setEnabled(id: string, enabled: boolean): Promise<InstalledPlugin> {
     const record = this.record(id);
+    if (this.isCore(id)) {
+      const message = `"${id}" is part of bb's core and is always on`;
+      throw new ApiError(409, "core_plugin", message);
+    }
     setPluginEnabled(this.options.db, id, enabled);
     await this.load(record);
     await this.announce();
@@ -207,8 +233,13 @@ export class PluginHost extends PluginRegistry {
     return done;
   }
 
+  isCore(id: string): boolean {
+    return this.coreIds.has(id);
+  }
+
   private isEnabled(record: PluginRecord): boolean {
     const { id } = record.manifest;
+    if (this.isCore(id)) return true;
     return record.configEnabled && isPluginEnabled(this.options.db, id);
   }
 
@@ -228,6 +259,7 @@ export class PluginHost extends PluginRegistry {
       description,
       icon: icon?.startsWith("./") ? `${base}/assets/${icon.slice(2)}` : icon,
       enabled,
+      core: this.isCore(id),
       status: !enabled ? "disabled" : instance === null ? "error" : loaded,
       statusMessage: enabled ? (error ?? waiting) : disabledBy,
       hasSettings: Object.keys(settings).length > 0,
@@ -257,15 +289,20 @@ export class PluginHost extends PluginRegistry {
     const add = async (directory: string, origin: PluginOrigin) => {
       try {
         const manifest = await readManifest(directory);
-        const known = this.records.get(manifest.id) ?? { ...UNLOADED };
-        found.set(manifest.id, Object.assign(known, origin, { manifest }));
+        const { id } = manifest;
+        if (this.isCore(id) && !origin.configEnabled) return null;
+        const known = this.records.get(id) ?? { ...UNLOADED };
+        found.set(id, Object.assign(known, origin, { manifest }));
+        return id;
       } catch (error) {
         log.error("Plugin manifest is unreadable", { directory, err: error });
+        return null;
       }
     };
-    for (const { directory, server } of builtins) {
+    for (const { directory, server, core = false } of builtins) {
       const origin = { server, external: false, watch: false };
-      await add(directory, { ...origin, configEnabled: true });
+      const id = await add(directory, { ...origin, configEnabled: true });
+      if (core && id !== null) this.coreIds.add(id);
     }
     const { configFile } = dataPaths(config.dataDir);
     const entries = await readExternalPluginEntries(configFile).catch(
@@ -323,8 +360,9 @@ export class PluginHost extends PluginRegistry {
           : record.server;
       await entry?.(api);
       record.instance = instance;
-      instance.startServices();
+      if (!this.booting) await instance.start();
     } catch (error) {
+      record.instance = null;
       await instance.dispose();
       record.error = errorMessage(error);
       log.error("Plugin failed to load", { pluginId: id, err: error });

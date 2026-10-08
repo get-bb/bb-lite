@@ -17,7 +17,7 @@ import {
   resolveAttachmentPath,
   storeAttachment,
 } from "@bb/server-kit/projects/attachments";
-import { removeProject } from "../../projects/remove.js";
+import { removeProject } from "./remove.js";
 import {
   findProjectWorkspace,
   inspectProjectPath,

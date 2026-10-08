@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import {
   commitAll,
+  createProject,
   createTestServer,
   scratch,
 } from "../../../apps/server/test/helpers.js";
@@ -168,8 +169,25 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   expect(providers.map(({ providerId }) => providerId)).toContain("echo");
   const again = await op("plugin-dev.fork", { id: "tasks", cwd });
   expect(again.status).toBe(500);
-  const core = await op("plugin-dev.fork", { id: "threads", cwd });
-  expect(core.body.message).toContain("nothing to fork");
+  const core = ctx.plugins.list().filter((plugin) => plugin.core);
+  expect(core.map(({ id }) => id)).toContain("threads");
+  const directory = join(ctx.config.dataDir, "repo");
+  mkdirSync(directory);
+  const project = await createProject(server, "echo", directory);
+  const input = [{ type: "text", text: "from a forked engine" }];
+  const environment = { type: "project-default" };
+  const request = { projectId: project.id, origin: "app", providerId: "echo" };
+  const spawned = await server.send("/threads", {
+    ...request,
+    input,
+    environment,
+    startedOnBehalfOf: null,
+  });
+  const { id: threadId } = (await spawned.json()) as { id: string };
+  await vi.waitFor(async () => {
+    const reply = { output: "Response to: from a forked engine" };
+    expect(await server.read(`/threads/${threadId}/output`)).toEqual(reply);
+  });
 
   const file = join(cwd, "custom-instructions", "server.ts");
   const source = readFileSync(file, "utf8");

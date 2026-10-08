@@ -30,20 +30,14 @@ import {
 import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
 import { hostResponse } from "@bb/server-kit/runners/hosts";
 
-import {
-  findTurnExecution,
-  recordedExecution,
-} from "../../threads/execution.js";
+import { findTurnExecution, recordedExecution } from "./execution.js";
 import {
   listProjectsWithThreads,
   toThreadListEntries,
   toThreadResponse,
 } from "@bb/server-kit/threads/thread-display";
-import type { TimelinePage } from "../../threads/timeline-pages.js";
-import {
-  createTimelineReader,
-  type TimelineDisplay,
-} from "../../threads/timeline.js";
+import type { TimelinePage } from "./timeline-pages.js";
+import { createTimelineReader, type TimelineDisplay } from "./timeline.js";
 import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
 import {
   invalidRequest,

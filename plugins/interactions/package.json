@@ -1,0 +1,27 @@
+{
+  "name": "bb-plugin-interactions",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Questions and approvals waiting on a person.",
+  "bb": {
+    "name": "Interactions",
+    "description": "Questions and approvals waiting on a person.",
+    "server": "./server.ts",
+    "requires": [
+      "threads"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

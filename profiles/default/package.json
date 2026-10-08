@@ -31,7 +31,8 @@
   "dependencies": {
     "@bb/domain": "workspace:*",
     "@bb/plugin": "workspace:*",
-    "@bb/runner": "workspace:*"
+    "@bb/runner": "workspace:*",
+    "@bb/server-kit": "workspace:*"
   },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",

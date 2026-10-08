@@ -64,6 +64,7 @@ export const installedPluginSchema = z.object({
   description: z.string(),
   icon: z.string().nullable(),
   enabled: z.boolean(),
+  core: z.boolean().default(false),
   status: pluginStatusSchema,
   statusMessage: z.string().nullable(),
   hasSettings: z.boolean(),

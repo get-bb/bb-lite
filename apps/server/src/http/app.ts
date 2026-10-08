@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { DOOR_HEADER } from "@bb/plugin";
 import { runAs } from "@bb/server-kit/auth/actor";
 import type { ServerContext } from "@bb/server-kit/context";
-import type { CorePlugin } from "../core/plugins.js";
 import {
   findExternalUser,
   findSessionUser,
@@ -19,11 +18,11 @@ import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 import type { ApiApp, AppEnv, RouteGroup } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
 import { errorResponse, notFound } from "@bb/server-kit/http/errors";
-import { sessionCookieName } from "./routes/users.js";
 import { registerStaticApp } from "./static.js";
 import {
   authorize,
   principals,
+  sessionCookieName,
   type TrustLookups,
 } from "@bb/server-kit/http/trust";
 
@@ -44,6 +43,27 @@ export function trustLookups(ctx: ServerContext): TrustLookups {
   };
 }
 
+export class RouteTable {
+  private readonly groups = new Set<{ group: RouteGroup; internal: boolean }>();
+  version = 0;
+
+  add(group: RouteGroup, internal = false): () => void {
+    const entry = { group, internal };
+    this.groups.add(entry);
+    this.version += 1;
+    return () => {
+      if (this.groups.delete(entry)) this.version += 1;
+    };
+  }
+
+  of(internal: boolean): RouteGroup[] {
+    const listed = [...this.groups].filter(
+      (entry) => entry.internal === internal,
+    );
+    return listed.map(({ group }) => group);
+  }
+}
+
 function mount(
   app: ApiApp,
   prefix: string,
@@ -58,10 +78,7 @@ function mount(
   });
 }
 
-export function createHttpApp(
-  ctx: ServerContext,
-  core: readonly CorePlugin[],
-): ApiApp {
+function assemble(ctx: ServerContext, table: RouteTable): ApiApp {
   const app = new Hono<AppEnv>();
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
@@ -78,10 +95,23 @@ export function createHttpApp(
   });
   app.use("/api/v1/*", compressJson);
   app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
-  const routes = core.flatMap((plugin) => plugin.routes ?? []);
-  const internal = core.flatMap((plugin) => plugin.internalRoutes ?? []);
-  mount(app, "/api/v1", routes, ctx);
-  mount(app, "/internal", internal, ctx);
+  mount(app, "/api/v1", table.of(false), ctx);
+  mount(app, "/internal", table.of(true), ctx);
   registerStaticApp(app, ctx.config.appDir);
   return app;
+}
+
+export function createHttpApp(
+  ctx: ServerContext,
+  table: RouteTable,
+): Pick<ApiApp, "fetch"> {
+  let built: { version: number; app: ApiApp } | undefined;
+  return {
+    fetch: (...request) => {
+      if (built?.version !== table.version) {
+        built = { version: table.version, app: assemble(ctx, table) };
+      }
+      return built.app.fetch(...request);
+    },
+  };
 }

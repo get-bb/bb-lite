@@ -20,7 +20,7 @@ import {
   workspaceFailure,
 } from "@bb/server-kit/environments/workspace";
 import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
-import { listEnvironmentProviders } from "../../providers/environment-providers.js";
+import { listEnvironmentProviders } from "./environment-providers.js";
 import { ApiError, conflict, invalidRequest } from "@bb/server-kit/http/errors";
 
 const COMMIT_MESSAGE = "bb: automated commit";

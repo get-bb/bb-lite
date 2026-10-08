@@ -15,7 +15,7 @@ import type {
 import type { Logger } from "@bb/server-kit/context";
 import { ApiError, notFound } from "@bb/server-kit/http/errors";
 import type { AppBundle } from "./bundle.js";
-import { callDoorTool, doorCli, doorTools } from "./doors.js";
+import { callDoorTool, doorCli, doorTools } from "@bb/server-kit/doors";
 import type { PluginInstance } from "./instance.js";
 import type { PluginManifest } from "./manifest.js";
 

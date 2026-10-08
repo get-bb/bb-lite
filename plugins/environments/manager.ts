@@ -4,6 +4,7 @@ import {
   type EnvironmentDefinition,
 } from "@bb/plugin";
 import type { z } from "zod";
+import type { PluginVerbs } from "@bb/plugin";
 import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/environments";
 import { findHost } from "@bb/server-kit/db/hosts";
@@ -14,7 +15,7 @@ import {
   BUILTIN_ENVIRONMENT_KINDS,
   checkoutInputsSchema,
   worktreeInputsSchema,
-} from "../providers/environment-providers.js";
+} from "./environment-providers.js";
 import { errorMessage } from "@bb/server-kit/http/errors";
 import { hostResponse } from "@bb/server-kit/runners/hosts";
 import { ThreadSerial } from "@bb/server-kit/threads/serial";
@@ -80,7 +81,7 @@ export function managedBranchName(prefix: string, thread: ThreadRow): string {
 
 export type Environments = ReturnType<typeof createEnvironments>;
 
-export function createEnvironments(ctx: ServerContext) {
+export function createEnvironments(ctx: ServerContext, own: PluginVerbs) {
   const { db, hub, kernel, log, now, runners } = ctx;
   const scripts = createLifecycleScripts(ctx);
   const queue = new ThreadSerial();
@@ -380,7 +381,6 @@ export function createEnvironments(ctx: ServerContext) {
         owned(job, hostId, personalKind.id, job.thread.id, null),
     },
   ];
-  const own = kernel.scope("environments", "product");
   for (const builtin of builtins) own.add(environmentKinds.kind, builtin);
 
   function refresh(found: Environment): Environment {

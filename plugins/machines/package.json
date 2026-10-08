@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-machines",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Machines, enrollment, sharing and the link to each runner.",
+  "bb": {
+    "name": "Machines",
+    "description": "Machines, enrollment, sharing and the link to each runner.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "ws": "^8.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1"
+  }
+}

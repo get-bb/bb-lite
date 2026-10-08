@@ -10,6 +10,7 @@ import type {
   SendMessageRequest,
   ThreadResponse,
 } from "@bb/server-contract";
+import type { PluginVerbs } from "@bb/plugin";
 import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import { lastOutput } from "@bb/server-kit/db/event-read";
@@ -354,10 +355,9 @@ export class Engine {
   }
 }
 
-export function createThreadEngine(ctx: ServerContext) {
+export function createThreadEngine(ctx: ServerContext, own: PluginVerbs) {
   const engine = new Engine(ctx);
   const { kernel } = ctx;
-  const own = kernel.scope("threads", "product");
   const direct =
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,

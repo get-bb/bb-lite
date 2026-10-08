@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-workspace",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Files, git state and diffs in a thread's directory.",
+  "bb": {
+    "name": "Workspace",
+    "description": "Files, git state and diffs in a thread's directory.",
+    "server": "./server.ts",
+    "requires": [
+      "terminals"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

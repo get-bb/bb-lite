@@ -1,26 +1,13 @@
 import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { WebSocketServer, type WebSocket } from "ws";
-import type { Actor } from "@bb/server-kit/auth/actor";
+import { WebSocketServer } from "ws";
 import type { ServerContext } from "@bb/server-kit/context";
+import type { SocketOpen } from "@bb/server-kit/host";
 import { trustLookups } from "../http/app.js";
+import type { RequiredSocketResolver } from "./endpoints.js";
 import { errorResponse } from "@bb/server-kit/http/errors";
-import {
-  authorize,
-  requestHeader,
-  type Principal,
-} from "@bb/server-kit/http/trust";
+import { authorize, requestHeader } from "@bb/server-kit/http/trust";
 import { THREAD_ID_HEADER, actorOf } from "@bb/server-kit/runners/access";
-
-export interface SocketRequest {
-  url: URL;
-  principal: Principal;
-  actor: Actor | null;
-  header(name: string): string | undefined;
-}
-
-export type SocketOpen = (socket: WebSocket) => void;
-export type SocketResolver = (request: SocketRequest) => SocketOpen;
 
 const SHUTDOWN_CLOSE_CODE = 1001;
 const SHUTDOWN_GRACE_MS = 1_000;
@@ -41,7 +28,7 @@ export class SocketRegistry {
 
   constructor(
     private readonly ctx: ServerContext,
-    private readonly resolve: SocketResolver,
+    private readonly resolve: RequiredSocketResolver,
   ) {}
 
   readonly handleUpgrade = (

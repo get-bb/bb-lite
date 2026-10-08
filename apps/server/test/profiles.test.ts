@@ -1,7 +1,6 @@
 import { basename } from "node:path";
-import { profilePlugins } from "@bb/profile-default/server";
+import { corePlugins, profilePlugins } from "@bb/profile-default/server";
 import { expect, it } from "vitest";
-import { corePlugins, inStartOrder } from "../src/core/plugins.js";
 import { createTestServer } from "./helpers.js";
 
 const ids = (name: string) =>
@@ -20,25 +19,27 @@ it("picks the in-repo plugins a profile names", () => {
   expect(() => profilePlugins("nope")).toThrow('Unknown profile "nope"');
 });
 
-it("starts core plugins in the order their requirements give", async () => {
-  const order = inStartOrder(corePlugins).map(({ id }) => id);
-  const before = (first: string, second: string) =>
-    expect(order.indexOf(first)).toBeLessThan(order.indexOf(second));
-  before("machines", "threads");
-  before("projects", "threads");
-  before("threads", "environments");
-  before("environments", "plugins");
-  before("plugins", "terminals");
-  before("terminals", "workspace");
-  expect(order).toHaveLength(corePlugins.length);
+it("loads core through the plugin loader, in the order requirements give", async () => {
   const server = await createTestServer();
+  const core = corePlugins.map(({ directory }) => basename(directory));
   const listed = await server.read<{
     plugins: { id: string; tier: string }[];
     ops: { name: string; owner: string | null }[];
   }>("/kernel");
   const loaded = listed.plugins.map(({ id }) => id);
-  for (const { id } of corePlugins) expect(loaded).toContain(id);
-  expect(loaded).toContain("tasks");
+  const before = (first: string, second: string) =>
+    expect(loaded.indexOf(first)).toBeLessThan(loaded.indexOf(second));
+  for (const id of core) expect(loaded).toContain(id);
+  before("machines", "threads");
+  before("projects", "threads");
+  before("threads", "environments");
+  before("terminals", "workspace");
+  before("workspace", "tasks");
   const unowned = listed.ops.filter(({ owner }) => owner === null);
   expect(unowned).toEqual([]);
+  const plugins = server.ctx.plugins.list();
+  const threads = plugins.find(({ id }) => id === "threads");
+  expect(threads).toMatchObject({ core: true, status: "running" });
+  const off = await server.send("/plugins/threads/disable", {});
+  expect(off.status).toBe(409);
 });
