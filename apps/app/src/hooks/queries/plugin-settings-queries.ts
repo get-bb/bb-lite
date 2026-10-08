@@ -15,6 +15,7 @@ import { qk } from "./query-keys";
 export interface PluginListItem {
   id: string;
   enabled: boolean;
+  core: boolean;
   status: InstalledPlugin["status"];
   statusDetail: string | null;
   description: string;
@@ -37,6 +38,7 @@ function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
   return {
     id: plugin.id,
     enabled: plugin.enabled,
+    core: plugin.core ?? false,
     status: plugin.status,
     statusDetail: plugin.statusMessage,
     description: plugin.description,

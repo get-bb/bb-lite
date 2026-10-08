@@ -23,8 +23,8 @@ export type ServerEnv = Record<string, string | undefined>;
 
 const DEFAULT_PORT = 48886;
 const DEFAULT_BIND_HOST = "127.0.0.1";
-const DEFAULT_APP_DIR = new URL("../../app/dist", import.meta.url);
-const DEFAULT_CLI_DIR = new URL("../../cli", import.meta.url);
+const DEFAULT_APP_DIR = new URL("../../../apps/app/dist", import.meta.url);
+const DEFAULT_CLI_DIR = new URL("../../../apps/cli", import.meta.url);
 const ROOT_PACKAGE_JSON = new URL("../../../package.json", import.meta.url);
 
 const envSchema = z.object({

@@ -216,12 +216,71 @@ function InstalledPluginRow({ plugin }: { plugin: PluginListItem }) {
   );
 }
 
+function CorePluginRow({ plugin }: { plugin: PluginListItem }) {
+  return (
+    <SettingsRow data-testid={`plugin-row-${plugin.id}`}>
+      <PluginIcon
+        pluginId={plugin.id}
+        icon={plugin.icon}
+        compactIconUrl={plugin.compactIconUrl}
+        className="size-4 shrink-0"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-foreground">{plugin.name}</p>
+        {plugin.description ? (
+          <p className="truncate text-xs text-subtle-foreground">
+            {plugin.description}
+          </p>
+        ) : null}
+      </div>
+      <span className="shrink-0 text-xs text-subtle-foreground">
+        {plugin.status === "running" ? "Always on" : plugin.status}
+      </span>
+    </SettingsRow>
+  );
+}
+
 export function InstalledPluginsSettingsSection() {
   const listQuery = usePluginList({ enabled: true });
-  const plugins = [...(listQuery.data?.plugins ?? [])].sort(
+  const listed = [...(listQuery.data?.plugins ?? [])].sort(
     (left, right) =>
       left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
   );
+  const plugins = listed.filter((plugin) => !plugin.core);
+  const core = listed.filter((plugin) => plugin.core);
+  return (
+    <div className="space-y-8">
+      <InstalledPluginsList
+        plugins={plugins}
+        loaded={listQuery.data !== undefined}
+        failed={listQuery.isError}
+      />
+      {core.length === 0 ? null : (
+        <SettingsSection
+          title="Core"
+          description="The parts bb itself is made of. Each is a plugin you can copy and change with bb dev fork."
+        >
+          <SettingsRowList>
+            {core.map((plugin) => (
+              <CorePluginRow key={plugin.id} plugin={plugin} />
+            ))}
+          </SettingsRowList>
+        </SettingsSection>
+      )}
+    </div>
+  );
+}
+
+function InstalledPluginsList({
+  plugins,
+  loaded,
+  failed,
+}: {
+  plugins: PluginListItem[];
+  loaded: boolean;
+  failed: boolean;
+}) {
+  const listQuery = { data: loaded ? plugins : undefined, isError: failed };
   return (
     <SettingsSection title="Installed plugins">
       {listQuery.data === undefined ? (

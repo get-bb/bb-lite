@@ -7,6 +7,7 @@ import {
   type RealtimeSubscriptionTarget,
   type ThreadEventType,
 } from "@bb/domain";
+import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
@@ -26,6 +27,13 @@ it("refuses a data directory of the original bb without touching it", () => {
   const load = (): unknown => loadConfig({ BB_DATA_DIR: dataDir });
   expect(load).toThrow(LegacyDataDirectoryError);
   expect(readdirSync(dataDir)).toEqual(["bb.db"]);
+});
+
+it("finds the built app and the CLI beside the repository by default", () => {
+  const { appDir, cliDir } = loadConfig({ BB_DATA_DIR: scratch() });
+  const root = fileURLToPath(new URL("../../..", import.meta.url));
+  expect(appDir).toBe(join(root, "apps", "app", "dist"));
+  expect(readdirSync(cliDir)).toContain("bin");
 });
 
 function hubClient(hub: Hub, ...targets: RealtimeSubscriptionTarget[]) {

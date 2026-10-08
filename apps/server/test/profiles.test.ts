@@ -1,6 +1,8 @@
-import { basename } from "node:path";
+import { readdirSync } from "node:fs";
+import { basename, sep } from "node:path";
 import { corePlugins, profilePlugins } from "@bb/profile-default/server";
 import { expect, it } from "vitest";
+import { SERVER_RUNTIME_MODULES } from "../src/plugins/runtime.js";
 import { createTestServer } from "./helpers.js";
 
 const ids = (name: string) =>
@@ -42,4 +44,14 @@ it("loads core through the plugin loader, in the order requirements give", async
   expect(threads).toMatchObject({ core: true, status: "running" });
   const off = await server.send("/plugins/threads/disable", {});
   expect(off.status).toBe(409);
+});
+
+it("shares every module of the server kit with forked plugins", () => {
+  const root = new URL("../../../packages/server-kit/src/", import.meta.url);
+  const files = readdirSync(root, { recursive: true, encoding: "utf8" });
+  const modules = files
+    .filter((file) => file.endsWith(".ts"))
+    .map((file) => `@bb/server-kit/${file.slice(0, -3).replaceAll(sep, "/")}`);
+  const shared = Object.keys(SERVER_RUNTIME_MODULES);
+  expect(shared.sort()).toEqual(["@bb/runner", ...modules].sort());
 });
