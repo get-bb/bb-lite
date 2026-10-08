@@ -12,6 +12,7 @@ const WAKE_RETRY_MS = 15_000;
 const VISIT_GAP_MS = 5 * 60_000;
 const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
 const NOT_CONFIGURED = "This relay cannot host servers yet.";
+const IMAGE_SETTING = "hosted_image";
 
 export function idleMs(env: site.Env) {
   return (Number(env.HOSTED_IDLE_HOURS) || 24) * HOUR_MS;
@@ -27,6 +28,11 @@ export function perAccount(env: site.Env) {
 
 export function isAvailable(env: site.Env) {
   return fly.flyOf(env) !== null;
+}
+
+export async function currentImage(context: Site): Promise<string> {
+  const published = await store.setting(context.db, IMAGE_SETTING);
+  return published ?? context.env.FLY_IMAGE ?? "";
 }
 
 function machineOf(server: Server): fly.Machine | null {
@@ -59,8 +65,9 @@ export async function create(
     BB_CONNECT_LINK: JSON.stringify(link),
   };
   try {
-    const machine = await fly.createMachine(config, made.app, env);
-    await store.hostedMachineReady(context.db, made.id, machine);
+    const image = await currentImage(context);
+    const machine = await fly.createMachine(config, made.app, image, env);
+    await store.hostedMachineReady(context.db, made.id, machine, image);
     return null;
   } catch (error) {
     const reason = reasonOf(error);
@@ -77,10 +84,34 @@ export async function wake(context: Site, server: Server): Promise<void> {
   const claimed = await store.claimWake(context.db, server.id, WAKE_RETRY_MS);
   if (!claimed) return;
   try {
+    const image = await currentImage(context);
+    if (server.hosted_image !== image) {
+      await fly.replaceImage(config, machine, image);
+      await store.setHostedImage(context.db, server.id, image);
+    }
     await fly.startMachine(config, machine);
   } catch (error) {
     console.error(`hosted: starting ${machine.app}: ${reasonOf(error)}`);
     await store.releaseWake(context.db, server.id);
+  }
+}
+
+export async function update(context: Site, server: Server): Promise<boolean> {
+  if (server.hosted_state === "stopped") {
+    await wake(context, server);
+    return true;
+  }
+  const config = fly.flyOf(context.env);
+  const machine = machineOf(server);
+  if (config === null || machine === null) return false;
+  try {
+    const image = await currentImage(context);
+    await fly.replaceImage(config, machine, image);
+    await store.setHostedImage(context.db, server.id, image);
+    return true;
+  } catch (error) {
+    console.error(`hosted: updating ${machine.app}: ${reasonOf(error)}`);
+    return false;
   }
 }
 

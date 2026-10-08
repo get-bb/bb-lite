@@ -117,6 +117,7 @@ export interface HostingView {
   canCreate: boolean;
   suggestedLabel: string;
   deleteAfterMs: number;
+  image: string;
 }
 
 const LABEL_PATTERN = "[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?";
@@ -125,15 +126,34 @@ function hostedAction(server: Server, action: string, label: string) {
   const confirm =
     action === "delete"
       ? ` onsubmit="return confirm('Delete this server and everything on it?')"`
-      : "";
+      : action === "update"
+        ? ` onsubmit="return confirm('Restart this server on the new version?')"`
+        : "";
   return `<form method="post" action="/hosted/${action}"${confirm}>
 <input type="hidden" name="serverId" value="${escapeHtml(server.id)}">
 <button class="quiet" type="submit">${label}</button></form>`;
 }
 
-function hostedRow(server: Server, deleteAfterMs: number) {
+function versionOf(image: string | null) {
+  const tag = /[:@]([^:@/]+)$/u.exec(image ?? "")?.[1] ?? "unknown";
+  return /^[0-9a-f]{40}$/u.test(tag) ? tag.slice(0, 7) : tag;
+}
+
+function hostedRow(server: Server, view: HostingView) {
+  const { deleteAfterMs, image } = view;
   const state = server.hosted_state;
   if (state === null) return "";
+  const settled = state === "running" || state === "stopped";
+  const outdated = settled && server.hosted_image !== image;
+  const version = `Version ${versionOf(server.hosted_image)}.`;
+  const upgrade = outdated
+    ? `<p class="dim">${escapeHtml(version)} Version
+${escapeHtml(versionOf(image))} is installed the next time it wakes, or now;
+the disk is kept.</p>`
+    : settled
+      ? `<p class="dim">${escapeHtml(version)}</p>`
+      : "";
+  const update = outdated ? hostedAction(server, "update", "Update now") : "";
   const removal = new Date((server.stopped_at ?? 0) + deleteAfterMs);
   const day = removal.toISOString().slice(0, 10);
   const note = {
@@ -148,8 +168,9 @@ function hostedRow(server: Server, deleteAfterMs: number) {
       : state === "stopped"
         ? hostedAction(server, "start", "Wake")
         : "";
-  return `<p class="dim">${escapeHtml(note)}</p>
-<div class="row">${toggle}${hostedAction(server, "delete", "Delete")}</div>`;
+  return `<p class="dim">${escapeHtml(note)}</p>${upgrade}
+<div class="row">${toggle}${update}${hostedAction(server, "delete", "Delete")}
+</div>`;
 }
 
 function createForm(hosting: HostingView) {
@@ -177,7 +198,7 @@ export function dashboard(
     const state = server.hosted_state ?? linked;
     return `<div class="row"><a href="${url}">${escapeHtml(url)}</a>
 <span class="dim">${state}</span></div>
-${hostedRow(server, view.deleteAfterMs)}`;
+${hostedRow(server, view)}`;
   });
   const hosting =
     user.can_host === 1

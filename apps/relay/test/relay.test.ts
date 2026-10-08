@@ -545,6 +545,7 @@ async function fakeFly() {
   const machine = {
     config: {} as Json,
     stopping: false,
+    running: false,
     off: async () => {},
     on: async () => {},
   };
@@ -560,8 +561,9 @@ async function fakeFly() {
       const init = { method: "POST", headers, body };
       await fetch(`${url}/api/v1/plugins/connect/cli`, init);
     };
-    machine.off = () => cli("off");
-    machine.on = () => cli("on");
+    machine.running = true;
+    machine.off = () => cli("off").then(() => void (machine.running = false));
+    machine.on = () => cli("on").then(() => void (machine.running = true));
   };
   const fly = createServer((request, response) => {
     const { pathname } = new URL(request.url ?? "/", "http://fly.test");
@@ -583,6 +585,15 @@ async function fakeFly() {
         if (call.endsWith("/machines")) {
           machine.config = (JSON.parse(sent) as { config: Json }).config;
           await boot(machine.config.env as Record<string, string>);
+          return reply(200, { id: "mach_1" });
+        }
+        if (call.endsWith("/mach_1") && request.method === "GET") {
+          return reply(200, { config: machine.config });
+        }
+        if (call.endsWith("/mach_1") && request.method === "POST") {
+          machine.config = (JSON.parse(sent) as { config: Json }).config;
+          if (machine.running) await machine.off().then(machine.on);
+          else machine.stopping = true;
           return reply(200, { id: "mach_1" });
         }
         if (call.endsWith("/start") && machine.stopping) {
@@ -700,8 +711,45 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
   );
   expect(fly.calls.at(-1)).toBe(`POST /apps/${app}/machines/mach_1/start`);
 
+  const publish = (image: string) =>
+    database
+      .prepare("INSERT OR REPLACE INTO settings VALUES ('hosted_image', ?)")
+      .bind(image)
+      .run();
+  expect((await alice.visit(apex)).text).not.toContain("Update now");
+  await publish("registry.test/bb:2");
+  expect((await alice.visit(apex)).text).toContain("Update now");
+  expect((await alice.visit(`${apex}/hosted/update`, mine)).status).toBe(303);
+  expect(fly.calls.slice(-2)).toEqual([
+    `GET /apps/${app}/machines/mach_1`,
+    `POST /apps/${app}/machines/mach_1`,
+  ]);
+  expect(fly.machine.config).toMatchObject({
+    image: "registry.test/bb:2",
+    mounts: [{ volume: "vol_1", path: "/data" }],
+    env,
+  });
+  expect((await row())?.hosted_image).toBe("registry.test/bb:2");
+  expect((await alice.visit(session)).status).toBe(200);
+
   await relay.sweep();
   expect(fly.calls.at(-1)).toContain("/stop");
+  expect((await row())?.hosted_state).toBe("stopped");
+  await publish("registry.test/bb:3");
+  expect((await alice.visit(`${cloud}/`, page)).status).toBe(503);
+  await vi.waitFor(async () => {
+    expect(fly.calls.at(-1)).toContain("/start");
+    expect((await row())?.wake_at).toBeNull();
+  });
+  expect(fly.machine.config.image).toBe("registry.test/bb:3");
+  expect((await alice.visit(`${cloud}/`, page)).status).toBe(503);
+  await vi.waitFor(
+    async () => expect((await alice.visit(session)).status).toBe(200),
+    { timeout: 10_000, interval: 200 },
+  );
+  expect(fly.calls.filter((call) => call.endsWith("/mach_1"))).toHaveLength(4);
+
+  await relay.sweep();
   expect((await row())?.hosted_state).toBe("stopped");
   await relay.sweep();
   expect(fly.calls.at(-1)).toBe(`DELETE /apps/${app}`);

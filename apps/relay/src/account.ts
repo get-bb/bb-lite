@@ -395,7 +395,13 @@ async function hostedRoute(
   if (server?.user_id !== user.id || server.hosted_state === null) {
     return pages.notice("Not found", "", 404);
   }
-  if (action === "start") await hosted.wake(context, server);
+  if (action === "update") {
+    const updated = await hosted.update(context, server);
+    if (!updated) {
+      const message = "The server could not be updated. Try again.";
+      return pages.notice("Not updated", message, 502);
+    }
+  } else if (action === "start") await hosted.wake(context, server);
   else if (action === "stop") await hosted.stop(context, server);
   else if (action === "delete") {
     const removed = await hosted.remove(context, server);
@@ -452,6 +458,7 @@ export async function apex(request: Request, context: Site): Promise<Response> {
     count < hosted.perAccount(env);
   const suggestedLabel = slug(user.login);
   const deleteAfterMs = hosted.deleteMs(env);
-  const view = { baseHost, canCreate, suggestedLabel, deleteAfterMs };
+  const image = await hosted.currentImage(context);
+  const view = { baseHost, canCreate, suggestedLabel, deleteAfterMs, image };
   return pages.dashboard(user, servers, users, context.origin, view);
 }

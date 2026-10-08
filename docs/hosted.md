@@ -54,14 +54,28 @@ Worker variables (`apps/relay/wrangler.jsonc`): `FLY_ORG`, `FLY_IMAGE`, `FLY_REG
 it the dashboard offers no hosted server and nothing here runs. `FLY_API_URL` points the relay at
 another Machines API (the tests use a fake one).
 
-## The image
+## The image and updates
 
-`.github/workflows/hosted-image.yml` (run by hand) builds `hosted/Dockerfile` and pushes it to
-`registry.fly.io/bb-next-image` as `latest` and the commit, creating the `bb-next-image` app that holds
-it when missing. It needs the repository secret `FLY_API_TOKEN`. A machine keeps the image it was
-created with; nothing upgrades existing servers yet.
+`.github/workflows/hosted-image.yml` (run by hand) builds `hosted/Dockerfile` from the commit it runs
+on and pushes it to `registry.fly.io/bb-next-image` as `latest` and as the commit, creating the
+`bb-next-image` app that holds it when missing. Its last step writes the commit's tag to the relay's
+`settings` table (`hosted_image`) through the D1 API; that is the image new servers get, with
+`FLY_IMAGE` as the fallback while the table is empty. It needs the repository secrets `FLY_API_TOKEN`
+and `CLOUDFLARE_API_TOKEN`. So the bb a hosted server runs is the repository at the commit of the last
+image build that server has been moved to; the dashboard shows it as "Version <commit>".
+
+`servers.hosted_image` is the image a server's machine has. When it differs from the published one:
+
+- a sleeping server gets the new image the next time it wakes: the relay rewrites the machine's config
+  with the new image, then starts it (Fly refuses the start for a few seconds while it swaps the image;
+  the starting page's reloads retry it);
+- "Update now" on the dashboard does the same to a running server, which Fly then restarts. A turn that
+  is running at that moment is interrupted.
+
+Only the image changes: the machine keeps its volume, its environment and its address, so everything
+under `/data` is still there. Measured on Fly: about 12 seconds from the update to a healthy server.
 
 ## Not there yet
 
-Upgrading a hosted server to a new image; letting members, not only the owner, wake a server; a warning
+Building the image on every push; letting members, not only the owner, wake a server; a warning
 before deletion; choosing a size or region per server; per-account billing or limits beyond the count.

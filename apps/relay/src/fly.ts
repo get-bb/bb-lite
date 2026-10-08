@@ -82,6 +82,7 @@ function idOf(created: Record<string, unknown>, what: string): string {
 export async function createMachine(
   fly: Fly,
   app: string,
+  image: string,
   env: Record<string, string>,
 ): Promise<string> {
   const { region } = fly;
@@ -95,7 +96,7 @@ export async function createMachine(
     name: "server",
     region,
     config: {
-      image: fly.image,
+      image,
       env,
       guest: {
         cpu_kind: fly.cpuKind,
@@ -108,6 +109,15 @@ export async function createMachine(
     },
   });
   return idOf(machine, "machine");
+}
+
+export async function replaceImage(fly: Fly, target: Machine, image: string) {
+  const path = `/apps/${target.app}/machines/${target.machine}`;
+  const { config } = await call(fly, "GET", path);
+  if (config === null || typeof config !== "object") {
+    throw new FlyError(502, "Fly described a machine without a config");
+  }
+  await call(fly, "POST", path, { config: { ...config, image } });
 }
 
 export async function startMachine(fly: Fly, { app, machine }: Machine) {

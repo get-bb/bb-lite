@@ -4,7 +4,8 @@ FROM node:24-bookworm
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    build-essential ca-certificates curl gh git jq less openssh-client \
+    bubblewrap build-essential ca-certificates curl gh git jq less \
+    openssh-client \
     procps python3 ripgrep sudo unzip zip \
   && rm -rf /var/lib/apt/lists/*
 

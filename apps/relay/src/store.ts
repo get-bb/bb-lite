@@ -33,6 +33,7 @@ export interface Server {
   active_at: number | null;
   stopped_at: number | null;
   wake_at: number | null;
+  hosted_image: string | null;
 }
 
 export interface LinkCode {
@@ -339,17 +340,29 @@ export async function createHosted(db: D1Database, owner: User, label: string) {
   return created === 1 ? { id, app, credential } : null;
 }
 
+export async function setting(db: D1Database, key: string) {
+  const sql = "SELECT value FROM settings WHERE key = ?";
+  return (await one<{ value: string }>(db, sql, key))?.value ?? null;
+}
+
+export function setHostedImage(db: D1Database, id: string, image: string) {
+  const sql = "UPDATE servers SET hosted_image = ?, wake_at = ? WHERE id = ?";
+  return run(db, sql, image, Date.now(), id);
+}
+
 export function hostedMachineReady(
   db: D1Database,
   id: string,
   machine: string,
+  image: string,
 ) {
   const now = Date.now();
   return run(
     db,
     `UPDATE servers SET hosted_state = 'running', hosted_machine = ?,
-       active_at = ?, wake_at = ? WHERE id = ?`,
+       hosted_image = ?, active_at = ?, wake_at = ? WHERE id = ?`,
     machine,
+    image,
     now,
     now,
     id,
