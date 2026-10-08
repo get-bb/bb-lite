@@ -369,14 +369,14 @@ export function createEnvironments(bb: PluginServerApi) {
     {
       ...checkoutKind,
       create: attached,
-      remove: async () => {},
+      delete: async () => {},
       resolve: (job, hostId, inputs) =>
         attachCheckout(job, hostId, checkoutInputsSchema.parse(inputs ?? {})),
     },
     {
       ...worktreeKind,
       create: attached,
-      remove: removeManaged,
+      delete: removeManaged,
       materialize: addWorktree,
       resolve(job, hostId, inputs) {
         const worktree = worktreeInputsSchema.parse(inputs ?? undefined);
@@ -392,7 +392,7 @@ export function createEnvironments(bb: PluginServerApi) {
     {
       ...personalKind,
       create: attached,
-      remove: removeManaged,
+      delete: removeManaged,
       async materialize(found, runner) {
         const key = found.environmentProviderInstanceKey ?? found.id;
         return (await runner.ensurePersonalWorkspace({ key })).path;
@@ -434,7 +434,7 @@ export function createEnvironments(bb: PluginServerApi) {
     try {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });
-        const remove = kindOf(found)?.remove ?? removeManaged;
+        const remove = kindOf(found)?.delete ?? removeManaged;
         const resource = store.getEnvironmentResource(db, id);
         await remove({ hostId, path, resource });
       }

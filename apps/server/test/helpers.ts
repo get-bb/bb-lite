@@ -170,7 +170,7 @@ function facades({ kernel }: HostContext) {
       kernel.call(threadOps.unarchive, { threadId }),
     delete: (threadId: string, confirmed: { childThreadsConfirmed: boolean }) =>
       kernel.call(threadOps.delete, { threadId, ...confirmed }),
-    settled: () => kernel.call(threadOps.settled, {}),
+    settled: () => kernel.call(threadOps.waitSettled, {}),
     sweep: () => kernel.call(threadOps.sweep, {}),
   };
   const environments = {
@@ -178,7 +178,7 @@ function facades({ kernel }: HostContext) {
       kernel.call(environmentOps.instructions, { environmentId }),
     sweep: () => kernel.call(environmentOps.sweep, {}),
     remove: (environmentId: string) =>
-      kernel.call(environmentOps.remove, { environmentId }),
+      kernel.call(environmentOps.delete, { environmentId }),
   };
   return { threads, environments };
 }

@@ -240,7 +240,7 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
       made.push(`${host.id} ${checkoutPath} ${branchName}`);
       return { path };
     },
-    async remove({ path }) {
+    async delete({ path }) {
       rmSync(path, { recursive: true });
       removed.push(path);
     },
@@ -296,7 +296,7 @@ it("lets a plugin replace a built-in environment kind", async () => {
       mkdirSync(path);
       return { path };
     },
-    async remove({ path }) {
+    async delete({ path }) {
       rmSync(path, { recursive: true });
     },
   });
@@ -364,9 +364,9 @@ it("lets a plugin kind create its own machine, take inputs and keep state", asyn
       const kept = { inputs, previous: resource, box: "box-1" };
       return { path, hostId: enrolled.hostId, resource: kept };
     },
-    async remove(target) {
+    async delete(target) {
       removed.push(target.resource);
-      await plugin.call(machineOps.remove, { hostId: target.hostId });
+      await plugin.call(machineOps.delete, { hostId: target.hostId });
     },
   });
   const machine = { type: "existing", hostId } as const;

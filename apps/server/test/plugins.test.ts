@@ -564,7 +564,7 @@ it("lists, creates, moves and removes files in a thread's workspace", async () =
   expect(await names("drafts")).toEqual(["notes.md"]);
   expect(existsSync(join(directory, "drafts", "old"))).toBe(true);
   const old = { threadId, path: "drafts/old" };
-  await plugin.call(files.remove, { ...old, recursive: true });
+  await plugin.call(files.delete, { ...old, recursive: true });
   expect(existsSync(join(directory, "drafts", "old"))).toBe(false);
   const missing = { terminalId: "term_missing", cols: 80, rows: 24 };
   await expect(plugin.call(terminals.resize, missing)).rejects.toThrow(

@@ -26,7 +26,7 @@ export async function destroyMachine(
   await revoking?.catch((error: unknown) => {
     log.warn("Machine access was not revoked", { hostId: id, err: error });
   });
-  bb.emit(machines.removed, { hostId: id });
+  bb.emit(machines.deleted, { hostId: id });
 }
 
 export function providerOf(bb: PluginServerApi, host: store.HostRow) {
@@ -105,7 +105,7 @@ export function provideMachines(bb: PluginServerApi): void {
   bb.implement(machines.suspend, ({ hostId }) => lifecycle(hostId, "suspend"));
   bb.implement(machines.resume, ({ hostId }) => lifecycle(hostId, "resume"));
 
-  bb.implement(machines.remove, async ({ hostId }) => {
+  bb.implement(machines.delete, async ({ hostId }) => {
     if (hostId === bb.server.hostId) {
       const message = "The server's own machine cannot be removed";
       throw new ApiError(400, "primary_host_removal_refused", message);
@@ -118,7 +118,7 @@ export function provideMachines(bb: PluginServerApi): void {
   );
   bb.onDispose(
     runners.onEvent("plugin.signal", ({ pluginId, name, payload }, hostId) =>
-      bb.emit(machines.signal, { hostId, pluginId, name, payload }),
+      bb.emit(machines.signaled, { hostId, pluginId, name, payload }),
     ),
   );
   bb.onDispose(

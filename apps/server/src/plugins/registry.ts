@@ -45,8 +45,18 @@ export class PluginRegistry {
   cliOf(id: string): plugin.CliRegistration | null {
     const { instance, manifest } = this.record(id);
     if (instance === null) return null;
-    const { description } = manifest;
-    return instance.cli ?? doorCli(this.kernel, id, description);
+    const doors = doorCli(this.kernel, id, manifest.description);
+    const own = instance.cli;
+    if (own === null || doors === null) return own ?? doors;
+    const offered = doors.commands ?? [];
+    const first = new Set(offered.map(({ name }) => name.split(" ")[0]));
+    return {
+      name: own.name,
+      summary: own.summary,
+      commands: [...(own.commands ?? []), ...offered],
+      run: (argv, context) =>
+        first.has(argv[0]) ? doors.run(argv, context) : own.run(argv, context),
+    };
   }
 
   skillDirs(): string[] {

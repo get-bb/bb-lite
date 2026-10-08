@@ -204,7 +204,7 @@ it("ships a plugin's runner part to a machine and calls it there", async () => {
   expect(await settled(["echo", "probe"])).toEqual(["echo", "probe"]);
   const signals: unknown[] = [];
   const listener = ctx.kernel.scope("listener", "installed");
-  listener.on(machines.signal, (signal) => void signals.push(signal));
+  listener.on(machines.signaled, (signal) => void signals.push(signal));
   const asked = await server.send("/ops/machine-probe.where", {
     hostId: machine.hostId,
   });

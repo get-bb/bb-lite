@@ -24,7 +24,7 @@ export default function environments(bb: PluginServerApi): void {
   bb.implement(contract.instructions, ({ environmentId }) =>
     manager.workspaceInstructions(environmentId),
   );
-  bb.implement(contract.remove, ({ environmentId }) =>
+  bb.implement(contract.delete, ({ environmentId }) =>
     manager.remove(environmentId),
   );
   bb.implement(contract.sweep, () => manager.sweep());

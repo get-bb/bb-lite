@@ -1,4 +1,5 @@
 import * as Domain from "@bb/domain";
+import { systemExecutionOptionsQuerySchema } from "@bb/server-contract";
 import type * as Contract from "@bb/server-contract";
 import { z } from "zod";
 import { contract, event, op, service, slot, table } from "./contract.js";
@@ -14,7 +15,7 @@ import type {
   MachineAccessProvider,
   MentionProvider,
   MentionQuery,
-  PluginEvents,
+  ThreadFailure,
   ProviderEnvEntry,
 } from "./server-api.js";
 
@@ -77,18 +78,16 @@ const queuedRef = z.object({
   queuedMessageId: z.string(),
 });
 const nothing = z.void();
+const threadWrite = {
+  kind: "write",
+  hooks: "answer",
+  internal: true,
+} as const;
+const interactionRef = threadRef.extend({ interactionId: z.string() });
 const none = z.object({});
-const threadWrite = () =>
-  op({
-    input: threadRef.extend({ args: z.array(z.unknown()) }),
-    output: z.unknown(),
-    kind: "write",
-    hooks: "answer",
-    internal: true,
-  });
-export type ThreadWriteOp = ReturnType<typeof threadWrite>;
-const payload = <Name extends keyof PluginEvents>() =>
-  event(z.custom<PluginEvents[Name]>());
+type Thread = Contract.ThreadResponse;
+const threadEvent = <Extra = object>() =>
+  event(z.custom<{ thread: Thread } & Extra>());
 
 const auditEntrySchema = z.object({
   id: z.number(),
@@ -152,7 +151,7 @@ export const sessions = contract("sessions", {
     output: z.array(z.custom<Domain.ProviderInfo>()),
   }),
   executionOptions: op({
-    input: z.custom<Contract.SystemExecutionOptionsQuery>(),
+    input: systemExecutionOptionsQuerySchema,
     output: z.custom<Contract.SystemExecutionOptionsResponse>(),
   }),
   titleFallback: service<TitleFallback>(),
@@ -274,57 +273,91 @@ export const threads = contract("threads", {
     output: z.object({ id: z.string(), hostId: z.string(), path: z.string() }),
     internal: true,
   }),
-  requestInput: op({
-    input: z.custom<
-      Omit<InputRequest, "presentation" | "timeoutMs"> & {
-        pluginId: string;
-        presentation?: Domain.ThreadEventItemPresentation;
-      }
-    >(),
-    output: z.custom<InputResult>(),
-    kind: "write",
-    internal: true,
-  }),
-  settled: op({ input: none, output: nothing, internal: true }),
+  waitSettled: op({ input: none, output: nothing, internal: true }),
   sweep: op({ input: none, output: nothing, kind: "write", internal: true }),
   released: event(
     threadRef.extend({
       reason: z.enum(["thread-deleted", "thread-archived"]),
     }),
   ),
-  update: threadWrite(),
-  compact: threadWrite(),
-  clearContext: threadWrite(),
-  queueMessage: threadWrite(),
-  editQueuedMessage: threadWrite(),
-  dropQueuedMessage: threadWrite(),
-  sendQueuedMessage: threadWrite(),
+  update: op({
+    input: threadRef.extend({
+      patch: z.custom<Contract.UpdateThreadRequest>(),
+    }),
+    output: z.custom<Thread>(),
+    ...threadWrite,
+  }),
+  compact: op({ input: threadRef, output: nothing, ...threadWrite }),
+  clearContext: op({ input: threadRef, output: nothing, ...threadWrite }),
+  createQueuedMessage: op({
+    input: threadRef.extend({
+      request: z.custom<Contract.CreateQueuedMessageRequest>(),
+    }),
+    output: z.custom<Domain.ThreadQueuedMessage>(),
+    ...threadWrite,
+  }),
+  updateQueuedMessage: op({
+    input: queuedRef.extend({
+      request: z.custom<Contract.UpdateQueuedMessageRequest>(),
+    }),
+    output: z.custom<Domain.ThreadQueuedMessage>(),
+    ...threadWrite,
+  }),
+  deleteQueuedMessage: op({
+    input: queuedRef,
+    output: nothing,
+    ...threadWrite,
+  }),
+  sendQueuedMessage: op({
+    input: queuedRef.extend({
+      mode: z.custom<Contract.SendQueuedMessageMode>(),
+    }),
+    output: z.custom<Contract.SendMessageResponse>(),
+    ...threadWrite,
+  }),
   appended: event(
     z.object({ threadId: z.string(), types: z.array(z.string()) }),
   ),
   messageQueued: event(queuedRef),
   messageDispatched: event(queuedRef),
-  messageCancelled: event(queuedRef),
-  created: payload<"thread.created">(),
-  active: payload<"thread.active">(),
-  idle: payload<"thread.idle">(),
-  failed: payload<"thread.failed">(),
-  archived: payload<"thread.archived">(),
-  unarchived: payload<"thread.unarchived">(),
-  deleted: payload<"thread.deleted">(),
+  messageDeleted: event(queuedRef),
+  created: threadEvent(),
+  active: threadEvent(),
+  idle: threadEvent<{ lastAssistantText: string | null }>(),
+  failed: threadEvent<{
+    error: string | null;
+    failure: ThreadFailure | null;
+  }>(),
+  archived: threadEvent(),
+  unarchived: threadEvent(),
+  deleted: threadEvent(),
 });
 
 export const interactions = contract("interactions", {
-  pending: payload<"interaction.pending">(),
+  pending: threadEvent<{ interaction: Domain.PendingInteraction }>(),
   ask: op({
     input: z.custom<InputRequest>(),
     output: z.custom<InputResult>(),
     kind: "write",
     internal: true,
   }),
-  resolve: threadWrite(),
-  respond: threadWrite(),
-  cancel: threadWrite(),
+  resolve: op({
+    input: interactionRef.extend({
+      resolution: z.custom<Domain.PendingInteractionResolution>(),
+    }),
+    output: z.custom<Domain.PendingInteraction>(),
+    ...threadWrite,
+  }),
+  respond: op({
+    input: interactionRef.extend({ value: Domain.jsonValueSchema }),
+    output: z.custom<Domain.PendingInteraction>(),
+    ...threadWrite,
+  }),
+  cancel: op({
+    input: interactionRef,
+    output: z.custom<Domain.PendingInteraction>(),
+    ...threadWrite,
+  }),
 });
 
 export const files = contract("files", {
@@ -363,7 +396,7 @@ export const files = contract("files", {
     kind: "write",
     internal: true,
   }),
-  remove: op({
+  delete: op({
     input: z.object({
       threadId: z.string(),
       path: z.string(),
@@ -418,7 +451,7 @@ export interface MachineRef {
 export interface MachineProvider {
   id: string;
   displayName: string;
-  remove?(machine: MachineRef): void | Promise<void>;
+  delete?(machine: MachineRef): void | Promise<void>;
   suspend?(machine: MachineRef): void | Promise<void>;
   resume?(machine: MachineRef): void | Promise<void>;
 }
@@ -480,7 +513,7 @@ export const machines = contract("machines", {
     kind: "write",
     internal: true,
   }),
-  remove: op({
+  delete: op({
     input: machineRef,
     output: nothing,
     kind: "write",
@@ -488,8 +521,8 @@ export const machines = contract("machines", {
   }),
   connected: event(machineRef),
   disconnected: event(machineRef),
-  removed: event(machineRef),
-  signal: event(
+  deleted: event(machineRef),
+  signaled: event(
     machineRef.extend({
       pluginId: z.string(),
       name: z.string(),
@@ -581,7 +614,7 @@ export const terminals = contract("terminals", {
     kind: "write",
     internal: true,
   }),
-  input: event(
+  inputReceived: event(
     z.object({
       terminalId: z.string(),
       hostId: z.string(),
@@ -608,7 +641,7 @@ export const environments = contract("environments", {
     output: z.string().nullable(),
     internal: true,
   }),
-  remove: op({
+  delete: op({
     input: environmentRef,
     output: nothing,
     kind: "write",
@@ -630,14 +663,3 @@ export const environments = contract("environments", {
     output: z.array(z.custom<Domain.Environment>()),
   }),
 });
-
-export const pluginEventDefs = {
-  "thread.created": threads.created,
-  "thread.active": threads.active,
-  "thread.idle": threads.idle,
-  "thread.failed": threads.failed,
-  "thread.archived": threads.archived,
-  "thread.unarchived": threads.unarchived,
-  "thread.deleted": threads.deleted,
-  "interaction.pending": interactions.pending,
-} as const;

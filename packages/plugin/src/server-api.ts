@@ -67,24 +67,6 @@ export interface ThreadFailure {
   detail: string | null;
 }
 
-export interface PluginEvents {
-  "thread.created": { thread: Thread };
-  "thread.active": { thread: Thread };
-  "thread.idle": { thread: Thread; lastAssistantText: string | null };
-  "thread.failed": {
-    thread: Thread;
-    error: string | null;
-    failure: ThreadFailure | null;
-  };
-  "thread.archived": { thread: Thread };
-  "thread.unarchived": { thread: Thread };
-  "thread.deleted": { thread: Thread };
-  "interaction.pending": {
-    thread: Thread;
-    interaction: Domain.PendingInteraction;
-  };
-}
-
 export interface ThreadContext {
   threadId: string;
   projectId: string;
@@ -152,7 +134,7 @@ export interface EnvironmentResult {
   branchName?: string;
 }
 
-export interface EnvironmentRemoval {
+export interface EnvironmentDeletion {
   hostId: string;
   path: string;
   resource: Domain.JsonValue | null;
@@ -177,7 +159,7 @@ export interface EnvironmentDefinition {
     context: { projectId: string; hostId: string },
   ): MaybePromise<string | null>;
   create(context: EnvironmentContext): Promise<EnvironmentResult>;
-  remove(context: EnvironmentRemoval): Promise<void>;
+  delete(context: EnvironmentDeletion): Promise<void>;
 }
 
 export interface InferenceService {

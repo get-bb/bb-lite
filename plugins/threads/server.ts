@@ -29,8 +29,7 @@ export default function threadsPlugin(bb: PluginServerApi): void {
   bb.implement(threads.workspace, ({ threadId }) =>
     engine.workspaceOf(threadId),
   );
-  bb.implement(threads.requestInput, (request) => engine.requestInput(request));
-  bb.implement(threads.settled, () => engine.settled());
+  bb.implement(threads.waitSettled, () => engine.settled());
   bb.implement(threads.sweep, () => engine.sweep());
   bb.on(projects.deleted, (deleted) => engine.releaseDeletedProject(deleted));
   bb.storage.tables.migrate([THREADS_VIEW]);

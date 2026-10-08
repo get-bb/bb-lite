@@ -344,7 +344,7 @@ export async function writeTerminalInput(
       : session;
   await bb.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
   const { threadId } = session;
-  bb.emit(terminalEvents.input, { terminalId, hostId, threadId });
+  bb.emit(terminalEvents.inputReceived, { terminalId, hostId, threadId });
   return marked;
 }
 

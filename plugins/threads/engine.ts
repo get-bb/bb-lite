@@ -3,13 +3,16 @@ import * as domain from "@bb/domain";
 import {
   interactions as interactionOps,
   threads as threadOps,
-  type ThreadWriteOp,
 } from "@bb/plugin";
 import type { RunnerThreadEvent } from "@bb/runner";
 import type {
+  CreateQueuedMessageRequest,
   CreateThreadRequest,
   SendMessageRequest,
+  SendQueuedMessageMode,
   ThreadResponse,
+  UpdateQueuedMessageRequest,
+  UpdateThreadRequest,
 } from "@bb/server-contract";
 import type { PluginServerApi } from "@bb/plugin";
 import type { ServerRunner } from "@bb/server-kit/context";
@@ -167,7 +170,7 @@ export class Engine {
     event:
       | typeof threadOps.messageQueued
       | typeof threadOps.messageDispatched
-      | typeof threadOps.messageCancelled,
+      | typeof threadOps.messageDeleted,
     threadId: string,
     queuedMessageId: string,
   ): void {
@@ -440,14 +443,61 @@ export function createThreadEngine(bb: PluginServerApi) {
       mutations.addPluginRow(engine, pluginId, input),
     );
   });
-  const routed = <Args extends unknown[], Result>(
-    op: ThreadWriteOp,
-    run: (threadId: string, ...args: Args) => Result,
-  ) => {
-    bb.implement(op, ({ threadId, args }) => run(threadId, ...(args as Args)));
-    return (threadId: string, ...args: Args) =>
-      bb.call(op, { threadId, args }) as Promise<Awaited<Result>>;
-  };
+  const update = serialized(mutations.update);
+  const compact = writes(direct(mutations.compact));
+  const clearContext = writes(serialized(lifecycle.clearContext));
+  const queue = writes(serialized(mutations.createQueuedMessage));
+  const requeue = writes(serialized(mutations.updateQueuedMessage));
+  const unqueue = writes(serialized(mutations.deleteQueuedMessage));
+  const sendQueued = writes(serialized(mutations.sendQueuedMessageNow));
+  const resolve = writes(serialized(interactions.resolveProviderInteraction));
+  const respond = writes(serialized(interactions.respondToInteraction));
+  const cancel = writes(serialized(interactions.cancelByUser));
+  bb.implement(threadOps.update, (input) =>
+    update(input.threadId, input.patch),
+  );
+  bb.implement(threadOps.compact, ({ threadId }) => compact(threadId));
+  bb.implement(threadOps.clearContext, ({ threadId }) =>
+    clearContext(threadId),
+  );
+  bb.implement(threadOps.createQueuedMessage, (input) =>
+    queue(input.threadId, input.request),
+  );
+  bb.implement(threadOps.updateQueuedMessage, (input) =>
+    requeue(input.threadId, input.queuedMessageId, input.request),
+  );
+  bb.implement(threadOps.deleteQueuedMessage, (input) =>
+    unqueue(input.threadId, input.queuedMessageId),
+  );
+  bb.implement(threadOps.sendQueuedMessage, (input) =>
+    sendQueued(input.threadId, input.queuedMessageId, input.mode),
+  );
+  bb.implement(interactionOps.resolve, (input) =>
+    resolve(input.threadId, input.interactionId, input.resolution),
+  );
+  bb.implement(interactionOps.respond, (input) =>
+    respond(input.threadId, input.interactionId, input.value),
+  );
+  bb.implement(interactionOps.cancel, (input) =>
+    cancel(input.threadId, input.interactionId),
+  );
+  bb.implement(interactionOps.ask, (request, { caller }) => {
+    const { threadId, rendererId, title, payload, timeoutMs } = request;
+    const timeout =
+      timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs);
+    const limits = [request.signal, timeout];
+    const signal = AbortSignal.any(
+      limits.filter((limit) => limit !== undefined),
+    );
+    const presentation = domain.threadEventItemPresentationSchema.safeParse(
+      request.presentation,
+    ).data;
+    const { describeSubmission } = request;
+    const form = { threadId, rendererId, title, payload, presentation };
+    const pluginId = caller.via.at(-1) ?? "core";
+    const origin = { pluginId, signal, describeSubmission };
+    return interactions.requestInput(engine, { ...form, ...origin });
+  });
   return {
     start: () => engine.start(),
     close: () => engine.close(),
@@ -465,51 +515,56 @@ export function createThreadEngine(bb: PluginServerApi) {
     send: (threadId: string, request: SendMessageRequest) =>
       bb.call(threadOps.send, { threadId, request }),
     stop: (threadId: string) => bb.call(threadOps.stop, { threadId }),
-    compact: routed(threadOps.compact, writes(direct(mutations.compact))),
-    clearContext: routed(
-      threadOps.clearContext,
-      writes(serialized(lifecycle.clearContext)),
-    ),
+    compact: (threadId: string) => bb.call(threadOps.compact, { threadId }),
+    clearContext: (threadId: string) =>
+      bb.call(threadOps.clearContext, { threadId }),
     archive: (threadId: string) => bb.call(threadOps.archive, { threadId }),
     unarchive: (threadId: string) => bb.call(threadOps.unarchive, { threadId }),
     delete: (threadId: string, confirmation: DeleteConfirmation) =>
       bb.call(threadOps.delete, { threadId, ...confirmation }),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
-    update: routed(threadOps.update, serialized(mutations.update)),
+    update: (threadId: string, patch: UpdateThreadRequest) =>
+      bb.call(threadOps.update, { threadId, patch }),
     pin: serialized(mutations.pin),
     unpin: serialized(mutations.unpin),
     reorderPinned: direct(mutations.reorderPinned),
     markRead: serialized(mutations.markRead),
     markUnread: serialized(mutations.markUnread),
-    createQueuedMessage: routed(
-      threadOps.queueMessage,
-      writes(serialized(mutations.createQueuedMessage)),
-    ),
-    updateQueuedMessage: routed(
-      threadOps.editQueuedMessage,
-      writes(serialized(mutations.updateQueuedMessage)),
-    ),
-    deleteQueuedMessage: routed(
-      threadOps.dropQueuedMessage,
-      writes(serialized(mutations.deleteQueuedMessage)),
-    ),
-    sendQueuedMessageNow: routed(
-      threadOps.sendQueuedMessage,
-      writes(serialized(mutations.sendQueuedMessageNow)),
-    ),
-    resolveInteraction: routed(
-      interactionOps.resolve,
-      writes(serialized(interactions.resolveProviderInteraction)),
-    ),
-    respondToInteraction: routed(
-      interactionOps.respond,
-      writes(serialized(interactions.respondToInteraction)),
-    ),
-    cancelInteraction: routed(
-      interactionOps.cancel,
-      writes(serialized(interactions.cancelByUser)),
-    ),
-    requestInput: direct(interactions.requestInput),
+    createQueuedMessage: (
+      threadId: string,
+      request: CreateQueuedMessageRequest,
+    ) => bb.call(threadOps.createQueuedMessage, { threadId, request }),
+    updateQueuedMessage: (
+      threadId: string,
+      queuedMessageId: string,
+      request: UpdateQueuedMessageRequest,
+    ) =>
+      bb.call(threadOps.updateQueuedMessage, {
+        threadId,
+        queuedMessageId,
+        request,
+      }),
+    deleteQueuedMessage: (threadId: string, queuedMessageId: string) =>
+      bb.call(threadOps.deleteQueuedMessage, { threadId, queuedMessageId }),
+    sendQueuedMessageNow: (
+      threadId: string,
+      queuedMessageId: string,
+      mode: SendQueuedMessageMode,
+    ) =>
+      bb.call(threadOps.sendQueuedMessage, { threadId, queuedMessageId, mode }),
+    resolveInteraction: (
+      threadId: string,
+      interactionId: string,
+      resolution: domain.PendingInteractionResolution,
+    ) =>
+      bb.call(interactionOps.resolve, { threadId, interactionId, resolution }),
+    respondToInteraction: (
+      threadId: string,
+      interactionId: string,
+      value: domain.JsonValue,
+    ) => bb.call(interactionOps.respond, { threadId, interactionId, value }),
+    cancelInteraction: (threadId: string, interactionId: string) =>
+      bb.call(interactionOps.cancel, { threadId, interactionId }),
   };
 }
 

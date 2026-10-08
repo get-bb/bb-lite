@@ -225,7 +225,7 @@ export function deleteQueuedMessage(
   requireQueuedMessage(engine, threadId, queuedMessageId);
   queue.deleteQueuedMessages(engine.bb.db, [queuedMessageId]);
   queueChanged(engine, threadId);
-  engine.announceMessage(threads.messageCancelled, threadId, queuedMessageId);
+  engine.announceMessage(threads.messageDeleted, threadId, queuedMessageId);
 }
 
 export async function sendQueuedMessageNow(

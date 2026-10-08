@@ -77,7 +77,7 @@ export function registerEnvironmentRoutes(
     if (listEnvironmentThreadIds(db, id, "unarchived").length > 0) {
       throw conflict("Environment still has live threads");
     }
-    await bb.call(environmentOps.remove, { environmentId: id });
+    await bb.call(environmentOps.delete, { environmentId: id });
     return c.json({ ok: true });
   });
 

@@ -55,7 +55,7 @@ export default function workspace(bb: PluginServerApi): void {
     const { runner, rootPath } = await located(threadId, path);
     await runner.mutatePath({ op: "mkdir", path, rootPath, recursive: true });
   });
-  bb.implement(files.remove, async ({ threadId, path, recursive }) => {
+  bb.implement(files.delete, async ({ threadId, path, recursive }) => {
     const { runner, rootPath } = await located(threadId, path);
     await runner.mutatePath({ op: "remove", path, rootPath, recursive });
   });

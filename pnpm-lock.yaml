@@ -1351,25 +1351,6 @@ importers:
         specifier: ^22.0.0
         version: 22.19.10
 
-  plugins/interactions:
-    dependencies:
-      '@bb/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
-      '@bb/plugin':
-        specifier: workspace:*
-        version: link:../../packages/plugin
-      '@bb/server-kit':
-        specifier: workspace:*
-        version: link:../../packages/server-kit
-    devDependencies:
-      '@bb/tsconfig':
-        specifier: workspace:*
-        version: link:../../packages/tsconfig
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.10
-
   plugins/machines:
     dependencies:
       '@bb/domain':

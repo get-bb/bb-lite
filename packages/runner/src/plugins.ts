@@ -8,8 +8,8 @@ import {
   slot,
   type Caller,
   type Kernel,
+  type PluginBase,
   type PluginScope,
-  type PluginVerbs,
   type Tier,
 } from "@bb/plugin";
 import type { ProviderAdapter } from "./providers/provider.js";
@@ -27,10 +27,8 @@ export const runner = contract("runner", {
   provider: slot<ProviderAdapter>({ key: "id" }),
 });
 
-export interface PluginRunnerApi extends PluginVerbs {
-  readonly pluginId: string;
+export interface PluginRunnerApi extends PluginBase {
   readonly dataDir: string;
-  log(message: string): void;
   signal(name: string, payload?: unknown): void;
 }
 
@@ -95,20 +93,46 @@ export function createRunnerPlugins(options: {
     scopes.set(part.id, scope);
     const { dispose, ...verbs } = scope;
     const dataDir = join(options.dataDir, "plugins", part.id);
+    const say = (level: string) => (message: string, fields?: object) => {
+      const detail = fields === undefined ? "" : ` ${JSON.stringify(fields)}`;
+      log(`[${part.id}] ${level}: ${message}${detail}`);
+    };
+    const starters: Parameters<PluginBase["onStart"]>[0][] = [];
+    const stops: (() => unknown)[] = [];
     const api: PluginRunnerApi = {
       ...verbs,
       pluginId: part.id,
       dataDir,
-      log: (message) => log(`[${part.id}] ${message}`),
+      log: {
+        debug: say("debug"),
+        info: say("info"),
+        warn: say("warn"),
+        error: say("error"),
+      },
       signal(name, payload = null) {
         const signal = { kind: "plugin.signal", pluginId: part.id } as const;
         options.sink?.({ lane: "live", ...signal, name, payload });
       },
+      onStart: (start) => void starters.push(start),
+      onDispose: (stop) => void stops.push(stop),
     };
+    const stop = () => {
+      for (const run of stops.splice(0).reverse()) {
+        Promise.resolve()
+          .then(run)
+          .catch((error: unknown) => failed(part.id)(error));
+      }
+      dispose();
+    };
+    scopes.set(part.id, { ...scope, dispose: stop });
     try {
       await part.entry(api);
+      for (const start of starters) {
+        const stopping = await start();
+        if (typeof stopping === "function") stops.push(stopping);
+      }
     } catch (error) {
-      dispose();
+      stop();
       scopes.delete(part.id);
       throw error;
     }

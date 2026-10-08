@@ -16,7 +16,6 @@ import threadList from "../../plugins/thread-list/server.js";
 import auditLog from "../../plugins/audit-log/server.js";
 import environments from "../../plugins/environments/server.js";
 import identity from "../../plugins/identity/server.js";
-import interactions from "../../plugins/interactions/server.js";
 import machines from "../../plugins/machines/server.js";
 import projects from "../../plugins/projects/server.js";
 import sessions from "../../plugins/sessions/server.js";
@@ -45,7 +44,6 @@ export const corePlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("environments"), server: environments },
   { directory: pluginDirectory("terminals"), server: terminals },
   { directory: pluginDirectory("workspace"), server: workspace },
-  { directory: pluginDirectory("interactions"), server: interactions },
   { directory: pluginDirectory("audit-log"), server: auditLog },
   { directory: pluginDirectory("shell"), server: null },
   { directory: pluginDirectory("thread-view"), server: null },

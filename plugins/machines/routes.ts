@@ -175,7 +175,7 @@ export function registerHostRoutes(app: ApiApp, bb: PluginServerApi): void {
     }
     const host = requireHost(bb, id);
     const { provider, machine } = providerOf(bb, host);
-    await Promise.resolve(provider?.remove?.(machine)).catch(
+    await Promise.resolve(provider?.delete?.(machine)).catch(
       (error: unknown) => {
         const message = `The machine's provider could not remove it: ${errorMessage(error)}`;
         throw new ApiError(502, "machine_provider_failed", message);

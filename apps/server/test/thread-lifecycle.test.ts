@@ -230,7 +230,7 @@ it("interrupts threads that were running when the server stopped", async () => {
   const runner = new FakeRunner();
   const server = createServer({ config, db, localRunner: () => runner.api });
   await server.listen();
-  await server.ctx.kernel.call(threads.settled, {});
+  await server.ctx.kernel.call(threads.waitSettled, {});
   const column = <Row>(sql: string, pick: (row: Row) => string) =>
     db.all<Row>(sql).map(pick);
   const statuses = "SELECT status FROM threads ORDER BY id";
