@@ -235,8 +235,8 @@ runner operation to make the directory. Using a built-in id (`git-worktree`, `pe
 
 `bb dev fork <id> [path]` copies a plugin from `plugins/` to a directory of yours and loads the copy
 in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings the
-original back. Every plugin in `plugins/` forks this way: the providers, the add-ons and the eleven
-core server plugins.
+original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the eleven core
+server plugins and the five core app plugins.
 
 - The copy keeps the original's id, so its contract names, settings and data carry over. To run it
   beside the original instead, change `bb.id` in `package.json` and the id in `contract.ts`.
@@ -255,9 +255,23 @@ core server plugins.
   `environments`, `terminals`, `machines`, `sessions`, `projects`, `identity`, `settings`,
   `workspace`, `interactions` and `audit-log` likewise. They import the data layer and helpers from
   `@bb/server-kit/*`, which a fork shares with the running server.
-- What does not fork yet: the app's own screens (the shell, thread view, composer, side panel and
-  settings pages in `apps/app/src`), and the data layer itself (`packages/server-kit`). Extend those
-  through operations, hooks and slots.
+- The app's screens fork too: `shell`, `thread-view`, `composer`, `side-panel` and `settings`. They
+  import shared client code from `@bb/app-kit/*` (the running app's own modules) and each other's
+  components through `bb-plugin-<id>/contract`, so a forked composer is the one the thread page
+  shows.
+- What does not fork: the two kits (`packages/server-kit`, `packages/app-kit`). They hold the data
+  layer, shared state and the components several features use; change those in the repository.
+
+### Using another feature's components
+
+`plugins/composer/contract.ts` exports parts such as `FollowUpPromptBox` and `usePromptTypeahead`.
+Import them from `bb-plugin-composer/contract` and use them like the originals. A part is a thin
+stand-in that finds the current provider when it renders (a component) or is called (a hook or
+function), so it renders nothing, or throws when called, while no plugin provides it. To publish one
+of your own: export it from `parts.ts`, declare it in `contract.ts` with
+`part<typeof Module.Name>("<your id>", "Name")` or `callPart<…>`, and keep
+`bb.add(appParts.parts, { plugin: "<your id>", parts })` in `app.tsx`. Values that are not functions
+(atoms, contexts, constants) cannot be parts; they belong in a kit.
 
 ## Tools
 
