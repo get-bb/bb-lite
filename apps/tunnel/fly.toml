@@ -1,5 +1,5 @@
 app = "bb-next-tunnel"
-primary_region = "iad"
+primary_region = "sjc"
 
 [build]
 dockerfile = "Dockerfile"

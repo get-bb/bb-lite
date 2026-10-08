@@ -44,6 +44,14 @@ gate's certificate against Node's root certificates.
   `*.fly.getbb.dev`. DNS: `A` and `AAAA` records for `*.fly`, and the `_acme-challenge.fly` CNAME Fly
   names, all unproxied.
 
+- Compare: `node scripts/tunnel-compare.mjs --data <data dir of a linked server>` times the same API
+  calls through both addresses with a machine credential it mints and revokes. `--frp-via
+bb-next-tunnel.fly.dev` reaches the gate before the DNS records exist.
+- Where the machine runs decides most of the result: a request crosses from the visitor to the gate's
+  region and from there to the server. With the gate in `iad` and a server in California the two
+  paths took about the same time; with the gate in `sjc` frp answered an API call in about 37 ms
+  against 130 to 200 ms through the relay.
+
 ## Not there yet
 
 Shares (`<label>--<port>`), the hosted servers' wake and asleep pages, a deadline on the whole
