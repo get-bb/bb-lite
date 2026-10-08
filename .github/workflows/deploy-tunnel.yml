@@ -1,0 +1,85 @@
+name: Deploy tunnel gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/tunnel/**"
+      - ".github/workflows/deploy-tunnel.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-tunnel
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Test and deploy bb-next-tunnel to Fly
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FRP_VERSION: 0.71.0
+      FRP_SHA256: 84f27e39f11169f7adcef8e8b70c9329de17747b1f14dad9fb95eef5682ea716
+      FLYCTL_VERSION: 0.4.114
+      FLYCTL_SHA256: 86782019ab470c2f53a8fe0c24541178c51239b733f31a0463b5e18ce3b056cc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the gate and the connect plugin
+        run: pnpm --filter @bb/tunnel-gate --filter bb-plugin-connect typecheck
+
+      - name: Fetch frp
+        run: |
+          folder="frp_${FRP_VERSION}_linux_amd64"
+          curl -fsSL -o /tmp/frp.tar.gz \
+            "https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/${folder}.tar.gz"
+          echo "${FRP_SHA256}  /tmp/frp.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/frp.tar.gz -C "$RUNNER_TEMP"
+          echo "FRP_BIN_DIR=$RUNNER_TEMP/$folder" >> "$GITHUB_ENV"
+
+      - name: Test frp and the gate against the relay and a real bb server
+        run: pnpm exec vitest run apps/relay -t "through frp"
+
+      - name: Require the Fly token
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Set the FLY_API_TOKEN repository secret to deploy."
+            exit 1
+          fi
+
+      - name: Fetch the Fly CLI
+        run: |
+          curl -fsSL -o /tmp/flyctl.tar.gz \
+            "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_x86_64.tar.gz"
+          echo "${FLYCTL_SHA256}  /tmp/flyctl.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/flyctl"
+          tar -xzf /tmp/flyctl.tar.gz -C "$RUNNER_TEMP/flyctl" flyctl
+          echo "$RUNNER_TEMP/flyctl" >> "$GITHUB_PATH"
+
+      - name: Deploy the gate
+        working-directory: apps/tunnel
+        run: flyctl deploy --ha=false
+
+      - name: Check the gate answers
+        run: |
+          for attempt in 1 2 3 4 5; do
+            status=$(curl -s -o /dev/null -m 20 -w '%{http_code}' https://bb-next-tunnel.fly.dev/__gate/health)
+            if [ "$status" = "200" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::https://bb-next-tunnel.fly.dev/__gate/health answered $status after the deploy."
+          exit 1

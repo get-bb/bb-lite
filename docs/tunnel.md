@@ -28,7 +28,7 @@ may only claim its own subdomain. The gate answers 503 for a server with no clie
 
 ## The server's side
 
-`BB_CONNECT_FRP=tls://tunnel.fly.getbb.dev:7000` makes the connect plugin start `frpc` next to its
+`BB_CONNECT_FRP=tls://bb-next-tunnel.fly.dev:7000` makes the connect plugin start `frpc` next to its
 usual tunnel (`plugins/connect/src/frp.ts`). It downloads frp 0.71.0 for Linux or macOS into
 `<data dir>/frp`, checks it against a pinned SHA-256, and writes `frpc.json` there (mode 600; it holds
 the link credential). `BB_CONNECT_FRPC` names an frpc binary to use instead. The client verifies the
@@ -39,11 +39,14 @@ gate's certificate against Node's root certificates.
 - Tests: `FRP_BIN_DIR=<folder with frps and frpc> pnpm exec vitest run apps/relay` adds a run of the
   real binaries against the relay in Miniflare and a real bb server. Without `FRP_BIN_DIR` that test is
   skipped.
-- Deploy: `fly deploy --ha=false` from `apps/tunnel`. The app needs the secret `RELAY_SECRET`, equal
-  to the relay Worker's `GATE_SECRET`, a dedicated IPv4 address for port 7000, and a certificate for
-  `*.fly.getbb.dev`. DNS: `A` and `AAAA` records for `*.fly`, and the `_acme-challenge.fly` CNAME Fly
-  names, all unproxied.
-
+- Deploy: `.github/workflows/deploy-tunnel.yml` runs on every push to `main` that touches
+  `apps/tunnel` (and on demand): typecheck, the frp test above with a pinned frp, `flyctl deploy
+--ha=false` from `apps/tunnel`, then a check that the gate answers. It uses the repository secret
+  `FLY_API_TOKEN`. A deploy restarts the one machine, so connected servers drop for a few seconds and
+  dial back by themselves. By hand: `fly deploy --ha=false` from `apps/tunnel`.
+- The Fly app needs the secret `RELAY_SECRET`, equal to the relay Worker's `GATE_SECRET`, a dedicated
+  IPv4 address for port 7000, and a certificate for `*.fly.getbb.dev`. DNS: `A` and `AAAA` records for
+  `*.fly`, and the `_acme-challenge.fly` CNAME Fly names, all unproxied.
 - Compare: `node scripts/tunnel-compare.mjs --data <data dir of a linked server>` times the same API
   calls through both addresses with a machine credential it mints and revokes. `--frp-via
 bb-next-tunnel.fly.dev` reaches the gate before the DNS records exist.
