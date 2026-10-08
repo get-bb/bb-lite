@@ -221,3 +221,52 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   const restored = await op("plugins.describe", { id: "tasks" });
   expect(restored.result).toMatchObject({ builtin: true });
 }, 120_000);
+
+it("copies a plugin under a new id that runs beside the original", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const cwd = scratch();
+  const fork = async (input: object) => {
+    const response = await server.send("/ops/plugin-dev.fork", {
+      cwd,
+      ...input,
+    });
+    return (await response.json()) as Body;
+  };
+  const copied = await fork({ id: "tasks", as: "my-tasks" });
+  expect(copied.result).toEqual({
+    id: "my-tasks",
+    path: join(cwd, "my-tasks"),
+    beside: "tasks",
+  });
+  const status = (id: string) =>
+    ctx.plugins.list().find((plugin) => plugin.id === id)?.status;
+  expect([status("tasks"), status("my-tasks")]).toEqual(["running", "running"]);
+  const manifest = readFileSync(join(cwd, "my-tasks", "package.json"), "utf8");
+  expect(JSON.parse(manifest)).toMatchObject({
+    name: "bb-plugin-my-tasks",
+    bb: { forkOf: "tasks" },
+  });
+  const owners = new Map(
+    ctx.kernel.inspect().ops.map(({ name, owner }) => [name, owner]),
+  );
+  const mine = [...owners].filter(([, owner]) => owner === "my-tasks");
+  expect(mine.length).toBeGreaterThan(0);
+  expect(mine.every(([name]) => name.startsWith("my-tasks."))).toBe(true);
+  expect(ctx.plugins.cliOf("my-tasks")?.name).toBe("my-tasks");
+  expect(ctx.plugins.cliOf("tasks")?.name).toBe("tasks");
+
+  await fork({ id: "ask-user-question", as: "my-questions" });
+  expect(status("my-questions")).toBe("running");
+  const agentTools = ctx.kernel.ops().flatMap(({ op, owner }) => {
+    const { agent } = op.doors;
+    return agent === undefined ? [] : [`${owner}:${agent.name}`];
+  });
+  expect(agentTools).toContain("ask-user-question:AskUserQuestion");
+  expect(agentTools).toContain("my-questions:MyQuestionsAskUserQuestion");
+
+  const taken = await fork({ id: "audit", as: "tasks" });
+  expect(taken.message).toContain("already installed");
+  const invalid = await fork({ id: "audit", as: "Not Valid" });
+  expect(invalid.message).toContain("lower-case");
+}, 120_000);

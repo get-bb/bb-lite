@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -106,10 +114,56 @@ interface Manifest {
   dependencies?: Record<string, string>;
 }
 
+const SOURCE_FILE = /\.(?:ts|tsx)$/u;
+const CONTRACT_FILE = /(?:^|[\\/])contracts?\.ts$/u;
+const AGENT_TOOL = /(agent:\s*\{\s*name:\s*")([A-Za-z0-9_]+)(")/gu;
+
+function pascal(id: string): string {
+  const words = id.split("-").filter((word) => word !== "");
+  return words.map((word) => word[0]?.toUpperCase() + word.slice(1)).join("");
+}
+
+function renamed(text: string, file: string, from: string, to: string): string {
+  const literal = JSON.stringify(from);
+  const quoted = literal.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const own = [
+    new RegExp(`(\\bcontract\\(\\s*)${quoted}`, "gu"),
+    new RegExp(`(>\\(\\s*)${quoted}(?=\\s*,)`, "gu"),
+    new RegExp(`(\\bplugin:\\s*)${quoted}`, "gu"),
+  ];
+  let next = text;
+  for (const pattern of own) next = next.replace(pattern, `$1"${to}"`);
+  next = next.replace(/(defineCli\(\s*\{\s*name:\s*")[^"]+(")/gu, `$1${to}$2`);
+  if (!CONTRACT_FILE.test(file)) return next;
+  next = next.replace(/(cli:\s*\{\s*path:\s*")[^" ]+/gu, `$1${to}`);
+  const tools = [...next.matchAll(AGENT_TOOL)].map((match) => match[2] ?? "");
+  for (const tool of new Set(tools)) {
+    const word = new RegExp(`\\b${tool}\\b`, "gu");
+    next = next.replace(word, `${pascal(to)}${tool}`);
+  }
+  return next;
+}
+
+async function renamePlugin(
+  directory: string,
+  from: string,
+  to: string,
+): Promise<void> {
+  const entries = await readdir(directory, { recursive: true });
+  for (const entry of entries) {
+    if (!SOURCE_FILE.test(entry) || entry.split(sep).includes(".bb")) continue;
+    const file = join(directory, entry);
+    const text = await readFile(file, "utf8");
+    const next = renamed(text, entry, from, to);
+    if (next !== text) await writeFile(file, next);
+  }
+}
+
 async function copyPlugin(
   id: string,
   source: string,
   target: string,
+  as: string | null = null,
 ): Promise<void> {
   const copied = (path: string) => {
     const parts = relative(source, path).split(sep);
@@ -122,8 +176,10 @@ async function copyPlugin(
   const own = Object.entries(manifest.dependencies ?? {}).filter(
     ([, range]) => !range.startsWith("workspace:"),
   );
+  const identity = as === null ? {} : { name: `bb-plugin-${as}` };
   const forked = {
     ...kept,
+    ...identity,
     bb: { ...manifest.bb, forkOf: id },
     dependencies: Object.fromEntries(own),
   };
@@ -136,6 +192,7 @@ async function copyPlugin(
   const text = `${JSON.stringify(tsconfig, null, 2)}\n`;
   await writeFile(join(target, "tsconfig.json"), text);
   await writeTypes(target, source);
+  if (as !== null) await renamePlugin(target, id, as);
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -207,20 +264,28 @@ export default function plugin(bb: PluginServerApi): void {
     return { path: directory, files: files.map(([file]) => file) };
   });
 
-  bb.implement(pluginDev.fork, async ({ id, path, cwd }) => {
+  bb.implement(pluginDev.fork, async ({ id, path, cwd, as = null }) => {
     const found = await bb.call(plugins.describe, { id });
     const source = found?.original ?? null;
     if (source === null) {
       const known = found === null ? "is not a plugin" : "is not built in";
       throw new Error(`"${id}" ${known}, so there is nothing to fork`);
     }
-    const target = resolve(cwd ?? process.cwd(), path ?? id);
+    if (as !== null && !PLUGIN_ID.test(as)) {
+      throw new Error("A plugin id is lower-case letters, digits and dashes");
+    }
+    if (as !== null && (await bb.call(plugins.describe, { id: as })) !== null) {
+      throw new Error(`A plugin called "${as}" is already installed`);
+    }
+    const target = resolve(cwd ?? process.cwd(), path ?? as ?? id);
     if (await exists(target)) {
       throw new Error(`${target} already exists`);
     }
     try {
-      await copyPlugin(id, source, target);
-      return await bb.call(plugins.install, { path: target, watch: true });
+      await copyPlugin(id, source, target, as);
+      const install = { path: target, watch: true };
+      const installed = await bb.call(plugins.install, install);
+      return { ...installed, beside: as === null ? null : id };
     } catch (error) {
       await rm(target, { recursive: true, force: true });
       throw error;

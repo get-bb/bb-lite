@@ -112,9 +112,17 @@ export const pluginDev = contract("plugin-dev", {
     input: z.object({
       id: z.string().describe("The built-in plugin to copy"),
       path: z.string().optional().describe("Where to put the copy"),
+      as: z
+        .string()
+        .optional()
+        .describe("A new id, to run the copy beside the original"),
       cwd: located.cwd,
     }),
-    output: z.object({ id: z.string().nullable(), path: z.string() }),
+    output: z.object({
+      id: z.string().nullable(),
+      path: z.string(),
+      beside: z.string().nullable(),
+    }),
     kind: "write",
     allow: "owner",
     doors: {
@@ -122,10 +130,15 @@ export const pluginDev = contract("plugin-dev", {
         path: "dev fork",
         summary: "Copy a built-in plugin and run your copy in its place",
         positionals: ["id"],
-        print: ({ id, path }) =>
-          `Forked ${id ?? "plugin"} to ${path}. Your copy now runs in its ` +
-          "place and reloads when its files change. `bb plugin remove " +
-          `${path}\` brings the original back.`,
+        print: ({ id, path, beside }) =>
+          beside === null
+            ? `Forked ${id ?? "plugin"} to ${path}. Your copy now runs in its ` +
+              "place and reloads when its files change. `bb plugin remove " +
+              `${path}\` brings the original back.`
+            : `Copied ${beside} to ${path} as ${id ?? "a new plugin"}. It runs ` +
+              `beside ${beside} and reloads when its files change. Its ` +
+              "contract, CLI and agent tool names were renamed; check " +
+              "anything else it shares with the original.",
       },
     },
   }),

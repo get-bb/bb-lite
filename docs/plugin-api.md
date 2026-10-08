@@ -238,8 +238,12 @@ in place of the original, reloading it when a file changes. `bb plugin remove <p
 original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the eleven core
 server plugins and the five core app plugins.
 
-- The copy keeps the original's id, so its contract names, settings and data carry over. To run it
-  beside the original instead, change `bb.id` in `package.json` and the id in `contract.ts`.
+- The copy keeps the original's id, so its contract names, settings and data carry over and it
+  takes the original's place.
+- `bb dev fork <id> --as <new-id>` makes a plugin of your own instead: the copy gets the new id and
+  runs beside the original. Its package name, contract id, parts, CLI name and agent tool names are
+  renamed for you. Check anything else it shares with the original, such as a pick-one slot both
+  fill.
 - `bb.forkOf` in the copy's `package.json` names the original. Imports the copy does not install
   itself resolve from the original's `node_modules`, so a fork needs no `pnpm install`.
 - A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`,
@@ -281,7 +285,8 @@ a file changes (`bb plugin add <dir>` loads it without watching). `bb dev valida
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
 `bb dev types <dir>` writes `.bb/tsconfig.json` so an editor resolves bb's types.
 `bb dev install <git:url[#ref] | npm:spec | dir>` fetches and loads a plugin (owner only).
-`bb dev fork <id> [path]` copies a built-in plugin and runs the copy in its place (owner only).
+`bb dev fork <id> [path] [--as <new-id>]` copies a built-in plugin and runs the copy in its place, or
+beside it under a new id (owner only).
 `bb audit list --plugin <id>` shows what a plugin did for whom.
 
 `createPluginHarness()` from `@bb/plugin/testing` loads a server part against a bare kernel for unit

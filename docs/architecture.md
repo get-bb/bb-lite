@@ -643,7 +643,8 @@ and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (a
 resolve bb's types from this install), `install <git:url[#ref] | npm:spec | dir>` (fetched under
 `<dataDir>/plugins-src`). `fork <id> [path]` copies a builtin's directory
 (without `node_modules`, tests or caches), marks it `forkOf`, writes its types and loads it
-watched; a test forks every builtin and checks each copy runs. It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
+watched; a test forks every builtin and checks each copy runs. With `--as <new-id>` the copy is
+renamed (package, contract id, parts, CLI name, agent tool names) and runs beside the original. It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
 keeps files under `plugins/` (tests excepted) from importing `@/…`, `@bb/server`, the profile, or
 another plugin's files other than its contract.
 
