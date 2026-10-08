@@ -425,6 +425,12 @@ server plugins and the five core app plugins.
   shows.
 - What does not fork: the two kits (`packages/server-kit`, `packages/app-kit`). They hold the data
   layer, shared state and the components several features use; change those in the repository.
+  The app kit holds only what two or more screen plugins use. Anything one plugin alone uses lives
+  in that plugin, and what a plugin owns but others read is published from its contract: the
+  composer publishes the composer list (`useComposer`, `useComposers`), draft storage
+  (`usePromptDraftStorage`, `getPromptDraftAccessor`, `usePromptDraftHasInput`,
+  `usePromptDraftInputThreadIds`), prompt history and pane focus, so a fork of the composer decides
+  how drafts are kept.
 
 ### Using another feature's components
 
