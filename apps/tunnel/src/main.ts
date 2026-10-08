@@ -22,6 +22,7 @@ function accountsFromEnv(secure: boolean): Accounts {
     accountUrl: setting("ACCOUNT_URL"),
     serverBase: setting("SERVER_BASE").toLowerCase(),
     secureCookies: secure,
+    ownerCredentialHeader: process.env.OWNER_CREDENTIAL_HEADER || undefined,
   });
 }
 

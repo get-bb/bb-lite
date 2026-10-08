@@ -6,6 +6,7 @@ export interface BbAccountsOptions {
   secureCookies: boolean;
   cacheMs?: number;
   resolveServerHost?(label: string): string;
+  ownerCredentialHeader?: string;
 }
 
 interface ServerList {
@@ -83,12 +84,39 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
     () => cacheMs,
   );
 
+  async function linked(label: string, credential: string) {
+    const response = await fetch(new URL("/api/account/me", accountUrl), {
+      headers: {
+        authorization: `Bearer ${credential}`,
+        [MACHINE_HEADER]: credential,
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 401 || response.status === 403) return false;
+    if (!response.ok) {
+      throw new Error(`the account service answered ${response.status}`);
+    }
+    const me: unknown = await response.json().catch(() => null);
+    const named = me !== null && typeof me === "object" && "serverLabel" in me;
+    return named && me.serverLabel === label;
+  }
+
+  const ownsServer = accounts.remembering(
+    (key) => {
+      const [label = "", credential = ""] = key.split("\n");
+      return linked(label, credential);
+    },
+    () => cacheMs,
+  );
+  const ownerHeader = options.ownerCredentialHeader?.toLowerCase();
+
   return {
     shares: true,
     isPlatformCookie: (name) => PLATFORM_COOKIE.test(name),
     isPrivateHeader: (name) => {
       const reserved = name === MACHINE_HEADER || name === TARGET_HEADER;
-      return reserved || PRIVATE_HEADERS.test(name);
+      return reserved || name === ownerHeader || PRIVATE_HEADERS.test(name);
     },
     async admit(visit) {
       const { request, label, target, path, method, own } = visit;
@@ -111,6 +139,16 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
       if (internal || (MACHINE_PATH.test(pathname) && machine !== undefined)) {
         const message = "bb connect: machines are not served on this address\n";
         return accounts.plain(target === null ? 403 : 404, message);
+      }
+      const identity = { "x-bb-gate-auth": "session", ...targeted };
+      const offered =
+        ownerHeader === undefined
+          ? undefined
+          : accounts.header(request, ownerHeader);
+      if (offered !== undefined) {
+        const owns = await ownsServer(`${label}\n${offered}`);
+        if (owns) return { identity, address };
+        return accounts.plain(403, "bb connect: not your server\n");
       }
       const cookies = accounts.header(request, "cookie") ?? "";
       const session = accounts.readCookie(cookies, sessionCookie);
@@ -136,26 +174,8 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
       if (!listed.handles.includes(label)) {
         return accounts.plain(403, "bb connect: not your server\n");
       }
-      const identity = { "x-bb-gate-auth": "session", ...targeted };
       return { identity, address };
     },
-    async linked(label, credential) {
-      const response = await fetch(new URL("/api/account/me", accountUrl), {
-        headers: {
-          authorization: `Bearer ${credential}`,
-          [MACHINE_HEADER]: credential,
-        },
-        redirect: "manual",
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (response.status === 401 || response.status === 403) return false;
-      if (!response.ok) {
-        throw new Error(`the account service answered ${response.status}`);
-      }
-      const me: unknown = await response.json().catch(() => null);
-      const named =
-        me !== null && typeof me === "object" && "serverLabel" in me;
-      return named && me.serverLabel === label;
-    },
+    linked,
   };
 }

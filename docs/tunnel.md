@@ -38,6 +38,9 @@ The gate's rules for who may come in live behind one interface (`src/accounts.ts
   for 20 s. It serves `<label>--<port>` share addresses by sending the port in `x-bb-tunnel-target`,
   lets anyone fetch the install files, and refuses machine credentials and `/internal`.
 
+For timing runs only, `OWNER_CREDENTIAL_HEADER=<header name>` also admits a request that carries
+the server's own link credential in that header, as its owner. It is off unless set.
+
 In both modes the gate rewrites `Origin` only when it is the address the visitor used, so a request
 from another site reaches the server with its real origin and is refused there.
 

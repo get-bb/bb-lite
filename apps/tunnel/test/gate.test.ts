@@ -96,6 +96,7 @@ beforeAll(async () => {
       serverBase: `bb.test:${accountPort}`,
       secureCookies: false,
       resolveServerHost: () => `127.0.0.1:${accountPort}`,
+      ownerCredentialHeader: "x-test-owner",
     }),
     upstream: { host: "127.0.0.1", port: upstreamPort },
     log: () => {},
@@ -171,6 +172,20 @@ it("serves the owner and sends everyone else to sign in", async () => {
     body: "{}",
   });
   expect(seen.at(-1)?.headers.origin).toBe("http://evil.test");
+});
+
+it("admits a caller that holds the server's credential, when switched on", async () => {
+  const before = seen.length;
+  const guess = { "x-test-owner": "bbcred_other" };
+  expect(
+    (await visit("bee", "/api/v1/threads", { headers: guess })).status,
+  ).toBe(403);
+  expect(seen.length).toBe(before);
+  const held = { "x-test-owner": "bbcred_bee" };
+  const owner = await visit("bee", "/api/v1/threads", { headers: held });
+  expect(owner.status).toBe(200);
+  expect(seen.at(-1)?.headers["x-bb-gate-auth"]).toBe("session");
+  expect(seen.at(-1)?.headers["x-test-owner"]).toBeUndefined();
 });
 
 it("marks a share's port and keeps machines and internals out", async () => {
