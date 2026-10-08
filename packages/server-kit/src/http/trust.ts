@@ -1,3 +1,4 @@
+import type { GateIdentity, Principal } from "@bb/plugin";
 import type { IncomingHttpHeaders } from "node:http";
 import type { UserRole } from "@bb/domain";
 import { ApiError, forbidden, notFound } from "./errors.js";
@@ -8,17 +9,7 @@ export interface TrustedUser {
   avatarUrl?: string | null;
 }
 
-export interface GateIdentity {
-  id: string;
-  name: string | null;
-  email: string | null;
-  avatarUrl: string | null;
-}
-
-export type Principal =
-  | { kind: "user"; userId: string; role: UserRole; implicit: boolean }
-  | { kind: "runner"; hostId: string | null; connectMachineId: string | null }
-  | { kind: "anonymous"; identity?: GateIdentity };
+export type { GateIdentity, Principal };
 
 export interface TrustLookups {
   allowedHosts: readonly string[];

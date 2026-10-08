@@ -1,17 +1,19 @@
-import type { RunnerEvent, RunnerEventSink, SessionApi } from "@bb/runner";
+import type {
+  RunnerEventHandler,
+  RunnerEventKind,
+  RunnerEventOf,
+  RunnerFactory,
+} from "@bb/plugin";
+import type { RunnerEvent, SessionApi } from "@bb/runner";
 import type { Logger } from "../context.js";
 import { hostUnavailable } from "../http/errors.js";
 
-export type RunnerEventKind = RunnerEvent["kind"];
-export type RunnerEventOf<Kind extends RunnerEventKind> = Extract<
-  RunnerEvent,
-  { kind: Kind }
->;
-export type RunnerEventHandler<Kind extends RunnerEventKind> = (
-  event: RunnerEventOf<Kind>,
-  hostId: string,
-) => void | Promise<void>;
-export type RunnerFactory<R> = (sink: RunnerEventSink) => R;
+export type {
+  RunnerEventHandler,
+  RunnerEventKind,
+  RunnerEventOf,
+  RunnerFactory,
+};
 type HostListener = (hostId: string) => void;
 type AnyHandler = (event: RunnerEvent, hostId: string) => void | Promise<void>;
 

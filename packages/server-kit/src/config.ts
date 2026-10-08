@@ -1,23 +1,13 @@
+import type { ServerConfig } from "@bb/plugin";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { LOG_LEVELS, type LogLevel } from "./context.js";
+import { LOG_LEVELS } from "./context.js";
 import { newId, refuseLegacyDatabase } from "./db/index.js";
 
-export interface ServerConfig {
-  dataDir: string;
-  port: number;
-  bindHost: string;
-  allowedHosts: string[];
-  profile: string;
-  appDir: string;
-  cliDir: string;
-  version: string;
-  hostId: string;
-  logLevel: LogLevel;
-}
+export type { ServerConfig };
 
 export type ServerEnv = Record<string, string | undefined>;
 

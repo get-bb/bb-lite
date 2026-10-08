@@ -1,7 +1,11 @@
 import type * as Domain from "@bb/domain";
+import type { Runner, RunnerEvent, RunnerEventSink } from "@bb/runner";
 import type { BbSdkAreas } from "@bb/sdk";
 import type * as Contract from "@bb/server-contract";
+import type { HttpBindings } from "@hono/node-server";
 import type Database from "better-sqlite3";
+import type { Hono } from "hono";
+import type { WebSocket } from "ws";
 import type { z } from "zod";
 import type { CliRegistration } from "./cli.js";
 import type { Op, Slot, TableRef } from "./contract.js";
@@ -10,7 +14,23 @@ import type { PluginVerbs } from "./kernel.js";
 type MaybePromise<T> = T | Promise<T>;
 type Thread = Contract.ThreadResponse;
 type Presentation = Domain.ThreadEventItemPresentation;
-type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
+export type LogFields = Record<string, unknown>;
+type LogMethod = (message: string, fields?: LogFields) => void;
+export type Logger = Record<Exclude<LogLevel, "silent">, LogMethod>;
+
+export interface ServerConfig {
+  dataDir: string;
+  port: number;
+  bindHost: string;
+  allowedHosts: string[];
+  profile: string;
+  appDir: string;
+  cliDir: string;
+  version: string;
+  hostId: string;
+  logLevel: LogLevel;
+}
 
 export type SettingDescriptor = Contract.PluginSettingDescriptor;
 export type SettingDescriptors = Record<string, SettingDescriptor>;
@@ -198,6 +218,100 @@ export interface MachineCalls {
 }
 
 export type SqlValue = string | number | bigint | Buffer | null;
+export type RowValues = Record<string, SqlValue | undefined>;
+export type SqlParams = SqlValue[] | [RowValues];
+
+export interface SharedDatabase {
+  now(): number;
+  get<Row>(sql: string, ...params: SqlParams): Row | undefined;
+  all<Row>(sql: string, ...params: SqlParams): Row[];
+  run(sql: string, ...params: SqlParams): { changes: number };
+  transaction<T>(work: () => T): T;
+}
+
+export type SubscriptionListener = (
+  target: Domain.RealtimeSubscriptionTarget,
+  subscribed: boolean,
+) => void;
+export type ChangeListener = (message: Domain.ChangedMessage) => void;
+
+export interface Realtime {
+  thread(
+    id: string,
+    changes: Domain.ThreadChangeKind[],
+    metadata?: Domain.ThreadChangeMetadata,
+  ): void;
+  project(id: string, changes: Domain.ProjectChangeKind[]): void;
+  environment(id: string, changes: Domain.EnvironmentChangeKind[]): void;
+  host(id: string, changes: Domain.HostChangeKind[]): void;
+  system(changes: Domain.SystemChangeKind[]): void;
+  pluginSignal(pluginId: string, channel: string, payload: unknown): number;
+  threadOpen(
+    signal: Omit<Contract.ThreadOpenSignal, "type">,
+    userId?: string | null,
+  ): number;
+  presence(): Domain.UserPresence[];
+  onSubscriptionChange(listener: SubscriptionListener): () => void;
+  onChanged(listener: ChangeListener): () => void;
+}
+
+export type RunnerEventKind = RunnerEvent["kind"];
+export type RunnerEventOf<Kind extends RunnerEventKind> = Extract<
+  RunnerEvent,
+  { kind: Kind }
+>;
+export type RunnerEventHandler<Kind extends RunnerEventKind> = (
+  event: RunnerEventOf<Kind>,
+  hostId: string,
+) => void | Promise<void>;
+export type RunnerFactory<R> = (sink: RunnerEventSink) => R;
+
+export interface Runners {
+  readonly localHostId: string;
+  get(hostId: string): Runner;
+  connectedHostIds(): string[];
+  isConnected(hostId: string): boolean;
+  connect(hostId: string, create: RunnerFactory<Runner>): Runner;
+  disconnect(hostId: string, runner?: Runner): void;
+  onEvent<Kind extends RunnerEventKind>(
+    kind: Kind,
+    handler: RunnerEventHandler<Kind>,
+  ): () => void;
+  onConnected(listener: (hostId: string) => void): () => void;
+  onDisconnected(listener: (hostId: string) => void): () => void;
+  emit(hostId: string, event: RunnerEvent): Promise<void>;
+}
+
+export type ApiEnv = { Bindings: HttpBindings };
+export type ApiApp = Hono<ApiEnv>;
+export type ApiRoutes = (app: ApiApp) => void;
+
+export interface GateIdentity {
+  id: string;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+}
+
+export type Principal =
+  | { kind: "user"; userId: string; role: Domain.UserRole; implicit: boolean }
+  | { kind: "runner"; hostId: string | null; connectMachineId: string | null }
+  | { kind: "anonymous"; identity?: GateIdentity };
+
+export interface Actor {
+  userId: string;
+  role: Domain.UserRole;
+  agentThreadId: string | null;
+}
+
+export interface SocketRequest {
+  url: URL;
+  principal: Principal;
+  actor: Actor | null;
+  header(name: string): string | undefined;
+}
+export type SocketOpen = (socket: WebSocket) => void;
+export type SocketResolver = (request: SocketRequest) => SocketOpen | null;
 
 export interface PluginTables {
   name(local: string): string;
@@ -211,8 +325,13 @@ export interface PluginTables {
 
 export interface PluginServerApi extends PluginVerbs {
   readonly pluginId: string;
-  readonly log: Record<LogLevel, (message: string) => void>;
+  readonly log: Logger;
   readonly dataDir: string;
+  readonly config: ServerConfig;
+  readonly db: SharedDatabase;
+  readonly realtime: Realtime;
+  readonly runners: Runners;
+  now(): number;
   readonly settings: {
     define<D extends SettingDescriptors>(
       descriptors: D,
@@ -232,6 +351,8 @@ export interface PluginServerApi extends PluginVerbs {
       handler: HttpHandler,
       options?: { auth?: HttpAuth },
     ): void;
+    api(routes: ApiRoutes, options?: { internal?: boolean }): void;
+    socket(resolver: SocketResolver): void;
   };
   readonly background: {
     service(

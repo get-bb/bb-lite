@@ -272,7 +272,7 @@ it("offers one operation to agents and the CLI, and pushes changes", async () =>
     });
   };
   const host = new PluginHost({
-    ...ctx,
+    ...ctx.plugins.options,
     builtins: [{ directory, server: plugin }],
   });
   host.deps = ctx.plugins.deps;
@@ -490,7 +490,7 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
     writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
     return { directory, server: entry };
   });
-  const host = new PluginHost({ ...ctx, builtins });
+  const host = new PluginHost({ ...ctx.plugins.options, builtins });
   host.deps = ctx.plugins.deps;
   await host.reload();
   const states = host.list().map(({ id, status }) => [id, status]);
@@ -534,7 +534,7 @@ it("gives a plugin the full client, acting as whoever called it", async () => {
   const manifest = { name: "bb-plugin-helper", bb: { name: "Helper" } };
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
   const host = new PluginHost({
-    ...ctx,
+    ...ctx.plugins.options,
     builtins: [{ directory, server: entry }],
   });
   host.deps = ctx.plugins.deps;

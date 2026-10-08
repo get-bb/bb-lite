@@ -690,9 +690,15 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@bb/runner':
+        specifier: workspace:*
+        version: link:../runner
       '@bb/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@hono/node-server':
+        specifier: ^1.19.11
+        version: 1.19.17(hono@4.11.9)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -702,6 +708,15 @@ importers:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.13
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      hono:
+        specifier: ^4.7.0
+        version: 4.11.9
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
 
   packages/runner:
     dependencies:

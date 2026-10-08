@@ -1,4 +1,9 @@
 import * as domain from "@bb/domain";
+import type {
+  ChangeListener,
+  Realtime,
+  SubscriptionListener,
+} from "@bb/plugin";
 import type { PluginSignal, ThreadOpenSignal } from "@bb/server-contract";
 import type { ZodType } from "zod";
 
@@ -7,12 +12,7 @@ export interface HubSocket {
   close(code?: number, reason?: string): void;
 }
 
-export type SubscriptionListener = (
-  target: domain.RealtimeSubscriptionTarget,
-  subscribed: boolean,
-) => void;
-
-export type ChangeListener = (message: domain.ChangedMessage) => void;
+export type { ChangeListener, SubscriptionListener };
 
 type ThreadChangedMessage = Extract<
   domain.ChangedMessage,
@@ -71,7 +71,7 @@ function subscriptionKeys(message: domain.ChangedMessage) {
   return [`${entity}-list`, `${entity}-detail:${message.id}`];
 }
 
-export class Hub {
+export class Hub implements Realtime {
   private readonly keysBySocket = new Map<HubSocket, Set<string>>();
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly pendingListEvents = new Map<string, PendingListEvents>();

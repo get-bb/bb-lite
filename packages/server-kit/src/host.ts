@@ -1,19 +1,15 @@
-import { contract, service, type PluginServerApi } from "@bb/plugin";
-import type { WebSocket } from "ws";
-import type { Actor } from "./auth/actor.js";
+import {
+  contract,
+  service,
+  type PluginServerApi,
+  type SocketOpen,
+  type SocketRequest,
+  type SocketResolver,
+} from "@bb/plugin";
 import type { ServerContext } from "./context.js";
 import type { RouteGroup } from "./http/api.js";
-import type { Principal } from "./http/trust.js";
 
-export interface SocketRequest {
-  url: URL;
-  principal: Principal;
-  actor: Actor | null;
-  header(name: string): string | undefined;
-}
-
-export type SocketOpen = (socket: WebSocket) => void;
-export type SocketResolver = (request: SocketRequest) => SocketOpen | null;
+export type { SocketOpen, SocketRequest, SocketResolver };
 type Remove = () => void;
 
 export interface HostServices {

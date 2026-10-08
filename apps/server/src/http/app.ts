@@ -20,7 +20,8 @@ import {
 } from "@bb/server-kit/kernel/caller";
 import { findRunnerHost } from "@bb/server-kit/runners/enrollment";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
-import type { ApiApp, AppEnv, RouteGroup } from "@bb/server-kit/http/api";
+import type { ApiRoutes } from "@bb/plugin";
+import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
 import { errorResponse, notFound } from "@bb/server-kit/http/errors";
 import { registerStaticApp } from "./static.js";
@@ -50,10 +51,10 @@ export function trustLookups(ctx: ServerContext): TrustLookups {
 }
 
 export class RouteTable {
-  private readonly groups = new Set<{ group: RouteGroup; internal: boolean }>();
+  private readonly groups = new Set<{ group: ApiRoutes; internal: boolean }>();
   version = 0;
 
-  add(group: RouteGroup, internal = false): () => void {
+  add(group: ApiRoutes, internal = false): () => void {
     const entry = { group, internal };
     this.groups.add(entry);
     this.version += 1;
@@ -62,7 +63,7 @@ export class RouteTable {
     };
   }
 
-  of(internal: boolean): RouteGroup[] {
+  of(internal: boolean): ApiRoutes[] {
     const listed = [...this.groups].filter(
       (entry) => entry.internal === internal,
     );
@@ -82,14 +83,9 @@ function identityOf({ userId, role }: Actor) {
   return { userId, role };
 }
 
-function mount(
-  app: ApiApp,
-  prefix: string,
-  groups: readonly RouteGroup[],
-  ctx: ServerContext,
-) {
+function mount(app: ApiApp, prefix: string, groups: readonly ApiRoutes[]) {
   const scoped = new Hono<AppEnv>();
-  for (const register of groups) register(scoped, ctx);
+  for (const register of groups) register(scoped);
   app.route(prefix, scoped);
   app.all(`${prefix}/*`, () => {
     throw notFound();
@@ -119,8 +115,8 @@ function assemble(ctx: ServerContext, table: RouteTable): ApiApp {
   });
   app.use("/api/v1/*", compressJson);
   app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
-  mount(app, "/api/v1", table.of(false), ctx);
-  mount(app, "/internal", table.of(true), ctx);
+  mount(app, "/api/v1", table.of(false));
+  mount(app, "/internal", table.of(true));
   registerStaticApp(app, ctx.config.appDir);
   return app;
 }

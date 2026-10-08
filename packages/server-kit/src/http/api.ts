@@ -1,11 +1,10 @@
-import type { HttpBindings } from "@hono/node-server";
+import type { ApiApp, ApiEnv } from "@bb/plugin";
 import { typedRoutes } from "@bb/server-contract";
-import type { Hono } from "hono";
 import type { ServerContext } from "../context.js";
 import { invalidRequest } from "./errors.js";
 
-export type AppEnv = { Bindings: HttpBindings };
-export type ApiApp = Hono<AppEnv>;
+export type AppEnv = ApiEnv;
+export type { ApiApp };
 export type RouteGroup = (app: ApiApp, ctx: ServerContext) => void;
 
 export function typedApi(app: ApiApp) {

@@ -1,4 +1,4 @@
-import type { Kernel } from "@bb/plugin";
+import type { Kernel, LogFields, LogLevel, Logger } from "@bb/plugin";
 import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
@@ -30,10 +30,8 @@ export interface ServerContext {
 }
 
 export const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
-export type LogLevel = (typeof LOG_LEVELS)[number];
-export type LogFields = Record<string, unknown>;
-type LogMethod = (message: string, fields?: LogFields) => void;
-export type Logger = Record<Exclude<LogLevel, "silent">, LogMethod>;
+export type { LogFields, LogLevel, Logger };
+type LogMethod = Logger["info"];
 
 function serializeLogValue(_key: string, value: unknown) {
   if (value instanceof Error) {

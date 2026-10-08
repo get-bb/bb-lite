@@ -31,9 +31,14 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@bb/runner": "workspace:*",
     "@bb/tsconfig": "workspace:*",
+    "@hono/node-server": "^1.19.11",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0"
+    "@types/react": "^19.0.0",
+    "@types/ws": "^8.18.1",
+    "hono": "^4.7.0",
+    "ws": "^8.19.0"
   }
 }

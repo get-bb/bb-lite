@@ -29,7 +29,35 @@ export interface LoadOptions {
   database?: () => Database.Database;
   tables?: PluginTables;
   sdk?: PluginServerApi["sdk"];
+  db?: PluginServerApi["db"];
+  realtime?: PluginServerApi["realtime"];
+  runners?: PluginServerApi["runners"];
+  config?: Partial<PluginServerApi["config"]>;
+  now?: () => number;
 }
+
+function unavailable(name: string, option = name) {
+  return (): never => {
+    throw new Error(`Pass \`${option}\` to load() to use ${name}`);
+  };
+}
+
+function absent<Member extends object>(name: string, option: string): Member {
+  return new Proxy({} as Member, { get: unavailable(name, option) });
+}
+
+const HARNESS_CONFIG: PluginServerApi["config"] = {
+  dataDir: "/tmp/bb-test",
+  port: 0,
+  bindHost: "127.0.0.1",
+  allowedHosts: [],
+  profile: "default",
+  appDir: "/tmp/bb-test/app",
+  cliDir: "/tmp/bb-test/cli",
+  version: "0.0.0",
+  hostId: "host_test",
+  logLevel: "silent",
+};
 
 const unavailableSdk = new Proxy({} as PluginServerApi["sdk"], {
   get() {
@@ -176,6 +204,11 @@ export function createPluginHarness(): PluginHarness {
           error: at("error"),
         },
         dataDir: `/tmp/bb-test/${pluginId}`,
+        config: { ...HARNESS_CONFIG, ...options.config },
+        db: options.db ?? absent("bb.db", "db"),
+        realtime: options.realtime ?? absent("bb.realtime", "realtime"),
+        runners: options.runners ?? absent("bb.runners", "runners"),
+        now: options.now ?? Date.now,
         settings: {
           define(defined) {
             descriptors = { ...descriptors, ...defined };
@@ -219,6 +252,8 @@ export function createPluginHarness(): PluginHarness {
           route(method, path, handler, { auth = "local" } = {}) {
             routes.set(`${method.toUpperCase()} ${path}`, { handler, auth });
           },
+          api: unavailable("bb.http.api", "a running server"),
+          socket: unavailable("bb.http.socket", "a running server"),
         },
         background: {
           service: (name, service) => void services.set(name, service),

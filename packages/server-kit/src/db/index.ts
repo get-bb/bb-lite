@@ -2,20 +2,12 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { GENERATED_ID_ALPHABET, GENERATED_ID_SUFFIX_LENGTH } from "@bb/domain";
 import Database from "better-sqlite3";
+import type { RowValues, SharedDatabase, SqlParams } from "@bb/plugin";
 import type { ZodType } from "zod";
 
-export type SqlValue = string | number | bigint | Buffer | null;
-export type RowValues = Record<string, SqlValue | undefined>;
-export type SqlParams = SqlValue[] | [RowValues];
-
-export interface Db {
-  now(): number;
-  get<Row>(sql: string, ...params: SqlParams): Row | undefined;
-  all<Row>(sql: string, ...params: SqlParams): Row[];
-  run(sql: string, ...params: SqlParams): { changes: number };
-  transaction<T>(work: () => T): T;
-  close(): void;
-}
+export type { RowValues, SqlParams, SqlValue } from "@bb/plugin";
+export type Db = SharedDatabase;
+export type OpenDatabase = Db & { close(): void };
 
 export interface RevisionWrite {
   outcome: "updated" | "conflict";
@@ -122,7 +114,7 @@ function toRow<Row>(keys: string[], values: unknown) {
 export function openDatabase(options: {
   path: string;
   now?: () => number;
-}): Db {
+}): OpenDatabase {
   refuseLegacyDatabase(options.path);
   const sqlite = new Database(options.path);
   try {

@@ -8,8 +8,9 @@ import {
   type Logger,
   type ServerRunner,
 } from "@bb/server-kit/context";
-import { openDatabase, type Db } from "@bb/server-kit/db/index";
-import { host, type SocketResolver } from "@bb/server-kit/host";
+import { openDatabase, type OpenDatabase } from "@bb/server-kit/db/index";
+import type { ApiRoutes, SocketResolver } from "@bb/plugin";
+import { host } from "@bb/server-kit/host";
 import { assertHostUsable } from "@bb/server-kit/runners/access";
 import {
   RunnerRegistry,
@@ -38,7 +39,7 @@ export interface CreateServerOptions {
   localRunner: RunnerFactory<ServerRunner>;
   core?: BuiltinPlugin[];
   builtins?: BuiltinPlugin[];
-  db?: Db;
+  db?: OpenDatabase;
   tunnelToken?: string;
   now?: () => number;
   log?: Logger;
@@ -95,25 +96,31 @@ export function createServer(options: CreateServerOptions): BbServer {
   const kernel = createServerKernel({ db, hub, log, now });
   const { core = corePlugins, builtins: addOns = builtinPlugins } = options;
   const builtins = [...core.map((row) => ({ ...row, core: true })), ...addOns];
-  const loader = { config, db, hub, log, tunnelToken, kernel, builtins };
-  const plugins = new PluginHost(loader);
+  const table = new RouteTable();
+  const resolvers = new Set<SocketResolver>();
+  const mounting = {
+    routes: (routes: ApiRoutes, internal: boolean) =>
+      table.add(routes, internal),
+    sockets(resolver: SocketResolver) {
+      resolvers.add(resolver);
+      return () => void resolvers.delete(resolver);
+    },
+  };
+  const services = { config, db, hub, log, tunnelToken, kernel, runners, now };
+  const plugins = new PluginHost({ ...services, ...mounting, builtins });
   const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
   const ctx = { ...shared, log, now } as unknown as HostContext;
   for (const name of PROVIDED) forwarded(ctx, name);
-  const table = new RouteTable();
-  const resolvers = new Set<SocketResolver>();
   const own = kernel.scope(HOST_PLUGIN_ID, "product");
   own.add(host.services, {
     context: ctx,
-    routes: (group, { internal = false } = {}) => table.add(group, internal),
-    sockets(resolver) {
-      resolvers.add(resolver);
-      return () => resolvers.delete(resolver);
-    },
+    routes: (group, { internal = false } = {}) =>
+      table.add((app) => group(app, ctx), internal),
+    sockets: mounting.sockets,
   });
   hostOps(ctx, own);
-  table.add(registerPluginRoutes);
-  table.add(registerKernelRoutes);
+  table.add((app) => registerPluginRoutes(app, ctx));
+  table.add((app) => registerKernelRoutes(app, ctx));
   const app = createHttpApp(ctx, table);
   plugins.fetch = (request) => app.inner(request);
   const sockets = new SocketRegistry(ctx, socketResolver(ctx, resolvers));

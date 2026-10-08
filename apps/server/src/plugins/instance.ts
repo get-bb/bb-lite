@@ -29,6 +29,11 @@ export interface PluginApiHost {
   serverUrl: string;
   tunnelToken: string;
   deps: PluginHostDeps;
+  config: plugin.ServerConfig;
+  runners: plugin.Runners;
+  now(): number;
+  routes(routes: plugin.ApiRoutes, internal: boolean): () => void;
+  sockets(resolver: plugin.SocketResolver): () => void;
   fetch(request: Request): Promise<Response>;
 }
 
@@ -148,8 +153,9 @@ export function createPluginInstance(
   const { db, hub } = host;
   const dataDir = join(host.dataDir, "plugins", pluginId);
   mkdirSync(dataDir, { recursive: true });
-  const at = (level: keyof Logger) => (message: string) =>
-    host.log[level](message, { pluginId });
+  const at =
+    (level: keyof Logger) => (message: string, fields?: plugin.LogFields) =>
+      host.log[level](message, { pluginId, ...fields });
   const log = {
     debug: at("debug"),
     info: at("info"),
@@ -169,6 +175,11 @@ export function createPluginInstance(
     pluginId,
     log,
     dataDir,
+    config: host.config,
+    db,
+    realtime: hub,
+    runners: host.runners,
+    now: host.now,
     settings: {
       define<D extends plugin.SettingDescriptors>(
         descriptors: D,
@@ -230,6 +241,12 @@ export function createPluginInstance(
       route(method, path, handler, { auth = "local" } = {}) {
         const key = `${method.toUpperCase()} ${path}`;
         instance.routes.set(key, { handler, auth });
+      },
+      api(routes, { internal = false } = {}) {
+        instance.disposers.push(host.routes(routes, internal));
+      },
+      socket(resolver) {
+        instance.disposers.push(host.sockets(resolver));
       },
     },
     background: {

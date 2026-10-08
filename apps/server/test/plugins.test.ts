@@ -306,7 +306,10 @@ it("answers the thread engine's queries from what plugins register", async () =>
     bb.add(sessions.inference, { id: "tiny", displayName: "Tiny", complete });
     bb.status.needsConfiguration("Sign in first");
   };
-  const plugins = new PluginHost({ ...ctx, builtins: [{ directory, server }] });
+  const plugins = new PluginHost({
+    ...ctx.plugins.options,
+    builtins: [{ directory, server }],
+  });
   plugins.deps = ctx.plugins.deps;
   await plugins.reload();
   const signal = new AbortController().signal;

@@ -1,11 +1,8 @@
+import type { Actor } from "@bb/plugin";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { OWNER_USER_ID, type UserRole } from "@bb/domain";
+import { OWNER_USER_ID } from "@bb/domain";
 
-export interface Actor {
-  userId: string;
-  role: UserRole;
-  agentThreadId: string | null;
-}
+export type { Actor };
 
 const storage = new AsyncLocalStorage<Actor | null>();
 

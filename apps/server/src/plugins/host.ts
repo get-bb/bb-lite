@@ -2,7 +2,13 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { watch as watchDirectory, type FSWatcher } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { derivePluginId, pluginThemeId } from "@bb/domain";
-import { appearance, type Kernel } from "@bb/plugin";
+import {
+  appearance,
+  type ApiRoutes,
+  type Kernel,
+  type Runners,
+  type SocketResolver,
+} from "@bb/plugin";
 import type { RunnerPartBundle } from "@bb/runner";
 import type { InstalledPlugin, PluginApp } from "@bb/server-contract";
 import { asSystem } from "@bb/server-kit/auth/actor";
@@ -42,6 +48,10 @@ export interface PluginHostOptions {
   log: Logger;
   tunnelToken: string;
   kernel: Kernel;
+  runners: Runners;
+  now(): number;
+  routes(routes: ApiRoutes, internal: boolean): () => void;
+  sockets(resolver: SocketResolver): () => void;
   builtins?: BuiltinPlugin[];
 }
 
@@ -72,7 +82,7 @@ export class PluginHost extends PluginRegistry {
   private booting = false;
   private readonly coreIds = new Set<string>();
 
-  constructor(private readonly options: PluginHostOptions) {
+  constructor(readonly options: PluginHostOptions) {
     super(options.log, options.kernel);
   }
 
@@ -336,13 +346,18 @@ export class PluginHost extends PluginRegistry {
     await this.unload(record);
     this.watch(record);
     if (!this.isEnabled(record)) return;
-    const { config, db, hub, log, tunnelToken, kernel } = this.options;
+    const { config, log, tunnelToken } = this.options;
     const { id, serverEntry, appEntry } = record.manifest;
     const { dataDir } = config;
     const serverUrl = loopbackUrl(config);
     const server = { dataDir, serverUrl, tunnelToken };
     const { instance, api } = createPluginInstance(
-      { db, hub, log, kernel, ...server, deps: this.deps, fetch: this.fetch },
+      {
+        ...this.options,
+        ...server,
+        deps: this.deps,
+        fetch: this.fetch,
+      },
       id,
       record.external ? "installed" : "product",
     );
