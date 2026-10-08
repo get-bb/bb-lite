@@ -1,3 +1,4 @@
+import { threads } from "@bb/plugin";
 import { isStandaloneBuiltinClearCommand, threadScope } from "@bb/domain";
 import type * as domain from "@bb/domain";
 import { RunnerError } from "@bb/runner";
@@ -125,6 +126,11 @@ export function consumeRows(
   const ids = rows.map((row) => row.id);
   queue.deleteQueuedMessages(engine.ctx.db, ids);
   out.thread(thread.id, ["queue-changed"]);
+  out.after(() => {
+    for (const id of ids) {
+      engine.announceMessage(threads.messageDispatched, thread.id, id);
+    }
+  });
 }
 
 export function sessionEnvironmentOf(
@@ -207,7 +213,7 @@ function recordWait(
       queue.setQueuedMessageWait(db, rows, waitingOn);
       return { ...lead, waitingOn: encoded };
     }
-    return queue.insertQueuedMessage(db, {
+    const held = queue.insertQueuedMessage(db, {
       threadId: thread.id,
       content: message.input,
       senderThreadId: message.senderThreadId,
@@ -217,6 +223,10 @@ function recordWait(
       waitingOn,
       sendAt,
     });
+    out.after(() => {
+      engine.announceMessage(threads.messageQueued, thread.id, held.id);
+    });
+    return held;
   });
 }
 

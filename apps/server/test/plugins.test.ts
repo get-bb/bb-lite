@@ -1,4 +1,10 @@
-import { cpSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -13,9 +19,10 @@ import type { InstalledPlugin, ThreadResponse } from "@bb/server-contract";
 import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
+import { cronMatches, parseCron } from "../src/plugins/cron.js";
 import { PluginHost } from "../src/plugins/host.js";
 import { PluginSettings } from "../src/plugins/settings.js";
-import { createTestServer, scratch } from "./helpers.js";
+import { createProject, createTestServer, scratch } from "./helpers.js";
 
 type Listing = { plugins: InstalledPlugin[] };
 type Contributions = { cliCommands: unknown[] };
@@ -372,4 +379,54 @@ it("lists providers and execution options to plugins", async () => {
     providerId: "echo",
   });
   expect(options).toHaveProperty("models");
+});
+
+it("matches five-field cron expressions", () => {
+  const at = (text: string) => new Date(text);
+  const weekdays = parseCron("*/15 9-17 * * 1-5");
+  expect(cronMatches(weekdays, at("2026-10-08T09:30:00"))).toBe(true);
+  expect(cronMatches(weekdays, at("2026-10-08T09:31:00"))).toBe(false);
+  expect(cronMatches(weekdays, at("2026-10-10T09:30:00"))).toBe(false);
+  expect(cronMatches(parseCron("0 0 1 1 *"), at("2027-01-01T00:00:00"))).toBe(
+    true,
+  );
+  for (const bad of ["* * * *", "61 * * * *", "*/0 * * * *", "a * * * *"]) {
+    expect(() => parseCron(bad)).toThrow();
+  }
+});
+
+it("tells plugins when thread events and queued messages change", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const watcher = ctx.kernel.scope("watcher", "installed");
+  const seen: string[] = [];
+  watcher.on(threads.appended, ({ types }) => void seen.push(...types));
+  watcher.on(threads.messageQueued, () => void seen.push("queued"));
+  watcher.on(sessions.skillDirs, async (_context, next) => [
+    ...(await next()),
+    "/extra/skills",
+  ]);
+  const directory = join(ctx.config.dataDir, "repo");
+  mkdirSync(directory);
+  const project = await createProject(server, "echo", directory);
+  const spawned = await server.send("/threads", {
+    projectId: project.id,
+    origin: "app",
+    providerId: "echo",
+    input: [{ type: "text", text: "delay:800 first" }],
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  const { id } = (await spawned.json()) as { id: string };
+  await vi.waitFor(() => expect(seen).toContain("turn/started"));
+  await server.send(`/threads/${id}/queued-messages`, {
+    input: [{ type: "text", text: "second" }],
+  });
+  await vi.waitFor(() => expect(seen).toContain("queued"));
+  const scope = { threadId: id, projectId: project.id, hostId: null };
+  const dirs = await watcher.call(sessions.skillDirs, {
+    ...scope,
+    providerId: "echo",
+  });
+  expect(dirs.at(-1)).toBe("/extra/skills");
 });

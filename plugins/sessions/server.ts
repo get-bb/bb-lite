@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { sessions, type PluginServerApi } from "@bb/plugin";
 import { doorInstructions } from "@bb/server-kit/doors";
 import { coreOf } from "@bb/server-kit/host";
@@ -17,6 +18,10 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     doorInstructions(kernel, context),
   );
   bb.implement(sessions.env, () => []);
+  bb.implement(sessions.skillDirs, () => [
+    join(ctx.config.cliDir, "skills"),
+    ...ctx.plugins.skillDirs(),
+  ]);
   bb.implement(sessions.providers, () =>
     listEnabledProviders(db).map(({ info }) => info),
   );

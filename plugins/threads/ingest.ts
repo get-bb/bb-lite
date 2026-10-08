@@ -1,3 +1,4 @@
+import { threads } from "@bb/plugin";
 import { fromProviderExternalThreadName } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
 import { appendEvents } from "@bb/server-kit/db/events";
@@ -153,6 +154,7 @@ export function ingestThreadEvents(
     const stored = appendEvents(db, thread, accepted, "runner");
     if (stored.length === 0) return;
     const eventTypes = [...new Set(stored.map((event) => event.type))];
+    out.after(() => engine.announce(threads.appended, threadId, eventTypes));
     out.thread(threadId, ["events-appended"], {
       eventTypes,
       ...(stored.some(changesBackgroundActivity)

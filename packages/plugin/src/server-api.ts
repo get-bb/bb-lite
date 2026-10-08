@@ -238,6 +238,11 @@ export interface PluginServerApi extends PluginVerbs {
       name: string,
       service: { start(signal: AbortSignal): MaybePromise<void> },
     ): void;
+    schedule(
+      name: string,
+      cron: string,
+      run: (signal: AbortSignal) => MaybePromise<void>,
+    ): void;
   };
   readonly cli: { register(registration: CliRegistration): void };
   machine(hostId: string): MachineCalls;

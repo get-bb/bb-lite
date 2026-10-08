@@ -222,6 +222,8 @@ export function createPluginHarness(): PluginHarness {
         },
         background: {
           service: (name, service) => void services.set(name, service),
+          schedule: (name, _cron, run) =>
+            void services.set(name, { start: run }),
         },
         cli: {
           register(registration) {

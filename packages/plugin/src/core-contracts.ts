@@ -70,6 +70,10 @@ export type InstructionSection = z.infer<typeof instructionSectionSchema>;
 
 const threadRef = z.object({ threadId: z.string() });
 const ROW_KIND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
+const queuedRef = z.object({
+  threadId: z.string(),
+  queuedMessageId: z.string(),
+});
 const nothing = z.void();
 const none = z.object({});
 const threadWrite = () =>
@@ -127,6 +131,10 @@ export const sessions = contract("sessions", {
   env: op({
     input: threadContextSchema,
     output: z.array(z.custom<ProviderEnvEntry>()),
+  }),
+  skillDirs: op({
+    input: threadContextSchema,
+    output: z.array(z.string()),
   }),
   mention: slot<MentionProvider>(),
   inference: slot<InferenceService>(),
@@ -221,6 +229,12 @@ export const threads = contract("threads", {
   editQueuedMessage: threadWrite(),
   dropQueuedMessage: threadWrite(),
   sendQueuedMessage: threadWrite(),
+  appended: event(
+    z.object({ threadId: z.string(), types: z.array(z.string()) }),
+  ),
+  messageQueued: event(queuedRef),
+  messageDispatched: event(queuedRef),
+  messageCancelled: event(queuedRef),
   created: payload<"thread.created">(),
   active: payload<"thread.active">(),
   idle: payload<"thread.idle">(),

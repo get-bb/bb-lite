@@ -1,3 +1,4 @@
+import { threads } from "@bb/plugin";
 import {
   PLUGIN_ROW_OPERATION,
   createStandaloneBuiltinCompactCommandInput,
@@ -194,6 +195,7 @@ export function createQueuedMessage(
     sendAt: null,
   });
   queueChanged(engine, threadId);
+  engine.announceMessage(threads.messageQueued, threadId, row.id);
   if (thread.status === "idle") engine.scheduleDrain(threadId);
   return queue.toThreadQueuedMessage(row);
 }
@@ -223,6 +225,7 @@ export function deleteQueuedMessage(
   requireQueuedMessage(engine, threadId, queuedMessageId);
   queue.deleteQueuedMessages(engine.ctx.db, [queuedMessageId]);
   queueChanged(engine, threadId);
+  engine.announceMessage(threads.messageCancelled, threadId, queuedMessageId);
 }
 
 export async function sendQueuedMessageNow(

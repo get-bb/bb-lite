@@ -1,5 +1,5 @@
+import { sessions as sessionOps } from "@bb/plugin";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { ThreadContext } from "@bb/plugin";
 import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
 import { dataPaths } from "@bb/server-kit/config";
@@ -60,6 +60,10 @@ export async function buildSessionSpec(
       ctx.environments.workspaceInstructions(environment.id),
       readCustomModelConfig(ctx),
     ]);
+  const skillDirs =
+    hostId === ctx.config.hostId
+      ? await ctx.kernel.call(sessionOps.skillDirs, scope)
+      : [];
   const customModels = configured
     .filter((custom) => custom.providerId === providerId)
     .filter(
@@ -99,10 +103,7 @@ export async function buildSessionSpec(
       BB_PROJECT_ID: thread.projectId,
       BB_ENVIRONMENT_ID: environment.id,
     },
-    skillDirs:
-      hostId === ctx.config.hostId
-        ? [join(ctx.config.cliDir, "skills"), ...ctx.plugins.skillDirs()]
-        : [],
+    skillDirs,
     ...(customModels.length > 0 ? { customModels } : {}),
   };
 }

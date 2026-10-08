@@ -12,6 +12,7 @@ import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
 import { errorMessage } from "@bb/server-kit/http/errors";
 import { asPlugin, currentCaller } from "@bb/server-kit/kernel/caller";
 import type { Hub } from "@bb/server-kit/ws/hub";
+import { cronMatches, parseCron, type Cron } from "./cron.js";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 import { createPluginTables } from "./tables.js";
@@ -92,6 +93,19 @@ export class PluginInstance {
       }
     }
   }
+}
+
+const MINUTE_MS = 60_000;
+
+function scheduled(cron: Cron, run: (signal: AbortSignal) => unknown) {
+  return async (signal: AbortSignal): Promise<void> => {
+    while (!signal.aborted) {
+      const untilNextMinute = MINUTE_MS - (Date.now() % MINUTE_MS);
+      await sleep(untilNextMinute, undefined, { signal }).catch(() => {});
+      if (signal.aborted) return;
+      if (cronMatches(cron, new Date())) await run(signal);
+    }
+  };
 }
 
 function collect<T>(list: T[]): (item: T) => void {
@@ -221,6 +235,10 @@ export function createPluginInstance(
     background: {
       service: (...service) => {
         instance.services.push(service);
+      },
+      schedule(name, expression, run) {
+        const cron = parseCron(expression);
+        instance.services.push([name, { start: scheduled(cron, run) }]);
       },
     },
     cli: {

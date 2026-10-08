@@ -150,6 +150,26 @@ export class Engine {
     eventLog.appendEvents(this.ctx.db, thread, events, "server");
     const eventTypes = [...new Set(events.map((event) => event.type))];
     out.thread(thread.id, ["events-appended"], { eventTypes });
+    out.after(() => this.announce(threadOps.appended, thread.id, eventTypes));
+  }
+
+  announce(
+    event: typeof threadOps.appended,
+    threadId: string,
+    types: string[],
+  ): void {
+    this.ctx.kernel.emit(event, { threadId, types });
+  }
+
+  announceMessage(
+    event:
+      | typeof threadOps.messageQueued
+      | typeof threadOps.messageDispatched
+      | typeof threadOps.messageCancelled,
+    threadId: string,
+    queuedMessageId: string,
+  ): void {
+    this.ctx.kernel.emit(event, { threadId, queuedMessageId });
   }
 
   private emitStatus(thread: ThreadRow): void {
