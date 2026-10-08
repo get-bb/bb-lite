@@ -157,9 +157,18 @@ importers:
       ansi-to-html:
         specifier: ^0.7.2
         version: 0.7.2
+      bb-plugin-composer:
+        specifier: workspace:*
+        version: link:../../plugins/composer
+      bb-plugin-settings:
+        specifier: workspace:*
+        version: link:../../plugins/settings
       bb-plugin-shell:
         specifier: workspace:*
         version: link:../../plugins/shell
+      bb-plugin-side-panel:
+        specifier: workspace:*
+        version: link:../../plugins/side-panel
       bb-plugin-thread-view:
         specifier: workspace:*
         version: link:../../plugins/thread-view

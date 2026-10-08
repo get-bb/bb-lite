@@ -14,6 +14,9 @@ import type * as UseDraftAttachmentUploadsModule from "./app/components/promptbo
 import type * as UsePromptTypeaheadModule from "./app/components/promptbox/usePromptTypeahead";
 import type * as UseThreadCreationOptionsModule from "./app/hooks/useThreadCreationOptions";
 import type * as RootComposeViewModule from "./app/views/RootComposeView";
+import type * as ModelReasoningPickerModule from "./app/components/pickers/ModelReasoningPicker";
+import type * as PermissionModePickerModule from "./app/components/pickers/PermissionModePicker";
+import type * as NewThreadComposerModule from "./app/components/promptbox/NewThreadComposer";
 
 export type { FollowUpPromptBoxProps } from "./app/components/promptbox/FollowUpPromptBox";
 export type {
@@ -84,3 +87,12 @@ export const LegacyProjectComposeRedirect = part<
 export const RootComposeView = part<
   typeof RootComposeViewModule.RootComposeView
 >("composer", "RootComposeView");
+export const ModelReasoningPicker = part<
+  typeof ModelReasoningPickerModule.ModelReasoningPicker
+>("composer", "ModelReasoningPicker");
+export const PermissionModePicker = part<
+  typeof PermissionModePickerModule.PermissionModePicker
+>("composer", "PermissionModePicker");
+export const useNewThreadComposer = callPart<
+  typeof NewThreadComposerModule.useNewThreadComposer
+>("composer", "useNewThreadComposer");
