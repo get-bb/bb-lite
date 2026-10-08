@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import * as domain from "@bb/domain";
 import {
   interactions as interactionOps,
@@ -13,6 +14,7 @@ import type {
 import type { PluginVerbs } from "@bb/plugin";
 import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
+import { findHost } from "@bb/server-kit/db/hosts";
 import { lastOutput } from "@bb/server-kit/db/event-read";
 import * as eventLog from "@bb/server-kit/db/events";
 import * as queue from "@bb/server-kit/db/queued-messages";
@@ -418,6 +420,20 @@ export function createThreadEngine(ctx: ServerContext, own: PluginVerbs) {
   own.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
     remove(threadId, confirmation),
   );
+  own.implement(threadOps.hold, () => null);
+  own.implement(threadOps.release, ({ threadId }) => {
+    engine.scheduleDrain(threadId);
+  });
+  own.implement(threadOps.storageLocation, ({ threadId }) => {
+    const hostId = engine.hostOf(engine.requireThread(threadId));
+    const root =
+      hostId === null
+        ? null
+        : findHost(ctx.db, "id", hostId)?.threadStorageRoot;
+    return root == null || hostId === null
+      ? null
+      : { hostId, path: join(root, threadId) };
+  });
   own.implement(threadOps.addRow, (input, { caller }) => {
     const pluginId = caller.via.at(-1);
     if (pluginId === undefined) {

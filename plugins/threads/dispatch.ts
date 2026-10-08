@@ -196,6 +196,17 @@ function currentWait(
   return null;
 }
 
+async function heldBy(
+  engine: Engine,
+  thread: ThreadRow,
+  { sendNow }: DispatchArgs,
+): Promise<domain.QueuedMessageWaitingOn | null> {
+  const { id: threadId, projectId, providerId } = thread;
+  const asked = { threadId, projectId, providerId, sendNow };
+  const held = await engine.ctx.kernel.call(threads.hold, asked);
+  return held === null ? null : { kind: "plugin", ...held };
+}
+
 function recordWait(
   engine: Engine,
   thread: ThreadRow,
@@ -346,7 +357,8 @@ export async function dispatchMessage(
   if (thread.archivedAt !== null) {
     throw core.notWritable(thread, "archived", "Thread is archived");
   }
-  const waitingOn = currentWait(engine, thread, args);
+  const waitingOn =
+    currentWait(engine, thread, args) ?? (await heldBy(engine, thread, args));
   if (waitingOn !== null) {
     const row = recordWait(engine, thread, args, waitingOn);
     return { delivery: "queued", row };

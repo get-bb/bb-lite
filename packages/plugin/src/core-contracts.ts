@@ -132,6 +132,11 @@ export const sessions = contract("sessions", {
     input: threadContextSchema,
     output: z.array(z.custom<ProviderEnvEntry>()),
   }),
+  tools: op({
+    input: threadContextSchema,
+    output: z.array(z.custom<Domain.DynamicTool>()),
+    internal: true,
+  }),
   skillDirs: op({
     input: threadContextSchema,
     output: z.array(z.string()),
@@ -208,6 +213,31 @@ export const threads = contract("threads", {
   events: op({
     input: threadRef.extend({ after: z.number().optional() }),
     output: z.array(z.custom<Domain.ThreadEvent>()),
+  }),
+  hold: op({
+    input: threadRef.extend({
+      projectId: z.string(),
+      providerId: z.string(),
+      sendNow: z.boolean(),
+    }),
+    output: z
+      .object({
+        pluginId: z.string().min(1),
+        reason: z.string().min(1).max(200),
+      })
+      .nullable(),
+    hooks: "answer",
+    internal: true,
+  }),
+  release: op({
+    input: threadRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  storageLocation: op({
+    input: threadRef,
+    output: z.object({ hostId: z.string(), path: z.string() }).nullable(),
   }),
   addRow: op({
     input: threadRef.extend({

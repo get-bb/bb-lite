@@ -18,6 +18,7 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     doorInstructions(kernel, context),
   );
   bb.implement(sessions.env, () => []);
+  bb.implement(sessions.tools, (context) => ctx.plugins.toolsFor(context));
   bb.implement(sessions.skillDirs, () => [
     join(ctx.config.cliDir, "skills"),
     ...ctx.plugins.skillDirs(),

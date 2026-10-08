@@ -60,6 +60,7 @@ export async function buildSessionSpec(
       ctx.environments.workspaceInstructions(environment.id),
       readCustomModelConfig(ctx),
     ]);
+  const dynamicTools = await ctx.kernel.call(sessionOps.tools, scope);
   const skillDirs =
     hostId === ctx.config.hostId
       ? await ctx.kernel.call(sessionOps.skillDirs, scope)
@@ -95,7 +96,7 @@ export async function buildSessionSpec(
     cwd: environment.path,
     providerThreadId: thread.providerThreadId,
     instructions: sections.join("\n\n"),
-    dynamicTools: ctx.plugins.toolsFor(scope),
+    dynamicTools,
     env: {
       ...machineEnv,
       ...Object.fromEntries(contributed),

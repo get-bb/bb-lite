@@ -430,3 +430,43 @@ it("tells plugins when thread events and queued messages change", async () => {
   });
   expect(dirs.at(-1)).toBe("/extra/skills");
 });
+
+it("lets a plugin hold a message until it releases the thread", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const limiter = ctx.kernel.scope("limiter", "installed");
+  let busy = true;
+  limiter.on(threads.hold, async (_input, next) => {
+    const held = await next();
+    if (held !== null || !busy) return held;
+    return { pluginId: "limiter", reason: "Too many threads are running" };
+  });
+  const directory = join(ctx.config.dataDir, "repo");
+  mkdirSync(directory);
+  const project = await createProject(server, "echo", directory);
+  const spawned = await server.send("/threads", {
+    projectId: project.id,
+    origin: "app",
+    providerId: "echo",
+    input: [{ type: "text", text: "wait for a slot" }],
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  const { id } = (await spawned.json()) as { id: string };
+  type Queued = { waitingOn: { kind: string; reason?: string } | null };
+  const queued = () => server.read<Queued[]>(`/threads/${id}/queued-messages`);
+  await vi.waitFor(async () =>
+    expect(await queued()).toMatchObject([
+      { waitingOn: { kind: "plugin", reason: "Too many threads are running" } },
+    ]),
+  );
+  expect(await server.read(`/threads/${id}/output`)).toEqual({ output: null });
+  busy = false;
+  await limiter.call(threads.release, { threadId: id });
+  await vi.waitFor(async () => {
+    const reply = { output: "Response to: wait for a slot" };
+    expect(await server.read(`/threads/${id}/output`)).toEqual(reply);
+  });
+  const where = await limiter.call(threads.storageLocation, { threadId: id });
+  expect(where?.path.endsWith(id)).toBe(true);
+});
