@@ -117,6 +117,11 @@ export function provideMachines(ctx: ServerContext, bb: PluginServerApi): void {
     runners.onConnected((hostId) => bb.emit(machines.connected, { hostId })),
   );
   bb.onDispose(
+    runners.onEvent("plugin.signal", ({ pluginId, name, payload }, hostId) =>
+      bb.emit(machines.signal, { hostId, pluginId, name, payload }),
+    ),
+  );
+  bb.onDispose(
     runners.onDisconnected((hostId) =>
       bb.emit(machines.disconnected, { hostId }),
     ),

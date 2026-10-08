@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { encodeClientTurnRequestIdNumber } from "@bb/domain";
 import { joinServer, runRunner, type SubmitTurnArgs } from "@bb/runner";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
-import { expect, it, onTestFinished } from "vitest";
+import { machines } from "@bb/plugin";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestServer, type TestServer } from "./helpers.js";
 
 let turnCounter = 0;
@@ -201,9 +202,22 @@ it("ships a plugin's runner part to a machine and calls it there", async () => {
     }
   };
   expect(await settled(["echo", "probe"])).toEqual(["echo", "probe"]);
+  const signals: unknown[] = [];
+  const listener = ctx.kernel.scope("listener", "installed");
+  listener.on(machines.signal, (signal) => void signals.push(signal));
   const asked = await server.send("/ops/machine-probe.where", {
     hostId: machine.hostId,
   });
+  await vi.waitFor(() =>
+    expect(signals).toEqual([
+      {
+        hostId: machine.hostId,
+        pluginId: "machine-probe",
+        name: "summed",
+        payload: { sum: 5 },
+      },
+    ]),
+  );
   const cached = join(machine.dataDir, "plugins", "machine-probe");
   expect(await asked.json()).toEqual({
     ok: true,

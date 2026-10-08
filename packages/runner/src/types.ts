@@ -203,6 +203,12 @@ export type RunnerEvent =
       kind: "workspace.changed";
       path: string;
       change: "status" | "refs" | "files";
+    }>
+  | Live<{
+      kind: "plugin.signal";
+      pluginId: string;
+      name: string;
+      payload: unknown;
     }>;
 
 export type RunnerEventSink = (event: RunnerEvent) => void;

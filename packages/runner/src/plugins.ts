@@ -14,6 +14,7 @@ import {
 } from "@bb/plugin";
 import type { ProviderAdapter } from "./providers/provider.js";
 import {
+  type RunnerEventSink,
   RunnerError,
   type LoadPluginsResult,
   type RunnerPartBundle,
@@ -30,6 +31,7 @@ export interface PluginRunnerApi extends PluginVerbs {
   readonly pluginId: string;
   readonly dataDir: string;
   log(message: string): void;
+  signal(name: string, payload?: unknown): void;
 }
 
 export type RunnerPluginEntry = (bb: PluginRunnerApi) => void | Promise<void>;
@@ -64,6 +66,7 @@ function messageOf(error: unknown): string {
 export function createRunnerPlugins(options: {
   dataDir: string;
   log?: (message: string) => void;
+  sink?: RunnerEventSink;
 }): RunnerPlugins {
   const log = options.log ?? (() => {});
   let caller = SYSTEM;
@@ -97,6 +100,10 @@ export function createRunnerPlugins(options: {
       pluginId: part.id,
       dataDir,
       log: (message) => log(`[${part.id}] ${message}`),
+      signal(name, payload = null) {
+        const signal = { kind: "plugin.signal", pluginId: part.id } as const;
+        options.sink?.({ lane: "live", ...signal, name, payload });
+      },
     };
     try {
       await part.entry(api);

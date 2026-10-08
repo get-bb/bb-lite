@@ -365,6 +365,13 @@ export const machines = contract("machines", {
   }),
   connected: event(machineRef),
   disconnected: event(machineRef),
+  signal: event(
+    machineRef.extend({
+      pluginId: z.string(),
+      name: z.string(),
+      payload: z.unknown(),
+    }),
+  ),
 });
 
 export const users = contract("users", {

@@ -37,7 +37,7 @@ export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
       event.kind === "script.output" ? outbox.emit(event) : options.sink(event),
   });
   const { dataDir, log } = options;
-  const plugins = createRunnerPlugins({ dataDir, log });
+  const plugins = createRunnerPlugins({ dataDir, log, sink: options.sink });
   const given = options.adapters ?? [];
   plugins.load({
     id: "runner",
