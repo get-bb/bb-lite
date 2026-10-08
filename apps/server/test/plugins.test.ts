@@ -14,6 +14,7 @@ import {
   files,
   op,
   plugins as hostOps,
+  server as hostServices,
   sessions,
   terminals,
   threads,
@@ -24,6 +25,7 @@ import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { cronMatches, parseCron } from "../src/plugins/cron.js";
+import { insertRow } from "@bb/server-kit/db/index";
 import { PluginHost } from "../src/plugins/host.js";
 import { PluginSettings } from "../src/plugins/settings.js";
 import { createProject, createTestServer, scratch } from "./helpers.js";
@@ -569,4 +571,75 @@ it("lists, creates, moves and removes files in a thread's workspace", async () =
   await expect(plugin.call(terminals.resize, missing)).rejects.toThrow(
     "Terminal session not found",
   );
+});
+
+it("gives any plugin the host services core plugins are built on", async () => {
+  const server = await createTestServer();
+  const { ctx } = server;
+  const directory = join(scratch(), "outsider");
+  mkdirSync(directory);
+  const manifest = { name: "bb-plugin-outsider", bb: { name: "Outsider" } };
+  writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+  const changed: string[] = [];
+  const count = "SELECT count(*) AS total FROM projects";
+  const entry = (bb: PluginServerApi) => {
+    bb.http.api((app) => {
+      app.get("/outsider/summary", (c) => {
+        const { hostId } = bb.config;
+        const projects = bb.db.get<{ total: number }>(count)?.total;
+        const connected = bb.runners.isConnected(hostId);
+        return c.json({ projects, hostId, connected, at: bb.now() });
+      });
+    });
+    bb.onDispose(bb.realtime.onChanged(({ entity }) => changed.push(entity)));
+  };
+  const plugins = new PluginHost({
+    ...ctx.plugins.options,
+    builtins: [{ directory, server: entry }],
+  });
+  plugins.deps = ctx.plugins.deps;
+  await plugins.reload();
+  const projects = ctx.db.get<{ total: number }>(count)?.total;
+  expect(projects).toBeGreaterThan(0);
+  const { hostId } = ctx.config;
+  const summary = { projects, hostId, connected: true, at: server.clock.now };
+  expect(await server.read("/outsider/summary")).toEqual(summary);
+  const quiet = changed.length;
+  ctx.hub.system(["config-changed"]);
+  expect(changed.slice(quiet)).toEqual(["system"]);
+  await plugins.stop();
+  expect((await server.request("/outsider/summary")).status).toBe(404);
+  const heard = changed.length;
+  ctx.hub.system(["config-changed"]);
+  expect(changed).toHaveLength(heard);
+});
+
+it("lets a plugin decide who a request is from", async () => {
+  const server = await createTestServer();
+  const { ctx } = server;
+  const at = { createdAt: 1, updatedAt: 1 };
+  const bo = { id: "usr_bo", name: "Bo", role: "member", externalId: null };
+  insertRow(ctx.db, "users", { ...bo, ...at });
+  const session = async (headers: Record<string, string> = {}) => {
+    const response = await server.request("/auth/session", { headers });
+    return ((await response.json()) as { user: { id: string } | null }).user
+      ?.id;
+  };
+  const owner = await session();
+  expect(await session({ "x-badge": "bo" })).toBe(owner);
+  const builtIn = ctx.kernel.use(hostServices.authenticator);
+  const badges = ctx.kernel.scope("badges", "installed");
+  badges.add(hostServices.authenticator, {
+    ...builtIn,
+    principal(request) {
+      if (request.headers["x-badge"] !== "bo")
+        return builtIn.principal(request);
+      const member = { userId: "usr_bo", role: "member" as const };
+      return { kind: "user", ...member, implicit: false };
+    },
+  });
+  expect(await session({ "x-badge": "bo" })).toBe("usr_bo");
+  expect(await session()).toBe(owner);
+  badges.dispose();
+  expect(await session({ "x-badge": "bo" })).toBe(owner);
 });
