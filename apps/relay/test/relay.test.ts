@@ -16,6 +16,7 @@ import {
   TestSocket,
   type Json,
 } from "../../server/test/helpers.js";
+import { startTunnel } from "../../tunnel/src/tunnel.js";
 
 type Init = { method?: string; json?: unknown; form?: Json; headers?: Json };
 type CliReply = { exitCode: number; stdout: string; stderr: string };
@@ -31,6 +32,7 @@ const PEOPLE: Record<string, { id: number; email: string | null }> = {
 };
 
 const BUILT = process.env.RELAY_BUILT === "1";
+const FRP_BIN = process.env.FRP_BIN_DIR;
 const DIST = fileURLToPath(new URL("../dist", import.meta.url));
 
 async function sourceWorker() {
@@ -891,3 +893,103 @@ it.runIf(BUILT)("serves the app from the deployed bundle", async () => {
   const missing = await alice.visit(`${apex}/nowhere`, page);
   expect(missing.status).toBe(404);
 });
+
+it.skipIf(FRP_BIN === undefined)(
+  "serves a linked server through frp and the gate on Fly",
+  async () => {
+    const [web, frp, vhost, hooks] = await Promise.all(
+      [1, 2, 3, 4].map(() => freePort()),
+    );
+    const bin = FRP_BIN ?? "";
+    vi.stubEnv("BB_CONNECT_FRP", `tcp://127.0.0.1:${frp}`);
+    vi.stubEnv("BB_CONNECT_FRPC", join(bin, "frpc"));
+    const secret = "gate-secret";
+    const linked = await startLinkedServer(
+      { GATE_SECRET: secret },
+      async (relay) => {
+        const tunnel = await startTunnel({
+          baseHost: `fly.${BASE}:${web}`,
+          secure: false,
+          relayUrl: relay.apex,
+          relaySecret: secret,
+          frps: join(bin, "frps"),
+          bindHost: "127.0.0.1",
+          ports: { web, frp, vhost, hooks },
+          logLevel: "warn",
+          log: () => {},
+        });
+        onTestFinished(() => tunnel.close());
+      },
+    );
+    const { alice, apex, ctx } = linked;
+    const bee = `http://bee.fly.${BASE}:${web}`;
+    const session = "/api/v1/auth/session";
+
+    await vi.waitFor(
+      async () => {
+        const owner = await alice.visit(`${bee}${session}`);
+        expect(owner.status, owner.text).toBe(200);
+        expect(owner.body.user).toMatchObject({ id: "usr_owner" });
+      },
+      { timeout: 15_000, interval: 200 },
+    );
+    expect(ctx.plugins.publicUrl()).toBe(linked.bee);
+
+    const stranger = browser();
+    const refused = await stranger.visit(`${bee}${session}`);
+    expect(refused).toMatchObject({
+      status: 401,
+      body: { code: "unauthenticated" },
+    });
+    const page = { headers: { accept: "text/html" } };
+    const bounced = await stranger.visit(`${bee}/projects`, page);
+    const next = encodeURIComponent(`${bee}/projects`);
+    expect(bounced.status).toBe(302);
+    expect(bounced.headers.get("location")).toBe(`${apex}/login?next=${next}`);
+    const home = await alice.visit(`${bee}/`, page);
+    expect(home.status, home.text).toBe(200);
+
+    const bo = await account(apex, "Bo");
+    const forged = { "x-bb-gate-owner": "1", "x-bb-via-tunnel": "1" };
+    const disguised = await bo.visit(`${bee}${session}`, { headers: forged });
+    expect(disguised.body).toMatchObject({
+      user: null,
+      identity: { name: "Bo" },
+    });
+    const invite = await alice.visit(`${bee}/api/v1/user-invites`, {
+      json: {},
+    });
+    expect(invite.status, invite.text).toBe(201);
+    const elsewhere = { headers: { origin: linked.origin("evil") } };
+    const crossSite = await alice.visit(`${bee}/api/v1/user-invites`, {
+      json: {},
+      ...elsewhere,
+    });
+    expect(crossSite).toMatchObject({
+      status: 403,
+      body: { code: "forbidden_origin" },
+    });
+    const large = await alice.visit(`${bee}/api/v1/system/config`, {
+      headers: { "accept-encoding": "gzip" },
+    });
+    expect(large.headers.get("content-encoding")).toBe("gzip");
+    expect(large.body).toMatchObject({ primaryHostId: ctx.config.hostId });
+
+    const socket = new WebSocket(`${bee.replace("http", "ws")}/ws`, {
+      headers: { cookie: alice.cookies(), origin: bee },
+    });
+    onTestFinished(() => socket.terminate());
+    const live = new TestSocket(socket);
+    await once(socket, "open");
+    live.send({ type: "ping" });
+    await live.next((message) => message.type === "pong");
+    socket.terminate();
+
+    await linked.cli("logout", "--json");
+    await vi.waitFor(async () => {
+      const offline = await alice.visit(`${bee}${session}`);
+      expect(offline.status).toBe(503);
+    });
+  },
+  60_000,
+);

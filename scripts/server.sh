@@ -58,6 +58,7 @@ log=${BB_SERVER_LOG:-$root/.tmp/server-$port.log}
 remembered=$root/.tmp/server-$port.env
 inherited="BB_DATA_DIR BB_SERVER_BIND_HOST BB_SERVER_ALLOWED_HOSTS BB_APP_DIR BB_LOG_LEVEL"
 inherited="$inherited BB_DEV_PROVIDERS BB_CONNECT_BASE_URL BB_CLAUDE_CODE_EXECUTABLE"
+inherited="$inherited BB_CONNECT_FRP BB_CONNECT_FRPC"
 explicit_data_dir=${BB_DATA_DIR:-}
 adopted=""
 adopted_from=""

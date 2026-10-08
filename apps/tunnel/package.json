@@ -1,0 +1,14 @@
+{
+  "name": "@bb/tunnel-gate",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  }
+}

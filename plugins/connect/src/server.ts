@@ -4,6 +4,7 @@ import { cliCommand, defineCli, PluginCliError } from "@bb/plugin";
 import type * as Plugin from "@bb/plugin";
 import { ConnectAccount, legacyLink, shareUrl, type Link } from "./account.js";
 import { connectRpcContract, type ConnectStatus } from "./contract.js";
+import { FrpTunnel } from "./frp.js";
 import { watchActivity } from "./activity.js";
 import {
   MACHINE_HEADER,
@@ -85,6 +86,18 @@ export default async function connectPlugin(
     log: bb.log,
     onChange: publish,
   });
+  const frpServer = process.env.BB_CONNECT_FRP;
+  const frp =
+    frpServer === undefined
+      ? null
+      : new FrpTunnel({
+          server: frpServer,
+          binary: process.env.BB_CONNECT_FRPC,
+          dir: join(bb.server.dataDir, "frp"),
+          loopbackUrl: bb.server.url,
+          marker: bb.server.tunnelToken,
+          log: bb.log,
+        });
   const activeLink = (): Link | null => (enabled ? account.link : null);
 
   function sync(): void {
@@ -92,6 +105,7 @@ export default async function connectPlugin(
     if (account.link?.credential !== grantsCredential) grants.clear();
     grantsCredential = account.link?.credential;
     tunnel.set(link);
+    frp?.set(link);
     bb.server.setPublicUrl(link?.serverUrl ?? null);
     publish();
   }
@@ -287,6 +301,7 @@ export default async function connectPlugin(
   bb.onDispose(() => {
     account.stop();
     tunnel.set(null);
+    frp?.set(null);
   });
   sync();
 }
