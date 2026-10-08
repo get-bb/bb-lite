@@ -5,14 +5,18 @@ import { derivePluginId } from "@bb/domain";
 import type { Kernel } from "@bb/plugin";
 import type { RunnerPartBundle } from "@bb/runner";
 import type { InstalledPlugin, PluginApp } from "@bb/server-contract";
-import { asSystem } from "../auth/actor.js";
-import { dataPaths, loopbackUrl, type ServerConfig } from "../config.js";
-import type { Logger } from "../context.js";
-import type { Db } from "../db/index.js";
-import { isPluginEnabled, setPluginEnabled } from "../db/plugins.js";
-import type { ServerContext } from "../context.js";
+import { asSystem } from "@bb/server-kit/auth/actor";
+import {
+  dataPaths,
+  loopbackUrl,
+  type ServerConfig,
+} from "@bb/server-kit/config";
+import type { Logger } from "@bb/server-kit/context";
+import type { Db } from "@bb/server-kit/db/index";
+import { isPluginEnabled, setPluginEnabled } from "@bb/server-kit/db/plugins";
+import type { HostContext } from "../host-context.js";
 import type { Disposer } from "../server.js";
-import type { Hub } from "../ws/hub.js";
+import type { Hub } from "@bb/server-kit/ws/hub";
 import { builtinPlugins, type BuiltinPlugin } from "./builtin.js";
 import {
   bundleApp,
@@ -22,7 +26,7 @@ import {
   utilitiesWith,
 } from "./bundle.js";
 import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
-import { errorMessage } from "../http/errors.js";
+import { errorMessage } from "@bb/server-kit/http/errors";
 import { createPluginInstance } from "./instance.js";
 import {
   readExternalPluginEntries,
@@ -390,7 +394,7 @@ export class PluginHost extends PluginRegistry {
   }
 }
 
-export async function startPlugins(ctx: ServerContext): Promise<Disposer> {
+export async function startPlugins(ctx: HostContext): Promise<Disposer> {
   const { plugins, runners, log } = ctx;
   const shipped = new Set<string>();
   const sync = async (hostIds: string[]) => {

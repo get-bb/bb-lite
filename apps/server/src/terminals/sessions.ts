@@ -2,25 +2,24 @@ import type { TerminalSessionCloseReason } from "@bb/domain";
 import { RunnerError, TERMINAL_REPLAY_MAX_BYTES } from "@bb/runner";
 import * as contract from "@bb/server-contract";
 import type { WebSocket } from "ws";
-import type { ServerContext } from "../context.js";
+import type { Disposer, ServerContext } from "@bb/server-kit/context";
 import {
   getTerminal,
   insertTerminal,
   selectTerminals,
   updateTerminal,
-} from "../db/terminals.js";
-import type { RowValues } from "../db/index.js";
-import { requireThread } from "../db/threads.js";
+} from "@bb/server-kit/db/terminals";
+import type { RowValues } from "@bb/server-kit/db/index";
+import { requireThread } from "@bb/server-kit/db/threads";
 import {
   requireEnvironment,
   requireReadyEnvironment,
   requireThreadEnvironment,
-} from "../environments/workspace.js";
-import { ApiError, errorMessage, toApiError } from "../http/errors.js";
-import { resolveContributedEnvironment } from "../machine-environment.js";
-import { requireHost } from "../runners/hosts.js";
-import type { Disposer } from "../server.js";
-import { parseFrame } from "../ws/hub.js";
+} from "@bb/server-kit/environments/workspace";
+import { ApiError, errorMessage, toApiError } from "@bb/server-kit/http/errors";
+import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
+import { requireHost } from "@bb/server-kit/runners/hosts";
+import { parseFrame } from "@bb/server-kit/ws/hub";
 
 interface Client {
   send(message: contract.TerminalServerMessage): void;

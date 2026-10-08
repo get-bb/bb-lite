@@ -1,5 +1,5 @@
 import type { PluginServerApi } from "@bb/plugin";
-import type { ServerContext } from "../context.js";
+import type { ServerContext } from "@bb/server-kit/context";
 
 export type PluginOutwardApi = Pick<PluginServerApi, "machine">;
 

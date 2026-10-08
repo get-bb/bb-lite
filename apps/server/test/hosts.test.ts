@@ -1,7 +1,7 @@
 import { defaultAppSettings } from "@bb/domain";
 import { expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { setAppSettings } from "../src/db/settings.js";
+import { setAppSettings } from "@bb/server-kit/db/settings";
 import { createTestServer, watchChanges, type TestServer } from "./helpers.js";
 
 type Headers = Record<string, string>;

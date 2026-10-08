@@ -1,9 +1,9 @@
 import type { ToolCallResponse } from "@bb/domain";
-import { runAs } from "../auth/actor.js";
-import { getThread } from "../db/threads.js";
-import { errorMessage } from "../http/errors.js";
-import { agentActor } from "../runners/access.js";
-import type { RunnerEventOf } from "../runners/registry.js";
+import { runAs } from "@bb/server-kit/auth/actor";
+import { getThread } from "@bb/server-kit/db/threads";
+import { errorMessage } from "@bb/server-kit/http/errors";
+import { agentActor } from "@bb/server-kit/runners/access";
+import type { RunnerEventOf } from "@bb/server-kit/runners/registry";
 import type { Engine } from "./engine.js";
 import { pluginContext } from "./session-spec.js";
 

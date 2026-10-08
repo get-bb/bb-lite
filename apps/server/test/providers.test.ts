@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { type AvailableModel } from "@bb/domain";
 import { pluginSettingsResponseSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { resolveContributedEnvironment } from "../src/machine-environment.js";
-import { providerOptionsFor } from "../src/providers/settings.js";
+import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
+import { providerOptionsFor } from "@bb/server-kit/providers/settings";
 import { createProject, createTestServer, watchChanges } from "./helpers.js";
 
 function model(id: string): AvailableModel {

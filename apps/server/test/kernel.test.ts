@@ -12,8 +12,8 @@ import {
 import { createThreadRequestSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
 import { z } from "zod";
-import { runAs } from "../src/auth/actor.js";
-import { insertRow } from "../src/db/index.js";
+import { runAs } from "@bb/server-kit/auth/actor";
+import { insertRow } from "@bb/server-kit/db/index";
 import { PluginHost } from "../src/plugins/host.js";
 import { scratch } from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";

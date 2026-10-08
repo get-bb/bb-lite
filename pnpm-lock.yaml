@@ -424,6 +424,9 @@ importers:
       '@bb/server-contract':
         specifier: workspace:*
         version: link:../../packages/server-contract
+      '@bb/server-kit':
+        specifier: workspace:*
+        version: link:../../packages/server-kit
       '@bb/thread-view':
         specifier: workspace:*
         version: link:../../packages/thread-view
@@ -701,6 +704,52 @@ importers:
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
+
+  packages/server-kit:
+    dependencies:
+      '@bb/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@bb/plugin':
+        specifier: workspace:*
+        version: link:../plugin
+      '@bb/runner':
+        specifier: workspace:*
+        version: link:../runner
+      '@bb/server-contract':
+        specifier: workspace:*
+        version: link:../server-contract
+      '@bb/thread-view':
+        specifier: workspace:*
+        version: link:../thread-view
+      '@hono/node-server':
+        specifier: ^1.19.11
+        version: 1.19.17(hono@4.11.9)
+      better-sqlite3:
+        specifier: 12.10.0
+        version: 12.10.0
+      hono:
+        specifier: ^4.7.0
+        version: 4.11.9
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@bb/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/mime-types':
+        specifier: ^3.0.1
+        version: 3.0.1
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.10
 
   packages/shared-ui:
     dependencies:

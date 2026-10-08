@@ -7,6 +7,7 @@ import { RunnerError } from "@bb/runner";
 import type * as contract from "@bb/server-contract";
 import type { ServerContext, ServerRunner } from "../context.js";
 import { getEnvironment, updateEnvironment } from "../db/environments.js";
+import type { DeletedProject } from "../db/projects.js";
 import { requireThread } from "../db/threads.js";
 import { ApiError, invalidRequest } from "../http/errors.js";
 
@@ -203,4 +204,18 @@ export function searchWorkspacePaths(
     includeHidden: true,
     excludeNames: PATH_LIST_EXCLUDED_NAMES,
   });
+}
+
+export async function removeProjectWorkspaces(
+  { log, runners }: ServerContext,
+  { environments }: DeletedProject,
+): Promise<void> {
+  for (const { hostId, path, providerOwnsPath } of environments) {
+    const removable = providerOwnsPath === 1 && runners.isConnected(hostId);
+    if (path === null || !removable) continue;
+    const removed = runners.get(hostId).removeWorktree({ path });
+    await removed.catch((err: unknown) => {
+      log.warn("Could not remove a deleted project's workspace", { err, path });
+    });
+  }
 }

@@ -1,9 +1,9 @@
 import { rm } from "node:fs/promises";
-import { asSystem } from "../auth/actor.js";
-import type { ServerContext } from "../context.js";
-import { deleteProject } from "../db/projects.js";
-import { removeProjectWorkspaces } from "../environments/manager.js";
-import { projectAttachmentsDir } from "./attachments.js";
+import { asSystem } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
+import { deleteProject } from "@bb/server-kit/db/projects";
+import { removeProjectWorkspaces } from "@bb/server-kit/environments/workspace";
+import { projectAttachmentsDir } from "@bb/server-kit/projects/attachments";
 
 export async function removeProject(
   ctx: ServerContext,

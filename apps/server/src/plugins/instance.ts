@@ -5,12 +5,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { Kernel, Tier } from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
 import Database from "better-sqlite3";
-import type { Logger } from "../context.js";
-import type { Db } from "../db/index.js";
-import { readPluginRows, writePluginRow } from "../db/plugins.js";
-import { errorMessage } from "../http/errors.js";
-import { currentCaller } from "../kernel/caller.js";
-import type { Hub } from "../ws/hub.js";
+import type { Logger } from "@bb/server-kit/context";
+import type { Db } from "@bb/server-kit/db/index";
+import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
+import { errorMessage } from "@bb/server-kit/http/errors";
+import { currentCaller } from "@bb/server-kit/kernel/caller";
+import type { Hub } from "@bb/server-kit/ws/hub";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 

@@ -1,7 +1,11 @@
 import { fromProviderExternalThreadName } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
-import { appendEvents } from "../db/events.js";
-import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
+import { appendEvents } from "@bb/server-kit/db/events";
+import {
+  getThread,
+  patchThread,
+  type ThreadRow,
+} from "@bb/server-kit/db/threads";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import { interruptAll } from "./interactions.js";

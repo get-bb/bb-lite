@@ -4,7 +4,7 @@ import http, { type IncomingHttpHeaders, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { writePluginRow } from "../../../apps/server/src/db/plugins.js";
+import { writePluginRow } from "../../../packages/server-kit/src/db/plugins.js";
 import { createTestServer } from "../../../apps/server/test/helpers.js";
 import { HUB_PATH } from "../src/contract.js";
 

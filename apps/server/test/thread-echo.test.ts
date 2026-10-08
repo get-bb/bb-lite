@@ -5,7 +5,7 @@ import type {
 } from "@bb/server-contract";
 import { threads } from "@bb/plugin";
 import { expect, it, vi } from "vitest";
-import type { ThreadRow } from "../src/db/threads.js";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { createEchoServer } from "./helpers.js";
 import { text } from "./thread-harness.js";
 

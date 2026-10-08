@@ -17,23 +17,28 @@ import {
   type PluginScope,
 } from "@bb/plugin";
 import { RunnerError } from "@bb/runner";
-import { dataPaths } from "../config.js";
-import type { ServerContext } from "../context.js";
-import { listAudit } from "../db/audit.js";
-import { decodeEvent, lastOutput, listEvents } from "../db/event-read.js";
-import { listHosts } from "../db/hosts.js";
-import { listStandardProjects } from "../db/projects.js";
-import { listThreadRows } from "../db/thread-read.js";
+import { dataPaths } from "@bb/server-kit/config";
+import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
+import { listAudit } from "@bb/server-kit/db/audit";
+import {
+  decodeEvent,
+  lastOutput,
+  listEvents,
+} from "@bb/server-kit/db/event-read";
+import { listHosts } from "@bb/server-kit/db/hosts";
+import { listStandardProjects } from "@bb/server-kit/db/projects";
+import { listThreadRows } from "@bb/server-kit/db/thread-read";
 import {
   createThreadSection,
   listThreadSections,
-} from "../db/thread-sections.js";
-import { getUser, listUsers, toUser } from "../db/users.js";
+} from "@bb/server-kit/db/thread-sections";
+import { getUser, listUsers, toUser } from "@bb/server-kit/db/users";
 import { readManifest, writeExternalPluginEntry } from "../plugins/manifest.js";
 import { doorInstructions } from "../plugins/doors.js";
-import { bindProviderCatalog } from "../providers/catalog.js";
-import { hostResponse } from "../runners/hosts.js";
-import { toThreadListEntries } from "../threads/thread-display.js";
+import { bindProviderCatalog } from "@bb/server-kit/providers/catalog";
+import { hostResponse } from "@bb/server-kit/runners/hosts";
+import { toThreadListEntries } from "@bb/server-kit/threads/thread-display";
 
 export function threadReadOps(ctx: ServerContext, bb: PluginScope): void {
   const { db, hub } = ctx;
@@ -128,7 +133,7 @@ export function userOps(ctx: ServerContext, bb: PluginScope): void {
   bb.implement(users.list, () => listUsers(db).map(toUser));
 }
 
-export function pluginOps(ctx: ServerContext, bb: PluginScope): void {
+export function pluginOps(ctx: HostContext, bb: PluginScope): void {
   const { kernel } = ctx;
   const { configFile } = dataPaths(ctx.config.dataDir);
   bb.implement(plugins.inspect, () => kernel.inspect());

@@ -2,20 +2,15 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ThreadContext } from "@bb/plugin";
 import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
-import { dataPaths } from "../config.js";
-import type { ServerContext } from "../context.js";
-import type { Db } from "../db/index.js";
-import type { ThreadRow } from "../db/threads.js";
-import { resolveContributedEnvironment } from "../machine-environment.js";
-import { findProviderDefinition } from "../providers/catalog.js";
-import { readCustomModelConfig } from "../providers/models.js";
+import { dataPaths } from "@bb/server-kit/config";
+import type { ServerContext } from "@bb/server-kit/context";
+import type { SessionEnvironment } from "@bb/server-kit/services";
+import type { Db } from "@bb/server-kit/db/index";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
+import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
+import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
+import { readCustomModelConfig } from "@bb/server-kit/providers/models";
 import { requireProviderId } from "./execution.js";
-
-export interface SessionEnvironment {
-  id: string;
-  hostId: string;
-  path: string;
-}
 
 const BB_INTRODUCTION = [
   "You are working inside bb, an agentic IDE for managing coding agents in projects, threads, and environments. The `bb` CLI is available when you need BB context or orchestration.",

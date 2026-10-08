@@ -2,31 +2,21 @@ import { randomUUID } from "node:crypto";
 import {
   DEFAULT_ENV_SETUP_SCRIPT_NAME as SETUP_SCRIPT,
   type Environment,
-  type ProvisioningTranscriptEntry,
 } from "@bb/domain";
-import type { ServerContext } from "../context.js";
-import { ApiError } from "../http/errors.js";
-import { resolveContributedEnvironment } from "../machine-environment.js";
-import type { EnsureEnvironmentArgs } from "./types.js";
+import type { ServerContext } from "@bb/server-kit/context";
+import { ApiError } from "@bb/server-kit/http/errors";
+import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
+import {
+  step,
+  type EnsureEnvironmentArgs,
+} from "@bb/server-kit/environments/types";
 
-type StepStatus = NonNullable<ProvisioningTranscriptEntry["status"]>;
 type Progress = Pick<EnsureEnvironmentArgs, "onProgress" | "signal">;
 export type Workspace = Pick<Environment, "id" | "hostId" | "projectId"> & {
   path: string;
 };
 
 const SCRIPT_TIMEOUT_MS = 15 * 60_000;
-
-export function step(
-  key: string,
-  text: string,
-  status: StepStatus,
-  startedAt: number,
-  metadata?: Record<string, unknown>,
-): ProvisioningTranscriptEntry {
-  const entry = { type: "step" as const, key, text, status, startedAt };
-  return metadata === undefined ? entry : { ...entry, metadata };
-}
 
 export function notReady(message: string): ApiError {
   return new ApiError(409, "environment_not_ready", message);

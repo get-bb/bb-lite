@@ -5,8 +5,8 @@ import type {
   TimelineRow,
 } from "@bb/server-contract";
 import { z } from "zod";
-import { MAX_INLINE_OUTPUT_CHARS } from "../db/event-read.js";
-import { invalidRequest } from "../http/errors.js";
+import { MAX_INLINE_OUTPUT_CHARS } from "@bb/server-kit/db/event-read";
+import { invalidRequest } from "@bb/server-kit/http/errors";
 
 export type TimelinePage =
   | { kind: "latest"; segmentLimit: number }

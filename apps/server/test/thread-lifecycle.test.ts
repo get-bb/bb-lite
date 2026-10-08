@@ -1,7 +1,7 @@
 import type { PendingInteractionPayload } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { insertRow, openDatabase } from "../src/db/index.js";
+import { insertRow, openDatabase } from "@bb/server-kit/db/index";
 import { createServer } from "../src/server.js";
 import { FakeRunner } from "./helpers.js";
 import {

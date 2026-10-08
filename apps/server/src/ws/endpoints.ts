@@ -1,9 +1,9 @@
 import { terminalWebSocketQuerySchema } from "@bb/server-contract";
-import type { ServerContext } from "../context.js";
-import { getTerminal } from "../db/terminals.js";
-import { ApiError, notFound } from "../http/errors.js";
-import { assertHostUsable } from "../runners/access.js";
-import { authenticateRunner } from "../runners/enrollment.js";
+import type { ServerContext } from "@bb/server-kit/context";
+import { getTerminal } from "@bb/server-kit/db/terminals";
+import { ApiError, notFound } from "@bb/server-kit/http/errors";
+import { assertHostUsable } from "@bb/server-kit/runners/access";
+import { authenticateRunner } from "@bb/server-kit/runners/enrollment";
 import { attachRemoteRunner } from "../runners/remote.js";
 import { attachTerminalSocket } from "../terminals/sessions.js";
 import type { SocketResolver } from "./sockets.js";

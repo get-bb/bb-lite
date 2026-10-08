@@ -7,10 +7,10 @@ import {
   type ExternalUserBoundaryTurnSpan as TurnSpan,
 } from "@bb/thread-view";
 import { z } from "zod";
-import * as events from "../db/event-read.js";
-import type { Db } from "../db/index.js";
-import type { ThreadListRow } from "../db/thread-read.js";
-import { invalidRequest } from "../http/errors.js";
+import * as events from "@bb/server-kit/db/event-read";
+import type { Db } from "@bb/server-kit/db/index";
+import type { ThreadListRow } from "@bb/server-kit/db/thread-read";
+import { invalidRequest } from "@bb/server-kit/http/errors";
 import * as pages from "./timeline-pages.js";
 
 export interface TimelineDisplay {

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
-import * as interactions from "../src/db/pending-interactions.js";
+import * as interactions from "@bb/server-kit/db/pending-interactions";
 import { createEchoServer, type Json } from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
 

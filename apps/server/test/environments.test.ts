@@ -7,8 +7,11 @@ import type {
   UnmanagedBranchSpec,
 } from "@bb/server-contract";
 import { expect, it, vi } from "vitest";
-import { getEnvironment, listEnvironments } from "../src/db/environments.js";
-import { getThread } from "../src/db/threads.js";
+import {
+  getEnvironment,
+  listEnvironments,
+} from "@bb/server-kit/db/environments";
+import { getThread } from "@bb/server-kit/db/threads";
 import * as helpers from "./helpers.js";
 import { text } from "./thread-harness.js";
 

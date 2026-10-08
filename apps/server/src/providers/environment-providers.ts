@@ -5,10 +5,10 @@ import type {
 } from "@bb/server-contract";
 import { environments } from "@bb/plugin";
 import { z } from "zod";
-import type { ServerContext } from "../context.js";
-import { listHosts } from "../db/hosts.js";
-import { getProjectSource, requireProject } from "../db/projects.js";
-import { inspectProjectPath } from "../projects/workspace.js";
+import type { ServerContext } from "@bb/server-kit/context";
+import { listHosts } from "@bb/server-kit/db/hosts";
+import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
+import { inspectProjectPath } from "@bb/server-kit/projects/workspace";
 
 type Availability = SystemEnvironmentProvider["availability"];
 

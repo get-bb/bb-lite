@@ -2,25 +2,25 @@ import { randomUUID } from "node:crypto";
 import type { Host } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
 import { z } from "zod";
-import { actorUserId, currentActor } from "../../auth/actor.js";
-import type { ServerContext } from "../../context.js";
-import { newId, type RowValues } from "../../db/index.js";
-import * as store from "../../db/hosts.js";
-import { canManageHost } from "../../runners/access.js";
-import * as enrollment from "../../runners/enrollment.js";
+import { actorUserId, currentActor } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
+import { newId, type RowValues } from "@bb/server-kit/db/index";
+import * as store from "@bb/server-kit/db/hosts";
+import { canManageHost } from "@bb/server-kit/runners/access";
+import * as enrollment from "@bb/server-kit/runners/enrollment";
 import {
   hostResponse,
   publicServerUrl,
   requireHost,
-} from "../../runners/hosts.js";
-import { typedApi, type ApiApp } from "../api.js";
+} from "@bb/server-kit/runners/hosts";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
 import {
   ApiError,
   errorMessage,
   forbidden,
   invalidRequest,
-} from "../errors.js";
-import { principalOf, requireUser } from "../trust.js";
+} from "@bb/server-kit/http/errors";
+import { principalOf, requireUser } from "@bb/server-kit/http/trust";
 
 interface HostRequest {
   req: { raw: Request; url: string; param(name: "id"): string };

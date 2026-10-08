@@ -3,19 +3,28 @@ import type * as domain from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import type * as runner from "@bb/runner";
 import type { SendMessageRequest } from "@bb/server-contract";
-import { getEnvironment } from "../db/environments.js";
-import { isQueueAutoSendPaused } from "../db/events.js";
-import { findHost } from "../db/hosts.js";
-import { newId } from "../db/index.js";
-import { hasTurnBoundInteraction } from "../db/pending-interactions.js";
-import * as queue from "../db/queued-messages.js";
-import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
-import { conflict, errorMessage, threadNotFound } from "../http/errors.js";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { isQueueAutoSendPaused } from "@bb/server-kit/db/events";
+import { findHost } from "@bb/server-kit/db/hosts";
+import { newId } from "@bb/server-kit/db/index";
+import { hasTurnBoundInteraction } from "@bb/server-kit/db/pending-interactions";
+import * as queue from "@bb/server-kit/db/queued-messages";
+import {
+  getThread,
+  patchThread,
+  type ThreadRow,
+} from "@bb/server-kit/db/threads";
+import {
+  conflict,
+  errorMessage,
+  threadNotFound,
+} from "@bb/server-kit/http/errors";
 import { deliverAttachments } from "./attachments.js";
 import * as core from "./core.js";
 import type { Engine } from "./engine.js";
 import * as execution from "./execution.js";
-import { buildSessionSpec, type SessionEnvironment } from "./session-spec.js";
+import type { SessionEnvironment } from "@bb/server-kit/services";
+import { buildSessionSpec } from "./session-spec.js";
 
 type QueuedMessageRow = queue.QueuedMessageRow;
 type PromptInput = domain.PromptInput;

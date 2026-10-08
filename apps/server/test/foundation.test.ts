@@ -10,10 +10,10 @@ import {
 import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
-import { loadConfig } from "../src/config.js";
-import { insertRow, LegacyDataDirectoryError } from "../src/db/index.js";
-import { authorize, type TrustLookups } from "../src/http/trust.js";
-import { Hub } from "../src/ws/hub.js";
+import { loadConfig } from "@bb/server-kit/config";
+import { insertRow, LegacyDataDirectoryError } from "@bb/server-kit/db/index";
+import { authorize, type TrustLookups } from "@bb/server-kit/http/trust";
+import { Hub } from "@bb/server-kit/ws/hub";
 import { createTestServer, scratch } from "./helpers.js";
 
 type Headers = Record<string, string>;

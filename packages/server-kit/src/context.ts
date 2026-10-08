@@ -2,13 +2,17 @@ import type { Kernel } from "@bb/plugin";
 import type { Runner } from "@bb/runner";
 import type { ServerConfig } from "./config.js";
 import type { Db } from "./db/index.js";
-import type { Environments } from "./environments/manager.js";
-import type { PluginHost } from "./plugins/host.js";
 import type { RunnerRegistry } from "./runners/registry.js";
-import type { ThreadEngine } from "./threads/engine.js";
+import type {
+  Environments,
+  PluginQueries,
+  Terminals,
+  ThreadEngine,
+} from "./services.js";
 import type { Hub } from "./ws/hub.js";
 
 export type ServerRunner = Runner;
+export type Disposer = () => void | Promise<void>;
 
 export interface ServerContext {
   config: ServerConfig;
@@ -17,11 +21,12 @@ export interface ServerContext {
   hub: Hub;
   runners: RunnerRegistry<ServerRunner>;
   kernel: Kernel;
-  plugins: PluginHost;
+  plugins: PluginQueries;
   log: Logger;
   now: () => number;
   environments: Environments;
   threads: ThreadEngine;
+  terminals: Terminals;
 }
 
 export const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;

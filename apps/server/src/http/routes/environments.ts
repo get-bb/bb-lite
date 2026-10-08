@@ -4,12 +4,12 @@ import {
   publicApiRoutes,
   type EnvironmentDiffQuery,
 } from "@bb/server-contract";
-import type { ServerContext } from "../../context.js";
+import type { ServerContext } from "@bb/server-kit/context";
 import {
   listEnvironments,
   listEnvironmentThreadIds,
   updateEnvironment,
-} from "../../db/environments.js";
+} from "@bb/server-kit/db/environments";
 import {
   branchSearch,
   readGitWorkspace,
@@ -18,9 +18,10 @@ import {
   requireReadyEnvironment,
   searchWorkspacePaths,
   workspaceFailure,
-} from "../../environments/workspace.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, conflict, invalidRequest } from "../errors.js";
+} from "@bb/server-kit/environments/workspace";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import { listEnvironmentProviders } from "../../providers/environment-providers.js";
+import { ApiError, conflict, invalidRequest } from "@bb/server-kit/http/errors";
 
 const COMMIT_MESSAGE = "bb: automated commit";
 
@@ -43,6 +44,11 @@ export function registerEnvironmentRoutes(
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.environments;
   const { db, hub, runners, threads } = ctx;
+  const { system } = publicApiRoutes;
+
+  get(system.environmentProviders, async (c, query) =>
+    c.json({ providers: await listEnvironmentProviders(ctx, query) }),
+  );
 
   get(routes.list, (c, query) => {
     const { limit, offset, ...filter } = query;

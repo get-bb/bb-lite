@@ -2,7 +2,7 @@ import { symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { environmentSchema } from "@bb/domain";
 import { expect, it } from "vitest";
-import { insertHost } from "../src/db/hosts.js";
+import { insertHost } from "@bb/server-kit/db/hosts";
 import * as helpers from "./helpers.js";
 
 const env = "/environments/env_demo";

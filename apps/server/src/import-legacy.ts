@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { appSettingsSchema } from "@bb/domain";
 import Database from "better-sqlite3";
 import { z } from "zod";
-import { dataPaths, loadConfig, loopbackUrl } from "./config.js";
-import type { ServerConfig, ServerEnv } from "./config.js";
-import { openDatabase, type Db, type SqlValue } from "./db/index.js";
+import { dataPaths, loadConfig, loopbackUrl } from "@bb/server-kit/config";
+import type { ServerConfig, ServerEnv } from "@bb/server-kit/config";
+import { openDatabase, type Db, type SqlValue } from "@bb/server-kit/db/index";
 
 type Row = Record<string, SqlValue>;
 type Legacy = Database.Database;

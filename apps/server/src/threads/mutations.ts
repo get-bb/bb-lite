@@ -3,18 +3,18 @@ import {
   type ThreadChangeKind,
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
-import { actorUserId, viewerId } from "../auth/actor.js";
-import * as queue from "../db/queued-messages.js";
-import { listSidebarThreadRows } from "../db/thread-read.js";
-import { requireThreadSection } from "../db/thread-sections.js";
-import * as viewerState from "../db/thread-user-state.js";
-import * as store from "../db/threads.js";
-import { conflict } from "../http/errors.js";
+import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
+import * as queue from "@bb/server-kit/db/queued-messages";
+import { listSidebarThreadRows } from "@bb/server-kit/db/thread-read";
+import { requireThreadSection } from "@bb/server-kit/db/thread-sections";
+import * as viewerState from "@bb/server-kit/db/thread-user-state";
+import * as store from "@bb/server-kit/db/threads";
+import { conflict } from "@bb/server-kit/http/errors";
 import { requireValidParent } from "./create.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";
-import { toThreadListEntries } from "./thread-display.js";
+import { toThreadListEntries } from "@bb/server-kit/threads/thread-display";
 
 function toSendResponse(
   outcome: dispatching.Delivery,

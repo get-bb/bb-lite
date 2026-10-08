@@ -2,12 +2,11 @@ import { hostname, userInfo } from "node:os";
 import { OWNER_USER_ID, type Host } from "@bb/domain";
 import { currentActor } from "../auth/actor.js";
 import { dataPaths } from "../config.js";
-import type { ServerContext } from "../context.js";
+import type { Disposer, ServerContext } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import * as hosts from "../db/hosts.js";
 import { getAppSettings } from "../db/settings.js";
 import { ApiError } from "../http/errors.js";
-import type { Disposer } from "../server.js";
 import { canUseHost, defaultHostId } from "./access.js";
 
 export function publicServerUrl(ctx: ServerContext): string | null {

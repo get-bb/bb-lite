@@ -1,9 +1,9 @@
 import { createKernel, type Kernel } from "@bb/plugin";
-import type { Logger } from "../context.js";
-import { recordAudit } from "../db/audit.js";
-import type { Db } from "../db/index.js";
-import type { Hub } from "../ws/hub.js";
-import { currentCaller, enterCaller } from "./caller.js";
+import type { Logger } from "@bb/server-kit/context";
+import { recordAudit } from "@bb/server-kit/db/audit";
+import type { Db } from "@bb/server-kit/db/index";
+import type { Hub } from "@bb/server-kit/ws/hub";
+import { currentCaller, enterCaller } from "@bb/server-kit/kernel/caller";
 
 const KERNEL_SIGNAL = "kernel";
 

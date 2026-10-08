@@ -1,5 +1,5 @@
-import type { ServerContext } from "../../context.js";
-import type { ApiApp } from "../api.js";
+import type { ServerContext } from "@bb/server-kit/context";
+import type { ApiApp } from "@bb/server-kit/http/api";
 import {
   ApiError,
   errorMessage,
@@ -7,7 +7,7 @@ import {
   invalidRequest,
   notFound,
   toApiError,
-} from "../errors.js";
+} from "@bb/server-kit/http/errors";
 
 export function registerKernelRoutes(app: ApiApp, ctx: ServerContext): void {
   const { kernel } = ctx;

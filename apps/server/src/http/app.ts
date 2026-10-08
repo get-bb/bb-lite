@@ -1,19 +1,31 @@
 import { Hono } from "hono";
 import { DOOR_HEADER } from "@bb/plugin";
-import { runAs } from "../auth/actor.js";
-import type { ServerContext } from "../context.js";
+import { runAs } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
 import type { CorePlugin } from "../core/plugins.js";
-import { findExternalUser, findSessionUser, patchUser } from "../db/users.js";
-import { THREAD_ID_HEADER, actorOf, ownerUser } from "../runners/access.js";
-import { declaredDoor, throughDoor } from "../kernel/caller.js";
-import { findRunnerHost } from "../runners/enrollment.js";
-import { publicServerUrl } from "../runners/hosts.js";
-import type { ApiApp, AppEnv, RouteGroup } from "./api.js";
+import {
+  findExternalUser,
+  findSessionUser,
+  patchUser,
+} from "@bb/server-kit/db/users";
+import {
+  THREAD_ID_HEADER,
+  actorOf,
+  ownerUser,
+} from "@bb/server-kit/runners/access";
+import { declaredDoor, throughDoor } from "@bb/server-kit/kernel/caller";
+import { findRunnerHost } from "@bb/server-kit/runners/enrollment";
+import { publicServerUrl } from "@bb/server-kit/runners/hosts";
+import type { ApiApp, AppEnv, RouteGroup } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
-import { errorResponse, notFound } from "./errors.js";
+import { errorResponse, notFound } from "@bb/server-kit/http/errors";
 import { sessionCookieName } from "./routes/users.js";
 import { registerStaticApp } from "./static.js";
-import { authorize, principals, type TrustLookups } from "./trust.js";
+import {
+  authorize,
+  principals,
+  type TrustLookups,
+} from "@bb/server-kit/http/trust";
 
 export function trustLookups(ctx: ServerContext): TrustLookups {
   return {

@@ -1,7 +1,7 @@
 import { runnerParts } from "@bb/profile-default/runner";
 import { profilePlugins } from "@bb/profile-default/server";
-import { loadConfig, type ServerEnv } from "./config.js";
-import { localRunnerFor } from "./runners/local.js";
+import { loadConfig, type ServerEnv } from "@bb/server-kit/config";
+import { localRunnerFor } from "@bb/server-kit/runners/local";
 import { createServer, type BbServer } from "./server.js";
 
 export interface StartServerOptions {

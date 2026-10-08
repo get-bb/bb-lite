@@ -1,12 +1,16 @@
 import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { Actor } from "../auth/actor.js";
-import type { ServerContext } from "../context.js";
+import type { Actor } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
 import { trustLookups } from "../http/app.js";
-import { errorResponse } from "../http/errors.js";
-import { authorize, requestHeader, type Principal } from "../http/trust.js";
-import { THREAD_ID_HEADER, actorOf } from "../runners/access.js";
+import { errorResponse } from "@bb/server-kit/http/errors";
+import {
+  authorize,
+  requestHeader,
+  type Principal,
+} from "@bb/server-kit/http/trust";
+import { THREAD_ID_HEADER, actorOf } from "@bb/server-kit/runners/access";
 
 export interface SocketRequest {
   url: URL;

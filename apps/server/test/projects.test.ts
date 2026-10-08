@@ -1,7 +1,7 @@
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { insertHost } from "../src/db/hosts.js";
+import { insertHost } from "@bb/server-kit/db/hosts";
 import {
   createProject,
   createTestServer,

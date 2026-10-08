@@ -22,6 +22,7 @@
     "@bb/profile-default": "workspace:*",
     "@bb/runner": "workspace:*",
     "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
     "@bb/thread-view": "workspace:*",
     "@hono/node-server": "^1.19.11",
     "@tailwindcss/node": "^4.3.0",

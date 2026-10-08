@@ -4,32 +4,37 @@ import {
   type ProjectBranchesQuery,
   type ProjectBranchesResponse,
 } from "@bb/server-contract";
-import type { ServerContext } from "../../context.js";
-import { updateRow } from "../../db/index.js";
-import * as store from "../../db/projects.js";
+import type { ServerContext } from "@bb/server-kit/context";
+import { updateRow } from "@bb/server-kit/db/index";
+import * as store from "@bb/server-kit/db/projects";
 import {
   branchSearch,
   searchWorkspacePaths,
-} from "../../environments/workspace.js";
+} from "@bb/server-kit/environments/workspace";
 import {
   attachmentMimeType,
   copyAttachments,
   resolveAttachmentPath,
   storeAttachment,
-} from "../../projects/attachments.js";
+} from "@bb/server-kit/projects/attachments";
 import { removeProject } from "../../projects/remove.js";
 import {
   findProjectWorkspace,
   inspectProjectPath,
   requireProjectWorkspace,
-} from "../../projects/workspace.js";
-import { findProviderDefinition } from "../../providers/catalog.js";
-import { requireHost } from "../../runners/hosts.js";
-import { listProjectsWithThreads } from "../../threads/thread-display.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, conflict, invalidRequest, notFound } from "../errors.js";
-import { fileResponse } from "../range.js";
-import { requireOwner } from "../trust.js";
+} from "@bb/server-kit/projects/workspace";
+import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
+import { requireHost } from "@bb/server-kit/runners/hosts";
+import { listProjectsWithThreads } from "@bb/server-kit/threads/thread-display";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import {
+  ApiError,
+  conflict,
+  invalidRequest,
+  notFound,
+} from "@bb/server-kit/http/errors";
+import { fileResponse } from "@bb/server-kit/http/range";
+import { requireOwner } from "@bb/server-kit/http/trust";
 
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";

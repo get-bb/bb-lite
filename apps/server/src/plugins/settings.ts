@@ -7,9 +7,9 @@ import type {
   SettingScope,
   SettingValue,
 } from "@bb/plugin";
-import type { Db } from "../db/index.js";
-import { readPluginRows, writePluginRow } from "../db/plugins.js";
-import { invalidRequest } from "../http/errors.js";
+import type { Db } from "@bb/server-kit/db/index";
+import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
+import { invalidRequest } from "@bb/server-kit/http/errors";
 
 export type SettingRecord = Record<string, SettingValue | undefined>;
 type SettingsListener = (next: SettingRecord, previous: SettingRecord) => void;

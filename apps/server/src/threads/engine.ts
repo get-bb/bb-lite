@@ -10,15 +10,16 @@ import type {
   SendMessageRequest,
   ThreadResponse,
 } from "@bb/server-contract";
-import type { ServerContext, ServerRunner } from "../context.js";
-import { getEnvironment } from "../db/environments.js";
-import { lastOutput } from "../db/event-read.js";
-import * as eventLog from "../db/events.js";
-import * as queue from "../db/queued-messages.js";
-import { findThreadListRow } from "../db/thread-read.js";
-import * as store from "../db/threads.js";
-import { ApiError, threadNotFound } from "../http/errors.js";
-import { assertHostUsable } from "../runners/access.js";
+import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { lastOutput } from "@bb/server-kit/db/event-read";
+import * as eventLog from "@bb/server-kit/db/events";
+import * as queue from "@bb/server-kit/db/queued-messages";
+import { findThreadListRow } from "@bb/server-kit/db/thread-read";
+import * as store from "@bb/server-kit/db/threads";
+import { ApiError, threadNotFound } from "@bb/server-kit/http/errors";
+import { assertHostUsable } from "@bb/server-kit/runners/access";
+import { ThreadSerial } from "@bb/server-kit/threads/serial";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
 import * as dispatching from "./dispatch.js";
@@ -28,7 +29,10 @@ import * as lifecycle from "./lifecycle.js";
 import * as mutations from "./mutations.js";
 import * as notices from "./parent-notices.js";
 import { beginProvisioning } from "./provisioning.js";
-import { toThreadListEntries, toThreadResponse } from "./thread-display.js";
+import {
+  toThreadListEntries,
+  toThreadResponse,
+} from "@bb/server-kit/threads/thread-display";
 import { cancelToolCall, startToolCall } from "./tool-calls.js";
 
 type ThreadRow = store.ThreadRow;
@@ -50,7 +54,7 @@ export class Engine {
   readonly noticeBatches = new Map<string, notices.NoticeBatch>();
   readonly deleting = new Set<string>();
   readonly hostInstances = new Map<string, string>();
-  private readonly serial = new core.ThreadSerial();
+  private readonly serial = new ThreadSerial();
   private readonly runtimes = new Map<string, core.ThreadRuntime>();
   private readonly pending = new Set<Promise<unknown>>();
   private readonly disposers: (() => void)[] = [];

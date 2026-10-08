@@ -4,7 +4,7 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
-import { openDatabase } from "../src/db/index.js";
+import { openDatabase } from "@bb/server-kit/db/index";
 import { scratch, TestSocket, type Json } from "./helpers.js";
 import {
   createThreadServer,
@@ -286,7 +286,10 @@ it("tells everyone who is viewing which thread", async () => {
 
 it("hands an existing single-user database to the first owner", () => {
   const path = join(scratch(), "bb.db");
-  const schema = new URL("../src/db/schema.sql", import.meta.url);
+  const schema = new URL(
+    "../../../packages/server-kit/src/db/schema.sql",
+    import.meta.url,
+  );
   const before = new Database(path);
   before.exec(readFileSync(schema, "utf8"));
   before.pragma("user_version = 1");

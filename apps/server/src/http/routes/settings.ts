@@ -1,21 +1,21 @@
 import * as domain from "@bb/domain";
 import { publicApiRoutes, type ServerAccessStatus } from "@bb/server-contract";
-import { viewerId } from "../../auth/actor.js";
-import type { ServerContext } from "../../context.js";
-import { writeRevision, type Db } from "../../db/index.js";
-import * as store from "../../db/settings.js";
+import { viewerId } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
+import { writeRevision, type Db } from "@bb/server-kit/db/index";
+import * as store from "@bb/server-kit/db/settings";
 import {
   machineEnvironmentView,
   projectMachineEnvironmentView,
   replaceMachineEnvironment,
-} from "../../machine-environment.js";
-import { requireProject } from "../../db/projects.js";
-import { defaultHostId } from "../../runners/access.js";
-import { publicServerUrl } from "../../runners/hosts.js";
+} from "@bb/server-kit/machine-environment";
+import { requireProject } from "@bb/server-kit/db/projects";
+import { defaultHostId } from "@bb/server-kit/runners/access";
+import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 import { DEFAULT_APP_KEYBINDINGS } from "../../settings/keybindings.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
-import { requireOwner } from "../trust.js";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
+import { requireOwner } from "@bb/server-kit/http/trust";
 
 interface PreferenceRow {
   key: string;

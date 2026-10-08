@@ -8,9 +8,9 @@ import type {
   ThreadNotWritableErrorDetails,
   ThreadNotWritableReason,
 } from "@bb/server-contract";
-import type { ThreadRow } from "../db/threads.js";
-import { ApiError } from "../http/errors.js";
-import type { Hub } from "../ws/hub.js";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
+import { ApiError } from "@bb/server-kit/http/errors";
+import type { Hub } from "@bb/server-kit/ws/hub";
 
 export interface ThreadRuntime {
   provisioning: { id: string; abort: AbortController } | null;
@@ -47,27 +47,6 @@ export class Outbox {
         report(error);
       }
     }
-  }
-}
-
-export class ThreadSerial {
-  private readonly tails = new Map<string, Promise<void>>();
-
-  run<T>(threadId: string, work: () => T | Promise<T>): Promise<T> {
-    const result = (this.tails.get(threadId) ?? Promise.resolve()).then(work);
-    const tail = result.then(
-      () => {},
-      () => {},
-    );
-    this.tails.set(threadId, tail);
-    void tail.then(() => {
-      if (this.tails.get(threadId) === tail) this.tails.delete(threadId);
-    });
-    return result;
-  }
-
-  async idle(): Promise<void> {
-    while (this.tails.size > 0) await Promise.all(this.tails.values());
   }
 }
 

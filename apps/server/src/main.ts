@@ -1,4 +1,4 @@
-import { LegacyDataDirectoryError } from "./db/index.js";
+import { LegacyDataDirectoryError } from "@bb/server-kit/db/index";
 import { startServer } from "./start.js";
 
 startServer().catch((error: unknown) => {

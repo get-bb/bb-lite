@@ -1,14 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { serve, type ServerType } from "@hono/node-server";
-import { dataPaths, type ServerConfig } from "./config.js";
+import { dataPaths, type ServerConfig } from "@bb/server-kit/config";
 import {
   createLogger,
   type Logger,
-  type ServerContext,
   type ServerRunner,
-} from "./context.js";
-import { openDatabase, type Db } from "./db/index.js";
+} from "@bb/server-kit/context";
+import type { HostContext } from "./host-context.js";
+import { openDatabase, type Db } from "@bb/server-kit/db/index";
 import {
   corePlugins,
   inStartOrder,
@@ -19,10 +19,13 @@ import { createHttpApp } from "./http/app.js";
 import { createServerKernel } from "./kernel/index.js";
 import type { BuiltinPlugin } from "./plugins/builtin.js";
 import { PluginHost } from "./plugins/host.js";
-import { assertHostUsable } from "./runners/access.js";
-import { RunnerRegistry, type RunnerFactory } from "./runners/registry.js";
+import { assertHostUsable } from "@bb/server-kit/runners/access";
+import {
+  RunnerRegistry,
+  type RunnerFactory,
+} from "@bb/server-kit/runners/registry";
 import { socketResolver } from "./ws/endpoints.js";
-import { Hub } from "./ws/hub.js";
+import { Hub } from "@bb/server-kit/ws/hub";
 import { SocketRegistry } from "./ws/sockets.js";
 
 export type { Disposer } from "./core/plugins.js";
@@ -39,7 +42,7 @@ export interface CreateServerOptions {
 }
 
 export interface BbServer {
-  ctx: ServerContext;
+  ctx: HostContext;
   listen(): Promise<{ port: number; url: string }>;
   close(): Promise<void>;
 }
@@ -65,7 +68,7 @@ export function createServer(options: CreateServerOptions): BbServer {
   const host = { config, db, hub, log, tunnelToken, kernel, builtins };
   const plugins = new PluginHost(host);
   const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
-  const ctx = { ...shared, log, now } as ServerContext;
+  const ctx = { ...shared, log, now } as unknown as HostContext;
   const core = options.corePlugins ?? corePlugins;
   for (const plugin of core) {
     const bb = kernel.scope(plugin.id, "product");

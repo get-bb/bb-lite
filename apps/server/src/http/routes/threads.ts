@@ -8,13 +8,13 @@ import {
   type ThreadTab,
   type ThreadTabsWireResponse,
 } from "@bb/server-contract";
-import { actorUserId, viewerId } from "../../auth/actor.js";
-import type { ServerContext } from "../../context.js";
-import { writeRevision } from "../../db/index.js";
-import * as sections from "../../db/thread-sections.js";
-import { requireThread } from "../../db/threads.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, invalidRequest } from "../errors.js";
+import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
+import { writeRevision } from "@bb/server-kit/db/index";
+import * as sections from "@bb/server-kit/db/thread-sections";
+import { requireThread } from "@bb/server-kit/db/threads";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 
 type WireTab = ThreadTabsWireResponse["tabs"][number];
 

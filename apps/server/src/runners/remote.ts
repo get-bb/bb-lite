@@ -5,8 +5,12 @@ import {
   type RunnerEventSink,
 } from "@bb/runner";
 import type { WebSocket } from "ws";
-import type { ServerContext, ServerRunner } from "../context.js";
-import { advanceHostEventCursor, findHost, updateHost } from "../db/hosts.js";
+import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import {
+  advanceHostEventCursor,
+  findHost,
+  updateHost,
+} from "@bb/server-kit/db/hosts";
 
 interface EventStream {
   instanceId: string;

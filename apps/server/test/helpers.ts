@@ -21,10 +21,14 @@ import { createApiClient } from "@bb/server-contract";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { expect, onTestFinished } from "vitest";
 import { WebSocket } from "ws";
-import { loadConfig, type ServerConfig } from "../src/config.js";
-import type { ServerRunner } from "../src/context.js";
-import { insertRow, openDatabase, type RowValues } from "../src/db/index.js";
-import { localRunnerFor } from "../src/runners/local.js";
+import { loadConfig, type ServerConfig } from "@bb/server-kit/config";
+import type { ServerRunner } from "@bb/server-kit/context";
+import {
+  insertRow,
+  openDatabase,
+  type RowValues,
+} from "@bb/server-kit/db/index";
+import { localRunnerFor } from "@bb/server-kit/runners/local";
 import { createServer } from "../src/server.js";
 
 export type Json = Record<string, unknown>;

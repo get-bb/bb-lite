@@ -5,10 +5,10 @@ import type {
   SubmitTurnArgs,
 } from "@bb/runner";
 import type { CreateThreadRequest } from "@bb/server-contract";
-import { insertRow, type SqlValue } from "../src/db/index.js";
-import { insertTerminal } from "../src/db/terminals.js";
-import type { ThreadRow } from "../src/db/threads.js";
-import type { ThreadEnvironment } from "../src/environments/types.js";
+import { insertRow, type SqlValue } from "@bb/server-kit/db/index";
+import { insertTerminal } from "@bb/server-kit/db/terminals";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
+import type { ThreadEnvironment } from "@bb/server-kit/environments/types";
 import { createTestServer, type Json, type TestSocket } from "./helpers.js";
 
 type TurnStatus = "completed" | "failed" | "interrupted";

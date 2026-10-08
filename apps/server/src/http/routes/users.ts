@@ -1,18 +1,22 @@
 import type { User } from "@bb/domain";
 import { publicApiRoutes } from "@bb/server-contract";
-import { hashPassword, verifyPassword } from "../../auth/passwords.js";
-import type { ServerConfig } from "../../config.js";
-import type { ServerContext } from "../../context.js";
-import * as store from "../../db/users.js";
-import { publicServerUrl } from "../../runners/hosts.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError, forbidden, invalidRequest } from "../errors.js";
+import { hashPassword, verifyPassword } from "@bb/server-kit/auth/passwords";
+import type { ServerConfig } from "@bb/server-kit/config";
+import type { ServerContext } from "@bb/server-kit/context";
+import * as store from "@bb/server-kit/db/users";
+import { publicServerUrl } from "@bb/server-kit/runners/hosts";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import {
+  ApiError,
+  forbidden,
+  invalidRequest,
+} from "@bb/server-kit/http/errors";
 import {
   principalOf,
   requestCookie,
   requireOwner,
   requireUser,
-} from "../trust.js";
+} from "@bb/server-kit/http/trust";
 
 interface RequestContext {
   req: { url: string; header(name: string): string | undefined };

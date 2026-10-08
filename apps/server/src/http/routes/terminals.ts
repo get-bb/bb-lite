@@ -1,7 +1,7 @@
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext } from "../../context.js";
+import type { ServerContext } from "@bb/server-kit/context";
 import * as sessions from "../../terminals/sessions.js";
-import { typedApi, type ApiApp } from "../api.js";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
 
 export function registerTerminalRoutes(app: ApiApp, ctx: ServerContext): void {
   const { get, patch, post } = typedApi(app);

@@ -25,3 +25,16 @@ export interface ThreadEnvironment {
   environmentId: string;
   path: string;
 }
+
+type StepStatus = NonNullable<ProvisioningTranscriptEntry["status"]>;
+
+export function step(
+  key: string,
+  text: string,
+  status: StepStatus,
+  startedAt: number,
+  metadata?: Record<string, unknown>,
+): ProvisioningTranscriptEntry {
+  const entry = { type: "step" as const, key, text, status, startedAt };
+  return metadata === undefined ? entry : { ...entry, metadata };
+}

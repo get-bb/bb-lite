@@ -1,9 +1,12 @@
 import type { PluginScope } from "@bb/plugin";
-import type { ServerContext } from "../context.js";
-import { ensurePersonalProject } from "../db/projects.js";
+import type { Disposer } from "@bb/server-kit/context";
+import type { HostContext } from "../host-context.js";
+
+export type { Disposer };
+import { ensurePersonalProject } from "@bb/server-kit/db/projects";
 import { createEnvironments } from "../environments/manager.js";
 import { startWorkspaceWatch } from "../environments/watch.js";
-import type { RouteGroup } from "../http/api.js";
+import type { RouteGroup } from "@bb/server-kit/http/api";
 import { registerEnvironmentRoutes } from "../http/routes/environments.js";
 import { registerFileRoutes } from "../http/routes/files.js";
 import {
@@ -20,13 +23,15 @@ import { registerThreadReadRoutes } from "../http/routes/thread-read.js";
 import { registerThreadRoutes } from "../http/routes/threads.js";
 import { registerUserRoutes } from "../http/routes/users.js";
 import { startPlugins } from "../plugins/host.js";
-import { ensureLocalHost } from "../runners/hosts.js";
-import { startTerminalSessions } from "../terminals/sessions.js";
+import { ensureLocalHost } from "@bb/server-kit/runners/hosts";
+import {
+  closeTerminalsFor,
+  startTerminalSessions,
+} from "../terminals/sessions.js";
 import { createThreadEngine } from "../threads/engine.js";
 import * as ops from "./ops.js";
 
 type MaybePromise<T> = T | Promise<T>;
-export type Disposer = () => void | Promise<void>;
 
 export interface CorePlugin {
   id: string;
@@ -34,8 +39,8 @@ export interface CorePlugin {
   requires?: readonly string[];
   routes?: readonly RouteGroup[];
   internalRoutes?: readonly RouteGroup[];
-  setup?(ctx: ServerContext, bb: PluginScope): void;
-  start?(ctx: ServerContext): MaybePromise<Disposer | void>;
+  setup?(ctx: HostContext, bb: PluginScope): void;
+  start?(ctx: HostContext): MaybePromise<Disposer | void>;
 }
 
 export const corePlugins: readonly CorePlugin[] = [
@@ -104,6 +109,12 @@ export const corePlugins: readonly CorePlugin[] = [
     description: "Terminal sessions on machines.",
     requires: ["plugins"],
     routes: [registerTerminalRoutes],
+    setup(ctx) {
+      ctx.terminals = {
+        closeFor: (owner, id, reason) =>
+          closeTerminalsFor(ctx, owner, id, reason),
+      };
+    },
     start: (ctx) => startTerminalSessions(ctx),
   },
   {

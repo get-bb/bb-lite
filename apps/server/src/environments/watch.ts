@@ -3,10 +3,9 @@ import {
   type EnvironmentChangeKind,
   type RealtimeSubscriptionTarget,
 } from "@bb/domain";
-import type { ServerContext } from "../context.js";
-import { getEnvironment } from "../db/environments.js";
-import type { Disposer } from "../server.js";
-import { refreshWorkspaceMetadata } from "./workspace.js";
+import type { Disposer, ServerContext } from "@bb/server-kit/context";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { refreshWorkspaceMetadata } from "@bb/server-kit/environments/workspace";
 
 type EnvironmentIdsByPath = Map<string, string[]>;
 

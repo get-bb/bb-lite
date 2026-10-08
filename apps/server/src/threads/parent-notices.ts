@@ -1,6 +1,6 @@
 import type * as domain from "@bb/domain";
-import { lastOutput } from "../db/event-read.js";
-import { getThread, type ThreadRow } from "../db/threads.js";
+import { lastOutput } from "@bb/server-kit/db/event-read";
+import { getThread, type ThreadRow } from "@bb/server-kit/db/threads";
 import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveTurnExecution } from "./execution.js";

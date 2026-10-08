@@ -1,15 +1,19 @@
 import * as domain from "@bb/domain";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { getEnvironment } from "../db/environments.js";
-import { decodeJson, newId } from "../db/index.js";
-import { getThread, patchThread, type ThreadRow } from "../db/threads.js";
-import { step } from "../environments/scripts.js";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { decodeJson, newId } from "@bb/server-kit/db/index";
+import {
+  getThread,
+  patchThread,
+  type ThreadRow,
+} from "@bb/server-kit/db/threads";
 import {
   environmentIntentSchema,
+  step,
   type ThreadEnvironment,
-} from "../environments/types.js";
-import { ApiError, errorMessage } from "../http/errors.js";
+} from "@bb/server-kit/environments/types";
+import { ApiError, errorMessage } from "@bb/server-kit/http/errors";
 import type { Outbox } from "./core.js";
 import * as dispatching from "./dispatch.js";
 import type { Engine } from "./engine.js";

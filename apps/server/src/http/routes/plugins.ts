@@ -9,13 +9,19 @@ import {
 import type { Context } from "hono";
 import { contentType } from "mime-types";
 import type { z } from "zod";
-import { actorUserId } from "../../auth/actor.js";
-import type { ServerContext } from "../../context.js";
-import { asPlugin } from "../../kernel/caller.js";
+import { actorUserId } from "@bb/server-kit/auth/actor";
+import type { ServerContext } from "@bb/server-kit/context";
+import type { HostContext } from "../../host-context.js";
+import { asPlugin } from "@bb/server-kit/kernel/caller";
 import { resolveInside } from "../../plugins/manifest.js";
-import type { ApiApp, AppEnv } from "../api.js";
-import { ApiError, errorMessage, invalidRequest, notFound } from "../errors.js";
-import { requireOwner } from "../trust.js";
+import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
+import {
+  ApiError,
+  errorMessage,
+  invalidRequest,
+  notFound,
+} from "@bb/server-kit/http/errors";
+import { requireOwner } from "@bb/server-kit/http/trust";
 
 type RouteContext = Context<AppEnv>;
 
@@ -63,7 +69,8 @@ function keepAliveJson(result: Promise<unknown>) {
   });
 }
 
-export function registerPluginRoutes(app: ApiApp, ctx: ServerContext): void {
+export function registerPluginRoutes(app: ApiApp, shared: ServerContext): void {
+  const ctx = shared as HostContext;
   const { plugins } = ctx;
   const requireManager = (c: RouteContext) =>
     requireOwner(c, "Only the owner can manage plugins");

@@ -1,11 +1,10 @@
 import * as domain from "@bb/domain";
-import { newId } from "../db/index.js";
-import * as pending from "../db/pending-interactions.js";
-import type { DeletedProject } from "../db/projects.js";
-import { listThreadIdsWaitingOn } from "../db/queued-messages.js";
-import * as store from "../db/threads.js";
-import { ApiError, conflict } from "../http/errors.js";
-import { closeTerminalsFor } from "../terminals/sessions.js";
+import { newId } from "@bb/server-kit/db/index";
+import * as pending from "@bb/server-kit/db/pending-interactions";
+import type { DeletedProject } from "@bb/server-kit/db/projects";
+import { listThreadIdsWaitingOn } from "@bb/server-kit/db/queued-messages";
+import * as store from "@bb/server-kit/db/threads";
+import { ApiError, conflict } from "@bb/server-kit/http/errors";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import * as interactions from "./interactions.js";
@@ -198,7 +197,7 @@ async function finalizeDeletion(engine: Engine, threadId: string) {
     store.patchThread(db, threadId, { storageDeletedAt: db.now() }, false);
   }
   await engine.inThread(threadId, () => {
-    closeTerminalsFor(engine.ctx, "thread_id", threadId, "thread-deleted");
+    engine.ctx.terminals.closeFor("thread_id", threadId, "thread-deleted");
     store.deleteThreadRow(db, threadId);
     engine.forget(threadId);
   });
@@ -368,7 +367,7 @@ export function sweep(engine: Engine): void {
   flushDueNotices(engine, time);
   const expired = time - ARCHIVE_UNDO_GRACE_MS;
   for (const { id, status } of store.listExpiredArchives(db, expired)) {
-    closeTerminalsFor(engine.ctx, "thread_id", id, "thread-archived");
+    engine.ctx.terminals.closeFor("thread_id", id, "thread-archived");
     if (status !== "starting" && status !== "active") continue;
     engine.background("stop archived thread", stopThread(engine, id));
   }

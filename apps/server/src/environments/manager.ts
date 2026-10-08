@@ -4,31 +4,27 @@ import {
   type EnvironmentDefinition,
 } from "@bb/plugin";
 import type { z } from "zod";
-import type { ServerContext, ServerRunner } from "../context.js";
-import * as store from "../db/environments.js";
-import { findHost } from "../db/hosts.js";
-import {
-  getProjectSource,
-  requireProject,
-  type DeletedProject,
-} from "../db/projects.js";
-import { getAppSettings } from "../db/settings.js";
-import { getThread, type ThreadRow } from "../db/threads.js";
+import type { ServerContext, ServerRunner } from "@bb/server-kit/context";
+import * as store from "@bb/server-kit/db/environments";
+import { findHost } from "@bb/server-kit/db/hosts";
+import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
+import { getAppSettings } from "@bb/server-kit/db/settings";
+import { getThread, type ThreadRow } from "@bb/server-kit/db/threads";
 import {
   BUILTIN_ENVIRONMENT_KINDS,
   checkoutInputsSchema,
   worktreeInputsSchema,
 } from "../providers/environment-providers.js";
-import { closeTerminalsFor } from "../terminals/sessions.js";
-import { errorMessage } from "../http/errors.js";
-import { hostResponse } from "../runners/hosts.js";
-import { ThreadSerial } from "../threads/core.js";
-import { createLifecycleScripts, notReady, step } from "./scripts.js";
-import type {
-  EnsureEnvironmentArgs as Job,
-  ThreadEnvironment,
-} from "./types.js";
-import { requireEnvironment } from "./workspace.js";
+import { errorMessage } from "@bb/server-kit/http/errors";
+import { hostResponse } from "@bb/server-kit/runners/hosts";
+import { ThreadSerial } from "@bb/server-kit/threads/serial";
+import { createLifecycleScripts, notReady } from "./scripts.js";
+import {
+  step,
+  type EnsureEnvironmentArgs as Job,
+  type ThreadEnvironment,
+} from "@bb/server-kit/environments/types";
+import { requireEnvironment } from "@bb/server-kit/environments/workspace";
 
 interface BuiltinKind extends EnvironmentDefinition {
   resolve(
@@ -411,7 +407,7 @@ export function createEnvironments(ctx: ServerContext) {
     const teardownAttempt = (found.lifecycle.teardown?.attempt ?? 0) + 1;
     const running = { teardownStatus: "running", teardownAttempt } as const;
     patch(id, { status: "error", teardownMessage: null, ...running });
-    closeTerminalsFor(ctx, "environment_id", id, "environment-destroyed");
+    ctx.terminals.closeFor("environment_id", id, "environment-destroyed");
     try {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });
@@ -503,18 +499,4 @@ export function createEnvironments(ctx: ServerContext) {
     sweep,
     start,
   };
-}
-
-export async function removeProjectWorkspaces(
-  { log, runners }: ServerContext,
-  { environments }: DeletedProject,
-): Promise<void> {
-  for (const { hostId, path, providerOwnsPath } of environments) {
-    const removable = providerOwnsPath === 1 && runners.isConnected(hostId);
-    if (path === null || !removable) continue;
-    const removed = runners.get(hostId).removeWorktree({ path });
-    await removed.catch((err: unknown) => {
-      log.warn("Could not remove a deleted project's workspace", { err, path });
-    });
-  }
 }

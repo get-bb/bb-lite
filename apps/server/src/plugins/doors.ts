@@ -18,7 +18,7 @@ import {
   type Op,
 } from "@bb/plugin";
 import { z } from "zod";
-import { errorMessage } from "../http/errors.js";
+import { errorMessage } from "@bb/server-kit/http/errors";
 
 interface JsonProperty {
   type?: string | string[];

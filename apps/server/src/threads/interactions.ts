@@ -3,16 +3,16 @@ import type {
   InputRequest,
   InputResult as PluginInputResult,
 } from "@bb/plugin";
-import * as pending from "../db/pending-interactions.js";
-import { getThread, type ThreadRow } from "../db/threads.js";
+import * as pending from "@bb/server-kit/db/pending-interactions";
+import { getThread, type ThreadRow } from "@bb/server-kit/db/threads";
 import {
   ApiError,
   conflict,
   hostUnavailable,
   invalidRequest,
   threadNotFound,
-} from "../http/errors.js";
-import type { RunnerEventOf } from "../runners/registry.js";
+} from "@bb/server-kit/http/errors";
+import type { RunnerEventOf } from "@bb/server-kit/runners/registry";
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import { notifyParentBlocked } from "./parent-notices.js";

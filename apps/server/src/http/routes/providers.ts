@@ -1,15 +1,14 @@
 import { publicApiRoutes } from "@bb/server-contract";
-import type { ServerContext } from "../../context.js";
+import type { ServerContext } from "@bb/server-kit/context";
 import {
   findProviderDefinition,
   listEnabledProviders,
   listProviderCatalog,
   setProviderEnabled,
-} from "../../providers/catalog.js";
-import { listEnvironmentProviders } from "../../providers/environment-providers.js";
-import { resolveExecutionOptions } from "../../providers/models.js";
-import { typedApi, type ApiApp } from "../api.js";
-import { ApiError } from "../errors.js";
+} from "@bb/server-kit/providers/catalog";
+import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
+import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import { ApiError } from "@bb/server-kit/http/errors";
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
@@ -63,9 +62,5 @@ export function registerProviderRoutes(app: ApiApp, ctx: ServerContext): void {
 
   get(routes.executionOptions, async (c, query) =>
     c.json(await resolveExecutionOptions(ctx, query)),
-  );
-
-  get(routes.environmentProviders, async (c, query) =>
-    c.json({ providers: await listEnvironmentProviders(ctx, query) }),
   );
 }
