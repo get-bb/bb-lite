@@ -53,6 +53,7 @@ import {
   ThreadViewers,
   useSidebarSplitLayout,
   useSidebarThreadDraft,
+  useSidebarThreadRowStatus,
   useSidebarThreadShortcut,
   type SidebarSplitPane,
 } from "@bb/plugin/app";
@@ -80,6 +81,13 @@ import {
 } from "./ThreadActionsMenu.js";
 
 const SIDEBAR_TITLE_DOUBLE_CLICK_MS = 400;
+
+const ROW_STATUS_TONE_CLASS = {
+  default: "text-muted-foreground",
+  running: "animate-pulse text-primary",
+  success: "text-success",
+  error: "text-destructive",
+};
 
 let lastSidebarTitleClick: { at: number; threadId: string } | null = null;
 
@@ -170,6 +178,7 @@ function ThreadRowComponent({
     ? providers.find((candidate) => candidate.id === thread.providerId)
     : undefined;
   const shortcut = useSidebarThreadShortcut(thread.id);
+  const rowStatus = useSidebarThreadRowStatus(thread.id);
   const { hasUnsubmittedDraft: hasComposerDraft } = useSidebarThreadDraft(
     thread.id,
   );
@@ -465,7 +474,9 @@ function ThreadRowComponent({
                   "absolute inset-0 flex items-center justify-center",
                 )}
               >
-                {miniMap || trailingIndicator.indicatorKind !== "none" ? (
+                {miniMap ||
+                rowStatus !== null ||
+                trailingIndicator.indicatorKind !== "none" ? (
                   <span
                     data-sidebar-thread-trailing-indicator=""
                     className={cn(
@@ -485,6 +496,21 @@ function ThreadRowComponent({
                           trailingIndicatorState,
                         )}
                       />
+                    ) : rowStatus !== null ? (
+                      <span
+                        role="img"
+                        aria-label={rowStatus.label}
+                        title={rowStatus.label}
+                        data-sidebar-thread-row-status={
+                          rowStatus.tone ?? "default"
+                        }
+                        className={cn(
+                          "flex items-center justify-center",
+                          ROW_STATUS_TONE_CLASS[rowStatus.tone ?? "default"],
+                        )}
+                      >
+                        <Icon name={rowStatus.icon} className="size-3.5" />
+                      </span>
                     ) : (
                       <ThreadStatusGlyph
                         {...trailingIndicatorState}
