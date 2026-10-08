@@ -143,20 +143,122 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
 
 ### What core offers (`packages/plugin/src/core-contracts.ts`)
 
-| Contract                                    | Operations                                                                                                                                           | Events, slots                                                              |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `threads`                                   | `create`, `send`, `stop`, `archive`, `unarchive`, `delete`, `get`, `list`, `output`, `events`, `update`, `compact`, `clearContext`, the queue writes | `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted` |
-| `sessions`                                  | `instructions`, `env` (hook these to contribute)                                                                                                     | `mention` (mention providers), `inference` (title and completion services) |
-| `interactions`                              | `ask` (ask the user through a thread), `resolve`, `respond`, `cancel`                                                                                | `pending`                                                                  |
-| `files`                                     | `read`, `write` (in a thread's workspace)                                                                                                            |                                                                            |
-| `projects`, `machines`, `users`, `sections` | `list`; `users.current`; `sections.create`                                                                                                           | `machines.access` (how a machine reaches the server)                       |
-| `server`                                    |                                                                                                                                                      | `publicUrl`                                                                |
-| `environments`                              |                                                                                                                                                      | `kind`                                                                     |
-| `audit`                                     | `list`                                                                                                                                               |                                                                            |
+| Contract                        | Operations                                                                                                                                                     | Events, slots, tables                                                                                                                                                                                              |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `threads`                       | `create`, `send`, `stop`, `archive`, `unarchive`, `delete`, `get`, `list`, `output`, `events`, `update`, `compact`, `clearContext`, the queue writes, `addRow` | events `created`, `active`, `idle`, `failed` (with `failure: { code, message, detail }`), `archived`, `unarchived`, `deleted`, `appended`, `messageQueued`, `messageDispatched`, `messageCancelled`; table `table` |
+| `sessions`                      | `instructions`, `env`, `skillDirs` (hook these to contribute); `providers`, `executionOptions` (read)                                                          | slots `provider`, `mention`, `inference`, `usage`                                                                                                                                                                  |
+| `interactions`                  | `ask` (ask the user through a thread), `resolve`, `respond`, `cancel`                                                                                          | `pending`                                                                                                                                                                                                          |
+| `files`                         | `read`, `write` (in a thread's workspace)                                                                                                                      |                                                                                                                                                                                                                    |
+| `machines`                      | `list`; `enroll`, `waitConnected`, `update`, `suspend`, `resume`, `remove`                                                                                     | events `connected`, `disconnected`, `signal`; slot `provider`; service `access`                                                                                                                                    |
+| `environments`                  | `get`, `list`                                                                                                                                                  | slot `kind`                                                                                                                                                                                                        |
+| `projects`, `users`, `sections` | `list`; `users.current`; `sections.create`                                                                                                                     | table `projects.table`                                                                                                                                                                                             |
+| `server`                        |                                                                                                                                                                | `publicUrl`                                                                                                                                                                                                        |
+| `audit`                         | `list`                                                                                                                                                         |                                                                                                                                                                                                                    |
 
 `threads.create` takes a `CreateThreadRequest`; a plugin sets `origin: "plugin"` and
 `originPluginId`. `threads.send` takes `{ threadId, request }`. The remaining thread and interaction
 writes take `{ threadId, args: [...] }`.
+
+`bb.sdk` is the same typed client the app and the CLI use (`threads`, `projects`, `environments`,
+`hosts`, `providers`, `system`, `terminals`, `files`, and the rest). Calls run in-process as whoever
+called your plugin, and the audit record names your plugin, so use it for anything core has no
+operation for.
+
+### Timeline rows
+
+`bb.call(threads.addRow, { threadId, kind, title, status?, detail?, data?, id? })` puts a row of your
+own kind in a thread's timeline. `kind` is a slug; `status` is `pending`, `completed` or `error`;
+`data` is any JSON. Calling it again with the `id` it returned replaces the row in place, which is how
+a progress row is updated. Without a renderer the row shows as a system row with your title and
+detail. To draw it yourself, add a renderer in the app part:
+
+```tsx
+bb.add(threadView.pluginRow, { kind: "my-plugin/ci-run", view: CiRun });
+function CiRun({ title, status, data }: PluginRowProps) { … }
+```
+
+The key is `<plugin id>/<kind>`. The CLI shows the title.
+
+### Shared tables
+
+A plugin's own SQLite file (`bb.storage.database()`) cannot be joined with anything else. For data
+that other plugins should read, or that you want to join with threads, use tables in the main
+database:
+
+```ts
+const items = bb.storage.tables.name("items");
+bb.storage.tables.migrate([
+  `CREATE TABLE ${items} (thread_id TEXT NOT NULL, note TEXT)`,
+]);
+bb.storage.tables.run(
+  `INSERT INTO ${items} VALUES (?, ?)`,
+  threadId,
+  "ship it",
+);
+bb.storage.tables.publish(tracker.items, "items");
+```
+
+- Your tables are named `p_<plugin id>_<name>`. Migrations are an append-only list, checked by hash,
+  and may only create, alter or drop your own tables, indexes and views.
+- `run` writes only to your own tables. `all` and `get` take a `SELECT`, which may join anything
+  published.
+- Publish through the contract: `items: table<{ threadId: string; note: string }>()`, then
+  `tables.publish(contract.items, "items")`. Another plugin joins with
+  `tables.of(tracker.items)`.
+- Core publishes `threads.table` and `projects.table`, read-only views of live threads and projects.
+- Column names are snake_case in SQL; rows come back with camelCase keys.
+
+### Machines and environments
+
+An environment kind is `bb.add(environments.kind, { id, displayName, icon, inputs?, validate?,
+create(context), remove(context) })`.
+
+- `create(context)` receives `thread`, `project`, `host`, `checkoutPath`, `branchName`, the user's
+  `inputs`, the `machine` request if the user asked for a new machine, the `resource` you stored
+  before, `report(text, status?)` for progress lines and a `signal`. It returns `{ path }` and
+  optionally `hostId` (the machine it created), `resource` (JSON to keep) and `branchName`.
+- `remove({ hostId, path, resource })` undoes it. `validate(inputs, { projectId, hostId })` returns a
+  message to refuse a thread before it is created.
+- Give the kind `inputs` (any non-null JSON) and add a form in the app part:
+  `bb.add(composer.environmentInputs, { kind: "<id>", view })`. The view gets `value`, `onChange`,
+  `projectId` and `hostId`.
+
+To create machines (a sandbox, a VM), add a `machines.provider` (`{ id, displayName, suspend?,
+resume?, remove? }`) and use the machine operations:
+
+```ts
+const { hostId, command } = await bb.call(machines.enroll, {
+  name: "Sandbox",
+  providerId: "sandbox",
+  resource: { box },
+});
+await runInSandbox(box, command);
+await bb.call(machines.waitConnected, { hostId });
+return { path: "/workspace", hostId, resource: { box } };
+```
+
+`command` is the `bb runner join …` line to run on the new machine; `bb` must be installed there.
+`machines.suspend`, `resume` and `remove` call your provider and update the machine;
+`machines.connected` and `disconnected` are events. Hook `threads.send` to resume a suspended
+machine before a message is delivered.
+
+### Providers
+
+A provider is a runner part that adds a `ProviderAdapter` to `runner.provider` and a server part
+that adds a `ProviderDeclaration` to `sessions.provider`. The declaration may set `permissionModes`
+and `modelCatalogScope`; it defaults to all modes and a per-machine catalog. Add a
+`sessions.usage` source to report quota. To configure the runner part (for example a list of agents
+to launch), keep the configuration in settings, implement an operation in the runner part that
+takes it, and call it with `bb.machine(hostId).call(...)` on `machines.connected` and when the
+setting changes. A runner part reports back with `bb.signal(name, payload)`, which arrives as the
+`machines.signal` event.
+
+### Settings, schedules
+
+`bb.settings.define` takes `string` (optionally `secret` or `multiline`), `boolean`, `select`
+(`options: [{ value, label }]`) and `number` (`min`, `max`, `integer`).
+`bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron in the server's
+time zone.
 
 ## App part
 
@@ -203,6 +305,14 @@ function Notes() {
 
   For example `bb.wrap(threadView.row, { kind: "work" }, (item) => ({ ...item, view: Wrapped }))`.
 
+- More slots: `shell.threadHeader` (a component in the thread header, given `threadId`),
+  `shell.sidebarFooter` (`{ id, label, icon, run }`), `shell.homeSection` (a component on the home
+  screen), `composer.environmentInputs` and `threadView.pluginRow` (above).
+- `bb.onMount(({ signal }) => cleanup)` runs while the plugin is loaded, for work that is not tied
+  to a component.
+- The composer's pickers are parts: `ModelReasoningPicker`, `PermissionModePicker`, `BranchPicker`
+  and `useNewThreadComposer` from `bb-plugin-composer/contract`. Diff and code views are in
+  `@bb/app-kit/components/code` and `@bb/app-kit/components/git-diff`.
 - Components from `@bb/plugin/app`: `ThreadChat`, `ThreadTitle`, `ThreadViewers`, `Markdown`,
   `ImageLightbox`, `Icon`, `ProviderIcon`, `UrlLink`.
 
@@ -220,7 +330,7 @@ export default function plugin(bb: PluginRunnerApi): void {
 }
 ```
 
-`bb` has the kernel verbs plus `pluginId`, `dataDir` and `log`. `runner.provider` takes a
+`bb` has the kernel verbs plus `pluginId`, `dataDir`, `log` and `signal(name, payload)`. `runner.provider` takes a
 `ProviderAdapter` (`packages/runner/src/providers/provider.ts`); a provider plugin also adds a
 `ProviderDeclaration` to `sessions.provider` in its server part. The server sends an external
 plugin's runner part to every machine when it connects and when the plugin changes; a machine's own

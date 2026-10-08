@@ -512,6 +512,15 @@ ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel sco
   `ctx.environments` (`environments`) and `ctx.terminals` (`terminals`). Each is a stable handle
   that forwards to whichever implementation is loaded, so a reference taken before a reload keeps
   working after it.
+- **Machines a plugin makes.** `plugins/machines/provided.ts` implements `machines.enroll`
+  (a host row in `creating` with `machine_provider_id` and `resource`, plus a join command),
+  `waitConnected`, `update`, `suspend` and `resume` (through the `machines.provider` entry, setting
+  `suspended_at`), and `remove`; it emits `machines.connected`, `disconnected` and `signal` (a
+  runner part's `bb.signal`, carried as the live runner event `plugin.signal`). An environment
+  kind's `create` may return the machine it made; the environment row moves to it.
+- **Plugin rows.** `threads.addRow` appends a `system/operation` event with operation
+  `plugin_row`; the projection (`packages/thread-view`) carries `plugin: { id, kind, data }` on the
+  generic operation row and replaces the row when the same operation id arrives again.
 - **Order.** Plugins load in table order refined by `requires` (`threads` needs `machines` and
   `projects`; `environments` and `interactions` need `threads`; `workspace` needs `terminals`).
   Every entry runs first; then each plugin's `bb.onStart` callbacks run in the same order (local
@@ -561,6 +570,13 @@ the slots `provider`, `mention`, `inference`, `titleFallback`), `interactions`, 
   dispose the old instance (services aborted, `onDispose` hooks in reverse order, the kernel scope
   and the plugin database closed) and run the factory again, one change at a time. A failing plugin
   never stops the server.
+- **Shared tables.** `bb.storage.tables` (`apps/server/src/plugins/tables.ts`) gives a plugin
+  tables named `p_<id>_<name>` in the main database. Migrations are tracked per plugin in
+  `plugin_table_migrations` and may only define the plugin's own objects; `run` only writes to
+  them; `all` and `get` take a `SELECT`. A contract's `table()` member is a one-item slot holding
+  the physical name, so publishing and reading go through the kernel like any service.
+- **`bb.sdk`.** The typed client, bound to `HttpApp.inner` (`apps/server/src/http/app.ts`): the
+  request is handled in-process with the current actor and caller chain, plus the plugin's id.
 - **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
   0600 files in `<dataDir>/plugins/<id>/secrets/`, the plugin's SQLite file at
   `<dataDir>/plugins/<id>/data.db`. A setting defined with `{ scope: "user" }` is stored per
