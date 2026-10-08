@@ -549,6 +549,23 @@ it("rides through a dropped tunnel and closes a revoked one", async () => {
   expect(rejection.statusCode).toBe(401);
 });
 
+it("serves through the new tunnel while a vanished one never closes", async () => {
+  const relay = await startRelay({ GATE_DEADLINE_MS: "2000" });
+  const { alice, address, dial } = await rawLink(relay);
+  const vanished = dial(false);
+  await once(vanished, "open");
+  vanished.pause();
+  onTestFinished(() => vanished.terminate());
+  const live = dial(true);
+  await once(live, "open");
+  const served = await alice.visit(`${address}/a`);
+  expect(served).toMatchObject({ status: 200, text: "served /a" });
+  const again = dial(true);
+  await once(again, "open");
+  const moved = await alice.visit(`${address}/b`);
+  expect(moved).toMatchObject({ status: 200, text: "served /b" });
+});
+
 it("answers within its deadline and keeps account pages on their own cookie", async () => {
   const relay = await startRelay({ GATE_DEADLINE_MS: "400" });
   const { alice, address, dial } = await rawLink(relay);

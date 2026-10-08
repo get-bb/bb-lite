@@ -111,14 +111,17 @@ export class TunnelDO extends DurableObject<Env> {
     this.webSocketClose(socket, 1011, "socket error");
   }
 
+  private openTunnels(): WebSocket[] {
+    const tunnels = this.ctx.getWebSockets(TUNNEL_TAG);
+    return tunnels.filter((tunnel) => tunnel.readyState === WebSocket.OPEN);
+  }
+
   private tunnelSocket(): WebSocket | null {
-    return this.ctx.getWebSockets(TUNNEL_TAG)[0] ?? null;
+    return this.openTunnels()[0] ?? null;
   }
 
   private tunnelClosed(socket: WebSocket, code: number): void {
-    const others = this.ctx
-      .getWebSockets(TUNNEL_TAG)
-      .filter((other) => other !== socket);
+    const others = this.openTunnels().filter((other) => other !== socket);
     if (others.length > 0) return;
     const now = Date.now();
     const { storage } = this.ctx;
@@ -175,7 +178,7 @@ export class TunnelDO extends DurableObject<Env> {
 
   private async acceptTunnel(): Promise<Response> {
     await this.restartIfVanished();
-    for (const previous of this.ctx.getWebSockets(TUNNEL_TAG)) {
+    for (const previous of this.openTunnels()) {
       previous.close(CLEAN_CLOSE_CODE, wire.TUNNEL_REPLACED_CLOSE_REASON);
     }
     this.dropStreams("reconnected");
@@ -214,7 +217,7 @@ export class TunnelDO extends DurableObject<Env> {
   }
 
   private toTunnel(frame: wire.Frame, tunnel?: WebSocket): void {
-    const socket = tunnel ?? this.ctx.getWebSockets(TUNNEL_TAG)[0];
+    const socket = tunnel ?? this.tunnelSocket();
     try {
       socket?.send(wire.encodeFrame(frame));
     } catch {}
