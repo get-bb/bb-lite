@@ -15,6 +15,7 @@ import type {
   HttpHandler,
   PluginServerApi,
   PluginServerEntry,
+  PluginTables,
   SettingDescriptors,
   SettingValue,
 } from "./server-api.js";
@@ -26,7 +27,21 @@ export interface LoadOptions {
   tier?: Tier;
   settings?: Record<string, SettingValue>;
   database?: () => Database.Database;
+  tables?: PluginTables;
 }
+
+const noTables = (): never => {
+  throw new Error("Pass `tables` to load() to use shared tables");
+};
+const unavailableTables: PluginTables = {
+  name: noTables,
+  migrate: noTables,
+  publish: noTables,
+  of: noTables,
+  all: noTables,
+  get: noTables,
+  run: noTables,
+};
 
 export interface LoadedPlugin {
   api: PluginServerApi;
@@ -191,6 +206,7 @@ export function createPluginHarness(): PluginHarness {
           migrate(database, statements) {
             for (const statement of statements) database.exec(statement);
           },
+          tables: options.tables ?? unavailableTables,
         },
         http: {
           route(method, path, handler, { auth = "local" } = {}) {

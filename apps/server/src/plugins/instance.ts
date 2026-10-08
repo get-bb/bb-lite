@@ -13,6 +13,7 @@ import { currentCaller } from "@bb/server-kit/kernel/caller";
 import type { Hub } from "@bb/server-kit/ws/hub";
 import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
+import { createPluginTables } from "./tables.js";
 
 type Service = Parameters<plugin.PluginServerApi["background"]["service"]>;
 type Starter = Parameters<plugin.PluginServerApi["onStart"]>[0];
@@ -205,6 +206,7 @@ export function createPluginInstance(
         return opened;
       },
       migrate,
+      tables: createPluginTables(db, pluginId, verbs),
     },
     http: {
       route(method, path, handler, { auth = "local" } = {}) {

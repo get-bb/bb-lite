@@ -116,6 +116,15 @@ export function service<Interface>(): Slot<Interface> {
   return { type: "slot", name: "", key: null, pick: "one" };
 }
 
+export interface TableRef<Row = unknown> {
+  readonly name: string;
+  readonly row?: Row;
+}
+
+export function table<Row>(): Slot<TableRef<Row>> {
+  return { type: "slot", name: "", key: null, pick: "one" };
+}
+
 export function live<Value extends z.ZodType>(value: Value): Live<Value> {
   return { type: "live", name: "", value };
 }

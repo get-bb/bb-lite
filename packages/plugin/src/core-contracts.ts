@@ -1,7 +1,7 @@
 import * as Domain from "@bb/domain";
 import type * as Contract from "@bb/server-contract";
 import { z } from "zod";
-import { contract, event, op, service, slot } from "./contract.js";
+import { contract, event, op, service, slot, table } from "./contract.js";
 import type { KernelInspection } from "./kernel.js";
 import type {
   EnvironmentDefinition,
@@ -127,7 +127,21 @@ export const sessions = contract("sessions", {
   titleFallback: service<TitleFallback>(),
 });
 
+export interface ThreadTableRow {
+  id: string;
+  projectId: string;
+  environmentId: string | null;
+  providerId: string;
+  title: string | null;
+  status: string;
+  parentThreadId: string | null;
+  archivedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export const threads = contract("threads", {
+  table: table<ThreadTableRow>(),
   create: op({
     input: z.custom<Contract.CreateThreadRequest>(),
     output: z.custom<Contract.ThreadResponse>(),
@@ -231,8 +245,17 @@ export const files = contract("files", {
   }),
 });
 
+export interface ProjectTableRow {
+  id: string;
+  name: string;
+  kind: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export const projects = contract("projects", {
   list: op({ input: none, output: z.array(z.custom<Domain.Project>()) }),
+  table: table<ProjectTableRow>(),
 });
 
 export const machines = contract("machines", {

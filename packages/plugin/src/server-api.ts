@@ -3,7 +3,7 @@ import type * as Contract from "@bb/server-contract";
 import type Database from "better-sqlite3";
 import type { z } from "zod";
 import type { CliRegistration } from "./cli.js";
-import type { Op } from "./contract.js";
+import type { Op, Slot, TableRef } from "./contract.js";
 import type { PluginVerbs } from "./kernel.js";
 
 type MaybePromise<T> = T | Promise<T>;
@@ -162,6 +162,18 @@ export interface MachineCalls {
   ): Promise<z.output<O["output"]>>;
 }
 
+export type SqlValue = string | number | bigint | Buffer | null;
+
+export interface PluginTables {
+  name(local: string): string;
+  migrate(statements: string[]): void;
+  publish<Row>(table: Slot<TableRef<Row>>, local: string): void;
+  of<Row>(table: Slot<TableRef<Row>>): string;
+  all<Row = unknown>(sql: string, ...params: SqlValue[]): Row[];
+  get<Row = unknown>(sql: string, ...params: SqlValue[]): Row | undefined;
+  run(sql: string, ...params: SqlValue[]): { changes: number };
+}
+
 export interface PluginServerApi extends PluginVerbs {
   readonly pluginId: string;
   readonly log: Record<LogLevel, (message: string) => void>;
@@ -176,6 +188,7 @@ export interface PluginServerApi extends PluginVerbs {
     kv: PluginKv;
     database(): Database.Database;
     migrate(database: Database.Database, statements: string[]): void;
+    tables: PluginTables;
   };
   readonly http: {
     route(

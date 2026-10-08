@@ -16,12 +16,20 @@ import { createThreadEngine } from "./engine.js";
 import { registerThreadReadRoutes } from "./read-routes.js";
 import { registerThreadRoutes } from "./routes.js";
 
+const THREADS_VIEW = `CREATE VIEW p_threads_threads AS
+  SELECT id, project_id, environment_id, provider_id,
+    COALESCE(title, title_fallback) AS title, status, parent_thread_id,
+    archived_at, created_at, updated_at
+  FROM threads WHERE deleted_at IS NULL`;
+
 export default function threadsPlugin(bb: PluginServerApi): void {
   const { ctx, routes } = coreOf(bb);
   const { db, hub } = ctx;
   const engine = createThreadEngine(ctx, bb);
   ctx.threads = engine;
   routes(registerThreadRoutes, registerThreadReadRoutes);
+  bb.storage.tables.migrate([THREADS_VIEW]);
+  bb.storage.tables.publish(threads.table, "threads");
   bb.implement(threads.get, ({ threadId }) => engine.get(threadId));
   bb.implement(threads.list, (query = {}) =>
     toThreadListEntries(ctx, listThreadRows(db, query)),

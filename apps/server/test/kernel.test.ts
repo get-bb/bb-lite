@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   contract,
@@ -6,6 +6,7 @@ import {
   live,
   op,
   sessions,
+  table,
   threads as threadOps,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -441,4 +442,70 @@ it("lets a plugin add a timeline row of its own kind and update it", async () =>
   const posted = { method: "POST", headers, body };
   const direct = await server.request("/ops/threads.addRow", posted);
   expect(direct.status).toBe(403);
+});
+
+it("lets plugins keep shared tables, publish one and join another's", async () => {
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const threadId = await server.spawn();
+  const tracker = contract("tracker", {
+    notes: table<{ thread_id: string }>(),
+  });
+  const failures: string[] = [];
+  const attempt = (work: () => unknown) => {
+    try {
+      work();
+    } catch (error) {
+      failures.push((error as Error).message);
+    }
+  };
+  const owner = (bb: PluginServerApi) => {
+    const { tables } = bb.storage;
+    const notes = tables.name("notes");
+    const create = `CREATE TABLE ${notes} (thread_id TEXT, note TEXT)`;
+    tables.migrate([create]);
+    tables.publish(tracker.notes, "notes");
+    tables.run(`INSERT INTO ${notes} VALUES (?, ?)`, threadId, "ship it");
+    attempt(() => tables.migrate([create, "CREATE TABLE copy (id TEXT)"]));
+    attempt(() => tables.run("DELETE FROM threads"));
+    attempt(() => tables.all(`DELETE FROM ${notes}`));
+  };
+  let joined: unknown;
+  const reader = (bb: PluginServerApi) => {
+    const { tables } = bb.storage;
+    const notes = tables.of(tracker.notes);
+    const all = tables.of(threadOps.table);
+    joined = tables.all(
+      `SELECT n.note, t.status FROM ${notes} n JOIN ${all} t ON t.id = n.thread_id`,
+    );
+    attempt(() => tables.run(`DELETE FROM ${notes}`));
+  };
+  const builtins = [
+    ["tracker", owner] as const,
+    ["report", reader] as const,
+  ].map(([name, entry]) => {
+    const directory = join(scratch(), name);
+    mkdirSync(directory);
+    const manifest = { name: `bb-plugin-${name}`, bb: { name } };
+    writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+    return { directory, server: entry };
+  });
+  const host = new PluginHost({ ...ctx, builtins });
+  host.deps = ctx.plugins.deps;
+  await host.reload();
+  const states = host.list().map(({ id, status }) => [id, status]);
+  expect(states).toEqual([
+    ["tracker", "running"],
+    ["report", "running"],
+  ]);
+  expect(joined).toEqual([{ note: "ship it", status: expect.any(String) }]);
+  expect(failures).toEqual([
+    expect.stringContaining("Table migration 1 touches a table"),
+    expect.stringContaining("only to the plugin's own tables"),
+    expect.stringContaining("take a SELECT"),
+    expect.stringContaining("only to the plugin's own tables"),
+  ]);
+  const kept = ctx.db.all("SELECT note FROM p_tracker_notes");
+  expect(kept).toEqual([{ note: "ship it" }]);
+  await host.stop();
 });
