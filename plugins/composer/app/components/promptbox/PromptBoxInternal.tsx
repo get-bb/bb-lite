@@ -63,10 +63,16 @@ import {
 } from "@bb/shared-ui/hooks/use-media-query";
 import { cn } from "@bb/shared-ui/lib/utils";
 import type { ComposerContext, ComposerHandle } from "@bb/plugin/app";
-import { BoundComposer, showComposer } from "@bb/app-kit/plugins/composers";
+import {
+  BoundComposer,
+  composerSubmitted,
+  onComposerSubmitted,
+  showComposer,
+} from "@bb/app-kit/plugins/composers";
 import { AttachmentPreview } from "./AttachmentPreview";
 import {
   ComposerBanners,
+  composerKeyOf,
   type ComposerMenuHost,
   type ComposerScope,
   type ComposerSendHost,
@@ -798,6 +804,7 @@ export function PromptBoxInternal({
     blurAfterPointerSubmitRef.current = false;
     if (!canPrimarySubmit) return;
     onPrimarySubmit?.();
+    composerSubmitted(composerKeyOf(composerScope));
     if (blurAfterSubmit) blurPromptEditor(editor);
   };
   const submitModifierPrompt = () => {
@@ -1441,7 +1448,7 @@ export function PromptBoxInternal({
     composerLatest.current = { value, onChange, editor, submitPrompt };
   });
   const { surface, threadId: composerThreadId, projectId } = composerScope;
-  const composerKey = `${surface}:${composerThreadId ?? projectId ?? "home"}`;
+  const composerKey = composerKeyOf(composerScope);
   const composerHandle = useMemo<ComposerHandle>(() => {
     const now = () => composerLatest.current;
     const setText = (text: string) => now().onChange(text, []);
@@ -1452,6 +1459,7 @@ export function PromptBoxInternal({
       projectId,
       text: value,
       isEmpty: value.trim() === "",
+      isRunning,
       setText,
       updateText: (update) => setText(update(now().value)),
       insert(text) {
@@ -1459,14 +1467,32 @@ export function PromptBoxInternal({
         if (target === null) setText(now().value + text);
         else target.chain().focus().insertContent(text).run();
       },
+      insertMention(resource, serializedText) {
+        const mention = {
+          type: "mention",
+          attrs: { resource, serializedText },
+        };
+        const space = { type: "text", text: " " };
+        now().editor?.chain().focus().insertContent([mention, space]).run();
+      },
+      addQuote(text) {
+        const quoted = text
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n");
+        const current = now().value;
+        setText(`${current}${current === "" ? "" : "\n\n"}${quoted}\n\n`);
+      },
       clear: () => setText(""),
       focus() {
         const target = now().editor;
         if (target !== null) focusEditorAtEnd(target);
       },
+      setInputLock: (locked) => void now().editor?.setEditable(!locked),
       submit: () => now().submitPrompt(),
+      onSubmitted: (listener) => onComposerSubmitted(composerKey, listener),
     };
-  }, [composerKey, surface, composerThreadId, projectId, value]);
+  }, [composerKey, surface, composerThreadId, projectId, value, isRunning]);
   useEffect(() => showComposer(composerHandle), [composerHandle]);
   const menuHost: ComposerMenuHost = {
     attach: onAttachFiles

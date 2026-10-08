@@ -9,9 +9,11 @@ const packageSchema = z.object({
     name: z.string().min(1),
     description: z.string().default(""),
     icon: z.string().min(1).optional(),
+    branding: z.looseObject({ icon: z.string().min(1).optional() }).optional(),
     server: z.string().min(1).optional(),
     app: z.string().min(1).optional(),
     runner: z.string().min(1).optional(),
+    host: z.string().min(1).optional(),
     requires: z.array(z.string().min(1)).default([]),
     forkOf: z.string().min(1).optional(),
     skills: z.array(z.string().min(1)).default([]),
@@ -53,6 +55,7 @@ export async function readManifest(path: string): Promise<PluginManifest> {
   const directory = resolve(path);
   const text = await readFile(join(directory, "package.json"), "utf8");
   const { name, bb } = packageSchema.parse(JSON.parse(text));
+  const runner = bb.runner ?? bb.host;
   const inside = (entry: string) => {
     const resolved = resolveInside(directory, entry);
     if (resolved !== null) return resolved;
@@ -63,10 +66,10 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     directory,
     name: bb.name,
     description: bb.description,
-    icon: bb.icon ?? null,
+    icon: bb.icon ?? bb.branding?.icon ?? null,
     serverEntry: bb.server === undefined ? null : inside(bb.server),
     appEntry: bb.app === undefined ? null : inside(bb.app),
-    runnerEntry: bb.runner === undefined ? null : inside(bb.runner),
+    runnerEntry: runner === undefined ? null : inside(runner),
     requires: bb.requires,
     forkOf: bb.forkOf ?? null,
     skillDirs: bb.skills.map(inside),

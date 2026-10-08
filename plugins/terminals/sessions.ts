@@ -1,3 +1,4 @@
+import { terminals as terminalEvents } from "@bb/plugin";
 import type { TerminalSessionCloseReason } from "@bb/domain";
 import { RunnerError, TERMINAL_REPLAY_MAX_BYTES } from "@bb/runner";
 import * as contract from "@bb/server-contract";
@@ -341,6 +342,8 @@ export async function writeTerminalInput(
       ? changeTerminal(ctx, session, { lastUserInputAt: ctx.now() })
       : session;
   await ctx.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
+  const { threadId } = session;
+  ctx.kernel.emit(terminalEvents.input, { terminalId, hostId, threadId });
   return marked;
 }
 

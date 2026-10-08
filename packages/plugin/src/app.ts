@@ -51,6 +51,15 @@ export interface PluginAppApi extends PluginVerbs {
   };
   commands: { register(registration: T.PluginCommandRegistration): void };
   onMount(run: (context: { signal: AbortSignal }) => void | (() => void)): void;
+  setThreadRowStatus(
+    threadId: string,
+    status: T.PluginSidebarThreadRowStatus | null,
+  ): void;
+  icons: {
+    register(
+      icons: Record<string, ComponentType<{ className?: string }>>,
+    ): void;
+  };
 }
 
 export interface PluginAppDefinition {

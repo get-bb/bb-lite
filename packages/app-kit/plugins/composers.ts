@@ -42,3 +42,19 @@ export function useComposer(): ComposerHandle | null {
   if (bound === null) return all.at(-1) ?? null;
   return all.find(({ key }) => key === bound.key) ?? bound;
 }
+
+const submitted = new Map<string, Set<() => void>>();
+
+export function onComposerSubmitted(
+  key: string,
+  listener: () => void,
+): () => void {
+  const waiting = submitted.get(key) ?? new Set<() => void>();
+  submitted.set(key, waiting);
+  waiting.add(listener);
+  return () => waiting.delete(listener);
+}
+
+export function composerSubmitted(key: string): void {
+  for (const listener of submitted.get(key) ?? []) listener();
+}

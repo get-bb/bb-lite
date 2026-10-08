@@ -8,12 +8,17 @@ export interface ComposerHandle {
   readonly projectId: string | null;
   readonly text: string;
   readonly isEmpty: boolean;
+  readonly isRunning: boolean;
   setText(text: string): void;
   updateText(update: (current: string) => string): void;
   insert(text: string): void;
+  insertMention(resource: unknown, text: string): void;
+  addQuote(text: string): void;
   clear(): void;
   focus(): void;
+  setInputLock(locked: boolean): void;
   submit(): void;
+  onSubmitted(listener: () => void): () => void;
 }
 
 export interface ComposerContext {

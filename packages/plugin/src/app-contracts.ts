@@ -101,7 +101,8 @@ export interface SidebarFooterItem {
   label: string;
   icon: string;
   order?: number;
-  run(): void;
+  run?(): void;
+  view?: ComponentType;
 }
 
 export interface HomeSection {

@@ -71,7 +71,7 @@ it("registers mount scripts and shell extras through the same slots", () => {
   expect(registerPluginApp("extras", app, "installed")).toBeNull();
   const [mount] = slotItems(shell.mount);
   const stop = mount?.run({ signal: new AbortController().signal });
-  slotItems(shell.sidebarFooter)[0]?.run();
+  slotItems(shell.sidebarFooter)[0]?.run?.();
   if (typeof stop === "function") stop();
   expect(ran).toEqual(["mounted", "docs", "unmounted"]);
   unregisterPluginApp("extras");

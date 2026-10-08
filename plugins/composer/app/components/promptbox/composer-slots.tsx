@@ -16,7 +16,12 @@ import type { PromptBoxAction } from "./PromptBoxActionsMenu";
 
 const UNORDERED = 1_000;
 
-export type ComposerScope = Omit<ComposerContext, "host">;
+export type ComposerScope = Omit<ComposerContext, "host" | "composer">;
+
+export function composerKeyOf(scope: ComposerScope): string {
+  const { surface, threadId, projectId } = scope;
+  return `${surface}:${threadId ?? projectId ?? "home"}`;
+}
 
 export interface ComposerMenuHost {
   attach: (() => void) | undefined;

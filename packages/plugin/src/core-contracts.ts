@@ -395,6 +395,7 @@ export const machines = contract("machines", {
   }),
   connected: event(machineRef),
   disconnected: event(machineRef),
+  removed: event(machineRef),
   signal: event(
     machineRef.extend({
       pluginId: z.string(),
@@ -452,6 +453,16 @@ export const plugins = contract("plugins", {
     kind: "write",
     allow: "owner",
   }),
+});
+
+export const terminals = contract("terminals", {
+  input: event(
+    z.object({
+      terminalId: z.string(),
+      hostId: z.string(),
+      threadId: z.string().nullable(),
+    }),
+  ),
 });
 
 export const server = contract("server", {

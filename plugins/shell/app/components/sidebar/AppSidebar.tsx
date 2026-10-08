@@ -3,7 +3,7 @@ import { cn } from "@bb/shared-ui/lib/utils";
 import { THREAD_JUMP_APP_COMMAND_IDS } from "@bb/domain";
 import { Link, useNavigate } from "react-router-dom";
 import { shell } from "@bb/plugin/app";
-import { useSlotEntries } from "@bb/app-kit/plugins/slots";
+import { SlotMount, useSlotEntries } from "@bb/app-kit/plugins/slots";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { OverflowFade } from "@bb/app-kit/components/ui/overflow-fade";
 import {
@@ -242,18 +242,30 @@ export function AppSidebar({
                   onClick={closeOnMobile}
                 />
               )}
-              {footerItems.map(({ plugin, item }) => (
-                <FooterItem
-                  key={`${plugin}/${item.id}`}
-                  id={`${plugin}-${item.id}`}
-                  icon={item.icon as IconName}
-                  label={item.label}
-                  onClick={() => {
-                    closeOnMobile();
-                    item.run();
-                  }}
-                />
-              ))}
+              {footerItems.map(({ plugin, item }) =>
+                item.view === undefined ? (
+                  <FooterItem
+                    key={`${plugin}/${item.id}`}
+                    id={`${plugin}-${item.id}`}
+                    icon={item.icon as IconName}
+                    label={item.label}
+                    onClick={() => {
+                      closeOnMobile();
+                      item.run?.();
+                    }}
+                  />
+                ) : (
+                  <SlotMount
+                    key={`${plugin}/${item.id}`}
+                    pluginId={plugin}
+                    slot={shell.sidebarFooter.name}
+                    id={item.id}
+                    fallback={null}
+                  >
+                    <item.view />
+                  </SlotMount>
+                ),
+              )}
               <FooterItem
                 id="report-bug"
                 icon="Bug"

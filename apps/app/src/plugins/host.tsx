@@ -11,7 +11,6 @@ import type {
   PluginEnvironmentProvidersState,
   PluginProvidersState,
   PluginSettingsState,
-  PluginSidebarThreadRowStatus,
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
@@ -49,7 +48,12 @@ import {
 } from "@bb/app-kit/lib/route-paths";
 import { sdk } from "@bb/app-kit/lib/sdk";
 import { wsManager } from "@bb/app-kit/lib/ws";
+import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
 import { useComposer, useComposers } from "@bb/app-kit/plugins/composers";
+import {
+  useThreadRowStatus,
+  useThreadRowStatuses,
+} from "@bb/app-kit/plugins/row-status";
 import { usePluginId } from "@bb/app-kit/plugins/context";
 import { callRemoteOp } from "@bb/app-kit/plugins/ops";
 import { callOp } from "@bb/app-kit/plugins/registry";
@@ -215,13 +219,11 @@ function useBbNavigate(): BbNavigate {
       openThreadPanel: (options) =>
         openThreadPanelHandler?.({ ...options, pluginId }) ?? false,
       openUrl: (url) => appNavigation.openUrl({ url }),
+      openFile: ({ threadId, path }) => requestFileOpen(threadId, path),
     }),
     [appNavigation, navigate, openThreadPanelHandler, pluginId],
   );
 }
-
-const NO_ROW_STATUSES: ReadonlyMap<string, PluginSidebarThreadRowStatus> =
-  new Map();
 
 export const pluginAppHost: PluginAppHost = {
   createElement,
@@ -238,8 +240,8 @@ export const pluginAppHost: PluginAppHost = {
   useSidebarThreadSplit,
   useSidebarThreadDraft,
   useSidebarThreadDraftIds,
-  useSidebarThreadRowStatus: () => null,
-  useSidebarThreadRowStatuses: () => NO_ROW_STATUSES,
+  useSidebarThreadRowStatus: useThreadRowStatus,
+  useSidebarThreadRowStatuses: useThreadRowStatuses,
   useSidebarSplitLayout,
   useSidebarThreadShortcut,
   useProviders,

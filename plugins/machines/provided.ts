@@ -27,6 +27,7 @@ export async function destroyMachine(
   await revoking?.catch((error: unknown) => {
     log.warn("Machine access was not revoked", { hostId: id, err: error });
   });
+  ctx.kernel.emit(machines.removed, { hostId: id });
 }
 
 export function providerOf(ctx: ServerContext, host: store.HostRow) {

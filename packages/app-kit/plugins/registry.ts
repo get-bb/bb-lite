@@ -1,3 +1,5 @@
+import { registerIcons } from "@bb/shared-ui/icon";
+import { clearThreadRowStatuses, setThreadRowStatus } from "./row-status";
 import { useSyncExternalStore } from "react";
 import {
   createKernel,
@@ -175,6 +177,9 @@ function collect(
       sidebarHeader: add("sidebarHeaders", "sidebarHeader"),
     },
     commands: { register: add("commands", "commands.register", "run") },
+    setThreadRowStatus: (threadId, status) =>
+      setThreadRowStatus(pluginId, threadId, status),
+    icons: { register: registerIcons },
     onMount(run) {
       mounts += 1;
       verbs.add(shell.mount, { id: `mount-${mounts}`, run });
@@ -314,6 +319,7 @@ export function registerPluginApp(
 }
 
 export function unregisterPluginApp(pluginId: string): void {
+  clearThreadRowStatuses(pluginId);
   const scope = scopes.get(pluginId);
   if (scope === undefined) return;
   scope.dispose();

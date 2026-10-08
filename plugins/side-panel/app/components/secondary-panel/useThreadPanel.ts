@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState,
+} from "react";
+import { onFileOpenRequest } from "@bb/app-kit/lib/file-open-requests";
 import {
   resolveEnvironmentMergeBaseBranch,
   type Environment,
@@ -201,6 +208,10 @@ export function useThreadPanel({
       },
       replaceNewTab,
     );
+  const openRequested = useEffectEvent((path: string) =>
+    previewWorkspaceFile(path),
+  );
+  useEffect(() => onFileOpenRequest(threadId, openRequested), [threadId]);
   const openHostFile = (file: HostFileTabState) => {
     if (environmentId !== null)
       open(hostFileTab(file, environmentId, threadId));

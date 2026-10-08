@@ -424,6 +424,7 @@ export interface BbNavigate {
   toCompose(options?: { initialPrompt?: string; focusPrompt?: boolean }): void;
   openThreadPanel(options: PluginTargetedPanelOpenOptions): boolean;
   openUrl(url: string): boolean;
+  openFile(options: { threadId: string; path: string }): boolean;
 }
 
 export interface IconProps {
