@@ -42,7 +42,9 @@ code it runs that a self-hosted one does not is in the connect plugin (below).
   machine and volume, then the server row. The dashboard shows the date. "Delete" does it at once.
 
 If the machine is `running` but its tunnel is gone (a crash, a Fly host restart), a page load by the
-owner asks Fly to start it again, at most every 15 seconds.
+owner asks Fly to start it again, at most every 15 seconds. Fly refuses to start a machine that is
+still stopping (about two seconds); the relay then forgets the attempt, so the starting page's next
+reload tries again.
 
 ## Settings
 

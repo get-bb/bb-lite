@@ -384,6 +384,10 @@ export async function claimWake(db: D1Database, id: string, retryMs: number) {
   return claimed === 1;
 }
 
+export function releaseWake(db: D1Database, id: string) {
+  return run(db, "UPDATE servers SET wake_at = NULL WHERE id = ?", id);
+}
+
 export async function claimStop(
   db: D1Database,
   id: string,

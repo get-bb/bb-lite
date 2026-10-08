@@ -76,9 +76,12 @@ export async function wake(context: Site, server: Server): Promise<void> {
   if (config === null || machine === null) return;
   const claimed = await store.claimWake(context.db, server.id, WAKE_RETRY_MS);
   if (!claimed) return;
-  await fly.startMachine(config, machine).catch((error: unknown) => {
+  try {
+    await fly.startMachine(config, machine);
+  } catch (error) {
     console.error(`hosted: starting ${machine.app}: ${reasonOf(error)}`);
-  });
+    await store.releaseWake(context.db, server.id);
+  }
 }
 
 export async function stop(

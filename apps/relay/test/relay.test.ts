@@ -544,6 +544,7 @@ async function fakeFly() {
   const calls: string[] = [];
   const machine = {
     config: {} as Json,
+    stopping: false,
     off: async () => {},
     on: async () => {},
   };
@@ -583,6 +584,10 @@ async function fakeFly() {
           machine.config = (JSON.parse(sent) as { config: Json }).config;
           await boot(machine.config.env as Record<string, string>);
           return reply(200, { id: "mach_1" });
+        }
+        if (call.endsWith("/start") && machine.stopping) {
+          machine.stopping = false;
+          return reply(412, { error: "unable to start from 'stopping'" });
         }
         if (call.endsWith("/start")) await machine.on();
         else await machine.off();
@@ -680,9 +685,15 @@ it("creates a hosted server, puts it to sleep and wakes it on a visit", async ()
   expect(knocked.text).toContain("starts again when its owner opens it");
   expect(fly.calls.at(-1)).toContain("/stop");
 
+  fly.machine.stopping = true;
   const woken = await alice.visit(`${cloud}/`, page);
   expect(woken.status).toBe(503);
   expect(woken.text).toContain("Starting your bb server");
+  await vi.waitFor(async () => {
+    expect(fly.calls.at(-1)).toContain("/start");
+    expect((await row())?.wake_at).toBeNull();
+  });
+  expect((await alice.visit(`${cloud}/`, page)).status).toBe(503);
   await vi.waitFor(
     async () => expect((await alice.visit(session)).status).toBe(200),
     { timeout: 10_000, interval: 200 },
