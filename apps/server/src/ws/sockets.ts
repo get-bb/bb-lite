@@ -3,11 +3,11 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
 import type { HostContext } from "../host-context.js";
 import type { SocketOpen } from "@bb/plugin";
-import { trustLookups } from "../http/app.js";
+import { authenticatorOf } from "../http/app.js";
 import type { RequiredSocketResolver } from "./endpoints.js";
 import { errorResponse } from "@bb/server-kit/http/errors";
-import { authorize, requestHeader } from "@bb/server-kit/http/trust";
-import { THREAD_ID_HEADER, actorOf } from "@bb/server-kit/runners/access";
+import { requestHeader } from "@bb/server-kit/http/trust";
+import { THREAD_ID_HEADER } from "@bb/server-kit/runners/access";
 
 const SHUTDOWN_CLOSE_CODE = 1001;
 const SHUTDOWN_GRACE_MS = 1_000;
@@ -63,12 +63,11 @@ export class SocketRegistry {
   ): Promise<SocketOpen> {
     const { headers, socket } = request;
     const path = url.pathname;
-    const principal = authorize(
-      { method: "GET", path, headers, socket },
-      trustLookups(this.ctx),
-    );
+    const authenticator = authenticatorOf(this.ctx);
+    const identity = { method: "GET", path, headers, socket };
+    const principal = authenticator.principal(identity);
     const header = (name: string) => requestHeader(request, name);
-    const actor = actorOf(this.ctx, principal, header(THREAD_ID_HEADER));
+    const actor = authenticator.actor(principal, header(THREAD_ID_HEADER));
     return this.resolve({ url, principal, actor, header });
   }
 }

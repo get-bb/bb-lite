@@ -9,8 +9,7 @@ import {
   type ServerRunner,
 } from "@bb/server-kit/context";
 import { openDatabase, type OpenDatabase } from "@bb/server-kit/db/index";
-import type { ApiRoutes, SocketResolver } from "@bb/plugin";
-import { assertHostUsable } from "@bb/server-kit/runners/access";
+import { machines, type ApiRoutes, type SocketResolver } from "@bb/plugin";
 import {
   RunnerRegistry,
   type RunnerFactory,
@@ -61,7 +60,7 @@ export function createServer(options: CreateServerOptions): BbServer {
   const hub = new Hub();
   const { hostId: localHostId } = config;
   const { localRunner } = options;
-  const authorize = (hostId: string) => assertHostUsable(ctx, hostId);
+  const authorize = (hostId: string) => kernel.pick(machines.usable)?.(hostId);
   const access = { localHostId, localRunner, log, authorize };
   const runners = new RunnerRegistry(access);
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));

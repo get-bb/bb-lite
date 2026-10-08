@@ -345,9 +345,11 @@ it("answers the thread engine's queries from what plugins register", async () =>
   const query = { query: "x", projectId: null, threadId: null };
   const item = { itemId: "note:n1", title: "Note x", subtitle: null };
   const group = { pluginId: "probe", providerId: "note", label: "Notes" };
-  const found = await plugins.searchMentions({ trigger: "@", ...query });
+  const search = (trigger: "@" | "#") =>
+    kernel.call(sessions.searchMentions, { trigger, ...query });
+  const found = await search("@");
   expect(found).toMatchObject([{ ...group, items: [item] }]);
-  expect(await plugins.searchMentions({ trigger: "#", ...query })).toEqual([]);
+  expect(await search("#")).toEqual([]);
   const titled = await kernel.call(sessions.title, { prompt: "Hello world" });
   expect(titled).toBe("Hello");
 });

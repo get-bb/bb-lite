@@ -4,6 +4,7 @@ import { z } from "zod";
 import { contract, event, op, service, slot, table } from "./contract.js";
 import type { KernelInspection } from "./kernel.js";
 import type {
+  Authenticator,
   EnvironmentDefinition,
   FileReadArgs,
   FileWriteArgs,
@@ -12,6 +13,7 @@ import type {
   InputResult,
   MachineAccessProvider,
   MentionProvider,
+  MentionQuery,
   PluginEvents,
   ProviderEnvEntry,
 } from "./server-api.js";
@@ -154,6 +156,16 @@ export const sessions = contract("sessions", {
     output: z.custom<Contract.SystemExecutionOptionsResponse>(),
   }),
   titleFallback: service<TitleFallback>(),
+  searchMentions: op({
+    input: z.custom<MentionQuery>(),
+    output: z.array(z.custom<Contract.PluginMentionGroup>()),
+    internal: true,
+  }),
+  resolveMention: op({
+    input: z.object({ pluginId: z.string(), itemId: z.string() }),
+    output: z.string(),
+    internal: true,
+  }),
   title: op({
     input: z.object({ prompt: z.string() }),
     output: z.string().nullable(),
@@ -417,6 +429,7 @@ const MACHINE_WAIT_MAX_MS = 600_000;
 export const machines = contract("machines", {
   list: op({ input: none, output: z.array(z.custom<Domain.Host>()) }),
   access: service<MachineAccessProvider>(),
+  usable: service<(hostId: string) => void>(),
   provider: slot<MachineProvider>({ key: "id" }),
   enroll: op({
     input: z.object({
@@ -583,6 +596,7 @@ export const appearance = contract("appearance", {
 
 export const server = contract("server", {
   publicUrl: service<() => string | null>(),
+  authenticator: service<Authenticator>(),
 });
 
 const environmentRef = z.object({ environmentId: z.string() });

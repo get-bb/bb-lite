@@ -1,9 +1,6 @@
 import { sessions, type Kernel } from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
-import type {
-  PluginContributionsResponse,
-  PluginMentionGroup,
-} from "@bb/server-contract";
+import type { PluginContributionsResponse } from "@bb/server-contract";
 import type { Logger } from "@bb/server-kit/context";
 import { ApiError, notFound } from "@bb/server-kit/http/errors";
 import type { AppBundle } from "./bundle.js";
@@ -52,43 +49,6 @@ export class PluginRegistry {
     return instance.cli ?? doorCli(this.kernel, id, description);
   }
 
-  async searchMentions(
-    query: plugin.MentionQuery,
-  ): Promise<PluginMentionGroup[]> {
-    const groups: PluginMentionGroup[] = [];
-    const sources =
-      query.query === "" ? [] : this.kernel.entries(sessions.mention);
-    for (const { plugin: pluginId, item: provider } of sources) {
-      if (!(provider.triggers ?? ["@"]).includes(query.trigger)) continue;
-      const search = provider.search.bind(provider);
-      const found = await this.attempt(pluginId, "mentions", search, query);
-      if (found === undefined || found.length === 0) continue;
-      const items = found.map((item) => ({
-        itemId: `${provider.id}:${item.id}`,
-        title: item.title,
-        subtitle: item.subtitle ?? null,
-        icon: item.icon ?? null,
-      }));
-      const { id: providerId, label } = provider;
-      groups.push({ pluginId, providerId, label, items });
-    }
-    return groups;
-  }
-
-  async resolveMention(pluginId: string, itemId: string): Promise<string> {
-    const [providerId, ...rest] = itemId.split(":");
-    this.running(pluginId);
-    const found = this.kernel
-      .entries(sessions.mention)
-      .find(
-        ({ plugin, item }) => plugin === pluginId && item.id === providerId,
-      );
-    if (found === undefined) {
-      throw notFound(`Unknown mention provider "${providerId}"`);
-    }
-    return (await found.item.resolve(rest.join(":"))).context;
-  }
-
   skillDirs(): string[] {
     return [...this.records.values()].flatMap((record) =>
       record.instance === null ? [] : record.manifest.skillDirs,
@@ -116,19 +76,5 @@ export class PluginRegistry {
     return [...this.records].flatMap(([id, { instance }]) =>
       instance === null ? [] : [[id, instance]],
     );
-  }
-
-  private async attempt<Argument, Result>(
-    pluginId: string,
-    surface: string,
-    call: (argument: Argument) => Result | Promise<Result>,
-    argument: Argument,
-  ): Promise<Result | undefined> {
-    try {
-      return await call(argument);
-    } catch (error) {
-      this.log.warn(`Plugin ${surface} failed`, { pluginId, err: error });
-      return undefined;
-    }
   }
 }

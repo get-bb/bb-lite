@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import {
   pluginCliRequestSchema,
-  pluginMentionSearchQuerySchema,
   pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
 } from "@bb/server-contract";
@@ -77,14 +76,6 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   app.get("/plugins", (c) => c.json({ plugins: plugins.list() }));
 
   app.get("/plugins/contributions", (c) => c.json(plugins.contributions()));
-
-  app.get("/plugins/mentions/search", async (c) => {
-    const parsed = pluginMentionSearchQuerySchema.safeParse(c.req.query());
-    if (!parsed.success) throw invalidRequest("Invalid mention search query");
-    const { q, trigger, projectId = null, threadId = null } = parsed.data;
-    const query = { trigger, query: q.trim(), projectId, threadId };
-    return c.json({ ok: true, groups: await plugins.searchMentions(query) });
-  });
 
   app.post("/plugins/reload", async (c) => {
     requireManager(c);

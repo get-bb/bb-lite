@@ -2,6 +2,7 @@ import type * as Domain from "@bb/domain";
 import type { Runner, RunnerEvent, RunnerEventSink } from "@bb/runner";
 import type { BbSdkAreas } from "@bb/sdk";
 import type * as Contract from "@bb/server-contract";
+import type { IncomingHttpHeaders } from "node:http";
 import type { HttpBindings } from "@hono/node-server";
 import type Database from "better-sqlite3";
 import type { Hono } from "hono";
@@ -302,6 +303,19 @@ export interface Actor {
   userId: string;
   role: Domain.UserRole;
   agentThreadId: string | null;
+}
+
+export interface IncomingRequest {
+  method: string;
+  path: string;
+  headers: IncomingHttpHeaders;
+  socket: { remoteAddress?: string };
+}
+
+export interface Authenticator {
+  principal(request: IncomingRequest): Principal;
+  actor(principal: Principal, threadId: string | undefined): Actor | null;
+  owner(): Principal;
 }
 
 export interface SocketRequest {

@@ -1,3 +1,4 @@
+import { sessions } from "@bb/plugin";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -99,7 +100,8 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   const itemId = `task:${task.id}`;
   const item = { itemId, title: "BB-1 · Fix it", subtitle: "bb · Backlog" };
   expect(groups).toMatchObject([{ providerId: "task", items: [item] }]);
-  const context = await ctx.plugins.resolveMention("tasks", itemId);
+  const mention = { pluginId: "tasks", itemId };
+  const context = await ctx.kernel.call(sessions.resolveMention, mention);
   expect(context).toContain("- Labels: bug\n- Project: bb");
   expect(context).toContain("first run: bb tasks attach BB-1");
 
