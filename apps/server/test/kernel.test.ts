@@ -281,7 +281,6 @@ it("offers one operation to agents and the CLI, and pushes changes", async () =>
     ...ctx.plugins.options,
     builtins: [{ directory, server: plugin }],
   });
-  host.deps = ctx.plugins.deps;
   writeFileSync(configFile, "{}");
   await host.reload();
   const client = await server.socket();
@@ -478,20 +477,17 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
     const create = `CREATE TABLE ${notes} (thread_id TEXT, note TEXT)`;
     tables.migrate([create]);
     tables.publish(tracker.notes, "notes");
-    tables.run(`INSERT INTO ${notes} VALUES (?, ?)`, threadId, "ship it");
+    bb.db.run(`INSERT INTO ${notes} VALUES (?, ?)`, threadId, "ship it");
     attempt(() => tables.migrate([create, "CREATE TABLE copy (id TEXT)"]));
-    attempt(() => tables.run("DELETE FROM threads"));
-    attempt(() => tables.all(`DELETE FROM ${notes}`));
   };
   let joined: unknown;
   const reader = (bb: PluginServerApi) => {
     const { tables } = bb.storage;
     const notes = tables.of(tracker.notes);
     const all = tables.of(threadOps.table);
-    joined = tables.all(
+    joined = bb.db.all(
       `SELECT n.note, t.status FROM ${notes} n JOIN ${all} t ON t.id = n.thread_id`,
     );
-    attempt(() => tables.run(`DELETE FROM ${notes}`));
   };
   const builtins = [
     ["tracker", owner] as const,
@@ -504,7 +500,6 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
     return { directory, server: entry };
   });
   const host = new PluginHost({ ...ctx.plugins.options, builtins });
-  host.deps = ctx.plugins.deps;
   await host.reload();
   const states = host.list().map(({ id, status }) => [id, status]);
   expect(states).toEqual([
@@ -514,9 +509,6 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
   expect(joined).toEqual([{ note: "ship it", status: expect.any(String) }]);
   expect(failures).toEqual([
     expect.stringContaining("Table migration 1 touches a table"),
-    expect.stringContaining("only to the plugin's own tables"),
-    expect.stringContaining("take a SELECT"),
-    expect.stringContaining("only to the plugin's own tables"),
   ]);
   const kept = ctx.db.all("SELECT note FROM p_tracker_notes");
   expect(kept).toEqual([{ note: "ship it" }]);
@@ -550,7 +542,6 @@ it("gives a plugin the full client, acting as whoever called it", async () => {
     ...ctx.plugins.options,
     builtins: [{ directory, server: entry }],
   });
-  host.deps = ctx.plugins.deps;
   host.fetch = ctx.plugins.fetch;
   await host.reload();
   const called = await server.http("POST", "/ops/helper.tidy", { threadId });

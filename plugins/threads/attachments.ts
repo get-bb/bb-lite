@@ -39,7 +39,7 @@ export async function deliverAttachments(
   input: PromptInput[],
 ): Promise<PromptInput[]> {
   if (!input.some(isStored)) return input;
-  const { dataDir, hostId: localHostId } = bb.config;
+  const { dataDir, hostId: localHostId } = bb.server;
   const root =
     hostId === localHostId ? null : (await runner.describe()).threadStorageRoot;
   const delivered: PromptInput[] = [];

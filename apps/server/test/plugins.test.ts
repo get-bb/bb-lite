@@ -313,7 +313,6 @@ it("answers the thread engine's queries from what plugins register", async () =>
     ...ctx.plugins.options,
     builtins: [{ directory, server }],
   });
-  plugins.deps = ctx.plugins.deps;
   await plugins.reload();
   const signal = new AbortController().signal;
   const thread = { threadId: "thr_1", projectId: "proj_1", hostId: "host_1" };
@@ -585,7 +584,7 @@ it("gives any plugin the host services core plugins are built on", async () => {
   const entry = (bb: PluginServerApi) => {
     bb.http.api((app) => {
       app.get("/outsider/summary", (c) => {
-        const { hostId } = bb.config;
+        const { hostId } = bb.server;
         const projects = bb.db.get<{ total: number }>(count)?.total;
         const connected = bb.runners.isConnected(hostId);
         return c.json({ projects, hostId, connected, at: bb.now() });
@@ -597,7 +596,6 @@ it("gives any plugin the host services core plugins are built on", async () => {
     ...ctx.plugins.options,
     builtins: [{ directory, server: entry }],
   });
-  plugins.deps = ctx.plugins.deps;
   await plugins.reload();
   const projects = ctx.db.get<{ total: number }>(count)?.total;
   expect(projects).toBeGreaterThan(0);

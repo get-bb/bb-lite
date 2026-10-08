@@ -23,7 +23,7 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     bb.call(plugins.agentTools, context),
   );
   bb.implement(sessions.skillDirs, async () => [
-    join(bb.config.cliDir, "skills"),
+    join(bb.server.cliDir, "skills"),
     ...(await bb.call(plugins.skillDirs, {})),
   ]);
   bb.implement(sessions.searchMentions, (query) => searchMentions(bb, query));

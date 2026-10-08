@@ -13,7 +13,6 @@ import { errorMessage } from "@bb/server-kit/http/errors";
 import { asPlugin, currentCaller } from "@bb/server-kit/kernel/caller";
 import type { Hub } from "@bb/server-kit/ws/hub";
 import { cronMatches, parseCron, type Cron } from "./cron.js";
-import type { PluginHostDeps } from "./deps.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
 import { createPluginTables } from "./tables.js";
 
@@ -25,11 +24,7 @@ export interface PluginApiHost {
   hub: Hub;
   log: Logger;
   kernel: Kernel;
-  dataDir: string;
-  serverUrl: string;
-  tunnelToken: string;
-  deps: PluginHostDeps;
-  config: plugin.ServerConfig;
+  server: plugin.ServerInfo;
   runners: plugin.Runners;
   now(): number;
   routes(routes: plugin.ApiRoutes, internal: boolean): () => void;
@@ -151,7 +146,7 @@ export function createPluginInstance(
   tier: Tier,
 ): { instance: PluginInstance; api: plugin.PluginServerApi } {
   const { db, hub } = host;
-  const dataDir = join(host.dataDir, "plugins", pluginId);
+  const dataDir = join(host.server.dataDir, "plugins", pluginId);
   mkdirSync(dataDir, { recursive: true });
   const at =
     (level: keyof Logger) => (message: string, fields?: plugin.LogFields) =>
@@ -164,18 +159,16 @@ export function createPluginInstance(
   };
   const settings = new PluginSettings(db, pluginId, join(dataDir, "secrets"));
   const instance = new PluginInstance(settings, log);
-  const outward = host.deps(pluginId);
   const { dispose: release, ...verbs } = host.kernel.scope(pluginId, tier);
   instance.disposers.push(release);
   let database: Database.Database | undefined;
 
   const api: plugin.PluginServerApi = {
-    ...outward,
     ...verbs,
     pluginId,
     log,
     dataDir,
-    config: host.config,
+    server: host.server,
     db,
     realtime: hub,
     runners: host.runners,
@@ -225,16 +218,16 @@ export function createPluginInstance(
           return [...readPluginRows(db, "plugin_kv", pluginId, prefix).keys()];
         },
       },
-      database() {
+      database(migrations) {
         if (database?.open) return database;
         const opened = new Database(join(dataDir, "data.db"));
         opened.pragma("journal_mode = WAL");
         opened.pragma("busy_timeout = 5000");
         instance.disposers.unshift(() => opened.close());
+        if (migrations !== undefined) migrate(opened, migrations);
         database = opened;
         return opened;
       },
-      migrate,
       tables: createPluginTables(db, pluginId, verbs),
     },
     http: {
@@ -269,11 +262,6 @@ export function createPluginInstance(
         instance.needsConfiguration = message;
         hub.system(["plugins-changed"]);
       },
-    },
-    server: {
-      url: host.serverUrl,
-      dataDir: host.dataDir,
-      tunnelToken: host.tunnelToken,
     },
     sdk: createBbSdk({
       baseUrl: INNER_ORIGIN,

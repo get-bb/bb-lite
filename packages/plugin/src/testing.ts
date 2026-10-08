@@ -32,7 +32,7 @@ export interface LoadOptions {
   db?: PluginServerApi["db"];
   realtime?: PluginServerApi["realtime"];
   runners?: PluginServerApi["runners"];
-  config?: Partial<PluginServerApi["config"]>;
+  server?: Partial<PluginServerApi["server"]>;
   now?: () => number;
 }
 
@@ -46,7 +46,9 @@ function absent<Member extends object>(name: string, option: string): Member {
   return new Proxy({} as Member, { get: unavailable(name, option) });
 }
 
-const HARNESS_CONFIG: PluginServerApi["config"] = {
+const HARNESS_SERVER: PluginServerApi["server"] = {
+  url: "http://127.0.0.1:0",
+  tunnelToken: "test",
   dataDir: "/tmp/bb-test",
   port: 0,
   bindHost: "127.0.0.1",
@@ -73,9 +75,6 @@ const unavailableTables: PluginTables = {
   migrate: noTables,
   publish: noTables,
   of: noTables,
-  all: noTables,
-  get: noTables,
-  run: noTables,
 };
 
 export interface LoadedPlugin {
@@ -204,7 +203,7 @@ export function createPluginHarness(): PluginHarness {
           error: at("error"),
         },
         dataDir: `/tmp/bb-test/${pluginId}`,
-        config: { ...HARNESS_CONFIG, ...options.config },
+        server: { ...HARNESS_SERVER, ...options.server },
         db: options.db ?? absent("bb.db", "db"),
         realtime: options.realtime ?? absent("bb.realtime", "realtime"),
         runners: options.runners ?? absent("bb.runners", "runners"),
@@ -239,12 +238,13 @@ export function createPluginHarness(): PluginHarness {
             list: async (prefix = "") =>
               [...kv.keys()].filter((key) => key.startsWith(prefix)).sort(),
           },
-          database() {
-            if (options.database !== undefined) return options.database();
-            throw new Error("Pass `database` to load() to use a database");
-          },
-          migrate(database, statements) {
-            for (const statement of statements) database.exec(statement);
+          database(migrations = []) {
+            if (options.database === undefined) {
+              throw new Error("Pass `database` to load() to use a database");
+            }
+            const database = options.database();
+            for (const statement of migrations) database.exec(statement);
+            return database;
           },
           tables: options.tables ?? unavailableTables,
         },
@@ -265,18 +265,10 @@ export function createPluginHarness(): PluginHarness {
             loaded.cli = registration;
           },
         },
-        machine: () => ({
-          call: (op, input) => kernel.call(op, input),
-        }),
         status: {
           needsConfiguration(message) {
             loaded.needsConfiguration = message;
           },
-        },
-        server: {
-          url: "http://127.0.0.1:0",
-          dataDir: "/tmp/bb-test",
-          tunnelToken: "test",
         },
         sdk: options.sdk ?? unavailableSdk,
         onStart: (start) => void starters.push(start),

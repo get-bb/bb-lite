@@ -1,10 +1,12 @@
 import type {
+  Op,
   RunnerEventHandler,
   RunnerEventKind,
   RunnerEventOf,
   RunnerFactory,
 } from "@bb/plugin";
 import type { RunnerEvent, SessionApi } from "@bb/runner";
+import type { z } from "zod";
 import type { Logger } from "../context.js";
 import { hostUnavailable } from "../http/errors.js";
 
@@ -99,6 +101,17 @@ export class RunnerRegistry<R extends SessionApi> {
   onDisconnected(listener: HostListener): () => void {
     this.disconnectListeners.add(listener);
     return () => this.disconnectListeners.delete(listener);
+  }
+
+  async call<O extends Op>(
+    hostId: string,
+    op: O,
+    input: z.input<O["input"]>,
+  ): Promise<z.output<O["output"]>> {
+    const parsed: unknown = await op.input.parseAsync(input);
+    const call = { name: op.name, input: parsed };
+    const result = await this.get(hostId).callOp(call);
+    return (await op.output.parseAsync(result)) as z.output<O["output"]>;
   }
 
   async emit(hostId: string, event: RunnerEvent): Promise<void> {

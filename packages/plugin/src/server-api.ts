@@ -10,16 +10,11 @@ import type { WebSocket } from "ws";
 import type { z } from "zod";
 import type { CliRegistration } from "./cli.js";
 import type { Op, Slot, TableRef } from "./contract.js";
-import type { PluginVerbs } from "./kernel.js";
+import type { LogLevel, PluginBase } from "./base.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type Thread = Contract.ThreadResponse;
 type Presentation = Domain.ThreadEventItemPresentation;
-export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
-export type LogFields = Record<string, unknown>;
-type LogMethod = (message: string, fields?: LogFields) => void;
-export type Logger = Record<Exclude<LogLevel, "silent">, LogMethod>;
-
 export interface ServerConfig {
   dataDir: string;
   port: number;
@@ -211,13 +206,6 @@ export interface MachineAccessProvider {
   revoke(host: { id: string; connectMachineId: string | null }): Promise<void>;
 }
 
-export interface MachineCalls {
-  call<O extends Op>(
-    op: O,
-    input: z.input<O["input"]>,
-  ): Promise<z.output<O["output"]>>;
-}
-
 export type SqlValue = string | number | bigint | Buffer | null;
 export type RowValues = Record<string, SqlValue | undefined>;
 export type SqlParams = SqlValue[] | [RowValues];
@@ -281,6 +269,11 @@ export interface Runners {
   onConnected(listener: (hostId: string) => void): () => void;
   onDisconnected(listener: (hostId: string) => void): () => void;
   emit(hostId: string, event: RunnerEvent): Promise<void>;
+  call<O extends Op>(
+    hostId: string,
+    op: O,
+    input: z.input<O["input"]>,
+  ): Promise<z.output<O["output"]>>;
 }
 
 export type ApiEnv = { Bindings: HttpBindings };
@@ -332,16 +325,13 @@ export interface PluginTables {
   migrate(statements: string[]): void;
   publish<Row>(table: Slot<TableRef<Row>>, local: string): void;
   of<Row>(table: Slot<TableRef<Row>>): string;
-  all<Row = unknown>(sql: string, ...params: SqlValue[]): Row[];
-  get<Row = unknown>(sql: string, ...params: SqlValue[]): Row | undefined;
-  run(sql: string, ...params: SqlValue[]): { changes: number };
 }
 
-export interface PluginServerApi extends PluginVerbs {
-  readonly pluginId: string;
-  readonly log: Logger;
+export type ServerInfo = ServerConfig & { url: string; tunnelToken: string };
+
+export interface PluginServerApi extends PluginBase {
   readonly dataDir: string;
-  readonly config: ServerConfig;
+  readonly server: ServerInfo;
   readonly db: SharedDatabase;
   readonly realtime: Realtime;
   readonly runners: Runners;
@@ -354,8 +344,7 @@ export interface PluginServerApi extends PluginVerbs {
   };
   readonly storage: {
     kv: PluginKv;
-    database(): Database.Database;
-    migrate(database: Database.Database, statements: string[]): void;
+    database(migrations?: string[]): Database.Database;
     tables: PluginTables;
   };
   readonly http: {
@@ -380,16 +369,8 @@ export interface PluginServerApi extends PluginVerbs {
     ): void;
   };
   readonly cli: { register(registration: CliRegistration): void };
-  machine(hostId: string): MachineCalls;
   readonly status: { needsConfiguration(message: string): void };
-  readonly server: {
-    url: string;
-    dataDir: string;
-    tunnelToken: string;
-  };
   readonly sdk: BbSdkAreas;
-  onStart(start: () => MaybePromise<void | (() => MaybePromise<void>)>): void;
-  onDispose(dispose: () => MaybePromise<void>): void;
 }
 
 export type PluginServerEntry = (bb: PluginServerApi) => MaybePromise<void>;

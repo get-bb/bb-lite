@@ -49,7 +49,7 @@ export function registerUserRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { del, get, patch, post, put } = typedApi(app);
   const { auth, users: routes } = publicApiRoutes;
   const { db, realtime: hub } = bb;
-  const cookieName = sessionCookieName(bb.config);
+  const cookieName = sessionCookieName(bb.server);
   const attempts = new Map<string, Attempts>();
 
   const setCookie = (c: RequestContext, value: string, maxAge: number) => {

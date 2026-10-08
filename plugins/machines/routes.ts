@@ -135,7 +135,7 @@ export function registerHostRoutes(app: ApiApp, bb: PluginServerApi): void {
 
   post(routes.reconnect, async (c) => {
     const host = managedHost(c);
-    if (host.id === bb.config.hostId || host.phase !== "active") {
+    if (host.id === bb.server.hostId || host.phase !== "active") {
       throw new ApiError(
         409,
         "machine_reconnect_unavailable",
@@ -166,7 +166,7 @@ export function registerHostRoutes(app: ApiApp, bb: PluginServerApi): void {
 
   del(routes.delete, async (c) => {
     const { id } = managedHost(c);
-    if (id === bb.config.hostId) {
+    if (id === bb.server.hostId) {
       throw new ApiError(
         400,
         "primary_host_removal_refused",

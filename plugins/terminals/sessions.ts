@@ -202,7 +202,7 @@ export function startTerminalSessions(bb: PluginServerApi): Disposer {
     }),
     runners.onConnected(reattach),
   ];
-  reattach(bb.config.hostId);
+  reattach(bb.server.hostId);
   return () => stops.forEach((stop) => stop());
 }
 

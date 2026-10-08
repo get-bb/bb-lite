@@ -96,7 +96,7 @@ export async function storeAttachment(
     );
   }
   const storedPath = storedNameFor(file.name, ctx.now());
-  const { dataDir } = ctx.config;
+  const { dataDir } = ctx.server;
   const target = resolveAttachmentPath(dataDir, projectId, storedPath);
   await mkdir(dirname(target), { recursive: true });
   await writeFile(target, Buffer.from(await file.arrayBuffer()), {
@@ -125,7 +125,7 @@ export async function copyAttachments(
   paths: string[],
 ): Promise<void> {
   if (from === to) return;
-  const { dataDir } = ctx.config;
+  const { dataDir } = ctx.server;
   for (const storedPath of new Set(paths)) {
     const source = resolveAttachmentPath(dataDir, from, storedPath);
     const target = resolveAttachmentPath(dataDir, to, storedPath);

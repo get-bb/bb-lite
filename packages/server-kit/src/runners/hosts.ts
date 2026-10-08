@@ -41,7 +41,7 @@ export function resolveLookupHostId(
 export function hostResponse(ctx: ServerContext, row: hosts.HostRow): Host {
   return hosts.toHost(row, {
     connected: ctx.runners.isConnected(row.id),
-    local: row.id === ctx.config.hostId,
+    local: row.id === ctx.server.hostId,
     usable: canUseHost(row, currentActor()),
   });
 }
@@ -63,7 +63,7 @@ function nameOwnerAfterOsUser(db: ServerContext["db"]) {
 
 export function ensureLocalHost(ctx: ServerContext): Disposer {
   const { db, runners } = ctx;
-  const { hostId: id, dataDir } = ctx.config;
+  const { hostId: id, dataDir } = ctx.server;
   const { platform } = process;
   const threadStorageRoot = dataPaths(dataDir).threadStorage;
   const ownerUserId = OWNER_USER_ID;

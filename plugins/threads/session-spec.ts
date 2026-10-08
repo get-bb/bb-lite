@@ -60,13 +60,13 @@ export async function buildSessionSpec(
         .then((found) => found.map(({ text }) => text).join("\n\n")),
       bb.call(sessionOps.env, { ...scope, providerId }),
       resolveContributedEnvironment(bb, thread.projectId),
-      readUserInstructions(bb.config.dataDir),
+      readUserInstructions(bb.server.dataDir),
       bb.call(environmentOps.instructions, { environmentId: environment.id }),
       readCustomModelConfig(bb),
     ]);
   const dynamicTools = await bb.call(sessionOps.tools, scope);
   const skillDirs =
-    hostId === bb.config.hostId
+    hostId === bb.server.hostId
       ? await bb.call(sessionOps.skillDirs, scope)
       : [];
   const customModels = configured

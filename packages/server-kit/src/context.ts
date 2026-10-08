@@ -12,7 +12,7 @@ export type Disposer = () => void | Promise<void>;
 
 export type ServerContext = Pick<
   PluginServerApi,
-  "config" | "db" | "realtime" | "runners" | "log" | "now"
+  "server" | "db" | "realtime" | "runners" | "log" | "now"
 > &
   OpCalls;
 

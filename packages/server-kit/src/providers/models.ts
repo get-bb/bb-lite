@@ -150,7 +150,7 @@ async function readCustomModels(ctx: ServerContext) {
 }
 
 export async function readCustomModelConfig(ctx: ServerContext) {
-  const path = dataPaths(ctx.config.dataDir).configFile;
+  const path = dataPaths(ctx.server.dataDir).configFile;
   const text = await readFile(path, "utf8").catch(() => null);
   if (text === null) return [];
   try {

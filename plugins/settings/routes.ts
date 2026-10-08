@@ -130,7 +130,7 @@ export function registerSettingsRoutes(app: ApiApp, bb: PluginServerApi): void {
       serverUrl: publicUrl ?? new URL(c.req.url).origin,
       primaryHostId: defaultHostId(bb),
       primaryHostPlatform: serverPlatform(),
-      dataDir: bb.config.dataDir,
+      dataDir: bb.server.dataDir,
     });
   });
 

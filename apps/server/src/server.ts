@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { serve, type ServerType } from "@hono/node-server";
-import { dataPaths, type ServerConfig } from "@bb/server-kit/config";
+import {
+  dataPaths,
+  loopbackUrl,
+  type ServerConfig,
+} from "@bb/server-kit/config";
 import {
   createLogger,
   type Disposer,
@@ -83,8 +87,10 @@ export function createServer(options: CreateServerOptions): BbServer {
   const services = { config, db, hub, log, tunnelToken, kernel, runners, now };
   const plugins = new PluginHost({ ...services, ...mounting, builtins });
   const own = kernel.scope(HOST_PLUGIN_ID, "product");
-  const shared = { config, tunnelToken, db, hub, runners, kernel, plugins };
-  const ctx: HostContext = { ...own, ...shared, realtime: hub, log, now };
+  const server = { ...config, url: loopbackUrl(config), tunnelToken };
+  const shared = { config, server, tunnelToken, db, hub, runners, kernel };
+  const host = { plugins, realtime: hub, log, now };
+  const ctx: HostContext = { ...own, ...shared, ...host };
   hostOps(ctx, own);
   table.add((app) => registerPluginRoutes(app, ctx));
   table.add((app) => registerKernelRoutes(app, ctx));

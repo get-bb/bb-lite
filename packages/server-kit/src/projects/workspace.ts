@@ -46,7 +46,7 @@ export function findProjectWorkspace(
     const { id: hostId } = requireHost(ctx, selector.hostId);
     return { hostId, path: sourceOn(hostId)?.path ?? null };
   }
-  const local = ctx.config.hostId;
+  const local = ctx.server.hostId;
   const source =
     sourceOn(local) ?? sources.find((candidate) => candidate.isDefault);
   return { hostId: source?.hostId ?? local, path: source?.path ?? null };

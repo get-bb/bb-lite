@@ -56,7 +56,7 @@ export function defaultHostId(
   actor: Actor | null = currentActor(),
 ): string {
   const { db, runners } = ctx;
-  const local = ctx.config.hostId;
+  const local = ctx.server.hostId;
   const usable = listHosts(db, { includeCreating: false })
     .filter((host) => host.phase === "active" && canUseHost(host, actor))
     .map((host) => ({
@@ -110,7 +110,7 @@ export function actorOf(
   if (principal.kind === "user") {
     const { userId, role } = principal;
     const agent = principal.implicit
-      ? onBehalfOf(db, threadId, ctx.config.hostId)
+      ? onBehalfOf(db, threadId, ctx.server.hostId)
       : undefined;
     if (agent === undefined) return { userId, role, agentThreadId: null };
     const { id, role: agentRole } = agent;

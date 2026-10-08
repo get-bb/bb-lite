@@ -21,8 +21,6 @@ const WRITES = new RegExp(
     `UPDATE(?:\\s+OR\\s+\\w+)?|DELETE\\s+FROM)\\s+${NAME}`,
   "iu",
 );
-const READS = /^\s*(?:SELECT|WITH)\b/iu;
-const CHANGES = /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/iu;
 const LOCAL = /^[a-z][a-z0-9_]*$/u;
 
 export function tablePrefix(pluginId: string): string {
@@ -43,13 +41,6 @@ export function createPluginTables(
   const name = (local: string): string => {
     if (!LOCAL.test(local)) refuse(`"${local}" is not a table name`);
     return prefix + local;
-  };
-  const reading = (sql: string): string => {
-    const changes = sql.trimStart().toUpperCase().startsWith("WITH");
-    if (!READS.test(sql) || (changes && CHANGES.test(sql))) {
-      refuse("all() and get() take a SELECT");
-    }
-    return sql;
   };
   return {
     name,
@@ -89,12 +80,5 @@ export function createPluginTables(
       verbs.add(table, { name: name(local) });
     },
     of: (table) => verbs.use(table).name,
-    all: (sql, ...params) => db.all(reading(sql), ...params),
-    get: (sql, ...params) => db.get(reading(sql), ...params),
-    run(sql, ...params) {
-      if (!own(WRITES, sql))
-        refuse("run() writes only to the plugin's own tables");
-      return db.run(sql, ...params);
-    },
   };
 }

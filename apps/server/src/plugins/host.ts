@@ -31,7 +31,6 @@ import {
   importServerEntry,
   utilitiesWith,
 } from "./bundle.js";
-import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
 import { ApiError, errorMessage } from "@bb/server-kit/http/errors";
 import { createPluginInstance } from "./instance.js";
 import {
@@ -67,9 +66,6 @@ const UNWATCHED = /(^|[\\/])(node_modules|\.cache|\.git|\.bb|dist)([\\/]|$)/u;
 const UNLOADED = { instance: null, app: null, error: null, token: null };
 
 export class PluginHost extends PluginRegistry {
-  deps: PluginHostDeps = () => {
-    throw new Error("The plugin host has not started");
-  };
   onChanged: () => void = () => {};
   fetch: (request: Request) => Promise<Response> = async () => {
     throw new Error("The plugin host has not started");
@@ -349,15 +345,9 @@ export class PluginHost extends PluginRegistry {
     const { config, log, tunnelToken } = this.options;
     const { id, serverEntry, appEntry } = record.manifest;
     const { dataDir } = config;
-    const serverUrl = loopbackUrl(config);
-    const server = { dataDir, serverUrl, tunnelToken };
+    const server = { ...config, url: loopbackUrl(config), tunnelToken };
     const { instance, api } = createPluginInstance(
-      {
-        ...this.options,
-        ...server,
-        deps: this.deps,
-        fetch: this.fetch,
-      },
+      { ...this.options, server, fetch: this.fetch },
       id,
       record.external ? "installed" : "product",
     );
@@ -480,7 +470,6 @@ export async function startPlugins(ctx: HostContext): Promise<Disposer> {
       }
     }
   };
-  plugins.deps = createPluginHostDeps(ctx);
   plugins.onChanged = () => void sync(runners.connectedHostIds());
   const stopWatching = runners.onConnected((hostId) => void sync([hostId]));
   await plugins.reload();

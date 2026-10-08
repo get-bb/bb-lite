@@ -30,7 +30,7 @@ export function registerFileRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { environments, files, hosts, threads } = publicApiRoutes;
 
   const runnerOf = (hostId: string | undefined) =>
-    bb.runners.get(requireHost(bb, hostId ?? bb.config.hostId).id);
+    bb.runners.get(requireHost(bb, hostId ?? bb.server.hostId).id);
 
   const serve = (
     c: FileRequest,

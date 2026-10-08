@@ -16,8 +16,8 @@ import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 export function trustLookups(bb: PluginServerApi): TrustLookups {
   const { db } = bb;
   return {
-    allowedHosts: bb.config.allowedHosts,
-    sessionCookie: sessionCookieName(bb.config),
+    allowedHosts: bb.server.allowedHosts,
+    sessionCookie: sessionCookieName(bb.server),
     tunnelToken: bb.server.tunnelToken,
     publicUrl: () => publicServerUrl(bb),
     runnerMachine: (token) => findRunnerHost(db, token),

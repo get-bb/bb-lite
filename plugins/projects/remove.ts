@@ -17,7 +17,7 @@ export async function removeProject(
   for (const environment of deleted.environments) {
     bb.realtime.environment(environment.id, ["environment-deleted"]);
   }
-  const attachments = projectAttachmentsDir(bb.config.dataDir, projectId);
+  const attachments = projectAttachmentsDir(bb.server.dataDir, projectId);
   await rm(attachments, { recursive: true, force: true });
   const failed = (err: unknown) =>
     bb.log.error("Project deletion cleanup failed", { err, projectId });

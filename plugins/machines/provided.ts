@@ -52,7 +52,7 @@ export function provideMachines(bb: PluginServerApi): void {
     const { joinToken, expiresAt } = enrollment.issueJoinToken(db, id);
     const access = await bb.pick(machines.access)?.grant(id);
     const serverUrl =
-      access?.serverUrl ?? publicServerUrl(bb) ?? loopbackUrl(bb.config);
+      access?.serverUrl ?? publicServerUrl(bb) ?? loopbackUrl(bb.server);
     const headers = access?.headers;
     const blob = { serverUrl, hostId: id, joinToken, headers };
     hub.host(id, ["host-connected"]);
@@ -106,7 +106,7 @@ export function provideMachines(bb: PluginServerApi): void {
   bb.implement(machines.resume, ({ hostId }) => lifecycle(hostId, "resume"));
 
   bb.implement(machines.remove, async ({ hostId }) => {
-    if (hostId === bb.config.hostId) {
+    if (hostId === bb.server.hostId) {
       const message = "The server's own machine cannot be removed";
       throw new ApiError(400, "primary_host_removal_refused", message);
     }

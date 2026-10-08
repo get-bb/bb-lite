@@ -32,8 +32,7 @@ export default async function echoPlugin(bb: PluginServerApi) {
     greeting: { type: "string", label: "Greeting", default: "hello" },
     apiKey: { type: "string", label: "API key", secret: true },
   });
-  const database = bb.storage.database();
-  bb.storage.migrate(database, MIGRATIONS);
+  const database = bb.storage.database(MIGRATIONS);
   const countCalls = database.prepare("SELECT count(*) FROM calls").pluck();
 
   bb.implement(echo.echo, async ({ text }) => {

@@ -126,7 +126,7 @@ export async function replaceMachineEnvironment(
   input: MachineEnvironmentReplace,
 ): Promise<void> {
   const { db } = ctx;
-  const key = await encryptionKey(ctx.config.dataDir);
+  const key = await encryptionKey(ctx.server.dataDir);
   db.transaction(() => {
     const saved = new Map(
       listVariables(db, projectId).map((row) => [row.name, row.ciphertext]),
@@ -171,7 +171,7 @@ export async function resolveContributedEnvironment(
     ...(projectId === null ? [] : listVariables(ctx.db, projectId)),
   ];
   if (variables.length === 0) return {};
-  const key = await encryptionKey(ctx.config.dataDir);
+  const key = await encryptionKey(ctx.server.dataDir);
   return Object.fromEntries(
     variables.map((variable) => [variable.name, decrypt(key, variable)]),
   );

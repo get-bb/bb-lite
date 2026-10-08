@@ -53,7 +53,7 @@ export function registerProjectRoutes(app: ApiApp, bb: PluginServerApi): void {
   const { del, get, patch, post } = typedApi(app);
   const routes = publicApiRoutes.projects;
   const { db, realtime: hub, runners } = bb;
-  const { dataDir } = bb.config;
+  const { dataDir } = bb.server;
 
   const projectResponse = (projectId: string) => {
     const [response] = store.withSources(db, [

@@ -1,3 +1,4 @@
+export type * from "./base.js";
 export * from "./cli.js";
 export * from "./contract.js";
 export * from "./core-contracts.js";
