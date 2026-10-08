@@ -1,6 +1,6 @@
 import { OWNER_USER_ID } from "@bb/domain";
 import { currentActor, type Actor } from "../auth/actor.js";
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import { findHost, listHosts, type HostRow } from "../db/hosts.js";
 import type { Db } from "../db/index.js";
@@ -42,7 +42,7 @@ export function canManageHost(host: HostAccess, actor: Actor | null): boolean {
 }
 
 export function assertHostUsable(
-  ctx: ServerContext,
+  ctx: ServerServices,
   hostId: string,
   actor: Actor | null = currentActor(),
 ): void {
@@ -52,7 +52,7 @@ export function assertHostUsable(
 }
 
 export function defaultHostId(
-  ctx: ServerContext,
+  ctx: ServerServices,
   actor: Actor | null = currentActor(),
 ): string {
   const { db, runners } = ctx;
@@ -101,7 +101,7 @@ export function agentActor(db: Db, threadId: string): Actor | null {
 }
 
 export function actorOf(
-  ctx: ServerContext,
+  ctx: ServerServices,
   principal: Principal,
   threadId: string | undefined,
 ): Actor | null {

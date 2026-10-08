@@ -18,7 +18,6 @@ import type * as ModelReasoningPickerModule from "./app/components/pickers/Model
 import type * as PermissionModePickerModule from "./app/components/pickers/PermissionModePicker";
 import type * as NewThreadComposerModule from "./app/components/promptbox/NewThreadComposer";
 
-import type * as ComposersModule from "./app/lib/composers";
 import type * as UsepromptdraftstorageModule from "./app/hooks/usePromptDraftStorage";
 import type * as PromptHistoryModule from "./app/lib/prompt-history";
 import type * as PaneComposerFocusModule from "./app/lib/pane-composer-focus";
@@ -102,14 +101,6 @@ export const useNewThreadComposer = callPart<
   typeof NewThreadComposerModule.useNewThreadComposer
 >("composer", "useNewThreadComposer");
 
-export const useComposer = callPart<typeof ComposersModule.useComposer>(
-  "composer",
-  "useComposer",
-);
-export const useComposers = callPart<typeof ComposersModule.useComposers>(
-  "composer",
-  "useComposers",
-);
 export const getPromptDraftAccessor = callPart<
   typeof UsepromptdraftstorageModule.getPromptDraftAccessor
 >("composer", "getPromptDraftAccessor");

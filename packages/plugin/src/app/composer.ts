@@ -50,8 +50,7 @@ export interface ComposerContext {
   surface: "new-thread" | "follow-up";
   threadId: string | null;
   projectId: string | null;
-  host: unknown;
-  composer?: ComposerHandle;
+  composer: ComposerHandle | null;
 }
 
 export interface ComposerBanner {

@@ -3,20 +3,23 @@ import { OWNER_USER_ID, type Host } from "@bb/domain";
 import { server } from "@bb/plugin";
 import { currentActor } from "../auth/actor.js";
 import { dataPaths } from "../config.js";
-import type { Disposer, ServerContext } from "../context.js";
+import type { Disposer, ServerServices } from "../context.js";
 import { getEnvironment } from "../db/environments.js";
 import * as hosts from "../db/hosts.js";
 import { getAppSettings } from "../db/settings.js";
 import { ApiError } from "../http/errors.js";
 import { canUseHost, defaultHostId } from "./access.js";
 
-export function publicServerUrl(ctx: ServerContext): string | null {
+export function publicServerUrl(ctx: ServerServices): string | null {
   const { machineServerUrl } = getAppSettings(ctx.db);
   const url = ctx.pick(server.publicUrl)?.() ?? machineServerUrl;
   return url?.replace(/\/+$/u, "") ?? null;
 }
 
-export function requireHost(ctx: ServerContext, hostId: string): hosts.HostRow {
+export function requireHost(
+  ctx: ServerServices,
+  hostId: string,
+): hosts.HostRow {
   const host = hosts.findHost(ctx.db, "id", hostId);
   if (host === undefined) {
     throw new ApiError(404, "host_not_found", "Host not found");
@@ -25,7 +28,7 @@ export function requireHost(ctx: ServerContext, hostId: string): hosts.HostRow {
 }
 
 export function resolveLookupHostId(
-  ctx: ServerContext,
+  ctx: ServerServices,
   query: { hostId?: string; environmentId?: string },
 ): string {
   if (query.environmentId === undefined) {
@@ -38,7 +41,7 @@ export function resolveLookupHostId(
   return requireHost(ctx, environment.hostId).id;
 }
 
-export function hostResponse(ctx: ServerContext, row: hosts.HostRow): Host {
+export function hostResponse(ctx: ServerServices, row: hosts.HostRow): Host {
   return hosts.toHost(row, {
     connected: ctx.runners.isConnected(row.id),
     local: row.id === ctx.server.hostId,
@@ -46,7 +49,7 @@ export function hostResponse(ctx: ServerContext, row: hosts.HostRow): Host {
   });
 }
 
-function nameOwnerAfterOsUser(db: ServerContext["db"]) {
+function nameOwnerAfterOsUser(db: ServerServices["db"]) {
   let username = "";
   try {
     ({ username } = userInfo());
@@ -61,7 +64,7 @@ function nameOwnerAfterOsUser(db: ServerContext["db"]) {
   );
 }
 
-export function ensureLocalHost(ctx: ServerContext): Disposer {
+export function ensureLocalHost(ctx: ServerServices): Disposer {
   const { db, runners } = ctx;
   const { hostId: id, dataDir } = ctx.server;
   const { platform } = process;

@@ -8,7 +8,7 @@ import type {
 } from "@bb/server-contract";
 import { z } from "zod";
 import { dataPaths } from "../config.js";
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import { getAppSettings } from "../db/settings.js";
 import { errorMessage, invalidRequest, toApiError } from "../http/errors.js";
 import { requireHost, resolveLookupHostId } from "../runners/hosts.js";
@@ -70,7 +70,7 @@ function modelLoadError(
 export class ModelCatalog {
   private readonly entries = new Map<string, CatalogEntry>();
 
-  constructor(private readonly ctx: ServerContext) {
+  constructor(private readonly ctx: ServerServices) {
     ctx.runners.onConnected((hostId) => {
       for (const key of this.entries.keys()) {
         if (key.startsWith(`${hostId}\0`)) this.entries.delete(key);
@@ -136,20 +136,20 @@ export class ModelCatalog {
   }
 }
 
-const catalogs = new WeakMap<ServerContext, ModelCatalog>();
+const catalogs = new WeakMap<ServerServices, ModelCatalog>();
 
-export function modelCatalog(ctx: ServerContext): ModelCatalog {
+export function modelCatalog(ctx: ServerServices): ModelCatalog {
   const catalog = catalogs.get(ctx) ?? new ModelCatalog(ctx);
   catalogs.set(ctx, catalog);
   return catalog;
 }
 
-async function readCustomModels(ctx: ServerContext) {
+async function readCustomModels(ctx: ServerServices) {
   if (getAppSettings(ctx.db).streamerMode) return [];
   return readCustomModelConfig(ctx);
 }
 
-export async function readCustomModelConfig(ctx: ServerContext) {
+export async function readCustomModelConfig(ctx: ServerServices) {
   const path = dataPaths(ctx.server.dataDir).configFile;
   const text = await readFile(path, "utf8").catch(() => null);
   if (text === null) return [];
@@ -196,7 +196,7 @@ function withCustomModels(
 }
 
 export async function resolveExecutionOptions(
-  ctx: ServerContext,
+  ctx: ServerServices,
   query: SystemExecutionOptionsQuery,
 ): Promise<SystemExecutionOptionsResponse> {
   const { db } = ctx;

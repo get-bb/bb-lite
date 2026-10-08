@@ -1,4 +1,4 @@
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import { requireProject, withSources } from "../db/projects.js";
 import { requireEnvironment } from "../environments/workspace.js";
 import { ApiError } from "../http/errors.js";
@@ -15,7 +15,7 @@ export interface ProjectWorkspace {
 }
 
 export async function inspectProjectPath(
-  ctx: ServerContext,
+  ctx: ServerServices,
   hostId: string,
   path: string,
 ) {
@@ -25,7 +25,7 @@ export async function inspectProjectPath(
 }
 
 export function findProjectWorkspace(
-  ctx: ServerContext,
+  ctx: ServerServices,
   projectId: string,
   selector: ProjectWorkspaceSelector,
 ): ProjectWorkspace {
@@ -53,7 +53,7 @@ export function findProjectWorkspace(
 }
 
 export function requireProjectWorkspace(
-  ctx: ServerContext,
+  ctx: ServerServices,
   projectId: string,
   selector: ProjectWorkspaceSelector,
 ): { hostId: string; path: string } {

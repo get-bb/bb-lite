@@ -2,14 +2,15 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it } from "vitest";
 import {
+  composer,
   shell,
   type ComposerHandle,
   type PluginAppEntry,
 } from "@bb/plugin/app";
-import { useComposers } from "bb-plugin-composer/contract";
 import * as composers from "../../../plugins/composer/app/lib/composers";
 import { appParts, callPart, part } from "@bb/app-kit/plugins/parts";
 import {
+  appKernel,
   registerPluginApp,
   resetPluginRegistryForTest,
   slotItems,
@@ -84,28 +85,30 @@ it("adds shell extras and row statuses as slot entries that leave with the plugi
 });
 
 it("gets the composers on screen from whichever plugin is the composer", () => {
+  const listed = () => appKernel().pick(composer.api)?.useComposers;
   function Keys() {
-    return useComposers()
-      .map(({ key }) => key)
-      .join(",");
+    return (listed()?.() ?? []).map(({ key }) => key).join(",");
   }
   const render = () => renderToStaticMarkup(createElement(Keys));
-  expect(render).toThrow("Nothing provides composer.useComposers");
+  expect(listed()).toBeUndefined();
 
-  const { useComposer, useComposers: listed, showComposer } = composers;
-  provide(
-    "composer",
-    { useComposer, useComposers: listed },
-    undefined,
-    "composer",
-  );
+  const { useComposer, useComposers, showComposer } = composers;
+  registerPluginApp("composer", (bb) => {
+    bb.add(composer.api, { useComposer, useComposers });
+  });
   const handle = { key: "follow-up:thr_1" } as ComposerHandle;
   const hide = showComposer(handle);
   expect(render()).toBe("follow-up:thr_1");
   hide();
   expect(render()).toBe("");
 
-  const forked = () => [{ key: "from-a-fork" }];
-  provide("my-composer", { useComposers: forked }, "installed", "composer");
+  const forked = () => [{ key: "from-a-fork" } as ComposerHandle];
+  registerPluginApp(
+    "my-composer",
+    (bb) => {
+      bb.add(composer.api, { useComposer, useComposers: forked });
+    },
+    "installed",
+  );
   expect(render()).toBe("from-a-fork");
 });

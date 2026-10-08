@@ -1,4 +1,10 @@
-import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { BoundComposer } from "../../lib/composers";
+import {
+  useContext,
+  useMemo,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import {
   composer,
   type ComposerContext,
@@ -16,7 +22,13 @@ import type { PromptBoxAction } from "./PromptBoxActionsMenu";
 
 const UNORDERED = 1_000;
 
-export type ComposerScope = Omit<ComposerContext, "host" | "composer">;
+export type ComposerScope = Omit<ComposerContext, "composer">;
+
+export interface ComposerHostContext extends ComposerScope {
+  host: ComposerMenuHost | ComposerSendHost | ComposerFooterHost;
+}
+
+export type ComposerSlotContext = ComposerContext & ComposerHostContext;
 
 export function composerKeyOf(scope: ComposerScope): string {
   const { surface, threadId, projectId } = scope;
@@ -45,17 +57,20 @@ export interface ComposerFooterHost {
 }
 
 export function composerMenuHost(context: ComposerContext): ComposerMenuHost {
-  return context.host as ComposerMenuHost;
+  return (context as ComposerContext & ComposerHostContext)
+    .host as ComposerMenuHost;
 }
 
 export function composerSendHost(context: ComposerContext): ComposerSendHost {
-  return context.host as ComposerSendHost;
+  return (context as ComposerContext & ComposerHostContext)
+    .host as ComposerSendHost;
 }
 
 export function composerFooterHost(
   context: ComposerContext,
 ): ComposerFooterHost {
-  return context.host as ComposerFooterHost;
+  return (context as ComposerContext & ComposerHostContext)
+    .host as ComposerFooterHost;
 }
 
 interface Available {
@@ -97,6 +112,11 @@ export function ComposerFooterControls({
   context: ComposerContext;
 }) {
   const entries = useSlotEntries(composer.footerControl);
+  const bound = useContext(BoundComposer);
+  const shown = useMemo(
+    () => (bound === null ? context : { ...context, composer: bound }),
+    [bound, context],
+  );
   const placed = useMemo(
     () =>
       ordered(entries).filter(
@@ -105,7 +125,7 @@ export function ComposerFooterControls({
     [entries, row, side],
   );
   return placed.map(({ plugin, item }) => {
-    if (item.isAvailable && !item.isAvailable(context)) return null;
+    if (item.isAvailable && !item.isAvailable(shown)) return null;
     const View = item.view;
     return (
       <SlotMount
@@ -114,7 +134,7 @@ export function ComposerFooterControls({
         slot={composer.footerControl.name}
         id={item.id}
       >
-        <View context={context} />
+        <View context={shown} />
       </SlotMount>
     );
   });

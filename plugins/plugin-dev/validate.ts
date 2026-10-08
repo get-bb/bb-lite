@@ -29,7 +29,7 @@ const VERBS = {
 const LEGACY = new RegExp(
   String.raw`\bbb\.(rpc|events|agents|ui|providers|threads|files|hosts|` +
     String.raw`projects|machines|inference|environments|realtime|sections|` +
-    String.raw`users)\.`,
+    String.raw`users|slots|commands|icons|config|machine)\b`,
   "gu",
 );
 const REACHES: [what: string, pattern: RegExp][] = [

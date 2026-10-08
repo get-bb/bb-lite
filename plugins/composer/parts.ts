@@ -25,7 +25,6 @@ export {
 export { ModelReasoningPicker } from "./app/components/pickers/ModelReasoningPicker";
 export { PermissionModePicker } from "./app/components/pickers/PermissionModePicker";
 export { useNewThreadComposer } from "./app/components/promptbox/NewThreadComposer";
-export { useComposer, useComposers } from "./app/lib/composers";
 export {
   getPromptDraftAccessor,
   usePromptDraftStorage,

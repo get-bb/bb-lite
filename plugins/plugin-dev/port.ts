@@ -99,7 +99,7 @@ const SDK_PATHS: Record<string, Path> = {
   "system.updateExperiments": ["feature", "no experiments"],
   "files.mkdir": ["renamed", "bb.call(files.mkdir, { threadId, path })"],
   "files.listPaths": ["renamed", "bb.call(files.list, { threadId, path })"],
-  "files.remove": ["renamed", "bb.call(files.remove, { threadId, path })"],
+  "files.remove": ["renamed", "bb.call(files.delete, { threadId, path })"],
   "files.move": ["renamed", "bb.call(files.move, { threadId, from, to })"],
   "files.createPreview": [
     "changed",
@@ -167,7 +167,7 @@ const RULES: Rule[] = [
   [
     /^manifest\.branding\.(logo|icons)/u,
     "changed",
-    "bb.icons.register in the app part; a provider's logo goes on its declaration",
+    "bb.add(app.icon) in the app part; a provider's logo goes on its declaration",
   ],
   [
     /^manifest\.themes/u,
@@ -182,7 +182,11 @@ const RULES: Rule[] = [
   [/^entry\.root$/u, "renamed", 'import from "@bb/plugin"'],
   [/^entry\.app$/u, "renamed", 'import from "@bb/plugin/app"'],
   [/^entry\.host$/u, "renamed", 'a runner part: import from "@bb/runner"'],
-  [/^app\.definePluginApp$/u, "same", "definePluginApp, or plugin"],
+  [
+    /^app\.definePluginApp$/u,
+    "changed",
+    "a plain function: export default function (bb: PluginAppApi) { … }",
+  ],
   [
     /^server\.rpc\.register$|^server\.export\.defineRpcContract$/u,
     "changed",
@@ -251,12 +255,12 @@ const RULES: Rule[] = [
   [
     /^server\.environments\.register$|^environmentProvider\.import$/u,
     "changed",
-    "bb.add(environments.kind, { create, remove, validate, inputs })",
+    "bb.add(environments.kind, { create, delete, validate, inputs })",
   ],
   [
     /^server\.machines\.|^machineProvider\.import$/u,
     "changed",
-    "bb.add(machines.provider) with machines.enroll, waitConnected, suspend, resume, remove",
+    "bb.add(machines.provider) with machines.enroll, waitConnected, suspend, resume, delete",
   ],
   [
     /^server\.providers\.register$/u,
@@ -278,7 +282,7 @@ const RULES: Rule[] = [
   [
     /^server\.events\.message\./u,
     "renamed",
-    "bb.on(threads.messageQueued | messageDispatched | messageCancelled)",
+    "bb.on(threads.messageQueued | messageDispatched | messageDeleted)",
   ],
   [
     /^server\.events\.turn\.failed$/u,
@@ -290,8 +294,12 @@ const RULES: Rule[] = [
     "renamed",
     "bb.on(interactions.pending)",
   ],
-  [/^server\.events\.host\.deleted$/u, "renamed", "bb.on(machines.removed)"],
-  [/^server\.events\.terminal\.input$/u, "renamed", "bb.on(terminals.input)"],
+  [/^server\.events\.host\.deleted$/u, "renamed", "bb.on(machines.deleted)"],
+  [
+    /^server\.events\.terminal\.input$/u,
+    "renamed",
+    "bb.on(terminals.inputReceived)",
+  ],
   [
     /^server\.hooks\.message\.dispatch$/u,
     "changed",
@@ -305,14 +313,14 @@ const RULES: Rule[] = [
   [
     /^server\.hosts\.client\.onSignal$/u,
     "changed",
-    "bb.on(machines.signal); the runner part calls bb.signal",
+    "bb.on(machines.signaled); the runner part calls bb.signal",
   ],
   [
     /^server\.hosts\.client\.onWorkerExit$/u,
     "changed",
     "bb.on(machines.disconnected)",
   ],
-  [/^server\.hosts\.client/u, "changed", "bb.machine(hostId).call(op, input)"],
+  [/^server\.hosts\.client/u, "changed", "bb.runners.call(hostId, op, input)"],
   [
     /^server\.hosts\.(declareSharedPorts|ensureSharedPortTunnel)$/u,
     "feature",
@@ -338,24 +346,28 @@ const RULES: Rule[] = [
   ],
   [
     /^app\.slots\.(navPanel|settingsSection|appOverlay|pendingInteraction|messageDirective|threadList|sidebarNavigation|sidebarHeader)$/u,
-    "same",
-    "bb.slots.<name>",
+    "renamed",
+    "bb.add(shell.navPanel | settings.section | shell.overlay | threadView.interaction | threadView.messageDirective | shell.threadList | shell.sidebarNavigation | shell.sidebarHeader, { id, view, … }); the component field is now view",
   ],
-  [/^app\.slots\.threadPanelAction$/u, "renamed", "bb.slots.threadPanel"],
+  [
+    /^app\.slots\.threadPanelAction$/u,
+    "renamed",
+    "bb.add(sidePanel.panel, { id, title, view, run })",
+  ],
   [
     /^app\.slots\.commandPaletteAction$|^app\.commands\.register$/u,
     "renamed",
-    "bb.commands.register",
+    "bb.add(shell.command, { id, title, run })",
   ],
   [
     /^app\.slots\.threadHeaderAction$/u,
     "renamed",
-    "bb.add(shell.threadHeader, { id, view })",
+    "bb.add(threadView.header, { id, view })",
   ],
   [
     /^app\.slots\.homepageSection$/u,
     "renamed",
-    "bb.add(shell.homeSection, { id, view })",
+    "bb.add(composer.homeSection, { id, view })",
   ],
   [
     /^app\.slots\.messageAction$/u,
@@ -390,7 +402,7 @@ const RULES: Rule[] = [
   [
     /^app\.slots\.providerIcon$/u,
     "changed",
-    "the logo on the provider's declaration, or bb.icons.register",
+    "the logo on the provider's declaration, or bb.add(app.icon)",
   ],
   [
     /^app\.slots\.browserToolbarAction$/u,
@@ -400,9 +412,9 @@ const RULES: Rule[] = [
   [
     /^app\.contentScripts\.register$/u,
     "renamed",
-    "bb.onMount(({ signal }) => cleanup); bb.setThreadRowStatus for row statuses",
+    "bb.onStart(() => cleanup); bb.add(shell.threadRowStatus, { threadId, icon, label }) for row statuses",
   ],
-  [/^app\.icons\.register$/u, "renamed", "bb.icons.register"],
+  [/^app\.icons\.register$/u, "renamed", "bb.add(app.icon, { name, view })"],
   [
     /^app\.composer\.customize(\.id)?$/u,
     "changed",
@@ -566,7 +578,7 @@ const RULES: Rule[] = [
   [
     /^host\.(emitSignal|signal)$/u,
     "renamed",
-    "bb.signal(name, payload); the server hears machines.signal",
+    "bb.signal(name, payload); the server hears machines.signaled",
   ],
   [/^host\.paths\.dataDir$|^host\.paths$/u, "renamed", "bb.dataDir"],
   [/^host\.paths\.tempDir$/u, "changed", "os.tmpdir()"],

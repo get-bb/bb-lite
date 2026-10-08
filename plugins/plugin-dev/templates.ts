@@ -65,7 +65,12 @@ export default function plugin(bb: PluginServerApi): void {
 }
 `,
     "app.tsx": `import { useState } from "react";
-import { plugin, useCall, useLive } from "@bb/plugin/app";
+import {
+  shell,
+  useCall,
+  useLive,
+  type PluginAppApi,
+} from "@bb/plugin/app";
 import { ${constant} } from "./contract";
 
 function Panel() {
@@ -83,15 +88,15 @@ function Panel() {
   );
 }
 
-export default plugin((bb) => {
-  bb.slots.navPanel({
+export default function app(bb: PluginAppApi): void {
+  bb.add(shell.navPanel, {
     id: "${id}",
     title: "${title}",
     icon: "Plug02",
     path: "${id}",
-    component: Panel,
+    view: Panel,
   });
-});
+}
 `,
   };
 }

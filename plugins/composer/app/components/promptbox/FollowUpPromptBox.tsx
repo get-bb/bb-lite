@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 import type { PromptTextMention, ThreadRuntimeDisplayStatus } from "@bb/domain";
-import type { ComposerContext } from "@bb/plugin/app";
 import {
   useAppCommandContext,
   useAppCommandHandler,
@@ -34,6 +33,7 @@ import {
   ComposerFooterControls,
   type ComposerFooterHost,
   type ComposerScope,
+  type ComposerSlotContext,
 } from "./composer-slots";
 import { useBottomAnchoredScroll } from "@bb/app-kit/components/ui/bottom-anchored-scroll-body";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
@@ -381,7 +381,11 @@ function FollowUpPromptBoxWithComposer({
     environment: environmentSummary,
     contextWindowUsage,
   };
-  const footerContext: ComposerContext = { ...composerScope, host: footerHost };
+  const footerContext: ComposerSlotContext = {
+    ...composerScope,
+    host: footerHost,
+    composer: null,
+  };
 
   return (
     <>

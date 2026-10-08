@@ -5,7 +5,7 @@ import {
 } from "@bb/domain";
 import { RunnerError } from "@bb/runner";
 import type * as contract from "@bb/server-contract";
-import type { ServerContext, ServerRunner } from "../context.js";
+import type { ServerServices, ServerRunner } from "../context.js";
 import { getEnvironment, updateEnvironment } from "../db/environments.js";
 import type { DeletedProject } from "../db/projects.js";
 import { requireThread } from "../db/threads.js";
@@ -52,7 +52,7 @@ export const PATH_LIST_EXCLUDED_NAMES = [
 ];
 
 export function requireEnvironment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   environmentId: string,
 ): Environment {
   const environment = getEnvironment(ctx.db, environmentId);
@@ -63,7 +63,7 @@ export function requireEnvironment(
 }
 
 export function requireReadyEnvironment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   environmentId: string,
 ): ReadyEnvironment {
   const environment = requireEnvironment(ctx, environmentId);
@@ -79,7 +79,7 @@ export function requireReadyEnvironment(
 }
 
 export function requireThreadEnvironment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   threadId: string,
 ): Environment {
   const { environmentId } = requireThread(ctx.db, threadId);
@@ -109,7 +109,7 @@ export function workspaceFailure(
 }
 
 export async function readGitWorkspace<T extends object>(
-  ctx: ServerContext,
+  ctx: ServerServices,
   environmentId: string,
   subject: "status" | "diff",
   read: (runner: ServerRunner, environment: ReadyEnvironment) => Promise<T>,
@@ -133,7 +133,7 @@ export async function readGitWorkspace<T extends object>(
 }
 
 export function recordWorkspaceMetadata(
-  ctx: ServerContext,
+  ctx: ServerServices,
   environment: Environment,
   observed: WorkspaceMetadata,
 ): void {
@@ -146,7 +146,7 @@ export function recordWorkspaceMetadata(
 }
 
 export async function refreshWorkspaceMetadata(
-  ctx: ServerContext,
+  ctx: ServerServices,
   environment: ReadyEnvironment,
 ): Promise<void> {
   const runner = ctx.runners.get(environment.hostId);
@@ -182,7 +182,7 @@ export function branchSearch(search: {
 }
 
 export function searchWorkspacePaths(
-  ctx: ServerContext,
+  ctx: ServerServices,
   workspace: { hostId: string; path: string },
   query: contract.EnvironmentPathsQuery,
 ): Promise<contract.WorkspacePathListResponse> {
@@ -207,7 +207,7 @@ export function searchWorkspacePaths(
 }
 
 export async function removeProjectWorkspaces(
-  { log, runners }: ServerContext,
+  { log, runners }: ServerServices,
   { environments }: DeletedProject,
 ): Promise<void> {
   for (const { hostId, path, providerOwnsPath } of environments) {

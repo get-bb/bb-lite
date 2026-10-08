@@ -9,7 +9,7 @@ import {
 import type { UploadedPromptAttachment } from "@bb/server-contract";
 import { lookup } from "mime-types";
 import { dataPaths } from "../config.js";
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import { newId, type Db } from "../db/index.js";
 import { invalidRequest, notFound } from "../http/errors.js";
 
@@ -77,7 +77,7 @@ function recordAttachment(db: Db, record: AttachmentRecord) {
 }
 
 export async function storeAttachment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   projectId: string,
   file: File,
 ): Promise<UploadedPromptAttachment> {
@@ -119,7 +119,7 @@ export async function storeAttachment(
 }
 
 export async function copyAttachments(
-  ctx: ServerContext,
+  ctx: ServerServices,
   from: string,
   to: string,
   paths: string[],

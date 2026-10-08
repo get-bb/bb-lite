@@ -6,7 +6,7 @@ import type {
   MachineEnvironmentReplace,
   ProjectMachineEnvironmentList,
 } from "@bb/server-contract";
-import type { ServerContext } from "./context.js";
+import type { ServerServices } from "./context.js";
 import type { Db } from "./db/index.js";
 import { ApiError } from "./http/errors.js";
 
@@ -121,7 +121,7 @@ export function projectMachineEnvironmentView(
 }
 
 export async function replaceMachineEnvironment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   projectId: string | null,
   input: MachineEnvironmentReplace,
 ): Promise<void> {
@@ -163,7 +163,7 @@ export async function replaceMachineEnvironment(
 }
 
 export async function resolveContributedEnvironment(
-  ctx: ServerContext,
+  ctx: ServerServices,
   projectId: string | null,
 ): Promise<Record<string, string>> {
   const variables = [

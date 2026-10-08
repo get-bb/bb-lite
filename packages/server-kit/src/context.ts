@@ -10,7 +10,7 @@ import type { Runner } from "@bb/runner";
 export type ServerRunner = Runner;
 export type Disposer = () => void | Promise<void>;
 
-export type ServerContext = Pick<
+export type ServerServices = Pick<
   PluginServerApi,
   "server" | "db" | "realtime" | "runners" | "log" | "now"
 > &

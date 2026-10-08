@@ -62,11 +62,7 @@ import {
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type {
-  ComposerContext,
-  ComposerHandle,
-  ComposerSelection,
-} from "@bb/plugin/app";
+import type { ComposerHandle, ComposerSelection } from "@bb/plugin/app";
 import {
   BoundComposer,
   composerSubmitted,
@@ -81,6 +77,7 @@ import {
   type ComposerMenuHost,
   type ComposerScope,
   type ComposerSendHost,
+  type ComposerSlotContext,
 } from "./composer-slots";
 import {
   PromptBoxActionsMenu,
@@ -1588,7 +1585,7 @@ export function PromptBoxInternal({
     actions: promptActions ?? [],
     applyAction: applyPromptAction,
   };
-  const menuContext: ComposerContext = {
+  const menuContext: ComposerSlotContext = {
     ...composerScope,
     host: menuHost,
     composer: composerHandle,
@@ -1600,7 +1597,7 @@ export function PromptBoxInternal({
         ? submitModifierPrompt
         : undefined,
   };
-  const sendContext: ComposerContext = {
+  const sendContext: ComposerSlotContext = {
     ...composerScope,
     host: sendHost,
     composer: composerHandle,

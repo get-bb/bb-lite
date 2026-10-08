@@ -1,7 +1,7 @@
 import * as domain from "@bb/domain";
 import type { ThreadResponse } from "@bb/server-contract";
 import { extractThreadTimelineGoal } from "@bb/thread-view";
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import * as eventRead from "../db/event-read.js";
 import type { Db } from "../db/index.js";
 import { getProjectExecutionDefaults, withSources } from "../db/projects.js";
@@ -12,7 +12,7 @@ import {
 } from "../db/thread-read.js";
 import { ancestry, MAX_THREAD_HIERARCHY_DEPTH } from "../db/threads.js";
 
-type DisplayContext = Pick<ServerContext, "db" | "runners">;
+type DisplayContext = Pick<ServerServices, "db" | "runners">;
 
 const NO_ACTIVITY: domain.ThreadActivityState = {
   activeBackgroundAgentCount: 0,

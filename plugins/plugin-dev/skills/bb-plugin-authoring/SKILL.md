@@ -39,10 +39,17 @@ renamed copy that runs beside the original.
 - **Slot**: a list other plugins add to. `bb.add(slot, item)`, `bb.wrap(slot, matcher, change)`.
   `service<T>()` is a slot with one winner that holds an object: `bb.use(service)`.
 - **Live value**: `bb.provide(live, initial)` on the server, `useLive(live)` in an app.
-- **App**: `plugin((bb) => { bb.slots.navPanel(...) })`; `useOp`, `useCall`, `useLive`, `useSlot`.
+- **Parts**: each part is a plain function that takes `bb`. The server, the app and each machine
+  get the same handle shape: the verbs above plus `pluginId`, `log`, `onStart` and `onDispose`. An
+  app part fills slots the same way: `bb.add(shell.navPanel, { id, title, icon, path, view })`. In
+  components use `useOp`, `useCall`, `useLive`, `useSlot`.
+- **Host services** (server): `bb.db`, `bb.realtime`, `bb.runners`, `bb.server`, `bb.http.api`,
+  `bb.http.socket`. Core plugins are written with these too; there is no private API.
 
 What core offers (threads, sessions, interactions, files, projects, machines, users, sections,
-environments, audit, plugins) is in the output of `bb dev inspect`.
+environments, terminals, audit, plugins) is in the output of `bb dev inspect`. Operations use the
+verbs `create`, `get`, `list`, `update`, `delete`; events are named for what happened; a slot lives
+in the contract of the plugin that reads it, and its entries name their component `view`.
 
 ## Rules
 

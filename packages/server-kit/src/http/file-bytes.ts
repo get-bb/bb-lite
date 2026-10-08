@@ -6,7 +6,7 @@ import {
   type RunnerErrorCode,
 } from "@bb/runner";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { ServerContext } from "../context.js";
+import type { ServerServices } from "../context.js";
 import { ApiError } from "./errors.js";
 import { matchesEntityTag, selectRange } from "./range.js";
 
@@ -69,7 +69,7 @@ function rawFileHeaders(file: FileChunk) {
 }
 
 export async function serveFileBytes(
-  ctx: ServerContext,
+  ctx: ServerServices,
   request: Request,
   target: FileBytesTarget,
 ): Promise<Response> {

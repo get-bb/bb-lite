@@ -27,12 +27,13 @@ import {
   useAppCommandContext,
   useAppCommandHandler,
 } from "@bb/app-kit/components/commands/AppCommandProvider";
-import { composer, type ComposerContext } from "@bb/plugin/app";
+import { composer } from "@bb/plugin/app";
 import { useSlot } from "@bb/app-kit/plugins/slots";
 import {
   ComposerFooterControls,
   type ComposerFooterHost,
   type ComposerScope,
+  type ComposerSlotContext,
 } from "./composer-slots";
 import { PromptBoxInternal, type PromptBoxHandle } from "./PromptBoxInternal";
 import {
@@ -571,9 +572,10 @@ export function useNewThreadComposer({
       environment: renderEnvironmentControls(options.onRequestMachineSetup),
       contextWindowUsage: null,
     };
-    const footerContext: ComposerContext = {
+    const footerContext: ComposerSlotContext = {
       ...composerScope,
       host: footerHost,
+      composer: null,
     };
     return (
       <div
