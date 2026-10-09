@@ -38,6 +38,7 @@
     "@types/node": "^22.0.0",
     "@types/picomatch": "^4.0.3",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "vitest": "^4.1.1"
   }
 }

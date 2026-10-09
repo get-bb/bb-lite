@@ -26,6 +26,7 @@
     "@bb/plugin": "workspace:*",
     "@bb/runner": "workspace:*",
     "@bb/shared-ui": "workspace:*",
+    "react": "^19.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
