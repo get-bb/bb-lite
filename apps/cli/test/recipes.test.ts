@@ -103,6 +103,9 @@ it(
     const archived = await bb(archive, { BB_THREAD_ID: child });
     const gone = { ok: true, threadId: child, archivedThreadIds: [child] };
     expect(parsed(archived)).toEqual(gone);
+    const restore = ["thread", "unarchive", child, "--json"];
+    const restored = await bb(restore);
+    expect(parsed(restored)).toEqual({ ok: true, threadId: child });
   },
   SLOW,
 );

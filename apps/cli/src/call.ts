@@ -175,7 +175,7 @@ export class Call implements Remote {
 
   out(data: unknown, text?: string | string[]): void {
     if (this.json || text === undefined) {
-      console.log(JSON.stringify(data, null, 2));
+      console.log(JSON.stringify(data ?? { ok: true }, null, 2));
       this.wroteJson = true;
     } else {
       console.log(Array.isArray(text) ? text.join("\n") : text);

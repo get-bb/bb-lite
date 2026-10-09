@@ -400,7 +400,8 @@ function action(method: Action | Marker, done: string): Run {
     const result: object | void = await c.op(c.ops.threads[method], {
       threadId,
     });
-    const data = result && "ok" in result ? { ...result, threadId } : result;
+    const acknowledged = result === undefined || "ok" in result;
+    const data = acknowledged ? { ok: true, ...result, threadId } : result;
     c.out(data, `Thread ${threadId} ${done}`);
   };
 }
