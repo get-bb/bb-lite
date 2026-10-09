@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { derivePluginId } from "@bb/domain";
 import type { PluginServerEntry } from "@bb/plugin";
 import accountPool from "../../plugins/account-pool/src/server.js";
+import bbGuide from "../../plugins/bb-guide/server.js";
 import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
 import connect from "../../plugins/connect/src/server.js";
@@ -68,6 +69,7 @@ export const serverPlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("plugin-dev"), server: pluginDev },
   { directory: pluginDirectory("account-pool"), server: accountPool },
   { directory: pluginDirectory("tasks"), server: tasks },
+  { directory: pluginDirectory("bb-guide"), server: bbGuide },
 ];
 
 export function profilePlugins(name: string): BuiltinPlugin[] {

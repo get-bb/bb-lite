@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-bb-guide",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Control the BB introduction and bundled agent skills.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "BB guide",
+    "description": "Control the BB introduction and bundled agent skills.",
+    "icon": "Explore",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills/creator",
+      "skills/submit"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

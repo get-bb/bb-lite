@@ -6,6 +6,7 @@
 @source "../../../shared-ui/src";
 @source "../../../../plugins/account-pool/app.tsx";
 @source "../../../../plugins/ask-user-question/app.tsx";
+@source "../../../../plugins/bb-guide/app.tsx";
 @source "../../../../plugins/composer/app.tsx";
 @source "../../../../plugins/composer/app";
 @source "../../../../plugins/connect/app.tsx";
