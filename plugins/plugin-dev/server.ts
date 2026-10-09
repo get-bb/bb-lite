@@ -260,6 +260,18 @@ async function packageOf(path: string): Promise<{
   return JSON.parse(await readFile(join(path, "package.json"), "utf8"));
 }
 
+function unreachable(source: string, error: unknown, hint: string): never {
+  const { stderr = "" } = z
+    .object({ stderr: z.string().optional() })
+    .catch({})
+    .parse(error);
+  const said = stderr.trim().split("\n")[0] ?? "";
+  const detail = said === "" ? "" : `: ${said}`;
+  fail("unavailable", `Could not read versions of ${source}${detail}`, {
+    hint,
+  });
+}
+
 function checkArgument(value: string): void {
   if (value.startsWith("-")) fail("invalid", `Not a source: ${value}`);
 }
@@ -269,9 +281,12 @@ async function gitTags(
   prefix: string,
 ): Promise<{ tag: string; version: string }[]> {
   checkArgument(url);
-  const { stdout } = await run("git", ["ls-remote", "--tags", url], {
+  const listed = run("git", ["ls-remote", "--tags", url], {
     timeout: FETCH_TIMEOUT_MS,
   });
+  const { stdout } = await listed.catch((error: unknown) =>
+    unreachable(url, error, "Check the URL and that git can reach it."),
+  );
   return stdout.split("\n").flatMap((line) => {
     const tag = line.split("refs/tags/")[1];
     if (tag === undefined || tag.endsWith("^{}")) return [];
@@ -286,7 +301,11 @@ async function versionsOf(source: string, prefix = ""): Promise<string[]> {
     const name = source.slice("npm:".length).replace(/(?<=.)@[^/@]*$/u, "");
     checkArgument(name);
     const view = ["view", name, "versions", "--json"];
-    const { stdout } = await run("npm", view, { timeout: FETCH_TIMEOUT_MS });
+    const { stdout } = await run("npm", view, {
+      timeout: FETCH_TIMEOUT_MS,
+    }).catch((error: unknown) =>
+      unreachable(name, error, "Check the package name and npm's registry."),
+    );
     const parsed = z
       .union([z.string(), z.array(z.string())])
       .parse(JSON.parse(stdout));
@@ -511,7 +530,11 @@ export default function plugin(bb: PluginServerApi): void {
     }
     const target = resolve(cwd ?? process.cwd(), path ?? as ?? id);
     if (await exists(target)) {
-      fail("conflict", `${target} already exists`);
+      fail("conflict", `${target} already exists`, {
+        hint:
+          "Remove it with `bb plugin remove` first, or fork elsewhere with " +
+          "--path, or beside the original under a new id with --as.",
+      });
     }
     try {
       await copyPlugin(id, source, target, as);
