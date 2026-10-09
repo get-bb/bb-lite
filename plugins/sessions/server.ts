@@ -9,6 +9,7 @@ import {
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { ApiError } from "@bb/server-kit/http/errors";
+import { requireOwner } from "@bb/server-kit/http/trust";
 import { resolveLookupHostId } from "@bb/server-kit/runners/hosts";
 import { pickTranscriber } from "@bb/server-kit/providers/inference";
 import { resolveMention, searchMentions } from "./mentions.js";
@@ -109,6 +110,7 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
   });
   bb.implement(sessions.providerCatalog, () => listProviderCatalog(db));
   bb.implement(sessions.updateProvider, ({ providerId, enabled }) => {
+    requireOwner("Only an owner can turn a provider on or off");
     if (findProviderDefinition(db, providerId) === undefined) {
       const message = `Unknown provider "${providerId}".`;
       throw new ApiError(404, "provider_not_found", message);

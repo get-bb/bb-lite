@@ -344,3 +344,21 @@ it("hands an existing single-user database to the first owner", () => {
   expect(one("PRAGMA foreign_key_check")).toBeUndefined();
   db.close();
 });
+
+it("keeps shared environments and providers owner-only", async () => {
+  const server = await createThreadServer();
+  const member = await invite(server, "Mo");
+  const variables = [{ name: "GIT_SSH_COMMAND", value: "touch /tmp/x" }];
+  const envPath = "/projects/proj_1/machine-environment";
+  const env = await member.call("PUT", envPath, { variables });
+  expect(env.status).toBe(403);
+  const viaOps = await member.call(
+    "POST",
+    "/ops/projects.updateMachineEnvironment",
+    { projectId: "proj_1", variables },
+  );
+  expect(viaOps.status).toBe(403);
+  const providerPath = "/sessions/providers/echo/enabled";
+  const provider = await member.call("PUT", providerPath, { enabled: false });
+  expect(provider.status).toBe(403);
+});

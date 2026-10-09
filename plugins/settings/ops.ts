@@ -233,6 +233,7 @@ export function implementSettings(bb: PluginServerApi): void {
   bb.implement(
     projects.updateMachineEnvironment,
     async ({ projectId, ...replacement }) => {
+      requireOwner("Only an owner can change a project's shared environment");
       const { id } = requireProject(db, projectId);
       await replaceMachineEnvironment(bb, id, replacement);
       hub.system(["config-changed"]);
