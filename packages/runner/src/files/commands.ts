@@ -121,7 +121,7 @@ async function describe(
     const description = fields.description?.slice(0, MAX_DESCRIPTION_LENGTH);
     const argumentHint = fields["argument-hint"] || null;
     const about = { description: description || null, argumentHint };
-    return { name, source, origin, ...about };
+    return { name, source, origin, ...about, path: filePath };
   } finally {
     await handle.close();
   }

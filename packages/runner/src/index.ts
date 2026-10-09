@@ -15,3 +15,4 @@ export * from "./remote/client.js";
 export * from "./remote/serve.js";
 export * from "./remote/daemon.js";
 export * from "./remote/cli-proxy.js";
+export { parseFrontmatter } from "./files/commands.js";

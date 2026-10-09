@@ -1,0 +1,38 @@
+{
+  "name": "bb-plugin-skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browse, read, install and turn on or off the skills agents are offered, and search a skills registry.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Skills",
+    "description": "Browse, read, install and turn on or off the skills agents are offered, and search a skills registry.",
+    "icon": "Layers",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "runner": "./runner.ts"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

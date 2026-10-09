@@ -316,6 +316,14 @@ agentContextSeed?, title? })` (`POST /threads/:sourceThreadId/fork`) creates a p
 - Contributions that depend on the thread are hooks on an operation (`sessions.instructions`,
   `env`, `tools`, `skillDirs`): the hook gets the thread's context and may filter what others added.
   Registrations that do not are slot entries (`sessions.provider`, `mention`, `inference`, `usage`).
+- `projects.commands` (and the machine's `workspaces.commands`) give each discovered command its
+  file as `path`. `parseFrontmatter(text)` from `@bb/runner` reads a SKILL.md's fields.
+- Skills are the `skills` plugin's contract (`bb-plugin-skills/contract.js`): `skills.list({ projectId?,
+hostId? })` (`{ id: "<source>:<name>", name, description, source: plugin | user | project | provider
+| installed, path, enabled }`), `get({ id })` (adds `content`, `files`), `install({ source, skill? })`
+  (a git repository or directory, copied into the machine's `<data dir>/skills`), `uninstall`,
+  `enable`, `disable`, `search({ query? })`; fill the `skills.source` slot (`{ id, label,
+search(query, signal) }`) to offer installable skills, as its built-in registry source does.
 - A `sessions.provider` declaration may set `instructionMode: "replace"` (bb's instructions replace
   the provider's system prompt; the runner gets `SessionSpec.instructionMode`), `nativeSkillRoots:
 { user, project }` (folders under home / each project ancestor whose skills bb lists with its own)

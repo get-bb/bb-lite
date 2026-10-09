@@ -34,6 +34,7 @@ export const appLoaders: Record<string, Load> = {
   shell: () => import("../../plugins/shell/app"),
   "side-chat": () => import("../../plugins/side-chat/app"),
   "side-panel": () => import("../../plugins/side-panel/app"),
+  skills: () => import("../../plugins/skills/app"),
   "storage-retention": () => import("../../plugins/storage-retention/app"),
   tasks: () => import("../../plugins/tasks/app"),
   "theme-preview": () => import("../../plugins/theme-preview/app"),

@@ -259,6 +259,7 @@ export const providerCommandSchema = z.object({
   description: z.string().nullable(),
   argumentHint: z.string().nullable(),
   pluginId: z.string().min(1).optional(),
+  path: z.string().optional(),
 });
 export type ProviderCommand = z.infer<typeof providerCommandSchema>;
 
