@@ -221,6 +221,21 @@ const SDK_PATHS: Record<string, Path> = {
   "desktopBrowsers.revealTab": DESKTOP,
 };
 
+const VIEW_SLOTS: Rule[] = Object.entries({
+  navPanel: "shell.navPanel, { id, title, icon, path, view }",
+  settingsSection: "settings.section, { id, title, view }",
+  appOverlay: "shell.overlay, { id, view }",
+  pendingInteraction: "threadView.interaction, { id, view }",
+  messageDirective: "threadView.messageDirective, { id, view }",
+  threadList: "shell.threadList, { id, title, view }",
+  sidebarNavigation: "shell.sidebarNavigation, { id, title, view }",
+  sidebarHeader: "shell.sidebarHeader, { id, title, view }",
+}).map(([name, target]) => [
+  new RegExp(`^app\\.slots\\.${name}$`, "u"),
+  "renamed",
+  `bb.add(${target}); the component field is now view`,
+]);
+
 const RULES: Rule[] = [
   [
     /^manifest\.(name|description|server|app|skills)$/u,
@@ -236,6 +251,11 @@ const RULES: Rule[] = [
     /^manifest\.host$/u,
     "same",
     "accepted as written; bb.runner is the new name",
+  ],
+  [
+    /^manifest\.engines\.bbPluginSdk$/u,
+    "changed",
+    "drop it: there is no SDK package, only engines.bb is checked",
   ],
   [
     /^manifest\.engines\./u,
@@ -436,11 +456,7 @@ const RULES: Rule[] = [
     "changed",
     "bb.call(interactions.ask, request)",
   ],
-  [
-    /^app\.slots\.(navPanel|settingsSection|appOverlay|pendingInteraction|messageDirective|threadList|sidebarNavigation|sidebarHeader)$/u,
-    "renamed",
-    "bb.add(shell.navPanel | settings.section | shell.overlay | threadView.interaction | threadView.messageDirective | shell.threadList | shell.sidebarNavigation | shell.sidebarHeader, { id, view, … }); the component field is now view",
-  ],
+  ...VIEW_SLOTS,
   [
     /^app\.slots\.threadPanelAction$/u,
     "renamed",

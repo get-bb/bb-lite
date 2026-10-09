@@ -559,6 +559,17 @@ it("points calls whose feature arrived since at the new operation", () => {
   );
 });
 
+it("names the one slot each original view slot became", () => {
+  expect(pathFor("app.slots.settingsSection").now).toBe(
+    "bb.add(settings.section, { id, title, view }); the component field is now view",
+  );
+  expect(pathFor("app.slots.navPanel").now).toMatch(
+    /^bb\.add\(shell\.navPanel,/,
+  );
+  expect(pathFor("app.slots.sidebarHeader").now).not.toContain("|");
+  expect(pathFor("manifest.engines.bbPluginSdk").now).toContain("drop it");
+});
+
 it("reads a git source's subdirectory with or without a ref", () => {
   expect(splitGitSpec("file:///r#v1:plugins/a")).toEqual([
     "file:///r",
