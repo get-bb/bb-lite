@@ -10,7 +10,9 @@ export default function draftsApp(bb: PluginAppApi): void {
     isAvailable: ({ surface, composer: handle }) =>
       surface === "follow-up" && handle?.isSubmittingBlocked !== true,
     run: async ({ threadId, composer: handle }) => {
-      if (threadId === null || handle === null || handle.isEmpty) {
+      const empty =
+        handle === null || (handle.isEmpty && handle.attachmentCount === 0);
+      if (threadId === null || handle === null || empty) {
         appToast.error("Nothing to save", {
           description: "Type a message first, then save it as a draft.",
         });
