@@ -142,6 +142,19 @@ function release(repo: string, file: string, version: string, bb = "^1") {
     .then(() => git("tag", `greeter/v${version}`));
 }
 
+it("answers --json with an error object for a plugin it cannot load", async () => {
+  const { cli } = await world();
+  const cwd = scratch();
+  const manifest = { name: "bb-plugin-bad", bb: { name: "Bad", server: 42 } };
+  writeFileSync(join(cwd, "package.json"), JSON.stringify(manifest));
+  const result = await cli("plugin-dev", ["install", cwd, "--json"], cwd);
+  expect(result.exitCode).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    ok: false,
+    error: { code: "invalid_input" },
+  });
+});
+
 it("installs a version range from tagged subdirectories of a repository", async () => {
   const { op, cli, ctx } = await world();
   const repo = join(scratch(), "mono");
