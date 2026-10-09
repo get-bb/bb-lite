@@ -152,6 +152,17 @@ it("fails the thread when the setup script fails and retries in place", async ()
   const retried = { id: failed.id, status: "ready" };
   expect(world.environmentOf(id)).toMatchObject(retried);
   expect(listEnvironments(db)).toHaveLength(1);
+  const update = (mergeBaseBranch: string) =>
+    world.api.environments[":id"].$patch({
+      param: { id: failed.id },
+      json: { mergeBaseBranch },
+    });
+  const missing = await update("no-such-branch");
+  expect(missing.status).toBe(400);
+  expect(await missing.json()).toMatchObject({
+    message: 'Branch "no-such-branch" does not exist',
+  });
+  expect((await update("origin/main")).status).toBe(200);
 
   const path = world.environmentOf(id)?.path ?? "";
   const param = { id: world.project.id };

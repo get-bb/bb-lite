@@ -22,6 +22,7 @@ import { listEnvironmentProviders } from "./environment-providers.js";
 import { ApiError, conflict, invalidRequest } from "@bb/server-kit/http/errors";
 
 const COMMIT_MESSAGE = "bb: automated commit";
+const BRANCH_CHECK_LIMIT = 200;
 
 function diffTarget(query: EnvironmentDiffQuery): WorkspaceDiffTarget {
   if (query.target === "uncommitted") return { type: "uncommitted" };
@@ -56,8 +57,19 @@ export function implementEnvironments(
     requireEnvironment(bb, environmentId),
   );
 
-  bb.implement(environments.update, ({ environmentId, ...changes }) => {
+  async function requireBranch(environmentId: string, branch: string) {
+    const { hostId, path } = requireReadyEnvironment(bb, environmentId);
+    const search = { path, query: branch, limit: BRANCH_CHECK_LIMIT };
+    const found = await runners.get(hostId).call(git.branches, search);
+    const known = [...found.branches, ...found.remoteBranches];
+    if (known.includes(branch)) return;
+    throw invalidRequest(`Branch "${branch}" does not exist`);
+  }
+
+  bb.implement(environments.update, async ({ environmentId, ...changes }) => {
     const { id } = requireEnvironment(bb, environmentId);
+    const { mergeBaseBranch } = changes;
+    if (mergeBaseBranch) await requireBranch(id, mergeBaseBranch);
     updateEnvironment(db, id, changes);
     hub.environment(id, ["metadata-changed"]);
     return requireEnvironment(bb, id);
