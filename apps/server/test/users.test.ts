@@ -362,3 +362,22 @@ it("keeps shared environments and providers owner-only", async () => {
   const provider = await member.call("PUT", providerPath, { enabled: false });
   expect(provider.status).toBe(403);
 });
+
+it("refuses a member the server-wide connect and account pool", async () => {
+  const server = await createThreadServer();
+  const bo = await invite(server, "Bo");
+  const calls: [string, Json][] = [
+    ["connect.setEnabled", { enabled: false }],
+    ["connect.login", {}],
+    ["connect.logout", {}],
+    ["account-pool.configSet", { switchThreshold: 0.5 }],
+    ["account-pool.routingSet", { provider: "codex", enabled: true }],
+  ];
+  for (const [op, input] of calls) {
+    const reply = await bo.call("POST", `/ops/${op}`, input);
+    expect({ op, reply }).toMatchObject({
+      op,
+      reply: { status: 403, body: { code: "forbidden" } },
+    });
+  }
+});

@@ -37,6 +37,7 @@ export const keepAwake = contract("keep-awake", {
     input: keepAwakeSettings,
     output: configuration,
     kind: "write",
+    allow: "owner",
   }),
   updateMachine: op({
     input: z.object({ enabled: z.boolean() }).strict(),
