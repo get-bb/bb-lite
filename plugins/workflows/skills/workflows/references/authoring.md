@@ -73,13 +73,6 @@ and per-agent result schemas; rejection errors identify the unsafe schema path.
   parameterize named workflows — for example, pass a research question, target
   path, or config object directly instead of via a side-channel file.
 - `budget()`: return the run's immutable agent-call and concurrency limits.
-- `workflow(nameOrRef, args?)`: run another workflow inline as a sub-step and
-  return whatever it returns. Pass a name to invoke a saved workflow, or
-  `{ name }`, `{ scriptPath }`, or `{ script }`. The child shares this run's
-  concurrency cap, agent counter, abort signal, replay order, and progress. The
-  `args` parameter becomes the child's `args` global. Nesting is one level only:
-  `workflow()` inside a child throws. Unknown names, unreadable paths, and child
-  syntax errors throw; catch them to handle gracefully.
 
 Workers are told their final text IS the return value (not a human-facing
 message), so they return raw data. For structured output, use the `schema`

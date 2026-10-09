@@ -76,12 +76,12 @@ structured worker must return its value through the workflow result tool.
 Validate and run with the same source selector:
 
 ```sh
-bb workflows validate --file .bb/workflows/review-change.js
-bb workflows run --file .bb/workflows/review-change.js --args '{"items":[]}'
+bb workflows validate --script-path .bb/workflows/review-change.js
+bb workflows run --script-path .bb/workflows/review-change.js --args '{"items":[]}'
 ```
 
 The agent tool accepts script, scriptPath, or name. The CLI accepts --script,
---file, or --name.
+--script-path, or --name.
 
 After a successful agent-tool call, copy its previewDirective into the
 assistant response as one standalone line. Do not edit or repeat it.

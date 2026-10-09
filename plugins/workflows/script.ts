@@ -1,5 +1,8 @@
 import { parse, type Node } from "acorn";
-import vm from "node:vm";
+import {
+  newQuickJSWASMModuleFromVariant,
+  type QuickJSHandle,
+} from "quickjs-emscripten-core";
 import { z } from "zod";
 
 const phaseSchema = z
@@ -100,22 +103,17 @@ export interface ScriptGlobals {
 }
 
 const PRELUDE = `(() => {
-  const bridge = globalThis.bridge;
-  delete globalThis.bridge;
+  const hostSync = globalThis.__sync;
+  const hostAgent = globalThis.__agent;
+  delete globalThis.__sync;
+  delete globalThis.__agent;
   const sync = (name, input) => {
-    const out = JSON.parse(bridge(name, JSON.stringify(input)));
+    const out = JSON.parse(hostSync(name, JSON.stringify(input)));
     if (out.error !== undefined) throw new Error(out.error);
     return out.value;
   };
   const agent = (prompt, options) =>
-    new Promise((resolve, reject) =>
-      bridge(
-        "agent",
-        JSON.stringify([prompt, options ?? null]),
-        (out) => resolve(JSON.parse(out)),
-        (error) => reject(new Error(error)),
-      ),
-    );
+    hostAgent(JSON.stringify([prompt, options ?? null])).then(JSON.parse);
   const parallel = (thunks) => Promise.all(
     thunks.map((thunk) => Promise.resolve().then(thunk).catch(() => null)),
   );
@@ -139,7 +137,37 @@ const PRELUDE = `(() => {
     budget: () => sync("budget", []),
     args: sync("args", []),
   });
+  const forbidden = (name) => () => {
+    throw new Error(name + " is unavailable in workflows");
+  };
+  const lock = (target, key, value) =>
+    Object.defineProperty(target, key, {
+      value,
+      configurable: false,
+      writable: false,
+    });
+  for (const fn of [
+    () => {},
+    async () => {},
+    function* () {},
+    async function* () {},
+  ]) {
+    lock(fn.constructor.prototype, "constructor", forbidden("dynamic code generation"));
+  }
+  lock(globalThis, "eval", undefined);
+  lock(globalThis, "Function", undefined);
+  lock(globalThis, "Date", undefined);
+  lock(Math, "random", forbidden("Math.random"));
+  Object.freeze(Math);
+  Object.freeze(JSON);
 })();`;
+
+const MEMORY_LIMIT = 32 * 1024 * 1024;
+const STACK_LIMIT = 512 * 1024;
+const SYNC_DEADLINE_MS = 1000;
+const quickJs = newQuickJSWASMModuleFromVariant(
+  import("@jitl/quickjs-singlefile-cjs-release-sync"),
+);
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -147,6 +175,7 @@ const message = (error: unknown) =>
 export async function runScript(
   body: string,
   globals: ScriptGlobals,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const sync = (name: string, input: unknown[]): unknown => {
     if (name === "phase") return globals.phase(input[0]) ?? null;
@@ -155,36 +184,92 @@ export async function runScript(
     if (name === "args") return globals.args ?? null;
     throw new Error(`Unknown workflow function ${name}`);
   };
-  const bridge = (
-    name: string,
-    json: string,
-    resolve?: (out: string) => void,
-    reject?: (error: string) => void,
-  ): string => {
-    try {
-      const input = z.array(z.unknown()).parse(JSON.parse(json));
-      if (name === "agent") {
-        globals.agent(input[0], input[1] ?? undefined).then(
-          (value) => resolve?.(JSON.stringify(value ?? null)),
-          (error: unknown) => reject?.(message(error)),
-        );
-        return "null";
-      }
-      return JSON.stringify({ value: sync(name, input) });
-    } catch (error) {
-      return JSON.stringify({ error: message(error) });
-    }
+  const runtime = (await quickJs).newRuntime();
+  runtime.setMemoryLimit(MEMORY_LIMIT);
+  runtime.setMaxStackSize(STACK_LIMIT);
+  let deadline = Number.POSITIVE_INFINITY;
+  const enter = () => {
+    deadline = Date.now() + SYNC_DEADLINE_MS;
   };
-  const context = vm.createContext(
-    { bridge },
-    { codeGeneration: { strings: false, wasm: false } },
+  runtime.setInterruptHandler(
+    () => signal?.aborted === true || Date.now() > deadline,
   );
-  const options = { filename: "workflow.js", timeout: 1000 };
-  vm.runInContext(PRELUDE, context, options);
-  const code = `"use strict";
+  const vm = runtime.newContext();
+  let closed = false;
+  const pump = () => {
+    if (closed) return;
+    enter();
+    runtime.executePendingJobs().unwrap();
+  };
+  const define = (
+    name: string,
+    fn: (...handles: QuickJSHandle[]) => QuickJSHandle,
+  ) => {
+    const handle = vm.newFunction(name, fn);
+    vm.setProp(vm.global, name, handle);
+    handle.dispose();
+  };
+  try {
+    define("__sync", (name, json) => {
+      let out: string;
+      try {
+        const input = z
+          .array(z.unknown())
+          .parse(JSON.parse(vm.getString(json!)));
+        out = JSON.stringify({ value: sync(vm.getString(name!), input) });
+      } catch (error) {
+        out = JSON.stringify({ error: message(error) });
+      }
+      return vm.newString(out);
+    });
+    define("__agent", (json) => {
+      const deferred = vm.newPromise();
+      const settle = (ok: boolean, text: string) => {
+        if (closed || !deferred.alive) return;
+        const handle = ok ? vm.newString(text) : vm.newError(text);
+        if (ok) deferred.resolve(handle);
+        else deferred.reject(handle);
+        handle.dispose();
+        deferred.dispose();
+        pump();
+      };
+      const text = vm.getString(json!);
+      void Promise.resolve()
+        .then(() => {
+          const input = z.array(z.unknown()).parse(JSON.parse(text));
+          return globals.agent(input[0], input[1] ?? undefined);
+        })
+        .then(
+          (value) => settle(true, JSON.stringify(value ?? null)),
+          (error: unknown) => settle(false, message(error)),
+        );
+      return deferred.handle;
+    });
+    enter();
+    vm.evalCode(PRELUDE, "prelude.js").unwrap().dispose();
+    enter();
+    const promise = vm
+      .evalCode(
+        `"use strict";
 (async () => {
 ${body}
-})().then((value) => JSON.stringify(value ?? null))`;
-  const result: unknown = await vm.runInContext(code, context, options);
-  return JSON.parse(z.string().parse(result));
+})().then((value) => JSON.stringify(value ?? null))`,
+        "workflow.js",
+      )
+      .unwrap();
+    const settled = vm.resolvePromise(promise);
+    promise.dispose();
+    pump();
+    const handle = (await settled).unwrap();
+    const text = vm.getString(handle);
+    handle.dispose();
+    return JSON.parse(text);
+  } catch (error) {
+    if (signal?.aborted === true) throw new Error("Workflow cancelled");
+    throw error;
+  } finally {
+    closed = true;
+    vm.dispose();
+    runtime.dispose();
+  }
 }

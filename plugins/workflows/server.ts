@@ -1,13 +1,22 @@
 import { createHash, randomBytes } from "node:crypto";
-import { threads, toolError, type PluginServerApi } from "@bb/plugin";
+import { posix } from "node:path";
+import {
+  environments,
+  machines,
+  threads,
+  toolError,
+  type PluginServerApi,
+} from "@bb/plugin";
 import { z } from "zod";
 import {
+  structuredWorkers,
   workflows,
   type RunStatus,
   type WorkflowCall,
   type WorkflowRun,
 } from "./contract.js";
 import { parseWorkflow, runScript } from "./script.js";
+import { compileSchema, type Validator } from "./validation.js";
 
 const MAX_AGENT_CALLS = 200;
 const MAX_CONCURRENCY = 8;
@@ -49,7 +58,12 @@ const MIGRATIONS = [
     finished_at INTEGER,
     PRIMARY KEY (run_id, call_index)
   )`,
+  `ALTER TABLE calls ADD COLUMN schema_json TEXT;
+   ALTER TABLE calls ADD COLUMN structured_json TEXT;`,
 ];
+
+const MAX_REPAIRS = 2;
+const MAX_SOURCE_BYTES = 512 * 1024;
 
 interface RunRow {
   id: string;
@@ -282,9 +296,10 @@ export default function workflowsServer(bb: PluginServerApi): void {
     const { run, abort } = execution;
     const prompt = z.string().min(1).parse(promptInput);
     const options = agentOptionsSchema.parse(optionsInput ?? {});
-    if (options.schema !== undefined) {
-      throw new Error("agent() schema results are not supported yet");
-    }
+    const validate =
+      options.schema === undefined
+        ? undefined
+        : compileSchema(options.schema, "agent schema");
     const index = execution.next;
     execution.next += 1;
     if (index >= MAX_AGENT_CALLS) {
@@ -301,8 +316,18 @@ export default function workflowsServer(bb: PluginServerApi): void {
     }
     if (own?.key === key && own.status === "running" && own.threadId) {
       const text = await resumeWait(own.threadId, abort.signal);
-      settleCall(run.id, index, "succeeded", text, null);
-      return text;
+      const value = validate
+        ? await structured(
+            run.id,
+            index,
+            own.threadId,
+            text,
+            validate,
+            abort.signal,
+          )
+        : text;
+      settleCall(run.id, index, "succeeded", value, null);
+      return value;
     }
     const prior =
       own === undefined && !execution.diverged && run.resumedFromRunId
@@ -312,8 +337,9 @@ export default function workflowsServer(bb: PluginServerApi): void {
     if (!reuse) execution.diverged = true;
     db.prepare(
       `INSERT OR REPLACE INTO calls (run_id, call_index, key, label, phase,
-       prompt, thread_id, status, cached, result_json, started_at, finished_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       prompt, thread_id, status, cached, result_json, started_at, finished_at,
+       schema_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       run.id,
       index,
@@ -327,6 +353,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
       reuse ? prior.resultJson : null,
       bb.now(),
       reuse ? bb.now() : null,
+      options.schema === undefined ? null : JSON.stringify(options.schema),
     );
     touched();
     if (reuse) return parseJson(prior.resultJson);
@@ -340,7 +367,16 @@ export default function workflowsServer(bb: PluginServerApi): void {
         visibility: "hidden",
         title: label,
         providerId: run.providerId ?? undefined,
-        input: [{ type: "text", text: prompt, mentions: [] }],
+        input: [
+          {
+            type: "text",
+            text:
+              options.schema === undefined
+                ? prompt
+                : `${prompt}\n\nUse bb_workflow_result to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response with {"value": ...}. The value must satisfy this JSON Schema:\n${JSON.stringify(options.schema, null, 2)}\nIf the tool is unavailable, return only the JSON value in your final response as a fallback. If the tool reports validation errors, correct the value and retry. You have at most ${MAX_REPAIRS} corrective retries.`,
+            mentions: [],
+          },
+        ],
         environment: run.environmentId
           ? { type: "reuse", environmentId: run.environmentId }
           : { type: "project-default" },
@@ -350,9 +386,20 @@ export default function workflowsServer(bb: PluginServerApi): void {
         "UPDATE calls SET thread_id = ? WHERE run_id = ? AND call_index = ?",
       ).run(thread.id, run.id, index);
       touched();
+      if (validate) structuredWorkers.add(thread.id);
       const text = await waitFor(thread.id, abort.signal);
-      settleCall(run.id, index, "succeeded", text, null);
-      return text;
+      const value = validate
+        ? await structured(
+            run.id,
+            index,
+            thread.id,
+            text,
+            validate,
+            abort.signal,
+          )
+        : text;
+      settleCall(run.id, index, "succeeded", value, null);
+      return value;
     } catch (error) {
       if (!abort.signal.aborted) {
         settleCall(run.id, index, "failed", null, message(error));
@@ -360,6 +407,64 @@ export default function workflowsServer(bb: PluginServerApi): void {
       throw error;
     } finally {
       release();
+    }
+  }
+
+  function submitted(runId: string, index: number, text: string) {
+    const row = db
+      .prepare(
+        "SELECT structured_json FROM calls WHERE run_id = ? AND call_index = ?",
+      )
+      .get(runId, index) as { structured_json: string | null } | undefined;
+    if (row?.structured_json != null) {
+      return { value: parseJson(row.structured_json) };
+    }
+    try {
+      return { value: JSON.parse(text) as unknown };
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function structured(
+    runId: string,
+    index: number,
+    threadId: string,
+    first: string,
+    validate: Validator,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    structuredWorkers.add(threadId);
+    try {
+      let text = first;
+      for (let attempt = 1; ; attempt += 1) {
+        const outcome = submitted(runId, index, text);
+        const detail =
+          outcome === undefined
+            ? "no bb_workflow_result call and the final response is not JSON"
+            : validate(outcome.value);
+        if (outcome !== undefined && detail === null) return outcome.value;
+        if (attempt > MAX_REPAIRS) {
+          throw new Error(
+            `Structured output failed after ${MAX_REPAIRS} corrective retries: ${detail}`,
+          );
+        }
+        const waiting = waitFor(threadId, signal);
+        await bb.call(threads.send, {
+          threadId,
+          input: [
+            {
+              type: "text",
+              text: `Structured result missing or invalid (${detail}). Call bb_workflow_result with one value matching the required schema. Corrective turn ${attempt} of ${MAX_REPAIRS}.`,
+              mentions: [],
+            },
+          ],
+          mode: "queue-if-active",
+        });
+        text = await waiting;
+      }
+    } finally {
+      structuredWorkers.delete(threadId);
     }
   }
 
@@ -415,24 +520,37 @@ export default function workflowsServer(bb: PluginServerApi): void {
     ).run(bb.now(), runId);
     touched();
     try {
-      const { body } = parseWorkflow(run.source);
-      const result = await runScript(body, {
-        args: parseJson(run.argsJson),
-        agent: (prompt, options) => agent(execution, prompt, options),
-        phase: (title) => {
-          execution.phase = String(title);
-          db.prepare("UPDATE runs SET phase = ? WHERE id = ?").run(
-            execution.phase,
-            runId,
-          );
-          touched();
+      const { body, meta } = parseWorkflow(run.source);
+      const result = await runScript(
+        body,
+        {
+          args: parseJson(run.argsJson),
+          agent: (prompt, options) => agent(execution, prompt, options),
+          phase: (title) => {
+            execution.phase = String(title);
+            db.prepare("UPDATE runs SET phase = ? WHERE id = ?").run(
+              execution.phase,
+              runId,
+            );
+            touched();
+          },
+          log: (text) => bb.log.info(String(text), { runId }),
+          budget: () => ({
+            maxAgentCalls: MAX_AGENT_CALLS,
+            concurrency: MAX_CONCURRENCY,
+          }),
         },
-        log: (text) => bb.log.info(String(text), { runId }),
-        budget: () => ({
-          maxAgentCalls: MAX_AGENT_CALLS,
-          concurrency: MAX_CONCURRENCY,
-        }),
-      });
+        execution.abort.signal,
+      );
+      const invalid =
+        meta.outputSchema === undefined
+          ? null
+          : compileSchema(meta.outputSchema, "meta.outputSchema")(result);
+      if (invalid !== null) {
+        throw new Error(
+          `Workflow result does not match outputSchema: ${invalid}`,
+        );
+      }
       if (!execution.abort.signal.aborted) {
         finish(runId, "succeeded", result, null);
       }
@@ -460,19 +578,97 @@ export default function workflowsServer(bb: PluginServerApi): void {
     else early.set(thread.id, { error: failure });
   });
 
-  bb.implement(workflows.create, async (input, { caller }) => {
-    if (input.script !== undefined && input.source !== undefined) {
-      return toolError("Provide either `script` or `source`, not both");
+  async function resolveSource(
+    input: z.infer<typeof workflows.validate.input>,
+    threadId: string | null,
+  ): Promise<string> {
+    const given = [
+      input.script,
+      input.source,
+      input.scriptPath,
+      input.name,
+    ].filter((value) => value !== undefined);
+    if (given.length !== 1) {
+      throw new Error(
+        "Provide exactly one of `script`, `source`, `scriptPath` or `name`",
+      );
     }
-    const source = input.script ?? input.source;
-    if (source === undefined) return toolError("Provide a workflow `script`");
+    const inline = input.script ?? input.source;
+    if (inline !== undefined) return inline;
+    const environmentId =
+      threadId === null
+        ? null
+        : (await bb.call(threads.get, { threadId })).environmentId;
+    const environment = environmentId
+      ? await bb.call(environments.get, { environmentId })
+      : null;
+    if (environment?.path == null) {
+      throw new Error("Workflow files need a thread with a workspace");
+    }
+    const root = posix.normalize(environment.path);
+    const path = posix.resolve(
+      root,
+      input.name ? `.bb/workflows/${input.name}.js` : (input.scriptPath ?? ""),
+    );
+    if (path !== root && !path.startsWith(`${root}/`)) {
+      throw new Error("Workflow files must stay inside the workspace");
+    }
+    const file = await bb.call(machines.readFile, {
+      hostId: environment.hostId,
+      path,
+      rootPath: root,
+    });
+    if (file.sizeBytes > MAX_SOURCE_BYTES) {
+      throw new Error(`Workflow source exceeds ${MAX_SOURCE_BYTES} bytes`);
+    }
+    return file.contentEncoding === "base64"
+      ? Buffer.from(file.content, "base64").toString("utf8")
+      : file.content;
+  }
+
+  bb.implement(workflows.validate, async (input, { caller }) => {
+    const { meta } = parseWorkflow(await resolveSource(input, caller.thread));
+    if (meta.inputSchema !== undefined) {
+      compileSchema(meta.inputSchema, "meta.inputSchema");
+    }
+    if (meta.outputSchema !== undefined) {
+      compileSchema(meta.outputSchema, "meta.outputSchema");
+    }
+    return {
+      name: meta.name,
+      description: meta.description,
+      phases: (meta.phases ?? []).map((phase) => phase.title),
+    };
+  });
+
+  bb.implement(workflows.create, async (input, { caller }) => {
     if (caller.thread === null) {
       return toolError("Workflows start from an agent thread");
+    }
+    let source: string;
+    try {
+      source = await resolveSource(input, caller.thread);
+      if (caller.door === "cli" && typeof input.args === "string") {
+        input = { ...input, args: JSON.parse(input.args) as unknown };
+      }
+    } catch (error) {
+      return toolError(message(error));
     }
     const origin = await bb.call(threads.get, { threadId: caller.thread });
     let meta;
     try {
       meta = parseWorkflow(source).meta;
+      const invalid =
+        meta.inputSchema === undefined
+          ? null
+          : compileSchema(
+              meta.inputSchema,
+              "meta.inputSchema",
+            )(input.args ?? null);
+      if (invalid !== null) throw new Error(`Invalid args: ${invalid}`);
+      if (meta.outputSchema !== undefined) {
+        compileSchema(meta.outputSchema, "meta.outputSchema");
+      }
     } catch (error) {
       return toolError(message(error));
     }
@@ -514,6 +710,34 @@ export default function workflowsServer(bb: PluginServerApi): void {
       name: meta.name,
       previewDirective: `::workflow-preview{run="${runId}"}`,
     };
+  });
+
+  bb.implement(workflows.result, ({ value }, { caller }) => {
+    const row =
+      caller.thread === null
+        ? undefined
+        : (db
+            .prepare(
+              `SELECT run_id, call_index, schema_json FROM calls
+               WHERE thread_id = ? AND status = 'running'
+               AND schema_json IS NOT NULL`,
+            )
+            .get(caller.thread) as
+            | { run_id: string; call_index: number; schema_json: string }
+            | undefined);
+    if (row === undefined) {
+      return toolError("This thread has no workflow call awaiting a result");
+    }
+    const invalid = compileSchema(JSON.parse(row.schema_json))(value);
+    if (invalid !== null) {
+      return toolError(
+        `Value does not match the required schema (${invalid}). Correct it and retry.`,
+      );
+    }
+    db.prepare(
+      "UPDATE calls SET structured_json = ? WHERE run_id = ? AND call_index = ?",
+    ).run(JSON.stringify(value ?? null), row.run_id, row.call_index);
+    return "Structured result recorded.";
   });
 
   bb.implement(workflows.get, ({ runId }) => view(requireRun(runId)));

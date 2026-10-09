@@ -1,6 +1,8 @@
 import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
+export const structuredWorkers = new Set<string>();
+
 export const runStatusSchema = z.enum([
   "queued",
   "running",
@@ -66,6 +68,21 @@ const sourceFields = {
     .min(1)
     .describe("Alias for `script`. Do not provide both `source` and `script`.")
     .optional(),
+  scriptPath: z
+    .string()
+    .min(1)
+    .describe(
+      "Path to a workflow script file on the origin environment's host. Relative paths start at the workspace root and all paths must remain inside that workspace.",
+    )
+    .optional(),
+  name: z
+    .string()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .max(64)
+    .describe(
+      "Name of a saved workflow from the current workspace's .bb/workflows/ directory.",
+    )
+    .optional(),
 };
 
 export const workflows = contract("workflows", {
@@ -97,6 +114,10 @@ export const workflows = contract("workflows", {
     }),
     kind: "write",
     doors: {
+      cli: {
+        path: "workflows run",
+        summary: "Start a workflow and return immediately",
+      },
       agent: {
         name: "bb_workflow_run",
         description:
@@ -108,6 +129,20 @@ export const workflows = contract("workflows", {
           },
           icon: { glyph: "Workflow" },
         },
+      },
+    },
+  }),
+  validate: op({
+    input: z.object(sourceFields).strict(),
+    output: z.object({
+      name: z.string(),
+      description: z.string(),
+      phases: z.array(z.string()),
+    }),
+    doors: {
+      cli: {
+        path: "workflows validate",
+        summary: "Check a workflow's source and metadata without running it",
       },
     },
   }),
@@ -168,6 +203,23 @@ export const workflows = contract("workflows", {
           ]
             .map((record) => JSON.stringify(record))
             .join("\n"),
+      },
+    },
+  }),
+  result: op({
+    input: z.object({
+      value: z
+        .unknown()
+        .describe("The structured value matching the required schema"),
+    }),
+    output: z.string(),
+    kind: "write",
+    doors: {
+      agent: {
+        name: "bb_workflow_result",
+        description:
+          "Submit this workflow call's structured result. Call it exactly once at the end of your response with { value } matching the JSON Schema in your prompt.",
+        enabledFor: ({ threadId }) => structuredWorkers.has(threadId),
       },
     },
   }),
