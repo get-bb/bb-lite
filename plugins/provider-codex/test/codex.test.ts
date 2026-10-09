@@ -6,6 +6,7 @@ import {
   replayCodexRecording,
 } from "./codex-replay.js";
 import { internIds, kept, until } from "../../../packages/runner/test/kit.js";
+import { createCodexAdapter } from "../runner/codex.js";
 
 const SCENARIOS = [
   "turn-tools",
@@ -79,5 +80,17 @@ describe("codex checkpoint fork", () => {
     const refused = expect(opening).rejects.toThrow("0.143.0 or newer");
     await fake.reply("initialize", { userAgent: "codex_cli_rs/0.142.9 (x)" });
     await refused;
+  });
+});
+
+describe("codex status", () => {
+  it("offers the install command when the CLI is missing", async () => {
+    const adapter = createCodexAdapter({ command: "codex-not-on-path" });
+    const status = await adapter.status();
+    expect(status.installed).toBe(false);
+    expect(status.installAction).toEqual({
+      kind: "install",
+      command: "npm install -g @openai/codex@latest",
+    });
   });
 });

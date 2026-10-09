@@ -41,6 +41,10 @@ export interface CodexAdapterOptions {
 
 const MISSING_CLI =
   "bb could not find the Codex CLI on this machine. Install Codex (https://developers.openai.com/codex/cli) or put `codex` on PATH, then retry.";
+const INSTALL = {
+  kind: "install" as const,
+  command: "npm install -g @openai/codex@latest",
+};
 const ARCHIVED = /\b(?:session|thread)\s+\S+\s+is archived\b/i;
 const ACCOUNT_ERROR = /\b(?:40[13]|429|unauthori[sz]ed|quota|usage limit)\b/i;
 const INITIALIZE = {
@@ -369,7 +373,9 @@ export function createCodexAdapter(
       const status = { providerId: "codex" as const, executablePath };
       if (executablePath === null) {
         const missing = { installed: false, auth: "unknown" as const };
-        return { ...status, ...missing, version: null, message: MISSING_CLI };
+        const message = MISSING_CLI;
+        const installAction = INSTALL;
+        return { ...status, ...missing, version: null, message, installAction };
       }
       const run = (args: string[]) =>
         promisify(execFile)(executablePath, args, { env, timeout: 10_000 })

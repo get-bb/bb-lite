@@ -47,6 +47,10 @@ export interface ClaudeAdapterOptions {
 
 const MISSING_CLI =
   "bb could not find the Claude Code CLI on this machine. Install Claude Code (https://claude.com/claude-code), or set BB_CLAUDE_CODE_EXECUTABLE to the full path of the claude binary, then restart bb.";
+const INSTALL = {
+  kind: "install" as const,
+  command: "curl -fsSL https://claude.ai/install.sh | bash",
+};
 const MISSING_BINARY = /Native CLI binary for .+ not found/;
 const STOPPED = "Thread stopped while awaiting permission approval";
 const ENDED = "Claude Code ended its session";
@@ -313,7 +317,9 @@ export function createClaudeAdapter(
       const status = { providerId: "claude-code" as const, executablePath };
       if (executablePath === null) {
         const missing = { installed: false, auth: "unknown" as const };
-        return { ...status, ...missing, version: null, message: MISSING_CLI };
+        const message = MISSING_CLI;
+        const installAction = INSTALL;
+        return { ...status, ...missing, version: null, message, installAction };
       }
       const run = (args: string[]) =>
         promisify(execFile)(executablePath, args, { env, timeout: 10_000 })
