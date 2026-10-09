@@ -508,6 +508,71 @@ export function useDeleteThreadQueuedMessage() {
   });
 }
 
+interface QueueOrderRequest {
+  id: string;
+  orderedMessages: Queue;
+}
+
+function useQueueOrderMutation<Request extends QueueOrderRequest>(
+  errorMessage: string,
+  write: (request: Request) => Promise<Queue>,
+) {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { errorMessage, showErrorToast: false },
+    mutationFn: write,
+    onMutate: async ({ id, orderedMessages }: Request) => {
+      const queryKey = qk.queue(id);
+      await client.cancelQueries({ queryKey });
+      const previous = client.getQueryData<Queue>(queryKey);
+      client.setQueryData<Queue>(queryKey, orderedMessages);
+      return previous;
+    },
+    onError: (_error, { id }, previous) => {
+      client.setQueryData(qk.queue(id), previous);
+    },
+    onSuccess: (queue, { id }) => {
+      client.setQueryData(qk.queue(id), queue);
+    },
+    onSettled: (_data, _error, { id }) => refreshRuntime(client, id),
+  });
+}
+
+export function useReorderThreadQueuedMessages() {
+  return useQueueOrderMutation(
+    "Failed to reorder queued message.",
+    ({
+      id,
+      queuedMessageIds,
+    }: QueueOrderRequest & {
+      queuedMessageIds: string[];
+    }) =>
+      callOp(threads.reorderQueuedMessages, {
+        threadId: id,
+        queuedMessageIds,
+      }),
+  );
+}
+
+export function useSetThreadQueuedMessageBoundary() {
+  return useQueueOrderMutation(
+    "Failed to group queued messages.",
+    ({
+      id,
+      queuedMessageId,
+      expectedGroupedPrefixQueuedMessageIds,
+    }: QueueOrderRequest & {
+      queuedMessageId: string;
+      expectedGroupedPrefixQueuedMessageIds: string[];
+    }) =>
+      callOp(threads.setQueuedMessageBoundary, {
+        threadId: id,
+        queuedMessageId,
+        expectedGroupedPrefixQueuedMessageIds,
+      }),
+  );
+}
+
 export function useStopThread() {
   const client = useQueryClient();
   return useMutation({

@@ -43,6 +43,8 @@ export { default as Copy } from "@hugeicons/core-free-icons/Copy01Icon";
 export { default as CornerDownLeft } from "@hugeicons/core-free-icons/ArrowMoveDownLeftIcon";
 export { default as CornerDownRight } from "@hugeicons/core-free-icons/ArrowMoveDownRightIcon";
 export { default as Download } from "@hugeicons/core-free-icons/Download01Icon";
+export { default as DragDropHorizontal } from "@hugeicons/core-free-icons/DragDropHorizontalIcon";
+export { default as DragDropVertical } from "@hugeicons/core-free-icons/DragDropVerticalIcon";
 export { default as Edit } from "@hugeicons/core-free-icons/Edit02Icon";
 export { default as EditFile } from "@hugeicons/core-free-icons/Edit04Icon";
 export { default as Explore } from "@hugeicons/core-free-icons/Book02Icon";

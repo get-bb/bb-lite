@@ -57,10 +57,13 @@ import {
 import { useDraftAttachmentUploads } from "bb-plugin-composer/contract";
 import { usePromptTypeahead } from "bb-plugin-composer/contract";
 import { usePromptDraftStorage } from "bb-plugin-composer/contract";
+import type { QueuedMessageOrderChange } from "bb-plugin-composer/contract";
 import {
   useCreateThreadQueuedMessage,
   useDeleteThreadQueuedMessage,
+  useReorderThreadQueuedMessages,
   useSendThreadQueuedMessage,
+  useSetThreadQueuedMessageBoundary,
   useStopThread,
   useUpdateThreadQueuedMessage,
 } from "@bb/app-kit/hooks/mutations/thread-runtime-mutations";
@@ -228,6 +231,8 @@ export function ThreadDetailPromptArea({
   const updateQueuedMessage = useUpdateThreadQueuedMessage();
   const sendQueuedMessage = useSendThreadQueuedMessage();
   const deleteQueuedMessage = useDeleteThreadQueuedMessage();
+  const reorderQueuedMessages = useReorderThreadQueuedMessages();
+  const setQueuedMessageBoundary = useSetThreadQueuedMessageBoundary();
   const stopThread = useStopThread();
   const unarchiveThread = useUnarchiveThread();
   const threadHost =
@@ -418,9 +423,36 @@ export function ThreadDetailPromptArea({
       )
       .then(() => clearProcessing(queuedMessageId));
   };
+  const handleChangeQueuedMessageOrder = (change: QueuedMessageOrderChange) => {
+    const request = { id: thread.id, orderedMessages: change.orderedMessages };
+    const write =
+      change.kind === "row"
+        ? reorderQueuedMessages.mutateAsync({
+            ...request,
+            queuedMessageIds: change.queuedMessageIds,
+          })
+        : setQueuedMessageBoundary.mutateAsync({
+            ...request,
+            queuedMessageId: change.queuedMessageId,
+            expectedGroupedPrefixQueuedMessageIds:
+              change.expectedGroupedPrefixQueuedMessageIds,
+          });
+    void write.catch((error: unknown) =>
+      showMutationErrorToast({
+        error,
+        fallbackMessage:
+          change.kind === "row"
+            ? "Failed to reorder queued message."
+            : "Failed to group queued messages.",
+        lifecycleOperation: "queue_message",
+      }),
+    );
+  };
   const isQueueMutationPending =
     createQueuedMessage.isPending ||
     deleteQueuedMessage.isPending ||
+    reorderQueuedMessages.isPending ||
+    setQueuedMessageBoundary.isPending ||
     sendQueuedMessage.isPending ||
     updateQueuedMessage.isPending ||
     isFollowUpShortcutSending;
@@ -746,6 +778,7 @@ export function ThreadDetailPromptArea({
           }
           onEdit={beginEditQueuedMessage}
           onDelete={handleDeleteQueuedMessage}
+          onChangeOrder={handleChangeQueuedMessageOrder}
         />
       )}
     </>

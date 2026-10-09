@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type DragEvent,
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
@@ -56,6 +57,14 @@ import {
 } from "@bb/app-kit/components/ui/markdown-prompt-mentions";
 import { normalizePromptBlockquoteBoundaries } from "@bb/app-kit/components/ui/markdown-prompt-blockquote-boundaries";
 import { QueuedEditorTypeaheadLayoutContext } from "../queued-editor-typeahead-layout";
+import {
+  GROUP_DIVIDER_ID,
+  groupBoundaryIndexOf,
+  moveGroupBoundary,
+  moveQueuedMessage,
+  resolveQueuedMessageDrag,
+  type QueuedMessageOrderChange,
+} from "./queued-message-order";
 
 export type QueuedMessageProcessingAction = "send" | "edit" | "delete";
 type QueuedMessageSendAction = "send-now" | "steer-when-ready";
@@ -85,6 +94,94 @@ interface QueuedMessagesListProps {
   onSend: (id: string) => void;
   onEdit: (request: QueuedMessageEditRequest) => void;
   onDelete: (id: string) => void;
+  onChangeOrder?: (change: QueuedMessageOrderChange) => void;
+}
+
+interface QueuedMessageDragHandlers {
+  disabled: boolean;
+  dragging: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDrop: (overId: string) => void;
+  onMove: (id: string, offset: -1 | 1) => void;
+}
+
+const DRAG_MIME = "application/x-bb-queued-message";
+
+function dropTargetProps(drag: QueuedMessageDragHandlers, overId: string) {
+  return {
+    onDragOver: (event: DragEvent) => {
+      if (!drag.dragging) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    onDrop: (event: DragEvent) => {
+      if (!drag.dragging) return;
+      event.preventDefault();
+      drag.onDrop(overId);
+    },
+  };
+}
+
+function arrowOffset(key: string): -1 | 1 | null {
+  if (key === "ArrowUp") return -1;
+  if (key === "ArrowDown") return 1;
+  return null;
+}
+
+function QueueGroupBoundaryHandle({
+  drag,
+}: {
+  drag: QueuedMessageDragHandlers;
+}) {
+  return (
+    <li
+      data-queued-message-group-divider=""
+      className="relative z-10 h-0 list-none"
+      {...dropTargetProps(drag, GROUP_DIVIDER_ID)}
+    >
+      <div className="absolute left-1/2 top-[-0.5px] -translate-x-1/2 -translate-y-1/2">
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                draggable={!drag.disabled}
+                aria-disabled={drag.disabled}
+                aria-label="Messages above send together"
+                aria-keyshortcuts="ArrowUp ArrowDown"
+                className={cn(
+                  "flex size-6 shrink-0 select-none items-center justify-center rounded-full border border-transparent text-muted-foreground transition-[background-color,border-color,box-shadow,color] hover:border-border hover:bg-background hover:shadow-sm focus-visible:border-border focus-visible:bg-background focus-visible:shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/queue:border-border group-hover/queue:bg-background [@media(hover:none)]:border-border [@media(hover:none)]:bg-background",
+                  !drag.disabled && "cursor-grab active:cursor-grabbing",
+                )}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData(DRAG_MIME, GROUP_DIVIDER_ID);
+                  drag.onDragStart(GROUP_DIVIDER_ID);
+                }}
+                onDragEnd={drag.onDragEnd}
+                onKeyDown={(event) => {
+                  const offset = arrowOffset(event.key);
+                  if (offset === null || drag.disabled) return;
+                  event.preventDefault();
+                  drag.onMove(GROUP_DIVIDER_ID, offset);
+                }}
+              >
+                <Icon
+                  name="DragDropHorizontal"
+                  className="size-3.5 opacity-55"
+                  aria-hidden="true"
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-md:hidden">
+              Messages above send together
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    </li>
+  );
 }
 
 const COLLAPSED_HEIGHT = 44;
@@ -361,7 +458,9 @@ function QueuedMessageRow({
   onEdit,
   onDelete,
   compact,
+  drag,
 }: {
+  drag: QueuedMessageDragHandlers;
   senderLabel: string | null;
   queuedMessage: ThreadQueuedMessage;
   resolveMentionLink?: PromptMentionLinkResolver;
@@ -409,9 +508,43 @@ function QueuedMessageRow({
         "group/dispatch-row relative border-b border-border/35 px-2.5 py-0.5",
         index > 0 && "last:border-b-0",
       )}
+      {...dropTargetProps(drag, queuedMessage.id)}
     >
       <div className="flex items-center gap-1.5">
-        <span aria-hidden className="-ml-2 h-7 w-5 shrink-0" />
+        <button
+          type="button"
+          data-queued-message-reorder=""
+          draggable={!drag.disabled}
+          aria-disabled={drag.disabled}
+          aria-label={`Reorder queued message ${index + 1}`}
+          aria-keyshortcuts="ArrowUp ArrowDown"
+          className={cn(
+            "-ml-2 flex h-7 w-5 shrink-0 items-center justify-center rounded-md px-0.5 text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            !drag.disabled && "cursor-grab active:cursor-grabbing",
+          )}
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData(DRAG_MIME, queuedMessage.id);
+            drag.onDragStart(queuedMessage.id);
+          }}
+          onDragEnd={drag.onDragEnd}
+          onKeyDown={(event) => {
+            const offset = arrowOffset(event.key);
+            if (offset === null || drag.disabled) return;
+            event.preventDefault();
+            drag.onMove(queuedMessage.id, offset);
+          }}
+        >
+          <Icon
+            name="DragDropVertical"
+            className={cn(
+              "size-3.5 shrink-0 opacity-0 transition-opacity",
+              !drag.disabled &&
+                "group-hover/dispatch-row:opacity-100 group-focus-within/dispatch-row:opacity-100 [@media(hover:none)]:opacity-100",
+            )}
+            aria-hidden="true"
+          />
+        </button>
         <div className={cn("min-w-0 flex-1 py-1", hasMetadata && "py-1.5")}>
           <div className="flex min-w-0 items-center gap-1">
             <QueuedMessagePreview
@@ -647,7 +780,69 @@ function QueuedMessagesListSurface({
   onSend,
   onEdit,
   onDelete,
+  onChangeOrder,
 }: QueuedMessagesListProps) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<{
+    id: string;
+    order: string;
+  } | null>(null);
+  const orderOf = (messages: readonly ThreadQueuedMessage[]) =>
+    messages.map((message) => message.id).join("\n");
+  const applyOrderChange = (
+    change: QueuedMessageOrderChange | null,
+    focusId: string | null,
+  ) => {
+    if (!change || !onChangeOrder) return;
+    onChangeOrder(change);
+    setPendingFocus(
+      focusId === null
+        ? null
+        : { id: focusId, order: orderOf(change.orderedMessages) },
+    );
+  };
+  useLayoutEffect(() => {
+    if (pendingFocus === null) return;
+    if (pendingFocus.order !== orderOf(queuedMessages)) return;
+    setPendingFocus(null);
+    const selector =
+      pendingFocus.id === GROUP_DIVIDER_ID
+        ? "[data-queued-message-group-divider] button"
+        : `[data-queued-message-id="${CSS.escape(pendingFocus.id)}"] [data-queued-message-reorder]`;
+    listRef.current?.querySelector<HTMLElement>(selector)?.focus();
+  });
+  const drag: QueuedMessageDragHandlers = {
+    disabled:
+      !onChangeOrder ||
+      actionDisabled ||
+      processingMessageId !== null ||
+      inlineEditor !== undefined ||
+      queuedMessages.length < 2,
+    dragging: draggingId !== null,
+    onDragStart: setDraggingId,
+    onDragEnd: () => setDraggingId(null),
+    onDrop: (overId) => {
+      const activeId = draggingId;
+      setDraggingId(null);
+      if (activeId === null) return;
+      applyOrderChange(
+        resolveQueuedMessageDrag({
+          activeId,
+          overId,
+          orderedMessages: queuedMessages,
+        }),
+        null,
+      );
+    },
+    onMove: (id, offset) =>
+      applyOrderChange(
+        id === GROUP_DIVIDER_ID
+          ? moveGroupBoundary(queuedMessages, offset)
+          : moveQueuedMessage(queuedMessages, id, offset),
+        id,
+      ),
+  };
+  const groupBoundaryIndex = groupBoundaryIndexOf(queuedMessages);
   const senderThreadMetadataById = useSenderThreadMetadataById();
   const lookupUser = useUserAttributionLookup();
   const getScrollElement = useBottomAnchoredScroll()?.getScrollElement;
@@ -844,7 +1039,7 @@ function QueuedMessagesListSurface({
         >
           <div ref={topSentinelRef} aria-hidden className="h-px w-full" />
           <ul ref={listRef} className="group/queue py-1">
-            {queuedMessages.map((queuedMessage, index) =>
+            {queuedMessages.flatMap((queuedMessage, index) => [
               queuedMessage.id === inlineEditor?.queuedMessageId ? (
                 <QueuedMessageInlineEditorSlot
                   key={`inline-editor:${inlineEditor.queuedMessageId}`}
@@ -853,6 +1048,7 @@ function QueuedMessagesListSurface({
               ) : (
                 <QueuedMessageRow
                   key={queuedMessage.id}
+                  drag={drag}
                   queuedMessage={queuedMessage}
                   senderLabel={senderLabelOf(
                     queuedMessage,
@@ -882,7 +1078,10 @@ function QueuedMessagesListSurface({
                   onDelete={onDelete}
                 />
               ),
-            )}
+              index === groupBoundaryIndex && queuedMessages.length > 1 ? (
+                <QueueGroupBoundaryHandle key={GROUP_DIVIDER_ID} drag={drag} />
+              ) : null,
+            ])}
           </ul>
           <div ref={bottomSentinelRef} aria-hidden className="h-px w-full" />
         </div>

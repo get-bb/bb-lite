@@ -28,6 +28,7 @@ export type {
   QueuedMessageInlineEditor,
   QueuedMessageProcessingAction,
 } from "./app/components/promptbox/banner/QueuedMessagesList";
+export type { QueuedMessageOrderChange } from "./app/components/promptbox/banner/queued-message-order";
 export type {
   ContextBannerMergeBaseConfig,
   ThreadPromptChildThreadsSection,
